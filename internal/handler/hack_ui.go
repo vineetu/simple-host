@@ -39,8 +39,12 @@ func RegisterHackUI(mux *http.ServeMux) {
 		if cookie, err := r.Cookie("sh_hack_ui"); err == nil {
 			useNext = cookie.Value == "next"
 		}
-		if choice := r.URL.Query().Get("ui"); choice == "next" || choice == "classic" {
-			useNext = choice == "next"
+		// "new" is accepted as an alias of "next" (Grok retest BROKEN #1:
+		// classic is sticky once chosen via a cookie no page offers a way back
+		// out of; a visitor guessing the opposite of ?ui=classic typed ?ui=new
+		// and got no effect).
+		if choice := r.URL.Query().Get("ui"); choice == "next" || choice == "new" || choice == "classic" {
+			useNext = choice != "classic"
 			cookie := &http.Cookie{Name: "sh_hack_ui", Value: "next", Path: "/", SameSite: http.SameSiteLaxMode, Secure: r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https"), MaxAge: 365 * 24 * 60 * 60}
 			if !useNext {
 				cookie.Value = "classic" // remembered, now that next is the default

@@ -385,7 +385,26 @@ async function route() {
     let event = null, role = null
     if (match.slug) {
       const r = await api.getEvent(match.slug)
-      if (!r.ok) throw new Error(r.data.error || 'Could not open this event')
+      if (!r.ok) {
+        // S15: a missing or deleted event hit at the top level (/e/<slug>/
+        // team|manage|judge, before any screen module loads) used to fall
+        // through to the generic catch below -- a bare error outside the
+        // app frame. Give it the same friendly card the public /e/<slug>
+        // page already has, inside the shell (no event, so just the Home
+        // level: brand, top nav, no switcher) instead.
+        if (turn !== generation) return
+        if (r.status === 404 || (r.data && r.data.code === 'event_not_found')) {
+          const notFoundCtx = { ...data, api, ui, event: null, role: null, params: new URLSearchParams(location.search), go,
+            alive: () => turn === generation,
+            refresh: async () => { initialData = null; return route() } }
+          const notFoundMain = mount(notFoundCtx, null, 'event-not-found')
+          notFoundMain.innerHTML = `<section class="locked"><h2>Event not found</h2><p>It may have been deleted, or the link is wrong.</p><p><a class="btn primary" href="/events">Home</a> <a class="btn" href="/directory">Find a hackathon</a></p></section>`
+          document.title = 'Event not found · Simple Hack'
+          document.body.classList.remove('booting')
+          return
+        }
+        throw new Error(r.data.error || 'Could not open this event')
+      }
       event = r.data
       role = event.role
       if (!['organiser', 'participant', 'judge'].includes(role)) throw new Error('You do not have access to this event')

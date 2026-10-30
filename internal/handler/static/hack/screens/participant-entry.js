@@ -250,8 +250,16 @@ function paint (ctx, ev, data) {
 // toast, with both versions shown side by side.
 async function showConflict (ctx, ev, data, myBody, newer) {
   const { ui } = ctx
-  const changed = FIELDS.filter(f => Object.prototype.hasOwnProperty.call(myBody, f) && (myBody[f] || '') !== (newer[f] || ''))
-  const fields = changed.length ? changed : FIELDS
+  // Confusing #5: this used to fall back to showing every field whenever
+  // none of the fields *this person* touched (myBody) differed from the
+  // newer version -- e.g. only the teammate changed something -- padding
+  // the dialog with fields that read identically on both sides ("Their
+  // tagline" showing the same tagline). Compare every field's actual value
+  // (mine: what's in myBody if this person touched it, else the baseline
+  // they loaded) against the newer version instead, and only ever list
+  // ones that genuinely differ -- never a blanket fallback to FIELDS.
+  function mineOf (f) { return Object.prototype.hasOwnProperty.call(myBody, f) ? myBody[f] : (data.entry && data.entry[f]) || '' }
+  const changed = FIELDS.filter(f => (mineOf(f) || '') !== (newer[f] || ''))
   // Two-column compare, built on the shared dialog primitive (ui.confirm)
   // instead of its own scrim: "Keep mine" is the confirm button (focused by
   // default, since this is a real choice between two versions, not a
@@ -259,17 +267,21 @@ async function showConflict (ctx, ev, data, myBody, newer) {
   // theirs" is cancel, matching Escape/backdrop-click's existing behaviour.
   const grid = document.createElement('div')
   grid.className = 'grid2'
-  for (const f of fields) {
-    const mine = Object.prototype.hasOwnProperty.call(myBody, f) ? myBody[f] : (data.entry && data.entry[f]) || ''
-    const mineCard = document.createElement('div')
-    mineCard.className = 'card'
-    mineCard.append(Object.assign(document.createElement('h2'), { textContent: 'Your ' + (LABEL[f] || f).toLowerCase() }))
-    mineCard.append(Object.assign(document.createElement('p'), { textContent: mine || '(empty)' }))
-    const theirCard = document.createElement('div')
-    theirCard.className = 'card'
-    theirCard.append(Object.assign(document.createElement('h2'), { textContent: 'Their ' + (LABEL[f] || f).toLowerCase() }))
-    theirCard.append(Object.assign(document.createElement('p'), { textContent: newer[f] || '(empty)' }))
-    grid.append(mineCard, theirCard)
+  if (changed.length) {
+    for (const f of changed) {
+      const mine = mineOf(f)
+      const mineCard = document.createElement('div')
+      mineCard.className = 'card'
+      mineCard.append(Object.assign(document.createElement('h2'), { textContent: 'Your ' + (LABEL[f] || f).toLowerCase() }))
+      mineCard.append(Object.assign(document.createElement('p'), { textContent: mine || '(empty)' }))
+      const theirCard = document.createElement('div')
+      theirCard.className = 'card'
+      theirCard.append(Object.assign(document.createElement('h2'), { textContent: 'Their ' + (LABEL[f] || f).toLowerCase() }))
+      theirCard.append(Object.assign(document.createElement('p'), { textContent: newer[f] || '(empty)' }))
+      grid.append(mineCard, theirCard)
+    }
+  } else {
+    grid.append(Object.assign(document.createElement('p'), { textContent: 'Nothing in your edit is different from theirs.' }))
   }
   return ui.confirm({
     title: 'A teammate changed this entry while you were editing',

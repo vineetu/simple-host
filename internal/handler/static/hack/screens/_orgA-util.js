@@ -29,15 +29,22 @@ export function moveItem(arr, i, dir) {
   const t = arr[i]; arr[i] = arr[j]; arr[j] = t
 }
 
-// adminLock disables every write control in main for the platform-admin
-// read-only view (Copy buttons and the People role filter stay live), and
-// shows the one banner every organiser screen carries in that state.
-export function adminLock(main, admin) {
-  if (!admin) return
+// adminLock disables every write control in main and shows the one banner
+// that explains why, for either case these settings-style screens (Event
+// page, People) share: a platform-admin inspection, or -- passing the
+// event as the third argument -- an archived event (S14: one note,
+// "Settings can't change any more", not sprinkled per section). Copy
+// buttons and the People role filter stay live either way (marked
+// data-admin-live).
+export function adminLock(main, admin, ev) {
+  const archived = !admin && ev && ev.stage === 'archived'
+  if (!admin && !archived) return
   const banner = document.createElement('div')
   banner.className = 'note warn'
   banner.setAttribute('role', 'alert')
-  banner.textContent = 'Viewing as platform admin. Everything here is read only.'
+  banner.textContent = admin
+    ? 'Viewing as platform admin. Everything here is read only.'
+    : "This event has ended. Settings can't change any more."
   main.insertBefore(banner, main.firstChild)
   main.querySelectorAll('button, input, textarea, select').forEach(n => {
     if (n.hasAttribute('data-admin-live')) return

@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -755,11 +756,26 @@ func hackDateRange(a, b time.Time) string {
 	return a.Format("2 January 2006") + "–" + b.Format("2 January 2006")
 }
 
-// hackScheduleViews orders each item's time range, marks Now/Next, and shows
-// the end date too when an item spans more than one day
-// (tech_notes/fixes: "Multi-day schedule items showed only the end time").
+// hackScheduleViews sorts rows by start time (Grok re-test cosmetic #4: rows
+// used to list in whatever order the organiser entered them, so "Demos"
+// could print above "Kickoff" and the Next badge landed on the wrong row),
+// marks Now/Next, and shows the end date too when an item spans more than one
+// day (tech_notes/fixes: "Multi-day schedule items showed only the end time").
+// A row with an unparseable time sorts last and is dropped below, same as
+// before.
 func hackScheduleViews(items []hackScheduleItem, loc *time.Location, zoneFallback string) []hackScheduleView {
 	items = append([]hackScheduleItem(nil), items...)
+	sort.SliceStable(items, func(i, j int) bool {
+		si, ei := time.Parse(time.RFC3339, items[i].StartAt)
+		sj, ej := time.Parse(time.RFC3339, items[j].StartAt)
+		if ei != nil {
+			return false
+		}
+		if ej != nil {
+			return true
+		}
+		return si.Before(sj)
+	})
 	now := time.Now()
 	next, ongoing := -1, -1
 	for i, item := range items {

@@ -130,6 +130,13 @@ export async function render(ctx) {
   const code = newTabLink(row.code_url, 'View code', 'btn')
   const site = siteHref(row)
   const submitted = row.updated_at ? `<p>Submitted ${ui.esc(ui.dateTime(row.updated_at, ev))}</p>` : ''
+  // Retest Cosmetic #5: a team that never submitted an entry at all gets a
+  // different line than one that submitted an entry but just never
+  // published a site -- "Nothing published yet" reads as "it's still
+  // coming", which is misleading once there's no entry to publish from.
+  // (row.title, not the fallback-to-"Entry" `title` above, which is never
+  // falsy -- same raw check the "No entry yet" note just below already uses.)
+  const noEntry = !row.title && !tagline && !desc
 
   // No empty "Team site" heading over nothing (SIM-346 cosmetic #7): only
   // show the heading when there's a site to show, or when there's neither a
@@ -137,7 +144,7 @@ export async function render(ctx) {
   // published, instead of the section just vanishing).
   const siteSection = site
     ? `<p class="section-title">Team site</p><div class="site-frame"><div class="stack"><p><b>${ui.esc(row.team.name || title)}</b></p><a class="btn" data-tour="site" href="${ui.esc(site)}" target="_blank" rel="noopener noreferrer">Open ${ui.esc(row.team.name || 'site')} →</a></div></div>`
-    : (row.has_screenshot ? '' : `<p class="section-title">Team site</p><div class="site-frame"><p class="muted">Nothing published yet.</p></div>`)
+    : (row.has_screenshot ? '' : `<p class="section-title">Team site</p><div class="site-frame"><p class="muted">${noEntry ? 'No entry was submitted.' : 'Nothing published yet.'}</p></div>`)
 
   // The screenshot is often the only evidence for a team with no published
   // site (or a stale one) -- show it alongside the website, not instead of
@@ -152,7 +159,7 @@ export async function render(ctx) {
     `<button type="button" class="btn btn-block" id="jsc-goscore">Go to scoring ↓</button>` +
     (tagline ? `<p><b>${ui.esc(tagline)}</b></p>` : '') +
     (desc ? `<p>${ui.esc(desc)}</p>` : '') +
-    (!title && !tagline && !desc ? '<p class="muted">No entry yet</p>' : '') +
+    (noEntry ? '<p class="muted">No entry yet</p>' : '') +
     `<div class="row-flex">${video}${code}</div>` +
     siteSection +
     shotSection

@@ -826,7 +826,8 @@
     "'Sponsors and FAQ ... Move up / Move down / Remove ... no visual feedback' -- Schedule now gets the same reorder controls as Sponsors and FAQ (critique: today all three share them; the spec previously only gave Sponsors the full set).",
     "Added a real zip-upload control to Public address -- v1 only showed the built-in/custom switch, not the upload that has to happen first.",
     "Added upload-history (view-event-website-versions), missing entirely in v1.",
-    "Added per-announcement Edit and Delete, and the 'email participants too' checkbox -- v1's Announcements section only had Post."
+    "Added per-announcement Edit and Delete, and the 'email participants too' checkbox -- v1's Announcements section only had Post.",
+    "Retest (Grok SIM-346): a link into this screen with #appearance (or any other section) now scrolls to that section and opens it if it was collapsed, instead of landing at the top; Save basics shows the ‘Saved’ note instead of silently repainting; the whole screen reads read-only with one note once the event has ended, matching People/Teams/Results."
    ],
    "phone": "Jump-nav chips scroll horizontally under the title; each subsection stacks below.",
    "decisions": [
@@ -994,7 +995,8 @@
     "Critique #3: replaced an invented 'Code of conduct: on' toggle with the real approval-required toggle and its admit-everyone-waiting option.",
     "Critique #7: Reject's confirm now states the real consequence (permanently blocked for this event, not re-decidable) instead of a made-up join-link effect.",
     "Critique: People's list had no row actions at all -- added Remove from event, Turn off publishing key, Remove co-organiser.",
-    "Critique: Create invitation now says plainly that it grants full control including deletion, since it does."
+    "Critique: Create invitation now says plainly that it grants full control including deletion, since it does.",
+    "Retest (Grok SIM-346): the no-applications note now names the real stage (‘Move the event to Sign-up open’) instead of a stage that doesn't exist (‘Open’); the whole screen reads read-only with one note once the event has ended."
    ],
    "phone": "Applications first, full width, one card per applicant; People/Co-organisers/Sign-up collapse into an accordion below.",
    "decisions": [
@@ -1129,7 +1131,8 @@
    "fixes": [
     "'Fill teams is the first thing on the tab ... above the information an organiser needs to decide whether to use it' -- summary and list come first.",
     "'Looking for text appears only in the summary paragraph, not on the team's own row' -- now shown on each row.",
-    "Fill teams confirm now previews the actual plan (who, which team) instead of a generic sentence."
+    "Fill teams confirm now previews the actual plan (who, which team) instead of a generic sentence.",
+    "Retest (Grok SIM-346): Tracks stays open (new row visible) across Add track / Save tracks / Remove track instead of folding shut, and the order shown after saving is the order sent, not the server's own (unreliable for rows created in the same save); the Fill teams preview no longer warns about stale membership on every preview -- only when the apply actually placed people differently than previewed; the organiser Teams list no longer says ‘Looking for members’ on a full team; Tracks and Team finding both read read-only with one note once the event has ended."
    ],
    "features": [
     "list-teams",
@@ -1470,7 +1473,8 @@
    ],
    "replaces": [],
    "fixes": [
-    "Critique: take-team-site-down and restore-team-site were entirely absent from the spec -- given a home here, next to the entry and site they act on."
+    "Critique: take-team-site-down and restore-team-site were entirely absent from the spec -- given a home here, next to the entry and site they act on.",
+    "Retest (Grok SIM-346, Cosmetic #1): a team name ending in s (‘Alpha Testers’) now gets a bare possessive apostrophe instead of doubling the s."
    ],
    "phone": "Same content, single column.",
    "features": [
@@ -1657,7 +1661,8 @@
     "Large red Publish results no longer sits above Rubric and setup -- Publish lives on Results.",
     "Critique #4: tie-break criterion moved here from Results, next to the rubric it depends on, with its lock warning stated plainly instead of implied.",
     "Critique: rubric-change score-deletion confirm, reorder-rubric-criteria and unlock-judging (with required reason) were all missing -- added.",
-    "Critique missing state: a judge's mid-judging conflict now has its own state instead of being silently absorbed into Progress's numbers."
+    "Critique missing state: a judge's mid-judging conflict now has its own state instead of being silently absorbed into Progress's numbers.",
+    "Retest (Grok SIM-346, Critique #7 leftover): in Open mode, Progress's Judges list no longer counts an organiser who has never actually scored -- Open mode's assigned_count is every team a judge is merely eligible for, not a real assignment, so only a real score counts them there."
    ],
    "decisions": [
     {
@@ -1756,7 +1761,8 @@
    ],
    "replaces": [],
    "fixes": [
-    "Critique: manual-assignment-grid and panel-assignment-grid were both NO HOME in v1 -- this screen is their home."
+    "Critique: manual-assignment-grid and panel-assignment-grid were both NO HOME in v1 -- this screen is their home.",
+    "Retest (Grok SIM-346, Confusing #3): the Panel grid now shows the same ‘this grid is used only in ... mode’ note the Manual grid already showed, and blocks Save, whenever the saved assignment mode doesn't match the grid being viewed."
    ],
    "phone": "Grid becomes one card per team/track with a multi-select list of judges underneath, rather than a wide table.",
    "decisions": [
@@ -1922,7 +1928,8 @@
     "Critique #6: narrowing voting eligibility can silently delete real votes -- Save now confirms with the exact count first, matching the code's confirm_vote_removal.",
     "Critique: list-event-in-directory is independent of voting (works with voting off) -- kept in this card for now but given its own Save so it doesn't read as voting-only; see decisions.",
     "Critique: override-rank-on-publish was entirely missing -- added next to Publish.",
-    "Domain truth F.6: publishing is a repeatable snapshot, not live -- made explicit in the Status copy and the republish state, not just the decisions list."
+    "Domain truth F.6: publishing is a repeatable snapshot, not live -- made explicit in the Status copy and the republish state, not just the decisions list.",
+    "Retest (Grok SIM-346): the stale-snapshot note under Publish no longer shows right after a fresh publish -- only once the live standings actually differ from what's published; Show scores now says ‘Teams always see their own score’ (owner decision 2026-10-30); the scoring-rules, visibility and voting-window/eligibility settings read read-only with one note once the event has ended (Publish, Directory and the downloads stay live, since the API still allows them and they're still useful)."
    ],
    "decisions": [
     {

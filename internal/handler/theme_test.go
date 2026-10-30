@@ -175,6 +175,12 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 		if p == "static/hack-directory.html" {
 			continue
 		}
+		// Same decision for the public vote page (Grok re-test, 2026-10-30):
+		// restyled onto the app kit like the event page and directory —
+		// light-only, its own top bar/footer, no chrome markers.
+		if p == "static/hack-voting.html" {
+			continue
+		}
 		name := strings.TrimPrefix(p, "static/")
 		page, err := chromePage(name, chromeData{})
 		if err != nil {

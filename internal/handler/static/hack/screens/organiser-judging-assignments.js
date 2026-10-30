@@ -66,7 +66,14 @@ export async function render(ctx) {
     note.textContent = grid === 'manual' ? 'Add teams and judges first.' : 'Add tracks and judges first.'
   } else if (grid === 'manual' && assignmentMode !== 'manual') {
     note.hidden = false
-    note.innerHTML = 'Choose Manual under How judges are assigned to use this grid, on <a href="' + ui.esc(href('organiser', slug, 'judging')) + '">Judging</a>.'
+    note.innerHTML = 'This grid is used only in Manual mode. Switch the mode on <a href="' + ui.esc(href('organiser', slug, 'judging')) + '">Judging</a>.'
+    saveBlocked = true
+  } else if (grid === 'panel' && assignmentMode !== 'panel') {
+    // Confusing #3: the Manual grid already warned when the saved mode
+    // wasn't Manual -- Panel could still be edited and saved with no hint
+    // it has no effect until the mode is actually Panel.
+    note.hidden = false
+    note.innerHTML = 'This grid is used only in Panel mode. Switch the mode on <a href="' + ui.esc(href('organiser', slug, 'judging')) + '">Judging</a>.'
     saveBlocked = true
   }
 

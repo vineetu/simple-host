@@ -403,6 +403,13 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
   function isCountedJudge(judgeId, doneCount, assignedCount) {
     const person = people.find(p => p.user_id === judgeId)
     if (!person || person.role !== 'organiser') return true
+    // C7 leftover: in Open mode, judgingDashboard's assigned_count is every
+    // team the judge is *eligible* for (Open has no real per-judge
+    // assignment, see hack_judging.go) -- never zero even for an organiser
+    // nobody has actually used as a judge. Only a real score counts them
+    // while the saved mode is Open; Automatic/Manual/Panel keep the
+    // assigned_count > 0 check, since there an assignment is a real one.
+    if (settings.assignment_mode === 'open') return doneCount > 0
     const includeOrganisers = draftMode === 'automatic' && $('jg-include-organisers') && $('jg-include-organisers').checked
     return includeOrganisers || doneCount > 0 || assignedCount > 0
   }

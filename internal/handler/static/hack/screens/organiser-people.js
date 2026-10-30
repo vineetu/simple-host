@@ -89,7 +89,7 @@ export async function render(ctx) {
 
     main.innerHTML = `
 <div class="ph"><div class="t"><h1>People</h1><p>${pending.length ? pending.length + ' application' + (pending.length === 1 ? '' : 's') + ' waiting on you' : 'Nobody is waiting for approval'}</p></div></div>
-${showApplications ? `<h2 class="section-title">Applications</h2>${pending.length ? `<div id="app-list">${pending.map(applicationCard).join('')}</div>` : `<div class="note">Sign-up isn't open yet. Move the event to Open to start taking applications.</div>`}` : ''}
+${showApplications ? `<h2 class="section-title">Applications</h2>${pending.length ? `<div id="app-list">${pending.map(applicationCard).join('')}</div>` : `<div class="note">Sign-up isn't open yet. Move the event to ${ui.esc(ui.stageLabel('open'))} to start taking applications.</div>`}` : ''}
 
 <section class="card"><h2>Everyone</h2>
 <div class="field"><label>Show<select class="select" id="role-filter" data-admin-live><option${roleFilter === 'Everyone' ? ' selected' : ''}>Everyone</option><option${roleFilter === 'Organisers' ? ' selected' : ''}>Organisers</option><option${roleFilter === 'Participants' ? ' selected' : ''}>Participants</option><option${roleFilter === 'Judges' ? ' selected' : ''}>Judges</option><option${roleFilter === 'Co-organisers' ? ' selected' : ''}>Co-organisers</option></select></label></div>
@@ -110,7 +110,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
 <div class="row-flex"><button class="btn" type="button" id="q-add"${questions.length >= 8 || registrationError ? ' disabled' : ''}>Add question</button><button class="btn" type="button" id="q-save"${registrationError ? ' disabled' : ''}>Save questions</button></div>
 </details>`
 
-    adminLock(main, admin)
+    adminLock(main, admin, ev)
 
     $('coorg').addEventListener('toggle', () => { coorgOpen = $('coorg').open })
     $('signup').addEventListener('toggle', () => { signupOpen = $('signup').open })

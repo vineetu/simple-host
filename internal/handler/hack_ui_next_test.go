@@ -20,6 +20,10 @@ func TestHackUINext(t *testing.T) {
 	}{
 		{"default", "/events", "", true, 0},
 		{"opt in", "/events?ui=next", "sh_hack_ui=classic", true, 365 * 24 * 60 * 60},
+		// BROKEN #1 (Grok re-test): classic is sticky with no way back once
+		// chosen. ?ui=new is accepted as an alias of ?ui=next so the obvious
+		// opposite of ?ui=classic also works.
+		{"new alias", "/events?ui=new", "sh_hack_ui=classic", true, 365 * 24 * 60 * 60},
 		{"cookie", "/events", "sh_hack_ui=next", true, 0},
 		{"opt out", "/events?ui=classic", "sh_hack_ui=next", false, 365 * 24 * 60 * 60},
 		{"classic remembered", "/events", "sh_hack_ui=classic", false, 0},

@@ -358,7 +358,9 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
   .app.menu-open .side{display:flex;position:fixed;inset:0 20% 0 0;z-index:50;box-shadow:0 0 0 100vmax rgba(43,41,37,.3)}
   .phone-top{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:30;background:var(--paper-hi);border-bottom:1px solid var(--rule);padding:8px 12px}
   .phone-top .switcher,.phone-top .brand{margin:0;width:auto;flex:1;min-width:0;padding:4px 6px}
-  .phone-top .menu-btn{border:1px solid var(--rule-hi);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:13.5px}
+  /* Cosmetic #6: the Menu button measured 32px tall against the ~44px
+     touch-target floor below. */
+  .phone-top .menu-btn{border:1px solid var(--rule-hi);background:var(--surface);border-radius:7px;padding:5px 10px;font:inherit;font-size:13.5px;min-height:44px}
   .status{padding:8px 16px;position:static;gap:4px 10px;font-size:13px}
   /* A5: the stage track and the top-bar Copy buttons repeat what the hero
      and the Share cards already say on phone -- one line left: the pill
@@ -378,10 +380,12 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
   .ph .btn{width:100%}
   .grid2,.grid3,.split{grid-template-columns:1fr}
   .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
-  /* A17: .btn.sm and the phone menu's own nav rows were under the ~40px
-     touch target. */
-  .btn{min-height:40px}
-  .btn.sm{min-height:36px;padding:6px 11px}
+  /* A17/Cosmetic #6: .btn.sm and the phone menu's own nav rows were under
+     the touch target -- row actions (Move, Remove, Refresh, New link, ...)
+     are .btn.sm throughout the organiser screens, so both sizes need the
+     full ~44px floor, not just the plain .btn one. */
+  .btn{min-height:44px}
+  .btn.sm{min-height:44px;padding:8px 11px}
   .app.menu-open .nav a,.app.menu-open .top-nav a,.app.menu-open .side-foot a,.app.menu-open .side-foot summary{padding:11px 12px;font-size:15px}
   .list details>summary{padding:10px 8px}
   .focus{display:block;height:auto}

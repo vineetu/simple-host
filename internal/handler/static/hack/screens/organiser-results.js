@@ -19,6 +19,13 @@ export async function render(ctx) {
   const $ = id => main.querySelector('#' + id)
   const setLive = ui.live(main)
   const judgingLocked = !!ev.judging_locked_at
+  // S14: the scoring/visibility/voting settings below don't change any
+  // more once the event has ended (judging settings PATCH and voting PUT
+  // both already refuse archived server-side) -- Publish, the Directory
+  // toggle (its own PATCH has no archived check, so it's left live) and
+  // the downloads stay as they were, since they're still useful after End.
+  const archived = ev.stage === 'archived'
+  const lockReason = archived ? "This event has ended. Settings can't change any more." : ''
 
   let settings = { score_mode: 'raw', public_scores: false, public_ranks: false }
   let results = null // array of rows once published, else null
@@ -50,23 +57,24 @@ export async function render(ctx) {
 
   main.innerHTML = `
 <div class="ph"><div class="t"><h1>Results</h1><p>Preview, publish and share your standings.</p></div><button class="btn primary" type="button" id="res-publish-top">${published ? 'Publish again' : 'Publish results'}</button></div>
+${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>` : ''}
 <div class="note" id="res-status"></div>
 <p class="note warn" id="res-lock-hint" hidden>Lock judging first, on <a href="${ui.esc(href(role, slug, 'judging'))}">Judging</a>.</p>
 <section class="card"><h2>Publish</h2>
 <div id="res-override"></div>
-<p class="small muted" id="res-republish-note" hidden>The public page still shows the last snapshot until you do.</p>
+<p class="small muted" id="res-republish-note" hidden></p>
 </section>
 <details class="card" id="res-preview"><summary>Preview current standings</summary><p class="muted small">Override a tied rank by hand if one remains after the tie-break.</p><div id="res-preview-body"></div></details>
-<section class="card"><h2>How teams are ranked</h2><div class="field"><label>Score used for ranking<select class="select" id="res-score-mode"><option value="normalised">Average, adjusted for strict and generous judges</option><option value="raw">Average score</option></select></label></div><button class="btn" type="button" id="res-score-mode-save">Save</button></section>
-<section class="card"><h2>Show on the public page</h2><p class="small muted">Tip: Full ranking with scores off lists every team without a scoreboard.</p><div class="field"><label>Visibility<select class="select" id="res-visibility"><option value="true">Full ranking</option><option value="false">Winners only</option></select></label></div><label class="check"><input type="checkbox" id="res-public-scores"><span>Show scores</span></label><label class="check"><input type="checkbox" id="res-public-ranks"><span>Show ranks</span></label><p class="help" id="res-visibility-hint" hidden>Publish results first to control what the public page shows.</p><button class="btn" type="button" id="res-visibility-save">Save</button></section>
+<section class="card"><h2>How teams are ranked</h2><div class="field"><label>Score used for ranking<select class="select" id="res-score-mode"${archived ? ' disabled' : ''}><option value="normalised">Average, adjusted for strict and generous judges</option><option value="raw">Average score</option></select></label></div><button class="btn" type="button" id="res-score-mode-save"${archived ? ' disabled' : ''}>Save</button></section>
+<section class="card"><h2>Show on the public page</h2><p class="small muted">Tip: Full ranking with scores off lists every team without a scoreboard.</p><div class="field"><label>Visibility<select class="select" id="res-visibility"${archived ? ' disabled' : ''}><option value="true">Full ranking</option><option value="false">Winners only</option></select></label></div><label class="check"><input type="checkbox" id="res-public-scores"${archived ? ' disabled' : ''}><div><b>Show scores</b><span>Teams always see their own score.</span></div></label><label class="check"><input type="checkbox" id="res-public-ranks"${archived ? ' disabled' : ''}><span>Show ranks</span></label><p class="help" id="res-visibility-hint" hidden>Publish results first to control what the public page shows.</p><button class="btn" type="button" id="res-visibility-save"${archived ? ' disabled' : ''}>Save</button></section>
 <section class="card"><h2>People’s choice</h2>
 <p><span class="pill" id="res-vote-status"></span></p>
-<label class="check"><input type="checkbox" id="res-vote-enabled"><span>Let visitors vote</span></label>
-<div class="grid2"><div class="field"><label>Starts · <span id="res-tz-1"></span><input class="input" type="datetime-local" id="res-vote-opens"></label></div><div class="field"><label>Ends · <span id="res-tz-2"></span><input class="input" type="datetime-local" id="res-vote-closes"></label></div></div>
-<button class="btn" type="button" id="res-vote-window-save">Save voting window</button>
+<label class="check"><input type="checkbox" id="res-vote-enabled"${archived ? ' disabled' : ''}><span>Let visitors vote</span></label>
+<div class="grid2"><div class="field"><label>Starts · <span id="res-tz-1"></span><input class="input" type="datetime-local" id="res-vote-opens"${archived ? ' disabled' : ''}></label></div><div class="field"><label>Ends · <span id="res-tz-2"></span><input class="input" type="datetime-local" id="res-vote-closes"${archived ? ' disabled' : ''}></label></div></div>
+<button class="btn" type="button" id="res-vote-window-save"${archived ? ' disabled' : ''}>Save voting window</button>
 <hr class="rule">
-<div class="field"><label>Who can vote<select class="select" id="res-vote-eligibility"><option value="all_signed_in">Anyone signed in</option><option value="event_members">Approved event members</option><option value="participants">Approved participants only</option></select></label></div>
-<button class="btn" type="button" id="res-vote-eligibility-save">Save</button>
+<div class="field"><label>Who can vote<select class="select" id="res-vote-eligibility"${archived ? ' disabled' : ''}><option value="all_signed_in">Anyone signed in</option><option value="event_members">Approved event members</option><option value="participants">Approved participants only</option></select></label></div>
+<button class="btn" type="button" id="res-vote-eligibility-save"${archived ? ' disabled' : ''}>Save</button>
 </section>
 <section class="card"><h2>Directory</h2>
 <label class="check"><input type="checkbox" id="res-directory-listed"><span>List this event on Find a hackathon</span></label>
@@ -97,6 +105,32 @@ export async function render(ctx) {
     }
   }
   paintStatus()
+
+  // Confusing #4: the stale-snapshot note used to show right after every
+  // publish, before anything could have changed. It only makes sense once
+  // the live standings actually differ from what was last published --
+  // compared here by each team's total, since a rank override can
+  // legitimately make the snapshot's rank differ from a plain recompute
+  // without any score having changed.
+  function totalsMap(rows) {
+    const m = {}
+    ;(rows || []).forEach(row => { if (row && row.team_id) m[row.team_id] = row.total })
+    return m
+  }
+  function scoresChangedSincePublish() {
+    if (!results) return false
+    const pub = totalsMap(results)
+    const cur = totalsMap(preview)
+    const ids = new Set([...Object.keys(pub), ...Object.keys(cur)])
+    for (const id of ids) { if (pub[id] !== cur[id]) return true }
+    return false
+  }
+  function paintRepublishNote(stale) {
+    const note = $('res-republish-note')
+    note.hidden = !stale
+    note.textContent = stale ? 'Scores have changed since you published. The public page still shows the earlier snapshot.' : ''
+  }
+  paintRepublishNote(scoresChangedSincePublish())
 
   // --- scoring rules ------------------------------------------------------
   $('res-score-mode').value = settings.score_mode || 'raw'
@@ -207,21 +241,22 @@ export async function render(ctx) {
     paintVisibility()
     previewLoaded = false
     $('res-publish-top').textContent = 'Publish again'
-    $('res-republish-note').hidden = false
+    // A publish just took a fresh snapshot of the live standings, so it can
+    // never be stale the moment it lands.
+    paintRepublishNote(false)
     setLive('Results published', 'ok', near)
   }
   $('res-publish-top').addEventListener('click', () => publish(null, $('res-publish-top')))
   $('res-lock-hint').hidden = judgingLocked
   $('res-publish-top').disabled = !judgingLocked
-  $('res-republish-note').hidden = !published
 
   // --- visibility ---------------------------------------------------------
   function paintVisibility() {
     $('res-visibility').value = String(fullRanking)
     $('res-public-scores').checked = !!settings.public_scores
     $('res-public-ranks').checked = !!settings.public_ranks
-    $('res-visibility').disabled = !results
-    $('res-visibility-hint').hidden = !!results
+    $('res-visibility').disabled = archived || !results
+    $('res-visibility-hint').hidden = !!results || archived
   }
   paintVisibility()
   $('res-visibility-save').addEventListener('click', async () => {

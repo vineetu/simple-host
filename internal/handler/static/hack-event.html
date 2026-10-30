@@ -100,7 +100,7 @@
   <a class="wordmark" href="{{.AppURL}}/">simple<b>·</b>hack</a>
   <span class="grow"></span>
   <a class="find-link" href="{{.AppURL}}/directory">Find a hackathon</a>
-  <a class="btn quiet" href="{{.AppURL}}/events">Sign in</a>
+  <a class="btn quiet" href="{{.AppURL}}/events" id="top-account">Home</a>
 </header>
 
 <main>
@@ -213,6 +213,22 @@
     function tick() { el.textContent = fmt(end - Date.now()); }
     tick();
     setInterval(tick, 30000);
+  })();
+</script>
+<script>
+  (function () {
+    // #3 (Grok re-test): the header used to always say "Sign in", even for a
+    // signed-in visitor. There's no server-side session check on this static
+    // page, so this can only go on the one client-side signal available
+    // (localStorage.apiKey, the same key api.js reads) -- knowable in a
+    // normal browser, not in a private window or with storage blocked. The
+    // neutral default stays "Home" (set in the markup) for the unknowable
+    // case; "Sign in" is shown only once we can confirm there's no key.
+    try {
+      var hasKey = !!localStorage.getItem('apiKey');
+      var top = document.getElementById('top-account');
+      if (top && !hasKey) top.textContent = 'Sign in';
+    } catch (e) {}
   })();
 </script>
 </body>

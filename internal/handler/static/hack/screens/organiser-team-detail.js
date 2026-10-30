@@ -130,7 +130,11 @@ ${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="se
     let r
     try { r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug), { name }) }
     catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
-    if (!r.ok) { setLive(r.data.error || 'Could not rename the team', true); return }
+    // S11: the server's own text here is lowercase jargon ("another team
+    // already has that name") -- ui.ERROR_MESSAGES already has the
+    // capitalised client copy for this code, same as onMoveHere/onMove
+    // below already use it for team_full.
+    if (!r.ok) { setLive(ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not rename the team.' }), true); return }
     await load()
     paint()
     ui.saved(main)

@@ -59,7 +59,7 @@ export async function render(ctx) {
     const e = entryItem || {}
     const lockReason = ui.writeLockReason(ev, event.admin_view)
     main.innerHTML = `<p class="crumbs"><a href="${ui.esc(href(role, slug, 'entries'))}">Entries</a> / ${ui.esc(team.name)}</p>
-<div class="ph"><div class="t"><h1>Entry: ${ui.esc(team.name)}</h1><p>${ui.esc(team.name)}’s entry and site.</p></div></div>
+<div class="ph"><div class="t"><h1>Entry: ${ui.esc(team.name)}</h1><p>${ui.esc(ui.possessive(team.name))} entry and site.</p></div></div>
 ${lockReason ? `<div class="note warn">${ui.esc(lockReason)}</div>` : ''}
 <section class="card"><h2>Entry</h2><dl>
 ${field('Title', e.title)}

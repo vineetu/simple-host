@@ -96,5 +96,60 @@ func TestHackUIRoutes(t *testing.T) {
 		if path == "/account" && !strings.Contains(body, `id="view-account"`) {
 			t.Errorf("%s: missing account view", path)
 		}
+		// BROKEN #1 (Grok re-test): classic had no visible way back to the
+		// new screens (the account page and the judge/organiser Help areas
+		// are where someone stuck on ?ui=classic would look).
+		for _, id := range []string{"judge-new-ui", "manage-new-ui", "acct-new-ui"} {
+			if !strings.Contains(body, `id="`+id+`"`) {
+				t.Errorf("%s: missing %q link back to the new screens", path, id)
+			}
+		}
+		if !strings.Contains(body, `>Use the new screens</a>`) {
+			t.Errorf("%s: missing visible 'Use the new screens' link text", path)
+		}
+		if !strings.Contains(body, `href="?ui=next"`) {
+			t.Errorf("%s: 'Use the new screens' link does not point at ?ui=next", path)
+		}
+	}
+}
+
+// TestHackVotePageUsesTheKit (Grok re-test cosmetic #2): the public vote page
+// used to carry the old handwritten design and the site's own header/footer
+// instead of the app kit, the only one of the three public pages
+// (event page, directory, vote) that still did. It now matches the other
+// two: same top bar and footer, .pub layout, light only, same ids and
+// behaviour.
+func TestHackVotePageUsesTheKit(t *testing.T) {
+	mux := http.NewServeMux()
+	RegisterHackUI(mux)
+	rec := get(t, mux, "simple-hack.app", "/e/demo/vote")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`<link rel="stylesheet" href="/hack/kit.css">`,
+		`<link rel="stylesheet" href="/hack/public.css">`,
+		`<a class="wordmark" href="/">simple<b>·</b>hack</a>`,
+		`<a class="btn quiet" href="/events" id="top-account">Home</a>`,
+		`<footer class="pub-foot">`,
+		`<span>Made with Simple Hack</span>`,
+		`id="vote-panel"`, `id="settings-panel"`, `id="options"`, `id="ranking-list"`,
+		`id="enabled"`, `id="opens"`, `id="closes"`, `id="eligibility"`, `id="listed"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("vote page missing %q", want)
+		}
+	}
+	for _, banned := range []string{"sh:header", "sh:footer", "<style>"} {
+		if strings.Contains(body, banned) {
+			t.Errorf("vote page still carries old chrome/markup: %q", banned)
+		}
+	}
+	assertStrictScriptCSP(t, "vote", rec)
+
+	rec2 := get(t, mux, "simple-hack.app", "/e/demo/voting-settings")
+	if rec2.Code != http.StatusOK || !strings.Contains(rec2.Body.String(), `<link rel="stylesheet" href="/hack/kit.css">`) {
+		t.Errorf("voting-settings page not on the kit: %d", rec2.Code)
 	}
 }

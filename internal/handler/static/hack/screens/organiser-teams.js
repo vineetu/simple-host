@@ -33,39 +33,51 @@ export async function render(ctx) {
   // precondition: the API accepts the PATCH at any stage short of ended, so
   // a draft event can be configured before registration ever opens.
   const configurable = ev.stage !== 'archived'
+  // S14: one note for the whole screen once the event has ended, not a
+  // helper line sprinkled under just the Team finding card -- Tracks is
+  // locked the same way, by the same `configurable` flag, below.
+  const lockReason = configurable ? '' : "This event has ended. Settings can't change any more."
+  // Confusing #1: the Tracks section must stay open across the repaint
+  // that Add track / Save tracks / Remove track triggers, the same way
+  // People's Co-organisers/Sign-up sections do -- otherwise the new row
+  // (or the save) immediately folds the section shut again.
+  let tracksOpen = false
 
   function row(t) {
     const members = t.members.length
     const trackName = t.track ? t.track.name : ''
-    const looking = ev.team_finding && !!lookingFor[t.slug]
+    // S16: a full team is never "looking for members" on this list, no
+    // matter what the open-teams listing still says -- the participant
+    // team list already guards this way.
+    const looking = ev.team_finding && !!lookingFor[t.slug] && members < teamSizeMax
     const meta = members + ' of ' + teamSizeMax + ' people' + (looking ? ' · Looking for members' : '')
     return `<a class="r" href="${ui.esc(href(role, slug, 'team') + '&team=' + encodeURIComponent(t.slug))}"><span class="main"><b>${ui.esc(t.name)}</b>${trackName ? `<span>${ui.esc(trackName)}</span>` : ''}</span><span class="meta">${ui.esc(meta)}</span></a>`
   }
 
   function trackCard(t, i) {
     const n = teams.filter(team => team.track && team.track.slug === t.slug).length
-    return `<div class="field"><label>Track<input class="input" data-track="${i}" data-f="name" type="text" value="${ui.esc(t.name)}"></label></div>
-<div class="field"><label>Challenge<textarea class="input" data-track="${i}" data-f="challenge">${ui.esc(t.challenge)}</textarea></label></div>
-<div class="field"><label>Prize<input class="input" data-track="${i}" data-f="prize" type="text" value="${ui.esc(t.prize)}"></label></div>
-<section class="danger-zone"><div class="setting"><div class="t"><button class="btn danger" type="button" data-remove-track="${i}">Remove track</button>${n ? `<span class="small muted"> · ${n} team${n === 1 ? '' : 's'} currently chose this</span>` : ''}</div></div></section>`
+    return `<div class="field"><label>Track<input class="input" data-track="${i}" data-f="name" type="text" value="${ui.esc(t.name)}"${configurable ? '' : ' disabled'}></label></div>
+<div class="field"><label>Challenge<textarea class="input" data-track="${i}" data-f="challenge"${configurable ? '' : ' disabled'}>${ui.esc(t.challenge)}</textarea></label></div>
+<div class="field"><label>Prize<input class="input" data-track="${i}" data-f="prize" type="text" value="${ui.esc(t.prize)}"${configurable ? '' : ' disabled'}></label></div>
+<section class="danger-zone"><div class="setting"><div class="t"><button class="btn danger" type="button" data-remove-track="${i}"${configurable ? '' : ' disabled'}>Remove track</button>${n ? `<span class="small muted"> · ${n} team${n === 1 ? '' : 's'} currently chose this</span>` : ''}</div></div></section>`
   }
 
   function paint() {
     const subtitle = teams.length + ' team' + (teams.length === 1 ? '' : 's') + ' · ' + (onNoTeam.length ? onNoTeam.length + ' not on a team' : 'Everyone is on a team')
     main.innerHTML = `<div class="ph"><div class="t"><h1>Teams</h1><p>${ui.esc(subtitle)}</p></div>${fillable && onNoTeam.length ? `<button class="btn primary" type="button" id="fill-teams">Fill teams</button>` : ''}</div>
+${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>` : ''}
 ${!ev.team_finding ? `<div class="note">Team finding is off. Teams form by invite code only.</div>` : ''}
 <div class="list">${teams.length ? teams.map(row).join('') : '<div class="empty">No teams yet.</div>'}</div>
 <p class="small muted"><a href="${ui.esc(href(role, slug, 'results'))}">Teams CSV is on Results</a></p>
 <details class="card"><summary>Team finding</summary>
 <label class="check"><input type="checkbox" id="tf-on"${ev.team_finding ? ' checked' : ''}${configurable ? '' : ' disabled'}><div><b>Team finding</b><span>Let participants find teams and invite people. Team codes always work.</span></div></label>
 <div class="field"><label>Most people per team<input class="input" id="tf-size" type="number" min="1" max="50" value="${teamSizeMax}"${configurable ? '' : ' disabled'}></label></div>
-${configurable ? '' : '<p class="help">Team finding and team size no longer change once the event has ended.</p>'}
 <button class="btn" type="button" id="tf-save"${configurable ? '' : ' disabled'}>Save</button>
 </details>
-<details class="card"><summary>Tracks and challenges</summary>
+<details class="card" id="tracks"${tracksOpen ? ' open' : ''}><summary>Tracks and challenges</summary>
 ${tracks.map(trackCard).join('')}
-<button class="btn" type="button" id="track-add">Add track</button>
-<button class="btn" type="button" id="track-save">Save tracks</button>
+<button class="btn" type="button" id="track-add"${configurable ? '' : ' disabled'}>Add track</button>
+<button class="btn" type="button" id="track-save"${configurable ? '' : ' disabled'}>Save tracks</button>
 </details>`
     wire()
   }
@@ -75,9 +87,11 @@ ${tracks.map(trackCard).join('')}
     if (fillBtn) fillBtn.addEventListener('click', onFillTeams)
     const tfSave = $('tf-save')
     if (tfSave) tfSave.addEventListener('click', onSaveTeamFinding)
+    $('tracks').addEventListener('toggle', () => { tracksOpen = $('tracks').open })
     const trackAdd = $('track-add')
     if (trackAdd) trackAdd.addEventListener('click', () => {
       tracks.push({ slug: '', name: '', challenge: '', prize: '' })
+      tracksOpen = true
       paint()
     })
     const trackSave = $('track-save')
@@ -123,19 +137,30 @@ ${tracks.map(trackCard).join('')}
       li.append(tick, what)
       list.append(li)
     }
-    const note = document.createElement('p')
-    note.className = 'small muted'
-    note.textContent = 'Membership may have shifted since this preview was made.'
-    const ok = await ui.confirm({ title: 'Fill teams?', body: [list, note], confirmLabel: 'Apply' })
+    // Confusing #7: the stale-membership warning used to sit here
+    // unconditionally, before anything could actually have changed --
+    // moved below, where the apply response's own plan can be compared
+    // against the one just previewed, so it only shows when membership
+    // really did shift in between.
+    const ok = await ui.confirm({ title: 'Fill teams?', body: [list], confirmLabel: 'Apply' })
     btn.disabled = false
     if (!ok) return
     let ar
     try { ar = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/fill', { apply: true }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
     if (!ar.ok) { setLive(ar.data.error || 'Could not fill teams', true); return }
+    const shifted = planSignature(plan) !== planSignature(ar.data.plan || [])
     await load()
     paint()
-    ui.saved(main)
+    if (shifted) setLive('Team membership changed since the preview, so teams were filled a little differently than shown.', true)
+    else ui.saved(main)
+  }
+
+  // Confusing #7: a plan is the same fill if every team has the same
+  // members, regardless of array order -- used to tell a genuinely stale
+  // preview from one that just happens to list teams in a different order.
+  function planSignature(plan) {
+    return JSON.stringify((plan || []).map(p => ({ team: p.team, members: p.members.map(m => m.user_id).slice().sort() })).sort((a, b) => a.team.localeCompare(b.team)))
   }
 
   async function onSaveTeamFinding() {
@@ -177,7 +202,15 @@ ${tracks.map(trackCard).join('')}
     try { r = await api('PUT', '/v1/hack/events/' + encodeURIComponent(slug) + '/tracks', { tracks: payload }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); return }
     if (!r.ok) { setLive(r.data.error || 'Could not save tracks', true); return }
-    tracks = (r.data || []).map(t => ({ ...t }))
+    // Confusing #1: tracks saved in the same request can come back from the
+    // server in a different order than they were sent (new rows inserted in
+    // one transaction can share a timestamp, so the order isn't reliable) --
+    // the order the organiser just arranged is what's kept for display,
+    // with each track's fresh id merged in by slug match.
+    const bySlug = {}
+    ;(r.data || []).forEach(t => { bySlug[t.slug] = t })
+    tracks = payload.map(t => ({ ...t, ...(bySlug[t.slug] || {}) }))
+    tracksOpen = true
     await load()
     paint()
     ui.saved(main)

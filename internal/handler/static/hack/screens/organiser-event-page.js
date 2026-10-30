@@ -187,7 +187,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
 </section>
 </div></div>`
 
-    adminLock(main, admin)
+    adminLock(main, admin, ev)
 
     // ---- Basics ----
     $('pg-save').addEventListener('click', async () => {
@@ -199,7 +199,13 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
           time_zone: $('pg-tz').value, starts_at: $('pg-start').value, ends_at: $('pg-end').value
         })
         if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
-        await ctx.refresh()
+        // Confusing #2: ctx.refresh() re-runs the whole route and throws this
+        // toast away before anyone sees it -- update the fields this form
+        // actually owns from the server's own response and repaint in place
+        // instead, same as the icon/colour/gallery saves below already do.
+        Object.assign(ev, r.data && r.data.event ? r.data.event : {})
+        setLive('Saved', 'ok', btn)
+        paint()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     })
 
@@ -392,4 +398,17 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
   }
 
   paint()
+  // C3: a link into this screen with #appearance (or any other section id)
+  // must land ON that section, not at the top of the page -- scroll to it,
+  // and open it first if it turned out collapsed (a <details> target, or
+  // one it sits inside). One-time, like People's #signup handling: later
+  // repaints from editing a row must never yank the page back down.
+  if (location.hash) {
+    const target = main.querySelector(location.hash)
+    if (target) {
+      const details = target.matches('details') ? target : target.closest('details')
+      if (details && !details.open) details.open = true
+      target.scrollIntoView()
+    }
+  }
 }

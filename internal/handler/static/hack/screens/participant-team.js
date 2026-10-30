@@ -203,8 +203,11 @@ export async function render (ctx) {
   main.innerHTML = '<div class="ph"><div class="t"><h1>Team</h1><p>' + esc(ev.title || '') + '</p></div></div>' + sections.join('')
 
   // ---- wire up ----
+  // S14: once the event has ended there's no one left to join with it, so
+  // the copy action (and the implied invitation) goes away -- the code
+  // itself stays visible as a record.
   const copyInput = $('team-code')
-  if (copyInput) copyInput.parentElement.append(ui.copyButton(team.code || '', 'Copy join code'))
+  if (copyInput && !ended) copyInput.parentElement.append(ui.copyButton(team.code || '', 'Copy join code'))
 
   main.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams/' + encodeURIComponent(b.getAttribute('data-ask')) + '/requests'))))
   main.querySelectorAll('[data-withdraw]').forEach(b => b.addEventListener('click', () => act(b, () => api('DELETE', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-withdraw'))))))

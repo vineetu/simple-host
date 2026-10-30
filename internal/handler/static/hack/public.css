@@ -43,3 +43,10 @@
    as hack-event.html's own .ev-icon; it needs its own fit/crop rule since
    kit.css only ever styled the tile itself, never an image inside it. */
 .ev-mark img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
+
+/* Vote page status line (Grok re-test, 2026-10-30): kit.css has no standing
+   "live" message colour since every signed-in screen uses ui.live(main)
+   instead; this public page sets its own error/success colour on the same
+   muted status line the directory uses. */
+#live.live-err{color:var(--danger)}
+#live.live-ok{color:var(--ok)}

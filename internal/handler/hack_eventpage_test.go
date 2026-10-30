@@ -617,7 +617,11 @@ func TestHackEventPageNoResultsSectionWhenUnpublished(t *testing.T) {
 	}
 }
 
-func TestHackSchedulePreservesSavedOrder(t *testing.T) {
+// TestHackScheduleSortedByStartTime (Grok re-test cosmetic #4: "Demos (Sun)"
+// printed before "Kickoff (Fri)" because rows kept the order they were
+// entered in, not time order, so the Next badge landed on the wrong row).
+// Rows are sorted by start time regardless of entry order.
+func TestHackScheduleSortedByStartTime(t *testing.T) {
 	p := testHackEvent()
 	p.Content.Schedule = []hackScheduleItem{
 		{Title: "Closing item", StartAt: "2027-03-14T16:00:00Z", EndAt: "2027-03-14T17:00:00Z"},
@@ -625,8 +629,8 @@ func TestHackSchedulePreservesSavedOrder(t *testing.T) {
 	}
 	r := renderHackEvent(t, p)
 	body := r.Body.String()
-	if r.Code != 200 || strings.Index(body, "Closing item") < 0 || strings.Index(body, "Closing item") > strings.Index(body, "Opening item") {
-		t.Fatal("saved schedule order was lost")
+	if r.Code != 200 || strings.Index(body, "Opening item") < 0 || strings.Index(body, "Opening item") > strings.Index(body, "Closing item") {
+		t.Fatal("schedule rows are not sorted by start time")
 	}
 }
 
@@ -1382,4 +1386,19 @@ func TestHackEventPageNotFoundIsFriendly(t *testing.T) {
 		}
 	}
 	assertStrictScriptCSP(t, "event not found", rec)
+}
+
+// TestHackEventPageHeaderSignInOrHome (Grok re-test cosmetic #3: the header
+// said "Sign in" even while already signed in). There is no server session
+// on this static page, so the default stays the neutral "Home" and a script
+// (the same localStorage.apiKey check the directory uses) swaps it to "Sign
+// in" only once a missing key is confirmed.
+func TestHackEventPageHeaderSignInOrHome(t *testing.T) {
+	body := renderHackEvent(t, testHackEvent()).Body.String()
+	if !strings.Contains(body, `<a class="btn quiet" href="https://simple-hack.app/events" id="top-account">Home</a>`) {
+		t.Errorf("header default should be Home linking to /events, body:\n%s", body)
+	}
+	if !strings.Contains(body, "localStorage.getItem('apiKey')") || !strings.Contains(body, "top.textContent = 'Sign in'") {
+		t.Error("missing the signed-out check that swaps Home for Sign in")
+	}
 }

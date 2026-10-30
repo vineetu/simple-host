@@ -40,14 +40,22 @@ export function dateTime(value, event, options = {}) {
     weekday: 'short', day: 'numeric', month: 'short',
     ...(sameYear ? {} : { year: 'numeric' }),
     ...(dateOnlyWanted ? {} : { hour: 'numeric', minute: '2-digit', hourCycle: 'h12' }),
-    ...(valueIsDateOnly ? { timeZone: 'UTC' } : zone ? { timeZone: zone } : {}),
-    ...(options.zone && !valueIsDateOnly ? { timeZoneName: 'short' } : {})
+    ...(valueIsDateOnly ? { timeZone: 'UTC' } : zone ? { timeZone: zone } : {})
   }
   // en-GB inserts a comma right after the weekday once `year` is also in the
   // field list ("Sat, 2 Jan 2027"), unlike the same-year form ("Fri 6 Nov").
   // Strip that stray one so every date reads "Xxx D Mon[ YYYY][, h:mm am]"
   // the same way regardless of year -- the comma before the time is kept.
-  return new Intl.DateTimeFormat('en-GB', o).format(d).replace(/^(\S+),\s/, '$1 ')
+  const base = new Intl.DateTimeFormat('en-GB', o).format(d).replace(/^(\S+),\s/, '$1 ')
+  // Zone label (owner decision 2026-10-30): appended by hand through
+  // zoneAbbr rather than Intl's own `timeZoneName: 'short'` -- Intl's short
+  // name for most of the zones this app cares about (Jakarta, Tokyo, Seoul,
+  // Singapore, Kolkata, Central Europe) is a bare "GMT+9" with no letters,
+  // where the Go public page's own hackZoneAbbr (reading Go's tzdata) says
+  // "JST". zoneAbbr closes that gap the same way for every screen.
+  if (!options.zone || valueIsDateOnly) return base
+  const label = zoneAbbr(zone, d)
+  return label ? base + ' ' + label : base
 }
 // Date only, no time -- "Wed 28 Oct" (or "Wed 28 Oct 2027" once the year
 // isn't this one). Same zone rules as dateTime; a plain shortcut for the
@@ -207,10 +215,14 @@ export function errText(r, { codes, fallback } = {}) {
 // taken-down event blocks every write; an archived (ended) event blocks the
 // same controls with its own explanation; reads stay possible either way.
 // Returns '' when writes are fine, else the note to show by the controls.
-export function writeLockReason(ev, adminView) {
+// `opts.settings` (S14): the configuration screens -- Event page, People,
+// Teams, Results -- read as one settings form rather than a one-off
+// action, so their archived note says "Settings can't change any more"
+// instead of this helper's plain default wording.
+export function writeLockReason(ev, adminView, opts = {}) {
   if (adminView) return 'You are viewing as a platform admin. Nothing on this page can be changed.'
   if (ev && ev.taken_down) return 'This event has been taken down. Nothing on this page can be changed.'
-  if (ev && ev.stage === 'archived') return 'This event has ended. Nothing on this page changes any more.'
+  if (ev && ev.stage === 'archived') return opts.settings ? "This event has ended. Settings can't change any more." : 'This event has ended. Nothing on this page changes any more.'
   return ''
 }
 // The plain six-line DOM builder four screens each wrote their own copy of:
@@ -225,6 +237,81 @@ export function el(tag, attrs = {}) {
 }
 function zoneKnown(tz) {
   try { new Intl.DateTimeFormat('en-US', { timeZone: tz || 'UTC' }).format(0); return true } catch { return false }
+}
+// Zone labels (owner decision 2026-10-30): a short familiar name where one
+// exists -- WIB, WITA, WIT, JST, KST, SGT, IST, GMT/BST, CET/CEST, and the
+// US ET/CT/MT/PT family with their daylight variants -- else "GMT+N". The
+// one helper every screen uses (ui.dateTime({zone:true}) above and the
+// Results "Published ..." line both go through it), kept in step with the
+// Go public page's own hackZoneAbbr (hack_eventpage.go): that one reads a
+// real abbreviation straight off Go's tzdata and falls back to the IANA
+// name when tzdata has none. Intl's "short" name is close but not the
+// same -- it already gives North America and the UK a real letter code,
+// but for Jakarta, Tokyo, Seoul, Singapore, Kolkata and Central Europe it
+// is just the bare GMT+N offset with no name at all, so those get a fixed
+// lookup instead of trusting Intl.
+const ZONE_ABBR = {
+  'Asia/Jakarta': 'WIB', 'Asia/Pontianak': 'WIB',
+  'Asia/Makassar': 'WITA', 'Asia/Denpasar': 'WITA',
+  'Asia/Jayapura': 'WIT',
+  'Asia/Tokyo': 'JST',
+  'Asia/Seoul': 'KST',
+  'Asia/Singapore': 'SGT',
+  'Asia/Kolkata': 'IST', 'Asia/Calcutta': 'IST'
+}
+// Central Europe and London have a real daylight distinction but Intl's
+// short name for them is usually just a GMT+N offset too -- these get their
+// own DST check instead of a single fixed label.
+const CET_ZONES = ['Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome', 'Europe/Amsterdam', 'Europe/Brussels', 'Europe/Vienna', 'Europe/Prague', 'Europe/Warsaw', 'Europe/Zurich', 'Europe/Stockholm', 'Europe/Copenhagen', 'Europe/Budapest', 'Europe/Luxembourg']
+function offsetMinutes(zone, date) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' }).formatToParts(date)
+    const raw = (parts.find(p => p.type === 'timeZoneName') || {}).value || ''
+    const m = raw.match(/GMT([+-]\d{1,2})(?::?(\d{2}))?/)
+    if (!m) return null
+    const sign = m[1].startsWith('-') ? -1 : 1
+    return sign * (Math.abs(Number(m[1])) * 60 + Number(m[2] || 0))
+  } catch { return null }
+}
+function gmtOffsetLabel(zone, date) {
+  const mins = offsetMinutes(zone, date)
+  if (mins == null || mins === 0) return 'GMT'
+  const sign = mins < 0 ? '-' : '+'
+  const abs = Math.abs(mins)
+  const h = Math.floor(abs / 60), m = abs % 60
+  return 'GMT' + sign + h + (m ? ':' + String(m).padStart(2, '0') : '')
+}
+// Daylight is whichever offset differs from January's -- true for every
+// zone this helper's table covers (all northern hemisphere).
+function inDaylight(zone, date) {
+  const jan = offsetMinutes(zone, new Date(date.getFullYear(), 0, 1, 12))
+  const cur = offsetMinutes(zone, date)
+  return jan != null && cur != null && cur !== jan
+}
+export function zoneAbbr(zone, date = new Date()) {
+  zone = zone || Intl.DateTimeFormat().resolvedOptions().timeZone
+  if (!zoneKnown(zone)) return ''
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'short' }).formatToParts(date)
+    const raw = ((parts.find(p => p.type === 'timeZoneName') || {}).value || '').trim()
+    // A real letter name (EST, EDT, PST, GMT...) -- trust Intl, it already
+    // gets North America and London right. "GMT+9" and friends are a bare
+    // offset, not a name, even though the digits sit next to the letters
+    // "GMT".
+    if (raw && !/^(GMT|UTC)?[+-]\d/.test(raw)) return raw
+  } catch {}
+  if (ZONE_ABBR[zone]) return ZONE_ABBR[zone]
+  if (zone === 'Europe/London' || zone === 'Europe/Dublin') return inDaylight(zone, date) ? (zone === 'Europe/Dublin' ? 'IST' : 'BST') : 'GMT'
+  if (CET_ZONES.includes(zone)) return inDaylight(zone, date) ? 'CEST' : 'CET'
+  return gmtOffsetLabel(zone, date)
+}
+// Cosmetic #1: a team or event name that already ends in s/S takes a bare
+// apostrophe ("Alpha Testers'"), never another s ("Alpha Testers's").
+// Shared so every screen that puts a team or event name through 's --
+// organiser and participant/judge alike -- uses the same rule.
+export function possessive(name) {
+  const s = String(name || '')
+  return s + (/s$/i.test(s) ? '’' : '’s')
 }
 // The wall-clock parts of an ISO instant in the event's own time zone -- the
 // same clock a date/datetime-local field for that event shows and sends,

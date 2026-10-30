@@ -84,7 +84,12 @@ export function mount(ctx, section, screenId) {
   // (Home, Account, Create event) there is nothing to switch, so it shows
   // the brand instead -- still one tap from Menu either way.
   const phoneTop = event ? switcher('sw2') : brand()
-  const next = nextDeadline(event)
+  // S14: once an event has ended, the status bar shows only "Ended" (or,
+  // for a judge, "Scoring locked") -- never a leftover "Starts …"/deadline
+  // line. nextDeadline only looks at future timestamps, so a stray future
+  // starts_at on a test/odd event (ended before it was due to start) could
+  // otherwise still surface here.
+  const next = event && event.stage !== 'archived' ? nextDeadline(event) : null
   const track = ['draft','open','building','closed','judging','results','archived']
   // replay-organiser-walkthrough / replay-judging-walkthrough /
   // replay-scoring-walkthrough / replay-participant-walkthrough: Help always

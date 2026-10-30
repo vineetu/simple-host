@@ -84,8 +84,22 @@ function place(card, target) {
     else top = t.top
     left = t.left + t.width / 2 - c.width / 2
   } else {
+    // C4 leftover: an untargeted step (a centred welcome/explainer card, by
+    // design -- see canShow) used to land at box.top + 20, which is also
+    // where a screen's own first card sits right under its page header
+    // (e.g. judge-home's "Not open yet" before scoring opens) -- the tour
+    // card covered it. Put it below the page header on desktop (every
+    // screen renders one first, class .ph), or at the bottom of the content
+    // area on phone, where it never sits on top of the one card the person
+    // actually needs to read.
     const box = contentBox()
-    top = box.top + 20
+    if (isPhone()) {
+      top = vh - c.height - pad - gap
+    } else {
+      const header = document.querySelector('.content .ph')
+      const headerBottom = header ? header.getBoundingClientRect().bottom : box.top
+      top = Math.max(box.top, headerBottom) + gap
+    }
     left = box.left + (box.width - c.width) / 2
   }
   left = Math.min(Math.max(left, pad), Math.max(pad, vw - c.width - pad))

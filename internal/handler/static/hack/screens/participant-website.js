@@ -74,7 +74,10 @@ async function paint (ctx, ev, team, data, state) {
   let closedNoteHTML = ''
   let publishHTML = ''
   if (closedForPublish) {
-    closedNoteHTML = '<div class="note info">Publishing is closed. ' + (site.exists ? 'Your site stays live as submitted.' : 'Nothing was published.') + '</div>'
+    // Cosmetic #7: the site card right below already says "Nothing was
+    // published" (frozen/ended) or shows the "Taken down" state -- this note
+    // only needs to explain why Publish disappeared, not repeat that.
+    closedNoteHTML = '<div class="note info">Publishing is closed.' + (site.exists ? ' Your site stays live as submitted.' : '') + '</div>'
   } else {
     const mcp = data.mcp_url || (location.origin + '/mcp')
     publishHTML += '<div class="card"><h2>Publish from an AI app</h2><p>Add this address to your AI app. No key needed.</p><div class="copy"><input class="input mono" id="web-mcp" aria-label="Connector address" value="' + esc(mcp) + '" readonly></div></div>'
@@ -95,9 +98,16 @@ async function paint (ctx, ev, team, data, state) {
     publishHTML += '<details class="card"><summary>Publish from the command line</summary>' + adv + '</details>'
   }
 
-  // S12: the generic site-notifications endpoint 404s when this team has no
-  // site yet -- don't even ask for it until one exists, so the card is
-  // simply absent instead of a console error with nothing to show for it.
+  // S12 (owner decision 2026-10-30): don't ask for notifications until the
+  // screen has some signal the site might offer them -- site.exists is the
+  // only one the /key response gives us; there is no "notifications
+  // supported" flag to check first. The retest found the generic site
+  // route can still 404 for a published team site for server-side reasons
+  // this screen has no way to see in advance (acknowledged in the
+  // decision: "if it cannot know, keep the quiet hide"). notificationsHTML
+  // already treats !r.ok as "nothing to show" with no toast, so that 404
+  // stays console-only and the card is simply absent -- this is the
+  // intended behaviour, not a bug to chase further here.
   const notifyHTML = site.exists ? await notificationsHTML(ctx, ev, team, state) : ''
 
   const downloadHTML = '<div class="card"><h2>Keep a copy</h2><p class="sub">Download your published files.</p><button type="button" class="btn" id="web-download"' + (site.exists ? '' : ' disabled') + '>Download site</button></div>'
@@ -184,16 +194,24 @@ async function paint (ctx, ev, team, data, state) {
 
 // C10/#16: the server's invalid_archive message is the raw Go error from
 // the extractor ("invalid site archive: create gzip reader: gzip: invalid
-// header"), there to help us debug, not a participant. missing_index and
-// blocked_file_type already read as plain English (site.go), so only
-// invalid_archive needs a client-side override -- but the extractor's text
-// (internal/tarball/extract.go, sanitize.go) distinguishes a corrupt/
-// unreadable archive from one that was readable but refused for containing
-// unsafe or duplicate paths (zip-slip, symlink-style escapes), and those are
-// different things for a participant to fix, so they get different plain
-// text rather than being flattened into one generic sentence.
+// header"), there to help us debug, not a participant. blocked_file_type
+// already reads as plain English (site.go). missing_index's raw text ("no
+// index.html at the root of the archive", lowercase sentence fragment) is
+// also a server-debug string, not participant copy -- S11 retest found it
+// leaking straight through errText's server-message-first fallback, so it
+// gets the same client-side override as invalid_archive, worded to name the
+// actual fix (a zip with the site's own folder as its root, not index.html
+// at the top). The extractor's text (internal/tarball/extract.go,
+// sanitize.go) also distinguishes a corrupt/unreadable archive from one
+// that was readable but refused for containing unsafe or duplicate paths
+// (zip-slip, symlink-style escapes), and those are different things for a
+// participant to fix, so they get different plain text rather than being
+// flattened into one generic sentence.
 export function archiveErrorText (resp, fallback) {
   const code = resp && resp.data && resp.data.code
+  if (code === 'missing_index') {
+    return 'Put index.html at the top of the zip, not inside a folder.'
+  }
   if (code === 'invalid_archive') {
     const raw = String((resp && resp.data && resp.data.error) || '')
     if (/unsafe path|duplicate (entry|path)/i.test(raw)) {

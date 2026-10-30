@@ -30,5 +30,9 @@
  {
   "date": "2026-10-30",
   "what": "Atlas rebuilt as a living spec: app shell for every role, 32 screens designed by a UX architect and a hackathon domain expert over two review rounds, every one of 160 features placed, clickable prototype per screen and state, today’s screenshots kept as the before."
+ },
+ {
+  "date": "2026-10-30",
+  "what": "Grok SIM-346 re-test fixes, organiser screens (group R2): Event page honours a #section link (scrolls to it, opens it if collapsed) and Save basics now shows ‘Saved’; People's no-applications note names the real stage (‘Sign-up open’); Teams keeps the Tracks section open and in the order just saved across Add/Save/Remove, the Fill teams preview only warns when the apply actually placed people differently than previewed, and the Teams list never says ‘Looking for members’ on a full team; Judging's Open-mode Progress no longer counts an organiser who hasn't actually scored; the Panel assignment grid warns and blocks Save when the saved mode isn't Panel, matching Manual's own warning; Results' stale-snapshot note only shows once scores have actually changed since publishing, and Show scores now says teams always see their own score (owner decision); Event page, People, Teams and Results all read read-only with one note (‘This event has ended. Settings can't change any more.’) once the event is archived, keeping only what the API still allows and is still useful (downloads, Directory, Publish). Added shared ui.js helpers: ui.possessive (a name ending in s gets a bare apostrophe, not ’s) and ui.zoneAbbr (a short zone name -- WIB/WITA/WIT/JST/KST/SGT/IST/GMT-BST/CET-CEST/US ET-CT-MT-PT -- where Intl's own short name is just a bare GMT+N offset), which ui.dateTime({zone:true}) now uses everywhere instead of Intl's raw suffix. Cosmetic #6: organiser phone tap targets (.btn, .btn.sm, the Menu button) raised to a 44px floor."
  }
 ]

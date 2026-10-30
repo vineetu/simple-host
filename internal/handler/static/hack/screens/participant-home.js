@@ -30,14 +30,29 @@ function justPlacedNote(slug, me) {
   return seen === '' && !!teamSlug
 }
 
-async function openTeamsNote(api, slug) {
+// Fetched once and read for both the open-teams count (openTeamsNote) and a
+// pending invite (Confusing #6) -- one call, not two, for the same data
+// participant-team.js's own "Teams looking for members"/"Invites for you"
+// sections already use.
+async function findingData(api, slug) {
   try {
     const r = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/open')
-    if (!r.ok || !r.data || !r.data.enabled) return ''
-    const n = (r.data.teams || []).length
-    if (!n) return ''
-    return n + ' team' + (n === 1 ? '' : 's') + ' ' + (n === 1 ? 'is' : 'are') + ' looking for members.'
-  } catch (e) { return '' }
+    if (!r.ok || !r.data || !r.data.enabled) return null
+    return r.data
+  } catch (e) { return null }
+}
+function openTeamsNote(finding) {
+  const n = finding && Array.isArray(finding.teams) ? finding.teams.length : 0
+  if (!n) return ''
+  return n + ' team' + (n === 1 ? '' : 's') + ' ' + (n === 1 ? 'is' : 'are') + ' looking for members.'
+}
+// Confusing #6: a pending invite is the single most actionable thing on
+// Home for someone with no team yet -- surface it before the generic
+// "find a team" message, the same priority participant-team.js already
+// gives it (S13: "Invites for you" shown first there too).
+function pendingInvite(finding) {
+  const pending = finding && Array.isArray(finding.pending) ? finding.pending : []
+  return pending.find(p => p.kind === 'invite') || null
 }
 
 async function announcementsCard(api, ui, allHref, scheduleHref, slug, ev) {
@@ -82,8 +97,10 @@ export async function render(ctx) {
   const teamFrozen = me.team ? !!me.team.frozen : deadlinePassed
   if (ev.results_published) {
     // Results beat every other state, with or without a team: there is
-    // nothing left to build or join once they're out.
-    heroTitle = 'Results are out'
+    // nothing left to build or join once they're out. S14: once the event
+    // has also ended, say so up front -- "Results are out" on its own
+    // reads as if the event were still running.
+    heroTitle = ev.stage === 'archived' ? 'This event has ended. Results are out.' : 'Results are out'
     heroLabel = 'See results'
     heroHref = resultsHref
   } else if (ev.stage === 'archived') {
@@ -99,8 +116,14 @@ export async function render(ctx) {
     heroTitle = me.team_removal_notice
     if (teamsOpen && !deadlinePassed) { heroLabel = 'Find a team'; heroHref = teamHref }
   } else if (!me.team) {
-    if (teamsOpen && !deadlinePassed) {
-      const openNote = await openTeamsNote(api, slug)
+    const finding = teamsOpen && !deadlinePassed ? await findingData(api, slug) : null
+    const invite = pendingInvite(finding)
+    if (invite) {
+      heroTitle = 'You have an invite from ' + invite.team_name
+      heroLabel = 'Go to Team'
+      heroHref = teamHref
+    } else if (teamsOpen && !deadlinePassed) {
+      const openNote = openTeamsNote(finding)
       heroNote = [openNote, deadline ? ('Entries close ' + deadline + '.') : ''].filter(Boolean).join(' ')
       heroTitle = 'Find a team to start building'
       heroLabel = 'Find a team'
