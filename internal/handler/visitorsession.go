@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"html"
 	"log"
 	"mime"
 	"net"
@@ -156,22 +157,35 @@ func (h *SiteHandler) isVisitorApexHost(host string) bool {
 // Only the __Host- nonce cookie counts over HTTPS: a sibling host under the
 // same parent domain can plant a plain cookie, never a __Host- one.
 func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
+	host := requestHostName(r)
+	once := strings.TrimSpace(r.URL.Query().Get("once"))
+	// Try again restarts sign-in at the site's own address, as a fresh
+	// top-level navigation in this browser (the gate starts a new hop).
+	retry := ""
+	if host != "" && !h.isVisitorApexHost(host) && !strings.EqualFold(host, h.contentHost) {
+		retry = "https://" + r.Host + "/"
+		if !requestIsHTTPS(r) {
+			retry = "http://" + r.Host + "/"
+		}
+	}
+	fail := func(status int, reason string) {
+		logSignInFail(r, "establish", reason, once)
+		writeSignInFailed(w, status, reason, retry)
+	}
 	if !signInNavigationAllowed(r) {
-		writeOAuthHTMLError(w, 403)
+		fail(403, "not_navigation")
 		return
 	}
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	host := requestHostName(r)
 
-	once := strings.TrimSpace(r.URL.Query().Get("once"))
 	if once == "" {
-		writeOAuthHTMLError(w, http.StatusBadRequest)
+		fail(http.StatusBadRequest, "no_code")
 		return
 	}
 
 	tok, err := db.ConsumeEstablishToken(r.Context(), h.database, once, host)
 	if err != nil {
-		writeOAuthHTMLError(w, http.StatusBadRequest)
+		fail(http.StatusBadRequest, "code_used_or_expired")
 		return
 	}
 	activated := false
@@ -180,13 +194,20 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 			_ = db.DeleteVisitorSession(r.Context(), h.database, tok.SessionID)
 		}
 	}()
-	if host == "" || h.isVisitorApexHost(host) || strings.EqualFold(host, h.contentHost) {
-		writeOAuthHTMLError(w, http.StatusBadRequest)
+	if retry == "" {
+		fail(http.StatusBadRequest, "wrong_host")
 		return
 	}
+	if target, err := url.Parse(tok.ReturnTo); err == nil && strings.EqualFold(target.Hostname(), host) {
+		retry = tok.ReturnTo
+	}
 
-	if !tok.NonceHash.Valid || !nonceMatches(visitorNonceCookie(r), tok.NonceHash.String) {
-		writeOAuthHTMLError(w, http.StatusBadRequest)
+	if !tok.NonceHash.Valid || visitorNonceCookie(r) == "" {
+		fail(http.StatusBadRequest, "nonce_missing")
+		return
+	}
+	if !nonceMatches(visitorNonceCookie(r), tok.NonceHash.String) {
+		fail(http.StatusBadRequest, "nonce_mismatch")
 		return
 	}
 
@@ -194,44 +215,45 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 	// the browser was on the apex must not yield a usable session.
 	sess, err := db.GetVisitorSession(r.Context(), h.database, tok.SessionID)
 	if err != nil || !h.sessionValidFor(r, sess, sess.SiteID) {
-		writeOAuthHTMLError(w, 400)
+		fail(400, "session_invalid")
 		return
 	}
 	// The current host binding must still name the original immutable site.
 	target, parseErr := url.Parse(tok.ReturnTo)
 	if parseErr != nil || !strings.EqualFold(target.Hostname(), host) {
-		writeOAuthHTMLError(w, 400)
+		fail(400, "return_host")
 		return
 	}
 	boundID, ok := h.PersonReturnSite(r.Context(), host, target.Path)
 	if !ok {
 		info, err := db.GetSiteByCustomDomain(r.Context(), h.database, host)
 		if err != nil || !info.VerifiedAt.Valid {
-			writeOAuthHTMLError(w, 400)
+			fail(400, "site_unbound")
 			return
 		}
 		boundID = info.SiteID
 	}
 	if boundID != sess.SiteID {
-		writeOAuthHTMLError(w, 400)
+		fail(400, "site_moved")
 		return
 	}
 	if sess.SSOPassHash.Valid {
 		if off, err := db.SiteOffline(r.Context(), h.database, sess.SiteID); err != nil || off {
-			writeOAuthHTMLError(w, 403)
+			fail(403, "site_offline")
 			return
 		}
 		if susp, _, err := db.SiteSuspension(r.Context(), h.database, sess.SiteID); err != nil || susp {
-			writeOAuthHTMLError(w, 403)
+			fail(403, "site_suspended")
 			return
 		}
 		if !h.PasscodeLetsIn(r, sess.SiteID) {
+			logSignInFail(r, "establish", "passcode", once)
 			writeSiteLocked(w)
 			return
 		}
 	}
 	if err := db.ActivateVisitorSession(r.Context(), h.database, tok.SessionID, visitorSessionTTL(), visitorSessionIdle()); err != nil {
-		writeOAuthHTMLError(w, 400)
+		fail(400, "activate")
 		return
 	}
 	activated = true
@@ -239,6 +261,51 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 	setVisitorNonceCookie(w, r, "", -1)
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, tok.ReturnTo, http.StatusFound)
+}
+
+// logSignInFail records why a sign-in step refused, with a short reason
+// code and at most the first 6 characters of the one-use code or state.
+func logSignInFail(r *http.Request, route, reason, code string) {
+	if len(code) > 6 {
+		code = code[:6]
+	}
+	log.Printf("signin_fail route=%s reason=%s host=%s code=%s sec_fetch=%s/%s/%s",
+		route, reason, requestHostName(r), code,
+		r.Header.Get("Sec-Fetch-Site"), r.Header.Get("Sec-Fetch-Mode"), r.Header.Get("Sec-Fetch-Dest"))
+}
+
+// signInFailedHelp says what went wrong in words a visitor can act on.
+func signInFailedHelp(reason string) string {
+	switch reason {
+	case "nonce_missing":
+		return "This sign-in finished in a different browser or app from the one it started in, for example a link opened from another app into Safari."
+	case "nonce_mismatch":
+		return "A newer sign-in to this site started in this browser, so this one was cancelled."
+	case "code_used_or_expired", "no_code":
+		return "This sign-in link was already used or has expired."
+	case "site_offline", "site_suspended":
+		return "This site is not taking sign-ins right now."
+	}
+	return "Sign-in could not finish."
+}
+
+var signInFailedPage = themed(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--sh:theme--><title>Sign-in failed</title><style>` + passcodeGateCSS +
+	`html:root main.gate a.primary{display:block;box-sizing:border-box;width:100%;height:48px;line-height:48px;margin-top:12px;border-radius:255px 18px 225px 18px / 18px 225px 18px 255px;background:#116b77;color:#fffdf5;font-family:Caveat,"Segoe Print",cursive;font-size:22px;font-weight:700;text-align:center;text-decoration:none}` +
+	`html:root[data-theme=dark] main.gate a.primary{background:#9edacf;color:#0b1222}` +
+	`</style></head><body><main class="gate"><h1>Sign-in did not finish</h1><p class="lead">__HELP__</p>__ACTION__</main></body></html>`)
+
+// writeSignInFailed is the establish failure page: what happened, and a Try
+// again link that restarts sign-in for this site in this browser.
+func writeSignInFailed(w http.ResponseWriter, status int, reason, retry string) {
+	action := `<p class="fine">Close this tab and open the site again.</p>`
+	if retry != "" {
+		action = `<a class="primary" href="` + html.EscapeString(retry) + `">Try again</a><p class="fine">Try again signs you in to this site in this browser.</p>`
+	}
+	page := strings.NewReplacer("__HELP__", html.EscapeString(signInFailedHelp(reason)), "__ACTION__", action).Replace(signInFailedPage)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	_, _ = w.Write(hostedStatusPage(page))
 }
 
 // logoutVisitor handles POST /v1/visitor/logout: delete this session and clear
@@ -514,15 +581,7 @@ func (h *SiteHandler) logAnonWrite(r *http.Request, siteID, name, route, collect
 }
 
 func (h *SiteHandler) originClass(r *http.Request, siteID string) string {
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		if ref := r.Header.Get("Referer"); ref != "" {
-			if u, err := url.Parse(ref); err == nil {
-				origin = u.Scheme + "://" + u.Host
-			}
-		}
-	}
-	u, err := url.Parse(origin)
+	u, err := url.Parse(requestOrigin(r))
 	if err != nil || u.Host == "" {
 		return "allowed_origin"
 	}

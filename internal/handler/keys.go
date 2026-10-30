@@ -93,6 +93,11 @@ func (h *UserHandler) signOut(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
+	if err := endBrowserSSO(r, h.database, user.ID); err != nil {
+		log.Printf("sign out user_id=%s: %v", user.ID, err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	if _, err := db.DeleteAPIKeyByHash(r.Context(), h.database, user.ID, user.KeyHash); err != nil {
 		log.Printf("sign out user_id=%s: %v", user.ID, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

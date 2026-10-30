@@ -38,6 +38,22 @@ func ssoCookie(r *http.Request) string {
 	}
 	return c.Value
 }
+
+// endBrowserSSO is the dashboard Sign out's part of the browser family: the
+// pass this browser's cookie names, when it is the same person's, loses its
+// parent key, which ends that pass and every site session under it. The key
+// the request came with may be a different one (a failed bootstrap leaves the
+// cookie on an older sign-in). Only /v1/me/sign-out calls it.
+func endBrowserSSO(r *http.Request, database *sql.DB, userID string) error {
+	if r.URL.Path != "/v1/me/sign-out" {
+		return nil
+	}
+	c, err := r.Cookie(ssoCookieName(r))
+	if err != nil || c.Value == "" {
+		return nil
+	}
+	return db.DeleteSSOPassParent(r.Context(), database, db.HashAPIKey(c.Value), userID)
+}
 func setSSOCookie(w http.ResponseWriter, r *http.Request, value string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{Name: ssoCookieName(r), Value: value, Path: "/", MaxAge: maxAge, HttpOnly: true, Secure: requestIsHTTPS(r), SameSite: http.SameSiteLaxMode})
 }
@@ -55,7 +71,7 @@ func issueSSOPass(w http.ResponseWriter, r *http.Request, database *sql.DB, keyH
 	return nil
 }
 func (h *OAuthHandler) registerSSO(mux *http.ServeMux) {
-	mux.Handle("GET /v1/sso/start", rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.startSSO)))
+	mux.Handle("GET /v1/sso/start", ssoNavigationFirst(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.startSSO))))
 	mux.Handle("GET /v1/sso/hop", h.ssoApex(rateLimitByIP(h.ipLimiter, adminUICSP(http.HandlerFunc(h.hopSSO)))))
 	mux.Handle("POST /v1/sso/consent", h.ssoApex(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.hopSSO))))
 	mux.Handle("POST /v1/sso/session", h.ssoApex(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.bootstrapSSO))))
@@ -71,18 +87,36 @@ func (h *OAuthHandler) ssoApex(next http.Handler) http.Handler {
 		// additionally requires the pass-bound one-time form token.
 		sameOriginForm := r.Method == "POST" && (r.URL.Path == "/v1/sso/consent" || r.URL.Path == "/v1/sso/signed-out") && r.Header.Get("Origin") == "null" && r.Header.Get("Sec-Fetch-Site") == "same-origin"
 		if publicBaseHost(h.cfg.PublicBaseURL) == "" || requestHostName(r) != publicBaseHost(h.cfg.PublicBaseURL) || (!accountAuthAllowed(r, publicBaseOrigin(h.cfg.PublicBaseURL)) && !sameOriginForm) {
+			logSignInFail(r, r.URL.Path, "apex_origin", "")
 			http.Error(w, "Sign in on the app's own address.", 403)
 			return
 		}
 		if r.Method == "POST" && !sameOriginRequest(r) && !sameOriginForm {
+			logSignInFail(r, r.URL.Path, "cross_origin_post", "")
 			http.Error(w, "Use the sign-in page on this address.", 403)
 			return
 		}
-		if r.Method == "GET" {
+		// GET routes also answer HEAD; both are navigations to check.
+		if r.Method != "POST" {
 			if !signInNavigationAllowed(r) {
+				logSignInFail(r, r.URL.Path, "not_navigation", r.URL.Query().Get("state"))
 				http.Error(w, "Open sign-in in this tab.", 403)
 				return
 			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// ssoNavigationFirst refuses a start that is not a top-level navigation
+// before the per-IP limiter counts it, so image or fetch loads from another
+// page cannot spend the visitor's sign-in allowance.
+func ssoNavigationFirst(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Not logged: this runs before any limit, so a page could flood the log.
+		if !signInNavigationAllowed(r) {
+			writeOAuthHTMLError(w, 403)
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -116,6 +150,7 @@ func (h *OAuthHandler) bootstrapSSO(w http.ResponseWriter, r *http.Request) {
 }
 func (h *OAuthHandler) startSSO(w http.ResponseWriter, r *http.Request) {
 	if !signInNavigationAllowed(r) {
+		logSignInFail(r, "sso_start", "not_navigation", "")
 		writeOAuthHTMLError(w, 403)
 		return
 	}
@@ -133,6 +168,7 @@ func (h *OAuthHandler) startSSO(w http.ResponseWriter, r *http.Request) {
 	}
 	sanitized, siteID, host, purpose, err := h.sanitizeReturnTo(r.Context(), r.URL.Query().Get("return_to"))
 	if err != nil || purpose != "site" || !strings.EqualFold(host, requestHostName(r)) {
+		logSignInFail(r, "sso_start", "return_to", "")
 		writeOAuthHTMLError(w, 400)
 		return
 	}
@@ -172,6 +208,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 	}
 	hop, err := db.GetSSOHop(r.Context(), h.database, state, false)
 	if err != nil {
+		logSignInFail(r, "sso_hop", "state_unknown", state)
 		writeOAuthHTMLError(w, 400)
 		return
 	}
@@ -180,6 +217,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 	p, err := db.GetSSOPass(r.Context(), h.database, db.HashAPIKey(ssoCookie(r)))
 	if err != nil || r.URL.Query().Get("token") != "" {
 		if r.Method == "POST" {
+			logSignInFail(r, "sso_consent", "no_pass", state)
 			writeOAuthHTMLError(w, 401)
 			return
 		}
@@ -198,6 +236,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "POST" {
 		if !hop.ConsentPassHash.Valid || hop.ConsentPassHash.String != p.Hash || !hop.ConsentHash.Valid || !nonceMatches(r.PostForm.Get("form_token"), hop.ConsentHash.String) {
+			logSignInFail(r, "sso_consent", "form_token", state)
 			writeOAuthHTMLError(w, 403)
 			return
 		}
@@ -233,10 +272,12 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 	hop, err = db.GetSSOHop(r.Context(), tx, state, true)
 	if err != nil {
+		logSignInFail(r, "sso_hop", "state_used", state)
 		writeOAuthHTMLError(w, 400)
 		return
 	}
 	if _, err = db.GetSSOPass(r.Context(), tx, p.Hash); err != nil {
+		logSignInFail(r, "sso_hop", "pass_gone", state)
 		writeOAuthHTMLError(w, 401)
 		return
 	}
@@ -251,6 +292,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := db.LimitPendingSSOSessions(r.Context(), tx, p.Hash, hop.SiteID); err != nil {
+		logSignInFail(r, "sso_hop", "too_many_pending", state)
 		tooManyRequests(w)
 		return
 	}
@@ -278,6 +320,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 		err = tx.Commit()
 	}
 	if err != nil {
+		logSignInFail(r, "sso_hop", "mint", state)
 		writeOAuthHTMLError(w, 500)
 		return
 	}
@@ -353,7 +396,7 @@ func (h *SiteHandler) SetSSOHop(o *OAuthHandler) {
 		return
 	}
 	o.ssoEnabled = true
-	h.ssoStart = rateLimitByIP(o.ipLimiter, http.HandlerFunc(o.startSSO))
+	h.ssoStart = ssoNavigationFirst(rateLimitByIP(o.ipLimiter, http.HandlerFunc(o.startSSO)))
 	h.ssoBaseURL = strings.TrimRight(o.cfg.PublicBaseURL, "/")
 }
 func (h *SiteHandler) startGateSSO(w http.ResponseWriter, r *http.Request) bool {

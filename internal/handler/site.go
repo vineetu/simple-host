@@ -1261,15 +1261,7 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 		return false
 	}
 
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		if ref := r.Header.Get("Referer"); ref != "" {
-			if u, err := url.Parse(ref); err == nil {
-				origin = u.Scheme + "://" + u.Host
-			}
-		}
-	}
-
+	origin := requestOrigin(r)
 	if origin == "" {
 		return false
 	}
@@ -1285,12 +1277,20 @@ func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Reques
 	// same attribution-grade gate, just widened to owner-approved origins, the
 	// co-tenant content host, and the site's own hosts. (The retired
 	// <name>.<SITE_DOMAIN> host only redirects, so it serves no page to trust.)
-	if !strings.EqualFold(parsed.Host, h.contentHost) &&
+	//
+	// The content host is every path-model site's origin at once, so it is
+	// trusted only for requests to a shared host (the content host itself or
+	// the apex), where no visitor session or passcode unlock is ever valid. A
+	// site's own host, person host, family host or domain answers only its own
+	// addresses: a co-tenant page never gets a credentialed read of another
+	// site's visitor (SIM-348).
+	if !(strings.EqualFold(parsed.Host, h.contentHost) && h.sharedHost(requestHostName(r))) &&
 		!h.originIsSiteHostID(r.Context(), siteID, parsed.Host) &&
 		!h.originIsFamilyHostID(r.Context(), siteID, parsed) &&
 		!h.originIsPersonHostID(r.Context(), siteID, parsed.Host) &&
 		!h.originIsBoundDomainID(r.Context(), siteID, parsed.Host) &&
-		!h.originAllowedForSiteID(r.Context(), siteID, origin) {
+		// An owner cannot list the content host back in either.
+		!(h.originAllowedForSiteID(r.Context(), siteID, origin) && !strings.EqualFold(parsed.Host, h.contentHost)) {
 		return false
 	}
 

@@ -6,6 +6,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -504,9 +505,14 @@ func analyticsSecretValues(tool string, value any) []string {
 					values = append(values, trimmed)
 				}
 			}
-		case json.Number, float64:
+		case json.Number:
 			if secret {
-				values = append(values, fmt.Sprint(x))
+				values = append(values, x.String())
+			}
+		case float64:
+			// Plain digits, never 1.2345678e+07, so the intent's copy matches.
+			if secret {
+				values = append(values, strconv.FormatFloat(x, 'f', -1, 64))
 			}
 		case map[string]any:
 			for k, child := range x {
@@ -522,6 +528,14 @@ func analyticsSecretValues(tool string, value any) []string {
 		if args, ok := value.(map[string]any); ok {
 			if name, ok := args["name"].(string); ok {
 				tool = name
+			}
+			// Arguments sent as a JSON string are refused, but the event is
+			// still recorded; their secrets come out of the intent too.
+			if raw, ok := args["arguments"].(string); ok {
+				var inner any
+				if json.Unmarshal([]byte(raw), &inner) == nil {
+					collect(inner, false)
+				}
 			}
 		}
 	}
