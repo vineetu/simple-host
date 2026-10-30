@@ -188,11 +188,13 @@
 
 {{define "sec-rules"}}
 {{if .RulesCollapsed}}
-<details class="card" id="rules">
+<section class="card collapsed" id="rules">
   <h2 class="sr-only">Rules</h2>
+  <details>
   <summary>Rules</summary>
   {{range .Rules}}<p style="margin-top:10px">{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}
 </details>
+</section>
 {{else}}
 <section class="card" id="rules">
   <h2>Rules</h2>
@@ -221,13 +223,15 @@
 
 {{define "sec-schedule"}}
 {{if .ScheduleCollapsed}}
-<details class="card" id="schedule">
+<section class="card collapsed" id="schedule">
   <h2 class="sr-only">Schedule</h2>
+  <details>
   <summary>Schedule</summary>
   <ul class="sched" style="margin-top:10px">
     {{range .Schedule}}<li><span class="what"><b>{{.Title}}{{if .Status}} <span class="pill{{if eq .Status "Now"}} stage{{end}}">{{.Status}}</span>{{end}}</b>{{if .Description}}<span>{{.Description}}</span>{{end}}</span><span class="when">{{.When}}</span></li>{{end}}
   </ul>
 </details>
+</section>
 {{else}}
 <section class="card" id="schedule">
   <h2>Schedule</h2>

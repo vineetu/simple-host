@@ -259,8 +259,11 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 	// "This event has ended" pill with results in place either way, so it
 	// is left alone.
 	effStage := p.Stage
-	if resultsPublished && p.Stage != "archived" {
-		effStage = "results"
+	switch p.Stage {
+	case "building", "closed", "judging":
+		if resultsPublished {
+			effStage = "results"
+		}
 	}
 
 	v := hackEventView{

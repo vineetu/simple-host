@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/db"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
@@ -861,8 +862,8 @@ func TestHackEventPageScheduleAndRulesCollapseOnlyAfterResults(t *testing.T) {
 		wantSchedule := `<section class="card" id="schedule">`
 		wantRules := `<section class="card" id="rules">`
 		if c.collapsed {
-			wantSchedule = `<details class="card" id="schedule">`
-			wantRules = `<details class="card" id="rules">`
+			wantSchedule = `<section class="card collapsed" id="schedule">`
+			wantRules = `<section class="card collapsed" id="rules">`
 		}
 		if !strings.Contains(body, wantSchedule) {
 			t.Errorf("stage %s: schedule collapsed=%v not found, body:\n%s", c.stage, c.collapsed, body)
@@ -1073,6 +1074,11 @@ func TestHackEventPageFAQAndAnnouncementsKeepLineBreaks(t *testing.T) {
 	p.Content.FAQ = []hackFAQ{{Question: "Can I join?", Answer: "Yes.\nJust sign up."}}
 	p.Announcements = []hackAnnouncementView{{Title: "Update", Body: "Line one.\nLine two.", CreatedAt: time.Now()}}
 	body := renderHackEvent(t, p).Body.String()
+	// The newline is in the HTML either way; what keeps it visible is the
+	// pre-wrap rule for these two blocks.
+	if !regexp.MustCompile(`\.announcement-body,#faq details p\{white-space:pre-wrap\}`).MatchString(body) {
+		t.Error("FAQ answers and announcement bodies lost their pre-wrap rule")
+	}
 	if !strings.Contains(body, "Yes.\nJust sign up.") {
 		t.Error("FAQ answer lost its line break")
 	}
@@ -1177,17 +1183,51 @@ func TestHackEventPageCollapsedHeadingOutsideSummary(t *testing.T) {
 	}
 	body := renderHackEvent(t, p).Body.String()
 	for _, id := range []string{"rules", "schedule"} {
-		open := `<details class="card" id="` + id + `">`
+		open := `<section class="card collapsed" id="` + id + `">`
 		at := strings.Index(body, open)
 		if at < 0 {
 			t.Fatalf("missing collapsed %s, body:\n%s", id, body)
 		}
-		section := body[at : at+strings.Index(body[at:], "</details>")]
-		if strings.Contains(section, "<summary><h2") {
-			t.Errorf("%s: heading still nested inside <summary>: %s", id, section)
+		section := body[at : at+strings.Index(body[at:], "</section>")]
+		// The heading must sit before <details>: a closed <details> hides all
+		// but its summary from assistive tech.
+		h, d := strings.Index(section, "<h2"), strings.Index(section, "<details>")
+		if h < 0 || d < 0 || h > d {
+			t.Errorf("%s: heading must come before <details>: %s", id, section)
 		}
-		if !regexp.MustCompile(`<h2[^>]*>\w`).MatchString(section) {
-			t.Errorf("%s: no heading outside <summary> for heading navigation: %s", id, section)
-		}
+	}
+}
+
+// TestHackResultsFromSnapshotOverallWithRanksHidden (review 2026-10-30 N5):
+// the overall winner is marked from the real snapshot even when ranks are
+// hidden and it is also its track's winner.
+func TestHackResultsFromSnapshotOverallWithRanksHidden(t *testing.T) {
+	snap := []byte(`[
+		{"rank":1,"team_id":"a","team_name":"Alpha","track_winner":true,"track":{"name":"Health"},"total":9},
+		{"rank":2,"team_id":"b","team_name":"Beta","track_winner":true,"track":{"name":"Education"},"total":8},
+		{"rank":3,"team_id":"c","team_name":"Gamma","total":7}
+	]`)
+	v := hackResultsFromSnapshot(db.EventResultsRow{Published: true, Snapshot: snap}, false, false)
+	if v == nil || len(v.Rows) != 2 {
+		t.Fatalf("winners-only rows: %+v", v)
+	}
+	if !v.Rows[0].Overall || v.Rows[0].Rank != 0 {
+		t.Errorf("Alpha must be the overall winner with its rank hidden: %+v", v.Rows[0])
+	}
+	if v.Rows[1].Overall {
+		t.Errorf("Beta is a track winner only: %+v", v.Rows[1])
+	}
+}
+
+// TestHackEventPageDraftKeepsDraftLayoutWithResults (review 2026-10-30 N4):
+// published results only switch building, closed and judging to the results
+// layout; a draft keeps its own pill.
+func TestHackEventPageDraftKeepsDraftLayoutWithResults(t *testing.T) {
+	p := testHackEvent()
+	p.Stage = "draft"
+	p.Results = &hackResultsView{Rows: []hackResultsRow{{TeamName: "Alpha", Overall: true}}}
+	body := renderHackEvent(t, p).Body.String()
+	if strings.Contains(body, "Results are out") {
+		t.Error("a draft event must not be labelled Results are out")
 	}
 }
