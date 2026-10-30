@@ -2,6 +2,15 @@ import * as api from './api.js'
 import * as ui from './ui.js'
 import { mount } from './shell.js'
 import { resolveRoute, isAppRoute } from './nav.js'
+// Attribution carry-over (arrival.js) is only present on chromed pages.
+const arrival = u => (window.SHArrival ? window.SHArrival.url(u) : u)
+// Same as partials/dialog.html shStartSSO: bind this browser's apex SSO session to the key.
+async function startSSO(key) {
+  if (window.shStartSSO) return window.shStartSSO(key)
+  const r = await fetch('/v1/sso/session', { method: 'POST', headers: { 'X-API-Key': key, 'Content-Type': 'application/json' } })
+  if (!r.ok) throw new Error('Sign-in unavailable. Try again.')
+}
+
 const NEXT_KEY = 'sh-hack-next'
 const apiKey = api.apiKey
 const $ = id => document.getElementById(id)
@@ -57,7 +66,7 @@ const setLive = msg => ui.toast(msg)
     if (location.pathname === '/signin') return;
     var n = safeNext(location.pathname + location.search + location.hash) || '/events';
     saveNext(n);
-    location.assign(window.SHArrival.url('/signin?next=' + encodeURIComponent(n)));
+    location.assign(arrival('/signin?next=' + encodeURIComponent(n)));
   }
   function signedOut() {
     try { localStorage.removeItem('apiKey'); } catch (e) {}
@@ -121,7 +130,7 @@ const setLive = msg => ui.toast(msg)
     const key = provider === 'google' ? GOOGLE_NONCE : OIDC_NONCE;
     try { sessionStorage.setItem(key, n); } catch (e) { setLive('This browser is blocking storage sign-in needs. Use the emailed code.', 'err'); return; }
     const hash = await nonceHash(n);
-    location.assign('/v1/auth/oauth/' + provider + '?return_to=' + encodeURIComponent(window.SHArrival.url(location.origin + '/?cn=' + hash)));
+    location.assign('/v1/auth/oauth/' + provider + '?return_to=' + encodeURIComponent(arrival(location.origin + '/?cn=' + hash)));
   }
   async function startGoogle() { return startOAuthProvider('google'); }
   function joinPathKind(path) {
@@ -253,7 +262,8 @@ const setLive = msg => ui.toast(msg)
       return completeSignIn(r.data);
     });
   }
-  function completeSignIn(data) {
+  async function completeSignIn(data) {
+    await startSSO(data.api_key);
     try { localStorage.setItem('apiKey', data.api_key); } catch (e) {}
     if (window.shAuthRender) window.shAuthRender();
     var next = consumeNext();
@@ -262,7 +272,7 @@ const setLive = msg => ui.toast(msg)
     location.replace(next || '/events');
   }
   async function verifyBody(body) {
-    var res = await fetch(window.SHArrival.url('/v1/auth/verify'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    var res = await fetch(arrival('/v1/auth/verify'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     var data = {};
     try { data = await res.json(); } catch (e) {}
     return { ok: res.ok, status: res.status, data: data };
@@ -406,6 +416,8 @@ async function route() {
   }
 }
 api.onSignedOut(signedOut)
+if (apiKey()) api.api('POST', '/v1/sso/session').catch(() => {})
+window.addEventListener('focus', () => { if (apiKey()) api.me().catch(() => {}) })
 api.onEventsChanged(() => { initialData = null })
 document.getElementById('app').addEventListener('click', e => {
   const a = e.target.closest('a[href]')

@@ -63,11 +63,14 @@ func TestHackUINext(t *testing.T) {
 			t.Errorf("%s: status %d type %s", path, rec.Code, rec.Header().Get("Content-Type"))
 		}
 	}
+	// Sign-in always uses the shared page (chrome, SSO handoff), even with the
+	// new UI chosen; the cookie is kept so people return to the new app.
 	rec := get(t, mux, "simple-host.app", "/signin?ui=next")
-	if strings.Contains(rec.Body.String(), "/hack-ink.css") || strings.Contains(rec.Body.String(), "<script>") {
-		t.Error("new app must use only its kit and external scripts")
+	body := rec.Body.String()
+	if strings.Contains(body, `src="/hack/app.js"`) {
+		t.Error("/signin must serve the shared sign-in page, not the new app")
 	}
-	if !strings.Contains(rec.Body.String(), "/signin.js?") {
-		t.Error("missing shared sign-in script")
+	if !strings.Contains(body, "/signin.js?") || !strings.Contains(body, "window.SHArrival") {
+		t.Error("shared sign-in page lacks its sign-in script or arrival helper")
 	}
 }

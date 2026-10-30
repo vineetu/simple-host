@@ -48,7 +48,9 @@ func RegisterHackUI(mux *http.ServeMux) {
 			}
 			http.SetCookie(w, cookie)
 		}
-		if useNext {
+		// Sign-in stays on the shared page (site chrome, SSO handoff); people
+		// return to the new app afterwards because the cookie is kept.
+		if useNext && r.URL.Path != "/signin" {
 			next.ServeHTTP(w, r)
 		} else {
 			classic.ServeHTTP(w, r)
