@@ -93,8 +93,8 @@ the page that uses them. Then the page:
 ```
 
 - `SH.mount('#sh-auth')` shows the sign-in box; `await SH.requireSignIn()` right before a save
-  that needs it; `SH.me()` shows who is signed in; `SH.signOut()`. Visitors need no account or
-  password, and pages never send SQL.
+  that needs it; `SH.me()` shows who is signed in; `SH.signOut()`. Sign-in creates an account if needed; pages never send SQL.
+- Site Sign in uses the account apex, remembers consent, and Sign out ends the browser's linked site sessions, asking for confirmation when the site's session has expired or belongs to another browser sign-in.
 - `SH.storage.sqlite(db).table(t).add({...})` and `.list({order: 'id', desc: 1, limit: 50})`;
   `SH.storage.kv(name).get(key)` resolves to `{key, value}`; `SH.storage.files(name).put(path, blob)`.
 - On a failed save keep the form filled, show the error, and never claim success. Write visitors'
@@ -123,7 +123,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.83` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.88` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 
@@ -141,3 +141,5 @@ A coding agent with a configured owner credential uses REST (`X-API-Key`, and
 | An existing site on the deprecated state, collections or declared data | `references/backend.md` · https://simple-host.app/v1/skills/website-deploy/references/backend.md |
 | Tools an AI browsing agent can call on a page you build (WebMCP) | `references/webmcp-tools.md` · https://simple-host.app/v1/skills/website-deploy/references/webmcp-tools.md |
 | A free `<name>.simple-host.app` or a custom domain in depth | the `connect-domain` skill · https://simple-host.app/v1/skills/connect-domain |
+
+For sites shared with the person, use `visitor_read_site`, `visitor_add_entry`, and `visitor_change_entry` with their visitor rights only; each accepts an optional site `passcode`.

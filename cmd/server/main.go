@@ -317,6 +317,7 @@ func main() {
 	oauthHandler := handler.NewOAuthHandler(db, cfg)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
 	oauthHandler.SetPasscodeCheck(siteHandler.PasscodeLetsIn)
+	siteHandler.SetSSOHop(oauthHandler)
 	oauthHandler.SetSiteBases(siteHandler.ServedBases(), siteHandler.SameUserHost)
 	oauthHandler.Register(mux)
 	// The connector: OAuth 2.1 authorization server + remote MCP endpoint.
@@ -330,6 +331,7 @@ func main() {
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated)
 	connector.SetVisitorReferences(siteHandler)
+	connector.SetVisitorTools(siteHandler, oauthHandler)
 	connector.SetPreviewBases(siteHandler.ServedBases())
 	connector.OfferSpamCheck(siteHandler.SpamCheckEnabled())
 	// MCP Events and webhooks share the engine on Host and Hack.

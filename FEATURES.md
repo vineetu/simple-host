@@ -148,13 +148,11 @@ Enterprise (named viewers, level `specific`, "who can open the site"); hosted na
 the email they sign in with, with no company accounts, pending state or teams. Every address of
 the site (site host, custom domain, claimed name, address family, the person address when it is
 the home page; old shared links 302 to the site's own address) then shows, to anyone not signed
-in there, a sign-in page in the gate's style (401, noindex, no-store, nothing of the site in it;
-an email box that sends a code to any address, so it never says who is listed, then a code box;
-"Continue with Google" when Google sign-in is set up), and to someone signed in who is neither
-the owner nor named, "You do not have access" naming the address they used, with Use another email
-and Sign out (403). The forms post to `POST /v1/site-signin` (`email`, then `email` and `code`;
-the same visitor session as auth.js, bound to the site and that host) and `POST
-/v1/site-signout`, same-origin only, `next` kept on the host. Who gets in is decided on every
+in there, the automatic apex sign-in hop (§6). Someone signed in who is neither
+the owner nor named sees "You do not have access", naming the address they used,
+with Use another email and Sign out (403). `POST /v1/site-signout` signs out through
+the apex. The old same-origin `POST /v1/site-signin` email and code forms remain
+for cached gates and instances without an apex. Who gets in is decided on every
 request from the list as it is then: a new name works on their next page, a removed one is
 refused on their next request, a suspended account never gets in. The owner always gets in
 (signed in on the site with their account email), and the owner's key, the connector and
@@ -591,8 +589,49 @@ and `SAVED_DATA_BOARD_NAMES_MAX` (20 each) names per site. **Status: built (bran
 
 ## 6. Visitor sign-in (Google, emailed code)
 
-A visitor on a site's own origin signs in with Google, an emailed code or (self-hosted) their
-company's own identity provider, gets a host-only cookie for that origin, and page saves are
+**One sign-in across sites (2026-10-29, SIM-338).** Site Sign in starts a
+nonce-bound top-level hop through the instance's apex. A signed-in browser
+continues with its `__Host-sh_sso` pass; otherwise the shared apex card offers
+email, Google, or company OIDC. That creates a normal dashboard account, with
+`visitor_sso` as its signup source. Consent asks once per person and site,
+including when the owner explicitly named the email. Named-viewer gates hop
+automatically; ordinary pages wait for Sign in. Custom domains use the same
+redirects. Passcodes must be unlocked first, and offline or suspended sites
+refuse the hop. Prefetch, prerender and non-navigation requests are refused; clients without fetch metadata always see consent. No iframe or third-party cookie is used.
+
+The apex cookie is HttpOnly, Secure, SameSite=Lax, host-only, and Path=/;
+non-HTTPS development uses `sh_sso`. Its server-side hash references the
+parent account key, with 30-day absolute and 14-day idle expiry by default,
+bounded by the parent key. Only `/v1/sso/*` reads it. Each hop issues a fresh
+site session and a host- and nonce-bound establish code valid for 60 seconds,
+burned on first use. A pending session expires with that code and records no sign-in until nonce validation; successful establishment rechecks the current verified host binding. At most eight pending codes per browser pass and site are allowed. Signing out on either host revokes the parent key and all
+its site sessions; the site always sends a one-use apex navigation, including
+when its local session is expired, missing, or unparented. The apex revokes its
+current cookie family silently only when the ticket is bound to that same family.
+Unbound or mismatched tickets show a shared-card confirmation with a same-origin,
+form-token-protected `POST /v1/sso/signed-out` and Cancel link. The final apex page
+revokes and removes the dashboard key in this browser's localStorage, even after
+the pass row was swept, then returns to the stored site address. Replacing
+a browser sign-in retires its previous family. Pass issuance is limited per IP
+and key, retaining at most one pass per key; valid same-key cookies are reused. No
+session-list UI. Site session activity and dashboard bootstrap refresh the pass's
+idle expiry without extending its absolute expiry. All public hop and sign-out
+routes are limited per IP. Existing dashboard sessions gain the cookie on their next load.
+Simple Hack uses its own PUBLIC_BASE_URL and event/team site hosts; company
+installs use OIDC. Instances without an account apex keep the old visitor flow.
+Old visitor email endpoints remain for cached pages.
+
+Routes: `GET /v1/sso/start`, `GET /v1/sso/hop`, `POST /v1/sso/consent`,
+`POST /v1/sso/session`, `GET`/`POST /v1/sso/signed-out`, and
+`DELETE /v1/sso/consents/{site}` (account-key consent revocation, no list UI). Implementation:
+`h/sso.go`, `st/sso-signin.html`, `internal/db/sso.go`; migration
+`zn-sso-hop.sql` adds `sso_passes`, `sso_consents`, `sso_hops`,
+`sso_signouts`, and `visitor_sessions.sso_pass_hash`; `zo-sso-signout-confirm.sql`
+adds the sign-out form and browser bindings. If provider discovery fails on an
+instance without an apex, start redirects to its legacy visitor OAuth path.
+
+A visitor signs in on the apex with Google, an emailed code, or (self-hosted) their
+company's identity provider, then gets a host-only cookie for the site's origin. Page saves are
 made as them. `auth.js` is the documented client. GitHub is wired but unconfigured.
 **Status: live** (Google configured).
 
@@ -657,21 +696,19 @@ guess. Success `message` is "We sent a 6-digit code to the address." `GET /signi
 dashboard (a new account picks its address in the card), the connector consent page (sign in, then
 Allow; reviewer sign-in under "Other ways to sign in" only when set up), Simple Hack `/signin` and
 the join, judge and co-organiser links (the event header and two steps on the same page), company
-sign-in (`Continue with <OIDC_LABEL>`, email hidden when `EMAIL_SIGNIN=off`), and visitor sign-in
-(the dialog and an `SH.mount` box, with "Sign-in by Simple Host" and "The site owner sees the email
-you sign in with"). The card: Continue with Google first (Google's branded button), the company
+sign-in (`Continue with <OIDC_LABEL>`, email hidden when `EMAIL_SIGNIN=off`), and the apex
+visitor sign-in page. Site dialogs and `SH.mount` boxes now show the Sign in button that starts the hop. The card: Continue with Google first (Google's branded button), the company
 button, "or", Email, one Continue; then one code box (`autocomplete=one-time-code`, paste, signs in
 at six digits), a 30-second resend, Open Gmail only for @gmail.com and @googlemail.com (new tab),
-and errors under the box. The private-site and passcode gates are server-rendered in the same look,
-with a hashed script that submits six digits and holds "Send a new code" for 30 seconds.
+and errors under the box. Legacy gates on instances without a hop-capable apex retain their server-rendered
+email card, six-digit submission, and 30-second resend.
 
-`SH.requireSignIn()` on a page with no `SH.mount` box asks in a small dialog (an emailed 6-digit
-code, or Google) and resumes the save; afterwards a "Signed in as … Sign out" chip shows in the
-corner on that site (2026-10-10). `SH.signIn()` keeps the page's typed values (by id or name; never
-passwords, files, card fields or codes) in `sessionStorage` for 15 minutes and fills them back in
-on return. The dialog says "Sign in to continue" and the `SH.mount` box says "Sign in". Both lead with
-"No password and no account to make. The site owner sees the email you sign in with." and show
-sign-in errors in the card's own words. `table(t).list()` also reads like an array of row objects
+`SH.requireSignIn()` on a page with no `SH.mount` box asks in a small dialog with
+Sign in, then returns through the hop. Afterwards a "Signed in as … Sign out" chip
+shows on the site. `SH.signIn()` keeps typed values (by id or name; never passwords,
+files, card fields, or codes) in `sessionStorage` for 15 minutes and restores them
+on return. Instances without an apex retain the old email and provider card.
+`table(t).list()` also reads like an array of row objects
 (`result[0]`, `result.length`, `forEach`, `map`, `filter`; non-enumerable, so JSON and `Object.keys`
 see only the server's fields) and has `items`; it takes `order: "-id"` or `"id desc"` and
 `desc: true`; `files(name).upload` is `put` (2026-10-11).
@@ -712,7 +749,7 @@ or a connected app). Sign out (header, every page) first calls `POST /v1/me/sign
 deletes the key the browser held, then clears browser storage. Rotate ("Sign out everywhere")
 replaces all keys and disconnects all connector grants. Owner-route 401s carry `code`
 (`missing_api_key`, `wrong_auth_header`, `invalid_api_key`, `key_expired`, `key_expired_idle`).
-The dashboard keeps the key in `localStorage['apiKey']`; there is no owner cookie session.
+The dashboard keeps the key in `localStorage['apiKey']`; the separate apex SSO cookie in §6 only mints site passes. Growth, usage, and signup statistics count people with at least one site, while the admin identity list still includes visitors.
 
 **Deploy-only keys and expiry (2026-09-27).** A key minted from the Keys panel may be **deploy
 only** (`POST /v1/me/keys {"scope": "deploy"}`; `api_keys.scope`, default `full`): it may create,
@@ -820,6 +857,8 @@ turned them off (`PATCH /v1/me {"signin_alerts": false}`, own key only; `GET /v1
 
 ## 8. MCP connector and OAuth (chat apps)
 
+2026-10-29 (SIM-338 phase 4): `visitor_read_site` lists sites shared with the caller's verified email when no address is given. With a browser address, claimed short name, or custom domain, it returns preset rights, readable KV values, table rows, and legacy collections; `page` optionally returns static page text. `visitor_add_entry` adds an entry, and `visitor_change_entry` edits or deletes only the caller's own entry where permitted. All take an optional `passcode`, checked with the browser unlock's rate limits and lockouts. Each call gets a server-only visitor pass for one site, revoked on return; named viewers, account status, offline status, and presets are checked afresh. The caller never gains owner powers, even on their own site. Other authors, emails, and account IDs are omitted; own entries carry `mine`. Visitor content is framed as data, not instructions. Known identity needs no Turnstile challenge. Existing visitor limits apply, plus `VISITOR_AI_WRITES_PER_DAY` (default 200 attempts per person and site, UTC day, across apps and restarts). Successful changes leave a non-restorable data-history marker with `via <app name>`; `storage_list_resources` includes the latest 20 markers for each resource. Discovery omits resources and tables without visitor rights and applies `limit` to each readable resource. Schema columns and ordinary UUID keys remain usable; KV entries whose keys contain another account ID are omitted, schema column names redact those account IDs, and KV cursors are encrypted for the site and resource. Direct and wrapped visitor writes preserve exact JSON numbers and entry IDs. Site access is checked before resource existence is disclosed. Storage audit markers have their own history kind, separate from collections. Page text reports truncation past 256 KiB. Passcode-exempt resources remain accessible without unlocking; page reads still require unlocking. AgentCat uses the ordinary arguments/results/intent path and drops passcodes and page file contents. The consent screen names visitor access. No owner switch. Connected apps show the last site used by a visitor tool. Simple Hack does not offer the tools.
+
 Review fixes (2026-10-28): Host `storage_sql_query` and `storage_sql_execute` accept returned visitor references in SQL parameters, resolving them within the same site. Hack `who_am_i` omits email unless `include_email: true`, and own-conflict filtering uses the account ID for both OAuth and API-key callers. MCP notification conversion preserves JSON number precision. Failed reviewer sign-ins log an HMAC of the IP using the connector process key.
 
 Host MCP privacy (2026-10-28): `who_am_i` leaves `email` empty and omits the display name by default; `include_email: true` returns the email only when requested. Storage reads and MCP notification deliveries use opaque site-scoped visitor references instead of account UUIDs. References are derived from `PASSCODE_ENC_KEY` (stable across restarts; without it, from the process-local export key, which changes on restart). `storage_visitor_emails` accepts these references and legacy UUIDs, checks the existing site sign-in records, and echoes the supplied reference. Access changes return an empty `viewers` array; `list_site_viewers` returns emails and `added_at`, without sign-in timestamps. Export, preview, stored-file, and Hack archive links encrypt their payloads while retaining expiry and scope checks. REST storage identities and plain webhook payloads are unchanged.
@@ -838,7 +877,7 @@ The OpenAI package is version 1.0.2. Its listing describes hosting sites people 
 have made, and its independently maintained skills call named tools directly and give DNS
 records and registrar dashboard steps without requesting credentials. `openai-plugin/SUBMISSION.md`
 and `chatgpt-app-submission.json` share five positive and three negative cases, including an
-RSVP count without emails and an explicit single-submitter lookup. The submission lists 55
+RSVP count without emails and an explicit single-submitter lookup. The submission lists 58
 tools with MCP Events enabled, including notification listing and removal, without discovery
 wrappers. A Go test compares the submitted names and annotations with ChatGPT `tools/list`.
 The privacy page explains current storage presets and owner reads; consent includes
@@ -855,7 +894,7 @@ Connector usage analytics is off unless `AGENTCAT_PROJECT_ID` is set. AgentCat r
 
 Import admission covers receiving, queued and running jobs (at most `IMPORT_MAX_CONCURRENT + 5`). Import and JSON body read deadlines allow the body allowance at 250,000 bytes/s plus ten minutes, never below fifteen minutes (about 82 minutes for the default 1 GiB import). ZIP directories are checked before allocation, including ZIP64 with matching ordinary end-record fields; TAR budgets include physical headers and all expanded bytes, with extended-header payloads charged to the metadata cap, bounded paths and a cumulative gzip ratio. Status polling has a separate read limiter and respects Retry-After. Partial file updates sanitize and validate the patch before deploy locks, allow an empty sanitized patch, and hold the site lock through live-file merge and commit, using the ordinary unpacked-file caps and final merged sanitization.
 
-Routes and tools in short: `create_import_link` opens `GET /import/{token}` for the person's downloaded export and media; `POST /v1/imports/{token}` validates and queues conversion/publication, and `GET /v1/imports/status/{import_id}` gives counts and progress. `get_import_report` is owner-only and lists feature setup calls. Links recheck sign-in, expire in 30 minutes and are capped at 20 per account; finished reports last 24 hours. There are 53 Simple Host tools. `update_site` can keep unchanged live files with `keep_other_files: true` and drop `remove_files` (REST `PUT /v1/sites/{sitename}/files?keep=1`).
+Routes and tools in short: `create_import_link` opens `GET /import/{token}` for the person's downloaded export and media; `POST /v1/imports/{token}` validates and queues conversion/publication, and `GET /v1/imports/status/{import_id}` gives counts and progress. `get_import_report` is owner-only and lists feature setup calls. Links recheck sign-in, expire in 30 minutes and are capped at 20 per account; finished reports last 24 hours. There are 56 Simple Host tools, or 58 with notifications. `update_site` can keep unchanged live files with `keep_other_files: true` and drop `remove_files` (REST `PUT /v1/sites/{sitename}/files?keep=1`).
 
 Where no picker is shown (§10), `create_upload_link` returns a photo link: `photos_url`, `expires_at`, `folder: "images/"`, and `next` tell the agent to hand it to the person, then call `get_site` and place the new files with `update_site` and `keep_other_files: true`. The link opens `/photos?site=<name>#t=<token>` without sign-in or a site picker. `GET /v1/photo-links` returns only the fixed site; `POST /v1/photo-links` proxies only to that site's photos route. Both receive `X-Photo-Token` from the fragment, so it stays out of request URLs and Referer. The page immediately removes the fragment from browser history, keeps the token only in memory, and resets in place for Add more photos; reload asks for a new link. Tokens are hashed in memory, last 60 minutes for OAuth callers (API-key links are capped at the key’s known expiry, reported in `expires_at`), allow 10 successful saves, and recheck the underlying OAuth grant or API key on each request. OAuth checks require the same user and client, the MCP resource, and an existing, unsuspended, non-admin user; access-token expiry alone does not end a photo link. Fresh keys are revoked after use. The apex Origin checks, rate limits, body caps, quotas, and normal version saves apply. Failed saves can be retried; 401, 403, 404 and 413 replies use neutral photo-link error codes and messages without account quota details. Expired or spent links ask for a new link. A photo link is bound to the site name for its lifetime: renaming the site and creating a new site with the old name within that hour sends subsequent photos to the new site, within the same account only. The instance's apex is used on small boxes. Simple Hack keeps archive links and their old description; Enterprise has no photo links yet.
 
@@ -892,7 +931,7 @@ Apps checked against this server (2026-10-15), each with a row on Get started (s
 | Surface | Details |
 |---|---|
 | Routes | `GET /.well-known/oauth-protected-resource` · `GET /.well-known/oauth-protected-resource/mcp` · `GET /.well-known/oauth-authorization-server` · `GET /.well-known/oauth-authorization-server/mcp` · `GET /.well-known/muse-client.json` (Meta Muse client metadata) · `POST /oauth/register` · `GET /oauth/authorize` (consent page) · `POST /oauth/authorize/decision` · `POST /oauth/token` · `POST /oauth/revoke` · `POST /oauth/reviewer-signin` · `POST`/`GET`/`DELETE /mcp` · `PUT`/`POST /v1/uploads/{token}` · `GET /v1/me/connections` (name, connected, last used, and `device`: the consent page's browser summarised, "Chrome on macOS", kept on the code and copied to the grant; never the user agent or an IP; empty for connections made before 2026-09-27) · `DELETE /v1/me/connections/{client_id}` |
-| MCP tools | 55 website tools on Simple Host (37 site and account tools, `create_import_link` and `get_import_report` among them, 15 `storage_*` tools, `get_page_recipe`, and `list_notifications`/`remove_notification` where MCP Events are on; the 19 deprecated saved-data tools were removed 2026-10-10 and a call to one answers a plain "no longer offered" result). `tools/list` lists every permitted operation individually for ChatGPT, OpenAI, and Codex app names (2026-10-28), without `find_tools` or `run_tool`; cached wrapper calls still work. Those callers receive photo and notification guidance scoped to user intent. Other callers see a core of 20 (2026-10-23, SIM-187): the 18 building tools (`coreToolNames` in `internal/mcp/discovery.go`) plus `find_tools` (keyword ranking over names, titles, descriptions and per-tool aliases, no embeddings; an empty query lists the rest) and `run_tool` (calls any tool by name through the same checks, AgentCat event named after the called tool); every tool still answers when called by name. 2026-10-27 (SIM-226): the core swapped `storage_get_kv`, `storage_put_file` and `storage_visitor_emails` out for `storage_list_resources`, `site_analytics` and `list_versions`, which AgentCat showed reached through `run_tool` far more often than the three outgoing ones were called at all. `read_site_file` now also takes `paths` (up to 10 files in one call) alongside `path`, and `update_site` takes `edits` ({path, find, replace}, each find required to occur exactly once in the live file) for a small change without resending the whole file; both ship because `read_site_file` alone was 54% of all tool calls in AgentCat's data. A call with an argument the tool does not take gets the current input schema back, and on a direct call a line asking the person to refresh Simple Host in their app (ChatGPT keeps a custom connector's tool list from the day it was added; 2026-10-26). Server instructions are the cross-tool rules only, under 2,000 characters in every variant (SIM-179); the reconnect steps ride on the signed-out error instead; hosted Simple Hack's personal OAuth grant also lists the event tools and, after `hack_select_team`, uses a separately scoped team key for website calls (see §21). `internal/mcp/{server,hack_tools,hack_member_tools,hack_organiser_tools,hack_connection_tools}.go` |
+| MCP tools | 58 website tools on Simple Host (40 site and account tools, `create_import_link` and `get_import_report` among them, 15 `storage_*` tools, `get_page_recipe`, and `list_notifications`/`remove_notification` where MCP Events are on; the 19 deprecated saved-data tools were removed 2026-10-10 and a call to one answers a plain "no longer offered" result). `tools/list` lists every permitted operation individually for ChatGPT, OpenAI, and Codex app names (2026-10-28), without `find_tools` or `run_tool`; cached wrapper calls still work. Those callers receive photo and notification guidance scoped to user intent. Other callers see a core of 20 (2026-10-23, SIM-187): the 18 building tools (`coreToolNames` in `internal/mcp/discovery.go`) plus `find_tools` (keyword ranking over names, titles, descriptions and per-tool aliases, no embeddings; an empty query lists the rest) and `run_tool` (calls any tool by name through the same checks, AgentCat event named after the called tool); every tool still answers when called by name. 2026-10-27 (SIM-226): the core swapped `storage_get_kv`, `storage_put_file` and `storage_visitor_emails` out for `storage_list_resources`, `site_analytics` and `list_versions`, which AgentCat showed reached through `run_tool` far more often than the three outgoing ones were called at all. `read_site_file` now also takes `paths` (up to 10 files in one call) alongside `path`, and `update_site` takes `edits` ({path, find, replace}, each find required to occur exactly once in the live file) for a small change without resending the whole file; both ship because `read_site_file` alone was 54% of all tool calls in AgentCat's data. A call with an argument the tool does not take gets the current input schema back, and on a direct call a line asking the person to refresh Simple Host in their app (ChatGPT keeps a custom connector's tool list from the day it was added; 2026-10-26). Server instructions are the cross-tool rules only, under 2,000 characters in every variant (SIM-179); the reconnect steps ride on the signed-out error instead; hosted Simple Hack's personal OAuth grant also lists the event tools and, after `hack_select_team`, uses a separately scoped team key for website calls (see §21). `internal/mcp/{server,hack_tools,hack_member_tools,hack_organiser_tools,hack_connection_tools}.go` |
 | Skill | `website-deploy/SKILL.md` §Service, §Two ways to deploy (connector vs key); `openai-plugin/skills/website-deploy/SKILL.md` is the connector-only variant |
 | Pages | `st/connect.html` (consent; own nonce CSP in `consentHeaders`), `st/showcase.html` (Connected apps) |
 | Go | `h/connector.go` (AS, `BearerAuth`, `serveMCP`, connections, hourly sweep), `h/reviewer.go` (password sign-in for one designated store-review account), `internal/mcp/{server,jsonrpc,tools,outputs,instructions,discovery}.go`, `internal/db/connector.go`, `internal/db/internalkey.go`, `cmd/server/oauthclient.go` (`simple-host oauth-client …`, hand-registered clients e.g. a GPT Action), `cmd/server/reviewaccount.go` (`simple-host review-account …`) |
@@ -1907,9 +1946,17 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 | Operational times and limits | 95 env vars (`SIGNIN_CODE_TTL_MINUTES`, `MAX_SITES_PER_ACCOUNT`, `DELETED_RETENTION_DAYS`, `RATE_LIMIT_*`, `SAVED_DATA_*`, …), read once at startup with range checks in `internal/config/limits.go` (a bad value stops the server; the sign-in, visitor sign-in and connector OAuth limiters at most 4× looser than default; other rate limits warn past 10×, unknown `RATE_LIMIT_*` names warn), default today's values; promised dates are stored when made (`sites.purge_at`, `idle_remove_at`, `domain_release_at`), so a changed retention or grace applies to new deletions and warnings only; `handler.ApplyLimits` hands db/mcp/tarball their share; copy that states a value follows it (Go text formats it, served pages/docs/skills are rewritten by `h/limitstext.go`, nil at the defaults). Full table, and the issuers' `/etc/simple-host-{domain,site}-certs.conf`: `docs/configuration.md`; by area with recipes: `docs/advanced/` (tables generated from `docs/advanced/settings.json`; `internal/config/settings.go` is the registry, a test fails when a read env var is missing from it) |
 | Deploy | `/usr/local/bin/simple-host` as `simple-host.service`, env `/etc/simple-host.env`; `deploy/prod/*` (tracked `simple-host.service` with `MemoryMax=768M`, applied by hand; `sh-uptime-watch` checks both public health URLs every two minutes, alerts by Signal after two failed checks and once on recovery, with per-site state and `--test`; incl. log retention `logrotate-analytics.conf` and `journald-retention.conf`, 30 days), `Dockerfile`, `compose.yaml`, `Makefile`; checks `scripts/check-{docs-sync,features,html,layering,claude-plugin,reserved-subdomains,fresh-install}.sh` |
 
-## 21. MCP tool index (55 website tools; hosted Simple Hack event tools)
+## 21. MCP tool index (58 website tools; hosted Simple Hack event tools)
 
 Simple Host's connector lists operations individually for ChatGPT, OpenAI, and Codex. Other apps list its core of 20 and reach the rest through `find_tools` and `run_tool` (§ Connector, SIM-187). Simple Hack keeps its full listing on purpose (2026-10-23): a person's role (organiser, judge, participant) is per event, not per connection, so no one core fits; organisers chain dozens of distinct tools during a live event, where a find step before each would cost more than the shorter list saves; the Hack skills name about a hundred tools; and there is no Hack eval suite yet to prove a trimmed list does not break a live event. Next step if wanted: a Hack eval suite, then a core per role.
+
+The three Host visitor tools are outside the core 20 and listed individually for OpenAI clients:
+
+| Tool | Inputs | Effect |
+|---|---|---|
+| `visitor_read_site` | Optional `address`, `passcode`, `page`, `kind`, `resource`, `table`, `key`, `id`, `after`, and `limit` | Lists shared sites without an address; otherwise reads permitted data and rights. |
+| `visitor_add_entry` | `address`, `kind` (`kv`, `sqlite`, or `collection`), `resource`, `value`; optional `passcode`, `table`, and `key` | Adds a visitor entry. SQLite assigns the ID. |
+| `visitor_change_entry` | `address`, `kind`, `resource`, `action` (`edit` or `delete`); optional `passcode`, `table`, `key`, `id`, and `value` (required for edit) | Changes only the caller's own entry, subject to its preset; destructive annotation. |
 
 The ten original event tools remain in `internal/mcp/hack_tools.go`:
 
@@ -2351,3 +2398,5 @@ Parked ideas, not built. Why and open decisions are in `INTENT.md` under the sam
 | "Email me" for "Each person's records" (reuses the Submissions digest) | planned | hosted, small box |
 | Owner AI tools "what's new" and "update status" | planned | hosted, small box |
 | Webhooks out per storage resource, with signing, retries and per-site caps | planned | hosted, small box |
+
+SSO review (2026-10-30): AI passcode attempts are limited per person, with an AI site budget separate from browser IP and site budgets. Supplied secret values are removed wherever repeated in AgentCat arguments, result text, and intent. Visitor-tool page text only scrubs recognized emails and account IDs, not every possible personal reference in public prose.

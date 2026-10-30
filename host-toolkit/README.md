@@ -5,7 +5,7 @@
 Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**. Search for **Simple Host**, choose **Connect**, sign in, then choose **Allow**. It works on web, desktop, and phone. Claude also lists a Simple Host plugin (**Customize** → **Plugins** → **Discover**) that adds the connector and skills in one step.
 
 `site/` is the recovered source of the existing owner site at
-https://website-deploy-toolkit.vineetu.simple-host.app/ (current plugin 1.0.0, updated 2026-10-29: a kit for creating a **new** ChatGPT plugin, package `simple-host`, since the portal will not let the old draft `app-6ab570c7e41c81918c88f0026f2e1895` gain an MCP server through a package upload). Its demo video, icons and historical 0.9.7
+https://website-deploy-toolkit.vineetu.simple-host.app/ (current plugin 1.0.1, updated 2026-10-29: a kit for creating a **new** ChatGPT plugin, package `simple-host`, since the portal will not let the old draft `app-6ab570c7e41c81918c88f0026f2e1895` gain an MCP server through a package upload). Its demo video, icons and historical 0.9.7
 archive were recovered byte-for-byte before editing. Do not replace the
 historical ZIP or the demo and listing artifacts when updating current skills.
 `downloads/simple-host-openai-plugin-new.zip` is the new plugin's package (name `simple-host`,
@@ -18,7 +18,7 @@ fallbacks and is the source for all three public OpenAI ZIPs. `FALLBACK=1 bash s
 current ZIPs in `dist/`; copy the plugin ZIP into `site/downloads/simple-host-openai-plugin-new.zip`
 (the new plugin's package) and the skills ZIP into `site/downloads/simple-host-openai-skills.zip`,
 keeping only 0.9.17 and 0.9.7 of the versioned toolkit ZIPs. `openai-plugin/plugin.json` owns
-the package name and version: `simple-host` 1.0.0 for the new plugin (the old draft's last
+the package name and version: `simple-host` 1.0.1 for the new plugin (the old draft's last
 build, package `app-6ab570c7e41c81918c88f0026f2e1895` version 1.0.2, stays only in
 `site/downloads/simple-host-openai-plugin.zip`).
 The toolkit ZIP has the `website-deploy-toolkit` identity and no MCP or app

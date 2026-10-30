@@ -22,6 +22,9 @@ var coreToolNames = []string{
 }
 
 var toolAliases = map[string][]string{
+	"visitor_read_site":          {"sites shared with me", "read as a visitor", "my visitor entries"},
+	"visitor_add_entry":          {"add my hours", "add my entry", "post as a visitor"},
+	"visitor_change_entry":       {"edit my entry", "delete my entry", "change my visitor entry"},
 	"create_upload_link":         {"photo picker", "picker", "add photos", "upload photos", "upload pictures from my phone", "put my photos on the site", "menu photos", "listing photos", "my pictures"},
 	"connect_domain":             {"domain", "own domain", "custom domain", "url", "address", "shorter link", "short name", "dns", "www", "change address", "website address"},
 	"domain_status":              {"check domain dns", "dns status", "certificate", "connected"},

@@ -52,6 +52,8 @@ func TestAnalyticsPostedConversation(t *testing.T) {
 		{"hack_export_scores", nil, map[string]any{"csv": planted, "filename": "scores.csv"}, planted},
 		{"hack_regenerate_code", nil, map[string]any{"url": planted, "code": planted}, planted},
 		{"hack_export_participants", nil, map[string]any{"csv": planted, "filename": "participants.csv"}, planted},
+		{"visitor_read_site", map[string]any{"address": "ordinary-site", "page": "index.html"}, map[string]any{"visitor_data": map[string]any{"page_text": planted}}, `{"visitor_data":{"page_text":"PLANTED_PRIVATE_VALUE"}}`},
+		{"visitor_add_entry", map[string]any{"address": "ordinary-site", "passcode": planted, "value": "ordinary text"}, map[string]any{"visitor_data": map[string]any{"mine": true}, "note": "ordinary text"}, `{"visitor_data":{"mine":true},"note":"ordinary text"}`},
 	} {
 		t.Run(fmt.Sprintf("%d_%s", i, tc.name), func(t *testing.T) {
 			props := map[string]any{}

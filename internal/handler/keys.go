@@ -98,6 +98,7 @@ func (h *UserHandler) signOut(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	setSSOCookie(w, r, "", -1)
 	w.WriteHeader(http.StatusNoContent)
 }
 

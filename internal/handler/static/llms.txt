@@ -7,15 +7,14 @@ Simple Host hosts static websites, each with a small backend for saved data and 
 - Build a quick static site from a chat prompt: connect the [MCP connector](https://simple-host.app/mcp), or use the [website-deploy skill](https://simple-host.app/v1/skills/website-deploy) with a locally configured API key.
 - Build a booking form or a contact inbox: use the MCP connector's `get_page_recipe`, or the API with a key and the [booking](https://simple-host.app/recipes/booking.md) or [inbox](https://simple-host.app/recipes/inbox.md) recipe.
 - Build a client portal: use the MCP connector or the API with a key to grant named viewers access, then follow the [portal recipe](https://simple-host.app/recipes/portal.md).
+- Use visitor_read_site, visitor_add_entry, and visitor_change_entry for sites shared with you, with your visitor rights only; all accept an optional site passcode. Connected apps show the last site used.
 - Publish updates from CI: use the API with a deploy-only key. Give an existing site a custom domain or a free short address with the [connect-domain skill](https://simple-host.app/v1/skills/connect-domain), through the MCP connector or the API with a key.
 
 ## TWO SIGN-INS, ONE RULE
 
-Account sign-in (POST /v1/auth, POST /v1/auth/verify, GET /v1/auth/oauth/<provider>) is how a Simple Host account owner, or the agent working for them, signs in to Simple Host. It ends in an API key that can publish and delete their sites. It is never for a site's visitors: it answers only on https://simple-host.app (on a site's address or from a page it is 403 account_auth_unavailable), and an API key never goes in a page or in the browser's storage.
+Account sign-in (POST /v1/auth, POST /v1/auth/verify) answers only on https://simple-host.app. The dashboard keeps the account key there. Never put an API key in a hosted page.
 
-Visitor sign-in is for the people who use a site: customers, guests, members. It happens on the site's own address (https://<site>.<handle>.simple-host.app/, or the site's own domain), looks the same to them (an emailed code or Google), and identifies them to that one site only: a cookie for that site, never a key.
-
-The page loads `<script src="https://simple-host.app/auth.js"></script>` in the head, without defer so SH exists for every later script (with `<script>window.SH_CONFIG={site:'<site-name>'}</script>` before it on a custom domain; on the site's own address auth.js finds the site from the host name) and calls SH.mount('#sh-auth') into a `<section id="sh-auth"></section>` to show the sign-in card with both methods (Continue with Google, or email and a 6-digit code; the page never chooses one), await SH.requireSignIn() before a save (it scrolls to the box, or opens a small sign-in dialog when the page has none, waits, and resumes), SH.me() to show who is signed in ({"signed_in":true,"email":...} or {"signed_in":false,...}), and SH.signOut(). Under the hood: POST /v1/sites/<site>/visitor/auth {"email"} sends a 6-digit code, POST /v1/sites/<site>/visitor/auth/verify {"email","code"} with X-SH-CSRF: 1 signs in (SH.email.request(email) / SH.email.verify(email, code)); Google starts at GET /v1/visitor/oauth/google?return_to=<the page's URL> on the site's host (SH.signIn()); GET /v1/sites/<site>/me reads the session; POST /v1/visitor/logout ends it.
+Visitor sign-in identifies someone to one site with its own cookie. Load `<script src="https://simple-host.app/auth.js"></script>` in the head without defer, call SH.mount('#sh-auth') for the Sign in button, and await SH.requireSignIn() before a save. On a custom domain set `window.SH_CONFIG={site:'<site-name>'}` first. SH.me() reports the signed-in email; SH.signOut() completes a top-level navigation through the apex and signs out of every site pass from that sign-in, asking for confirmation if the local session expired or belongs to another browser sign-in. Legacy visitor email endpoints remain for cached pages.
 
 Visitor verification never returns an API key.
 
@@ -436,3 +435,5 @@ REST paths under /v1/hack/events/{slug}/: GET teams/open; PUT team/finding
 POST team/invites {user_id}; POST requests/{id}/{action} (accept or decline);
 DELETE requests/{id}; DELETE team/members/{user_id}; POST teams/fill {apply}.
 Lists never appear on the public event page. Full teams cannot accept or invite.
+
+Site Sign in uses the account apex. Everyone taps Continue once per site, including named viewers; the choice is remembered. Sign out ends that browser's linked site sessions.

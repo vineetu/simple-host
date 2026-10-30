@@ -101,6 +101,8 @@ func callerFrom(ctx context.Context) (Caller, bool) {
 
 // Config wires the server to the application.
 type Config struct {
+	// VisitorTool runs with a fresh, site-bound visitor pass, never APIKey.
+	VisitorTool func(*http.Request, Caller, string, map[string]any) (map[string]any, error)
 	// VisitorRefs shares the site handler export key for MCP-only attribution.
 	VisitorRefs *VisitorReferences
 	// Import callbacks keep conversion and report types in the handler package.
@@ -241,7 +243,7 @@ func NewServer(cfg Config) *Server {
 	hackSiteBare := make([]Tool, 0, len(tools))
 	hackSiteByName := make(map[string]Tool, len(tools))
 	for _, tool := range tools {
-		if tool.Name == "list_notifications" || tool.Name == "remove_notification" {
+		if strings.HasPrefix(tool.Name, "visitor_") || tool.Name == "list_notifications" || tool.Name == "remove_notification" {
 			continue
 		}
 		if tool.Name == "create_import_link" || tool.Name == "get_import_report" || tool.Name == "set_keep_versions" || tool.Name == "get_site_passcode" || tool.Name == "set_site_passcode" || tool.Name == "remove_site_passcode" || tool.Name == "sign_out_site_visitors" || tool.Name == "set_site_access" || tool.Name == "list_site_viewers" || tool.Name == "grant_site_viewer" || tool.Name == "revoke_site_viewer" || tool.Name == "storage_visitor_emails" || tool.Name == "set_home_page" || tool.Name == "set_bio" || tool.Name == "set_showcase_site" {
@@ -633,8 +635,28 @@ func parseCallParams(raw json.RawMessage) (callParams, error) {
 	if len(raw) == 0 {
 		return params, nil
 	}
-	err := json.Unmarshal(raw, &params)
-	return params, err
+	var envelope struct {
+		Name      string                     `json:"name"`
+		Arguments map[string]json.RawMessage `json:"arguments"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return params, err
+	}
+	name := envelope.Name
+	if name == "run_tool" {
+		_ = json.Unmarshal(envelope.Arguments["name"], &name)
+	}
+	switch name {
+	case "visitor_read_site", "visitor_add_entry", "visitor_change_entry":
+		// Preserve entry values and IDs in both direct and wrapped calls.
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.UseNumber()
+		err := dec.Decode(&params)
+		return params, err
+	default:
+		err := json.Unmarshal(raw, &params)
+		return params, err
+	}
 }
 
 func hasClientCapabilities(params json.RawMessage) bool {
@@ -768,6 +790,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	}
 	_, _, byName := s.forCaller(caller)
 	started := time.Now()
+	secretValues := analyticsSecretValues(params.Name, params.Arguments)
 	eventName := params.Name
 	intent, _ := takeAnalyticsContext(byName[params.Name], params.Arguments)
 	var recorded bool
@@ -783,7 +806,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 				parameters = analyticsParameters(eventName, params.Arguments)
 			}
 			s.analytics.enqueue(caller, eventName, completed.Sub(started), completed, runError,
-				parameters, analyticsResponse(eventName, reply.Result), capAnalyticsIntent(intent))
+				redactAnalyticsSecrets(parameters, secretValues), redactAnalyticsSecrets(analyticsResponse(eventName, reply.Result), secretValues), capAnalyticsIntent(redactAnalyticsSecrets(intent, secretValues).(string)))
 		}
 	}()
 	// Unwrap before lookup so direct and wrapped calls share the same checks.

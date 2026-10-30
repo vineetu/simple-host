@@ -156,11 +156,12 @@ func (h *SiteHandler) isVisitorApexHost(host string) bool {
 // Only the __Host- nonce cookie counts over HTTPS: a sibling host under the
 // same parent domain can plant a plain cookie, never a __Host- one.
 func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
-	host := requestHostName(r)
-	if host == "" || h.isVisitorApexHost(host) || strings.EqualFold(host, h.contentHost) {
-		writeOAuthHTMLError(w, http.StatusBadRequest)
+	if !signInNavigationAllowed(r) {
+		writeOAuthHTMLError(w, 403)
 		return
 	}
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	host := requestHostName(r)
 
 	once := strings.TrimSpace(r.URL.Query().Get("once"))
 	if once == "" {
@@ -173,16 +174,67 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(w, http.StatusBadRequest)
 		return
 	}
-	if !tok.NonceHash.Valid || !nonceMatches(visitorNonceCookie(r), tok.NonceHash.String) {
-		// Not the browser that started this sign-in: the session it would
-		// have carried is dropped with the code.
-		if err := db.DeleteVisitorSession(r.Context(), h.database, tok.SessionID); err != nil {
-			log.Printf("establish: drop unbound session: %v", err)
+	activated := false
+	defer func() {
+		if !activated {
+			_ = db.DeleteVisitorSession(r.Context(), h.database, tok.SessionID)
 		}
+	}()
+	if host == "" || h.isVisitorApexHost(host) || strings.EqualFold(host, h.contentHost) {
 		writeOAuthHTMLError(w, http.StatusBadRequest)
 		return
 	}
 
+	if !tok.NonceHash.Valid || !nonceMatches(visitorNonceCookie(r), tok.NonceHash.String) {
+		writeOAuthHTMLError(w, http.StatusBadRequest)
+		return
+	}
+
+	// A revoked or expired parent, an offline site, or a passcode set while
+	// the browser was on the apex must not yield a usable session.
+	sess, err := db.GetVisitorSession(r.Context(), h.database, tok.SessionID)
+	if err != nil || !h.sessionValidFor(r, sess, sess.SiteID) {
+		writeOAuthHTMLError(w, 400)
+		return
+	}
+	// The current host binding must still name the original immutable site.
+	target, parseErr := url.Parse(tok.ReturnTo)
+	if parseErr != nil || !strings.EqualFold(target.Hostname(), host) {
+		writeOAuthHTMLError(w, 400)
+		return
+	}
+	boundID, ok := h.PersonReturnSite(r.Context(), host, target.Path)
+	if !ok {
+		info, err := db.GetSiteByCustomDomain(r.Context(), h.database, host)
+		if err != nil || !info.VerifiedAt.Valid {
+			writeOAuthHTMLError(w, 400)
+			return
+		}
+		boundID = info.SiteID
+	}
+	if boundID != sess.SiteID {
+		writeOAuthHTMLError(w, 400)
+		return
+	}
+	if sess.SSOPassHash.Valid {
+		if off, err := db.SiteOffline(r.Context(), h.database, sess.SiteID); err != nil || off {
+			writeOAuthHTMLError(w, 403)
+			return
+		}
+		if susp, _, err := db.SiteSuspension(r.Context(), h.database, sess.SiteID); err != nil || susp {
+			writeOAuthHTMLError(w, 403)
+			return
+		}
+		if !h.PasscodeLetsIn(r, sess.SiteID) {
+			writeSiteLocked(w)
+			return
+		}
+	}
+	if err := db.ActivateVisitorSession(r.Context(), h.database, tok.SessionID, visitorSessionTTL(), visitorSessionIdle()); err != nil {
+		writeOAuthHTMLError(w, 400)
+		return
+	}
+	activated = true
 	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), visitorCookieMaxAge())
 	setVisitorNonceCookie(w, r, "", -1)
 	w.Header().Set("Cache-Control", "no-store")
@@ -200,15 +252,21 @@ func (h *SiteHandler) logoutVisitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if raw := visitorCookieValue(r); raw != "" {
-		if id, err := hex.DecodeString(raw); err == nil && len(id) == 32 {
-			if err := db.DeleteVisitorSession(r.Context(), h.database, id); err != nil {
-				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-				return
-			}
-		}
+	if !sameOriginRequest(r) {
+		writeJSON(w, 403, errorResponse{Error: "sign out on the site's own page"})
+		return
+	}
+	back, err := h.endSiteSSO(w, r, "/")
+	if err != nil {
+		writeJSON(w, 500, errorResponse{Error: "sign-out unavailable"})
+		return
 	}
 	setVisitorSessionCookie(w, r, "", 0)
+	if back != "" {
+		writeJSON(w, 200, map[string]string{"redirect_url": back})
+		return
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -297,6 +355,19 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 			}
 			return h.keyActor(r, ownerID), true
 		}
+	}
+
+	if r.Header.Get(visitorPassHeader) != "" {
+		sess, ok := h.internalVisitorSession(r, siteID)
+		if !ok {
+			storageError(w, 403, "forbidden", "visitor pass does not cover this site")
+			return anon, false
+		}
+		if r.Header.Get(visitorCSRFHeader) != visitorCSRFValue {
+			storageError(w, 403, "csrf_required", "missing CSRF header")
+			return anon, false
+		}
+		return db.Actor{ID: sess.UserID, Kind: actorVisitor}, true
 	}
 
 	if key := r.Header.Get("X-API-Key"); key != "" {

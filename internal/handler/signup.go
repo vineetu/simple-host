@@ -71,6 +71,9 @@ func signupForOwnerReturnTo(ctx context.Context, q db.Querier, r *http.Request, 
 			return withArrival(r, s)
 		}
 	}
+	if r.URL.Path == "/v1/sso/hop" {
+		return db.Signup{Source: "visitor_sso", Method: provider}
+	}
 	return websiteSignup(r, provider)
 }
 

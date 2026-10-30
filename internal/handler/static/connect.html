@@ -132,6 +132,7 @@
           <li><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Read site files and saved data, including private entries</span></li>
           <li><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Download copies and read visitor counts</span></li>
           <li><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Manage notifications, your public profile, and your home page</span></li>
+          <li>Use sites others shared with you, with your visitor rights only.</li>
         </ul>
         <div class="conn-actions">
           <button type="button" id="cancel-btn">Cancel</button>
@@ -524,6 +525,7 @@
           if (card) card.showError(window.SHSignIn.message(signInErr(r.status, r.body), productName()));
           return;
         }
+        await window.shStartSSO(r.body.api_key);
         setKey(r.body.api_key);
         el('rv-password').value = '';
         enter();

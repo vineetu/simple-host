@@ -70,7 +70,7 @@ func AddAPIKey(ctx context.Context, q Querier, userID, apiKey, name string) erro
 func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, error) {
 	if strings.HasPrefix(apiKey, internalKeyPrefix) {
 		c, ok := lookupInternalCred(apiKey)
-		if !ok {
+		if !ok || c.visitor != nil {
 			return User{}, sql.ErrNoRows
 		}
 		u, err := GetUserByID(ctx, db, c.userID)
@@ -704,13 +704,21 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 
 // ListAllUsers returns every registered user (admin view), oldest first. API keys
 // are deliberately NOT selected.
-func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
+func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) { return listUsers(ctx, db, false) }
+
+// ListSiteOwners excludes visitor-only identities from signup statistics.
+func ListSiteOwners(ctx context.Context, db *sql.DB) ([]User, error) { return listUsers(ctx, db, true) }
+func listUsers(ctx context.Context, db *sql.DB, withSites bool) ([]User, error) {
+	filter := ""
+	if withSites {
+		filter = " WHERE EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id)"
+	}
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, username, is_admin, created_at, COALESCE(handle, ''), display_name,
 		       suspended_at IS NOT NULL, COALESCE(suspended_reason, ''),
 		       COALESCE(signup_source, ''), COALESCE(signup_agent, ''), COALESCE(signup_method, ''), signup_inferred,
 		       signup_detail
-		FROM users
+		FROM users`+filter+`
 		ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, err

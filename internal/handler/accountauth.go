@@ -36,8 +36,8 @@ func writeAccountAuthUnavailable(w http.ResponseWriter, baseHost string) {
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusForbidden, errorResponse{
 		Code:  "account_auth_unavailable",
-		Error: "Account sign-in is for Simple Host account owners and their agents, never for a site's visitors; it is only served on the app's own address.",
-		Hint:  "For a page's visitors use visitor sign-in on the site's own address: load https://" + baseHost + "/auth.js, call SH.mount('#sh-auth') (emailed code or Google), and await SH.requireSignIn() before saving. Visitor sign-in never returns an API key.",
+		Error: "Account sign-in is only served on the app's own address.",
+		Hint:  "For a page's visitors use visitor sign-in on the site's own address: load https://" + baseHost + "/auth.js, call SH.mount('#sh-auth'), and await SH.requireSignIn() before saving. Visitor sign-in never returns an API key.",
 	})
 }
 

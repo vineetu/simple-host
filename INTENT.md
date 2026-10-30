@@ -130,6 +130,36 @@ What follows from that, and is not negotiable without changing the line above:
 ## Decisions already made
 
 - **2026-10-30. The signed-in Simple Hack app is rebuilt from the UX atlas.** One app shell for every role (event switcher, a sidebar per role, a Home that says what to do next), designed screen by screen in `docs/ux-atlas/` and built as one module per atlas screen under `static/hack/`, with no change to the API or MCP tools. The atlas is the source of truth: a new feature or a removed one changes the atlas first, then its screen. The new app is light only, like the hack landings. Reason: the owner judged the old UX the main problem after hand-testing (2026-10-28) and asked for a full overhaul that stays easy to change, not band-aids.
+- **2026-10-29. First-site consent includes named viewers (SSO red-team F1).**
+  The owner ruled that a site's viewer list is not permission to identify a browser.
+  Every person taps Continue as once per immutable site, then the choice is remembered.
+  Company sign-in alone does not establish permission to disclose identity to a site;
+  Enterprise uses the same tap. Background fetches, prefetch and prerender cannot sign
+  people in. Pending handoffs record no visit until the browser proves its nonce.
+  AI passcode tries use per-person limits and a separate site budget from browsers.
+
+- **2026-10-29. Visitor tools in connected AI apps (SIM-338 phase 4).** `visitor_read_site`, `visitor_add_entry`, and `visitor_change_entry` act with the person's visitor rights on a site, including when that person owns it. Each call uses a server-minted pass for one person and one site, revoked when the call ends; existing owner tools keep their authority. Named viewers, offline status, passcodes, and storage presets are checked on every call. Changes cover only the person's own entries. Owner decisions 8, 9, and 10 override the plan: passcode sites accept an optional passcode with the browser's passcode checks and separate AI attempt limits; there is no owner switch; AgentCat receives the same arguments, results, and intent as other calls, with the existing secret and file-content drops. Results omit other people's emails and account IDs. The tools stay outside the core 20 and appear individually for OpenAI clients. Writes have a per-person, per-site daily cap (default 200), and data history records the connected app. Simple Hack does not offer these tools; Enterprise is a later port. This changes no browser sign-in flow.
+
+- **2026-10-29. One sign-in across sites (SIM-338, decisions 1 to 7).**
+  The apex may set one strictly necessary, HttpOnly, Secure, host-only
+  `__Host-sh_sso` cookie, with SameSite=Lax and Path=/ as required by `__Host-`.
+  This reverses the no-cookie rule for simple-host.app. Only `/v1/sso/*` reads it;
+  it mints site passes and never authorizes account APIs. Sites use top-level
+  redirects and nonce-bound, one-time codes, including custom domains. Sign-in
+  happens on the apex card, with email or the instance's identity provider, and
+  gives visitors a normal account with an empty dashboard. Account growth and
+  signup counts count only people with a site. Consent is remembered per person
+  and site, including explicitly named viewers and Enterprise (owner correction below). Private
+  named-viewer sites hop automatically; ordinary pages wait for Sign in.
+  Signing out on a site or the dashboard ends that browser's parent dashboard
+  key, apex pass, and all site sessions minted from it. This replaces the plan's
+  per-site sign-out and removes the proposed session-list UI. Legacy visitor
+  sessions also finish sign-out at the apex when one is configured, even if
+  the local session has expired (review correction, 2026-10-29). Simple Hack uses its
+  own apex, and self-hosted company sign-in uses OIDC. Reason: owner approval
+  of A1 and the simpler single Sign out, including the brief apex navigation
+  on custom domains.
+
 - **2026-10-29. AgentCat receives tool-call context.** The owner overrides the 2026-10-23 minimal design to learn what people are trying to do. For each connector tool call AgentCat gets the arguments and result (each capped at 8 KB) and the agent's stated intent, plus the usage fields sent since 2026-10-23. Personal data is removed by AgentCat's own server-side redaction (on for our project), not by our own pattern matching (owner, 2026-10-29). Our sender leaves out what is not conversation content: passcodes, keys, tokens, and signing secrets (by field name), file contents and base64 data (size and type only), and raw visitor emails (the visitor reference instead). The optional `context` input that carries the stated intent was first offered to every app except ChatGPT, OpenAI, and Codex connections, pending the ChatGPT plugin approval (resubmission SIM-334, follow-up SIM-337), since a free-text field about the user's request is the kind of input a reviewer may flag; superseded the same day, see below. Arguments and results telemetry covers all apps, ChatGPT included, because AgentCat is a disclosed processor and not part of a tool response.
 
 - **2026-10-29. The `context` input is offered to every caller, ChatGPT, OpenAI, and Codex included.** Supersedes the wait-for-plugin-approval exclusion above, decided the same day. Reason: owner's call — AgentCat's own redaction already covers personal data in that field (see above), so there is no reason to withhold it from OpenAI clients while a resubmission is in review.

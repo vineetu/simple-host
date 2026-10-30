@@ -278,6 +278,8 @@ func dropAnalyticsField(tool, key string, field any, obj map[string]any, depth i
 	}
 	name := analyticsFieldName(key)
 	switch {
+	case tool == "visitor_read_site" && name == "pagetext":
+		return analyticsFile(field, "text/plain", false)
 	case analyticsSecretField(tool, key):
 		return "[removed]"
 	case analyticsEmailField(tool, key):
@@ -487,4 +489,66 @@ func capAnalyticsJSON(value any) any {
 		}
 	}
 	return "[Object]"
+}
+
+// Field removal also removes those supplied values when repeated in prose.
+func analyticsSecretValues(tool string, value any) []string {
+	var values []string
+	var collect func(any, bool)
+	collect = func(v any, secret bool) {
+		switch x := v.(type) {
+		case string:
+			if secret && x != "" {
+				values = append(values, x)
+				if trimmed := strings.TrimSpace(x); trimmed != "" && trimmed != x {
+					values = append(values, trimmed)
+				}
+			}
+		case json.Number, float64:
+			if secret {
+				values = append(values, fmt.Sprint(x))
+			}
+		case map[string]any:
+			for k, child := range x {
+				collect(child, secret || analyticsSecretField(tool, k))
+			}
+		case []any:
+			for _, child := range x {
+				collect(child, secret)
+			}
+		}
+	}
+	if tool == "run_tool" {
+		if args, ok := value.(map[string]any); ok {
+			if name, ok := args["name"].(string); ok {
+				tool = name
+			}
+		}
+	}
+	collect(value, false)
+	sort.Slice(values, func(i, j int) bool { return len(values[i]) > len(values[j]) })
+	return values
+}
+func redactAnalyticsSecrets(value any, secrets []string) any {
+	switch x := value.(type) {
+	case string:
+		for _, secret := range secrets {
+			x = strings.ReplaceAll(x, secret, "[removed]")
+		}
+		return x
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for key, child := range x {
+			out[redactAnalyticsSecrets(key, secrets).(string)] = redactAnalyticsSecrets(child, secrets)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, child := range x {
+			out[i] = redactAnalyticsSecrets(child, secrets)
+		}
+		return out
+	default:
+		return value
+	}
 }

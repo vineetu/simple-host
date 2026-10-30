@@ -43,6 +43,7 @@ jobs:
           node-version: '22'
 
       - run: pip install pyyaml
+      - run: sudo apt-get update -qq && sudo apt-get install -y nginx-light
 
       - name: make check
         env:

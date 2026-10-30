@@ -465,7 +465,7 @@ func (h *SiteHandler) loadStorageTables(ctx context.Context, siteID, name string
 // there; it covers custom domains and families, whose pages nginx serves
 // without ownerFrameGuard) or from a preview of an earlier version.
 func (h *SiteHandler) storageOwnerOnSite(r *http.Request, c storageCall) bool {
-	if c.visitorID == "" || c.resource.Access == nil {
+	if c.visitorAI || c.visitorID == "" || c.resource.Access == nil {
 		return false
 	}
 	if !hackMode && c.visitorID != c.ownerID {
@@ -545,8 +545,14 @@ func (h *SiteHandler) storageAllow(w http.ResponseWriter, r *http.Request, c *st
 	}
 	switch value {
 	case storageWhoAnyone:
+		if c.visitorAI && (action == "edit" || action == "delete") {
+			return c.visitorID, true
+		}
 		return "", true
 	case storageWhoChecked:
+		if c.visitorAI && h.storageVisitorActive(w, r, c) {
+			return "", true
+		}
 		// The owner signed in on the site posts without the check.
 		if c.ownerOnSite && h.storageVisitorActive(w, r, c) {
 			return "", true
@@ -565,6 +571,9 @@ func (h *SiteHandler) storageAllow(w http.ResponseWriter, r *http.Request, c *st
 		}
 		if !h.storageVisitorActive(w, r, c) {
 			return "", false
+		}
+		if c.visitorAI && (action == "edit" || action == "delete") {
+			return c.visitorID, true
 		}
 		if c.ownerOnSite || value == storageWhoSignedIn {
 			return "", true

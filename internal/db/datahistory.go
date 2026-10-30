@@ -20,8 +20,9 @@ import (
 
 // History kinds.
 const (
-	HistoryState = "state"
-	HistoryList  = "list"
+	HistoryState   = "state"
+	HistoryList    = "list"
+	HistoryStorage = "storage"
 )
 
 // History ops.
@@ -55,7 +56,7 @@ var ErrSiteFull = errors.New("site saved data is full")
 const OperatorLabel = "Simple Host (operator)"
 
 // byExpr is who made a history change, as the owner sees it.
-const byExpr = `CASE WHEN actor_kind = 'admin' THEN '` + OperatorLabel + `' ELSE COALESCE(actor_email, '') END`
+const byExpr = `CASE WHEN actor_kind = 'admin' THEN '` + OperatorLabel + `' ELSE COALESCE(actor_email, '') END || CASE WHEN actor_app <> '' THEN ' via ' || actor_app ELSE '' END`
 
 // rowsQuerier is a *sql.DB or a *sql.Tx.
 type rowsQuerier interface {

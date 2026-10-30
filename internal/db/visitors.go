@@ -38,6 +38,7 @@ type OAuthState struct {
 // VisitorSession is the server-side row behind the site-scoped cookie.
 // UserID is the one principal; the cookie is not an API key.
 type VisitorSession struct {
+	SSOPassHash   sql.NullString
 	ID            []byte
 	UserID        string
 	SiteID        string
@@ -169,30 +170,48 @@ func InsertVisitorSession(ctx context.Context, q Querier, id []byte, userID, sit
 	return err
 }
 
+// Pending handoffs have no durable identity record and expire with their code.
+func InsertPendingVisitorSession(ctx context.Context, q Querier, id []byte, userID, siteID, host string, expires time.Time) error {
+	_, err := q.ExecContext(ctx, `INSERT INTO visitor_sessions(id,user_id,site_id,host,expires_at,idle_expires_at) VALUES($1,$2,$3,$4,$5,$5)`, id, userID, siteID, host, expires)
+	return err
+}
+func ActivateVisitorSession(ctx context.Context, q Querier, id []byte, ttl, idle time.Duration) error {
+	var site string
+	return q.QueryRowContext(ctx, `WITH s AS (
+ UPDATE visitor_sessions SET expires_at=now()+make_interval(secs=>$2),idle_expires_at=now()+make_interval(secs=>$3)
+ WHERE id=$1 AND expires_at>now() AND idle_expires_at>now() RETURNING site_id,user_id),
+ recorded AS (INSERT INTO site_visitor_signins(site_id,user_id) SELECT site_id,user_id FROM s ON CONFLICT DO NOTHING)
+ SELECT site_id::text FROM s`, id, ttl.Seconds(), idle.Seconds()).Scan(&site)
+}
+
 // GetVisitorSession loads a session by raw id.
 func GetVisitorSession(ctx context.Context, q Querier, id []byte) (VisitorSession, error) {
 	const query = `
-		SELECT id, user_id::text, site_id::text, host, created_at, last_seen_at, expires_at, idle_expires_at
-		FROM visitor_sessions
-		WHERE id = $1`
+		SELECT v.id, v.user_id::text, v.site_id::text, v.host, v.created_at, v.last_seen_at, v.expires_at, v.idle_expires_at, v.sso_pass_hash
+ FROM visitor_sessions v WHERE v.id = $1 AND (v.sso_pass_hash IS NULL OR EXISTS (
+ SELECT 1 FROM sso_passes p JOIN api_keys k ON k.key_hash=p.parent_key_hash JOIN users u ON u.id=p.user_id
+ WHERE p.id_hash=v.sso_pass_hash AND ` + liveSSOPass + `))`
 	var s VisitorSession
-	err := q.QueryRowContext(ctx, query, id).Scan(
+	err := q.QueryRowContext(ctx, query, id, idleExpirySeconds()).Scan(
 		&s.ID, &s.UserID, &s.SiteID, &s.Host,
-		&s.CreatedAt, &s.LastSeenAt, &s.ExpiresAt, &s.IdleExpiresAt,
+		&s.CreatedAt, &s.LastSeenAt, &s.ExpiresAt, &s.IdleExpiresAt, &s.SSOPassHash,
 	)
 	return s, err
 }
 
 // TouchVisitorSession slides idle_expires_at to min(now + the idle expiry
-// (VISITOR_SESSION_IDLE_DAYS), expires_at).
+// (VISITOR_SESSION_IDLE_DAYS), expires_at), and refreshes a live parent pass
+// within its own absolute expiry. An already idle family is never revived.
 func TouchVisitorSession(ctx context.Context, q Querier, id []byte) error {
 	_, err := q.ExecContext(ctx, `
-		UPDATE visitor_sessions
+		WITH touched AS (UPDATE visitor_sessions
 		SET last_seen_at = now(),
 		    idle_expires_at = LEAST(now() + ($2 * interval '1 second'), expires_at)
 		WHERE id = $1
 		  AND expires_at > now()
-		  AND idle_expires_at > now()`, id, int64(lim().VisitorSessionIdle.Seconds()))
+		  AND idle_expires_at > now() RETURNING sso_pass_hash)
+		UPDATE sso_passes SET idle_expires_at=LEAST(expires_at, now()+($2 * interval '1 second'))
+		WHERE id_hash IN (SELECT sso_pass_hash FROM touched) AND idle_expires_at>now() AND expires_at>now()`, id, int64(lim().VisitorSessionIdle.Seconds()))
 	return err
 }
 
@@ -242,6 +261,7 @@ func ConsumeEstablishToken(ctx context.Context, q Querier, once, host string) (E
 		return EstablishToken{}, err
 	}
 	if !strings.EqualFold(t.Host, host) {
+		_ = DeleteVisitorSession(ctx, q, t.SessionID)
 		return EstablishToken{}, sql.ErrNoRows
 	}
 	return t, nil
@@ -269,6 +289,9 @@ func SetAllowAnonymousWrites(ctx context.Context, q Querier, siteID string, allo
 // and email sign-in codes (a day past expiry). oauth_identities is durable and
 // is not swept.
 func SweepVisitorAuth(ctx context.Context, database *sql.DB) error {
+	if err := SweepSSO(ctx, database); err != nil {
+		return err
+	}
 	if _, err := database.ExecContext(ctx, `DELETE FROM oauth_states WHERE expires_at < now()`); err != nil {
 		return err
 	}

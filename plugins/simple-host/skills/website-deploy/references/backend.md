@@ -721,3 +721,5 @@ On any of these: keep the form, never claim success, and never re-POST an
 entry by hand after a partial write. The kinds' own codes (`declare_first`, `confirm_public`,
 `wrong_kind`, `owner_only`, `one_per_person`, `list_full`, `not_allowed_to_save`,
 `undo_expired`) are in the table under "Kinds" above.
+
+Site sign-in uses the account apex. Everyone taps Continue once per site, including named viewers; the choice is remembered. Sign out ends the linked sign-ins on this browser.

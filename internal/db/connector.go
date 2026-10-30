@@ -69,10 +69,11 @@ type OAuthTokenGrant struct {
 // OAuthConnection is one app a person has connected, for the "connected apps"
 // list: every live grant for one client folded into a row.
 type OAuthConnection struct {
-	ClientID    string
-	ClientName  string
-	ConnectedAt time.Time
-	LastUsedAt  time.Time
+	LastVisitorSite string
+	ClientID        string
+	ClientName      string
+	ConnectedAt     time.Time
+	LastUsedAt      time.Time
 	// Device is the newest connection's summarised browser ("" when unknown).
 	Device string
 }
@@ -299,7 +300,8 @@ func DeleteOAuthGrantsForUser(ctx context.Context, q Querier, userID string) err
 func ListOAuthConnections(ctx context.Context, database *sql.DB, userID string) ([]OAuthConnection, error) {
 	rows, err := database.QueryContext(ctx, `
 		SELECT g.client_id, c.client_name, MIN(g.created_at), MAX(g.last_used_at),
-		       COALESCE((array_agg(g.device ORDER BY g.created_at DESC) FILTER (WHERE g.device IS NOT NULL))[1], '')
+		       COALESCE((array_agg(g.device ORDER BY g.created_at DESC) FILTER (WHERE g.device IS NOT NULL))[1], ''),
+		       COALESCE((array_agg(g.last_visitor_site->>'address' ORDER BY (g.last_visitor_site->>'at')::timestamptz DESC) FILTER (WHERE g.last_visitor_site IS NOT NULL))[1], '')
 		  FROM oauth_grants g JOIN oauth_clients c ON c.client_id = g.client_id
 		 WHERE g.user_id = $1
 		 GROUP BY g.client_id, c.client_name
@@ -311,7 +313,7 @@ func ListOAuthConnections(ctx context.Context, database *sql.DB, userID string) 
 	out := []OAuthConnection{}
 	for rows.Next() {
 		var c OAuthConnection
-		if err := rows.Scan(&c.ClientID, &c.ClientName, &c.ConnectedAt, &c.LastUsedAt, &c.Device); err != nil {
+		if err := rows.Scan(&c.ClientID, &c.ClientName, &c.ConnectedAt, &c.LastUsedAt, &c.Device, &c.LastVisitorSite); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

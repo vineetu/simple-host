@@ -62,7 +62,7 @@ chk "nginx -t then reload" "grep -q 'nginx -t' '$T/calls' && [ \"\$(reloads)\" =
 chk "rendered for simple-host.site, upstream 127.0.0.1:8090, no placeholders left" "grep -q 'server_name simple-host.site www.simple-host.site;' '$F' && grep -qF 'simple-host\\.site\$\"' '$F' && grep -q 'proxy_pass http://127.0.0.1:8090;' '$F' && grep -q 'return 301 https://simple-host.app/;' '$F' && grep -q '/etc/letsencrypt/live/simple-host.site/fullchain.pem' '$F' && grep -q '/etc/nginx/simple-host-site-certs-site/\$sh_site_base_cert_person/privkey.pem' '$F' && ! grep -q '__' '$F'"
 chk "default render still has three :443 servers (redirect apex)" "[ \"\$(grep -c 'listen 443 ssl;' '$F')\" = 3 ]"
 # Default output (no APEX_MODE / ANALYTICS_LOG / CLIENT_MAX_BODY) must match
-# the unmodified template, captured from git: HEAD when this is uncommitted,
+# the historical template plus query-free access logging, captured from git: HEAD when this is uncommitted,
 # otherwise the last ancestor whose template has no @apex-app markers.
 ROOT=$(cd "$HERE/../.." && pwd)
 unmod="$T/unmod.conf"
@@ -89,9 +89,10 @@ if [ "$found_unmod" = 1 ]; then
         -e 's|__UPSTREAM__|127.0.0.1:8090|g' \
         -e 's|__LE_LIVE__|/etc/letsencrypt/live|g' \
         -e 's|__CERTS__|/etc/nginx/simple-host-site-certs-site|g' \
+        -e 's|access_log /var/log/nginx/access.log;|access_log /var/log/nginx/access.log shanalytics;|g' \
         "$unmod"
   } > "$expect"
-  chk "default render is byte-for-byte the unmodified template" "cmp -s '$F' '$expect'"
+  chk "default render matches the historical template with query-free logging" "cmp -s '$F' '$expect'"
 else
   bad "could not find an unmodified nginx-site-base-domain.conf in git"
 fi

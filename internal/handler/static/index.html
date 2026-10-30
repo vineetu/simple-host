@@ -1404,6 +1404,7 @@ function parseAnalyticsSummary(data) {
         const res = await api('GET', '/v1/me');
         if (res.ok) {
           currentUser = await res.json();
+          await fetch('/v1/sso/session', {method: 'POST', headers: {'X-API-Key': apiKey, 'Content-Type': 'application/json'}});
           enterApp();
           return;
         }
@@ -1419,10 +1420,8 @@ function parseAnalyticsSummary(data) {
           }
         }
         if (res.status === 401) {
-          // Server explicitly rejected the key — only here do we wipe
-          // the saved session and fall back to the login screen.
-          apiKey = null;
-          localStorage.removeItem('apiKey');
+          // The API helper cleared the rejected key only if storage still
+          // held it; a newer sign-in is adopted and retried there.
           if (window.shAuthRender) window.shAuthRender();
           return;
         }
@@ -1439,6 +1438,14 @@ function parseAnalyticsSummary(data) {
         enterApp();
       }
     }
+
+    window.addEventListener('focus', async function () {
+      if (!apiKey) return;
+      try {
+        const r = await api('GET', '/v1/me');
+        if (r.status === 401) { currentUser = null; if (window.shAuthRender) window.shAuthRender(); showView('auth-view'); }
+      } catch (e) {}
+    });
 
     // One sign-out for every page: the header's (partials/header.html) clears
     // the key and any half-finished sign-in, then lands on "/" signed out.
@@ -1477,7 +1484,18 @@ function parseAnalyticsSummary(data) {
         opts.headers['Content-Type'] = 'application/json';
         opts.body = JSON.stringify(body);
       }
-      return fetch(path, opts);
+      const res = await fetch(path, opts);
+      if (res.status === 401 && opts.headers['X-API-Key']) {
+        const stored = localStorage.getItem('apiKey');
+        if (stored === opts.headers['X-API-Key']) {
+          localStorage.removeItem('apiKey');
+          apiKey = null;
+        } else {
+          apiKey = stored;
+          if (apiKey) return api(method, path, body);
+        }
+      }
+      return res;
     }
 
     // Views

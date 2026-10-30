@@ -2786,6 +2786,20 @@
       "small_box": true
     },
     {
+      "name": "VISITOR_AI_WRITES_PER_DAY",
+      "group": "storage",
+      "description": "Visitor connector write attempts per person and site per UTC day, shared across apps and restarts.",
+      "type": "int",
+      "default": "200",
+      "min": 1,
+      "max": 100000,
+      "unit": "writes",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "SITE_STORAGE_FILES_MAX_OBJECTS",
       "group": "storage",
       "description": "Maximum committed file objects per bucket, including empty files; overwrites do not add an object.",

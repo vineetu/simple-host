@@ -37,7 +37,7 @@ func signupGroupOf(source string) string {
 	switch {
 	case source == "":
 		return "unknown"
-	case source == db.SignupWebsite, source == db.SignupAgent, source == db.SignupVisitor, source == db.SignupAdmin, source == db.SignupReviewer:
+	case source == "visitor_sso", source == db.SignupWebsite, source == db.SignupAgent, source == db.SignupVisitor, source == db.SignupAdmin, source == db.SignupReviewer:
 		return source
 	case strings.HasPrefix(source, db.SignupFromPrefix):
 		return source
@@ -63,6 +63,7 @@ func signupGroupOf(source string) string {
 var fixedGroups = []signupGroup{
 	{Key: "c-ChatGPT", Label: "ChatGPT"}, {Key: "c-Claude", Label: "Claude"}, {Key: "c-Grok", Label: "Grok"},
 	{Key: "c-other", Label: "Other connector"}, {Key: "agent", Label: "AI agent", Where: "skill or API"},
+	{Key: "visitor_sso", Label: "Visitor via SSO"},
 	{Key: "visitor", Label: "Site visitor sign-in"}, {Key: "admin", Label: "Issued by admin"},
 	{Key: "reviewer", Label: "App reviewer"}, {Key: "other", Label: "Other"}, {Key: "unknown", Label: "Unknown (before tracking)"},
 }
@@ -129,7 +130,7 @@ type cohortFunnel struct {
 
 // cohort loads the accounts in one group, newest first, with the funnel.
 func (h *SiteHandler) cohort(r *http.Request, group string) ([]cohortAccount, cohortFunnel, []signupGroup, error) {
-	users, err := db.ListAllUsers(r.Context(), h.database)
+	users, err := db.ListSiteOwners(r.Context(), h.database)
 	if err != nil {
 		return nil, cohortFunnel{}, nil, err
 	}

@@ -103,9 +103,10 @@ type authChallengeResponse struct {
 }
 
 type verifyRequest struct {
-	Email string `json:"email"`
-	Code  string `json:"code"`
-	Token string `json:"token"`
+	SSOState string `json:"sso_state"`
+	Email    string `json:"email"`
+	Code     string `json:"code"`
+	Token    string `json:"token"`
 	// Nonce accompanies Token: the browser's nonce whose hash the token was
 	// issued with.
 	Nonce string `json:"nonce"`
@@ -187,6 +188,7 @@ func (h *UserHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("GET /v1/me", noticeMiddleware(authMiddleware(http.HandlerFunc(h.me))))
 	mux.Handle("POST /v1/me/api-key/rotate", noticeMiddleware(authMiddleware(http.HandlerFunc(h.rotateAPIKey))))
 	mux.Handle("POST /v1/me/sign-out", noticeMiddleware(authMiddleware(http.HandlerFunc(h.signOut))))
+	mux.Handle("DELETE /v1/sso/consents/{site}", accountAuthOnly(h.publicBaseURL, authMiddleware(http.HandlerFunc(h.forgetSSOConsent))))
 	mux.Handle("GET /v1/me/keys", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listKeys))))
 	mux.Handle("POST /v1/me/keys", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createKey))))
 	mux.Handle("DELETE /v1/me/keys/{id}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteKey))))
@@ -318,7 +320,11 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if created {
-		recordSignup(r.Context(), h.database, user.ID, signupForVerify(r.Context(), h.database, r, h.publicBaseURL, req.SignupClient, strings.TrimSpace(req.Token) != ""))
+		source := signupForVerify(r.Context(), h.database, r, h.publicBaseURL, req.SignupClient, strings.TrimSpace(req.Token) != "")
+		if _, err := db.GetSSOHop(r.Context(), h.database, req.SSOState, false); req.SSOState != "" && err == nil {
+			source.Source = "visitor_sso"
+		}
+		recordSignup(r.Context(), h.database, user.ID, source)
 	}
 
 	// A suspended account gets no new key. It has proved its email, so it is
@@ -356,7 +362,8 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Emailed code, emailed link or Google (which ends here through its
-	// one-time link): the owner hears about it.
+	// one-time link): the owner hears about it. Browser sign-in then calls
+	// /v1/sso/session so cookie replacement stays inside the SSO namespace.
 	h.alerts.Alert(user.ID, r.UserAgent(), "")
 	writeJSON(w, http.StatusOK, authResponse{
 		ID:       user.ID,

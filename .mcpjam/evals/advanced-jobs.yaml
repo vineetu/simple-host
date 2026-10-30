@@ -90,3 +90,15 @@ cases:
       - type: toolCalledWith
         toolName: run_tool
         args: {mode: partial, args: {name: list_notifications}}
+  - id: a_visitor_shared_sites
+    title: lists sites shared with the person using visitor rights
+    steps:
+      - id: s1
+        kind: prompt
+        prompt: Which sites have other people shared with me as a named viewer? Use visitor_read_site without an address.
+    assertions:
+      - type: toolCalledWith
+        toolName: run_tool
+        args: {mode: partial, args: {name: visitor_read_site}}
+      - type: toolNeverCalled
+        toolName: create_site

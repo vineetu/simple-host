@@ -43,12 +43,13 @@ func (fakeProvider) Exchange(_ context.Context, code, _ string) (oauth.Identity,
 func (a *privateApp) withOAuth(t *testing.T) *OAuthHandler {
 	t.Helper()
 	oh := &OAuthHandler{
-		database:    a.database,
-		cfg:         config.Config{PublicBaseURL: "https://" + pcSiteDomain, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain},
-		providers:   map[string]oauth.Provider{"google": fakeProvider{}},
-		ipLimiter:   newRateLimiter(10000, 10000),
-		lookupIP:    func(context.Context, string) ([]net.IP, error) { return nil, nil },
-		lookupCNAME: func(context.Context, string) (string, error) { return "cname." + pcSiteDomain + ".", nil },
+		database:      a.database,
+		cfg:           config.Config{PublicBaseURL: "https://" + pcSiteDomain, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain},
+		providers:     map[string]oauth.Provider{"google": fakeProvider{}},
+		ipLimiter:     newRateLimiter(10000, 10000),
+		ssoKeyLimiter: newRateLimiter(10000, 10000),
+		lookupIP:      func(context.Context, string) ([]net.IP, error) { return nil, nil },
+		lookupCNAME:   func(context.Context, string) (string, error) { return "cname." + pcSiteDomain + ".", nil },
 	}
 	oh.SetPersonSiteResolver(a.sites.PersonReturnSite)
 	oh.SetPasscodeCheck(a.sites.PasscodeLetsIn)

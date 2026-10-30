@@ -151,6 +151,8 @@ type SiteHandler struct {
 	// passcode is the site-passcode key and wrong-try counters (passcode.go).
 	passcode      passcodeState
 	publicBaseURL string
+	ssoStart      http.Handler
+	ssoBaseURL    string
 
 	// savedData is the SAVED_DATA_* knobs, and readLimiter and appendLimiter
 	// the saved-data read and list-append limits built from them (saveddata.go).
@@ -2690,7 +2692,7 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			"signup_detail": u.Signup.Detail,
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"users": out, "user_count": len(out), "site_count": len(sites), "signup_groups": signupGroups(present)})
+	writeJSON(w, http.StatusOK, map[string]any{"users": out, "user_count": len(byUser), "site_count": len(sites), "signup_groups": signupGroups(present)})
 }
 
 // readAndValidateFiles reads the archive body, verifies an optional
