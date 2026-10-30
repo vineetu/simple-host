@@ -88,7 +88,8 @@ function paint (ctx, ev, data) {
   const pillHTML = data.complete
     ? '<span class="pill ok">Complete</span>'
     : (missing.length ? '<span class="pill warn">Missing: ' + esc(missing.map(f => PLAIN[f] || f).join(', ')) + '</span>' : '')
-  const deadlineHTML = ev.submission_deadline ? '<p class="small muted">Entries close ' + esc(ui.dateTime(ev.submission_deadline, ev)) + '.</p>' : ''
+  const entryDeadline = (detail.me && detail.me.team && detail.me.team.deadline) || ev.submission_deadline
+  const deadlineHTML = entryDeadline ? '<p class="small muted">Entries close ' + esc(ui.dateTime(entryDeadline, ev)) + '.</p>' : ''
   const head = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p>' + deadlineHTML + '</div>' + pillHTML + '</div>'
 
   function fieldHTML (f, type) {

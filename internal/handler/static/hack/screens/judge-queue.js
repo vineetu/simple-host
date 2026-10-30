@@ -98,7 +98,7 @@ export async function render(ctx) {
     : `<div class="note">${conflicts.length && !scored.length ? 'Nothing to score — you know someone on every team on your list.' : 'Nothing left — you’ve scored everyone assigned to you.'}</div>`
   const scoredPanel = scored.length
     ? '<div class="list">' + scored.map(r => rowFor(r, mode === 'readonly' ? 'readonly' : 'scored')).join('') + '</div>'
-    : `<div class="note">No scored entries.</div>`
+    : `<div class="note">No teams scored yet.</div>`
   const conflictsPanel = conflicts.length
     ? '<div class="list">' + conflicts.map(c => `<div class="r" data-conflict="${ui.esc(c.team_id)}"><span class="main"><b>${ui.esc(c.team_name)}</b><span>You know someone on this team</span></span>${locked ? '' : `<button type="button" class="btn sm" data-remove-conflict="${ui.esc(c.team_id)}" data-name="${ui.esc(c.team_name)}">I don’t know this team after all</button>`}</div>`).join('') + '</div>'
     : `<div class="note">You haven’t said you know anyone on a team.</div>`

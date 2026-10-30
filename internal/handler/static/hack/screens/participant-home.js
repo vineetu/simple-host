@@ -69,7 +69,10 @@ export async function render(ctx) {
   const deadline = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : ''
 
   let heroTitle, heroNote = '', heroLabel = '', heroHref = '', heroExternal = false
-  if (ev.stage === 'results' || ev.results_published) {
+  // A team with its own extension follows its own deadline (R2-1).
+  const teamDeadline = me.team && me.team.deadline ? ui.dateTime(me.team.deadline, ev) : deadline
+  const teamFrozen = me.team ? !!me.team.frozen : deadlinePassed
+  if (ev.results_published) {
     // Results beat every other state, with or without a team: there is
     // nothing left to build or join once they're out.
     heroTitle = 'Results are out'
@@ -100,14 +103,14 @@ export async function render(ctx) {
       heroTitle = "You're not on a team"
       heroNote = deadline ? ('Entries closed ' + deadline + '.') : ''
     }
-  } else if (ev.stage === 'judging') {
-    heroTitle = 'Judges are scoring now. Results come next'
+  } else if (ev.stage === 'judging' || ev.stage === 'results') {
+    heroTitle = ev.stage === 'results' ? 'Judging is done. Results are coming soon' : 'Judges are scoring now. Results come next'
     if (me.team.site && me.team.site.exists && me.team.site.url) {
       heroLabel = 'View your site'; heroHref = me.team.site.url; heroExternal = true
     } else {
       heroLabel = 'Go to your team'; heroHref = teamHref
     }
-  } else if (ev.stage === 'closed' || deadlinePassed) {
+  } else if (teamFrozen) {
     heroTitle = 'Entries are closed. Judging starts soon'
     if (me.team.site && me.team.site.exists && me.team.site.url) {
       heroLabel = 'View your site'; heroHref = me.team.site.url; heroExternal = true
@@ -115,7 +118,7 @@ export async function render(ctx) {
       heroLabel = 'Go to your team'; heroHref = teamHref
     }
   } else {
-    heroTitle = deadline ? ('Keep building. Entries close ' + deadline) : ('You are on ' + me.team.name + '. Keep building')
+    heroTitle = teamDeadline ? ('Keep building. Entries close ' + teamDeadline) : ('You are on ' + me.team.name + '. Keep building')
     heroLabel = 'Go to your entry'
     heroHref = entryHref
   }

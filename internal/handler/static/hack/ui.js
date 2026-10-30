@@ -40,8 +40,8 @@ export function dateTime(value, event, options = {}) {
     weekday: 'short', day: 'numeric', month: 'short',
     ...(sameYear ? {} : { year: 'numeric' }),
     ...(dateOnlyWanted ? {} : { hour: 'numeric', minute: '2-digit', hourCycle: 'h12' }),
-    ...(zone ? { timeZone: zone } : {}),
-    ...(options.zone ? { timeZoneName: 'short' } : {})
+    ...(valueIsDateOnly ? { timeZone: 'UTC' } : zone ? { timeZone: zone } : {}),
+    ...(options.zone && !valueIsDateOnly ? { timeZoneName: 'short' } : {})
   }
   // en-GB inserts a comma right after the weekday once `year` is also in the
   // field list ("Sat, 2 Jan 2027"), unlike the same-year form ("Fri 6 Nov").
@@ -73,15 +73,17 @@ export function nextDeadline(event) {
 // instead of stacking under it. Errors never auto-hide -- they stay until
 // the person dismisses them or another toast replaces them in the same
 // spot; a "Saved"/ok toast still clears itself after a few seconds.
-const TOAST_ROW = '.row-flex, .field, .setting, .card, .sticky-foot, .ph, .acts'
+const TOAST_ROW = '.r, .row-flex, .field, .setting, .card, .sticky-foot, .ph, .acts'
 function placeToast(note, near) {
   const main = document.querySelector('main')
   const pageLevel = !near || near === main || near === document.body || (main != null && typeof near.contains === 'function' && near.contains(main))
   if (!pageLevel && near.parentNode) {
     const row = near.closest(TOAST_ROW) || near
-    const existing = row.nextElementSibling
+    const existing = row.matches('.sticky-foot') ? row.previousElementSibling : row.nextElementSibling
     if (existing && existing.matches('[data-toast]')) existing.remove()
-    row.insertAdjacentElement('afterend', note)
+    // A fixed save bar sits over the page end: put its note just above it.
+    row.insertAdjacentElement(row.matches('.sticky-foot') ? 'beforebegin' : 'afterend', note)
+    note.scrollIntoView({ block: 'nearest' })
     return
   }
   const host = (near && near.nodeType === 1 && near.matches('main')) ? near : (main || document.getElementById('app'))

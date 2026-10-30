@@ -60,12 +60,12 @@ ${!ev.team_finding ? `<div class="note">Team finding is off. Teams form by invit
 <label class="check"><input type="checkbox" id="tf-on"${ev.team_finding ? ' checked' : ''}${configurable ? '' : ' disabled'}><div><b>Team finding</b><span>Let participants find teams and invite people. Team codes always work.</span></div></label>
 <div class="field"><label>Most people per team<input class="input" id="tf-size" type="number" min="1" max="50" value="${teamSizeMax}"${configurable ? '' : ' disabled'}></label></div>
 ${configurable ? '' : '<p class="help">Team finding and team size no longer change once the event has ended.</p>'}
-<button class="btn primary" type="button" id="tf-save"${configurable ? '' : ' disabled'}>Save</button>
+<button class="btn" type="button" id="tf-save"${configurable ? '' : ' disabled'}>Save</button>
 </details>
 <details class="card"><summary>Tracks and challenges</summary>
 ${tracks.map(trackCard).join('')}
 <button class="btn" type="button" id="track-add">Add track</button>
-<button class="btn primary" type="button" id="track-save">Save tracks</button>
+<button class="btn" type="button" id="track-save">Save tracks</button>
 </details>`
     wire()
   }
