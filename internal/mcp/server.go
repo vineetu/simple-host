@@ -965,12 +965,12 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		if json.Unmarshal(raw, &caps) == nil {
 			_, ui := caps.Extensions["io.modelcontextprotocol/ui"]
 			c.textOnlyClient = !ui
+			c.uiClient = ui
 		}
 	} else if ui, known := s.clientUI.lookup(caller, time.Now()); !modern && known {
 		c.textOnlyClient = !ui
+		c.uiClient = ui
 	}
-	// Unknown counts as a screen client, as for the photo picker.
-	c.uiClient = !c.textOnlyClient
 	// A host draws a screen for the tool it listed, never for run_tool.
 	if wrapped {
 		c.wrapped = true

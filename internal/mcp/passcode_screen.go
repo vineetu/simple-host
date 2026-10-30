@@ -19,6 +19,7 @@ import (
 
 const passcodeScreenInfo = "simple-host passcode screen v1"
 const passcodeScreenExpired = "This passcode screen expired. Close it and ask again."
+const passcodeScreenUnavailable = "The passcode screen cannot open in this chat. Use the dashboard link in the chat."
 
 func (s *Server) passcodeScreenEnabled(c Caller) bool {
 	return s.fixed == nil && c.Mode == "" && appFlag(os.Getenv("MCP_APP_PASSCODE"), c.Handle)
@@ -130,10 +131,14 @@ func passcodeScreenTool() Tool {
 }
 
 func runPasscodeScreen(c *call, args map[string]any) (output, error) {
-	// Text-only clients never get a session: their model could run the
-	// key exchange itself and read the passcode.
-	if !c.server.passcodeScreenEnabled(c.caller) || c.wrapped || !c.uiClient {
+	if !c.server.passcodeScreenEnabled(c.caller) || c.wrapped {
 		return output{}, errors.New("passcode_screen is only for the passcode screen")
+	}
+	// Only a client that declared MCP Apps gets a session. A text-only or
+	// not-yet-seen client (after a restart) could be the model itself, running
+	// the key exchange and reading the passcode; its tool reply has the link.
+	if !c.uiClient {
+		return output{}, errors.New(passcodeScreenUnavailable)
 	}
 	identity, ok := clientUIKey(c.caller)
 	if !ok {
@@ -145,8 +150,12 @@ func runPasscodeScreen(c *call, args map[string]any) (output, error) {
 	id, _ := args["session"].(string)
 	var session passcodeSession
 	if action != "begin" {
-		var err error
-		session, err = c.server.passcodeSessions.take(id, caller, name)
+		// Consume the session even when the site argument is bad.
+		normal, err := siteArg(args)
+		if err != nil {
+			normal = name
+		}
+		session, err = c.server.passcodeSessions.take(id, caller, normal)
 		if err != nil {
 			return output{}, err
 		}

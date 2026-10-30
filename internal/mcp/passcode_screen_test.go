@@ -314,7 +314,7 @@ func TestPasscodeModelResultsNeverContainCode(t *testing.T) {
 							t.Fatal("opening screen changed passcode")
 						}
 						want := "https://simple-host.app/alice?passcode=blog"
-						if flag == "on" && (mode == "ui" || mode == "unknown") {
+						if flag == "on" && mode == "ui" {
 							want = "Nothing changed yet."
 						}
 						if flag == "on" && mode == "wrapped" {
@@ -535,7 +535,18 @@ func TestPasscodeScreenRefusesTextOnlyClients(t *testing.T) {
 	s.clientUI.remember(caller, false, time.Now())
 	rec := passcodeWire(t, s, caller, "passcode_screen", map[string]any{"action": "begin", "site": "blog", "client_key": "x"})
 	text, _, failed := resultOf(t, rec)
-	if !failed || !strings.Contains(text, "only for the passcode screen") {
+	if !failed || !strings.Contains(text, "cannot open in this chat") {
 		t.Fatalf("text-only client got a screen session: %s", text)
+	}
+}
+
+// After a restart the server has not seen the client declare MCP Apps; it
+// could be the model itself, so it gets no session either.
+func TestPasscodeScreenRefusesUnknownClients(t *testing.T) {
+	s, _, _ := passcodeTestServer(t)
+	rec := passcodeWire(t, s, screenCaller(), "passcode_screen", map[string]any{"action": "begin", "site": "blog", "client_key": "x"})
+	text, _, failed := resultOf(t, rec)
+	if !failed || !strings.Contains(text, "cannot open in this chat") {
+		t.Fatalf("unknown client got a screen session: %s", text)
 	}
 }
