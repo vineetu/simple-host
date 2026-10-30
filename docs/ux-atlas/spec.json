@@ -204,7 +204,7 @@
    {
     "target": "[data-tour=\"next\"]",
     "title": "Your next step",
-    "body": "Tap this to do it."
+    "body": "This always shows what to do next for where the event is now."
    },
    {
     "target": ".nav a[href*=\"s=schedule\"]",

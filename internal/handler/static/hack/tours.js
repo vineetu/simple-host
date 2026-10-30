@@ -105,7 +105,7 @@ export const tours = {
     steps: [
       { title: 'Welcome', body: 'This is Overview. It always says the next thing to do. Here is a one-minute look around.' },
       { target: '.status', title: 'Stage and deadline', body: 'The event stage and the next deadline are always shown here.' },
-      { target: '[data-tour="next"]', title: 'Your next step', body: 'Tap this to do it.' },
+      { target: '[data-tour="next"]', title: 'Your next step', body: 'This always shows what to do next for where the event is now.' },
       { target: '.nav a[href*="s=schedule"]', phone: '[data-menu]', title: 'Schedule', body: 'What is happening and when.' },
       { target: '.nav a[href*="s=announcements"]', phone: '[data-menu]', title: 'Announcements', body: 'Updates from the organiser.' },
       { target: '.nav a[href*="s=team"]', phone: '.tabbar a[href*="s=team"]', title: 'Team', body: 'Find or start your team here. If team finding is on, you can see teams looking for people.' },

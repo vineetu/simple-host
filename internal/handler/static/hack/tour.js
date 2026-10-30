@@ -234,6 +234,8 @@ export async function startTour(role, ctx, { force = false } = {}) {
     // tour command, even Escape (which would otherwise dismiss the tour
     // instead of, say, blurring a field).
     if (e.target && e.target.closest && e.target.closest('input,textarea,select,[contenteditable],[role=radio]')) return
+    // A confirm dialog owns the keyboard while it is open (Esc cancels it, not the tour).
+    if (document.querySelector('.scrim')) return
     if (e.key === 'Escape') { e.preventDefault(); finish() }
     else if (e.key === 'ArrowRight') { e.preventDefault(); next() }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); back() }

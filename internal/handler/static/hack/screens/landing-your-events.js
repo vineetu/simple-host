@@ -31,21 +31,21 @@ export async function render(ctx) {
     if (e.role === 'organiser') {
       return ({
         draft: 'Finish setting up', open: 'Sign-up is open', building: 'Teams are building',
-        closed: 'Set up judging', judging: 'Judges are scoring', results: 'Open results'
+        closed: 'Set up judging', judging: 'Judges are scoring', results: 'Open event'
       })[e.stage] || 'Overview'
     }
     if (e.role === 'judge') {
       return ({
         draft: 'Not open yet', open: 'Not open yet', building: 'Not open yet',
         closed: 'Score teams', judging: 'Score teams',
-        results: 'See results', archived: 'Open results', ended: 'Open results'
+        results: 'Open event', archived: 'Open event', ended: 'Open event'
       })[e.stage] || 'Open'
     }
     // participant
     return ({
       draft: 'Not open yet', open: 'Open event', building: 'Keep building',
       closed: 'Entries closed', judging: 'Judges are scoring',
-      results: 'See results', archived: 'Open results', ended: 'Open results'
+      results: 'Open event', archived: 'Open event', ended: 'Open event'
     })[e.stage] || 'Open'
   }
   const row = e => {

@@ -31,7 +31,22 @@ export function eventOrder(events) {
   const attention = e => !e.taken_down && ((e.role === 'organiser' && !['archived','ended'].includes(e.stage)) || (e.role === 'judge' && ['closed','judging'].includes(e.stage)))
   return [...events].sort((a,b) => Number(attention(b)) - Number(attention(a)))
 }
+// The event dropdown is positioned for the layout it was opened in, so a
+// resize (desktop <-> phone) closes it rather than leaving it misplaced.
+let resizeBound = false
+function bindResizeClose() {
+  if (resizeBound) return
+  resizeBound = true
+  window.addEventListener('resize', () => {
+    const pop = document.getElementById('evpop')
+    if (!pop || !pop.classList.contains('open')) return
+    pop.classList.remove('open')
+    pop.style.top = ''
+    document.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded', 'false'))
+  })
+}
 export function mount(ctx, section, screenId) {
+  bindResizeClose()
   const { event: detail, role, events, me } = ctx
   const event = detail?.event
   const items = (nav[role] || []).filter(it => !it.stages || (event?.results_published && it.stages.includes(event.stage === 'archived' ? 'ended' : event?.stage)))
