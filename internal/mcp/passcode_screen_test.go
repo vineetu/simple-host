@@ -66,7 +66,7 @@ func screenCaller() Caller {
 
 func screenCall(t *testing.T, s *Server, caller Caller, args map[string]any) output {
 	t.Helper()
-	out, err := runPasscodeScreen(&call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: caller}, args)
+	out, err := runPasscodeScreen(&call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: caller, uiClient: true}, args)
 	if err != nil {
 		t.Fatalf("screen action failed: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestPasscodeScreenRoundTrip(t *testing.T) {
 				t.Fatal("wrong AAD accepted")
 			}
 		}
-		if _, err := runPasscodeScreen(&call{server: s, caller: caller}, args); err == nil || err.Error() != passcodeScreenExpired {
+		if _, err := runPasscodeScreen(&call{server: s, caller: caller, uiClient: true}, args); err == nil || err.Error() != passcodeScreenExpired {
 			t.Fatal("session reused")
 		}
 	}
@@ -195,7 +195,7 @@ func TestPasscodeScreenBindingAndFailures(t *testing.T) {
 					args["ciphertext"] = "!"
 				}
 			}
-			c := &call{server: s, caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil)}
+			c := &call{server: s, caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
 			if _, err := runPasscodeScreen(c, args); err == nil {
 				t.Fatal("invalid request accepted")
 			}
@@ -215,7 +215,7 @@ func TestPasscodeScreenBindingAndFailures(t *testing.T) {
 		if raw == base64.RawURLEncoding.EncodeToString(frame.PublicKey().Bytes()) {
 			caller.APIKey = "denied"
 		}
-		if _, err := runPasscodeScreen(&call{server: s, caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil)}, map[string]any{"action": "begin", "site": "blog", "client_key": raw}); err == nil {
+		if _, err := runPasscodeScreen(&call{server: s, caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}, map[string]any{"action": "begin", "site": "blog", "client_key": raw}); err == nil {
 			t.Fatal("bad begin accepted")
 		}
 	}
@@ -314,7 +314,7 @@ func TestPasscodeModelResultsNeverContainCode(t *testing.T) {
 							t.Fatal("opening screen changed passcode")
 						}
 						want := "https://simple-host.app/alice?passcode=blog"
-						if flag == "on" && mode == "ui" {
+						if flag == "on" && (mode == "ui" || mode == "unknown") {
 							want = "Nothing changed yet."
 						}
 						if flag == "on" && mode == "wrapped" {
@@ -443,7 +443,7 @@ func TestPasscodeFrameWebCrypto(t *testing.T) {
 		if err := json.Unmarshal(scanner.Bytes(), &args); err != nil {
 			t.Fatal("invalid frame request")
 		}
-		result, err := runPasscodeScreen(&call{server: s, caller: screenCaller(), orig: httptest.NewRequest("POST", "/mcp", nil)}, args)
+		result, err := runPasscodeScreen(&call{server: s, caller: screenCaller(), orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}, args)
 		reply := map[string]any{"result": result.Structured}
 		if err != nil {
 			reply = map[string]any{"error": err.Error()}
@@ -490,7 +490,7 @@ func TestPasscodeScreenNoCodeAndReauthorization(t *testing.T) {
 	}
 	id, _ = frameBegin(t, s, caller)
 	caller.APIKey = "denied"
-	c := &call{server: s, caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil)}
+	c := &call{server: s, caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
 	args := map[string]any{"action": "generate", "site": "blog", "session": id}
 	if _, err := runPasscodeScreen(c, args); err == nil || !strings.Contains(err.Error(), "not allowed") {
 		t.Fatal("REST authority not rechecked")
@@ -524,5 +524,18 @@ func TestPasscodeModernUICapability(t *testing.T) {
 		if strings.Contains(text, "The passcode screen is open") != ui {
 			t.Fatal("modern UI capability not respected")
 		}
+	}
+}
+
+// A text-only client's model could run the key exchange itself, so it never
+// gets a session.
+func TestPasscodeScreenRefusesTextOnlyClients(t *testing.T) {
+	s, _, _ := passcodeTestServer(t)
+	caller := screenCaller()
+	s.clientUI.remember(caller, false, time.Now())
+	rec := passcodeWire(t, s, caller, "passcode_screen", map[string]any{"action": "begin", "site": "blog", "client_key": "x"})
+	text, _, failed := resultOf(t, rec)
+	if !failed || !strings.Contains(text, "only for the passcode screen") {
+		t.Fatalf("text-only client got a screen session: %s", text)
 	}
 }
