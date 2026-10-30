@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -239,7 +240,9 @@ func runPasscodeScreen(c *call, args map[string]any) (output, error) {
 		if err != nil {
 			return output{}, err
 		}
-		out.Text = "Passcode set on " + name + "."
+		if action == "set" && !strings.Contains(out.Text, "nothing changed") {
+			out.Text = "Passcode set on " + name + "."
+		}
 		if action != "set" {
 			var lock struct {
 				Passcode string `json:"passcode"`

@@ -556,7 +556,7 @@ func TestPasscodeGenerateAndTruthfulRemove(t *testing.T) {
 	}}
 	s := newTestServer(up)
 	text, _, isErr := resultOf(t, send(t, s, toolCall("set_site_passcode", map[string]any{"site": "blog", "generate": true}), nil, true))
-	if isErr || strings.Contains(text, "204718") || !strings.Contains(text, "new 6-digit passcode") || len(up.bodies) != 1 || up.bodies[0] != `{"generate":true}` {
+	if isErr || strings.Contains(text, "204718") || !strings.Contains(text, "new passcode is set") || len(up.bodies) != 1 || up.bodies[0] != `{"generate":true}` {
 		t.Fatalf("generate: %q %v", text, up.bodies)
 	}
 	for _, args := range []map[string]any{{"site": "blog", "generate": true, "passcode": "483920"}, {"site": "blog", "passcode": 483920}} {

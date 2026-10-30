@@ -209,6 +209,7 @@ func (s *Server) readApp(req request, caller Caller) response {
 			"__SCREEN__", asset(strings.TrimSuffix(screen.HTML, ".html")+".js"), "__CONFIG__", string(config),
 			"__DASHBOARD__", strconv.FormatBool(s.dashboardEnabled(caller)),
 			"__ASSET_ORIGIN__", html.EscapeString("https://"+s.cfg.APIHost),
+			"__PASSCODE_MIN__", strconv.Itoa(appLimit("PASSCODE_MIN_LENGTH", 6)),
 		).Replace(asset(screen.HTML))
 		return result(req.ID, map[string]any{"contents": []any{map[string]any{
 			"uri": screen.URI, "mimeType": appMIME, "text": page, "_meta": s.appMeta(screen),

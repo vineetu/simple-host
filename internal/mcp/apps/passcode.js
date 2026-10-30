@@ -81,9 +81,12 @@
       render(result);
       if (action !== 'show') {
         el('new-code').value = '';
-        el('status').textContent = 'Passcode set.';
-        // Optional host method; refusal must not undo or obscure a successful set.
-        app.updateModelContext('The person set a new passcode on ' + name + ' in the passcode screen.').catch(() => {});
+        if (/nothing changed/.test(result.note || '')) el('status').textContent = result.note;
+        else {
+          el('status').textContent = 'Passcode set.';
+          // Optional host method; refusal must not undo or obscure a successful set.
+          app.updateModelContext('The person set a new passcode on ' + name + ' in the passcode screen.').catch(() => {});
+        }
       }
       if (result.sealed) {
         const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: decode(result.sealed.nonce), additionalData: aad('show', name, session) }, key, decode(result.sealed.ciphertext));

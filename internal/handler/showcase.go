@@ -128,7 +128,12 @@ func (h *SiteHandler) redirectHandleAlias(w http.ResponseWriter, r *http.Request
 		return false
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	http.Redirect(w, r, "/"+current, http.StatusFound)
+	target := "/" + current
+	if r.URL.RawQuery != "" {
+		// Keeps deep links such as ?passcode=<site> from an old chat working.
+		target += "?" + r.URL.RawQuery
+	}
+	http.Redirect(w, r, target, http.StatusFound)
 	return true
 }
 

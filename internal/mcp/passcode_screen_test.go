@@ -550,3 +550,11 @@ func TestPasscodeScreenRefusesUnknownClients(t *testing.T) {
 		t.Fatalf("unknown client got a screen session: %s", text)
 	}
 }
+
+func TestPasscodeLinkWithoutHandle(t *testing.T) {
+	s, _, _ := passcodeTestServer(t)
+	c := &call{server: s, caller: Caller{}}
+	if got := c.passcodeLink("blog"); got != "https://simple-host.app/dashboard" {
+		t.Fatalf("admin link: %s", got)
+	}
+}

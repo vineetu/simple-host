@@ -73,7 +73,7 @@ func passcodeTools() []Tool {
 				}
 				out, err := passcodeOutput("set_site_passcode", name, c.do(http.MethodPut, path(name), body, nil))
 				if err == nil && generate {
-					out.Text = "A new 6-digit passcode is set on " + name + ". " + c.passcodeDestination(name)
+					out.Text = "A new passcode is set on " + name + ". " + c.passcodeDestination(name)
 				}
 				return out, err
 			},
@@ -137,6 +137,8 @@ func passcodeOutput(tool, name string, res upstreamResult) (output, error) {
 	switch {
 	case tool == "sign_out_site_visitors":
 		text = "Everyone was signed out of " + name + "; visitors must enter the passcode again."
+	case (tool == "remove_site_passcode" || tool == "set_site_passcode" || tool == "passcode_screen") && strings.Contains(lock.Note, "nothing changed"):
+		return output{Text: name + ": " + lock.Note, Structured: out}, nil
 	case tool == "remove_site_passcode" && lock.Note != "":
 		// The server's note says whether a passcode was actually removed.
 		return output{Text: name + ": " + lock.Note, Structured: out}, nil
@@ -154,6 +156,10 @@ func passcodeOutput(tool, name string, res upstreamResult) (output, error) {
 }
 
 func (c *call) passcodeLink(name string) string {
+	if c.caller.Handle == "" {
+		// The admin key has no handle; its dashboard is one more click away.
+		return "https://" + c.server.cfg.APIHost + "/dashboard"
+	}
 	return "https://" + c.server.cfg.APIHost + "/" + url.PathEscape(c.caller.Handle) + "?passcode=" + url.QueryEscape(name)
 }
 
