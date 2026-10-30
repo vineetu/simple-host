@@ -1,5 +1,5 @@
 import { nav, href } from './nav.js'
-import { esc, stageLabel, roleLabel, initials, nextDeadline, dateTime, classicURL, copyButton } from './ui.js'
+import { esc, stageLabel, roleLabel, initials, nextDeadline, dateTime, copyButton, markInk } from './ui.js'
   const I = {
     home:'M3 10.5 10 4l7 6.5V17a1 1 0 0 1-1 1h-3.5v-5h-5v5H4a1 1 0 0 1-1-1z',
     calendar:'M4 5h12a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm-1 4h14M7 3v4m6-4v4',
@@ -62,7 +62,7 @@ export function mount(ctx, section) {
   // judges get a phrase that can't be confused with the event's stage.
   const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(role === 'judge' ? (event.judging_locked_at ? 'Scoring locked' : event.scoring_open ? 'Scoring open' : 'Scoring not open') : stageLabel(event.stage))}</span>${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1],event))}</span>` : ''}<span class="grow"></span>${role === 'organiser' && section === 'overview' ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
   const root = document.getElementById('app')
-  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Event navigation">${switcher('sw1')}<nav class="nav">${items.map(link).join('')}${!event ? `<a href="/events">${ico('events')}<span>Your events</span></a>` : ''}</nav><div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a><details><summary data-tour="help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}<a href="${esc(classicURL())}">Use the old screens</a><a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${popup}<div class="col"><div class="phone-top">${switcher('sw2')}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
+  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Event navigation">${switcher('sw1')}<nav class="nav">${items.map(link).join('')}${!event ? `<a href="/events">${ico('events')}<span>Your events</span></a>` : ''}</nav><div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a><details><summary data-tour="help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}<a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${popup}<div class="col"><div class="phone-top">${switcher('sw2')}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
   const app = root.firstElementChild
   const pop = root.querySelector('#evpop')
   app.addEventListener('click', e => {
@@ -79,16 +79,15 @@ export function mount(ctx, section) {
     else if (!e.target.closest('.side')) app.classList.remove('menu-open')
     if (e.target.closest('[aria-disabled="true"]')) { e.preventDefault(); e.stopPropagation() }
   })
-  // A7: on a bright event colour (the mock-judging yellow), white ink is
-  // unreadable -- pick white or the kit's own dark ink by the mark's
-  // luminance instead of always white.
-  const lum = c => { const n = parseInt(c.slice(1),16), f = v => { v/=255; return v <= .03928 ? v/12.92 : ((v+.055)/1.055)**2.4 }; return .2126*f(n>>16)+.7152*f(n>>8&255)+.0722*f(n&255) }
+  // A7/A16: on a bright event colour (the mock-judging yellow), white ink is
+  // unreadable -- ui.markInk picks white or the kit's own dark ink by the
+  // mark's luminance instead of always white.
   root.querySelectorAll('.ev-mark').forEach(mark => {
     const entry = events.find(e => initials(e.title) === mark.textContent)
     const color = entry?.color || event?.color
     if (/^#[0-9a-f]{6}$/i.test(color || '')) {
       mark.style.setProperty('--ev',color)
-      mark.style.color = lum(color) > 0.45 ? '#2b2925' : '#fff'
+      mark.style.color = markInk(color)
     }
   })
   // A5: the status bar already repeats the stage (pill plus track) and the

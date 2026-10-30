@@ -70,7 +70,8 @@ function paint (ctx, ev, data) {
       }
     }
     body += '</section>'
-    main.innerHTML = head + '<div class="note info">' + esc(closedText) + '. This is what the judges see.</div>' + body
+    const closedSentence = closedText.replace(/\.+$/, '') + '. This is what the judges see.'
+    main.innerHTML = head + '<div class="note info">' + esc(closedSentence) + '</div>' + body
     if (entry.has_screenshot) {
       const frame = main.querySelector('#en-shot-view')
       const img = document.createElement('img')

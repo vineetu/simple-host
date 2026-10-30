@@ -351,6 +351,11 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
   /* A18: the tab bar's own More sheet and the top "Menu" button opened the
      same sheet -- only one menu control once there's a tab bar. */
   .has-tabs .phone-top .menu-btn{display:none}
+  /* A20: a pending/rejected participant's tab bar is hidden by .locked-shell
+     below, but .has-tabs (set independently, from the role having tabs at
+     all) still hides the top Menu button via the rule above -- leaving no
+     way on phone to reach Account (sign out) or Help. Bring it back. */
+  .locked-shell .phone-top .menu-btn{display:inline-flex}
   .page{padding:16px 16px 96px}
   .ph{flex-direction:column;gap:10px}
   .ph .btn{width:100%}

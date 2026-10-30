@@ -195,8 +195,15 @@ func hackResultsFromSnapshot(res db.EventResultsRow, publicScores, publicRanks b
 			view.TrackPrize, _ = track["prize"].(string)
 		}
 		if publicScores {
+			// #8: this is also the public JSON API's score field
+			// (hack_public_json.go) -- BUILD.md goal 4 says that API does not
+			// change, so it keeps exactly the pre-231f769d full precision
+			// (two decimals, untrimmed: "81.25", "100.00"). hackScoreText's
+			// one-decimal rounding belongs to the HTML template's display
+			// only, applied separately in buildHackResultsBlock
+			// (hack_eventpage.go), never baked into this shared string.
 			if score, ok := row["total"].(float64); ok {
-				view.Score = hackScoreText(score)
+				view.Score = strconv.FormatFloat(score, 'f', 2, 64)
 			}
 			view.ScoreMode, _ = row["deciding_mode"].(string)
 		}

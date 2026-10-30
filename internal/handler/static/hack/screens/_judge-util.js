@@ -12,11 +12,10 @@ import * as ui from '../ui.js'
 // every call site here keeps its old, single-argument shape.
 export const errText = (r, fallback) => ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback })
 
-// Only ever render http(s) links as real links.
-export function safeHref(url) {
-  const s = String(url || '').trim()
-  return /^https?:\/\//i.test(s) ? s : ''
-}
+// Only ever render http(s) links as real links. round2-shared.md gives this
+// a shared home now (ui.safeHref, identical check) -- re-exported under its
+// old name so every call site in this file and its importers keeps working.
+export const safeHref = ui.safeHref
 
 export function newTabLink(url, label, cls) {
   const href = safeHref(url)
@@ -42,11 +41,14 @@ export function scoreTotals(scores, rubric) {
   return { points, max }
 }
 
+// #16: the public judge page showed every event's start/end with a time
+// ("12:00 am – …") even though this invite preview only ever had a date to
+// show, not a real kickoff/close time -- ui.dateOnly, not ui.dateTime.
 export function dateRange(uiArg, info) {
   if (!info || !info.starts_at) return ''
   const shim = { time_zone: info.time_zone }
-  const start = uiArg.dateTime(info.starts_at, shim)
-  const end = info.ends_at ? uiArg.dateTime(info.ends_at, shim) : ''
+  const start = uiArg.dateOnly(info.starts_at, shim)
+  const end = info.ends_at ? uiArg.dateOnly(info.ends_at, shim) : ''
   return end ? `${start} – ${end}` : start
 }
 

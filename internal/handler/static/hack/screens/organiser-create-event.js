@@ -26,7 +26,7 @@ export async function render(ctx) {
 <div class="field"><label>Contact email<input class="input" id="new-email" type="email" required></label></div>
 <div class="field"><label>Purpose<textarea class="input" id="new-purpose" maxlength="1000" required></textarea></label></div>
 <div class="field"><label>Expected participants<input class="input" id="new-n" type="number" min="1" max="100000" value="60" required></label></div>
-<button class="btn primary" type="submit">Create event</button>
+<button class="btn" type="submit">Create event</button>
 </section></form>`
 
   function checkSlugNow() {

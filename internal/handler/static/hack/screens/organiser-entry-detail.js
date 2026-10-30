@@ -30,8 +30,14 @@ export async function render(ctx) {
     return `<dt>${ui.esc(label)}</dt><dd>${value ? ui.esc(value) : '(none)'}</dd>`
   }
 
+  // #19/#18: the server (checkEntryURL) already enforces http/https on
+  // video_url/code_url, so this is defence in depth, not a live hole -- but
+  // linkField put the value straight into href with no client-side check,
+  // unlike participant-entry.js's own safeHref. round2-shared.md now gives
+  // this a shared home, ui.safeHref, so this uses that instead of its own copy.
   function linkField(label, value) {
-    return `<dt>${ui.esc(label)}</dt><dd>${value ? `<a href="${ui.esc(value)}" target="_blank" rel="noopener">${ui.esc(value)}</a>` : '(none)'}</dd>`
+    const link = value ? ui.safeHref(value) : ''
+    return `<dt>${ui.esc(label)}</dt><dd>${link ? `<a href="${ui.esc(link)}" target="_blank" rel="noopener">${ui.esc(value)}</a>` : (value ? ui.esc(value) : '(none)')}</dd>`
   }
 
   function siteCard(lockReason) {

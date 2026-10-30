@@ -17,12 +17,25 @@ export function classicURL() { const u = new URL(location.href); u.searchParams.
 // thing (the old dateStyle/timeStyle API's idiom) keeps working unchanged.
 // `options.zone` appends a short zone label ("GMT+9") for the few places
 // that need to say which zone a time is in.
+// The year to compare against "this year" when deciding whether to show one
+// -- done in the event's own zone (not the browser's), so a date that's
+// already tomorrow in Tokyo while still today in UTC gets the right year,
+// and a 31 Dec/1 Jan boundary doesn't silently drop the year it needs.
+function yearInZone(d, zone) {
+  if (!zone || !zoneKnown(zone)) return d.getFullYear()
+  try { return Number(new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric' }).format(d)) }
+  catch { return d.getFullYear() }
+}
 export function dateTime(value, event, options = {}) {
   if (!value || Number.isNaN(new Date(value).getTime())) return ''
   const d = new Date(value)
   const zone = typeof event === 'string' ? event : event?.time_zone
-  const sameYear = d.getFullYear() === new Date().getFullYear()
-  const dateOnlyWanted = options.dateOnly === true || ('timeStyle' in options && options.timeStyle === undefined)
+  const sameYear = yearInZone(d, zone) === yearInZone(new Date(), zone)
+  // A date-only value (an all-day date like "2026-11-06", no time part) never
+  // gets a time appended, even if a caller forgot to pass `dateOnly` --
+  // there is no real time to show, and showing "12:00 am" claims there is.
+  const valueIsDateOnly = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+  const dateOnlyWanted = valueIsDateOnly || options.dateOnly === true || ('timeStyle' in options && options.timeStyle === undefined)
   const o = {
     weekday: 'short', day: 'numeric', month: 'short',
     ...(sameYear ? {} : { year: 'numeric' }),
@@ -30,7 +43,11 @@ export function dateTime(value, event, options = {}) {
     ...(zone ? { timeZone: zone } : {}),
     ...(options.zone ? { timeZoneName: 'short' } : {})
   }
-  return new Intl.DateTimeFormat('en-GB', o).format(d)
+  // en-GB inserts a comma right after the weekday once `year` is also in the
+  // field list ("Sat, 2 Jan 2027"), unlike the same-year form ("Fri 6 Nov").
+  // Strip that stray one so every date reads "Xxx D Mon[ YYYY][, h:mm am]"
+  // the same way regardless of year -- the comma before the time is kept.
+  return new Intl.DateTimeFormat('en-GB', o).format(d).replace(/^(\S+),\s/, '$1 ')
 }
 // Date only, no time -- "Wed 28 Oct" (or "Wed 28 Oct 2027" once the year
 // isn't this one). Same zone rules as dateTime; a plain shortcut for the
@@ -38,30 +55,42 @@ export function dateTime(value, event, options = {}) {
 export function dateOnly(value, event) {
   return dateTime(value, event, { dateOnly: true })
 }
-// A start/end pair as one readable range, in the event's own zone. Same day
-// shows the date once ("Wed 29 Oct, 8:00 pm to 9:00 pm"); different days
-// show both in full ("Wed 29 Oct, 8:00 pm to Thu 30 Oct, 8:00 am").
-export function timeRange(startIso, endIso, event) {
-  if (!startIso || !endIso) return ''
-  if (Number.isNaN(new Date(startIso).getTime()) || Number.isNaN(new Date(endIso).getTime())) return ''
-  if (dateOnly(startIso, event) === dateOnly(endIso, event)) {
-    const zone = typeof event === 'string' ? event : event?.time_zone
-    const time = iso => new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit', hourCycle: 'h12', ...(zone ? { timeZone: zone } : {}) }).format(new Date(iso))
-    return `${dateOnly(startIso, event)}, ${time(startIso)} to ${time(endIso)}`
-  }
-  return `${dateTime(startIso, event)} to ${dateTime(endIso, event)}`
-}
 export function nextDeadline(event) {
   return [['Starts', event?.starts_at], ['Entries close', event?.submission_deadline], ['Ends', event?.ends_at]]
     .filter(([, value]) => value && new Date(value) > new Date()).sort((a,b) => new Date(a[1]) - new Date(b[1]))[0]
 }
-// C2: a toast appears right after the control that triggered it (`near`),
-// not buried wherever that control's container happens to be on the page,
-// and replaces any toast already sitting there instead of stacking under
-// it. Errors never auto-hide -- they stay until the person dismisses them
-// or another toast replaces them in the same spot; a "Saved"/ok toast still
-// clears itself after a few seconds. Without `near` (no good anchor on the
-// screen) it falls back to the top of main, same as before.
+// C2: a toast lands where it will actually be seen.
+// - Next to a real control (`near` is some element inside the page, not the
+//   page itself): after that control's own row -- the closest
+//   .row-flex/.field/.setting/.card/.sticky-foot/.ph/.acts container --
+//   never spliced between two buttons inside a flex row.
+// - With no real control to anchor to (`near` is <main> itself, or left
+//   out): at the very top of the page content, right after the .ph header
+//   if the screen has one (first child of main otherwise), inside the
+//   page's own padding, and scrolled into view -- so a note on a long page
+//   can't end up below the fold or outside .page's padded column.
+// Either way it replaces any toast already sitting in that same spot
+// instead of stacking under it. Errors never auto-hide -- they stay until
+// the person dismisses them or another toast replaces them in the same
+// spot; a "Saved"/ok toast still clears itself after a few seconds.
+const TOAST_ROW = '.row-flex, .field, .setting, .card, .sticky-foot, .ph, .acts'
+function placeToast(note, near) {
+  const main = document.querySelector('main')
+  const pageLevel = !near || near === main || near === document.body || (main != null && typeof near.contains === 'function' && near.contains(main))
+  if (!pageLevel && near.parentNode) {
+    const row = near.closest(TOAST_ROW) || near
+    const existing = row.nextElementSibling
+    if (existing && existing.matches('[data-toast]')) existing.remove()
+    row.insertAdjacentElement('afterend', note)
+    return
+  }
+  const host = (near && near.nodeType === 1 && near.matches('main')) ? near : (main || document.getElementById('app'))
+  host.querySelectorAll('[data-toast]').forEach(n => n.remove())
+  const ph = host.querySelector('.ph')
+  if (ph) ph.insertAdjacentElement('afterend', note)
+  else host.insertBefore(note, host.firstChild)
+  note.scrollIntoView({ block: 'nearest' })
+}
 export function toast(text, near, bad = false) {
   if (!text) return
   const note = document.createElement('p')
@@ -80,15 +109,7 @@ export function toast(text, near, bad = false) {
     dismiss.addEventListener('click', () => note.remove())
     note.append(dismiss)
   }
-  if (near && near.parentNode) {
-    const existing = near.nextElementSibling
-    if (existing && existing.matches('[data-toast]')) existing.remove()
-    near.insertAdjacentElement('afterend', note)
-  } else {
-    const host = document.querySelector('main') || document.getElementById('app')
-    host.querySelectorAll(':scope > [data-toast]').forEach(n => n.remove())
-    host.append(note)
-  }
+  placeToast(note, near)
   if (!bad) setTimeout(() => note.remove(), 6000)
 }
 export const saved = near => toast('Saved', near)
@@ -161,11 +182,16 @@ export const ERROR_MESSAGES = {
 // ui.ERROR_MESSAGES or a screen-group's override of it) when some of those
 // codes need friendlier client-side copy instead -- then a code match wins
 // over the server's own text.
+// A 5xx is different: writeInternal's own body is just `{"error":"internal
+// server error"}`, lowercase server jargon with nothing a person can act on
+// -- so a 5xx always gets the generic "try again" copy, checked before the
+// server text (but after a `codes` match, which can still offer its own
+// friendlier line for a specific code even on a 5xx).
 export function errText(r, { codes, fallback } = {}) {
   const code = r && r.data && r.data.code
   if (codes && code && codes[code]) return codes[code]
-  if (r && r.data && typeof r.data.error === 'string' && r.data.error) return r.data.error
   if (r && r.status >= 500) return 'Something went wrong. Try again.'
+  if (r && r.data && typeof r.data.error === 'string' && r.data.error) return r.data.error
   return fallback || 'Something went wrong.'
 }
 // Mirrors hack-app.html's writesLocked(): a platform-admin inspection or a
@@ -260,6 +286,28 @@ export async function showImage(ctx, img, path) {
   if (r.signedOut || !r.ok || !r.dataURL) { img.hidden = true; return }
   img.src = r.dataURL
   img.hidden = false
+}
+// A7/A16: a bright mark colour (e.g. the mock-judging yellow) makes white
+// ink unreadable -- pick white or the kit's own dark ink by relative
+// luminance instead of always white. `color` is a '#rrggbb' hex string.
+// Was duplicated in shell.js (the switcher/event marks) and
+// landing-your-events.js (its own event marks); this is the one shared
+// version. Other screens still carry their own copy until they're switched
+// over -- this export doesn't remove those.
+export function markInk(color) {
+  const n = parseInt(color.slice(1), 16)
+  const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4 }
+  const lum = .2126 * f(n >> 16) + .7152 * f((n >> 8) & 255) + .0722 * f(n & 255)
+  return lum > 0.45 ? '#2b2925' : '#fff'
+}
+// Only an http(s) link is safe to use as a real <a href> or open in a new
+// tab -- javascript:, data: and other schemes never pass. Was duplicated in
+// screens/_partB-util.js and screens/_judge-util.js; this is the one shared
+// version. Those screens still carry their own copy until they're switched
+// over -- this export doesn't remove those.
+export function safeHref(url) {
+  const s = String(url || '').trim()
+  return /^https?:\/\//i.test(s) ? s : ''
 }
 export function copyButton(text, label = 'Copy') {
   const button = document.createElement('button')

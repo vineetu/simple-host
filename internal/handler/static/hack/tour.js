@@ -155,9 +155,20 @@ export async function startTour(role, ctx, { force = false } = {}) {
     const step = spec.steps[state.index]
     if (state.target) state.target.classList.remove('tour-ring')
     // Checked before touching .menu-open below -- nextShowable's own lookahead
-    // toggles that class on earlier steps as it scans, so the Back-disabled
-    // check has to run first, and the real toggle for this step last.
+    // (and the shownCount scan right after it) toggles that class on earlier
+    // steps as they scan, so every side-effecting lookahead has to run
+    // first, and the real toggle for this step last.
     const backDisabled = nextShowable(spec, state.index - 1, -1) === -1
+    const isLastShown = nextShowable(spec, state.index + 1, 1) === -1
+    // Review #17: "Step N of M" and the Back/Next labels must count only
+    // the steps that will actually show (a skipped step, e.g. the judge
+    // scoring step before scoring opens, shouldn't inflate M or leave N
+    // stuck below it), and Next must read "Done" on the last step that
+    // actually shows, not the last one in the spec.
+    let shown = 0, shownTotal = 0
+    for (let j = 0; j < spec.steps.length; j++) {
+      if (canShow(spec.steps[j])) { shownTotal++; if (j <= state.index) shown++ }
+    }
     // A22: a nav-link step opens the phone menu sheet so its target is
     // actually on screen to point at, instead of ringing the "Menu" button
     // itself on every section step in a row.
@@ -166,11 +177,11 @@ export async function startTour(role, ctx, { force = false } = {}) {
     if (app) app.classList.toggle('menu-open', navStep)
     const target = resolveTarget(step)
     state.target = target
-    card.querySelector('.tour-progress').textContent = `Step ${state.index + 1} of ${spec.steps.length}`
+    card.querySelector('.tour-progress').textContent = `Step ${shown} of ${shownTotal}`
     card.querySelector('.tour-title').textContent = step.title
     card.querySelector('.tour-body').textContent = step.body
     card.querySelector('[data-tour-back]').disabled = backDisabled
-    card.querySelector('[data-tour-next]').textContent = state.index === spec.steps.length - 1 ? 'Done' : 'Next'
+    card.querySelector('[data-tour-next]').textContent = isLastShown ? 'Done' : 'Next'
     if (target) {
       target.classList.add('tour-ring')
       try { target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) } catch (e) {}

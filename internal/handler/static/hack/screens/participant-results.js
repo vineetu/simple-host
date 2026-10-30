@@ -1,11 +1,16 @@
 export function title() { return 'Results' }
 
-// Matches hack_eventpage.go's hackScoreText: at most one decimal, dropping a
-// trailing ".0" ("100", "60", "42.5"), so the participant's own result and
-// the public page never disagree on how a score reads (SIM-346 cosmetic #4).
+// Matches hack_eventpage.go's hackScoreText (review #8): full precision
+// (two decimals, same as the server stores and the public JSON API
+// returns), trailing zeros trimmed ("100", "60", "42.5"), but never rounded
+// to fewer decimals than it has -- toFixed(1) used to round 81.25 to "81.3"
+// (or "81.2", depending on float rounding), which could make two
+// differently-scored teams read the same. This keeps the participant's own
+// result and the public page agreeing on how a score reads (SIM-346
+// cosmetic #4), including for scores a hundredth apart.
 function scoreText(n) {
   if (typeof n !== 'number' || Number.isNaN(n)) return ''
-  return n.toFixed(1).replace(/\.0$/, '')
+  return n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
 }
 
 function ordinal(n) {

@@ -134,7 +134,7 @@ async function paint (ctx, ev, team, data, state) {
       status.textContent = 'Published version ' + (resp.data && resp.data.active_version) + '.'
       await reload({})
     } catch (e) {
-      if (!client.isSignedOut(e)) { status.textContent = 'Could not confirm the upload; check your site before trying again.'; zipGo.disabled = false }
+      if (!client.isSignedOut(e)) { status.textContent = 'Could not confirm the upload. Check your site before trying again.'; zipGo.disabled = false }
     }
   })
 
@@ -182,14 +182,25 @@ async function paint (ctx, ev, team, data, state) {
   wireNotifications(ctx, main, ev, team, reload)
 }
 
-// C10: the server's invalid_archive message is the raw Go error from the
-// extractor ("invalid site archive: create gzip reader: gzip: invalid
+// C10/#16: the server's invalid_archive message is the raw Go error from
+// the extractor ("invalid site archive: create gzip reader: gzip: invalid
 // header"), there to help us debug, not a participant. missing_index and
 // blocked_file_type already read as plain English (site.go), so only
-// invalid_archive needs a client-side override.
-function archiveErrorText (resp, fallback) {
+// invalid_archive needs a client-side override -- but the extractor's text
+// (internal/tarball/extract.go, sanitize.go) distinguishes a corrupt/
+// unreadable archive from one that was readable but refused for containing
+// unsafe or duplicate paths (zip-slip, symlink-style escapes), and those are
+// different things for a participant to fix, so they get different plain
+// text rather than being flattened into one generic sentence.
+export function archiveErrorText (resp, fallback) {
   const code = resp && resp.data && resp.data.code
-  if (code === 'invalid_archive') return "That file isn't a valid .zip."
+  if (code === 'invalid_archive') {
+    const raw = String((resp && resp.data && resp.data.error) || '')
+    if (/unsafe path|duplicate (entry|path)/i.test(raw)) {
+      return "That zip has file paths Simple Host can't accept (a path outside the archive, or two files at the same path). Fix the archive and try again."
+    }
+    return "That file isn't a valid .zip."
+  }
   return errText(resp, fallback)
 }
 

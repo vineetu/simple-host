@@ -32,7 +32,12 @@ internal/handler/static/hack/
                     ui.fetchBinary/ui.showImage (authenticated images); ui.localInputValue(iso,
                     event|zone, {dateOnly}) (an instant's wall-clock value for a date/datetime-local
                     field, in the event's zone -- reading the field back on save needs no inverse);
-                    plus toast, copy button, stage names, escaping, ui.dateTime for display.
+                    ui.markInk(color) and ui.safeHref(url) (the shared luminance-ink and http(s)-only
+                    link checks -- a few screens still carry their own copy until they're switched
+                    over to these); plus toast, copy button, stage names, escaping, ui.dateTime for
+                    display (errText's server-message-first text always loses to a generic "Something
+                    went wrong. Try again." on a 5xx, since the server's own 5xx body is just
+                    jargon).
   nav.js            sidebar items per role (from spec.json roles[].nav; stage rules)
   screens/<atlas-screen-id>.js   one module per atlas screen, e.g. screens/judge-scoring.js
 ```
@@ -77,11 +82,14 @@ Old deep links keep working: unknown `?s=` values fall back to the section's hom
 ## Switching between old and new
 
 - The server serves `static/hack/app.html` instead of `hack-app.html` when the cookie
-  `sh_hack_ui=next` is set. `?ui=next` on any of those routes sets it (Path=/, SameSite=Lax,
-  Secure, 1 year) and `?ui=classic` clears it. Default stays classic until the owner flips it.
-- When every role is verified on production, the default flips to next (one constant), and
-  `?ui=classic` keeps the old app reachable until it is deleted.
-- The account page and the shell's Help menu offer "Use the old screens" while both exist.
+  `sh_hack_ui=next` is set. `next` is the default (one constant, flipped 2026-10-30, every role
+  verified on production); `?ui=classic` on any of those routes sets the cookie to `classic` and
+  keeps the old app reachable, `?ui=next` sets it back to `next`.
+- The account page and the shell's Help menu no longer offer "Use the old screens" (owner
+  decision 2026-10-30: classic is being retired, not kept as a standing option). The one place
+  that still links to it is the "this screen is being rebuilt" fallback card (`app.js`, shown
+  when a screen module import fails) -- that is the one case someone genuinely needs the old
+  screen today, until every screen module exists and `?ui=classic` itself is deleted.
 
 ## Sign-in and session
 

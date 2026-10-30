@@ -55,7 +55,7 @@ export async function render(ctx) {
     main.innerHTML = `<div class="ph"><div class="t"><h1>Teams</h1><p>${ui.esc(subtitle)}</p></div>${fillable && onNoTeam.length ? `<button class="btn primary" type="button" id="fill-teams">Fill teams</button>` : ''}</div>
 ${!ev.team_finding ? `<div class="note">Team finding is off. Teams form by invite code only.</div>` : ''}
 <div class="list">${teams.length ? teams.map(row).join('') : '<div class="empty">No teams yet.</div>'}</div>
-<p class="small muted"><a href="${ui.esc(href(role, slug, 'results'))}">Download teams as CSV</a></p>
+<p class="small muted"><a href="${ui.esc(href(role, slug, 'results'))}">Teams CSV is on Results</a></p>
 <details class="card"><summary>Team finding</summary>
 <label class="check"><input type="checkbox" id="tf-on"${ev.team_finding ? ' checked' : ''}${configurable ? '' : ' disabled'}><div><b>Team finding</b><span>Let participants find teams and invite people. Team codes always work.</span></div></label>
 <div class="field"><label>Most people per team<input class="input" id="tf-size" type="number" min="1" max="50" value="${teamSizeMax}"${configurable ? '' : ' disabled'}></label></div>

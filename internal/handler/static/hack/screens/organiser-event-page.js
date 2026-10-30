@@ -22,6 +22,24 @@ export function scheduleFieldValue(ui, ev, item, field) {
   return item._local ? (item[field] || '') : ui.localInputValue(item[field], ev.time_zone)
 }
 
+// #16: this screen's own website-zip upload showed the server's raw
+// extractor error ("invalid site archive: create gzip reader: gzip:
+// invalid header") instead of plain English, unlike participant-website.js
+// (SIM-346 C10), which already translates invalid_archive. Same mapping,
+// duplicated locally for now rather than reaching into another role's
+// screen module -- round2-shared.md may later give this a shared home.
+function archiveErrorText(ui, r, fallback) {
+  const code = r && r.data && r.data.code
+  if (code === 'invalid_archive') {
+    const raw = String((r && r.data && r.data.error) || '')
+    if (/unsafe path|duplicate (entry|path)/i.test(raw)) {
+      return "That zip has file paths Simple Host can't accept (a path outside the archive, or two files at the same path). Fix the archive and try again."
+    }
+    return "That file isn't a valid .zip."
+  }
+  return ui.errText(r, { fallback })
+}
+
 export async function render(ctx) {
   const { main, api: client, ui, event: data } = ctx
   const api = client.api
@@ -349,7 +367,7 @@ ${contentError ? '<div class="note bad">Sponsors, FAQ and schedule could not be 
       try { buf = await fileAsArrayBuffer(file) } catch (e) { setLive('Could not read that file.', 'err', input); btn.disabled = false; return }
       try {
         const r = await apiBytes('PUT', path + '/website', buf, 'application/zip')
-        if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
+        if (!r.ok) { setLive(archiveErrorText(ui, r), 'err', btn); btn.disabled = false; return }
         const w = await api('GET', path + '/website')
         if (w.ok) website = w.data
         setLive('Website published', 'ok')

@@ -18,7 +18,7 @@
 <header class="pub-top">
   <a class="wordmark" href="/">simple<b>·</b>hack</a>
   <span class="grow"></span>
-  <a class="btn quiet" href="/events">Sign in</a>
+  <a class="btn quiet" href="/events" id="top-account">Your events</a>
 </header>
 
 <main>
@@ -58,15 +58,30 @@
 </div>
 <script>
   (function () {
+    // #15/A7: matches ui.js's ui.initials -- only count a "word" that has an
+    // actual letter or number, so a separator like "Mock · Voting" doesn't
+    // take the "·" as a second initial ("M·" instead of "MV").
     function initials(name) {
       var out = [];
       (name || '').split(/\s+/).forEach(function (w) {
         if (out.length >= 2) return;
-        var m = w.match(/[^\s]/);
+        var m = w.match(/[\p{L}\p{N}]/u);
         if (m) out.push(m[0].toUpperCase());
       });
       return out.join('') || '?';
     }
+    // #15: the top bar used to always say "Sign in", even for a signed-in
+    // visitor. There's no server-side session check on this static page, so
+    // this can only go on the one client-side signal available
+    // (localStorage.apiKey, the same key api.js reads) -- knowable in a
+    // normal browser, not in a private window or with storage blocked. Default
+    // stays the neutral "Your events" (set in the markup) for the unknowable
+    // case; "Sign in" is shown only once we can confirm there's no key.
+    try {
+      var hasKey = !!localStorage.getItem('apiKey');
+      var top = document.getElementById('top-account');
+      if (top && !hasKey) top.textContent = 'Sign in';
+    } catch (e) {}
     // Readable ink on the event's own mark colour (same luminance rule as
     // the app shell's event marks): white text on a dark colour, dark text
     // on a light one, so a pale crayon never prints white-on-white.
@@ -98,10 +113,19 @@
     function row(e) {
       var a = document.createElement('a'); a.className = 'r'; a.href = e.url;
       var mark = document.createElement('span'); mark.className = 'ev-mark'; mark.setAttribute('aria-hidden', 'true');
-      var color = e.color || '#d15d48';
-      mark.style.setProperty('--ev', color);
-      mark.style.color = lum(color) > 0.45 ? '#2b2925' : '#fff';
-      mark.textContent = initials(e.title);
+      // #15: this card dropped the event's own icon_url and always drew the
+      // colour+initials mark, even for events that have a real icon set
+      // (the old card showed it). Show the icon when the data has one, same
+      // as hack-event.html's own ev-icon.
+      if (e.icon_url) {
+        var img = document.createElement('img'); img.src = e.icon_url; img.alt = '';
+        mark.appendChild(img);
+      } else {
+        var color = e.color || '#d15d48';
+        mark.style.setProperty('--ev', color);
+        mark.style.color = lum(color) > 0.45 ? '#2b2925' : '#fff';
+        mark.textContent = initials(e.title);
+      }
       var main = document.createElement('span'); main.className = 'main';
       var b = document.createElement('b'); b.textContent = e.title; main.appendChild(b);
       if (e.tagline) { var sub = document.createElement('span'); sub.textContent = e.tagline; main.appendChild(sub); }

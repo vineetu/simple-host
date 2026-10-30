@@ -1268,14 +1268,16 @@ func TestHackEventPageDraftKeepsDraftLayoutWithResults(t *testing.T) {
 }
 
 // TestHackScoreTextDropsTrailingZero (Grok SIM-346 Part B hack-event.html
-// item 4): "100.00" should read "100", "60" or "42.5" — at most one
-// decimal, no trailing ".0".
+// item 4, revised by review #8): "100.00" should read "100", "60" or
+// "42.5" -- trailing zeros trimmed, but never rounded away. 81.25 and
+// 42.56 both keep their real second decimal digit; the old version rounded
+// to one decimal and would have turned them into "81.3"/"81.2" and "42.6".
 func TestHackScoreTextDropsTrailingZero(t *testing.T) {
 	for _, c := range []struct {
 		score float64
 		want  string
 	}{
-		{100, "100"}, {60, "60"}, {42.5, "42.5"}, {42.56, "42.6"}, {0, "0"},
+		{100, "100"}, {60, "60"}, {42.5, "42.5"}, {42.56, "42.56"}, {81.25, "81.25"}, {0, "0"},
 	} {
 		if got := hackScoreText(c.score); got != c.want {
 			t.Errorf("hackScoreText(%v) = %q, want %q", c.score, got, c.want)
@@ -1283,20 +1285,51 @@ func TestHackScoreTextDropsTrailingZero(t *testing.T) {
 	}
 }
 
-// TestHackResultsFromSnapshotScoreFormatting: the public page's own score
-// text (via hackResultsFromSnapshot, publicScores=true) follows the same
-// rule as hackScoreText, not the raw "%.2f" that produced "100.00".
+// TestHackResultsFromSnapshotScoreFormatting (review #8): hackResultsFromSnapshot
+// feeds both the HTML template and the public JSON API (hack_public_json.go),
+// and BUILD.md goal 4 says that API does not change -- so its Score string
+// keeps the full, untrimmed precision the API had before 231f769d ("100.00",
+// not "100"), even though the HTML display trims it later. Two teams a
+// hundredth apart must not collapse into the same JSON score string either.
 func TestHackResultsFromSnapshotScoreFormatting(t *testing.T) {
-	snap := []byte(`[{"rank":1,"team_id":"a","team_name":"Alpha","total":100},{"rank":2,"team_id":"b","team_name":"Beta","total":42.5}]`)
+	snap := []byte(`[{"rank":1,"team_id":"a","team_name":"Alpha","total":100},{"rank":2,"team_id":"b","team_name":"Beta","total":42.5},{"rank":3,"team_id":"c","team_name":"Gamma","total":81.25}]`)
 	v := hackResultsFromSnapshot(db.EventResultsRow{Published: true, FullRanking: true, Snapshot: snap}, true, true)
-	if v == nil || len(v.Rows) != 2 {
+	if v == nil || len(v.Rows) != 3 {
 		t.Fatalf("rows: %+v", v)
 	}
-	if v.Rows[0].Score != "100" {
-		t.Errorf("Alpha score = %q, want %q", v.Rows[0].Score, "100")
+	if v.Rows[0].Score != "100.00" {
+		t.Errorf("Alpha score = %q, want %q", v.Rows[0].Score, "100.00")
 	}
-	if v.Rows[1].Score != "42.5" {
-		t.Errorf("Beta score = %q, want %q", v.Rows[1].Score, "42.5")
+	if v.Rows[1].Score != "42.50" {
+		t.Errorf("Beta score = %q, want %q", v.Rows[1].Score, "42.50")
+	}
+	if v.Rows[2].Score != "81.25" {
+		t.Errorf("Gamma score = %q, want %q", v.Rows[2].Score, "81.25")
+	}
+}
+
+// TestBuildHackResultsBlockTrimsScoreForDisplay (review #8): the HTML
+// template's own view trims the same full-precision score for display
+// ("100.00" -> "100", "42.50" -> "42.5") without touching the
+// hackResultsView/JSON-facing string tested above, and without rounding
+// away 81.25's real second decimal.
+func TestBuildHackResultsBlockTrimsScoreForDisplay(t *testing.T) {
+	snap := []byte(`[{"rank":1,"team_id":"a","team_name":"Alpha","total":100},{"rank":2,"team_id":"b","team_name":"Beta","total":42.5},{"rank":3,"team_id":"c","team_name":"Gamma","total":81.25}]`)
+	v := hackResultsFromSnapshot(db.EventResultsRow{Published: true, FullRanking: true, Snapshot: snap}, true, true)
+	if v == nil || len(v.Rows) != 3 {
+		t.Fatalf("rows: %+v", v)
+	}
+	block := buildHackResultsBlock(v)
+	want := map[string]string{"Alpha": "100", "Beta": "42.5", "Gamma": "81.25"}
+	for _, row := range block.Rows {
+		if got, ok := want[row.TeamName]; ok && row.Score != got {
+			t.Errorf("%s display score = %q, want %q", row.TeamName, row.Score, got)
+		}
+	}
+	// The source view (same rows buildHackResultsBlock read from) must stay
+	// untrimmed -- building the display form must not mutate the JSON one.
+	if v.Rows[0].Score != "100.00" {
+		t.Errorf("source Score mutated: %q", v.Rows[0].Score)
 	}
 }
 

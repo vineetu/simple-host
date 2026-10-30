@@ -74,7 +74,9 @@ export async function downloadFile(path, filename, btn) {
       toast(msg, btn, true)
       return false
     }
-    const blob = await res.blob()
+    let blob
+    try { blob = await res.blob() }
+    catch { toast('Could not read the downloaded file.', btn, true); return false }
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

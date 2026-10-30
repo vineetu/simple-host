@@ -20,18 +20,6 @@ export async function render(ctx) {
   const setLive = ui.live(main)
   const judgingLocked = !!ev.judging_locked_at
 
-  // Short time-zone abbreviation (e.g. "PST") for a moment in the event's
-  // zone. Intl.DateTimeFormat throws if timeZoneName is combined with
-  // dateStyle/timeStyle (ui.dateTime's defaults), so this stays a separate,
-  // component-only formatter rather than an option on that call.
-  function tzAbbrev(value) {
-    if (!value || Number.isNaN(new Date(value).getTime())) return ''
-    try {
-      const parts = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short', hour: 'numeric', ...(ev.time_zone ? { timeZone: ev.time_zone } : {}) }).formatToParts(new Date(value))
-      return (parts.find(p => p.type === 'timeZoneName') || {}).value || ''
-    } catch { return '' }
-  }
-
   let settings = { score_mode: 'raw', public_scores: false, public_ranks: false }
   let results = null // array of rows once published, else null
   let preview = [] // current standings, used to build overrides before first publish
@@ -90,7 +78,7 @@ export async function render(ctx) {
 <button class="btn" type="button" id="res-dl-entries">Entries (CSV)</button>
 <button class="btn" type="button" id="res-dl-teams">Teams (CSV)</button>
 <button class="btn" type="button" id="res-dl-participants">People (CSV)</button>
-<button class="btn" type="button" id="res-dl-sites">All team sites (zip)</button>
+<button class="btn" type="button" id="res-dl-sites">All team sites (.tar.gz)</button>
 </div></section>`
 
   // --- status -----------------------------------------------------------
@@ -99,9 +87,10 @@ export async function render(ctx) {
     const secondary = 'Publishing takes a snapshot. Publish again if scores change.'
     if (published) {
       box.className = 'note ok'
-      const when = ui.dateTime(ev.results_published_at, ev)
-      const tz = tzAbbrev(ev.results_published_at)
-      box.innerHTML = `<b>${when ? 'Published ' + ui.esc(when) + (tz ? ' ' + ui.esc(tz) : '') : 'Published'}</b><p>${ui.esc(secondary)}</p>`
+      // #19: this used to roll its own timeZoneName formatter, a straight
+      // duplicate of what ui.dateTime's own {zone:true} option already does.
+      const when = ui.dateTime(ev.results_published_at, ev, { zone: true })
+      box.innerHTML = `<b>${when ? 'Published ' + ui.esc(when) : 'Published'}</b><p>${ui.esc(secondary)}</p>`
     } else {
       box.className = 'note warn'
       box.innerHTML = `<b>Not published yet</b><p>${ui.esc(secondary)}</p>`
@@ -293,10 +282,14 @@ export async function render(ctx) {
     p.id = 'res-vote-gallery-note'
     p.className = 'note bad'
     p.setAttribute('role', 'alert')
-    p.append(document.createTextNode('Open the team gallery first, on '))
+    // #12: match organiser-event-page.js's actual heading ("Look") and
+    // toggle copy ("Show entries on the event page") -- the section itself
+    // has been renamed since this note was first written, which left it
+    // naming a heading ("Gallery & appearance") that no longer exists.
+    p.append(document.createTextNode('Turn on Show entries on the event page first, on '))
     const a = document.createElement('a')
     a.href = href(role, slug, 'event-page') + '#appearance'
-    a.textContent = 'Event page → Gallery & appearance'
+    a.textContent = 'Event page → Look'
     p.append(a, document.createTextNode('.'))
     btn.insertAdjacentElement('afterend', p)
   }

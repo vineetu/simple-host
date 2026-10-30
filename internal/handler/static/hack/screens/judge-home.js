@@ -45,6 +45,9 @@ export async function render(ctx) {
   const scored = queue.filter(r => r.done).length
   const resultsOut = !!ev.results_published
   const locked = !!ev.judging_locked_at
+  // S7/#11: one noun ("team") across the judge screens, pluralised on the
+  // total being scored against (so "1 of 1 team scored", not "entries").
+  const teamWord = n => n === 1 ? 'team' : 'teams'
 
   // bar(): the progress bar on its own, for the two states (locked) that
   // don't already say the count in a .next hero -- see the "next"/"done"
@@ -54,7 +57,7 @@ export async function render(ctx) {
     return `<div class="card"><p>${scored} of ${max} ${label}</p><div class="bar" data-tour="progress" role="progressbar" aria-label="${ui.esc(label)}" aria-valuenow="${scored}" aria-valuemin="0" aria-valuemax="${max}"><i style="max-width:${max ? Math.round((scored / max) * 100) : 0}%"></i></div></div>`
   }
   function heroBar(max) {
-    return `<div class="bar" data-tour="progress" role="progressbar" aria-label="entries scored" aria-valuenow="${scored}" aria-valuemin="0" aria-valuemax="${max}"><i style="max-width:${max ? Math.round((scored / max) * 100) : 0}%"></i></div>`
+    return `<div class="bar" data-tour="progress" role="progressbar" aria-label="${teamWord(max)} scored" aria-valuenow="${scored}" aria-valuemin="0" aria-valuemax="${max}"><i style="max-width:${max ? Math.round((scored / max) * 100) : 0}%"></i></div>`
   }
 
   let top = ''
@@ -69,17 +72,17 @@ export async function render(ctx) {
     top = `<div class="note"><p>You’ve declared a conflict with everyone assigned to you. There’s nothing left for you to score, by design.</p></div>`
   } else if (locked) {
     if (scored >= total) {
-      top = `<div class="note warn"><b>Scoring is locked.</b> You scored every team. Results are not out yet.</div>` + bar('entries scored', total)
+      top = `<div class="note warn"><b>Scoring is locked.</b> You scored every team. Results are not out yet.</div>` + bar(teamWord(total) + ' scored', total)
     } else {
       const left = total - scored
-      top = `<div class="note warn"><b>Scoring was locked before you finished.</b> ${left} ${left === 1 ? 'entry' : 'entries'} you were assigned ${left === 1 ? 'is' : 'are'} now closed to scoring. The organiser closed scoring, this isn’t an error.</div>` + bar('entries scored', total)
+      top = `<div class="note warn"><b>Scoring was locked before you finished.</b> ${left} ${teamWord(left)} you were assigned ${left === 1 ? 'is' : 'are'} now closed to scoring. The organiser closed scoring, this isn’t an error.</div>` + bar(teamWord(total) + ' scored', total)
     }
   } else if (scored >= total) {
-    top = `<section class="next" data-tour="next"><div class="t"><p class="k">All done</p><h2>You are done. Thank you.</h2><p>${total} of ${total} entries scored.</p>${heroBar(total)}<p class="small muted">The organiser locks scoring when judging ends. Until then you can change any score.</p></div><a class="btn" href="${ui.esc(href('judge', slug, 'queue'))}">Review my scores</a></section>`
+    top = `<section class="next" data-tour="next"><div class="t"><p class="k">All done</p><h2>You are done. Thank you.</h2><p>${total} of ${total} ${teamWord(total)} scored.</p>${heroBar(total)}<p class="small muted">The organiser locks scoring when judging ends. Until then you can change any score.</p></div><a class="btn" href="${ui.esc(href('judge', slug, 'queue'))}">Review my scores</a></section>`
   } else {
     const next = queue.find(r => !r.done)
     const scoreHref = `/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(next.team_id)}`
-    top = `<section class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>Scoring is open</h2><p>${scored} of ${total} entries scored.</p>${heroBar(total)}<p class="small muted">The organiser locks scoring when judging ends.</p></div><a class="btn primary lg" href="${ui.esc(scoreHref)}">Score next</a></section>`
+    top = `<section class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>Scoring is open</h2><p>${scored} of ${total} ${teamWord(total)} scored.</p>${heroBar(total)}<p class="small muted">The organiser locks scoring when judging ends.</p></div><a class="btn primary lg" href="${ui.esc(scoreHref)}">Score next</a></section>`
   }
 
   // replay-judging-walkthrough: the shell's Help menu links here with

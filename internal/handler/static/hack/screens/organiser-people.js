@@ -51,7 +51,7 @@ export async function render(ctx) {
 
   function applicationCard(a) {
     return `<section class="card" data-app="${ui.esc(a.user_id)}"><h2>${ui.esc(a.display_name)}</h2><p class="sub">Applied ${ui.esc(ui.dateTime(a.joined_at, ev))}</p>${(a.answers || []).map(q => `<p><b>${ui.esc(q.prompt)}</b><br>${q.answer ? ui.esc(q.answer) : '<span class="muted">No answer</span>'}</p>`).join('')}
-<div class="row-flex"><button class="btn primary" type="button" data-app-approve>Approve</button><button class="btn danger sm" type="button" data-app-reject title="${ui.esc(a.display_name)} stays a member but can't start or join a team or publish for this event. This can't be undone by re-approving later.">Reject</button></div></section>`
+<div class="row-flex"><button class="btn" type="button" data-app-approve>Approve</button><button class="btn danger sm" type="button" data-app-reject title="${ui.esc(a.display_name)} stays a member but can't start or join a team or publish for this event. This can't be undone by re-approving later.">Reject</button></div></section>`
   }
   function personRow(p) {
     const bits = [personCategory(p)]

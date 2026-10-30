@@ -37,3 +37,9 @@
 /* A visible break between announcements, so title/date/body groups don't
    run together (audit item 8). */
 .pub-event #announcements .stack>*+*{border-top:1px solid var(--rule);padding-top:10px}
+
+/* Directory event icons (review #15): kit.css's .ev-mark (a plain colour
+   tile) gets an <img> appended for an event that has a real icon_url, same
+   as hack-event.html's own .ev-icon; it needs its own fit/crop rule since
+   kit.css only ever styled the tile itself, never an image inside it. */
+.ev-mark img{width:100%;height:100%;object-fit:cover;border-radius:inherit}

@@ -60,20 +60,46 @@ export async function render(ctx) {
 
   const justPlaced = justPlacedNote(slug, me)
 
-  let heroTitle, heroNote = '', heroLabel, heroHref, heroExternal = false
-  if (!me.team && me.team_removal_notice) {
-    heroTitle = esc(me.team_removal_notice)
-    heroLabel = 'Find a team'
-    heroHref = teamHref
-  } else if (!me.team) {
-    heroNote = await openTeamsNote(api, slug)
-    heroTitle = 'Find a team to start building'
-    heroLabel = 'Find a team'
-    heroHref = teamHref
-  } else if (ev.stage === 'results' || ev.results_published) {
+  // Teams can only be started, joined or changed while sign-up/building is
+  // open and the entry deadline (if any) has not already passed -- matches
+  // participant-team.js's teamsOpen/canStart so Home never promises an
+  // action that screen would refuse.
+  const teamsOpen = (ev.stage === 'open' || ev.stage === 'building') && !ev.taken_down
+  const deadlinePassed = !!(ev.submission_deadline && new Date(ev.submission_deadline) <= new Date())
+  const deadline = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : ''
+
+  let heroTitle, heroNote = '', heroLabel = '', heroHref = '', heroExternal = false
+  if (ev.stage === 'results' || ev.results_published) {
+    // Results beat every other state, with or without a team: there is
+    // nothing left to build or join once they're out.
     heroTitle = 'Results are out'
     heroLabel = 'See results'
     heroHref = resultsHref
+  } else if (ev.stage === 'archived') {
+    // Ended with no results published (S14/C6): the old code fell through
+    // to the "Keep building" default here. The public page still exists
+    // and is the one useful link left.
+    heroTitle = 'This event has ended'
+    heroNote = 'The public page stays up as a record.'
+    heroLabel = 'Open public page'
+    heroHref = ev.url
+    heroExternal = true
+  } else if (!me.team && me.team_removal_notice) {
+    heroTitle = me.team_removal_notice
+    if (teamsOpen && !deadlinePassed) { heroLabel = 'Find a team'; heroHref = teamHref }
+  } else if (!me.team) {
+    if (teamsOpen && !deadlinePassed) {
+      const openNote = await openTeamsNote(api, slug)
+      heroNote = [openNote, deadline ? ('Entries close ' + deadline + '.') : ''].filter(Boolean).join(' ')
+      heroTitle = 'Find a team to start building'
+      heroLabel = 'Find a team'
+      heroHref = teamHref
+    } else {
+      // Closed, judging or past the deadline while still "building": teams
+      // are locked, so there is nothing to click (C5/S14) -- just the facts.
+      heroTitle = "You're not on a team"
+      heroNote = deadline ? ('Entries closed ' + deadline + '.') : ''
+    }
   } else if (ev.stage === 'judging') {
     heroTitle = 'Judges are scoring now. Results come next'
     if (me.team.site && me.team.site.exists && me.team.site.url) {
@@ -81,16 +107,15 @@ export async function render(ctx) {
     } else {
       heroLabel = 'Go to your team'; heroHref = teamHref
     }
-  } else if (ev.stage === 'closed') {
-    heroTitle = 'Entries are in. Judging starts soon'
+  } else if (ev.stage === 'closed' || deadlinePassed) {
+    heroTitle = 'Entries are closed. Judging starts soon'
     if (me.team.site && me.team.site.exists && me.team.site.url) {
       heroLabel = 'View your site'; heroHref = me.team.site.url; heroExternal = true
     } else {
       heroLabel = 'Go to your team'; heroHref = teamHref
     }
   } else {
-    const deadline = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : ''
-    heroTitle = deadline ? ('Keep building. Entries close ' + esc(deadline)) : ('You are on ' + esc(me.team.name) + '. Keep building')
+    heroTitle = deadline ? ('Keep building. Entries close ' + deadline) : ('You are on ' + me.team.name + '. Keep building')
     heroLabel = 'Go to your entry'
     heroHref = entryHref
   }
@@ -99,6 +124,6 @@ export async function render(ctx) {
 
   main.innerHTML = `<div class="ph"><div class="t"><h1>${esc(ev.title)}</h1></div></div>`
     + (justPlaced ? `<div class="note ok"><b>You are on ${esc(me.team.name)} now.</b> <a href="${esc(teamHref)}">Meet your team</a></div>` : '')
-    + `<div class="next"><div class="t"><p class="k">Your next step</p><h2>${heroTitle}</h2>${heroNote ? `<p>${esc(heroNote)}</p>` : ''}</div><a class="btn primary" ${heroExternal ? 'target="_blank" rel="noopener" ' : ''}href="${esc(heroHref)}">${esc(heroLabel)}</a></div>`
+    + `<div class="next"><div class="t"><p class="k">Your next step</p><h2>${esc(heroTitle)}</h2>${heroNote ? `<p>${esc(heroNote)}</p>` : ''}</div>${heroLabel ? `<a class="btn primary" ${heroExternal ? 'target="_blank" rel="noopener" ' : ''}href="${esc(heroHref)}">${esc(heroLabel)}</a>` : ''}</div>`
     + news
 }

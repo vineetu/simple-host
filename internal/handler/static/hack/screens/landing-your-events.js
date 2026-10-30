@@ -1,17 +1,6 @@
 import { href } from '../nav.js'
 import { eventOrder } from '../shell.js'
 
-// A7: white text on the yellow mock-judging mark is unreadable -- the same
-// luminance check Group K is adding to shell.js for the switcher's own
-// marks (requested as a shared ui.js export, see requests-O1.md; duplicated
-// here for now since this screen paints its own marks independently).
-function inkFor(color) {
-  const n = parseInt(color.slice(1), 16)
-  const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4 }
-  const lum = .2126 * f(n >> 16) + .7152 * f((n >> 8) & 255) + .0722 * f(n & 255)
-  return lum > 0.45 ? '#2b2925' : '#fff'
-}
-
 export async function render(ctx) {
   const { main, events, ui } = ctx
   // A2: the "Leave this event" menu advertised a feature that doesn't
@@ -35,6 +24,6 @@ export async function render(ctx) {
   }).join(''))
   main.querySelectorAll('.ev-mark').forEach((mark,i) => {
     const color = list[i].color
-    if (/^#[0-9a-f]{6}$/i.test(color || '')) { mark.style.setProperty('--ev',color); mark.style.color = inkFor(color) }
+    if (/^#[0-9a-f]{6}$/i.test(color || '')) { mark.style.setProperty('--ev',color); mark.style.color = ui.markInk(color) }
   })
 }

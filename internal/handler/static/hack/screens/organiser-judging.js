@@ -49,8 +49,8 @@ export async function render(ctx) {
   let draftPerTeam = settings.judges_per_team
 
   const setupInner = `
-<section class="card" id="jg-rubric-card"><h2>Rubric</h2><div id="jg-rubric"></div><div class="row-flex"><button class="btn" type="button" id="jg-add">Add a criterion</button><span class="small muted" id="jg-weight"></span><button class="btn primary" type="button" id="jg-rubric-save">Save rubric</button></div></section>
-<section class="card" id="jg-tie-card"><h2>Tie-break</h2><div class="field"><label>First tie criterion<select class="select" id="jg-tie"></select></label></div><p class="help">You can change this until judging starts.</p><button class="btn primary" type="button" id="jg-tie-save">Save</button></section>
+<section class="card" id="jg-rubric-card"><h2>Rubric</h2><div id="jg-rubric"></div><div class="row-flex"><button class="btn" type="button" id="jg-add">Add a criterion</button><span class="small muted" id="jg-weight"></span><button class="btn" type="button" id="jg-rubric-save">Save rubric</button></div></section>
+<section class="card" id="jg-tie-card"><h2>Tie-break</h2><div class="field"><label>First tie criterion<select class="select" id="jg-tie"></select></label></div><p class="help">You can change this until judging starts.</p><button class="btn" type="button" id="jg-tie-save">Save</button></section>
 <section class="card" id="jg-mode-card"><h2>How judges are assigned</h2>
 <label class="check"><input type="radio" name="jg-mode" value="open" id="jg-mode-open"><div><b>Open</b><span>Judges pick any team from the full list.</span></div></label>
 <label class="check"><input type="radio" name="jg-mode" value="automatic" id="jg-mode-automatic"><div><b>Automatic</b><span>Simple Hack assigns judges to teams evenly.</span></div></label>
@@ -60,7 +60,8 @@ export async function render(ctx) {
 <div class="note info" id="jg-before-closed-note" hidden>You can set this before entries close, but teams may still be forming.</div>
 <p class="note" id="jg-assign-note" hidden></p>
 <label class="check" id="jg-include-organisers-wrap"><input type="checkbox" id="jg-include-organisers"><span>Include organisers who can judge</span></label>
-<div class="row-flex"><button class="btn primary" type="button" id="jg-mode-save">Save</button><button class="btn primary" type="button" id="jg-generate">Generate assignments</button><a class="btn" id="jg-grid-link" href="${ui.esc(href('organiser', slug, 'assignments'))}">Open the assignment grid</a></div>
+<div class="row-flex"><button class="btn" type="button" id="jg-mode-save">Save</button><button class="btn" type="button" id="jg-generate">Generate assignments</button><a class="btn" id="jg-grid-link" href="${ui.esc(href('organiser', slug, 'assignments'))}">Open the assignment grid</a></div>
+<p class="small muted" id="jg-generate-hint" hidden>Save the mode first.</p>
 </section>`
 
   // Collapsed (no "open" attribute) once judging has started, matching
@@ -264,12 +265,21 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     // entries close too, instead of disabling with no API reason behind
     // it. jg-before-closed-note stays as a heads-up, not a restriction.
     const disable = locked || !!adminLockReason
-    ;['jg-mode-open', 'jg-mode-automatic', 'jg-mode-manual', 'jg-mode-panel', 'jg-per', 'jg-mode-save', 'jg-generate', 'jg-include-organisers'].forEach(id => { $(id).disabled = disable })
+    ;['jg-mode-open', 'jg-mode-automatic', 'jg-mode-manual', 'jg-mode-panel', 'jg-per', 'jg-mode-save', 'jg-include-organisers'].forEach(id => { $(id).disabled = disable })
     $('jg-before-closed-note').hidden = !beforeClosed()
     const automatic = draftMode === 'automatic'
     $('jg-per-wrap').hidden = !automatic
     $('jg-generate').hidden = !automatic
     $('jg-include-organisers-wrap').hidden = !automatic
+    // Generate (hack_judging.go generateAssignments) checks the SAVED
+    // assignment_mode/judges_per_team, not the radio the organiser just
+    // clicked -- it 409s "Switch to automatic assignment first" even while
+    // the picker already shows Automatic. Rather than let that confusing
+    // server error be the first sign of it, disable Generate until the
+    // draft matches what's actually saved, with a plain reason why (#6).
+    const modeDirty = draftMode !== settings.assignment_mode || Number(draftPerTeam || 2) !== Number(settings.judges_per_team || 2)
+    $('jg-generate').disabled = disable || modeDirty
+    $('jg-generate-hint').hidden = !(automatic && modeDirty)
   }
 
   async function saveMode() {
@@ -383,15 +393,18 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
 
   // C7 (owner decision, 2026-10-30): judge counts show judges only --
   // an organiser who can also judge is counted only when "Include
-  // organisers" is on (automatic mode's checkbox, read live off the form)
-  // or they already have a real score (done_count > 0). The dashboard
-  // itself doesn't say which role a judge_id belongs to, so that comes
-  // from the /people list already loaded for the conflicts form.
-  function isCountedJudge(judgeId, doneCount) {
+  // organisers" is on (automatic mode's checkbox, read live off the form),
+  // they already have a real score (done_count > 0), or they have an
+  // assignment (assigned_count > 0 -- Manual/Panel grid assignments, or
+  // Automatic assignments generated with "Include organisers" on at the
+  // time, which survive a later reload even after the checkbox resets).
+  // The dashboard itself doesn't say which role a judge_id belongs to, so
+  // that comes from the /people list already loaded for the conflicts form.
+  function isCountedJudge(judgeId, doneCount, assignedCount) {
     const person = people.find(p => p.user_id === judgeId)
     if (!person || person.role !== 'organiser') return true
     const includeOrganisers = draftMode === 'automatic' && $('jg-include-organisers') && $('jg-include-organisers').checked
-    return includeOrganisers || doneCount > 0
+    return includeOrganisers || doneCount > 0 || assignedCount > 0
   }
 
   function paintProgress(teamsRows, judgeRows) {
@@ -423,7 +436,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     card.appendChild(tlist)
     card.appendChild(ui.el('p', { class: 'section-title', text: 'Judges' }))
     const jlist = ui.el('div', { class: 'list' })
-    const visibleJudges = judgeRows.filter(j => isCountedJudge(j.judge_id, j.done_count))
+    const visibleJudges = judgeRows.filter(j => isCountedJudge(j.judge_id, j.done_count, j.assigned_count))
     if (!visibleJudges.length) jlist.appendChild(ui.el('div', { class: 'empty', text: 'No judges yet.' }))
     visibleJudges.forEach(j => {
       const row = ui.el('div', { class: 'r' })
@@ -460,7 +473,10 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     draftMode = main.querySelector('input[name="jg-mode"]:checked').value
     paintMode()
   }))
-  $('jg-per').addEventListener('input', () => { draftPerTeam = Number($('jg-per').value) || 2 })
+  // Re-paint on every keystroke, not just mode changes: judges_per_team is
+  // also part of modeDirty (#6), so Generate's disabled/hint state has to
+  // react to this field too, not only to the radios.
+  $('jg-per').addEventListener('input', () => { draftPerTeam = Number($('jg-per').value) || 2; paintMode() })
 
   async function saveRubric() {
     if (weightTotal() !== 100) { setLive('Weights must add up to 100%.', 'err', $('jg-weight')); return }

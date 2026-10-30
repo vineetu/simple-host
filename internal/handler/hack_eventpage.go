@@ -137,6 +137,13 @@ type hackResultsRowView struct {
 	Avatar     string // winners-only: "1" for the overall winner, else initials
 	WinnerPill bool
 	TrackPill  string
+	// Score shadows hackResultsRow.Score (same name, outer field wins over
+	// the embedded one): the template only ever sees this trimmed-for-
+	// display form, set by buildHackResultsBlock. #8: the embedded one is
+	// also the public JSON API's score field (hack_public_json.go) and must
+	// keep its full, untrimmed precision -- the two can't be the same
+	// string any more now that display trims and JSON doesn't.
+	Score string
 }
 
 type hackEventView struct {
@@ -619,7 +626,7 @@ func buildHackResultsBlock(res *hackResultsView) *hackResultsBlockView {
 		out.Heading = "Results"
 	}
 	for _, row := range res.Rows {
-		rv := hackResultsRowView{hackResultsRow: row}
+		rv := hackResultsRowView{hackResultsRow: row, Score: trimScoreZeros(row.Score)}
 		if row.Rank > 0 {
 			out.AnyRanked = true
 		}
@@ -823,13 +830,31 @@ func hackPlural(n int, unit string) string {
 	return fmt.Sprintf("%d %ss", n, unit)
 }
 
-// hackScoreText formats a ranking score at most one decimal place, dropping
-// a trailing ".0" (Grok SIM-346 Part B hack-event.html item 4: "100.00"
-// should read "100", "60" or "42.5"). hackResultsFromSnapshot (hack_wire.go)
-// uses this for the public page; the participant results screen follows the
-// same rule in its own module.
+// hackScoreText formats a score for display: full precision (two decimals,
+// matching the data everywhere else stores it), with trailing zeros trimmed
+// so "100.00" reads "100" and "42.50" reads "42.5" (Grok SIM-346 Part B
+// hack-event.html item 4) -- but, after review #8, never rounded to fewer
+// decimals than it actually has: "81.25" must stay "81.25", not become
+// "81.3" or "81.2". The old one-decimal-with-rounding version did exactly
+// that, and for two teams a hundredth apart it made both read the same
+// score. hackResultsFromSnapshot (hack_wire.go) keeps the untrimmed,
+// unrounded string for the public JSON API (BUILD.md goal 4: that API does
+// not change); buildHackResultsBlock trims it for the HTML template only,
+// via trimScoreZeros below, so display and API no longer have to be the
+// same string.
 func hackScoreText(score float64) string {
-	return strings.TrimSuffix(strconv.FormatFloat(score, 'f', 1, 64), ".0")
+	return trimScoreZeros(strconv.FormatFloat(score, 'f', 2, 64))
+}
+
+// trimScoreZeros trims trailing zeros (then a bare trailing ".") off an
+// already-formatted decimal string, for display -- it never rounds, so it
+// can't drop a real digit the way reformatting at fewer decimal places can.
+func trimScoreZeros(s string) string {
+	if s == "" || !strings.Contains(s, ".") {
+		return s
+	}
+	s = strings.TrimRight(s, "0")
+	return strings.TrimSuffix(s, ".")
 }
 
 // hackInitials is one or two upper-case letters for an avatar with no image:
