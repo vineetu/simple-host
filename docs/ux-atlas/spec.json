@@ -1232,16 +1232,16 @@
    "title": "Announcements",
    "user_moment": "Saturday morning of the live weekend. Mentor office hours moved, and Amara, on her phone, has to tell 148 participants now, by email too.",
    "purpose": "Post updates to everyone in the event, and fix or remove ones already posted.",
-   "primary_action": "Post (bottom-right of the composer). It reads 'Post and email 148 people' while the email box is ticked.",
+   "primary_action": "Post (bottom-right of the composer). It reads 'Post and email 148 people' while the email box is ticked, where 148 counts only participants with an email address on file; the result after posting always reports the server's real delivery count instead.",
    "layout": "page.narrow column: page header, the composer card at the top (always open, since posting is why you came), then 'Posted · n' and a .list.editable of announcements, newest first.",
    "sections": [
     {
      "name": "New announcement",
      "contents": [
       "Title (required, 120, counter) and Message (required, 3000)",
-      "Checkbox 'Also email every participant' with '148 people. Editing it later never sends another email.' (the count is the event's participants)",
+      "Checkbox 'Email 148 participants' with 'Editing it later never sends another email.' (148 = approved participants with an email-shaped username, not the event's whole participant count); at 0 the box is disabled with 'No participant has an email address yet.'",
       "Card foot: 'Shows on your page and in the app straight away.' on the left, Post on the right. Ticking the box turns the button into 'Post and email 148 people', so the send is named on the button itself instead of in a confirm",
-      "After posting: the form clears, the new row appears at the top of Posted, toast 'Posted' or 'Posted and emailed to 148 people'"
+      "After posting: the form clears, the new row appears at the top of Posted, and the toast reports what the server actually did -- 'Posted' (box unticked), 'Posted and emailed to <n> people.' with '(including a copy to you)' added when the posting organiser's own address got a copy, or, if ticked but nobody had an email, the warning 'Posted. Nobody had an email address on file, so no email was sent.' -- never the pre-submit estimate"
      ],
      "actions": [
       {
@@ -1254,7 +1254,7 @@
     {
      "name": "Posted",
      "contents": [
-      "Row: title, the message's first two lines, then on the right the date and time (event zone)",
+      "Row: title, the message's first two lines, then on the right the date and time (event zone) and, once any email for it has actually been sent, an 'Emailed <n> people' pill (<n> = emails_sent, deliveries sent so far, not merely queued)",
       "Row actions: Edit (quiet) and the row menu (Edit, then Delete in red). On a phone the row opens Edit and the date/pill wrap under the text",
       "Edit announcement dialog: Title, Message, line 'Saving changes doesn't email anyone again.' [Cancel] [Save]"
      ],
@@ -1292,6 +1292,11 @@
      "name": "Ended (read only)",
      "when": "stage archived or admin view",
      "shows": "the end note instead of the composer, rows without Edit or menu"
+    },
+    {
+     "name": "No one to email",
+     "when": "no approved participant has an email-shaped username",
+     "shows": "the email checkbox disabled with 'No participant has an email address yet.'; Post stays available for a web-only announcement"
     }
    ],
    "replaces": [

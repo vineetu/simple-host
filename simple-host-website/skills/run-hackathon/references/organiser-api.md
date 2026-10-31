@@ -93,6 +93,8 @@ Automatic assignments default to judges only. Use body.include_organisers=true t
 
 Announcements: `PUT /v1/hack/events/{slug}/announcements/{announcement}` accepts `title` and `body`. Editing does not send a new email. `DELETE` on the same path removes it. MCP: `hack_edit_announcement` and `hack_delete_announcement`, with `slug`, `announcement`, and a `body` object for edits. Ask before deleting.
 
+Posting an announcement (`hack_post_announcement`, `POST /v1/hack/events/{slug}/announcements`) with `email_participants: true` emails every approved participant whose username is an email address, plus one copy to the posting organiser when their own username is email-shaped too (never a duplicate if they are also a participant). The response's `emails_queued` is the real count actually queued, not the event's total participant count; `organiser_copied` says whether that count includes the organiser's own copy. `GET /v1/hack/events/{slug}/announcements` returns each announcement's `emails_sent`, the number of those deliveries actually sent so far.
+
 Website zip uploads also work in the signed-in Page tab, including in draft. The event website GET returns recent versions with dates and upload limits. Static archives need index.html at the root; existing size and file checks apply.
 
 `list_notifications` and `remove_notification` read or remove an organiser website's notification subscriptions with `event`. The website's Settings page, under Notifications, is the only place to create a subscription, pause or resume it, send a test, rotate its signing secret, or read delivery history. This connector does not wrap those actions.

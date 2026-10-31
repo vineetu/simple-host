@@ -21966,7 +21966,12 @@
                       "$ref": "#/components/schemas/HackEventAnnouncement"
                     },
                     "emails_queued": {
-                      "type": "integer"
+                      "type": "integer",
+                      "description": "The real number of deliveries queued, including a copy to the organiser when organiser_copied is true. Zero when email_participants is false or nobody had an email address."
+                    },
+                    "organiser_copied": {
+                      "type": "boolean",
+                      "description": "True when one of the queued deliveries is a copy to the posting organiser (their own username is email-shaped; never duplicated if they are also a participant)."
                     }
                   }
                 }
@@ -35639,6 +35644,10 @@
               },
               "on_no_team": {
                 "type": "integer"
+              },
+              "emailable_participants": {
+                "type": "integer",
+                "description": "Approved participants whose username is email-shaped -- the number an announcement's email_participants can actually reach."
               }
             }
           }
@@ -35772,6 +35781,10 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "emails_sent": {
+            "type": "integer",
+            "description": "Deliveries actually sent for this announcement so far, not merely queued."
           }
         }
       },

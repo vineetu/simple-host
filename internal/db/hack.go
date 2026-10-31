@@ -232,6 +232,19 @@ func CountOnNoTeam(ctx context.Context, q Querier, eventID string) (int, error) 
 	return n, err
 }
 
+// CountEmailableParticipants is approved participants with an email-shaped
+// username -- the only ones an announcement's email_participants can reach.
+// The organiser-announcements checkbox labels itself with this, not with
+// CountEventMembers' participant total, so it never promises mail to people
+// who hold key-only test accounts or any other "@"-less username.
+func CountEmailableParticipants(ctx context.Context, q Querier, eventID string) (int, error) {
+	var n int
+	err := q.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM event_members m JOIN users u ON u.id = m.user_id
+		 WHERE m.event_id = $1 AND m.role = 'participant' AND m.approval_status = 'approved' AND u.username LIKE '%@%'`, eventID).Scan(&n)
+	return n, err
+}
+
 // EventSlugTaken reports whether an events row already uses slug.
 func EventSlugTaken(ctx context.Context, q Querier, slug string) (bool, error) {
 	var taken bool

@@ -114,6 +114,27 @@ func (a *hackApp) newPerson(t *testing.T, label string) person {
 	return person{email: addr, key: key}
 }
 
+// newKeyOnlyPerson makes an account with an "@"-less username, the shape of
+// Simple Hack's key-only test accounts (no email on file): CreateUser places
+// no format constraint on username beyond uniqueness, so this is a
+// first-class way to get a person an announcement's email_participants
+// cannot reach.
+func (a *hackApp) newKeyOnlyPerson(t *testing.T, label string) person {
+	t.Helper()
+	username := "k" + label + strings.ReplaceAll(uniqueSlug(), "-", "")
+	key, _ := auth.GenerateAPIKey()
+	u, err := db.CreateUser(context.Background(), a.database, username, key, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle := "u" + uniqueSlug()
+	if _, err := a.database.Exec(`UPDATE users SET handle = $1 WHERE id = $2`, handle, u.ID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE id = $1`, u.ID) })
+	return person{email: username, key: key}
+}
+
 func (a *hackApp) userID(t *testing.T, p person) string {
 	t.Helper()
 	var id string

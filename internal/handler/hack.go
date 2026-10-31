@@ -848,6 +848,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 		participants, teams, _, _ := db.CountEventMembers(ctx, h.database, ev.ID)
 		judges, _ := db.CountEligibleJudges(ctx, h.database, ev.ID)
 		onNone, _ := db.CountOnNoTeam(ctx, h.database, ev.ID)
+		emailable, _ := db.CountEmailableParticipants(ctx, h.database, ev.ID)
 		exp := any(nil)
 		if ev.ExpectedParticipants.Valid {
 			exp = ev.ExpectedParticipants.Int64
@@ -863,10 +864,11 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 			"judge_code":            ev.JudgeCode,
 			"judge_url":             h.judgeURL(ev.JudgeCode),
 			"counts": map[string]int{
-				"participants": participants,
-				"teams":        teams,
-				"judges":       judges,
-				"on_no_team":   onNone,
+				"participants":           participants,
+				"teams":                  teams,
+				"judges":                 judges,
+				"on_no_team":             onNone,
+				"emailable_participants": emailable,
 			},
 		}
 	}

@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-10-31",
+  "what": "Announcement email reporting fixed (organiser-announcements): the post result and the Posted list now report the server's real counts instead of a guess from the event's participant total. The checkbox reads 'Email N participants' (N = approved participants with an email-shaped username), disabled with 'No participant has an email address yet.' at zero; the Post button still names the send on itself. Posting reports 'Posted and emailed to N people' from the response's real emails_queued, or, at zero, the warning 'Posted. Nobody had an email address on file, so no email was sent.' Ticking the box also queues one copy to the posting organiser when their own username is email-shaped, named '(including a copy to you)' in the result, never a duplicate if they're also a participant. Each posted row's pill now reads 'Emailed N people' from emails_sent (deliveries actually sent, not merely queued), replacing the dropped pill a stale comment explained away."
+ },
+ {
+  "date": "2026-10-31",
   "what": "Leave this event widened twice (SIM-340, owner decisions 2026-10-31): past a team's deadline, or once the event is closed, judging or results, leaving no longer refuses -- it just stops touching the team, its entry, its site and its scores, even for the last member, instead of deleting an emptied team or blocking the leave outright; the preview and confirm say so ('<team>'s entry and site stay as they are... you can't rejoin this team'), and the participant-home leave-blocked state is gone for participants (an ended event still refuses everyone). Separately, a rejected applicant can now leave too, deleting their row exactly like a pending applicant's withdraw, with no special refusal and no extra machinery stopping them from applying again -- the Home row menu and the pending/rejected locked view both offer it. Judging, the judge queue, the results snapshot and the organiser's auto-assignment all keep listing a frozen, now-empty team exactly as before, so results and ranks never move."
  },
  {

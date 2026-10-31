@@ -22,7 +22,11 @@ export async function render(ctx) {
   const readOnly = admin || ended
   const path = '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/announcements'
   const setLive = ui.live(main)
-  const peopleCount = (data.organiser && data.organiser.counts && data.organiser.counts.participants) || 0
+  // The checkbox and its button label use the deliverable count -- approved
+  // participants with an email-shaped username -- not counts.participants,
+  // which also includes key-only test accounts and anyone else an email can
+  // never reach.
+  const emailableCount = (data.organiser && data.organiser.counts && data.organiser.counts.emailable_participants) || 0
 
   wireRowMenus()
 
@@ -36,13 +40,12 @@ export async function render(ctx) {
   } catch (e) { loadError = true }
   if (!ctx.alive()) return
 
-  // R12: `db.EventAnnouncement` has only id, title, body and created_at --
-  // the API never returns email_participants/emailed, so a pill that
-  // depended on it never showed, and the delete confirm's warning (below)
-  // never fired either. The "Emailed" pill is dropped rather than built on
-  // a field the server doesn't send.
+  // The API returns emails_sent per announcement (event_announcement_deliveries
+  // rows actually sent, not merely queued), so the pill below reports real
+  // delivery rather than being dropped for lack of the field.
   function rowHTML(a) {
-    const meta = `<span class="meta"><span>${ui.esc(ui.dateTime(a.created_at, ev))}</span></span>`
+    const emailedPill = a.emails_sent > 0 ? `<span class="pill ok">Emailed ${a.emails_sent} people</span>` : ''
+    const meta = `<span class="meta"><span>${ui.esc(ui.dateTime(a.created_at, ev))}</span>${emailedPill}</span>`
     if (readOnly) return `<div class="r ann"><span class="main"><b>${ui.esc(a.title)}</b><span class="clamp2">${ui.esc(a.body)}</span></span>${meta}</div>`
     const menu = rowMenuHTML(a.title, [{ label: 'Edit', act: 'edit' }, { label: 'Delete', act: 'delete', danger: true }])
     return `<div class="r ann" data-id="${ui.esc(a.id)}"><a class="main" href="#" data-act="edit"><b>${ui.esc(a.title)}</b><span class="clamp2">${ui.esc(a.body)}</span></a>${meta}<div class="row-acts"><button class="btn quiet sm" type="button" data-act="edit" aria-label="Edit ${ui.esc(a.title)}">Edit</button>${menu}</div></div>`
@@ -56,7 +59,7 @@ ${loadError ? '<div class="note bad" role="alert">Could not load announcements.<
 ${readOnly ? '' : `<form class="card" aria-labelledby="ann-h" id="ann-form"><h2 id="ann-h" style="margin:0 0 14px">New announcement</h2>
 <div class="field"><div class="lab-row"><label for="ann-title">Title</label><span class="counter" id="ann-title-ct">0 / 120</span></div><input class="input" id="ann-title" maxlength="120"></div>
 <div class="field"><label for="ann-body">Message</label><textarea class="input" id="ann-body" rows="4" maxlength="3000"></textarea></div>
-<label class="check"><input type="checkbox" id="ann-email"><div><b>Also email every participant</b><span>${peopleCount} people. Editing it later never sends another email.</span></div></label>
+<label class="check"><input type="checkbox" id="ann-email"${emailableCount ? '' : ' disabled'}><div><b>Email ${emailableCount} participants</b><span>${emailableCount ? 'Editing it later never sends another email.' : 'No participant has an email address yet.'}</span></div></label>
 <div class="card-foot"><span class="hint">Shows on your page and in the app straight away.</span><button class="btn primary" type="submit" id="ann-post">Post</button></div>
 </form>`}
 <p class="section-title">${announcements.length ? `Posted · ${announcements.length}` : 'Posted'}</p>
@@ -71,7 +74,7 @@ ${announcements.length ? `<div class="list editable" aria-label="Posted announce
   const emailBox = main.querySelector('#ann-email')
   const postBtn = main.querySelector('#ann-post')
   titleInput.addEventListener('input', () => { titleCt.textContent = titleInput.value.length + ' / 120' })
-  emailBox.addEventListener('change', () => { postBtn.textContent = emailBox.checked ? `Post and email ${peopleCount} people` : 'Post' })
+  emailBox.addEventListener('change', () => { postBtn.textContent = emailBox.checked ? `Post and email ${emailableCount} participants` : 'Post' })
 
   main.querySelector('#ann-form').addEventListener('submit', async e => {
     e.preventDefault()
@@ -79,8 +82,21 @@ ${announcements.length ? `<div class="list editable" aria-label="Posted announce
     try {
       const r = await api('POST', path, { title: titleInput.value, body: main.querySelector('#ann-body').value, email_participants: emailBox.checked })
       if (!r.ok) { setLive(ui.errText(r), 'err', postBtn); postBtn.disabled = false; return }
-      const emailed = emailBox.checked
-      setLive(emailed ? `Posted and emailed to ${peopleCount} people` : 'Posted', 'ok')
+      // The result line reports the real count the server queued
+      // (emails_queued), never the pre-submission estimate above -- that
+      // estimate can be stale, and it was never where the old "Posted and
+      // emailed to N people" text got its number from either.
+      if (!emailBox.checked) {
+        setLive('Posted', 'ok')
+      } else {
+        const queued = r.data.emails_queued || 0
+        if (queued === 0) {
+          setLive('Posted. Nobody had an email address on file, so no email was sent.', 'err')
+        } else {
+          const copy = r.data.organiser_copied ? ' (including a copy to you)' : ''
+          setLive(`Posted and emailed to ${queued} people${copy}.`, 'ok')
+        }
+      }
       await ctx.refresh()
     } catch (e2) { setLive('Cannot reach the server.', 'err', postBtn); postBtn.disabled = false }
   })
@@ -113,10 +129,10 @@ ${announcements.length ? `<div class="list editable" aria-label="Posted announce
     const id = el.closest('[data-id]').dataset.id
     const a = announcements.find(x => x.id === id)
     if (!a) return
-    // R12: the API has no way to tell whether this one was emailed (see
-    // rowHTML's own note), so the warning is unconditional instead of
-    // depending on a field that's never there -- an announcement that
-    // genuinely was emailed must never delete without this warning.
+    // Unconditional on purpose, not only for the ones rowHTML's emails_sent
+    // pill shows as emailed: an email can still be in flight (the content
+    // mail sweep is per-minute), so a row with no pill yet may still send
+    // before this delete lands. The sentence is true either way.
     const body = "It disappears from your page and from everyone's app. Emails already sent stay sent."
     const ok = await ui.confirm({ title: `Delete “${a.title}”?`, body, confirmLabel: 'Delete announcement', danger: true })
     if (!ok) return

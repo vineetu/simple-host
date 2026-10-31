@@ -8577,7 +8577,8 @@ paths:
                 type: object
                 properties:
                   announcement: { $ref: '#/components/schemas/HackEventAnnouncement' }
-                  emails_queued: { type: integer }
+                  emails_queued: { type: integer, description: "The real number of deliveries queued, including a copy to the organiser when organiser_copied is true. Zero when email_participants is false or nobody had an email address." }
+                  organiser_copied: { type: boolean, description: True when one of the queued deliveries is a copy to the posting organiser (their own username is email-shaped; never duplicated if they are also a participant). }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: event_not_found for a non-organiser, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
@@ -13957,6 +13958,7 @@ components:
             teams: { type: integer }
             judges: { type: integer }
             on_no_team: { type: integer }
+            emailable_participants: { type: integer, description: Approved participants whose username is email-shaped -- the number an announcement's email_participants can actually reach. }
 
     HackMe:
       type: object
@@ -14015,6 +14017,7 @@ components:
         title: { type: string }
         body: { type: string }
         created_at: { type: string, format: date-time }
+        emails_sent: { type: integer, description: "Deliveries actually sent for this announcement so far, not merely queued." }
     HackEventView:
       type: object
       properties:

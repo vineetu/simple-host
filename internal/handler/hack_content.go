@@ -264,7 +264,7 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, http.StatusConflict, "event_ended", "this event has ended")
 		return
 	}
-	item, queued, err := db.CreateEventAnnouncement(r.Context(), tx, a.event.ID, req.Title, req.Body, req.EmailParticipants)
+	item, queued, organiserCopied, err := db.CreateEventAnnouncement(r.Context(), tx, a.event.ID, req.Title, req.Body, req.EmailParticipants, a.user.ID)
 	if err != nil {
 		writeInternal(w)
 		return
@@ -273,7 +273,7 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"announcement": item, "emails_queued": queued})
+	writeJSON(w, http.StatusCreated, map[string]any{"announcement": item, "emails_queued": queued, "organiser_copied": organiserCopied})
 }
 
 // queueReceipt records the first complete entry from a team. A later edit
