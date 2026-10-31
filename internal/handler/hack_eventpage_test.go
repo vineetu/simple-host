@@ -1161,6 +1161,111 @@ func TestHackEventPageFAQAndAnnouncementsKeepLineBreaks(t *testing.T) {
 	}
 }
 
+// Apply to a hackathon without a join link (build-plan.md §4,
+// buildHackStageCard): the public event page's stage card switches to the
+// Apply CTA once ApplyURL is set, and is byte-for-byte the old card when it
+// is empty (applications off keeps exactly today's card).
+
+func TestHackEventPageApplyOpenStage(t *testing.T) {
+	p := testHackEvent()
+	p.Stage = "open"
+	p.ApplyURL = "https://simple-hack.app/e/weekend/apply"
+	body := renderHackEvent(t, p).Body.String()
+	if !strings.Contains(body, "<h2>Apply to join</h2>") {
+		t.Errorf("apply heading missing: %s", body)
+	}
+	if !strings.Contains(body, `<a class="btn primary" href="https://simple-hack.app/e/weekend/apply">Apply</a>`) {
+		t.Errorf("apply primary button missing: %s", body)
+	}
+	if !strings.Contains(body, `<a class="btn quiet" href="https://simple-hack.app/events">Already joined? Sign in</a>`) {
+		t.Errorf("sign-in secondary missing: %s", body)
+	}
+	if strings.Contains(body, "Join with the link from the organisers") {
+		t.Errorf("old join-link card still rendered alongside apply: %s", body)
+	}
+}
+
+// TestHackEventPageApplyOpenStageDeadlineNote is B1 (pre-ship review): the
+// applyURL != "" branch used to return before the deadline note and
+// CountdownInNote were computed, so every Open event with applications on
+// lost "Entries close ... · N days left" and the live countdown. That note
+// and countdown must render exactly as they do with applications off
+// (docs/ux-atlas/prototype/public-event-page.html:57).
+func TestHackEventPageApplyOpenStageDeadlineNote(t *testing.T) {
+	for _, applyOn := range []bool{true, false} {
+		t.Run(fmt.Sprintf("applications_on=%v", applyOn), func(t *testing.T) {
+			p := testHackEvent()
+			p.Stage = "open"
+			p.Deadline = time.Now().Add(49 * time.Hour)
+			if applyOn {
+				p.ApplyURL = "https://simple-hack.app/e/weekend/apply"
+			}
+			body := renderHackEvent(t, p).Body.String()
+			if !strings.Contains(body, "Entries close ") {
+				t.Errorf("applications_on=%v: missing the 'Entries close' note, body:\n%s", applyOn, body)
+			}
+			if !strings.Contains(body, `id="countdown"`) {
+				t.Errorf("applications_on=%v: missing the live countdown span, body:\n%s", applyOn, body)
+			}
+		})
+	}
+}
+
+func TestHackEventPageApplyBuildingWithGallery(t *testing.T) {
+	p := testHackEvent()
+	p.Stage = "building"
+	p.ApplyURL = "https://simple-hack.app/e/weekend/apply"
+	p.Gallery = []hackGalleryCard{{Title: "Alpha", URL: "https://alpha.example.com/"}}
+	body := renderHackEvent(t, p).Body.String()
+	if !strings.Contains(body, `<a class="btn primary" href="#sites">See team sites (1)</a>`) {
+		t.Errorf("gallery primary missing: %s", body)
+	}
+	if !strings.Contains(body, `<a class="btn" href="https://simple-hack.app/e/weekend/apply">Apply</a>`) {
+		t.Errorf("apply extra button missing or wrongly styled: %s", body)
+	}
+	if !strings.Contains(body, `<a class="btn quiet" href="https://simple-hack.app/events">Already joined? Sign in</a>`) {
+		t.Errorf("sign-in secondary missing: %s", body)
+	}
+	if !strings.Contains(body, "Sign-up is still open. Apply, or join with the link from the organisers.") {
+		t.Errorf("building+apply body copy missing: %s", body)
+	}
+}
+
+func TestHackEventPageApplyBuildingNoGallery(t *testing.T) {
+	p := testHackEvent()
+	p.Stage = "building"
+	p.ApplyURL = "https://simple-hack.app/e/weekend/apply"
+	body := renderHackEvent(t, p).Body.String()
+	if !strings.Contains(body, `<a class="btn primary" href="https://simple-hack.app/e/weekend/apply">Apply</a>`) {
+		t.Errorf("apply primary (no gallery) missing: %s", body)
+	}
+	if strings.Contains(body, "See team sites") {
+		t.Errorf("gallery CTA rendered with an empty gallery: %s", body)
+	}
+}
+
+func TestHackEventPageApplicationsOffUnchanged(t *testing.T) {
+	open := testHackEvent()
+	open.Stage = "open"
+	building := testHackEvent()
+	building.Stage = "building"
+	building.Gallery = []hackGalleryCard{{Title: "Alpha", URL: "https://alpha.example.com/"}}
+	for name, p := range map[string]hackEventPage{"open": open, "building": building} {
+		t.Run(name, func(t *testing.T) {
+			if p.ApplyURL != "" {
+				t.Fatal("test fixture must not set ApplyURL")
+			}
+			body := renderHackEvent(t, p).Body.String()
+			if strings.Contains(body, "Apply to join") || strings.Contains(body, ">Apply<") {
+				t.Errorf("applications-off card still mentions Apply: %s", body)
+			}
+		})
+	}
+	if !strings.Contains(renderHackEvent(t, open).Body.String(), "<h2>Join with the link from the organisers</h2>") {
+		t.Error("open+off lost its original heading")
+	}
+}
+
 // TestHackEventPageEventInkOnBackground (review 2026-10-30 item 4): the ink
 // colour matches the icon endpoint's own rule — white only for teal and
 // indigo, dark ink for every other crayon.

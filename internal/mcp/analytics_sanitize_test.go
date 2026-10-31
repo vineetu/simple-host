@@ -204,13 +204,68 @@ func TestAnalyticsFileMetadataAndFields(t *testing.T) {
 			t.Fatalf("bad file metadata %v", got)
 		}
 	}
-	for _, name := range []string{"Pass-Code", "PASSWORD", "client_secret", "token", "api-key", "authorization", "cookie", "code", "sign_in_code", "verification_code", "team_key", "signing_key", "private_key", "auth_header", "upload_url", "photos_url", "import_url", "download_url", "signed_url", "preview_url", "pinned_url", "join_code", "judge_code", "join_url", "judge_url", "invite_url"} {
+	for _, name := range []string{"Pass-Code", "PASSWORD", "client_secret", "token", "api-key", "authorization", "cookie", "code", "sign_in_code", "verification_code", "team_key", "signing_key", "private_key", "auth_header", "upload_url", "photos_url", "import_url", "download_url", "signed_url", "preview_url", "pinned_url", "join_code", "judge_code", "join_url", "judge_url", "invite_url", "city", "country", "age_range", "gender"} {
 		if !analyticsSecretField("storage_put_kv", name) {
 			t.Errorf("not removed: %s", name)
 		}
 	}
 	if analyticsSecretField("storage_put_kv", "key") {
 		t.Fatal("plain KV key removed")
+	}
+}
+
+// Apply to a hackathon (2026-10-31 owner decision 5): hack_apply_to_event's
+// arguments must not reach AgentCat with the applicant's city, country, age
+// range or gender, the same removal policy as a passcode or key. Security
+// review (Grok 6): answers and display_name can carry the same information
+// in prose ("I'm 14, a girl, in Jakarta"), so for this tool -- and
+// hack_get_applications, the organiser's read of the queue -- those two are
+// removed from the analytics copy as well. The tool result the model
+// actually sees (hack_get_applications's real response) is unaffected; only
+// the telemetry copy changes, checked separately below.
+func TestAnalyticsHackApplyFieldsRemoved(t *testing.T) {
+	args := map[string]any{
+		"slug": "spring", "accept_coc": true, "display_name": "Dewi",
+		"city": "Jakarta", "country": "ID", "age_range": "under_18", "gender": "woman",
+		"answers": map[string]any{"why": "I want to build an app for my school library."},
+	}
+	got := analyticsParameters("hack_apply_to_event", args)
+	body, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(body)
+	for _, leaked := range []string{"Jakarta", "\"ID\"", "under_18", "woman", "Dewi", "school library"} {
+		if strings.Contains(s, leaked) {
+			t.Errorf("AgentCat payload still carries %q: %s", leaked, s)
+		}
+	}
+	if !strings.Contains(s, "spring") {
+		t.Errorf("unrelated fields were also removed: %s", s)
+	}
+}
+
+// TestAnalyticsHackGetApplicationsFieldsRemoved is the response-side half of
+// the same fix: the organiser's own hack_get_applications call must keep
+// seeing real city/age/gender/answers (that is what the tool is for), but
+// the analytics copy of that same response strips them, including answers
+// and display_name.
+func TestAnalyticsHackGetApplicationsFieldsRemoved(t *testing.T) {
+	text := `{"response":[{"user_id":"u1","display_name":"Dewi","city":"Jakarta","country":"ID","age_range":"under_18","gender":"woman","answers":[{"id":"why","prompt":"Why?","answer":"I want to build an app for my school library."}]}],"status":200}`
+	reply := toolResult(nil, text, nil, false, false)
+	got := analyticsResponse("hack_get_applications", reply.Result).(map[string]any)
+	body, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(body)
+	for _, leaked := range []string{"Jakarta", "\"ID\"", "under_18", "woman", "Dewi", "school library"} {
+		if strings.Contains(s, leaked) {
+			t.Errorf("AgentCat payload still carries %q: %s", leaked, s)
+		}
+	}
+	if !strings.Contains(s, "u1") {
+		t.Errorf("unrelated fields were also removed: %s", s)
 	}
 }
 

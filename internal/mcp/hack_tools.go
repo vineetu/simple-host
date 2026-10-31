@@ -120,6 +120,7 @@ func HackTools() []Tool {
 				"submission_deadline":   str("Entry deadline in the event time zone. Empty clears it."),
 				"entry_required":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Entry fields required for a complete entry."},
 				"team_finding":          map[string]any{"type": "boolean", "description": "Enable private team finding. Codes keep working when off."},
+				"applications_open":     map[string]any{"type": "boolean", "description": "Whether people without the join link can apply from Find a hackathon and the event page. On by default; turning it off stops new applications and keeps waiting ones. Ask the organiser before changing it."},
 				"gallery_open":          map[string]any{"type": "boolean", "description": "Whether the public entry gallery is open."},
 				"team_size_max":         map[string]any{"type": "integer", "description": "Maximum people on a team, from 1 to 50."},
 				"organiser_name":        str("Name shown as the organiser."),
@@ -381,6 +382,13 @@ func hackPatchBody(args map[string]any) (map[string]any, error) {
 			return nil, errors.New("team_finding must be true or false")
 		}
 		body["team_finding"] = b
+	}
+	if value, present := args["applications_open"]; present {
+		b, ok := value.(bool)
+		if !ok {
+			return nil, errors.New("applications_open must be true or false")
+		}
+		body["applications_open"] = b
 	}
 	if len(body) == 0 {
 		return nil, errors.New("hack_update_event needs at least one field to change")

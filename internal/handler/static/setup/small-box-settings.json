@@ -2509,6 +2509,20 @@
       "small_box": false
     },
     {
+      "name": "EVENT_APPLY_PENDING_PER_EVENT",
+      "group": "events",
+      "description": "Hosted events: applications one event may have waiting for a decision at once, apart from the per-account pending cap.",
+      "type": "int",
+      "default": "500",
+      "min": 1,
+      "max": 100000,
+      "unit": "applications",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "EVENT_TEAM_SIZE_DEFAULT",
       "group": "events",
       "description": "Hosted events: the team size cap a new event starts with; the organiser changes it.",
@@ -2606,6 +2620,28 @@
       "description": "Hosted events: event address checks while someone types one, per account.",
       "type": "rate",
       "default": "60,1s",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "RATE_LIMIT_EVENT_APPLY_IP",
+      "group": "events",
+      "description": "Hosted events: applications to an event without a join link, per network address.",
+      "type": "rate",
+      "default": "30,2m",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "RATE_LIMIT_EVENT_APPLY_USER",
+      "group": "events",
+      "description": "Hosted events: applications to an event without a join link, per account.",
+      "type": "rate",
+      "default": "5,12m",
       "security_sensitive": false,
       "required": false,
       "basic": false,

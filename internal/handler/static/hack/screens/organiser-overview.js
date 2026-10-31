@@ -43,7 +43,10 @@ function heroAction(ev, pendingCount, makeHref) {
   switch (ev.stage) {
     case 'draft': return { label: 'Set up event page', href: makeHref('organiser', ev.slug, 'event-page') }
     case 'open': return pendingCount ? { label: 'Review applications', href: makeHref('organiser', ev.slug, 'people') } : null
-    case 'building': return { label: 'See entries', href: makeHref('organiser', ev.slug, 'entries') }
+    // Applications (and join-link sign-ups needing approval) arrive during
+    // Building too, not only Open -- the review action takes priority there
+    // the same way it does for Open (owner, 2026-10-31).
+    case 'building': return pendingCount ? { label: 'Review applications', href: makeHref('organiser', ev.slug, 'people') } : { label: 'See entries', href: makeHref('organiser', ev.slug, 'entries') }
     case 'closed': return { label: 'Set up judging', href: makeHref('organiser', ev.slug, 'judging') }
     case 'judging': return ev.judging_locked_at ? { label: 'Publish results', href: makeHref('organiser', ev.slug, 'results') } : { label: 'See judging progress', href: makeHref('organiser', ev.slug, 'judging') }
     case 'results': return ev.results_published ? { label: 'Open public page', href: ev.url, external: true } : { label: 'Publish results', href: makeHref('organiser', ev.slug, 'results') }
@@ -69,15 +72,17 @@ export async function render(ctx) {
   // count judges only, so ask /people (the same organiser-only endpoint
   // organiser-people.js uses) and count role === 'judge' ourselves. Falls
   // back to the server's own count if that call fails, rather than showing
-  // nothing. The hero action for Open also needs to know whether anyone is
-  // waiting on approval, from /applications (same source organiser-people.js
-  // reads); only fetched at that stage, since it's the only one that uses it.
+  // nothing. The hero action for Open and Building also needs to know
+  // whether anyone is waiting on approval, from /applications (same source
+  // organiser-people.js reads); only fetched at those two stages, since
+  // they're the only ones that use it (owner, 2026-10-31: applications and
+  // link sign-ups needing approval arrive in Building too, not only Open).
   let judgesOnly = counts.judges ?? 0
   let pendingCount = 0
   try {
     const base = '/v1/hack/events/' + encodeURIComponent(ev.slug)
     const calls = [api('GET', base + '/people')]
-    if (ev.stage === 'open') calls.push(api('GET', base + '/applications'))
+    if (ev.stage === 'open' || ev.stage === 'building') calls.push(api('GET', base + '/applications'))
     const [p, a] = await Promise.all(calls)
     if (p.ok && Array.isArray(p.data)) judgesOnly = p.data.filter(x => x.role === 'judge').length
     if (a && a.ok && Array.isArray(a.data)) pendingCount = a.data.filter(x => x.status === 'pending').length

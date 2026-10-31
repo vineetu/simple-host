@@ -249,14 +249,18 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 			writeInternal(w)
 			return
 		}
-		rows = append(rows, []string{"name", "email", "team", "team_slug", "joined_at", "coc_accepted_at"})
+		// D11: appended at the end, so existing spreadsheet imports keep working.
+		rows = append(rows, []string{"name", "email", "team", "team_slug", "joined_at", "coc_accepted_at", "city", "country", "age_range", "gender", "joined_via"})
 		for _, p := range people {
 			if p.Role == "participant" && p.ApprovalStatus == "approved" {
 				accepted := ""
 				if p.CocAcceptedAt.Valid {
 					accepted = rfc3339Time(p.CocAcceptedAt.Time)
 				}
-				rows = append(rows, []string{p.DisplayName, p.Email, p.TeamName.String, p.TeamSlug.String, rfc3339Time(p.JoinedAt), accepted})
+				rows = append(rows, []string{
+					p.DisplayName, p.Email, p.TeamName.String, p.TeamSlug.String, rfc3339Time(p.JoinedAt), accepted,
+					p.City, hackCountryName(p.Country), hackAgeRangeLabels[p.AgeRange], hackGenderLabels[p.Gender], hackJoinedViaLabel(p.JoinedVia),
+				})
 			}
 		}
 	case "teams.csv":

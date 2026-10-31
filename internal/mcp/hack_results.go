@@ -12,7 +12,7 @@ func hackPublicReadOnly() map[string]any {
 // for browser pages, and these optional fields need no output schema changes.
 func minimiseHackMemberResult(name, userID string, out map[string]any) {
 	switch name {
-	case "hack_join_event", "hack_join_judge", "hack_application_status", "hack_get_team_status":
+	case "hack_join_event", "hack_apply_to_event", "hack_join_judge", "hack_application_status", "hack_get_team_status":
 		if me, ok := out["me"].(map[string]any); ok {
 			delete(me, "team_key")
 		}

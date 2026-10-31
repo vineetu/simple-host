@@ -28,6 +28,13 @@ export async function render(ctx) {
   // still shows the precise state once they open it.
   function nextAction(e) {
     if (e.taken_down) return e.role === 'organiser' ? 'Overview' : ''
+    // Apply to a hackathon (owner, 2026-10-31): a participant whose
+    // application or join-link sign-up is still waiting, or was turned
+    // down, sees that instead of a stage guess -- same copy either way
+    // (spec.json landing-your-events "waiting on an application"). Needs
+    // approval_status on participant rows of GET /v1/hack/events.
+    if (e.role === 'participant' && e.approval_status === 'pending') return 'Waiting for the organisers'
+    if (e.role === 'participant' && e.approval_status === 'rejected') return 'Not accepted'
     if (e.role === 'organiser') {
       return ({
         draft: 'Finish setting up', open: 'Sign-up is open', building: 'Teams are building',

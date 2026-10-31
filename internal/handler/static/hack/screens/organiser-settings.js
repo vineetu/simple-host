@@ -1,4 +1,5 @@
 import { adminLock } from './_orgA-util.js'
+import { href } from '../nav.js'
 
 export function title(ctx) { return 'Settings' }
 
@@ -21,6 +22,17 @@ export async function render(ctx) {
   try {
     const n = await api('GET', path + '/website/notifications')
     if (n.ok) { notifications = n.data.notifications || []; notifyLimits = n.data.limits || {} }
+  } catch (e) {}
+
+  // Applications card (owner 2026-10-31, D10): the switch lives here, with
+  // People -> Sign-up only showing its state and a link back. directory_listed
+  // comes from the voting endpoint (hack_voting.go) -- Results already reads
+  // it there; this card only displays it, Results stays the one place to
+  // change it.
+  let directoryListed = false
+  try {
+    const v = await api('GET', path + '/voting')
+    if (v.ok) directoryListed = !!v.data.directory_listed
   } catch (e) {}
 
   let addOpen = false, deleteOpen = false
@@ -66,8 +78,11 @@ ${newSecret && newSecret.forId === n.id ? secretPanel(newSecret) : ''}
 </div>`
   }
 
+  const appsLocked = admin || ev.stage === 'archived'
+
   function paint() {
     const $ = id => main.querySelector('#' + id)
+    const esc = ui.esc
     main.innerHTML = `
 <div class="ph"><div class="t"><h1>Settings</h1><p>Your details, notifications and deleting the event.</p></div></div>
 <section class="card"><h2>Your details</h2>
@@ -77,6 +92,12 @@ ${newSecret && newSecret.forId === n.id ? secretPanel(newSecret) : ''}
 <div class="field"><label>What the event is for<textarea class="input" id="set-purpose" maxlength="1000">${ui.esc(org.purpose || '')}</textarea></label><p class="help">Only you and Simple Hack see this.</p></div>
 <div class="field"><label>Expected participants<input class="input" id="set-n" type="number" min="1" max="100000" value="${ui.esc(org.expected_participants ?? '')}"></label></div>
 <button class="btn primary" type="button" id="set-save">Save</button></section>
+
+<section class="card" id="applications"><h2>Applications</h2>
+<div class="setting"><div class="t"><div class="t-row"><b>Let people apply without your join link</b><span class="saved" id="apps-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>An Apply button shows on your event page, and on Find a hackathon when your event is listed there, while sign-up is open and during Building. Every application waits for you in People &rarr; Applications.</span></div><div class="ctl"><button class="toggle${ev.applications_open ? ' on' : ''}" type="button" role="switch" aria-checked="${!!ev.applications_open}" id="apps-toggle"${appsLocked ? ' disabled' : ''} aria-label="Let people apply without your join link"></button></div></div>
+<p class="small muted">Your join link keeps working either way and stays private. Turning this off stops new applications; ones already waiting stay in People.</p>
+<p class="small muted">${directoryListed ? `Listed in Find a hackathon: yes — <a href="${esc(href('organiser', ev.slug, 'results'))}">change in Results</a>.` : 'Listed in Find a hackathon: not listed — people can apply from your event page only.'}</p>
+</section>
 
 <section class="card"><h2>Notifications</h2><p class="sub">Get a message when a visitor saves something or uploads a file on your own event website.</p>
 ${notifications.length ? notifications.map(notifyRow).join('') : '<p class="muted">No notifications set up.</p>'}
@@ -97,6 +118,28 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
 </section>`
 
     adminLock(main, admin)
+
+    function flashSaved(id) {
+      const el = $(id)
+      el.hidden = false
+      clearTimeout(el._t)
+      el._t = setTimeout(() => { el.hidden = true }, 3000)
+    }
+
+    const appsToggle = $('apps-toggle')
+    if (appsToggle) appsToggle.addEventListener('click', async () => {
+      const want = !appsToggle.classList.contains('on')
+      appsToggle.disabled = true
+      try {
+        const r = await api('PATCH', path, { applications_open: want })
+        if (!r.ok) { setLive(ui.errText(r), 'err', appsToggle); appsToggle.disabled = false; return }
+        ev.applications_open = want
+        appsToggle.classList.toggle('on', want)
+        appsToggle.setAttribute('aria-checked', String(want))
+        flashSaved('apps-saved')
+        appsToggle.disabled = appsLocked
+      } catch (e) { setLive('Cannot reach the server.', 'err', appsToggle); appsToggle.disabled = false }
+    })
 
     $('set-save').addEventListener('click', async () => {
       const btn = $('set-save'); btn.disabled = true

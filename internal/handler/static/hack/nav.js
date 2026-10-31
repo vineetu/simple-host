@@ -154,7 +154,7 @@ export function href(role, slug, section) {
   return '/e/' + encodeURIComponent(slug) + '/' + ({ organiser: 'manage', participant: 'team', judge: 'judge' }[role]) + (section ? '?s=' + encodeURIComponent(section) : '')
 }
 export function isAppRoute(path) {
-  return /^\/(events(?:\/new)?|account|signin|(?:join|judge|organiser)\/[^/]+|e\/[^/]+\/(?:manage|team|judge))\/?$/.test(path)
+  return /^\/(events(?:\/new)?|account|signin|(?:join|judge|organiser)\/[^/]+|e\/[^/]+\/(?:manage|team|judge|apply))\/?$/.test(path)
 }
 export function resolveRoute(url) {
   const path = url.pathname.replace(/\/+$/, '')
@@ -162,6 +162,14 @@ export function resolveRoute(url) {
   if (path === '/account') return { id: 'account' }
   const invite = path.match(/^\/(join|judge|organiser)\/([^/]+)$/)
   if (invite) return { id: {join:'public-join',judge:'public-judge',organiser:'public-organiser-invite'}[invite[1]] }
+  // Apply (SIM, owner 2026-10-31): keyed by the event's public slug, not a
+  // secret code, but otherwise the same stand-alone-screen shape as the
+  // invite links above -- no `slug` field, so app.js's route() never runs
+  // its organiser/participant/judge api.getEvent(match.slug) membership
+  // check for it (that call 404s or 401s for the stranger this screen is
+  // for). public-apply.js reads the slug from location.pathname itself, the
+  // same way public-join.js reads its code.
+  if (/^\/e\/[^/]+\/apply$/.test(path)) return { id: 'public-apply' }
   const m = path.match(/^\/e\/([^/]+)\/(manage|team|judge)$/)
   if (!m) return { id: 'landing-your-events' }
   const role = {manage:'organiser',team:'participant',judge:'judge'}[m[2]]

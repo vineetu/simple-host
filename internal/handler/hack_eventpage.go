@@ -30,17 +30,20 @@ type hackEventPage struct {
 	StartsAt, EndsAt                           time.Time // zero = not set
 	Participants, Teams                        int
 	AppURL                                     string // "https://simple-hack.app"
-	IconURL                                    string
-	Color                                      string
-	TakenDown                                  bool
-	TakenDownReason                            string
-	Gallery                                    []hackGalleryCard
-	Tracks                                     []hackTrackView
-	Results                                    *hackResultsView
-	Content                                    hackContent
-	Announcements                              []hackAnnouncementView
-	Deadline                                   time.Time
-	VoteStatus                                 string
+	// ApplyURL is the public apply page's URL, built from AppURL; empty
+	// when applications are off (zp-hack-applications.sql, hackApplicationsOpenNow).
+	ApplyURL        string
+	IconURL         string
+	Color           string
+	TakenDown       bool
+	TakenDownReason string
+	Gallery         []hackGalleryCard
+	Tracks          []hackTrackView
+	Results         *hackResultsView
+	Content         hackContent
+	Announcements   []hackAnnouncementView
+	Deadline        time.Time
+	VoteStatus      string
 }
 
 // hackAnnouncementView carries the raw time so the public page can format it
@@ -109,6 +112,11 @@ type hackChip struct{ ID, Label string }
 type hackStageCardView struct {
 	Kicker, Heading, Body, Note string
 	Primary, Secondary          *hackCTA
+	// Extra is a third button, shown between Primary and Secondary: today
+	// only Building + a live gallery + applications open, where "See team
+	// sites" already holds Primary and "Already joined? Sign in" holds
+	// Secondary, so Apply gets this third slot instead of displacing either.
+	Extra *hackCTA
 	// The live countdown (an inline <span id="countdown">, enhanced by the
 	// one nonce script) sits in Note for Open and in Body for Building —
 	// never both. hackEventView.CountdownText/Deadline carry the text.
@@ -409,7 +417,7 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 	}
 
 	v.StageCard = buildHackStageCard(p.Stage, app, p.OrganiserName, p.Organisation,
-		galleryCount, deadlineNote, deadlineHeading, hasCountdown, deadlinePassed, resultsPublished)
+		galleryCount, deadlineNote, deadlineHeading, hasCountdown, deadlinePassed, resultsPublished, p.ApplyURL)
 	if v.StageCard != nil && v.StageCard.Primary != nil {
 		v.StageCard.Primary.Strong = !peoplesChoiceOpen
 	}
@@ -504,8 +512,10 @@ func hackStagePill(stage string, published bool) string {
 // buildHackStageCard is the one card under the header (spec
 // "primary_action_by_stage" and "sections": "Stage card: ..."). Nil for
 // results/archived once results are published: the Results block replaces it.
+// applyURL is empty when applications are off (D4/§4: then the card is
+// exactly what it would be without this feature).
 func buildHackStageCard(stage, appURL, organiserName, organisation string,
-	galleryCount int, deadlineNote, deadlineHeading string, hasCountdown, deadlinePassed bool, resultsPublished bool) *hackStageCardView {
+	galleryCount int, deadlineNote, deadlineHeading string, hasCountdown, deadlinePassed bool, resultsPublished bool, applyURL string) *hackStageCardView {
 	signIn := &hackCTA{Label: "Already joined? Sign in", URL: appURL + "/events"}
 	switch stage {
 	case "draft":
@@ -530,6 +540,18 @@ func buildHackStageCard(stage, appURL, organiserName, organisation string,
 		case deadlineNote != "":
 			note = "Entries close " + deadlineNote
 		}
+		if applyURL != "" {
+			return &hackStageCardView{
+				Kicker:  "Sign-up is open",
+				Heading: "Apply to join",
+				Body: "Sign in with your email and fill in a short form. The organisers decide who joins, and you'll see their answer on your Simple Hack Home. " +
+					"Have a join link from " + who + "? Open that instead.",
+				Primary:         &hackCTA{Label: "Apply", URL: applyURL, Strong: true},
+				Secondary:       signIn,
+				Note:            note,
+				CountdownInNote: hasCountdown && note != "",
+			}
+		}
 		return &hackStageCardView{
 			Kicker:  "Sign-up is open",
 			Heading: "Join with the link from the organisers",
@@ -551,10 +573,22 @@ func buildHackStageCard(stage, appURL, organiserName, organisation string,
 			heading = "Entries close " + deadlineHeading
 		}
 		body := "Sign-up is still open. Join with the link from the organisers."
+		if applyURL != "" {
+			body = "Sign-up is still open. Apply, or join with the link from the organisers."
+		}
 		card := &hackStageCardView{Kicker: "Teams are building", Heading: heading, Body: body, Secondary: signIn,
 			CountdownInBody: hasCountdown}
 		if galleryCount > 0 {
 			card.Primary = &hackCTA{Label: fmt.Sprintf("See team sites (%d)", galleryCount), URL: "#sites"}
+		}
+		if applyURL != "" {
+			apply := &hackCTA{Label: "Apply", URL: applyURL}
+			if card.Primary == nil {
+				apply.Strong = true
+				card.Primary = apply
+			} else {
+				card.Extra = apply
+			}
 		}
 		return card
 	case "closed":

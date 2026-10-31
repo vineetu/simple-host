@@ -50,3 +50,18 @@
    muted status line the directory uses. */
 #live.live-err{color:var(--danger)}
 #live.live-ok{color:var(--ok)}
+
+/* Apply to a hackathon (owner, 2026-10-31): a directory row can now hold a
+   second action (an Apply button, only when that event takes applications),
+   so the whole row is no longer one <a> -- kit.css's own .list .r styles
+   an <a>, with its own colour/underline reset baked in; here the row's
+   title link (.main) needs that same reset by hand, and the title is
+   allowed to wrap onto a second line (kit.css's plain .list .r .main b
+   truncates to one line with an ellipsis, which was fine for a whole-row
+   link but now clips the one piece of text telling someone what the
+   event is). The wrap rule excludes .list.results explicitly, so it can
+   never change the event page's own results-row truncation; .main is
+   always a <span> there anyway, never an <a>, so the reset rule below
+   only ever matches here regardless. */
+.list .r a.main{color:inherit;text-decoration:none}
+.list:not(.results) .r .main b{white-space:normal}

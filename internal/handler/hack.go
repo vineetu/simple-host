@@ -80,6 +80,8 @@ type HackHandler struct {
 	namesUser     *rateLimiter // event address checks, per account
 	entryWrites   *rateLimiter // entry and screenshot writes, per account
 	shotWrites    *rateLimiter // screenshot uploads, per account (2 MB each)
+	applyIP       *rateLimiter // applications without a join link, per network address
+	applyUser     *rateLimiter // the same, per account
 	namePeer      func(ctx context.Context, name string) (bool, error)
 	usageFn       func(ctx context.Context) (int64, error)
 	// sites reaches the team sites (the SiteHandler; hack_sites.go). nil in
@@ -156,6 +158,8 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string) *HackHan
 		namesUser:      newRateLimiterFor(config.Active().RateEventNamesUser),
 		entryWrites:    newRateLimiter(30, 0.5),
 		shotWrites:     newRateLimiter(5, 0.1),
+		applyIP:        newRateLimiterFor(config.Active().RateEventApplyIP),
+		applyUser:      newRateLimiterFor(config.Active().RateEventApplyUser),
 		archiveLinkKey: newExportKey(),
 	}
 	return h
@@ -163,7 +167,7 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string) *HackHan
 
 // StartCleanup evicts idle rate-limit buckets; call once from the server.
 func (h *HackHandler) StartCleanup() {
-	for _, l := range []*rateLimiter{h.codesIP, h.codesUser, h.namesUser, h.entryWrites, h.shotWrites} {
+	for _, l := range []*rateLimiter{h.codesIP, h.codesUser, h.namesUser, h.entryWrites, h.shotWrites, h.applyIP, h.applyUser} {
 		l.startCleanup(10*time.Minute, 30*time.Minute)
 	}
 }
@@ -297,6 +301,21 @@ func (h *HackHandler) rateLimited(w http.ResponseWriter, r *http.Request, userID
 		return true
 	}
 	if userID != "" && !h.codesUser.allow(userID) {
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+		return true
+	}
+	return false
+}
+
+// applyLimited meters POST apply: a signed-in caller is metered by both its
+// account and its network address (RATE_LIMIT_EVENT_APPLY_USER/_IP), so one
+// stranger cannot burn through many accounts from one address either.
+func (h *HackHandler) applyLimited(w http.ResponseWriter, r *http.Request, userID string) bool {
+	if !h.applyIP.allow(clientIP(r)) {
+		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+		return true
+	}
+	if !h.applyUser.allow(userID) {
 		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
 		return true
 	}
@@ -754,6 +773,11 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 			"taken_down": ev.TakenDown(),
 			"time_zone":  ev.TimeZone,
 		}
+		if roles[i] == "participant" {
+			if status, err := db.MemberApprovalStatus(r.Context(), h.database, ev.ID, user.ID); err == nil {
+				item["approval_status"] = status
+			}
+		}
 		out = append(out, item)
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -781,25 +805,26 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 	resultState, _ := db.GetEventResults(ctx, h.database, ev.ID)
 	body := map[string]any{
 		"event": map[string]any{
-			"slug":          ev.Slug,
-			"title":         ev.Title,
-			"tagline":       ev.Tagline,
-			"about":         ev.About,
-			"rules":         ev.Rules,
-			"prizes":        ev.Prizes,
-			"coc_text":      cocText,
-			"coc_default":   HackDefaultCoC,
-			"stage":         ev.Stage,
-			"time_zone":     ev.TimeZone,
-			"starts_at":     rfc3339UTC(ev.StartsAt),
-			"ends_at":       rfc3339UTC(ev.EndsAt),
-			"team_size_max": ev.TeamSizeMax,
-			"team_finding":  ev.TeamFinding,
-			"url":           h.EventURL(ev.Slug),
-			"builtin_url":   h.publicBaseURL + "/e/" + ev.Slug,
-			"website_mode":  ev.WebsiteMode,
-			"icon_url":      h.iconURL(ev),
-			"accent_color":  ev.AccentColor, "color": hackEventAccent(ev),
+			"slug":              ev.Slug,
+			"title":             ev.Title,
+			"tagline":           ev.Tagline,
+			"about":             ev.About,
+			"rules":             ev.Rules,
+			"prizes":            ev.Prizes,
+			"coc_text":          cocText,
+			"coc_default":       HackDefaultCoC,
+			"stage":             ev.Stage,
+			"time_zone":         ev.TimeZone,
+			"starts_at":         rfc3339UTC(ev.StartsAt),
+			"ends_at":           rfc3339UTC(ev.EndsAt),
+			"team_size_max":     ev.TeamSizeMax,
+			"team_finding":      ev.TeamFinding,
+			"applications_open": ev.ApplicationsOpen,
+			"url":               h.EventURL(ev.Slug),
+			"builtin_url":       h.publicBaseURL + "/e/" + ev.Slug,
+			"website_mode":      ev.WebsiteMode,
+			"icon_url":          h.iconURL(ev),
+			"accent_color":      ev.AccentColor, "color": hackEventAccent(ev),
 			"icon_media_type":      ev.IconMediaType,
 			"taken_down":           ev.TakenDown(),
 			"results_visibility":   ev.ResultsVisibility,
@@ -920,6 +945,7 @@ type patchEventReq struct {
 	StartsAt             *string `json:"starts_at"`
 	EndsAt               *string `json:"ends_at"`
 	TeamFinding          *bool   `json:"team_finding"`
+	ApplicationsOpen     *bool   `json:"applications_open"`
 	TeamSizeMax          *int    `json:"team_size_max"`
 	OrganiserName        *string `json:"organiser_name"`
 	Organisation         *string `json:"organisation"`
@@ -1064,6 +1090,13 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.TeamFinding != nil {
 		ev.TeamFinding = *req.TeamFinding
+	}
+	if req.ApplicationsOpen != nil {
+		if ev.Stage == "archived" {
+			writeHackErr(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
+			return
+		}
+		ev.ApplicationsOpen = *req.ApplicationsOpen
 	}
 	if req.TeamSizeMax != nil {
 		if *req.TeamSizeMax < 1 || *req.TeamSizeMax > 50 {
@@ -1632,29 +1665,9 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 			writeInternal(w)
 			return
 		}
-		if len(req.Answers) > len(questions) {
-			writeHackErr(w, 400, "invalid_answers", "answer only the listed questions")
+		answers, ok := validateSignupAnswers(w, questions, req.Answers)
+		if !ok {
 			return
-		}
-		answers := make([]db.SignupAnswer, 0, len(questions))
-		allowed := map[string]bool{}
-		for _, q := range questions {
-			allowed[q.ID] = true
-			answer, valid := checkHackText(w, req.Answers[q.ID], "answer", 0, 500)
-			if !valid {
-				return
-			}
-			if q.Required && answer == "" {
-				writeHackErr(w, 400, "answer_required", "answer every required question")
-				return
-			}
-			answers = append(answers, db.SignupAnswer{ID: q.ID, Prompt: q.Prompt, Answer: answer})
-		}
-		for id := range req.Answers {
-			if !allowed[id] {
-				writeHackErr(w, 400, "invalid_answers", "answer only the listed questions")
-				return
-			}
 		}
 		member, err = db.JoinParticipantRegistration(r.Context(), tx, ev.ID, user.ID, display, answers, required)
 		if err == nil {
@@ -1675,6 +1688,38 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 		return
 	}
 	writeJSON(w, http.StatusOK, h.eventView(r.Context(), ev, member, false))
+}
+
+// validateSignupAnswers is the sign-up answer check shared by postCodeJoin
+// (a join link) and postApply (an application without one): each listed
+// question answered within 500 characters, every required one non-empty,
+// and no answer for an unlisted question id.
+func validateSignupAnswers(w http.ResponseWriter, questions []db.SignupQuestion, in map[string]string) ([]db.SignupAnswer, bool) {
+	if len(in) > len(questions) {
+		writeHackErr(w, 400, "invalid_answers", "answer only the listed questions")
+		return nil, false
+	}
+	answers := make([]db.SignupAnswer, 0, len(questions))
+	allowed := map[string]bool{}
+	for _, q := range questions {
+		allowed[q.ID] = true
+		answer, valid := checkHackText(w, in[q.ID], "answer", 0, 500)
+		if !valid {
+			return nil, false
+		}
+		if q.Required && answer == "" {
+			writeHackErr(w, 400, "answer_required", "answer every required question")
+			return nil, false
+		}
+		answers = append(answers, db.SignupAnswer{ID: q.ID, Prompt: q.Prompt, Answer: answer})
+	}
+	for id := range in {
+		if !allowed[id] {
+			writeHackErr(w, 400, "invalid_answers", "answer only the listed questions")
+			return nil, false
+		}
+	}
+	return answers, true
 }
 
 func checkHackText(w http.ResponseWriter, s, field string, min, max int) (string, bool) {

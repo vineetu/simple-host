@@ -135,7 +135,11 @@ const setLive = msg => ui.toast(msg)
   }
   async function startGoogle() { return startOAuthProvider('google'); }
   function joinPathKind(path) {
-    return /^\/(join|judge|organiser)\/[^/]+$/.test(String(path || '').replace(/\/+$/, ''));
+    var p = String(path || '').replace(/\/+$/, '');
+    // Apply (SIM, owner 2026-10-31): a public stand-alone screen keyed by
+    // slug, same shape as the join/judge/organiser invite links -- must be
+    // reachable signed out (see nav.js resolveRoute's matching regex).
+    return /^\/(join|judge|organiser)\/[^/]+$/.test(p) || /^\/e\/[^/]+\/apply$/.test(p);
   }
   function showAuthStep(name) {
     var slot = $('signin-slot');
@@ -440,7 +444,12 @@ async function route() {
       // card -- hide everything but the current page's own link.
       ctx.main.closest('.app')?.classList.add('locked-shell')
       const pending = event.me.approval_status === 'pending'
-      ctx.main.innerHTML = `<div class="locked"><h2>${pending ? 'Your application is waiting for approval' : 'Your application was not approved'}</h2><p>${pending ? 'The organisers will let you know. Ask them if you have questions.' : 'Ask an organiser if you have questions.'}</p></div>`
+      // Apply to a hackathon (owner, 2026-10-31): the old pending copy
+      // promised "The organisers will let you know", an email that does not
+      // exist -- say where the answer actually appears instead (same copy
+      // for an application and a join-link sign-up, spec.json
+      // participant-home "pending / rejected approval").
+      ctx.main.innerHTML = `<div class="locked"><h2>${pending ? 'Your application is waiting for the organisers' : "Your application wasn't accepted this time"}</h2><p>${pending ? "You'll see their answer here. Ask them if you have questions." : 'Ask an organiser if you have questions.'}</p></div>`
       return
     }
     let screen

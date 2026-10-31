@@ -166,6 +166,7 @@
   {{if or .StageCard.Primary .StageCard.Secondary}}
   <div class="stack">
     {{if .StageCard.Primary}}<a class="btn{{if .StageCard.Primary.Strong}} primary{{end}}" href="{{.StageCard.Primary.URL}}">{{.StageCard.Primary.Label}}</a>{{end}}
+    {{if .StageCard.Extra}}<a class="btn{{if .StageCard.Extra.Strong}} primary{{end}}" href="{{.StageCard.Extra.URL}}">{{.StageCard.Extra.Label}}</a>{{end}}
     {{if .StageCard.Secondary}}<a class="btn quiet" href="{{.StageCard.Secondary.URL}}">{{.StageCard.Secondary.Label}}</a>{{end}}
   </div>
   {{end}}

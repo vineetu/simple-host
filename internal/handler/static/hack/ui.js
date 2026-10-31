@@ -330,6 +330,25 @@ export function zoneAbbr(zone, date = new Date()) {
   // rather than silently claiming "GMT" for a zone that isn't one.
   return gmtOffsetLabel(zone, date) || raw
 }
+// Apply to a hackathon (owner, 2026-10-31, D7): the fixed label sets for the
+// two optional applicant fields, shared by the apply form and People's
+// application cards so the two screens never drift on wording.
+// Hyphen, not en dash: matches hackAgeRangeLabels in hack_apply.go exactly
+// (the apply form shows the server's own fields.age_range labels when
+// present; this is only the fallback/for People's facts line, and the two
+// must read identically wherever they appear).
+export const AGE_RANGE_LABELS = { under_18: 'Under 18', '18_24': '18-24', '25_34': '25-34', '35_plus': '35+' }
+export const GENDER_LABELS = { woman: 'Woman or girl', man: 'Man or boy', non_binary: 'Non-binary', another: 'Another gender', prefer_not_to_say: 'Prefer not to say' }
+// The applicant's stored ISO 3166-1 alpha-2 country code, shown as a name in
+// the browser's own language (D6). '' in, '' out. Falls back to the bare
+// code if Intl.DisplayNames can't resolve it (old engine, or an unknown
+// code) -- never a blank for a code that is actually set, so a person
+// reading People always sees something rather than nothing.
+export function countryName(code) {
+  if (!code) return ''
+  try { return new Intl.DisplayNames([navigator.language, 'en'], { type: 'region' }).of(code) || code }
+  catch { return code }
+}
 // Cosmetic #1: a team or event name that already ends in s/S takes a bare
 // apostrophe ("Alpha Testers'"), never another s ("Alpha Testers's").
 // Shared so every screen that puts a team or event name through 's --

@@ -111,7 +111,14 @@
       return a.day + ' ' + a.month + ' ' + a.year + '–' + b.day + ' ' + b.month + ' ' + b.year;
     }
     function row(e) {
-      var a = document.createElement('a'); a.className = 'r'; a.href = e.url;
+      // Apply to a hackathon (owner, 2026-10-31): a row with an Apply
+      // button can no longer be one whole-row <a> -- a nested link is
+      // invalid HTML and breaks screen readers -- so the row is a plain
+      // <div> holding the mark, the title link, and, only when the event
+      // takes applications right now, a separate small Apply button at the
+      // row's right end (spec.json public-directory "Where does Apply go
+      // on a directory row?").
+      var div = document.createElement('div'); div.className = 'r';
       var mark = document.createElement('span'); mark.className = 'ev-mark'; mark.setAttribute('aria-hidden', 'true');
       // #15: this card dropped the event's own icon_url and always drew the
       // colour+initials mark, even for events that have a real icon set
@@ -126,13 +133,22 @@
         mark.style.color = lum(color) > 0.45 ? '#2b2925' : '#fff';
         mark.textContent = initials(e.title);
       }
-      var main = document.createElement('span'); main.className = 'main';
+      var main = document.createElement('a'); main.className = 'main'; main.href = e.url;
       var b = document.createElement('b'); b.textContent = e.title; main.appendChild(b);
-      if (e.tagline) { var sub = document.createElement('span'); sub.textContent = e.tagline; main.appendChild(sub); }
-      var meta = document.createElement('span'); meta.className = 'meta';
-      meta.textContent = dateRange(e.starts_at, e.ends_at, e.time_zone);
-      a.appendChild(mark); a.appendChild(main); a.appendChild(meta);
-      return a;
+      // The dates move into the subline with the tagline (the row's own
+      // .meta date column is gone -- there is no room for it once a row
+      // can also carry an Apply button at that same right end).
+      var dates = dateRange(e.starts_at, e.ends_at, e.time_zone);
+      var subBits = [e.tagline, dates].filter(Boolean);
+      if (subBits.length) { var sub = document.createElement('span'); sub.textContent = subBits.join(' · '); main.appendChild(sub); }
+      div.appendChild(mark); div.appendChild(main);
+      if (e.applications_open && e.apply_url) {
+        var apply = document.createElement('a'); apply.className = 'btn sm'; apply.href = e.apply_url;
+        apply.setAttribute('aria-label', 'Apply to ' + e.title);
+        apply.textContent = 'Apply';
+        div.appendChild(apply);
+      }
+      return div;
     }
     fetch('/v1/hack/directory').then(function (r) { if (!r.ok) throw new Error(); return r.json(); }).then(function (groups) {
       ['now', 'upcoming', 'past'].forEach(function (g) {

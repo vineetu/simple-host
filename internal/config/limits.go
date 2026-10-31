@@ -100,6 +100,11 @@ type Limits struct {
 	EventRemovalWarn           time.Duration // EVENT_REMOVAL_WARN_DAYS (M4: one warning this long before team sites are removed)
 	HackInstanceBudgetGB       int           // HACK_INSTANCE_BUDGET_GB (0: no budget)
 	HackEventIconMaxBytes      int           // HACK_EVENT_ICON_MAX_BYTES
+	// Apply to a hackathon (zp-hack-applications.sql, owner 2026-10-31): the
+	// per-event ceiling on applications waiting for a decision, so many
+	// accounts cannot flood one event's queue (the per-account cap above is
+	// account-wide, across every event).
+	EventApplyPendingPerEvent int // EVENT_APPLY_PENDING_PER_EVENT
 
 	// Address families (handler/familyhost.go).
 	AddressFamilies       bool          // ADDRESS_FAMILIES: on/off (on)
@@ -174,6 +179,8 @@ type Limits struct {
 	RateEventCodesIP           Rate          // RATE_LIMIT_EVENT_CODES_IP
 	RateEventCodesUser         Rate          // RATE_LIMIT_EVENT_CODES_USER
 	RateEventNamesUser         Rate          // RATE_LIMIT_EVENT_NAMES_USER
+	RateEventApplyIP           Rate          // RATE_LIMIT_EVENT_APPLY_IP
+	RateEventApplyUser         Rate          // RATE_LIMIT_EVENT_APPLY_USER
 	RateOAuthRegister          Rate          // RATE_LIMIT_OAUTH_REGISTER
 	RateOAuthAuthorize         Rate          // RATE_LIMIT_OAUTH_AUTHORIZE
 	RateOAuthToken             Rate          // RATE_LIMIT_OAUTH_TOKEN
@@ -382,6 +389,7 @@ func DefaultLimits() Limits {
 		EventRemovalWarn:           14 * day,
 		HackInstanceBudgetGB:       10,
 		HackEventIconMaxBytes:      128 << 10,
+		EventApplyPendingPerEvent:  500,
 
 		DeletedRetention:    7 * day,
 		IdleAfter:           90 * day,
@@ -439,6 +447,8 @@ func DefaultLimits() Limits {
 		RateEventCodesIP:           Rate{120, time.Second},
 		RateEventCodesUser:         Rate{20, 3 * time.Second},
 		RateEventNamesUser:         Rate{60, time.Second},
+		RateEventApplyIP:           Rate{30, 2 * time.Minute},
+		RateEventApplyUser:         Rate{5, 12 * time.Minute},
 		RateOAuthRegister:          Rate{10, 6 * time.Minute},
 		RateOAuthAuthorize:         Rate{30, 2 * time.Second},
 		RateOAuthToken:             Rate{30, 2 * time.Second},
@@ -773,6 +783,7 @@ func Knobs() []Knob {
 		intKnob("EVENT_MAX_CLAIMS", "names", 1, 100, func(l *Limits) *int { return &l.EventMaxClaims }),
 		intKnob("EVENT_CREATE_PER_DAY", "events", 1, 1000, func(l *Limits) *int { return &l.EventCreatePerDay }),
 		intKnob("EVENT_MAX_ACTIVE_PER_ORGANISER", "events", 1, 1000, func(l *Limits) *int { return &l.EventMaxActivePerOrganiser }),
+		intKnob("EVENT_APPLY_PENDING_PER_EVENT", "applications", 1, 100_000, func(l *Limits) *int { return &l.EventApplyPendingPerEvent }),
 		intKnob("EVENT_TEAM_SIZE_DEFAULT", "people", 1, 50, func(l *Limits) *int { return &l.EventTeamSizeDefault }),
 		durKnob("EVENT_SITES_KEEP_DAYS", "days", d, 1, 3650, func(l *Limits) *time.Duration { return &l.EventSitesKeep }),
 		durKnob("EVENT_REMOVAL_WARN_DAYS", "days", d, 1, 3650, func(l *Limits) *time.Duration { return &l.EventRemovalWarn }),
@@ -870,6 +881,8 @@ func Knobs() []Knob {
 		rateKnob("RATE_LIMIT_EVENT_CODES_IP", func(l *Limits) *Rate { return &l.RateEventCodesIP }),
 		rateKnob("RATE_LIMIT_EVENT_CODES_USER", func(l *Limits) *Rate { return &l.RateEventCodesUser }),
 		rateKnob("RATE_LIMIT_EVENT_NAMES_USER", func(l *Limits) *Rate { return &l.RateEventNamesUser }),
+		rateKnob("RATE_LIMIT_EVENT_APPLY_IP", func(l *Limits) *Rate { return &l.RateEventApplyIP }),
+		rateKnob("RATE_LIMIT_EVENT_APPLY_USER", func(l *Limits) *Rate { return &l.RateEventApplyUser }),
 		secRateKnob("RATE_LIMIT_OAUTH_REGISTER", func(l *Limits) *Rate { return &l.RateOAuthRegister }),
 		secRateKnob("RATE_LIMIT_OAUTH_AUTHORIZE", func(l *Limits) *Rate { return &l.RateOAuthAuthorize }),
 		secRateKnob("RATE_LIMIT_OAUTH_TOKEN", func(l *Limits) *Rate { return &l.RateOAuthToken }),

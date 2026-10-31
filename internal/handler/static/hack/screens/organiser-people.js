@@ -1,4 +1,5 @@
 import { adminLock } from './_orgA-util.js'
+import { href } from '../nav.js'
 
 export function title(ctx) { return 'People' }
 
@@ -6,6 +7,22 @@ function personCategory(p) {
   if (p.role === 'organiser') return p.primary_organiser ? 'Organiser' : 'Co-organiser'
   if (p.role === 'judge') return 'Judge'
   return 'Participant'
+}
+
+// Apply to a hackathon (owner, 2026-10-31): the facts line under an
+// application card -- where they're based, age range (a warn pill for
+// Under 18, per D8: the organiser's own safeguarding cue) and gender, all
+// three optional and all left out silently when unshared, down to the one
+// muted line when nothing at all was shared.
+function appFacts(ui, a) {
+  const esc = ui.esc
+  const place = [a.city, a.country ? ui.countryName(a.country) : ''].filter(Boolean).join(', ')
+  const bits = []
+  if (place) bits.push(esc(place))
+  if (a.age_range) bits.push(a.age_range === 'under_18' ? '<span class="pill warn">Under 18</span>' : esc(ui.AGE_RANGE_LABELS[a.age_range] || a.age_range))
+  if (a.gender) bits.push(esc(ui.GENDER_LABELS[a.gender] || a.gender))
+  if (!bits.length) return '<p class="small muted">Didn’t share location, age range or gender</p>'
+  return '<p class="small">' + bits.join(' · ') + '</p>'
 }
 
 export async function render(ctx) {
@@ -17,6 +34,11 @@ export async function render(ctx) {
   const setLive = ui.live(main)
 
   let applications = [], people = [], questions = [], approvalRequired = true
+  // applicationsOpen mirrors the Settings switch, read-only here (D10: the
+  // switch itself lives in Settings; People -> Sign-up only shows its state
+  // with a link there). Defaults true (applications are on by default for
+  // every event) so a load failure never claims they're off.
+  let applicationsOpen = true
   // savedQuestions is an independent snapshot of the last-known-saved questions
   // (own clones, not the same array/objects as the draft `questions`), so
   // Add/Remove edits to the draft can never leak into the body the approval
@@ -27,7 +49,7 @@ export async function render(ctx) {
     const [a, p, r] = await Promise.all([api('GET', path + '/applications'), api('GET', path + '/people'), api('GET', path + '/registration')])
     if (a.ok) applications = a.data || []
     if (p.ok) people = p.data || []
-    if (r.ok) { questions = r.data.questions || []; approvalRequired = !!r.data.approval_required; savedQuestions = questions.map(q => ({ ...q })) }
+    if (r.ok) { questions = r.data.questions || []; approvalRequired = !!r.data.approval_required; applicationsOpen = r.data.applications_open !== false; savedQuestions = questions.map(q => ({ ...q })) }
     else registrationError = true
   } catch (e) { registrationError = true }
 
@@ -48,15 +70,30 @@ export async function render(ctx) {
   // hand, independent of why either was opened.
   let coorgOpen = false
   let signupOpen = location.hash === '#signup'
+  // Applications filter row (spec.json organiser-people "Applications"
+  // section): client-side only, shown once anything is waiting. 'from' is
+  // 'all'|'applied'|'link', 'age' is '' (Any) or an age_range value,
+  // 'country' is '' (Any) or an ISO code, 'sort' is 'oldest'|'newest' --
+  // the API already returns pending applications oldest-first, so "newest"
+  // is just that list reversed, not a real re-sort.
+  let appFrom = 'all', appAge = '', appCountry = '', appSort = 'oldest'
 
   function applicationCard(a) {
-    return `<section class="card" data-app="${ui.esc(a.user_id)}"><h2>${ui.esc(a.display_name)}</h2><p class="sub">Applied ${ui.esc(ui.dateTime(a.joined_at, ev))}</p>${(a.answers || []).map(q => `<p><b>${ui.esc(q.prompt)}</b><br>${q.answer ? ui.esc(q.answer) : '<span class="muted">No answer</span>'}</p>`).join('')}
-<div class="row-flex"><button class="btn" type="button" data-app-approve>Approve</button><button class="btn danger sm" type="button" data-app-reject title="${ui.esc(a.display_name)} stays a member but can't start or join a team or publish for this event. This can't be undone by re-approving later.">Reject</button></div></section>`
+    const esc = ui.esc
+    const pill = a.joined_via === 'link' ? 'Join link' : 'Applied'
+    const verb = a.joined_via === 'link' ? 'Joined with your link' : 'Applied'
+    return `<section class="card" data-app="${esc(a.user_id)}"><h2>${esc(a.display_name)}</h2>
+<p class="sub">${esc(a.email || '')} · <span class="pill">${pill}</span></p>
+<p class="small muted">${verb} ${esc(ui.dateTime(a.joined_at, ev))}</p>
+${appFacts(ui, a)}
+${(a.answers || []).map(q => `<p><b>${esc(q.prompt)}</b><br>${q.answer ? esc(q.answer) : '<span class="muted">No answer</span>'}</p>`).join('')}
+<div class="row-flex"><button class="btn" type="button" data-app-approve>Approve</button><button class="btn danger sm" type="button" data-app-reject title="${esc(a.display_name)} stays a member but can't start or join a team or publish for this event. This can't be undone by re-approving later.">Reject</button></div></section>`
   }
   function personRow(p) {
     const bits = [personCategory(p)]
     const status = { pending: 'Pending', rejected: 'Not approved' }[p.approval_status]
     if (status) bits.push(status)
+    if (p.joined_via === 'application') bits.push('Applied')
     if (p.team && (p.team.name || p.team.slug)) bits.push(p.team.name || p.team.slug)
     const joined = ui.dateOnly(p.joined_at, ev)
     if (joined) bits.push('Joined ' + joined)
@@ -80,6 +117,7 @@ export async function render(ctx) {
 
   function paint() {
     const $ = id => main.querySelector('#' + id)
+    const esc = ui.esc
     const pending = applications.filter(a => a.status === 'pending')
     const visiblePeople = people.filter(p => roleFilter === 'Everyone' || (roleFilter === 'Organisers' && p.role === 'organiser') || (roleFilter === 'Participants' && p.role === 'participant') || (roleFilter === 'Judges' && p.role === 'judge') || (roleFilter === 'Co-organisers' && p.role === 'organiser' && !p.primary_organiser))
     // A9: hide the Applications section once there's nothing in it and
@@ -87,9 +125,27 @@ export async function render(ctx) {
     // empty card under its own heading just repeats that.
     const showApplications = pending.length > 0 || ev.stage === 'draft'
 
+    const appliedCount = pending.filter(a => a.joined_via !== 'link').length
+    const linkCount = pending.filter(a => a.joined_via === 'link').length
+    const countryChoices = [...new Set(pending.filter(a => a.country).map(a => a.country))]
+      .map(code => ({ code, name: ui.countryName(code) || code })).sort((a, b) => a.name.localeCompare(b.name))
+    let visiblePending = pending.slice()
+    if (appFrom === 'applied') visiblePending = visiblePending.filter(a => a.joined_via !== 'link')
+    else if (appFrom === 'link') visiblePending = visiblePending.filter(a => a.joined_via === 'link')
+    if (appAge) visiblePending = visiblePending.filter(a => a.age_range === appAge)
+    if (appCountry) visiblePending = visiblePending.filter(a => a.country === appCountry)
+    if (appSort === 'newest') visiblePending = visiblePending.slice().reverse()
+    const filtersActive = appFrom !== 'all' || appAge !== '' || appCountry !== '' || appSort !== 'oldest'
+    const filterRow = pending.length ? `<div class="field-row" id="app-filters">
+<div class="field"><label>From<select class="select" id="app-filter-from"><option value="all"${appFrom === 'all' ? ' selected' : ''}>Everyone waiting (${pending.length})</option><option value="applied"${appFrom === 'applied' ? ' selected' : ''}>Applied (${appliedCount})</option><option value="link"${appFrom === 'link' ? ' selected' : ''}>Join link (${linkCount})</option></select></label></div>
+<div class="field"><label>Age range<select class="select" id="app-filter-age"><option value=""${appAge === '' ? ' selected' : ''}>Any</option>${Object.entries(ui.AGE_RANGE_LABELS).map(([v, l]) => `<option value="${esc(v)}"${appAge === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label></div>
+<div class="field"><label>Country<select class="select" id="app-filter-country"><option value=""${appCountry === '' ? ' selected' : ''}>Any</option>${countryChoices.map(c => `<option value="${esc(c.code)}"${appCountry === c.code ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label></div>
+<div class="field"><label>Sort<select class="select" id="app-filter-sort"><option value="oldest"${appSort === 'oldest' ? ' selected' : ''}>Oldest first</option><option value="newest"${appSort === 'newest' ? ' selected' : ''}>Newest first</option></select></label></div>
+</div>` : ''
+
     main.innerHTML = `
 <div class="ph"><div class="t"><h1>People</h1><p>${pending.length ? pending.length + ' application' + (pending.length === 1 ? '' : 's') + ' waiting on you' : 'Nobody is waiting for approval'}</p></div></div>
-${showApplications ? `<h2 class="section-title">Applications</h2>${pending.length ? `<div id="app-list">${pending.map(applicationCard).join('')}</div>` : `<div class="note">Sign-up isn't open yet. Move the event to ${ui.esc(ui.stageLabel('open'))} to start taking applications.</div>`}` : ''}
+${showApplications ? `<h2 class="section-title">Applications</h2>${pending.length ? `${filterRow}${visiblePending.length ? `<div id="app-list">${visiblePending.map(applicationCard).join('')}</div>` : `<div class="note">Nobody waiting matches these filters.${filtersActive ? ' <button class="btn sm" type="button" id="app-filter-clear">Clear filters</button>' : ''}</div>`}` : `<div class="note">Sign-up isn't open yet. Move the event to ${ui.esc(ui.stageLabel('open'))} to start taking applications.</div>`}` : ''}
 
 <section class="card"><h2>Everyone</h2>
 <div class="field"><label>Show<select class="select" id="role-filter" data-admin-live><option${roleFilter === 'Everyone' ? ' selected' : ''}>Everyone</option><option${roleFilter === 'Organisers' ? ' selected' : ''}>Organisers</option><option${roleFilter === 'Participants' ? ' selected' : ''}>Participants</option><option${roleFilter === 'Judges' ? ' selected' : ''}>Judges</option><option${roleFilter === 'Co-organisers' ? ' selected' : ''}>Co-organisers</option></select></label></div>
@@ -105,9 +161,11 @@ ${invite ? `<div class="field"><label>Invitation<input class="input mono" id="co
 
 <details class="card" id="signup"${signupOpen ? ' open' : ''}><summary>Sign-up</summary>
 ${registrationError ? '<div class="note bad">Sign-up questions could not be loaded. Saving here is turned off until you reload the page.</div>' : ''}
-<label class="check"><input type="checkbox" id="signup-approval"${approvalRequired ? ' checked' : ''}${registrationError ? ' disabled' : ''}><b>Approve participants before they can join or publish with a team</b></label>
+<label class="check"><input type="checkbox" id="signup-approval"${approvalRequired ? ' checked' : ''}${registrationError ? ' disabled' : ''}><b>Approve people who join with your link before they can join a team or publish</b></label>
+<p class="small muted">Applications from Find a hackathon and your event page always wait for you, whatever this says. Applications are ${applicationsOpen ? 'on' : 'off'} — <a href="${esc(href('organiser', ev.slug, 'settings'))}#applications">change in Settings</a>.</p>
 <div id="q-rows">${questions.map(questionRow).join('')}</div>
 <div class="row-flex"><button class="btn" type="button" id="q-add"${questions.length >= 8 || registrationError ? ' disabled' : ''}>Add question</button><button class="btn" type="button" id="q-save"${registrationError ? ' disabled' : ''}>Save questions</button></div>
+<p class="small muted">Applicants also get three optional fields of ours: where they're based, age range and gender.</p>
 </details>`
 
     adminLock(main, admin, ev)
@@ -116,6 +174,17 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
     $('signup').addEventListener('toggle', () => { signupOpen = $('signup').open })
 
     $('role-filter').addEventListener('change', () => { roleFilter = $('role-filter').value; paint() })
+
+    const fromSel = $('app-filter-from')
+    if (fromSel) fromSel.addEventListener('change', () => { appFrom = fromSel.value; paint() })
+    const ageSel = $('app-filter-age')
+    if (ageSel) ageSel.addEventListener('change', () => { appAge = ageSel.value; paint() })
+    const countrySel = $('app-filter-country')
+    if (countrySel) countrySel.addEventListener('change', () => { appCountry = countrySel.value; paint() })
+    const sortSel = $('app-filter-sort')
+    if (sortSel) sortSel.addEventListener('change', () => { appSort = sortSel.value; paint() })
+    const clearBtn = $('app-filter-clear')
+    if (clearBtn) clearBtn.addEventListener('click', () => { appFrom = 'all'; appAge = ''; appCountry = ''; appSort = 'oldest'; paint() })
 
     main.querySelectorAll('[data-app-approve]').forEach(btn => btn.addEventListener('click', () => decide(btn, 'approved')))
     main.querySelectorAll('[data-app-reject]').forEach(btn => btn.addEventListener('click', () => decide(btn, 'rejected')))
@@ -142,7 +211,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       const id = btn.getAttribute('data-remove-person'); const name = btn.getAttribute('data-name') || 'this person'; const role = btn.getAttribute('data-role')
       const body = role === 'judge'
         ? name + ' is removed from the event. They can rejoin with the current join link unless you regenerate it.'
-        : name + ' and their team membership are removed. They can rejoin with the current join link unless you regenerate it.'
+        : name + ' and their team membership are removed. They can rejoin with the current join link unless you regenerate it, or apply again while applications are on — you’d decide on that application.'
       const ok = await ui.confirm({ title: 'Remove ' + name + ' from this event?', body, confirmLabel: 'Remove', danger: true })
       if (!ok) return
       btn.disabled = true
@@ -265,7 +334,10 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
       if (guardRegistration($('signup-approval'))) { $('signup-approval').checked = approvalRequired; return }
       const box = $('signup-approval'); const prev = !box.checked; box.disabled = true
       let admitPending = false
-      const pendingNow = applications.filter(a => a.status === 'pending')
+      // D5: admit_pending only ever admits join-link pending -- applications
+      // always stay pending regardless of this toggle -- so only link
+      // sign-ups count here, and the confirm below never mentions applications.
+      const pendingNow = applications.filter(a => a.status === 'pending' && a.joined_via !== 'application')
       if (!box.checked && pendingNow.length) {
         // C12: turning approval off used to offer only Approve all / Leave
         // pending, with no way to back out of flipping the toggle at all.
@@ -273,7 +345,7 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
         // directly for the real three-way choice.
         const choice = await ui.dialog({
           title: 'Waiting applications',
-          body: pendingNow.length + ' people are still waiting. Approve them all now, or leave them pending. You can still approve or reject each one later from this list. New joiners after this point will not need approval either way.',
+          body: (pendingNow.length === 1 ? '1 person who joined with your link is still waiting. Approve them now, or leave them pending. You can still approve or reject them later from this list.' : pendingNow.length + ' people who joined with your link are still waiting. Approve all of them now, or leave them pending. You can still approve or reject each one later from this list.') + ' Applications always wait for your decision.',
           buttons: [
             { label: 'Cancel', value: 'cancel', attrs: { 'data-cancel': '' } },
             { label: 'Leave them pending', value: 'leave' },

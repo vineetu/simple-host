@@ -70,6 +70,7 @@ func RegisterHackUI(mux *http.ServeMux) {
 		"GET /e/{slug}/team",
 		"GET /e/{slug}/judge",
 		"GET /e/{slug}/manage",
+		"GET /e/{slug}/apply", // public-apply (owner, 2026-10-31): served signed out, same as /join/{code}.
 		"GET /join/{code}",
 		"GET /judge/{code}",
 		"GET /organiser/{code}",

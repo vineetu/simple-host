@@ -20,6 +20,8 @@ func (h *HackHandler) registerRegistration(mux *http.ServeMux, wrap func(http.Ha
 	mux.Handle("GET /v1/hack/events/{slug}/tracks", wrap(h.getTracks))
 	mux.Handle("PUT /v1/hack/events/{slug}/tracks", wrap(h.putTracks))
 	mux.Handle("PUT /v1/hack/events/{slug}/team/track", wrap(h.chooseTrack))
+	mux.Handle("GET /v1/hack/events/{slug}/apply", http.HandlerFunc(h.getApply))
+	mux.Handle("POST /v1/hack/events/{slug}/apply", wrap(h.postApply))
 }
 func (h *HackHandler) getRegistration(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
@@ -31,7 +33,9 @@ func (h *HackHandler) getRegistration(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"questions": q, "approval_required": approval})
+	// applications_open is read-only here (People -> Sign-up's one-line
+	// summary); it is changed from Settings (PATCH .../events/{slug}).
+	writeJSON(w, 200, map[string]any{"questions": q, "approval_required": approval, "applications_open": a.event.ApplicationsOpen})
 }
 func validateSignupQuestions(w http.ResponseWriter, in []db.SignupQuestion) ([]db.SignupQuestion, bool) {
 	if len(in) > 8 {
@@ -95,7 +99,10 @@ func (h *HackHandler) putRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !req.ApprovalRequired && req.AdmitPending {
-		if _, err := tx.ExecContext(r.Context(), `UPDATE event_members SET approval_status='approved', approval_decided_at=now(), approval_decided_by=$2 WHERE event_id=$1 AND role='participant' AND approval_status='pending'`, a.event.ID, a.user.ID); err != nil {
+		// Join-link sign-ups only (D5): approval_required and admit_pending
+		// govern the link, never a stranger's application, which always
+		// waits for an organiser's own decision.
+		if _, err := tx.ExecContext(r.Context(), `UPDATE event_members SET approval_status='approved', approval_decided_at=now(), approval_decided_by=$2 WHERE event_id=$1 AND role='participant' AND approval_status='pending' AND joined_via='link'`, a.event.ID, a.user.ID); err != nil {
 			writeInternal(w)
 			return
 		}

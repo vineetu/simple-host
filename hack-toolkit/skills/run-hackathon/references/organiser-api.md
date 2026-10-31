@@ -25,6 +25,7 @@ Use the Simple Hack connector signed in through its trusted browser window. Foll
 | Post announcement | `hack_post_announcement` |
 | Get registration | `hack_get_registration` |
 | Set registration | `hack_set_registration` |
+| Turn applications on or off | `hack_update_event` (`applications_open`) |
 | Get applications | `hack_get_applications` |
 | Decide application | `hack_decide_application` |
 | Get tracks | `hack_get_tracks` |
@@ -72,6 +73,8 @@ Use the Simple Hack connector signed in through its trusted browser window. Foll
 | Export entries | `hack_export_entries` |
 | Make a private entry archive link | `hack_export_projects_archive` |
 | Get usage | `hack_get_usage` |
+| Read event-website notifications | `list_notifications` with `event` |
+| Remove event-website notification | `remove_notification` with `event` |
 
 For a custom event website, read `hack_get_event_website(slug)` first. Publish with `hack_publish_event_website(slug, files, files_base64)` using a complete map of site-relative files and root `index.html`; binary assets use base64. The tool also accepts a base64 tar.gz archive. The custom page can read the public event feed; no account credential belongs in website code. Switching to `builtin` preserves custom files.
 
@@ -83,9 +86,15 @@ Before changing a public stage, result, listing, website or invitation link; ema
 
 Automatic assignments default to judges only. Use body.include_organisers=true to include organisers. Judges can save scores only when the stage is closed or judging.
 
-Announcements: `PUT /v1/hack/events/{slug}/announcements/{announcement}` accepts `title` and `body` without resending email. `DELETE` removes it. MCP tools: `hack_edit_announcement` and `hack_delete_announcement`. Ask before deleting.
+Announcements: `PUT /v1/hack/events/{slug}/announcements/{announcement}` accepts `title` and `body`. Editing does not send a new email. `DELETE` on the same path removes it. MCP: `hack_edit_announcement` and `hack_delete_announcement`, with `slug`, `announcement`, and a `body` object for edits. Ask before deleting.
 
 Website zip uploads also work in the signed-in Page tab, including in draft. The event website GET returns recent versions with dates and upload limits. Static archives need index.html at the root; existing size and file checks apply.
+
+`list_notifications` and `remove_notification` read or remove an organiser website's notification subscriptions with `event`. The website's Settings page, under Notifications, is the only place to create a subscription, pause or resume it, send a test, rotate its signing secret, or read delivery history. This connector does not wrap those actions.
+
+When turning registration approval off, ask whether to admit pending applicants and send `admit_pending: true` with `approval_required: false` to approve them in the same request. Before narrowing voting eligibility, inspect `votes_to_remove` and ask before removing votes; send `confirm_vote_removal: true` after confirmation. Otherwise the server returns 409 `vote_removal_confirmation` with the count.
+
+People without a join link can apply from Find a hackathon or the event's public page, and applications are on by default for every event. An application always waits for an organiser's decision, even when `approval_required` is off for join-link sign-ups. `admit_pending` only admits waiting join-link sign-ups, never applications. `hack_get_applications` lists `joined_via`, `city`, `country`, `age_range` and `gender` for each one, and `hack_export_participants` adds the same five columns to the participants CSV. Turn applications on or off with `hack_update_event`'s `applications_open` field, and ask the organiser before changing it. An organiser with their own event website can link to `https://simple-hack.app/e/{slug}/apply`. `hack_preview_application` only includes the organiser's sign-up questions and code of conduct while applications are open right now; a closed or switched-off event returns neither, even to a signed-in caller. A per-event ceiling (default 500 pending) returns 409 `event_applications_full` once reached, separate from the per-account pending cap.
 
 `hack_get_teams` omits member emails by default, including people on no team. Names and member IDs remain available for moves and removals. Set `include_emails: true` only when the organiser asks for team members' email addresses. `hack_get_people` and `hack_export_participants` retain emails. Team mutation results omit rosters and invitation codes; application decisions return status without the applicant ID.
 

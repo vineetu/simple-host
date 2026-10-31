@@ -76,6 +76,9 @@ type Event struct {
 	TieCriterionID      sql.NullString
 	PublicScores        bool
 	PublicRanks         bool
+	// Applications without a join link (zp-hack-applications.sql). On by
+	// default; the organiser's Settings switch.
+	ApplicationsOpen bool
 }
 
 // TakenDown reports whether the platform admin has taken the event down.
@@ -118,7 +121,7 @@ const eventColumns = `
 	taken_down_at, taken_down_reason, created_at, updated_at,
 	entry_required, gallery_open,
 	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason,
-	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding`
+	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding, applications_open`
 
 // scanEventFields is every events column in eventColumns order.
 func scanEventFields(e *Event) []any {
@@ -131,7 +134,7 @@ func scanEventFields(e *Event) []any {
 		&e.TakenDownAt, &e.TakenDownReason, &e.CreatedAt, &e.UpdatedAt,
 		pq.Array(&e.EntryRequired), &e.GalleryOpen,
 		&e.JudgeAssignmentMode, &e.JudgesPerTeam, &e.JudgingLockedAt, &e.JudgingLockReason,
-		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks, &e.TeamFinding,
+		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks, &e.TeamFinding, &e.ApplicationsOpen,
 	}
 }
 
@@ -321,12 +324,12 @@ func UpdateEventPatch(ctx context.Context, q Querier, e Event) (Event, error) {
 			title = $2, tagline = $3, about = $4, rules = $5, prizes = $6, coc_text = $7,
 			time_zone = $8, starts_at = $9, ends_at = $10, team_size_max = $11,
 			organiser_name = $12, organisation = $13, contact_email = $14, purpose = $15,
-			expected_participants = $16, accent_color = $17, updated_at = now(), team_finding = $18
+			expected_participants = $16, accent_color = $17, updated_at = now(), team_finding = $18, applications_open = $19
 		WHERE id = $1
 		RETURNING `+eventColumns,
 		e.ID, e.Title, e.Tagline, e.About, e.Rules, e.Prizes, e.CocText,
 		e.TimeZone, nullTime(e.StartsAt), nullTime(e.EndsAt), e.TeamSizeMax,
-		e.OrganiserName, e.Organisation, e.ContactEmail, e.Purpose, nullInt(e.ExpectedParticipants), e.AccentColor, e.TeamFinding,
+		e.OrganiserName, e.Organisation, e.ContactEmail, e.Purpose, nullInt(e.ExpectedParticipants), e.AccentColor, e.TeamFinding, e.ApplicationsOpen,
 	)
 	return scanEvent(row)
 }
@@ -561,13 +564,25 @@ type EventPerson struct {
 	JoinedAt       time.Time
 	CocAcceptedAt  sql.NullTime
 	ApprovalStatus string
+	// zp-hack-applications.sql. JoinedVia is on every EventPerson row
+	// (GET /people and the participants CSV); the profile fields are read
+	// only where ListEventPeople is used, since the CSV needs them (D3:
+	// they never reach GET /people's JSON).
+	JoinedVia string
+	City      string
+	Country   string
+	AgeRange  string
+	Gender    string
 }
 
-// ListEventPeople is GET /v1/hack/events/{slug}/people.
+// ListEventPeople is GET /v1/hack/events/{slug}/people and the participants
+// CSV. It is the only EventPerson listing that reads the application profile
+// fields (city, country, age_range, gender): the handler decides who sees them.
 func ListEventPeople(ctx context.Context, q Querier, eventID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, u.username, m.display_name, m.role, m.team_id,
-		       t.slug, t.name, m.joined_at, m.coc_accepted_at, m.approval_status
+		       t.slug, t.name, m.joined_at, m.coc_accepted_at, m.approval_status,
+		       m.joined_via, m.city, m.country, m.age_range, m.gender
 		  FROM event_members m
 		  JOIN users u ON u.id = m.user_id
 		  LEFT JOIN event_teams t ON t.id = m.team_id
@@ -581,7 +596,8 @@ func ListEventPeople(ctx context.Context, q Querier, eventID string) ([]EventPer
 	for rows.Next() {
 		var p EventPerson
 		if err := rows.Scan(&p.UserID, &p.Email, &p.DisplayName, &p.Role, &p.TeamID,
-			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt, &p.ApprovalStatus); err != nil {
+			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt, &p.ApprovalStatus,
+			&p.JoinedVia, &p.City, &p.Country, &p.AgeRange, &p.Gender); err != nil {
 			return nil, err
 		}
 		out = append(out, p)

@@ -51,6 +51,11 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		"vote_status": "disabled", "tracks": []any{}, "announcements": []any{},
 		"sponsors": []any{}, "faq": []any{}, "schedule": []any{},
 	}
+	if open := hackApplicationsOpenNow(ev.ApplicationsOpen, ev.Stage, ev.TakenDown()); open {
+		out["applications_open"], out["apply_url"] = true, strings.TrimRight(h.publicBaseURL, "/")+"/e/"+ev.Slug+"/apply"
+	} else {
+		out["applications_open"] = false
+	}
 	if n, t, _, err := db.CountEventMembers(r.Context(), h.database, ev.ID); err == nil {
 		out["participants"], out["teams"] = n, t
 	} else {

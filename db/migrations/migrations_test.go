@@ -215,6 +215,111 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 	}
 }
 
+// TestZPHackApplicationsMigratesPreExistingRows is Codex 6: a migration test
+// against genuinely pre-migration schema state (not just a missing
+// schema_migrations row, as the "untracked database" case above covers),
+// reusing TestMigrateAgainstPostgres's fresh-schema.sql + Apply() pattern.
+// zp-hack-applications.sql's own effect is undone first -- CASCADE drops its
+// CHECK constraints and partial indexes along with the columns -- so running
+// it here is not a no-op: it must backfill exactly what an existing,
+// unmigrated install has. An event defaults applications_open to true, and
+// an existing (join-link) participant gets joined_via='link' with blank
+// profile fields, never NULL (every column is NOT NULL).
+//
+// Runs against whatever MIGRATE_TEST_DSN already holds: standalone (an
+// empty throwaway database), schema.sql has not run yet, so it is applied
+// here. Run after TestMigrateAgainstPostgres in the same process (that is
+// also how scripts/check-fresh-install.sh exercises this package: one `go
+// test` against one throwaway database), schema.sql is already there --
+// CREATE TABLE users has no IF NOT EXISTS, so re-running it verbatim would
+// fail on a database it already built, and that failure would say nothing
+// about this test.
+func TestZPHackApplicationsMigratesPreExistingRows(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	var schemaApplied bool
+	if err := db.QueryRow(`SELECT to_regclass('public.users') IS NOT NULL`).Scan(&schemaApplied); err != nil {
+		t.Fatal(err)
+	}
+	if !schemaApplied {
+		schema, err := os.ReadFile("../schema.sql")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(string(schema)); err != nil {
+			t.Fatalf("schema.sql: %v", err)
+		}
+	}
+
+	// Undo the migration's own effect, simulating an install that has not
+	// run it yet.
+	if _, err := db.Exec(`ALTER TABLE event_members
+		DROP COLUMN joined_via CASCADE, DROP COLUMN city CASCADE,
+		DROP COLUMN country CASCADE, DROP COLUMN age_range CASCADE, DROP COLUMN gender CASCADE`); err != nil {
+		t.Fatalf("undo event_members columns: %v", err)
+	}
+	if _, err := db.Exec(`ALTER TABLE events DROP COLUMN applications_open CASCADE`); err != nil {
+		t.Fatalf("undo events column: %v", err)
+	}
+	// Whatever a schema_migrations row from an earlier run in this process
+	// says, the file must be pending again now that its columns are gone.
+	if _, err := db.Exec(`DELETE FROM schema_migrations WHERE name = 'zp-hack-applications.sql'`); err != nil {
+		t.Fatalf("clear schema_migrations row: %v", err)
+	}
+
+	// A leftover row from an earlier failed run of this same test.
+	db.Exec(`DELETE FROM events WHERE slug = 'zp-premigration-event'`)
+	db.Exec(`DELETE FROM users WHERE username IN ('zp-premigration-account@example.com', 'zp-premigration-member@example.com')`)
+
+	// Pre-existing rows, exactly as an unmigrated install would have them:
+	// an account, an event and a join-link participant, with no reference to
+	// the now-missing columns.
+	var accountID, memberID, eventID string
+	if err := db.QueryRow(`INSERT INTO users (username) VALUES ('zp-premigration-account@example.com') RETURNING id`).Scan(&accountID); err != nil {
+		t.Fatalf("insert account: %v", err)
+	}
+	if err := db.QueryRow(`INSERT INTO users (username) VALUES ('zp-premigration-member@example.com') RETURNING id`).Scan(&memberID); err != nil {
+		t.Fatalf("insert member: %v", err)
+	}
+	if err := db.QueryRow(`INSERT INTO events (slug, account_id, title, organiser_name, contact_email, join_code, judge_code)
+		VALUES ('zp-premigration-event', $1, 'Pre-migration event', 'Org', 'org@example.com', 'zp-premig-join', 'zp-premig-judge')
+		RETURNING id`, accountID).Scan(&eventID); err != nil {
+		t.Fatalf("insert event: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO event_members (event_id, user_id, role) VALUES ($1, $2, 'participant')`, eventID, memberID); err != nil {
+		t.Fatalf("insert pre-existing member row: %v", err)
+	}
+	t.Cleanup(func() {
+		db.Exec(`DELETE FROM events WHERE id = $1`, eventID)
+		db.Exec(`DELETE FROM users WHERE id IN ($1, $2)`, accountID, memberID)
+	})
+
+	if _, err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	var appsOpen bool
+	if err := db.QueryRow(`SELECT applications_open FROM events WHERE id = $1`, eventID).Scan(&appsOpen); err != nil {
+		t.Fatalf("read applications_open: %v", err)
+	}
+	if !appsOpen {
+		t.Error("existing event did not default applications_open to true")
+	}
+	var joinedVia, city, country, ageRange, gender string
+	if err := db.QueryRow(`SELECT joined_via, city, country, age_range, gender FROM event_members WHERE event_id = $1 AND user_id = $2`, eventID, memberID).
+		Scan(&joinedVia, &city, &country, &ageRange, &gender); err != nil {
+		t.Fatalf("read pre-existing member row: %v", err)
+	}
+	if joinedVia != "link" || city != "" || country != "" || ageRange != "" || gender != "" {
+		t.Errorf("pre-existing member backfilled as joined_via=%q city=%q country=%q age_range=%q gender=%q, want link/blank/blank/blank/blank", joinedVia, city, country, ageRange, gender)
+	}
+
+	// The file is idempotent and now recorded: a second run is a no-op.
+	if ran, err := Apply(ctx, db, nil); err != nil || len(ran) != 0 {
+		t.Errorf("second run: ran %v, err %v; want a no-op", ran, err)
+	}
+}
+
 // The saved-data files touch busy tables: each runs as one transaction with a
 // short lock timeout, so a backfill never races a write and a long lock wait
 // gives up instead of queueing every request behind it.

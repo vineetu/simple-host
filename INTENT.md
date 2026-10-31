@@ -129,6 +129,20 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-31. Applications without a join link.** A person can apply to an event from Find
+  a hackathon or its public page without a join link, for every event, including ones that
+  already exist. Applications are on by default, and the organiser can turn them off per event
+  in Settings. An application becomes a pending row in People → Applications, decided through
+  the existing approval flow. Name and email come from sign-in, not the form. The applicant may
+  optionally add a city and country, an age range, and a gender with a Prefer not to say option,
+  plus the organiser's own sign-up questions.
+- **2026-10-31. Application design calls, open to the owner's override.** Every application
+  waits for an organiser's decision even when join-link sign-ups don't, because a stranger who
+  found a listed event is not the same as someone the organiser invited. No decision email goes
+  out yet. The join-link sign-up form stays as it was. AgentCat never receives city, country,
+  age range or gender. There is no age restriction on applying. Under 18 shows a line asking a
+  parent or guardian to agree to the Terms.
+
 - **2026-10-30. Passcodes stay out of default chat flows.** The owner requires passcode
   setup and display on the Passcode screen or in the dashboard. Connector results never
   return plaintext passcodes, including generated ones. Agents may still send a passcode

@@ -7952,10 +7952,10 @@ paths:
       tags: ["Hosted events"]
       operationId: listHackDirectory
       summary: List public hackathons by now, upcoming and past
-      description: Public in hosted Hack mode. Lists events by default after Draft; organiser opt-outs and taken-down events are excluded.
+      description: Public in hosted Hack mode. Lists events by default after Draft; organiser opt-outs and taken-down events are excluded. Each row adds applications_open and, only when true, apply_url.
       responses:
         '200':
-          description: Groups now, upcoming and past, each with event title, stage, dates and public URL.
+          description: Groups now, upcoming and past, each with event title, stage, dates, public URL, applications_open and (when open) apply_url.
           content:
             application/json:
               schema:
@@ -8096,6 +8096,7 @@ paths:
                     starts_at: { type: string, format: date-time, nullable: true }
                     ends_at: { type: string, format: date-time, nullable: true }
                     taken_down: { type: boolean }
+                    approval_status: { type: string, enum: [pending, approved, rejected], description: "Participant rows only: so Home can say Waiting for the organisers or Not accepted." }
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       x-audience: ["public-hack"]
@@ -8210,6 +8211,7 @@ paths:
                 ends_at: { type: string }
                 team_size_max: { type: integer }
                 team_finding: { type: boolean, default: true }
+                applications_open: { type: boolean, description: "Whether people without the join link can apply. On by default; off stops new applications and keeps waiting ones." }
                 organiser_name: { type: string }
                 organisation: { type: string }
                 contact_email: { type: string }
@@ -9927,6 +9929,76 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /v1/hack/events/{slug}/apply:
+    get:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: getHackApply
+      summary: Apply to join an event, without a join link (EVENTS=hosted only)
+      description: >-
+        Signed out allowed; a valid X-API-Key meters the account instead of the
+        shared network address. 404 event_not_found for a draft, taken-down or
+        unknown event (identical body, so a draft's existence does not leak).
+        fields (city, country, age_range, gender) are fixed product choices,
+        always present. signup_questions, coc_default and coc_text are present
+        only when signed in AND applications are open right now (not when the
+        organiser's switch is off or the stage has moved past it) -- these
+        used to need the join code, and a closed or switched-off event must
+        not become a way to read them with only an account. me is present
+        only when signed in and already a member (null otherwise), with
+        role, joined_via and, for a participant, approval_status; it is
+        returned either way, open or closed. closed_reason is null,
+        applications_off or signup_over.
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200': { description: "Apply page fields: slug, title, tagline, icon_url, color, organiser_name, organisation, stage, starts_at, ends_at, time_zone, event_url, applications_open, closed_reason, fields" }
+        '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: postHackApply
+      summary: Apply as a participant, without a join link (EVENTS=hosted only)
+      description: >-
+        D1: every application is pending until an organiser decides it, whatever
+        approval_required says (that toggle governs join-link sign-ups only).
+        Rate-limited per account (RATE_LIMIT_EVENT_APPLY_USER) and per network
+        address (RATE_LIMIT_EVENT_APPLY_IP). A cap of 20 pending applications
+        per account returns 409 too_many_pending. A separate per-event ceiling
+        (EVENT_APPLY_PENDING_PER_EVENT, default 500) returns 409
+        event_applications_full when that one event already has that many
+        applications waiting for a decision. Reapplying as an existing
+        participant -- pending, approved or rejected -- is idempotent (200,
+        nothing changes, including after rejection, and whether or not
+        applications are open right now); a different role is 409
+        already_member.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accept_coc, display_name]
+              properties:
+                accept_coc: { type: boolean }
+                display_name: { type: string }
+                city: { type: string, maxLength: 80, description: "Optional, up to 80 characters." }
+                country: { type: string, description: "Optional. ISO 3166-1 alpha-2 country code, e.g. ID, GB, US." }
+                age_range: { type: string, enum: ["", under_18, "18_24", "25_34", 35_plus], description: "Optional." }
+                gender: { type: string, enum: ["", woman, man, non_binary, another, prefer_not_to_say], description: "Optional." }
+                answers: { type: object, additionalProperties: { type: string, maxLength: 500 } }
+      responses:
+        '200': { description: "Applied: same shape as POST /v1/hack/join/{code}, me.approval_status pending" }
+        '400': { description: "coc_required, invalid_display_name, invalid_city, invalid_country, invalid_age_range, invalid_gender, answer_required or invalid_answers", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "joining_closed, applications_closed, already_member, too_many_pending or event_applications_full", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /v1/hack/judge/{code}:
     get:
       x-audience: ["public-hack"]
@@ -10093,14 +10165,14 @@ paths:
       security: [{apiKey: []}]
       parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
       responses:
-        '200': {description: "{questions: [{id, prompt, required}], approval_required}"}
+        '200': {description: "{questions: [{id, prompt, required}], approval_required, applications_open}: applications_open is read-only here (People -> Sign-up's one-line summary); change it with PATCH .../events/{slug}"}
         '404': {$ref: '#/components/responses/NotFound'}
     put:
       x-audience: ["public-hack"]
       tags: ["Hosted events"]
       operationId: setHackRegistration
       summary: Set at most eight sign-up questions and approval requirement (organiser)
-      description: Existing applications retain the exact question prompts and answers submitted. Existing members stay approved. Cannot change an archived event.
+      description: "Existing applications retain the exact question prompts and answers submitted. Existing members stay approved. Cannot change an archived event. approval_required and admit_pending govern join-link sign-ups only (D1/D5): an application from POST .../apply always stays pending until decided."
       security: [{apiKey: []}]
       parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
       requestBody:
@@ -10112,7 +10184,7 @@ paths:
               required: [questions, approval_required]
               properties:
                 approval_required: {type: boolean}
-                admit_pending: {type: boolean, description: Approve all pending applicants in the same transaction when approval_required is false}
+                admit_pending: {type: boolean, description: "Approve all pending join-link sign-ups in the same transaction when approval_required is false. Applications never move: they always stay pending until an organiser decides them."}
                 questions:
                   type: array
                   maxItems: 8
@@ -10137,7 +10209,7 @@ paths:
       security: [{apiKey: []}]
       parameters: [{in: path, name: slug, required: true, schema: {type: string}}]
       responses:
-        '200': {description: "Event-scoped array of user_id, email, display_name, status, answers and joined_at"}
+        '200': {description: "Event-scoped array of user_id, email, display_name, status, answers, joined_at, joined_via, city, country, age_range and gender"}
         '404': {$ref: '#/components/responses/NotFound'}
   /v1/hack/events/{slug}/applications/{user_id}/decision:
     post:
@@ -10457,8 +10529,9 @@ paths:
       tags: ["Hosted events"]
       operationId: exportHackParticipantsCSV
       summary: Download participants CSV (EVENTS=hosted only)
-      description: 'Organiser only, event scoped. Columns: name, email, team, team_slug, joined_at, coc_accepted_at.
-        Text cells are formula-safe. Participant export excludes organisers and judges.'
+      description: 'Organiser only, event scoped. Columns: name, email, team, team_slug, joined_at, coc_accepted_at,
+        city, country, age_range, gender, joined_via.
+        Text cells are formula-safe. Participant export excludes organisers and judges, and pending applicants.'
       parameters:
       - in: path
         name: slug
@@ -10760,12 +10833,12 @@ paths:
       tags: ["Hosted events"]
       operationId: getHackPublicEvent
       summary: Public, credentialless event data for custom websites (EVENTS=hosted)
-      description: Cross-origin GET is allowed without credentials. Private join codes, contact addresses, unpublished scores, voter identities and open-vote counts are omitted.
+      description: Cross-origin GET is allowed without credentials. Private join codes, contact addresses, unpublished scores, voter identities, open-vote counts and approval_required are omitted. Adds applications_open and, only when true, apply_url.
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
       responses:
         '200':
-          description: Public event fields, gallery if open, published results and vote counts only after voting closes.
+          description: Public event fields, applications_open (and apply_url when open), gallery if open, published results and vote counts only after voting closes.
           content: { application/json: { schema: { type: object } } }
         '404': { description: Event not found or taken down, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/hack/events/{slug}/site:
@@ -13564,6 +13637,7 @@ components:
         ends_at: { type: string, format: date-time, nullable: true }
         team_size_max: { type: integer }
         team_finding: { type: boolean, default: true }
+        applications_open: { type: boolean, default: true, description: "Whether people without the join link can apply from Find a hackathon and the event page." }
         url: { type: string }
         taken_down: { type: boolean }
         results_visibility: { type: string, enum: [winners, ranking] }
@@ -13728,6 +13802,7 @@ components:
         joined_at: { type: string, format: date-time }
         coc_accepted_at: { type: string, format: date-time, nullable: true }
         has_key: { type: boolean, description: Participants only. True when this person has a team key. }
+        joined_via: { type: string, enum: [link, application], description: "How this member arrived: a join link, or an application (zp-hack-applications.sql)." }
 
     HackTeamOrganiser:
       type: object

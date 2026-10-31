@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updated": "2026-10-30",
+ "updated": "2026-10-31",
  "summary": [
   "Home (top left: the Simple Hack wordmark and your name) is always one click away. The event switcher sits one level below it -- it lists all your events with your role in each, and the sidebar below it changes with that role.",
   "Home itself is a full page: your events grouped by what needs you first, each with its role, stage and a plain next action, plus Find a hackathon, Create event and Account.",
@@ -11,7 +11,8 @@
   "On a phone, participants and judges use a bottom tab bar; organisers get a menu.",
   "Nothing new is invented: all 160 things Simple Hack does today have a home on a screen. Leave this event (SIM-340) is shown as planned.",
   "On a computer the sidebar folds into a narrow icon rail and back, remembered per browser.",
-  "On a computer the sidebar folds into a narrow icon rail and back, remembered per browser."
+  "On a computer the sidebar folds into a narrow icon rail and back, remembered per browser.",
+  "People without a join link can apply to an event from Find a hackathon or the event's page (on by default, organiser switch in Settings). Every application waits in People -> Applications with optional location, age range and gender; join links are unchanged and stay private."
  ],
  "sample_events": [
   {
@@ -1355,15 +1356,20 @@
    "nav_id": "people",
    "title": "People",
    "user_moment": "Amara has 4 new applications to approve before the weekend starts, plus wants to add a co-organiser.",
-   "purpose": "Decide who's in, see everyone who is, and manage sign-up rules and co-organisers -- applications first.",
+   "purpose": "Decide who's in -- people who applied from Find a hackathon or the event page, and join-link sign-ups that need approval -- see everyone who is, and manage sign-up rules and co-organisers. Applications first.",
    "primary_action": "Approve or reject each pending application.",
-   "layout": "Applications first and largest (.list, pending rows with inline answers), then a role-filtered People .list with a per-row menu, then two smaller cards: Co-organisers and Sign-up.",
+   "layout": "Applications first and largest: a filter row (From, Age range, Country, Sort) once anything is waiting, then one card per waiting person with their details and answers. Then the role-filtered Everyone list with a per-row menu, then two smaller cards: Co-organisers and Sign-up.",
    "sections": [
     {
      "name": "Applications",
      "contents": [
-      "Siti Rahma -- 'Why do you want to join?' -> 'I want to build my first app.' -- applied 2 hours ago",
-      "3 more pending"
+      "Filter row: From (Everyone waiting / Applied / Join link) · Age range (Any / Under 18 / 18-24 / 25-34 / 35+) · Country (Any + the countries present) · Sort (Oldest first / Newest first). Counts in the From options. Labels sit above the selects; on a phone the four wrap into a 2x2 grid above the cards.",
+      "Siti Rahma -- siti.rahma@example.com -- [Applied] -- Applied 2 hours ago",
+      "Jakarta, Indonesia · 18-24 · Woman or girl",
+      "'Why do you want to join?' -> 'I want to build my first app.'",
+      "Nabila Sari -- [Join link] -- Bandung, Indonesia · [Under 18] · Prefer not to say",
+      "Laras Wulandari -- [Applied] -- 'Didn't share location, age range or gender'",
+      "No match for the filters: 'Nobody waiting matches these filters.' with Clear filters"
      ],
      "actions": [
       {
@@ -1375,6 +1381,11 @@
        "label": "Reject",
        "kind": "danger",
        "confirm": "Siti stays a member but can't start or join a team or publish for this event. This can't be undone by re-approving later. Reject this application?"
+      },
+      {
+       "label": "Clear filters",
+       "kind": "quiet",
+       "confirm": null
       }
      ]
     },
@@ -1382,13 +1393,13 @@
      "name": "People",
      "contents": [
       "Filter: Everyone / Organisers / Participants / Judges / Co-organisers",
-      "Name, role, approval status, team (if any), joined date, one row each"
+      "Name, role, approval status, 'Applied' when they came by application, team (if any), joined date, one row each"
      ],
      "actions": [
       {
        "label": "Remove from event",
        "kind": "danger",
-       "confirm": "Siti and her team membership are removed. She can rejoin with the current join link unless you regenerate it."
+       "confirm": "Siti and her team membership are removed. She can rejoin with the current join link unless you regenerate it, or apply again while applications are on -- you'd decide on that application."
       },
       {
        "label": "Turn off publishing key",
@@ -1429,8 +1440,9 @@
     {
      "name": "Sign-up",
      "contents": [
-      "Approve participants before they can join or publish with a team (toggle, on)",
-      "Questions: 'Why do you want to join?' (required), 'What's your experience level?' (optional)"
+      "Approve people who join with your link before they can join a team or publish (toggle)",
+      "Line under it: 'Applications from Find a hackathon and your event page always wait for you, whatever this says. Applications are on -- change in Settings.' (Settings links to organiser-settings#applications; reads 'off' when off)",
+      "Questions: 'Why do you want to join?' (required), 'What's your experience level?' (optional). Note: 'Applicants also get three optional fields of ours: where they're based, age range and gender.'"
      ],
      "actions": [
       {
@@ -1446,7 +1458,7 @@
       {
        "label": "Turn approval off",
        "kind": "secondary",
-       "confirm": "4 people are still waiting. Approve all of them now, or leave them pending -- you can still approve or reject each one later from this list. New joiners after this point won't need approval either way."
+       "confirm": "4 people who joined with your link are still waiting. Approve all of them now, or leave them pending -- you can still approve or reject each one later from this list. Applications aren't affected: they always wait for your decision."
       }
      ]
     }
@@ -1461,6 +1473,16 @@
      "name": "sign-up not open yet",
      "when": "stage is Draft",
      "shows": "Applications reads 'Sign-up isn't open yet. Move the event to Open to start taking applications.'"
+    },
+    {
+     "name": "filters hide everything",
+     "when": "filters set, nothing waiting matches",
+     "shows": "'Nobody waiting matches these filters.' with Clear filters; the header count still says how many are waiting in total."
+    },
+    {
+     "name": "applications off, nothing waiting",
+     "when": "applications switched off and no pending sign-ups",
+     "shows": "Applications collapses as before ('Nobody is waiting for approval'); the Sign-up card's line reads 'Applications are off -- change in Settings'."
     }
    ],
    "replaces": [
@@ -1473,14 +1495,35 @@
     "Critique #7: Reject's confirm now states the real consequence (permanently blocked for this event, not re-decidable) instead of a made-up join-link effect.",
     "Critique: People's list had no row actions at all -- added Remove from event, Turn off publishing key, Remove co-organiser.",
     "Critique: Create invitation now says plainly that it grants full control including deletion, since it does.",
-    "Retest (Grok SIM-346): the no-applications note now names the real stage (‘Move the event to Sign-up open’) instead of a stage that doesn't exist (‘Open’); the whole screen reads read-only with one note once the event has ended."
+    "Retest (Grok SIM-346): the no-applications note now names the real stage (‘Move the event to Sign-up open’) instead of a stage that doesn't exist (‘Open’); the whole screen reads read-only with one note once the event has ended.",
+    "Applications cards now show the applicant's email, which features.json review-application always listed but the built card left out."
    ],
-   "phone": "Applications first, full width, one card per applicant; People/Co-organisers/Sign-up collapse into an accordion below.",
+   "phone": "Applications first, full width, one card per applicant, filters as a 2x2 grid above them; People/Co-organisers/Sign-up collapse into an accordion below.",
    "decisions": [
     {
      "q": "Should the co-organiser invite warn about the scope it grants?",
      "decision": "Yes -- state it in the section's own text and again in the Create invitation confirm.",
      "why": "Critique §1 Q3 (code-confirmed): any accepted co-organiser can delete the event; today's copy doesn't say so. This is a real risk worth surfacing, not just a UX nicety."
+    },
+    {
+     "q": "Do applications need approval on an event where join-link sign-ups are let straight in?",
+     "decision": "Yes. An application is always pending until an organiser approves it, whatever the approval toggle says. The toggle now only governs people who join with the link, and its label says so.",
+     "why": "A join link is the organiser's own invitation: they chose who got it. An application comes from a stranger they have never seen, so auto-admitting it would let anyone who finds a listed event publish a team site at <team>.<event>.simple-hack.app and count as a participant before anyone looked. Owner, 2026-10-31: an application makes the person a pending participant in People -> Applications."
+    },
+    {
+     "q": "Turning approval off with 'admit everyone waiting': does it admit applications too?",
+     "decision": "No. It admits only join-link sign-ups that are waiting; applications stay pending.",
+     "why": "Same reason: the toggle is about link sign-ups. A bulk admit of strangers would undo the review the feature promises."
+    },
+    {
+     "q": "Show the new fields in the Everyone list too?",
+     "decision": "No. Only an 'Applied' marker on the row. The details live on the application card and in the CSV.",
+     "why": "The Everyone list is for finding a person and acting on them; location, age and gender there would be noise on every row and repeat personal data where it isn't needed."
+    },
+    {
+     "q": "Highlight Under 18?",
+     "decision": "Yes, as a warn pill on the waiting card ('Under 18'). Nothing else changes for minors.",
+     "why": "Organisers running events with young people have their own safeguarding rules (consent forms, chaperones); the pill makes sure they notice before approving. It shows data the applicant chose to give, nothing inferred."
     }
    ],
    "features": [
@@ -1495,20 +1538,23 @@
     "remove-organiser",
     "list-people",
     "remove-person",
-    "turn-off-persons-key"
+    "turn-off-persons-key",
+    "view-applicant-details",
+    "filter-applications"
    ],
    "prototype_states": [
-    {
-     "slug": "pending",
-     "name": "4 applications pending",
-     "stage": "open",
-     "next": "4 applications waiting on you"
-    },
     {
      "slug": "empty",
      "name": "Nothing waiting",
      "stage": "building",
      "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "pending",
+     "name": "4 applications pending",
+     "stage": "open",
+     "next": "4 applications waiting on you",
+     "note": "Filter row, three applied and one join-link card with location, age range and gender."
     }
    ]
   },
@@ -2423,6 +2469,11 @@
      "q": "Is keeping 'Voting & directory' as one card inside Results the right final shape, given voting can run alongside judging, not just after it?",
      "decision": "Keep it in Results for v0, but flag this as worth revisiting once there's real usage data, not settle it as final.",
      "why": "votingStatus (internal/handler/hack_voting.go:13-30) only excludes draft/taken-down/archived, and the gallery it depends on can open as early as Building -- nothing in the code ties voting to the judging stage, and the public event page already renders the voting section at the same time as the 'judging is under way' hero line (hack-event.html:123-129). That's design-level evidence the mechanism is meant to run concurrently with judging/building. It is not evidence of how organisers actually use the voting controls in practice, since no usage analytics exist to check. Keeping voting inside Results for v0 stays a reasonable, reorganise-not-invent compromise; revisit with a dedicated nav item only if real usage shows organisers reaching for it mid-event often enough to justify an 8th-to-9th nav item."
+    },
+    {
+     "q": "Do the applicant fields reach the CSV?",
+     "decision": "Yes: participants CSV gains city, country, age_range, gender and joined_via as its last five columns. Existing columns keep their positions so anyone's spreadsheet formulas keep working.",
+     "why": "Owner, 2026-10-31: the CSV export includes them. Appending keeps old imports working."
     }
    ],
    "features": [
@@ -2442,7 +2493,8 @@
     "enable-peoples-choice-voting",
     "set-voting-window",
     "set-voting-eligibility",
-    "list-event-in-directory"
+    "list-event-in-directory",
+    "export-applicant-fields"
    ],
    "prototype_states": [
     {
@@ -2466,9 +2518,9 @@
    "nav_id": "settings",
    "title": "Settings",
    "user_moment": "Amara updates the organisation name, wires up a notification for her custom event website, and -- much later -- deletes a test event.",
-   "purpose": "Event identity, integrations, and the one place irreversible event-level actions live.",
+   "purpose": "Event identity, who can ask to join, integrations, and the one place irreversible event-level actions live.",
    "primary_action": "Save organiser identity details.",
-   "layout": "Organiser identity card, Notifications card, a red-bordered .danger-zone last.",
+   "layout": "Organiser identity card, Applications card (one switch), Notifications card, a red-bordered .danger-zone last.",
    "sections": [
     {
      "name": "Organiser",
@@ -2483,6 +2535,23 @@
       {
        "label": "Save",
        "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Applications",
+     "contents": [
+      "Switch, on: 'Let people apply without your join link'",
+      "Help: 'An Apply button shows on your event page, and on Find a hackathon when your event is listed there, while sign-up is open and during Building. Every application waits for you in People -> Applications.'",
+      "Under it: 'Your join link keeps working either way and stays private. Turning this off stops new applications; ones already waiting stay in People.'",
+      "Status line: 'Listed in Find a hackathon: yes -- change in Results.' (or 'not listed -- people can apply from your event page only')",
+      "Saved note beside the switch after each change"
+     ],
+     "actions": [
+      {
+       "label": "Let people apply without your join link (switch)",
+       "kind": "toggle",
        "confirm": null
       }
      ]
@@ -2530,6 +2599,16 @@
      "name": "last organiser tries to leave (planned)",
      "when": "the only organiser left picks Leave this event",
      "shows": "Leave is replaced with a .dialog: 'You're the only organiser. Nobody would be left to run Generation Girl Online Hack 2026 if you leave.' with three choices: End the event, Delete the event, or Cancel -- no silent leave that orphans a live event"
+    },
+    {
+     "name": "applications off",
+     "when": "switch off",
+     "shows": "Switch off; the help line reads 'Only people with your join link can join.' Nothing else on the page changes."
+    },
+    {
+     "name": "event ended",
+     "when": "stage is ended (archived)",
+     "shows": "The switch is disabled with the page's read-only note, like every other control after the event ends."
     }
    ],
    "replaces": [
@@ -2546,12 +2625,23 @@
      "q": "Should every page on the site use the same save convention?",
      "decision": "Checkboxes and single toggles autosave, everything else gets one visible Save button per section -- with one explicit exception.",
      "why": "Atlas flagged three different save conventions on one tab; two patterns everywhere is simple to hold consistently. The exception: judge-scoring keeps per-tap autosave on every point chip, with no Save button at all, because that's a deliberate, load-bearing design already in the product (domain truth F.3) for judges scoring standing up on a phone -- this rule does not apply there. See judge-scoring's own decisions."
+    },
+    {
+     "q": "Where does the applications switch live?",
+     "decision": "Settings, in its own card right under Organiser, saved instantly like every single toggle. People -> Sign-up shows its state in one line with a link here.",
+     "why": "Owner, 2026-10-31: the organiser can turn applications off in Settings. It is an event-wide 'who can ask to join' rule, not a per-person decision, so it sits with the event's identity rather than in the review queue."
+    },
+    {
+     "q": "Default for the switch?",
+     "decision": "On, for every event including ones that already exist (the column defaults to true).",
+     "why": "Owner, 2026-10-31: applications are on by default for every event. Flagged to the owner: existing open events gain an Apply button the day this ships."
     }
    ],
    "features": [
     "edit-organiser-details",
     "event-website-notifications",
-    "delete-event"
+    "delete-event",
+    "toggle-applications"
    ],
    "prototype_states": [
     {
@@ -2684,7 +2774,7 @@
     {
      "name": "pending / rejected approval",
      "when": "approval is required and not yet decided, or decided no",
-     "shows": "a .note warn (pending) or .note bad (rejected) replaces the next-step card: 'Your application is waiting for an organiser. You'll get an email when it's approved' or 'Your application wasn't accepted this time.' Nothing else on Home is reachable until approved"
+     "shows": "a .note warn (pending) or .note bad (rejected) replaces the next-step card: 'Your application is waiting for the organisers. You'll see their answer here.' or 'Your application wasn't accepted this time.' Nothing else on Home is reachable until approved. Same copy for an application and a join-link sign-up."
     },
     {
      "name": "on a team, entry incomplete",
@@ -2716,7 +2806,8 @@
    "fixes": [
     "Addresses the brief's point that every role needs a Home; no atlas screen played this role for participants before.",
     "Critique missing state: 'just placed by Fill teams' and the team-removal notice (team-removal-notice) are now explicit states here, not silently absent.",
-    "Retest (Grok SIM-346, round 3): the pending-invite hero dropped the 'Entries close ...' deadline note the find-a-team hero shows -- an invite is just as time-limited, so it keeps the same note instead of going quiet about the deadline."
+    "Retest (Grok SIM-346, round 3): the pending-invite hero dropped the 'Entries close ...' deadline note the find-a-team hero shows -- an invite is just as time-limited, so it keeps the same note instead of going quiet about the deadline.",
+    "The pending note promised 'You'll get an email when it's approved'; no such email exists, so it now says where the answer will appear."
    ],
    "phone": "Identical layout; default phone tab.",
    "features": [
@@ -4065,6 +4156,11 @@
      "name": "empty, brand-new account",
      "when": "no events yet",
      "shows": "'You're not part of any event yet' plus three paths: Create event (primary), Find a hackathon (secondary), and 'Have a join or judge link? Open it to get started.' Account is still reachable from the sidebar top section, as on every screen."
+    },
+    {
+     "name": "waiting on an application",
+     "when": "a participant row whose approval_status is pending or rejected",
+     "shows": "The row's next action reads 'Waiting for the organisers' (pending) or 'Not accepted' (rejected) instead of a stage guess. Needs approval_status on participant rows of GET /v1/hack/events."
     }
    ],
    "replaces": [
@@ -4169,7 +4265,7 @@
     }
    ],
    "purpose": "Tell a stranger in a few seconds what this event is, who runs it and what stage it is in, then give the one thing that stage is for: how to join, what is on now, what teams built, voting, or the results. Everything else the organiser wrote stays on the page, ordered by who needs it at that stage.",
-   "primary_action": "Depends on the stage. Draft: none. Open: how to join (the join link comes from the organisers, the page cannot show it). Building: time left until entries close, then See team sites when the gallery is on. Closed and Judging: See what teams built. People's choice open (any stage): Vote. Results and Ended: the results list itself, each winner linking to its site. Taken down: none.",
+   "primary_action": "Depends on the stage. Draft: none. Open: Apply when the event takes applications (the default), otherwise how to join with the organisers' link. Building: time left until entries close, then See team sites when the gallery is on, Apply beside it. Closed and Judging: See what teams built. People's choice open (any stage): Vote. Results and Ended: the results list itself, each winner linking to its site. Taken down: none.",
    "primary_action_by_stage": [
     {
      "stage": "draft",
@@ -4178,13 +4274,13 @@
     },
     {
      "stage": "open",
-     "action": "How to join card: 'Join with the link from the organisers'. Secondary text link 'Already joined? Sign in'.",
-     "target": "AppURL/events (sign-in first if needed)"
+     "action": "Applications on (default): primary 'Apply' plus quiet 'Already joined? Sign in'. Applications off: the 'Join with the link from the organisers' card with only 'Already joined? Sign in'.",
+     "target": "AppURL/e/{slug}/apply, or AppURL/events"
     },
     {
      "stage": "building",
-     "action": "Entries deadline with time left. Primary button 'See team sites' when the gallery is on, otherwise 'Already joined? Sign in' as the only action.",
-     "target": "#sites or AppURL/events"
+     "action": "Entries deadline with time left. Primary 'See team sites' when the gallery is on, else Apply is primary (applications on). 'Already joined? Sign in' stays quiet.",
+     "target": "#sites, AppURL/e/{slug}/apply or AppURL/events"
     },
     {
      "stage": "closed",
@@ -4411,12 +4507,18 @@
      "stages": "open",
      "contents": [
       "SIGN-UP IS OPEN",
-      "Join with the link from the organisers",
-      "Generation Girl shares a join link with you, for example in a WhatsApp group or by email. Open it and sign in with your email. Some events ask a few questions first.",
+      "Apply to join",
+      "Sign in with your email and fill in a short form. The organisers decide who joins, and you'll see their answer on your Simple Hack Home. Have a join link from Generation Girl? Open that instead.",
       "Entries close Thu 29 Oct 2026, 18:00 WIB · 9 days left",
-      "Already joined? Sign in"
+      "Applications off: the card is today's 'Join with the link from the organisers' card, unchanged."
      ],
      "actions": [
+      {
+       "label": "Apply",
+       "kind": "primary",
+       "confirm": null,
+       "target": "AppURL/e/{slug}/apply"
+      },
       {
        "label": "Already joined? Sign in",
        "kind": "quiet",
@@ -4432,7 +4534,7 @@
       "TEAMS ARE BUILDING",
       "Entries close Thu 29 Oct, 18:00 WIB",
       "1 day 4 hours left (counts down with JavaScript, the date alone without it)",
-      "Sign-up is still open. Join with the link from the organisers.",
+      "Applications on: 'Sign-up is still open. Apply, or join with the link from the organisers.' Off: 'Sign-up is still open. Join with the link from the organisers.'",
       "Already joined? Sign in"
      ],
      "actions": [
@@ -4441,6 +4543,12 @@
        "kind": "primary",
        "confirm": null,
        "target": "#sites"
+      },
+      {
+       "label": "Apply",
+       "kind": "secondary",
+       "confirm": null,
+       "target": "AppURL/e/{slug}/apply"
       },
       {
        "label": "Already joined? Sign in",
@@ -4708,22 +4816,22 @@
     {
      "name": "open",
      "when": "stage is open",
-     "shows": "Stage card 'Join with the link from the organisers' with the entries deadline and time left, a quiet 'Already joined? Sign in'. Then About, Tracks, Prizes, Schedule, FAQ, Rules, Sponsors, Announcements."
+     "shows": "Applications on (the default): stage card 'Apply to join' with a primary Apply button, the entries deadline and time left, and a quiet 'Already joined? Sign in'. Applications off: today's 'Join with the link from the organisers' card. Then About, Tracks, Prizes, Schedule, FAQ, Rules, Sponsors, Announcements."
     },
     {
      "name": "open, approval required",
      "when": "stage is open and the organiser reviews sign-ups",
-     "shows": "Identical to open. The page has no approval flag, so it never promises instant entry: the card says 'Some events ask a few questions first' and today's 'Anyone can join' line is gone. The review itself is explained on public-join after the link is opened. A line 'The organisers review every sign-up' needs the flag (feature idea)."
+     "shows": "Identical to open. With applications on, the card already says the organisers decide who joins (every application is reviewed, whatever the join-link approval setting). With applications off it still says 'Some events ask a few questions first'."
     },
     {
      "name": "building",
      "when": "stage is building, gallery off",
-     "shows": "Stage card 'Entries close Thu 29 Oct, 18:00 WIB' with time left and 'Sign-up is still open'. Only action is 'Already joined? Sign in'. Announcements and Schedule (with Now and Next) come straight after, for participants mid-event."
+     "shows": "Stage card 'Entries close Thu 29 Oct, 18:00 WIB' with time left. Applications on: 'Sign-up is still open. Apply, or join with the link from the organisers.' and Apply as the card's action (primary when there is no gallery). Off: 'Join with the link from the organisers.' and only 'Already joined? Sign in'. Announcements and Schedule (with Now and Next) come straight after, for participants mid-event."
     },
     {
      "name": "building, gallery on",
      "when": "stage is building and the gallery has at least one live team site",
-     "shows": "Same card with a primary 'See team sites (12)'. Team sites section sits after Schedule. Cards carry no status tags (the page has no per-team status)."
+     "shows": "Same card with a primary 'See team sites (12)'; Apply drops to a secondary button beside it, so there is still one main action. Team sites section sits after Schedule. Cards carry no status tags (the page has no per-team status)."
     },
     {
      "name": "people's choice open",
@@ -4774,6 +4882,11 @@
      "name": "empty organiser content",
      "when": "a section has no content",
      "shows": "The section and its chip are left out. No empty headings. If About, Tracks, Prizes, Schedule, Rules, FAQ and Sponsors are all empty, the page is the header and the stage card."
+    },
+    {
+     "name": "applications off",
+     "when": "the organiser turned applications off (stage open or building)",
+     "shows": "Today's card: 'Join with the link from the organisers' and the explanation of where the link comes from, no Apply anywhere on the page. The page never says applications are off: it simply describes the one way in."
     }
    ],
    "replaces": [
@@ -4863,16 +4976,32 @@
      "q": "Should Team sites show in the open stage too?",
      "decision": "Team sites show from sign-up when the gallery is on, as before (review 2026-10-30)",
      "why": "The old page showed the gallery in every stage after draft whenever the gallery switch was on, and voting can open before entries close too. layout_by_stage.open had dropped it; restored right after Tracks, the same adjacency every later stage keeps between the two."
+    },
+    {
+     "q": "What is the main action in Open now that people can apply?",
+     "decision": "Apply, when the event takes applications (on by default). The card says the organisers decide and where the answer appears, and points people who have a join link to it. With applications off, the old 'Join with the link from the organisers' card returns unchanged. The join link itself is never shown.",
+     "why": "Owner, 2026-10-31: people without a join link apply from the event's page; join links stay private. This answers open question 1 and replaces feature idea 1 (expose the join link)."
+    },
+    {
+     "q": "Does the page say whether approval is needed?",
+     "decision": "Only through the Apply card's 'The organisers decide who joins'. The public data gains one boolean, applications_open, and nothing about the join-link approval setting.",
+     "why": "Every application is reviewed whatever that setting is, so the sentence is always true. Keeping the public data to one fact keeps the organiser's sign-up rules private (feature idea 2 is no longer needed)."
+    },
+    {
+     "q": "An organiser's own uploaded site at the event address: where is Apply?",
+     "decision": "On the built-in page at simple-hack.app/e/<slug> as always. The organiser can link their own site to simple-hack.app/e/<slug>/apply; organiser-api.md says so.",
+     "why": "The redesign touches only the built-in page; the apply address is stable and works from anywhere."
     }
    ],
    "features": [
     "view-public-event-page",
     "view-public-results-page",
-    "open-team-site-from-gallery"
+    "open-team-site-from-gallery",
+    "apply-to-event"
    ],
    "feature_ideas": [
-    "1. Show a Join button on the public page (organiser opt-in that exposes the join link). Today the page cannot show it, and the app has no field to type a join code.",
-    "2. An approval-required flag in the page data, so Open can say 'The organisers review every sign-up'.",
+    "(Done 2026-10-31, replaced by Apply) 1. Show a Join button on the public page.",
+    "(Done 2026-10-31, superseded by applications_open) 2. An approval-required flag in the page data.",
     "3. Where and for whom: a format/location field (Online, or a venue and city) and an eligibility line (age, who can join). Parents look for both, today they only exist if the organiser writes them into About.",
     "4. An organiser contact (email) for questions from parents, sponsors and judges.",
     "5. The code of conduct on the public page. It is shown on the join page but not in the event page data.",
@@ -4884,20 +5013,12 @@
     "11. A role-aware link such as simple-hack.app/e/<slug>/open that sends a signed-in member straight to their own Home in the event."
    ],
    "open_questions": [
-    "Is keeping the join link off the public page deliberate (only people the organiser sends it to can join)? If yes, the Open stage card stays as designed. If no, feature idea 1 becomes the Open stage's main action.",
     "OK to drop 'Anyone can join. No coding needed.' from the header? It is wrong for approval-only events and for events that do need code.",
     "Draft: keep showing the organiser's full content (it is their only preview, and noindex) with a 'Not open yet' card, or hide everything but the title?",
     "Plain wording for the score method line: what should 'raw' and 'normalised' say to a parent? Proposed: 'Scores are the judges' average' and 'Scores are adjusted so strict and generous judges count the same'.",
     "Should the team and participant counts show during Open? They are reassuring for a big event and off-putting for a new one with 3 sign-ups."
    ],
    "prototype_states": [
-    {
-     "slug": "open",
-     "name": "Sign-up open",
-     "stage": "open",
-     "next": null,
-     "note": "Base file. Stage card 'Join with the link from the organisers', deadline with 9 days left, prospect order (About, Tracks, Prizes, Schedule, FAQ ...)."
-    },
     {
      "slug": "draft",
      "name": "Not open yet",
@@ -4939,6 +5060,20 @@
      "stage": "taken down",
      "next": null,
      "note": "Title, 'This event has been taken down.', the reason, Find another hackathon. No colour, no icon."
+    },
+    {
+     "slug": "open",
+     "name": "Sign-up open",
+     "stage": "open",
+     "next": null,
+     "note": "Base file. Stage card 'Apply to join' with a primary Apply, deadline with 9 days left, prospect order (About, Tracks, Prizes, Schedule, FAQ ...)."
+    },
+    {
+     "slug": "applications-off",
+     "name": "Sign-up open, applications off",
+     "stage": "open",
+     "next": null,
+     "note": "Today's card: 'Join with the link from the organisers', no Apply."
     }
    ]
   },
@@ -5035,8 +5170,212 @@
      "next": null
     }
    ],
-   "decisions": [],
+   "decisions": [
+    {
+     "q": "Does the join link change now that people can apply?",
+     "decision": "No. Same page, same form, same approval rule, same private link. It does not ask for location, age range or gender. The only addition: someone who already applied and opens a join link sees their application's state here, as any existing member does.",
+     "why": "Owner, 2026-10-31: join links keep working as now and stay private."
+    }
+   ],
    "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "public-apply",
+   "role": "visitor",
+   "nav_id": null,
+   "title": "Apply to Generation Girl Online Hack 2026",
+   "route": "AppURL/e/{slug}/apply -- served by the app shell like /join/{code}, reachable signed out",
+   "user_moment": "Someone found the event in Find a hackathon or on its page, has no join link, and wants in. Often a student on a phone between classes; sometimes their AI app is doing it for them with the same steps.",
+   "purpose": "Take an application from a stranger in one short form, say plainly who sees the answers, then say exactly what happens next.",
+   "primary_action": "Sign in, then Send application.",
+   "layout": "One narrow column (kit .pub, .card), the same frame as public-join: event header (title, Organised by, dates, a link back to the event page), then one card whose content depends on the state: what you will be asked and Sign in to apply; the form; or the outcome note with its next step.",
+   "sections": [
+    {
+     "name": "Event header",
+     "contents": [
+      "Generation Girl Online Hack 2026",
+      "Organised by Amara Putri (Generation Girl)",
+      "28-29 Oct 2026 · times in WIB",
+      "See the event page (link)"
+     ],
+     "actions": [
+      {
+       "label": "See the event page",
+       "kind": "quiet",
+       "confirm": null,
+       "target": "<event>.simple-hack.app"
+      }
+     ]
+    },
+    {
+     "name": "Before sign-in",
+     "contents": [
+      "Apply to join",
+      "Sign in with your email, then fill in one short form: your name, where you're based, your age range and gender, and a few questions from the organisers. Where you're based, age range and gender are optional.",
+      "The organisers decide who joins. You'll see their answer here and on your Simple Hack Home.",
+      "Have a join link from the organisers? Open that instead."
+     ],
+     "actions": [
+      {
+       "label": "Sign in to apply",
+       "kind": "primary",
+       "confirm": null,
+       "target": "/signin?next=/e/{slug}/apply"
+      }
+     ]
+    },
+    {
+     "name": "Application form (signed in)",
+     "contents": [
+      "Signed in as dewi.lestari@example.com · Not you? Sign out",
+      "Your name -- prefilled from the account, required. Help: 'Shown to the organisers, and to your teammates once you're in.'",
+      "Where you're based (optional): City (text, up to 80 characters) and Country (list of countries, names in the browser's language)",
+      "Age range (optional): Under 18 · 18-24 · 25-34 · 35+ (radio cards, none picked)",
+      "Under 18 picked: a plain .note appears under the choices -- 'If you're under 18, a parent or guardian needs to agree to Simple Hack's Terms for you.' with Terms linked. Nothing else is asked.",
+      "Gender (optional): Woman or girl · Man or boy · Non-binary · Another gender · Prefer not to say (a select, 'Choose' first)",
+      "Questions from the organisers: each sign-up question, required ones unmarked, optional ones end in '(optional)' -- the join form's convention. Hidden when the event has none.",
+      "Code of conduct: the default text, then 'From the organisers' when they added their own. Checkbox 'I agree to the code of conduct'.",
+      "Privacy line above the button: 'Only the organisers of Generation Girl Online Hack 2026 see your answers. They're never shown on the event page or to other participants.'"
+     ],
+     "actions": [
+      {
+       "label": "Send application",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "signed out",
+     "when": "no key in this browser",
+     "shows": "Event header plus the Before sign-in card. Nothing the organiser wrote for applicants (questions, code of conduct) is shown before sign-in: the public only learns that applications are open."
+    },
+    {
+     "name": "form",
+     "when": "signed in, not a member, applications open",
+     "shows": "The form above. Send application disables while sending. Errors from the server sit under the field they belong to (answer_required under that question, invalid_country under Country), anything else in the card's one status line."
+    },
+    {
+     "name": "sent / waiting",
+     "when": "just sent, or came back while the application is pending",
+     "shows": ".note warn 'Your application is waiting for the organisers.' then 'They decide who joins Generation Girl Online Hack 2026. You'll see their answer here and on your Home. Once you're in, you can find a team.' Buttons: Go to your Home (primary, /events), See the event page."
+    },
+    {
+     "name": "accepted / already in",
+     "when": "a participant whose application or join was approved",
+     "shows": ".note ok 'You're in Generation Girl Online Hack 2026.' with Go to the event (primary, /e/{slug}/team)."
+    },
+    {
+     "name": "not accepted",
+     "when": "their application (or join) was rejected",
+     "shows": ".note bad 'Your application wasn't accepted this time.' then 'Organisers decide who joins each event.' Buttons: Find another hackathon (primary), See the event page. No re-apply: a decision is final for this event, as today."
+    },
+    {
+     "name": "already in another role",
+     "when": "they are an organiser or judge of this event",
+     "shows": ".note 'You're already part of this event as a judge.' with Open the event (/events)."
+    },
+    {
+     "name": "applications off",
+     "when": "the organiser turned applications off",
+     "shows": ".note warn 'This event isn't taking applications.' then 'The organisers only take people with their join link. If you have one, open it to join.' Buttons: See the event page, Find another hackathon. Shown signed in or out."
+    },
+    {
+     "name": "sign-up over",
+     "when": "stage is closed, judging, results or ended",
+     "shows": ".note 'Sign-up has closed for this event.' with See the event page."
+    },
+    {
+     "name": "not open yet / not found",
+     "when": "draft, taken down, or no such event",
+     "shows": "Draft: 'This event isn't open yet. Check back later.' Not found or taken down: 'We couldn't find this event.' with Find a hackathon. Both answer 404 from the API so a draft's existence does not leak through the apply route."
+    },
+    {
+     "name": "too many tries",
+     "when": "rate limit (429 rate_limited)",
+     "shows": "Status line 'Too many applications from this account. Wait a while and try again.' The form keeps what was typed."
+    }
+   ],
+   "replaces": [],
+   "fixes": [],
+   "features": [
+    "preview-application",
+    "apply-to-event"
+   ],
+   "prototype_states": [
+    {
+     "slug": "signed-out",
+     "name": "Signed out",
+     "stage": "open",
+     "next": null,
+     "note": "Base file. What you'll be asked, Sign in to apply."
+    },
+    {
+     "slug": "form",
+     "name": "Form",
+     "stage": "open",
+     "next": null,
+     "note": "Signed in. Under 18 picked, so the guardian note shows."
+    },
+    {
+     "slug": "sent",
+     "name": "Sent, waiting",
+     "stage": "open",
+     "next": null
+    },
+    {
+     "slug": "rejected",
+     "name": "Not accepted",
+     "stage": "open",
+     "next": null
+    },
+    {
+     "slug": "closed",
+     "name": "Applications off",
+     "stage": "open",
+     "next": null
+    }
+   ],
+   "phone": "Single column, 16px gutter. City and Country stack. Age range is a 2x2 grid of radio cards, each at least 44px tall. Send application is full width. The privacy line sits directly above it so it is read at the moment of sending.",
+   "decisions": [
+    {
+     "q": "Its own page, or a step inside the join page?",
+     "decision": "Its own address, /e/{slug}/apply, and its own screen module, reusing public-join's markup for the questions and code of conduct.",
+     "why": "The join page is keyed by a secret code and must keep working exactly as now (owner, 2026-10-31). An application is keyed by the public event name, has different rules (always reviewed, extra optional fields, organiser switch) and a different audience. One screen per atlas id keeps both simple."
+    },
+    {
+     "q": "Show the organiser's questions before sign-in, like public-join does?",
+     "decision": "No. Before sign-in the page says what kinds of things are asked; the questions and the organiser's code of conduct appear after sign-in.",
+     "why": "Organisers wrote those questions for people they invited with a link. The public surface of this feature is one fact: whether applications are open. Signing in is one emailed code, and the form is one screen after it."
+    },
+    {
+     "q": "How are optional fields marked?",
+     "decision": "'(optional)' after the label, required fields unmarked, the same convention as the join form and the organiser screens. The three new fields carry it in their labels; a group label says 'Where you're based (optional)'.",
+     "why": "Most fields on this form are optional; marking the few required ones would invert the app's convention and confuse anyone who has used the join form."
+    },
+    {
+     "q": "What does an Under 18 applicant see?",
+     "decision": "Exactly the same form, plus one plain sentence when Under 18 is picked: a parent or guardian needs to agree to the Terms for them. No birth date, no guardian email, no extra step.",
+     "why": "Owner, 2026-10-31: no extra data from minors. The Terms already say 13+ and guardian agreement under 18; the sentence only makes that visible at the moment it applies. The organiser sees Under 18 highlighted so they can follow their own safeguarding rules."
+    },
+    {
+     "q": "Which gender options?",
+     "decision": "Woman or girl, Man or boy, Non-binary, Another gender, Prefer not to say -- one select, optional. No free-text self-description.",
+     "why": "Applicants range from 13-year-olds to adults, so 'Woman or girl' reads right for both. A free-text box would collect more than the owner asked for and would need moderation in the organiser's list."
+    },
+    {
+     "q": "Country: free text or a list?",
+     "decision": "A list of countries (ISO 3166 codes stored, names shown in the browser's own language); city is free text.",
+     "why": "Organisers filter and report by country (CSR programmes count reach per country); free text gives 'Indonesia', 'indonesia', 'ID', 'RI'. No reliable city list exists, and city is only read by people."
+    },
+    {
+     "q": "Prefill these fields from a person's earlier application to another event?",
+     "decision": "No. The form starts empty each time; only the name is prefilled from the account.",
+     "why": "The answers belong to one event's application and are deleted with it. Carrying them across events would quietly reuse data a person gave a different organiser."
+    }
+   ]
   },
   {
    "id": "public-judge",
@@ -5250,32 +5589,58 @@
    "title": "Find a hackathon",
    "user_moment": "A visitor browses public events to find one to join or watch.",
    "purpose": "List public events, grouped by timing.",
-   "primary_action": "Open an event.",
-   "layout": "Three sections, unchanged from today (Happening now, Upcoming, Past), each a plain card list.",
+   "primary_action": "Open an event, or Apply straight from its row when it takes applications.",
+   "layout": "Three sections, unchanged from today (Happening now, Upcoming, Past), each a plain list. A row is the event mark, title, tagline and dates (one link to the event page) and, only when that event takes applications right now, an Apply button at the row's right end.",
    "sections": [
     {
      "name": "Happening now",
      "contents": [
-      "Generation Girl Online Hack 2026 -- 28-29 Oct 2026"
+      "Generation Girl Online Hack 2026 -- 28-29 Oct 2026 -- [Apply]",
+      "Bandung Climate Jam -- 30 Oct-1 Nov 2026 (applications off: no button)"
      ],
-     "actions": []
+     "actions": [
+      {
+       "label": "Apply",
+       "kind": "secondary",
+       "confirm": null,
+       "target": "AppURL/e/{slug}/apply"
+      }
+     ]
     },
     {
      "name": "Upcoming",
      "contents": [
-      "No events here yet."
+      "Surabaya Student Hack -- 14-15 Nov 2026 -- [Apply]"
      ],
-     "actions": []
+     "actions": [
+      {
+       "label": "Apply",
+       "kind": "secondary",
+       "confirm": null,
+       "target": "AppURL/e/{slug}/apply"
+      }
+     ]
     },
     {
      "name": "Past",
      "contents": [
-      "Hack Jakarta 2025 -- 1-2 Sep 2025"
+      "Hack Jakarta 2025 -- 1-2 Sep 2025 (never an Apply button)"
      ],
      "actions": []
     }
    ],
-   "states": [],
+   "states": [
+    {
+     "name": "event takes applications",
+     "when": "row's applications_open is true (switch on, stage open or building, not taken down)",
+     "shows": "An Apply button (kit .btn sm) at the row's right end, after the dates. The title area stays one link to the event page, so a parent can read about the event before anyone applies."
+    },
+    {
+     "name": "event does not take applications",
+     "when": "switch off, or any other stage",
+     "shows": "The row exactly as today: one link, no button, no 'closed' label (absence is not news on a list)."
+    }
+   ],
    "replaces": [
     "visitor-directory"
    ],
@@ -5285,17 +5650,29 @@
      "q": "Add search or filtering to the directory?",
      "decision": "Not in this pass.",
      "why": "The atlas flagged it as a future scale concern, not a current defect; see feature_ideas."
+    },
+    {
+     "q": "Where does Apply go on a directory row?",
+     "decision": "A separate small Apply button at the row's right end; the rest of the row stays one link to the event page. On a phone the dates move under the title and the button keeps the right end.",
+     "why": "Owner, 2026-10-31: people without a join link apply from Find a hackathon. A whole-row link cannot hold a second action (nested links are invalid HTML and break screen readers), and the event page must stay one tap away for the people who want to check first."
+    },
+    {
+     "q": "When does a row show Apply?",
+     "decision": "Only when the event's applications_open is true: switch on, stage open or building, not taken down. The directory API computes it per row; the page never works it out from the stage.",
+     "why": "One rule in one place (the server), shared by the website, the event page and AI apps (hack_get_directory carries the same field)."
     }
    ],
    "features": [
-    "browse-public-directory"
+    "browse-public-directory",
+    "apply-to-event"
    ],
    "prototype_states": [
     {
      "slug": "default",
      "name": "Default",
      "stage": null,
-     "next": null
+     "next": null,
+     "note": "Two happening-now rows, one with Apply; an upcoming row with Apply; Past without."
     }
    ],
    "phone": "Single column, same content, full width."
@@ -5376,10 +5753,12 @@
   }
  ],
  "open_questions": [
-  "Public event page: Is keeping the join link off the public page deliberate (only people the organiser sends it to can join)? If yes, the Open stage card stays as designed. If no, feature idea 1 becomes the Open stage's main action.",
   "Public event page: OK to drop 'Anyone can join. No coding needed.' from the header? It is wrong for approval-only events and for events that do need code.",
   "Public event page: Draft: keep showing the organiser's full content (it is their only preview, and noindex) with a 'Not open yet' card, or hide everything but the title?",
   "Public event page: Plain wording for the score method line: what should 'raw' and 'normalised' say to a parent? Proposed: 'Scores are the judges' average' and 'Scores are adjusted so strict and generous judges count the same'.",
-  "Public event page: Should the team and participant counts show during Open? They are reassuring for a big event and off-putting for a new one with 3 sign-ups."
+  "Public event page: Should the team and participant counts show during Open? They are reassuring for a big event and off-putting for a new one with 3 sign-ups.",
+  "Apply: existing events get applications switched on when this ships (literal reading of 'on by default for every event'), so open events gain an Apply button that day. Keep, or default existing events to off?",
+  "Apply: should the applicant get an email when an organiser decides? None exists today, so the copy says 'you'll see their answer here and on your Home'. Recommended: one email on approval only.",
+  "Apply: the join-link form keeps not asking location, age range and gender (join links unchanged), so CSV demographics cover applicants only. Ask them there too?"
  ]
 }

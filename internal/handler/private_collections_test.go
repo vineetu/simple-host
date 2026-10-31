@@ -751,6 +751,17 @@ func TestCSVSafeNeutralisesFormulas(t *testing.T) {
 	if got := csvSafe("=bad-header"); got != "'=bad-header" {
 		t.Errorf("csvSafe header = %q", got)
 	}
+	// Security review (Grok 7): a leading LEFT-TO-RIGHT MARK (U+200E, a
+	// Unicode format character) must not hide the formula that follows it.
+	if got := csvSafe("‎=HYPERLINK(\"https://evil.example\",\"click\")"); got != "'‎=HYPERLINK(\"https://evil.example\",\"click\")" {
+		t.Errorf("csvSafe did not escape past a leading format character: %q", got)
+	}
+	if got := csvSafe("  =HYPERLINK(1)"); got != "'  =HYPERLINK(1)" {
+		t.Errorf("csvSafe did not escape past leading whitespace: %q", got)
+	}
+	if got := csvSafe("plain text"); got != "plain text" {
+		t.Errorf("csvSafe changed ordinary text: %q", got)
+	}
 }
 
 // An establish code presented on the wrong host is burned: it cannot then be

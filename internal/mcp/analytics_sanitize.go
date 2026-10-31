@@ -99,6 +99,10 @@ func analyticsSecretField(tool, name string) bool {
 		"uploadurl", "photosurl", "importurl", "downloadurl", "signedurl", "previewurl", "pinnedurl",
 		"joincode", "judgecode", "joinurl", "judgeurl", "inviteurl":
 		return true
+	// Apply to a hackathon (2026-10-31 owner decision 5): AgentCat must not
+	// receive an applicant's city, country, age range or gender.
+	case "city", "country", "agerange", "gender":
+		return true
 	case "key":
 		return tool == "hack_create_team_key" || tool == "hack_get_team_key"
 	case "how":
@@ -288,6 +292,16 @@ func dropAnalyticsField(tool, key string, field any, obj map[string]any, depth i
 	case tool == "visitor_read_site" && name == "pagetext":
 		return analyticsFile(field, "text/plain", false)
 	case analyticsSecretField(tool, key):
+		return "[removed]"
+	// Apply to a hackathon (2026-10-29/31 owner decisions, security review
+	// Grok 6): the four demographic fields are already removed everywhere by
+	// analyticsSecretField, but free-text answers and the applicant's name
+	// can carry the same information in prose ("I'm 14, a girl, in
+	// Jakarta"). For these two tools only -- the apply call itself and the
+	// organiser's read of the queue -- also drop answers and display_name
+	// from the analytics copy. The tool result the organiser's own model
+	// sees is untouched; this is the telemetry copy only.
+	case (tool == "hack_apply_to_event" || tool == "hack_get_applications") && (name == "answers" || name == "displayname"):
 		return "[removed]"
 	case analyticsEmailField(tool, key):
 		return analyticsVisitorReference(obj)

@@ -17,6 +17,8 @@ Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs
 | Preview join link and conduct | `hack_preview_join` |
 | Join with answers and consent | `hack_join_event` |
 | Check approval and event membership | `hack_application_status` |
+| Check an event takes applications | `hack_preview_application` |
+| Apply without a join link | `hack_apply_to_event` |
 | Read public event content | `hack_get_public_event` |
 | Create or join a team; leave it | `hack_create_team`, `hack_join_team`, `hack_leave_team` |
 | Read/choose track | `hack_get_tracks`, `hack_choose_track` |
@@ -25,6 +27,8 @@ Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs
 | Read choices, vote, see own result | `hack_get_voting`, `hack_get_my_vote`, `hack_vote`, `hack_get_my_results` |
 | Make private team archive link | `hack_export_own_team_archive` |
 | Account theme | `hack_get_preferences`, `hack_set_preferences` |
+
+No join link? Find the event with `hack_get_directory` or its address, then use `hack_preview_application` to check whether it takes applications and read its code of conduct and sign-up questions. Ask for the person's display name and answers, and offer the three optional fields (city, country, age range, gender) without filling them in yourself. Call `hack_apply_to_event` once they agree to the code of conduct. Every application waits for the organisers, whatever the event's approval setting says. Check its state with `hack_application_status`.
 
 Preview the join link, code of conduct and questions first. Ask the person to accept the displayed conduct; set `accept_coc: true` only after they do. An approval-required event creates a pending application; wait for approval before team, entry or site work. Confirm the selected team before creating, joining or leaving. One participant can belong to one team in an event.
 

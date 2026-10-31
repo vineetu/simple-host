@@ -16,6 +16,8 @@ wins, not the best coder; judges use the organiser’s rubric.
 
 Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs in through the connector's trusted browser window; if the connection is unavailable, ask them to connect or reconnect it in their app. Never request, receive, read, or transmit an emailed sign-in code, API key, password, passcode, or other credential in chat. Do not use a personal account key or ask for a team key. The connector applies the current person's event role on every call. Use its tool schemas and returned URLs, names, stages, deadlines, and permissions; do not guess identifiers.
 
+This instance's `/auth.md` describes its sign-in methods, connector OAuth, and selected-team publishing. Public capabilities are at `/.well-known/agent-card.json`.
+
 ## Create and manage
 
 1. Ask for the event name, organiser and contact details, purpose, expected count, dates and time zone. Check the name with `hack_check_event_name`, then create a draft with `hack_create_event`. Creation requested here may proceed. Report the returned event URL and stage.
@@ -32,7 +34,7 @@ A custom event website can use KV, SQLite and raw-file resources after its first
 
 ## People, judging and results
 
-Review private applications before approving or rejecting. Keep people lists, exports, join and judge links, and unpublished results private. Organisers can move or remove members, extend deadlines, rename teams, or take a team site down. A entry and team site are separate. For team site building, use `website-deploy`; for team/entry work, use `join-hackathon`.
+Review private applications before approving or rejecting. People without a join link can apply from Find a hackathon or the event's public page, and applications are on by default. Each one waits for the organiser's decision, even when approval is off for join-link sign-ups. Turn applications off per event with `hack_update_event`'s `applications_open` field, and ask the organiser before changing it. Keep people lists, exports, join and judge links, and unpublished results private. Organisers can move or remove members, extend deadlines, rename teams, or take a team site down. A entry and team site are separate. For team site building, use `website-deploy`; for team/entry work, use `join-hackathon`.
 
 Choose judging mode (`open`, `automatic`, `manual`, `panel`), inspect assignments and conflicts, and use the preview/dashboard. An organiser who also judges uses `judge-hackathon`. Read the rubric before replacing it: keep existing criterion IDs to preserve scores. Confirm reported score deletions before retrying with confirm_score_deletion. Lock scores, inspect the results preview, then ask before publishing or changing public results. Announcements can email participants: ask before posting and explicitly before emailing. A queued count does not prove delivery.
 
@@ -51,7 +53,7 @@ joins; a never-joined event frees it. Read the event and use its returned slug.
 Only after the person confirms, call `hack_delete_event` with `slug` and
 `body: {"confirm":"<slug>"}`. Report success only after the tool succeeds.
 
-Visitor-save notifications use MCP Events with the app's receiver: arguments `{site, storage?}` for the selected team, or `{event, storage?}` for an organiser website. `list_notifications` and `remove_notification` accept that context. Team subscriptions are created before the deadline and deliver while membership stays approved; organiser delivery ends with the event. The team and organiser website screens also manage signed webhooks, tests, history, and rotation. Keep secrets out of chat.
+Visitor-save notifications use MCP Events with the app's receiver: arguments `{site, storage?}` for the selected team, or `{event, storage?}` for an organiser website. `list_notifications` and `remove_notification` accept that context. Team subscriptions are created before the deadline and deliver while membership stays approved. Organiser delivery ends with the event. The team and organiser website screens also manage signed webhooks, tests, history, and rotation. Keep secrets out of chat.
 
 Automatic assignments default to judges only. Use body.include_organisers=true to include organisers. Judges can save scores only when the stage is closed or judging.
 

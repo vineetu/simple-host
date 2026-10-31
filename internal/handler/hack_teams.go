@@ -39,6 +39,10 @@ func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
 			"team":              nil,
 			"joined_at":         rfc3339Time(p.JoinedAt),
 			"coc_accepted_at":   rfc3339UTC(p.CocAcceptedAt),
+			// zp-hack-applications.sql. The profile fields (city, country,
+			// age_range, gender) stay off this list by design (D3): they
+			// are only in the Applications list and the participants CSV.
+			"joined_via": p.JoinedVia,
 		}
 		if p.TeamSlug.Valid {
 			item["team"] = map[string]any{"slug": p.TeamSlug.String, "name": p.TeamName.String}

@@ -1,5 +1,9 @@
 [
  {
+  "date": "2026-10-31",
+  "what": "Apply to a hackathon: people without a join link can apply from Find a hackathon (Apply on a listed event's row) and from the event's public page, at a new public-apply screen (/e/{slug}/apply). The form asks name and email from sign-in, optional city and country, age range and gender, then the event's own questions and the code of conduct, with a line saying only the organisers see the answers. Every application waits in People -> Applications, now with email, how they came, location, age range (Under 18 highlighted) and gender, filters by source, age range and country, and those fields in the participants CSV. Applications are on by default; Settings has one switch to turn them off. The approval toggle now only governs join-link sign-ups, and admit-everyone-waiting never admits applications. Join links are unchanged and stay private. Owner decisions, 2026-10-31."
+ },
+ {
   "date": "2026-10-30",
   "what": "Event page redesigned as seven sub-pages shown one at a time, each with its own address (?s=event-page&tab=basics|about|schedule|sponsors|faq|look|website), landing on Basics: forms with one Save in the card foot, lists of rows with a quiet Edit and a … menu (move, remove with Undo) and add/edit in a dialog, file pickers as buttons with a preview, colour as swatches, a live preview on Look, and Website (address, built-in vs own site, zip upload, versions) split from Look. Schedule lost its reorder control because every view sorts it by time. Announcements became their own organiser sidebar section under Event page. New kit rhythm and button-placement rules (shell.layout_rules, kit.css), and a desktop sidebar that folds into a remembered icon rail with tooltips. Owner, 2026-10-30: 'Only show Basics when I click Basics, only Schedule when I click Schedule. This looks like a band-aid fix, clean it up.'"
  },

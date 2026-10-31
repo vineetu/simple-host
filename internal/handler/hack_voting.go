@@ -340,11 +340,17 @@ func (h *HackHandler) getDirectory(w http.ResponseWriter, r *http.Request) {
 		} else if ev.StartsAt.Valid && now.Before(ev.StartsAt.Time) {
 			group = "upcoming"
 		}
-		groups[group] = append(groups[group], map[string]any{
+		row := map[string]any{
 			"slug": ev.Slug, "title": ev.Title, "tagline": ev.Tagline, "stage": ev.Stage,
 			"time_zone": ev.TimeZone, "starts_at": rfc3339UTC(ev.StartsAt), "ends_at": rfc3339UTC(ev.EndsAt),
 			"url": h.EventURL(ev.Slug), "icon_url": h.iconURLSlug(ev.Slug), "color": hackEventColor(ev.Slug, ev.AccentColor),
-		})
+		}
+		open := hackApplicationsOpenNow(ev.ApplicationsOpen, ev.Stage, ev.TakenDownAt.Valid)
+		row["applications_open"] = open
+		if open {
+			row["apply_url"] = strings.TrimRight(h.publicBaseURL, "/") + "/e/" + ev.Slug + "/apply"
+		}
+		groups[group] = append(groups[group], row)
 	}
 	writeJSON(w, 200, groups)
 }

@@ -1489,6 +1489,40 @@ ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS open boolean NOT NULL DEFAULT f
 ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS looking_for text NOT NULL DEFAULT '';
 ALTER TABLE event_members ADD COLUMN IF NOT EXISTS looking_intro text NOT NULL DEFAULT '';
 ALTER TABLE event_members ADD COLUMN IF NOT EXISTS looking boolean NOT NULL DEFAULT false;
+
+-- Apply to a hackathon (owner, 2026-10-31). Applications on by default, every event.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS applications_open boolean NOT NULL DEFAULT true;
+-- How a participant arrived, and the optional fields an application asks.
+-- Existing members arrived by link; blanks mean "not shared".
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS joined_via text NOT NULL DEFAULT 'link';
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS city text NOT NULL DEFAULT '';
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS country text NOT NULL DEFAULT '';
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS age_range text NOT NULL DEFAULT '';
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS gender text NOT NULL DEFAULT '';
+DO $$ BEGIN
+  ALTER TABLE event_members ADD CONSTRAINT event_members_joined_via_chk CHECK (joined_via IN ('link','application'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE event_members ADD CONSTRAINT event_members_age_range_chk CHECK (age_range IN ('','under_18','18_24','25_34','35_plus'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE event_members ADD CONSTRAINT event_members_gender_chk CHECK (gender IN ('','woman','man','non_binary','another','prefer_not_to_say'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Shape-only: two upper-case ASCII letters. It does not know which codes are
+-- real, nameable countries or canonical -- the API's checkHackCountry is the
+-- actual gate (security review Grok 9); this only stops garbage from a
+-- direct insert.
+DO $$ BEGIN
+  ALTER TABLE event_members ADD CONSTRAINT event_members_country_chk CHECK (country = '' OR country ~ '^[A-Z]{2}$');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- The per-account and per-event pending caps (too_many_pending,
+-- event_applications_full) count joined_via='application' AND
+-- approval_status='pending' rows; these are what those counts scan.
+CREATE INDEX IF NOT EXISTS event_members_pending_app_user_idx ON event_members (user_id)
+  WHERE joined_via = 'application' AND approval_status = 'pending';
+CREATE INDEX IF NOT EXISTS event_members_pending_app_event_idx ON event_members (event_id)
+  WHERE joined_via = 'application' AND approval_status = 'pending';
+
 CREATE TABLE IF NOT EXISTS event_team_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,

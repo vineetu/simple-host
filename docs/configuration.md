@@ -138,6 +138,7 @@ picker or preview even if those separate Host flags are enabled.
 | `EVENT_MAX_CLAIMS` | 5 | 1–100 | Event hostnames one account may hold at once. |
 | `EVENT_CREATE_PER_DAY` | 3 | 1–1000 | Hosted events (`EVENTS=hosted`): events one account may create in a rolling day. |
 | `EVENT_MAX_ACTIVE_PER_ORGANISER` | 2 | 1–1000 | Hosted events: events one account may run at once (every stage but archived). |
+| `EVENT_APPLY_PENDING_PER_EVENT` | 500 | 1–100000 | Hosted events: applications one event may have waiting for a decision at once (409 `event_applications_full`), apart from the per-account pending cap. |
 | `EVENT_TEAM_SIZE_DEFAULT` | 4 | 1–50 | Hosted events: the team size cap a new event starts with; the organiser changes it. |
 | `EVENT_SITES_KEEP_DAYS` | 30 | 1–3650 | Hosted events: how long team sites stay up after an event closes, before they are removed (the organiser is warned by email first). The event page and results stay. |
 | `EVENT_REMOVAL_WARN_DAYS` | 14 | 1–3650 | Hosted events: how long before team sites are removed the organiser is warned by email, once. The event page and results stay. |
@@ -277,6 +278,8 @@ than 10 times looser than its default. A `RATE_LIMIT_*` variable that is not one
 | `RATE_LIMIT_EVENT_CODES_IP` | 120,1s | any (warns past 10×) | Hosted events: join, judge and team-code lookups and joins, per network address (roomy: a whole venue can share one address). |
 | `RATE_LIMIT_EVENT_CODES_USER` | 20,3s | any (warns past 10×) | Hosted events: join, judge and team-code joins and lookups, per account. |
 | `RATE_LIMIT_EVENT_NAMES_USER` | 60,1s | any (warns past 10×) | Hosted events: event address checks while someone types one, per account. |
+| `RATE_LIMIT_EVENT_APPLY_IP` | 30,2m | any (warns past 10×) | Hosted events: applications to an event without a join link, per network address. |
+| `RATE_LIMIT_EVENT_APPLY_USER` | 5,12m | any (warns past 10×) | Hosted events: applications to an event without a join link, per account (5 an hour by default). |
 | `RATE_LIMIT_OAUTH_REGISTER` | 10,6m | **40,1m30s** (security-sensitive) | Connector app registrations per address. |
 | `RATE_LIMIT_OAUTH_AUTHORIZE` | 30,2s | **120,500ms** (security-sensitive) | Connector authorization requests per address. |
 | `RATE_LIMIT_OAUTH_TOKEN` | 30,2s | **120,500ms** (security-sensitive) | Connector token requests per address. |

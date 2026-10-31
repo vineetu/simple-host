@@ -32,6 +32,19 @@ type RegistrationApplication struct {
 	Status      string         `json:"status"`
 	Answers     []SignupAnswer `json:"answers"`
 	JoinedAt    time.Time      `json:"joined_at"`
+	// zp-hack-applications.sql.
+	JoinedVia string `json:"joined_via"`
+	City      string `json:"city"`
+	Country   string `json:"country"`
+	AgeRange  string `json:"age_range"`
+	Gender    string `json:"gender"`
+}
+
+// ApplicantProfile is the optional fields an application (without a join
+// link) may answer: city, an ISO 3166-1 alpha-2 country code, an age range
+// and a gender. Every field is optional and blank means "not shared".
+type ApplicantProfile struct {
+	City, Country, AgeRange, Gender string
 }
 
 func RegistrationSettings(ctx context.Context, q Querier, eventID string) ([]SignupQuestion, bool, error) {
@@ -83,7 +96,9 @@ func JoinParticipantRegistration(ctx context.Context, q Querier, eventID, userID
 		) SELECT * FROM joined`, eventID, userID, display, raw, status))
 }
 func ListRegistrationApplications(ctx context.Context, q Querier, eventID string) ([]RegistrationApplication, error) {
-	rows, err := queryContext(ctx, q, `SELECT m.user_id,u.username,m.display_name,m.approval_status,m.signup_answers,m.joined_at FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id=$1 AND m.role='participant' ORDER BY m.joined_at`, eventID)
+	rows, err := queryContext(ctx, q, `SELECT m.user_id,u.username,m.display_name,m.approval_status,m.signup_answers,m.joined_at,
+		m.joined_via,m.city,m.country,m.age_range,m.gender
+		FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id=$1 AND m.role='participant' ORDER BY m.joined_at`, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +107,8 @@ func ListRegistrationApplications(ctx context.Context, q Querier, eventID string
 	for rows.Next() {
 		var a RegistrationApplication
 		var raw []byte
-		if err := rows.Scan(&a.UserID, &a.Email, &a.DisplayName, &a.Status, &raw, &a.JoinedAt); err != nil {
+		if err := rows.Scan(&a.UserID, &a.Email, &a.DisplayName, &a.Status, &raw, &a.JoinedAt,
+			&a.JoinedVia, &a.City, &a.Country, &a.AgeRange, &a.Gender); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(raw, &a.Answers); err != nil {
@@ -102,8 +118,66 @@ func ListRegistrationApplications(ctx context.Context, q Querier, eventID string
 	}
 	return out, rows.Err()
 }
+
+// ApplyParticipant is JoinParticipantRegistration for someone applying to an
+// event without a join link (D1): always pending and joined_via='application',
+// whatever the organiser's approval_required setting says, plus the
+// application's optional profile fields.
+func ApplyParticipant(ctx context.Context, q Querier, eventID, userID, display string, answers []SignupAnswer, p ApplicantProfile) (EventMember, error) {
+	raw, err := json.Marshal(answers)
+	if err != nil {
+		return EventMember{}, err
+	}
+	return scanMember(q.QueryRowContext(ctx, `WITH joined AS (
+		INSERT INTO event_members (event_id,user_id,role,display_name,coc_accepted_at,signup_answers,approval_status,joined_via,city,country,age_range,gender)
+		VALUES ($1,$2,'participant',$3,now(),$4,'pending','application',$5,$6,$7,$8)
+		RETURNING event_id,user_id,role,display_name,team_id,coc_accepted_at,joined_at
+		), reserved AS (
+		INSERT INTO event_used_names (event_slug, team_slug)
+		SELECT e.slug, '' FROM events e JOIN joined j ON j.event_id=e.id
+		ON CONFLICT DO NOTHING
+		) SELECT * FROM joined`, eventID, userID, display, raw, p.City, p.Country, p.AgeRange, p.Gender))
+}
+
+// CountPendingApplications is how many applications (joined_via='application'),
+// across every event, this person has waiting for a decision. Used for the
+// per-account cap (too_many_pending). Matches the partial index
+// event_members_pending_app_user_idx (zp-hack-applications.sql).
+func CountPendingApplications(ctx context.Context, q Querier, userID string) (int, error) {
+	var n int
+	err := q.QueryRowContext(ctx, `SELECT count(*) FROM event_members WHERE user_id=$1 AND joined_via='application' AND approval_status='pending'`, userID).Scan(&n)
+	return n, err
+}
+
+// CountPendingApplicationsForEvent is how many applications this one event
+// has waiting for a decision, for the per-event ceiling
+// (EVENT_APPLY_PENDING_PER_EVENT, event_applications_full). Matches the
+// partial index event_members_pending_app_event_idx (zp-hack-applications.sql).
+func CountPendingApplicationsForEvent(ctx context.Context, q Querier, eventID string) (int, error) {
+	var n int
+	err := q.QueryRowContext(ctx, `SELECT count(*) FROM event_members WHERE event_id=$1 AND joined_via='application' AND approval_status='pending'`, eventID).Scan(&n)
+	return n, err
+}
+
+// MemberStatus is the small summary GET .../apply's "me" needs for a caller
+// who is already a member: their role, approval status and how they joined.
+type MemberStatus struct {
+	Role, ApprovalStatus, JoinedVia string
+}
+
+// GetMemberStatus loads MemberStatus. sql.ErrNoRows if the caller is not a member.
+func GetMemberStatus(ctx context.Context, q Querier, eventID, userID string) (MemberStatus, error) {
+	var m MemberStatus
+	err := q.QueryRowContext(ctx, `SELECT role, approval_status, joined_via FROM event_members WHERE event_id=$1 AND user_id=$2`, eventID, userID).Scan(&m.Role, &m.ApprovalStatus, &m.JoinedVia)
+	return m, err
+}
+
+// DecideRegistration approves or rejects one pending participant. Rejecting an
+// application also clears the optional profile fields it carried (city,
+// country, age range, gender): an organiser who said no has no further use for
+// them, and a minor's details should not outlive the decision.
 func DecideRegistration(ctx context.Context, q Querier, eventID, userID, actor, status string) (bool, error) {
-	result, err := q.ExecContext(ctx, `UPDATE event_members SET approval_status=$4,approval_decided_at=now(),approval_decided_by=$3 WHERE event_id=$1 AND user_id=$2 AND role='participant' AND approval_status='pending'`, eventID, userID, actor, status)
+	result, err := q.ExecContext(ctx, `UPDATE event_members SET approval_status=$4,approval_decided_at=now(),approval_decided_by=$3,city=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE city END,country=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE country END,age_range=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE age_range END,gender=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE gender END WHERE event_id=$1 AND user_id=$2 AND role='participant' AND approval_status='pending'`, eventID, userID, actor, status)
 	if err != nil {
 		return false, err
 	}

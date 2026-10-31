@@ -29,6 +29,8 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 
 		{"hack_preview_join", "GET", "/v1/hack/join/JOINCODE", map[string]any{"code": "JOINCODE"}, nil},
 		{"hack_join_event", "POST", "/v1/hack/join/JOINCODE", map[string]any{"code": "JOINCODE", "accept_coc": true, "display_name": "Ada", "answers": map[string]any{"q1": "yes"}}, map[string]any{"accept_coc": true, "display_name": "Ada", "answers": map[string]any{"q1": "yes"}}},
+		{"hack_preview_application", "GET", "/v1/hack/events/spring/apply", map[string]any{"slug": "spring"}, nil},
+		{"hack_apply_to_event", "POST", "/v1/hack/events/spring/apply", map[string]any{"slug": "spring", "accept_coc": true, "display_name": "Dewi", "city": "Jakarta", "country": "ID", "age_range": "under_18", "gender": "woman", "answers": map[string]any{"q1": "yes"}}, map[string]any{"accept_coc": true, "display_name": "Dewi", "city": "Jakarta", "country": "ID", "age_range": "under_18", "gender": "woman", "answers": map[string]any{"q1": "yes"}}},
 		{"hack_application_status", "GET", "/v1/hack/events/spring", map[string]any{"slug": "Spring"}, nil},
 		{"hack_create_team", "POST", "/v1/hack/events/spring/teams", map[string]any{"slug": "spring", "name": "Builders", "open": false, "looking_for": "A designer"}, map[string]any{"name": "Builders", "open": false, "looking_for": "A designer"}},
 		{"hack_join_team", "POST", "/v1/hack/events/spring/teams/join", map[string]any{"slug": "spring", "code": "TEAMCODE"}, map[string]any{"code": "TEAMCODE"}},
