@@ -66,7 +66,7 @@ export async function render(ctx) {
 <div class="ph"><div class="t"><h1>Results</h1><p>Preview, publish and share your standings.</p></div><button class="btn primary" type="button" id="res-publish-top">${published ? 'Publish again' : 'Publish results'}</button></div>
 <div class="note" id="res-status"></div>
 <p class="note warn" id="res-lock-hint" hidden>Lock judging first, on <a href="${ui.esc(href(role, slug, 'judging'))}">Judging</a>.</p>
-<section class="card"><h2>Publish</h2>
+<section class="card" id="res-publish-section"><h2>Publish</h2>
 <div id="res-override"></div>
 <p class="small muted" id="res-republish-note" hidden></p>
 </section>
@@ -140,6 +140,15 @@ ${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>`
     note.textContent = stale ? 'Scores have changed since you published. The public page still shows the earlier snapshot.' : ''
   }
   paintRepublishNote(scoresChangedSincePublish())
+  // Cosmetic #3 (Grok re-test, round 4): the Publish card held nothing but
+  // its own heading whenever there were no ties to override and nothing
+  // stale to republish -- true right after a fresh publish, and after End.
+  // Hidden rather than always shown empty; paintOverride and
+  // paintRepublishNote both call this after they repaint their own content,
+  // so it never goes stale.
+  function syncPublishSection() {
+    $('res-publish-section').hidden = !$('res-override').children.length && $('res-republish-note').hidden
+  }
 
   // --- scoring rules ------------------------------------------------------
   $('res-score-mode').value = settings.score_mode || 'raw'
@@ -218,6 +227,7 @@ ${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>`
     box.appendChild(go)
   }
   paintOverride()
+  syncPublishSection()
 
   // --- publish ----------------------------------------------------------
   async function publish(overrides, btn) {
@@ -253,6 +263,7 @@ ${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>`
     // A publish just took a fresh snapshot of the live standings, so it can
     // never be stale the moment it lands.
     paintRepublishNote(false)
+    syncPublishSection()
     setLive('Results published', 'ok', near)
   }
   $('res-publish-top').addEventListener('click', () => publish(null, $('res-publish-top')))

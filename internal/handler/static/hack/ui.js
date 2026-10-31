@@ -352,10 +352,20 @@ export const GENDER_LABELS = { woman: 'Woman or girl', man: 'Man or boy', non_bi
 // code if Intl.DisplayNames can't resolve it (old engine, or an unknown
 // code) -- never a blank for a code that is actually set, so a person
 // reading People always sees something rather than nothing.
+// Cosmetic #4 (Grok re-test, round 4): a non-standard navigator.language
+// (seen live: 'en-US@posix') threw inside the Intl.DisplayNames constructor
+// -- and a locale list throws on the whole list the moment any one entry is
+// bad, so the 'en' fallback alongside it never got a chance to run, and
+// every code fell straight to the bare-code catch. navigator.language is
+// tried alone first; only if that construction itself throws does 'en' get
+// its own, separate attempt.
 export function countryName(code) {
   if (!code) return ''
-  try { return new Intl.DisplayNames([navigator.language, 'en'], { type: 'region' }).of(code) || code }
-  catch { return code }
+  try { return new Intl.DisplayNames([navigator.language], { type: 'region' }).of(code) || code }
+  catch {
+    try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code }
+    catch { return code }
+  }
 }
 // Cosmetic #1: a team or event name that already ends in s/S takes a bare
 // apostrophe ("Alpha Testers'"), never another s ("Alpha Testers's").

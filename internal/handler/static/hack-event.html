@@ -238,22 +238,66 @@
         var hasKey = false;
         try { hasKey = !!localStorage.getItem('apiKey'); } catch (e3) {}
         if (!hasKey) top.textContent = 'Sign in';
-        // Cosmetic #3 (retest 3, still partly fixed): the header already
-        // knew to say "Home" for anyone signed in, but the stage card's own
-        // join instructions and "Already joined? Sign in" link kept
-        // inviting a signed-in, already-joined visitor to join anyway.
-        // Same apiKey signal, plus one more authenticated call to find out
-        // if THIS signed-in visitor actually belongs to THIS event --
-        // cross-origin to the app, the CORS-open API every hack endpoint
-        // already allows (cors.go), the same pattern hack-voting.html's
-        // own static page already uses.
-        else checkAlreadyJoined(appURL);
+        else {
+          // Cosmetic #2 (Grok re-test, round 4): a signed-in visitor who is
+          // not a member of this event still saw "Already joined? Sign in"
+          // in the stage card -- a sign-in prompt makes no sense once we
+          // already know they're signed in. Hide it on that signal alone,
+          // before the membership check below even resolves (that check can
+          // fail or come back with no role for a non-member, and the prompt
+          // must stay hidden either way).
+          hideSignInPrompt();
+          // Cosmetic #3 (retest 3, still partly fixed): the header already
+          // knew to say "Home" for anyone signed in, but the stage card's own
+          // join instructions kept inviting a signed-in, already-joined
+          // visitor to join anyway. Same apiKey signal, plus one more
+          // authenticated call to find out if THIS signed-in visitor
+          // actually belongs to THIS event -- cross-origin to the app, the
+          // CORS-open API every hack endpoint already allows (cors.go), the
+          // same pattern hack-voting.html's own static page already uses.
+          checkAlreadyJoined(appURL);
+        }
       } else {
         top.textContent = 'Sign in';
         top.href = appURL + '/signin?next=' + encodeURIComponent('/events');
       }
     } catch (e) {}
 
+    function hideSignInPrompt() {
+      var card = document.getElementById('stage-card');
+      if (!card) return;
+      var links = card.querySelectorAll('a');
+      for (var i = 0; i < links.length; i++) {
+        if (links[i].textContent === 'Already joined? Sign in') links[i].hidden = true;
+      }
+    }
+
+    function setStageCard(card, heading, body, actions) {
+      var t = card.querySelector('.t');
+      if (t) {
+        t.innerHTML = '';
+        var h2 = document.createElement('h2'); h2.textContent = heading;
+        t.appendChild(h2);
+        if (body) { var p = document.createElement('p'); p.textContent = body; t.appendChild(p); }
+      }
+      var stack = card.querySelector('.stack');
+      if (stack) stack.innerHTML = '';
+      actions.forEach(function (a) {
+        var link = document.createElement('a');
+        link.className = 'btn' + (a.primary ? ' primary' : ' quiet');
+        link.href = a.href;
+        link.textContent = a.label;
+        if (stack) stack.appendChild(link); else card.appendChild(link);
+      });
+    }
+
+    // Confusing #1 (Grok re-test, round 4): a pending or rejected applicant
+    // saw the same "You've already joined / Continue to your event" as a
+    // full member -- Continue only led them to a second screen saying their
+    // application was still waiting (or wasn't accepted). me.role is the
+    // membership role returned by GET /v1/hack/events/{slug}; approval_status
+    // ('pending'/'rejected') is only ever set for a participant -- an
+    // organiser or judge always has full access the moment they join.
     function checkAlreadyJoined(appURL) {
       var card = document.getElementById('stage-card');
       if (!card) return;
@@ -265,21 +309,23 @@
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
           if (!data || !data.role) return;
-          var section = data.role === 'organiser' ? 'manage' : data.role === 'judge' ? 'judge' : 'team';
-          var dest = appURL + '/e/' + encodeURIComponent(slug) + '/' + section;
-          var t = card.querySelector('.t');
-          if (t) {
-            t.innerHTML = '';
-            var h2 = document.createElement('h2'); h2.textContent = "You've already joined";
-            var p = document.createElement('p'); p.textContent = 'Continue to your event.';
-            t.appendChild(h2); t.appendChild(p);
+          var role = data.role;
+          var me = data.me || {};
+          if (role === 'participant' && me.approval_status === 'pending') {
+            setStageCard(card, 'Your application is waiting for the organisers.', '', [
+              { href: appURL + '/e/' + encodeURIComponent(slug) + '/apply', label: 'See your application', primary: true }
+            ]);
+            return;
           }
-          var go = document.createElement('a');
-          go.className = 'btn primary';
-          go.href = dest;
-          go.textContent = 'Continue to your event';
-          var stack = card.querySelector('.stack');
-          if (stack) { stack.innerHTML = ''; stack.appendChild(go); } else card.appendChild(go);
+          if (role === 'participant' && me.approval_status === 'rejected') {
+            setStageCard(card, "Your application wasn't accepted this time.", '', []);
+            return;
+          }
+          var section = role === 'organiser' ? 'manage' : role === 'judge' ? 'judge' : 'team';
+          var dest = appURL + '/e/' + encodeURIComponent(slug) + '/' + section;
+          setStageCard(card, "You've already joined", 'Continue to your event.', [
+            { href: dest, label: 'Continue to your event', primary: true }
+          ]);
         })
         .catch(function () {});
     }

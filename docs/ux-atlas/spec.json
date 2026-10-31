@@ -1393,7 +1393,7 @@
      "name": "People",
      "contents": [
       "Filter: Everyone / Organisers / Participants / Judges / Co-organisers",
-      "Name, role, approval status, 'Applied' when they came by application, team (if any), joined date, one row each"
+      "Name, role, 'Not approved' for a rejected person, team (if any), then the one date -- 'Applied <date>' while still pending or rejected, 'Joined <date>' once approved -- one row each"
      ],
      "actions": [
       {
@@ -1496,7 +1496,8 @@
     "Critique: People's list had no row actions at all -- added Remove from event, Turn off publishing key, Remove co-organiser.",
     "Critique: Create invitation now says plainly that it grants full control including deletion, since it does.",
     "Retest (Grok SIM-346): the no-applications note now names the real stage (‘Move the event to Sign-up open’) instead of a stage that doesn't exist (‘Open’); the whole screen reads read-only with one note once the event has ended.",
-    "Applications cards now show the applicant's email, which features.json review-application always listed but the built card left out."
+    "Applications cards now show the applicant's email, which features.json review-application always listed but the built card left out.",
+    "Retest (Grok SIM-346, round 4): a pending applicant's row in Everyone read 'Pending · Applied · Joined <date>' -- 'Joined' on someone not yet let in. The one date now reads 'Applied <date>' while pending or rejected, 'Joined <date>' once approved, instead of a separate word-only 'Applied' bit next to a 'Joined' that wasn't true yet."
    ],
    "phone": "Applications first, full width, one card per applicant, filters as a 2x2 grid above them; People/Co-organisers/Sign-up collapse into an accordion below.",
    "decisions": [
@@ -2455,6 +2456,11 @@
      "name": "republishing after a score change",
      "when": "results already published, a score changed since",
      "shows": "Publish results stays enabled with label 'Publish again' and a small note: 'The public page still shows the last snapshot until you do.'"
+    },
+    {
+     "name": "nothing to show under Publish",
+     "when": "no tied rank needs an override and nothing is stale since the last publish",
+     "shows": "The whole Publish card is hidden rather than left showing an empty heading -- the common case right after a fresh publish, and after End"
     }
    ],
    "replaces": [
@@ -2469,7 +2475,8 @@
     "Critique: list-event-in-directory is independent of voting (works with voting off) -- kept in this card for now but given its own Save so it doesn't read as voting-only; see decisions.",
     "Critique: override-rank-on-publish was entirely missing -- added next to Publish.",
     "Domain truth F.6: publishing is a repeatable snapshot, not live -- made explicit in the Status copy and the republish state, not just the decisions list.",
-    "Retest (Grok SIM-346): the stale-snapshot note under Publish no longer shows right after a fresh publish -- only once the live standings actually differ from what's published; Show scores now says ‘Teams always see their own score’ (owner decision 2026-10-30); the scoring-rules, visibility and voting-window/eligibility settings read read-only with one note once the event has ended (Publish, Directory and the downloads stay live, since the API still allows them and they're still useful)."
+    "Retest (Grok SIM-346): the stale-snapshot note under Publish no longer shows right after a fresh publish -- only once the live standings actually differ from what's published; Show scores now says ‘Teams always see their own score’ (owner decision 2026-10-30); the scoring-rules, visibility and voting-window/eligibility settings read read-only with one note once the event has ended (Publish, Directory and the downloads stay live, since the API still allows them and they're still useful).",
+    "Retest (Grok SIM-346, round 4): the Publish card showed its heading with nothing under it whenever there was no tie to override and nothing stale -- true right after a fresh publish and after End. The card is now hidden in that case."
    ],
    "decisions": [
     {
@@ -4099,7 +4106,8 @@
    "fixes": [
     "'A first-visit walkthrough blocked the Score this team button underneath it' -- this is a real, dedicated route with no overlay ever covering an actionable control.",
     "Critique #2 (code-confirmed): the conflict confirm previously claimed scores 'are dropped' -- they are not deleted by DeclareConflict, only excluded from this judge's future queue. Copy corrected to what actually happens, and flagged below as an open product question.",
-    "Retest (Grok SIM-346, round 3): 'No entry was submitted.' now also checks the video and code links, not just title/tagline/description -- a team that only submitted one of those had submitted something, and was wrongly told it hadn't."
+    "Retest (Grok SIM-346, round 3): 'No entry was submitted.' now also checks the video and code links, not just title/tagline/description -- a team that only submitted one of those had submitted something, and was wrongly told it hadn't.",
+    "Retest (Grok SIM-346, round 4): the conflict confirm named the entry ('Alpha Thing') instead of the team ('Alpha Testers'), unlike the matching undo dialog, and claimed a score 'stops counting' even on a team this judge had never scored. Now uses the team name throughout and only mentions the score on a team that already has one from this judge."
    ],
    "phone": "Single column: entry content first (collapsible after first read), then rubric and comment, Save & next pinned to the bottom via .sticky-foot.",
    "decisions": [
@@ -4110,7 +4118,7 @@
     },
     {
      "q": "How does a judge declare a conflict on a phone?",
-     "decision": "'I know this team' opens a real confirm dialog, never a hover hint. Copy: 'You know someone on SafeRoute? This team leaves your list and your score for it stops counting. You can undo this from My teams.'",
+     "decision": "'I know this team' opens a real confirm dialog, never a hover hint, naming the team (never the entry) throughout, matching the undo dialog in judge-queue. Scored: 'You know someone on SafeRoute? This team leaves your list and your score for it stops counting. You can undo this from My teams.' Unscored (Grok re-test, round 4 -- the score-stops-counting line was shown even when there was no score to stop): 'You know someone on SafeRoute? You won't score this team.'",
      "why": "Independent judge walkthrough (2026-10-30): the action matching a nervous judge's real worry did nothing visible on tap; hover titles never show on touch."
     },
     {
@@ -5213,7 +5221,8 @@
     "'Visit sponsor' links all had the same name. Each now says 'Visit <sponsor>'.",
     "Taken down keeps the 410 and the reason, drops the event colour and adds a way out (Find another hackathon).",
     "Corrects the previous atlas entry, which promised status tags on gallery cards and a 'results expected' date. Neither exists in the data, both moved to feature ideas.",
-    "Retest (Grok SIM-346, round 2): the header's Sign in/Home swap only ever worked on the app's own origin -- localStorage.apiKey can never be read at the event's own canonical URL (the slug subdomain), so a signed-in visitor there still saw 'Sign in'. It now checks location.host against the AppURL host first: same origin keeps the old localStorage check, any other host always shows 'Sign in', linking straight at the app's sign-in page instead of the neutral Home. The schedule's own ordering is a stable sort, so same-time items keep a fixed order across loads instead of reshuffling."
+    "Retest (Grok SIM-346, round 2): the header's Sign in/Home swap only ever worked on the app's own origin -- localStorage.apiKey can never be read at the event's own canonical URL (the slug subdomain), so a signed-in visitor there still saw 'Sign in'. It now checks location.host against the AppURL host first: same origin keeps the old localStorage check, any other host always shows 'Sign in', linking straight at the app's sign-in page instead of the neutral Home. The schedule's own ordering is a stable sort, so same-time items keep a fixed order across loads instead of reshuffling.",
+    "Retest (Grok SIM-346, round 4): a pending or rejected applicant saw the same 'You've already joined / Continue to your event' as a full member, with Continue only leading to a second screen saying the application was still waiting (or wasn't accepted) -- the membership check now reads role and approval_status and shows 'Your application is waiting for the organisers.' with 'See your application' (pending), or 'Your application wasn't accepted this time.' with no Continue (rejected). A signed-in visitor who isn't a member of this event no longer sees 'Already joined? Sign in' -- that signal is hidden the moment we know they're signed in, independent of whether the membership check that follows finds a role."
    ],
    "phone": "Same order as desktop, one column, 16px gutter. Icon sits above the title, facts on short separate lines, chips scroll sideways, stage card button is full width, Team sites are compact rows with a small thumbnail, Schedule times sit under titles, every tap target is at least 44px. No sticky bars.",
    "decisions": [
@@ -5837,6 +5846,11 @@
      "name": "voting closed",
      "when": "voting window has ended",
      "shows": "'Voting has closed' banner; final ranking shown; your own prior vote, if any, still marked 'You voted for X'"
+    },
+    {
+     "name": "no teams yet",
+     "when": "voting is open but no team has a live site yet, for a visitor not already shown an ineligible or sign-in message",
+     "shows": "'No teams to vote for yet. Teams appear here once their site is live.' in place of the empty team-card grid"
     }
    ],
    "replaces": [
@@ -5847,7 +5861,8 @@
     "'No preview of the teams or that voting is even open' while signed out -- the team gallery now shows before sign-in.",
     "'The rule isn't visible until you try' (own team) -- marked up front.",
     "Critique: 'your current vote' previously only showed after voting closed -- now marked on the card the whole time voting is open, not just at the end.",
-    "Retest (Grok SIM-346, round 2): restyled onto the app kit (same top bar, footer and .pub layout as the event page and directory, light only) instead of the old handwritten design -- the last of the three public pages to move over. The vote-removal confirm moved to a small in-page scrim/dialog carried in this page's own script (window.shConfirm isn't loaded here any more, since the restyle dropped the site chrome that supplied it). Zone labels on this page now use the same familiar-zone table ui.zoneAbbr does (WIB/WITA/WIT/JST/KST/SGT/IST, then a CET/London daylight check, then GMT+N), so a London or Paris event reads the same way here as in the app; the Go public page's hackZoneAbbr was given the same table so all three agree."
+    "Retest (Grok SIM-346, round 2): restyled onto the app kit (same top bar, footer and .pub layout as the event page and directory, light only) instead of the old handwritten design -- the last of the three public pages to move over. The vote-removal confirm moved to a small in-page scrim/dialog carried in this page's own script (window.shConfirm isn't loaded here any more, since the restyle dropped the site chrome that supplied it). Zone labels on this page now use the same familiar-zone table ui.zoneAbbr does (WIB/WITA/WIT/JST/KST/SGT/IST, then a CET/London daylight check, then GMT+N), so a London or Paris event reads the same way here as in the app; the Go public page's hackZoneAbbr was given the same table so all three agree.",
+    "Retest (Grok SIM-346, round 4): an eligible voter saw the header and nothing else -- no teams, no explanation -- once voting was open but no team's site had gone live yet. Now says so, the same note whether the visitor is signed in or not, since either way the gap is the same."
    ],
    "features": [
     "cast-or-change-vote",

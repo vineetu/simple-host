@@ -39,6 +39,7 @@
   <div class="note bad" id="vote-check-error" hidden></div>
   <p id="vote-signin" class="muted small" hidden><a id="signin-link" href="/signin">Sign in to vote</a>. You can change your vote until voting closes.</p>
   <p id="vote-current" class="muted small"></p>
+  <p class="muted small" id="vote-empty" hidden>No teams to vote for yet. Teams appear here once their site is live.</p>
   <div class="grid2" id="options"></div>
   <div id="ranking" hidden>
     <h2 class="section-title">Final votes</h2>
@@ -316,6 +317,12 @@
       }
       box.appendChild(row); options.appendChild(box);
     });
+    // Confusing #2 (Grok re-test, round 4): with no team sites live yet, the
+    // header showed and then nothing -- no teams, no explanation. Shown for
+    // anyone not already told why they can't vote (checkFailed's retry note,
+    // or the ineligible note above): a signed-out visitor and an eligible
+    // signed-in one both get it, since the gap is the same either way.
+    $('vote-empty').hidden = !(status === 'open' && (d.options || []).length === 0 && eligible !== false && !checkFailed);
     var chosenOption = (d.options || []).find(function (o) { return o.team === chosen; });
     if (status === 'open') $('vote-current').textContent = chosen ? 'Your vote: ' + (chosenOption ? chosenOption.team_name : chosen) : '';
     if (status === 'closed') $('vote-current').textContent = chosen ? 'You voted for ' + (chosenOption ? chosenOption.team_name : chosen) : '';

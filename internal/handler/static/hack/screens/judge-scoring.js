@@ -324,9 +324,21 @@ export async function render(ctx) {
 
     const conflictBtn = main.querySelector('#jsc-conflict')
     conflictBtn.addEventListener('click', async () => {
+      // Cosmetic #1 (Grok re-test, round 4): this used to name the entry
+      // (`title`, which falls back to the team name only when there's no
+      // entry title) instead of the team -- the undo dialog in judge-queue.js
+      // always names the team, so this one does too, from the same
+      // row.team.name the rest of this screen uses. It also claimed a score
+      // "stops counting" even on a team this judge never scored. Read the
+      // live `scores` map when the dialog opens (not the render-time
+      // `hasScore`), so a score saved since the screen loaded counts.
+      const teamName = row.team.name || title
+      const scoredNow = Object.keys(scores).some(k => scores[k] != null)
       const ok = await ui.confirm({
-        title: `You know someone on ${title}?`,
-        body: 'This team leaves your list and your score for it stops counting. You can undo this from My teams.',
+        title: `You know someone on ${teamName}?`,
+        body: scoredNow
+          ? 'This team leaves your list and your score for it stops counting. You can undo this from My teams.'
+          : `You won't score this team.`,
         confirmLabel: 'Yes, I know this team',
         cancelLabel: 'Cancel',
         danger: true

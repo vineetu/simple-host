@@ -91,12 +91,19 @@ ${(a.answers || []).map(q => `<p><b>${esc(q.prompt)}</b><br>${q.answer ? esc(q.a
   }
   function personRow(p) {
     const bits = [personCategory(p)]
-    const status = { pending: 'Pending', rejected: 'Not approved' }[p.approval_status]
-    if (status) bits.push(status)
-    if (p.joined_via === 'application') bits.push('Applied')
+    // Cosmetic #5 (Grok re-test, round 4): a pending applicant read
+    // "Pending · Applied · Joined <date>" -- "Joined" on someone who hasn't
+    // been let in yet. p.joined_at is the one timestamp the API gives for
+    // both acts, so the word in front of it is what has to carry the
+    // distinction: "Applied <date>" while pending, "Joined <date>" once
+    // approved (same ui.dateOnly -- itself ui.dateTime with the event's own
+    // zone -- the rest of this screen already uses). A rejected person was
+    // never approved either, so they keep the same "Applied" word.
+    const notApproved = p.approval_status === 'pending' || p.approval_status === 'rejected'
+    if (p.approval_status === 'rejected') bits.push('Not approved')
     if (p.team && (p.team.name || p.team.slug)) bits.push(p.team.name || p.team.slug)
-    const joined = ui.dateOnly(p.joined_at, ev)
-    if (joined) bits.push('Joined ' + joined)
+    const when = ui.dateOnly(p.joined_at, ev)
+    if (when) bits.push((notApproved ? 'Applied ' : 'Joined ') + when)
     let actions = ''
     if (p.primary_organiser) actions = '<span class="meta">Event creator</span>'
     else if (p.role === 'organiser') actions = `<details><summary class="small muted">Actions</summary><button class="btn danger sm" type="button" data-remove-organiser="${ui.esc(p.user_id)}" data-name="${ui.esc(p.display_name)}" title="They lose manage access to this event right away. (The event's original creator can't be removed.)">Remove co-organiser</button></details>`
