@@ -33,7 +33,8 @@ synthetic run; **manual** = gathered by hand for the paper.
 | Per-site disk: live, all versions, by kind (HTML, JS, CSS, media), SQLite, file store, KV | HotOS marginal cost; FSE storage | `paper_site_footprint`, weekly, anonymous (sets `footprint`, `footprint_summary`) | built |
 | Idle-site marginal cost: disk per site with no views in 30 days; memory and CPU per idle site | HotOS core claim | footprint (`views_30d = 0`), and the load test for memory and CPU | built (disk) + load test |
 | Server process CPU and RSS over time vs number of sites | HotOS; FSE resources | `paper_process_sample` (5 min) joined to `paper_daily.sites_live` | built |
-| Postgres and nginx RSS, box CPU, memory, load | FSE resources | `paper_process_sample` | built |
+| Box CPU, memory, load | FSE resources | `paper_process_sample` | built |
+| Postgres and nginx memory | FSE resources | `paper_process_sample` columns read 0 under the production sandbox (`ProtectProc=invisible`); `systemctl show postgresql nginx -p MemoryCurrent`, or the load-test box | manual |
 | Database size, KV rows and bytes, legacy rows | FSE storage | `paper_daily` (`db_bytes`, `kv_rows`, `kv_value_bytes`, `legacy_rows`) | built |
 | Feature use: saved data (KV, SQLite, files), visitor sign-in, named viewers, passcodes, custom domains, notifications | FSE adoption; HotOS "rules, not code" | `paper_daily` (`sites_with_*`, `sites_access_specific`, `sites_custom_domain`) | built |
 | Access rules in use: resources readable or writable by anyone, add-only with spam check, signed-in, own-reads | HotOS security; FSE security | `paper_daily` (`resources_*`) | built |
@@ -73,7 +74,7 @@ Go server's cost of a file, which is the thin-server claim.
 divided by wall time since the previous sample, so 1.0 is one whole core), RSS (`VmRSS`), Go
 heap, goroutines, open file descriptors; summed RSS of every `postgres` and every `nginx`
 process (Postgres workers share their buffer pool, so this overstates Postgres; report it as an
-upper bound); box CPU from `/proc/stat` in cores, `MemTotal`, `MemAvailable`, 1-minute load.
+upper bound; on simple-host.app the service runs with `ProtectProc=invisible`, so these two read 0 there and the paper takes them from `systemctl show postgresql nginx -p MemoryCurrent` by hand or from the load-test box); box CPU from `/proc/stat` in cores, `MemTotal`, `MemAvailable`, 1-minute load.
 The first sample after a start only primes the CPU baseline. Two services share the box
 (simple-host and simple-hack, plus unrelated sites): the per-process numbers are clean, the box
 numbers are an upper bound for the platform.
