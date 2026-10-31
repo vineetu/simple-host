@@ -726,6 +726,11 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* ---------- phone: sub-page tabs, sticky Save, dialogs as sheets ---------- */
 @media (max-width:760px){
+  /* R21: collapsing the sidebar is a desktop-only idea (the phone drawer is
+     already full width when open, nothing to collapse into a rail) -- the
+     toggle used to render inside the phone drawer too, where pressing it
+     flipped the stored sh_side with no visible effect at this width. */
+  .side-toggle{display:none}
   .subnav-split{display:block}
   .subnav{position:static;flex-direction:row;overflow-x:auto;gap:2px;margin:-4px -16px 16px;padding:0 12px;border-bottom:1px solid var(--rule);scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .subnav::-webkit-scrollbar{display:none}

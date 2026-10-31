@@ -930,7 +930,7 @@
      "contents": [
       "Your address: the address in a mono field, Copy, Open",
       "What shows there: two choice cards side by side (stacked on a phone): 'Built-in event page -- Made from Basics, About, Schedule, Sponsors and FAQ. It updates as you edit.' and 'Your own website -- Version 3, uploaded 29 Oct. You can switch back any time. Nothing is deleted.' The own-website card is disabled with 'Upload a zip first' until a version exists",
-      "Your own website card: 'A .zip with index.html at the top, up to 25 MB.' then what an upload does now: no uploads yet -> 'Your first upload goes live at your address straight away.'; built-in page showing -> 'Each upload becomes a new version, ready to switch to.'; own website live -> 'Each upload goes live straight away.' The server's upload_limits line follows",
+      "Your own website card: 'A .zip with index.html at the top, up to 25 MB.' then what an upload does now: no uploads yet -> 'Your first upload goes live at your address right away.'; any uploads exist -> 'Each upload goes live at your address right away. Earlier uploads stay listed.' The server's upload_limits line follows. Switching back to a specific earlier version isn't offered -- the API has no such call, only switching the whole address back to the built-in page.",
       "Drop zone with Choose zip (primary). Choosing or dropping a file uploads it at once; the zone shows the file name and progress, then 'Version 4 is up'. Archive errors show under the zone in plain words (missing_index: 'Put index.html at the top of the zip, not inside a folder.'; invalid_archive: 'That file isn't a valid .zip.')",
       "Uploads: Version n and its date, newest first; 'Live' pill on the version being served when your own website is on, 'Newest' otherwise",
       "Quiet line: 'An AI app can publish versions here too, and manage your website's own saved data (keys, tables and files).' (event-website-storage stays API/AI-app only)"
@@ -955,6 +955,11 @@
        "label": "Built-in event page (choice)",
        "kind": "secondary",
        "confirm": null
+      },
+      {
+       "label": "Choose zip / drop a zip (while the built-in page is showing)",
+       "kind": "secondary",
+       "confirm": "Switch to your own website? This upload replaces the built-in page at your address right away. You can switch back to the built-in page any time. [Cancel] [Upload and go live]"
       }
      ]
     }
@@ -965,7 +970,7 @@
     "urls": "?s=event-page&tab=<basics|about|schedule|sponsors|faq|look|website>. A tab click is history.pushState + re-render of the right column only (the sub-nav stays, scroll goes to the top of the content). A missing or unknown tab lands on Basics via replaceState, so Back never loops. Back/Forward re-render the tab in the URL. document.title is '<Sub-page> · Event page · <event>'. Old links still land: #basics, #schedule, #sponsors, #faq -> that tab; #appearance -> look; #address -> website; #announcements or tab=announcements -> ?s=announcements (replaceState).",
     "focus_and_keys": "After a tab change focus moves to the sub-page h2 (tabindex -1). The sub-nav is a nav of links with aria-current. Dialogs trap focus, Escape cancels, focus returns to the button that opened them. The row menu is a menu button (aria-haspopup, aria-expanded), arrow keys move inside it, Escape closes it. The grip is a button: Up/Down arrow moves the row one place and saves, and a polite live region says 'Kopi Kode moved to position 2 of 3'. After Remove, focus goes to the next row's Edit, or to Add when the list is empty.",
     "data_loading": "Entering Event page loads /content and /website once; switching tabs does not refetch. Every save refreshes only what it changed.",
-    "read_only": "Admin view: everything is read-only. After End: Basics, About, Sponsors, FAQ, Look and Website stay editable with the note 'This event has ended. You can still fix your public page.'; Schedule is read-only (see decisions, 2026-10-30).",
+    "read_only": "Admin view: everything is read-only on every sub-page. After End: Basics, About and Look's colour and ‘Show entries’ switch stay editable, with the note ‘This event has ended. You can still fix the page text and colour.’; Schedule, Sponsors, FAQ, the event icon and Website show values as text with no controls, because the server rejects those writes once the event is archived (see decisions).",
     "custom_site_note": "While your own website is live, Basics, About, Schedule, Sponsors and FAQ each carry one .note.info under their heading: 'Your own website is live at your address. This still saves, and shows again if you switch back to the built-in page.'"
    },
    "states": [
@@ -1025,9 +1030,14 @@
      "shows": "Own website chosen, Live pill, the custom-site note"
     },
     {
-     "name": "Ended (read only)",
-     "when": "stage archived, or admin view",
-     "shows": "note at top, values as text, no controls"
+     "name": "Admin view (read only)",
+     "when": "admin_view",
+     "shows": "note at top, values as text, no controls, on every sub-page"
+    },
+    {
+     "name": "Ended",
+     "when": "stage archived (and not admin_view)",
+     "shows": "Basics, About and Look (colour, Show entries) stay editable with the note 'This event has ended. You can still fix the page text and colour.'; Schedule, Sponsors, FAQ, the event icon and Website show values as text, no controls."
     },
     {
      "name": "Sidebar collapsed",
@@ -1113,8 +1123,8 @@
     },
     {
      "q": "Can the Event page be edited after the event ends?",
-     "decision": "Basics, About, Sponsors, FAQ, Look and Website stay editable after End, with the note 'This event has ended. You can still fix your public page.' Schedule is read-only after End (Announcements has its own rule).",
-     "why": "The public page stays up as the lasting record, so organisers need to fix typos and sponsor links after the event; the schedule no longer matters once it is over. Decided 2026-10-30 (coordinator, conservative reading of the owner's 'clean it up')."
+     "decision": "Basics, About, colour and the ‘Show entries’ switch stay editable after End, with the note ‘This event has ended. You can still fix the page text and colour.’ Sponsors, FAQ, the event icon, Schedule, Website and Announcements are read-only after End.",
+     "why": "The server refuses those changes after End -- PUT /content (schedule, sponsors, FAQ), PUT/DELETE /icon, PATCH/PUT /website and posting an announcement all answer 409 event_ended/event_closed once the event is archived, while PATCH on the event itself (title, tagline, about, prizes, rules, coc_text, accent_color, gallery_open, dates, time zone) keeps working. Matching the UI to that avoids promising edits that fail. Decided 2026-10-31 (coordinator, correcting the 2026-10-30 reading, which had this backwards)."
     }
    ],
    "features": [
@@ -1309,7 +1319,7 @@
     {
      "q": "Announcements after End?",
      "decision": "Read-only after End: past announcements stay visible, no new posts.",
-     "why": "Nobody is listening after the event; the list is a record."
+     "why": "Nobody is listening after the event; the list is a record. The server also refuses posting after End (409 event_ended), so this matches the API, the same rule the Event page's after-End decision uses."
     }
    ],
    "features": [

@@ -358,7 +358,22 @@ export function go(path) {
   const url = new URL(path, location.href)
   if (url.searchParams.has('ui') || url.pathname === '/signin') { location.assign(url); return }
   history.pushState({}, '', url)
+  ui.notePath(url.pathname + url.search + url.hash)
   route()
+}
+// R8: a real browser Back/Forward bypasses go() (and therefore the dirty-
+// guard's own click interception) entirely -- the browser has already
+// changed `location` and popped the history entry by the time this fires.
+// ui.confirmDiscardForLeave() asks the same "discard your changes?"
+// question the guard asks for a link click; if the person keeps editing it
+// has already pushed the previous URL back onto `location` itself (we
+// never re-rendered, so what's on screen is still correct and matches), so
+// route() only runs once the navigation is actually accepted.
+let popBusy = false
+async function onPopState() {
+  if (popBusy) return
+  popBusy = true
+  try { if (await ui.confirmDiscardForLeave()) await route() } finally { popBusy = false }
 }
 async function route() {
   // Review #2: a button that navigates (ctx.go(), not just an <a> click)
@@ -462,6 +477,6 @@ document.getElementById('app').addEventListener('click', e => {
   e.preventDefault()
   go(u.pathname + u.search + u.hash)
 })
-window.addEventListener('popstate', route)
+window.addEventListener('popstate', onPopState)
 route()
 export { saveNext, startGoogle }

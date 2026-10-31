@@ -36,9 +36,13 @@ export async function render(ctx) {
   } catch (e) { loadError = true }
   if (!ctx.alive()) return
 
+  // R12: `db.EventAnnouncement` has only id, title, body and created_at --
+  // the API never returns email_participants/emailed, so a pill that
+  // depended on it never showed, and the delete confirm's warning (below)
+  // never fired either. The "Emailed" pill is dropped rather than built on
+  // a field the server doesn't send.
   function rowHTML(a) {
-    const emailed = a.email_participants || a.emailed
-    const meta = `<span class="meta"><span>${ui.esc(ui.dateTime(a.created_at, ev))}</span>${emailed ? '<span class="pill ok">Emailed</span>' : ''}</span>`
+    const meta = `<span class="meta"><span>${ui.esc(ui.dateTime(a.created_at, ev))}</span></span>`
     if (readOnly) return `<div class="r ann"><span class="main"><b>${ui.esc(a.title)}</b><span class="clamp2">${ui.esc(a.body)}</span></span>${meta}</div>`
     const menu = rowMenuHTML(a.title, [{ label: 'Edit', act: 'edit' }, { label: 'Delete', act: 'delete', danger: true }])
     return `<div class="r ann" data-id="${ui.esc(a.id)}"><a class="main" href="#" data-act="edit"><b>${ui.esc(a.title)}</b><span class="clamp2">${ui.esc(a.body)}</span></a>${meta}<div class="row-acts"><button class="btn quiet sm" type="button" data-act="edit" aria-label="Edit ${ui.esc(a.title)}">Edit</button>${menu}</div></div>`
@@ -109,8 +113,11 @@ ${announcements.length ? `<div class="list editable" aria-label="Posted announce
     const id = el.closest('[data-id]').dataset.id
     const a = announcements.find(x => x.id === id)
     if (!a) return
-    const emailed = a.email_participants || a.emailed
-    const body = `It disappears from your page and from everyone's app.${emailed ? ` It was emailed to ${peopleCount} people, and those emails stay sent.` : ''}`
+    // R12: the API has no way to tell whether this one was emailed (see
+    // rowHTML's own note), so the warning is unconditional instead of
+    // depending on a field that's never there -- an announcement that
+    // genuinely was emailed must never delete without this warning.
+    const body = "It disappears from your page and from everyone's app. Emails already sent stay sent."
     const ok = await ui.confirm({ title: `Delete “${a.title}”?`, body, confirmLabel: 'Delete announcement', danger: true })
     if (!ok) return
     try {

@@ -1,3 +1,4 @@
+import { isAppRoute } from './nav.js'
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 export const stages = { draft: 'Not open yet', open: 'Sign-up open', building: 'Building', closed: 'Entries closed', judging: 'Judging', results: 'Results', archived: 'Ended', ended: 'Ended' }
 export const stageLabel = stage => stages[stage] || stage || ''
@@ -452,7 +453,23 @@ export function copyButton(text, label = 'Copy') {
 // `{'data-confirm': ''}`) is for a caller or test that needs to find a
 // specific button, same as the atlas prototypes' own confirm dialogs.
 // Escape and a backdrop click resolve with `escapeValue`. `focus` is the
-// index of the button focused on open.
+// index of the button focused on open, or the string 'first-field' -- the
+// first focusable element in `body` that isn't one of the footer buttons
+// (every form dialog, via formDialog's own default), falling back to the
+// first button when body has no field (review R3: a mouse click on the
+// title field used to Tab straight to Cancel, and the body's own
+// `autofocus` attribute is a no-op once the markup is inserted via
+// innerHTML after the page has loaded).
+// Review R3: Tab must cycle every focusable element in the dialog -- the
+// body's own fields as well as the footer buttons -- not just the buttons,
+// and Enter in a single-line text field (not a textarea, and not a
+// checkbox/radio/file input, where Enter already has its own meaning)
+// submits the dialog's primary action (the button carrying 'btn primary',
+// i.e. Save) the same way a native <form> would.
+const FOCUSABLE_SEL = 'a[href],button,input,select,textarea,[tabindex]'
+function focusablesIn(box) {
+  return Array.from(box.querySelectorAll(FOCUSABLE_SEL)).filter(el => !el.disabled && el.tabIndex !== -1 && !el.hidden)
+}
 export function dialog({ title, body, buttons, escapeValue = false, focus = 0 }) {
   return new Promise(resolve => {
     const previous = document.activeElement
@@ -488,18 +505,39 @@ export function dialog({ title, body, buttons, escapeValue = false, focus = 0 })
     box.append(acts)
     scrim.append(box)
     function done(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); previous?.focus(); resolve(value) }
+    function primaryButton() { return els.find(b => b.classList.contains('primary')) || els[els.length - 1] }
     function keydown(e) {
-      if (e.key === 'Escape') { e.preventDefault(); done(escapeValue) }
+      if (e.key === 'Escape') { e.preventDefault(); done(escapeValue); return }
       if (e.key === 'Tab') {
+        const list = focusablesIn(box)
+        if (!list.length) return
         e.preventDefault()
-        const index = els.indexOf(document.activeElement)
-        els[(index + (e.shiftKey ? els.length - 1 : 1)) % els.length].focus()
+        const index = list.indexOf(document.activeElement)
+        const next = index === -1 ? 0 : (index + (e.shiftKey ? list.length - 1 : 1)) % list.length
+        list[next].focus()
+        return
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        const t = document.activeElement
+        // A single-line field only: never a textarea (its own Enter means a
+        // new line), never a checkbox/radio/file (Enter has no role there),
+        // and never inside a <select> (native Enter/arrow behaviour stays).
+        if (t && t.tagName === 'INPUT' && !['checkbox', 'radio', 'file'].includes(t.type)) {
+          e.preventDefault()
+          primaryButton()?.click()
+        }
       }
     }
     scrim.addEventListener('click', e => { if (e.target === scrim) done(escapeValue) })
     document.addEventListener('keydown', keydown, true)
     document.body.append(scrim)
-    els[focus].focus()
+    if (focus === 'first-field') {
+      const list = focusablesIn(box)
+      const field = list.find(el => !acts.contains(el))
+      ;(field || els[0])?.focus()
+    } else {
+      els[focus]?.focus()
+    }
   })
 }
 // In-page confirm dialog; screens call ui.confirm. Never the browser's native
@@ -524,3 +562,101 @@ function askConfirm({ title, body, confirmLabel = 'Continue', cancelLabel = 'Can
   })
 }
 export { askConfirm as confirm }
+
+// Unsaved-changes guard for the one-Save forms (Basics, About): "another
+// tab, the sidebar, Back" asks before leaving, closing the browser tab uses
+// beforeunload. Bound once (module-level); `setDirtyGuard` is called on
+// every render of a form sub-page with a fresh `getDirty` closure over
+// that render's own fields, `clearDirtyGuard` by every other sub-page (and
+// effectively superseded the moment a new Basics/About render calls
+// setDirtyGuard again).
+// R8 (self-expiry): `getDirty` is only ever trusted while the ctx that
+// installed it is still alive (ctx.alive(), the same generation check
+// every screen already uses) -- a route change (another tab, Back/Forward,
+// a ctx.refresh()) leaves the old render's ctx dead, so `currentDirty()`
+// drops the guard instead of asking about a form nobody is looking at any
+// more.
+// R9: Sign out (`[data-signout]`) is left to its own click handler
+// (shell.js) rather than intercepted here as if it were an ordinary
+// same-origin app link -- it has to actually run the sign-out flow, not a
+// `ctx.go()` SPA navigation to '/'. A link to a page this app doesn't
+// render as a screen (isAppRoute false, e.g. /directory, /get-started) gets
+// a real navigation (location.assign) after confirming, instead of
+// `ctx.go()`, which would otherwise mount the Home screen at the wrong URL.
+// R8 (Back/Forward): app.js's popstate handler calls confirmDiscardForLeave
+// before accepting the browser's Back/Forward -- see app.js's own note.
+// Lives here, not in a screen util, because app.js (never a screen) needs
+// to call confirmDiscardForLeave/clearDirtyGuard too, and app.js only ever
+// imports this shared module.
+// `lastPath` is the URL last known to be safely showing (no unconfirmed
+// dirty form) -- tracked here, not in app.js or organiser-event-page.js,
+// so every caller that changes the URL (app.js's go(), and organiser-
+// event-page.js's own light-column subnav navigation, R19) can call
+// notePath() right after and confirmDiscardForLeave's own "push the old
+// URL back" always has an accurate path to restore, regardless of which
+// module did the pushState.
+let guardCtx = null, guardGetDirty = null, guardBound = false
+let lastPath = typeof location !== 'undefined' ? location.pathname + location.search + location.hash : ''
+export function notePath(path) { lastPath = path ?? (location.pathname + location.search + location.hash) }
+export function setDirtyGuard(ctx, getDirty) { guardCtx = ctx; guardGetDirty = getDirty; bindGuardOnce() }
+export function clearDirtyGuard() { guardGetDirty = null }
+function currentDirty() {
+  if (!guardGetDirty) return null
+  if (guardCtx && guardCtx.alive && !guardCtx.alive()) { guardGetDirty = null; return null }
+  return guardGetDirty()
+}
+function bindGuardOnce() {
+  if (guardBound) return
+  guardBound = true
+  document.addEventListener('click', onGuardClick, true)
+  window.addEventListener('beforeunload', e => {
+    if (currentDirty()) { e.preventDefault(); e.returnValue = '' }
+  })
+}
+async function onGuardClick(e) {
+  const info = currentDirty()
+  if (!info) return
+  const a = e.target.closest('a[href]')
+  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return
+  let url
+  try { url = new URL(a.href) } catch { return }
+  if (url.origin !== location.origin) return
+  // A same-document jump (an in-page #id link) and a link back to exactly
+  // where we already are both need no guard.
+  if (url.pathname === location.pathname && url.search === location.search) return
+  e.preventDefault()
+  e.stopPropagation()
+  const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: 'Your changes will be lost.', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
+  if (!ok) return
+  guardGetDirty = null
+  // R9: Sign out (`[data-signout]`) needs its own handler (shell.js) to
+  // actually run -- re-dispatching the same click, now that the guard is
+  // cleared, lets it go through for real on the second pass (this
+  // listener itself sees it again first, via the capture phase, and no-ops
+  // immediately since currentDirty() is now null), instead of treating it
+  // as an ordinary same-origin app link and doing an SPA ctx.go('/'),
+  // which used to land on the Home screen while still signed in. A link to
+  // a page this SPA doesn't render as a screen at all (isAppRoute false,
+  // e.g. /directory, /get-started) gets a real navigation instead of
+  // ctx.go(), which would otherwise mount the wrong screen at that URL.
+  if (a.hasAttribute('data-signout')) { a.click(); return }
+  if (isAppRoute(url.pathname)) { lastPath = url.pathname + url.search + url.hash; guardCtx.go(url.pathname + url.search + url.hash) }
+  else location.assign(url) // not a screen this SPA renders -- a real navigation, not ctx.go()
+}
+// Exported for app.js's popstate handler: resolves true if it is fine to
+// proceed with a Back/Forward navigation that already changed `location`
+// (no dirty form, or the person confirmed discarding it) -- in both cases
+// `lastPath` is brought up to date. Resolves false if the person chose to
+// keep editing, having already pushed the previous URL back onto
+// `location` itself, so app.js only needs to skip calling route().
+export async function confirmDiscardForLeave() {
+  const info = currentDirty()
+  const target = location.pathname + location.search + location.hash
+  if (!info) { lastPath = target; return true }
+  const from = lastPath
+  const ok = await askConfirm({ title: `Discard your changes to ${info.label}?`, body: 'Your changes will be lost.', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
+  if (!ok) { history.pushState({}, '', from); return false }
+  guardGetDirty = null
+  lastPath = target
+  return true
+}

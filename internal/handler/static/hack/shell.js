@@ -75,6 +75,11 @@ function bindSideKeyOnce() {
     if (e.key !== '[' || e.metaKey || e.ctrlKey || e.altKey) return
     const t = e.target
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+    // R21: a dialog (ui.dialog's own scrim) traps focus on one of its own
+    // buttons -- that counts as "outside a text field", so the shortcut
+    // used to fire straight through it and collapse the sidebar behind an
+    // open modal.
+    if (document.querySelector('.scrim')) return
     // A plain viewport-width check, same as the popup positioning below --
     // the server's own theme test bans the other common way to ask this
     // (a media-query API call) project-wide as a sign of a page deciding

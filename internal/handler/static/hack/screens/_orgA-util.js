@@ -1,6 +1,10 @@
 // Shared helpers for the organiser Overview / Event page / Announcements /
 // People / Settings / Create event screens and the public co-organiser
 // invite (batch orgA). Not a shell module -- only these screens import it.
+// (The Basics/About unsaved-changes guard used to live here too, but
+// app.js's popstate handler needs to call into it -- see R8/R9 -- and
+// app.js only ever imports the shared ui.js, never a screen-only util, so
+// setDirtyGuard/clearDirtyGuard/confirmDiscardForLeave moved there.)
 import { esc, stageLabel } from '../ui.js'
 
 // fileAsDataURL reads a File into a data: URL (sponsor/FAQ logos travel as
@@ -129,7 +133,7 @@ export function stagePicker(current, offered) {
 // on any button click, so a retry re-opens it with the same body node.
 // Resolves true if onSave eventually returned true, false if the person
 // cancelled or pressed Escape.
-export async function formDialog(ui, { title, body, saveLabel = 'Save', cancelLabel = 'Cancel', focus = 0 }, onSave) {
+export async function formDialog(ui, { title, body, saveLabel = 'Save', cancelLabel = 'Cancel', focus = 'first-field' }, onSave) {
   for (;;) {
     const action = await ui.dialog({
       title, body,
@@ -179,6 +183,17 @@ export function wireRowMenus() {
   }
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-rowmenu]')
+    // R17: a click on one of the menu's own items (Edit, Move up, Remove...)
+    // used to leave the menu open under whatever re-rendered next, since
+    // only an outside click or [data-rowmenu] itself closed it.
+    const item = e.target.closest('.row-menu button')
+    if (item) {
+      const m = item.closest('.row-menu')
+      m.hidden = true
+      const btn = m.parentNode && m.parentNode.querySelector('[data-rowmenu]')
+      if (btn) btn.setAttribute('aria-expanded', 'false')
+      return
+    }
     if (!b) { if (!e.target.closest('.row-menu')) closeAll(null); return }
     const m = b.parentNode.querySelector('.row-menu')
     closeAll(m)
@@ -186,13 +201,30 @@ export function wireRowMenus() {
     b.setAttribute('aria-expanded', String(!m.hidden))
     if (!m.hidden) { const f = m.querySelector('button:not([disabled])'); if (f) f.focus() }
   })
+  // R17: arrow-key navigation inside an open row menu (Up/Down/Home/End),
+  // same as any other menu role -- Escape already closes it below.
   document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape') return
-    document.querySelectorAll('.row-menu:not([hidden])').forEach(m => {
-      m.hidden = true
-      const b = m.parentNode && m.parentNode.querySelector('[data-rowmenu]')
-      if (b) { b.setAttribute('aria-expanded', 'false'); b.focus() }
-    })
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.row-menu:not([hidden])').forEach(m => {
+        m.hidden = true
+        const b = m.parentNode && m.parentNode.querySelector('[data-rowmenu]')
+        if (b) { b.setAttribute('aria-expanded', 'false'); b.focus() }
+      })
+      return
+    }
+    if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return
+    const menu = e.target.closest && e.target.closest('.row-menu:not([hidden])')
+    if (!menu) return
+    const items = Array.from(menu.querySelectorAll('button:not([disabled])'))
+    if (!items.length) return
+    e.preventDefault()
+    const cur = items.indexOf(document.activeElement)
+    let next
+    if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = items.length - 1
+    else if (e.key === 'ArrowDown') next = cur === -1 ? 0 : (cur + 1) % items.length
+    else next = cur === -1 ? items.length - 1 : (cur - 1 + items.length) % items.length
+    items[next].focus()
   })
 }
 
@@ -231,43 +263,6 @@ export function undoToast(section, text, undo, ms = 10000) {
   else section.insertBefore(note, section.firstChild)
 }
 
-// Unsaved-changes guard for the one-Save forms (Basics, About): "another
-// tab, the sidebar, Back" asks before leaving, closing the browser tab uses
-// beforeunload. Bound once (module-level, like wireRowMenus above);
-// `setDirtyGuard` is called on every render of a form sub-page with a fresh
-// `getDirty` closure over that render's own fields, `clearDirtyGuard` by
-// every other sub-page (and effectively superseded the moment a new
-// Basics/About render calls setDirtyGuard again). Known gap: a real
-// browser Back/Forward (popstate) cannot be intercepted from here without
-// changing app.js's own routing, so only link clicks and tab close/reload
-// are covered -- see organiser-event-page.js's own note where this is used.
-let guardCtx = null, guardGetDirty = null, guardBound = false
-export function setDirtyGuard(ctx, getDirty) { guardCtx = ctx; guardGetDirty = getDirty; bindGuardOnce() }
-export function clearDirtyGuard() { guardGetDirty = null }
-function bindGuardOnce() {
-  if (guardBound) return
-  guardBound = true
-  document.addEventListener('click', onGuardClick, true)
-  window.addEventListener('beforeunload', e => {
-    if (guardGetDirty && guardGetDirty()) { e.preventDefault(); e.returnValue = '' }
-  })
-}
-async function onGuardClick(e) {
-  if (!guardGetDirty) return
-  const info = guardGetDirty()
-  if (!info) return
-  const a = e.target.closest('a[href]')
-  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return
-  let url
-  try { url = new URL(a.href) } catch { return }
-  if (url.origin !== location.origin) return
-  // A same-document jump (an in-page #id link) and a link back to exactly
-  // where we already are both need no guard.
-  if (url.pathname === location.pathname && url.search === location.search) return
-  e.preventDefault()
-  e.stopPropagation()
-  const ok = await guardCtx.ui.confirm({ title: `Discard your changes to ${info.label}?`, body: 'Your changes will be lost.', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
-  if (!ok) return
-  guardGetDirty = null
-  guardCtx.go(url.pathname + url.search + url.hash)
-}
+// The Basics/About unsaved-changes guard (setDirtyGuard/clearDirtyGuard/
+// confirmDiscardForLeave) moved to ui.js -- see the note at the top of this
+// file.
