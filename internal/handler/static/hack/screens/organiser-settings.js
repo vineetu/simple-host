@@ -61,7 +61,7 @@ export async function render(ctx) {
   }
   function secretPanel(s) {
     return `<div class="note ok"><p><b>Signing secret.</b> Copy it now. It will not be shown again.</p>
-<div class="row-flex"><input class="input mono" id="notify-secret-${ui.esc(s.forId)}" type="text" readonly value="${ui.esc(s.secret)}"><button class="btn sm" type="button" data-notify-secret-copy="${ui.esc(s.forId)}">Copy</button><button class="btn sm" type="button" data-notify-secret-dismiss>Dismiss</button></div>
+<div class="control-row"><input class="input mono" id="notify-secret-${ui.esc(s.forId)}" type="text" readonly value="${ui.esc(s.secret)}" aria-label="Signing secret"><button class="btn" type="button" data-notify-secret-copy="${ui.esc(s.forId)}">Copy</button><button class="btn" type="button" data-notify-secret-dismiss>Dismiss</button></div>
 ${s.previous_valid_until ? `<p class="help">The previous secret keeps working until ${ui.esc(ui.dateTime(s.previous_valid_until, ev))}.</p>` : ''}</div>`
   }
   function deliveriesPanel() {
@@ -124,12 +124,12 @@ ${newSecret && newSecret.forId === n.id ? secretPanel(newSecret) : ''}
 <div class="field"><label>Contact email<input class="input" id="set-email" type="email" value="${ui.esc(org.contact_email || '')}"></label></div>
 <div class="field"><label>What the event is for<textarea class="input" id="set-purpose" maxlength="1000">${ui.esc(org.purpose || '')}</textarea></label><p class="help">Only you and Simple Hack see this.</p></div>
 <div class="field"><label>Expected participants<input class="input" id="set-n" type="number" min="1" max="100000" value="${ui.esc(org.expected_participants ?? '')}"></label></div>
-<button class="btn primary" type="button" id="set-save">Save</button></section>
+<div class="form-actions"><button class="btn primary" type="button" id="set-save">Save</button></div></section>
 
 <section class="card" id="applications"><h2>Applications</h2>
 <div class="setting"><div class="t"><div class="t-row"><b>Let people apply without your join link</b><span class="saved" id="apps-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>When your event is listed in Find a hackathon, an Apply button shows there and on your event page while sign-up is open and during Building. Every application waits for you in People &rarr; Applications.</span></div><div class="ctl"><button class="toggle${ev.applications_open ? ' on' : ''}" type="button" role="switch" aria-checked="${!!ev.applications_open}" id="apps-toggle"${appsLocked ? ' disabled' : ''} aria-label="Let people apply without your join link"></button></div></div>
-<p class="small muted">Your join link keeps working either way and stays private. Turning this off stops new applications. Ones already waiting stay in People.</p>
-<p class="small muted">${directoryListed ? `Listed in Find a hackathon: yes — <a href="${esc(href('organiser', ev.slug, 'results'))}">change in Results</a>.` : `Not listed in Find a hackathon, so nobody can apply yet. Applications start once you <a href="${esc(href('organiser', ev.slug, 'results'))}">list the event in Results</a>.`}</p>
+<p class="help">Your join link keeps working either way and stays private. Turning this off stops new applications. Ones already waiting stay in People.</p>
+<p class="help">${directoryListed ? `Listed in Find a hackathon: yes — <a href="${esc(href('organiser', ev.slug, 'results'))}">change in Results</a>.` : `Not listed in Find a hackathon, so nobody can apply yet. Applications start once you <a href="${esc(href('organiser', ev.slug, 'results'))}">list the event in Results</a>.`}</p>
 </section>
 
 <section class="card"><h2>Notifications</h2><p class="sub">Get a message when a visitor saves something or uploads a file on your own event website.</p>
@@ -141,14 +141,14 @@ ${addOpen ? `<form id="notify-form"><div class="field"><label>URL<input class="i
 <div class="field"><label>Header name (optional)<input class="input" id="notify-header-name" type="text" maxlength="64"></label></div>
 <div class="field"><label>Header value<input class="input" id="notify-header-value" type="password" maxlength="1024"></label></div>
 </details>
-<div class="row-flex"><button class="btn primary" type="submit">Add notification</button> <button class="btn" type="button" id="notify-cancel">Cancel</button></div></form>`
-    : notifyLimits.can_create ? `<button class="btn" type="button" id="notify-add">Add notification</button>` : `<p class="small muted">Available once you put up your own website on Event page.</p>`}
+<div class="form-actions"><button class="btn primary" type="submit">Add notification</button><button class="btn" type="button" id="notify-cancel">Cancel</button></div></form>`
+    : notifyLimits.can_create ? `<div class="form-actions"><button class="btn" type="button" id="notify-add">Add notification</button></div>` : `<p class="help">Available once you put up your own website on Event page.</p>`}
 </section>
 
 <section class="danger-zone"><h2>Danger zone</h2>
 ${leaveRowHTML()}
 <div class="setting"><div class="t"><b>Delete this event</b><span>Removes the public page, results, team sites, entries, scores, votes and memberships for good. There is no undo.</span></div><button class="btn danger" type="button" id="delete-open">Delete event</button></div>
-${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b>${ui.esc(ev.slug)}</b> to confirm. This cannot be undone.</p><input class="input mono" id="delete-confirm" type="text">` : '<p>This cannot be undone.</p>'}<button class="btn danger" type="button" id="delete-go"${requireTyped ? ' disabled' : ''}>Delete event</button> <button class="btn" type="button" id="delete-cancel">Cancel</button></div></div>` : ''}
+${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<div class="field"><label for="delete-confirm">Type <b>${ui.esc(ev.slug)}</b> to confirm. This cannot be undone.</label><input class="input mono" id="delete-confirm" type="text"></div>` : '<p>This cannot be undone.</p>'}<div class="form-actions"><button class="btn danger" type="button" id="delete-go"${requireTyped ? ' disabled' : ''}>Delete event</button><button class="btn" type="button" id="delete-cancel">Cancel</button></div></div></div>` : ''}
 </section>`
 
     adminLock(main, admin)

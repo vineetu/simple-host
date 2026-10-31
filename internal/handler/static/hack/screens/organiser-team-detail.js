@@ -44,7 +44,7 @@ export async function render(ctx) {
     // just fail), matching move-here's own full-team guard below.
     const others = teams.filter(t => t.slug !== teamSlug && t.members.length < ev.team_size_max)
     const opts = others.map(t => `<option value="${ui.esc(t.slug)}">${ui.esc(t.name)}</option>`).join('')
-    return `<div class="r"><div class="main"><b>${ui.esc(m.display_name)}</b><span>${m.joined_at ? 'Joined ' + ui.esc(ui.dateTime(m.joined_at, ev)) : ''}</span></div><div class="row-flex">
+    return `<div class="r"><div class="main"><b>${ui.esc(m.display_name)}</b><span>${m.joined_at ? 'Joined ' + ui.esc(ui.dateTime(m.joined_at, ev)) : ''}</span></div><div class="control-row">
 <select class="select" data-move-select data-user="${ui.esc(m.user_id)}" aria-label="Move ${ui.esc(m.display_name)} to another team"${locked ? ' disabled' : ''}><option value="">Move to…</option>${opts}</select>
 <button class="btn sm" type="button" data-move="${ui.esc(m.user_id)}" disabled>Move</button>
 <button class="btn danger sm" type="button" data-remove="${ui.esc(m.user_id)}" data-name="${ui.esc(m.display_name)}"${locked ? ' disabled' : ''}>Remove</button>
@@ -72,13 +72,12 @@ export async function render(ctx) {
     main.innerHTML = `<p class="crumbs"><a href="${ui.esc(href(role, slug, 'teams'))}">Teams</a> / ${ui.esc(team.name)}</p>
 <div class="ph"><div class="t"><h1>Team: ${ui.esc(team.name)}</h1><p>${ui.esc(trackName)} · ${team.members.length} of ${ev.team_size_max} people</p></div></div>
 ${lockReason ? `<div class="note warn">${ui.esc(lockReason)}</div>` : ''}
-<section class="card"><h2>Team</h2><form id="rename-form"><div class="row-flex"><div class="field"><label>Team name<input class="input" id="rename-name" type="text" maxlength="80" value="${ui.esc(team.name)}"${lockReason ? ' disabled' : ''}></label></div><button class="btn" type="submit"${lockReason ? ' disabled' : ''}>Rename</button></div></form>
-<p class="small muted">Join code <span class="mono">${ui.esc(team.code)}</span></p></section>
+<section class="card"><h2>Team</h2><form id="rename-form"><div class="field"><label for="rename-name">Team name</label><div class="control-row"><input class="input" id="rename-name" type="text" maxlength="80" value="${ui.esc(team.name)}"${lockReason ? ' disabled' : ''}><button class="btn" type="submit"${lockReason ? ' disabled' : ''}>Rename</button></div><p class="help">Join code <span class="mono">${ui.esc(team.code)}</span></p></div></form></section>
 <h2 class="section-title">Members</h2>
 <div class="list">${members.length ? members.map(m => memberRow(m, !!lockReason)).join('') : '<div class="empty">No members.</div>'}</div>
 <section class="card"><h2>Add someone</h2>
 ${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="select" id="move-here-select"${lockReason || full ? ' disabled' : ''}><option value="">Choose someone…</option>${onNoTeam.map(p => `<option value="${ui.esc(p.user_id)}">${ui.esc(p.display_name || p.email || 'Someone')}</option>`).join('')}</select></label></div>
-<button class="btn" type="button" id="move-here-save"${moveHereDisabled ? ' disabled' : ''}>Move here</button>${full ? '<p class="help">This team is full.</p>' : ''}` : '<p class="muted">Everyone is on a team.</p>'}
+<div class="form-actions"><button class="btn" type="button" id="move-here-save"${moveHereDisabled ? ' disabled' : ''}>Move here</button>${full ? '<span class="hint">This team is full.</span>' : ''}</div>` : '<p class="muted">Everyone is on a team.</p>'}
 </section>
 <section class="card"><h2>Entry &amp; site</h2><dl><dt>Entry</dt><dd><span class="pill ${ep.cls}">${ui.esc(ep.text)}</span></dd><dt>Site</dt><dd><span class="pill ${sp.cls}">${ui.esc(sp.text)}</span></dd></dl><a class="btn" href="${ui.esc(href(role, slug, 'entry') + '&team=' + encodeURIComponent(teamSlug))}">View entry</a></section>
 <section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Delete this team</b><span>Removes ${ui.esc(team.name)}, its entry and its site for good. Members stay in the event without a team.</span></div><button class="btn danger" type="button" id="delete-team"${lockReason ? ' disabled' : ''}>Delete team</button></div></section>`

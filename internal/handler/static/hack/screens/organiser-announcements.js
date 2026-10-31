@@ -56,15 +56,15 @@ export async function render(ctx) {
 ${admin ? '<div class="note warn" role="alert">Viewing as platform admin. Everything here is read only.</div>' : ''}
 ${ended && !admin ? '<div class="note">This event has ended. The list below stays readable; nothing can be posted or changed.</div>' : ''}
 ${loadError ? '<div class="note bad" role="alert">Could not load announcements.</div>' : ''}
-${readOnly ? '' : `<form class="card" aria-labelledby="ann-h" id="ann-form"><h2 id="ann-h" style="margin:0 0 14px">New announcement</h2>
+${readOnly ? '' : `<form class="card" aria-labelledby="ann-h" id="ann-form"><h2 id="ann-h">New announcement</h2>
 <div class="field"><div class="lab-row"><label for="ann-title">Title</label><span class="counter" id="ann-title-ct">0 / 120</span></div><input class="input" id="ann-title" maxlength="120"></div>
 <div class="field"><label for="ann-body">Message</label><textarea class="input" id="ann-body" rows="4" maxlength="3000"></textarea></div>
-<label class="check"><input type="checkbox" id="ann-email"${emailableCount ? '' : ' disabled'}><div><b>Email ${emailableCount} participants</b><span>${emailableCount ? 'Editing it later never sends another email.' : 'No participant has an email address yet.'}</span></div></label>
+<label class="check"><input type="checkbox" id="ann-email"${emailableCount ? '' : ' disabled'}><span><b>Email ${emailableCount} participants</b><span>${emailableCount ? 'Editing it later never sends another email.' : 'No participant has an email address yet.'}</span></span></label>
 <div class="card-foot"><span class="hint">Shows on your page and in the app straight away.</span><button class="btn primary" type="submit" id="ann-post">Post</button></div>
 </form>`}
 <p class="section-title">${announcements.length ? `Posted · ${announcements.length}` : 'Posted'}</p>
 ${announcements.length ? `<div class="list editable" aria-label="Posted announcements" id="ann-list">${announcements.map(rowHTML).join('')}</div>` :
-    `<div class="empty-state"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8v4h3l6 4V4L6 8zm12-1.5a4 4 0 0 1 0 7"/></svg><h3>Nothing posted yet</h3><p style="margin-bottom:0">Your first announcement shows here, on your page and in participants' app.</p></div>`}
+    `<div class="empty-state"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8v4h3l6 4V4L6 8zm12-1.5a4 4 0 0 1 0 7"/></svg><h3>Nothing posted yet</h3><p>Your first announcement shows here, on your page and in participants' app.</p></div>`}
 </div>`
 
   if (readOnly) return
@@ -107,7 +107,7 @@ ${announcements.length ? `<div class="list editable" aria-label="Posted announce
     const a = announcements.find(x => x.id === id)
     if (!a) return
     const body = document.createElement('div')
-    body.innerHTML = `<p class="muted" style="margin:0 0 12px">Saving changes doesn't email anyone again.</p>
+    body.innerHTML = `<p class="form-intro">Saving changes doesn't email anyone again.</p>
 <div class="field"><label for="ea-title">Title</label><input class="input" id="ea-title" maxlength="120" value="${ui.esc(a.title)}" autofocus></div>
 <div class="field"><label for="ea-body">Message</label><textarea class="input" id="ea-body" rows="4" maxlength="3000">${ui.esc(a.body)}</textarea></div>`
     const q = sel => body.querySelector(sel)

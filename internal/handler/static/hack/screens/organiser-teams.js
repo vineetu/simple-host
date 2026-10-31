@@ -73,14 +73,13 @@ ${!ev.team_finding ? `<div class="note">Team finding is off. Teams form by invit
 <div class="list">${teams.length ? teams.map(row).join('') : '<div class="empty">No teams yet.</div>'}</div>
 <p class="small muted"><a href="${ui.esc(href(role, slug, 'results'))}">Teams CSV is on Results</a></p>
 <details class="card" id="team-finding"${teamFindingOpen ? ' open' : ''}><summary>Team finding</summary>
-<label class="check"><input type="checkbox" id="tf-on"${ev.team_finding ? ' checked' : ''}${configurable ? '' : ' disabled'}><div><b>Team finding</b><span>Let participants find teams and invite people. Team codes always work.</span></div></label>
+<label class="check"><input type="checkbox" id="tf-on"${ev.team_finding ? ' checked' : ''}${configurable ? '' : ' disabled'}><span><b>Team finding</b><span>Let participants find teams and invite people. Team codes always work.</span></span></label>
 <div class="field"><label>Most people per team<input class="input" id="tf-size" type="number" min="1" max="50" value="${teamSizeMax}"${configurable ? '' : ' disabled'}></label></div>
-<button class="btn" type="button" id="tf-save"${configurable ? '' : ' disabled'}>Save</button>
+<div class="form-actions"><button class="btn" type="button" id="tf-save"${configurable ? '' : ' disabled'}>Save</button></div>
 </details>
 <details class="card" id="tracks"${tracksOpen ? ' open' : ''}><summary>Tracks and challenges</summary>
 ${tracks.map(trackCard).join('')}
-<button class="btn" type="button" id="track-add"${configurable ? '' : ' disabled'}>Add track</button>
-<button class="btn" type="button" id="track-save"${configurable ? '' : ' disabled'}>Save tracks</button>
+<div class="form-actions"><button class="btn" type="button" id="track-add"${configurable ? '' : ' disabled'}>Add track</button><button class="btn" type="button" id="track-save"${configurable ? '' : ' disabled'}>Save tracks</button></div>
 </details>`
     wire()
   }

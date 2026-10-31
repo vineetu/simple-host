@@ -185,8 +185,8 @@ export async function render(ctx) {
 <li><span class="what"><b>A few questions from the organisers</b>And their code of conduct to agree to.</span></li>
 </ul>
 <p>The organisers decide who joins. You'll see their answer here and on your Simple Hack Home.</p>
-<button class="btn primary" type="button" id="ap-signin">Sign in to apply</button>
-<p class="small muted" style="margin-top:12px">Have a join link from the organisers? Open that instead.</p>
+<div class="form-actions"><button class="btn primary" type="button" id="ap-signin">Sign in to apply</button></div>
+<p class="help">Have a join link from the organisers? Open that instead.</p>
 </section>`
     main.querySelector('#ap-signin').addEventListener('click', () => {
       ctx.go('/signin?next=' + encodeURIComponent(location.pathname))
@@ -214,7 +214,7 @@ export async function render(ctx) {
   const questionsHTML = questions.map((q, i) =>
     `<div class="field"><label for="ap-q-${i}">${esc(q.prompt)}${q.required ? '' : ' (optional)'}</label><textarea class="input" id="ap-q-${i}" data-question="${esc(q.id)}" maxlength="500"${q.required ? ' required' : ''}></textarea></div>`
   ).join('')
-  const cocHTML = `<h3 style="margin-top:20px">Code of conduct</h3><p>${esc(info.coc_default || '')}</p>${info.coc_text ? `<p class="small"><b>From the organisers:</b> ${esc(info.coc_text)}</p>` : ''}`
+  const cocHTML = `<h3>Code of conduct</h3><p>${esc(info.coc_default || '')}</p>${info.coc_text ? `<p class="small"><b>From the organisers:</b> ${esc(info.coc_text)}</p>` : ''}`
   const countryHTML = countryOptions(ui).map(o => `<option value="${esc(o.code)}">${esc(o.name)}</option>`).join('')
 
   main.innerHTML = header + `<form class="card" id="ap-form">
@@ -223,29 +223,30 @@ export async function render(ctx) {
 
 <div class="field"><label for="ap-name">Your name</label><input class="input" id="ap-name" type="text" maxlength="100" required value="${esc(name)}" autocomplete="name"><p class="help">Shown to the organisers, and to your teammates once you're in.</p></div>
 
-<fieldset style="border:0;padding:0;margin:0 0 16px;min-width:0"><legend class="lab" style="font-weight:600;font-size:13.5px;padding:0;margin:0 0 6px">Where you're based (optional)</legend>
+<fieldset class="field"><legend>Where you're based (optional)</legend>
 <div class="field-row">
 <div class="field grow"><label for="ap-city">City</label><input class="input" id="ap-city" type="text" maxlength="80" autocomplete="address-level2"></div>
-<div class="field grow"><label for="ap-country">Country</label><select class="select" id="ap-country" style="width:100%" autocomplete="country"><option value="">Choose a country</option>${countryHTML}</select></div>
+<div class="field grow"><label for="ap-country">Country</label><select class="select" id="ap-country" autocomplete="country"><option value="">Choose a country</option>${countryHTML}</select></div>
 </div>
 </fieldset>
 
-<fieldset style="border:0;padding:0;margin:0 0 16px;min-width:0"><legend class="lab" style="font-weight:600;font-size:13.5px;padding:0;margin:0 0 6px">Age range (optional)</legend>
-<div class="choices" id="ap-age" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
+<fieldset class="field"><legend>Age range (optional)</legend>
+<div class="choices auto" id="ap-age">
 ${ageOptions.map(o => `<label class="choice"><input type="radio" name="age" value="${esc(o.value)}"><b>${esc(o.label)}</b></label>`).join('')}
 </div>
-<div class="note" id="ap-minor" hidden style="margin:10px 0 0"></div>
+<div class="note" id="ap-minor" hidden></div>
 </fieldset>
 
 <div class="field"><label for="ap-gender">Gender (optional)</label><select class="select" id="ap-gender"><option value="">Choose</option>${genderOptions.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('')}</select></div>
 
-${questions.length ? `<h3 style="margin-top:20px">Questions from the organisers</h3>${questionsHTML}` : ''}
+${questions.length ? `<div class="field-group"><h3>Questions from the organisers</h3>${questionsHTML}</div>` : ''}
 
-${cocHTML}
+<div class="field-group">${cocHTML}
 <label class="check"><input type="checkbox" id="ap-coc" required><span>I agree to the code of conduct</span></label>
+</div>
 
 <div class="note info">Only the organisers of ${esc(info.title || 'this event')} see your answers. They're never shown on the event page or to other participants.</div>
-<button class="btn primary btn-block" type="submit" id="ap-submit">Send application</button>
+<div class="form-actions"><button class="btn primary btn-block" type="submit" id="ap-submit">Send application</button></div>
 </form>`
 
   const $ = id => main.querySelector('#' + id)

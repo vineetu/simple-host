@@ -153,17 +153,17 @@ export async function render (ctx) {
     // found" and invites below) -- the API's createTeam has never required
     // it, so starting a private team (then sharing its code by hand) must
     // keep working either way; only joining-by-code is otherwise universal.
-    const joinCard = '<div class="card" data-tour="join-team"><h2>Join a team</h2><div class="field"><label for="join-code">Team code</label><input class="input" id="join-code" maxlength="16" autocomplete="off" spellcheck="false" autocapitalize="off"></div><button type="button" class="btn" id="join-go"' + (canJoinByCode ? '' : ' disabled') + '>Join a team</button></div>'
-    const startCard = '<div class="card" data-tour="start-team"><h2>Start a team</h2><div class="field"><label for="start-name">Team name</label><input class="input" id="start-name" maxlength="80" autocomplete="off"></div><button type="button" class="btn primary" id="start-go"' + (canStart ? '' : ' disabled') + '>Start a team</button></div>'
+    const joinCard = '<div class="card" data-tour="join-team"><h2>Join a team</h2><div class="field"><label for="join-code">Team code</label><input class="input" id="join-code" maxlength="16" autocomplete="off" spellcheck="false" autocapitalize="off"></div><div class="form-actions"><button type="button" class="btn" id="join-go"' + (canJoinByCode ? '' : ' disabled') + '>Join a team</button></div></div>'
+    const startCard = '<div class="card" data-tour="start-team"><h2>Start a team</h2><div class="field"><label for="start-name">Team name</label><input class="input" id="start-name" maxlength="80" autocomplete="off"></div><div class="form-actions"><button type="button" class="btn primary" id="start-go"' + (canStart ? '' : ' disabled') + '>Start a team</button></div></div>'
     sections.push('<div class="grid2">' + startCard + joinCard + '</div>')
     if (!canJoinByCode && !canStart) {
       sections.push('<p class="note">Teams can’t be started or joined now. Ask the organiser.</p>')
     }
     if (finding.enabled) {
       sections.push('<div class="card" data-tour="be-found"><h2>Be found</h2>' +
-        '<label class="check"><input type="checkbox" id="look-on"' + (finding.looking ? ' checked' : '') + '><b>List me as looking for a team</b></label>' +
+        '<label class="check"><input type="checkbox" id="look-on"' + (finding.looking ? ' checked' : '') + '><span>List me as looking for a team</span></label>' +
         '<div class="field"><label for="look-intro">Your intro</label><textarea class="input" id="look-intro" maxlength="120">' + esc(finding.intro || '') + '</textarea></div>' +
-        '<button type="button" class="btn" id="look-save">Save intro</button></div>')
+        '<div class="form-actions"><button type="button" class="btn" id="look-save">Save intro</button></div></div>')
       const orphanRequests = finding.pending.filter(p => p.kind === 'request' && !finding.teams.some(t => t.slug === p.team))
       if (orphanRequests.length) {
         sections.push('<h2 class="section-title">Your pending requests</h2><div class="list">' + orphanRequests.map(p =>
@@ -192,7 +192,7 @@ export async function render (ctx) {
       const open = finding.team ? !!finding.team.open : true
       sections.push('<hr class="rule"><div class="field"><span class="lab">Who can join</span><div class="seg"><span tabindex="0" role="button" class="' + (open ? 'on' : '') + '" data-seg="true">Anyone</span><span tabindex="0" role="button" class="' + (!open ? 'on' : '') + '" data-seg="false">Only people with the code</span></div></div>' +
         '<div class="field"><label for="team-looking">Looking for</label><input class="input" id="team-looking" maxlength="120" value="' + esc((finding.team && finding.team.looking_for) || '') + '"><p class="help">Shown to people browsing teams, for example "a designer".</p></div>' +
-        '<button type="button" class="btn" id="team-settings-save">Save</button>')
+        '<div class="form-actions"><button type="button" class="btn" id="team-settings-save">Save</button></div>')
     }
     sections.push('</div>')
 
@@ -220,7 +220,7 @@ export async function render (ctx) {
       const current = (team.track && team.track.slug) || ''
       sections.push('<div class="card"><div class="field"><label for="team-track">Track</label><select class="select" id="team-track"' + (editable ? '' : ' disabled') + '><option value="">No track</option>' +
         ev.tracks.map(t => '<option value="' + esc(t.slug) + '"' + (t.slug === current ? ' selected' : '') + '>' + esc(t.name) + '</option>').join('') + '</select></div>' +
-        (editable ? '<button type="button" class="btn" id="team-track-save">Save track</button>' : '') + '</div>')
+        (editable ? '<div class="form-actions"><button type="button" class="btn" id="team-track-save">Save track</button></div>' : '') + '</div>')
     }
 
     if (editable) sections.push('<div class="danger-zone"><h2>Leave team</h2><div class="setting"><div class="t"><span>You’ll lose access to this team’s entry and site.</span></div><button type="button" class="btn danger" id="team-leave">Leave team</button></div></div>')

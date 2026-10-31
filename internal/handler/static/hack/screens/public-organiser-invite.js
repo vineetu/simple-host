@@ -31,7 +31,7 @@ export async function render(ctx) {
 <section class="card"><h2>Code of conduct</h2><p>${ui.esc(invite.coc_default || '')}</p>${invite.coc_text ? `<p>${ui.esc(invite.coc_text)}</p>` : ''}</section>
 ${signedIn
     ? `<section class="card"><h2>Accept invitation</h2><p class="sub">Signed in as ${ui.esc((me && (me.display_name || me.username)) || 'you')}</p><form id="accept-form"><label class="check"><input type="checkbox" id="accept-coc" required><span>I agree to the code of conduct</span></label><div class="danger-zone"><h2>Full organiser rights</h2><div class="setting"><div class="t"><span>You’ll have full control of this event, including Delete this event. Accept?</span></div><button class="btn danger" type="submit">Accept and co-organise</button></div></div></form></section>`
-    : `<section class="card"><p>Read the invitation, then sign in to accept.</p><button class="btn primary lg" id="sign-in-button" type="button">Sign in</button></section>`}`
+    : `<section class="card"><p>Read the invitation, then sign in to accept.</p><div class="form-actions"><button class="btn primary lg" id="sign-in-button" type="button">Sign in</button></div></section>`}`
 
   const signInBtn = main.querySelector('#sign-in-button')
   if (signInBtn) signInBtn.addEventListener('click', () => {

@@ -243,9 +243,7 @@ table.t tr:last-child td{border-bottom:0}
 table.t .num{text-align:right;font-variant-numeric:tabular-nums}
 
 /* forms */
-.field{margin:0 0 16px}
-.field label,.field .lab{display:block;font-weight:600;font-size:13.5px;margin:0 0 6px}
-.field .help{font-size:13px;color:var(--line-soft);margin:6px 0 0}
+/* .field, its label and help: see the "Form layout" block at the end of this file */
 .input,.select,textarea.input{width:100%;max-width:100%;min-width:0;font:inherit;font-size:14.5px;color:var(--line);background:#fff;border:1px solid var(--rule-hi);border-radius:var(--r-sm);padding:8px 10px}
 /* A1: inputs nest inside <label>, and .field label{font-weight:600} is
    inherited by everything inside it -- every typed value, placeholder,
@@ -264,10 +262,7 @@ input[type=number].input{max-width:140px}
 /* A15: "Choose File" otherwise shows the system's own grey button. */
 input[type=file].input{padding:6px}
 input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-weight:550;border:1px solid var(--rule-hi);background:var(--surface);color:var(--line);border-radius:var(--r-sm);padding:5px 11px;margin-right:10px;cursor:pointer}
-.check{display:flex;gap:10px;align-items:flex-start;padding:6px 0}
-.check input{margin-top:3px;accent-color:var(--accent)}
-.check b{font-weight:600;display:block}
-.check span{font-size:13px;color:var(--line-soft)}
+/* .check rows: see the "Form layout" block at the end of this file */
 .toggle{position:relative;flex:none;width:36px;height:21px;border-radius:99px;background:#d8cfba;display:inline-block;vertical-align:middle}
 .toggle::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
 .toggle.on{background:var(--teal)}.toggle.on::after{left:17px}
@@ -549,7 +544,6 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
      exactly one primary (red) button per sub-page or dialog, never two.
    ====================================================================== */
 :root{--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:20px;--s6:24px;--s8:32px}
-.card > .field:last-child,.card > .field-row:last-child .field{margin-bottom:0}
 
 /* sub-pages: a compact list on the left (desktop), tabs that scroll sideways (phone) */
 .subnav-split{display:grid;grid-template-columns:176px minmax(0,1fr);gap:32px;align-items:start}
@@ -571,20 +565,7 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
 .card-foot .hint.dirty{color:var(--warn);font-weight:550}
 .card-foot.sticky{position:sticky;bottom:0;z-index:5;box-shadow:0 -6px 12px -10px rgba(43,41,37,.25)}
 
-/* side-by-side fields (dates + time zone) */
-.field-row{display:flex;flex-wrap:wrap;gap:0 16px}
-.field-row > .field{flex:0 0 auto}
-.field-row > .field.grow{flex:1 1 220px;min-width:0}
-.field-row input[type=date].input{width:172px}
-.field-row .input,.field-row .select{height:42px;min-height:42px}
-.field .err{font-size:13px;color:var(--danger);margin:6px 0 0;font-weight:550}
-.field.has-error .input{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
-.field .lab-row{display:flex;align-items:baseline;gap:8px;margin:0 0 6px}
-.field .lab-row label{margin:0}
-.field .lab-row .opt{font-size:12.5px;color:var(--line-faint)}
-.field .lab-row .counter{margin:0 0 0 auto}
-.field-group{border-top:1px solid var(--rule);margin:20px -18px 0;padding:16px 18px 0}
-.field-group > h3{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--line-faint);margin:0 0 12px}
+/* side-by-side fields, error state, label rows, field groups: see the "Form layout" block */
 
 /* editable lists: rows with a grip, an optional thumbnail, a quiet Edit and a row menu */
 .list.editable{overflow:visible}
@@ -772,9 +753,6 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .preview-head .ev-icon{width:44px;height:44px}
   .preview-head h3{font-size:16px}
   .card-foot.sticky{position:fixed;left:0;right:0;bottom:0;margin:0;border-radius:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));z-index:35}
-  .field-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 10px}
-  .field-row > .field.grow{grid-column:1 / -1}
-  .field-row input[type=date].input{width:100%;max-width:none}
   .dt-pair{max-width:none;grid-template-columns:minmax(0,1fr) 112px}
   .r-when{width:auto;font-size:13px}
   .list.editable .r.sched-row{flex-wrap:wrap;align-items:flex-start;row-gap:2px}
@@ -806,5 +784,164 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .danger-zone .setting{flex-direction:column}
   .danger-zone .setting .btn{width:100%}
 }
+/* ======================================================================
+   Form layout (2026-10-31) -- the ONE place form spacing and alignment live.
+   ----------------------------------------------------------------------
+   Every label-plus-control on every screen is one of these patterns. Fix a
+   spacing or alignment problem here, never with a style="" or a one-off
+   margin in a screen module. docs/ux-atlas/BUILD.md "Form layout" has the
+   markup for each.
+
+     .field              stacked: label above the control (the default)
+     .field.inline       label and control on one row (a filter above a list);
+                         stacks again on phone
+     .check              checkbox or radio row: box on the first text line,
+                         optional <b>title</b> plus help indented under it
+     .setting            toggle row: title and help left, control right
+     .field-row          several fields side by side, every control the same height
+     .control-row        one control with its button(s) beside it (input + Save,
+                         link + Copy), all the same height
+     .form-actions       the action row under a form: 16px above, primary first
+     .card-foot          a long editor card's footer band (Save right, dirty hint
+                         left) -- see the Rhythm block above
+   Spacing: field to field (and any form block to the next) --field-gap,
+   label to control and control to help/error --label-gap. A field's
+   children are spaced by the grid gap only, so their own margins are reset.
+   ====================================================================== */
+:root{
+  --field-gap:var(--s4);      /* field -> field, check -> field, field -> actions */
+  --label-gap:6px;            /* label -> control -> help -> error */
+  --check-gap:10px;           /* box -> its text */
+  --check-size:16px;
+  --control-h:40px;           /* every single-line input, select, and a button beside one */
+  --label-size:13.5px;
+}
+
+/* --- stacked field (default) ---------------------------------------- */
+.field{display:grid;grid-template-columns:minmax(0,1fr);row-gap:var(--label-gap);margin:0 0 var(--field-gap);min-width:0}
+.field > *{margin:0}
+.field > label:not(.check),.field > .lab,.field > legend,.field .lab-row label{display:block;font-weight:600;font-size:var(--label-size);line-height:1.4;padding:0}
+/* A label that wraps its control (<label>Name<input></label>, the older and
+   the DOM-built markup) gets the same gap as a for= label beside it. */
+.field > label:not(.check) > :is(.input,.select,textarea){display:block;margin-top:var(--label-gap)}
+/* A select keeps its own width (A11) instead of stretching across the card. */
+.field > .select,.field > label > .select{justify-self:start;max-width:100%}
+.field.grow > .select,.field.grow > label > .select{justify-self:stretch}
+.help,.field .help{font-size:13px;line-height:1.45;color:var(--line-soft);font-weight:400}
+.help{margin:0 0 var(--field-gap)}
+.field .help{margin:0}
+.field .err{font-size:13px;color:var(--danger);font-weight:550}
+.field.has-error .input,.field.has-error .select{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
+.field .lab-row{display:flex;align-items:baseline;gap:var(--s2)}
+.field .lab-row .opt{font-size:12.5px;color:var(--line-faint)}
+.field .lab-row .counter{margin:0 0 0 auto}
+.field .counter{margin:0}
+/* Short controls keep their own width inside the field's grid column. */
+.field > :is(.seg,.btn,.toggle,.pill){justify-self:start}
+/* Empty help and error slots (filled by JS later) take no room. */
+.help:empty,.field .err:empty{display:none}
+/* A label with no control of its own (a group, a read-only value) */
+.lab{display:block;font-weight:600;font-size:var(--label-size);line-height:1.4;margin:0 0 var(--label-gap)}
+/* <fieldset class="field"> groups radios or several fields under one legend */
+fieldset.field{border:0;padding:0;min-inline-size:0}
+fieldset.field > legend{margin:0 0 var(--label-gap)}
+
+/* --- inline field: label beside the control -------------------------- */
+.field.inline{grid-template-columns:max-content minmax(0,1fr);column-gap:var(--s3);align-items:baseline}
+.field.inline > :not(label,.lab,.lab-row){grid-column:2}
+.field.inline > label,.field.inline > .lab{grid-column:1}
+
+/* --- one control height everywhere ----------------------------------- */
+.input:not(textarea),.select{min-height:var(--control-h)}
+input[type=date].input,input[type=datetime-local].input,input[type=time].input{min-height:var(--control-h)}
+
+/* --- checkbox and radio rows ----------------------------------------- */
+.check{display:grid;grid-template-columns:var(--check-size) minmax(0,1fr);column-gap:var(--check-gap);align-items:start;margin:0 0 var(--field-gap);padding:0;font-size:14.5px;font-weight:400;color:var(--line);cursor:pointer}
+.check > input{font:inherit;width:var(--check-size);height:var(--check-size);margin:calc((1.5em - var(--check-size)) / 2) 0 0;accent-color:var(--accent);cursor:pointer}
+.check > :not(input){grid-column:2;min-width:0}
+.check + .check{margin-top:calc(var(--s3) - var(--field-gap))}
+.check b{display:block;font-weight:600}
+.check .help,.check b ~ span{display:block;font-size:13px;line-height:1.45;color:var(--line-soft);font-weight:400;margin:2px 0 0}
+.check:has(> input:disabled){cursor:default}
+.check > input:disabled + *{color:var(--line-soft)}
+
+/* --- toggle settings row (.setting lives in the forms section above) -- */
+.setting .t > span{display:block}
+/* a typed-confirm field inside a danger-zone row keeps its <b> inline */
+.setting .t .field b{display:inline}
+
+/* --- several fields on one row --------------------------------------- */
+.field-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--field-gap) var(--s4);margin:0 0 var(--field-gap)}
+.field-row > .field{flex:0 0 auto;min-width:0;margin:0}
+.field-row > .field.grow{flex:1 1 220px}
+.field-row input[type=date].input{width:172px}
+/* the rubric editor's criterion row (kit .crit-row): fields with no own
+   margin, so the row's buttons line up with the inputs, at the same height */
+.crit-row > .field{margin:0}
+.crit-row .btn{min-height:var(--control-h)}
+
+/* --- a control and its button(s) on one row --------------------------- */
+.control-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2)}
+.control-row > .input,.control-row > .select{flex:1 1 200px;width:auto;min-width:0}
+.control-row > .btn,.copy > .btn{flex:none;min-height:var(--control-h)}
+.control-row > .check{margin:0}
+.control-row + .control-row{margin-top:var(--s2)}
+
+/* --- form actions ----------------------------------------------------- */
+.form-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2);margin:var(--field-gap) 0 0}
+.form-actions .hint{font-size:13px;color:var(--line-soft)}
+.form-actions + .help{margin-top:var(--s3)}
+.form-actions + :is(.field,.field-row,.check,.control-row){margin-top:var(--field-gap)}
+/* an action row whose every button is hidden right now takes no room */
+.form-actions:not(:has(> :not([hidden]))){display:none}
+
+/* --- group of fields under a small heading inside a card -------------- */
+.field-group{border-top:1px solid var(--rule);margin:20px -18px 0;padding:16px 18px 0}
+.field-group > h3{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--line-faint);margin:0 0 12px}
+.field-group > .t-row{margin:0 0 12px}
+.field-group > .t-row > h3{margin:0}
+
+/* --- the last form block in a card or dialog body sits on the padding -- */
+/* --- spacing around form blocks ---------------------------------------- */
+/* a card heading -> its first field: the same 12px as heading -> .sub */
+.card > h2 + :is(.field,.field-row,.check,.control-row),
+.card > h2 + form > :is(.field,.field-row,.check,.control-row):first-child{margin-top:var(--s3)}
+/* a disclosure (Advanced, Read the standard code) -> the next form block */
+details + :is(.field,.field-row,.check,.form-actions){margin-top:var(--field-gap)}
+details > .help:last-child{margin:var(--s2) 0 0}
+/* the last form block in a card or dialog body sits on the padding */
+.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
+.card > form > :is(.field,.field-row,.check,.form-actions,.help):last-child,
+details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
+.dlg-body > :is(.field,.field-row,.check,.help):last-child{margin-bottom:0}
+
+/* intro line at the top of a form dialog or card ("Times are in UTC.") */
+.form-intro{color:var(--line-soft);margin:0 0 var(--s3)}
+.choices.auto{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+.file-pick .pv.sm{width:44px;height:44px}
+
+/* Small structural rules that replaced one-off style="" attributes in the
+   screens (2026-10-31). Add here, not inline. */
+.note > .btn{margin-left:var(--s2)}
+.site-frame img{max-width:100%}
+.card > dl:only-child{margin:0}
+.card > .section-title:first-child{margin-top:0}
+.empty-state p:last-child{margin-bottom:0}
+
+@media (max-width:760px){
+  .field.inline{grid-template-columns:minmax(0,1fr)}
+  .field.inline > *{grid-column:1}
+  .field-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--field-gap) 10px}
+  .field-row > .field.grow,.field-row > .field:has(input[type=datetime-local]){grid-column:1 / -1}
+  .field-row input[type=date].input{width:100%;max-width:none}
+  .field-row .select{width:100%;min-width:0}
+  .form-actions .btn.primary{flex:1 1 auto}
+  .crit-row > .row-flex{grid-column:1 / -1}
+}
+/* Inside a field the grid gap does the spacing, even for the blocks above
+   that carry their own outer margin. */
+.field > :is(.field-row,.control-row,.form-actions,.check,.help,.note){margin:0}
+/* ---------------------------- end Form layout ---------------------------- */
+
 /* Headings that receive focus for screen readers (tab switches) show no box to mouse users. */
 [tabindex="-1"]:focus{outline:none}

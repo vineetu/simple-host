@@ -93,7 +93,7 @@ export async function render(ctx) {
     const sub = subLine(row)
     const openBtn = newTabLink(siteHref(row), 'Open site', 'btn sm')
     const shotBtn = row.has_screenshot ? `<button type="button" class="btn sm" data-shot="${ui.esc(row.team_id)}" data-slug="${ui.esc(row.team.slug)}">View screenshot</button>` : ''
-    const shotFrame = row.has_screenshot ? `<div class="site-frame" id="shot-${ui.esc(row.team_id)}" hidden><img alt="Screenshot of ${ui.esc(row.team.name || title)}" style="max-width:100%" hidden></div>` : ''
+    const shotFrame = row.has_screenshot ? `<div class="site-frame" id="shot-${ui.esc(row.team_id)}" hidden><img alt="Screenshot of ${ui.esc(row.team.name || title)}" hidden></div>` : ''
     const scoreHref = `/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(row.team_id)}`
     let action = ''
     if (mode === 'readonly') {

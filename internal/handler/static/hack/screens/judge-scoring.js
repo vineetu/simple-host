@@ -154,7 +154,7 @@ export async function render(ctx) {
   // site (or a stale one) -- show it alongside the website, not instead of
   // telling the judge nothing was published.
   const shotSection = row.has_screenshot
-    ? `<p class="section-title">Screenshot</p><div class="site-frame"><img id="jsc-shot" alt="Screenshot of ${ui.esc(row.team.name || title)}" style="max-width:100%" hidden></div>`
+    ? `<p class="section-title">Screenshot</p><div class="site-frame"><img id="jsc-shot" alt="Screenshot of ${ui.esc(row.team.name || title)}" hidden></div>`
     : ''
 
   const left = `<p class="crumbs"><a href="${ui.esc(href('judge', slug, 'queue'))}">My teams</a> / ${ui.esc(title)}</p>` +
@@ -198,7 +198,7 @@ export async function render(ctx) {
     `<p class="small"><a class="muted" href="${ui.esc(href('judge', slug, 'rubric'))}">What do the scores mean?</a></p>` +
     `<div id="jsc-criteria">${rubric.map((crit, i) => critRow(crit, i === 0)).join('')}</div>` +
     (locked
-      ? `<div class="field"><label>Comment for the team</label><p>${comment ? ui.esc(comment) : '<span class="muted">No comment.</span>'}</p><p class="help">Not shown with your name.</p></div>`
+      ? `<div class="field"><span class="lab">Comment for the team</span><p>${comment ? ui.esc(comment) : '<span class="muted">No comment.</span>'}</p><p class="help">Not shown with your name.</p></div>`
       : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" data-tour="comment" maxlength="1000" rows="3" placeholder="Share useful feedback"${!hasScore ? ' disabled' : ''}>${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? 'Optional. The team sees it without your name.' : 'Add a score before writing a comment.'}</p><p class="small muted" id="jsc-saved" aria-live="polite"></p></div>`) +
     (locked ? '' : `<p class="small"><button type="button" class="btn quiet sm" id="jsc-conflict" data-tour="conflict">I know someone on this team</button></p>`) +
     `<div class="sticky-foot"><button type="button" class="btn" id="jsc-prev" data-tour="prev"${index <= 0 ? ' disabled' : ''}>Previous</button>${locked ? '' : `<button type="button" class="btn primary" id="jsc-next" data-tour="save-next">${nextLabel}</button>`}</div>`

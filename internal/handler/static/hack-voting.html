@@ -52,19 +52,20 @@
   <section class="card">
     <form id="voting-form">
       <label class="check"><input id="enabled" type="checkbox"><span>Enable people's choice</span></label>
-      <div class="field"><label for="opens">Opens<input class="input" id="opens" type="datetime-local" step="60"></label></div>
-      <div class="field"><label for="closes">Closes<input class="input" id="closes" type="datetime-local" step="60"></label></div>
-      <div class="field"><label for="eligibility">Who may vote
+      <p class="form-intro" id="zone"></p>
+      <div class="field-row">
+        <div class="field"><label for="opens">Opens</label><input class="input" id="opens" type="datetime-local" step="60"></div>
+        <div class="field"><label for="closes">Closes</label><input class="input" id="closes" type="datetime-local" step="60"></div>
+      </div>
+      <div class="field"><label for="eligibility">Who may vote</label>
         <select class="select" id="eligibility"><option value="all_signed_in">Anyone signed in</option><option value="event_members">Approved event members</option><option value="participants">Approved participants</option></select>
-      </label></div>
-      <p class="muted small" id="zone"></p>
-      <button class="btn primary" id="save-voting" type="submit">Save voting settings</button>
+      </div>
+      <div class="form-actions"><button class="btn primary" id="save-voting" type="submit">Save voting settings</button></div>
     </form>
   </section>
   <section class="card">
-    <label class="check"><input id="listed" type="checkbox"><span>List this event in the public directory</span></label>
-    <p class="muted small">New events are not listed until you tick this. A taken-down event never appears.</p>
-    <button class="btn" id="save-directory" type="button">Save directory setting</button>
+    <label class="check"><input id="listed" type="checkbox"><span>List this event in the public directory<span class="help">New events are not listed until you tick this. A taken-down event never appears.</span></span></label>
+    <div class="form-actions"><button class="btn" id="save-directory" type="button">Save directory setting</button></div>
   </section>
   <p><a id="vote-preview" href="#">Open voting page</a> &middot; <a href="/directory">Public directory</a></p>
 </section>

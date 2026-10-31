@@ -80,8 +80,8 @@ export async function render(ctx) {
   main.innerHTML = `<div class="pub"><section class="hero"><h1>You’re invited to judge</h1><p>${ui.esc(info.title || '')}</p>${meta ? `<p>${ui.esc(meta)}</p>` : ''}${info.tagline ? `<p>${ui.esc(info.tagline)}</p>` : ''}<p><a href="${eventHref}">See the event page</a></p></section>` +
     `<section class="card"><h2>Code of conduct</h2><p>${ui.esc(info.coc_default || '')}</p>${extraCoc ? `<p>${ui.esc(extraCoc)}</p>` : ''}</section>` +
     (signedIn
-      ? `<section class="card" id="pj-accept"><h2>Accept invitation</h2><form id="pj-form"><div class="field"><label for="pj-name">Your name as shown to organisers and teams<input class="input" id="pj-name" type="text" maxlength="100" value="${ui.esc(me.display_name || '')}" required></label></div><label class="check"><input type="checkbox" id="pj-coc" required><span>I agree to the code of conduct</span></label><p class="help" id="pj-err"></p><button class="btn primary" type="submit" id="pj-submit">Join as judge</button></form></section>`
-      : `<div class="card"><p>Read the invitation, then sign in to accept.</p><a class="btn primary lg" href="${ui.esc('/signin?next=' + encodeURIComponent(location.pathname))}">Sign in</a></div>`) +
+      ? `<section class="card" id="pj-accept"><h2>Accept invitation</h2><form id="pj-form"><div class="field"><label for="pj-name">Your name as shown to organisers and teams<input class="input" id="pj-name" type="text" maxlength="100" value="${ui.esc(me.display_name || '')}" required></label></div><label class="check"><input type="checkbox" id="pj-coc" required><span>I agree to the code of conduct</span></label><p class="help" id="pj-err"></p><div class="form-actions"><button class="btn primary" type="submit" id="pj-submit">Join as judge</button></div></form></section>`
+      : `<div class="card"><p>Read the invitation, then sign in to accept.</p><div class="form-actions"><a class="btn primary lg" href="${ui.esc('/signin?next=' + encodeURIComponent(location.pathname))}">Sign in</a></div></div>`) +
     `</div>`
 
   const form = main.querySelector('#pj-form')

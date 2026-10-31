@@ -275,7 +275,7 @@ function renderBasics({ ctx, sp, ui, api, ev, locked, ended, path, setLive }) {
   if (locked) {
     sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">Basics</h2><p>The name, tagline and dates at the top of your page.</p></div>
 ${customSiteNote(true)}
-<div class="card"><dl style="margin:0"><dt>Title</dt><dd>${ui.esc(ev.title)}</dd><dt>Tagline</dt><dd>${ui.esc(ev.tagline || '—')}</dd><dt>Starts</dt><dd>${ui.esc(ui.dateOnly(ev.starts_at, ev))}</dd><dt>Ends</dt><dd>${ui.esc(ui.dateOnly(ev.ends_at, ev))}</dd><dt>Time zone</dt><dd>${ui.esc(ev.time_zone)}</dd></dl></div>`
+<div class="card"><dl><dt>Title</dt><dd>${ui.esc(ev.title)}</dd><dt>Tagline</dt><dd>${ui.esc(ev.tagline || '—')}</dd><dt>Starts</dt><dd>${ui.esc(ui.dateOnly(ev.starts_at, ev))}</dd><dt>Ends</dt><dd>${ui.esc(ui.dateOnly(ev.ends_at, ev))}</dd><dt>Time zone</dt><dd>${ui.esc(ev.time_zone)}</dd></dl></div>`
     return
   }
 
@@ -358,7 +358,7 @@ function renderAbout({ ctx, sp, ui, api, ev, locked, ended, path, setLive }) {
   if (locked) {
     sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">About</h2><p>The longer text on your page. A blank line starts a new paragraph.</p></div>
 ${customSiteNote(true)}
-<div class="card"><dl style="margin:0"><dt>About</dt><dd>${ui.esc(ev.about || '—')}</dd><dt>Prizes</dt><dd>${ui.esc(ev.prizes || '—')}</dd><dt>Rules</dt><dd>${ui.esc(ev.rules || '—')}</dd><dt>Code of conduct additions</dt><dd>${ui.esc(ev.coc_text || '—')}</dd></dl></div>`
+<div class="card"><dl><dt>About</dt><dd>${ui.esc(ev.about || '—')}</dd><dt>Prizes</dt><dd>${ui.esc(ev.prizes || '—')}</dd><dt>Rules</dt><dd>${ui.esc(ev.rules || '—')}</dd><dt>Code of conduct additions</dt><dd>${ui.esc(ev.coc_text || '—')}</dd></dl></div>`
     return
   }
 
@@ -370,8 +370,8 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
 <div class="field"><div class="lab-row"><label for="f-prizes">Prizes</label><span class="opt">Optional</span></div><textarea class="input" id="f-prizes" rows="3" maxlength="5000">${ui.esc(snapshot.prizes)}</textarea></div>
 <div class="field"><div class="lab-row"><label for="f-rules">Rules</label><span class="opt">Optional</span></div><textarea class="input" id="f-rules" rows="3" maxlength="10000">${ui.esc(snapshot.rules)}</textarea></div>
 <div class="field-group"><h3>Code of conduct</h3>
-<details><summary class="small muted">Read the standard code, which every event shows first</summary><p class="small muted" style="margin:8px 0 0">${ui.esc(ev.coc_default || '')}</p></details>
-<div class="field" style="margin-top:14px"><div class="lab-row"><label for="f-coc">Your additions</label><span class="opt">Optional</span></div><textarea class="input" id="f-coc" rows="3" maxlength="10000">${ui.esc(snapshot.coc)}</textarea><p class="help">Shown after the standard code on the join page.</p></div>
+<details><summary class="small muted">Read the standard code, which every event shows first</summary><p class="help">${ui.esc(ev.coc_default || '')}</p></details>
+<div class="field"><div class="lab-row"><label for="f-coc">Your additions</label><span class="opt">Optional</span></div><textarea class="input" id="f-coc" rows="3" maxlength="10000">${ui.esc(snapshot.coc)}</textarea><p class="help">Shown after the standard code on the join page.</p></div>
 </div>
 <div class="card-foot sticky"><span class="hint" id="f-hint">No unsaved changes</span><button class="btn quiet" type="button" id="f-discard" hidden>Discard</button><button class="btn primary" type="button" id="f-save" disabled>Save</button></div>
 </form>`
@@ -443,7 +443,7 @@ function renderSchedule({ ctx, sp, ui, api, ev, admin, locked, ended, path, setL
   sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">Schedule</h2><p>In ${ui.esc(ev.time_zone)}. Your page lists them in time order and marks Now and Next.</p>${readOnly || cache.contentError ? '' : '<button class="btn primary" type="button" id="sched-add"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add time</button>'}</div>
 ${customSiteNote(readOnly)}
 ${ended && !admin ? endedReadOnlyNote('Schedule') : ''}
-${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could not be loaded. Reload to edit them.<button class="btn sm" type="button" id="sched-reload" style="margin-left:8px">Reload</button></div>` :
+${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could not be loaded. Reload to edit them.<button class="btn sm" type="button" id="sched-reload">Reload</button></div>` :
     items.length ? `<div class="list editable" aria-label="Schedule" id="sched-list">${listHTML()}</div>` :
     (readOnly ? '<p class="muted">Nothing scheduled.</p>' : `<div class="empty-state"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h12a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm-1 4h14M7 3v4m6-4v4"/></svg><h3>Nothing scheduled yet</h3><p>Add the kickoff, build time and demos. They show on your page, and participants see what is on now.</p><button class="btn primary" type="button" id="sched-add-empty"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add time</button></div>`)}`
 
@@ -475,7 +475,7 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
     const [sd, st] = startVal ? startVal.split('T') : ['', '']
     const [ed, et] = endVal ? endVal.split('T') : ['', '']
     const body = document.createElement('div')
-    body.innerHTML = `<p class="muted" style="margin:0 0 12px">Times are in ${ui.esc(ev.time_zone)}.</p>
+    body.innerHTML = `<p class="form-intro">Times are in ${ui.esc(ev.time_zone)}.</p>
 <div class="field"><label for="d-title">Title</label><input class="input" id="d-title" maxlength="120" value="${ui.esc(item.title)}"></div>
 <div class="field"><div class="lab-row"><label for="d-desc">Details</label><span class="opt">Optional</span></div><textarea class="input" id="d-desc" rows="2" maxlength="500">${ui.esc(item.description || '')}</textarea></div>
 <div class="field"><span class="lab" id="d-start-l">Starts</span><div class="dt-pair" role="group" aria-labelledby="d-start-l"><input class="input" type="date" aria-label="Start date" id="d-start-date" value="${ui.esc(sd)}"><input class="input" type="time" aria-label="Start time" id="d-start-time" value="${ui.esc(st)}"></div></div>
@@ -575,7 +575,7 @@ function renderSponsors({ ctx, sp, ui, api, ev, admin, locked, ended, path, setL
 ${customSiteNote(readOnly)}
 ${ended && !admin ? endedReadOnlyNote('Sponsors') : ''}
 ${readOnly || cache.contentError ? '' : '<p class="sr-only" id="reorder-status" role="status" aria-live="polite"></p>'}
-${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could not be loaded. Reload to edit them.<button class="btn sm" type="button" id="sp-reload" style="margin-left:8px">Reload</button></div>` :
+${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could not be loaded. Reload to edit them.<button class="btn sm" type="button" id="sp-reload">Reload</button></div>` :
     items.length ? `<div class="list editable" aria-label="Sponsors" id="sp-list">${items.map(rowHTML).join('')}</div><p class="list-foot">${items.length} of 20 sponsors · Logos: PNG, JPEG or WebP, up to 128 KB</p>` :
     (readOnly ? '<p class="muted">No sponsors.</p>' : `<div class="empty-state"><h3>No sponsors yet</h3><p>Logos and names show near the bottom of your page.</p><button class="btn primary" type="button" id="sp-add-empty">Add sponsor</button></div>`)}`
 
@@ -754,7 +754,7 @@ function renderFaq({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive }
 ${customSiteNote(readOnly)}
 ${ended && !admin ? endedReadOnlyNote('FAQ') : ''}
 ${readOnly || cache.contentError ? '' : '<p class="sr-only" id="reorder-status" role="status" aria-live="polite"></p>'}
-${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could not be loaded. Reload to edit them.<button class="btn sm" type="button" id="fq-reload" style="margin-left:8px">Reload</button></div>` :
+${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could not be loaded. Reload to edit them.<button class="btn sm" type="button" id="fq-reload">Reload</button></div>` :
     items.length ? `<div class="list editable" aria-label="Questions" id="fq-list">${items.map(rowHTML).join('')}</div><p class="list-foot">${items.length} of 30 questions</p>` :
     (readOnly ? '<p class="muted">No questions.</p>' : `<div class="empty-state"><h3>No questions yet</h3><p>Answer what people ask most: who can join, where it happens, what to hand in.</p><button class="btn primary" type="button" id="fq-add-empty">Add question</button></div>`)}`
 
@@ -877,13 +877,13 @@ function renderLook({ sp, ui, api, ctx, ev, admin, locked, ended, path, setLive 
   const iconLocked = ended // (admin already disables everything generically, see paintTab)
   sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">Look</h2><p>Your icon, colour and whether entries show. Each change saves straight away.</p></div>
 ${ended && !admin ? '<div class="note">This event has ended. You can still fix the page text and colour.</div>' : ''}
-<div class="card"><p class="section-title" style="margin-top:0">Preview</p>
-<div class="pub-event preview-head" id="look-preview" style="--ev:${previewColor}"><span class="ev-icon">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="" width="52" height="52" style="border-radius:50%">` : ''}</span><div><h3>${ui.esc(ev.title)}</h3><p>${ui.esc(ev.tagline || '')}</p></div></div></div>
+<div class="card"><p class="section-title">Preview</p>
+<div class="pub-event preview-head" id="look-preview" style="--ev:${previewColor}"><span class="ev-icon">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="" width="52" height="52">` : ''}</span><div><h3>${ui.esc(ev.title)}</h3><p>${ui.esc(ev.tagline || '')}</p></div></div></div>
 <div class="card flat">
 <div class="setting wraps"><div class="t"><b>Event icon</b><span>Shown round on your page, in Find a hackathon and on join links. PNG, JPEG or WebP, up to 128 KB.${iconLocked ? ' Can’t change after End.' : ''}</span></div>
 <div class="ctl">${iconLocked
-    ? `<span class="pv round" style="width:44px;height:44px">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="">` : ''}</span>`
-    : `<span class="file-pick"><span class="pv round" style="width:44px;height:44px">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="">` : ''}</span></span><label class="btn sm">${ev.icon_media_type ? 'Replace' : 'Upload icon'}<input type="file" accept="image/png,image/jpeg,image/webp" id="icon-file" aria-label="${ev.icon_media_type ? 'Replace' : 'Upload'} event icon"></label><button class="btn quiet sm" type="button" id="icon-remove"${ev.icon_media_type ? '' : ' disabled'}>Remove</button>`}</div></div>
+    ? `<span class="file-pick"><span class="pv round sm">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="">` : ''}</span></span>`
+    : `<span class="file-pick"><span class="pv round sm">${ev.icon_media_type ? `<img src="${ui.esc(ev.icon_url)}" alt="">` : ''}</span></span><label class="btn sm">${ev.icon_media_type ? 'Replace' : 'Upload icon'}<input type="file" accept="image/png,image/jpeg,image/webp" id="icon-file" aria-label="${ev.icon_media_type ? 'Replace' : 'Upload'} event icon"></label><button class="btn quiet sm" type="button" id="icon-remove"${ev.icon_media_type ? '' : ' disabled'}>Remove</button>`}</div></div>
 <div class="setting stack"><div class="t"><div class="t-row"><b>Colour</b><span class="saved" id="colour-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>For the line beside your title and for links and buttons. Automatic picks one from your address.</span></div>
 <fieldset class="swatches" aria-label="Event colour">${CRAYONS.map(([v, l]) => {
     const hex = v ? SWATCH_HEX[v] : (ev.color || '#d15d48')
@@ -994,19 +994,19 @@ function renderWebsite({ ctx, sp, ui, api, apiBytes, ev, admin, locked, ended, p
   sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">Website</h2><p>What visitors get at your address.</p></div>
 ${ended && !admin ? endedReadOnlyNote('Your website') : ''}
 ${customLive ? `<div class="note info"><b>Your own website is live at your address.</b>${readOnly ? '' : ' Basics, About and Look still save, and show again if you switch back to the built-in page.'}</div>` : ''}
-${cache.websiteError ? `<div class="note bad">Your website settings could not be loaded. Reload to edit them.<button class="btn sm" type="button" id="web-reload" style="margin-left:8px">Reload</button></div>` : ''}
+${cache.websiteError ? `<div class="note bad">Your website settings could not be loaded. Reload to edit them.<button class="btn sm" type="button" id="web-reload">Reload</button></div>` : ''}
 <div class="card">
-<span class="lab" style="display:block;font-weight:600;font-size:13.5px;margin:0 0 6px">Your address</span>
-<div class="addr"><span class="mono">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</span><button class="btn sm" type="button" id="addr-copy">Copy</button><a class="btn sm" href="${ui.esc(ev.url)}" target="_blank" rel="noopener">Open</a></div>
-<div class="field-group"><div class="t-row" style="margin:0 0 12px"><h3 style="margin:0">What shows there</h3>${readOnly ? '' : '<span class="saved" id="mode-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span>'}</div>
+<div class="field"><span class="lab">Your address</span>
+<div class="addr"><span class="mono">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</span><button class="btn sm" type="button" id="addr-copy">Copy</button><a class="btn sm" href="${ui.esc(ev.url)}" target="_blank" rel="noopener">Open</a></div></div>
+<div class="field-group"><div class="t-row"><h3>What shows there</h3>${readOnly ? '' : '<span class="saved" id="mode-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span>'}</div>
 ${readOnly ? `<p class="muted">${customLive ? `Your own website -- Version ${ui.esc(String(activeNum))}, uploaded ${ui.esc(ui.dateOnly(activeVersion.created_at, ev))}.` : 'Built-in event page.'}</p>` :
     `<div class="choices" role="radiogroup" aria-label="What shows at your address"><label class="choice${!customLive ? ' on' : ''}"><input type="radio" name="mode" value="builtin"${!customLive ? ' checked' : ''}><span><b>Built-in event page</b><span class="d">Made from Basics, About, Schedule, Sponsors and FAQ. It updates as you edit.</span></span></label><label class="choice${customLive ? ' on' : hasUploads ? '' : ' off'}"><input type="radio" name="mode" value="custom"${customLive ? ' checked' : ''}${hasUploads ? '' : ' disabled'}><span><b>Your own website</b><span class="d">${hasUploads ? `Version ${ui.esc(String(activeNum))}, uploaded ${ui.esc(ui.dateOnly(activeVersion.created_at, ev))}. You can switch back any time. Nothing is deleted.` : 'Upload a zip first'}</span></span></label></div>`}</div>
 </div>
 <div class="card"><h2>Your own website</h2><p class="sub">A .zip with index.html at the top, up to 25 MB. ${hasUploads ? 'Each upload goes live at your address right away. Earlier uploads stay listed.' : 'Your first upload goes live at your address right away.'}${w.upload_limits ? ' ' + ui.esc(w.upload_limits) : ''}</p>
 ${readOnly ? '' : '<div class="drop" id="drop-zone"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V4M6 8l4-4 4 4M4 14v2h12v-2"/></svg><b>Drop a .zip here</b><span class="small">or</span><label class="btn primary">Choose zip<input type="file" accept=".zip,application/zip" id="site-zip" aria-label="Choose a zip to upload"></label></div>'}
 <p class="section-title">Uploads</p>
-<div class="list" id="site-versions" style="margin:0">${(w.versions || []).slice().reverse().map(v => `<div class="r"><div class="main"><b>Version ${v.version_number}</b><span>${ui.esc(ui.dateTime(v.created_at, ev))}</span></div>${customLive && v.version_number === w.active_version ? '<span class="pill ok">Live</span>' : !customLive && v === (w.versions || [])[w.versions.length - 1] ? '<span class="pill">Newest</span>' : ''}</div>`).join('') || '<div class="empty">No uploads yet.</div>'}</div>
-<p class="help small muted" style="margin:12px 0 0">An AI app can publish versions here too, and manage your website's own saved data (keys, tables and files).</p>
+<div class="list" id="site-versions">${(w.versions || []).slice().reverse().map(v => `<div class="r"><div class="main"><b>Version ${v.version_number}</b><span>${ui.esc(ui.dateTime(v.created_at, ev))}</span></div>${customLive && v.version_number === w.active_version ? '<span class="pill ok">Live</span>' : !customLive && v === (w.versions || [])[w.versions.length - 1] ? '<span class="pill">Newest</span>' : ''}</div>`).join('') || '<div class="empty">No uploads yet.</div>'}</div>
+<p class="help">An AI app can publish versions here too, and manage your website's own saved data (keys, tables and files).</p>
 </div>`
 
   sp.querySelector('#addr-copy').addEventListener('click', async () => {

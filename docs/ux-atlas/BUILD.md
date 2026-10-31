@@ -121,6 +121,37 @@ Light only (owner rule, INTENT 2026-10-30 decision). The app does not use the si
 `<!--sh:signin-->` for the sign-in card only. Add `static/hack/app.html` to the theme test's
 light-only exception, like the hack landings.
 
+## Form layout
+
+Every label-plus-control in the app and on the public pages is one of the patterns below. Their
+spacing and alignment live in one block of `kit.css` ("Form layout"), driven by tokens on `:root`:
+`--field-gap` (16px, field to field and any form block to the next), `--label-gap` (6px, label to
+control to help to error), `--control-h` (40px, every single-line input and select, and a button
+beside one), `--check-size`, `--check-gap` and `--label-size`. A spacing or alignment problem is
+fixed there, never with a `style=""` attribute or a one-off margin in a screen module.
+
+| Pattern | Markup | Use it for |
+|---|---|---|
+| Stacked field (default) | `<div class="field"><label for="x">Label</label><input class="input" id="x"><p class="help">…</p><p class="err"></p></div>` | Every form field unless a row below says otherwise. `.lab-row` (label + `.opt` + `.counter`) replaces the label when it needs extras. `<span class="lab">` labels a group or a read-only value. `<fieldset class="field"><legend>` groups radios or several fields. |
+| Inline field | `<div class="field inline"><label for="x">Show</label><select class="select" id="x">…</select></div>` | A short label beside one control: a filter above a list, a value per row (tied-rank places). Stacks on phone. Not for ordinary form fields. |
+| Check or radio row | `<label class="check"><input type="checkbox"><span>Label</span></label>`, with help: `<span><b>Title</b><span>Help</span></span>` | Every checkbox and radio that isn't a choice card. The box lines up with the first text line and help is indented under the label. Consecutive rows are 12px apart. |
+| Toggle setting row | `<div class="setting"><div class="t"><b>Title</b><span>Help</span></div><div class="ctl"><button class="toggle" role="switch">…</button></div></div>` | Settings that save on change (instant toggles) and danger-zone rows. |
+| Field row | `<div class="field-row"><div class="field">…</div><div class="field grow">…</div></div>` | Several fields side by side (dates and time zone, filters). Every control is the same height. On phone the fields pair up, and a `.grow` field or a date-and-time field takes the full width. |
+| Control row | `<div class="control-row"><input class="input"><button class="btn">Copy</button></div>` | One control with its buttons beside it (name and Save, link and Copy, judge, team and Add). Inputs and buttons share `--control-h`. |
+| Form actions | `<div class="form-actions"><button class="btn primary">Save</button><button class="btn">Cancel</button><span class="hint">…</span></div>` | The Save row under any form in a card. It is 16px below the last field with the primary button first, and a short status goes in a `.hint` after the buttons. Long editor cards with a dirty state use `.card-foot` instead (see the Rhythm block), dialogs use `.acts`. |
+
+Rules of thumb:
+
+- Prefer a `for=` label beside its control. A label that wraps its control
+  (`<label>Name<input></label>`, the DOM-built editors) still gets the same gap from CSS, so it is
+  not wrong, just not the pattern to copy.
+- Help belongs inside its `.field`, under the control. A standalone `.help` paragraph is for
+  help that covers a whole card.
+- The last form block in a card has no bottom margin of its own, and a card heading is 12px above the
+  first field. Both are automatic, so do not add margins to get there.
+- Empty `.help` and `.err` slots take no room, so screens can render them up front and fill them
+  later. An action row whose buttons are all hidden takes no room either.
+
 ## Done means
 
 1. The screen matches its prototype at 1280×800 and 390 px (screenshot side by side).

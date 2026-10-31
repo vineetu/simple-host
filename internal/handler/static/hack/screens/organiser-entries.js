@@ -57,27 +57,26 @@ ${lockReason ? `<div class="note warn">${ui.esc(lockReason)}</div>` : ''}
 <section class="card"><h2>Deadline</h2>
 ${archived
     ? `<p>${ev.submission_deadline ? 'Entries closed ' + ui.esc(ui.dateTime(ev.submission_deadline, ev)) : 'No deadline was set.'}</p>`
-    : `<div class="field"><label>Entries close · ${ui.esc(ev.time_zone || 'UTC')}<input class="input" id="deadline-input" type="datetime-local" value="${ui.esc(deadlineInput)}"${lockReason ? ' disabled' : ''}></label></div>
-<p class="${ev.submission_deadline ? 'help' : 'small muted'}">${ev.submission_deadline ? ui.esc(ui.dateTime(ev.submission_deadline, ev)) : 'No deadline yet.'}</p>
+    : `<div class="field"><label>Entries close · ${ui.esc(ev.time_zone || 'UTC')}<input class="input" id="deadline-input" type="datetime-local" value="${ui.esc(deadlineInput)}"${lockReason ? ' disabled' : ''}></label><p class="help">${ev.submission_deadline ? ui.esc(ui.dateTime(ev.submission_deadline, ev)) : 'No deadline yet.'}</p></div>
 ${closedStages.includes(ev.stage) ? '<p>To reopen, move the event back to Building on Overview.</p>' : ''}
-<div class="row-flex"><button class="btn primary" type="button" id="deadline-save"${lockReason ? ' disabled' : ''}>Save deadline</button><button class="btn quiet" type="button" id="deadline-clear"${ev.submission_deadline && !lockReason ? '' : ' disabled'}>Clear deadline</button></div>`}
+<div class="form-actions"><button class="btn primary" type="button" id="deadline-save"${lockReason ? ' disabled' : ''}>Save deadline</button><button class="btn quiet" type="button" id="deadline-clear"${ev.submission_deadline && !lockReason ? '' : ' disabled'}>Clear deadline</button></div>`}
 </section>
 <h2 class="section-title">Entries</h2>
 ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` : '<div class="list"><div class="empty">No entries yet.</div></div>'}
 <section class="card"><h2>What a complete entry needs</h2>
-<label class="check"><input type="checkbox" checked disabled>Title (always required)</label>
-${OPTIONAL_FIELDS.map(f => `<label class="check"><input type="checkbox" data-req="${f}"${required.includes(f) ? ' checked' : ''}${lockReason ? ' disabled' : ''}>${ui.esc(labelList([f])[0])}</label>`).join('')}
+<label class="check"><input type="checkbox" checked disabled><span>Title (always required)</span></label>
+${OPTIONAL_FIELDS.map(f => `<label class="check"><input type="checkbox" data-req="${f}"${required.includes(f) ? ' checked' : ''}${lockReason ? ' disabled' : ''}><span>${ui.esc(labelList([f])[0])}</span></label>`).join('')}
 <p class="help">Changes save straight away.</p>
 </section>
 <section class="card"><h2>Extensions</h2>
 ${extendedTeams().length ? extendedTeams().map(t => extensionRow(t, !!lockReason, archived)).join('') : (ev.submission_deadline && !archived ? '<p class="muted">No team has an extension.</p>' : '')}
 ${archived ? '' : (ev.submission_deadline
-    ? `<div class="field"><label>Team<select class="select" id="ext-team"${lockReason ? ' disabled' : ''}>${teams.map(t => `<option value="${ui.esc(t.slug)}">${ui.esc(t.name)}</option>`).join('')}</select></label></div>
-<div class="field"><label>More time until · ${ui.esc(ev.time_zone || 'UTC')}<input class="input" id="ext-input" type="datetime-local"${lockReason ? ' disabled' : ''}></label></div>
-<button class="btn" type="button" id="ext-save"${lockReason ? ' disabled' : ''}>Give this team more time</button>`
+    ? `<div class="field-row"><div class="field"><label>Team<select class="select" id="ext-team"${lockReason ? ' disabled' : ''}>${teams.map(t => `<option value="${ui.esc(t.slug)}">${ui.esc(t.name)}</option>`).join('')}</select></label></div>
+<div class="field"><label>More time until · ${ui.esc(ev.time_zone || 'UTC')}<input class="input" id="ext-input" type="datetime-local"${lockReason ? ' disabled' : ''}></label></div></div>
+<div class="form-actions"><button class="btn" type="button" id="ext-save"${lockReason ? ' disabled' : ''}>Give this team more time</button></div>`
     : '<p class="help">Set the event deadline first. Then you can give one team more time.</p>')}
 </section>
-<section class="card"><h2>Export</h2><button class="btn" type="button" id="export-entries">Download entries (CSV)</button><p class="small muted">This event’s team sites use ${usage ? ui.esc(fmtBytes((usage.saved_data_bytes || 0) + (usage.history_bytes || 0) + (usage.screenshot_bytes || 0) + (usage.file_bytes || 0))) : '…'}</p></section>`
+<section class="card"><h2>Export</h2><div class="form-actions"><button class="btn" type="button" id="export-entries">Download entries (CSV)</button></div><p class="help">This event’s team sites use ${usage ? ui.esc(fmtBytes((usage.saved_data_bytes || 0) + (usage.history_bytes || 0) + (usage.screenshot_bytes || 0) + (usage.file_bytes || 0))) : '…'}</p></section>`
     wire()
   }
 

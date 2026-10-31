@@ -81,18 +81,18 @@ async function paint (ctx, ev, team, data, state) {
   } else {
     const mcp = data.mcp_url || (location.origin + '/mcp')
     publishHTML += '<div class="card"><h2>Publish from an AI app</h2><p>Add this address to your AI app. No key needed.</p><div class="copy"><input class="input mono" id="web-mcp" aria-label="Connector address" value="' + esc(mcp) + '" readonly></div></div>'
-    publishHTML += '<div class="card"><h2>Upload a zip</h2><p class="sub">Static files only, index.html at the root. ' + esc(data.upload_limits || '') + '</p><div class="field"><label for="web-zip">Zip file</label><input class="input" id="web-zip" type="file" accept=".zip"></div><button type="button" class="btn primary" id="web-zip-go">Upload</button><p class="note" id="web-zip-status" hidden></p></div>'
+    publishHTML += '<div class="card"><h2>Upload a zip</h2><p class="sub">Static files only, index.html at the root. ' + esc(data.upload_limits || '') + '</p><div class="field"><label for="web-zip">Zip file</label><input class="input" id="web-zip" type="file" accept=".zip"></div><div class="form-actions"><button type="button" class="btn primary" id="web-zip-go">Upload</button></div><p class="note" id="web-zip-status" hidden></p></div>'
 
     const key = data.key
     let adv = '<p>Publish from your command line.</p>'
     if (state.revealedKey) {
       adv += '<div class="field"><label for="web-key-val">Your key — shown once, copy it now</label><div class="copy"><input class="input mono" id="web-key-val" readonly value="' + esc(state.revealedKey) + '"></div></div>' +
         '<p class="mono small" id="web-curl"></p>' +
-        '<button type="button" class="btn" id="web-key-done">Done</button>'
+        '<div class="form-actions"><button type="button" class="btn" id="web-key-done">Done</button></div>'
     } else {
       adv += '<p class="mono small">curl -X PUT "' + esc((data.api_base || location.origin) + '/v1/hack/events/' + ev.slug + '/site?create=1') + '" -H "X-API-Key: YOUR_KEY" -H "Content-Type: application/zip" --data-binary @site.zip</p>'
-      adv += key ? '<p class="small muted">You have a key ending ' + esc(key.last4 || '') + '.</p>' : '<p class="small muted">No key yet.</p>'
-      adv += '<button type="button" class="btn" id="web-key-get">' + (key ? 'Replace key' : 'Get my key') + '</button>'
+      adv += key ? '<p class="help">You have a key ending ' + esc(key.last4 || '') + '.</p>' : '<p class="help">No key yet.</p>'
+      adv += '<div class="form-actions"><button type="button" class="btn" id="web-key-get">' + (key ? 'Replace key' : 'Get my key') + '</button></div>'
       if (key) adv += '<div class="danger-zone"><h2>Turn off key</h2><div class="setting"><div class="t"><span>Nothing can publish with this key any more.</span></div><button type="button" class="btn danger" id="web-key-off">Turn off key</button></div></div>'
     }
     publishHTML += '<details class="card"><summary>Publish from the command line</summary>' + adv + '</details>'
@@ -292,7 +292,7 @@ async function notificationsHTML (ctx, ev, team, state) {
       '<div class="field"><label for="notif-header-name">Header name (optional)</label><input class="input" id="notif-header-name" maxlength="64"></div>' +
       '<div class="field"><label for="notif-header-value">Header value</label><input class="input" type="password" id="notif-header-value" maxlength="1024"></div>' +
       '</details>' +
-      '<button type="button" class="btn" id="notif-add">Add notification</button>' +
+      '<div class="form-actions"><button type="button" class="btn" id="notif-add">Add notification</button></div>' +
       (state.notifySecret ? '' : '<div id="notif-secret-box"></div>')
   }
   html += '</div>'

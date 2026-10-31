@@ -19,14 +19,14 @@ export async function render(ctx) {
 <form id="new-form"><section class="card">
 <div class="field"><label>Title<input class="input" id="new-title" type="text" maxlength="120" required></label></div>
 <div class="field"><label>Address<input class="input" id="new-slug" type="text" maxlength="39" required></label><p class="help" id="new-slug-help">yourname.simple-hack.app</p></div>
-<div class="grid2"><div class="field"><label>Starts<input class="input" id="new-start" type="date" required></label></div><div class="field"><label>Ends (optional)<input class="input" id="new-end" type="date"></label></div></div>
+<div class="field-row"><div class="field"><label>Starts<input class="input" id="new-start" type="date" required></label></div><div class="field"><label>Ends (optional)<input class="input" id="new-end" type="date"></label></div></div>
 <div class="field"><label>Time zone<input class="input" id="new-tz" type="text" value="${ui.esc(tz)}" required></label><p class="help">For example Asia/Jakarta or Europe/London.</p></div>
 <div class="field"><label>Your name<input class="input" id="new-organiser" type="text" maxlength="100" required></label></div>
 <div class="field"><label>Organisation<input class="input" id="new-org" type="text" maxlength="120"></label></div>
 <div class="field"><label>Contact email<input class="input" id="new-email" type="email" required></label></div>
 <div class="field"><label>Purpose<textarea class="input" id="new-purpose" maxlength="1000" required></textarea></label></div>
 <div class="field"><label>Expected participants<input class="input" id="new-n" type="number" min="1" max="100000" value="60" required></label></div>
-<button class="btn" type="submit">Create event</button>
+<div class="form-actions"><button class="btn" type="submit">Create event</button></div>
 </section></form>`
 
   function checkSlugNow() {

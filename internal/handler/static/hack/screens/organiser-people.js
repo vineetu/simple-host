@@ -119,7 +119,7 @@ ${(a.answers || []).map(q => `<p><b>${esc(q.prompt)}</b><br>${q.answer ? esc(q.a
     return p.display_name + (you ? ' (you)' : '')
   }
   function questionRow(q, i) {
-    return `<div class="row-flex" data-q-row="${i}"><input class="input" data-q-prompt="${i}" type="text" maxlength="160" value="${ui.esc(q.prompt || '')}" placeholder="Question"><label class="check"><input type="checkbox" data-q-required="${i}"${q.required ? ' checked' : ''}><span>Required</span></label><button class="btn danger sm" type="button" data-q-rm="${i}">Remove</button></div>`
+    return `<div class="control-row" data-q-row="${i}"><input class="input" data-q-prompt="${i}" type="text" maxlength="160" value="${ui.esc(q.prompt || '')}" placeholder="Question" aria-label="Question ${i + 1}"><label class="check"><input type="checkbox" data-q-required="${i}"${q.required ? ' checked' : ''}><span>Required</span></label><button class="btn danger sm" type="button" data-q-rm="${i}">Remove</button></div>`
   }
 
   function paint() {
@@ -155,24 +155,23 @@ ${(a.answers || []).map(q => `<p><b>${esc(q.prompt)}</b><br>${q.answer ? esc(q.a
 ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.length ? `${filterRow}${visiblePending.length ? `<div id="app-list">${visiblePending.map(applicationCard).join('')}</div>` : `<div class="note">Nobody waiting matches these filters.${filtersActive ? ' <button class="btn sm" type="button" id="app-filter-clear">Clear filters</button>' : ''}</div>`}` : `<div class="note">Sign-up isn't open yet. Move the event to ${ui.esc(ui.stageLabel('open'))} to start taking applications.</div>`}` : ''}
 
 <section class="card"><h2>Everyone</h2>
-<div class="field"><label>Show<select class="select" id="role-filter" data-admin-live><option${roleFilter === 'Everyone' ? ' selected' : ''}>Everyone</option><option${roleFilter === 'Organisers' ? ' selected' : ''}>Organisers</option><option${roleFilter === 'Participants' ? ' selected' : ''}>Participants</option><option${roleFilter === 'Judges' ? ' selected' : ''}>Judges</option><option${roleFilter === 'Co-organisers' ? ' selected' : ''}>Co-organisers</option></select></label></div>
+<div class="field inline"><label for="role-filter">Show</label><select class="select" id="role-filter" data-admin-live><option${roleFilter === 'Everyone' ? ' selected' : ''}>Everyone</option><option${roleFilter === 'Organisers' ? ' selected' : ''}>Organisers</option><option${roleFilter === 'Participants' ? ' selected' : ''}>Participants</option><option${roleFilter === 'Judges' ? ' selected' : ''}>Judges</option><option${roleFilter === 'Co-organisers' ? ' selected' : ''}>Co-organisers</option></select></div>
 <div class="list" id="people-list">${visiblePeople.length ? visiblePeople.map(personRow).join('') : '<div class="empty">Nobody matches that filter.</div>'}</div>
 </section>
 
 <details class="card" id="coorg"${coorgOpen ? ' open' : ''}><summary>Co-organisers</summary>
 <p>Current: ${ui.esc((people.filter(p => p.role === 'organiser').map(organiserLabel)).join(', '))}</p>
 <p>A co-organiser can do everything you can on this event, including Delete this event. Only the creator can’t be removed.</p>
-<button class="btn" type="button" id="coorg-create">Create invitation</button>
-${invite ? `<div class="field"><label>Invitation<input class="input mono" id="coorg-url" type="text" value="${ui.esc(invite.url)}" readonly></label></div><button class="btn" type="button" id="coorg-copy">Copy invitation</button><button class="btn danger sm" type="button" id="coorg-revoke">Revoke invitation</button>` : ''}
+<div class="form-actions"><button class="btn" type="button" id="coorg-create">Create invitation</button></div>
+${invite ? `<div class="field"><label for="coorg-url">Invitation</label><div class="control-row"><input class="input mono" id="coorg-url" type="text" value="${ui.esc(invite.url)}" readonly><button class="btn" type="button" id="coorg-copy">Copy invitation</button></div></div><div class="form-actions"><button class="btn danger" type="button" id="coorg-revoke">Revoke invitation</button></div>` : ''}
 </details>
 
 <details class="card" id="signup"${signupOpen ? ' open' : ''}><summary>Sign-up</summary>
 ${registrationError ? '<div class="note bad">Sign-up questions could not be loaded. Saving here is turned off until you reload the page.</div>' : ''}
-<label class="check"><input type="checkbox" id="signup-approval"${approvalRequired ? ' checked' : ''}${registrationError ? ' disabled' : ''}><b>Approve people who join with your link before they can join a team or publish</b></label>
-<p class="small muted">Applications from Find a hackathon and your event page always wait for you, whatever this says. Applications are ${applicationsOpen ? 'on' : 'off'} — <a href="${esc(href('organiser', ev.slug, 'settings'))}#applications">change in Settings</a>.</p>
+<label class="check"><input type="checkbox" id="signup-approval"${approvalRequired ? ' checked' : ''}${registrationError ? ' disabled' : ''}><span><b>Approve people who join with your link before they can join a team or publish</b><span>Applications from Find a hackathon and your event page always wait for you, whatever this says. Applications are ${applicationsOpen ? 'on' : 'off'} — <a href="${esc(href('organiser', ev.slug, 'settings'))}#applications">change in Settings</a>.</span></span></label>
+<p class="help">Applicants also get three optional fields of ours: where they're based, age range and gender.</p>
 <div id="q-rows">${questions.map(questionRow).join('')}</div>
-<div class="row-flex"><button class="btn" type="button" id="q-add"${questions.length >= 8 || registrationError ? ' disabled' : ''}>Add question</button><button class="btn" type="button" id="q-save"${registrationError ? ' disabled' : ''}>Save questions</button></div>
-<p class="small muted">Applicants also get three optional fields of ours: where they're based, age range and gender.</p>
+<div class="form-actions"><button class="btn" type="button" id="q-add"${questions.length >= 8 || registrationError ? ' disabled' : ''}>Add question</button><button class="btn" type="button" id="q-save"${registrationError ? ' disabled' : ''}>Save questions</button></div>
 </details>`
 
     adminLock(main, admin, ev)

@@ -108,9 +108,9 @@ function paint (ctx, ev, data) {
     '<section class="card"><h2>Your entry</h2>' +
     fieldHTML('title') + fieldHTML('tagline') + fieldHTML('description') + fieldHTML('video_url', 'url') + fieldHTML('code_url', 'url') +
     '<div class="field"><label for="en-shot">Screenshot' + (shotRequired ? ' (required)' : '') + '</label>' +
-    '<div class="site-frame" id="en-shot-frame"' + (entry.has_screenshot ? '' : ' hidden') + '><img id="en-shot-img" alt="Screenshot" style="max-width:100%" hidden></div>' +
+    '<div class="site-frame" id="en-shot-frame"' + (entry.has_screenshot ? '' : ' hidden') + '><img id="en-shot-img" alt="Screenshot" hidden></div>' +
     '<input class="input" type="file" id="en-shot" accept="image/png,image/jpeg,image/webp">' +
-    '<div class="row-flex"><button type="button" class="btn sm" id="en-shot-remove"' + (entry.has_screenshot ? '' : ' hidden') + '>Remove screenshot</button><span class="small muted">Screenshot changes save straight away.</span></div>' +
+    '<div class="form-actions"><button type="button" class="btn sm" id="en-shot-remove"' + (entry.has_screenshot ? '' : ' hidden') + '>Remove screenshot</button><span class="hint">Screenshot changes save straight away.</span></div>' +
     '<p class="help" id="en-screenshot-err"></p>' +
     '</div>' +
     '</section>' +

@@ -53,19 +53,18 @@ export async function render(ctx) {
   let draftPerTeam = settings.judges_per_team
 
   const setupInner = `
-<section class="card" id="jg-rubric-card"><h2>Rubric</h2><div id="jg-rubric"></div><div class="row-flex"><button class="btn" type="button" id="jg-add">Add a criterion</button><span class="small muted" id="jg-weight"></span><button class="btn" type="button" id="jg-rubric-save">Save rubric</button></div></section>
-<section class="card" id="jg-tie-card"><h2>Tie-break</h2><div class="field"><label>First tie criterion<select class="select" id="jg-tie"></select></label></div><p class="help">You can change this until judging starts.</p><button class="btn" type="button" id="jg-tie-save">Save</button></section>
+<section class="card" id="jg-rubric-card"><h2>Rubric</h2><div id="jg-rubric"></div><div class="form-actions"><button class="btn" type="button" id="jg-add">Add a criterion</button><span class="hint" id="jg-weight"></span><button class="btn" type="button" id="jg-rubric-save">Save rubric</button></div></section>
+<section class="card" id="jg-tie-card"><h2>Tie-break</h2><div class="field"><label>First tie criterion<select class="select" id="jg-tie"></select></label><p class="help">You can change this until judging starts.</p></div><div class="form-actions"><button class="btn" type="button" id="jg-tie-save">Save</button></div></section>
 <section class="card" id="jg-mode-card"><h2>How judges are assigned</h2>
-<label class="check"><input type="radio" name="jg-mode" value="open" id="jg-mode-open"><div><b>Open</b><span>Judges pick any team from the full list.</span></div></label>
-<label class="check"><input type="radio" name="jg-mode" value="automatic" id="jg-mode-automatic"><div><b>Automatic</b><span>Simple Hack assigns judges to teams evenly.</span></div></label>
-<label class="check"><input type="radio" name="jg-mode" value="manual" id="jg-mode-manual"><div><b>Manual</b><span>You assign each judge to specific teams.</span></div></label>
-<label class="check"><input type="radio" name="jg-mode" value="panel" id="jg-mode-panel"><div><b>Panel</b><span>Judges are grouped by track, one panel per track.</span></div></label>
+<label class="check"><input type="radio" name="jg-mode" value="open" id="jg-mode-open"><span><b>Open</b><span>Judges pick any team from the full list.</span></span></label>
+<label class="check"><input type="radio" name="jg-mode" value="automatic" id="jg-mode-automatic"><span><b>Automatic</b><span>Simple Hack assigns judges to teams evenly.</span></span></label>
+<label class="check"><input type="radio" name="jg-mode" value="manual" id="jg-mode-manual"><span><b>Manual</b><span>You assign each judge to specific teams.</span></span></label>
+<label class="check"><input type="radio" name="jg-mode" value="panel" id="jg-mode-panel"><span><b>Panel</b><span>Judges are grouped by track, one panel per track.</span></span></label>
 <div class="field" id="jg-per-wrap"><label>Judges per team<input class="input" type="number" min="1" max="20" id="jg-per"></label></div>
 <div class="note info" id="jg-before-closed-note" hidden>You can set this before entries close, but teams may still be forming.</div>
 <p class="note" id="jg-assign-note" hidden></p>
 <label class="check" id="jg-include-organisers-wrap"><input type="checkbox" id="jg-include-organisers"><span>Include organisers who can judge</span></label>
-<div class="row-flex"><button class="btn" type="button" id="jg-mode-save">Save</button><button class="btn" type="button" id="jg-generate">Generate assignments</button><a class="btn" id="jg-grid-link" href="${ui.esc(href('organiser', slug, 'assignments'))}">Open the assignment grid</a></div>
-<p class="small muted" id="jg-generate-hint" hidden>Save the mode first.</p>
+<div class="form-actions"><button class="btn" type="button" id="jg-mode-save">Save</button><button class="btn" type="button" id="jg-generate">Generate assignments</button><a class="btn" id="jg-grid-link" href="${ui.esc(href('organiser', slug, 'assignments'))}">Open the assignment grid</a><span class="hint" id="jg-generate-hint" hidden>Save the mode first.</span></div>
 </section>`
 
   // Collapsed (no "open" attribute) once judging has started, matching
@@ -134,7 +133,9 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       form.appendChild(field)
       const go = ui.el('button', { class: 'btn', type: 'submit', text: 'Unlock' })
       go.disabled = !!adminLockReason
-      form.appendChild(go)
+      const actions = ui.el('div', { class: 'form-actions' })
+      actions.appendChild(go)
+      form.appendChild(actions)
       form.addEventListener('submit', e => { e.preventDefault(); doUnlock(textarea.value, go) })
       zone.appendChild(form)
     }
@@ -354,7 +355,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     if (archived) return
     if (judges.length && teams.length) {
       const form = ui.el('form')
-      const row = ui.el('div', { class: 'row-flex' })
+      const row = ui.el('div', { class: 'control-row' })
       const judgeSelect = ui.el('select', { class: 'select', 'aria-label': 'Judge' })
       judges.forEach(p => judgeSelect.appendChild(ui.el('option', { value: p.user_id, text: p.display_name || p.email || 'Someone' })))
       const teamSelect = ui.el('select', { class: 'select', 'aria-label': 'Team' })
