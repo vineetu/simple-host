@@ -276,6 +276,17 @@
       "small_box": true
     },
     {
+      "name": "MCP_APP_HACK_JUDGE",
+      "group": "server",
+      "description": "Simple Hack judge views (queue, scoring, rubric, invite) in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Hack event connections only, never the ChatGPT listing.",
+      "type": "string",
+      "default": "off",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "OPENAI_APPS_CHALLENGE",
       "group": "server",
       "description": "The OpenAI plugin portal's domain-verification token. Unset: not served.",

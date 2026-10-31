@@ -331,6 +331,7 @@ another setting.
 | `MCP_APP_MY_SITES` | `off` | My sites in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only. |
 | `MCP_APP_DASHBOARD` | `off` | Weekly overview inside My sites. Requires MCP_APP_MY_SITES too. off, on, or accounts:alice,bob. Simple Host callers only. |
 | `MCP_APP_SITE_PREVIEW` | `off` | Optional site preview card. off, on, or accounts:alice,bob. Requires a client and site headers that permit framing; leave off otherwise. Simple Host callers only. |
+| `MCP_APP_HACK_JUDGE` | `off` | Simple Hack judge views (queue, scoring, rubric, invite) in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Hack event connections only, never the ChatGPT listing. |
 | `PHOTO_MAX_BYTES` | `1000000` | Maximum bytes per prepared photo; the MCP picker also caps at 1 MiB. Positive integer; invalid values use the default. |
 | `PHOTO_MAX_DIMENSION` | `2048` | Longest allowed side of a prepared photo. Positive integer; invalid values use the default. |
 | `PHOTO_MAX_CONCURRENT` | `3` | Concurrent photo saves across the process. Positive integer; invalid values use the default. |

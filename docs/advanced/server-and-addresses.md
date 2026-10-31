@@ -51,6 +51,7 @@ address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it al
 | `MCP_APP_MY_SITES` | `off` | text | My sites in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Host callers only. |
 | `MCP_APP_DASHBOARD` | `off` | text | Weekly overview inside My sites. Requires MCP_APP_MY_SITES too. off, on, or accounts:alice,bob. Simple Host callers only. |
 | `MCP_APP_SITE_PREVIEW` | `off` | text | Optional site preview card. off, on, or accounts:alice,bob. Requires a client and site headers that permit framing; leave off otherwise. Simple Host callers only. |
+| `MCP_APP_HACK_JUDGE` | `off` | text | Simple Hack judge views (queue, scoring, rubric, invite) in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Hack event connections only, never the ChatGPT listing. |
 | `OPENAI_APPS_CHALLENGE` | none | text | The OpenAI plugin portal's domain-verification token. Unset: not served. |
 <!-- /settings -->
 

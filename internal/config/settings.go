@@ -343,6 +343,8 @@ func otherSettings() []Setting {
 			Description: "Weekly overview inside My sites. Requires MCP_APP_MY_SITES too. off, on, or accounts:alice,bob. Simple Host callers only."},
 		{Name: "MCP_APP_SITE_PREVIEW", Group: "server", Type: "string", Default: "off", SmallBox: true,
 			Description: "Optional site preview card. off, on, or accounts:alice,bob. Requires a client and site headers that permit framing; leave off otherwise. Simple Host callers only."},
+		{Name: "MCP_APP_HACK_JUDGE", Group: "server", Type: "string", Default: "off",
+			Description: "Simple Hack judge views (queue, scoring, rubric, invite) in compatible MCP Apps clients. off, on, or accounts:alice,bob. Simple Hack event connections only, never the ChatGPT listing."},
 		{Name: "PHOTO_MAX_BYTES", Group: "sites", Type: "int", Default: "1000000", Min: i64(1), Unit: "bytes", SmallBox: true,
 			Description: "Maximum bytes per prepared photo; the MCP picker also caps at 1 MiB. Positive integer; invalid values use the default."},
 		{Name: "PHOTO_MAX_DIMENSION", Group: "sites", Type: "int", Default: "2048", Min: i64(1), Unit: "pixels", SmallBox: true,
