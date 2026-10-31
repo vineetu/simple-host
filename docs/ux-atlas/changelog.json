@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-10-31",
+  "what": "Apply is only for events listed in Find a hackathon. An unlisted event's public page shows no Apply, its apply page shows the applications-off state, and Settings says the event must be listed in Results first (owner decision)."
+ },
+ {
+  "date": "2026-10-31",
   "what": "Apply to a hackathon: people without a join link can apply from Find a hackathon (Apply on a listed event's row) and from the event's public page, at a new public-apply screen (/e/{slug}/apply). The form asks name and email from sign-in, optional city and country, age range and gender, then the event's own questions and the code of conduct, with a line saying only the organisers see the answers. Every application waits in People -> Applications, now with email, how they came, location, age range (Under 18 highlighted) and gender, filters by source, age range and country, and those fields in the participants CSV. Applications are on by default; Settings has one switch to turn them off. The approval toggle now only governs join-link sign-ups, and admit-everyone-waiting never admits applications. Join links are unchanged and stay private. Owner decisions, 2026-10-31."
  },
  {

@@ -44,6 +44,15 @@ func (a *hackApp) apply(t *testing.T, slug string, p person, extra map[string]an
 	return a.at(t, "POST", "/v1/hack/events/"+slug+"/apply", applyBody(extra), a.key(p))
 }
 
+// listEvent lists the event in Find a hackathon. Applications are taken only
+// from listed events (owner, 2026-10-31).
+func (a *hackApp) listEvent(t *testing.T, slug string) {
+	t.Helper()
+	if _, err := a.database.Exec(`UPDATE events SET directory_listed=true WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (a *hackApp) applyGet(t *testing.T, slug string, p *person) resp {
 	t.Helper()
 	headers := map[string]string{}
@@ -66,6 +75,7 @@ func TestHackApplyMigration(t *testing.T) {
 		t.Fatalf("applications_open default: %v", created["event"])
 	}
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 	code := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
 	if r := a.at(t, "POST", "/v1/hack/join/"+code, map[string]any{"accept_coc": true, "display_name": "P"}, a.key(p)); r.status != 200 {
 		t.Fatalf("join: %d %s", r.status, r.body)
@@ -99,6 +109,9 @@ func TestHackApplyGetPreview(t *testing.T) {
 	}
 
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
+
+	a.listEvent(t, slug)
 
 	// Signed out: applications_open + fields, no signup_questions/coc_text/me.
 	out := a.applyGet(t, slug, nil).json(t)
@@ -171,6 +184,7 @@ func TestHackApplyGetPreview(t *testing.T) {
 	takenSlug := uniqueSlug()
 	a.createEvent(t, org, takenSlug, nil)
 	a.openEvent(t, org, takenSlug)
+	a.listEvent(t, takenSlug)
 	if r := a.at(t, "POST", "/v1/admin/hack/events/"+takenSlug+"/takedown", map[string]string{"reason": "spam"}, a.adminH()); r.status != 200 {
 		t.Fatalf("takedown: %d %s", r.status, r.body)
 	}
@@ -193,6 +207,7 @@ func TestHackApplyGetMemberApplicationsOffFieldsHidden(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 	wantTS(t, "apply", a.apply(t, slug, p, nil), 200, "")
 
 	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]any{"applications_open": false}, a.key(org)); r.status != 200 {
@@ -226,6 +241,7 @@ func TestHackApplyPostValidation(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 	base := "/v1/hack/events/" + slug
 
 	// Happy path, all fields, normalised (country upper-cased, city spaces collapsed).
@@ -393,6 +409,7 @@ func TestHackApplyRace(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 
 	racer := a.newPerson(t, "arracer")
 	var wg sync.WaitGroup
@@ -435,6 +452,7 @@ func TestHackApplyRace(t *testing.T) {
 	switchSlug := uniqueSlug()
 	a.createEvent(t, org, switchSlug, nil)
 	a.openEvent(t, org, switchSlug)
+	a.listEvent(t, switchSlug)
 	switcher := a.newPerson(t, "arswitcher")
 
 	lockTx, err := a.database.Begin()
@@ -484,6 +502,7 @@ func TestHackApplyTakedownRaceForcedOrdering(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 	applicant := a.newPerson(t, "atdapplicant")
 
 	lockTx, err := a.database.Begin()
@@ -538,6 +557,7 @@ func TestHackApplyPerEventCapConcurrentDistinctApplicants(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 
 	const n, wantCap = 10, 3
 	people := make([]person, n)
@@ -589,6 +609,7 @@ func TestHackApplyLimits(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 
 	// Default RATE_LIMIT_EVENT_APPLY_USER is burst 5: a 6th apply (even an
 	// idempotent repeat, since the limiter runs before anything else) is 429.
@@ -622,6 +643,7 @@ func TestHackApplyLimits(t *testing.T) {
 			t.Fatalf("create %d: %d %s", i, r.status, r.body)
 		}
 		b.openEvent(t, capOrg, s)
+		b.listEvent(t, s)
 		slugs = append(slugs, s)
 	}
 	for i, s := range slugs[:20] {
@@ -662,6 +684,7 @@ func TestHackApplyPendingCapConcurrentCrossEvent(t *testing.T) {
 			t.Fatalf("create %d: %d %s", i, r.status, r.body)
 		}
 		b.openEvent(t, org, s)
+		b.listEvent(t, s)
 		slugs = append(slugs, s)
 	}
 	// 19 pending, one below the cap of 20.
@@ -724,6 +747,7 @@ func TestHackApplyIPLimitIndependentOfAccounts(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 
 	for i := 0; i < 3; i++ {
 		p := a.newPerson(t, fmt.Sprintf("aipluser%d", i))
@@ -745,6 +769,7 @@ func TestHackApplyApplicationsAndPeopleFields(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 	base := "/v1/hack/events/" + slug
 
 	applicant := a.newPerson(t, "aafapplicant")
@@ -806,6 +831,7 @@ func TestHackApplyAdmitPendingLinkOnly(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 	base := "/v1/hack/events/" + slug
 
 	if r := a.at(t, "PUT", base+"/registration", map[string]any{"questions": []any{}, "approval_required": true}, a.key(org)); r.status != 200 {
@@ -842,6 +868,7 @@ func TestHackApplyRemoveAndReapply(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 	wantTS(t, "apply", a.apply(t, slug, p, map[string]any{"city": "Jakarta"}), 200, "")
 	wantTS(t, "remove", a.at(t, "DELETE", "/v1/hack/events/"+slug+"/people/"+a.userID(t, p), nil, a.key(org)), 204, "")
 	var n int
@@ -866,6 +893,7 @@ func TestHackApplyParticipantsCSV(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 	base := "/v1/hack/events/" + slug
 
 	code := a.at(t, "GET", base, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
@@ -1026,6 +1054,7 @@ func TestHackApplyPatchEventToggle(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 	base := "/v1/hack/events/" + slug
 
 	wantTS(t, "organiser off", a.at(t, "PATCH", base, map[string]any{"applications_open": false}, a.key(org)), 200, "")
@@ -1043,6 +1072,7 @@ func TestHackApplyPatchEventToggle(t *testing.T) {
 	liveSlug := uniqueSlug()
 	a.createEvent(t, org, liveSlug, nil)
 	a.openEvent(t, org, liveSlug)
+	a.listEvent(t, liveSlug)
 	wantTS(t, "admin view read-only", a.at(t, "PATCH", "/v1/hack/events/"+liveSlug, map[string]any{"applications_open": false}, a.adminH()), 404, "event_not_found")
 }
 
@@ -1055,6 +1085,7 @@ func TestHackApplyMyEventsApprovalStatus(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 	wantTS(t, "apply", a.apply(t, slug, p, nil), 200, "")
 
 	rows := jsonArr(t, a.at(t, "GET", "/v1/hack/events", nil, a.key(p)))
@@ -1090,6 +1121,7 @@ func TestHackApplyPostCodeJoinRegression(t *testing.T) {
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)
 	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
 	code := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
 	wantTS(t, "join", a.at(t, "POST", "/v1/hack/join/"+code, map[string]any{"accept_coc": true, "display_name": "P"}, a.key(p)), 200, "")
 	var joinedVia, city string

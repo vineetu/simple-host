@@ -5279,7 +5279,7 @@
     },
     {
      "name": "applications off",
-     "when": "the organiser turned applications off",
+     "when": "the organiser turned applications off, or the event is not listed in Find a hackathon",
      "shows": ".note warn 'This event isn't taking applications.' then 'The organisers only take people with their join link. If you have one, open it to join.' Buttons: See the event page, Find another hackathon. Shown signed in or out."
     },
     {
@@ -5374,6 +5374,11 @@
      "q": "Prefill these fields from a person's earlier application to another event?",
      "decision": "No. The form starts empty each time; only the name is prefilled from the account.",
      "why": "The answers belong to one event's application and are deleted with it. Carrying them across events would quietly reuse data a person gave a different organiser."
+    },
+    {
+     "q": "Should unlisted events take applications?",
+     "decision": "No. Apply shows, and applications are accepted, only for events listed in Find a hackathon. An unlisted event's apply page shows the applications-off state (closed_reason not_listed).",
+     "why": "An organiser who keeps an event out of the directory chose a private, join-link-only event. Owner, 2026-10-31, after the security review raised it."
     }
    ]
   },

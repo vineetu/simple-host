@@ -9948,7 +9948,8 @@ paths:
         only when signed in and already a member (null otherwise), with
         role, joined_via and, for a participant, approval_status; it is
         returned either way, open or closed. closed_reason is null,
-        applications_off or signup_over.
+        applications_off, not_listed (the event is not in Find a hackathon,
+        which takes no applications) or signup_over.
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
       responses:

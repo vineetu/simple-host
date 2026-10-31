@@ -55,8 +55,8 @@ const hackUnder18Note = "If you're under 18, a parent or guardian needs to agree
 // .../apply, the directory and the public event JSON: the organiser's
 // switch, the right stage, and not taken down (a draft or taken-down event
 // never reaches this: callers 404 first).
-func hackApplicationsOpenNow(applicationsOpen bool, stage string, takenDown bool) bool {
-	if takenDown || !applicationsOpen {
+func hackApplicationsOpenNow(applicationsOpen, listed bool, stage string, takenDown bool) bool {
+	if takenDown || !applicationsOpen || !listed {
 		return false
 	}
 	return stage == "open" || stage == "building"
@@ -68,6 +68,9 @@ func hackApplicationsOpenNow(applicationsOpen bool, stage string, takenDown bool
 func hackApplicationsClosedReason(ev db.Event) any {
 	if !ev.ApplicationsOpen {
 		return "applications_off"
+	}
+	if !ev.DirectoryListed {
+		return "not_listed"
 	}
 	if ev.Stage == "open" || ev.Stage == "building" {
 		return nil
@@ -122,7 +125,7 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	openNow := hackApplicationsOpenNow(ev.ApplicationsOpen, ev.Stage, ev.TakenDown())
+	openNow := hackApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown())
 	out := map[string]any{
 		"slug": ev.Slug, "title": ev.Title, "tagline": ev.Tagline,
 		"icon_url": h.iconURL(ev), "color": hackEventAccent(ev),
@@ -340,7 +343,7 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 	// shared resource, the user row, and can't deadlock.
 	var stage string
 	var applicationsOpen, takenDownNow bool
-	if err := tx.QueryRowContext(r.Context(), `SELECT stage, applications_open, taken_down_at IS NOT NULL FROM events WHERE id=$1 FOR UPDATE`, ev.ID).Scan(&stage, &applicationsOpen, &takenDownNow); err != nil {
+	if err := tx.QueryRowContext(r.Context(), `SELECT stage, applications_open AND directory_listed, taken_down_at IS NOT NULL FROM events WHERE id=$1 FOR UPDATE`, ev.ID).Scan(&stage, &applicationsOpen, &takenDownNow); err != nil {
 		writeInternal(w)
 		return
 	}

@@ -161,7 +161,7 @@ export async function render(ctx) {
   }
 
   if (!info.applications_open) {
-    if (info.closed_reason === 'applications_off') {
+    if (info.closed_reason === 'applications_off' || info.closed_reason === 'not_listed') {
       main.innerHTML = header + `<div class="note warn"><b>This event isn't taking applications.</b></div><section class="card"><p>The organisers only take people with their join link. If you have one, open it to join.</p><div class="row-flex"><a class="btn" href="${esc(openHref)}">See the event page</a><a class="btn" href="/directory">Find another hackathon</a></div></section>`
     } else {
       main.innerHTML = header + `<div class="note">Sign-up has closed for this event.</div><p><a class="btn" href="${esc(openHref)}">See the event page</a></p>`

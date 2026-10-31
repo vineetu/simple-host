@@ -79,6 +79,9 @@ type Event struct {
 	// Applications without a join link (zp-hack-applications.sql). On by
 	// default; the organiser's Settings switch.
 	ApplicationsOpen bool
+	// Listed in Find a hackathon (Results settings). Applications are taken
+	// only from listed events (owner, 2026-10-31).
+	DirectoryListed bool
 }
 
 // TakenDown reports whether the platform admin has taken the event down.
@@ -121,7 +124,7 @@ const eventColumns = `
 	taken_down_at, taken_down_reason, created_at, updated_at,
 	entry_required, gallery_open,
 	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason,
-	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding, applications_open`
+	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding, applications_open, directory_listed`
 
 // scanEventFields is every events column in eventColumns order.
 func scanEventFields(e *Event) []any {
@@ -134,7 +137,7 @@ func scanEventFields(e *Event) []any {
 		&e.TakenDownAt, &e.TakenDownReason, &e.CreatedAt, &e.UpdatedAt,
 		pq.Array(&e.EntryRequired), &e.GalleryOpen,
 		&e.JudgeAssignmentMode, &e.JudgesPerTeam, &e.JudgingLockedAt, &e.JudgingLockReason,
-		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks, &e.TeamFinding, &e.ApplicationsOpen,
+		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks, &e.TeamFinding, &e.ApplicationsOpen, &e.DirectoryListed,
 	}
 }
 

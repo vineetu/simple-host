@@ -142,6 +142,10 @@ What follows from that, and is not negotiable without changing the line above:
   out yet. The join-link sign-up form stays as it was. AgentCat never receives city, country,
   age range or gender. There is no age restriction on applying. Under 18 shows a line asking a
   parent or guardian to agree to the Terms.
+- **2026-10-31. Only listed events take applications.** Apply shows, and applications are
+  accepted, only for events listed in Find a hackathon. An unlisted event stays join-link only,
+  because its organiser chose not to be found. Listing it later turns Apply on (owner, after
+  the security review raised it).
 
 - **2026-10-30. Passcodes stay out of default chat flows.** The owner requires passcode
   setup and display on the Passcode screen or in the dashboard. Connector results never
