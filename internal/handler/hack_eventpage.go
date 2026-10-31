@@ -165,10 +165,10 @@ type hackEventView struct {
 	// to ask the app's API, cross-origin, whether the signed-in visitor
 	// already belongs to this event, and swap out "Join with the link from
 	// the organisers... Already joined? Sign in" for a signed-in member.
-	Slug string
-	AppURL                      string
-	TakenDown                   bool
-	TakenDownReason             string
+	Slug            string
+	AppURL          string
+	TakenDown       bool
+	TakenDownReason string
 	// NotFound renders the same .pub shell's own "not found" state, for a
 	// slug that no longer resolves to an event (deleted, or never existed):
 	// the same top bar and footer as a live event page, instead of generic

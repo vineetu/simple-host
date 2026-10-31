@@ -392,10 +392,18 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
      below. The title and meta got squeezed onto the title's one line and
      .list's own overflow:hidden cropped whatever didn't fit (a trailing
      score pill, buttons). Title and details go on their own full-width
-     line first, everything else (buttons, pills) wraps under it. */
-  .list:not(.editable) .r{flex-wrap:wrap;row-gap:8px}
-  .list:not(.editable) .r .main{flex:1 1 100%}
-  .list:not(.editable) .r .main b{white-space:normal}
+     line first, everything else (buttons, pills) wraps under it.
+     :not(.results) (Codex review): .list.results (the public event page's
+     rank/avatar + team-name rows, hack-event.html) already has its own
+     phone layout below (.list.results .main keeps the team name beside the
+     rank/avatar, not stacked under it) -- a :not(.editable) selector alone
+     is MORE specific than .list.results's own rules (four class-level
+     selectors against three), so it won overrode them regardless of
+     source order and put the team name on its own line, separated from
+     its rank and avatar. */
+  .list:not(.editable):not(.results) .r{flex-wrap:wrap;row-gap:8px}
+  .list:not(.editable):not(.results) .r .main{flex:1 1 100%}
+  .list:not(.editable):not(.results) .r .main b{white-space:normal}
   .app.menu-open .nav a,.app.menu-open .top-nav a,.app.menu-open .side-foot a,.app.menu-open .side-foot summary{padding:11px 12px;font-size:15px}
   .list details>summary{padding:10px 8px}
   .focus{display:block;height:auto}
