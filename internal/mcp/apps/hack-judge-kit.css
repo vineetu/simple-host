@@ -944,5 +944,19 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
 .field > :is(.field-row,.control-row,.form-actions,.check,.help,.note){margin:0}
 /* ---------------------------- end Form layout ---------------------------- */
 
+/* === feature/hack-teams-redesign (kit additions) ====================== */
+/* .choices.stack: one column at every width (Team's "How do you want to
+   team up?" always stacks, unlike the Entry-form .choices' 2-col desktop
+   default). */
+.choices.stack{grid-template-columns:1fr}
+@media (max-width:760px){
+  /* .ph.keep-row: the header stays a row on phone, the button auto width --
+     Overview's Change stage sits beside the h1, never a full-width bar
+     above the next-step card. */
+  .ph.keep-row{flex-direction:row;align-items:flex-start;gap:10px}
+  .ph.keep-row .btn{width:auto;flex:none}
+}
+/* ======================================================================= */
+
 /* Headings that receive focus for screen readers (tab switches) show no box to mouse users. */
 [tabindex="-1"]:focus{outline:none}
