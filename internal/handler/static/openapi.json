@@ -16030,6 +16030,172 @@
         }
       }
     },
+    "/v1/admin/paper-metrics": {
+      "get": {
+        "x-audience": [
+          "internal"
+        ],
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "getAdminPaperMetrics",
+        "summary": "Aggregate measurements for the research papers (admin)",
+        "description": "Admin-only. Service-wide aggregates kept by internal/papermetrics (method in docs/paper-metrics.md): server-side time per route class (histograms and percentiles), five-minute process and box samples, nightly counts, weekly anonymous per-site footprint rows, and the per-route API counts. No IP, hash, path or site name is in any set. Without set (or set=summary) every set comes back in one JSON object; with set and format=csv one set comes back as CSV. A signed-in non-admin gets 404.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "set",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "summary",
+                "daily",
+                "latency",
+                "latency_buckets",
+                "process",
+                "process_daily",
+                "footprint",
+                "footprint_summary",
+                "api_routes"
+              ],
+              "default": "summary"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "First UTC day, default 89 days before to."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Last UTC day, default today."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "all",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "For set=latency, fold the range into one row per class."
+          },
+          {
+            "name": "week",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "For set=footprint, the Monday of the week (default the latest)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One table (columns and rows), every table, or CSV.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "set": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "items": {}
+                      }
+                    }
+                  }
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad set or date",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signed in but not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/events": {
       "get": {
         "x-audience": [

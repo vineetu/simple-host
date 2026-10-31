@@ -1,5 +1,7 @@
 # Changelog
 
+2026-10-31: Paper metrics for SIM-335: the server now keeps service-wide totals for the research papers (request time per kind of request, server CPU and memory every five minutes, a nightly count of sites, accounts and feature use, and a weekly anonymous size row per site), with an admin-only export at `GET /v1/admin/paper-metrics`. Aggregates only, no IP or site name; the Privacy page says so. `PAPER_METRICS=off` turns it off.
+
 2026-10-31: Simple Hack: anyone can now leave an event, from Overview, Settings, a Home row menu, or `hack_preview_leave_event` / `hack_leave_event`. A participant's team is deleted if left empty, and leaving is blocked once that team's deadline passes. A pending applicant can withdraw, and a rejected one can't leave, so the decision stays on record. A judge's scores stay and keep counting after they leave, and an organiser can delete them with `hack_delete_former_judge_scores`. The event's creator hands it to another organiser first, and the only organiser must end or delete the event to leave it.
 
 2026-10-31: Simple Hack: a person without a join link can now apply to an event from Find a hackathon or the event's public page (`hack_preview_application`, `hack_apply_to_event`). Applications are on by default and an organiser can turn them off per event in Settings. Every application waits for a decision in People → Applications, even when join-link sign-ups don't. An applicant can optionally share a city, country, age range and gender, stored on the membership and never shown on public pages.

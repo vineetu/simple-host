@@ -27,6 +27,7 @@ import (
 	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/papermetrics"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -430,6 +431,22 @@ func main() {
 	mux.Handle("GET /v1/admin/api-analytics", authMW(http.HandlerFunc(apiMetrics.AdminSummary)))
 	mux.Handle("GET /v1/admin/growth", authMW(http.HandlerFunc(apiMetrics.AdminGrowth)))
 
+	// Paper metrics (SIM-335): latency per route class, process samples and
+	// daily/weekly aggregate snapshots for the research papers; aggregates
+	// only. PAPER_METRICS=off turns it off. docs/paper-metrics.md.
+	var paper *papermetrics.Collector
+	if papermetrics.Enabled() {
+		apex := []string{cfg.SiteDomain}
+		if u, err := url.Parse(cfg.PublicBaseURL); err == nil && u.Hostname() != "" {
+			apex = append(apex, u.Hostname())
+		}
+		paper = papermetrics.New(db, cfg.DataDir, apex...)
+		mux.Handle("GET /v1/admin/paper-metrics", authMW(paper.Export(func(r *http.Request) (bool, bool) {
+			u := auth.GetUser(r.Context())
+			return u != nil, u != nil && u.IsAdmin
+		})))
+	}
+
 	// Server-side visitor analytics: tail the nginx analytics log into daily
 	// aggregates. Off unless ANALYTICS_LOG is set (safe default for local dev).
 	if cfg.AnalyticsLog != "" {
@@ -457,6 +474,9 @@ func main() {
 		Handler:           siteHandler.FamilyHosts(app, siteHandler.SiteBaseHosts(siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, siteHandler.LegacyHostRedirect(app)))))),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
+	if paper != nil {
+		server.Handler = paper.Wrap(server.Handler)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -475,6 +495,9 @@ func main() {
 	siteHandler.StartNotifications(ctx)
 	siteHandler.StartAddressFamilies(ctx)
 	siteHandler.StartNetworkUsage(ctx)
+	if paper != nil {
+		paper.Start(ctx)
+	}
 
 	serverErr := make(chan error, 1)
 

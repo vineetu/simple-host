@@ -1297,9 +1297,22 @@ site in the owner app's Analytics tab ("Top pages and referrers"), on the per-si
 page, and in MCP `site_analytics` (`top_pages`, `top_referrers`).
 **Status: live** (`ANALYTICS_LOG` set).
 
+Paper metrics (2026-10-31, SIM-335; `internal/papermetrics`, method in `docs/paper-metrics.md`):
+aggregates only, for the research papers on this deployment. Server-side time of every request
+in one of nine route classes (`site_file`, `data_read`, `data_write`, `auth`, `mcp`, `mcp_stream`,
+`api_read`, `api_write`, `platform_page`) as a per-day histogram with request, 5xx and byte
+counts (`paper_latency_daily`, `paper_class_daily`); a five-minute sample of this process, Postgres,
+nginx and the box (CPU, RSS, heap, goroutines, fds, memory, load; `paper_process_sample`); a
+nightly snapshot of about 50 counts (sites, accounts, active sites, feature use, certificates,
+saved-data size, API mix, bytes, restarts; `paper_daily`); and once a week one row per live site
+with sizes by kind and 30-day views and no site, owner or name (`paper_site_footprint`). No IP,
+hash, path or name is stored. About 0.4 µs and one allocation per request (`BenchmarkWrap`).
+`PAPER_METRICS=off` turns it off. Export: `GET /v1/admin/paper-metrics?set=&from=&to=&format=csv`
+(admin only; `scripts/paper-metrics-export.sh` writes every set as CSV).
+
 | Surface | Details |
 |---|---|
-| Routes | `GET /v1/sites/{sitename}/analytics` · `GET /v1/sites/{sitename}/analytics/geo` · `GET /v1/sites/{sitename}/analytics/top` · `GET /v1/analytics/sites` · `GET /v1/admin/api-analytics` · `GET /v1/admin/growth` |
+| Routes | `GET /v1/sites/{sitename}/analytics` · `GET /v1/sites/{sitename}/analytics/geo` · `GET /v1/sites/{sitename}/analytics/top` · `GET /v1/analytics/sites` · `GET /v1/admin/api-analytics` · `GET /v1/admin/growth` · `GET /v1/admin/paper-metrics` |
 | MCP tools | `site_analytics` |
 | Skill | `website-deploy/references/operations.md` §Analytics |
 | Pages | `st/analytics.html`, `st/showcase.html` Analytics tab, `st/index.html` site cards, `st/admin.html` API tab (growth and traffic) |
