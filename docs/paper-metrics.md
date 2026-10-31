@@ -84,7 +84,7 @@ slots (`sample_minutes_missing_day`) bound downtime from the inside. `sh-uptime-
 `/healthz` from the box every few minutes and only keeps alert state, so its alerts (Signal) are
 the external record.
 
-**Daily snapshot.** Once per UTC day, for the day before: about 60 counts in `paper_daily`.
+**Daily snapshot.** Once per UTC day, for the day before: 58 counts in `paper_daily`.
 Counts with a day in the query (new accounts, views, API calls) are exact for that day; counts
 of current state (sites with a passcode, storage resources) are as of the moment the snapshot
 ran, usually just after midnight UTC, so they describe the end of that day within an hour. A
@@ -103,7 +103,7 @@ Privacy page says so (2026-10-31). The sources they are computed from keep their
 
 **Measurement cost.** `BenchmarkWrap` on this box (aarch64, 4 cores): about 0.4 µs and one
 32-byte allocation per request, against a request that costs tens of microseconds or more. The
-database sees one small upsert a minute, one insert every 5 minutes, ~60 queries a night, and one
+database sees one small upsert a minute, one insert every 5 minutes, 58 queries a night, and one
 directory walk a week (the same walk the admin usage page already does). Re-measure with
 `go test ./internal/papermetrics -bench . -benchtime 500000x`.
 

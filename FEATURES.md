@@ -1303,7 +1303,7 @@ in one of nine route classes (`site_file`, `data_read`, `data_write`, `auth`, `m
 `api_read`, `api_write`, `platform_page`) as a per-day histogram with request, 5xx and byte
 counts (`paper_latency_daily`, `paper_class_daily`); a five-minute sample of this process, Postgres,
 nginx and the box (CPU, RSS, heap, goroutines, fds, memory, load; `paper_process_sample`); a
-nightly snapshot of about 50 counts (sites, accounts, active sites, feature use, certificates,
+nightly snapshot of 58 counts (sites, accounts, active sites, feature use, certificates,
 saved-data size, API mix, bytes, restarts; `paper_daily`); and once a week one row per live site
 with sizes by kind and 30-day views and no site, owner or name (`paper_site_footprint`). No IP,
 hash, path or name is stored. About 0.4 µs and one allocation per request (`BenchmarkWrap`).

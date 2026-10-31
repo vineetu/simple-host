@@ -80,7 +80,7 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) error {
 		}
 		rel, _ := filepath.Rel(root, path)
 		seg := strings.Split(filepath.ToSlash(rel), "/")
-		if len(seg) < 3 {
+		if len(seg) < 2 {
 			return nil
 		}
 		f := sites[seg[0]+"/"+seg[1]]
@@ -88,6 +88,9 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) error {
 			if d.IsDir() && len(seg) == 2 {
 				return filepath.SkipDir // a deleted or unknown site
 			}
+			return nil
+		}
+		if len(seg) < 3 {
 			return nil
 		}
 		if d.IsDir() {
