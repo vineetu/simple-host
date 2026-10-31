@@ -95,7 +95,7 @@ func discoveryTools() []Tool {
 	return []Tool{
 		{
 			Name: "find_tools", Title: "Find more Simple Host tools",
-			Description: "Find tools for a job: own domain or short free address, passcode, rollback, rename, delete and restore, visitor numbers, home page, export, notifications, moving a WordPress site, or more storage. Returns matching tools and arguments; call your pick with run_tool.",
+			Description: "Find tools for a job: own domain or short free address, passcode, rollback, rename, delete and restore, visitor numbers, adding or editing your own entry on a shared site, home page, export, notifications, moving a WordPress site, or more storage. Returns matching tools and arguments; call your pick with run_tool.",
 			InputSchema: object(map[string]any{
 				"query": str("The job in a few words; empty lists the other tools."),
 				"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 10, "default": 3},
