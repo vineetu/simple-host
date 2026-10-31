@@ -39,7 +39,9 @@ func TestHackTeamFinding(t *testing.T) {
 		return ""
 	}
 	id := findID(leader.key, "request")
-	wantTS(t, "outsider accept", a.api(t, "POST", base+"/requests/"+id+"/accept", nil, other.key), 403, "team_action_unavailable")
+	// Accepting a request now needs a team admin (was: any teammate); other
+	// is not even on Alpha, so this is still refused, now as team_admin_only.
+	wantTS(t, "outsider accept", a.api(t, "POST", base+"/requests/"+id+"/accept", nil, other.key), 403, "team_admin_only")
 	wantTS(t, "full size", a.api(t, "PATCH", base, map[string]any{"team_size_max": 1}, org.key), 200, "")
 	wantTS(t, "full cannot accept", a.api(t, "POST", base+"/requests/"+id+"/accept", nil, leader.key), 409, "team_full")
 	wantTS(t, "room", a.api(t, "PATCH", base, map[string]any{"team_size_max": 4}, org.key), 200, "")
@@ -53,6 +55,11 @@ func TestHackTeamFinding(t *testing.T) {
 		t.Fatalf("solo cleanup: %v, %v", looking, err)
 	}
 	wantTS(t, "cannot remove self", a.api(t, "DELETE", base+"/team/members/"+a.uid(t, p), nil, p.key), 403, "")
+	// Removing a teammate now needs a team admin (was: any teammate): leader
+	// (the creator, Alpha's only admin so far) makes p an admin too, so p can
+	// then remove leader and the rest of this test's assertions (about
+	// leader's own post-removal state) still hold.
+	wantTS(t, "leader makes p admin", a.api(t, "PUT", base+"/team/members/"+a.uid(t, p)+"/admin", map[string]any{"admin": true}, leader.key), 200, "")
 	wantTS(t, "teammate removal", a.api(t, "DELETE", base+"/team/members/"+a.uid(t, leader), nil, p.key), 204, "")
 	notice := a.api(t, "GET", base, nil, leader.key).json(t)["me"].(map[string]any)["team_removal_notice"].(string)
 	if !strings.Contains(notice, "took you off Alpha") {
@@ -84,7 +91,9 @@ func TestHackTeamFinding(t *testing.T) {
 	if hidden["enabled"] != false || len(hidden["teams"].([]any)) != 0 || len(hidden["solo"].([]any)) != 0 || len(hidden["pending"].([]any)) != 0 {
 		t.Fatalf("off lists: %v", hidden)
 	}
-	wantTS(t, "off removal", a.api(t, "DELETE", base+"/team/members/"+a.uid(t, q), nil, p.key), 409, "team_finding_off")
+	// Removing a member no longer needs team finding on (decision 10): p
+	// (still Alpha's admin) can still remove q with finding off.
+	wantTS(t, "removal works with finding off", a.api(t, "DELETE", base+"/team/members/"+a.uid(t, q), nil, p.key), 204, "")
 	wantTS(t, "off request", a.api(t, "POST", base+"/teams/"+team+"/requests", nil, other.key), 409, "team_finding_off")
 	wantTS(t, "off invite", a.api(t, "POST", base+"/team/invites", map[string]any{"user_id": a.uid(t, other)}, p.key), 409, "team_finding_off")
 }
@@ -131,9 +140,18 @@ func TestHackFillTeams(t *testing.T) {
 			t.Fatalf("person %d placed=%v err=%v", i, placed, err)
 		}
 	}
-	var closed int
-	if err := a.database.QueryRow("SELECT count(*) FROM event_teams WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND NOT open", slug).Scan(&closed); err != nil || closed != 0 {
-		t.Fatalf("fill teams closed=%d err=%v", closed, err)
+	// Each new team's first person placed is its admin (leader already
+	// admins Team 1 from creating it): three teams, three admins total.
+	var admins int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_members WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND team_admin`, slug).Scan(&admins); err != nil || admins != 3 {
+		t.Fatalf("admins after fill: %d %v", admins, err)
+	}
+	// New teams are never locked (decision 13: a plain team_size_max cap no
+	// longer governs Fill teams, so there is nothing like the old "open"
+	// flag left to check here).
+	var locked int
+	if err := a.database.QueryRow("SELECT count(*) FROM event_teams WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND locked_at IS NOT NULL", slug).Scan(&locked); err != nil || locked != 0 {
+		t.Fatalf("fill teams locked=%d err=%v", locked, err)
 	}
 	var offers int
 	if err := a.database.QueryRow(`SELECT count(*) FROM event_team_requests WHERE event_id=(SELECT id FROM events WHERE slug=$1)`, slug).Scan(&offers); err != nil || offers != 0 {
@@ -145,26 +163,33 @@ func TestHackFillTeams(t *testing.T) {
 	}
 }
 
-// Grok retest 3, Confusing #3: a code-only team ("Only people with the
-// code") with room must be left alone by fill-teams -- its members chose
-// not to take strangers -- but the preview response needs to say why,
-// instead of silently starting a one-person "Team N" while Beta Builders
-// still had a seat free.
-func TestHackFillTeamsSkipsCodeOnly(t *testing.T) {
+// Teams redesign (2026-10-31): a locked team with room must be left alone by
+// fill-teams -- its admin chose to stop taking anyone new -- but the preview
+// response needs to say why, instead of silently starting a one-person
+// "Team N" while Beta Builders still had a seat free. Also covers an
+// explicit size, a size over the event's max (400), that Fill teams works
+// with team finding off (decision 10), and that a new team's first person
+// placed is its admin.
+func TestHackFillTeamsSkipsLocked(t *testing.T) {
 	a := newTeamSiteApp(t)
-	org := a.newPerson(t, "codeonlyorg")
-	leader := a.newPerson(t, "codeonlyleader")
+	org := a.newPerson(t, "lockedfillorg")
+	leader := a.newPerson(t, "lockedfillleader")
 	slug := a.makeEvent(t, org)
 	base := "/v1/hack/events/" + slug
 	a.join(t, slug, leader, org)
 	team, _ := a.startTeam(t, slug, "Beta Builders", leader)
 	wantTS(t, "max", a.api(t, "PATCH", base, map[string]any{"team_size_max": 3}, org.key), 200, "")
-	wantTS(t, "code only", a.api(t, "PUT", base+"/team/finding", map[string]any{"open": false, "looking_for": ""}, leader.key), 200, "")
-	solo := a.newPerson(t, "codeonlysolo")
+	wantTS(t, "lock", a.api(t, "PUT", base+"/team/lock", map[string]any{"locked": true}, leader.key), 200, "")
+	wantTS(t, "finding off", a.api(t, "PATCH", base, map[string]any{"team_finding": false}, org.key), 200, "")
+	solo := a.newPerson(t, "lockedfillsolo")
 	a.join(t, slug, solo, org)
-	preview := a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": false}, org.key)
+	wantTS(t, "size over max", a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": false, "size": 4}, org.key), 400, "invalid_team_size")
+	preview := a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": false, "size": 2}, org.key)
 	wantTS(t, "preview", preview, 200, "")
 	body := preview.json(t)
+	if body["size"] != float64(2) {
+		t.Fatalf("size echoed: %v", body)
+	}
 	plan := body["plan"].([]any)
 	if len(plan) != 1 || plan[0].(map[string]any)["team"] == team {
 		t.Fatalf("expected a new team, not Beta Builders: %v", plan)
@@ -177,8 +202,13 @@ func TestHackFillTeamsSkipsCodeOnly(t *testing.T) {
 		t.Fatalf("skipped %v", skipped)
 	}
 	s := skipped[0].(map[string]any)
-	if s["team"] != team || s["reason"] != "code_only" {
+	if s["team"] != team || s["reason"] != "locked" {
 		t.Fatalf("skipped entry %v", s)
+	}
+	wantTS(t, "apply", a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": true, "size": 2}, org.key), 200, "")
+	var newAdmin bool
+	if err := a.database.QueryRow(`SELECT team_admin FROM event_members WHERE user_id=$1`, a.uid(t, solo)).Scan(&newAdmin); err != nil || !newAdmin {
+		t.Fatalf("new team's first person placed is its admin: %v %v", newAdmin, err)
 	}
 }
 

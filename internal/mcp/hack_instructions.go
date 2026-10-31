@@ -15,7 +15,7 @@ func HackSiteInstructions() string {
 
 const hackInstructionsText = `Simple Hack on simple-hack.app: one person's organiser, participant, and judge roles. Never ask for keys or sign-in codes. Start with hack_list_events. Read state before changes; relay refusals, never retry with another role or key.
 
-Preview join/judge invitations, ask the person to accept the code of conduct, then join. Participants find teams, handle requests/invites, manage teams/entries, vote, and read own results. Judges, including organisers who judge, read rubric IDs, queue, and own scores, score/comment, and declare conflicts. Organisers manage events, registration, teams, judging, and results; preview fill teams before confirming apply.
+Preview join/judge invitations, ask the person to accept the code of conduct, then join. Participants find teams; admins approve, lock, and share links; manage entries, vote, read results. Judges, including organisers who judge, read rubric IDs, queue, and own scores, score/comment, and declare conflicts. Organisers manage events, registration, teams, judging, and results; preview fill teams before confirming apply.
 
 Publish via hack_get_my_teams, then hack_select_team. Website/storage_* calls recheck approved membership, stage, and deadline; leaving the team stops access. Selection changes only the publishing target; older connections keep their team. Organisers use hack_event_storage_* with the event slug for event websites, not the selected team.
 

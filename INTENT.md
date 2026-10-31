@@ -1271,6 +1271,40 @@ What follows from that, and is not negotiable without changing the line above:
   examples remain optional. Reason: the owner expects an application install into their
   existing cluster, not another cluster to operate.
 
+- **2026-10-31. One button moves the event forward, Change stage is for going back.** The
+  organiser Overview's next-step card holds one button that performs the next forward
+  move after a confirm, with the server computing which one (`next_step`) so the website and
+  AI apps agree. Change stage stays in the header for moving back a stage, and the danger-zone
+  End still exists for ending early. Reason: owner, 2026-10-31. The old card's several
+  buttons confused more than they helped.
+
+- **2026-10-31. Every role sees the same stage, in the same words.** Participants and judges
+  get the same stage pill and the same stage track on their own home screen as organisers, not
+  a cut-down version. Judges keep a second pill for their own scoring state beside it. This
+  overrides the 2026-10-30 rule that a judge's pill read only Open or Locked. Reason: owner,
+  2026-10-31: "for the organiser on the top it shows the current event status, but for the
+  judge and the participant it doesn't. It should show the same thing."
+
+- **2026-10-31. Teams: no "who can join" setting, admins, size 20, locking (teams redesign).**
+  A team no longer chooses who may ask to join it: every unlocked team takes a join request,
+  and its link or code still joins instantly either way. The team's creator is its admin, and
+  an admin can make another member admin too. A new team's size defaults to 20, and a team can
+  be locked so it takes nobody new by request, link, code, invite or Fill teams until unlocked.
+  No real events exist yet (owner, 2026-10-31), so this changes existing teams outright rather
+  than preserving anyone's earlier choice. Supersedes the SIM-225 decision's "any teammate can
+  remove another" (removal is admins only now) and "New teams default to anyone can ask" (the
+  open/code-only split it describes no longer exists).
+
+- **2026-10-31. Teams redesign, the coordinator's calls (open to the owner's override).**
+  Moving the event to Results locks judging in the same step, since Results already stops
+  scoring and the lock removes the dead end where it refused to publish an unlocked event. The
+  last admin leaving, being removed or being moved off a team is succeeded by its
+  longest-standing remaining member, never left adminless. Locking a team clears its pending
+  requests and invites rather than keeping them for an unlock. Fill teams asks for people per
+  team (`size`, default 4) now that the size cap is 20, instead of filling every team to the
+  cap. A team's track choice stays editable by every member, not admins only. Reason: small,
+  reversible calls made to keep the redesign moving without waiting on the owner for each one.
+
 ## Open, deliberately parked
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some

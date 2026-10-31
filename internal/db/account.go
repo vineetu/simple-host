@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"strings"
 	"time"
 )
@@ -93,6 +94,11 @@ type ErasedAccount struct {
 	// Families are the account's address-family suffixes, whose links and
 	// issuer requests go too (the rows go with the account).
 	Families []string
+	// AffectedEventAccounts are the holding accounts of hosted events whose
+	// team this person admined and whose team row was deleted outright
+	// below (not kept): the caller sweeps orphan team sites for each, the
+	// same way leaveTeam does (Grok security review, 2026-11-01).
+	AffectedEventAccounts []string
 }
 
 // EraseAccount deletes the account locked by LockAccountForDelete and
@@ -180,6 +186,19 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a AccountForDelete) (ErasedAc
 		return out, err
 	}
 
+	// Hack event membership (event_members.user_id REFERENCES users(id) ON
+	// DELETE CASCADE) disappears with the account below, same as leaving a
+	// team -- but with no handler in between to run EnsureTeamAdmin. Read
+	// which teams this person currently admins before the cascade, so a
+	// successor can be chosen for each once the cascade has actually run
+	// (Codex review, 2026-11-01; this account may hold no event membership
+	// at all, in which case the slice is empty and the loop below is a
+	// no-op).
+	adminTeamIDs, err := AdminTeamIDs(ctx, tx, a.ID)
+	if err != nil {
+		return out, err
+	}
+
 	steps := []struct {
 		q    string
 		args []any
@@ -212,6 +231,59 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a AccountForDelete) (ErasedAc
 	}
 	for _, s := range steps {
 		if _, err := tx.ExecContext(ctx, s.q, s.args...); err != nil {
+			return out, err
+		}
+	}
+	// The cascade above already took this person's membership off each team
+	// they admined. Run the same cleanup LeaveMembership runs for a
+	// voluntary last-member leave, in the same order (Grok security review,
+	// 2026-11-01: EnsureTeamAdmin alone is not enough when the erased
+	// account was the team's only member -- an empty, unlocked team with a
+	// live code would otherwise survive the account that used to run it).
+	sort.Strings(adminTeamIDs)
+	for _, teamID := range adminTeamIDs {
+		var eventAccountID string
+		if err := tx.QueryRowContext(ctx, `
+			SELECT e.account_id FROM event_teams t JOIN events e ON e.id = t.event_id WHERE t.id = $1`,
+			teamID).Scan(&eventAccountID); err != nil {
+			if err == sql.ErrNoRows {
+				continue // the team is already gone by some other path
+			}
+			return out, err
+		}
+		if err := deleteTeamIfEmpty(ctx, tx, teamID); err != nil {
+			return out, err
+		}
+		var stillExists bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_teams WHERE id = $1)`, teamID).Scan(&stillExists); err != nil {
+			return out, err
+		}
+		if !stillExists {
+			out.AffectedEventAccounts = append(out.AffectedEventAccounts, eventAccountID)
+			continue
+		}
+		var members int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM event_members WHERE team_id = $1`, teamID).Scan(&members); err != nil {
+			return out, err
+		}
+		if members == 0 {
+			// Not keepable (frozen or pinned): kept for good and locked, the
+			// same as a voluntary last-member leave past the deadline, and
+			// its code rotated so the dead link that used to work for this
+			// person stops working for anyone else too.
+			if err := markTeamKeptAfterLeave(ctx, tx, teamID); err != nil {
+				return out, err
+			}
+			if err := rotateTeamCodeTx(ctx, tx, teamID); err != nil {
+				return out, err
+			}
+			continue
+		}
+		// Members remain: give them a successor. EnsureTeamAdmin locks
+		// that team's remaining members (sorted), then the team row, so
+		// running this sequentially here (never concurrently with itself)
+		// carries no extra deadlock risk.
+		if err := EnsureTeamAdmin(ctx, tx, teamID); err != nil {
 			return out, err
 		}
 	}

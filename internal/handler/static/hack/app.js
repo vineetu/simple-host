@@ -140,7 +140,10 @@ const setLive = msg => ui.toast(msg)
     // Apply (SIM, owner 2026-10-31): a public stand-alone screen keyed by
     // slug, same shape as the join/judge/organiser invite links -- must be
     // reachable signed out (see nav.js resolveRoute's matching regex).
-    return /^\/(join|judge|organiser)\/[^/]+$/.test(p) || /^\/e\/[^/]+\/apply$/.test(p);
+    // Team link (teams redesign, 2026-10-31): /team/{code} is the same
+    // shape again -- served signed in or out, one confirm, never joins on
+    // a bare GET (public-team-link.js).
+    return /^\/(join|judge|organiser|team)\/[^/]+$/.test(p) || /^\/e\/[^/]+\/apply$/.test(p);
   }
   function showAuthStep(name) {
     var slot = $('signin-slot');

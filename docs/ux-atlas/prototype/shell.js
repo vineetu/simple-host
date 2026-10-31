@@ -123,11 +123,24 @@
     phoneTop = switcherHTML('sw2');
   }
 
+  // Owner decision 2026-10-31: every role sees the event's stage in the same words, and
+  // participants and judges get the same read-only stage track as the organiser's Overview
+  // on their own home screen. Judges keep a second pill for scoring (data-scoring:
+  // open | locked | not-open).
   var stage = b.dataset.stage, next = b.dataset.next;
+  var KEYS = ['draft','open','building','closed','judging','results','ended'];
+  var LABELS = ['Not open yet','Sign-up open','Building','Entries closed','Judging','Results','Ended'];
+  var SMAP = {'draft':'draft','not open yet':'draft','open':'open','sign-up open':'open','building':'building','entries closed':'closed','closed':'closed','judging':'judging','results':'results','ended':'ended','archived':'ended'};
+  var sKey = SMAP[(stage||'').toLowerCase()] || '';
+  var sLabel = sKey ? LABELS[KEYS.indexOf(sKey)] : stage;
+  var sc = role === 'judge' && sKey !== 'ended' ? b.dataset.scoring : '';
+  var scoring = sc ? '<span class="pill '+(sc==='open'?'ok':sc==='locked'?'warn':'')+'"><span class="d"></span>'+({open:'Scoring open',locked:'Scoring locked','not-open':'Scoring not open'}[sc]||'')+'</span>' : '';
+  var track = (role === 'participant' || role === 'judge') && here === 'home' && sKey ?
+    '<div class="stages" aria-label="Event stages">'+KEYS.map(function(k,i){ var c = k===sKey ? 'now' : (i < KEYS.indexOf(sKey) ? 'done' : ''); return '<span'+(c?' class="'+c+'"':'')+(c==='now'?' aria-current="step"':'')+'>'+LABELS[i]+'</span>'; }).join('')+'</div>' : '';
   var tpl = document.getElementById('status');
   var status = tpl ? tpl.innerHTML :
-    (stage ? '<span class="pill stage"><span class="d"></span>'+esc(stage)+'</span>' : '')+
-    (next ? '<span class="muted">'+esc(next)+'</span>' : '')+'<span class="grow"></span>';
+    (sLabel ? '<span class="pill stage"><span class="d"></span>'+esc(sLabel)+'</span>' : '')+scoring+
+    (next ? '<span class="muted">'+esc(next)+'</span>' : '')+'<span class="grow"></span>'+track;
 
   var main = document.querySelector('main') || document.createElement('main');
   var bare = b.dataset.bare === '1';

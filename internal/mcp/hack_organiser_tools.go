@@ -70,7 +70,7 @@ func HackOrganiserTools() []Tool {
 // These hints make the pass-through body usable from a tool listing without
 // restating REST validation rules in the connector.
 var hackRouteBodyDescriptions = map[string]string{
-	"hack_fill_teams":                 "Set apply:false to preview placements of approved solo participants into open teams then new teams of the event maximum size. Show the plan and confirm before apply:true; the plan is recomputed using current membership.",
+	"hack_fill_teams":                 "Set apply:false to preview placements of approved solo participants into teams with room, topped up to size (people per team, default min(4, the event's team size)), then new teams of that size. Locked teams are skipped. Show the plan and confirm before apply:true; the plan is recomputed using current membership.",
 	"hack_generate_assignments":       "Optional include_organisers boolean, default false.",
 	"hack_delete_event":               "confirm: the exact event address name (slug), supplied only after the person confirms deletion.",
 	"hack_delete_former_judge_scores": "confirm: the exact event address name (slug), supplied only after the person confirms deletion.",
@@ -84,6 +84,8 @@ var hackRouteBodyDescriptions = map[string]string{
 	"hack_set_directory_listing":      "listed boolean.",
 	"hack_move_member":                "user_id of the participant to move to the team named in the path.",
 	"hack_rename_team":                "name for the team's new display name.",
+	"hack_lock_team":                  "locked boolean.",
+	"hack_set_team_admin":             "admin boolean for the user_id in the path.",
 	"hack_set_team_deadline":          "deadline in the event time zone, or an empty string to remove the extension.",
 	"hack_accept_organiser_invite":    "accept_coc true and display_name.",
 	"hack_set_judging_settings":       "Any changed field: assignment_mode, judges_per_team, score_mode, tie_criterion_id, public_scores, public_ranks.",
@@ -125,6 +127,9 @@ func hackOrganiserRoutes() []hackRouteTool {
 		{"hack_move_member", "Move a member to team", "Move a member to the specified team using the REST body. Ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/teams/{team}/members", []string{"slug", "team"}, true, true, false, false, false, false},
 		{"hack_remove_team_member", "Remove a team member", "Take a person off a team. Ask first. Organiser only.", "DELETE", "/v1/hack/events/{slug}/teams/{team}/members/{user_id}", []string{"slug", "team", "user_id"}, false, true, false, false, false, false},
 		{"hack_rename_team", "Rename a team", "Rename an event team's display name with body.name. Its site slug and address stay the same. Organiser only.", "PATCH", "/v1/hack/events/{slug}/teams/{team}", []string{"slug", "team"}, true, true, false, true, false, false},
+		{"hack_lock_team", "Lock or unlock a team", "Body.locked true or false. Locking stops the team taking anyone new by request, link, code or invite, and clears its pending requests and invites. Ask first, and say those are cleared. Organiser only.", "PUT", "/v1/hack/events/{slug}/teams/{team}/lock", []string{"slug", "team"}, true, true, true, false, false, false},
+		{"hack_set_team_admin", "Make or remove a team admin", "Body.admin true or false for the member in the path. Destructive: it changes who can approve requests, lock, rename, remove members and rotate the link. The last admin can't be unmade until someone else is admin. Ask first. Organiser only.", "PUT", "/v1/hack/events/{slug}/teams/{team}/members/{user_id}/admin", []string{"slug", "team", "user_id"}, true, true, true, false, false, false},
+		{"hack_new_team_link", "Make a new team link", "Destructive: the team's old link and code stop working at once. Ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/teams/{team}/link", []string{"slug", "team"}, false, true, false, false, false, false},
 		{"hack_delete_team", "Delete a team", "Delete a team and its event entry. Ask first. Organiser only.", "DELETE", "/v1/hack/events/{slug}/teams/{team}", []string{"slug", "team"}, false, true, false, true, false, false},
 		{"hack_set_team_deadline", "Set team deadline", "Give one team more time with body.deadline. Ask first. Organiser only.", "PUT", "/v1/hack/events/{slug}/teams/{team}/deadline", []string{"slug", "team"}, true, true, true, false, false, false},
 		{"hack_take_down_team_site", "Take down team site", "Take a team's public site down. Ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/teams/{team}/takedown", []string{"slug", "team"}, false, true, true, true, false, false},

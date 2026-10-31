@@ -356,7 +356,7 @@ func (h *HackHandler) teamOrganiserFull(ctx context.Context, ev db.Event, team d
 
 // teamOrganiserFrom is the organiser's view of one team from a teamList.
 func (h *HackHandler) teamOrganiserFrom(ctx context.Context, ev db.Event, team db.EventTeam, tl teamList) (map[string]any, error) {
-	obj := teamOrganiserJSONFrom(team, tl.members[team.ID])
+	obj := teamOrganiserJSONFrom(team, tl.members[team.ID], h.teamLinkURL(team.Code))
 	track, err := db.TeamTrack(ctx, h.database, team.ID)
 	if err != nil {
 		return nil, err

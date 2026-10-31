@@ -141,6 +141,7 @@ func (h *SiteHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 	if err := h.eraseAccountFiles(r.Context(), erased); err != nil {
 		log.Printf("delete account %s: files: %v", acct.ID, err)
 	}
+	h.sweepOrphanTeamSites(r.Context(), erased.AffectedEventAccounts)
 	if strings.Contains(acct.Username, "@") {
 		go h.emailAccountDeleted(acct.Username)
 	}
@@ -229,6 +230,29 @@ func (h *SiteHandler) eraseAccountFiles(ctx context.Context, e db.ErasedAccount)
 	}
 	keep(h.disk.DeleteUser(e.UserID, e.Handle))
 	return first
+}
+
+// sweepOrphanTeamSites removes (to Recently deleted) any team site left
+// behind when EraseAccount deleted a team outright because the erased
+// account was its only member: the site itself lives on the event's
+// holding account, not this account, so DELETE FROM sites above never
+// touched it. Mirrors HackHandler.removeOrphanTeamSites; this handler
+// (not HackHandler) runs it because it already holds the site-trashing
+// capability itself (Grok security review, 2026-11-01). Logs and
+// continues on error, the same as the ordinary per-event sweep.
+func (h *SiteHandler) sweepOrphanTeamSites(ctx context.Context, eventAccountIDs []string) {
+	for _, accountID := range eventAccountIDs {
+		orphans, err := db.OrphanTeamSites(ctx, h.database, accountID)
+		if err != nil {
+			log.Printf("hack: orphan sites after account erasure: %v", err)
+			continue
+		}
+		for _, s := range orphans {
+			if err := h.TrashTeamSite(ctx, s.UserID, s.Name); err != nil {
+				log.Printf("hack: remove site %s after account erasure: %v", s.Name, err)
+			}
+		}
+	}
 }
 
 func (h *SiteHandler) emailAccountDeleted(to string) {

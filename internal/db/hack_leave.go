@@ -138,15 +138,19 @@ func LeaveMembership(ctx context.Context, q Querier, eventID, userID string, sel
 	if !m.TeamID.Valid {
 		return "", nil
 	}
-	if err := deleteTeamIfEmpty(ctx, q, m.TeamID.String); err != nil {
+	team := m.TeamID.String
+	if err := deleteTeamIfEmpty(ctx, q, team); err != nil {
 		return "", err
 	}
 	if selfLeave {
-		if err := markTeamKeptAfterLeave(ctx, q, m.TeamID.String); err != nil {
+		if err := markTeamKeptAfterLeave(ctx, q, team); err != nil {
 			return "", err
 		}
 	}
-	return m.TeamID.String, nil
+	if err := EnsureTeamAdmin(ctx, q, team); err != nil {
+		return "", err
+	}
+	return team, nil
 }
 
 // markTeamKeptAfterLeave sets kept_after_leave on a team LeaveMembership's own
@@ -156,7 +160,7 @@ func LeaveMembership(ctx context.Context, q Querier, eventID, userID string, sel
 // deleted instead (0 rows match) or still has someone on it.
 func markTeamKeptAfterLeave(ctx context.Context, q Querier, teamID string) error {
 	_, err := q.ExecContext(ctx, `
-		UPDATE event_teams SET kept_after_leave = true
+		UPDATE event_teams SET kept_after_leave = true, locked_at = COALESCE(locked_at, clock_timestamp())
 		 WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM event_members WHERE team_id = $1)`, teamID)
 	return err
 }

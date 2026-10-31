@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team · teams closed · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="participant" data-nav="team" data-stage="Entries closed" data-next="Entries closed">
+<main class="page">
+<div class="ph"><div class="t"><h1>Team</h1><p>You’re not on a team.</p></div></div><div class="empty-state"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V6.5a4 4 0 0 1 8 0V9M5 9h10v8H5z"/></svg><h3>Teams can’t be started or joined now</h3><p>Entries are closed. If you should be on a team, ask the organiser.</p></div>
+</main>
+<script>
+(function(){
+  function closeAll(except){ document.querySelectorAll('.row-menu').forEach(function(m){ if(m!==except){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-rowmenu]');
+    if(!b){ if(!e.target.closest('.row-menu')) closeAll(null); return; }
+    var m=b.parentNode.querySelector('.row-menu'); closeAll(m); m.hidden=!m.hidden; b.setAttribute('aria-expanded',String(!m.hidden));
+  });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeAll(null); });
+  document.querySelectorAll('button.toggle').forEach(function(t){ t.addEventListener('click',function(){ var on=t.classList.toggle('on'); t.setAttribute('aria-checked',String(on)); }); });
+  document.querySelectorAll('.choice input[data-go]').forEach(function(r){ r.addEventListener('change',function(){ location.href=r.getAttribute('data-go'); }); });
+  document.querySelectorAll('[data-copy]').forEach(function(b){ b.addEventListener('click',function(){ try{ navigator.clipboard.writeText(b.getAttribute('data-copy')); }catch(e){} b.textContent='Copied'; }); });
+  window.addEventListener('load',function(){ var cur=document.querySelector('.subnav [aria-current=page]'); if(cur&&window.matchMedia('(max-width:760px)').matches){ var n=cur.parentNode; n.scrollLeft=cur.offsetLeft-(n.clientWidth-cur.offsetWidth)/2; } });
+})();
+</script>
+</body></html>

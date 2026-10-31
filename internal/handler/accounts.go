@@ -249,6 +249,7 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, errorResponse{Error: "account removed but its files could not be deleted"})
 		return
 	}
+	h.sweepOrphanTeamSites(r.Context(), erased.AffectedEventAccounts)
 	w.WriteHeader(http.StatusNoContent)
 }
 

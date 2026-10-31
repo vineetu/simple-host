@@ -205,6 +205,16 @@ export async function render(ctx) {
     } else {
       heroLabel = 'Go to your team'; heroHref = teamHref
     }
+  } else if (me.team.admin && (me.team.pending_requests || 0) > 0) {
+    // Teams redesign (owner, 2026-10-31): only admins can say yes or no now,
+    // so a pending request has to reach them without anyone else nudging --
+    // the next-step card says so when nothing more urgent applies (results,
+    // the removal notice, an incomplete entry).
+    const n = me.team.pending_requests
+    heroTitle = n + (n === 1 ? ' person' : ' people') + ' asked to join ' + me.team.name
+    heroNote = 'Say yes or no on your Team page.'
+    heroLabel = n === 1 ? 'See request' : 'See requests'
+    heroHref = teamHref + '&tab=members'
   } else {
     heroTitle = teamDeadline ? ('Keep building. Entries close ' + teamDeadline) : ('You are on ' + me.team.name + '. Keep building')
     heroLabel = 'Go to your entry'

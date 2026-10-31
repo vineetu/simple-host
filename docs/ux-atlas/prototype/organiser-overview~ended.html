@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="organiser" data-nav="overview" data-stage="Ended" data-next="">
+<template id="status"><span class="pill stage"><span class="d"></span>Ended</span><span class="grow"></span><div class="stages"><span class="done">Not open yet</span><span class="done">Sign-up open</span><span class="done">Building</span><span class="done">Entries closed</span><span class="done">Judging</span><span class="done">Results</span><span class="now">Ended</span></div></template>
+<main class="page">
+<div class="ph" style="flex-direction:row"><div class="t"><h1>Overview</h1><p style="overflow-wrap:anywhere"><a href="https://generationgirl2026.simple-hack.app" target="_blank" rel="noopener">generationgirl2026.simple-hack.app</a></p></div><button class="btn" type="button" style="width:auto;flex:none" data-tour="change-stage" disabled>Change stage</button></div><section class="next"><div class="t"><p class="k">Your next step</p><h2>This event has ended</h2><p>The public page stays up as a record.</p></div></section><h2 class="section-title">Snapshot</h2><div class="grid4"><div class="stat"><b>24</b><span>Participants</span></div><div class="stat"><b>6</b><span>Teams</span></div><div class="stat"><b>3</b><span>Judges</span></div><div class="stat"><b>0</b><span>Not on a team</span></div></div>
+</main>
+<script>
+(function(){
+  function closeAll(except){ document.querySelectorAll('.row-menu').forEach(function(m){ if(m!==except){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-rowmenu]');
+    if(!b){ if(!e.target.closest('.row-menu')) closeAll(null); return; }
+    var m=b.parentNode.querySelector('.row-menu'); closeAll(m); m.hidden=!m.hidden; b.setAttribute('aria-expanded',String(!m.hidden));
+  });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeAll(null); });
+  document.querySelectorAll('button.toggle').forEach(function(t){ t.addEventListener('click',function(){ var on=t.classList.toggle('on'); t.setAttribute('aria-checked',String(on)); }); });
+  document.querySelectorAll('.choice input[data-go]').forEach(function(r){ r.addEventListener('change',function(){ location.href=r.getAttribute('data-go'); }); });
+  document.querySelectorAll('[data-copy]').forEach(function(b){ b.addEventListener('click',function(){ try{ navigator.clipboard.writeText(b.getAttribute('data-copy')); }catch(e){} b.textContent='Copied'; }); });
+  window.addEventListener('load',function(){ var cur=document.querySelector('.subnav [aria-current=page]'); if(cur&&window.matchMedia('(max-width:760px)').matches){ var n=cur.parentNode; n.scrollLeft=cur.offsetLeft-(n.clientWidth-cur.offsetWidth)/2; } });
+})();
+</script>
+</body></html>

@@ -12,46 +12,56 @@ let autoTourTried = false
 
 export function title(ctx) { return 'Overview' }
 
-// nextStep answers "what do I do now" for the whole event, from real state
-// rather than a fixed per-stage string (spec.json organiser-overview.purpose).
-function nextStep(ev) {
-  const deadlinePassed = ev.submission_deadline && new Date(ev.submission_deadline) <= new Date()
-  switch (ev.stage) {
-    case 'draft':
-      return { warn: false, text: 'Set up your event page, then open sign-up' }
+// Teams redesign (owner, 2026-10-31): the next-step card now holds exactly
+// one button that performs the next forward move itself, after one
+// confirm. The server computes the step (`next_step` on the organiser
+// event view -- GET /v1/hack/events/{slug}, organiser only) so the
+// website and the AI apps always agree on what "next" means (parity rule
+// 2026-10-27); this screen only turns that into the card's h2/sentence and
+// the confirm's heads-up, using the exact copy spec.json's
+// `organiser-overview.next_step_map` and prototype states give for each
+// (kind, stage, deadline_passed, blocked) combination.
+function nextStepContent(ev, step, resultsHref, settingsHref) {
+  if (!step || step.kind === 'none') {
+    return { h2: 'This event has ended', sentence: 'The public page stays up as a record.', confirmBody: '', button: null }
+  }
+  if (step.kind === 'publish_results') {
+    return {
+      h2: 'Publish results',
+      sentenceHTML: `Teams see their results straight away. Your event page shows them the way you set on <a href="${resultsHref}">Results</a>.`,
+      confirmBody: 'Teams see their results straight away. Your event page shows them the way you set on Results.',
+      headsUp: 'To set a final order for ties, use Results first.',
+      button: step.label
+    }
+  }
+  switch (step.stage) {
     case 'open':
-      return { warn: false, text: 'Approve people as they apply, then start building' }
+      return { h2: 'Open sign-up when your page is ready', sentence: 'People can join with your link and apply, and judges can use their invite link.', button: step.label }
     case 'building':
-      if (deadlinePassed) return { warn: true, text: 'The entry deadline has passed. Check Entries and move to Judging when ready.' }
-      return { warn: false, text: 'Keep teams building, then close entries when ready' }
+      return { h2: 'Start building when people are in', sentence: 'Entries open. Teams can edit their entry and website until you close entries.', button: step.label }
     case 'closed':
-      return { warn: false, text: 'Check the rubric and judges, then start judging' }
+      return step.deadline_passed
+        ? { h2: 'The entry deadline has passed', sentence: 'Close entries so judges can start scoring. Teams with their own extension keep it.', button: step.label, warn: true }
+        : { h2: 'Close entries when building time is over', sentence: 'Entries close for every team now, except teams with their own extension. Judges can start scoring.', button: step.label }
     case 'judging':
-      return { warn: false, text: ev.judging_locked_at ? 'Judging is locked. Publish results when you are ready' : 'Lock judging when every judge has finished' }
+      return { h2: 'Start judging when every entry is in', sentence: 'Teams can no longer edit their entry, team or website. Judges keep scoring.', button: step.label }
     case 'results':
-      return { warn: false, text: ev.results_published ? 'Results are published' : 'Judging is locked. Publish results when you are ready' }
+      return { h2: 'Finish judging when every judge is done', sentence: 'Scoring stops and judging locks. Next you publish results.', button: step.label }
+    case 'archived':
+      if (step.blocked === 'archive_needs_participants') {
+        return { h2: "End the event when you're done", sentenceHTML: `Nobody is in this event, so it can't be ended. Delete it in <a href="${settingsHref}">Settings</a> instead.`, confirmBody: '', button: step.label, blocked: true }
+      }
+      return { h2: "End the event when you're done", sentence: 'Scoring and sign-up lock for good. Team sites are removed after 30 days.', button: step.label, isEnd: true }
     default:
-      return { warn: false, text: 'This event has ended. The public page stays up as a record' }
+      return { h2: step.label || '', sentence: '', button: step.label }
   }
 }
 
-// heroAction answers "what's the one thing to click" for the hero's primary
-// button, from the same state nextStep reads, plus the pending-applications
-// count fetched below. null means no single action stands out for this
-// state (the header's Change stage control still works).
-function heroAction(ev, pendingCount, makeHref) {
-  switch (ev.stage) {
-    case 'draft': return { label: 'Set up event page', href: makeHref('organiser', ev.slug, 'event-page') }
-    case 'open': return pendingCount ? { label: 'Review applications', href: makeHref('organiser', ev.slug, 'people') } : null
-    // Applications (and join-link sign-ups needing approval) arrive during
-    // Building too, not only Open -- the review action takes priority there
-    // the same way it does for Open (owner, 2026-10-31).
-    case 'building': return pendingCount ? { label: 'Review applications', href: makeHref('organiser', ev.slug, 'people') } : { label: 'See entries', href: makeHref('organiser', ev.slug, 'entries') }
-    case 'closed': return { label: 'Set up judging', href: makeHref('organiser', ev.slug, 'judging') }
-    case 'judging': return ev.judging_locked_at ? { label: 'Publish results', href: makeHref('organiser', ev.slug, 'results') } : { label: 'See judging progress', href: makeHref('organiser', ev.slug, 'judging') }
-    case 'results': return ev.results_published ? { label: 'Open public page', href: ev.url, external: true } : { label: 'Publish results', href: makeHref('organiser', ev.slug, 'results') }
-    default: return { label: 'Open public page', href: ev.url, external: true }
-  }
+const END_CONFIRM = {
+  title: 'End this event?',
+  body: 'This is final. The event moves to Ended, scoring and sign-up lock for good, and team sites start their 30-day countdown before cleanup. Continue?',
+  confirmLabel: 'End event',
+  danger: true
 }
 
 export async function render(ctx) {
@@ -63,45 +73,57 @@ export async function render(ctx) {
   const admin = !!data.admin_view
   const $ = id => main.querySelector('#' + id)
   const setLive = ui.live(main)
+  const archived = ev.stage === 'archived'
+  const resultsHref = href('organiser', ev.slug, 'results')
+  const settingsHref = href('organiser', ev.slug, 'settings')
 
-  const step = nextStep(ev)
+  const step = data.next_step || { kind: 'none' }
+  const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref))
 
   // C7 (owner decision 2026-10-30): the server's judges count includes
-  // organisers who can judge (db.CountEligibleJudges, by design, and the
-  // API does not change for this polish pass). The snapshot tile should
-  // count judges only, so ask /people (the same organiser-only endpoint
-  // organiser-people.js uses) and count role === 'judge' ourselves. Falls
-  // back to the server's own count if that call fails, rather than showing
-  // nothing. The hero action for Open and Building also needs to know
-  // whether anyone is waiting on approval, from /applications (same source
-  // organiser-people.js reads); only fetched at those two stages, since
-  // they're the only ones that use it (owner, 2026-10-31: applications and
-  // link sign-ups needing approval arrive in Building too, not only Open).
+  // organisers who can judge (db.CountEligibleJudges, by design). The
+  // snapshot tile should count judges only, so ask /people (the same
+  // organiser-only endpoint organiser-people.js uses) and count
+  // role === 'judge' ourselves. Falls back to the server's own count if
+  // that call fails. The pending-approvals heads-up (Start building) and
+  // the zero-judges heads-up (Start judging) only matter for those two
+  // specific next steps, so their own fetches are conditional on the step
+  // actually being offered.
   let judgesOnly = counts.judges ?? 0
   let pendingCount = 0
   try {
     const base = '/v1/hack/events/' + encodeURIComponent(ev.slug)
     const calls = [api('GET', base + '/people')]
-    if (ev.stage === 'open' || ev.stage === 'building') calls.push(api('GET', base + '/applications'))
+    if (step.kind === 'stage' && step.stage === 'building') calls.push(api('GET', base + '/applications'))
     const [p, a] = await Promise.all(calls)
     if (p.ok && Array.isArray(p.data)) judgesOnly = p.data.filter(x => x.role === 'judge').length
     if (a && a.ok && Array.isArray(a.data)) pendingCount = a.data.filter(x => x.status === 'pending').length
   } catch (e) {}
   if (!ctx.alive()) return
 
-  const action = heroAction(ev, pendingCount, href)
+  // Heads-ups (spec.json organiser-overview states, "confirming the move"):
+  // shown once, in the confirm dialog, under the same effect sentence the
+  // card already shows. Only one ever applies, since only one next step is
+  // ever offered at a time.
+  let headsUp = content.headsUp || ''
+  if (step.kind === 'stage' && step.stage === 'building' && pendingCount > 0) {
+    headsUp = pendingCount + ' people are still waiting for approval. You can approve them later too.'
+  } else if (step.kind === 'stage' && step.stage === 'closed' && (counts.on_no_team ?? 0) > 0) {
+    headsUp = (counts.on_no_team) + ' people are not on a team yet.'
+  } else if (step.kind === 'stage' && step.stage === 'judging' && judgesOnly === 0) {
+    headsUp = 'No judges have joined yet. Share the judge link first.'
+  }
 
   // replay-organiser-walkthrough: the shell's Help menu links here with
   // ?walkthrough=1, which forces the guided tour open even if it was
   // dismissed before. tour.js itself checks organiser_walkthrough_done.
   const openWalk = params.get('walkthrough') === '1'
-  const archived = ev.stage === 'archived'
 
   main.innerHTML = `
-<div class="ph"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button></div>
-${step.warn
-    ? `<div class="note warn" role="alert"><b>The entry deadline has passed.</b> Check Entries and move to Judging when ready.</div>`
-    : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(step.text)}</h2></div>${action ? `<a class="btn primary" href="${ui.esc(action.href)}"${action.external ? ' target="_blank" rel="noopener"' : ''}>${ui.esc(action.label)}</a>` : ''}${ev.stage === 'draft' ? `<a class="btn" href="${ui.esc(href('organiser', ev.slug, 'people'))}#signup">Sign-up questions</a>` : ''}</section>`}
+<div class="ph keep-row"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button></div>
+${content.button
+    ? `<section class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div><button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? ' disabled' : ''}>${ui.esc(content.button)}</button></section>`
+    : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
 <h2 class="section-title">Snapshot</h2>
 <div class="grid4">
   <div class="stat"><b>${counts.participants ?? 0}</b><span>Participants</span></div>
@@ -115,14 +137,18 @@ ${archived ? '' : `
 <section class="card"><h2>Join link</h2><div class="copy"><input class="input mono" id="ov-join-url" aria-label="Join link" value="${ui.esc(org.join_url || '')}" readonly><button class="btn" type="button" id="ov-join-copy" data-admin-live>Copy</button><button class="btn danger sm" type="button" id="ov-join-new">New link</button></div></section>
 <section class="card"><h2>Judge link</h2><div class="copy"><input class="input mono" id="ov-judge-url" aria-label="Judge link" value="${ui.esc(org.judge_url || '')}" readonly><button class="btn" type="button" id="ov-judge-copy" data-admin-live>Copy</button><button class="btn danger sm" type="button" id="ov-judge-new">New link</button></div></section>
 </div>`}
-${archived ? '' : `<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>End the event</b><span>Ending locks sign-up and scoring for good. Team sites are removed after 30 days.</span></div>${(counts.participants ?? 0) > 0
+${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>End the event</b><span>Ending locks sign-up and scoring for good. Team sites are removed after 30 days.</span></div>${(counts.participants ?? 0) > 0
     ? `<button class="btn danger" type="button" id="ov-end">End event</button>`
-    : `<div class="note">Nobody joined, so there is nothing to end. You can delete the event in <a href="${ui.esc(href('organiser', ev.slug, 'settings'))}">Settings</a>.</div>`}</div></section>`}`
+    : `<div class="note">Nobody joined, so there is nothing to end. You can delete the event in <a href="${ui.esc(settingsHref)}">Settings</a>.</div>`}</div></section>`}`
 
   adminLock(main, admin)
 
   if (openWalk) startTour('organiser', ctx, { force: true })
   else if (!autoTourTried) { autoTourTried = true; startTour('organiser', ctx) }
+
+  async function callStage(target) {
+    return api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/stage', { stage: target })
+  }
 
   if (!archived) {
     // Same clipboard logic as ui.copyButton, against the existing readonly inputs.
@@ -137,8 +163,7 @@ ${archived ? '' : `<section class="danger-zone"><h2>Danger zone</h2><div class="
     // once, at mount time, from the url the shell was given -- they do not
     // listen for a change here. ctx.refresh() re-fetches the event and
     // re-mounts the shell (app.js route()), which is the only way today to
-    // get the shell's copy buttons onto the new link; see requests-O1.md
-    // for the cleaner fix (the shell refreshing its own buttons in place).
+    // get the shell's copy buttons onto the new link.
     async function regen(kind, btn) {
       const ok = await ui.confirm({ title: 'Make a new link?', body: kind === 'join' ? 'The old link stops working, even for people who have not used it yet. People already in the event stay.' : 'The old judge link stops working. Judges already in stay.', confirmLabel: 'New link', danger: true })
       if (!ok) return
@@ -152,28 +177,59 @@ ${archived ? '' : `<section class="danger-zone"><h2>Danger zone</h2><div class="
     $('ov-join-new').addEventListener('click', () => regen('join', $('ov-join-new')))
     $('ov-judge-new').addEventListener('click', () => regen('judge', $('ov-judge-new')))
 
+    async function runEnd(btn) {
+      const ok = await ui.confirm(END_CONFIRM)
+      if (!ok) return
+      btn.disabled = true
+      try {
+        const r = await callStage('archived')
+        if (!r.ok) { setLive(ui.errText(r), 'err'); btn.disabled = false; return }
+        await ctx.refresh()
+      } catch (e) { setLive('Cannot reach the server.', 'err'); btn.disabled = false }
+    }
     const endBtn = $('ov-end')
-    if (endBtn) {
-      endBtn.addEventListener('click', async () => {
-        const ok = await ui.confirm({ title: 'End this event?', body: 'This is final. The event moves to Ended, scoring and sign-up lock for good, and team sites start their 30-day countdown before cleanup. Continue?', confirmLabel: 'End event', danger: true })
-        if (!ok) return
-        endBtn.disabled = true
-        try {
-          const r = await api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/stage', { stage: 'archived' })
-          if (!r.ok) { setLive(ui.errText(r), 'err'); endBtn.disabled = false; return }
-          await ctx.refresh()
-        } catch (e) { setLive('Cannot reach the server.', 'err'); endBtn.disabled = false }
-      })
+    if (endBtn) endBtn.addEventListener('click', () => runEnd(endBtn))
+  }
+
+  const nextMoveBtn = $('ov-next-move')
+  if (nextMoveBtn && !content.blocked) {
+    nextMoveBtn.addEventListener('click', async () => {
+      // End event, offered as the one next step (results already
+      // published): the exact same danger confirm as the danger-zone
+      // button, never the generic heads-up confirm.
+      if (content.isEnd) { await runEndFromNext(); return }
+      const bodyNodes = [ui.el('p', { text: content.confirmBody || content.sentence || '' })]
+      if (headsUp) bodyNodes.push(ui.el('p', { class: 'note warn', text: headsUp }))
+      const ok = await ui.confirm({ title: content.button + '?', body: bodyNodes, confirmLabel: content.button })
+      if (!ok) return
+      nextMoveBtn.disabled = true
+      try {
+        const r = step.kind === 'publish_results'
+          ? await api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/results/publish', {})
+          : await callStage(step.stage)
+        if (!r.ok) { setLive(ui.errText(r), 'err'); nextMoveBtn.disabled = false; await ctx.refresh(); return }
+        await ctx.refresh()
+      } catch (e) { setLive('Cannot reach the server.', 'err'); nextMoveBtn.disabled = false }
+    })
+    async function runEndFromNext() {
+      const ok = await ui.confirm(END_CONFIRM)
+      if (!ok) return
+      nextMoveBtn.disabled = true
+      try {
+        const r = await callStage('archived')
+        if (!r.ok) { setLive(ui.errText(r), 'err'); nextMoveBtn.disabled = false; await ctx.refresh(); return }
+        await ctx.refresh()
+      } catch (e) { setLive('Cannot reach the server.', 'err'); nextMoveBtn.disabled = false }
     }
   }
 
   $('ov-change-stage').addEventListener('click', async () => {
-    const target = await stagePicker(ev.stage, ev.stages_offered || STAGE_ORDER)
+    const target = await stagePicker(ev.stage, ev.stages_offered || STAGE_ORDER, { judgingLocked: !!ev.judging_locked_at })
     if (!target) return
     const btn = $('ov-change-stage')
     btn.disabled = true
     try {
-      const r = await api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/stage', { stage: target })
+      const r = await callStage(target)
       if (!r.ok) { setLive(ui.errText(r), 'err'); btn.disabled = false; return }
       await ctx.refresh()
     } catch (e) { setLive('Cannot reach the server.', 'err'); btn.disabled = false }

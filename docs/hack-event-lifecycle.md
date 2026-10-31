@@ -40,8 +40,10 @@ participant leaves their team. Before the team's effective deadline, a team left
 it is deleted along with its entry and site, following the existing team-removal and
 holding-account paths. Past that deadline, or once the event is closed, judging or results,
 leaving never touches the team, its entry, its site or its scores, even for its last member --
-the leaver is just taken off its member list, and that team can never take on a new member
-again, by code or otherwise (owner decision 2026-10-31). A pending applicant can withdraw the
+the leaver is just taken off its member list, and that team is locked for good: it can never
+take on a new member again, by code, link, invite or organiser placement (owner decision
+2026-10-31). The teams redesign below gives this state the same `locked` flag as an ordinary
+lock, but refuses ever to unlock it. A pending applicant can withdraw the
 same way, and so can a rejected one -- leaving deletes their row exactly like a withdraw, and
 they may apply again afterwards, where the organiser decides again (owner decision 2026-10-31,
 superseding the earlier rule that a rejected applicant couldn't leave). A judge's scores stay
@@ -51,3 +53,24 @@ organiser as its successor first, with `successor_user_id` from the leave previe
 event instead archives it exactly as `POST .../stage {"stage":"archived"}` does, and is the only
 organiser's choice when they leave. Deleting it is exactly `DELETE /v1/hack/events/{slug}` with
 the slug confirmed, their other choice. Nobody can leave once the event has ended.
+
+## Stages, the Overview button and teams (2026-10-31)
+
+Moving the event's stage to `results` also locks judging in the same transaction, when it is
+not locked already, so a stage move is enough to make Results ready to publish. Moving back to
+`judging` leaves the lock on. The organiser Overview shows one button for the forward move the
+current stage offers (`next_step` on the organiser event view), and Change stage stays
+available in the header for moving back a stage. Participants and judges see the same stage
+pill and words as organisers, and the same stage track on their own home screen, with judges
+keeping a second pill for their own scoring state.
+
+Teams gained admins, locking and a shareable link the same day. The team's creator is its first
+admin, and an admin can make another member admin too. The last admin can't be unmade until
+someone else is one. When an admin leaves, is removed, or is moved off, the longest-standing
+remaining member takes over automatically. An admin, or the organiser, can lock a team. Doing
+so clears its pending join requests and invites. A locked team then stops taking anyone new
+except by organiser hand placement, until it is unlocked. There is no longer a "who can join"
+setting on a team: every unlocked team can be asked to join, and its link or code still joins
+instantly. A new event's team size now defaults to 20, and an existing event below that was
+raised to it on migration. Fill teams asks for people per team (default 4) instead of filling
+every team to the event's cap.

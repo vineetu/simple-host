@@ -68,10 +68,17 @@ export function adminLock(main, admin, ev) {
 // focuses one of its buttons, and "Continue" has to resolve with whatever
 // stage is currently selected, not a fixed per-button value.
 const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results', 'archived']
-function backwardEffect(next) {
+// `judgingLocked`: Results now locks judging on the way forward (the same
+// transaction as the stage change, hack.go setStage), so a backward move
+// from Results to Judging leaves the lock on -- the picker says so instead
+// of promising scoring reopens by itself (owner decision 2026-10-31,
+// organiser-overview "How do Judging, the lock and Results fit into one
+// button?"). Unlocking stays a deliberate act on the Judging screen.
+function backwardEffect(next, judgingLocked) {
   if (next === 'draft') return 'People who joined stay, but the join link stops working until you open it again.'
   if (next === 'open' || next === 'building') return 'Entries open again. People who joined stay.'
   if (next === 'closed') return 'Entries reopen for teams with extra time. Other entries stay closed. People who joined stay.'
+  if (next === 'judging' && judgingLocked) return 'Judging stays locked. Unlock it on Judging to let judges score again.'
   return 'Judging opens again. Entries stay frozen and people who joined stay.'
 }
 // What a forward (or lateral, since the picker offers every other stage, not
@@ -80,14 +87,18 @@ function backwardEffect(next) {
 // scoringStage: judges may score only at closed/judging, never results;
 // hack.go submissionsClosedStage/joinable): closed is when scoring actually
 // opens, judging is when it's mid-way, and results is when it stops.
-const FORWARD_EFFECT = {
+// Exported for organiser-overview.js: the one next-step button's confirm
+// uses the same effect sentence as the stage picker offers for the same
+// forward move, so the two never drift (spec.json organiser-overview
+// decision "What does the one next-step button do?").
+export const FORWARD_EFFECT = {
   open: 'Sign-up opens. Participants can join and apply, and judges can use their invite link.',
   building: 'Entries open. Teams can edit their entry and website until you close entries.',
   closed: 'Entries close for every team now, except teams with their own extension. Judges can start scoring.',
   judging: 'Teams can no longer edit their entry, team or website. Judges keep scoring until you lock judging.',
   results: 'Scoring and sign-up stop. Publish results when you are ready.'
 }
-export function stagePicker(current, offered) {
+export function stagePicker(current, offered, opts = {}) {
   return new Promise(resolve => {
     const order = STAGE_ORDER.filter(s => offered.includes(s) && s !== 'archived')
     const curIdx = order.indexOf(current)
@@ -103,7 +114,7 @@ export function stagePicker(current, offered) {
       const target = sel.value
       const back = order.indexOf(target) < curIdx
       warn.hidden = false
-      warn.textContent = back ? backwardEffect(target) : (FORWARD_EFFECT[target] || '')
+      warn.textContent = back ? backwardEffect(target, opts.judgingLocked) : (FORWARD_EFFECT[target] || '')
     }
     sel.addEventListener('change', paint)
     paint()

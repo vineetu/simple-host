@@ -1,8 +1,25 @@
 import { href } from '../nav.js'
 import { labelList, joinAnd } from './_orgB-util.js'
+import { rowMenuHTML, wireRowMenus, formDialog } from './_orgA-util.js'
 
 export function title(ctx) {
   return 'Team'
+}
+
+// pickMoveTarget: "Move to another team…" is a row-menu item here (not an
+// inline select, like the old one-page version) -- it opens a small dialog
+// with the one choice to make, built on the shared formDialog primitive so
+// it gets the same focus-trap/Escape/Tab behaviour as every other dialog.
+// Returns the chosen team's slug, or '' on cancel / nothing to choose.
+async function pickMoveTarget(ui, esc, name, otherTeams) {
+  if (!otherTeams.length) {
+    await ui.dialog({ title: 'Move ' + name, body: 'No other team has room.', buttons: [{ label: 'Close', value: true, className: 'btn primary' }] })
+    return ''
+  }
+  const body = document.createElement('div')
+  body.innerHTML = `<div class="field"><label for="move-target">Team</label><select class="select" id="move-target">${otherTeams.map(t => `<option value="${esc(t.slug)}">${esc(t.name)}</option>`).join('')}</select></div>`
+  const ok = await formDialog(ui, { title: 'Move ' + name + ' to another team', body, saveLabel: 'Move' }, async () => true)
+  return ok ? body.querySelector('#move-target').value : ''
 }
 
 export async function render(ctx) {
@@ -13,6 +30,9 @@ export async function render(ctx) {
   const teamSlug = params.get('team') || ''
   const $ = id => main.querySelector('#' + id)
   const setLive = ui.live(main)
+  const esc = ui.esc
+
+  wireRowMenus()
 
   let teams = [], team = null, members = [], entryItem = null, required = [], onNoTeam = []
 
@@ -30,7 +50,7 @@ export async function render(ctx) {
     const people = pr.ok ? pr.data || [] : []
     members = team.members.map(m => {
       const p = people.find(x => x.user_id === m.user_id)
-      return { user_id: m.user_id, display_name: m.display_name, joined_at: p ? p.joined_at : null }
+      return { user_id: m.user_id, display_name: m.display_name, admin: !!m.admin, email: p ? p.email : '' }
     })
     if (er.ok) {
       required = er.data.required || []
@@ -39,16 +59,19 @@ export async function render(ctx) {
     return true
   }
 
-  function memberRow(m, locked) {
-    // Full teams aren't offered as a move target (moving into one would
-    // just fail), matching move-here's own full-team guard below.
-    const others = teams.filter(t => t.slug !== teamSlug && t.members.length < ev.team_size_max)
-    const opts = others.map(t => `<option value="${ui.esc(t.slug)}">${ui.esc(t.name)}</option>`).join('')
-    return `<div class="r"><div class="main"><b>${ui.esc(m.display_name)}</b><span>${m.joined_at ? 'Joined ' + ui.esc(ui.dateTime(m.joined_at, ev)) : ''}</span></div><div class="control-row">
-<select class="select" data-move-select data-user="${ui.esc(m.user_id)}" aria-label="Move ${ui.esc(m.display_name)} to another team"${locked ? ' disabled' : ''}><option value="">Move to…</option>${opts}</select>
-<button class="btn sm" type="button" data-move="${ui.esc(m.user_id)}" disabled>Move</button>
-<button class="btn danger sm" type="button" data-remove="${ui.esc(m.user_id)}" data-name="${ui.esc(m.display_name)}"${locked ? ' disabled' : ''}>Remove</button>
-</div></div>`
+  function memberRow(m, lockReason) {
+    const name = m.display_name || 'Someone'
+    // Organiser hand placement works on an ordinarily locked team (the lock
+    // is the team's own "no more joiners", not a block on the organiser) --
+    // only a kept team (kept_after_leave) refuses placement outright, so
+    // only kept teams are excluded here.
+    const otherTeams = teams.filter(t => t.slug !== teamSlug && t.members.length < ev.team_size_max && !t.kept)
+    const menuHTML = lockReason ? '' : `<div class="row-acts">${rowMenuHTML(name, [
+      { label: 'Move to another team…', act: 'move' },
+      m.admin ? { label: 'Remove as admin', act: 'unadmin' } : { label: 'Make admin', act: 'admin' },
+      { label: 'Take off team', act: 'remove', danger: true }
+    ])}</div>`
+    return `<div class="r" data-member="${esc(m.user_id)}" data-name="${esc(name)}" data-other-teams="${esc(JSON.stringify(otherTeams.map(t => ({ slug: t.slug, name: t.name }))))}"><div class="main"><b>${esc(name)}</b><span>${esc(m.email)}</span></div>${m.admin ? '<span class="meta"><span class="pill accent">Admin</span></span>' : ''}${menuHTML}</div>`
   }
 
   function entryPill() {
@@ -67,58 +90,115 @@ export async function render(ctx) {
     const trackName = team.track ? team.track.name : 'No track'
     const lockReason = ui.writeLockReason(ev, event.admin_view)
     const full = team.members.length >= ev.team_size_max
-    const moveHereDisabled = !!lockReason || full || !onNoTeam.length
+    const addDisabled = !!lockReason || full || !onNoTeam.length
     const ep = entryPill(), sp = sitePill()
-    main.innerHTML = `<p class="crumbs"><a href="${ui.esc(href(role, slug, 'teams'))}">Teams</a> / ${ui.esc(team.name)}</p>
-<div class="ph"><div class="t"><h1>Team: ${ui.esc(team.name)}</h1><p>${ui.esc(trackName)} · ${team.members.length} of ${ev.team_size_max} people</p></div></div>
-${lockReason ? `<div class="note warn">${ui.esc(lockReason)}</div>` : ''}
-<section class="card"><h2>Team</h2><form id="rename-form"><div class="field"><label for="rename-name">Team name</label><div class="control-row"><input class="input" id="rename-name" type="text" maxlength="80" value="${ui.esc(team.name)}"${lockReason ? ' disabled' : ''}><button class="btn" type="submit"${lockReason ? ' disabled' : ''}>Rename</button></div><p class="help">Join code <span class="mono">${ui.esc(team.code)}</span></p></div></form></section>
-<h2 class="section-title">Members</h2>
-<div class="list">${members.length ? members.map(m => memberRow(m, !!lockReason)).join('') : '<div class="empty">No members.</div>'}</div>
-<section class="card"><h2>Add someone</h2>
-${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="select" id="move-here-select"${lockReason || full ? ' disabled' : ''}><option value="">Choose someone…</option>${onNoTeam.map(p => `<option value="${ui.esc(p.user_id)}">${ui.esc(p.display_name || p.email || 'Someone')}</option>`).join('')}</select></label></div>
-<div class="form-actions"><button class="btn" type="button" id="move-here-save"${moveHereDisabled ? ' disabled' : ''}>Move here</button>${full ? '<span class="hint">This team is full.</span>' : ''}</div>` : '<p class="muted">Everyone is on a team.</p>'}
-</section>
-<section class="card"><h2>Entry &amp; site</h2><dl><dt>Entry</dt><dd><span class="pill ${ep.cls}">${ui.esc(ep.text)}</span></dd><dt>Site</dt><dd><span class="pill ${sp.cls}">${ui.esc(sp.text)}</span></dd></dl><a class="btn" href="${ui.esc(href(role, slug, 'entry') + '&team=' + encodeURIComponent(teamSlug))}">View entry</a></section>
-<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Delete this team</b><span>Removes ${ui.esc(team.name)}, its entry and its site for good. Members stay in the event without a team.</span></div><button class="btn danger" type="button" id="delete-team"${lockReason ? ' disabled' : ''}>Delete team</button></div></section>`
+    const lockedPill = team.locked && !team.kept ? ' <span class="pill warn">Locked</span>' : ''
+    const link = team.link || (team.code ? location.origin + '/team/' + team.code : '')
+    const addr = link.replace(/^https?:\/\//, '')
+
+    let membersBlock
+    if (team.kept) {
+      membersBlock = `<div class="sp-head"><h2>Members</h2><p>Nobody is on this team now.</p></div>`
+    } else {
+      membersBlock = `<div class="sp-head"><h2>Members</h2><p>Admins decide who joins. Make someone admin if the team has lost theirs.</p>${lockReason ? '' : `<button class="btn" type="button" id="add-someone"${addDisabled ? ' disabled' : ''}><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add someone</button>`}</div>${full ? '<p class="help">' + esc(team.name) + ' is full.</p>' : ''}
+${team.locked ? `<div class="note warn" role="status">Locked by the team. You can still place people here.</div>` : ''}
+<div class="list editable" aria-label="Members">${members.length ? members.map(m => memberRow(m, lockReason)).join('') : '<div class="empty">No members.</div>'}</div>`
+    }
+
+    main.innerHTML = `<p class="crumbs"><a href="${esc(href(role, slug, 'teams'))}">Teams</a> / ${esc(team.name)}</p>
+<div class="ph"><div class="t"><h1>${esc(team.name)}${lockedPill}</h1><p>${esc(trackName)} · ${team.members.length} of ${ev.team_size_max} people</p></div>${entryItem ? `<a class="btn ph-link" href="${esc(href(role, slug, 'entry') + '&team=' + encodeURIComponent(teamSlug))}">View entry</a>` : ''}</div>
+${lockReason ? `<div class="note warn">${esc(lockReason)}</div>` : ''}
+${team.kept ? `<div class="note" role="status">Everyone left after the deadline. ${esc(team.name)} keeps its entry, site and scores, and can’t take new members.</div>` : ''}
+${membersBlock}
+<section class="card"><h2>Team</h2><form id="rename-form"><div class="field"><label for="rename-name">Team name</label><div class="control-row"><input class="input" id="rename-name" type="text" maxlength="80" value="${esc(team.name)}"${lockReason ? ' disabled' : ''}><button class="btn" type="submit"${lockReason ? ' disabled' : ''}>Save</button></div></div></form></section>
+${team.kept ? '' : `<section class="card"><h2>Joining</h2>
+<div class="setting"><div class="t"><b>Lock team</b><span>No more people can join by link, code, request or invite, and Fill teams skips it. You can still place people here.</span></div><div class="ctl"><button class="toggle${team.locked ? ' on' : ''}" type="button" role="switch" aria-checked="${team.locked ? 'true' : 'false'}" aria-label="Lock team" id="team-lock-toggle"${lockReason ? ' disabled' : ''}></button></div></div>
+<div class="setting wraps"><div class="t"><b>Team link</b><span>Anyone in this event who opens it joins straight away.</span></div><div class="ctl addr"><span class="mono">${esc(addr)}</span><button class="btn" type="button" id="team-link-copy">Copy</button><button class="btn" type="button" id="team-link-new"${lockReason ? ' disabled' : ''}>New link</button></div></div>
+</section>`}
+<section class="card"><h2>Entry &amp; site</h2><dl><dt>Entry</dt><dd><span class="pill ${ep.cls}">${esc(ep.text)}</span></dd><dt>Site</dt><dd><span class="pill ${sp.cls}">${esc(sp.text)}</span></dd></dl><a class="btn" href="${esc(href(role, slug, 'entry') + '&team=' + encodeURIComponent(teamSlug))}">View entry</a></section>
+<section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Delete this team</b><span>Removes ${esc(team.name)}, its entry and its site for good. Members stay in the event without a team.</span></div><button class="btn danger" type="button" id="delete-team"${lockReason ? ' disabled' : ''}>Delete team</button></div></section>`
     wire()
   }
 
   function wire() {
+    const addBtn = $('add-someone')
+    if (addBtn) addBtn.addEventListener('click', onAddSomeone)
     $('rename-form').addEventListener('submit', onRename)
-    main.querySelectorAll('[data-move-select]').forEach(sel => {
-      sel.addEventListener('change', () => {
-        const user = sel.getAttribute('data-user')
-        const btn = main.querySelector('[data-move="' + user + '"]')
-        if (btn) btn.disabled = !sel.value
+    const lockToggle = $('team-lock-toggle')
+    if (lockToggle) lockToggle.addEventListener('click', onToggleLock)
+    const linkCopy = $('team-link-copy')
+    if (linkCopy) linkCopy.addEventListener('click', () => copyLink(linkCopy))
+    const linkNew = $('team-link-new')
+    if (linkNew) linkNew.addEventListener('click', onNewLink)
+    main.querySelectorAll('[data-rowmenu]').forEach(btn => {
+      btn.closest('.row-acts').querySelectorAll('.row-menu button').forEach(item => {
+        item.addEventListener('click', () => onRowAct(item, btn.closest('[data-member]')))
       })
     })
-    main.querySelectorAll('[data-move]').forEach(btn => {
-      btn.addEventListener('click', () => onMove(btn.getAttribute('data-move')))
-    })
-    main.querySelectorAll('[data-remove]').forEach(btn => {
-      btn.addEventListener('click', () => onRemove(btn.getAttribute('data-remove'), btn.getAttribute('data-name')))
-    })
-    const moveHereSave = $('move-here-save')
-    if (moveHereSave) moveHereSave.addEventListener('click', onMoveHere)
     $('delete-team').addEventListener('click', onDelete)
   }
 
-  async function onMoveHere() {
-    const sel = $('move-here-select')
-    const userID = sel && sel.value
-    if (!userID) { setLive('Choose someone.', true, sel); return }
-    setLive('')
+  async function copyLink(btn) {
+    const link = team.link || (team.code ? location.origin + '/team/' + team.code : '')
+    try { await navigator.clipboard.writeText(link); btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy' }, 2000) }
+    catch (e) { setLive('Could not copy. Select the text and copy it.', true, btn) }
+  }
+
+  async function onAddSomeone() {
+    if (!onNoTeam.length) { setLive('Everyone is on a team.', true); return }
+    const body = document.createElement('div')
+    body.innerHTML = `<div class="field"><label for="add-pick">Solo participant</label><select class="select" id="add-pick">${onNoTeam.map(p => `<option value="${esc(p.user_id)}">${esc(p.display_name || p.email || 'Someone')}</option>`).join('')}</select></div>`
+    const ok = await formDialog(ui, { title: 'Add someone to ' + team.name, body, saveLabel: 'Add' }, async () => true)
+    if (!ok) return
+    const userID = body.querySelector('#add-pick').value
+    if (!userID) return
     let r
     try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/members', { user_id: userID }) }
-    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true, sel); return }
-    // Shown next to the select it came from, not at the bottom of <main>,
-    // and through ui.errText's codes map so a plain server refusal like
-    // "this team is full" reads as the capitalised client copy instead.
-    if (!r.ok) { setLive(ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not move them.' }), true, sel); return }
+    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
+    if (!r.ok) { setLive(ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not move them.' }), true); return }
     await load()
     paint()
     ui.saved(main)
+  }
+
+  async function onRowAct(item, row) {
+    const act = item.getAttribute('data-act')
+    const userID = row.getAttribute('data-member')
+    const name = row.getAttribute('data-name')
+    let otherTeams = []
+    try { otherTeams = JSON.parse(row.getAttribute('data-other-teams') || '[]') } catch (e) {}
+    if (act === 'move') {
+      const target = await pickMoveTarget(ui, esc, name, otherTeams)
+      if (!target) return
+      let r
+      try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(target) + '/members', { user_id: userID }) }
+      catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
+      if (!r.ok) { setLive(ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not move them.' }), true); return }
+      await load(); paint(); ui.saved(main)
+      return
+    }
+    if (act === 'admin' || act === 'unadmin') {
+      let r
+      try { r = await api('PUT', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/members/' + encodeURIComponent(userID) + '/admin', { admin: act === 'admin' }) }
+      catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
+      if (!r.ok) { setLive(ui.errText(r), true); return }
+      await load(); paint(); ui.saved(main)
+      return
+    }
+    if (act === 'remove') {
+      const ok = await ui.confirm({
+        title: 'Remove ' + name + '?',
+        body: name + ' loses access to this team’s entry and site. The team link changes. Remove ' + name + ' from ' + team.name + '?',
+        confirmLabel: 'Take off team',
+        danger: true
+      })
+      if (!ok) return
+      let r
+      try { r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/members/' + encodeURIComponent(userID)) }
+      catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
+      if (!r.ok) { setLive(r.data.error || 'Could not remove them', true); return }
+      await load(); paint(); ui.saved(main)
+    }
   }
 
   async function onRename(e) {
@@ -129,43 +209,38 @@ ${onNoTeam.length ? `<div class="field"><label>Solo participant<select class="se
     let r
     try { r = await api('PATCH', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug), { name }) }
     catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
-    // S11: the server's own text here is lowercase jargon ("another team
-    // already has that name") -- ui.ERROR_MESSAGES already has the
-    // capitalised client copy for this code, same as onMoveHere/onMove
-    // below already use it for team_full.
     if (!r.ok) { setLive(ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not rename the team.' }), true); return }
     await load()
     paint()
     ui.saved(main)
   }
 
-  async function onMove(userID) {
-    const sel = main.querySelector('[data-move-select][data-user="' + userID + '"]')
-    const target = sel && sel.value
-    if (!target) return
-    setLive('')
+  // spec.json organiser-team-detail "Lock team (toggle)" has confirm: null
+  // -- unlike the participant's own Settings lock toggle (which does
+  // confirm), the organiser's toggle here saves on change like Team
+  // finding on Teams > Settings. The response's own `cleared` counts (not
+  // guessed ahead) go into the "Saved" note when there is something to say.
+  async function onToggleLock() {
+    const wantLocked = !team.locked
     let r
-    try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(target) + '/members', { user_id: userID }) }
-    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true, sel); return }
-    if (!r.ok) { setLive(ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not move them.' }), true, sel); return }
+    try { r = await api('PUT', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/lock', { locked: wantLocked }) }
+    catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
+    if (!r.ok) { setLive(ui.errText(r), true); return }
     await load()
     paint()
+    const cleared = r.data && r.data.cleared
+    const n = cleared ? (cleared.requests || 0) + (cleared.invites || 0) : 0
     ui.saved(main)
+    if (n) setLive(n + ' pending request' + (n === 1 ? '' : 's') + ' and invites were cleared.')
   }
 
-  async function onRemove(userID, name) {
-    const ok = await ui.confirm({
-      title: 'Remove ' + name + '?',
-      body: name + ' loses access to this team’s entry and site. The team gets a new join code. Remove ' + name + ' from the team?',
-      confirmLabel: 'Remove from team',
-      danger: true
-    })
+  async function onNewLink() {
+    const ok = await ui.confirm({ title: 'Make a new link for ' + team.name + '?', body: 'The old link and code stop working. Everyone on the team stays.', confirmLabel: 'New link', danger: true })
     if (!ok) return
-    setLive('')
     let r
-    try { r = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/members/' + encodeURIComponent(userID)) }
+    try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/link') }
     catch (err) { if (!client.isSignedOut(err)) setLive('Cannot reach the server.', true); return }
-    if (!r.ok) { setLive(r.data.error || 'Could not remove them', true); return }
+    if (!r.ok) { setLive(ui.errText(r), true); return }
     await load()
     paint()
     ui.saved(main)

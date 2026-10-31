@@ -384,7 +384,7 @@ func DefaultLimits() Limits {
 
 		EventCreatePerDay:          3,
 		EventMaxActivePerOrganiser: 2,
-		EventTeamSizeDefault:       4,
+		EventTeamSizeDefault:       20,
 		EventSitesKeep:             30 * day,
 		EventRemovalWarn:           14 * day,
 		HackInstanceBudgetGB:       10,

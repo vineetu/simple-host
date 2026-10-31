@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -21,6 +22,11 @@ var (
 	ErrHackCannotRemoveOrganiser = errors.New("cannot remove organiser")
 	ErrHackNotParticipant        = errors.New("not a participant")
 	ErrHackTeamFrozen            = errors.New("team past its deadline")
+	// Teams redesign (zt-hack-teams-redesign.sql).
+	ErrHackTeamLocked    = errors.New("team is locked")
+	ErrHackTeamKept      = errors.New("team can't take new members")
+	ErrHackLastTeamAdmin = errors.New("can't unmake the last admin")
+	ErrHackTeamAdminOnly = errors.New("only a team admin can do that")
 )
 
 // Event is one row of events (db/migrations/hack1-events.sql).
@@ -113,7 +119,19 @@ type EventTeam struct {
 	PinnedAt            sql.NullTime
 	SiteTakenDownAt     sql.NullTime
 	SiteTakenDownReason string
+	// zr-hack-team-kept-after-leave.sql: kept empty, locked for good.
+	KeptAfterLeave bool
+	// zt-hack-teams-redesign.sql: who locked the team, and when.
+	LockedAt sql.NullTime
+	LockedBy sql.NullString
 }
+
+// Locked reports whether the team currently takes nobody new.
+func (t EventTeam) Locked() bool { return t.LockedAt.Valid }
+
+const teamColumns = `id, event_id, slug, name, code, created_by, created_at,
+	deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason,
+	kept_after_leave, locked_at, locked_by`
 
 const eventColumns = `
 	id, slug, account_id, created_by, title, stage,
@@ -168,6 +186,12 @@ func NewUUID(ctx context.Context, q Querier) (string, error) {
 // GetEventBySlug loads an event by its slug.
 func GetEventBySlug(ctx context.Context, q Querier, slug string) (Event, error) {
 	return scanEvent(q.QueryRowContext(ctx, `SELECT `+eventColumns+` FROM events WHERE slug = $1`, slug))
+}
+
+// GetEventByID loads an event by its id, for a route that only has a team's
+// event_id in hand (GET /v1/hack/team-links/{code}).
+func GetEventByID(ctx context.Context, q Querier, eventID string) (Event, error) {
+	return scanEvent(q.QueryRowContext(ctx, `SELECT `+eventColumns+` FROM events WHERE id = $1`, eventID))
 }
 
 // GetDemoEvent finds the standing demo: the newest open or building event whose slug is
@@ -601,6 +625,10 @@ type EventPerson struct {
 	Country   string
 	AgeRange  string
 	Gender    string
+	// zt-hack-teams-redesign.sql. Read by ListTeamPeople and ListEventPeople
+	// (the organiser team list groups the latter by team); listPeople's own
+	// JSON does not expose it, since GET /people is not a team view.
+	Admin bool
 }
 
 // ListEventPeople is GET /v1/hack/events/{slug}/people and the participants
@@ -610,7 +638,7 @@ func ListEventPeople(ctx context.Context, q Querier, eventID string) ([]EventPer
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, u.username, m.display_name, m.role, m.team_id,
 		       t.slug, t.name, m.joined_at, m.coc_accepted_at, m.approval_status,
-		       m.joined_via, m.city, m.country, m.age_range, m.gender
+		       m.joined_via, m.city, m.country, m.age_range, m.gender, m.team_admin
 		  FROM event_members m
 		  JOIN users u ON u.id = m.user_id
 		  LEFT JOIN event_teams t ON t.id = m.team_id
@@ -625,7 +653,7 @@ func ListEventPeople(ctx context.Context, q Querier, eventID string) ([]EventPer
 		var p EventPerson
 		if err := rows.Scan(&p.UserID, &p.Email, &p.DisplayName, &p.Role, &p.TeamID,
 			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt, &p.ApprovalStatus,
-			&p.JoinedVia, &p.City, &p.Country, &p.AgeRange, &p.Gender); err != nil {
+			&p.JoinedVia, &p.City, &p.Country, &p.AgeRange, &p.Gender, &p.Admin); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -661,8 +689,7 @@ func ListParticipantsOnNoTeam(ctx context.Context, q Querier, eventID string) ([
 // ListEventTeams is every team of the event, oldest first.
 func ListEventTeams(ctx context.Context, q Querier, eventID string) ([]EventTeam, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT id, event_id, slug, name, code, created_by, created_at,
-		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
+		SELECT `+teamColumns+`
 		  FROM event_teams WHERE event_id = $1 ORDER BY created_at ASC`, eventID)
 	if err != nil {
 		return nil, err
@@ -679,49 +706,60 @@ func ListEventTeams(ctx context.Context, q Querier, eventID string) ([]EventTeam
 	return out, rows.Err()
 }
 
+func scanTeamFields(t *EventTeam) []any {
+	return []any{&t.ID, &t.EventID, &t.Slug, &t.Name, &t.Code, &t.CreatedBy, &t.CreatedAt,
+		&t.DeadlineOverride, &t.PinnedVersion, &t.PinnedAt, &t.SiteTakenDownAt, &t.SiteTakenDownReason,
+		&t.KeptAfterLeave, &t.LockedAt, &t.LockedBy}
+}
+
 func scanTeam(row *sql.Row) (EventTeam, error) {
 	var t EventTeam
-	err := row.Scan(&t.ID, &t.EventID, &t.Slug, &t.Name, &t.Code, &t.CreatedBy, &t.CreatedAt,
-		&t.DeadlineOverride, &t.PinnedVersion, &t.PinnedAt, &t.SiteTakenDownAt, &t.SiteTakenDownReason)
+	err := row.Scan(scanTeamFields(&t)...)
 	return t, err
 }
 
 func scanTeamRow(rows *sql.Rows) (EventTeam, error) {
 	var t EventTeam
-	err := rows.Scan(&t.ID, &t.EventID, &t.Slug, &t.Name, &t.Code, &t.CreatedBy, &t.CreatedAt,
-		&t.DeadlineOverride, &t.PinnedVersion, &t.PinnedAt, &t.SiteTakenDownAt, &t.SiteTakenDownReason)
+	err := rows.Scan(scanTeamFields(&t)...)
 	return t, err
 }
 
 // GetEventTeamByID loads a team by primary key.
 func GetEventTeamByID(ctx context.Context, q Querier, teamID string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
-		SELECT id, event_id, slug, name, code, created_by, created_at,
-		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
+		SELECT `+teamColumns+`
 		  FROM event_teams WHERE id = $1`, teamID))
 }
 
 // GetEventTeamBySlug loads a team of an event by its slug.
 func GetEventTeamBySlug(ctx context.Context, q Querier, eventID, slug string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
-		SELECT id, event_id, slug, name, code, created_by, created_at,
-		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
+		SELECT `+teamColumns+`
 		  FROM event_teams WHERE event_id = $1 AND slug = $2`, eventID, slug))
 }
 
 // GetEventTeamByCode loads a team of an event by its (normalised) join code.
 func GetEventTeamByCode(ctx context.Context, q Querier, eventID, code string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
-		SELECT id, event_id, slug, name, code, created_by, created_at,
-		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
+		SELECT `+teamColumns+`
 		  FROM event_teams WHERE event_id = $1 AND code = $2`, eventID, code))
+}
+
+// GetEventTeamByCodeOnly loads a team by its (normalised) code alone: team
+// codes are unique across every event (event_teams.code UNIQUE), which is
+// what the public team link (GET /v1/hack/team-links/{code}) relies on --
+// the code alone names a team without an event slug in the URL.
+func GetEventTeamByCodeOnly(ctx context.Context, q Querier, code string) (EventTeam, error) {
+	return scanTeam(q.QueryRowContext(ctx, `
+		SELECT `+teamColumns+`
+		  FROM event_teams WHERE code = $1`, code))
 }
 
 // ListTeamPeople is the members of one team as the organiser sees them.
 func ListTeamPeople(ctx context.Context, q Querier, teamID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, u.username, m.display_name, m.role, m.team_id,
-		       NULL, NULL, m.joined_at, m.coc_accepted_at, m.approval_status
+		       NULL, NULL, m.joined_at, m.coc_accepted_at, m.approval_status, m.team_admin
 		  FROM event_members m
 		  JOIN users u ON u.id = m.user_id
 		 WHERE m.team_id = $1
@@ -734,7 +772,7 @@ func ListTeamPeople(ctx context.Context, q Querier, teamID string) ([]EventPerso
 	for rows.Next() {
 		var p EventPerson
 		if err := rows.Scan(&p.UserID, &p.Email, &p.DisplayName, &p.Role, &p.TeamID,
-			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt, &p.ApprovalStatus); err != nil {
+			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt, &p.ApprovalStatus, &p.Admin); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -762,8 +800,7 @@ func InsertEventTeam(ctx context.Context, q Querier, eventID, slug, name, code, 
 	return scanTeam(q.QueryRowContext(ctx, `
 		INSERT INTO event_teams (event_id, slug, name, code, created_by)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, event_id, slug, name, code, created_by, created_at,
-		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason`,
+		RETURNING `+teamColumns,
 		eventID, slug, name, code, createdBy))
 }
 
@@ -791,9 +828,8 @@ const memberForUpdate = `
 	SELECT event_id, user_id, role, display_name, team_id, coc_accepted_at, joined_at
 	  FROM event_members WHERE event_id = $1 AND user_id = $2 FOR UPDATE`
 
-const teamForUpdate = `
-	SELECT id, event_id, slug, name, code, created_by, created_at,
-		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
+var teamForUpdate = `
+	SELECT ` + teamColumns + `
 	  FROM event_teams WHERE id = $1 FOR UPDATE`
 
 func lockMember(ctx context.Context, q Querier, eventID, userID string) (EventMember, error) {
@@ -806,22 +842,37 @@ func lockTeam(ctx context.Context, q Querier, teamID string) (EventTeam, error) 
 
 func lockTeamByCode(ctx context.Context, q Querier, eventID, code string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
-		SELECT id, event_id, slug, name, code, created_by, created_at,
-		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
+		SELECT `+teamColumns+`
 		  FROM event_teams WHERE event_id = $1 AND code = $2 FOR UPDATE`, eventID, code))
 }
 
 func lockTeamBySlug(ctx context.Context, q Querier, eventID, slug string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
-		SELECT id, event_id, slug, name, code, created_by, created_at,
-		deadline_override, pinned_version, pinned_at, site_taken_down_at, site_taken_down_reason
+		SELECT `+teamColumns+`
 		  FROM event_teams WHERE event_id = $1 AND slug = $2 FOR UPDATE`, eventID, slug))
 }
 
+// setMemberTeam puts the member on teamID, or takes them off (teamID invalid).
+// Joining (any team, including one just created) always starts as a plain
+// member -- team_admin false, team_joined_at now -- the caller promotes a
+// fresh creator afterwards (CreateTeamAndJoin). Leaving clears both, so a
+// returning member's tenure and admin status never carry over from an
+// earlier stint on the same team.
 func setMemberTeam(ctx context.Context, q Querier, eventID, userID string, teamID sql.NullString) error {
-	_, err := q.ExecContext(ctx, `
-		UPDATE event_members SET team_id = $3, team_removal_notice = '' WHERE event_id = $1 AND user_id = $2`,
-		eventID, userID, nullStr(teamID))
+	var err error
+	if teamID.Valid {
+		_, err = q.ExecContext(ctx, `
+			UPDATE event_members SET team_id = $3, team_removal_notice = '',
+				team_joined_at = clock_timestamp(), team_admin = false
+			 WHERE event_id = $1 AND user_id = $2`,
+			eventID, userID, teamID.String)
+	} else {
+		_, err = q.ExecContext(ctx, `
+			UPDATE event_members SET team_id = NULL, team_removal_notice = '',
+				team_joined_at = NULL, team_admin = false
+			 WHERE event_id = $1 AND user_id = $2`,
+			eventID, userID)
+	}
 	if err == nil && teamID.Valid {
 		_, err = q.ExecContext(ctx, `DELETE FROM event_team_requests WHERE event_id=$1 AND user_id=$2`, eventID, userID)
 		if err == nil {
@@ -829,6 +880,208 @@ func setMemberTeam(ctx context.Context, q Querier, eventID, userID string, teamI
 		}
 	}
 	return err
+}
+
+// AdminTeamIDs is every team userID currently admins, for a caller whose
+// own deletion of the member row does not go through a hack write path at
+// all: account erasure (EraseAccount) deletes the person's users row, and
+// event_members.user_id's ON DELETE CASCADE takes every membership with it,
+// including team_admin, with nothing to run the ordinary leave cleanup
+// afterward (Codex review, 2026-11-01; widened by Grok security review,
+// 2026-11-01, to the full deleteTeamIfEmpty/kept/EnsureTeamAdmin sequence
+// LeaveMembership runs, not EnsureTeamAdmin alone -- the erased account
+// could have been a team's only member). The caller reads this before the
+// cascade and runs that sequence on each team after it.
+func AdminTeamIDs(ctx context.Context, q Querier, userID string) ([]string, error) {
+	rows, err := queryContext(ctx, q, `SELECT team_id FROM event_members WHERE user_id = $1 AND team_admin AND team_id IS NOT NULL`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// teamCodeAlphabet and teamCodeLen mirror handler/hack.go's hackCodeAlphabet
+// and hackTeamCodeLen exactly. internal/db cannot import internal/handler
+// (which already imports internal/db), so EraseAccount's rotation below --
+// the one place below the handler layer that mints a new team code --
+// duplicates them rather than share a constant.
+const (
+	teamCodeAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"
+	teamCodeLen      = 8
+)
+
+func randomTeamCode() (string, error) {
+	max := 256 - (256 % len(teamCodeAlphabet))
+	b := make([]byte, teamCodeLen)
+	for i := range b {
+		var buf [1]byte
+		for {
+			if _, err := rand.Read(buf[:]); err != nil {
+				return "", err
+			}
+			if int(buf[0]) < max {
+				b[i] = teamCodeAlphabet[int(buf[0])%len(teamCodeAlphabet)]
+				break
+			}
+		}
+	}
+	return string(b), nil
+}
+
+// rotateTeamCodeTx gives teamID a new code, retrying under a savepoint on a
+// collision (same pattern as claimHandleIn) so it never aborts the larger
+// transaction account erasure runs in. Mirrors handler/hack.go's
+// rotateTeamCode, which EraseAccount cannot call (layering).
+func rotateTeamCodeTx(ctx context.Context, tx *sql.Tx, teamID string) error {
+	for attempt := 0; attempt < 8; attempt++ {
+		code, err := randomTeamCode()
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "SAVEPOINT rotate_team_code"); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE event_teams SET code = $2 WHERE id = $1`, teamID, code); err == nil {
+			_, err = tx.ExecContext(ctx, "RELEASE SAVEPOINT rotate_team_code")
+			return err
+		}
+		if !isUniqueViolation(err) {
+			return err
+		}
+		if _, rerr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT rotate_team_code"); rerr != nil {
+			return rerr
+		}
+		if _, rerr := tx.ExecContext(ctx, "RELEASE SAVEPOINT rotate_team_code"); rerr != nil {
+			return rerr
+		}
+	}
+	return errors.New("could not find a free team code")
+}
+
+// EnsureTeamAdmin promotes the longest-standing member (team_joined_at, then
+// user_id) to admin when the team has members but none of them is an admin
+// -- after a departure, an organiser's move, or a removal. Lock order:
+// every current member of the team (sorted by user_id), then the team row
+// -- the successor isn't known ahead of time, so every member is locked
+// before the UPDATE that follows ever needs one of their rows. Locking the
+// team row first instead (as this used to) can deadlock against that same
+// member's own concurrent departure or admin change, which locks their
+// member row before waiting on the team row (Codex review, 2026-11-01).
+// A team with no members, or already gone, is a no-op.
+func EnsureTeamAdmin(ctx context.Context, q Querier, teamID string) error {
+	var locked int
+	if err := q.QueryRowContext(ctx, `
+		SELECT count(*) FROM (SELECT 1 FROM event_members WHERE team_id = $1 ORDER BY user_id FOR UPDATE) x`,
+		teamID).Scan(&locked); err != nil {
+		return err
+	}
+	if _, err := lockTeam(ctx, q, teamID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	var hasAdmin bool
+	if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_members WHERE team_id = $1 AND team_admin)`, teamID).Scan(&hasAdmin); err != nil {
+		return err
+	}
+	if hasAdmin {
+		return nil
+	}
+	// NULLS LAST: Postgres sorts NULL first by default, which would hand
+	// admin to a member with no team_joined_at ahead of one with an actual,
+	// earlier tenure (Grok security review, 2026-11-01). Every current
+	// writer sets team_joined_at, but this ordering must not depend on
+	// that staying true.
+	_, err := q.ExecContext(ctx, `
+		UPDATE event_members SET team_admin = true
+		 WHERE team_id = $1 AND user_id = (
+		   SELECT user_id FROM event_members WHERE team_id = $1
+		    ORDER BY team_joined_at NULLS LAST, user_id LIMIT 1)`,
+		teamID)
+	return err
+}
+
+// SetTeamAdmin makes or removes an admin. The caller has already decided the
+// actor may do this (an existing admin, or the organiser); this enforces the
+// one invariant the write itself owns: unmaking the last admin is refused.
+// userID must already be a member of teamID (sql.ErrNoRows otherwise, so a
+// wrong path parameter reads as not-found rather than confirming membership
+// elsewhere). Lock order: userID's own member row, then the team row --
+// the same order every hack writer uses (member, then team), so this never
+// deadlocks against userID's own concurrent leave/removal, which locks
+// their row first too. A caller naming a second party (the participant
+// route, admin acting on a teammate) must lock both member rows itself,
+// sorted, before calling this (Codex review, 2026-11-01): locking only the
+// actor's row here, then the team row, then this target row, reproduces
+// the same deadlock against the symmetric request with actor and target
+// swapped.
+func SetTeamAdmin(ctx context.Context, q Querier, eventID, teamID, userID string, admin bool) error {
+	m, err := lockMember(ctx, q, eventID, userID)
+	if err != nil {
+		return err
+	}
+	if !m.TeamID.Valid || m.TeamID.String != teamID {
+		return sql.ErrNoRows
+	}
+	if _, err := lockTeam(ctx, q, teamID); err != nil {
+		return err
+	}
+	if !admin {
+		var targetIsAdmin bool
+		var admins int
+		if err := q.QueryRowContext(ctx, `
+			SELECT COALESCE(bool_or(user_id = $2 AND team_admin), false), COUNT(*) FILTER (WHERE team_admin)
+			  FROM event_members WHERE team_id = $1`, teamID, userID).Scan(&targetIsAdmin, &admins); err != nil {
+			return err
+		}
+		if targetIsAdmin && admins <= 1 {
+			return ErrHackLastTeamAdmin
+		}
+	}
+	_, err = q.ExecContext(ctx, `UPDATE event_members SET team_admin = $3 WHERE event_id = $1 AND user_id = $2`, eventID, userID, admin)
+	return err
+}
+
+// SetTeamLock locks or unlocks a team. Locking deletes every pending request
+// and invite of the team and reports how many of each kind were cleared;
+// unlocking a team kept after its last member left (locked for good) is
+// refused. actor is recorded as locked_by only when locking.
+func SetTeamLock(ctx context.Context, q Querier, teamID, actor string, locked bool) (requests, invites int, err error) {
+	team, err := lockTeam(ctx, q, teamID)
+	if err != nil {
+		return 0, 0, err
+	}
+	if !locked {
+		if team.KeptAfterLeave {
+			return 0, 0, ErrHackTeamKept
+		}
+		_, err = q.ExecContext(ctx, `UPDATE event_teams SET locked_at = NULL, locked_by = NULL WHERE id = $1`, teamID)
+		return 0, 0, err
+	}
+	if err = q.QueryRowContext(ctx, `
+		SELECT COUNT(*) FILTER (WHERE kind = 'request'), COUNT(*) FILTER (WHERE kind = 'invite')
+		  FROM event_team_requests WHERE team_id = $1`, teamID).Scan(&requests, &invites); err != nil {
+		return 0, 0, err
+	}
+	if _, err = q.ExecContext(ctx, `DELETE FROM event_team_requests WHERE team_id = $1`, teamID); err != nil {
+		return 0, 0, err
+	}
+	if _, err = q.ExecContext(ctx, `
+		UPDATE event_teams SET locked_at = COALESCE(locked_at, clock_timestamp()), locked_by = $2 WHERE id = $1`,
+		teamID, actor); err != nil {
+		return 0, 0, err
+	}
+	return requests, invites, nil
 }
 
 func deleteTeamIfEmpty(ctx context.Context, q Querier, teamID string) error {
@@ -874,6 +1127,10 @@ func CreateTeamAndJoin(ctx context.Context, q Querier, eventID, userID, slug, na
 	if err := setMemberTeam(ctx, q, eventID, userID, sql.NullString{String: team.ID, Valid: true}); err != nil {
 		return EventTeam{}, err
 	}
+	// The creator is the team's first admin.
+	if _, err := q.ExecContext(ctx, `UPDATE event_members SET team_admin = true WHERE event_id = $1 AND user_id = $2`, eventID, userID); err != nil {
+		return EventTeam{}, err
+	}
 	return team, nil
 }
 
@@ -907,6 +1164,9 @@ func JoinTeamByCode(ctx context.Context, q Querier, eventID, userID, code string
 		}
 		return EventTeam{}, ErrHackAlreadyInTeam
 	}
+	if team.Locked() {
+		return EventTeam{}, ErrHackTeamLocked
+	}
 	n, err := CountTeamMembers(ctx, q, team.ID)
 	if err != nil {
 		return EventTeam{}, err
@@ -917,10 +1177,20 @@ func JoinTeamByCode(ctx context.Context, q Querier, eventID, userID, code string
 	if err := setMemberTeam(ctx, q, eventID, userID, sql.NullString{String: team.ID, Valid: true}); err != nil {
 		return EventTeam{}, err
 	}
+	// Backstop (Grok security review, 2026-11-01): a team with members but
+	// no admin should not normally exist by the time anyone can join it --
+	// every exit path runs EnsureTeamAdmin -- but code joining is the one
+	// way IN, so it is the cheapest place to also guarantee the invariant
+	// coming out the other side, a no-op when an admin is already there.
+	if err := EnsureTeamAdmin(ctx, q, team.ID); err != nil {
+		return EventTeam{}, err
+	}
 	return team, nil
 }
 
-// LeaveTeam takes the participant off their team and deletes the team if empty.
+// LeaveTeam takes the participant off their team, deletes the team if empty,
+// and promotes a new admin when leaving emptied the team of admins but not
+// of members.
 func LeaveTeam(ctx context.Context, q Querier, eventID, userID string) error {
 	m, err := lockMember(ctx, q, eventID, userID)
 	if err != nil {
@@ -943,10 +1213,14 @@ func LeaveTeam(ctx context.Context, q Querier, eventID, userID string) error {
 	if frozen {
 		return ErrHackTeamFrozen
 	}
+	team := m.TeamID.String
 	if err := setMemberTeam(ctx, q, eventID, userID, sql.NullString{}); err != nil {
 		return err
 	}
-	return deleteTeamIfEmpty(ctx, q, m.TeamID.String)
+	if err := deleteTeamIfEmpty(ctx, q, team); err != nil {
+		return err
+	}
+	return EnsureTeamAdmin(ctx, q, team)
 }
 
 // MoveParticipantToTeam is the organiser putting a participant on a team
@@ -993,6 +1267,12 @@ func MoveParticipantToTeam(ctx context.Context, q Querier, eventID, userID, team
 	if err != nil {
 		return EventTeam{}, err
 	}
+	// A team kept after its last member left can never take anyone again,
+	// by hand or otherwise; a plain lock is not this check -- the organiser
+	// may still place someone on an ordinary locked team.
+	if team.KeptAfterLeave {
+		return EventTeam{}, ErrHackTeamKept
+	}
 	old := m.TeamID
 	n, err := CountTeamMembers(ctx, q, team.ID)
 	if err != nil {
@@ -1008,6 +1288,12 @@ func MoveParticipantToTeam(ctx context.Context, q Querier, eventID, userID, team
 		if err := deleteTeamIfEmpty(ctx, q, old.String); err != nil {
 			return EventTeam{}, err
 		}
+		if err := EnsureTeamAdmin(ctx, q, old.String); err != nil {
+			return EventTeam{}, err
+		}
+	}
+	if err := EnsureTeamAdmin(ctx, q, team.ID); err != nil {
+		return EventTeam{}, err
 	}
 	return team, nil
 }
@@ -1034,7 +1320,10 @@ func RemoveParticipantFromTeam(ctx context.Context, q Querier, eventID, teamSlug
 	if _, err := q.ExecContext(ctx, `UPDATE event_members SET team_removal_notice=$3 WHERE event_id=$1 AND user_id=$2`, eventID, userID, "The organiser took you off "+team.Name+"."); err != nil {
 		return err
 	}
-	return deleteTeamIfEmpty(ctx, q, team.ID)
+	if err := deleteTeamIfEmpty(ctx, q, team.ID); err != nil {
+		return err
+	}
+	return EnsureTeamAdmin(ctx, q, team.ID)
 }
 
 // RemovePersonFromEvent deletes a participant or judge. Organisers cannot be removed.

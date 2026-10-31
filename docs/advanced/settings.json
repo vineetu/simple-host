@@ -2549,7 +2549,7 @@
       "group": "events",
       "description": "Hosted events: the team size cap a new event starts with; the organiser changes it.",
       "type": "int",
-      "default": "4",
+      "default": "20",
       "min": 1,
       "max": 50,
       "unit": "people",

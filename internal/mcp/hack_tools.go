@@ -86,7 +86,7 @@ func HackTools() []Tool {
 		{
 			Name:        "hack_get_event",
 			Title:       "Get an event",
-			Description: "Read one event: its page, stage and settings. When this person is the organiser, the answer includes the join and judge links. Give those links exactly as returned. Records any due submission deadline pins.",
+			Description: "Read one event: its page, stage and settings. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. Give those links exactly as returned. Records any due submission deadline pins.",
 			InputSchema: object(map[string]any{"slug": str("The event name.")}, "slug"),
 			Annotations: writes(false, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -154,7 +154,7 @@ func HackTools() []Tool {
 			Name:  "hack_set_event_stage",
 			Title: "Set an event's stage",
 			Description: "Set an event's stage: draft, open, building, closed, judging, results or archived. " +
-				"Ask the person first. closed, judging and results close entries. archived ends the event and cannot be undone. Organiser only.",
+				"Ask the person first. closed, judging and results close entries. results also locks judging. archived ends the event and cannot be undone. Organiser only.",
 			InputSchema: object(map[string]any{
 				"slug": str("The event name."),
 				"stage": map[string]any{
@@ -568,7 +568,14 @@ type hackEventView struct {
 		TakenDown     bool     `json:"taken_down"`
 		StagesOffered []string `json:"stages_offered"`
 	} `json:"event"`
-	Role      string `json:"role"`
+	Role     string `json:"role"`
+	NextStep *struct {
+		Kind           string  `json:"kind"`
+		Stage          string  `json:"stage"`
+		Label          string  `json:"label"`
+		DeadlinePassed bool    `json:"deadline_passed"`
+		Blocked        *string `json:"blocked"`
+	} `json:"next_step"`
 	Organiser *struct {
 		OrganiserName        string `json:"organiser_name"`
 		Organisation         string `json:"organisation"`
@@ -618,6 +625,19 @@ func hackEventOutput(verb string, body []byte) (output, error) {
 	}
 	if view.Event.EndsAt != nil {
 		out["ends_at"] = *view.Event.EndsAt
+	}
+	if n := view.NextStep; n != nil {
+		var blocked any
+		if n.Blocked != nil {
+			blocked = *n.Blocked
+		}
+		out["next_step"] = map[string]any{
+			"kind":            n.Kind,
+			"stage":           n.Stage,
+			"label":           n.Label,
+			"deadline_passed": n.DeadlinePassed,
+			"blocked":         blocked,
+		}
 	}
 	text := fmt.Sprintf("%s %s (%s), stage %s. Role: %s.", verb, view.Event.Title, view.Event.Slug, view.Event.Stage, view.Role)
 	if view.Event.URL != "" {
@@ -771,6 +791,13 @@ func hackOutputSchemas() map[string]map[string]any {
 		"stages_offered": outArray("Stages hack_set_event_stage accepts.", outString("A stage name.")),
 		"starts_at":      nullableString("Start time, or null when unset."),
 		"ends_at":        nullableString("End time, or null when unset."),
+		"next_step": withDescription(outObject(map[string]any{
+			"kind":            outString("stage, publish_results or none."),
+			"stage":           outString("The stage hack_set_event_stage would move to. Empty for publish_results or none."),
+			"label":           outString("The button's own text, e.g. \"Start building\"."),
+			"deadline_passed": outBool("True only for Close entries once the submission deadline has passed."),
+			"blocked":         nullableString("archive_needs_participants (End with nobody in the event), or null."),
+		}, "kind", "stage", "label", "deadline_passed", "blocked"), "The one forward move the website offers (its one button) for the current stage. Present only when this person is the organiser."),
 		"organiser": withDescription(outObject(map[string]any{
 			"organiser_name":        outString("Name shown as the organiser."),
 			"organisation":          outString("Organisation or community. Empty when unset."),

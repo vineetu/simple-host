@@ -8804,7 +8804,9 @@ paths:
         '200':
           description: >-
             teams (each with site, deadline, deadline_override, frozen,
-            pinned_version and pinned_url), team_size_max, on_no_team.
+            pinned_version, pinned_url, and since the teams redesign of
+            2026-10-31: locked, kept, link, members[].admin), team_size_max,
+            on_no_team.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/HackTeamList' }
@@ -8815,6 +8817,7 @@ paths:
       tags: ["Hosted events"]
       operationId: createHackEventTeam
       summary: Create a team and join it (participant) (EVENTS=hosted only)
+      description: The creator becomes the team's admin.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -8827,10 +8830,10 @@ paths:
               required: [name]
               properties:
                 name: { type: string }
-                open: { type: boolean, default: true }
+                open: { type: boolean, default: true, deprecated: true, description: "Deprecated 2026-10-31: accepted and ignored for one release. event_teams.open (\"who can join\") is gone; every unlocked team can be asked to join. Use PUT .../team/lock to stop taking anyone new." }
                 looking_for: { type: string, maxLength: 120 }
       responses:
-        '201': { description: "The new team as the participant sees it: {slug, name, code, members[{display_name, you}]}" }
+        '201': { description: "The new team as the participant sees it: {slug, name, code, link, admin, locked, kept, looking_for, members[{display_name, you, admin}]}. admin is true (the creator)." }
         '400': { description: "invalid_team_name", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '409': { description: "already_in_team, teams_locked or team_name_taken (names are unique in an event, ignoring case, spacing and invisible characters)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
@@ -8843,6 +8846,7 @@ paths:
       tags: ["Hosted events"]
       operationId: joinHackEventTeam
       summary: Join a team by code (participant) (EVENTS=hosted only)
+      description: "code accepts either the bare team code or the whole team link (https://<hack host>/team/<code>). Refused when the team is locked (409 team_locked)."
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -8854,12 +8858,12 @@ paths:
               type: object
               required: [code]
               properties:
-                code: { type: string }
+                code: { type: string, description: "The team's code, or its whole link." }
       responses:
         '400': { $ref: '#/components/responses/BadRequest' }
         '200': { description: Joined (same team is idempotent 200) }
         '404': { description: "team_not_found or event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': { description: "team_full, already_in_team or teams_locked", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "team_full, already_in_team, team_locked, teams_locked or submissions_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -8887,6 +8891,7 @@ paths:
       tags: ["Hosted events"]
       operationId: moveHackEventTeamMember
       summary: Move a participant onto this team (organiser) (EVENTS=hosted only)
+      description: "The organiser may place someone by hand even on a locked team; never on a team kept after its last member left (409 team_kept)."
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -8903,7 +8908,7 @@ paths:
       responses:
         '400': { $ref: '#/components/responses/BadRequest' }
         '200': { description: The team }
-        '409': { description: "team_full or event_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "team_full, team_kept or event_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "team_not_found or event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -8913,8 +8918,12 @@ paths:
       x-audience: ["public-hack"]
       tags: ["Hosted events"]
       operationId: removeHackEventTeamMember
-      summary: Take a participant off the team (organiser or teammate) (EVENTS=hosted only)
-      description: Teammates may remove another member, never themselves, while team changes are allowed and before the team deadline. Organisers keep their existing team administration access.
+      summary: Take a participant off the team (organiser or team admin) (EVENTS=hosted only)
+      description: >-
+        A team admin may remove another member, never themselves (teams
+        redesign, 2026-10-31: was any teammate), while team changes are
+        allowed and before the team deadline; team finding does not need to
+        be on. Organisers keep their existing team administration access.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -8924,7 +8933,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '204': { description: Removed from the team; they stay in the event }
         '404': { description: "team_not_found or event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: "event_taken_down or team_admin_only", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/hack/events/{slug}/teams/{team}:
@@ -9006,6 +9015,117 @@ paths:
         '404': { description: "team_not_found or event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/teams/{team}/lock:
+    put:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: putHackEventTeamLock
+      summary: Lock or unlock a team (organiser) (EVENTS=hosted only)
+      description: >-
+        Teams redesign, 2026-10-31. Same effect and response as PUT
+        .../team/lock (the team admin's own version); the organiser needs
+        no admin status. Unlocking a team kept after its last member left
+        is refused for good.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: team, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locked]
+              properties:
+                locked: { type: boolean }
+      responses:
+        '200':
+          description: "{locked, cleared: {requests, invites}}"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  locked: { type: boolean }
+                  cleared:
+                    type: object
+                    properties:
+                      requests: { type: integer }
+                      invites: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "team_not_found or event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "team_kept or event_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /v1/hack/events/{slug}/teams/{team}/members/{user_id}/admin:
+    put:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: putHackEventTeamMemberAdmin
+      summary: Make or remove a team member's admin status (organiser) (EVENTS=hosted only)
+      description: >-
+        Teams redesign, 2026-10-31. Same effect and response as PUT
+        .../team/members/{user_id}/admin (the team admin's own version);
+        the organiser needs no admin status. Unmaking the last admin is
+        refused.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: team, required: true, schema: { type: string } }
+        - { in: path, name: user_id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [admin]
+              properties:
+                admin: { type: boolean }
+      responses:
+        '200':
+          description: "{user_id, admin}"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: { type: string, format: uuid }
+                  admin: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "team_not_found, event_not_found, or user_id not on the team", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "last_team_admin or event_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /v1/hack/events/{slug}/teams/{team}/link:
+    post:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: postHackEventTeamLink
+      summary: Make a new link and code for a team (organiser) (EVENTS=hosted only)
+      description: >-
+        Teams redesign, 2026-10-31. Destructive: the team's old code and
+        link stop working at once, everywhere.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: team, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: "{code, link}"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: string }
+                  link: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "team_not_found or event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "event_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/hack/events/{slug}/teams/{team}/deadline:
     put:
@@ -10173,6 +10293,65 @@ paths:
           content: { text/csv: { schema: { type: string } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/team-links/{code}:
+    get:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: getHackTeamLink
+      summary: Team link preview (anyone) (EVENTS=hosted only)
+      description: >-
+        Teams redesign, 2026-10-31. Public, signed in or out; same rate
+        limiter as GET .../join/{code}. code accepts either the bare team
+        code or the whole team link. Never writes and never joins (safe to
+        prefetch or unfurl). Never a member's name or email. you is null
+        signed out, else {status}: not_in_event, pending, rejected, judge,
+        organiser, no_team, on_this_team, or on_other_team (+ team_name,
+        the other team's own name). reason is null, locked, full or
+        teams_closed (stage not open/building, or the team's own deadline
+        passed). A taken-down event or an unknown code is 404
+        team_link_not_found.
+      parameters:
+        - { in: path, name: code, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: "{event: {slug, title, url, stage, applications_open}, team: {name, member_count, team_size_max, track}, joinable, reason, you}"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event:
+                    type: object
+                    properties:
+                      slug: { type: string }
+                      title: { type: string }
+                      url: { type: string }
+                      stage: { type: string }
+                      applications_open: { type: boolean, description: "Whether this event actually takes an application right now (same rule as GET /v1/hack/events/{slug}/apply: the organiser's switch, directory listing, stage open/building, and not taken down), not the raw per-event switch." }
+                  team:
+                    type: object
+                    properties:
+                      name: { type: string }
+                      member_count: { type: integer }
+                      team_size_max: { type: integer }
+                      track:
+                        type: object
+                        nullable: true
+                        properties:
+                          name: { type: string }
+                  joinable: { type: boolean }
+                  reason: { type: string, nullable: true, enum: [locked, full, teams_closed, null] }
+                  you:
+                    type: object
+                    nullable: true
+                    properties:
+                      status:
+                        type: string
+                        enum: [not_in_event, pending, rejected, judge, organiser, no_team, on_this_team, on_other_team]
+                      team_name: { type: string, description: Only with on_other_team. }
+        '404': { description: "team_link_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/hack/join/{code}:
     get:
@@ -12984,13 +13163,18 @@ paths:
       - Hosted events
       operationId: listHackOpenTeams
       summary: Read private team finding lists
-      description: Read private team finding lists. Approved participants and organisers
-        only. Solo participants see open teams with name, track, member display names,
-        member_count, team_size_max and looking_for. Team members see opted-in solo
-        people (user_id, display_name, intro). pending contains own requests/invites
-        and the current team requests/invites, with id, team, team_name, user_id, display_name
-        and kind. Organisers see all. With team_finding off returns enabled:false and
-        empty lists.
+      description: >-
+        Read private team finding lists. Approved participants and
+        organisers only. Solo participants see every unlocked team (teams
+        redesign, 2026-10-31: "who can join" is gone, so a former
+        code-only team is listed too) with name, track, member display
+        names, member_count, team_size_max, full and looking_for. Team
+        members see opted-in solo people (user_id, display_name, intro).
+        pending contains own requests/invites and the current team
+        requests/invites, with id, team, team_name, user_id, display_name,
+        kind and created_at. Organisers see all. With team_finding off
+        returns enabled:false and empty lists. The caller's own team
+        (when on one) is {looking_for, locked, admin}.
       security:
       - apiKey: []
       parameters:
@@ -13019,6 +13203,157 @@ paths:
           description: team_finding_off, teams_locked, team_full, already_in_team or
             submissions_closed.
 
+  /v1/hack/events/{slug}/team:
+    patch:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: patchHackMyTeam
+      summary: Rename my team or edit its Looking for note (team admin) (EVENTS=hosted only)
+      description: >-
+        Teams redesign, 2026-10-31. Team admin only, acting on the caller's
+        own team. Each field is optional; send only what changes. Renaming
+        is refused once the team is frozen past its deadline.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+                looking_for: { type: string, maxLength: 120 }
+      responses:
+        '200': { description: "The team as the participant sees it (see createHackEventTeam's 201)." }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "team_admin_only", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: "event_not_found (not on a team)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "team_name_taken, teams_locked or submissions_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /v1/hack/events/{slug}/team/lock:
+    put:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: putHackMyTeamLock
+      summary: Lock or unlock my team (team admin) (EVENTS=hosted only)
+      description: >-
+        Teams redesign, 2026-10-31. Team admin only. Locking stops the
+        team taking anyone new by request, link, code, invite or Fill
+        teams, and clears its pending requests and invites (reported in
+        cleared). Unlocking a team kept after its last member left
+        (kept_after_leave) is refused for good.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locked]
+              properties:
+                locked: { type: boolean }
+      responses:
+        '200':
+          description: "{locked, cleared: {requests, invites}}"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  locked: { type: boolean }
+                  cleared:
+                    type: object
+                    properties:
+                      requests: { type: integer }
+                      invites: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "team_admin_only", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: "event_not_found (not on a team)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "team_kept, teams_locked or submissions_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /v1/hack/events/{slug}/team/members/{user_id}/admin:
+    put:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: putHackMyTeammateAdmin
+      summary: Make or remove a teammate's admin status (team admin) (EVENTS=hosted only)
+      description: >-
+        Teams redesign, 2026-10-31. Team admin only, acting on the
+        caller's own team. user_id must already be on that team, else 404
+        (never 403, so this never confirms membership elsewhere). Unmaking
+        the last admin is refused; admins are equal, so an admin may
+        remove another admin or step down themselves as long as someone
+        else stays admin. Gated by the same participant team stages and
+        frozen-team check as PATCH .../team, PUT .../team/lock and POST
+        .../team/link (deviation from the original plan, which left this
+        route ungated; Codex review, 2026-11-01 -- it is still a team
+        composition write, not pure bookkeeping, so it follows the others).
+        The organiser's equivalent (PUT .../teams/{team}/members/{user_id}/admin)
+        keeps no such gate, matching every other organiser team write.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: user_id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [admin]
+              properties:
+                admin: { type: boolean }
+      responses:
+        '200':
+          description: "{user_id, admin}"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: { type: string, format: uuid }
+                  admin: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "team_admin_only", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: "event_not_found (not on a team, or user_id not on it)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "last_team_admin, teams_locked or submissions_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /v1/hack/events/{slug}/team/link:
+    post:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: postHackMyTeamLink
+      summary: Make a new link and code for my team (team admin) (EVENTS=hosted only)
+      description: >-
+        Teams redesign, 2026-10-31. Team admin only. Destructive: the
+        team's old code and link (https://<hack host>/team/<code>) stop
+        working at once, everywhere.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: "{code, link}"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: string }
+                  link: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "team_admin_only", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: "event_not_found (not on a team)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "teams_locked or submissions_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
   /v1/hack/events/{slug}/team/finding:
     put:
       x-audience:
@@ -13026,9 +13361,14 @@ paths:
       tags:
       - Hosted events
       operationId: setHackTeamFinding
-      summary: Any approved team member sets who can join and a short note
-      description: Any approved team member sets who can join and a short note. Team
-        finding must be on.
+      deprecated: true
+      summary: Deprecated 2026-10-31 -- use PATCH .../team instead
+      description: >-
+        Deprecated 2026-10-31, kept for one release as an alias of PATCH
+        .../team: team admin only now (was: any approved team member).
+        open is accepted and ignored. Saves only looking_for. Team finding
+        must still be on. Response adds deprecated: "use PATCH
+        /v1/hack/events/{slug}/team".
       security:
       - apiKey: []
       parameters:
@@ -13039,7 +13379,7 @@ paths:
           type: string
       responses:
         '200':
-          description: Private team finding response.
+          description: "{ok: true, deprecated: \"use PATCH /v1/hack/events/{slug}/team\"}"
           content:
             application/json:
               schema:
@@ -13050,7 +13390,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Not approved, or this action is not yours.
+          description: Not approved, or team_admin_only.
         '404':
           description: Event, team, member or request not found.
         '409':
@@ -13068,6 +13408,8 @@ paths:
               properties:
                 open:
                   type: boolean
+                  deprecated: true
+                  description: "Deprecated 2026-10-31: accepted and ignored."
                 looking_for:
                   type: string
                   maxLength: 120
@@ -13335,11 +13677,13 @@ paths:
       tags:
       - Hosted events
       operationId: removeHackTeammate
-      summary: Any approved team member removes another teammate while team changes
-        are allowed
-      description: Any approved team member removes another teammate while team changes
-        are allowed. Cannot remove yourself; use Leave team. Revokes stale keys, rotates
-        the code and shows the removal notice. Team finding must be on.
+      summary: A team admin removes another teammate while team changes are allowed
+      description: >-
+        A team admin removes another teammate while team changes are
+        allowed (teams redesign, 2026-10-31: was any approved team member;
+        team finding no longer needs to be on). Cannot remove yourself; use
+        Leave team. Revokes stale keys, rotates the code, shows the removal
+        notice, and promotes a new admin if this emptied the team of admins.
       security:
       - apiKey: []
       parameters:
@@ -13361,12 +13705,11 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Not approved, or this action is not yours.
+          description: Not approved, team_admin_only, or this action is not yours.
         '404':
           description: Event, team, member or request not found.
         '409':
-          description: team_finding_off, teams_locked, team_full, already_in_team or
-            submissions_closed.
+          description: teams_locked or submissions_closed.
 
   /v1/hack/events/{slug}/teams/fill:
     post:
@@ -13376,18 +13719,23 @@ paths:
       - Hosted events
       operationId: fillHackTeams
       summary: Organiser only
-      description: Organiser only. Preview with apply:false; confirm before apply:true.
-        Places only approved solo participants into open teams with space, then new
-        Team 1, Team 2 groups up to team_size_max, avoiding name and used-site clashes.
-        A team set to "only people with the code" (open:false) is deliberately left
-        alone even with room -- its members chose not to take strangers -- and is
-        listed in skipped instead, so the caller can explain the gap rather than
-        a stranger being quietly dropped into a new one-person team instead.
-        Returns plan [{team,name,new,members:[{user_id,display_name}]}],
-        skipped [{team,name,reason}] (reason is currently always "code_only";
-        a team skipped only because it's already full isn't listed) and applied.
-        Apply recomputes from current membership. Team finding must be on and the event
-        must allow team changes. Existing teams use their effective deadline including extensions;
+      description: >-
+        Organiser only. Preview with apply:false; confirm before
+        apply:true. Places only approved solo participants into teams with
+        room, topped up to size (people per team, default min(4,
+        team_size_max); teams redesign, 2026-10-31 -- was team_size_max
+        itself, before the cap rose to 20), then new Team 1, Team 2 groups
+        of size, avoiding name and used-site clashes. A locked team is
+        deliberately left alone even with room -- its admin chose to stop
+        taking anyone new -- and is listed in skipped instead, so the
+        caller can explain the gap rather than a stranger being quietly
+        dropped into a new one-person team instead. Returns size,
+        plan [{team,name,new,members:[{user_id,display_name}]}],
+        skipped [{team,name,reason}] (reason is currently always "locked";
+        a team skipped only because it's already at size isn't listed) and
+        applied. Apply recomputes from current membership. Team finding no
+        longer needs to be on; the event must still allow team changes.
+        Existing teams use their effective deadline including extensions;
         no new teams are created after the event deadline.
       security:
       - apiKey: []
@@ -13406,7 +13754,10 @@ paths:
                 type: object
                 additionalProperties: true
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: invalid_team_size (size must be 1..team_size_max), or see BadRequest.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -13414,8 +13765,7 @@ paths:
         '404':
           description: Event, team, member or request not found.
         '409':
-          description: team_finding_off, teams_locked, team_full, already_in_team or
-            submissions_closed.
+          description: teams_locked, team_full, team_kept or already_in_team.
       requestBody:
         required: true
         content:
@@ -13428,6 +13778,11 @@ paths:
                 apply:
                   type: boolean
                   default: false
+                size:
+                  type: integer
+                  description: >-
+                    People per team. Default min(4, team_size_max); must be
+                    between 1 and the event's team_size_max.
 
 components:
   securitySchemes:
@@ -14109,6 +14464,9 @@ components:
         slug: { type: string }
         name: { type: string }
         code: { type: string }
+        link: { type: string, description: "The team's instant-join link, https://<hack host>/team/<code>. Teams redesign, 2026-10-31." }
+        locked: { type: boolean, description: "Takes nobody new by request, link, code, invite or Fill teams. Teams redesign, 2026-10-31." }
+        kept: { type: boolean, description: "kept_after_leave: the team was kept, empty, after its last member left past its deadline. Always locked for good. Teams redesign, 2026-10-31." }
         created_at: { type: string, format: date-time }
         members:
           type: array
@@ -14118,6 +14476,7 @@ components:
               user_id: { type: string, format: uuid }
               email: { type: string }
               display_name: { type: string }
+              admin: { type: boolean, description: Teams redesign, 2026-10-31. }
         site:
           description: url, exists, live_version, taken_down, taken_down_reason, plus name and ready.
           allOf:

@@ -97,7 +97,11 @@ func analyticsSecretField(tool, name string) bool {
 	switch name {
 	case "code", "signincode", "verificationcode", "teamkey", "signingkey", "privatekey", "authheader",
 		"uploadurl", "photosurl", "importurl", "downloadurl", "signedurl", "previewurl", "pinnedurl",
-		"joincode", "judgecode", "joinurl", "judgeurl", "inviteurl":
+		"joincode", "judgecode", "joinurl", "judgeurl", "inviteurl",
+		// Teams redesign (2026-10-31): a team's link is a capability like its
+		// code (the join code it embeds), same treatment wherever it appears
+		// -- a rotated link, or the one on a team already read.
+		"link":
 		return true
 	// Apply to a hackathon (2026-10-31 owner decision 5): AgentCat must not
 	// receive an applicant's city, country, age range or gender.

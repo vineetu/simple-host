@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview · join request · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="participant" data-nav="home" data-stage="Building" data-next="Entries close in 2 days · Sun 6:00 pm">
+<main class="page">
+<div class="ph"><div class="t"><h1>Overview</h1><p>Generation Girl Online Hack 2026</p></div></div><section class="next"><div class="t"><p class="k">Your next step</p><h2>1 person asked to join Kopi Kode</h2><p>Say yes or no on your Team page.</p></div><a class="btn primary lg" href="participant-team~with-team.html">See request</a></section><h2 class="section-title">Your team</h2><div class="list"><a class="r" href="participant-team~with-team.html"><span class="main"><b>Kopi Kode</b><span>Good Health · Siti, Dian, Rina</span></span><span class="meta">3 of 20</span></a></div><h2 class="section-title">Your entry</h2><div class="list"><a class="r" href="participant-entry.html"><span class="main"><b>Panen Pintar</b><span>Title, tagline and description done · video missing</span></span><span class="meta">Edit</span></a></div>
+</main>
+<script>
+(function(){
+  function closeAll(except){ document.querySelectorAll('.row-menu').forEach(function(m){ if(m!==except){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-rowmenu]');
+    if(!b){ if(!e.target.closest('.row-menu')) closeAll(null); return; }
+    var m=b.parentNode.querySelector('.row-menu'); closeAll(m); m.hidden=!m.hidden; b.setAttribute('aria-expanded',String(!m.hidden));
+  });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeAll(null); });
+  document.querySelectorAll('button.toggle').forEach(function(t){ t.addEventListener('click',function(){ var on=t.classList.toggle('on'); t.setAttribute('aria-checked',String(on)); }); });
+  document.querySelectorAll('.choice input[data-go]').forEach(function(r){ r.addEventListener('change',function(){ location.href=r.getAttribute('data-go'); }); });
+  document.querySelectorAll('[data-copy]').forEach(function(b){ b.addEventListener('click',function(){ try{ navigator.clipboard.writeText(b.getAttribute('data-copy')); }catch(e){} b.textContent='Copied'; }); });
+  window.addEventListener('load',function(){ var cur=document.querySelector('.subnav [aria-current=page]'); if(cur&&window.matchMedia('(max-width:760px)').matches){ var n=cur.parentNode; n.scrollLeft=cur.offsetLeft-(n.clientWidth-cur.offsetWidth)/2; } });
+})();
+</script>
+</body></html>

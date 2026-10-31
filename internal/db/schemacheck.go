@@ -126,14 +126,20 @@ var hackColumns = map[string][]string{
 	"event_team_requests": {"id", "event_id", "team_id", "user_id", "kind", "created_by", "created_at"},
 	"event_teams": {"open", "looking_for", "track_id", "id", "event_id", "slug", "name", "code", "created_by", "created_at",
 		// hack2-team-sites.sql
-		"deadline_override", "pinned_version", "pinned_at", "site_taken_down_at", "site_taken_down_reason"},
+		"deadline_override", "pinned_version", "pinned_at", "site_taken_down_at", "site_taken_down_reason",
+		// zr-hack-team-kept-after-leave.sql
+		"kept_after_leave",
+		// zt-hack-teams-redesign.sql. open stays listed until the drop migration.
+		"locked_at", "locked_by"},
 	// hack2-team-sites.sql
 	"event_entries": {"team_id", "event_id", "title", "tagline", "description", "video_url", "code_url",
 		"screenshot", "screenshot_type", "updated_at", "updated_by"},
 	"event_team_keys": {"key_id", "event_id", "team_id", "user_id", "created_at"},
 	"event_members": {"looking", "looking_intro", "event_id", "user_id", "role", "display_name", "team_id", "coc_accepted_at", "joined_at", "signup_answers", "approval_status", "approval_decided_at", "approval_decided_by",
 		// zp-hack-applications.sql
-		"joined_via", "city", "country", "age_range", "gender"},
+		"joined_via", "city", "country", "age_range", "gender",
+		// zt-hack-teams-redesign.sql
+		"team_admin", "team_joined_at"},
 	"event_create_log": {"user_id", "created_at"},
 	// hack3-judging.sql
 	"rubric_criteria":   {"id", "event_id", "position", "name", "description", "weight", "max_points", "created_at", "updated_at"},

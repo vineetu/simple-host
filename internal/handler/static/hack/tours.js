@@ -37,7 +37,12 @@ export const tours = {
     steps: [
       { title: 'Welcome to your event', body: 'This is Overview, your event’s home. It always says the next thing to do. Here is a one-minute look around.' },
       { target: '.status', title: 'Stage and next deadline', body: 'The stage and the next deadline are always shown here. The stage decides what participants and judges can do right now.' },
-      { target: '[data-tour="change-stage"]', title: 'Move the event on', body: 'When you are ready, change the stage: open sign-up, start building, close entries, judging, results, then end. Each change says what will happen before you confirm.' },
+      // Teams redesign (owner, 2026-10-31): the next-step card now has one
+      // button that moves the event forward itself; Change stage stays for
+      // any other move, so its own step is re-worded to say so instead of
+      // claiming to be the only way to move the event on.
+      { target: '[data-tour="next-move"]', title: 'Your next step', body: 'This button moves the event on to its next stage, after you confirm. The sentence above it says what changes.' },
+      { target: '[data-tour="change-stage"]', title: 'Move the event on', body: 'To move to any other stage, or back, use Change stage. Each change says what will happen before you confirm.' },
       { target: '[data-tour="share"]', title: 'Invite people', body: 'Send the join link to participants and the judge link to judges. Use New link only if a link leaked, because it stops the old one.' },
       // Atlas 2026-10-30: Event page is now sub-pages (Basics, About,
       // Schedule, Sponsors, FAQ, Look, Website), and Announcements moved to
@@ -130,14 +135,17 @@ export const tours = {
   // only shows when its target is on screen -- team finding being off
   // hides the open-teams list and Be found, so those steps just don't
   // appear, same as any other tour.
+  // Teams redesign (owner, 2026-10-31): rewritten for the new "How do you
+  // want to team up?" page -- the side-by-side Start/Join cards this tour
+  // used to point at (data-tour="start-team"/"join-team") are gone, replaced
+  // by the one choices group (spec.json walkthroughs.participantTeam).
   participantTeam: {
     localKey: 'sh-participant-team-tour-done',
     home: 'team',
     steps: [
-      { target: '[data-tour="open-teams"]', title: 'Find a team', body: 'Ask to join a team that’s looking for people.' },
-      { target: '[data-tour="start-team"]', title: 'Start your own', body: 'Give it a name. You’re the first member, and you can share the code with teammates.' },
-      { target: '[data-tour="join-team"]', title: 'Have a code?', body: 'Type the code a teammate shared with you to join their team.' },
-      { target: '[data-tour="be-found"]', title: 'Be found', body: 'List yourself as looking for a team and write a one-line intro. Teams can invite you.' }
+      { target: '[data-tour="team-ways"]', title: 'Three ways onto a team', body: 'Ask a team that’s looking, join with a link or code a teammate sent you, or start your own.' },
+      { target: '[data-tour="open-teams"]', title: 'Ask to join', body: 'Teams looking for people. Ask one, or several. Their admins say yes or no.' },
+      { target: '[data-tour="be-found"]', title: 'Let teams find you', body: 'List yourself with a one-line intro. Teams can invite you, and you choose.' }
     ]
   }
 }

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team detail · kept · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="organiser" data-nav="teams" data-stage="Judging" data-next="Judging">
+<template id="status"><span class="pill stage"><span class="d"></span>Judging</span><span class="muted">Judging</span><span class="grow"></span></template>
+<main class="page">
+<p class="crumbs"><a href="organiser-teams.html">Teams</a> / Kopi Kode</p><div class="ph"><div class="t"><h1>Kopi Kode</h1><p>Good Health · 0 of 20 people</p></div><a class="btn ph-link" href="organiser-entry-detail.html">View entry</a></div><div class="note" role="status">Everyone left after the deadline. Kopi Kode keeps its entry, site and scores, and can’t take new members.</div><div class="sp-head"><h2>Members</h2><p>Nobody is on this team now.</p></div><section class="card"><h2>Team</h2><div class="field"><label for="tn">Team name</label><input class="input" id="tn" maxlength="80" value="Kopi Kode"><p class="help">The website address stays kopi-kode.generationgirl2026.simple-hack.app.</p></div><div class="card-foot"><span class="hint">No changes</span><button class="btn primary" type="button" disabled>Save</button></div></section><section class="card"><h2>Entry &amp; site</h2><dl><dt>Entry</dt><dd><span class="pill ok">Complete</span></dd><dt>Site</dt><dd><span class="pill ok">Live</span></dd></dl><a class="btn" href="organiser-entry-detail.html">View entry</a></section><section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Delete this team</b><span>Removes Kopi Kode, its entry and its site for good. Members stay in the event without a team.</span></div><button class="btn danger" type="button">Delete team</button></div></section>
+</main>
+<script>
+(function(){
+  function closeAll(except){ document.querySelectorAll('.row-menu').forEach(function(m){ if(m!==except){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-rowmenu]');
+    if(!b){ if(!e.target.closest('.row-menu')) closeAll(null); return; }
+    var m=b.parentNode.querySelector('.row-menu'); closeAll(m); m.hidden=!m.hidden; b.setAttribute('aria-expanded',String(!m.hidden));
+  });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeAll(null); });
+  document.querySelectorAll('button.toggle').forEach(function(t){ t.addEventListener('click',function(){ var on=t.classList.toggle('on'); t.setAttribute('aria-checked',String(on)); }); });
+  document.querySelectorAll('.choice input[data-go]').forEach(function(r){ r.addEventListener('change',function(){ location.href=r.getAttribute('data-go'); }); });
+  document.querySelectorAll('[data-copy]').forEach(function(b){ b.addEventListener('click',function(){ try{ navigator.clipboard.writeText(b.getAttribute('data-copy')); }catch(e){} b.textContent='Copied'; }); });
+  window.addEventListener('load',function(){ var cur=document.querySelector('.subnav [aria-current=page]'); if(cur&&window.matchMedia('(max-width:760px)').matches){ var n=cur.parentNode; n.scrollLeft=cur.offsetLeft-(n.clientWidth-cur.offsetWidth)/2; } });
+})();
+</script>
+</body></html>

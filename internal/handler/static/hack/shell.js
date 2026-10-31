@@ -96,10 +96,23 @@ export function mount(ctx, section, screenId) {
   const { event: detail, role, events, me } = ctx
   const event = detail?.event
   const items = (nav[role] || []).filter(it => !it.stages || (event?.results_published && it.stages.includes(event.stage === 'archived' ? 'ended' : event?.stage)))
+  // Teams redesign (2026-10-31): nav.js's own item objects carry no live
+  // counts (they never did -- `it.badge` was always undefined), so the two
+  // real badges this plan asks for are computed here, from the same event
+  // view every screen already reads. Participant Team: pending join
+  // requests, admins only (members never see a number they can't act on).
+  // Organiser Teams: people not on a team, Open through Building only (the
+  // stage Teams itself disables Fill teams/placement past).
+  function badgeFor(it) {
+    if (role === 'participant' && it.id === 'team') return (detail?.me?.team?.admin && detail.me.team.pending_requests) || 0
+    if (role === 'organiser' && it.id === 'teams' && ['open','building'].includes(event?.stage)) return detail?.organiser?.counts?.on_no_team || 0
+    return 0
+  }
   function tip(label, badge) { return label + (badge ? ' · ' + badge : '') }
   function link(it) {
     const disabled = role === 'participant' && ['entry','website'].includes(it.id) && !detail?.me?.team
-    return `<a href="${esc(href(role,event.slug,it.id))}"${section === it.id ? ' aria-current="page"' : ''}${disabled ? ' class="later" aria-disabled="true" title="Join or start a team first"' : ''} data-tip="${esc(tip(it.label, it.badge))}">${ico(it.icon)}<span>${esc(it.label)}</span></a>`
+    const badge = badgeFor(it)
+    return `<a href="${esc(href(role,event.slug,it.id))}"${section === it.id ? ' aria-current="page"' : ''}${disabled ? ' class="later" aria-disabled="true" title="Join or start a team first"' : ''} data-tip="${esc(tip(it.label, badge))}">${ico(it.icon)}<span>${esc(it.label)}</span>${badge ? `<span class="count">${badge}</span>` : ''}</a>`
   }
   // Top-left brand: the one thing that always leads Home (/events), from any
   // screen (owner decision 2026-10-30). Replaces the switcher's old top-left
@@ -170,19 +183,21 @@ export function mount(ctx, section, screenId) {
   const walkthroughHref = event && walkthroughSection && !participantLocked
     ? href(role,event.slug,walkthroughSection) + '&walkthrough=1' + walkthroughTeam
     : ''
-  // The judge pill has its own wording while scoring isn't open yet --
-  // "Not open yet" is also the Draft stage's own label (A21/shell.js#2), so
-  // judges get a phrase that can't be confused with the event's stage.
-  // Grok re-test #6: an event that ended without ever being locked
-  // (archived is not one of the three states judging_locked_at/scoring_open
-  // choose between) used to fall through to "Scoring not open" -- checked
-  // first here so a judge sees the event has ended, not that scoring never
-  // opened.
-  // event can be null/undefined outside an event (Home, Account, Create
-  // event) -- judgePill must not touch event.* until the event ? ... : ''
-  // guard below has already confirmed it exists.
-  const judgePill = event && (event.stage === 'archived' ? stageLabel('archived') : event.judging_locked_at ? 'Scoring locked' : event.scoring_open ? 'Scoring open' : 'Scoring not open')
-  const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(role === 'judge' ? judgePill : stageLabel(event.stage))}</span>${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1],event))}</span>` : ''}<span class="grow"></span>${role === 'organiser' && section === 'overview' ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
+  // Owner decision 2026-10-31 (overrides the 2026-10-30 judge-only-pill
+  // rule): every role sees the same stage pill, in the same words, on every
+  // screen -- a judge's pill used to replace the stage entirely with
+  // "Scoring open/locked/not open", which is gone now that the stage pill
+  // always reads the real stage. Judges keep a second pill for scoring,
+  // right after the stage pill, dropped once the event has ended (there is
+  // nothing left to score, and the stage pill already says "Ended").
+  const judgeScoringPill = role === 'judge' && event && event.stage !== 'archived'
+    ? `<span class="pill ${event.judging_locked_at ? 'warn' : event.scoring_open ? 'ok' : ''}"><span class="d"></span>${event.judging_locked_at ? 'Scoring locked' : event.scoring_open ? 'Scoring open' : 'Scoring not open'}</span>`
+    : ''
+  // The full done/now/upcoming track, read-only, now shows on every role's
+  // own home screen (organiser Overview, participant/judge Home, nav_id
+  // "home") -- not only the organiser's, per the same decision.
+  const showTrack = !!event && ((role === 'organiser' && section === 'overview') || ((role === 'participant' || role === 'judge') && section === 'home'))
+  const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(stageLabel(event.stage))}</span>${judgeScoringPill}${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1],event))}</span>` : ''}<span class="grow"></span>${showTrack ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
   const root = document.getElementById('app')
   // Two sidebar levels (owner decision 2026-10-30): the top-nav (Home, Find a
   // hackathon) is always shown; the event section (switcher + role nav) only

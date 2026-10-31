@@ -1045,7 +1045,7 @@ CREATE TABLE IF NOT EXISTS events (
   starts_at             TIMESTAMPTZ,
   ends_at               TIMESTAMPTZ,
   -- Settings.
-  team_size_max         INTEGER NOT NULL DEFAULT 4 CHECK (team_size_max BETWEEN 1 AND 50),
+  team_size_max         INTEGER NOT NULL DEFAULT 20 CHECK (team_size_max BETWEEN 1 AND 50),
   join_code             TEXT NOT NULL UNIQUE,
   judge_code            TEXT NOT NULL UNIQUE,
   -- M2: entries freeze at this time.
@@ -1624,6 +1624,45 @@ CREATE OR REPLACE TRIGGER hack_members_clear_former_judge
 -- feature shipped -- already correctly excluded from judging, results and dashboards --
 -- stays excluded; only a team kept by this feature's own write path reappears.
 ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS kept_after_leave boolean NOT NULL DEFAULT false;
+
+-- Teams redesign (owner 2026-10-31): team admins, locking, team size 20
+-- (db/migrations/zt-hack-teams-redesign.sql backfills an existing database;
+-- a fresh install has no rows to backfill).
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS team_admin boolean NOT NULL DEFAULT false;
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS team_joined_at timestamptz;
+ALTER TABLE event_teams   ADD COLUMN IF NOT EXISTS locked_at timestamptz;
+ALTER TABLE event_teams   ADD COLUMN IF NOT EXISTS locked_by uuid REFERENCES users(id) ON DELETE SET NULL;
+DO $$ BEGIN
+  ALTER TABLE event_members ADD CONSTRAINT event_members_team_admin_chk
+    CHECK (NOT team_admin OR team_id IS NOT NULL);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Backstop for every way team_id can change that is not setMemberTeam's own
+-- UPDATE: event_teams' ON DELETE SET NULL (deleting a team is an UPDATE on
+-- its members under the hood), any direct SQL that only touches team_id,
+-- and an old binary's writer during a deploy. See
+-- db/migrations/zt-hack-teams-redesign.sql for the incidents this
+-- backstops (deleting a team its sole member admins; a move between teams
+-- that does not also clear admin and tenure itself). team_admin always
+-- goes false on any change; team_joined_at only goes to NULL when the
+-- statement left it unchanged from OLD, so a statement that set a fresh
+-- value itself (setMemberTeam always does) is left alone.
+CREATE OR REPLACE FUNCTION hack_clear_team_admin_on_team_change() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.team_admin := false;
+  IF NEW.team_joined_at IS NOT DISTINCT FROM OLD.team_joined_at THEN
+    NEW.team_joined_at := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE OR REPLACE TRIGGER event_members_team_admin_follows_team
+ BEFORE UPDATE ON event_members
+ FOR EACH ROW WHEN (NEW.team_id IS DISTINCT FROM OLD.team_id)
+ EXECUTE FUNCTION hack_clear_team_admin_on_team_change();
+-- event_teams.open ("who can join") is no longer read. Dropped by a later
+-- migration once this build has been live a few days.
+COMMENT ON COLUMN event_teams.open IS 'Deprecated 2026-10-31, unused. Drop after the teams redesign settles.';
+
 -- Paper metrics (SIM-335, 2026-10-31): aggregate-only numbers for the research
 -- papers on this deployment. No person, address, site name or path is stored.
 -- Methodology: docs/paper-metrics.md. Written by internal/papermetrics.

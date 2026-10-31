@@ -12,7 +12,8 @@
   "Nothing new is invented: all 160 things Simple Hack does today have a home on a screen. Leave this event (SIM-340) is shown as planned.",
   "On a computer the sidebar folds into a narrow icon rail and back, remembered per browser.",
   "On a computer the sidebar folds into a narrow icon rail and back, remembered per browser.",
-  "People without a join link can apply to an event from Find a hackathon or the event's page (on by default, organiser switch in Settings). Every application waits in People -> Applications with optional location, age range and gender; join links are unchanged and stay private."
+  "People without a join link can apply to an event from Find a hackathon or the event's page (on by default, organiser switch in Settings). Every application waits in People -> Applications with optional location, age range and gender; join links are unchanged and stay private.",
+  "Teams have admins: whoever starts a team runs it, can make others admin, says yes or no to join requests, and can lock the team. Every team has one link that joins in one tap."
  ],
  "sample_events": [
   {
@@ -48,7 +49,7 @@
   "desktop": "Built from the kit (kit.css + shell.js): a fixed left .side has two levels under one always-present top-left brand. Top-left is the .brand link -- the simple·hack wordmark plus the signed-in person's name -- and it goes to Home (/events) from any screen. Below it, a .top-nav (Home, Find a hackathon) is always shown. Below that, only while an event is open, a second section: the event .switcher (colour mark + name + role, opens .menu-pop listing every event with role and stage -- the same dropdown as before, just moved down a level) followed by the .nav list for the current role (icon + label, .count badge at the right). On Home itself there is no event, so that second section is simply absent -- only the top nav shows. A .side-foot (Account, Sign out, a persistent Help link that replays the role's walkthrough) sits under both; Sign out lives here, one tap from any screen, not on the Account page (ux-arbiter 2026-10-30). The .content column carries a .status bar on every screen except where a screen opts out (stage .pill, next-action text, .grow spacer); organisers additionally get the full event .stages track under it on Overview. Work surfaces are calm and dense, Linear-like: .card blocks, .list rows, .field/.input forms, .setting rows with .toggle or .seg controls, .grid3/.stat tiles, .note callouts (info/warn/ok/bad), .danger-zone and .dialog for anything hard to undo. Paper #f4efdf, ink #2b2925, red accent #a33f31 for primary actions and danger, teal #216c6a for stage pills and progress bars. The hand font (wordmark class) is reserved for the Simple Hack wordmark only -- it now also appears, small, in the signed-in shell's own top-left brand (owner decision 2026-10-30: the wordmark belongs there too, not only on the public pages) -- every heading and label stays the system stack. On desktop the sidebar can fold into a 56px icon rail and back (see collapsible_sidebar). On desktop the sidebar can fold into a 56px icon rail and back (see collapsible_sidebar).",
   "phone": "shell.js renders .phone-top and, for participant and judge, a fixed .tabbar built from each role's phone_tab items (icon + short label + .count badge); organisers get no tabbar, only the Menu button. Inside an event, .phone-top shows the same event .switcher as desktop (quick context + jump to another event) plus Menu; outside an event (Home, Account, Create event) it shows the .brand link instead, since there is no event to switch between. Menu always opens the same two-level sheet as the desktop sidebar -- .side itself, as a full-screen overlay (app.menu-open): brand, the top nav (Home, Find a hackathon), the current event's switcher and role nav when there is one, then Account/Help. A role's items not marked phone_tab live behind the tabbar's trailing More button as that same sheet. The .status bar collapses to one line under the phone top bar. Forms and lists go full width, single column; any screen with a bottom primary action (judge-scoring's Save & next, participant-entry's Save) pins it with .sticky-foot so it never scrolls out of reach.",
   "switcher": "The .switcher button plus .menu-pop dropdown lists every event the person belongs to (P.events in the kit), each row: colour .ev-mark with its 2-letter short code, name, and 'Role · Stage' (e.g. 'Judge · Judging'). Rows needing attention sort first. Owner decision 2026-10-30: the switcher no longer doubles as the only way home -- it now heads the sidebar's second section (the current event) and only appears while an event is open; the top-left .brand link is the one thing that always leads home, and the full-page version of this same list, Home, is a level above the switcher, not the same screen as it. The dropdown itself now only lists events (it no longer repeats Home or Find a hackathon underneath, since both already sit in the sidebar's always-shown top section).",
-  "status_header": "Organiser: .pill.stage (teal dot + stage label) + the next-action sentence + the join/judge links' Copy actions, with the full .stages progress track (done/now states) directly under it on Overview only. Participant: .pill.stage + next-action text, and once Building has a deadline, a live .clock chip counting down. Judge: .pill.stage reading only Open or Locked (never a stage name a judge doesn't need) + one sentence of context -- the one thing the brief says a judge must never be unsure about.",
+  "status_header": "Every role sees the same stage, in the same words (owner decision 2026-10-31): a .pill.stage with the event's stage -- Not open yet, Sign-up open, Building, Entries closed, Judging, Results, Ended -- plus the next deadline as muted text. On each role's home screen (organiser Overview, participant Overview, judge Home) the full .stages track sits on the right of the bar, done/now/upcoming, read-only for participants and judges (plain spans, nothing to click). Judges also get a second pill for scoring right after the stage pill: 'Scoring open' (.pill.ok), 'Scoring locked' (.pill.warn) or 'Scoring not open' (.pill), none once the event has ended. Organisers keep the join/judge Copy buttons on screens other than Overview. Phone: the track is hidden (as today), the pill or pills and the deadline stay on one line.",
   "fixes": [
    "Retest (Grok SIM-346, round 3): a judge on an event that ended without ever being locked (archived, judging_locked_at never set) saw the status pill read 'Scoring not open', as if scoring had simply never started -- it now reads 'Event ended' first, checked before the locked/open/not-open wording.",
    "Retest (Grok SIM-346, round 1 S15): a signed-in person opening an event they're not part of (or that was deleted) gets an in-app 'Event not found' card instead of the generic error catch -- only for 404 event_not_found, guarded against a superseded navigation."
@@ -59,7 +60,14 @@
    "buttons": "Exactly one primary (red) button per sub-page or dialog. A form's Save is bottom-right in .card-foot, Discard (quiet) to its left, status text far left; long forms make the foot sticky (pinned on a phone). A list's Add is top-right beside the heading (.sp-head), so it never moves as the list grows; an empty list shows its Add once, inside the empty state. Row actions sit at the row's right: quiet Edit, then the … menu, with any destructive item last and red, separated by a rule. Dialog actions bottom-right: Cancel (quiet) then the primary; full width on a phone. Destructive actions never sit next to a primary.",
    "inputs": "No bare file inputs: a kit button (label.btn) opens the picker and a preview sits beside it. Choices of a few known options are swatches, segmented controls or choice cards, not selects. Errors sit directly under their control in red, with aria-invalid and aria-describedby; the form keeps what was typed.",
    "applies_to": "Every screen built from now on. Existing screens adopt it when next touched."
-  }
+  },
+  "decisions": [
+   {
+    "q": "Should judges and participants see the event's stage in the top bar?",
+    "decision": "Yes, the same pill and words as the organiser on every screen, and the same read-only stage track on their home screen. The judge's scoring state moves to a second pill beside it instead of replacing the stage.",
+    "why": "Owner, 2026-10-31: 'For the organiser on the top it shows the current event status, but for the judge and the participant it doesn't. It should show the same thing.' This overrides the 2026-10-30 rule that a judge's pill reads only Open or Locked."
+   }
+  ]
  },
  "walkthroughs": {
   "organiser": [
@@ -73,9 +81,14 @@
     "body": "The stage and the next deadline are always shown here. The stage decides what participants and judges can do right now."
    },
    {
+    "target": "[data-tour=\"next-move\"]",
+    "title": "Your next step",
+    "body": "This button moves the event on to its next stage, after you confirm. The sentence above it says what changes."
+   },
+   {
     "target": "[data-tour=\"change-stage\"]",
     "title": "Move the event on",
-    "body": "When you are ready, change the stage: open sign-up, start building, close entries, judging, results, then end. Each change says what will happen before you confirm."
+    "body": "To move to any other stage, or back, use Change stage. Each change says what will happen before you confirm."
    },
    {
     "target": "[data-tour=\"share\"]",
@@ -263,24 +276,19 @@
   ],
   "participantTeam": [
    {
+    "target": "[data-tour=\"team-ways\"]",
+    "title": "Three ways onto a team",
+    "body": "Ask a team that's looking, join with a link or code a teammate sent you, or start your own."
+   },
+   {
     "target": "[data-tour=\"open-teams\"]",
-    "title": "Find a team",
-    "body": "Ask to join a team that’s looking for people."
-   },
-   {
-    "target": "[data-tour=\"start-team\"]",
-    "title": "Start your own",
-    "body": "Give it a name. You’re the first member, and you can share the code with teammates."
-   },
-   {
-    "target": "[data-tour=\"join-team\"]",
-    "title": "Have a code?",
-    "body": "Type the code a teammate shared with you to join their team."
+    "title": "Ask to join",
+    "body": "Teams looking for people. Ask one, or several. Their admins say yes or no."
    },
    {
     "target": "[data-tour=\"be-found\"]",
-    "title": "Be found",
-    "body": "List yourself as looking for a team and write a one-line intro. Teams can invite you."
+    "title": "Let teams find you",
+    "body": "List yourself with a one-line intro. Teams can invite you, and you choose."
    }
   ]
  },
@@ -327,7 +335,7 @@
      "icon": "team",
      "phone_tab": false,
      "badge": null,
-     "stage_rule": "Always shown. Fill teams and team-finding controls disable once the event passes Building, with a note why."
+     "stage_rule": "Always shown. Fill teams and team-finding controls disable once the event passes Building, with a note why. Badge: people not on a team, from Open through Building."
     },
     {
      "id": "entries",
@@ -399,7 +407,7 @@
      "short": "Team",
      "phone_tab": true,
      "badge": "1",
-     "stage_rule": "Team finding (start/join/browse) shows Open through Building. From Closed on, the team panel is read-only; who's on the team still shows."
+     "stage_rule": "Shown Open through Ended. No team: the ways onto a team (Open through Building). On a team: Members, Find people and Settings sub-pages, read-only once the team's deadline passes or entries close. Badge: pending join requests, shown to team admins only."
     },
     {
      "id": "entry",
@@ -507,21 +515,34 @@
    "nav_id": "overview",
    "title": "Overview",
    "user_moment": "Amara opens the event Monday morning to see what needs her before the weekend.",
-   "purpose": "Answer 'what do I do now' for the whole event, hold the links organisers hand out, and show the stage track.",
-   "primary_action": "Move the stage forward when the current one is done (e.g. Open -> Building).",
-   "layout": "status bar, then the .stages track (done/now/upcoming), then a .next hero card with the plain-language next action, then a .grid3 stat row (Participants, Teams, Can judge, On no team), then two .card link blocks (join link, judge link) each with a .mono address, Copy, and a smaller New link behind a .dialog. A platform-admin banner (.note warn, 'Viewing as platform admin -- read only') replaces every action with disabled controls when that state applies.",
+   "purpose": "Answer 'what do I do now' for the whole event with ONE button that performs the next forward move, hold the links organisers hand out, and show the stage track.",
+   "primary_action": "The 'Your next step' button: the next forward move, in plain words (Open sign-up, Start building, Close entries, Start judging, Finish judging, Publish results, End event). Change stage in the header stays for any other move, backward included.",
+   "layout": "status bar with the .stages track, then the page header (h1 Overview, the public address as a link, Change stage as a plain .btn on the right), then ONE .next card: kicker 'Your next step', an h2 saying the move in plain words, one sentence saying exactly what the button does, and one .btn.primary on the right -- nothing else in the card, no secondary buttons, no links. The card turns amber (.next.warn, border-left warn) only when the entry deadline has passed while still Building. Then the Snapshot .grid4 (Participants, Teams, Judges, Not on a team), the Share cards (join link, judge link, each Copy + New link), and the danger zone End the event (hidden once the next-step button itself is End event, and once ended). Platform-admin view: the card's button is disabled with the rest.",
    "sections": [
     {
-     "name": "Stage",
+     "name": "Your next step",
      "contents": [
-      "Draft -> Open -> Building -> Entries closed -> Judging -> Results -> Ended, currently Building",
-      "Public address: generationgirl2026.simple-hack.app"
+      "Close entries when building time is over",
+      "Entries close for every team now, except teams with their own extension. Judges can start scoring."
+     ],
+     "actions": [
+      {
+       "label": "Close entries",
+       "kind": "primary",
+       "confirm": "Close entries? Entries close for every team now, except teams with their own extension. Judges can start scoring. 2 people are not on a team yet."
+      }
+     ]
+    },
+    {
+     "name": "Stage (header)",
+     "contents": [
+      "Change stage, for any other move, backward included"
      ],
      "actions": [
       {
        "label": "Change stage",
-       "kind": "primary",
-       "confirm": "Entries close for every team right now, except teams with their own extension. Continue?"
+       "kind": "secondary",
+       "confirm": "The existing stage picker: every offered stage with its own effect line."
       }
      ]
     },
@@ -530,13 +551,13 @@
      "contents": [
       "24 Participants",
       "6 Teams",
-      "3 Can judge",
-      "0 On no team"
+      "3 Judges",
+      "0 Not on a team"
      ],
      "actions": []
     },
     {
-     "name": "Join link for participants",
+     "name": "Join link",
      "contents": [
       "https://simple-hack.app/join/gg26-j2mp6"
      ],
@@ -549,12 +570,12 @@
       {
        "label": "New link",
        "kind": "danger",
-       "confirm": "Anyone with the old link can no longer join, even people who never used it yet. People already in stay. Generate a new link?"
+       "confirm": "The old link stops working, even for people who have not used it yet. People already in the event stay."
       }
      ]
     },
     {
-     "name": "Link for judges",
+     "name": "Judge link",
      "contents": [
       "https://simple-hack.app/judge/gg26-84xy3"
      ],
@@ -567,14 +588,14 @@
       {
        "label": "New link",
        "kind": "danger",
-       "confirm": "Anyone with the old judge link can no longer open it. Judges already in stay. Generate a new link?"
+       "confirm": "The old judge link stops working. Judges already in stay."
       }
      ]
     },
     {
-     "name": "End the event",
+     "name": "End the event (danger zone, until the next step is End event)",
      "contents": [
-      "Ending needs at least one participant. An event nobody joined should be deleted instead, on Settings."
+      "Ending locks sign-up and scoring for good. Team sites are removed after 30 days."
      ],
      "actions": [
       {
@@ -587,24 +608,59 @@
    ],
    "states": [
     {
-     "name": "first visit (Draft, nothing configured)",
-     "when": "organiser has never changed the stage",
-     "shows": "next-action card reads 'Set up your event page and sign-up questions, then open sign-up when ready' -- no blocking walkthrough dialog; Help in the sidebar foot opens the same guidance on demand"
+     "name": "Not open yet",
+     "when": "stage draft",
+     "shows": "next step 'Open sign-up when your page is ready' with Open sign-up"
+    },
+    {
+     "name": "Building",
+     "when": "stage building, deadline ahead",
+     "shows": "next step 'Close entries when building time is over' with Close entries"
     },
     {
      "name": "deadline passed, still Building",
      "when": "submission_deadline has passed and stage is still Building",
-     "shows": "next-action card turns amber: 'The entry deadline has passed. Check Entries and move to Judging when ready.'"
+     "shows": "the same card turns amber: 'The entry deadline has passed' / 'Close entries so judges can start scoring. Teams with their own extension keep it.' with Close entries. No separate warning note any more."
+    },
+    {
+     "name": "Judging",
+     "when": "stage judging, locked or not",
+     "shows": "'Finish judging when every judge is done' with Finish judging. Locking from the Judging screen first is fine, the button still moves on to Results."
+    },
+    {
+     "name": "Results, not published",
+     "when": "stage results, results_published false",
+     "shows": "'Publish results' with Publish results"
+    },
+    {
+     "name": "Results published",
+     "when": "stage results, results_published true",
+     "shows": "'End the event when you're done' with End event (confirm is the existing End confirm). The danger-zone End is hidden, since the card already holds it."
+    },
+    {
+     "name": "End not possible",
+     "when": "next step is End event and nobody is in the event",
+     "shows": "the button is disabled and the sentence reads 'Nobody is in this event, so it can't be ended. Delete it in Settings instead.' with Settings as the one link"
+    },
+    {
+     "name": "Ended",
+     "when": "stage archived",
+     "shows": "the card reads 'This event has ended' / 'The public page stays up as a record.' with no button. Change stage is disabled."
+    },
+    {
+     "name": "confirming the move",
+     "when": "the organiser presses the next-step button",
+     "shows": "ui.confirm titled with the button label plus '?', the same effect sentence as the card, then any heads-up lines that apply, and the button label as the confirm. Heads-ups: Start building with people waiting for approval ('3 people are still waiting for approval. You can approve them later too.'), Close entries with people not on a team ('2 people are not on a team yet.'), Start judging with no judges ('No judges have joined yet. Share the judge link first.'), Publish results ('To set a final order for ties, use Results first.'). End event keeps its danger confirm."
+    },
+    {
+     "name": "the move failed",
+     "when": "the stage or publish call answers an error (someone else moved the stage, the event was ended elsewhere)",
+     "shows": "the toast with the server's message, then a refresh, so the card shows the step that is now true"
     },
     {
      "name": "viewing as platform admin",
      "when": "the Simple Host platform admin opened this event",
-     "shows": "a .note warn banner at the very top of every organiser screen, not just Overview: 'Viewing as platform admin. Everything here is read only.' Every button on every organiser screen is disabled, Copy and filters stay live"
-    },
-    {
-     "name": "trying to end an event nobody joined",
-     "when": "organiser picks End event with 0 participants",
-     "shows": "End event is replaced by a note: 'Nobody joined this event. End isn't available -- delete it instead, on Settings.' with a link there"
+     "shows": "the read-only banner, and the next-step button disabled with every other control"
     }
    ],
    "replaces": [
@@ -614,9 +670,10 @@
    ],
    "fixes": [
     "'New link sits directly beside Copy ... no confirmation step' -- New link now opens a confirm dialog naming the effect.",
-    "Generic, non-stage-aware walkthrough replaced by the always-current next-action card; Help in the sidebar foot still replays the full walkthrough on request (features: replay-organiser-walkthrough)."
+    "Generic, non-stage-aware walkthrough replaced by the always-current next-action card; Help in the sidebar foot still replays the full walkthrough on request (features: replay-organiser-walkthrough).",
+    "Owner, 2026-10-31: 'No checklist. The only main button should be a proper way to move right now.' The next-step card lost its link-buttons (Set up event page, Sign-up questions, Review applications, See entries, See judging progress, Open public page) and now carries exactly one button, the forward move itself."
    ],
-   "phone": "Stage track becomes a horizontally-scrolling strip; stat tiles 2x2; link cards stack full width.",
+   "phone": "Stage track hidden, the pill and deadline stay. Change stage stays a compact button beside the h1 (never a full-width bar above the next step). The next-step card stacks: sentence, then its one button. Stat tiles 2x2, link cards full width.",
    "decisions": [
     {
      "q": "Keep the first-visit walkthrough dialog?",
@@ -632,6 +689,31 @@
      "q": "How does the new guided tour replace the old modal walkthrough panel?",
      "decision": "Guided walkthrough replaces the old modal tour: non-modal, points at real elements, shown once, replay from Help.",
      "why": "The old modal tour once blocked the judge's Score button and dialogs hide the page."
+    },
+    {
+     "q": "What does the one next-step button do?",
+     "decision": "It performs the next forward move itself, after one confirm, using the same effect sentences as the stage picker (FORWARD_EFFECT). Draft -> Open sign-up, Open -> Start building, Building -> Close entries, Entries closed -> Start judging, Judging -> Finish judging (moves to Results and locks judging), Results -> Publish results, published -> End event.",
+     "why": "Owner, 2026-10-31: 'One main button that moves the event forward. And let the Change stage be there on top.' The card's sentence explains the button, so it needs no other buttons."
+    },
+    {
+     "q": "How do Judging, the lock and Results fit into one button?",
+     "decision": "Moving to Results now locks judging on the server, in the same transaction, when it is not locked yet. So Judging has one forward move (Finish judging), Results has Publish results, and publishing never meets an unlocked event at Results. Unlocking stays on the Judging screen. Going back from Results to Judging with Change stage leaves the lock on, and the picker says so: 'Judging stays locked. Unlock it on Judging to let judges score again.'",
+     "why": "Results already stops scoring (scoringStage), so the lock only records what the stage already means. Without it the Results screen refused to publish an unlocked event, a dead end the one button would walk straight into."
+    },
+    {
+     "q": "Where does the next step come from, the screen or the server?",
+     "decision": "The server: the organiser's event view gains next_step {kind: stage|publish_results|none, stage, label, blocked}. Overview renders it and AI apps read the same field through hack_get_event, so both say the same next move.",
+     "why": "Parity rule (2026-10-27): every step works from an AI app too. One source keeps the website and the connector from drifting."
+    },
+    {
+     "q": "Keep the danger-zone End event?",
+     "decision": "Yes, for ending early, except once the next-step button is End event itself (no duplicate) and once ended.",
+     "why": "Ending an abandoned event before results is a real need, and the danger zone keeps it out of the main path."
+    },
+    {
+     "q": "What happened to the shortcuts the card used to hold (Review applications, See entries)?",
+     "decision": "Gone from the card. Pending approvals already show as the People count in the sidebar and as a heads-up in the Start building confirm.",
+     "why": "Owner: no checklist, one button."
     }
    ],
    "features": [
@@ -642,32 +724,141 @@
     "copy-join-or-judge-link",
     "view-event-stats",
     "replay-organiser-walkthrough",
-    "view-as-platform-admin"
+    "view-as-platform-admin",
+    "move-event-forward"
    ],
    "prototype_states": [
     {
      "slug": "building",
-     "name": "Mid-event, building",
+     "name": "Building: Close entries",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days · Sun 6:00 pm"
     },
     {
      "slug": "draft",
-     "name": "First visit, draft",
+     "name": "Not open yet: Open sign-up",
      "stage": "draft",
-     "next": "Not open yet · set up sign-up to continue"
+     "next": "Not open yet"
+    },
+    {
+     "slug": "confirm",
+     "name": "Close entries, confirm",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "deadline-passed",
+     "name": "Deadline passed, still Building",
+     "stage": "building",
+     "next": "Entries closed Sun 6:00 pm"
+    },
+    {
+     "slug": "judging",
+     "name": "Judging: Finish judging",
+     "stage": "judging",
+     "next": "Judging"
+    },
+    {
+     "slug": "results",
+     "name": "Results: Publish results",
+     "stage": "results",
+     "next": "Results"
+    },
+    {
+     "slug": "published",
+     "name": "Published: End event",
+     "stage": "results",
+     "next": "Results are out"
+    },
+    {
+     "slug": "ended",
+     "name": "Ended",
+     "stage": "archived",
+     "next": "Ended"
     },
     {
      "slug": "admin-view",
      "name": "Viewed by platform admin",
      "stage": "judging",
-     "next": "Read only · you are viewing as platform admin"
+     "next": "Read only"
     },
     {
      "slug": "walkthrough",
-     "name": "Guided walkthrough, step 3 of 12",
+     "name": "Guided walkthrough, the next-step step",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    }
+   ],
+   "next_step_map": [
+    {
+     "when": "Not open yet (draft)",
+     "h2": "Open sign-up when your page is ready",
+     "sentence": "People can join with your link and apply, and judges can use their invite link.",
+     "button": "Open sign-up",
+     "does": "POST /stage {stage: open}"
+    },
+    {
+     "when": "Sign-up open (open)",
+     "h2": "Start building when people are in",
+     "sentence": "Entries open. Teams can edit their entry and website until you close entries.",
+     "button": "Start building",
+     "does": "POST /stage {stage: building}"
+    },
+    {
+     "when": "Building, before the deadline",
+     "h2": "Close entries when building time is over",
+     "sentence": "Entries close for every team now, except teams with their own extension. Judges can start scoring.",
+     "button": "Close entries",
+     "does": "POST /stage {stage: closed}"
+    },
+    {
+     "when": "Building, deadline passed (amber)",
+     "h2": "The entry deadline has passed",
+     "sentence": "Close entries so judges can start scoring. Teams with their own extension keep it.",
+     "button": "Close entries",
+     "does": "POST /stage {stage: closed}"
+    },
+    {
+     "when": "Entries closed (closed)",
+     "h2": "Start judging when every entry is in",
+     "sentence": "Teams can no longer edit their entry, team or website. Judges keep scoring.",
+     "button": "Start judging",
+     "does": "POST /stage {stage: judging}"
+    },
+    {
+     "when": "Judging, locked or not",
+     "h2": "Finish judging when every judge is done",
+     "sentence": "Scoring stops and judging locks. Next you publish results.",
+     "button": "Finish judging",
+     "does": "POST /stage {stage: results} -- the server locks judging in the same transaction when it is not locked yet"
+    },
+    {
+     "when": "Results, not published",
+     "h2": "Publish results",
+     "sentence": "Teams see their results straight away. Your event page shows them the way you set on Results.",
+     "button": "Publish results",
+     "does": "POST /results/publish {} (computed ranks, ties stay tied)"
+    },
+    {
+     "when": "Results, published",
+     "h2": "End the event when you're done",
+     "sentence": "Scoring and sign-up lock for good. Team sites are removed after 30 days.",
+     "button": "End event",
+     "does": "POST /stage {stage: archived}"
+    },
+    {
+     "when": "Results published, nobody in the event",
+     "h2": "End the event when you're done",
+     "sentence": "Nobody is in this event, so it can't be ended. Delete it in Settings instead.",
+     "button": "End event (disabled)",
+     "does": "nothing -- the server answers 409 archive_needs_participants, so the button never offers it"
+    },
+    {
+     "when": "Ended (archived)",
+     "h2": "This event has ended",
+     "sentence": "The public page stays up as a record.",
+     "button": "none",
+     "does": "nothing"
     }
    ]
   },
@@ -1569,43 +1760,78 @@
    "role": "organiser",
    "nav_id": "teams",
    "title": "Teams",
-   "user_moment": "Amara checks who's still solo the night before the deadline and decides whether to auto-place them.",
-   "purpose": "See how teams are forming, configure team finding and tracks, and place anyone left solo.",
-   "primary_action": "Fill teams (place everyone still solo), available once there's anything to place.",
-   "layout": "Summary line + Fill teams beside it, teams .list (name, track, size, looking-for inline, link to team detail), then collapsed-by-default Team finding and Tracks & challenges cards.",
+   "user_moment": "Amara checks who's still without a team the night before the deadline, places them with Fill teams, and checks each team has an admin and room.",
+   "purpose": "See every team, place people who aren't on one, set up tracks, and choose how teams form, one sub-page each.",
+   "primary_action": "One per sub-page: open a team (Teams), Fill teams (Not on a team), Add track (Tracks), Save (Settings, team size).",
+   "layout": "Page header (h1 Teams, '6 teams · 3 people not on a team'). Then .subnav-split like the Event page: Teams 6, Not on a team 3, Tracks 2, Settings. Teams: .list of links to Team detail (name, 'Good Health · Admins: Siti, Rina', meta '3 of 20' plus a Locked or Full pill). Not on a team: sp-head with Fill teams (primary) top-right, then the people .list.editable (name, 'Looking for a team · intro' or 'Not looking', row menu: Put on a team...). Tracks: sp-head with Add track, .list.editable rows (name, challenge, prize, 'N teams'), Edit/Remove through the row menu and a dialog. Settings: a flat card with the Team finding toggle (saves on change) and a Team size form card (Most people per team, one Save).",
    "sections": [
     {
-     "name": "Summary",
+     "name": "Teams",
      "contents": [
-      "6 teams · 0 people still solo"
+      "Kopi Kode · Good Health · Admins: Siti, Rina · 3 of 20",
+      "SheBuilds · No track · Admin: Dewi · 20 of 20 · Full",
+      "Beta Builders · Quality Education · Admin: Ayu · 4 of 20 · Locked"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Not on a team",
+     "contents": [
+      "Nadia Putri · Looking for a team · Full-stack, free to join anyone",
+      "Laras Dewi · Not looking"
      ],
      "actions": [
       {
        "label": "Fill teams",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Put on a team...",
        "kind": "secondary",
        "confirm": null
       }
      ]
     },
     {
-     "name": "Teams",
+     "name": "Fill teams (dialog)",
      "contents": [
-      "CodeBloom -- Health & Wellbeing track -- 4 of 4 -- not looking",
-      "SheBuilds -- no track -- 2 of 4 -- looking for a designer and a backend person"
+      "People per team: 4 (up to 20, your team size)",
+      "SheBuilds gets Nadia Putri",
+      "New team Team 1: Ayu, Intan, Putri, Laras",
+      "Beta Builders is locked, so it was skipped."
      ],
      "actions": [
       {
-       "label": "Manage team",
-       "kind": "secondary",
-       "confirm": null
+       "label": "Place 7 people",
+       "kind": "primary",
+       "confirm": "The dialog is the confirm."
       }
      ]
     },
     {
-     "name": "Team finding",
+     "name": "Tracks",
      "contents": [
-      "Team finding: on -- 'Let participants find teams and invite people. Team codes always work.'",
-      "Most people per team: 4"
+      "Good Health · Build something that helps people stay well. · Prize: Wellness kit · 3 teams"
+     ],
+     "actions": [
+      {
+       "label": "Add track",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Remove",
+       "kind": "danger",
+       "confirm": "2 teams chose Good Health. They'll have no track. Remove it?"
+      }
+     ]
+    },
+    {
+     "name": "Settings",
+     "contents": [
+      "Team finding: Participants can browse teams, ask to join and invite people looking for a team. Team links and codes work either way.",
+      "Most people per team: 20 (1 to 50)"
      ],
      "actions": [
       {
@@ -1614,42 +1840,28 @@
        "confirm": null
       }
      ]
-    },
-    {
-     "name": "Tracks and challenges",
-     "contents": [
-      "Good Health -- Build something that helps people stay well. -- Prize: Wellness kit",
-      "Quality Education -- Build something that helps people learn. -- Prize: Mentoring credits"
-     ],
-     "actions": [
-      {
-       "label": "Add track",
-       "kind": "secondary",
-       "confirm": null
-      },
-      {
-       "label": "Remove track",
-       "kind": "danger",
-       "confirm": "2 teams currently have Good Health chosen -- they'll be left with no track. Remove it anyway?"
-      }
-     ]
     }
    ],
    "states": [
     {
-     "name": "nothing solo",
-     "when": "everyone is on a team",
-     "shows": "Fill teams disabled: 'Everyone's on a team'"
+     "name": "everyone placed",
+     "when": "nobody approved is without a team",
+     "shows": "Not on a team: empty-state 'Everyone is on a team', Fill teams disabled"
     },
     {
      "name": "fill-teams preview",
-     "when": "organiser taps Fill teams",
-     "shows": "a .dialog listing the exact plan before anything changes: who goes to which team or new team, with the note that membership may have shifted by the time Apply is pressed"
+     "when": "the organiser presses Fill teams",
+     "shows": "a form dialog: People per team (default 4, at most the team size), the plan for that size (recomputed as the number changes), skipped locked teams named, and 'Place 7 people'. A note appears only if the applied plan differed from the preview."
     },
     {
      "name": "team finding off",
-     "when": "team finding is disabled",
-     "shows": "Teams list still shows; a note replaces Fill teams and the looking-for signal: 'Team finding is off. Teams form by invite code only.'"
+     "when": "team finding is off",
+     "shows": "Teams: a note 'Team finding is off. People join teams with a link or code.' Fill teams still works."
+    },
+    {
+     "name": "ended",
+     "when": "stage Ended",
+     "shows": "one note 'This event has ended. Teams can't change any more.' and every control read-only"
     }
    ],
    "replaces": [
@@ -1672,20 +1884,45 @@
     "fill-teams-apply",
     "view-team-finding-board-organiser",
     "add-tracks-and-challenges",
-    "remove-track"
+    "remove-track",
+    "move-member-to-team"
    ],
    "prototype_states": [
     {
      "slug": "default",
-     "name": "Teams forming",
+     "name": "Teams",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "solo",
+     "name": "Not on a team",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "fill",
+     "name": "Fill teams preview",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
     },
     {
      "slug": "none-solo",
      "name": "Everyone placed",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "tracks",
+     "name": "Tracks",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "settings",
+     "name": "Settings",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
     }
    ],
    "decisions": [
@@ -1693,59 +1930,160 @@
      "q": "download-teams-csv and download-participants-csv placement.",
      "decision": "List them here where teams/people live for discovery, but the actual download buttons live in Results > Export alongside every other CSV, so exports have one consistent home.",
      "why": "One export shelf is easier to find and maintain than scattering download buttons across every list screen; critique flagged this as a defensible consolidation, not a defect."
+    },
+    {
+     "q": "Why sub-pages?",
+     "decision": "Teams, people not on a team, tracks and settings are four jobs done at different times, so each gets a sub-page like the Event page, instead of one long page with two collapsed cards.",
+     "why": "Owner, 2026-10-31: Teams gets its own full design, like the Event page."
+    },
+    {
+     "q": "How big are the teams Fill teams makes now that the team size is 20?",
+     "decision": "Fill teams asks for 'People per team' (default 4, at most the event's team size). Teams with room are topped up to that number, new teams get that many. The event's team size stays the hard cap for joining.",
+     "why": "With a cap of 20, filling to the cap would make one team of 20 out of 20 strangers. The cap says how big a team may get, not how big Fill teams should make one."
+    },
+    {
+     "q": "Default team size?",
+     "decision": "20 for new events and for every existing event below 20 (no real events exist yet). Max stays 50. The default lives in config (EVENT_TEAM_SIZE_DEFAULT, now 20) and the column default.",
+     "why": "Owner, 2026-10-31: default team size goes to 20 for new events, and applies to all events."
+    },
+    {
+     "q": "Does Fill teams need team finding on?",
+     "decision": "No, it works either way and places into any unlocked team with room.",
+     "why": "It is the organiser placing people, like Move, not participants discovering each other. Locked teams are the teams' own way to say no."
     }
    ],
-   "phone": "Single column, same content, full width."
+   "phone": "Sub-page tabs scroll sideways. Rows wrap, Fill teams sits in the sub-page head, the Fill teams dialog rises as a sheet.",
+   "sub_pages": [
+    {
+     "tab": "teams",
+     "label": "Teams",
+     "url": "?s=teams&tab=teams (default)",
+     "holds": [
+      "list-teams",
+      "view-team-finding-board-organiser"
+     ],
+     "save": "nothing to save, rows open Team detail",
+     "empty": "empty-state 'No teams yet' / 'Teams show here once participants start them, or when Fill teams places people.'"
+    },
+    {
+     "tab": "solo",
+     "label": "Not on a team",
+     "url": "?s=teams&tab=solo",
+     "holds": [
+      "fill-teams-preview",
+      "fill-teams-apply",
+      "move-member-to-team"
+     ],
+     "save": "Fill teams previews in a dialog and applies on confirm. Put on a team writes straight away.",
+     "empty": "empty-state 'Everyone is on a team' and Fill teams disabled"
+    },
+    {
+     "tab": "tracks",
+     "label": "Tracks",
+     "url": "?s=teams&tab=tracks",
+     "holds": [
+      "add-tracks-and-challenges",
+      "remove-track"
+     ],
+     "save": "list: each dialog Save and each Remove writes straight away (the same PUT as today, with the whole list)",
+     "empty": "empty-state 'No tracks yet' / 'Add tracks if teams should pick a challenge. Without tracks, everyone competes together.' + Add track"
+    },
+    {
+     "tab": "settings",
+     "label": "Settings",
+     "url": "?s=teams&tab=settings",
+     "holds": [
+      "toggle-team-finding",
+      "set-team-size-max",
+      "download-teams-csv"
+     ],
+     "save": "Team finding saves on change. Team size: one Save.",
+     "empty": "never empty"
+    }
+   ]
   },
   {
    "id": "organiser-team-detail",
    "role": "organiser",
    "nav_id": "teams",
-   "title": "Team: SheBuilds",
-   "user_moment": "Amara clicks into one team to rename it, move a stray member, or remove it entirely.",
-   "purpose": "Everything organiser-side about one team: roster, entry status, and the few things an organiser can do to this specific team.",
-   "primary_action": "Move or remove a member.",
-   "layout": "crumbs back to Teams, team header with an inline rename field, member .list with a per-row 'Move to...' select and Remove, entry & site summary, a .danger-zone for Delete team.",
+   "title": "Team: Kopi Kode",
+   "user_moment": "Amara opens one team to place a stray participant, fix its name, make sure someone there is admin, or lock it when the team asks.",
+   "purpose": "Everything organiser-side about one team: roster with admins, how people join it, entry status, and deleting it.",
+   "primary_action": "Add someone (place a person not on a team here).",
+   "layout": "crumbs back to Teams, page header (h1 the team name, 'Good Health · 3 of 20 people', a Locked pill when locked). Members: sp-head with Add someone, .list.editable rows (name, 'Admin · email', row menu: Move to another team..., Make admin / Remove as admin, then Take off team in red). Team card: name form with one Save (help: the website address stays the same). Joining card (flat settings): Lock team toggle, Team link (.addr with Copy) and New link. Entry & site card (pills, View entry). Danger zone Delete team.",
    "sections": [
     {
-     "name": "Team",
+     "name": "Members",
      "contents": [
-      "SheBuilds · Quality Education track",
-      "Code: ec8c3d4j",
-      "2 of 4 people"
+      "Siti Rahma · Admin · siti@example.com",
+      "Dian Puspita · Member · dian@example.com",
+      "Rina Wijaya · Admin · rina@example.com"
      ],
      "actions": [
       {
-       "label": "Rename",
+       "label": "Add someone",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Move to another team...",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Make admin",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Take off team",
+       "kind": "danger",
+       "confirm": "Dian loses access to Kopi Kode's entry and website. The team link changes. Take Dian off Kopi Kode?"
+      }
+     ]
+    },
+    {
+     "name": "Team",
+     "contents": [
+      "Team name: Kopi Kode"
+     ],
+     "actions": [
+      {
+       "label": "Save",
        "kind": "secondary",
        "confirm": null
       }
      ]
     },
     {
-     "name": "Members",
+     "name": "Joining",
      "contents": [
-      "Dian Puspita -- joined 28 Oct",
-      "Rania Hartono -- joined 28 Oct"
+      "Lock team: No more people can join by link, code, request or invite, and Fill teams skips it. You can still place people here.",
+      "Team link: simple-hack.app/team/k7m2p9qa"
      ],
      "actions": [
       {
-       "label": "Move to another team",
+       "label": "Lock team (toggle)",
        "kind": "secondary",
        "confirm": null
       },
       {
-       "label": "Remove from team",
-       "kind": "danger",
-       "confirm": "Dian loses access to this team's entry and site. The team gets a new join code. Remove her?"
+       "label": "Copy",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "New link",
+       "kind": "secondary",
+       "confirm": "Make a new link for Kopi Kode? The old link and code stop working. Everyone on the team stays."
       }
      ]
     },
     {
      "name": "Entry & site",
      "contents": [
-      "Entry: Title and Tagline filled, Description missing",
-      "Site: not published yet"
+      "Entry: Complete",
+      "Site: Live"
      ],
      "actions": [
       {
@@ -1758,43 +2096,90 @@
     {
      "name": "Danger zone",
      "contents": [
-      "Delete team removes SheBuilds, its entry and its site for good. Members become unteamed."
+      "Delete this team: removes Kopi Kode, its entry and its site for good. Members stay in the event without a team."
      ],
      "actions": [
       {
        "label": "Delete team",
        "kind": "danger",
-       "confirm": "This removes SheBuilds, its entry and its site. Dian and Rania become unteamed and can join or start another team. This can't be undone. Delete SheBuilds?"
+       "confirm": "This removes Kopi Kode, its entry and its site. Siti, Dian and Rina become unteamed and can join or start another team. This can't be undone. Delete Kopi Kode?"
       }
      ]
     }
    ],
-   "states": [],
+   "states": [
+    {
+     "name": "locked",
+     "when": "the team is locked",
+     "shows": "a Locked pill in the header, the Lock toggle on, and a note in Members: 'Locked by the team. You can still place people here.'"
+    },
+    {
+     "name": "kept after everyone left",
+     "when": "kept_after_leave: the last member left after the deadline",
+     "shows": "note 'Everyone left after the deadline. Kopi Kode keeps its entry, site and scores, and can't take new members.' Members empty-state 'Nobody is on this team now.' No Add someone, no Joining card."
+    },
+    {
+     "name": "full",
+     "when": "members reach the team size",
+     "shows": "Add someone disabled with 'Kopi Kode is full.'"
+    },
+    {
+     "name": "ended or admin view",
+     "when": "stage Ended, or a platform admin",
+     "shows": "read-only with the usual note"
+    }
+   ],
    "replaces": [],
    "fixes": [
     "No atlas entry captured this sub-view; added because 'Manage team' existed with nowhere documented to land.",
     "Critique: rename-team, move-member-to-team and delete-team were all NO HOME in v1 -- all three now have a real control here."
    ],
-   "phone": "Same content, single column, crumbs become a plain Back button.",
+   "phone": "Single column. Member rows wrap, the row menu button is 44px, dialogs rise as sheets.",
    "decisions": [
     {
      "q": "Does every team need its own page, or is the list enough?",
      "decision": "Give each team a drill-down page.",
      "why": "The Teams list has to stay scannable with 6+ teams; renaming, moving a member or deleting a team are all per-team, destructive-leaning actions that belong one click deeper, not bloating every row."
+    },
+    {
+     "q": "What can an organiser do to a team now?",
+     "decision": "Everything they could (rename, move, take off, delete, Fill teams), plus lock or unlock, make or remove admins, and make a new team link. An organiser can place someone on a locked team by hand, but never on a team kept after everyone left.",
+     "why": "Organisers keep their existing powers (owner, 2026-10-31). The new ones cover a team whose only admin disappeared. Placing by hand is a deliberate organiser act, which is why the lock doesn't stop it."
     }
    ],
    "features": [
     "rename-team",
     "move-member-to-team",
     "remove-member-from-team-organiser",
-    "delete-team"
+    "delete-team",
+    "lock-team",
+    "set-team-admin",
+    "new-team-link"
    ],
    "prototype_states": [
     {
      "slug": "default",
-     "name": "Two of four",
+     "name": "Team detail",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "add",
+     "name": "Add someone",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "locked",
+     "name": "Locked team",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "kept",
+     "name": "Kept after everyone left",
+     "stage": "judging",
+     "next": "Judging"
     }
    ]
   },
@@ -2974,6 +3359,11 @@
      "name": "something changed while the dialog was open",
      "when": "POST .../leave answers 409 leave_state_changed (a teammate left, an organiser's status changed)",
      "shows": "The dialog reloads the preview and redraws for the new case with a .note warn line 'Something changed while this was open. Check the details again.'"
+    },
+    {
+     "name": "team admin, someone asked to join",
+     "when": "the participant is an admin of their team, it has pending join requests, and nothing higher on the list applies (results, removal notice, entry missing)",
+     "shows": "next-step card '2 people asked to join Kopi Kode' / 'Say yes or no on your Team page.' with See requests (to Team, Members). Members who aren't admins never see this card."
     }
    ],
    "replaces": [],
@@ -2990,7 +3380,8 @@
     "team-removal-notice",
     "replay-participant-walkthrough",
     "leave-event",
-    "withdraw-application"
+    "withdraw-application",
+    "see-event-stage"
    ],
    "prototype_states": [
     {
@@ -3034,6 +3425,12 @@
      "name": "Withdraw a pending application",
      "stage": "open",
      "next": "Waiting for an organiser to approve you"
+    },
+    {
+     "slug": "requests",
+     "name": "Team admin with join requests",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
     }
    ],
    "decisions": [
@@ -3071,6 +3468,11 @@
      "q": "How does someone come back?",
      "decision": "As a new member: the join link or Apply while sign-up is open, with the usual approval rules. The old team is not restored and the sign-up answers are asked again.",
      "why": "Leaving deletes the membership row, so there is nothing to restore, and a fresh row keeps every existing join rule in force."
+    },
+    {
+     "q": "How does an admin notice a join request?",
+     "decision": "Home's next-step card says so when nothing more urgent applies, and the sidebar's Team item shows the pending count to admins only.",
+     "why": "Only admins can now say yes, so the request has to reach them without anyone else nudging."
     }
    ]
   },
@@ -3165,20 +3567,47 @@
    "role": "participant",
    "nav_id": "team",
    "title": "Team",
-   "user_moment": "Siti has no team yet and wants to join one, or, once on a team, wants to see who's in it, invite a solo person, and share the code.",
-   "purpose": "Find or form a team (no-team state), or manage the team you're on (with-team state).",
-   "primary_action": "No team: Join a team or Start a team. With a team: Invite more people.",
-   "layout": "No team: 'Teams looking for members' .list first, then Start/Join a card, then 'Be found' (list myself + intro), then 'Your pending requests' if any. With a team: team header (name, code, Copy), an editable 'Who can join' .seg + 'Looking for' field with Save, member .list each with Remove, a 'Looking for a teammate?' block listing solo people with Invite, a pending requests/invites .list with Accept/Decline either direction, track picker, Leave team set apart at the bottom.",
+   "user_moment": "Siti has no team yet and wants one: a friend sent her a team link, or she wants to ask a team that's looking, or start her own. Once on a team, she copies its link to bring people in, and as its admin says yes or no to requests and locks it when it's complete.",
+   "purpose": "Get onto a team (no team), then run the team you're on: who's in, who wants in, how people join, and its settings.",
+   "primary_action": "No team: the chosen way in (Ask to join, Join team, Start team). On a team: Copy link (Members).",
+   "layout": "No team: page header (h1 Team, 'You're not on a team yet.'), any 'Invites for you' first, then the question 'How do you want to team up?' with three stacked .choice radio cards (one column at every width): Ask to join a team, Join with a link or code, Start a new team. Under them only the chosen way's panel: Ask -> 'Teams looking for people' .list (name, size, track, members, Looking for) with Ask to join / Withdraw request, then a 'Let teams find you' form. Join -> one field 'Team link or code' and Join team. Start -> one field 'Team name' and Start team. On a team: page header (h1 the team name, 'Good Health · 3 of 20 people · You're an admin'), then .subnav-split: Members (default), Find people (team finding on), Settings. Members: the Team link card (.addr: link + Copy link, then 'Or share the code k7m2-p9qa'), then join requests (if any, admin rows have Accept/Decline), then the member .list.editable (name, 'Admin · You', row menu for admins: Make admin / Remove as admin / Remove from team). Find people: solo people looking for a team with Invite / Cancel invite. Settings: Team form (name, Looking for) with one Save in the card foot, Track select that saves on change, Lock team toggle and New team link (admins), Leave team in a danger zone.",
    "sections": [
     {
-     "name": "Teams looking for members",
+     "name": "Invites for you (no team)",
      "contents": [
-      "Open Team Alpha -- 1 of 4 -- Looking for: a designer and a backend person"
+      "Kopi Kode invited you · 2 of 20 · Good Health"
+     ],
+     "actions": [
+      {
+       "label": "Accept",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Decline",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "How do you want to team up? (no team)",
+     "contents": [
+      "Ask to join a team: Pick a team that's looking for people. Its admins say yes or no.",
+      "Join with a link or code: A teammate sent you their team link or code. You join straight away.",
+      "Start a new team: You'll be its admin. Share its link to bring people in."
+     ],
+     "actions": []
+    },
+    {
+     "name": "Teams looking for people (Ask panel)",
+     "contents": [
+      "SheBuilds · 2 of 20 · Good Health · Dewi, Rina · Looking for a designer"
      ],
      "actions": [
       {
        "label": "Ask to join",
-       "kind": "primary",
+       "kind": "secondary",
        "confirm": null
       },
       {
@@ -3189,42 +3618,63 @@
      ]
     },
     {
-     "name": "Start or join",
+     "name": "Let teams find you (Ask panel)",
      "contents": [
-      "Team name field",
-      "Team code field"
+      "List me as looking for a team",
+      "A line about you: Full-stack, free to join anyone"
      ],
      "actions": [
       {
-       "label": "Start a team",
+       "label": "Save",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Join with a link or code (Join panel)",
+     "contents": [
+      "Team link or code: paste the whole link or type the 8-character code"
+     ],
+     "actions": [
+      {
+       "label": "Join team",
        "kind": "primary",
        "confirm": null
-      },
-      {
-       "label": "Join a team",
-       "kind": "secondary",
-       "confirm": null
       }
      ]
     },
     {
-     "name": "Be found",
+     "name": "Start a new team (Start panel)",
      "contents": [
-      "List me as looking for a team (toggle)",
-      "Your intro: Full-stack, free to join anyone"
+      "Team name"
      ],
      "actions": [
       {
-       "label": "Save intro",
-       "kind": "secondary",
+       "label": "Start team",
+       "kind": "primary",
        "confirm": null
       }
      ]
     },
     {
-     "name": "Invites for you",
+     "name": "Team link (Members)",
      "contents": [
-      "Filled Team Beta invited you to join"
+      "simple-hack.app/team/k7m2p9qa",
+      "Anyone in this event who opens it joins Kopi Kode straight away. Or share the code k7m2-p9qa."
+     ],
+     "actions": [
+      {
+       "label": "Copy link",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Asked to join (Members)",
+     "contents": [
+      "Rania Hartono · Asked to join"
      ],
      "actions": [
       {
@@ -3240,59 +3690,39 @@
      ]
     },
     {
-     "name": "Your team (with-team state)",
+     "name": "Members (Members)",
      "contents": [
-      "Filled Team Beta -- code ec8c3d4j -- 2 of 4 people",
-      "Who can join: Only people with the code",
-      "Looking for: a designer",
-      "Track or challenge: Good Health"
+      "Siti Rahma · Admin · You",
+      "Dian Puspita · Member",
+      "Rina Wijaya · Admin"
      ],
      "actions": [
       {
-       "label": "Copy code",
+       "label": "Make admin",
        "kind": "secondary",
        "confirm": null
       },
       {
-       "label": "Save team settings",
-       "kind": "primary",
-       "confirm": null
-      },
-      {
-       "label": "Save track choice",
+       "label": "Remove as admin",
        "kind": "secondary",
-       "confirm": null
+       "confirm": "Rina stays on Kopi Kode as a member. Remove Rina as admin?"
       },
       {
-       "label": "Leave team",
+       "label": "Remove from team",
        "kind": "danger",
-       "confirm": "You'll lose access to this team's entry and site. Leave Filled Team Beta?"
+       "confirm": "Dian loses access to Kopi Kode's entry and website. The team link changes, so the old one stops working. Remove Dian?"
       }
      ]
     },
     {
-     "name": "Members",
+     "name": "Find people",
      "contents": [
-      "Siti Rahma (you)",
-      "Dian Puspita"
-     ],
-     "actions": [
-      {
-       "label": "Remove",
-       "kind": "danger",
-       "confirm": "Dian loses access to this team's entry and site. The team gets a new join code. Remove her?"
-      }
-     ]
-    },
-    {
-     "name": "Looking for a teammate",
-     "contents": [
-      "e2e-s10-participant-04 -- Full-stack, free to join anyone"
+      "Nadia Putri · Full-stack, free to join anyone"
      ],
      "actions": [
       {
        "label": "Invite",
-       "kind": "primary",
+       "kind": "secondary",
        "confirm": null
       },
       {
@@ -3303,44 +3733,134 @@
      ]
     },
     {
-     "name": "Requests to join",
+     "name": "Team (Settings, admins)",
      "contents": [
-      "Rania Hartono wants to join"
+      "Team name: Kopi Kode (your website address stays kopi-kode.generationgirl2026.simple-hack.app)",
+      "Looking for: a designer"
      ],
      "actions": [
       {
-       "label": "Accept",
+       "label": "Save",
        "kind": "primary",
        "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Track (Settings, everyone)",
+     "contents": [
+      "Good Health"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Joining (Settings, admins)",
+     "contents": [
+      "Lock team: No more people can join. The team link, requests and invites stop working, and Fill teams skips this team.",
+      "New team link: The old link and code stop working. People already on the team stay."
+     ],
+     "actions": [
+      {
+       "label": "Lock team (toggle)",
+       "kind": "secondary",
+       "confirm": "Lock Kopi Kode? No more people can join. 1 request and 1 invite will be cleared."
       },
       {
-       "label": "Decline",
+       "label": "New link",
        "kind": "secondary",
-       "confirm": null
+       "confirm": "Make a new team link? The old link and code stop working. People already on the team stay."
+      }
+     ]
+    },
+    {
+     "name": "Leave team (Settings)",
+     "contents": [
+      "You'll lose access to Kopi Kode's entry and website. Dian becomes admin when you leave."
+     ],
+     "actions": [
+      {
+       "label": "Leave team",
+       "kind": "danger",
+       "confirm": "Leave Kopi Kode? You'll lose access to its entry and website. Dian becomes admin. You can join or start another team while teams are open."
       }
      ]
     }
    ],
    "states": [
     {
+     "name": "no team, Ask to join",
+     "when": "approved, no team, team finding on, teams open",
+     "shows": "the three choices with Ask to join picked, the looking list and Let teams find you"
+    },
+    {
+     "name": "no team, Join with a link or code",
+     "when": "the person picks Join",
+     "shows": "one field 'Team link or code' with help 'Paste the whole link or type the 8-character code. Ask a teammate to send it from their Team page.' and Join team. Errors under the field: 'That link or code doesn't match a team in this event.', 'Kopi Kode isn't taking new people.', 'Kopi Kode is full.'"
+    },
+    {
+     "name": "no team, Start a new team",
+     "when": "the person picks Start",
+     "shows": "one field 'Team name' with help 'You'll be its admin. You can rename it later.' and Start team. After it: Members with 'You started Kopi Kode. Copy its link to bring people in.'"
+    },
+    {
      "name": "team finding off",
-     "when": "organiser has turned team finding off",
-     "shows": "no-team state drops the open-teams list and intro toggle; shows only Join a team by code"
+     "when": "the organiser turned team finding off",
+     "shows": "two choices only (Join with a link or code, Start a new team), Join picked. On a team: no Find people sub-page, no requests."
     },
     {
-     "name": "read-only after Closed",
-     "when": "stage is Closed or later",
-     "shows": "member list and code still visible; Leave team, track choice, who-can-join and invites all become read-only: 'Teams are locked once entries close.'"
+     "name": "teams closed, no team",
+     "when": "stage is not Open or Building, or the event deadline has passed",
+     "shows": "empty-state 'Teams can't be started or joined now' / 'Entries are closed. If you should be on a team, ask the organiser.' After the deadline but before Closed, Join with a link or code stays, since a team with its own extension can still take people."
     },
     {
-     "name": "just filled by the organiser",
-     "when": "landed here right after organiser's Fill teams placed this person",
-     "shows": "a one-time .note ok at the top: 'You were placed here by the organiser.'"
+     "name": "invite waiting",
+     "when": "a team invited this person",
+     "shows": "'Invites for you' above the question, with Accept and Decline. Accepting joins at once and clears every other offer."
     },
     {
-     "name": "team is full",
-     "when": "team has reached max size",
-     "shows": "Invite and Ask-to-join buttons on this team are disabled: 'Full'"
+     "name": "on a team, admin",
+     "when": "team_admin true",
+     "shows": "Members with row menus, request rows with Accept/Decline, Settings editable"
+    },
+    {
+     "name": "on a team, member",
+     "when": "team_admin false",
+     "shows": "Members without row menus, request rows reading 'Waiting for an admin', Settings showing the name and note as text with 'Only admins change these. Admins: Siti, Rina.', Track still editable"
+    },
+    {
+     "name": "locked",
+     "when": "the team is locked",
+     "shows": "Members: the link card becomes .note warn 'Kopi Kode is locked. No more people can join.' with Unlock for admins or 'Ask an admin to unlock it.' for members. Find people: Invite buttons disabled with the same note. Settings: the Lock toggle on."
+    },
+    {
+     "name": "full",
+     "when": "members reach the event's team size",
+     "shows": "the link card adds 'Kopi Kode is full, 20 of 20.' Accept and Invite read Full and are disabled"
+    },
+    {
+     "name": "frozen",
+     "when": "the team's deadline passed, or stage Entries closed or later",
+     "shows": "a note 'Entries are closed, so Kopi Kode can't change now.' The code shows as a record without Copy, no row menus, Settings read-only, no Leave team (Leave event on Overview still works)"
+    },
+    {
+     "name": "just joined",
+     "when": "the person arrived from a team link, a request accepted, or Fill teams",
+     "shows": "a one-time .note ok on Members: 'You joined Kopi Kode.' (link, request, invite) or 'You are on Kopi Kode now.' (anything the screen can't attribute)"
+    },
+    {
+     "name": "only admin leaving",
+     "when": "the only admin opens Leave team while others remain",
+     "shows": "the row and the confirm name who takes over: 'Dian becomes admin when you leave.'"
+    },
+    {
+     "name": "last member leaving",
+     "when": "the only member opens Leave team before the deadline",
+     "shows": "'You're the only member, so Kopi Kode, its entry and its website are deleted when you leave.' with Delete team and leave"
+    },
+    {
+     "name": "event ended",
+     "when": "stage Ended",
+     "shows": "read-only, the code as a record, no Copy"
     }
    ],
    "replaces": [
@@ -3353,9 +3873,11 @@
     "'Start a team and Join a team sit above the open-teams and solo-people lists' -- looking-for list now comes first.",
     "Entry form and publish panel moved to their own screens (Entry, Website) -- this page is purely about people.",
     "Critique: withdraw-join-request, invite-solo-participant, cancel-sent-invite, the solo-side accept/decline of an invite, an editable who-can-join/looking-for with Save, remove-teammate and the team-removal/just-filled states were all missing -- every one now has a section or state.",
-    "Retest (Grok SIM-346, round 3): confirmed as already correct -- 'Copy join code' is hidden once the event has ended (S14), since a new team can no longer form with it."
+    "Retest (Grok SIM-346, round 3): confirmed as already correct -- 'Copy join code' is hidden once the event has ended (S14), since a new team can no longer form with it.",
+    "Owner, 2026-10-31: the side-by-side Start a team / Join a team boxes are replaced by one question with three choices that each say what happens.",
+    "'Who can join: Anyone / Only people with the code' is gone. Two ways in: Ask to join (admins approve) and the team link or code (instant)."
    ],
-   "phone": "No-team: looking-for list first as cards, Start/Join sticky at the bottom. With-team: team card, members, invite/requests, Leave team set apart and smaller so it's never an accidental tap.",
+   "phone": "No team: the three choice cards stack full width, the chosen panel under them, buttons full width. On a team: the sub-page list becomes tabs that scroll sideways under the page header. Member rows wrap the role under the name, the row menu button is 44px.",
    "decisions": [
     {
      "q": "Should Entry and Website stay part of Team, as today, or split out?",
@@ -3363,9 +3885,64 @@
      "why": "Today's single Team page mixed team administration, idea-writing and publishing; the atlas flagged the entry form buried under team-admin. Three screens, three jobs."
     },
     {
-     "q": "Does the Team screen need its own walkthrough, separate from Home's?",
-     "decision": "Yes (tours.participantTeam), auto-starting the first time a participant with no team opens Team while teams are open: the open-teams list and Ask to join, Start a team, Join with a code, and Be found. Team finding being off hides the open-teams list and Be found, so those steps just don't show, same as any other tour.",
-     "why": "Same owner rule (2026-10-30): a walkthrough only explains the screen it's shown on, so Team's own controls are explained from Team, not folded into Home's tour."
+     "q": "Why a new no-team screen?",
+     "decision": "The side-by-side Start a team and Join a team boxes are gone. The page asks one question, 'How do you want to team up?', with three stacked choice cards that each say what happens (Ask to join a team, Join with a link or code, Start a new team), and shows only the chosen way's panel under them.",
+     "why": "Owner, 2026-10-31: the two equal boxes, each with a field and a button, were confusing. A choice that states its consequence ('Its admins say yes or no', 'You join straight away', 'You'll be its admin') answers the question the boxes left open."
+    },
+    {
+     "q": "Which choice is picked when the page opens?",
+     "decision": "Ask to join when team finding is on and at least one team is looking, or when the person already has a pending request. Otherwise Start a new team. Join with a link or code is never the default, because a person holding a link opens the link itself.",
+     "why": "Matches what most people arriving here want, without hiding the other two."
+    },
+    {
+     "q": "How is an on-team Team area laid out?",
+     "decision": "Like the Event page: a sub-page list (Members, Find people, Settings) on the left, one sub-page on the right, tabs that scroll sideways on a phone. URL ?s=team&tab=members|people|settings, Members by default. The page title is the team's own name.",
+     "why": "Owner, 2026-10-31: Teams gets its own full design the way the Event page did. Members (who is in and who wants in), finding people, and team settings are three different jobs."
+    },
+    {
+     "q": "Where do join requests go?",
+     "decision": "At the top of Members, above the member list, exactly as today's Requests to join rows (Accept, Decline). Only admins can press them. Members see the same rows with 'Waiting for an admin'.",
+     "why": "Owner, 2026-10-31: request handling stays on the Team page as it is for now, and only the admin rule changes."
+    },
+    {
+     "q": "What is the team link?",
+     "decision": "Each team has one link, https://simple-hack.app/team/<code>, shown on Members with Copy link as the page's one primary button and the code beside it for saying out loud. Any member can copy it. Opening it joins straight away after one confirm.",
+     "why": "Owner, 2026-10-31: 'The team code becomes a shareable link.' Every member could already share the code, so the link changes how it travels, not who can use it."
+    },
+    {
+     "q": "What can admins do that members can't?",
+     "decision": "Admins: say yes or no to join requests, lock or unlock the team, rename it, edit its Looking for note, remove members (admins included, never themselves), make or remove admins, and make a new team link. Everyone on the team: see members and requests, copy the link, invite people who are looking, cancel the team's invites, choose the track, edit the entry and website, leave.",
+     "why": "The admin list is the owner's, minus the track. The track is part of the team's work, like the entry every member edits, and gating it would stop a member fixing it while the admins are away. Invites stay open to every member because every member can already share the link, which joins instantly."
+    },
+    {
+     "q": "What happens when the last admin leaves?",
+     "decision": "The member who has been on the team longest becomes admin automatically, in the same transaction, whichever way the admin went (left the team, left the event, was moved or taken off by the organiser). Leave team says who it will be: 'Dian becomes admin when you leave.' An admin can't step down while they are the only one.",
+     "why": "Owner, 2026-10-31: the oldest member becomes admin automatically. A team never sits without someone who can approve requests."
+    },
+    {
+     "q": "Who is admin on teams that already exist?",
+     "decision": "Whoever started the team, if still on it, otherwise the member who joined it first. Teams placed by Fill teams: the first person placed.",
+     "why": "No real events exist yet (owner, 2026-10-31), so existing teams move to the new rule directly instead of keeping everyone equal."
+    },
+    {
+     "q": "What does locking do?",
+     "decision": "Lock team ('No more people can join') stops join requests, link and code joins, invites (sending and accepting) and Fill teams placement into this team. Pending requests and invites for the team are cleared when it locks, and unlocking restores nothing. The organiser can still place someone on a locked team by hand. A team kept after its last member left past the deadline is locked for good.",
+     "why": "Owner, 2026-10-31: a team can be locked and that blocks requests, code joins, invites and Fill teams. Clearing pending offers matches the existing rule that leaving restores nothing, and leaves no request that can only ever fail."
+    },
+    {
+     "q": "What replaces 'Who can join: Anyone / Only people with the code'?",
+     "decision": "Nothing. Every team that isn't locked can be asked (it appears in Ask to join while team finding is on) and joined with its link or code. A team that wants no strangers declines requests or locks.",
+     "why": "Owner, 2026-10-31: remove the setting, two ways in. The old code-only teams join the list. No real events exist, so nobody's choice is overridden in practice."
+    },
+    {
+     "q": "Does turning team finding off stop admins managing their team?",
+     "decision": "No. Off hides Ask to join, Find people and Let teams find you, and refuses requests and invites, as today. Links, codes, lock, rename, admins and removing members keep working, and Fill teams works too.",
+     "why": "Team finding is about discovering strangers. Managing your own team, and the organiser placing people, are not discovery."
+    },
+    {
+     "q": "Does the Team screen keep its own walkthrough?",
+     "decision": "Yes, rewritten for the new no-team page: the question and its three choices, Ask to join, Join with a link or code, Start a new team, and Let teams find you. Steps whose target is missing (team finding off) are skipped, as today.",
+     "why": "Same owner rule (2026-10-30): a walkthrough explains only the screen it's shown on."
     }
    ],
    "features": [
@@ -3377,8 +3954,11 @@
     "cancel-sent-invite",
     "accept-team-request-or-invite",
     "decline-team-request-or-invite",
-    "set-team-open-and-looking-for",
+    "edit-team-settings",
     "remove-teammate",
+    "set-team-admin",
+    "lock-team",
+    "new-team-link",
     "choose-team-track",
     "leave-team",
     "start-a-team",
@@ -3389,21 +3969,128 @@
    "prototype_states": [
     {
      "slug": "no-team",
-     "name": "Looking for a team",
+     "name": "No team: Ask to join",
      "stage": "open",
-     "next": "Teams are forming · join one"
+     "next": "Teams are forming"
+    },
+    {
+     "slug": "join-code",
+     "name": "No team: Join with a link or code",
+     "stage": "open",
+     "next": "Teams are forming"
+    },
+    {
+     "slug": "start",
+     "name": "No team: Start a new team",
+     "stage": "open",
+     "next": "Teams are forming"
+    },
+    {
+     "slug": "finding-off",
+     "name": "No team, team finding off",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "closed",
+     "name": "No team, teams closed",
+     "stage": "closed",
+     "next": "Entries closed"
     },
     {
      "slug": "with-team",
-     "name": "On a team",
+     "name": "On a team, admin: Members",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "member-menu",
+     "name": "Admin: a member's menu",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "member",
+     "name": "On a team, member: Members",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "people",
+     "name": "Find people",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "settings",
+     "name": "Settings, admin",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "settings-member",
+     "name": "Settings, member",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "locked",
+     "name": "Locked team",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
     },
     {
      "slug": "just-filled",
-     "name": "Just placed by the organiser",
+     "name": "Just joined",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "frozen",
+     "name": "Entries closed, read-only",
+     "stage": "closed",
+     "next": "Entries closed"
+    }
+   ],
+   "sub_pages": [
+    {
+     "tab": "members",
+     "label": "Members",
+     "url": "?s=team&tab=members (default)",
+     "holds": [
+      "copy-team-code",
+      "accept-team-request-or-invite",
+      "decline-team-request-or-invite",
+      "set-team-admin",
+      "remove-teammate"
+     ],
+     "save": "row actions write straight away (Remove confirms first)",
+     "empty": "never empty (you are on it)"
+    },
+    {
+     "tab": "people",
+     "label": "Find people",
+     "url": "?s=team&tab=people",
+     "holds": [
+      "invite-solo-participant",
+      "cancel-sent-invite"
+     ],
+     "save": "each Invite or Cancel writes straight away",
+     "empty": "empty-state 'Nobody is looking right now' / 'People who list themselves as looking for a team show here.' Hidden when team finding is off."
+    },
+    {
+     "tab": "settings",
+     "label": "Settings",
+     "url": "?s=team&tab=settings",
+     "holds": [
+      "edit-team-settings",
+      "choose-team-track",
+      "lock-team",
+      "new-team-link",
+      "leave-team"
+     ],
+     "save": "Team form: one Save. Track and Lock: save on change with a Saved tick. New link and Leave: confirm first.",
+     "empty": "never empty"
     }
    ]
   },
@@ -3847,11 +4534,17 @@
      "q": "How does a judge come back?",
      "decision": "With the judge link until results are published. Rejoining removes the former-judge record and their kept scores count as a member's again.",
      "why": "Same link rule as today, and the person is the same account, so their scores are theirs again."
+    },
+    {
+     "q": "What does the top bar say for a judge?",
+     "decision": "The event's stage like everyone else (pill plus the track on Home), then a scoring pill: Scoring open, Scoring locked or Scoring not open. Nothing else on judge screens changes.",
+     "why": "Owner, 2026-10-31, top bar for judges and participants. The judge UX is otherwise fine, so this is the only judge change."
     }
    ],
    "features": [
     "replay-judging-walkthrough",
-    "leave-event"
+    "leave-event",
+    "see-event-stage"
    ],
    "prototype_states": [
     {
@@ -6035,6 +6728,155 @@
    ],
    "decisions": [],
    "phone": "Single column, same content, full width."
+  },
+  {
+   "id": "public-team-link",
+   "role": "visitor",
+   "nav_id": null,
+   "title": "Join Kopi Kode",
+   "user_moment": "Dian's friend Siti sent her Kopi Kode's team link in a chat. Dian taps it on her phone.",
+   "purpose": "Turn a team link into a team membership in one confirm, or say plainly why it can't.",
+   "primary_action": "Join Kopi Kode (signed out: Sign in).",
+   "layout": "The same stand-alone page as the event join link (/join/{code}): wordmark header, a hero (h1 'Join Kopi Kode', 'A team in Generation Girl Online Hack 2026'), then one card that says what happens and holds one primary button. Route: /team/{code}, served signed in or out.",
+   "sections": [
+    {
+     "name": "Confirm",
+     "contents": [
+      "Kopi Kode · 3 of 20 people · Good Health",
+      "You'll be on the team straight away and can work on its entry and website. You can leave while teams are open."
+     ],
+     "actions": [
+      {
+       "label": "Join Kopi Kode",
+       "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Not now",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    }
+   ],
+   "states": [
+    {
+     "name": "signed out",
+     "when": "no account key in this browser",
+     "shows": "'Sign in to join Kopi Kode' / 'Use the account you joined Generation Girl Online Hack 2026 with.' and Sign in, which comes back to this link (next=/team/{code})"
+    },
+    {
+     "name": "ready",
+     "when": "approved participant, no team, team joinable",
+     "shows": "the confirm card. Joining lands on Team, Members with 'You joined Kopi Kode.'"
+    },
+    {
+     "name": "already on this team",
+     "when": "on Kopi Kode",
+     "shows": "'You're already on Kopi Kode' with Go to your team"
+    },
+    {
+     "name": "on another team",
+     "when": "on a different team",
+     "shows": "'You're on SheBuilds' / 'To join Kopi Kode, leave SheBuilds first, then open this link again.' with Go to your team"
+    },
+    {
+     "name": "locked",
+     "when": "the team is locked",
+     "shows": "'Kopi Kode isn't taking new people' / 'Its admins locked the team. Ask them, or find another team.' with Find a team"
+    },
+    {
+     "name": "full",
+     "when": "members reach the team size",
+     "shows": "'Kopi Kode is full' / 'It has 20 of 20 people. Find another team or start your own.' with Find a team"
+    },
+    {
+     "name": "not in the event",
+     "when": "signed in, not a member of the event",
+     "shows": "'Join the event first' / 'This link adds you to a team in Generation Girl Online Hack 2026, and you're not in that event yet.' Apply to the event when it takes applications, otherwise 'Ask the organiser for the event's join link.' The team link never lets anyone into the event itself."
+    },
+    {
+     "name": "waiting for approval",
+     "when": "pending or rejected in the event",
+     "shows": "pending: 'Your place in the event is waiting' / 'An organiser still has to approve you. Open this link again once you're in.' Rejected: 'You're not in this event' with Open the event"
+    },
+    {
+     "name": "judge or organiser",
+     "when": "the person is a judge or organiser of the event",
+     "shows": "'Only participants join teams' with Open the event"
+    },
+    {
+     "name": "teams closed",
+     "when": "stage not Open or Building, or the team's deadline passed",
+     "shows": "'Teams can't change now' / 'Entries are closed for this event.' with Open the event"
+    },
+    {
+     "name": "link doesn't work",
+     "when": "no team has this code (a new link was made, or it was copied wrong)",
+     "shows": "'This team link doesn't work' / 'The team may have made a new link, or the link was copied wrong. Ask a teammate to send it again.'"
+    }
+   ],
+   "features": [
+    "team-join-link"
+   ],
+   "prototype_states": [
+    {
+     "slug": "ready",
+     "name": "Ready to join",
+     "stage": "building",
+     "next": null
+    },
+    {
+     "slug": "signed-out",
+     "name": "Signed out",
+     "stage": "building",
+     "next": null
+    },
+    {
+     "slug": "other-team",
+     "name": "On another team",
+     "stage": "building",
+     "next": null
+    },
+    {
+     "slug": "locked",
+     "name": "Team locked",
+     "stage": "building",
+     "next": null
+    },
+    {
+     "slug": "not-in-event",
+     "name": "Not in the event",
+     "stage": "building",
+     "next": null
+    },
+    {
+     "slug": "invalid",
+     "name": "Link doesn't work",
+     "stage": "building",
+     "next": null
+    }
+   ],
+   "decisions": [
+    {
+     "q": "Does a team link let someone into the event?",
+     "decision": "No. It joins a team only. A person who isn't an approved participant is told why and pointed at Apply or the organiser.",
+     "why": "The organiser controls who is in the event (join link, approval, applications). A team's link must not be a way around that."
+    },
+    {
+     "q": "What does a signed-out visitor see?",
+     "decision": "The team's name and the event's title only, never members, so the page can say what they're about to join before sign-in. The preview is rate-limited like the event join preview.",
+     "why": "Someone holding the link can join anyway, so the name tells them nothing new, while member names would."
+    },
+    {
+     "q": "One confirm, or join on open?",
+     "decision": "One confirm, Join Kopi Kode. Opening a link never changes anything by itself.",
+     "why": "Owner, 2026-10-31: joins automatically after one confirm. Link previews in chat apps and prefetching must not join anyone."
+    }
+   ],
+   "fixes": [],
+   "replaces": [],
+   "phone": "Single column, the card's button full width."
   }
  ],
  "feature_ideas": [

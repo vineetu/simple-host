@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 )
 
 var ErrHackFindingStage = errors.New("teams cannot be changed at this stage")
@@ -38,13 +39,14 @@ func findingEvent(ctx context.Context, q Querier, ev Event) (Event, error) {
 }
 
 type TeamRequest struct {
-	ID          string `json:"id"`
-	TeamID      string `json:"team_id"`
-	Team        string `json:"team"`
-	TeamName    string `json:"team_name"`
-	UserID      string `json:"user_id"`
-	DisplayName string `json:"display_name"`
-	Kind        string `json:"kind"`
+	ID          string    `json:"id"`
+	TeamID      string    `json:"team_id"`
+	Team        string    `json:"team"`
+	TeamName    string    `json:"team_name"`
+	UserID      string    `json:"user_id"`
+	DisplayName string    `json:"display_name"`
+	Kind        string    `json:"kind"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // NewTeamRequest locks the prospective member before the team, as code joining does.
@@ -68,8 +70,14 @@ func NewTeamRequest(ctx context.Context, q Querier, ev Event, actor, teamSlug, u
 	if err != nil {
 		return "", err
 	}
-	var open, looking, teammate bool
-	if err = q.QueryRowContext(ctx, `SELECT t.open, m.looking, EXISTS(SELECT 1 FROM event_members a WHERE a.event_id=$1 AND a.user_id=$4 AND a.team_id=t.id AND a.approval_status='approved') FROM event_teams t JOIN event_members m ON m.event_id=t.event_id AND m.user_id=$3 WHERE t.event_id=$1 AND t.id=$2`, ev.ID, t.ID, userID, actor).Scan(&open, &looking, &teammate); err != nil {
+	// A locked team takes nobody by request or invite (decision 9); "who can
+	// join" (t.open) is no longer read at all -- every unlocked team is
+	// askable, the former code-only teams simply join that list (section 5).
+	if t.Locked() {
+		return "", ErrHackTeamLocked
+	}
+	var looking, teammate bool
+	if err = q.QueryRowContext(ctx, `SELECT m.looking, EXISTS(SELECT 1 FROM event_members a WHERE a.event_id=$1 AND a.user_id=$3 AND a.team_id=$2 AND a.approval_status='approved') FROM event_members m WHERE m.event_id=$1 AND m.user_id=$4`, ev.ID, t.ID, actor, userID).Scan(&looking, &teammate); err != nil {
 		return "", err
 	}
 	if (kind == "request" && actor != userID) || (kind == "invite" && !teammate) {
@@ -80,7 +88,7 @@ func NewTeamRequest(ctx context.Context, q Querier, ev Event, actor, teamSlug, u
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return "", err
 	}
-	if existingID == "" && ((kind == "request" && !open) || (kind == "invite" && !looking)) {
+	if existingID == "" && kind == "invite" && !looking {
 		return "", ErrHackFindingForbidden
 	}
 	if err == nil && existingKind == kind {
@@ -130,19 +138,30 @@ func ResolveTeamRequest(ctx context.Context, q Querier, ev Event, actor, id, act
 		return err
 	}
 	code = t.Code
-	var exists, teammate bool
-	err = q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_team_requests WHERE id=$1), EXISTS(SELECT 1 FROM event_members WHERE event_id=$2 AND user_id=$3 AND team_id=$4 AND approval_status='approved')`, id, ev.ID, actor, teamID).Scan(&exists, &teammate)
+	var exists, teammate, actorAdmin bool
+	err = q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_team_requests WHERE id=$1),
+		EXISTS(SELECT 1 FROM event_members WHERE event_id=$2 AND user_id=$3 AND team_id=$4 AND approval_status='approved'),
+		EXISTS(SELECT 1 FROM event_members WHERE event_id=$2 AND user_id=$3 AND team_id=$4 AND team_admin)`,
+		id, ev.ID, actor, teamID).Scan(&exists, &teammate, &actorAdmin)
 	if err != nil {
 		return err
 	}
 	if !exists {
 		return sql.ErrNoRows
 	}
-	allowed := (kind == "request" && teammate) || (kind == "invite" && actor == userID)
+	// Accepting or declining a request needs a team admin now (was: any
+	// teammate). Withdrawing a request stays the requester's own; cancelling
+	// an invite stays any teammate's; accepting an invite stays the
+	// invitee's own.
 	if action == "withdraw" {
-		allowed = (kind == "request" && actor == userID) || (kind == "invite" && teammate)
-	}
-	if !allowed {
+		if allowed := (kind == "request" && actor == userID) || (kind == "invite" && teammate); !allowed {
+			return ErrHackFindingForbidden
+		}
+	} else if kind == "request" {
+		if !actorAdmin {
+			return ErrHackTeamAdminOnly
+		}
+	} else if actor != userID {
 		return ErrHackFindingForbidden
 	}
 	if action == "accept" {
@@ -172,24 +191,24 @@ type FillPerson struct {
 	DisplayName string `json:"display_name"`
 }
 
-// FillSkippedTeam is an open-with-room-but-code-only team the planner
-// deliberately passed over (Grok retest 3, Confusing #3): fill-teams only
-// ever places people into teams anyone can join by browsing, never into a
-// "only people with the code" team, since that team's members chose not to
-// take strangers. Reported back so the preview can explain the skip
-// ("Beta Builders takes people with its code only, so it was skipped.")
-// instead of silently starting a new one-person team while that team still
-// has room. Teams skipped because they're already full need no
-// explanation, so those aren't reported here.
+// FillSkippedTeam is a team with room the planner deliberately passed over.
+// Reported back so the preview can explain the skip ("Beta Builders isn't
+// taking new people, so it was skipped.") instead of silently starting a
+// new one-person team while that team still has room. Teams skipped because
+// they're already at the target size need no explanation, so those aren't
+// reported here.
 type FillSkippedTeam struct {
 	Team   string `json:"team"`
 	Name   string `json:"name"`
-	Reason string `json:"reason"` // currently always "code_only"
+	Reason string `json:"reason"` // currently always "locked"
 }
 
-// PlanFillTeams uses approved solo participants, oldest first, and open teams only.
-// The caller locks the event and membership rows before preview or apply.
-func PlanFillTeams(ctx context.Context, q Querier, ev Event) ([]FillPlacement, []FillSkippedTeam, error) {
+// PlanFillTeams uses approved solo participants, oldest first: teams with
+// room are topped up to size (not the event's team_size_max, so a Fill with
+// a plain cap of 20 doesn't make one 20-person team of strangers), new
+// teams get size. The caller validates 1 <= size <= team_size_max and locks
+// the event and membership rows before preview or apply.
+func PlanFillTeams(ctx context.Context, q Querier, ev Event, size int) ([]FillPlacement, []FillSkippedTeam, error) {
 	rows, err := queryContext(ctx, q, `SELECT user_id,display_name FROM event_members WHERE event_id=$1 AND role='participant' AND approval_status='approved' AND team_id IS NULL ORDER BY joined_at,user_id`, ev.ID)
 	if err != nil {
 		return nil, nil, err
@@ -219,17 +238,13 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event) ([]FillPlacement, [
 	for _, t := range teams {
 		names[t.Name] = true
 		slugs[t.Slug] = true
-		var open bool
-		if err = q.QueryRowContext(ctx, `SELECT open FROM event_teams WHERE id=$1`, t.ID).Scan(&open); err != nil {
-			return nil, nil, err
-		}
 		n, err := CountTeamMembers(ctx, q, t.ID)
 		if err != nil {
 			return nil, nil, err
 		}
-		if !open {
-			if n < ev.TeamSizeMax && len(people) > 0 {
-				skipped = append(skipped, FillSkippedTeam{Team: t.Slug, Name: t.Name, Reason: "code_only"})
+		if t.Locked() {
+			if n < size && len(people) > 0 {
+				skipped = append(skipped, FillSkippedTeam{Team: t.Slug, Name: t.Name, Reason: "locked"})
 			}
 			continue
 		}
@@ -240,7 +255,7 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event) ([]FillPlacement, [
 		if st.Frozen() {
 			continue
 		}
-		slots := ev.TeamSizeMax - n
+		slots := size - n
 		if slots <= 0 || len(people) == 0 {
 			continue
 		}
@@ -277,7 +292,7 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event) ([]FillPlacement, [
 		if used {
 			continue
 		}
-		slots := ev.TeamSizeMax
+		slots := size
 		if slots > len(people) {
 			slots = len(people)
 		}

@@ -16,6 +16,14 @@ func findingError(w http.ResponseWriter, err error) {
 		writeHackErr(w, 409, "team_finding_off", "team finding is off")
 	case errors.Is(err, db.ErrHackTeamFull):
 		writeHackErr(w, 409, "team_full", "this team is full")
+	case errors.Is(err, db.ErrHackTeamLocked):
+		writeHackErr(w, 409, "team_locked", "this team isn't taking new people")
+	case errors.Is(err, db.ErrHackTeamKept):
+		writeHackErr(w, 409, "team_kept", "this team can't take new members")
+	case errors.Is(err, db.ErrHackLastTeamAdmin):
+		writeHackErr(w, 409, "last_team_admin", "make someone else admin first")
+	case errors.Is(err, db.ErrHackTeamAdminOnly):
+		writeHackErr(w, 403, "team_admin_only", "only the team's admins can do that")
 	case errors.Is(err, db.ErrHackAlreadyInTeam):
 		writeHackErr(w, 409, "already_in_team", "you are already on a team")
 	case errors.Is(err, db.ErrHackTeamFrozen):
@@ -66,10 +74,12 @@ func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 	// last member just left past it, still advertises as open, inviting a
 	// request that can only 409 submissions_closed with nobody left to see it.
 	if !a.member.TeamID.Valid || a.member.Role == "organiser" {
-		rows, err := h.database.QueryContext(ctx, `SELECT t.id,t.slug,t.name,t.open,t.looking_for,
+		// "Who can join" is gone (decision 5): every unlocked team is
+		// askable, the former code-only teams simply join this list.
+		rows, err := h.database.QueryContext(ctx, `SELECT t.id,t.slug,t.name,t.looking_for,
  COALESCE(x.id::text,''),COALESCE(x.slug,''),COALESCE(x.name,''),COALESCE(x.challenge,''),COALESCE(x.prize,'')
  FROM event_teams t JOIN events e ON e.id=t.event_id LEFT JOIN event_tracks x ON x.id=t.track_id
- WHERE t.event_id=$1 AND t.open
+ WHERE t.event_id=$1 AND t.locked_at IS NULL
    AND e.stage NOT IN ('judging','results','archived')
    AND NOT COALESCE(`+db.EffectiveDeadlineSQL+` <= clock_timestamp(), false)
  ORDER BY t.created_at`, a.event.ID)
@@ -80,9 +90,8 @@ func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 		byID := map[string]map[string]any{}
 		for rows.Next() {
 			var id, slug, name, note string
-			var open bool
 			var track db.EventTrack
-			if err = rows.Scan(&id, &slug, &name, &open, &note, &track.ID, &track.Slug, &track.Name, &track.Challenge, &track.Prize); err != nil {
+			if err = rows.Scan(&id, &slug, &name, &note, &track.ID, &track.Slug, &track.Name, &track.Challenge, &track.Prize); err != nil {
 				rows.Close()
 				writeInternal(w)
 				return
@@ -91,7 +100,7 @@ func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 			if track.ID != "" {
 				tr = &track
 			}
-			t := map[string]any{"slug": slug, "name": name, "members": []string{}, "member_count": 0, "team_size_max": a.event.TeamSizeMax, "track": tr, "looking_for": note}
+			t := map[string]any{"slug": slug, "name": name, "members": []string{}, "member_count": 0, "team_size_max": a.event.TeamSizeMax, "full": false, "track": tr, "looking_for": note}
 			teams = append(teams, t)
 			byID[id] = t
 		}
@@ -101,7 +110,7 @@ func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 			writeInternal(w)
 			return
 		}
-		rows, err = h.database.QueryContext(ctx, `SELECT m.team_id,m.display_name FROM event_members m JOIN event_teams t ON t.id=m.team_id WHERE t.event_id=$1 AND t.open ORDER BY m.joined_at,m.user_id`, a.event.ID)
+		rows, err = h.database.QueryContext(ctx, `SELECT m.team_id,m.display_name FROM event_members m JOIN event_teams t ON t.id=m.team_id WHERE t.event_id=$1 AND t.locked_at IS NULL AND m.approval_status='approved' ORDER BY m.joined_at,m.user_id`, a.event.ID)
 		if err != nil {
 			writeInternal(w)
 			return
@@ -124,6 +133,9 @@ func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			writeInternal(w)
 			return
+		}
+		for _, t := range byID {
+			t["full"] = t["member_count"].(int) >= a.event.TeamSizeMax
 		}
 	}
 	if a.member.TeamID.Valid || a.member.Role == "organiser" {
@@ -148,14 +160,14 @@ func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	rows, err := h.database.QueryContext(ctx, `SELECT r.id,r.team_id,t.slug,t.name,r.user_id,m.display_name,r.kind FROM event_team_requests r JOIN event_teams t ON t.id=r.team_id JOIN event_members m ON m.event_id=r.event_id AND m.user_id=r.user_id WHERE r.event_id=$1 AND (r.user_id=$2 OR r.team_id=$3 OR $4) ORDER BY r.created_at`, a.event.ID, a.user.ID, a.member.TeamID, a.member.Role == "organiser")
+	rows, err := h.database.QueryContext(ctx, `SELECT r.id,r.team_id,t.slug,t.name,r.user_id,m.display_name,r.kind,r.created_at FROM event_team_requests r JOIN event_teams t ON t.id=r.team_id JOIN event_members m ON m.event_id=r.event_id AND m.user_id=r.user_id WHERE r.event_id=$1 AND (r.user_id=$2 OR r.team_id=$3 OR $4) ORDER BY r.created_at`, a.event.ID, a.user.ID, a.member.TeamID, a.member.Role == "organiser")
 	if err != nil {
 		writeInternal(w)
 		return
 	}
 	for rows.Next() {
 		var p db.TeamRequest
-		if err = rows.Scan(&p.ID, &p.TeamID, &p.Team, &p.TeamName, &p.UserID, &p.DisplayName, &p.Kind); err != nil {
+		if err = rows.Scan(&p.ID, &p.TeamID, &p.Team, &p.TeamName, &p.UserID, &p.DisplayName, &p.Kind, &p.CreatedAt); err != nil {
 			rows.Close()
 			writeInternal(w)
 			return
@@ -180,17 +192,25 @@ func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 	out["solo"] = solo
 	out["pending"] = pending
 	if a.member.TeamID.Valid {
-		var open bool
+		var locked bool
 		var note string
-		if err = h.database.QueryRowContext(ctx, `SELECT open,looking_for FROM event_teams WHERE id=$1`, a.member.TeamID).Scan(&open, &note); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		var admin bool
+		if err = h.database.QueryRowContext(ctx, `
+			SELECT t.locked_at IS NOT NULL, t.looking_for, m.team_admin
+			  FROM event_teams t JOIN event_members m ON m.team_id = t.id
+			 WHERE t.id = $1 AND m.event_id = $2 AND m.user_id = $3`,
+			a.member.TeamID, a.event.ID, a.user.ID).Scan(&locked, &note, &admin); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			writeInternal(w)
 			return
 		}
-		out["team"] = map[string]any{"open": open, "looking_for": note}
+		out["team"] = map[string]any{"looking_for": note, "locked": locked, "admin": admin}
 	}
 	writeJSON(w, 200, out)
 }
 
+// setTeamFinding is the deprecated PUT .../team/finding (replaced by PATCH
+// .../team): admin only now, writes only looking_for, ignores open. Kept
+// for one release so an older cached tool call still works.
 func (h *HackHandler) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.findingAccess(w, r, true)
 	if !ok {
@@ -207,7 +227,7 @@ func (h *HackHandler) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	note, ok := checkHackLine(w, req.LookingFor, "looking_for", 0, 120)
+	note, ok := checkHackLine(w, stripInvisible(req.LookingFor), "looking_for", 0, 120)
 	if !ok {
 		return
 	}
@@ -220,9 +240,27 @@ func (h *HackHandler) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 	if err = db.LockFindingEvent(r.Context(), tx, a.event.ID); err == nil {
 		// Membership is rechecked while locked, before editing the team.
 		var team string
-		err = tx.QueryRowContext(r.Context(), `SELECT team_id FROM event_members WHERE event_id=$1 AND user_id=$2 AND approval_status='approved' FOR UPDATE`, a.event.ID, a.user.ID).Scan(&team)
+		var admin bool
+		err = tx.QueryRowContext(r.Context(), `SELECT team_id, team_admin FROM event_members WHERE event_id=$1 AND user_id=$2 AND approval_status='approved' FOR UPDATE`, a.event.ID, a.user.ID).Scan(&team, &admin)
+		if err == nil && !admin {
+			err = db.ErrHackTeamAdminOnly
+		}
+		// Same team-row lock and frozen-team check as patchTeam (Grok
+		// security review, 2026-11-01): this deprecated alias writes the
+		// same column and deserves the same guard, not a looser one just
+		// because it predates patchTeam.
 		if err == nil {
-			_, err = tx.ExecContext(r.Context(), `UPDATE event_teams SET open=$2,looking_for=$3 WHERE id=$1`, team, req.Open, note)
+			_, err = tx.ExecContext(r.Context(), `SELECT 1 FROM event_teams WHERE id=$1 FOR UPDATE`, team)
+		}
+		if err == nil {
+			if st, serr := db.TeamWriteStateFor(r.Context(), tx, team, false); serr != nil {
+				err = serr
+			} else if st.Frozen() {
+				err = db.ErrHackTeamFrozen
+			}
+		}
+		if err == nil {
+			_, err = tx.ExecContext(r.Context(), `UPDATE event_teams SET looking_for=$2 WHERE id=$1`, team, note)
 		}
 	}
 	if err != nil {
@@ -233,7 +271,7 @@ func (h *HackHandler) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"ok": true})
+	writeJSON(w, 200, map[string]any{"ok": true, "deprecated": "use PATCH /v1/hack/events/{slug}/team"})
 }
 func (h *HackHandler) setLooking(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.findingAccess(w, r, true)
@@ -382,6 +420,7 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Apply bool `json:"apply"`
+		Size  *int `json:"size"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
@@ -394,13 +433,28 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	// Lock all prospective members before teams, matching ordinary joining.
+	// Fill teams no longer needs team finding on (decision 10): only the
+	// stage check, rechecked here under the event row's lock.
 	ev, err := db.GetEventForUpdate(ctx, tx, a.event.ID)
 	if err != nil {
 		writeInternal(w)
 		return
 	}
-	if err = db.LockFindingEvent(ctx, tx, ev.ID); err != nil {
-		findingError(w, err)
+	if !participantTeamStages(ev.Stage) {
+		writeHackErr(w, 409, "teams_locked", "teams cannot be changed at this stage")
+		return
+	}
+	// Target size (decision 13): default min(4, team_size_max), so a plain
+	// cap of 20 doesn't make one 20-person team of strangers.
+	size := 4
+	if ev.TeamSizeMax < size {
+		size = ev.TeamSizeMax
+	}
+	if req.Size != nil {
+		size = *req.Size
+	}
+	if size < 1 || size > ev.TeamSizeMax {
+		writeHackErr(w, http.StatusBadRequest, "invalid_team_size", "size must be between 1 and the event's team size")
 		return
 	}
 	if _, err = tx.ExecContext(ctx, `SELECT 1 FROM event_members WHERE event_id=$1 ORDER BY user_id FOR UPDATE`, ev.ID); err != nil {
@@ -411,7 +465,7 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	plan, skipped, err := db.PlanFillTeams(ctx, tx, ev)
+	plan, skipped, err := db.PlanFillTeams(ctx, tx, ev, size)
 	if err != nil {
 		writeInternal(w)
 		return
@@ -428,16 +482,16 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 					writeInternal(w)
 					return
 				}
-				if _, err = tx.ExecContext(ctx, "UPDATE event_teams SET open=true WHERE event_id=$1 AND slug=$2", ev.ID, p.Team); err != nil {
-					writeInternal(w)
-					return
-				}
+				// event_teams.open is no longer written (deprecated 2026-10-31).
 				if err = db.RecordUsedTeamName(ctx, tx, ev.Slug, p.Team); err != nil {
 					writeInternal(w)
 					return
 				}
 			}
 			for _, m := range p.Members {
+				// MoveParticipantToTeam runs EnsureTeamAdmin on the
+				// destination itself, so a new team's first person placed
+				// becomes its admin without any extra call here.
 				if _, err = db.MoveParticipantToTeam(ctx, tx, ev.ID, m.UserID, p.Team, ev.TeamSizeMax); err != nil {
 					findingError(w, err)
 					return
@@ -449,5 +503,5 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"plan": plan, "applied": req.Apply, "skipped": skipped})
+	writeJSON(w, 200, map[string]any{"plan": plan, "applied": req.Apply, "skipped": skipped, "size": size})
 }

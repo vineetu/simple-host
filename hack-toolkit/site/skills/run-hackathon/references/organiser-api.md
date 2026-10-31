@@ -45,6 +45,10 @@ Use the Simple Hack connector signed in through its trusted browser window. Foll
 | Move member | `hack_move_member` |
 | Remove team member | `hack_remove_team_member` |
 | Rename team | `hack_rename_team` |
+| Lock or unlock a team | `hack_lock_team` |
+| Make or remove a team admin | `hack_set_team_admin` |
+| Make a new team link | `hack_new_team_link` |
+| Preview or apply Fill teams | `hack_fill_teams` |
 | Delete team | `hack_delete_team` |
 | Set team deadline | `hack_set_team_deadline` |
 | Take down team site | `hack_take_down_team_site` |
@@ -87,6 +91,8 @@ CSV and private archive exports may be large; the management page is an alternat
 
 Before changing a public stage, result, listing, website or invitation link; emailing participants; removing access; deleting; or replacing a scored rubric, explain the effect and ask. A new join or judge link invalidates its predecessor; rubric saves keep existing criterion IDs and scores; confirm reported deletions with confirm_score_deletion; ending an event is final.
 
+`hack_get_event` returns `next_step` for an organiser: the one forward move the website's Overview button offers for the event's current stage (its label, and `blocked` when it can't be taken yet). Name that move when the organiser asks what happens next, and call `hack_set_event_stage` (or `hack_publish_results` when `next_step.kind` is `publish_results`) to take it. Moving the stage to results also locks judging in the same step when it was not locked already, so `hack_lock_judging` is no longer needed to get Results ready for publishing. Moving back to judging leaves the lock on.
+
 Leaving the event is destructive too. Preview it with `hack_preview_leave_event`, tell the organiser what happens, and ask before calling `hack_leave_event`. The creator sends `successor_user_id` from the preview, and the only organiser sends `close: "end"` or `close: "delete"`, chosen by the person.
 
 Automatic assignments default to judges only. Use body.include_organisers=true to include organisers. Judges can save scores only when the stage is closed or judging.
@@ -106,22 +112,39 @@ People without a join link can apply from Find a hackathon or the event's public
 `hack_get_teams` omits member emails by default, including people on no team. Names and member IDs remain available for moves and removals. Set `include_emails: true` only when the organiser asks for team members' email addresses. `hack_get_people` and `hack_export_participants` retain emails. Team mutation results omit rosters and invitation codes; application decisions return status without the applicant ID.
 
 
-Team finding (SIM-225): private to approved participants and organisers, on by default.
-Use hack_list_open_teams to read open team rosters, solo listings and pending offers;
-hack_ask_to_join, hack_invite_to_team, hack_accept_team_request,
-hack_decline_team_request and hack_withdraw_team_request handle requests/invites.
-hack_set_team_finding sets open and looking_for (one line, max 120 characters);
-hack_set_looking sets looking and intro (one line, max 120 characters).
-hack_create_team accepts optional open (default true) and looking_for.
-hack_remove_teammate removes another teammate after confirmation. Use hack_leave_team for yourself.
-Joining by any method clears other pending offers and the solo listing; leaving restores nothing.
-Organisers use hack_fill_teams with body.apply:false, show the plan and confirm,
-then body.apply:true to place approved solo people into open teams with room and
-new Team 1, Team 2 groups up to the event maximum, avoiding name clashes.
-The apply plan uses current membership. hack_update_event accepts team_finding.
-Off hides stored pending offers and refuses finding actions; team codes still work.
-REST paths under /v1/hack/events/{slug}/: GET teams/open; PUT team/finding
-{open,looking_for}; PUT me/looking {looking,intro}; POST teams/{team}/requests;
-POST team/invites {user_id}; POST requests/{id}/{action} (accept or decline);
-DELETE requests/{id}; DELETE team/members/{user_id}; POST teams/fill {apply}.
-Lists never appear on the public event page. Full teams cannot accept or invite.
+Teams (redesigned 2026-10-31): a team's creator is its first admin. Admins approve or decline
+join requests, lock or unlock the team, rename it, edit its looking-for note, remove members,
+make or remove other admins, and roll a new team link, `hack_lock_team`, `hack_set_team_admin`
+and `hack_new_team_link` by team slug. The last admin on a team can't be unmade or removed
+until someone else is one. When an admin leaves, is removed, or is moved off, the
+longest-standing remaining member takes over automatically. Locking a team clears its pending requests
+and invites and reports the counts. An ordinary locked team still takes organiser
+placement, just nothing else. One kept after its last member left is stricter: locked for
+good, with neither an unlock nor a placement allowed. `hack_create_team` no longer takes `open`, and
+`hack_set_team_finding` is gone, replaced by the participant tool `hack_update_my_team`.
+`hack_join_team`'s `code`, and the `code` read by the team-link preview tool, each take a
+bare code or the whole team link, `https://<hack host>/team/<code>`.
+
+Team finding (SIM-225): private to approved participants and organisers, on by default,
+and separate from locking. A team can be unlocked but hidden from finding, or findable but
+locked. `hack_list_open_teams` reads every unlocked team (each with a `full` flag), solo
+listings and pending offers, with `created_at` on each pending row. There is no "who can
+join" choice on a team any more, so a former code-only team simply appears in this list too.
+Accepting or declining a request now needs a team admin, where it took any teammate before.
+Invites are unchanged: any teammate sends one, and the invitee accepts or declines it. Removing a
+teammate is admin only and no longer needs team finding on. Joining by any method clears other
+pending offers and the solo listing, and leaving restores nothing. Organisers use
+`hack_fill_teams` with `body.apply:false`, show the plan and confirm, then `body.apply:true` to
+place approved solo people into teams with room, topped up to `body.size` (people per team,
+default `min(4, team_size_max)` now that the size cap defaults to 20), and new Team 1, Team 2
+groups of that size, avoiding name clashes and skipping locked teams. The apply plan uses
+current membership. `hack_update_event` still accepts `team_finding`: off hides the lists and
+pending offers and refuses new requests and invites, while codes, links, locking, admins and
+Fill teams keep working either way.
+
+REST paths under /v1/hack/events/{slug}/: `GET teams/open` · `PUT teams/{team}/lock` {locked}
+· `PUT teams/{team}/members/{user_id}/admin` {admin} · `POST teams/{team}/link` · `POST
+teams/{team}/requests` · `POST team/invites` {user_id} · `POST requests/{id}/{action}`
+(accept or decline) · `DELETE requests/{id}` · `DELETE team/members/{user_id}` · `POST
+teams/fill` {apply, size}. `GET /v1/hack/team-links/{code}` is public and never joins. Lists
+never appear on the public event page. A locked or full team cannot accept or invite.

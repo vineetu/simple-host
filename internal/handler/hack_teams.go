@@ -171,17 +171,18 @@ func (h *HackHandler) teamOrganiserJSON(ctx context.Context, team db.EventTeam) 
 	if err != nil {
 		return nil, err
 	}
-	return teamOrganiserJSONFrom(team, people), nil
+	return teamOrganiserJSONFrom(team, people, h.teamLinkURL(team.Code)), nil
 }
 
 // teamOrganiserJSONFrom is teamOrganiserJSON with the members already read.
-func teamOrganiserJSONFrom(team db.EventTeam, people []db.EventPerson) map[string]any {
+func teamOrganiserJSONFrom(team db.EventTeam, people []db.EventPerson, link string) map[string]any {
 	members := make([]map[string]any, 0, len(people))
 	for _, p := range people {
 		members = append(members, map[string]any{
 			"user_id":      p.UserID,
 			"email":        p.Email,
 			"display_name": p.DisplayName,
+			"admin":        p.Admin,
 		})
 	}
 	return map[string]any{
@@ -189,6 +190,9 @@ func teamOrganiserJSONFrom(team db.EventTeam, people []db.EventPerson) map[strin
 		"slug":       team.Slug,
 		"name":       team.Name,
 		"code":       team.Code,
+		"link":       link,
+		"locked":     team.Locked(),
+		"kept":       team.KeptAfterLeave,
 		"created_at": rfc3339Time(team.CreatedAt),
 		"members":    members,
 	}
@@ -218,7 +222,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	note, ok := checkHackLine(w, req.LookingFor, "looking_for", 0, 120)
+	note, ok := checkHackLine(w, stripInvisible(req.LookingFor), "looking_for", 0, 120)
 	if !ok {
 		return
 	}
@@ -305,11 +309,10 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if last == nil {
-			open := true
-			if req.Open != nil {
-				open = *req.Open
-			}
-			if _, err := tx.ExecContext(r.Context(), `UPDATE event_teams SET open=$2,looking_for=$3 WHERE id=$1`, team.ID, open, note); err != nil {
+			// Deprecated 2026-10-31: open is accepted for one release
+			// (req.Open parsed above, never read here) and documented
+			// deprecated in OpenAPI; event_teams.open is no longer written.
+			if _, err := tx.ExecContext(r.Context(), `UPDATE event_teams SET looking_for=$2 WHERE id=$1`, team.ID, note); err != nil {
 				writeInternal(w)
 				return
 			}
@@ -351,7 +354,7 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	code := normalizeHackCode(req.Code)
+	code := h.teamCodeFromInput(req.Code)
 	if code == "" {
 		writeHackErr(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
@@ -362,6 +365,21 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+	// Re-read fresh, inside the transaction: the pre-BEGIN check above only
+	// rejects an obviously-wrong request early, cheaply, before opening a
+	// transaction. lockEventStage locks the event row FOR SHARE first, ahead
+	// of JoinTeamByCode's own member-then-team locks below, keeping this on
+	// the same event -> member -> team order every other hack writer uses
+	// (Grok security review, 2026-11-01).
+	stage, err := lockEventStage(r.Context(), tx, a.event.ID)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	if !participantTeamStages(stage) {
+		writeHackErr(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
+		return
+	}
 	team, err := db.JoinTeamByCode(r.Context(), tx, a.event.ID, a.user.ID, code, a.event.TeamSizeMax)
 	if errors.Is(err, db.ErrHackTeamNotFound) {
 		writeHackErr(w, http.StatusNotFound, "team_not_found", "team not found")
@@ -369,6 +387,10 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 	}
 	if errors.Is(err, db.ErrHackTeamFull) {
 		writeHackErr(w, http.StatusConflict, "team_full", "this team is full")
+		return
+	}
+	if errors.Is(err, db.ErrHackTeamLocked) {
+		writeHackErr(w, http.StatusConflict, "team_locked", "this team isn't taking new people")
 		return
 	}
 	if errors.Is(err, db.ErrHackAlreadyInTeam) {
@@ -482,6 +504,10 @@ func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, http.StatusConflict, "team_full", "this team is full")
 		return
 	}
+	if errors.Is(err, db.ErrHackTeamKept) {
+		writeHackErr(w, http.StatusConflict, "team_kept", "this team can't take new members")
+		return
+	}
 	if errors.Is(err, db.ErrHackNotParticipant) || errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
@@ -554,17 +580,22 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	if participant {
-		if err = db.LockFindingEvent(r.Context(), tx, a.event.ID); err != nil {
-			findingError(w, err)
-			return
-		}
+		// Removing a teammate no longer needs team finding on (decision 10)
+		// -- only that the caller is this team's admin, checked fresh under
+		// the lock, never trusted from the event view. Lock order: both
+		// member rows (caller, then target), then the team row.
 		if _, err := tx.ExecContext(r.Context(), `SELECT 1 FROM event_members WHERE event_id=$1 AND user_id IN ($2,$3) ORDER BY user_id FOR UPDATE`, a.event.ID, a.user.ID, userID); err != nil {
 			writeInternal(w)
 			return
 		}
 		var teamID string
-		if err := tx.QueryRowContext(r.Context(), `SELECT team_id FROM event_members WHERE event_id=$1 AND user_id=$2 AND approval_status='approved' FOR UPDATE`, a.event.ID, a.user.ID).Scan(&teamID); err != nil {
-			findingError(w, db.ErrHackFindingForbidden)
+		var admin bool
+		if err := tx.QueryRowContext(r.Context(), `SELECT team_id, team_admin FROM event_members WHERE event_id=$1 AND user_id=$2 AND approval_status='approved'`, a.event.ID, a.user.ID).Scan(&teamID, &admin); err != nil {
+			writeEventNotFound(w)
+			return
+		}
+		if !admin {
+			writeHackErr(w, http.StatusForbidden, "team_admin_only", "only the team's admins can do that")
 			return
 		}
 		var slug string
@@ -708,17 +739,33 @@ func teamSlugCandidate(base string, n int) string {
 }
 
 // teamParticipantJSON is a team as a participant sees it: names only, never
-// anyone's email or account id.
+// anyone's email or account id. Re-reads the team row fresh (never trusting
+// a value the caller already had before its own write), so a rename or a
+// link rotation just committed by this same request shows up.
 func (h *HackHandler) teamParticipantJSON(ctx context.Context, team db.EventTeam, userID string) (map[string]any, error) {
+	if fresh, err := db.GetEventTeamByID(ctx, h.database, team.ID); err == nil {
+		team = fresh
+	}
 	people, err := db.ListTeamPeople(ctx, h.database, team.ID)
 	if err != nil {
 		return nil, err
 	}
 	members := make([]map[string]any, 0, len(people))
+	admin := false
 	for _, p := range people {
-		members = append(members, map[string]any{"display_name": p.DisplayName, "you": p.UserID == userID})
+		you := p.UserID == userID
+		if you && p.Admin {
+			admin = true
+		}
+		members = append(members, map[string]any{"display_name": p.DisplayName, "you": you, "admin": p.Admin})
 	}
-	return map[string]any{"slug": team.Slug, "name": team.Name, "code": team.Code, "members": members}, nil
+	var lookingFor string
+	_ = h.database.QueryRowContext(ctx, `SELECT looking_for FROM event_teams WHERE id = $1`, team.ID).Scan(&lookingFor)
+	return map[string]any{
+		"slug": team.Slug, "name": team.Name, "code": team.Code,
+		"link": h.teamLinkURL(team.Code), "admin": admin, "locked": team.Locked(), "kept": team.KeptAfterLeave,
+		"looking_for": lookingFor, "members": members,
+	}, nil
 }
 
 // rotateTeamCode gives a team a new code, so someone the organiser took off

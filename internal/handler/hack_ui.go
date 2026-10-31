@@ -74,6 +74,7 @@ func RegisterHackUI(mux *http.ServeMux) {
 		"GET /join/{code}",
 		"GET /judge/{code}",
 		"GET /organiser/{code}",
+		"GET /team/{code}", // public-team-link (teams redesign, 2026-10-31): served signed in or out, same as /join/{code}.
 	} {
 		mux.Handle(p, page)
 	}

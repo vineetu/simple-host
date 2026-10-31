@@ -199,7 +199,13 @@ export const ERROR_MESSAGES = {
   name_taken: 'That name is already in use.',
   name_check_unavailable: 'Could not check whether this name is free. Try again.',
   answer_required: 'Answer every required question.',
-  invalid_answers: "Something in that request wasn't right. Reload and try again."
+  invalid_answers: "Something in that request wasn't right. Reload and try again.",
+  // Teams redesign (2026-10-31): admins, locking, the team link.
+  team_admin_only: "Only the team's admins can do that.",
+  team_locked: "This team isn't taking new people.",
+  last_team_admin: 'Make someone else admin first.',
+  team_kept: "This team can't take new members.",
+  team_link_not_found: "That link or code doesn't match a team in this event."
 }
 // errText mirrors hack-app.html's errText: without `codes`, the server's own
 // message (every hack.go / hack_*.go refusal already writes a plain

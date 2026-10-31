@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/mail"
+	"net/url"
 	"strings"
 	"time"
 	"unicode"
@@ -200,7 +201,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	mux.Handle("DELETE /v1/hack/events/{slug}/people/{user_id}", wrap(h.removePerson))
 	mux.Handle("GET /v1/hack/events/{slug}/teams", wrap(h.listTeams))
 	mux.Handle("GET /v1/hack/events/{slug}/teams/open", wrap(h.listOpenTeams))
-	mux.Handle("PUT /v1/hack/events/{slug}/team/finding", wrap(h.setTeamFinding))
+	mux.Handle("PUT /v1/hack/events/{slug}/team/finding", wrap(h.setTeamFinding)) // deprecated, one release
 	mux.Handle("PUT /v1/hack/events/{slug}/me/looking", wrap(h.setLooking))
 	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/requests", wrap(h.createTeamRequest))
 	mux.Handle("POST /v1/hack/events/{slug}/team/invites", wrap(h.createTeamRequest))
@@ -214,6 +215,15 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/members", wrap(h.moveMember))
 	mux.Handle("DELETE /v1/hack/events/{slug}/teams/{team}/members/{user_id}", wrap(h.removeTeamMember))
 	mux.Handle("DELETE /v1/hack/events/{slug}/teams/{team}", wrap(h.deleteTeam))
+	// Teams redesign (owner 2026-10-31): team admins, locking, the team link.
+	mux.Handle("PATCH /v1/hack/events/{slug}/team", wrap(h.patchTeam))
+	mux.Handle("PUT /v1/hack/events/{slug}/team/lock", wrap(h.setMyTeamLock))
+	mux.Handle("PUT /v1/hack/events/{slug}/team/members/{user_id}/admin", wrap(h.setMyTeammateAdmin))
+	mux.Handle("POST /v1/hack/events/{slug}/team/link", wrap(h.newMyTeamLink))
+	mux.Handle("PUT /v1/hack/events/{slug}/teams/{team}/lock", wrap(h.lockOrganiserTeam))
+	mux.Handle("PUT /v1/hack/events/{slug}/teams/{team}/members/{user_id}/admin", wrap(h.setOrganiserTeamAdmin))
+	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/link", wrap(h.newOrganiserTeamLink))
+	mux.Handle("GET /v1/hack/team-links/{code}", http.HandlerFunc(h.getTeamLink))
 	mux.Handle("GET /v1/hack/join/{code}", http.HandlerFunc(h.getJoin))
 	mux.Handle("POST /v1/hack/join/{code}", wrap(h.postJoin))
 	mux.Handle("GET /v1/hack/judge/{code}", http.HandlerFunc(h.getJudge))
@@ -280,6 +290,12 @@ func (h *HackHandler) joinURL(code string) string {
 
 func (h *HackHandler) judgeURL(code string) string {
 	return h.publicBaseURL + "/judge/" + code
+}
+
+// teamLinkURL is https://<hack host>/team/<code>: instant join, never event
+// admission (checked at GET /v1/hack/team-links/{code} and at join).
+func (h *HackHandler) teamLinkURL(code string) string {
+	return h.publicBaseURL + "/team/" + code
 }
 
 func (h *HackHandler) manageURL(slug string) string {
@@ -877,6 +893,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 				"emailable_participants": emailable,
 			},
 		}
+		body["next_step"] = nextStepJSON(ev, resultState, participants)
 	}
 	if member.Role == "participant" {
 		if status, err := db.MemberApprovalStatus(ctx, h.database, ev.ID, member.UserID); err == nil {
@@ -884,6 +901,42 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 		}
 	}
 	return body
+}
+
+// nextStepJSON is the Overview's one forward move: the server computes it so
+// the website and AI apps agree (parity rule 2026-10-27). kind is "stage"
+// (set stage to the given stage), "publish_results" (POST .../results/publish
+// {}) or "none" (archived: no button). blocked is nil or
+// "archive_needs_participants" (End with nobody in the event): the button
+// still shows, disabled, pointing to Settings -> Delete.
+func nextStepJSON(ev db.Event, results db.EventResultsRow, participants int) map[string]any {
+	step := func(stage, label string, deadlinePassed bool, blocked any) map[string]any {
+		return map[string]any{"kind": "stage", "stage": stage, "label": label, "deadline_passed": deadlinePassed, "blocked": blocked}
+	}
+	switch ev.Stage {
+	case "draft":
+		return step("open", "Open sign-up", false, nil)
+	case "open":
+		return step("building", "Start building", false, nil)
+	case "building":
+		deadlinePassed := ev.SubmissionDeadline.Valid && !ev.SubmissionDeadline.Time.After(time.Now())
+		return step("closed", "Close entries", deadlinePassed, nil)
+	case "closed":
+		return step("judging", "Start judging", false, nil)
+	case "judging":
+		return step("results", "Finish judging", false, nil)
+	case "results":
+		if !results.Published {
+			return map[string]any{"kind": "publish_results", "stage": "", "label": "Publish results", "deadline_passed": false, "blocked": nil}
+		}
+		var blocked any
+		if participants == 0 {
+			blocked = "archive_needs_participants"
+		}
+		return step("archived", "End event", false, blocked)
+	default: // archived
+		return map[string]any{"kind": "none", "stage": "", "label": "", "deadline_passed": false, "blocked": nil}
+	}
 }
 
 func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMember) map[string]any {
@@ -928,19 +981,54 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 		return me
 	}
 	members := make([]map[string]any, 0, len(people))
+	var youAdmin bool
+	admins := 0
 	for _, p := range people {
+		you := p.UserID == member.UserID
+		if p.Admin {
+			admins++
+			if you {
+				youAdmin = true
+			}
+		}
 		members = append(members, map[string]any{
 			"user_id":      p.UserID,
 			"display_name": p.DisplayName,
-			"you":          p.UserID == member.UserID,
+			"you":          you,
+			"admin":        p.Admin,
 		})
 	}
+	var lookingFor string
+	_ = h.database.QueryRowContext(ctx, `SELECT looking_for FROM event_teams WHERE id = $1`, team.ID).Scan(&lookingFor)
 	t := map[string]any{
-		"slug":    team.Slug,
-		"name":    team.Name,
-		"code":    team.Code,
-		"members": members,
-		"site":    h.teamSiteJSON(ctx, ev, team),
+		"slug":        team.Slug,
+		"name":        team.Name,
+		"code":        team.Code,
+		"link":        h.teamLinkURL(team.Code),
+		"admin":       youAdmin,
+		"locked":      team.Locked(),
+		"kept":        team.KeptAfterLeave,
+		"looking_for": lookingFor,
+		"members":     members,
+		"site":        h.teamSiteJSON(ctx, ev, team),
+	}
+	// admin_successor: shown only when the caller is the team's one admin and
+	// others remain, so they know who takes over if they leave or step down
+	// (EnsureTeamAdmin's own tie-break: longest-standing, then user_id;
+	// NULLS LAST, so a row with no team_joined_at never jumps the queue --
+	// Grok security review, 2026-11-01).
+	if youAdmin && admins == 1 {
+		var successor string
+		if err := h.database.QueryRowContext(ctx, `
+			SELECT display_name FROM event_members WHERE team_id = $1 AND user_id <> $2
+			 ORDER BY team_joined_at NULLS LAST, user_id LIMIT 1`, team.ID, member.UserID).Scan(&successor); err == nil {
+			t["admin_successor"] = successor
+		}
+	}
+	if youAdmin {
+		var pending int
+		_ = h.database.QueryRowContext(ctx, `SELECT COUNT(*) FROM event_team_requests WHERE team_id = $1 AND kind = 'request'`, team.ID).Scan(&pending)
+		t["pending_requests"] = pending
 	}
 	if track, err := db.TeamTrack(ctx, h.database, team.ID); err == nil {
 		t["track"] = track
@@ -1377,6 +1465,17 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		if err := db.UnpinReopened(r.Context(), tx, a.event.ID); err != nil {
 			writeInternal(w)
 			return
+		}
+		// Moving to results locks judging in the same transaction, when it
+		// is not locked already: Results already stops scoring
+		// (scoringStage), and locking here removes the dead end where the
+		// Results screen refused to publish an unlocked event. Moving back
+		// to judging leaves the lock on; the stage picker says so.
+		if stage == "results" && current != "results" {
+			if updated, err = db.SetJudgingLock(r.Context(), tx, a.event.ID, true, ""); err != nil {
+				writeInternal(w)
+				return
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -2023,6 +2122,48 @@ func normalizeHackCode(s string) string {
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+// teamCodeFromInput accepts either a bare team code or a pasted team link
+// (https://<hack host>/team/<code>): when s parses as a URL on this host,
+// or simply contains "/team/" (a bare path, or a link previewed/pasted
+// before TLS terms are known), the last path segment is taken as the code.
+// Either way the result is normalised like any other code, so a link and
+// its code land on the same team.
+func (h *HackHandler) teamCodeFromInput(s string) string {
+	s = strings.TrimSpace(s)
+	useLastSegment := strings.Contains(s, "/team/")
+	if !useLastSegment {
+		if u, err := url.Parse(s); err == nil && u.Host != "" && strings.EqualFold(u.Host, h.teamLinkHost()) {
+			useLastSegment = true
+		}
+	}
+	if useLastSegment {
+		// Strip the query/fragment before trimming trailing slashes, not
+		// after: ".../abcd1234/?source=chat" has no trailing slash to trim
+		// yet, but removing "?source=chat" first leaves one behind
+		// (".../abcd1234/"), which then makes the last segment empty
+		// unless it is trimmed too (Codex review, 2026-11-01).
+		trimmed := s
+		if i := strings.IndexAny(trimmed, "?#"); i >= 0 {
+			trimmed = trimmed[:i]
+		}
+		trimmed = strings.TrimRight(trimmed, "/")
+		if i := strings.LastIndex(trimmed, "/"); i >= 0 {
+			s = trimmed[i+1:]
+		} else {
+			s = trimmed
+		}
+	}
+	return normalizeHackCode(s)
+}
+
+// teamLinkHost is the host team links are served from.
+func (h *HackHandler) teamLinkHost() string {
+	if u, err := url.Parse(h.publicBaseURL); err == nil {
+		return u.Host
+	}
+	return ""
 }
 
 func participantTeamStages(stage string) bool {

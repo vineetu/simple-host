@@ -48,22 +48,30 @@ The event's stable public page is `https://simple-hack.app/e/{slug}` and the par
 Join, application status, and team status results omit publishing key metadata. `hack_get_team_key` returns `key: null` when no key exists, or an object when one exists, without its suffix or timestamps. Use team site status and deadlines to check publishing availability.
 
 
-Team finding (SIM-225): private to approved participants and organisers, on by default.
-Use hack_list_open_teams to read open team rosters, solo listings and pending offers;
-hack_ask_to_join, hack_invite_to_team, hack_accept_team_request,
-hack_decline_team_request and hack_withdraw_team_request handle requests/invites.
-hack_set_team_finding sets open and looking_for (one line, max 120 characters);
-hack_set_looking sets looking and intro (one line, max 120 characters).
-hack_create_team accepts optional open (default true) and looking_for.
-hack_remove_teammate removes another teammate after confirmation. Use hack_leave_team for yourself.
-Joining by any method clears other pending offers and the solo listing; leaving restores nothing.
-Organisers use hack_fill_teams with body.apply:false, show the plan and confirm,
-then body.apply:true to place approved solo people into open teams with room and
-new Team 1, Team 2 groups up to the event maximum, avoiding name clashes.
-The apply plan uses current membership. hack_update_event accepts team_finding.
-Off hides stored pending offers and refuses finding actions; team codes still work.
-REST paths under /v1/hack/events/{slug}/: GET teams/open; PUT team/finding
-{open,looking_for}; PUT me/looking {looking,intro}; POST teams/{team}/requests;
-POST team/invites {user_id}; POST requests/{id}/{action} (accept or decline);
-DELETE requests/{id}; DELETE team/members/{user_id}; POST teams/fill {apply}.
-Lists never appear on the public event page. Full teams cannot accept or invite.
+Teams (redesigned 2026-10-31): the creator is a team's first admin. Admins approve or decline
+join requests, lock or unlock the team, rename it, edit its looking-for note, remove members,
+make or remove other admins, and roll a new link. `hack_create_team` no longer takes `open`.
+Admin-only tools: `hack_update_my_team` (name, looking_for), `hack_lock_my_team` (locked,
+clears pending requests and invites on lock), `hack_set_teammate_admin` (admin), and
+`hack_new_my_team_link` (rolls a new code and link at once, so use it only after confirming).
+The last admin can't be unmade until someone else is one. Every team has a link,
+`https://<hack host>/team/<code>`, read with `hack_preview_team_link` before joining.
+`hack_join_team`'s `code` takes a bare code or the whole link.
+
+Team finding (SIM-225, private to approved participants and organisers, on by default) still
+covers finding a team to join. `hack_list_open_teams` lists every unlocked team (each with a
+`full` flag), opted-in solo people, and pending requests and invites. There is no "who can
+join" choice on a team any more: a team that used to be code-only simply appears in this list
+too. `hack_ask_to_join`, `hack_invite_to_team`, `hack_accept_team_request` and
+`hack_decline_team_request` handle requests and invites, though accepting or declining a
+request now needs a team admin. Invites stay any teammate's to send and the invitee's own to
+accept or decline. `hack_withdraw_team_request` is unchanged. `hack_remove_teammate` is admin
+only. `hack_set_team_finding` is gone, replaced by `hack_update_my_team`. Joining by any
+method clears other pending offers and the solo listing. Leaving restores nothing.
+
+REST paths under /v1/hack/events/{slug}/: `GET teams/open` · `PATCH team` {name, looking_for}
+· `PUT team/lock` {locked} · `PUT team/members/{user_id}/admin` {admin} · `POST team/link` ·
+`PUT me/looking` {looking, intro} · `POST teams/{team}/requests` · `POST team/invites`
+{user_id} · `POST requests/{id}/{action}` · `DELETE requests/{id}` · `DELETE
+team/members/{user_id}`. `GET /v1/hack/team-links/{code}` is public and never joins on a plain
+read. Lists never appear on the public event page. A locked or full team refuses every way in.

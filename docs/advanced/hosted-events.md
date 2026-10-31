@@ -14,7 +14,7 @@ keep one account from flooding the server, and every one is an environment setti
 | `EVENT_CREATE_PER_DAY` | `3` | 1–1000 events | Hosted events (EVENTS=hosted): events one account may create in a rolling day. |
 | `EVENT_MAX_ACTIVE_PER_ORGANISER` | `2` | 1–1000 events | Hosted events: events one account may run at once (every stage but archived). |
 | `EVENT_APPLY_PENDING_PER_EVENT` | `500` | 1–100000 applications | Hosted events: applications one event may have waiting for a decision at once, apart from the per-account pending cap. |
-| `EVENT_TEAM_SIZE_DEFAULT` | `4` | 1–50 people | Hosted events: the team size cap a new event starts with; the organiser changes it. |
+| `EVENT_TEAM_SIZE_DEFAULT` | `20` | 1–50 people | Hosted events: the team size cap a new event starts with; the organiser changes it. |
 | `EVENT_SITES_KEEP_DAYS` | `30` | 1–3650 days | Hosted events: how long team sites stay up after an event closes, before they are removed (the organiser is warned by email first). The event page and results stay. |
 | `EVENT_REMOVAL_WARN_DAYS` | `14` | 1–3650 days | Hosted events: how long before team sites are removed the organiser is warned by email, once. The event page and results stay. |
 | `HACK_INSTANCE_BUDGET_GB` | `10` | 0–100000 GB | Hosted events: disk the whole instance may use for team sites; new events are refused above 80% of it. 0: no budget. |

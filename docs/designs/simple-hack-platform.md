@@ -420,3 +420,42 @@ page, directory/Your events cards and fallback letter-in-circle icon use it.
 The Event page tab offers Automatic and the seven crayons. Text accents are
 darkened on paper and lifted on night paper for AA contrast; icon letters use
 light or dark ink. Lists keep stable varied colours across visits.
+
+### Overview next step, the shared stage bar, and teams redesign (2026-10-31)
+
+| Route | Who | What |
+|---|---|---|
+| `PATCH /v1/hack/events/{slug}/team` | team admin | Rename the team or edit its looking-for note |
+| `PUT /v1/hack/events/{slug}/team/lock` | team admin | Lock or unlock the team, clearing its pending requests and invites on lock |
+| `PUT /v1/hack/events/{slug}/team/members/{user_id}/admin` | team admin | Make or remove a teammate's admin status |
+| `POST /v1/hack/events/{slug}/team/link` | team admin | Roll a new team code and link, invalidating the old one |
+| `PUT /v1/hack/events/{slug}/teams/{team}/lock` | organiser | Same lock, by team slug |
+| `PUT /v1/hack/events/{slug}/teams/{team}/members/{user_id}/admin` | organiser | Same admin change, by team slug |
+| `POST /v1/hack/events/{slug}/teams/{team}/link` | organiser | Same new link, by team slug |
+| `GET /v1/hack/team-links/{code}` | anyone | Preview a team by its code or link, signed in or out, without joining |
+
+The organiser event view and `hack_get_event` gain `next_step`: the forward move the
+Overview's one button now performs for the event's current stage, computed server-side so the
+website and AI apps agree (`{kind, stage, label, deadline_passed, blocked}`, `kind` one of
+`stage`, `publish_results` or `none`). `POST /v1/hack/events/{slug}/stage` with
+`{"stage":"results"}` now sets `judging_locked_at` in the same transaction when it was not
+already set, closing the earlier dead end where the Results screen refused to publish an
+unlocked event. Change stage stays in the header for moving back a stage, and the danger-zone
+End still exists for ending early. Every role's top bar now shows the same stage pill and words
+(`ui.stages`), with the stage track added to the participant's and judge's own home screen to
+match the organiser's Overview, and a second pill for a judge's own scoring state.
+
+Teams gain admins. The creator is a team's first admin, and admins approve or decline join
+requests, lock or unlock the team, rename it, edit its looking-for note, remove members, and
+make or remove other admins, with a new link to roll when they need one. The last admin can't
+be unmade or removed until someone else is one. When an admin leaves, is removed, or is moved
+off, the longest-standing remaining member (`event_members.team_joined_at`, then `user_id`)
+succeeds them in the same transaction as that departure. `event_teams.open` ("who can join")
+is read by nobody any more, so a once code-only team simply becomes askable, and the column
+stays unused for a release before a follow-up migration drops it. A locked team refuses every
+way in: request, invite, code or link all fail except for organiser hand placement, and
+locking clears its pending requests and invites. A team kept after its last member left
+(`kept_after_leave`) gets the same `locked` state for good. Neither an unlock nor an organiser
+placement is allowed on it. `team_size_max` now defaults to 20, raised once on migration for
+any event already below it. Fill teams takes a `size` (people per team, default
+`min(4, team_size_max)`) rather than filling every team to the event's cap.

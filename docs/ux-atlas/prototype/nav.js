@@ -70,7 +70,7 @@ window.PROTO = {
     "icon": "team",
     "phone_tab": false,
     "badge": null,
-    "stage_rule": "Always shown. Fill teams and team-finding controls disable once the event passes Building, with a note why."
+    "stage_rule": "Always shown. Fill teams and team-finding controls disable once the event passes Building, with a note why. Badge: people not on a team, from Open through Building."
    },
    {
     "id": "entries",
@@ -138,7 +138,7 @@ window.PROTO = {
     "short": "Team",
     "phone_tab": true,
     "badge": "1",
-    "stage_rule": "Team finding (start/join/browse) shows Open through Building. From Closed on, the team panel is read-only; who's on the team still shows."
+    "stage_rule": "Shown Open through Ended. No team: the ways onto a team (Open through Building). On a team: Members, Find people and Settings sub-pages, read-only once the team's deadline passes or entries close. Badge: pending join requests, shown to team admins only."
    },
    {
     "id": "entry",
