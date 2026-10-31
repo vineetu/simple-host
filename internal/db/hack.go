@@ -1045,7 +1045,7 @@ func RemovePersonFromEvent(ctx context.Context, q Querier, eventID, userID strin
 			return err
 		}
 	}
-	_, err = LeaveMembership(ctx, q, eventID, userID)
+	_, err = LeaveMembership(ctx, q, eventID, userID, false)
 	return err
 }
 

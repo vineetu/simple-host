@@ -103,6 +103,7 @@ run "connector codes"     "SELECT client_id, user_id, redirect_uri, code_challen
 run "connector tokens"    "SELECT t.kind, t.expires_at, g.user_id FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id WHERE t.token_hash='x'"
 run "storage presets"     "SELECT name, kind, read_policy, write_policy, site_passcode, write_mode, acc_read, acc_add, acc_edit, acc_delete, preset_base FROM site_storage_resources WHERE site_id = '00000000-0000-0000-0000-000000000000'"
 run "storage table presets" "SELECT table_name, acc_read, acc_add, acc_edit, acc_delete, preset_base FROM site_storage_tables WHERE site_id = '00000000-0000-0000-0000-000000000000'"
+run "team kept-after-leave marker" "SELECT kept_after_leave FROM event_teams WHERE id = '$NIL'"
 
 # An existing box upgrades by running `simple-host migrate`. Prove, on its own
 # throwaway database and role (the Go test connects over TCP with a password):

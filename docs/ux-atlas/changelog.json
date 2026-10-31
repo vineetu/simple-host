@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-10-31",
+  "what": "Leave this event widened twice (SIM-340, owner decisions 2026-10-31): past a team's deadline, or once the event is closed, judging or results, leaving no longer refuses -- it just stops touching the team, its entry, its site and its scores, even for the last member, instead of deleting an emptied team or blocking the leave outright; the preview and confirm say so ('<team>'s entry and site stay as they are... you can't rejoin this team'), and the participant-home leave-blocked state is gone for participants (an ended event still refuses everyone). Separately, a rejected applicant can now leave too, deleting their row exactly like a pending applicant's withdraw, with no special refusal and no extra machinery stopping them from applying again -- the Home row menu and the pending/rejected locked view both offer it. Judging, the judge queue, the results snapshot and the organiser's auto-assignment all keep listing a frozen, now-empty team exactly as before, so results and ranks never move."
+ },
+ {
+  "date": "2026-10-31",
   "what": "Fixes from Grok's fourth production test (SIM-346): the public event page tells a pending applicant their application is waiting for the organisers, with a way to see it, and a rejected one that it wasn't accepted, instead of both reading 'You've already joined'; a signed-in visitor who isn't a member of the event no longer sees 'Already joined? Sign in'; the vote page explains 'No teams to vote for yet' instead of going blank when no team has a live site yet; the judge 'I know someone' confirm names the team (not the entry title), matching the undo dialog, and only mentions a score stopping when the judge actually scored that team; Results no longer shows an empty Publish card once there is nothing to show under it; country names fall back to English when the browser's own locale tag is one Intl.DisplayNames can't parse (e.g. 'en-US@posix'), instead of falling all the way to the bare code; People -> Everyone reads a pending applicant's date as 'Applied', not 'Joined'."
  },
  {

@@ -450,20 +450,22 @@ async function route() {
       // exist -- say where the answer actually appears instead (same copy
       // for an application and a join-link sign-up, spec.json
       // participant-home "pending / rejected approval").
-      // Withdraw (SIM-340): a pending applicant can take their application
-      // back; a rejected one gets no button at all (the decision stays on
-      // record) -- copy-deck.md's "Pending applicant" section. Archived
-      // takes precedence over pending (Codex review, SIM-340): the server
-      // refuses a withdraw on an ended event (409 event_closed) same as any
-      // other leave, so the control must show that reason, disabled, rather
-      // than an action that can only fail.
+      // Withdraw/leave (SIM-340, widened by owner decision 2026-10-31): a
+      // pending applicant withdraws; a rejected one can now leave too --
+      // same mechanics (their row is deleted like a withdraw), so they can
+      // apply again later and the organiser decides again. Archived takes
+      // precedence over either (Codex review, SIM-340): the server refuses
+      // on an ended event (409 event_closed) same as any other leave, so
+      // the control must show that reason, disabled, rather than an action
+      // that can only fail.
       const ended = event.event.stage === 'archived'
-      const withdrawZone = !pending ? '' : `<section class="danger-zone"><h2>Withdraw your application</h2><div class="setting"><div class="t"><span>${ended ? 'This event has ended, so you can’t withdraw. It stays on your Home as a record.' : 'The organisers stop seeing it, along with your answers. You can apply again while sign-up is open.'}</span></div><button class="btn danger" type="button" id="withdraw-btn"${ended ? ' disabled' : ''}>Withdraw application</button></div></section>`
+      const leaveCopy = ended
+        ? (pending ? 'This event has ended, so you can’t withdraw. It stays on your Home as a record.' : 'This event has ended, so nobody can leave it. It stays on your Home as a record.')
+        : (pending ? 'The organisers stop seeing it, along with your answers. You can apply again while sign-up is open.' : 'Your answers are removed. You can apply again while sign-up is open, and the organisers decide again.')
+      const withdrawZone = `<section class="danger-zone"><h2>${pending ? 'Withdraw your application' : 'Leave this event'}</h2><div class="setting"><div class="t"><span>${leaveCopy}</span></div><button class="btn danger" type="button" id="withdraw-btn"${ended ? ' disabled' : ''}>${pending ? 'Withdraw application' : 'Leave event'}</button></div></section>`
       ctx.main.innerHTML = `<div class="locked"><h2>${pending ? 'Your application is waiting for the organisers' : "Your application wasn't accepted this time"}</h2><p>${pending ? "You'll see their answer here. Ask them if you have questions." : 'Ask an organiser if you have questions.'}</p></div>${withdrawZone}`
-      if (pending) {
-        const btn = ctx.main.querySelector('#withdraw-btn')
-        if (btn) btn.addEventListener('click', () => openLeave({ api, ui, slug: event.event.slug, title: event.event.title, from: 'pending' }))
-      }
+      const btn = ctx.main.querySelector('#withdraw-btn')
+      if (btn) btn.addEventListener('click', () => openLeave({ api, ui, slug: event.event.slug, title: event.event.title, from: pending ? 'pending' : 'rejected' }))
       return
     }
     let screen

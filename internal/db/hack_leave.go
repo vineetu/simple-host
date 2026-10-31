@@ -62,27 +62,25 @@ func OtherEventOrganisers(ctx context.Context, q Querier, eventID, userID string
 	return out, rows.Err()
 }
 
-// TeamFrozenForLeave reports whether a participant's team is past the point
-// where Leave this event refuses to change it: the event stage is no longer
-// draft, open or building, or the team's effective deadline has passed
-// (SIM-340 -- wider than LeaveTeam's own freeze, which runs only from open
-// or building and never considers draft). lock=true takes FOR UPDATE OF t,
-// the last step of POST .../leave's event/member/team lock order; GET
-// .../leave's preview passes false (Grok security review, SIM-340) -- a
-// write lock from a read-only request, held for the rest of that one
-// statement, has no reason to block a deploy or a teammate's team write for
-// however long the preview's other queries and JSON encoding take.
-func TeamFrozenForLeave(ctx context.Context, q Querier, teamID string, lock bool) (bool, error) {
-	query := `
-		SELECT e.stage NOT IN ('draft', 'open', 'building')
-		    OR COALESCE(` + EffectiveDeadlineSQL + ` <= clock_timestamp(), false)
-		  FROM event_teams t JOIN events e ON e.id = t.event_id WHERE t.id = $1`
-	if lock {
-		query += ` FOR UPDATE OF t`
-	}
-	var frozen bool
-	err := q.QueryRowContext(ctx, query, teamID).Scan(&frozen)
-	return frozen, err
+// TeamKeptIfEmptied reports whether, if leaving emptied this team right now,
+// it would be kept rather than deleted. This is NOT (TeamKeepableSQL) --
+// exactly, literally, the predicate deleteTeamIfEmpty itself uses -- so
+// GET .../leave's preview can never promise more than POST .../leave
+// actually does (Codex review, SIM-340, P1: a stage transition to closed
+// forces events.submission_deadline to now, but a team's own
+// deadline_override extension survives that and can still be in the
+// future, so "stage NOT IN (draft, open, building)" and "not keepable" are
+// NOT the same condition -- a team with a live extension previews as
+// frozen under the old stage-based check but was still deletable-if-empty
+// under the write path's real check). Using stage or the raw deadline here
+// instead of TeamKeepableSQL itself is exactly the bug that let the
+// preview and the write disagree.
+func TeamKeptIfEmptied(ctx context.Context, q Querier, teamID string) (bool, error) {
+	var kept bool
+	err := q.QueryRowContext(ctx, `
+		SELECT NOT (`+TeamKeepableSQL+`)
+		  FROM event_teams t JOIN events e ON e.id = t.event_id WHERE t.id = $1`, teamID).Scan(&kept)
+	return kept, err
 }
 
 // LeaveMembership is the shared core of a person losing their event
@@ -97,7 +95,16 @@ func TeamFrozenForLeave(ctx context.Context, q Querier, teamID string, lock bool
 // -- plus unsent mail queued for this person in this event, so leaving (or
 // being removed) stops an announcement or an entry receipt from going out
 // after the fact. Returns the team id they left, empty when they were on none.
-func LeaveMembership(ctx context.Context, q Querier, eventID, userID string) (string, error) {
+//
+// selfLeave is true only for POST .../leave (never for RemovePersonFromEvent):
+// when it empties a team that deleteTeamIfEmpty kept instead of deleting,
+// that team's kept_after_leave is set (Codex review, SIM-340, P2). This is
+// deliberately narrower than "every team NOT TeamKeepableSQL" -- a team an
+// organiser emptied with Remove person stays excluded from judging, results
+// and dashboards exactly as it always was; only a team THIS feature kept
+// reappears there. Changing that for Remove person too is a separate owner
+// decision, not implied by widening self-leave.
+func LeaveMembership(ctx context.Context, q Querier, eventID, userID string, selfLeave bool) (string, error) {
 	m, err := lockMember(ctx, q, eventID, userID)
 	if err != nil {
 		return "", err
@@ -134,7 +141,24 @@ func LeaveMembership(ctx context.Context, q Querier, eventID, userID string) (st
 	if err := deleteTeamIfEmpty(ctx, q, m.TeamID.String); err != nil {
 		return "", err
 	}
+	if selfLeave {
+		if err := markTeamKeptAfterLeave(ctx, q, m.TeamID.String); err != nil {
+			return "", err
+		}
+	}
 	return m.TeamID.String, nil
+}
+
+// markTeamKeptAfterLeave sets kept_after_leave on a team LeaveMembership's own
+// deleteTeamIfEmpty call just kept instead of deleting: true only once the
+// row still exists (it wasn't keepable, so deleteTeamIfEmpty's DELETE did not
+// match it) and has no members. A no-op, not an error, when the team was
+// deleted instead (0 rows match) or still has someone on it.
+func markTeamKeptAfterLeave(ctx context.Context, q Querier, teamID string) error {
+	_, err := q.ExecContext(ctx, `
+		UPDATE event_teams SET kept_after_leave = true
+		 WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM event_members WHERE team_id = $1)`, teamID)
+	return err
 }
 
 // RecordFormerJudge preserves every team a leaving judge or judging organiser
@@ -226,12 +250,16 @@ func ListFormerJudges(ctx context.Context, q Querier, eventID string) ([]FormerJ
 // former judge would be assigned under the event's current mode, ignoring
 // that their role is gone -- the same universe a current judge's
 // assigned_count counts (dashboard display only; EligibleJudgeTeams keeps the
-// authoritative, frozen set that actually counts toward totals).
+// authoritative, frozen set that actually counts toward totals). The
+// membership/kept_after_leave population here must match ListTeamsWithMembers
+// exactly (Codex review, SIM-340, P2 follow-on): otherwise a scored team a
+// leave kept empty shows 1 counted team but 0 assigned on the dashboard,
+// since this count dropped it while ListTeamsWithMembers kept it.
 func FormerJudgeAssignedCount(ctx context.Context, q Querier, eventID, judgeID string) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM event_teams t JOIN events e ON e.id = t.event_id
-		 WHERE e.id = $1 AND EXISTS (SELECT 1 FROM event_members em WHERE em.team_id = t.id)
+		 WHERE e.id = $1 AND (EXISTS (SELECT 1 FROM event_members em WHERE em.team_id = t.id) OR t.kept_after_leave)
 		   AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id = e.id AND c.judge_id = $2 AND c.team_id = t.id)
 		   AND (e.judge_assignment_mode = 'open'
 		    OR (e.judge_assignment_mode IN ('automatic', 'manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id = e.id AND a.judge_id = $2 AND a.team_id = t.id))

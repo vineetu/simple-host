@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 	"testing"
+	"time"
 )
 
 // Leave this event (SIM-340). The harness is newHackApp (DB_DSN), same as
@@ -205,7 +206,10 @@ func TestHackLeaveLoneParticipantDeletesTeam(t *testing.T) {
 	}
 }
 
-// --- 3: frozen team, and a teamless participant in a late stage -----------
+// --- 3: frozen team with a teammate, and a teamless participant in a late
+// stage. Owner decision 2026-10-31: past the deadline leaving is still
+// allowed -- it just never deletes, empties-and-keeps or otherwise changes
+// the team, its entry, its site or its scores. -----------------------------
 
 func TestHackLeaveParticipantFrozenAndTeamless(t *testing.T) {
 	a := newHackApp(t)
@@ -217,14 +221,40 @@ func TestHackLeaveParticipantFrozenAndTeamless(t *testing.T) {
 	join, _ := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, p1, "Ayu")
 	a.joinParticipant(t, join, p2, "Nadia")
-	_, code := a.createTeamAndJoin(t, slug, p1, "FrozenTeam")
+	teamID, code := a.createTeamAndJoin(t, slug, p1, "FrozenTeam")
 	a.joinTeamByCode(t, slug, code, p2)
 
 	if _, err := a.database.Exec(`UPDATE events SET submission_deadline = now() - interval '1 hour' WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	wantHackErr(t, "frozen team", a.leave(t, slug, p1, map[string]any{"confirm": slug}), 409, "submissions_closed",
-		"your team's deadline has passed, so your team can't change and you can't leave. Ask an organiser")
+
+	prev := a.previewLeave(t, slug, p1).json(t)
+	if prev["allowed"] != true || prev["blocked"] != nil {
+		t.Fatalf("frozen preview should not be blocked: %v", prev)
+	}
+	team := prev["team"].(map[string]any)
+	if team["frozen"] != true || team["deleted_on_leave"] != false || team["others_count"] != float64(1) {
+		t.Fatalf("frozen preview team: %v", team)
+	}
+
+	out := a.leave(t, slug, p1, map[string]any{"confirm": slug}).json(t)
+	if out["left"] != true || out["case"] != "participant" || out["team_deleted"] != false {
+		t.Fatalf("frozen leave: %v", out)
+	}
+	p1ID := a.userID(t, p1)
+	if a.isMember(t, slug, p1ID) {
+		t.Fatal("p1 should no longer be a member")
+	}
+	if !a.isMember(t, slug, a.userID(t, p2)) {
+		t.Fatal("p2 should remain a member")
+	}
+	var stillTeam bool
+	if err := a.database.QueryRow(`SELECT EXISTS (SELECT 1 FROM event_teams WHERE id=$1)`, teamID).Scan(&stillTeam); err != nil {
+		t.Fatal(err)
+	}
+	if !stillTeam {
+		t.Fatal("frozen team must survive leaving even past the deadline")
+	}
 
 	// A teamless participant is never frozen by the team deadline: move them
 	// to Judging and confirm they can still leave.
@@ -240,15 +270,207 @@ func TestHackLeaveParticipantFrozenAndTeamless(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	out := a.leave(t, slug, p3, map[string]any{"confirm": slug}).json(t)
-	if out["left"] != true || out["case"] != "participant" {
-		t.Fatalf("teamless leave: %v", out)
+	outTeamless := a.leave(t, slug, p3, map[string]any{"confirm": slug}).json(t)
+	if outTeamless["left"] != true || outTeamless["case"] != "participant" {
+		t.Fatalf("teamless leave: %v", outTeamless)
 	}
 }
 
-// --- 5/6: pending applicant withdraws, rejected is refused -----------------
+// --- 4: frozen lone member keeps the team, entry and scores, with the
+// published snapshot's totals and ranks identical before and after -- the
+// case the ListTeamsWithMembers fix exists for: a frozen team emptied by its
+// last member leaving must still be judged and ranked exactly as if they
+// hadn't left. ----------------------------------------------------------
 
-func TestHackLeaveApplicantWithdrawAndRejected(t *testing.T) {
+func TestHackLeaveFrozenLoneMemberKeepsTeamEntryAndScores(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lv4org")
+	p1 := a.newPerson(t, "lv4p1")
+	p2 := a.newPerson(t, "lv4p2")
+	judge := a.newPerson(t, "lv4j1")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Solo")
+	a.joinParticipant(t, join, p2, "Other")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "LoneFrozenTeam")
+	otherTeamID, _ := a.createTeamAndJoin(t, slug, p2, "OtherTeam")
+	a.joinJudge(t, judgeCode, judge, "Judge One")
+	base := "/v1/hack/events/" + slug
+	// Through the real stage-transition route, not a raw SQL update: setStage
+	// forces submission_deadline to now() the instant the stage becomes
+	// closed (hack.go), which is what keeps TeamKeepableSQL/TeamFrozenForLeave
+	// in agreement in production. A raw UPDATE events SET stage='closed'
+	// would leave the deadline NULL and wrongly let deleteTeamIfEmpty through.
+	wantTS(t, "close", a.at(t, "POST", base+"/stage", map[string]string{"stage": "closed"}, a.key(org)), 200, "")
+	criterion := a.firstCriterionID(t, slug)
+	score := func(teamID string, points int) {
+		wantTS(t, "score", a.at(t, "PUT", base+"/judge/scores/"+teamID,
+			map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": points}}}, a.key(judge)), 200, "")
+	}
+	score(teamID, 4)
+	score(otherTeamID, 2)
+
+	snapshot := func() map[string]map[string]any {
+		pub := a.at(t, "POST", base+"/results/publish", map[string]any{}, a.key(org))
+		if pub.status != 200 {
+			t.Fatalf("publish: %d %s", pub.status, pub.body)
+		}
+		out := map[string]map[string]any{}
+		for _, raw := range pub.json(t)["results"].([]any) {
+			row := raw.(map[string]any)
+			out[row["team_id"].(string)] = row
+		}
+		return out
+	}
+
+	prev := a.previewLeave(t, slug, p1).json(t)
+	team := prev["team"].(map[string]any)
+	if team["frozen"] != true || team["deleted_on_leave"] != false || team["others_count"] != float64(0) {
+		t.Fatalf("frozen lone preview: %v", team)
+	}
+
+	before := snapshot()
+	out := a.leave(t, slug, p1, map[string]any{"confirm": slug}).json(t)
+	if out["left"] != true || out["team_deleted"] != false {
+		t.Fatalf("frozen lone leave: %v", out)
+	}
+	var stillTeam bool
+	if err := a.database.QueryRow(`SELECT EXISTS (SELECT 1 FROM event_teams WHERE id=$1)`, teamID).Scan(&stillTeam); err != nil {
+		t.Fatal(err)
+	}
+	if !stillTeam {
+		t.Fatal("lone team must survive once frozen, even when it's emptied")
+	}
+	var kept bool
+	if err := a.database.QueryRow(`SELECT kept_after_leave FROM event_teams WHERE id=$1`, teamID).Scan(&kept); err != nil {
+		t.Fatal(err)
+	}
+	if !kept {
+		t.Fatal("self-leave emptying a kept team must set kept_after_leave, so judging/results keep listing it")
+	}
+	var members int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_members WHERE team_id=$1`, teamID).Scan(&members); err != nil {
+		t.Fatal(err)
+	}
+	if members != 0 {
+		t.Fatalf("team should now have no members, got %d", members)
+	}
+	after := snapshot()
+	for _, id := range []string{teamID, otherTeamID} {
+		b, af := before[id], after[id]
+		if b == nil || af == nil {
+			t.Fatalf("team %s missing from a snapshot: before=%v after=%v", id, b, af)
+		}
+		if b["total"] != af["total"] || b["rank"] != af["rank"] || b["judges_scored"] != af["judges_scored"] {
+			t.Fatalf("team %s changed across the leave: before=%v after=%v", id, b, af)
+		}
+	}
+}
+
+// Codex review, SIM-340, P2: a team an organiser emptied with Remove person,
+// after the deadline, must stay excluded from judging, results and
+// dashboards exactly as it always was -- only a team self-leave itself kept
+// gets kept_after_leave. ListTeamsWithMembers must not retroactively
+// include every memberless frozen team, or republishing results restores a
+// team nobody ever asked to keep, moving ranks and ties with no leave
+// involved.
+func TestHackRemovePersonAfterDeadlineStaysExcludedFromJudging(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvrmorg")
+	p1 := a.newPerson(t, "lvrmp1")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, _ := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Solo")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "RemovedTeam")
+
+	wantTS(t, "close", a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "closed"}, a.key(org)), 200, "")
+
+	p1ID := a.userID(t, p1)
+	wantTS(t, "remove", a.at(t, "DELETE", "/v1/hack/events/"+slug+"/people/"+p1ID, nil, a.key(org)), 204, "")
+
+	var stillTeam bool
+	if err := a.database.QueryRow(`SELECT EXISTS (SELECT 1 FROM event_teams WHERE id=$1)`, teamID).Scan(&stillTeam); err != nil {
+		t.Fatal(err)
+	}
+	if !stillTeam {
+		t.Fatal("frozen team must survive Remove person too (deleteTeamIfEmpty's own protection, unchanged)")
+	}
+	var kept bool
+	if err := a.database.QueryRow(`SELECT kept_after_leave FROM event_teams WHERE id=$1`, teamID).Scan(&kept); err != nil {
+		t.Fatal(err)
+	}
+	if kept {
+		t.Fatal("Remove person must never set kept_after_leave -- only self-leave does")
+	}
+
+	dash := a.at(t, "GET", "/v1/hack/events/"+slug+"/judging/dashboard", nil, a.key(org)).json(t)
+	for _, raw := range dash["teams"].([]any) {
+		row := raw.(map[string]any)
+		if row["team_id"] == teamID {
+			t.Fatalf("team emptied by Remove person must stay excluded from the judging dashboard: %v", row)
+		}
+	}
+}
+
+// Codex review, SIM-340, P1: the preview must never promise "stays" for a
+// team the write path would actually delete. A team's own deadline_override
+// extension survives the event moving to closed (setStage only forces
+// events.submission_deadline, never a team's override -- "an extension
+// never makes a team's deadline earlier"), so its effective deadline can
+// still be in the future even though the event's stage looks frozen. Both
+// GET .../leave's preview and POST .../leave's write must agree it is
+// still deletable-if-empty, from the one predicate deleteTeamIfEmpty
+// itself uses (TeamKeptIfEmptied == NOT TeamKeepableSQL), not from stage or
+// the raw deadline.
+func TestHackLeavePreviewMatchesWriteForExtendedTeam(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvextorg")
+	p1 := a.newPerson(t, "lvextp1")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, _ := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Solo")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "ExtendedTeam")
+
+	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)}, a.key(org)); r.status != 200 {
+		t.Fatalf("set deadline: %d %s", r.status, r.body)
+	}
+	wantTS(t, "close", a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "closed"}, a.key(org)), 200, "")
+	extended := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	if r := a.at(t, "PUT", "/v1/hack/events/"+slug+"/teams/extendedteam/deadline", map[string]string{"deadline": extended}, a.key(org)); r.status != 200 {
+		t.Fatalf("extend: %d %s", r.status, r.body)
+	}
+
+	prev := a.previewLeave(t, slug, p1).json(t)
+	team := prev["team"].(map[string]any)
+	if team["frozen"] != false || team["deleted_on_leave"] != true {
+		t.Fatalf("extended team should preview as deletable-if-empty, not frozen: %v", team)
+	}
+
+	out := a.leave(t, slug, p1, map[string]any{"confirm": slug}).json(t)
+	if out["team_deleted"] != true {
+		t.Fatalf("extended team's preview promised deletion but the write disagreed: %v", out)
+	}
+	var stillTeam bool
+	if err := a.database.QueryRow(`SELECT EXISTS (SELECT 1 FROM event_teams WHERE id=$1)`, teamID).Scan(&stillTeam); err != nil {
+		t.Fatal(err)
+	}
+	if stillTeam {
+		t.Fatal("extended team should actually be deleted, matching the preview")
+	}
+}
+
+// --- 5/6: pending applicant withdraws; a rejected applicant can now leave
+// too (owner decision 2026-10-31, superseding the earlier "rejected can
+// never leave" rule): same mechanics as a withdraw -- their row is deleted
+// and they can apply again, where the organiser decides again. -----------
+
+func TestHackLeaveApplicantWithdrawAndRejectedCanLeave(t *testing.T) {
 	a := newHackApp(t)
 	org := a.newPerson(t, "lv5org")
 	pending, rejected := a.newPerson(t, "lv5pend"), a.newPerson(t, "lv5rej")
@@ -273,15 +495,21 @@ func TestHackLeaveApplicantWithdrawAndRejected(t *testing.T) {
 	}
 	wantTS(t, "re-apply", a.apply(t, slug, pending, nil), 200, "")
 
+	// A rejected applicant is the same "applicant" case as a pending one: no
+	// special refusal left, and leaving deletes the row just like a withdraw.
 	rejPrev := a.previewLeave(t, slug, rejected).json(t)
-	if rejPrev["case"] != "rejected" || rejPrev["allowed"] != false {
+	if rejPrev["case"] != "applicant" || rejPrev["allowed"] != true {
 		t.Fatalf("rejected preview: %v", rejPrev)
 	}
-	wantHackErr(t, "rejected leave", a.leave(t, slug, rejected, map[string]any{"confirm": slug}), 409, "application_rejected",
-		"your application was not accepted, and that decision stays on record")
-	if !a.isMember(t, slug, a.userID(t, rejected)) {
-		t.Fatal("rejected row must stay")
+	rejOut := a.leave(t, slug, rejected, map[string]any{"confirm": slug}).json(t)
+	if rejOut["left"] != true || rejOut["case"] != "applicant" {
+		t.Fatalf("rejected leave: %v", rejOut)
 	}
+	if a.isMember(t, slug, a.userID(t, rejected)) {
+		t.Fatal("rejected applicant's row should be gone after leaving")
+	}
+	// No extra machinery blocks re-applying: the organiser decides again.
+	wantTS(t, "re-apply after rejection", a.apply(t, slug, rejected, nil), 200, "")
 }
 
 // --- 7/8: judge keeps counted scores, rejoin clears the record ------------

@@ -60,16 +60,17 @@ export async function render(ctx) {
       results: 'Open event', archived: 'Open event', ended: 'Open event'
     })[e.stage] || 'Open'
   }
-  // Row menu items for the "..." (SIM-340): Open event, then a role/state
-  // specific Leave/Withdraw item, or a disabled reason. No item at all for
-  // a rejected application -- the decision stays on record (copy-deck.md).
+  // Row menu items for the "..." (SIM-340; widened by owner decision
+  // 2026-10-31): Open event, then a role/state specific Leave/Withdraw
+  // item, or a disabled reason. A rejected applicant now gets the plain
+  // "Leave this event…" like any other participant -- leaving deletes
+  // their row the same way a withdraw does, and they can apply again
+  // later, where the organiser decides again.
   function menuItems(e) {
     // Order matters (Codex review, SIM-340): archived must outrank pending,
     // or an ended event's still-pending applicant sees an enabled
-    // "Withdraw application…" that can only 409. Rejected stays "nothing"
-    // either way, so it is checked ahead of archived too.
+    // "Withdraw application…" that can only 409.
     if (e.taken_down) return [{ label: 'Open event', act: 'open' }, { label: "Can't leave, this event was taken down", act: 'leave', disabled: true, sep: true }]
-    if (e.role === 'participant' && e.approval_status === 'rejected') return [{ label: 'Open event', act: 'open' }]
     if (e.stage === 'archived') return [{ label: 'Open event', act: 'open' }, { label: "Can't leave, the event has ended", act: 'leave', disabled: true, sep: true }]
     if (e.role === 'participant' && e.approval_status === 'pending') return [{ label: 'Open event', act: 'open' }, { label: 'Withdraw application…', act: 'leave', danger: true }]
     return [{ label: 'Open event', act: 'open' }, { label: 'Leave this event…', act: 'leave', danger: true }]

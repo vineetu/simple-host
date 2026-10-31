@@ -2869,6 +2869,7 @@
       "Leave Generation Girl Online Hack 2026",
       "On a team with others: 'You'll leave SheBuilds and lose access to this event. Your teammates keep the team, its entry and its website.'",
       "Only member of the team: 'You're the only member of SheBuilds, so the team, its entry and its website will be deleted when you leave.'",
+      "Past the team's deadline, or once the event is closed, judging or results: 'You'll lose access to this event. SheBuilds's entry and site stay as they are.' -- same line whether or not they were the only member.",
       "No team: 'You'll lose access to the event. You can join again while sign-up is open.' (from Closed on: 'Sign-up has closed, so you can't join again.')"
      ],
      "actions": [
@@ -2940,9 +2941,9 @@
      "shows": "A plain confirm: 'You'll lose access to the event.' plus the rejoin line for the stage ('You can join again while sign-up is open.' or 'Sign-up has closed, so you can't join again.')."
     },
     {
-     "name": "leave blocked after the team's deadline",
+     "name": "leave, frozen after the deadline",
      "when": "on a team whose deadline (with any extension) has passed, or stage Closed, Judging or Results",
-     "shows": "The danger zone stays, with the button disabled and the reason: 'Entries have closed, so your team can't change and you can't leave. Your name stays on the SheBuilds entry. If you need to leave, ask an organiser.'"
+     "shows": "Leave event stays enabled (owner decision 2026-10-31: leaving is never blocked here any more). The row says \"You'll lose access to this event. SheBuilds's entry and site stay as they are.\" The dialog: \"Leave Generation Girl Online Hack 2026? You'll lose access to the event. SheBuilds's entry and site stay as they are, and you won't be listed on the team any more. You can't rejoin this team.\" Same copy whether they were the only member or not, and whether the freeze is the deadline or the stage."
     },
     {
      "name": "pending application",
@@ -2952,7 +2953,7 @@
     {
      "name": "rejected application",
      "when": "approval_status rejected",
-     "shows": "No Leave or Withdraw control. The 'wasn't accepted' card is all there is (see decisions)."
+     "shows": "Same as the pending state (owner decision 2026-10-31, superseding the earlier 'no control' rule): a danger zone 'Leave this event' with a red Leave event button and a confirm, deleting the row exactly like a withdraw. After it, Home with the toast 'You left Generation Girl Online Hack 2026.' They can apply again afterwards, and the organiser decides again."
     },
     {
      "name": "event ended or taken down",
@@ -2966,7 +2967,7 @@
     },
     {
      "name": "something changed while the dialog was open",
-     "when": "POST .../leave answers 409 leave_state_changed or submissions_closed (a teammate left, the deadline passed)",
+     "when": "POST .../leave answers 409 leave_state_changed (a teammate left, an organiser's status changed)",
      "shows": "The dialog reloads the preview and redraws for the new case with a .note warn line 'Something changed while this was open. Check the details again.'"
     }
    ],
@@ -3018,8 +3019,8 @@
      "next": "Entries close in 2 days"
     },
     {
-     "slug": "leave-blocked",
-     "name": "Leave blocked after the deadline",
+     "slug": "leave-frozen",
+     "name": "Leave, frozen after the deadline",
      "stage": "closed",
      "next": "Judging starts soon"
     },
@@ -3053,8 +3054,8 @@
     },
     {
      "q": "Can a rejected applicant leave?",
-     "decision": "No. No control is shown and the API answers 409 application_rejected.",
-     "why": "The rejected row is what stops a second application (POST .../apply returns the existing row unchanged) and a join-link rejoin. If it could be deleted, anyone could undo an organiser's rejection in two clicks."
+     "decision": "Yes (owner decision 2026-10-31, superseding the earlier No): leaving deletes the row exactly like a pending applicant's withdraw.",
+     "why": "The owner widened this twice on 2026-10-31: any member can leave any time before the event ends, and a rejected applicant is not an exception -- there is no extra machinery to stop a second application. POST .../apply after leaving creates a brand-new pending row, and the organiser decides it on its own merits, same as any first-time applicant."
     },
     {
      "q": "Are teammates or organisers told?",
@@ -4404,7 +4405,7 @@
       {
        "label": "… menu on each row: Open event, then Leave this event… (red, last)",
        "kind": "danger",
-       "confirm": "Opens the same leave dialog as inside the event, for that event and role. Pending rows say 'Withdraw application…'. Ended rows show 'Can't leave, the event has ended' disabled. Rejected rows have no leave item."
+       "confirm": "Opens the same leave dialog as inside the event, for that event and role. Pending rows say 'Withdraw application…'. Ended rows show 'Can't leave, the event has ended' disabled. Rejected rows get the plain 'Leave this event…' like any other participant (owner decision 2026-10-31)."
       }
      ]
     }
@@ -4423,7 +4424,7 @@
     {
      "name": "row menu open",
      "when": "the … button of a row is pressed",
-     "shows": "A .row-menu with Open event, a rule, then the red 'Leave this event…' (or 'Withdraw application…' on a pending row). Escape or a click outside closes it."
+     "shows": "A .row-menu with Open event, a rule, then the red 'Leave this event…' (or 'Withdraw application…' on a pending row -- a rejected row also gets the plain 'Leave this event…', owner decision 2026-10-31). Escape or a click outside closes it."
     },
     {
      "name": "after leaving from Home",

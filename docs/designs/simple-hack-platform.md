@@ -383,9 +383,15 @@ Hosted event presentation update: an organiser may publish a custom event websit
 | `POST /v1/hack/events/{slug}/leave` | member | Leave the event myself |
 | `DELETE /v1/hack/events/{slug}/judging/former-judges/{user_id}` | organiser | Delete a departed judge's scores |
 
-Any member can leave through the POST route, under a lock on the event row that decides one of
-seven cases every time. A participant leaves their team first, and an empty team is deleted with
-its entry and site. A judge's scores stay and keep counting after they leave, recorded in
+Any member can leave through the POST route, any time before the event ends, under a lock on
+the event row that decides one of six cases every time. A participant leaves their team; before
+its effective deadline an empty team is deleted with its entry and site, but past that deadline
+— or once the event is closed, judging or results — leaving never touches the team, its entry,
+its site or its scores, even for its last member, and the team can never take on a new member
+again (owner decision 2026-10-31). A pending or rejected applicant withdraws the same way,
+deleting their row; a rejected one may apply again afterwards, where the organiser decides
+again (owner decision 2026-10-31, superseding the earlier rule that a rejected applicant
+couldn't leave). A judge's scores stay and keep counting after they leave, recorded in
 `event_former_judges`, until an organiser deletes them or the person rejoins. The creator must
 name another organiser as its successor before leaving. The only organiser ends or deletes the
 event to leave it.

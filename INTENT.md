@@ -137,13 +137,19 @@ What follows from that, and is not negotiable without changing the line above:
   The owner joined as a contestant by mistake on 2026-10-28 and could not get out. Organiser
   handover and closing exist to make that one route complete, not because they were the
   original ask.
-- **2026-10-31. Leave this event: design calls, open to the owner's override.** A judge's
-  scores stay and keep counting exactly as they stood when they left. An organiser can delete
-  a departed judge's scores so they stop counting. A participant can leave until their team's
-  effective deadline passes, not after. A team's last remaining member leaving deletes the
-  team, its entry and its site. A pending applicant can withdraw. A rejected one can't, so the
-  organiser's decision holds. Leaving doesn't send any new notifications to teammates or
-  organisers.
+- **2026-10-31. Leave this event: owner-confirmed.** A judge's scores stay and keep counting
+  exactly as they stood when they left, confirmed by the owner. An organiser can delete a
+  departed judge's scores so they stop counting. A participant can leave any time before the
+  event ends, including past their team's effective deadline, or once the event is closed,
+  judging or results: before that point, leaving a team it empties deletes the team, its
+  entry and its site, same as before; past it, leaving never touches the team, its entry,
+  its site or its scores, even for the team's last member — it only takes the leaver off the
+  member list, and that team can never take on a new member again, by code or otherwise. A
+  pending applicant can withdraw, and so can a rejected one — confirmed by the owner
+  2026-10-31, superseding the earlier rule that a rejected applicant couldn't leave — deleting
+  their row exactly like a withdraw; they may apply again later and the organiser decides
+  again, with no extra machinery to stop it. Leaving doesn't send any new notifications to
+  teammates or organisers.
 - **2026-10-31. Applications without a join link.** A person can apply to an event from Find
   a hackathon or its public page without a join link, for every event, including ones that
   already exist. Applications are on by default, and the organiser can turn them off per event

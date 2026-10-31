@@ -60,10 +60,19 @@ func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 	solo := []any{}
 	pending := []any{}
 	// Solo participants see open rosters; team members see opted-in solo people.
+	// A frozen team (Codex review, SIM-340, P2: TeamWriteState.Frozen's own
+	// condition, the one NewTeamRequest/JoinTeamByCode actually enforce) is
+	// excluded here too -- otherwise a team whose deadline passed, or whose
+	// last member just left past it, still advertises as open, inviting a
+	// request that can only 409 submissions_closed with nobody left to see it.
 	if !a.member.TeamID.Valid || a.member.Role == "organiser" {
 		rows, err := h.database.QueryContext(ctx, `SELECT t.id,t.slug,t.name,t.open,t.looking_for,
  COALESCE(x.id::text,''),COALESCE(x.slug,''),COALESCE(x.name,''),COALESCE(x.challenge,''),COALESCE(x.prize,'')
- FROM event_teams t LEFT JOIN event_tracks x ON x.id=t.track_id WHERE t.event_id=$1 AND t.open ORDER BY t.created_at`, a.event.ID)
+ FROM event_teams t JOIN events e ON e.id=t.event_id LEFT JOIN event_tracks x ON x.id=t.track_id
+ WHERE t.event_id=$1 AND t.open
+   AND e.stage NOT IN ('judging','results','archived')
+   AND NOT COALESCE(`+db.EffectiveDeadlineSQL+` <= clock_timestamp(), false)
+ ORDER BY t.created_at`, a.event.ID)
 		if err != nil {
 			writeInternal(w)
 			return

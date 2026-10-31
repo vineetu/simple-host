@@ -76,7 +76,7 @@ func RemoveCoOrganiser(ctx context.Context, q *sql.Tx, eventID, actorID, userID 
 	if _, err := q.ExecContext(ctx, `DELETE FROM event_scores WHERE event_id=$1 AND judge_id=$2`, eventID, userID); err != nil {
 		return err
 	}
-	_, err = LeaveMembership(ctx, q, eventID, userID)
+	_, err = LeaveMembership(ctx, q, eventID, userID, false)
 	return err
 }
 

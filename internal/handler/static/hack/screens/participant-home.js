@@ -89,22 +89,26 @@ async function announcementsCard(api, ui, allHref, scheduleHref, slug, ev) {
 // own preview fetch in leave.js, says "you're the only member"). Returns ''
 // (no section at all) if the preview couldn't be loaded -- never show a
 // Leave button whose state we can't vouch for.
+//
+// Owner decision 2026-10-31: leaving is no longer blocked past a team's
+// deadline (submissions_closed never appears in preview.blocked for a
+// participant any more) -- only an ended event still refuses, so that's
+// the only blocked branch left here.
 function participantDangerZone(ui, preview, ev) {
   if (!preview) return ''
   const b = 'Leave ' + ev.title
   let span, disabled = false
   if (preview.blocked) {
     disabled = true
-    if (preview.blocked.code === 'submissions_closed') {
-      const teamName = preview.team ? preview.team.name : 'your team'
-      span = `Entries have closed, so your team can't change and you can't leave. Your name stays on the ${teamName} entry. If you need to leave, ask an organiser.`
-    } else if (preview.blocked.code === 'event_closed') {
+    if (preview.blocked.code === 'event_closed') {
       span = 'This event has ended, so nobody can leave it. It stays on your Home as a record.'
     } else if (preview.blocked.code === 'event_taken_down') {
       span = 'This event has been taken down.'
     } else {
       span = preview.blocked.message || "You can't leave this event right now."
     }
+  } else if (preview.team && preview.team.frozen) {
+    span = `You'll lose access to this event. ${preview.team.name}'s entry and site stay as they are.`
   } else if (preview.team) {
     span = `You'll leave ${preview.team.name} and lose access to this event. Your teammates keep the team, its entry and its website.`
   } else if (preview.rejoin === 'join') {

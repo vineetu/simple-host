@@ -10,9 +10,9 @@
 // caller fetched earlier for its own row text) -- another organiser or
 // teammate can change things while the dialog sits open, which the server
 // catches as 409 leave_state_changed/last_organiser/successor_required/
-// invalid_successor/submissions_closed/archive_needs_participants; on any
-// of those this reloads the preview and redraws with a note, same dialog
-// shape, instead of failing silently.
+// invalid_successor/archive_needs_participants; on any of those this
+// reloads the preview and redraws with a note, same dialog shape, instead
+// of failing silently.
 import { href } from './nav.js'
 
 const FLASH_KEY = 'hack-flash'
@@ -76,7 +76,17 @@ function confirmParticipant(ui, preview, title, warn) {
   const team = preview.team
   let body, confirmLabel
   if (team) {
-    if (team.deleted_on_leave) {
+    if (team.frozen) {
+      // Past the team's deadline, or the event closed/judging/results:
+      // leaving never changes the team, its entry, its site or its scores
+      // -- not even for its last member -- it only takes this person off
+      // the member list (owner decision 2026-10-31).
+      body = [
+        para(`You'll lose access to the event. ${team.name}'s entry and site stay as they are, and you won't be listed on the team any more.`),
+        para("You can't rejoin this team.", 'muted')
+      ]
+      confirmLabel = 'Leave event'
+    } else if (team.deleted_on_leave) {
       body = [
         para(`You're the only member of ${team.name}, so the team, its entry and its website will be deleted for good.`),
         para("You'll lose access to the event. You can join again while sign-up is open.", 'muted')
@@ -98,7 +108,16 @@ function confirmParticipant(ui, preview, title, warn) {
   return ui.confirm({ title: `Leave ${title}?`, body, confirmLabel, danger: true })
 }
 
-function confirmApplicant(ui, title, warn) {
+// Pending and rejected are the same server-side "applicant" case (both
+// delete the row) but need different copy (Codex review, SIM-340, P3): a
+// rejected applicant already has an answer, so "Withdraw your application?"
+// reads wrong -- preview.approval_status tells the two apart.
+function confirmApplicant(ui, preview, title, warn) {
+  if (preview.approval_status === 'rejected') {
+    const body = [para('It will be removed from your Home. You can apply again later.')]
+    if (warn) body.unshift(warnNote(warn))
+    return ui.confirm({ title: `Leave ${title}?`, body, confirmLabel: 'Leave event', danger: true })
+  }
   const body = [para(`Your application to ${title} and your answers will be removed. You can apply again while sign-up is open.`)]
   if (warn) body.unshift(warnNote(warn))
   return ui.confirm({ title: 'Withdraw your application?', body, confirmLabel: 'Withdraw application', danger: true })
@@ -265,7 +284,10 @@ function dialogForLastOrganiser(ui, preview, title, warn) {
   })
 }
 
-const STALE_CODES = ['leave_state_changed', 'last_organiser', 'successor_required', 'invalid_successor', 'submissions_closed', 'archive_needs_participants']
+// submissions_closed is not in this list: the server never returns it from
+// this route any more (owner decision 2026-10-31 -- a frozen team's leave
+// always succeeds, it just stops changing the team).
+const STALE_CODES = ['leave_state_changed', 'last_organiser', 'successor_required', 'invalid_successor', 'archive_needs_participants']
 
 async function attempt(api, ui, slug, title, warn) {
   let r
@@ -287,7 +309,7 @@ async function attempt(api, ui, slug, title, warn) {
       proceed = await confirmParticipant(ui, preview, title, warn)
       break
     case 'applicant':
-      proceed = await confirmApplicant(ui, title, warn)
+      proceed = await confirmApplicant(ui, preview, title, warn)
       break
     case 'judge':
       proceed = await confirmJudge(ui, preview, title, warn)
@@ -329,7 +351,7 @@ async function attempt(api, ui, slug, title, warn) {
   }
   const data = post.data || {}
   let text
-  if (preview.case === 'applicant') text = `You withdrew your application to ${title}.`
+  if (preview.case === 'applicant') text = preview.approval_status === 'rejected' ? `You left ${title}.` : `You withdrew your application to ${title}.`
   else if (preview.case === 'creator' && data.successor) text = `You handed ${title} to ${data.successor.display_name} and left it.`
   else if (data.event === 'ended') text = `You ended ${title} and left it.`
   else if (data.event === 'deleted') text = `${title} was deleted.`

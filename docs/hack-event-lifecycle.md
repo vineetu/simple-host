@@ -34,15 +34,20 @@ The platform admin keeps its existing separate delete route.
 
 ## Leaving (SIM-340, 2026-10-31)
 
-Any member can leave on their own, from the website (Overview, Settings or a Home row menu) or
-through `hack_preview_leave_event` and `hack_leave_event`. A participant leaves their team
-first, and a team left with nobody on it is deleted along with its entry and site, following
-the existing team-removal and holding-account paths. A pending applicant can withdraw the same
-way. A rejected applicant can never leave, so the organiser's decision stands. A judge's scores
-stay and keep counting exactly as they stood when they left, and an organiser can delete them
-with `hack_delete_former_judge_scores` so they stop counting. The event's creator must name
-another organiser as its successor first, with `successor_user_id` from the leave preview.
-Ending the event instead archives it exactly as `POST .../stage {"stage":"archived"}` does, and
-is the only organiser's choice when they leave. Deleting it is exactly `DELETE
-/v1/hack/events/{slug}` with the slug confirmed, their other choice. Nobody can leave once the
-event has ended.
+Any member can leave on their own, any time before the event ends, from the website (Overview,
+Settings or a Home row menu) or through `hack_preview_leave_event` and `hack_leave_event`. A
+participant leaves their team. Before the team's effective deadline, a team left with nobody on
+it is deleted along with its entry and site, following the existing team-removal and
+holding-account paths. Past that deadline, or once the event is closed, judging or results,
+leaving never touches the team, its entry, its site or its scores, even for its last member --
+the leaver is just taken off its member list, and that team can never take on a new member
+again, by code or otherwise (owner decision 2026-10-31). A pending applicant can withdraw the
+same way, and so can a rejected one -- leaving deletes their row exactly like a withdraw, and
+they may apply again afterwards, where the organiser decides again (owner decision 2026-10-31,
+superseding the earlier rule that a rejected applicant couldn't leave). A judge's scores stay
+and keep counting exactly as they stood when they left, and an organiser can delete them with
+`hack_delete_former_judge_scores` so they stop counting. The event's creator must name another
+organiser as its successor first, with `successor_user_id` from the leave preview. Ending the
+event instead archives it exactly as `POST .../stage {"stage":"archived"}` does, and is the only
+organiser's choice when they leave. Deleting it is exactly `DELETE /v1/hack/events/{slug}` with
+the slug confirmed, their other choice. Nobody can leave once the event has ended.

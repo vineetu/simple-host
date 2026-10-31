@@ -10,32 +10,36 @@ import (
 )
 
 // Leave this event (SIM-340). One route, self only: the server decides
-// which of seven cases applies (build plan section 1) under a lock on the
+// which of six cases applies (build plan section 1) under a lock on the
 // event row, every time, so a stale dialog can never act on a role or
-// membership that changed since it was opened.
+// membership that changed since it was opened. Owner decision 2026-10-31
+// widened this twice: any member may leave any time before the event ends
+// (the only remaining refusal is an archived event), and a rejected
+// applicant is no longer a special case at all -- leaving deletes their
+// row exactly like a pending applicant's withdraw, so they can apply again
+// later and the organiser decides again, with no extra machinery to stop
+// it. The earlier "rejected can never leave" rule is superseded.
 
 func (h *HackHandler) registerLeave(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("GET /v1/hack/events/{slug}/leave", wrap(h.previewLeaveEvent))
 	mux.Handle("POST /v1/hack/events/{slug}/leave", wrap(h.postLeaveEvent))
 }
 
-// leaveCaseFor names which of the seven outcomes applies to one membership,
+// leaveCaseFor names which of the six outcomes applies to one membership,
 // from role, approval status and how many other organisers the event has.
-// Rejected is its own case because it is never allowed, whatever else is
-// true. An organiser with nobody else left is last_organiser whether or not
-// they are the creator; a creator with others is creator; any other
-// organiser with others is co_organiser.
+// A pending or rejected participant is the same "applicant" case either
+// way: withdrawing and leaving a rejected application do the same thing
+// (delete the row), so there is nothing left to tell them apart on. An
+// organiser with nobody else left is last_organiser whether or not they
+// are the creator; a creator with others is creator; any other organiser
+// with others is co_organiser.
 func leaveCaseFor(role, approvalStatus string, isCreator bool, otherOrganisers int) string {
 	switch role {
 	case "participant":
-		switch approvalStatus {
-		case "pending":
+		if approvalStatus == "pending" || approvalStatus == "rejected" {
 			return "applicant"
-		case "rejected":
-			return "rejected"
-		default:
-			return "participant"
 		}
+		return "participant"
 	case "judge":
 		return "judge"
 	case "organiser":
@@ -102,12 +106,19 @@ func (h *HackHandler) previewLeaveEvent(w http.ResponseWriter, r *http.Request) 
 	leaveCase := leaveCaseFor(member.Role, approvalStatus, isCreator, len(otherOrganisers))
 
 	out := map[string]any{
-		"slug":    ev.Slug,
-		"title":   ev.Title,
-		"stage":   ev.Stage,
-		"role":    member.Role,
-		"case":    leaveCase,
-		"confirm": ev.Slug,
+		"slug":  ev.Slug,
+		"title": ev.Title,
+		"stage": ev.Stage,
+		"role":  member.Role,
+		// A rejected applicant is the same "applicant" leave case as a
+		// pending one -- same mechanics, same copy-less branch on the server
+		// -- but the two need different client copy (Codex review, SIM-340,
+		// P3: "Withdraw your application?" reads wrong for someone whose
+		// application was already decided). approval_status lets leave.js
+		// tell them apart without a new server-side case.
+		"approval_status": approvalStatus,
+		"case":            leaveCase,
+		"confirm":         ev.Slug,
 	}
 
 	var blocked map[string]any
@@ -116,8 +127,6 @@ func (h *HackHandler) previewLeaveEvent(w http.ResponseWriter, r *http.Request) 
 		blocked = map[string]any{"code": "event_taken_down", "message": "this event has been taken down"}
 	case ev.Stage == "archived":
 		blocked = map[string]any{"code": "event_closed", "message": "this event has ended, so nobody can leave it"}
-	case leaveCase == "rejected":
-		blocked = map[string]any{"code": "application_rejected", "message": "your application was not accepted, and that decision stays on record"}
 	}
 
 	if leaveCase == "participant" && member.TeamID.Valid {
@@ -141,20 +150,25 @@ func (h *HackHandler) previewLeaveEvent(w http.ResponseWriter, r *http.Request) 
 		if len(shown) > 3 {
 			shown = shown[:3]
 		}
+		// Owner decision 2026-10-31: a participant may leave any time before
+		// the event ends, including past their team's effective deadline (or
+		// once the event is closed, judging or results). "frozen" and
+		// deleted_on_leave both come from TeamKeptIfEmptied -- NOT
+		// TeamKeepableSQL, the exact predicate deleteTeamIfEmpty itself uses
+		// -- so this preview can never promise "stays" for a case the write
+		// path would actually delete (Codex review, SIM-340, P1: a team with
+		// a future deadline_override extension stays deletable-if-empty even
+		// once the event's own stage and deadline have moved past it).
+		kept, err := db.TeamKeptIfEmptied(ctx, h.database, team.ID)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
 		out["team"] = map[string]any{
 			"slug": team.Slug, "name": team.Name,
 			"others": shown, "others_count": len(teammates),
-			"deleted_on_leave": len(teammates) == 0,
-		}
-		if blocked == nil {
-			frozen, err := db.TeamFrozenForLeave(ctx, h.database, team.ID, false)
-			if err != nil {
-				writeInternal(w)
-				return
-			}
-			if frozen {
-				blocked = map[string]any{"code": "submissions_closed", "message": "your team's deadline has passed, so your team can't change and you can't leave. Ask an organiser"}
-			}
+			"deleted_on_leave": len(teammates) == 0 && !kept,
+			"frozen":           kept,
 		}
 	}
 
@@ -311,10 +325,6 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, http.StatusConflict, "leave_needs_confirm", `to leave, send {"confirm":"<slug>"} with this event's address name`)
 		return
 	}
-	if approvalStatus == "rejected" {
-		writeHackErr(w, http.StatusConflict, "application_rejected", "your application was not accepted, and that decision stays on record")
-		return
-	}
 
 	otherOrganisers, err := db.OtherEventOrganisers(ctx, tx, ev.ID, user.ID)
 	if err != nil {
@@ -374,17 +384,13 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if leaveCase == "participant" && member.TeamID.Valid {
-		frozen, err := db.TeamFrozenForLeave(ctx, tx, member.TeamID.String, true)
-		if err != nil {
-			writeInternal(w)
-			return
-		}
-		if frozen {
-			writeHackErr(w, http.StatusConflict, "submissions_closed", "your team's deadline has passed, so your team can't change and you can't leave. Ask an organiser")
-			return
-		}
-	}
+	// Owner decision 2026-10-31: leaving no longer refuses past the team's
+	// deadline (or once the event is closed, judging or results). The team
+	// row still gets locked, in the usual event/member/team order, inside
+	// LeaveMembership below -- db.LeaveMembership -> deleteTeamIfEmpty keeps
+	// a frozen team even once this leave empties it (TeamKeepableSQL is
+	// false once frozen), so the team, its entry, its site and its scores
+	// are never touched here.
 
 	if member.Role == "judge" || member.Role == "organiser" {
 		if err := db.RecordFormerJudge(ctx, tx, ev.ID, user.ID, member.Role, member.DisplayName); err != nil {
@@ -420,8 +426,12 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 	teamDeleted := false
 	if !(leaveCase == "last_organiser" && req.Close == "delete") {
 		// The event-and-account cascade already removed this membership (and
-		// every other) when the last organiser deleted the event.
-		teamID, err := db.LeaveMembership(ctx, tx, ev.ID, user.ID)
+		// every other) when the last organiser deleted the event. selfLeave
+		// is true here (this is POST .../leave, never Remove person): if this
+		// empties a team deleteTeamIfEmpty keeps, kept_after_leave is set so
+		// judging, results and dashboards keep it exactly as if the leaver
+		// hadn't left (Codex review, SIM-340, P2).
+		teamID, err := db.LeaveMembership(ctx, tx, ev.ID, user.ID, true)
 		if err != nil {
 			writeInternal(w)
 			return

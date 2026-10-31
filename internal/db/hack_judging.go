@@ -144,14 +144,28 @@ func ListEventJudges(ctx context.Context, q Querier, eventID string) ([]NamedJud
 	return out, rows.Err()
 }
 
-// ListTeamsWithMembers is every team that still has someone on it, by team id.
-// The same exclusion as DeleteEmptyOpenTeams (NOT EXISTS event_members): an
-// empty or abandoned team does not need a judge.
+// ListTeamsWithMembers is every team that still needs judging, by team id:
+// one with someone on it (the same exclusion DeleteEmptyOpenTeams uses for an
+// abandoned team nobody ever really used), OR one kept_after_leave marked
+// (owner decision 2026-10-31: leaving an event never deletes a team it
+// empties, so its entry must keep being judged and ranked exactly as if the
+// leaver hadn't left). Feeds the judge queue, the judging dashboard,
+// auto-assignment and computeResultsWithOptions -- excluding a team leave
+// kept, empty, from any of those would silently drop its entry from
+// coverage or from a republished results snapshot.
+//
+// Deliberately NOT "OR NOT TeamKeepableSQL" (Codex review, SIM-340, P2):
+// that would also retroactively re-include every team an organiser's Remove
+// person emptied after the deadline, long before this feature existed --
+// restoring a scored team to results and auto-assignment on the next
+// republish, with no leave involved and no owner decision covering it.
+// kept_after_leave is set only by LeaveMembership's own self-leave path
+// (markTeamKeptAfterLeave), so only a team THIS feature kept reappears here.
 func ListTeamsWithMembers(ctx context.Context, q Querier, eventID string) ([]NamedTeam, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT t.id, t.name, t.slug FROM event_teams t
 		 WHERE t.event_id = $1
-		   AND EXISTS (SELECT 1 FROM event_members m WHERE m.team_id = t.id)
+		   AND (EXISTS (SELECT 1 FROM event_members m WHERE m.team_id = t.id) OR t.kept_after_leave)
 		 ORDER BY t.id`, eventID)
 	if err != nil {
 		return nil, err

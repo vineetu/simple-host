@@ -8285,17 +8285,32 @@ paths:
       description: >-
         Read-only, for any member in any role or approval status; a non-member
         (including a platform admin reading an event it never joined) gets 404.
-        case is one of participant, applicant, judge, co_organiser, creator,
-        last_organiser or rejected, decided from the caller's own role,
-        approval status and the event's other organisers. blocked is null or
-        an object with code (event_closed, event_taken_down,
-        application_rejected or submissions_closed) and message; allowed is
-        blocked == null. team is present only for a participant on a team.
-        scored_teams is present for judge and organiser cases.
+        case is one of participant, applicant, judge, co_organiser, creator or
+        last_organiser, decided from the caller's own role, approval status
+        and the event's other organisers -- a rejected applicant is the same
+        applicant case as a pending one (owner decision 2026-10-31: leaving
+        a rejected application deletes the row exactly like a withdraw, so
+        there is no separate rejected case or refusal any more); approval_status
+        is how the client tells the two apart for copy (withdraw vs. leave).
+        blocked is null or an object with code (event_closed or event_taken_down) and
+        message; allowed is blocked == null. team
+        is present only for a participant on a team, and its frozen is true
+        exactly when leaving it empty would keep it instead of deleting it --
+        the same predicate POST .../leave's write path uses, not a separate
+        stage/deadline read: a team's own deadline extension can keep it
+        deletable-if-empty even once the event's stage and own deadline have
+        moved past it. Leaving still works past the freeze point either way
+        (owner decision 2026-10-31), but while frozen it only removes the
+        leaver from the team's member list: the team, its entry, its site
+        and its scores stay exactly as they are, so deleted_on_leave is
+        never true while frozen, even for the team's last member. scored_teams is present for judge and organiser cases.
         organisers_staying is co_organiser only. successors is creator only
         (every other organiser, ordered by display name). close_options is
         last_organiser only. rejoin is join, judge_link, organiser_invite or
-        none. confirm is the event's address name, to send back unchanged.
+        none, about rejoining the event, not this specific team -- a frozen
+        team never takes a new member again, by code or otherwise, whatever
+        rejoin says. confirm is the event's address name, to send back
+        unchanged.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -8311,13 +8326,14 @@ paths:
                   title: { type: string }
                   stage: { type: string }
                   role: { type: string }
-                  case: { type: string, enum: [participant, applicant, judge, co_organiser, creator, last_organiser, rejected] }
+                  approval_status: { type: string, enum: [pending, approved, rejected], description: "Lets the client tell a pending applicant's withdraw copy apart from a rejected one's leave copy; both share the applicant case." }
+                  case: { type: string, enum: [participant, applicant, judge, co_organiser, creator, last_organiser] }
                   allowed: { type: boolean }
                   blocked:
                     nullable: true
                     type: object
                     properties:
-                      code: { type: string, enum: [event_closed, event_taken_down, application_rejected, submissions_closed] }
+                      code: { type: string, enum: [event_closed, event_taken_down] }
                       message: { type: string }
                   team:
                     type: object
@@ -8327,6 +8343,7 @@ paths:
                       others: { type: array, items: { type: string } }
                       others_count: { type: integer }
                       deleted_on_leave: { type: boolean }
+                      frozen: { type: boolean, description: "True exactly when leaving it empty would keep it rather than delete it (the same rule POST .../leave's write path applies): leaving then only removes the leaver from the member list and never deletes the team." }
                   scored_teams: { type: integer }
                   organisers_staying: { type: array, items: { type: string } }
                   successors:
@@ -8367,6 +8384,11 @@ paths:
         field that does not belong to the caller's current case is refused
         with 409 leave_state_changed, which means something changed since the
         preview was read: read it again. Nothing happens on an ended event.
+        A participant past their team's deadline (or once the event is
+        closed, judging or results) still leaves normally -- only the
+        team's member list changes; its entry, site and scores are
+        untouched, even for the team's last member (owner decision
+        2026-10-31).
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -8398,7 +8420,7 @@ paths:
                   event: { type: string, enum: [kept, ended, deleted] }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': { description: "leave_needs_confirm, event_closed, application_rejected, submissions_closed, successor_required, invalid_successor, last_organiser, archive_needs_participants or leave_state_changed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "leave_needs_confirm, event_closed, successor_required, invalid_successor, last_organiser, archive_needs_participants or leave_state_changed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
