@@ -394,6 +394,11 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 			full = appToolMetadata(full, screens)
 			bare = appToolMetadata(bare, screens)
 		}
+		hackScreens := s.hackEnabledScreens(caller)
+		if len(hackScreens) > 0 {
+			full = appToolMetadata(full, hackScreens)
+			bare = appToolMetadata(bare, hackScreens)
+		}
 	}()
 	if s.fixed != nil {
 		return s.fixed.tools, s.fixed.bare, s.fixed.byName
@@ -735,6 +740,8 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 
 	case "tools/list":
 		full, bare, _ := s.forCaller(caller)
+		hackShowAllowed := s.hackShowJudgeAppAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+		full, bare = filterHackShowTools(full, hackShowAllowed), filterHackShowTools(bare, hackShowAllowed)
 		if modern {
 			return result(req.ID, s.withMeta(map[string]any{
 				"resultType": "complete",
@@ -756,8 +763,9 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 	// the declared capabilities; an empty list is the true answer and keeps
 	// them from treating the connector as broken.
 	case "resources/list":
-		payload := map[string]any{"resources": s.appResources(caller)}
-		if modern && len(s.enabledScreens(caller)) > 0 {
+		hackResourceAllowed := s.hackShowJudgeAppAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+		payload := map[string]any{"resources": append(s.appResources(caller), s.hackAppResources(caller, hackResourceAllowed)...)}
+		if modern && (len(s.enabledScreens(caller)) > 0 || (hackResourceAllowed && len(s.hackEnabledScreens(caller)) > 0)) {
 			payload["resultType"] = "complete"
 			payload["ttlMs"] = cacheTTLMillis
 			payload["cacheScope"] = "private"
@@ -765,6 +773,10 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 		return result(req.ID, payload)
 	case "resources/read":
 		reply := s.readApp(req, caller)
+		if reply.Error != nil {
+			hackResourceAllowed := s.hackShowJudgeAppAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+			reply = s.readHackApp(req, caller, hackResourceAllowed)
+		}
 		if modern && reply.Error == nil {
 			payload := reply.Result.(map[string]any)
 			payload["resultType"] = "complete"
@@ -773,8 +785,9 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 		}
 		return reply
 	case "resources/templates/list":
+		hackResourceAllowed := s.hackShowJudgeAppAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
 		payload := map[string]any{"resourceTemplates": []any{}}
-		if modern && len(s.enabledScreens(caller)) > 0 {
+		if modern && (len(s.enabledScreens(caller)) > 0 || (hackResourceAllowed && len(s.hackEnabledScreens(caller)) > 0)) {
 			payload["resultType"] = "complete"
 			payload["ttlMs"] = cacheTTLMillis
 			payload["cacheScope"] = "private"

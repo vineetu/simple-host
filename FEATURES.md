@@ -1144,6 +1144,235 @@ team or organiser checks. The frame never selects a team or receives a token.
 Photo picker and preview remain unavailable on Hack; archive upload is unchanged.
 Disabled tool listings and results retain their original bytes.
 
+**Simple Hack judge app (SIM-344 phase 0+1, default off).** `ui://simple-hack/judge`
+is one resource holding four views (invite, queue, score, rubric), opened only by
+the new `hack_show_judge {slug | code, view, team_id?}` tool, behind
+`MCP_APP_HACK_JUDGE` (`off`, `on`, or `accounts:<handle>,...`, same format as every
+other Apps flag). Every judging action keeps its own plain tool
+(`hack_preview_judge`, `hack_join_judge`, `hack_get_judge_queue`, `hack_get_rubric`,
+`hack_get_event`, `hack_get_judge_scores`, `hack_score_team`, `hack_get_my_conflicts`,
+`hack_declare_my_conflict`, `hack_remove_my_conflict`, `hack_get_team_screenshot`),
+unmodified; the show tool only opens the view, mirroring passcode_screen's
+"always registered, gated at list and at call time" pattern rather than
+my-sites'/dashboard's "tagged onto an existing tool" one, since there is no
+existing judge "read" tool a host should render a frame for on every call.
+
+`hack_show_judge` is listed only when all three hold: the account's flag is on;
+the connection declared `io.modelcontextprotocol/ui` support, either once at
+`initialize` (remembered the same way `create_upload_link`'s picker/link choice
+is, via `clientUIMemory`) or, for a modern/stateless request, on that same call
+(every modern request's `params._meta` carries `io.modelcontextprotocol/
+clientCapabilities`, including `tools/list`); and the app name is not ChatGPT,
+OpenAI, or Codex (`flatListApp`, the same check `tools.go`'s flat per-operation
+listing already uses) — the ChatGPT app's submitted, pinned tool list
+(`openai-plugin/chatgpt-app-submission.json`) does not change. Every other judge
+tool keeps its existing availability on any connection with the role for it;
+flags-off and non-UI listings are byte for byte what they are today.
+
+The view is hand-assembled at build time from the real screens (`internal/
+handler/static/hack/{ui.js, screens/_judge-util.js, screens/{public-judge,
+judge-queue,judge-scoring,judge-rubric}.js}`), not bundled with esbuild: the plan's
+first choice, a pinned `go run github.com/evanw/esbuild/...`, needs to fetch and
+run a third-party module, which this box's build sandbox refuses. Instead
+`internal/mcp/apps/bundlegen` folds each file into its own closure (a minimal,
+hand-written CommonJS: a local `exports` object per module, each `import`
+rewritten to a local alias pointing at the dependency's already-built
+`exports`), concatenated into one `<script>`; `internal/mcp/apps/gentool` (`go
+generate ./internal/mcp/apps/...`) writes the checked-in result
+(`hack-judge-bundle.js`, plus `kit.css` inlined with its one `@font-face` rule
+stripped as `hack-judge-kit.css`), and `TestHackJudgeBundleFresh` rebuilds it
+in the test binary and fails if the checked-in copy has drifted; it also now
+fails generation loudly on any default export, `export * from`, or multiline
+import it does not support (`checkSupported`, Codex review, SIM-344), and the
+import-line replacement is anchored to a full line, not a bare substring
+(Grok security review), so a future screen edit cannot silently mis-bundle.
+Screens are reused unmodified except four named, documented patches applied
+only to the bundled copy (`bundlegen/patches.go`): `judge-scoring.js`'s
+`history.replaceState` is wrapped in `try/catch` (a sandboxed iframe's opaque
+origin can reject it; harmless either way); `public-judge.js`'s `codeFromPath`
+(which reads the real page's own `/judge/<code>` URL) instead reads a global
+the glue script sets, since this frame is never navigated to that address;
+accepting the invite calls `window.__hackJudgeJoined(slug)` instead of
+`location.assign('/e/<slug>/judge')`, which a `sandbox="allow-scripts"` frame
+cannot do, and would otherwise drop the judge out of the app they just joined
+through (Codex review, SIM-344 P1) — the hand-off loads that event and
+switches the frame to its queue view, in-frame; and the accept form's submit
+button is wired to its own `click` instead of the form's `submit` event,
+since a sandboxed frame with no `allow-forms` blocks native form submission
+before that event ever reaches a listener — confirmed live when "accept the
+invite" hung with `hack_join_judge` never called at all — the same fix
+`passcode.js` already carries for the same reason. `nav.js` and `tour.js` are
+left out (per the reuse plan) and answered by two small hand-written
+stand-ins (`hack-judge-stubs.js`): `href()` returns an in-frame `#v=<view>`
+the glue script's own click handler intercepts (and, since `judge-queue.js`'s
+"Score this team" link and `public-judge.js`'s "Open it" link are both built
+by hand rather than through `href()`, that same handler also recognizes and
+resolves the slug from the judge app's literal `/e/<slug>/judge[?s=...]` path
+shape, rather than falling back to whatever view already happened to be
+showing — Codex review, SIM-344 P2); `startTour` is a no-op, since the guided
+walkthrough is a full-page, first-visit feature this small frame does not
+have. A small frame-level Back control (`hack-judge-view.js`'s own tiny view
+history, not a screen change) appears on the rubric view, which the reused
+screen has no return link for on its own, and returns to the same team's
+scoring (Codex review, SIM-344 P3). Every event-backed view refetches through
+`hack_show_judge` before rendering, rather than reusing the event snapshot
+from when the frame first opened, so an organiser locking judging, opening
+scoring, or publishing results while a judge's frame sits open is reflected
+on the next render, not only after the model reopens the view (Codex review,
+SIM-344 P4); `hack_show_judge`'s own model-visible result (`content` and
+`structuredContent`) carries only a fixed whitelist of eight event fields
+(slug, title, stage, scoring\_open, judging\_locked\_at, results\_published,
+submission\_deadline, time\_zone), never the raw REST body, which can carry
+an organiser's own join/judge codes when the caller is also that event's
+organiser (Grok security review, SIM-344). The event's own `about`, `rules`
+and `prizes` — organiser-written free text the model must never see —
+travel separately, in the result's `_meta` under `simple-hack/event-text`:
+`server.go` attaches a tool's `output.Meta` to the JSON-RPC result's `_meta`
+alongside (never inside) `content`/`structuredContent`, and `bridge.js`'s
+`callTool()` (the path every model-initiated tool call uses) discards
+`_meta` entirely, returning only `structuredContent` — the same precedent
+`site_analytics` already sets by putting its chart series in
+`answer.Meta["simple-host/daily"]` ("would swamp a conversation") for
+`my-sites.js` to read back out. Only `hack-judge-view.js`'s own
+`refreshEvent()`, via `window.SHApp.callToolResult()` (full raw result,
+`_meta` included — used nowhere else in the glue script), merges that text
+onto the view's event object before rendering; `TestHackShowJudgeContentNeverCarriesEventProse`
+pins that none of about/rules/prizes ever appear in `out.Text` or
+`out.Structured`, while confirming they do appear in `out.Meta`.
+`hack_show_judge` refuses outright for anyone who is not a judge or
+organiser of the event, with no event data in the refusal. Two further
+website fixes ride
+along, minimal, benefiting the real site too: `max_points`/`points`/chip
+values in `judge-scoring.js` and `judge-rubric.js` are coerced with `Number()`
+before interpolation, and a new `ui.hostLabel(url)` helper (used by
+`screens/_judge-util.js`'s `newTabLink`) shows the parsed host name next to
+"Open site"/"Watch video"/"View code", so a judge or organiser sees where a
+click is about to take them before it does (plan section 6, "Links").
+
+The glue script (`hack-judge-view.js`, hand-written, not generated) gives each
+view a `ctx` shaped like the website's own (`main`, `api`, `ui`, `event`,
+`params`, `go`), with `ctx.api.api(method, path, body)` a tool-backed shim: a
+hand-maintained route table (one entry per REST call the four screens make,
+checked against the real tool registrations by `TestHackJudgeRouteMapCoversCalls`,
+which records what each tool actually sends upstream) resolves `(method, path)`
+to an MCP tool and calls it through the bridge (`window.SHApp.callTool`), never
+`fetch` — the frame's CSP has no `connect-src` at all. A REST refusal's status
+and code are recovered by parsing the bridge's thrown error text (`hackRestError`'s
+own `"<tool> failed (HTTP <status>): <message> [<code>]"` wire format already
+carries both; no server change was needed to carry them separately).
+`ctx.api.isSignedOut` never fires (there is no sign-out concept on an
+authenticated MCP connection); `ui.showImage` is the one export shadowed over
+the reused `ui` module, swapping the website's raw-fetch screenshot read for
+`hack_get_team_screenshot`'s base64 bytes shown as a `data:` URL. Participant-
+entered `https://` links (a team's site, video, code) go through
+`SHApp.openLink`, since a sandboxed frame without `allow-popups` cannot open a
+real new tab at all. After a write, the glue script calls
+`ui/update-model-context` with one line it writes itself ("Saved 1 criterion
+score for an entry.", "Declared a conflict with a team..."), never the raw
+team or entry text the action touched: the screens' own escaped HTML is not
+reachable from outside the frame, but repeating that text back into the
+model's context would be, closing the prompt-injection path a hostile team
+name or entry description would otherwise have straight into the judge's chat.
+`showImage` only ever puts `image/png`, `image/jpeg` or `image/webp` into a
+`data:` URL (the same three types the server already accepts on upload),
+whitelisted client-side as well, before trusting the content type a screenshot
+read reports.
+
+A judge-scoped wrapper around `window.SHApp.callTool` (Grok security review,
+SIM-344) rejects any tool name outside the fixed set this app ever has a
+reason to call — the server independently role- and membership-checks every
+REST call regardless of which tool name reached it, so this is a narrower
+blast radius for a bug in this one file, not the real security boundary — and
+caps concurrent calls at 4, serialising writes (`hack_join_judge`,
+`hack_score_team`, `hack_declare_my_conflict`, `hack_remove_my_conflict`) one
+at a time, per plan section 6. (A broader server-side `_meta.ui.visibility`
+restriction on every non-judge Hack tool was considered and skipped: the
+codebase's only precedent for that meta field is `visibility:["app"]`
+(`passcode_screen`, the opposite direction — hiding a tool from the model,
+not from the app), there is no evidence a `"model"`-only value restricting
+app access is a value any host actually honours, and touching dozens of
+existing tool definitions for an uncertain, host-dependent benefit is a much
+larger change than the two real boundaries already in place: REST-layer
+authorization, which does not depend on any tool name or host behaviour, and
+this new client-side allowlist.)
+
+CSP: declared `_meta.ui.csp` domains are all empty, same as every other
+screen — and that gate now applies to `resources/list` and `resources/read`
+for `ui://simple-hack/judge` too, the same three-part check as the show tool
+(flag, `CallerModeEvents`, not ChatGPT/OpenAI/Codex, UI declared), not only to
+`hack_show_judge`'s own listing: a connection the tool list already hides
+`hack_show_judge` from could otherwise still read the resource directly by
+naming its URI, bypassing the tool list entirely (Grok security review,
+SIM-344; `TestHackJudgeResourceNeverReadableWithoutGate`). The resource's own
+`<meta http-equiv="Content-Security-Policy">`
+layers `script-src 'nonce-<fresh per read>'` (no `unsafe-inline`) on top, so an
+injected script element or an `onerror=` handler cannot run even if some
+escaping is missed; `style-src` stays `'unsafe-inline'`, since the reused
+screens set a handful of static `style="..."` attributes in their own markup
+(`judge-scoring.js`'s focus-layout wrapper, a screenshot `<img>`) that never
+become reachable from escaped participant text and that a nonce cannot cover
+regardless (nonces do not apply to style attributes, only hashes do, via
+`unsafe-hashes`). `require-trusted-types-for 'script'` was tried and dropped:
+the reused screens' own escaping model is `esc()`-then-`innerHTML` throughout,
+which Trusted Types refuses outright unless rewritten through a policy's
+`createHTML`, out of scope for reusing them unmodified. The nonce has no
+clock-derived fallback: if `crypto/rand` ever fails, `freshNonce` returns an
+error and the read fails outright, rather than serving a weakened,
+predictable nonce (Grok security review, SIM-344). `TestHackJudgeResourceRendersAndCSP`
+reads the resource twice and asserts the nonce differs and every script tag
+carries it. The rendered page's container is a real `<main id="app">`, not a
+`<div>`: `ui.js`'s own toast placement (`document.querySelector('main')`)
+depends on it. kit.css's `html,body{height:100%}` (correct for the real,
+top-level website) is overridden back to `auto` for this frame: the bridge
+resizes the host's iframe by measuring `document.body`'s own box, which a
+`height:100%` body reports as whatever the iframe's current height already is,
+forever, so content past the first paint would silently clip without this.
+
+Tests: `internal/mcp/hack_apps_judge_test.go` covers resource/show-tool gating
+(flag off/on/`accounts:`, `CallerModeEvents` only), the resource-read gate
+matching the show tool's (`TestHackJudgeResourceNeverReadableWithoutGate`),
+the three-part show-tool visibility gate including ChatGPT/OpenAI/Codex
+exclusion by app name and the UI-declared requirement under both the
+initialize-era and modern/stateless paths, the judge/organiser role
+requirement (`TestHackShowJudgeRequiresJudgeOrOrganiserRole`) and the event
+field whitelist, CSP and nonce freshness, the route-table-to-tool-call check,
+a check that `hack-judge-view.js`'s route table's body keys are actually in
+each tool's own schema (`TestHackJudgeViewRouteBodyKeysMatchToolSchema` — the
+regression test for the `hack_join_judge`/`answers` bug below), the
+`bundlegen` guard against unsupported constructs, and the bundle freshness
+check; `TestSubmissionToolsMatchChatGPTListing` (unchanged) keeps pinning the
+ChatGPT app's own 58-tool list.
+`internal/handler/hack_apps_judge_test.go` proves the same tool and resource
+against the real stack (real Postgres, real OAuth, a team with an entry whose
+title, tagline and description carry `<script>`/`onerror=` payloads), plus
+`TestHackJudgeAppShowToolReflectsLockMidSession` (an organiser locks judging
+mid-session; the next `hack_show_judge` call reflects it), and, behind
+`HACK_JUDGE_APP_FIXTURE`, serves a fixture for `scripts/hack-judge-app-browser.mjs`
+(the existing Playwright fake-host harness, extended): it renders all four
+views at 390 and 1280 px against a realistic host-served header CSP
+(`script-src 'self' 'unsafe-inline'`, proving the resource's own stricter
+nonce'd meta CSP — not the header — is what actually holds), injects raw,
+unescaped `<img onerror>` directly into the live DOM (bypassing the screens'
+own escaping entirely, simulating an escaping bug rather than assuming one
+away) and asserts the handler never runs, scores a team by tapping a point
+chip (asserting both the save lands via `hack_score_team` and that the chips
+are actually on screen — non-zero size, inside the frame's own width — not
+just present in the DOM, which the phone-width scoring view's own layout
+regression would otherwise have passed on text content alone), declares a
+conflict through the confirm dialog (asserting `hack_declare_my_conflict`),
+submits a real invite acceptance and confirms it lands on the judge's queue
+in-frame rather than navigating away, reopens the invite as an already-joined
+member and confirms "Open it" opens the queue (not the invite again), goes
+score → rubric → Back and confirms the same team's scoring is what comes
+back, and asserts the hostile team/entry text appears only as escaped text —
+no `<script>`/`<img onerror>` element is ever created and no `alert()`/native
+dialog fires. Every screenshot now also checks its own PNG's byte count: a
+day-one-of-this-review screenshot at phone width was fully blank — a timing
+race in Chromium's own `page.screenshot({fullPage:true})` capture against an
+iframe resizing on its own postMessage'd schedule, not a layout bug (the live
+DOM was provably correct throughout; see `scripts/hack-judge-app-browser.mjs`'s
+`waitForStableFrame`/`shot` for the full account and the retry-based fix).
+
 **Add photos (SIM-185, 2026-10-23).** `GET /photos?site=<name>` uses the shared
 sign-in card and the dashboard's stored owner key. Pick up to 30 photos, edit
 names, and save once. Native browser decoding handles JPEG, PNG, WebP, AVIF,
@@ -2035,7 +2264,7 @@ personal connection.
 | Leave an event (SIM-340) | `hack_preview_leave_event`, `hack_leave_event` | `GET`/`POST /v1/hack/events/{slug}/leave`, deciding the caller's case (participant, applicant, judge, co_organiser, creator, last_organiser) under the event lock |
 | Participant entry | `hack_get_entry`, `hack_update_entry`, `hack_get_entry_screenshot`, `hack_set_entry_screenshot`, `hack_delete_entry_screenshot` | `/v1/hack/events/{slug}/entry` and `/entry/screenshot` |
 | Voting and private results | `hack_get_voting`, `hack_get_my_vote`, `hack_vote`, `hack_get_my_results` | `/vote`, `/my-vote`, `/my-results` |
-| Judge | `hack_preview_judge`, `hack_join_judge`, `hack_get_judge_queue`, `hack_get_judge_scores`, `hack_score_team`, `hack_get_my_conflicts`, `hack_declare_my_conflict`, `hack_remove_my_conflict` | Judge-link preview/accept, `/judge/queue`, `/judge/scores/{team}`, `/conflicts` |
+| Judge | `hack_preview_judge`, `hack_join_judge`, `hack_get_judge_queue`, `hack_get_judge_scores`, `hack_score_team`, `hack_get_my_conflicts`, `hack_declare_my_conflict`, `hack_remove_my_conflict`, `hack_show_judge` (§10, app-only) | Judge-link preview/accept, `/judge/queue`, `/judge/scores/{team}`, `/conflicts` |
 | Public and content | `hack_get_directory`, `hack_get_content`, `hack_set_content`, `hack_get_announcements`, `hack_post_announcement` | `/v1/hack/directory`, `/content`, `/announcements` |
 | Event website and preferences (`HackWebTools`, `internal/mcp/hack_web_tools.go`) | `hack_get_event_website`, `hack_publish_event_website`, `hack_set_event_website_mode`, `hack_set_event_icon`, `hack_clear_event_icon`, `hack_get_public_event`, `hack_get_preferences`, `hack_set_preferences` | `/website`, `/website/files`, `/icon`, `/public`, `/v1/hack/preferences` |
 | Registration and tracks | `hack_get_registration`, `hack_set_registration`, `hack_get_applications`, `hack_decide_application`, `hack_get_tracks`, `hack_set_tracks` | `/registration` (`approval_required`/`admit_pending` cover join-link sign-ups only), `/applications`, `/applications/{user_id}/decision`, `/tracks` |

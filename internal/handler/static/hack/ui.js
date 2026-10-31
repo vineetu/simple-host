@@ -468,6 +468,17 @@ export function safeHref(url) {
   const s = String(url || '').trim()
   return /^https?:\/\//i.test(s) ? s : ''
 }
+// The host name of a link a participant typed in (a team's site, a video,
+// a piece of code), to show next to the button that opens it -- plan
+// section 6, "Links": "show the full host name next to the button", so a
+// judge or organiser sees where a click is about to take them before it
+// does. '' for anything safeHref would already refuse, so a caller never
+// needs its own separate check.
+export function hostLabel(url) {
+  const href = safeHref(url)
+  if (!href) return ''
+  try { return new URL(href).hostname } catch { return '' }
+}
 export function copyButton(text, label = 'Copy') {
   const button = document.createElement('button')
   button.type = 'button'

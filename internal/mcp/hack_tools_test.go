@@ -152,7 +152,12 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 	events := listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, CallerModeEvents))
 	visibleHack := make([]Tool, 0, len(hack))
 	for _, tool := range hack {
-		if tool.Name != "hack_create_team_key" {
+		// hack_show_judge is listed only once its own flag is set and the
+		// connection has declared MCP Apps UI support (see
+		// TestHackShowJudgeNotListedWithoutUISupport and
+		// TestHackShowJudgeListedOnceUIDeclared in hack_apps_judge_test.go);
+		// this baseline call does neither.
+		if tool.Name != "hack_create_team_key" && tool.Name != "hack_show_judge" {
 			visibleHack = append(visibleHack, tool)
 		}
 	}

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- No require-trusted-types-for 'script': the reused screens' own escaping
+     model is esc()-then-innerHTML throughout (ui.js, every judge-*.js),
+     and Trusted Types would refuse every one of those assignments unless
+     each screen were rewritten to go through a policy's createHTML --
+     out of scope for reusing them unmodified. The nonce on script-src is
+     the control that actually matters: it blocks an attacker-injected
+     script element or an onerror= handler from running even if some
+     escaping is missed, which is what section 6 of the plan is after.
+     style-src stays 'unsafe-inline' rather than nonced: the reused
+     screens set a handful of static style="..." attributes directly in
+     their own markup (judge-scoring.js's layout wrapper, an <img
+     style="max-width:100%"> for the screenshot) -- CSS attributes, never
+     reachable from escaped participant text (esc() never emits an
+     unescaped '"' that could open one), so this costs no real XSS
+     protection; nonces cannot cover style attributes at all (only hashes
+     can, via 'unsafe-hashes', which is no safer than this for markup we
+     generate ourselves). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-__NONCE__'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-src 'none'; base-uri 'none'">
+<title>Judge</title>
+<style nonce="__NONCE__">__STYLE__
+/* kit.css sets html,body{height:100%} for the real, top-level website,
+   where .app{height:100vh} wants a full-viewport grid. Inside this
+   frame that is actively wrong: the bridge's own resize (apps/bridge.js)
+   measures document.body.getBoundingClientRect().height to tell the
+   host how tall to make the iframe, and a body pinned to height:100%
+   reports exactly the iframe's current height forever -- a value that
+   never changes as content grows, so the host never resizes the frame
+   and new content clips. auto lets the body's box size to its content,
+   which is what a frame (as opposed to a full page) needs. */
+html,body{height:auto}
+body{background:var(--paper);color:var(--line);font:14.5px/1.5 var(--font);margin:0}
+#app{min-height:40px}
+#app:empty::before,.hj-loading{color:var(--line-soft)}
+</style></head>
+<body>
+<main id="app" class="page"><p class="muted">Loading…</p></main>
+<script nonce="__NONCE__">__BRIDGE__</script>
+<script nonce="__NONCE__">__STUBS__</script>
+<script nonce="__NONCE__">__BUNDLE__</script>
+<script nonce="__NONCE__">__VIEW__</script>
+</body></html>

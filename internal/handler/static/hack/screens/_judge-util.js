@@ -17,10 +17,16 @@ export const errText = (r, fallback) => ui.errText(r, { codes: ui.ERROR_MESSAGES
 // old name so every call site in this file and its importers keeps working.
 export const safeHref = ui.safeHref
 
+// The host name next to the label (plan section 6, "Links"): a judge or
+// organiser sees where "Open site"/"Watch video"/"View code" actually
+// goes, since every one of these is a link a participant typed in, before
+// a click leaves the app.
 export function newTabLink(url, label, cls) {
   const href = safeHref(url)
   if (!href) return ''
-  return `<a class="${cls || 'btn'}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`
+  const host = ui.hostLabel(href)
+  const shown = host ? `${label} (${host})` : label
+  return `<a class="${cls || 'btn'}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(shown)}</a>`
 }
 
 // The team's own site for this judge to open: a pinned snapshot wins over

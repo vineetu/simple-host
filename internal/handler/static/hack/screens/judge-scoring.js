@@ -173,11 +173,12 @@ export async function render(ctx) {
 
   function critRow(crit, isFirst) {
     const current = scores[crit.id]
+    const maxPoints = Number(crit.max_points) || 0
     if (locked) {
-      return `<div class="crit"><b>${ui.esc(crit.name)}</b>${crit.description ? `<p class="small muted">${ui.esc(crit.description)}</p>` : ''}<p>Your score: <b>${current == null ? '—' : current} / ${crit.max_points}</b></p></div>`
+      return `<div class="crit"><b>${ui.esc(crit.name)}</b>${crit.description ? `<p class="small muted">${ui.esc(crit.description)}</p>` : ''}<p>Your score: <b>${current == null ? '—' : Number(current) || 0} / ${maxPoints}</b></p></div>`
     }
     let chips = ''
-    for (let p = 0; p <= crit.max_points; p++) {
+    for (let p = 0; p <= maxPoints; p++) {
       chips += `<span role="radio" tabindex="0" aria-checked="${current === p ? 'true' : 'false'}" class="${current === p ? 'on' : ''}" data-crit="${ui.esc(crit.id)}" data-points="${p}">${p}</span>`
     }
     // Walkthrough: only the first criterion needs a target -- "tap a score"

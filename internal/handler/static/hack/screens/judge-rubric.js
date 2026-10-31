@@ -27,7 +27,7 @@ export async function render(ctx) {
 
   const rubricCard = !criteria.length
     ? `<section class="card"><h2>Rubric</h2><div class="note">The organiser hasn’t published a rubric yet. Check back closer to judging.</div></section>`
-    : `<section class="card"><h2>Rubric</h2><p class="sub">${criteria.length} ${criteria.length === 1 ? 'criterion' : 'criteria'} · ${total} points total</p>${criteria.map(c => `<div class="crit"><div class="row-flex"><b>${ui.esc(c.name)}</b><span class="pill">${c.max_points} points</span></div>${c.description ? `<p class="small muted">${ui.esc(c.description)}</p>` : ''}</div>`).join('')}</section>`
+    : `<section class="card"><h2>Rubric</h2><p class="sub">${criteria.length} ${criteria.length === 1 ? 'criterion' : 'criteria'} · ${total} points total</p>${criteria.map(c => `<div class="crit"><div class="row-flex"><b>${ui.esc(c.name)}</b><span class="pill">${Number(c.max_points) || 0} points</span></div>${c.description ? `<p class="small muted">${ui.esc(c.description)}</p>` : ''}</div>`).join('')}</section>`
 
   const about = paragraphs(ev.about).map(p => `<p>${ui.esc(p)}</p>`).join('')
   const rules = paragraphs(ev.rules).map(p => `<p>${ui.esc(p)}</p>`).join('')

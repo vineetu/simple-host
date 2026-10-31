@@ -277,7 +277,11 @@ func HackTools() []Tool {
 	recipe := hackPageRecipeTool()
 	recipe.Name = "hack_get_page_recipe"
 	tools = append(tools, recipe)
-	return append(tools, HackWebTools()...)
+	tools = append(tools, HackWebTools()...)
+	// Always present, like passcode_screen in the Simple Host inventory:
+	// gated at tools/list (filterHackShowTools) and at call time
+	// (hackShowJudgeAppAllowed), never by being absent from hackByName.
+	return append(tools, hackShowJudgeTool())
 }
 
 func eventSlug(args map[string]any) (string, error) {
