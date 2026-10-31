@@ -37,9 +37,13 @@ export async function render(ctx) {
     help.textContent = 'Checking…'; help.className = 'help'
     api('GET', '/v1/hack/names/' + encodeURIComponent(slug)).then(r => {
       if (seq !== slugCheckSeq) return
-      if (!r.ok) { help.textContent = ui.errText(r, { fallback: 'Could not check that address.' }); help.className = 'help bad'; return }
+      // Cosmetic #1 (retest 3): both branches below used to show the
+      // server's own raw lowercase sentence ("that name is reserved",
+      // "use 3 to 39 lowercase letters…") straight in the help text --
+      // friendly, capitalised copy via the shared error codes instead.
+      if (!r.ok) { help.textContent = ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not check that address.' }); help.className = 'help bad'; return }
       if (r.data.available) { help.textContent = slug + '.simple-hack.app · available'; help.className = 'help ok' }
-      else { help.textContent = r.data.error || 'That address is taken.'; help.className = 'help bad' }
+      else { help.textContent = ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'That address is taken.' }); help.className = 'help bad' }
     }).catch(() => { if (seq === slugCheckSeq) { help.textContent = 'Could not connect. Check your connection and try again.'; help.className = 'help bad' } })
   }
   $('new-title').addEventListener('input', () => {
@@ -76,8 +80,8 @@ export async function render(ctx) {
       const r = await api('POST', '/v1/hack/events', body)
       if (!r.ok) {
         if (r.data && ['invalid_name', 'name_reserved', 'name_taken'].includes(r.data.code)) {
-          const help = $('new-slug-help'); help.textContent = ui.errText(r); help.className = 'help bad'
-        } else setLive(ui.errText(r), 'err')
+          const help = $('new-slug-help'); help.textContent = ui.errText(r, { codes: ui.ERROR_MESSAGES }); help.className = 'help bad'
+        } else setLive(ui.errText(r, { codes: ui.ERROR_MESSAGES }), 'err')
         submitBtns.forEach(b => b.disabled = false)
         return
       }

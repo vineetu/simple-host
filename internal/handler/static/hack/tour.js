@@ -71,7 +71,15 @@ function contentBox() {
 
 // Keeps the card inside the viewport: below the target if it fits, else
 // above, else clamped to the viewport; always clamped horizontally.
-function place(card, target) {
+// `step.side === 'left'` (Cosmetic #3, retest 3) asks to sit beside the
+// target instead -- the scoring tour's "Add a comment" step pointed at a
+// textarea near the bottom of a narrow scrolling column, so the ordinary
+// "below, else above" rule put the card right over the Execution/Design
+// score rows sitting above it (the only side with room was above). Sitting
+// beside it instead needs no vertical stacking to cover anything; it falls
+// back to the ordinary rule when there isn't room to the side (phone's
+// single-column layout).
+function place(card, target, step) {
   const pad = 8, gap = 12
   const vw = document.documentElement.clientWidth
   // Fixed bars at the bottom (phone tab bar, a sticky save bar) cover the
@@ -85,10 +93,12 @@ function place(card, target) {
   let top, left
   if (target) {
     const t = target.getBoundingClientRect()
-    if (t.bottom + gap + c.height <= vh) top = t.bottom + gap
-    else if (t.top - gap - c.height >= 0) top = t.top - gap - c.height
-    else top = t.top
-    left = t.left + t.width / 2 - c.width / 2
+    if (step && step.side === 'left' && t.left - gap - c.width >= pad) {
+      left = t.left - gap - c.width
+      top = t.top
+    } else if (t.bottom + gap + c.height <= vh) { top = t.bottom + gap; left = t.left + t.width / 2 - c.width / 2 }
+    else if (t.top - gap - c.height >= 0) { top = t.top - gap - c.height; left = t.left + t.width / 2 - c.width / 2 }
+    else { top = t.top; left = t.left + t.width / 2 - c.width / 2 }
   } else {
     // C4 (round 2): an untargeted step (a centred welcome/explainer card, by
     // design -- see canShow) used to land just under the page header, which
@@ -196,7 +206,7 @@ export async function startTour(role, ctx, { force = false } = {}) {
 
   function reposition() {
     if (active !== state) return
-    place(card, state.target)
+    place(card, state.target, state.step)
   }
 
   function show(i) {
@@ -226,6 +236,7 @@ export async function startTour(role, ctx, { force = false } = {}) {
     if (app) app.classList.toggle('menu-open', navStep)
     const target = resolveTarget(step)
     state.target = target
+    state.step = step
     card.querySelector('.tour-progress').textContent = `Step ${shown} of ${shownTotal}`
     card.querySelector('.tour-title').textContent = step.title
     card.querySelector('.tour-body').textContent = step.body
@@ -235,8 +246,8 @@ export async function startTour(role, ctx, { force = false } = {}) {
       target.classList.add('tour-ring')
       try { target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) } catch (e) {}
     }
-    place(card, target)
-    requestAnimationFrame(() => place(card, target))
+    place(card, target, step)
+    requestAnimationFrame(() => place(card, target, step))
     card.focus()
   }
 

@@ -95,7 +95,7 @@ ${newSecret && newSecret.forId === n.id ? secretPanel(newSecret) : ''}
 
 <section class="card" id="applications"><h2>Applications</h2>
 <div class="setting"><div class="t"><div class="t-row"><b>Let people apply without your join link</b><span class="saved" id="apps-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span>When your event is listed in Find a hackathon, an Apply button shows there and on your event page while sign-up is open and during Building. Every application waits for you in People &rarr; Applications.</span></div><div class="ctl"><button class="toggle${ev.applications_open ? ' on' : ''}" type="button" role="switch" aria-checked="${!!ev.applications_open}" id="apps-toggle"${appsLocked ? ' disabled' : ''} aria-label="Let people apply without your join link"></button></div></div>
-<p class="small muted">Your join link keeps working either way and stays private. Turning this off stops new applications; ones already waiting stay in People.</p>
+<p class="small muted">Your join link keeps working either way and stays private. Turning this off stops new applications. Ones already waiting stay in People.</p>
 <p class="small muted">${directoryListed ? `Listed in Find a hackathon: yes — <a href="${esc(href('organiser', ev.slug, 'results'))}">change in Results</a>.` : `Not listed in Find a hackathon, so nobody can apply yet. Applications start once you <a href="${esc(href('organiser', ev.slug, 'results'))}">list the event in Results</a>.`}</p>
 </section>
 
@@ -152,6 +152,13 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
           expected_participants: Number(nRaw)
         })
         if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
+        // Confusing #5 (retest 3): Save gave no on-screen confirmation at
+        // all, organiser or participant alike couldn't tell it had worked
+        // short of reloading. The API itself never blocks these fields
+        // after End (only Applications and the deadline do, above) -- S14's
+        // own rule is that the UI matches the API, so this stays editable
+        // rather than turning read-only, and just needed its "Saved".
+        ui.saved(btn)
         await ctx.refresh()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     })

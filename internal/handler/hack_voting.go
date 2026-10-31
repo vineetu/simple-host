@@ -265,7 +265,26 @@ func (h *HackHandler) getMyVote(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"team": selected})
+	// Confusing #4 (retest 3): the public vote page had no way to know
+	// ahead of pressing Vote whether this signed-in visitor actually
+	// qualifies under the event's eligibility setting -- it found out only
+	// from the PUT /vote 403. my-vote is already authenticated, so it's
+	// the natural place to answer that up front, the same rule putVote
+	// itself enforces (an admin inspection account can never vote either).
+	eligible := !user.IsAdmin && user.Username != ""
+	if eligible {
+		s, err := db.GetVotingSettings(r.Context(), h.database, ev.ID)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+		eligible, err = db.VoterEligible(r.Context(), h.database, ev.ID, s.Eligibility, db.BaseEmail(user.Username))
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+	}
+	writeJSON(w, 200, map[string]any{"team": selected, "eligible": eligible})
 }
 
 func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {

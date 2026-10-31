@@ -35,6 +35,8 @@
 
 <section id="vote-panel" hidden>
   <div class="note" id="vote-when" hidden></div>
+  <div class="note warn" id="vote-ineligible" hidden></div>
+  <div class="note bad" id="vote-check-error" hidden></div>
   <p id="vote-signin" class="muted small" hidden><a id="signin-link" href="/signin">Sign in to vote</a>. You can change your vote until voting closes.</p>
   <p id="vote-current" class="muted small"></p>
   <div class="grid2" id="options"></div>
@@ -185,6 +187,16 @@
     } catch (_) { return d.toLocaleString(); }
   }
   function possessive(name) { return name ? name + (/s$/i.test(name) ? "'" : "'s") : ''; }
+  // Confusing #4 (retest 3): a signed-in visitor who doesn't qualify under
+  // the event's voting eligibility used to see an active Vote button and
+  // only found out from a raw "this account is not eligible to vote" after
+  // pressing it. Same copy for the up-front note and the PUT /vote error,
+  // so a mid-visit eligibility change reads the same way either path.
+  function ineligibleNote(eligibility) {
+    if (eligibility === 'participants') return 'Only approved participants can vote in this event.';
+    if (eligibility === 'event_members') return 'Only approved event members can vote in this event.';
+    return 'Your account is not eligible to vote in this event.';
+  }
   // In-page confirm dialog (Grok re-test #1): this page carries no site
   // chrome any more (the restyle dropped the sh:head marker comment this
   // file used to have), so the shared in-page-dialog helper from
@@ -246,10 +258,35 @@
     $('vote-when').hidden = !(d.opens_at && d.closes_at);
     $('vote-when').textContent = d.opens_at && d.closes_at ? 'Open ' + humanTime(d.opens_at, zone) + ' to ' + humanTime(d.closes_at, zone) : '';
     $('vote-signin').hidden = status !== 'open' || !!key();
-    var chosen = '';
+    // Codex review: eligible used to default to true and a failed /my-vote
+    // (network blip, a 401 mid-session, a 5xx) was silently ignored,
+    // leaving the Vote button active even though the lookup that was
+    // supposed to justify showing it never actually came back. null means
+    // "don't know yet" -- vote controls stay unavailable until it resolves
+    // true, and a failed lookup shows a retryable error instead of quietly
+    // assuming the best.
+    var chosen = '', eligible = null, checkFailed = false;
     if (key() && (status === 'open' || status === 'closed')) {
-      var own = await request('GET', base + '/my-vote', null, true);
-      if (own.ok) chosen = own.data.team || '';
+      // request() has no try/catch of its own around fetch -- a network-
+      // level failure (not just a non-2xx response) must not take down the
+      // rest of this render (options, the vote-when note, ranking): it's
+      // caught here and folded into the same "don't know yet" state a 4xx/5xx
+      // already produces above.
+      try {
+        var own = await request('GET', base + '/my-vote', null, true);
+        if (own.ok) { chosen = own.data.team || ''; eligible = own.data.eligible !== false; }
+        else checkFailed = true;
+      } catch (_) { checkFailed = true; }
+    }
+    $('vote-ineligible').hidden = !(status === 'open' && key() && eligible === false);
+    $('vote-ineligible').textContent = eligible === false ? ineligibleNote(d.eligibility) : '';
+    $('vote-check-error').hidden = !(status === 'open' && key() && checkFailed);
+    $('vote-check-error').textContent = '';
+    if (status === 'open' && key() && checkFailed) {
+      $('vote-check-error').appendChild(node('span', "Couldn't check whether you can vote. "));
+      var retry = node('button', 'Retry', 'btn sm'); retry.type = 'button';
+      retry.addEventListener('click', function () { loadVote().catch(function () { live('Cannot reach the server.', true); }); });
+      $('vote-check-error').appendChild(retry);
     }
     var options = $('options'); options.textContent = '';
     (d.options || []).forEach(function (o) {
@@ -258,15 +295,15 @@
       if (o.tagline) box.appendChild(node('p', o.tagline, 'sub'));
       var row = node('div', '', 'row-flex');
       var link = node('a', 'View ' + possessive(o.team_name) + ' site', 'btn sm'); link.href = o.url; link.target = '_blank'; link.rel = 'noopener'; row.appendChild(link);
-      if (status === 'open' && key() && chosen === o.team) {
+      if (status === 'open' && key() && eligible === true && chosen === o.team) {
         row.appendChild(node('span', 'Your current vote', 'pill ok'));
-      } else if (status === 'open' && key()) {
+      } else if (status === 'open' && key() && eligible === true) {
         var btn = node('button', 'Vote for this team', 'btn primary sm'); btn.type = 'button';
         btn.addEventListener('click', async function () {
           btn.disabled = true;
           try {
             var v = await request('PUT', base + '/vote', { team:o.team }, true);
-            if (!v.ok) { live(v.data.error || 'Could not save vote.', true); btn.disabled = false; return; }
+            if (!v.ok) { live(v.data.code === 'vote_ineligible' ? ineligibleNote(d.eligibility) : (v.data.error || 'Could not save vote.'), true); btn.disabled = false; return; }
             chosen = o.team; $('vote-current').textContent = 'Your vote: ' + o.team_name;
             await loadVote();
             live(v.data.changed ? 'Vote changed.' : 'Vote saved.');

@@ -56,9 +56,14 @@ export async function render(ctx) {
   }
   let published = !!(results && results.length)
 
+  // S14 (retest 3): the lock note used to sit right above the still-active
+  // Publish button, reading as if it covered Publish too -- Publish, the
+  // Directory toggle and the downloads stay live on purpose after End (see
+  // the comment above), so they're grouped before the note now, and the
+  // note sits directly over the section where things actually do lock,
+  // instead of over the whole page.
   main.innerHTML = `
 <div class="ph"><div class="t"><h1>Results</h1><p>Preview, publish and share your standings.</p></div><button class="btn primary" type="button" id="res-publish-top">${published ? 'Publish again' : 'Publish results'}</button></div>
-${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>` : ''}
 <div class="note" id="res-status"></div>
 <p class="note warn" id="res-lock-hint" hidden>Lock judging first, on <a href="${ui.esc(href(role, slug, 'judging'))}">Judging</a>.</p>
 <section class="card"><h2>Publish</h2>
@@ -66,17 +71,6 @@ ${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>`
 <p class="small muted" id="res-republish-note" hidden></p>
 </section>
 <details class="card" id="res-preview"><summary>Preview current standings</summary><p class="muted small">Override a tied rank by hand if one remains after the tie-break.</p><div id="res-preview-body"></div></details>
-<section class="card"><h2>How teams are ranked</h2><div class="field"><label>Score used for ranking<select class="select" id="res-score-mode"${archived ? ' disabled' : ''}><option value="normalised">Average, adjusted for strict and generous judges</option><option value="raw">Average score</option></select></label></div><button class="btn" type="button" id="res-score-mode-save"${archived ? ' disabled' : ''}>Save</button></section>
-<section class="card"><h2>Show on the public page</h2><p class="small muted">Tip: Full ranking with scores off lists every team without a scoreboard.</p><div class="field"><label>Visibility<select class="select" id="res-visibility"${archived ? ' disabled' : ''}><option value="true">Full ranking</option><option value="false">Winners only</option></select></label></div><label class="check"><input type="checkbox" id="res-public-scores"${archived ? ' disabled' : ''}><div><b>Show scores</b><span>Teams always see their own score.</span></div></label><label class="check"><input type="checkbox" id="res-public-ranks"${archived ? ' disabled' : ''}><span>Show ranks</span></label><p class="help" id="res-visibility-hint" hidden>Publish results first to control what the public page shows.</p><button class="btn" type="button" id="res-visibility-save"${archived ? ' disabled' : ''}>Save</button></section>
-<section class="card"><h2>People’s choice</h2>
-<p><span class="pill" id="res-vote-status"></span></p>
-<label class="check"><input type="checkbox" id="res-vote-enabled"${archived ? ' disabled' : ''}><span>Let visitors vote</span></label>
-<div class="grid2"><div class="field"><label>Starts · <span id="res-tz-1"></span><input class="input" type="datetime-local" id="res-vote-opens"${archived ? ' disabled' : ''}></label></div><div class="field"><label>Ends · <span id="res-tz-2"></span><input class="input" type="datetime-local" id="res-vote-closes"${archived ? ' disabled' : ''}></label></div></div>
-<button class="btn" type="button" id="res-vote-window-save"${archived ? ' disabled' : ''}>Save voting window</button>
-<hr class="rule">
-<div class="field"><label>Who can vote<select class="select" id="res-vote-eligibility"${archived ? ' disabled' : ''}><option value="all_signed_in">Anyone signed in</option><option value="event_members">Approved event members</option><option value="participants">Approved participants only</option></select></label></div>
-<button class="btn" type="button" id="res-vote-eligibility-save"${archived ? ' disabled' : ''}>Save</button>
-</section>
 <section class="card"><h2>Directory</h2>
 <label class="check"><input type="checkbox" id="res-directory-listed"><span>List this event on Find a hackathon</span></label>
 <button class="btn" type="button" id="res-directory-save">Save</button>
@@ -88,7 +82,19 @@ ${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>`
 <button class="btn" type="button" id="res-dl-teams">Teams (CSV)</button>
 <button class="btn" type="button" id="res-dl-participants">People (CSV)</button>
 <button class="btn" type="button" id="res-dl-sites">All team sites (.tar.gz)</button>
-</div></section>`
+</div></section>
+${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>` : ''}
+<section class="card"><h2>How teams are ranked</h2><div class="field"><label>Score used for ranking<select class="select" id="res-score-mode"${archived ? ' disabled' : ''}><option value="normalised">Average, adjusted for strict and generous judges</option><option value="raw">Average score</option></select></label></div><button class="btn" type="button" id="res-score-mode-save"${archived ? ' disabled' : ''}>Save</button></section>
+<section class="card"><h2>Show on the public page</h2><p class="small muted">Tip: Full ranking with scores off lists every team without a scoreboard.</p><div class="field"><label>Visibility<select class="select" id="res-visibility"${archived ? ' disabled' : ''}><option value="true">Full ranking</option><option value="false">Winners only</option></select></label></div><label class="check"><input type="checkbox" id="res-public-scores"${archived ? ' disabled' : ''}><div><b>Show scores</b><span>Teams always see their own score.</span></div></label><label class="check"><input type="checkbox" id="res-public-ranks"${archived ? ' disabled' : ''}><span>Show ranks</span></label><p class="help" id="res-visibility-hint" hidden>Publish results first to control what the public page shows.</p><button class="btn" type="button" id="res-visibility-save"${archived ? ' disabled' : ''}>Save</button></section>
+<section class="card"><h2>People’s choice</h2>
+<p><span class="pill" id="res-vote-status"></span></p>
+<label class="check"><input type="checkbox" id="res-vote-enabled"${archived ? ' disabled' : ''}><span>Let visitors vote</span></label>
+<div class="grid2"><div class="field"><label>Starts · <span id="res-tz-1"></span><input class="input" type="datetime-local" id="res-vote-opens"${archived ? ' disabled' : ''}></label></div><div class="field"><label>Ends · <span id="res-tz-2"></span><input class="input" type="datetime-local" id="res-vote-closes"${archived ? ' disabled' : ''}></label></div></div>
+<button class="btn" type="button" id="res-vote-window-save"${archived ? ' disabled' : ''}>Save voting window</button>
+<hr class="rule">
+<div class="field"><label>Who can vote<select class="select" id="res-vote-eligibility"${archived ? ' disabled' : ''}><option value="all_signed_in">Anyone signed in</option><option value="event_members">Approved event members</option><option value="participants">Approved participants only</option></select></label></div>
+<button class="btn" type="button" id="res-vote-eligibility-save"${archived ? ' disabled' : ''}>Save</button>
+</section>`
 
   // --- status -----------------------------------------------------------
   function paintStatus() {

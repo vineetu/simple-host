@@ -161,6 +161,11 @@ type hackEventView struct {
 	StagePill                   string
 	IconURL, Initial, Color     string
 	Ink                         string // text colour that reads on --ev (hackEventInk)
+	// Slug (Grok retest, Cosmetic #3): the stage card's own script reads it
+	// to ask the app's API, cross-origin, whether the signed-in visitor
+	// already belongs to this event, and swap out "Join with the link from
+	// the organisers... Already joined? Sign in" for a signed-in member.
+	Slug string
 	AppURL                      string
 	TakenDown                   bool
 	TakenDownReason             string
@@ -330,6 +335,7 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 	}
 
 	v := hackEventView{
+		Slug:            p.Slug,
 		Title:           p.Title,
 		Tagline:         p.Tagline,
 		OrganisedBy:     hackOrganisedBy(p.OrganiserName, p.Organisation),

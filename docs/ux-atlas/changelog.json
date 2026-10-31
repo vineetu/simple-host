@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-10-31",
+  "what": "Fixes from Grok's third production test (SIM-346): judge My teams rows stack on phone; Team finding stays open with Saved; participant Team saves show Saved; the Fill teams preview says when a code-only team with room was skipped; people who can't vote see why up front and no active Vote button; Your details shows Saved; Create event address messages are friendly; scoring says No entry was submitted once; the scoring walkthrough's comment step sits beside the score rows; the I know someone undo only promises a score that exists; You are on <team> now shows once per placement; Results after End groups the still-live Publish, listing and downloads before the read-only note; the public event page offers Continue to your event to someone already in."
+ },
+ {
+  "date": "2026-10-31",
   "what": "Apply is only for events listed in Find a hackathon. An unlisted event's public page shows no Apply, its apply page shows the applications-off state, and Settings says the event must be listed in Results first (owner decision)."
  },
  {

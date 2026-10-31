@@ -102,6 +102,28 @@ func OwnVote(ctx context.Context, q Querier, eventID, canonicalEmail string) (st
 	return slug, err
 }
 
+// VoterEligible reports whether canonicalEmail may vote under eligibility
+// ("all_signed_in", "event_members" or "participants"), the same approved-
+// membership rule CastVote itself enforces. Shared so the public vote page
+// can tell a signed-in visitor up front that they can't vote (Grok retest
+// 3, Confusing #4), instead of only after they press a Vote button that
+// looked active.
+func VoterEligible(ctx context.Context, q Querier, eventID, eligibility, canonicalEmail string) (bool, error) {
+	if eligibility == "all_signed_in" {
+		return true, nil
+	}
+	roleClause := ""
+	if eligibility == "participants" {
+		roleClause = " AND m.role = 'participant'"
+	}
+	var allowed bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_members m
+		JOIN users u ON u.id = m.user_id WHERE m.event_id = $1
+		AND `+baseEmailSQL("u.username")+` = $2
+		AND m.approval_status = 'approved'`+roleClause+`)`, eventID, canonicalEmail).Scan(&allowed)
+	return allowed, err
+}
+
 // CastVote serializes a vote against stage/window changes by locking the event
 // row. The primary key serializes aliases of the same verified email.
 func CastVote(ctx context.Context, database *sql.DB, eventID, accountID, canonicalEmail, teamSlug string) (bool, error) {
@@ -127,22 +149,12 @@ func CastVote(ctx context.Context, database *sql.DB, eventID, accountID, canonic
 	if !enabled || !galleryOpen || !opens.Valid || !closes.Valid || now.Before(opens.Time) || !now.Before(closes.Time) || stage == "draft" || stage == "archived" || takenDown.Valid {
 		return false, ErrVoteClosed
 	}
-	if eligibility != "all_signed_in" {
-		var allowed bool
-		roleClause := ""
-		if eligibility == "participants" {
-			roleClause = " AND m.role = 'participant'"
-		}
-		err = tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_members m
-			JOIN users u ON u.id = m.user_id WHERE m.event_id = $1
-			AND `+baseEmailSQL("u.username")+` = $2
-			AND m.approval_status = 'approved'`+roleClause+`)`, eventID, canonicalEmail).Scan(&allowed)
-		if err != nil {
-			return false, err
-		}
-		if !allowed {
-			return false, ErrVoteIneligible
-		}
+	allowed, err := VoterEligible(ctx, tx, eventID, eligibility, canonicalEmail)
+	if err != nil {
+		return false, err
+	}
+	if !allowed {
+		return false, ErrVoteIneligible
 	}
 	var teamID string
 	err = tx.QueryRowContext(ctx, `SELECT t.id `+galleryLiveFrom+` AND t.slug = $3`, eventID, accountID, teamSlug).Scan(&teamID)

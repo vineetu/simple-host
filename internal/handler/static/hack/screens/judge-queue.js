@@ -58,6 +58,20 @@ export async function render(ctx) {
     } catch (e) {}
   }))
 
+  // Cosmetic #4 (retest 3): computeResults excludes a conflicted team's
+  // score rows from results without deleting them, so "Your score for X
+  // will count again" in the undo dialog below is only true when a score
+  // row actually exists -- a judge who flags "I know someone" before ever
+  // scoring the team has nothing to "count again"; undoing just lets them
+  // score it for the first time.
+  // Codex review: a conflicted team's own .../judge/scores/{team} 403s for
+  // this judge (judgeMayScore blocks it), so probing that endpoint per
+  // conflict could never actually learn the answer -- the server now
+  // reports had_score on each conflict row directly (hack_judging.go
+  // ListEventConflicts), no extra request needed.
+  const hadScore = {}
+  for (const c of conflicts) hadScore[c.team_id] = !!c.had_score
+
   // No in-page "Scoring is Open" pill: the status bar already says it
   // (shell.js). Only the locked/results-published notes, which carry extra
   // context the status bar doesn't, stay here.
@@ -138,7 +152,8 @@ export async function render(ctx) {
   main.querySelectorAll('[data-remove-conflict]').forEach(btn => btn.addEventListener('click', async () => {
     const teamId = btn.getAttribute('data-remove-conflict')
     const name = btn.getAttribute('data-name') || 'this team'
-    const ok = await ui.confirm({ title: `Score ${name} again?`, body: `Your score for ${name} will count again.`, confirmLabel: 'Score again' })
+    const body = hadScore[teamId] ? `Your score for ${name} will count again.` : `You'll be able to score them.`
+    const ok = await ui.confirm({ title: `Score ${name} again?`, body, confirmLabel: 'Score again' })
     if (!ok) return
     btn.disabled = true
     let r

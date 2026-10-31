@@ -145,6 +145,43 @@ func TestHackFillTeams(t *testing.T) {
 	}
 }
 
+// Grok retest 3, Confusing #3: a code-only team ("Only people with the
+// code") with room must be left alone by fill-teams -- its members chose
+// not to take strangers -- but the preview response needs to say why,
+// instead of silently starting a one-person "Team N" while Beta Builders
+// still had a seat free.
+func TestHackFillTeamsSkipsCodeOnly(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org := a.newPerson(t, "codeonlyorg")
+	leader := a.newPerson(t, "codeonlyleader")
+	slug := a.makeEvent(t, org)
+	base := "/v1/hack/events/" + slug
+	a.join(t, slug, leader, org)
+	team, _ := a.startTeam(t, slug, "Beta Builders", leader)
+	wantTS(t, "max", a.api(t, "PATCH", base, map[string]any{"team_size_max": 3}, org.key), 200, "")
+	wantTS(t, "code only", a.api(t, "PUT", base+"/team/finding", map[string]any{"open": false, "looking_for": ""}, leader.key), 200, "")
+	solo := a.newPerson(t, "codeonlysolo")
+	a.join(t, slug, solo, org)
+	preview := a.api(t, "POST", base+"/teams/fill", map[string]any{"apply": false}, org.key)
+	wantTS(t, "preview", preview, 200, "")
+	body := preview.json(t)
+	plan := body["plan"].([]any)
+	if len(plan) != 1 || plan[0].(map[string]any)["team"] == team {
+		t.Fatalf("expected a new team, not Beta Builders: %v", plan)
+	}
+	if plan[0].(map[string]any)["new"] != true {
+		t.Fatalf("expected the lone solo to start a new team: %v", plan)
+	}
+	skipped := body["skipped"].([]any)
+	if len(skipped) != 1 {
+		t.Fatalf("skipped %v", skipped)
+	}
+	s := skipped[0].(map[string]any)
+	if s["team"] != team || s["reason"] != "code_only" {
+		t.Fatalf("skipped entry %v", s)
+	}
+}
+
 func TestHackFindingCrossedOffersAndRemoval(t *testing.T) {
 	a := newTeamSiteApp(t)
 	org := a.newPerson(t, "crossorg")

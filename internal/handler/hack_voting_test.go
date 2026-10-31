@@ -177,6 +177,12 @@ func TestHackVotingAndDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantTS(t, "pending denied", a.api(t, "PUT", base+"/vote", map[string]string{"team": alpha}, p1.key), 403, "vote_ineligible")
+	// Confusing #4 (retest 3): my-vote now reports this standing up front,
+	// the same rule putVote itself enforces, so the vote page can explain a
+	// disabled Vote button instead of only reacting to the 403 above.
+	if got := a.api(t, "GET", base+"/my-vote", nil, p1.key).json(t)["eligible"]; got != false {
+		t.Fatalf("pending my-vote eligible: %v", got)
+	}
 	if _, err := a.database.Exec(`UPDATE event_members SET approval_status='approved' WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, slug, a.uid(t, p1)); err != nil {
 		t.Fatal(err)
 	}
@@ -185,6 +191,12 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	voteSettings(t, a, slug, org, now.Add(-time.Hour), now.Add(time.Hour), "participants")
 	wantTS(t, "participant allowed", a.api(t, "PUT", base+"/vote", map[string]string{"team": alpha}, p2.key), 200, "")
 	wantTS(t, "organiser not participant", a.api(t, "PUT", base+"/vote", map[string]string{"team": alpha}, org.key), 403, "vote_ineligible")
+	if got := a.api(t, "GET", base+"/my-vote", nil, p2.key).json(t)["eligible"]; got != true {
+		t.Fatalf("participant my-vote eligible: %v", got)
+	}
+	if got := a.api(t, "GET", base+"/my-vote", nil, org.key).json(t)["eligible"]; got != false {
+		t.Fatalf("organiser my-vote eligible: %v", got)
+	}
 
 	// Close the window: counts become public and writes stop.
 	voteSettings(t, a, slug, org, now.Add(-2*time.Hour), now.Add(-time.Hour), "all_signed_in")

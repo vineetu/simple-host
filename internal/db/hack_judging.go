@@ -27,8 +27,16 @@ type NamedJudge struct {
 }
 
 // EventConflict is one declared judge/team conflict, with names filled in.
+// HadScore (Codex review of Grok retest 3, Cosmetic #4): whether the judge
+// already has score rows for this team, computed here -- judgeMayScore
+// blocks a conflicted judge's own GET .../judge/scores/{team} with a 403
+// (computeResults still excludes those rows from results, but a client
+// calling that endpoint per conflict to find out can never succeed), so the
+// one place that can honestly answer "would undoing this conflict restore
+// a real score" is the query that already has unrestricted DB access.
 type EventConflict struct {
 	JudgeID, JudgeName, TeamID, TeamName, DeclaredBy string
+	HadScore                                         bool
 }
 
 // ConflictPair is a judge who must not be assigned to a team.
@@ -180,7 +188,9 @@ func EventJudge(ctx context.Context, q Querier, eventID, userID string) (NamedJu
 // ListEventConflicts returns conflicts for the event. judgeID empty means all of them.
 func ListEventConflicts(ctx context.Context, q Querier, eventID, judgeID string) ([]EventConflict, error) {
 	query := `
-		SELECT c.judge_id, COALESCE(j.display_name, ''), c.team_id, t.name, c.declared_by
+		SELECT c.judge_id, COALESCE(j.display_name, ''), c.team_id, t.name, c.declared_by,
+		       EXISTS(SELECT 1 FROM event_scores es WHERE es.event_id = c.event_id
+		                AND es.judge_id = c.judge_id AND es.team_id = c.team_id)
 		  FROM event_conflicts c
 		  JOIN event_teams t ON t.id = c.team_id
 		  LEFT JOIN event_members j ON j.event_id = c.event_id AND j.user_id = c.judge_id
@@ -199,7 +209,7 @@ func ListEventConflicts(ctx context.Context, q Querier, eventID, judgeID string)
 	out := []EventConflict{}
 	for rows.Next() {
 		var c EventConflict
-		if err := rows.Scan(&c.JudgeID, &c.JudgeName, &c.TeamID, &c.TeamName, &c.DeclaredBy); err != nil {
+		if err := rows.Scan(&c.JudgeID, &c.JudgeName, &c.TeamID, &c.TeamName, &c.DeclaredBy, &c.HadScore); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -211,12 +221,14 @@ func ListEventConflicts(ctx context.Context, q Querier, eventID, judgeID string)
 func GetEventConflict(ctx context.Context, q Querier, eventID, judgeID, teamID string) (EventConflict, error) {
 	var c EventConflict
 	err := q.QueryRowContext(ctx, `
-		SELECT c.judge_id, COALESCE(j.display_name, ''), c.team_id, t.name, c.declared_by
+		SELECT c.judge_id, COALESCE(j.display_name, ''), c.team_id, t.name, c.declared_by,
+		       EXISTS(SELECT 1 FROM event_scores es WHERE es.event_id = c.event_id
+		                AND es.judge_id = c.judge_id AND es.team_id = c.team_id)
 		  FROM event_conflicts c
 		  JOIN event_teams t ON t.id = c.team_id
 		  LEFT JOIN event_members j ON j.event_id = c.event_id AND j.user_id = c.judge_id
 		 WHERE c.event_id = $1 AND c.judge_id = $2 AND c.team_id = $3`,
-		eventID, judgeID, teamID).Scan(&c.JudgeID, &c.JudgeName, &c.TeamID, &c.TeamName, &c.DeclaredBy)
+		eventID, judgeID, teamID).Scan(&c.JudgeID, &c.JudgeName, &c.TeamID, &c.TeamName, &c.DeclaredBy, &c.HadScore)
 	return c, err
 }
 

@@ -402,7 +402,7 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	plan, err := db.PlanFillTeams(ctx, tx, ev)
+	plan, skipped, err := db.PlanFillTeams(ctx, tx, ev)
 	if err != nil {
 		writeInternal(w)
 		return
@@ -440,5 +440,5 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"plan": plan, "applied": req.Apply})
+	writeJSON(w, 200, map[string]any{"plan": plan, "applied": req.Apply, "skipped": skipped})
 }

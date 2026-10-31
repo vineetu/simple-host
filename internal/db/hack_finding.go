@@ -172,32 +172,48 @@ type FillPerson struct {
 	DisplayName string `json:"display_name"`
 }
 
+// FillSkippedTeam is an open-with-room-but-code-only team the planner
+// deliberately passed over (Grok retest 3, Confusing #3): fill-teams only
+// ever places people into teams anyone can join by browsing, never into a
+// "only people with the code" team, since that team's members chose not to
+// take strangers. Reported back so the preview can explain the skip
+// ("Beta Builders takes people with its code only, so it was skipped.")
+// instead of silently starting a new one-person team while that team still
+// has room. Teams skipped because they're already full need no
+// explanation, so those aren't reported here.
+type FillSkippedTeam struct {
+	Team   string `json:"team"`
+	Name   string `json:"name"`
+	Reason string `json:"reason"` // currently always "code_only"
+}
+
 // PlanFillTeams uses approved solo participants, oldest first, and open teams only.
 // The caller locks the event and membership rows before preview or apply.
-func PlanFillTeams(ctx context.Context, q Querier, ev Event) ([]FillPlacement, error) {
+func PlanFillTeams(ctx context.Context, q Querier, ev Event) ([]FillPlacement, []FillSkippedTeam, error) {
 	rows, err := queryContext(ctx, q, `SELECT user_id,display_name FROM event_members WHERE event_id=$1 AND role='participant' AND approval_status='approved' AND team_id IS NULL ORDER BY joined_at,user_id`, ev.ID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	people := []FillPerson{}
 	for rows.Next() {
 		var p FillPerson
 		if err = rows.Scan(&p.UserID, &p.DisplayName); err != nil {
 			rows.Close()
-			return nil, err
+			return nil, nil, err
 		}
 		people = append(people, p)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	teams, err := ListEventTeams(ctx, q, ev.ID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	plan := []FillPlacement{}
+	skipped := []FillSkippedTeam{}
 	names := map[string]bool{}
 	slugs := map[string]bool{}
 	for _, t := range teams {
@@ -205,18 +221,21 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event) ([]FillPlacement, e
 		slugs[t.Slug] = true
 		var open bool
 		if err = q.QueryRowContext(ctx, `SELECT open FROM event_teams WHERE id=$1`, t.ID).Scan(&open); err != nil {
-			return nil, err
-		}
-		if !open {
-			continue
+			return nil, nil, err
 		}
 		n, err := CountTeamMembers(ctx, q, t.ID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		if !open {
+			if n < ev.TeamSizeMax && len(people) > 0 {
+				skipped = append(skipped, FillSkippedTeam{Team: t.Slug, Name: t.Name, Reason: "code_only"})
+			}
+			continue
 		}
 		st, err := TeamWriteStateFor(ctx, q, t.ID, false)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if st.Frozen() {
 			continue
@@ -233,10 +252,10 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event) ([]FillPlacement, e
 	}
 	var past bool
 	if err = q.QueryRowContext(ctx, "SELECT COALESCE(submission_deadline<=clock_timestamp(),false) FROM events WHERE id=$1", ev.ID).Scan(&past); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if past {
-		return plan, nil
+		return plan, skipped, nil
 	}
 	for n := 1; len(people) > 0; n++ {
 		name := fmt.Sprintf("Team %d", n)
@@ -246,14 +265,14 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event) ([]FillPlacement, e
 		}
 		var taken bool
 		if err = q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_teams WHERE event_id=$1 AND lower(name)=lower($2))`, ev.ID, name).Scan(&taken); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if taken {
 			continue
 		}
 		used, err := TeamNameEverUsed(ctx, q, ev.Slug, ev.AccountID, slug)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if used {
 			continue
@@ -265,5 +284,5 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event) ([]FillPlacement, e
 		plan = append(plan, FillPlacement{Team: slug, Name: name, New: true, Members: append([]FillPerson{}, people[:slots]...)})
 		people = people[slots:]
 	}
-	return plan, nil
+	return plan, skipped, nil
 }

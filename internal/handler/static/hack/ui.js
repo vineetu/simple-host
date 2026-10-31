@@ -190,6 +190,14 @@ export const ERROR_MESSAGES = {
   notification_access_ended: 'Notifications for this site are no longer available.',
   notifications_not_enabled: 'Notifications are unavailable on this server.',
   joining_closed: 'Sign-up has closed for this event.',
+  // Cosmetic #1 (retest 3): the event address check (GET /names/{slug} and
+  // POST /events) wrote its own lowercase, comma-run sentences straight
+  // into the help text -- friendly, capitalised copy for Create event's
+  // address field.
+  invalid_name: "Use 3 to 39 lowercase letters, numbers or hyphens. It can't start or end with a hyphen.",
+  name_reserved: 'That name is reserved.',
+  name_taken: 'That name is already in use.',
+  name_check_unavailable: 'Could not check whether this name is free. Try again.',
   answer_required: 'Answer every required question.',
   invalid_answers: "Something in that request wasn't right. Reload and try again."
 }

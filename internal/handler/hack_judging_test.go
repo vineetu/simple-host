@@ -245,6 +245,7 @@ type conflictView struct {
 	TeamID     string `json:"team_id"`
 	TeamName   string `json:"team_name"`
 	DeclaredBy string `json:"declared_by"`
+	HadScore   bool   `json:"had_score"`
 }
 
 func decodeConflict(t *testing.T, r resp) conflictView {
@@ -597,7 +598,7 @@ func TestHackJudgingConflicts(t *testing.T) {
 	wantHackErr(t, "outsider", r, http.StatusNotFound, "event_not_found", "event not found")
 
 	self := decodeConflict(t, w.call(t, "POST", "/conflicts", map[string]any{"team_id": t0.id}, j0.person))
-	if self != (conflictView{j0.id, j0.name, t0.id, t0.name, "judge"}) {
+	if self != (conflictView{j0.id, j0.name, t0.id, t0.name, "judge", false}) {
 		t.Fatalf("self: %+v", self)
 	}
 	// A second declaration is the same row, and declared_by stays "judge".
@@ -618,7 +619,7 @@ func TestHackJudgingConflicts(t *testing.T) {
 	onBehalf := decodeConflict(t, w.call(t, "POST", "/conflicts", map[string]any{
 		"team_id": t0.id, "judge_user_id": j1.id,
 	}, w.org))
-	if onBehalf != (conflictView{j1.id, j1.name, t0.id, t0.name, "organiser"}) {
+	if onBehalf != (conflictView{j1.id, j1.name, t0.id, t0.name, "organiser", false}) {
 		t.Fatalf("on behalf: %+v", onBehalf)
 	}
 	// Declaring the same triple again does not flip declared_by.
@@ -892,6 +893,45 @@ func (w *judgingWorld) scoreTeam(t *testing.T, judge judgingPerson, teamID strin
 		body["comment"] = *comment
 	}
 	return w.call(t, "PUT", "/judge/scores/"+teamID, body, judge.person)
+}
+
+// Codex review of Grok retest 3, Cosmetic #4: the judge-queue undo dialog
+// used to probe GET .../judge/scores/{team} per conflict to decide whether
+// "Your score will count again" is true -- but judgeMayScore 403s that
+// exact endpoint for a team the judge has a conflict with, so it could
+// never actually learn the answer. had_score on the conflicts response
+// answers it directly instead.
+func TestHackConflictsReportHadScore(t *testing.T) {
+	w := newJudgingWorld(t, 2, 1)
+	crit := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 10)), w.org)).Criteria[0]
+	judge, scored, unscored := w.judges[0], w.teams[0], w.teams[1]
+
+	if r := w.scoreTeam(t, judge, scored.id, map[string]int{crit.ID: 7}, nil); r.status != http.StatusOK {
+		t.Fatalf("score: %d %s", r.status, r.body)
+	}
+	for _, team := range []judgingTeam{scored, unscored} {
+		if r := w.call(t, "POST", "/conflicts", map[string]any{"team_id": team.id}, judge.person); r.status != http.StatusOK {
+			t.Fatalf("declare conflict on %s: %d %s", team.name, r.status, r.body)
+		}
+	}
+	list := decodeConflictList(t, w.call(t, "GET", "/conflicts", nil, judge.person))
+	if len(list) != 2 {
+		t.Fatalf("conflicts %+v", list)
+	}
+	for _, c := range list {
+		want := c.TeamID == scored.id
+		if c.HadScore != want {
+			t.Fatalf("team %s had_score=%v, want %v: %+v", c.TeamName, c.HadScore, want, c)
+		}
+	}
+	// The organiser sees the same field declaring a conflict on a judge's
+	// behalf, and the POST response (not just the GET list) carries it too.
+	declared := decodeConflict(t, w.call(t, "POST", "/conflicts", map[string]any{
+		"team_id": scored.id, "judge_user_id": judge.id,
+	}, w.org))
+	if !declared.HadScore {
+		t.Fatalf("declared via organiser: %+v", declared)
+	}
 }
 
 func TestHackJudgingScoresUpsertAndRetrySafety(t *testing.T) {

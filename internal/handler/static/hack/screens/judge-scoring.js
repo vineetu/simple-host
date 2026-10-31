@@ -135,7 +135,8 @@ export async function render(ctx) {
   // published a site -- "Nothing published yet" reads as "it's still
   // coming", which is misleading once there's no entry to publish from.
   // (row.title, not the fallback-to-"Entry" `title` above, which is never
-  // falsy -- same raw check the "No entry yet" note just below already uses.)
+  // falsy -- same raw check the Team site box's own "No entry was
+  // submitted." text below uses.)
   // Round 2: a title/tagline/description alone isn't the whole entry -- a
   // team that only submitted a video or code link still submitted
   // something, so that counts too.
@@ -162,7 +163,10 @@ export async function render(ctx) {
     `<button type="button" class="btn btn-block" id="jsc-goscore">Go to scoring ↓</button>` +
     (tagline ? `<p><b>${ui.esc(tagline)}</b></p>` : '') +
     (desc ? `<p>${ui.esc(desc)}</p>` : '') +
-    (noEntry ? '<p class="muted">No entry yet</p>' : '') +
+    // Cosmetic #2 (retest 3): "No entry yet" used to show here unconditionally
+    // whenever noEntry was true, stacked right above the Team site box's own
+    // "No entry was submitted." -- the same fact said twice, one of them in
+    // the present tense after entries had already closed. Said once, below.
     `<div class="row-flex">${video}${code}</div>` +
     siteSection +
     shotSection

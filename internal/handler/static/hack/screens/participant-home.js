@@ -21,13 +21,26 @@ let autoTourTried = false
 // tell a self-service join/accept from an organiser's Fill teams apart
 // either, the note never attributes the placement to the organiser (SIM-346
 // Confusing #9) -- it just confirms the result.
-function justPlacedNote(slug, me) {
-  const key = 'sh-seen-team-' + slug
-  let seen = null
-  try { seen = localStorage.getItem(key) } catch (e) {}
+// Cosmetic #5 (retest 3), round 2 (Codex review): a per-(user,team) "seen"
+// flag read "missing" as "not seen", which is also what a brand-new key
+// reads as on everyone's very first render after this shipped -- every
+// existing participant already on a team got a one-time false "You are on
+// X now.", and leaving + later being placed back on that exact same team
+// never showed the note again. Back to a baseline comparison (what this
+// screen did before retest 3) -- the actual bug was that the old key had
+// no per-user scoping, not the comparison model itself. This key is
+// shared on purpose with participant-team.js's own baseline (same key
+// there) -- "you are on this team now" is one fact, so whichever of
+// Home/Team the person sees first updates it for both, instead of showing
+// the same banner twice on two screens.
+function justPlacedNote(uid, slug, me) {
+  const baselineKey = 'sh-team-baseline-' + uid + '-' + slug
   const teamSlug = me.team ? me.team.slug : ''
-  try { localStorage.setItem(key, teamSlug) } catch (e) {}
-  return seen === '' && !!teamSlug
+  let baseline = null
+  try { baseline = localStorage.getItem(baselineKey) } catch (e) {}
+  try { localStorage.setItem(baselineKey, teamSlug) } catch (e) {}
+  if (baseline === null) return false // first sight: baseline set silently
+  return baseline !== teamSlug && !!teamSlug
 }
 
 // Fetched once and read for both the open-teams count (openTeamsNote) and a
@@ -81,7 +94,8 @@ export async function render(ctx) {
   const resultsHref = href('participant', slug, 'results')
   const entryHref = href('participant', slug, 'entry')
 
-  const justPlaced = justPlacedNote(slug, me)
+  const uid = (ctx.me && (ctx.me.id || ctx.me.username)) || 'anon'
+  const justPlaced = justPlacedNote(uid, slug, me)
 
   // Teams can only be started, joined or changed while sign-up/building is
   // open and the entry deadline (if any) has not already passed -- matches

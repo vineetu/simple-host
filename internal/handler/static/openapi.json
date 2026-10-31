@@ -20576,7 +20576,7 @@
         ],
         "operationId": "getHackMyVote",
         "summary": "Read the connected person's own vote",
-        "description": "Signed-in personal account. Matches the same canonical email identity as vote writes.",
+        "description": "Signed-in personal account. Matches the same canonical email identity as vote writes. Also returns eligible, this account's current standing against the event's voting eligibility setting (and the admin-account rule PUT vote itself enforces), so the vote page can explain upfront that someone can't vote instead of only after a PUT vote 403 vote_ineligible.",
         "parameters": [
           {
             "in": "path",
@@ -20594,7 +20594,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Team slug or empty string when no vote",
+            "description": "{team, eligible}: team slug or empty string when no vote.",
             "content": {
               "application/json": {
                 "schema": {
@@ -24582,6 +24582,10 @@
                               "judge",
                               "organiser"
                             ]
+                          },
+                          "had_score": {
+                            "type": "boolean",
+                            "description": "Whether this judge already has score rows for this team (computed server-side: the judge's own GET .../judge/scores/{team} 403s for a team they have a conflict with, so a client can't learn this by probing that endpoint). Lets the undo-conflict confirmation say whether a score will \"count again\" or the judge is scoring for the first time."
                           }
                         }
                       }
@@ -24674,6 +24678,10 @@
                     },
                     "declared_by": {
                       "type": "string"
+                    },
+                    "had_score": {
+                      "type": "boolean",
+                      "description": "See GET .../conflicts."
                     }
                   }
                 }
@@ -33413,7 +33421,7 @@
         ],
         "operationId": "fillHackTeams",
         "summary": "Organiser only",
-        "description": "Organiser only. Preview with apply:false; confirm before apply:true. Places only approved solo participants into open teams with space, then new Team 1, Team 2 groups up to team_size_max, avoiding name and used-site clashes. Returns plan [{team,name,new,members:[{user_id,display_name}]}] and applied. Apply recomputes from current membership. Team finding must be on and the event must allow team changes. Existing teams use their effective deadline including extensions; no new teams are created after the event deadline.",
+        "description": "Organiser only. Preview with apply:false; confirm before apply:true. Places only approved solo participants into open teams with space, then new Team 1, Team 2 groups up to team_size_max, avoiding name and used-site clashes. A team set to \"only people with the code\" (open:false) is deliberately left alone even with room -- its members chose not to take strangers -- and is listed in skipped instead, so the caller can explain the gap rather than a stranger being quietly dropped into a new one-person team instead. Returns plan [{team,name,new,members:[{user_id,display_name}]}], skipped [{team,name,reason}] (reason is currently always \"code_only\"; a team skipped only because it's already full isn't listed) and applied. Apply recomputes from current membership. Team finding must be on and the event must allow team changes. Existing teams use their effective deadline including extensions; no new teams are created after the event deadline.",
         "security": [
           {
             "apiKey": []

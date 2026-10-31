@@ -637,6 +637,11 @@ func conflictJSON(c db.EventConflict) map[string]any {
 		"team_id":     c.TeamID,
 		"team_name":   c.TeamName,
 		"declared_by": c.DeclaredBy,
+		// had_score (Codex review, Grok retest 3 Cosmetic #4): whether the
+		// judge already has score rows for this team -- the judge-queue
+		// undo dialog uses this directly instead of probing
+		// .../judge/scores/{team}, which 403s for a conflicted team.
+		"had_score": c.HadScore,
 	}
 }
 

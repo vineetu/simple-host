@@ -11,25 +11,41 @@ let autoTourTried = false
 
 // "Just filled" (spec state) has no server signal: there is no field that
 // says "an organiser's Fill teams placed you here", and no Go change is in
-// scope for this batch. participant-home.js already approximates this by
-// remembering the last-seen team per event and treating a none -> some
-// transition as "just placed"; this screen does the same under its own key
-// (it must not share home's key -- whichever screen renders first would
-// "consume" the transition for the other). It also has an extra wrinkle
-// home's version doesn't: this is the screen the join/start/accept buttons
-// live on, so a self-service join must not show "placed by the organiser"
-// about to the very team the user just joined themselves. selfJoined()
-// marks that down right before the refresh those actions already do.
-function justPlacedNote (slug, team) {
-  const seenKey = 'sh-seen-team-page-' + slug
+// scope for this batch. participant-home.js approximates it the same way,
+// under the same 'sh-team-baseline-<user>-<event>' key on purpose (retest
+// 3, Cosmetic #5) -- "you are on this team now" is one fact, so whichever
+// of Home/Team the person sees first updates the shared baseline, instead
+// of showing the same banner twice on two screens. This screen has an
+// extra wrinkle home's version doesn't: it's where the join/start/accept
+// buttons live, so a self-service join must not show "placed by the
+// organiser" about to the very team the user just joined themselves.
+// markSelfJoin() marks that down right before the refresh those actions
+// already do.
+// Cosmetic #5 (retest 3), round 2 (Codex review): a per-(user,team) "seen"
+// flag read "missing" as "not seen" -- which is also what a brand-new key
+// reads as on the very first render after this shipped, for every existing
+// participant already on a team, so everyone got a one-time false "You are
+// on X now." the day this deployed. It also meant leaving a team and later
+// being placed back on that exact same team never showed the note again
+// (that (user,team) pair was already marked seen from the first time).
+// Back to a baseline comparison -- the one real fix is doing it per user
+// (the original pre-retest-3 code's actual bug) instead of in the key: the
+// first time this user/event pair is ever seen, the current team becomes
+// the baseline silently (no note -- there is nothing to compare against
+// yet). Only once a *recorded* baseline stops matching the current team
+// (team gained, changed, or regained after being cleared by a visit while
+// teamless) does the note show, once, and the baseline moves to match.
+function justPlacedNote (uid, slug, team) {
   const selfKey = 'sh-selfjoin-' + slug
-  let seen = null
   let self = false
-  try { seen = localStorage.getItem(seenKey) } catch (e) {}
   try { self = sessionStorage.getItem(selfKey) === '1'; sessionStorage.removeItem(selfKey) } catch (e) {}
+  const baselineKey = 'sh-team-baseline-' + uid + '-' + slug
   const teamSlug = team ? team.slug : ''
-  try { localStorage.setItem(seenKey, teamSlug) } catch (e) {}
-  return seen === '' && !!teamSlug && !self
+  let baseline = null
+  try { baseline = localStorage.getItem(baselineKey) } catch (e) {}
+  try { localStorage.setItem(baselineKey, teamSlug) } catch (e) {}
+  if (baseline === null) return false // first sight: baseline set silently
+  return baseline !== teamSlug && !!teamSlug && !self
 }
 function markSelfJoin (slug) { try { sessionStorage.setItem('sh-selfjoin-' + slug, '1') } catch (e) {} }
 
@@ -56,7 +72,8 @@ export async function render (ctx) {
   const canStart = teamsOpen && !frozen && !(ev.submission_deadline && new Date(ev.submission_deadline) <= new Date())
   const canJoinByCode = teamsOpen && !ended
   const editable = teamsOpen && !frozen
-  const justPlaced = justPlacedNote(ev.slug, team)
+  const uid = (ctx.me && (ctx.me.id || ctx.me.username)) || 'anon'
+  const justPlaced = justPlacedNote(uid, ev.slug, team)
 
   let finding = { enabled: false, teams: [], solo: [], pending: [], looking: false, intro: '', team: null }
   try {
@@ -66,7 +83,15 @@ export async function render (ctx) {
 
   const $ = id => main.querySelector('#' + id)
 
-  async function act (btn, fn, { onBlocked } = {}) {
+  // Confusing #2 (retest 3): Save / Save track / Save intro gave no
+  // on-screen confirmation at all -- the change took, but the person had
+  // no way to tell short of reloading. Those three callers pass
+  // `saved: true`; the request-and-respond actions (Accept, Invite, Leave,
+  // Join...) already show their effect in the refreshed screen and don't
+  // need a toast too. Shown before refresh() like every other screen's
+  // "Saved" -- ui.toast's own keep() re-anchors it at the top if the
+  // repaint (refresh's route() call) sweeps the near element away.
+  async function act (btn, fn, { onBlocked, saved } = {}) {
     if (btn) btn.disabled = true
     try {
       const r = await fn()
@@ -78,6 +103,7 @@ export async function render (ctx) {
         return
       }
       if (!team) markSelfJoin(ev.slug)
+      if (saved) ui.saved(btn || main)
       await refresh()
     } catch (e) {
       if (client.isSignedOut(e)) return
@@ -237,7 +263,7 @@ export async function render (ctx) {
   const lookOn = $('look-on')
   const lookSave = $('look-save')
   if (lookOn) lookOn.addEventListener('change', () => act(null, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/me/looking', { looking: lookOn.checked, intro: $('look-intro').value })))
-  if (lookSave) lookSave.addEventListener('click', () => act(lookSave, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/me/looking', { looking: lookOn.checked, intro: $('look-intro').value })))
+  if (lookSave) lookSave.addEventListener('click', () => act(lookSave, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/me/looking', { looking: lookOn.checked, intro: $('look-intro').value }), { saved: true }))
 
   let pendingOpen = finding.team ? !!finding.team.open : true
   if (editable) {
@@ -247,10 +273,10 @@ export async function render (ctx) {
     }))
   }
   const settingsSave = $('team-settings-save')
-  if (settingsSave) settingsSave.addEventListener('click', () => act(settingsSave, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team/finding', { open: pendingOpen, looking_for: $('team-looking').value })))
+  if (settingsSave) settingsSave.addEventListener('click', () => act(settingsSave, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team/finding', { open: pendingOpen, looking_for: $('team-looking').value }), { saved: true }))
 
   const trackSave = $('team-track-save')
-  if (trackSave) trackSave.addEventListener('click', () => act(trackSave, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team/track', { track: $('team-track').value })))
+  if (trackSave) trackSave.addEventListener('click', () => act(trackSave, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team/track', { track: $('team-track').value }), { saved: true }))
 
   const leave = $('team-leave')
   if (leave) leave.addEventListener('click', async () => {

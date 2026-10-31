@@ -40,8 +40,11 @@ export async function render(ctx) {
   // Confusing #1: the Tracks section must stay open across the repaint
   // that Add track / Save tracks / Remove track triggers, the same way
   // People's Co-organisers/Sign-up sections do -- otherwise the new row
-  // (or the save) immediately folds the section shut again.
+  // (or the save) immediately folds the section shut again. Retest 3
+  // Confusing #1: Team finding had the same bug -- Save folded it shut
+  // right when "Saved" needed to be seen next to the button.
   let tracksOpen = false
+  let teamFindingOpen = false
 
   function row(t) {
     const members = t.members.length
@@ -69,7 +72,7 @@ ${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>`
 ${!ev.team_finding ? `<div class="note">Team finding is off. Teams form by invite code only.</div>` : ''}
 <div class="list">${teams.length ? teams.map(row).join('') : '<div class="empty">No teams yet.</div>'}</div>
 <p class="small muted"><a href="${ui.esc(href(role, slug, 'results'))}">Teams CSV is on Results</a></p>
-<details class="card"><summary>Team finding</summary>
+<details class="card" id="team-finding"${teamFindingOpen ? ' open' : ''}><summary>Team finding</summary>
 <label class="check"><input type="checkbox" id="tf-on"${ev.team_finding ? ' checked' : ''}${configurable ? '' : ' disabled'}><div><b>Team finding</b><span>Let participants find teams and invite people. Team codes always work.</span></div></label>
 <div class="field"><label>Most people per team<input class="input" id="tf-size" type="number" min="1" max="50" value="${teamSizeMax}"${configurable ? '' : ' disabled'}></label></div>
 <button class="btn" type="button" id="tf-save"${configurable ? '' : ' disabled'}>Save</button>
@@ -87,6 +90,7 @@ ${tracks.map(trackCard).join('')}
     if (fillBtn) fillBtn.addEventListener('click', onFillTeams)
     const tfSave = $('tf-save')
     if (tfSave) tfSave.addEventListener('click', onSaveTeamFinding)
+    $('team-finding').addEventListener('toggle', () => { teamFindingOpen = $('team-finding').open })
     $('tracks').addEventListener('toggle', () => { tracksOpen = $('tracks').open })
     const trackAdd = $('track-add')
     if (trackAdd) trackAdd.addEventListener('click', () => {
@@ -117,7 +121,19 @@ ${tracks.map(trackCard).join('')}
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); btn.disabled = false; return }
     if (!r.ok) { setLive(r.data.error || 'Could not plan teams', true); btn.disabled = false; return }
     const plan = r.data.plan || []
-    if (!plan.length) { setLive('Nobody is left to place.'); btn.disabled = false; return }
+    // Confusing #3 (retest 3): fill-teams deliberately never places a
+    // stranger into a code-only ("only people with the code") team, even
+    // with room -- its members chose not to take strangers. The server
+    // reports that skip back in `skipped` (reason "code_only") so the
+    // preview can say why, instead of silently starting a one-person
+    // "Team N" while that team still had a seat free.
+    const skipped = r.data.skipped || []
+    function skipNote(s) { return `${s.name} takes people with its code only, so it was skipped.` }
+    if (!plan.length) {
+      setLive(skipped.length ? skipped.map(skipNote).join(' ') : 'Nobody is left to place.')
+      btn.disabled = false
+      return
+    }
     const list = document.createElement('ul')
     list.className = 'steps'
     for (const p of plan) {
@@ -137,12 +153,19 @@ ${tracks.map(trackCard).join('')}
       li.append(tick, what)
       list.append(li)
     }
+    const body = [list]
+    if (skipped.length) {
+      const note = document.createElement('p')
+      note.className = 'small muted'
+      note.textContent = skipped.map(skipNote).join(' ')
+      body.push(note)
+    }
     // Confusing #7: the stale-membership warning used to sit here
     // unconditionally, before anything could actually have changed --
     // moved below, where the apply response's own plan can be compared
     // against the one just previewed, so it only shows when membership
     // really did shift in between.
-    const ok = await ui.confirm({ title: 'Fill teams?', body: [list], confirmLabel: 'Apply' })
+    const ok = await ui.confirm({ title: 'Fill teams?', body, confirmLabel: 'Apply' })
     btn.disabled = false
     if (!ok) return
     let ar
@@ -177,6 +200,7 @@ ${tracks.map(trackCard).join('')}
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); btn.disabled = false; return }
     if (!r.ok) { setLive(r.data.error || 'Could not save', true); btn.disabled = false; return }
     ev = r.data.event
+    teamFindingOpen = true
     await load()
     paint()
     ui.saved(main)
