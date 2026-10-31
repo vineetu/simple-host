@@ -799,6 +799,12 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .scrim.sheet .dialog.form .acts .btn{flex:1}
   .row-menu{right:4px}
   .row-menu button{min-height:44px}
+  /* SIM-340: a danger-zone .setting squeezed its text into a narrow column
+     next to the button on phone (participant-home~pending-390-full.png,
+     and today's Settings "Turn off" already clipped the same way) --
+     stack the text above a full-width button instead. */
+  .danger-zone .setting{flex-direction:column}
+  .danger-zone .setting .btn{width:100%}
 }
 /* Headings that receive focus for screen readers (tab switches) show no box to mouse users. */
 [tabindex="-1"]:focus{outline:none}

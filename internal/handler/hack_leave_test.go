@@ -478,6 +478,91 @@ func TestHackLeaveLastOrganiserEnd(t *testing.T) {
 	wantTS(t, "public page", a.at(t, "GET", "/v1/hack/events/"+slug+"/public", nil, nil), 200, "")
 }
 
+// TestHackArchiveKeepsFutureDeadlineWhenAlreadyClosed is Nit 3: before
+// archiveEventTx was extracted from setStage (git show
+// 0339c499:internal/handler/hack.go), archiving an event whose submissions
+// were already closed (closed, judging or results) left a future
+// submission_deadline alone -- only archiving from draft, open or building
+// ever moved it to now. The extraction dropped that guard, so ending an
+// event with a deliberately-extended deadline still in the future reset it
+// to now regardless of the current stage. Restored exactly: archiveEventTx
+// now takes the current stage and skips the reset once submissions were
+// already closed. Covers both setStage {"stage":"archived"} and POST
+// .../leave's last_organiser "end" case, since both share archiveEventTx.
+func TestHackArchiveKeepsFutureDeadlineWhenAlreadyClosed(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvarchorg")
+	part := a.newPerson(t, "lvarchp1")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, _ := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, part, "Pat")
+
+	futureDeadline := func(stage string) bool {
+		var future bool
+		if err := a.database.QueryRow(`SELECT submission_deadline > clock_timestamp() FROM events WHERE slug=$1`, slug).Scan(&future); err != nil {
+			t.Fatal(err)
+		}
+		return future
+	}
+
+	for _, stage := range []string{"closed", "judging", "results"} {
+		if _, err := a.database.Exec(`UPDATE events SET stage=$2, submission_deadline=clock_timestamp()+interval '1 hour' WHERE slug=$1`, slug, stage); err != nil {
+			t.Fatal(err)
+		}
+		r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]any{"stage": "archived"}, a.key(org))
+		if r.status != http.StatusOK {
+			t.Fatalf("archive from %s: %d %s", stage, r.status, r.body)
+		}
+		if !futureDeadline(stage) {
+			t.Fatalf("archiving from %s must leave a future submission_deadline alone", stage)
+		}
+	}
+
+	// Control: archiving from open (submissions not yet closed) still moves
+	// a future deadline to now, same as it always has.
+	if _, err := a.database.Exec(`UPDATE events SET stage='open', submission_deadline=clock_timestamp()+interval '1 hour' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]any{"stage": "archived"}, a.key(org))
+	if r.status != http.StatusOK {
+		t.Fatalf("archive from open: %d %s", r.status, r.body)
+	}
+	if futureDeadline("open") {
+		t.Fatal("archiving from open must still move a future submission_deadline to now")
+	}
+}
+
+// TestHackLeaveEndArchiveKeepsFutureDeadlineWhenAlreadyClosed is the same
+// Nit 3 guarantee through POST .../leave's last_organiser "end" case rather
+// than setStage directly, since both call archiveEventTx.
+func TestHackLeaveEndArchiveKeepsFutureDeadlineWhenAlreadyClosed(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvarchleorg")
+	part := a.newPerson(t, "lvarchlep1")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, _ := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, part, "Pat")
+	if _, err := a.database.Exec(`UPDATE events SET stage='judging', submission_deadline=clock_timestamp()+interval '1 hour' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+
+	out := a.leave(t, slug, org, map[string]any{"confirm": slug, "close": "end"}).json(t)
+	if out["event"] != "ended" {
+		t.Fatalf("end leave: %v", out)
+	}
+	var future bool
+	if err := a.database.QueryRow(`SELECT submission_deadline > clock_timestamp() FROM events WHERE slug=$1`, slug).Scan(&future); err != nil {
+		t.Fatal(err)
+	}
+	if !future {
+		t.Fatal("ending from judging (submissions already closed) must leave a future submission_deadline alone")
+	}
+}
+
 func TestHackLeaveLastOrganiserDelete(t *testing.T) {
 	a := newHackApp(t)
 	org := a.newPerson(t, "lv12dorg")

@@ -75,6 +75,18 @@ func (h *HackHandler) removePerson(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+	// Event row first, FOR SHARE, the same lock order leave uses (event FOR
+	// UPDATE, then the member row): RemovePersonFromEvent locks the member
+	// row first, then (for a judge) RecordFormerJudge's insert into
+	// event_former_judges takes a FOR KEY SHARE lock on events via its
+	// foreign key. Without this, a concurrent self-leave by the same person
+	// -- holding events FOR UPDATE and waiting on the member row -- could
+	// cycle with this request waiting on events, a genuine Postgres deadlock
+	// (ship-blocker B3).
+	if _, err := db.GetEventForShare(r.Context(), tx, a.event.ID); err != nil {
+		writeInternal(w)
+		return
+	}
 	oldTeam := memberTeamID(r.Context(), tx, a.event.ID, userID)
 	err = db.RemovePersonFromEvent(r.Context(), tx, a.event.ID, userID)
 	if errors.Is(err, sql.ErrNoRows) {

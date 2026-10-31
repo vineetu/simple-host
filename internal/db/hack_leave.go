@@ -138,21 +138,33 @@ func LeaveMembership(ctx context.Context, q Querier, eventID, userID string) (st
 }
 
 // RecordFormerJudge preserves every team a leaving judge or judging organiser
-// already scored, so leaving (section 2.3's recordFormerJudge) doesn't change
-// what their scores counted toward. Call it before LeaveMembership deletes
-// the member row. A no-op when the leaver never scored anything in this
-// event.
+// already scored AND was eligible for under the event's current mode,
+// assignments and panels, so leaving (section 2.3's recordFormerJudge)
+// doesn't change what their scores counted toward. Call it before
+// LeaveMembership deletes the member row (EligibleJudgeTeamsIgnoringConflicts
+// needs the member row to still exist). A no-op when the leaver never scored
+// anything eligible in this event.
 //
-// counted_team_ids is every team they have an event_scores row for --
-// not intersected with today's EligibleJudgeTeams (Grok security review,
-// SIM-340: that set already excludes a team with a live conflict, so
-// intersecting it here froze out any team an organiser had conflicted by
-// mistake even after the conflict was removed again -- there was no way
-// back in, because the team was never in the frozen set to begin with).
-// scoreEligiblePredicate's former-judge branch still checks event_conflicts
-// live on every read, so a real, standing conflict keeps excluding that
-// team; only a conflict that no longer exists stops being held against it.
+// counted_team_ids is scored teams intersected with
+// EligibleJudgeTeamsIgnoringConflicts, not EligibleJudgeTeams (Grok security
+// review, SIM-340: that set already excludes a team with a live conflict, so
+// intersecting against it here froze out any team an organiser had
+// conflicted by mistake even after the conflict was removed again -- there
+// was no way back in, because the team was never in the frozen set to begin
+// with). scoreEligiblePredicate's former-judge branch still checks
+// event_conflicts live on every read, so a real, standing conflict keeps
+// excluding that team; only a conflict that no longer exists stops being
+// held against it.
+//
+// The mode/assignment/panel intersection itself is ship-blocker B2: without
+// it, every team the leaver ever scored froze in regardless of whether it
+// was ever eligible, so a score that never counted (wrong mode, never
+// assigned, no panel) started counting the moment they left.
 func RecordFormerJudge(ctx context.Context, q Querier, eventID, userID, role, displayName string) error {
+	eligible, err := EligibleJudgeTeamsIgnoringConflicts(ctx, q, eventID, userID)
+	if err != nil {
+		return err
+	}
 	rows, err := queryContext(ctx, q, `SELECT DISTINCT team_id FROM event_scores WHERE event_id=$1 AND judge_id=$2`, eventID, userID)
 	if err != nil {
 		return err
@@ -164,7 +176,9 @@ func RecordFormerJudge(ctx context.Context, q Querier, eventID, userID, role, di
 		if err := rows.Scan(&teamID); err != nil {
 			return err
 		}
-		counted = append(counted, teamID)
+		if eligible[teamID] {
+			counted = append(counted, teamID)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return err

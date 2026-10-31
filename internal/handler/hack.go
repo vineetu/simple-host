@@ -1324,7 +1324,7 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 	}
 	var updated db.Event
 	if stage == "archived" {
-		updated, err = archiveEventTx(r.Context(), tx, a.event.ID)
+		updated, err = archiveEventTx(r.Context(), tx, a.event.ID, current)
 		if err != nil {
 			writeInternal(w)
 			return
@@ -1373,21 +1373,27 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 }
 
 // archiveEventTx archives the event: locks event_teams (as every other
-// deadline-affecting write does), closes the submission deadline now unless
-// it already passed, sets stage to archived, then clears any pin that no
+// deadline-affecting write does), closes the submission deadline now --
+// unless it already passed, or submissions were already closed (closed,
+// judging or results: Nit 3, restoring setStage's original condition,
+// `!submissionsClosedStage(current)`, that archiveEventTx dropped when it
+// was extracted) -- sets stage to archived, then clears any pin that no
 // longer applies (UnpinReopened is a no-op once the stage read back is
 // archived). Extracted from setStage so POST .../leave's last_organiser
 // "end" case (hack_leave.go) shares it exactly; the caller already holds the
 // event row FOR UPDATE and has checked there is at least one participant
-// (archive_needs_participants is each caller's own 409).
-func archiveEventTx(ctx context.Context, tx *sql.Tx, eventID string) (db.Event, error) {
+// (archive_needs_participants is each caller's own 409). current is the
+// event's stage right now, under that same lock.
+func archiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string) (db.Event, error) {
 	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, eventID); err != nil {
 		return db.Event{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE events SET submission_deadline = clock_timestamp()
-		 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`, eventID); err != nil {
-		return db.Event{}, err
+	if !submissionsClosedStage(current) {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE events SET submission_deadline = clock_timestamp()
+			 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`, eventID); err != nil {
+			return db.Event{}, err
+		}
 	}
 	updated, err := db.SetEventStage(ctx, tx, eventID, "archived")
 	if err != nil {

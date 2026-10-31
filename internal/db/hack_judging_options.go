@@ -112,6 +112,48 @@ func EligibleJudgeTeams(ctx context.Context, q Querier, eventID, judgeID string)
 	return out, rows.Err()
 }
 
+// EligibleJudgeTeamsIgnoringConflicts is EligibleJudgeTeams for a current
+// judge or judging organiser (mode, assignments and panels), without the
+// live event_conflicts exclusion. A former judge has none -- their universe
+// is already frozen counted_team_ids, which has no conflict-free reading of
+// its own.
+//
+// Used only to decide what RecordFormerJudge freezes when someone leaves or
+// is removed (SIM-340 ship-blocker B2): the conflict exclusion must stay
+// live-only, checked again on every read by EligibleJudgeTeams itself, so a
+// conflict declared and later removed keeps un-excluding a team rather than
+// never coming back (Grok finding 6). Freezing anything other than "today's
+// mode-eligible teams, scored" would make a non-counting score start
+// counting (or vice versa) the moment the judge leaves.
+func EligibleJudgeTeamsIgnoringConflicts(ctx context.Context, q Querier, eventID, judgeID string) (map[string]bool, error) {
+	isMember, err := EventJudgeInEvent(ctx, q, eventID, judgeID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	if !isMember {
+		return out, nil
+	}
+	rows, err := queryContext(ctx, q, `SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id
+		JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND m.role IN ('judge', 'organiser')
+		WHERE e.id=$1
+		AND (e.judge_assignment_mode='open'
+		OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=e.id AND a.judge_id=$2 AND a.team_id=t.id))
+		OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_track_panels p WHERE p.event_id=e.id AND p.track_id=t.track_id AND p.judge_id=$2)))`, eventID, judgeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
 func JudgeTeamEligible(ctx context.Context, q Querier, eventID, judgeID, teamID string) (bool, error) {
 	eligible, err := EligibleJudgeTeams(ctx, q, eventID, judgeID)
 	return eligible[teamID], err

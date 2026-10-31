@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -232,80 +233,61 @@ func TestHackDeleteFormerJudgeScoresRaceOrganiserRemoved(t *testing.T) {
 	}
 }
 
-// --- finding 3: a leaver's vote outlives their membership -----------------
+// --- finding 3 / ship-blocker B1: leaving must never touch votes ----------
 
-// TestHackLeaveRemovesIneligibleVote: with voting_eligibility set to
-// "participants", a participant's vote is tied to their membership --
-// leaving must remove it, the same way the organiser's own eligibility
-// switch (IneligibleVotes) already would.
-func TestHackLeaveRemovesIneligibleVote(t *testing.T) {
+// TestHackLeaveNeverTouchesVotes: leaving is not a vote-eligibility sweep.
+// Before the fix, POST .../leave called IneligibleVotes(..., remove=true),
+// which deletes every ineligible vote in the WHOLE event, not just the
+// leaver's -- so one unrelated participant leaving could delete someone
+// else's vote outright (ship-blocker B1). The fix is to never call it from
+// leave at all: a vote cast while eligible stands, the leaver's own
+// included, exactly as the organiser's own Remove person already leaves
+// votes untouched. Proven under "participants" eligibility, the strictest
+// setting and the one the old code targeted.
+func TestHackLeaveNeverTouchesVotes(t *testing.T) {
 	a := newHackApp(t)
 	org := a.newPerson(t, "lvvoteorg")
 	p1 := a.newPerson(t, "lvvotep1")
 	p2 := a.newPerson(t, "lvvotep2")
+	p3 := a.newPerson(t, "lvvotep3")
 	slug := uniqueSlug()
 	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
 	a.openEvent(t, org, slug)
 	join, _ := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, p1, "P1")
 	a.joinParticipant(t, join, p2, "P2")
+	a.joinParticipant(t, join, p3, "P3")
 	a.createTeamAndJoin(t, slug, p1, "VoterTeam")
 	teamID, _ := a.createTeamAndJoin(t, slug, p2, "VotedForTeam")
 	if _, err := a.database.Exec(`UPDATE events SET voting_eligibility='participants' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	voterEmail := db.BaseEmail(a.emailOf(t, p1))
-	if _, err := a.database.Exec(`INSERT INTO event_votes (event_id, voter_email, team_id) VALUES ((SELECT id FROM events WHERE slug=$1), $2, $3)`,
-		slug, voterEmail, teamID); err != nil {
-		t.Fatal(err)
+	p1Email := db.BaseEmail(a.emailOf(t, p1))
+	p3Email := db.BaseEmail(a.emailOf(t, p3))
+	for _, email := range []string{p1Email, p3Email} {
+		if _, err := a.database.Exec(`INSERT INTO event_votes (event_id, voter_email, team_id) VALUES ((SELECT id FROM events WHERE slug=$1), $2, $3)`,
+			slug, email, teamID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	count := func(email string) int {
+		var n int
+		if err := a.database.QueryRow(`SELECT count(*) FROM event_votes WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND voter_email=$2`, slug, email).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
 	}
 
-	wantTS(t, "leave", a.leave(t, slug, p1, map[string]any{"confirm": slug}), 200, "")
-
-	var n int
-	if err := a.database.QueryRow(`SELECT count(*) FROM event_votes WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND voter_email=$2`, slug, voterEmail).Scan(&n); err != nil {
-		t.Fatal(err)
+	// p1 leaves: their own vote, cast while eligible, stands -- leaving
+	// never touches votes, regardless of eligibility.
+	wantTS(t, "p1 leaves", a.leave(t, slug, p1, map[string]any{"confirm": slug}), 200, "")
+	if count(p1Email) != 1 {
+		t.Fatal("a leaver's own vote must stand -- leaving never touches votes")
 	}
-	if n != 0 {
-		t.Fatal("a leaver's vote must not outlive their membership under participants eligibility")
-	}
-}
-
-// TestHackLeaveKeepsVoteWhenAllSignedIn: eligibility "all_signed_in" ties a
-// ballot to being signed in generally, not to membership, so leaving must
-// not remove it.
-func TestHackLeaveKeepsVoteWhenAllSignedIn(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "lvvoteasi-org")
-	p1 := a.newPerson(t, "lvvoteasi-p1")
-	p2 := a.newPerson(t, "lvvoteasi-p2")
-	slug := uniqueSlug()
-	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
-	a.openEvent(t, org, slug)
-	join, _ := a.joinCodes(t, org, slug)
-	a.joinParticipant(t, join, p1, "P1")
-	a.joinParticipant(t, join, p2, "P2")
-	a.createTeamAndJoin(t, slug, p1, "VoterTeam2")
-	teamID, _ := a.createTeamAndJoin(t, slug, p2, "VotedForTeam2")
-	// all_signed_in is the schema default; set it explicitly so the test
-	// does not depend on that default never changing.
-	if _, err := a.database.Exec(`UPDATE events SET voting_eligibility='all_signed_in' WHERE slug=$1`, slug); err != nil {
-		t.Fatal(err)
-	}
-	voterEmail := db.BaseEmail(a.emailOf(t, p1))
-	if _, err := a.database.Exec(`INSERT INTO event_votes (event_id, voter_email, team_id) VALUES ((SELECT id FROM events WHERE slug=$1), $2, $3)`,
-		slug, voterEmail, teamID); err != nil {
-		t.Fatal(err)
-	}
-
-	wantTS(t, "leave", a.leave(t, slug, p1, map[string]any{"confirm": slug}), 200, "")
-
-	var n int
-	if err := a.database.QueryRow(`SELECT count(*) FROM event_votes WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND voter_email=$2`, slug, voterEmail).Scan(&n); err != nil {
-		t.Fatal(err)
-	}
-	if n != 1 {
-		t.Fatal("a vote under all_signed_in eligibility must stand after the voter leaves")
+	// p3 never joined a team and never leaves; p1's departure must not have
+	// swept p3's vote either (the whole-event sweep ship-blocker B1).
+	if count(p3Email) != 1 {
+		t.Fatal("BUG: an unrelated person's leave deleted someone else's vote")
 	}
 }
 
@@ -551,6 +533,208 @@ func TestHackFormerJudgeConflictReversible(t *testing.T) {
 				t.Fatalf("X should count again once the conflict is gone: %v", team)
 			}
 		}
+	}
+}
+
+// --- ship-blocker B2: leaving must not make a non-counting score count ----
+
+// TestHackLeaveDoesNotResurrectNonCountingScore: a score that did not count
+// at the moment the judge left must not start counting afterwards.
+// RecordFormerJudge used to freeze every team event_scores had a row for,
+// with no eligibility check at all, so a score cast under "open" mode kept
+// counting under a later, narrower mode (with no assignment) even after the
+// scoring judge left (ship-blocker B2). The fix intersects the scored teams
+// with EligibleJudgeTeamsIgnoringConflicts, read at the moment of leaving.
+func TestHackLeaveDoesNotResurrectNonCountingScore(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvresorg")
+	p1 := a.newPerson(t, "lvresp")
+	judge := a.newPerson(t, "lvresj")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "TeamA")
+	a.joinJudge(t, judgeCode, judge, "Judge")
+	base := "/v1/hack/events/" + slug
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	criterion := a.firstCriterionID(t, slug)
+	// Open mode (the default): the judge is eligible for every team right
+	// now, so this score genuinely counts.
+	wantTS(t, "score", a.at(t, "PUT", base+"/judge/scores/"+teamID,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 2}}}, a.key(judge)), 200, "")
+	// Manual mode with no assignment at all: the judge is no longer
+	// eligible for this team, so the score they already cast stops
+	// counting right now, before they ever leave.
+	wantTS(t, "set manual", a.at(t, "PATCH", base+"/judging/settings", map[string]any{"assignment_mode": "manual"}, a.key(org)), 200, "")
+
+	eventID := a.eventID(t, slug)
+	coverage := func() int {
+		byTeam, _, err := db.ScoreCoverage(context.Background(), a.database, eventID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return byTeam[teamID]
+	}
+	before := coverage()
+	if before != 0 {
+		t.Fatalf("the score must already not be counting under manual mode with no assignment: coverage=%d", before)
+	}
+
+	wantTS(t, "judge leaves", a.leave(t, slug, judge, map[string]any{"confirm": slug}), 200, "")
+
+	if after := coverage(); after != before {
+		t.Fatalf("BUG: leaving changed what counts: %d -> %d", before, after)
+	}
+}
+
+// TestHackLeaveKeepsTotalsAndRanksStable: when two judges score the same
+// teams under the default (open) mode, every team's published total,
+// judges_scored and rank must be identical before and after one of those
+// judges leaves -- the B2 fix (intersecting scored teams against
+// mode-eligible teams) must not disturb a score that was, and remains,
+// genuinely eligible.
+func TestHackLeaveKeepsTotalsAndRanksStable(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvstableorg")
+	p1 := a.newPerson(t, "lvstablep1")
+	p2 := a.newPerson(t, "lvstablep2")
+	judge1 := a.newPerson(t, "lvstablej1")
+	judge2 := a.newPerson(t, "lvstablej2")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	a.joinParticipant(t, join, p2, "Quinn")
+	teamA, _ := a.createTeamAndJoin(t, slug, p1, "TeamA")
+	teamB, _ := a.createTeamAndJoin(t, slug, p2, "TeamB")
+	a.joinJudge(t, judgeCode, judge1, "Judge1")
+	a.joinJudge(t, judgeCode, judge2, "Judge2")
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	base := "/v1/hack/events/" + slug
+	criterion := a.firstCriterionID(t, slug)
+	score := func(judge person, teamID string, points int) {
+		wantTS(t, "score", a.at(t, "PUT", base+"/judge/scores/"+teamID,
+			map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": points}}}, a.key(judge)), 200, "")
+	}
+	score(judge1, teamA, 3)
+	score(judge1, teamB, 4)
+	score(judge2, teamA, 5)
+	score(judge2, teamB, 1)
+
+	snapshot := func() map[string]map[string]any {
+		pub := a.at(t, "POST", base+"/results/publish", map[string]any{}, a.key(org))
+		if pub.status != 200 {
+			t.Fatalf("publish: %d %s", pub.status, pub.body)
+		}
+		out := map[string]map[string]any{}
+		for _, raw := range pub.json(t)["results"].([]any) {
+			row := raw.(map[string]any)
+			out[row["team_id"].(string)] = row
+		}
+		return out
+	}
+
+	before := snapshot()
+	wantTS(t, "judge1 leaves", a.leave(t, slug, judge1, map[string]any{"confirm": slug}), 200, "")
+	after := snapshot()
+
+	for _, teamID := range []string{teamA, teamB} {
+		b, af := before[teamID], after[teamID]
+		if b["total"] != af["total"] || b["rank"] != af["rank"] || b["judges_scored"] != af["judges_scored"] {
+			t.Fatalf("team %s changed across the leave: before=%v after=%v", teamID, b, af)
+		}
+	}
+}
+
+// --- ship-blocker B3: Remove person vs self-leave deadlock -----------------
+
+// TestHackRemoveJudgeVsLeaveDeadlock: an organiser's Remove person (DELETE
+// .../people/{id}) racing the same judge's own self-leave must never
+// deadlock. Before the fix, removePerson locked the member row first, then
+// (for a judge) RecordFormerJudge's insert into event_former_judges took a
+// FOR KEY SHARE lock on events via its foreign key -- the opposite of
+// leave's own order (event row FOR UPDATE, then the member row), a genuine
+// lock-order cycle (ship-blocker B3). The fix makes removePerson take the
+// event row FOR SHARE first, the same order leave uses. Forced ordering,
+// same shape as TestHackLeaveTwoOrganisersRaceForcedOrdering: hold the event
+// row FOR UPDATE from a third connection so both real requests queue behind
+// it, release, and require a clean, serialised outcome -- never a Postgres
+// deadlock (which would surface as a 500).
+func TestHackRemoveJudgeVsLeaveDeadlock(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvdlorg")
+	p1 := a.newPerson(t, "lvdlp")
+	judge := a.newPerson(t, "lvdlj")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Team")
+	a.joinJudge(t, judgeCode, judge, "Judge")
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	criterion := a.firstCriterionID(t, slug)
+	wantTS(t, "score", a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamID,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 2}}}, a.key(judge)), 200, "")
+
+	eventID := a.eventID(t, slug)
+	judgeID := a.userID(t, judge)
+
+	lockTx, err := a.database.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lockedID string
+	if err := lockTx.QueryRow(`SELECT id FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&lockedID); err != nil {
+		t.Fatal(err)
+	}
+
+	leaveDone := make(chan resp, 1)
+	go func() { leaveDone <- a.leave(t, slug, judge, map[string]any{"confirm": slug}) }()
+	waitBlocked()
+	removeDone := make(chan resp, 1)
+	go func() { removeDone <- a.at(t, "DELETE", "/v1/hack/events/"+slug+"/people/"+judgeID, nil, a.key(org)) }()
+	waitBlocked() // both requests now queue behind lockTx's FOR UPDATE.
+
+	if err := lockTx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	leaveR, removeR := <-leaveDone, <-removeDone
+	for _, r := range []resp{leaveR, removeR} {
+		if r.status >= 500 {
+			t.Fatalf("a Postgres deadlock surfaced as a 500: leave=%d %s remove=%d %s", leaveR.status, leaveR.body, removeR.status, removeR.body)
+		}
+	}
+	// Exactly one request actually acts on the still-present membership (200
+	// or 204); the other finds it already gone (404), in whichever order
+	// Postgres happened to serialise the two FOR UPDATE waiters -- both are
+	// valid, so long as neither is a deadlock.
+	ok, notFound := 0, 0
+	for _, r := range []resp{leaveR, removeR} {
+		switch r.status {
+		case 200, 204:
+			ok++
+		case 404:
+			notFound++
+		default:
+			t.Fatalf("unexpected status: leave=%d %s remove=%d %s", leaveR.status, leaveR.body, removeR.status, removeR.body)
+		}
+	}
+	if ok != 1 || notFound != 1 {
+		t.Fatalf("want exactly one success and one not-found, got leave=%d %s remove=%d %s", leaveR.status, leaveR.body, removeR.status, removeR.body)
+	}
+	if a.isMember(t, slug, judgeID) {
+		t.Fatal("the judge must be gone from the event one way or the other")
 	}
 }
 

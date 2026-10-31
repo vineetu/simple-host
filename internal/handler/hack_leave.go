@@ -401,7 +401,7 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 		}
 	case "last_organiser":
 		if req.Close == "end" {
-			if _, err := archiveEventTx(ctx, tx, ev.ID); err != nil {
+			if _, err := archiveEventTx(ctx, tx, ev.ID, ev.Stage); err != nil {
 				writeInternal(w)
 				return
 			}
@@ -430,24 +430,12 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 			writeInternal(w)
 			return
 		}
-		// A leaver's vote stops being eligible the moment their membership
-		// is gone, same as anyone else voting settings would already have
-		// excluded (Grok security review, SIM-340). Reuse IneligibleVotes'
-		// own exclusion logic -- it already skips "all_signed_in" (a ballot
-		// there is not tied to membership, so it stands) and already
-		// matches "participants" eligibility by role -- rather than
-		// duplicate it: after the member row above is gone, re-sweeping
-		// removes exactly this leaver's now-ineligible vote and nobody
-		// else's.
-		voting, err := db.GetVotingSettings(ctx, tx, ev.ID)
-		if err != nil {
-			writeInternal(w)
-			return
-		}
-		if _, err := db.IneligibleVotes(ctx, tx, ev.ID, voting.Eligibility, true); err != nil {
-			writeInternal(w)
-			return
-		}
+		// Leaving does not touch votes (build plan section 1): a vote cast
+		// while eligible stands, the leaver's included, the same as the
+		// organiser's Remove person already does. IneligibleVotes sweeps
+		// every ineligible vote in the whole event, not just the leaver's --
+		// calling it here deleted other people's votes too (ship-blocker
+		// B1), so leave must never call it at all.
 		if teamID != "" {
 			var still bool
 			if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_teams WHERE id = $1)`, teamID).Scan(&still); err != nil {
@@ -468,6 +456,10 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 	case leaveCase == "last_organiser" && req.Close == "end":
 		eventResult = "ended"
 		h.pinDue(ctx, ev.ID)
+		// setStage calls requestEventCert after archiving too, but that call
+		// is a no-op for an archived event: requestEventCert only asks for a
+		// certificate while the stage is open, building or closed. Ending
+		// here does not need its own call for the same reason (Nit 2).
 	case leaveCase == "last_organiser" && req.Close == "delete":
 		eventResult = "deleted"
 		h.removeEventFiles(ev)
