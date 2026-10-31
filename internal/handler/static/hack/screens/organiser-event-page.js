@@ -328,10 +328,13 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
       // the date part moves, composed as "YYYY-MM-DDTHH:MM" -- the same
       // wall-clock-in-event-zone format parseEventTime already accepts.
       if ($('f-start').value !== snapshot.starts) {
-        body.starts_at = $('f-start').value + 'T' + (ui.localInputValue(ev.starts_at, ev.time_zone).slice(11) || '00:00')
+        const v = $('f-start').value
+        body.starts_at = v ? v + 'T' + (ui.localInputValue(ev.starts_at, ev.time_zone).slice(11) || '00:00') : ''
       }
       if ($('f-end').value !== snapshot.ends) {
-        body.ends_at = $('f-end').value + 'T' + (ui.localInputValue(ev.ends_at, ev.time_zone).slice(11) || '00:00')
+        // An emptied field clears the date (the server treats '' as clear).
+        const v = $('f-end').value
+        body.ends_at = v ? v + 'T' + (ui.localInputValue(ev.ends_at, ev.time_zone).slice(11) || '00:00') : ''
       }
       const r = await api('PATCH', path, body)
       if (!r.ok) { setLive(ui.errText(r), 'err', btn); paintDirty(); return }
@@ -946,7 +949,10 @@ ${ended && !admin ? '<div class="note">This event has ended. You can still fix t
         }
         ev.accent_color = chosen
         flashSaved('colour-saved')
-        await ctx.refresh()
+        // Update the sidebar's event mark in place: a full refresh would move
+        // keyboard focus off the swatches on every arrow step.
+        const hex = radio.dataset.c
+        document.querySelectorAll('.switcher .ev-mark').forEach(m => { m.style.setProperty('--ev', hex); m.style.color = ui.markInk(hex) })
       } catch (e) {
         setLive('Cannot reach the server.', 'err')
         const prevHex = ev.accent_color ? (SWATCH_HEX[ev.accent_color] || ev.color) : (ev.color || '#d15d48')

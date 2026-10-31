@@ -1253,7 +1253,7 @@
     {
      "name": "Posted",
      "contents": [
-      "Row: title, the message's first two lines, then on the right the date and time (event zone) and an 'Emailed' pill when it was emailed",
+      "Row: title, the message's first two lines, then on the right the date and time (event zone)",
       "Row actions: Edit (quiet) and the row menu (Edit, then Delete in red). On a phone the row opens Edit and the date/pill wrap under the text",
       "Edit announcement dialog: Title, Message, line 'Saving changes doesn't email anyone again.' [Cancel] [Save]"
      ],
@@ -1299,7 +1299,7 @@
    "fixes": [
     "Announcements were a block in the middle of the Event page editor, between Schedule and Sponsors, with the composer under the list and per-card Edit/Delete buttons. They are now a section of their own with the composer first."
    ],
-   "phone": "Composer full width, Post full width under the status line. Rows wrap: title and excerpt beside the 44px … button, date and Emailed pill on the line below. Dialogs are bottom sheets.",
+   "phone": "Composer full width, Post full width under the status line. Rows wrap: title and excerpt beside the 44px … button, date on the line below. Dialogs are bottom sheets.",
    "decisions": [
     {
      "q": "Its own sidebar section?",

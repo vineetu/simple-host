@@ -107,8 +107,18 @@ export function stagePicker(current, offered) {
     }
     sel.addEventListener('change', paint)
     paint()
-    function done(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); resolve(value) }
-    function keydown(e) { if (e.key === 'Escape') { e.preventDefault(); done('') } }
+    const previous = document.activeElement
+    function done(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); if (previous && previous.focus) previous.focus(); resolve(value) }
+    function keydown(e) {
+      if (e.key === 'Escape') { e.preventDefault(); done(''); return }
+      if (e.key === 'Tab') {
+        // Keep focus inside the dialog, like every other dialog in the app.
+        const items = [...scrim.querySelectorAll('select,button')].filter(el => !el.disabled)
+        const i = items.indexOf(document.activeElement)
+        e.preventDefault()
+        items[(i + (e.shiftKey ? items.length - 1 : 1) + items.length) % items.length].focus()
+      }
+    }
     scrim.querySelector('[data-cancel]').addEventListener('click', () => done(''))
     scrim.querySelector('[data-confirm]').addEventListener('click', () => done(sel.value))
     scrim.addEventListener('click', e => { if (e.target === scrim) done('') })
