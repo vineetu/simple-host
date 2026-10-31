@@ -231,6 +231,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	h.registerRegistration(mux, wrap)
 	h.registerEventWebsite(mux, wrap)
 	h.registerHackPreferences(mux, wrap)
+	h.registerLeave(mux, wrap)
 }
 
 // SetNamePeer: fn reports whether the peer instance holds name; nil = no peer.
@@ -1321,37 +1322,46 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	switch {
-	case (submissionsClosedStage(stage) || stage == "archived") && !submissionsClosedStage(current) && current != "archived":
-		// Submissions close now (or the event ends): the deadline becomes
-		// now unless it already passed. Teams given more time keep it.
-		_, err = tx.ExecContext(r.Context(), `
-			UPDATE events SET submission_deadline = clock_timestamp()
-			 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`, a.event.ID)
-	case (stage == "open" || stage == "building") && current != "open" && current != "building":
-		// Back to open or building from any other stage (closed, or draft
-		// after closed): a passed deadline (and passed extensions) go, so
-		// teams can publish again until the organiser sets a new one.
-		if _, err = tx.ExecContext(r.Context(), `
-			UPDATE events SET submission_deadline = NULL
-			 WHERE id = $1 AND submission_deadline <= clock_timestamp()`, a.event.ID); err == nil {
-			_, err = tx.ExecContext(r.Context(), `
-				UPDATE event_teams SET deadline_override = NULL
-				 WHERE event_id = $1 AND deadline_override <= clock_timestamp()`, a.event.ID)
+	var updated db.Event
+	if stage == "archived" {
+		updated, err = archiveEventTx(r.Context(), tx, a.event.ID)
+		if err != nil {
+			writeInternal(w)
+			return
 		}
-	}
-	if err != nil {
-		writeInternal(w)
-		return
-	}
-	updated, err := db.SetEventStage(r.Context(), tx, a.event.ID, stage)
-	if err != nil {
-		writeInternal(w)
-		return
-	}
-	if err := db.UnpinReopened(r.Context(), tx, a.event.ID); err != nil {
-		writeInternal(w)
-		return
+	} else {
+		switch {
+		case submissionsClosedStage(stage) && !submissionsClosedStage(current) && current != "archived":
+			// Submissions close now: the deadline becomes now unless it
+			// already passed. Teams given more time keep it.
+			_, err = tx.ExecContext(r.Context(), `
+				UPDATE events SET submission_deadline = clock_timestamp()
+				 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`, a.event.ID)
+		case (stage == "open" || stage == "building") && current != "open" && current != "building":
+			// Back to open or building from any other stage (closed, or draft
+			// after closed): a passed deadline (and passed extensions) go, so
+			// teams can publish again until the organiser sets a new one.
+			if _, err = tx.ExecContext(r.Context(), `
+				UPDATE events SET submission_deadline = NULL
+				 WHERE id = $1 AND submission_deadline <= clock_timestamp()`, a.event.ID); err == nil {
+				_, err = tx.ExecContext(r.Context(), `
+					UPDATE event_teams SET deadline_override = NULL
+					 WHERE event_id = $1 AND deadline_override <= clock_timestamp()`, a.event.ID)
+			}
+		}
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+		updated, err = db.SetEventStage(r.Context(), tx, a.event.ID, stage)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+		if err := db.UnpinReopened(r.Context(), tx, a.event.ID); err != nil {
+			writeInternal(w)
+			return
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		writeInternal(w)
@@ -1360,6 +1370,33 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 	h.pinDue(r.Context(), updated.ID)
 	h.requestEventCert(updated)
 	writeJSON(w, http.StatusOK, h.eventView(r.Context(), updated, a.member, true))
+}
+
+// archiveEventTx archives the event: locks event_teams (as every other
+// deadline-affecting write does), closes the submission deadline now unless
+// it already passed, sets stage to archived, then clears any pin that no
+// longer applies (UnpinReopened is a no-op once the stage read back is
+// archived). Extracted from setStage so POST .../leave's last_organiser
+// "end" case (hack_leave.go) shares it exactly; the caller already holds the
+// event row FOR UPDATE and has checked there is at least one participant
+// (archive_needs_participants is each caller's own 409).
+func archiveEventTx(ctx context.Context, tx *sql.Tx, eventID string) (db.Event, error) {
+	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, eventID); err != nil {
+		return db.Event{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE events SET submission_deadline = clock_timestamp()
+		 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`, eventID); err != nil {
+		return db.Event{}, err
+	}
+	updated, err := db.SetEventStage(ctx, tx, eventID, "archived")
+	if err != nil {
+		return db.Event{}, err
+	}
+	if err := db.UnpinReopened(ctx, tx, eventID); err != nil {
+		return db.Event{}, err
+	}
+	return updated, nil
 }
 
 func (h *HackHandler) regenCode(w http.ResponseWriter, r *http.Request) {
@@ -1457,22 +1494,7 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, http.StatusConflict, "delete_only_empty", "to permanently delete this event, send {\"confirm\":\""+a.event.Slug+"\"} with the matching event address name")
 		return
 	}
-	// Use the same site removal as deleting a team. The holding-account
-	// deletion below then purges its Recently deleted sites too; no event undo.
-	if h.sites != nil {
-		teams, err := db.ListEventTeams(r.Context(), tx, a.event.ID)
-		if err != nil {
-			writeInternal(w)
-			return
-		}
-		for _, team := range teams {
-			if err := h.sites.TrashTeamSite(r.Context(), a.event.AccountID, team.Slug); err != nil {
-				writeInternal(w)
-				return
-			}
-		}
-	}
-	if err := db.DeleteEventAndAccount(r.Context(), tx, a.event); err != nil {
+	if err := h.deleteEventTx(r.Context(), tx, a.event); err != nil {
 		writeInternal(w)
 		return
 	}
@@ -1482,6 +1504,27 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	h.removeEventFiles(a.event)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// deleteEventTx trashes every team site (the same removal as deleting a
+// team; the holding-account deletion below then purges its Recently deleted
+// sites too, so there is no event undo), then deletes the event and its
+// holding account. Extracted from deleteEvent so POST .../leave's
+// last_organiser "delete" case (hack_leave.go) shares it exactly. The caller
+// already holds the event row, and has checked confirm matches the slug.
+func (h *HackHandler) deleteEventTx(ctx context.Context, tx *sql.Tx, ev db.Event) error {
+	if h.sites != nil {
+		teams, err := db.ListEventTeams(ctx, tx, ev.ID)
+		if err != nil {
+			return err
+		}
+		for _, team := range teams {
+			if err := h.sites.TrashTeamSite(ctx, ev.AccountID, team.Slug); err != nil {
+				return err
+			}
+		}
+	}
+	return db.DeleteEventAndAccount(ctx, tx, ev)
 }
 
 func (h *HackHandler) getJoin(w http.ResponseWriter, r *http.Request) {
@@ -1648,7 +1691,41 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 	}
 	var member db.EventMember
 	if judge {
-		member, err = db.InsertEventMember(r.Context(), h.database, ev.ID, user.ID, role, display)
+		// Lock-order fix (SIM-340 2.4): a leave holds the event row FOR
+		// UPDATE before the leaver's member row, so joining must take the
+		// event row first too (FOR SHARE, as the participant branch below
+		// does), never insert the member row with the event row unlocked.
+		tx, txerr := h.database.BeginTx(r.Context(), nil)
+		if txerr != nil {
+			writeInternal(w)
+			return
+		}
+		defer tx.Rollback()
+		locked, txerr := db.GetEventForShare(r.Context(), tx, ev.ID)
+		if errors.Is(txerr, sql.ErrNoRows) {
+			writeHackErr(w, http.StatusNotFound, "invalid_code", "invalid code")
+			return
+		}
+		if txerr != nil {
+			writeInternal(w)
+			return
+		}
+		// Revalidate against the state as of the lock (Codex review,
+		// SIM-340): the pre-lock ev above could be stale if a last
+		// organiser's "end" or "delete" was waiting on this same row and
+		// committed while this request queued behind it.
+		if locked.TakenDown() {
+			writeHackErr(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
+			return
+		}
+		if locked.Stage == "results" || locked.Stage == "archived" {
+			writeHackErr(w, http.StatusConflict, "judging_closed", "judging is closed for this event")
+			return
+		}
+		member, err = db.InsertEventMember(r.Context(), tx, ev.ID, user.ID, role, display)
+		if err == nil {
+			err = tx.Commit()
+		}
 	} else {
 		tx, txerr := h.database.BeginTx(r.Context(), nil)
 		if txerr != nil {
@@ -1656,8 +1733,21 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 			return
 		}
 		defer tx.Rollback()
-		if _, txerr = tx.ExecContext(r.Context(), `SELECT 1 FROM events WHERE id=$1 FOR SHARE`, ev.ID); txerr != nil {
+		locked, txerr := db.GetEventForShare(r.Context(), tx, ev.ID)
+		if errors.Is(txerr, sql.ErrNoRows) {
+			writeHackErr(w, http.StatusNotFound, "invalid_code", "invalid code")
+			return
+		}
+		if txerr != nil {
 			writeInternal(w)
+			return
+		}
+		if locked.TakenDown() {
+			writeHackErr(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
+			return
+		}
+		if locked.Stage != "open" && locked.Stage != "building" {
+			writeHackErr(w, http.StatusConflict, "joining_closed", "joining is closed for this event")
 			return
 		}
 		questions, required, qerr := db.RegistrationSettings(r.Context(), tx, ev.ID)

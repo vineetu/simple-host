@@ -161,14 +161,16 @@ export async function formDialog(ui, { title, body, saveLabel = 'Save', cancelLa
 
 // rowMenuHTML: the icon-btn (...) plus its dropdown, same markup/behaviour as
 // every atlas list row (Schedule, Sponsors, FAQ, Announcements). `items` is
-// [{ label, act, danger, disabled }] in menu order; a danger item gets a
-// <hr> above it automatically. `label` is the row's own name, for the
-// aria-labels ("More for Kopi Kode").
+// [{ label, act, danger, disabled, sep }] in menu order; a danger item gets
+// an <hr> above it automatically, same as a plain item marked `sep` (Leave
+// disabled with "...the event has ended" -- landing-your-events.js -- needs
+// the same separator without the red danger styling). `label` is the row's
+// own name, for the aria-labels ("More for Kopi Kode").
 export function rowMenuHTML(label, items) {
-  let sawDanger = false
+  let sawSep = false
   const body = items.map(it => {
-    const hr = it.danger && !sawDanger ? '<hr>' : ''
-    if (it.danger) sawDanger = true
+    const hr = (it.danger || it.sep) && !sawSep ? '<hr>' : ''
+    if (it.danger || it.sep) sawSep = true
     return hr + `<button type="button" role="menuitem"${it.disabled ? ' disabled' : ''}${it.danger ? ' class="danger"' : ''} data-act="${esc(it.act)}">${esc(it.label)}</button>`
   }).join('')
   return `<button class="icon-btn" type="button" data-rowmenu aria-haspopup="menu" aria-expanded="false" aria-label="More for ${esc(label)}"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01"/></svg></button><div class="row-menu" role="menu" hidden>${body}</div>`

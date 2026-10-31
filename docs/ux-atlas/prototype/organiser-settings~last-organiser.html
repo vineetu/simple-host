@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings · Leave event · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="organiser" data-nav="settings" data-stage="Building" data-next="Entries close in 2 days · Sun 18:00 WIB">
+<main class="page"><div class="ph"><div class="t"><h1>Settings</h1><p>Event identity, who can ask to join, integrations and account controls.</p></div></div><section class="card"><h2>Organiser</h2><div class="field"><label>Your name (shown on the event page)<input class="input" type="text" value="Amara Wijaya"></label></div><div class="field"><label>Organisation or community<input class="input" type="text" value="Generation Girl"></label></div><div class="field"><label>Contact email<input class="input" type="email" value="team@generationgirl.org"></label></div><div class="field"><label>Purpose<textarea class="input">Young women and girls building with AI, one weekend, online.</textarea></label></div><div class="field"><label>Expected participants<input class="input" type="number" value="60"></label></div><button class="btn primary">Save</button></section><section class="card" id="applications"><h2>Applications</h2><div class="setting"><div class="t"><b id="apps-label">Let people apply without your join link</b><span>An Apply button shows on your event page, and on Find a hackathon when your event is listed there, while sign-up is open and during Building. Every application waits for you in <a href="organiser-people.html">People → Applications</a>.</span></div><span class="saved" id="apps-saved" hidden>Saved</span><button class="toggle on" type="button" role="switch" aria-checked="true" aria-labelledby="apps-label" id="apps-toggle"></button></div><p class="small muted">Your join link keeps working either way and stays private. Turning this off stops new applications; ones already waiting stay in People.</p><p class="small">Listed in Find a hackathon: yes · <a href="organiser-results.html">change in Results</a></p></section><section class="card"><h2>Notifications</h2><p class="mono">https://hooks.slack.com/services/...</p><p class="muted">Fires when a visitor saves something or uploads a file on your custom event website.</p><button class="btn ">Add notification</button></section><section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Notification</b><span>https://hooks.slack.com/services/...</span></div><button class="btn danger">Turn off</button></div><div class="setting"><div class="t"><b>Leave this event</b><span>You're the only organiser, so leaving closes the event. You'll choose to end it or delete it.</span></div><a class="btn danger" href="organiser-settings~last-organiser.html">Leave event</a></div><div class="setting"><div class="t"><b>Delete this event</b><span>Removes the public page, results, team sites, entries, scores, votes and memberships for good. There is no undo.</span></div><button class="btn danger">Delete this event</button></div></section><script>(function(){var t=document.getElementById("apps-toggle");t.addEventListener("click",function(){var on=t.getAttribute("aria-checked")!=="true";t.setAttribute("aria-checked",on);t.classList.toggle("on",on);document.getElementById("apps-saved").hidden=false})})()</script></main>
+<div class="scrim sheet"><div class="dialog form" role="dialog" aria-modal="true" aria-labelledby="dlg-h">
+<div class="dlg-head"><h2 id="dlg-h">You're the only organiser</h2><p>Nobody would be left to run Generation Girl Online Hack 2026 if you leave, so leaving closes it. Choose how.</p></div>
+<div class="dlg-body">
+<div class="choices" role="radiogroup" aria-label="How to close the event" style="grid-template-columns:1fr">
+<label class="choice on"><input type="radio" name="close-mode" id="close-end" checked><span><b>End the event</b><span class="d">The public page and results stay up as a record. Nothing can change after this, and you can't come back to manage it.</span></span></label>
+<label class="choice"><input type="radio" name="close-mode" id="close-delete"><span><b>Delete the event</b><span class="d">The public page, results, team sites, entries, scores and votes go for good. There is no undo.</span></span></label>
+</div>
+<div class="field" id="confirm-field" hidden><label for="confirm-slug">Type generationgirl2026 to confirm</label><input class="input mono" id="confirm-slug"></div>
+<p class="small muted">Want someone else to run it? Cancel and invite a co-organiser from <a href="organiser-people.html">People</a> first.</p>
+</div>
+<div class="acts"><a class="btn quiet" href="organiser-settings.html">Cancel</a><button class="btn danger" type="button" id="close-confirm">End event and leave</button></div>
+</div></div>
+<script>
+(function(){
+  var endR=document.getElementById('close-end'), delR=document.getElementById('close-delete');
+  var field=document.getElementById('confirm-field'), btn=document.getElementById('close-confirm');
+  function sync(){
+    document.querySelectorAll('.choices .choice').forEach(function(c){ c.classList.toggle('on', c.querySelector('input').checked); });
+    var del = delR.checked;
+    field.hidden = !del;
+    btn.textContent = del ? 'Delete event and leave' : 'End event and leave';
+  }
+  endR.addEventListener('change', sync); delR.addEventListener('change', sync);
+})();
+</script>
+</body></html>

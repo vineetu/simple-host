@@ -375,6 +375,21 @@ says whether I have a key. `GET .../teams` items gain `site`, `deadline`, `deadl
 
 Hosted event presentation update: an organiser may publish a custom event website through the validated, versioned site pipeline onto `<event>.simple-hack.app`, selecting built-in or custom mode without losing either. The built-in public page has a stable apex address `/e/<slug>`; custom and team hosts remain distinct browser origins and never receive apex account credentials. A public credentialless JSON endpoint feeds custom pages with only published event data. Event icons and hosted account preferences use additive migrations; icon URLs have a first-letter fallback, and theme/walkthrough state is per account. Signed-in team and judging screens move to `/e/<slug>/team` and `/e/<slug>/judge`.
 
+### Leaving an event and former judges (SIM-340, 2026-10-31)
+
+| Route | Who | What |
+|---|---|---|
+| `GET /v1/hack/events/{slug}/leave` | member | Preview what leaving would do for me |
+| `POST /v1/hack/events/{slug}/leave` | member | Leave the event myself |
+| `DELETE /v1/hack/events/{slug}/judging/former-judges/{user_id}` | organiser | Delete a departed judge's scores |
+
+Any member can leave through the POST route, under a lock on the event row that decides one of
+seven cases every time. A participant leaves their team first, and an empty team is deleted with
+its entry and site. A judge's scores stay and keep counting after they leave, recorded in
+`event_former_judges`, until an organiser deletes them or the person rejoins. The creator must
+name another organiser as its successor before leaving. The only organiser ends or deletes the
+event to leave it.
+
 ## Story and ink presentation (2026-10-04)
 
 The owner-approved story now serves `/` in hosted mode from `hack-story.html`.

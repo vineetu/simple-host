@@ -348,6 +348,18 @@ func GetEventForUpdate(ctx context.Context, q Querier, eventID string) (Event, e
 	return scanEvent(q.QueryRowContext(ctx, `SELECT `+eventColumns+` FROM events WHERE id = $1 FOR UPDATE`, eventID))
 }
 
+// GetEventForShare reads the event and takes FOR SHARE, the lock join and
+// apply already take ahead of inserting a member row so a concurrent leave
+// (which takes FOR UPDATE) serialises against them -- sql.ErrNoRows when the
+// event no longer exists (the last organiser's concurrent delete won).
+// Unlike the bare `SELECT 1 ... FOR SHARE` the judge and participant join
+// branches used before (Codex review, SIM-340), this returns the row so the
+// caller can revalidate stage/takedown against the state as of the lock,
+// not the pre-lock snapshot a blocked insert would otherwise go on to use.
+func GetEventForShare(ctx context.Context, q Querier, eventID string) (Event, error) {
+	return scanEvent(q.QueryRowContext(ctx, `SELECT `+eventColumns+` FROM events WHERE id = $1 FOR SHARE`, eventID))
+}
+
 // UpdateEventEntrySettings writes the M2 settings: the submission deadline,
 // the required entry fields and whether the gallery is open.
 func UpdateEventEntrySettings(ctx context.Context, q Querier, eventID string, deadline sql.NullTime, required []string, gallery bool) (Event, error) {
@@ -1013,7 +1025,13 @@ func RemoveParticipantFromTeam(ctx context.Context, q Querier, eventID, teamSlug
 }
 
 // RemovePersonFromEvent deletes a participant or judge. Organisers cannot be removed.
-// A team left with nobody is deleted.
+// A team left with nobody is deleted. The shared cleanup (name reservation,
+// pending team requests, unsent mail, the member row, an emptied team) is
+// LeaveMembership, which POST .../leave also calls. A removed judge who
+// scored gets the same former-judge freeze a voluntary leave would (Grok
+// security review, SIM-340): otherwise their scores kept counting under no
+// rule at all once the member row was gone, and came back un-frozen if they
+// were ever given the judge link again.
 func RemovePersonFromEvent(ctx context.Context, q Querier, eventID, userID string) error {
 	m, err := lockMember(ctx, q, eventID, userID)
 	if err != nil {
@@ -1022,27 +1040,13 @@ func RemovePersonFromEvent(ctx context.Context, q Querier, eventID, userID strin
 	if m.Role == "organiser" {
 		return ErrHackCannotRemoveOrganiser
 	}
-	if m.TeamID.Valid {
-		if _, err := lockTeam(ctx, q, m.TeamID.String); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if m.Role == "judge" {
+		if err := RecordFormerJudge(ctx, q, eventID, userID, m.Role, m.DisplayName); err != nil {
 			return err
 		}
 	}
-	// An imported member may predate reservation-on-join. Keep their event's
-	// name when they leave, even if no team was ever formed.
-	if _, err := q.ExecContext(ctx, `INSERT INTO event_used_names (event_slug, team_slug)
-		SELECT slug, '' FROM events WHERE id=$1 ON CONFLICT DO NOTHING`, eventID); err != nil {
-		return err
-	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM event_team_requests WHERE event_id=$1 AND user_id=$2`, eventID, userID); err != nil {
-		return err
-	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM event_members WHERE event_id = $1 AND user_id = $2`, eventID, userID); err != nil {
-		return err
-	}
-	if m.TeamID.Valid {
-		return deleteTeamIfEmpty(ctx, q, m.TeamID.String)
-	}
-	return nil
+	_, err = LeaveMembership(ctx, q, eventID, userID)
+	return err
 }
 
 // UserEmail is users.username for a person (the address they signed in with).

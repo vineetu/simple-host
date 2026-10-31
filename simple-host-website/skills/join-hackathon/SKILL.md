@@ -21,6 +21,7 @@ Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs
 | Apply without a join link | `hack_apply_to_event` |
 | Read public event content | `hack_get_public_event` |
 | Create or join a team; leave it | `hack_create_team`, `hack_join_team`, `hack_leave_team` |
+| Leave the event, or withdraw my application | `hack_preview_leave_event`, `hack_leave_event` |
 | Read/choose track | `hack_get_tracks`, `hack_choose_track` |
 | Read/edit entry and screenshot | `hack_get_entry`, `hack_update_entry`, `hack_get_entry_screenshot`, `hack_set_entry_screenshot`, `hack_delete_entry_screenshot` |
 | Check team site and deadline | `hack_get_team_status`, `hack_get_my_teams` |
@@ -33,6 +34,8 @@ No join link? Find the event with `hack_get_directory` or its address, then use 
 Preview the join link, code of conduct and questions first. Ask the person to accept the displayed conduct; set `accept_coc: true` only after they do. An approval-required event creates a pending application; wait for approval before team, entry or site work. Confirm the selected team before creating, joining or leaving. One participant can belong to one team in an event.
 
 The entry and website are separate. Read the current entry before replacing title, tagline, description, video/code links or screenshot. A screenshot is PNG, JPEG or WebP, up to 2 MB; the connector tool accepts base64 image bytes. After the team deadline, entry edits and site publishing return `submissions_closed`; do not work around it.
+
+Leaving the event is different from leaving a team. Preview it first with `hack_preview_leave_event`, since a team left empty is deleted along with its entry and site. The person can leave until their team's deadline passes. After that, ask an organiser. A pending applicant can withdraw the same way. A rejected one can't leave or re-apply, so that decision stays on record.
 
 For the website, identify the event and team, then hand off to `website-deploy`. A connected personal account selects its current team with `hack_select_team(team_id)` after `hack_get_my_teams`; the server rechecks membership on each site request. First publication needs the person's approval. The team site is at `https://<team>.<event>.simple-hack.app/`; use the returned URL where available.
 

@@ -1,5 +1,6 @@
 import { adminLock } from './_orgA-util.js'
 import { href } from '../nav.js'
+import { previewLeave, openLeave } from '../leave.js'
 
 export function title(ctx) { return 'Settings' }
 
@@ -33,6 +34,16 @@ export async function render(ctx) {
   try {
     const v = await api('GET', path + '/voting')
     if (v.ok) directoryListed = !!v.data.directory_listed
+  } catch (e) {}
+
+  // Leave this event (SIM-340): the case (co_organiser/creator/
+  // last_organiser) is decided under a server lock, not reconstructed here
+  // -- fetch the preview once and read its `case` for the row's copy, same
+  // as participant-home.js and judge-home.js.
+  let leavePreview = null
+  try {
+    const lv = await previewLeave(client, ev.slug)
+    if (lv.ok) leavePreview = lv.data
   } catch (e) {}
 
   let addOpen = false, deleteOpen = false
@@ -80,6 +91,28 @@ ${newSecret && newSecret.forId === n.id ? secretPanel(newSecret) : ''}
 
   const appsLocked = admin || ev.stage === 'archived'
 
+  // Leave this event row, ABOVE Delete this event (copy-deck.md, Organiser
+  // section). '' (no row at all) if the preview couldn't be loaded -- never
+  // show a Leave button whose state we can't vouch for.
+  function leaveRowHTML() {
+    if (!leavePreview) return ''
+    let span, disabled = false
+    if (ev.stage === 'archived') {
+      disabled = true
+      span = 'This event has ended, so nobody can leave it. It stays on your Home as a record.'
+    } else if (ev.taken_down) {
+      disabled = true
+      span = 'This event has been taken down.'
+    } else if (leavePreview.case === 'creator') {
+      span = "You created this event, so you'll hand it to another organiser before you leave."
+    } else if (leavePreview.case === 'last_organiser') {
+      span = "You're the only organiser, so leaving closes the event. You'll choose to end it or delete it."
+    } else {
+      span = "You'll lose access to managing this event. The other organisers keep running it."
+    }
+    return `<div class="setting"><div class="t"><b>Leave this event</b><span>${ui.esc(span)}</span></div><button class="btn danger" type="button" id="leave-open"${disabled ? ' disabled' : ''}>Leave event</button></div>`
+  }
+
   function paint() {
     const $ = id => main.querySelector('#' + id)
     const esc = ui.esc
@@ -113,6 +146,7 @@ ${addOpen ? `<form id="notify-form"><div class="field"><label>URL<input class="i
 </section>
 
 <section class="danger-zone"><h2>Danger zone</h2>
+${leaveRowHTML()}
 <div class="setting"><div class="t"><b>Delete this event</b><span>Removes the public page, results, team sites, entries, scores, votes and memberships for good. There is no undo.</span></div><button class="btn danger" type="button" id="delete-open">Delete event</button></div>
 ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b>${ui.esc(ev.slug)}</b> to confirm. This cannot be undone.</p><input class="input mono" id="delete-confirm" type="text">` : '<p>This cannot be undone.</p>'}<button class="btn danger" type="button" id="delete-go"${requireTyped ? ' disabled' : ''}>Delete event</button> <button class="btn" type="button" id="delete-cancel">Cancel</button></div></div>` : ''}
 </section>`
@@ -261,6 +295,9 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<p>Type <b
         paint()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     }))
+
+    const leaveOpen = $('leave-open')
+    if (leaveOpen && !leaveOpen.disabled) leaveOpen.addEventListener('click', () => openLeave({ api: client, ui, slug: ev.slug, title: ev.title, from: 'organiser-settings' }))
 
     $('delete-open').addEventListener('click', () => { deleteOpen = true; paint() })
     const delCancel = $('delete-cancel')

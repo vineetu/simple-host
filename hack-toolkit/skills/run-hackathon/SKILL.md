@@ -53,6 +53,20 @@ joins; a never-joined event frees it. Read the event and use its returned slug.
 Only after the person confirms, call `hack_delete_event` with `slug` and
 `body: {"confirm":"<slug>"}`. Report success only after the tool succeeds.
 
+## Someone leaves the event
+
+Participants, judges and organisers can all leave from their own Overview, Settings or Account
+menu, or through `hack_leave_event`. Call `hack_preview_leave_event` first, tell the person
+exactly what happens, and ask before calling it. A participant's team is deleted if leaving
+empties it. A judge's scores stay and keep counting. The event's creator must hand the role to
+another organiser first, with `successor_user_id` from the preview. If the person leaving is the
+only organiser, ask them to choose end (`close: "end"`, archives the event and keeps the page
+and results) or delete (`close: "delete"`, removes everything, the same as `hack_delete_event`).
+Leaving is refused once the event has ended. An organiser can stop a departed judge's scores
+from counting with `hack_delete_former_judge_scores`, using the `user_id` listed in
+`hack_get_judging_dashboard`'s `former_judges`. Ask first, and it is refused while judging is
+locked.
+
 Visitor-save notifications use MCP Events with the app's receiver: arguments `{site, storage?}` for the selected team, or `{event, storage?}` for an organiser website. `list_notifications` and `remove_notification` accept that context. Team subscriptions are created before the deadline and deliver while membership stays approved. Organiser delivery ends with the event. The team and organiser website screens also manage signed webhooks, tests, history, and rotation. Keep secrets out of chat.
 
 Automatic assignments default to judges only. Use body.include_organisers=true to include organisers. Judges can save scores only when the stage is closed or judging.

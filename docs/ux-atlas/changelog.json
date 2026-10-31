@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-10-31",
+  "what": "Leave this event designed (SIM-340, not built yet): a danger-zone Leave on the participant and judge Overview and in organiser Settings, plus a … menu on each Home row, all driven by one preview of what leaving does. Participants leave their team first (a lone member's team, entry and site go) and can't leave once their team's deadline passes, pending applicants withdraw, rejected ones can't leave. Judges' scores stay and keep counting, and Judging gets a 'Left the event' row with Delete scores. The creator hands the event to a co-organiser, the last organiser ends or deletes it. Ended events show Leave disabled with the reason. Owner decisions 2026-10-30, the rest decided in the atlas."
+ },
+ {
+  "date": "2026-10-31",
   "what": "Fixes from Grok's third production test (SIM-346): judge My teams rows stack on phone; Team finding stays open with Saved; participant Team saves show Saved; the Fill teams preview says when a code-only team with room was skipped; people who can't vote see why up front and no active Vote button; Your details shows Saved; Create event address messages are friendly; scoring says No entry was submitted once; the scoring walkthrough's comment step sits beside the score rows; the I know someone undo only promises a score that exists; You are on <team> now shows once per placement; Results after End groups the still-live Publish, listing and downloads before the read-only note; the public event page offers Continue to your event to someone already in."
  },
  {

@@ -31,3 +31,18 @@ wrong confirmation return 409 `delete_only_empty` with the required body explain
 Empty, unended events still accept no body. The destructive `hack_delete_event`
 connector tool forwards `body.confirm`; run-hackathon always asks the person first.
 The platform admin keeps its existing separate delete route.
+
+## Leaving (SIM-340, 2026-10-31)
+
+Any member can leave on their own, from the website (Overview, Settings or a Home row menu) or
+through `hack_preview_leave_event` and `hack_leave_event`. A participant leaves their team
+first, and a team left with nobody on it is deleted along with its entry and site, following
+the existing team-removal and holding-account paths. A pending applicant can withdraw the same
+way. A rejected applicant can never leave, so the organiser's decision stands. A judge's scores
+stay and keep counting exactly as they stood when they left, and an organiser can delete them
+with `hack_delete_former_judge_scores` so they stop counting. The event's creator must name
+another organiser as its successor first, with `successor_user_id` from the leave preview.
+Ending the event instead archives it exactly as `POST .../stage {"stage":"archived"}` does, and
+is the only organiser's choice when they leave. Deleting it is exactly `DELETE
+/v1/hack/events/{slug}` with the slug confirmed, their other choice. Nobody can leave once the
+event has ended.

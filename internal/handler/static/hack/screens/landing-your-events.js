@@ -1,5 +1,7 @@
 import { href } from '../nav.js'
 import { eventOrder } from '../shell.js'
+import { rowMenuHTML, wireRowMenus } from './_orgA-util.js'
+import { openLeave, takeFlash } from '../leave.js'
 
 export function title() { return 'Home' }
 
@@ -9,10 +11,13 @@ export function title() { return 'Home' }
 // page with a plain next action per row and the other starting points
 // (Find a hackathon, Create event, Account) alongside the list.
 export async function render(ctx) {
-  const { main, events, ui } = ctx
-  // A2: the "Leave this event" menu advertised a feature that doesn't
-  // exist yet (SIM-340) -- removed rather than shown disabled with an
-  // internal ticket id.
+  const { main, events, ui, api, go } = ctx
+  // SIM-340: the "..." row menu now carries Open event plus Leave this
+  // event.../Withdraw application.../a disabled reason -- openLeave (the
+  // same flow participant-home/judge-home/organiser-settings use) re-fetches
+  // its own preview and draws the right dialog for whatever this person's
+  // case turns out to be, so this screen never needs to know the case ahead
+  // of time, only whether the menu item should exist at all.
   // Part B #2: one link per row, not a title link plus a separate "next"
   // link plus two pills.
   // nextAction: a plain next step in the person's own words, built only
@@ -55,22 +60,59 @@ export async function render(ctx) {
       results: 'Open event', archived: 'Open event', ended: 'Open event'
     })[e.stage] || 'Open'
   }
+  // Row menu items for the "..." (SIM-340): Open event, then a role/state
+  // specific Leave/Withdraw item, or a disabled reason. No item at all for
+  // a rejected application -- the decision stays on record (copy-deck.md).
+  function menuItems(e) {
+    // Order matters (Codex review, SIM-340): archived must outrank pending,
+    // or an ended event's still-pending applicant sees an enabled
+    // "Withdraw application…" that can only 409. Rejected stays "nothing"
+    // either way, so it is checked ahead of archived too.
+    if (e.taken_down) return [{ label: 'Open event', act: 'open' }, { label: "Can't leave, this event was taken down", act: 'leave', disabled: true, sep: true }]
+    if (e.role === 'participant' && e.approval_status === 'rejected') return [{ label: 'Open event', act: 'open' }]
+    if (e.stage === 'archived') return [{ label: 'Open event', act: 'open' }, { label: "Can't leave, the event has ended", act: 'leave', disabled: true, sep: true }]
+    if (e.role === 'participant' && e.approval_status === 'pending') return [{ label: 'Open event', act: 'open' }, { label: 'Withdraw application…', act: 'leave', danger: true }]
+    return [{ label: 'Open event', act: 'open' }, { label: 'Leave this event…', act: 'leave', danger: true }]
+  }
   const row = e => {
     const section = e.role === 'judge' && ['closed','judging'].includes(e.stage) ? 'queue' : e.role === 'participant' && e.stage === 'results' ? 'results' : undefined
     const blocked = e.taken_down && e.role !== 'organiser'
-    const tag = blocked ? 'div' : 'a'
-    const hrefAttr = blocked ? '' : ` href="${ui.esc(href(e.role,e.slug,section))}"`
-    return `<${tag} class="r"${hrefAttr}><span class="ev-mark">${ui.esc(ui.initials(e.title))}</span><span class="main"><b>${ui.esc(e.title)}</b><span>${ui.esc(ui.roleLabel(e.role))} · ${ui.esc(e.taken_down ? 'Taken down' : ui.stageLabel(e.stage))}</span></span>${blocked ? '' : `<span class="meta">${ui.esc(nextAction(e))}</span>`}</${tag}>`
+    const mark = `<span class="ev-mark">${ui.esc(ui.initials(e.title))}</span>`
+    const label = `<b>${ui.esc(e.title)}</b><span>${ui.esc(ui.roleLabel(e.role))} · ${ui.esc(e.taken_down ? 'Taken down' : ui.stageLabel(e.stage))}</span>`
+    if (blocked) return `<div class="r" data-slug="${ui.esc(e.slug)}">${mark}<span class="main">${label}</span></div>`
+    const mainLink = `<a class="main" href="${ui.esc(href(e.role,e.slug,section))}">${label}</a>`
+    const meta = `<span class="meta">${ui.esc(nextAction(e))}</span>`
+    const menu = rowMenuHTML(e.title, menuItems(e))
+    return `<div class="r" data-slug="${ui.esc(e.slug)}">${mark}${mainLink}${meta}<div class="row-acts">${menu}</div></div>`
   }
   const attention = e => !e.taken_down && ((e.role === 'organiser' && !['archived','ended'].includes(e.stage)) || (e.role === 'judge' && ['closed','judging'].includes(e.stage)))
   const list = eventOrder(events)
   const quickLinks = `<div class="row-flex"><a class="btn" href="/directory">Find a hackathon</a><a class="btn quiet" href="/account">Account</a></div>`
+  const flashText = takeFlash()
   main.innerHTML = `<div class="ph"><div class="t"><h1>Home</h1></div>${list.length ? `<a class="btn primary" href="/events/new">Create event</a>` : ''}</div>` + (!list.length ? `<div class="locked"><h2>You’re not part of any event yet</h2><p><a class="btn primary" href="/events/new">Create event</a></p><p><a class="btn" href="/directory">Find a hackathon</a></p><p>Have a join or judge link? Open it to get started.</p></div><div class="row-flex"><a class="btn quiet" href="/account">Account</a></div>` : [true,false].map(needed => {
     const group = list.filter(e => attention(e) === needed)
-    return group.length ? `<p class="section-title">${needed ? 'Needs attention' : 'Recent'}</p><div class="list">${group.map(row).join('')}</div>` : ''
+    return group.length ? `<p class="section-title">${needed ? 'Needs attention' : 'Recent'}</p><div class="list editable" aria-label="${needed ? 'Needs attention' : 'Recent'} events">${group.map(row).join('')}</div>` : ''
   }).join('') + quickLinks)
   main.querySelectorAll('.ev-mark').forEach((mark,i) => {
     const color = list[i].color
     if (/^#[0-9a-f]{6}$/i.test(color || '')) { mark.style.setProperty('--ev',color); mark.style.color = ui.markInk(color) }
   })
+  if (flashText) ui.toast(flashText)
+
+  wireRowMenus()
+  function rowFor(btn) {
+    const slug = btn.closest('[data-slug]')?.dataset.slug
+    return list.find(x => x.slug === slug)
+  }
+  main.querySelectorAll('[data-act="open"]').forEach(btn => btn.addEventListener('click', () => {
+    const e = rowFor(btn)
+    if (!e) return
+    const section = e.role === 'judge' && ['closed','judging'].includes(e.stage) ? 'queue' : e.role === 'participant' && e.stage === 'results' ? 'results' : undefined
+    go(href(e.role, e.slug, section))
+  }))
+  main.querySelectorAll('[data-act="leave"]:not([disabled])').forEach(btn => btn.addEventListener('click', () => {
+    const e = rowFor(btn)
+    if (!e) return
+    openLeave({ api, ui, slug: e.slug, title: e.title, from: 'home-row-menu' })
+  }))
 }

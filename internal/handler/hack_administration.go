@@ -119,18 +119,50 @@ func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
+	hash := db.HashAPIKey(normalizeHackCode(r.PathValue("code")))
+	// Find which event the invite names before taking any lock (lock-order
+	// fix, SIM-340 2.4): leaving an event holds the event row FOR UPDATE
+	// before the leaver's own member row, so taking the event row first here
+	// too, ahead of the invite and inviter-member rows, avoids a lock-order
+	// cycle when the leaver is the invite's inviter.
+	unlocked, err := db.OrganiserInviteEvent(r.Context(), h.database, hash, false)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeHackErr(w, 404, "invalid_code", "invalid or expired invitation")
+		return
+	}
+	if err != nil {
+		writeInternal(w)
+		return
+	}
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeInternal(w)
 		return
 	}
 	defer tx.Rollback()
-	ev, err := db.OrganiserInviteEvent(r.Context(), tx, db.HashAPIKey(normalizeHackCode(r.PathValue("code"))), true)
+	ev, err := db.GetEventForUpdate(r.Context(), tx, unlocked.ID)
 	if errors.Is(err, sql.ErrNoRows) {
+		// The last organiser's concurrent "delete" won the race (Codex
+		// review, SIM-340): the event is gone, same as any other invalid
+		// invitation.
 		writeHackErr(w, 404, "invalid_code", "invalid or expired invitation")
 		return
 	}
 	if err != nil {
+		writeInternal(w)
+		return
+	}
+	// Re-locks the invite and the inviter's member row now that the event row
+	// is held; re-checks the invite still exists and has not expired. Ahead
+	// of the takedown/archived checks below (Codex review, SIM-340): the
+	// last organiser's concurrent "end" deletes every outstanding invite as
+	// part of the same transaction that archives the event, so a losing
+	// acceptance must see the more specific "invalid_code" instead of
+	// "event_closed".
+	if _, err = db.OrganiserInviteEvent(r.Context(), tx, hash, true); errors.Is(err, sql.ErrNoRows) {
+		writeHackErr(w, 404, "invalid_code", "invalid or expired invitation")
+		return
+	} else if err != nil {
 		writeInternal(w)
 		return
 	}

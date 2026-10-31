@@ -53,6 +53,8 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 		{"hack_get_my_conflicts", "GET", "/v1/hack/events/spring/conflicts", map[string]any{"slug": "spring"}, nil},
 		{"hack_declare_my_conflict", "POST", "/v1/hack/events/spring/conflicts", map[string]any{"slug": "spring", "team_id": "team-id"}, map[string]any{"team_id": "team-id"}},
 		{"hack_remove_my_conflict", "DELETE", "/v1/hack/events/spring/conflicts/team-id", map[string]any{"slug": "spring", "team_id": "team-id"}, nil},
+		{"hack_preview_leave_event", "GET", "/v1/hack/events/spring/leave", map[string]any{"slug": "spring"}, nil},
+		{"hack_leave_event", "POST", "/v1/hack/events/spring/leave", map[string]any{"slug": "spring", "confirm": "spring", "successor_user_id": "person", "close": "end"}, map[string]any{"confirm": "spring", "successor_user_id": "person", "close": "end"}},
 	}
 	tools := map[string]Tool{}
 	for _, tool := range HackMemberTools() {

@@ -1,5 +1,6 @@
 import { href } from '../nav.js'
 import { startTour } from '../tour.js'
+import { previewLeave, openLeave } from '../leave.js'
 
 export function title() { return 'Overview' }
 
@@ -79,6 +80,39 @@ async function announcementsCard(api, ui, allHref, scheduleHref, slug, ev) {
     ).join('<hr class="rule">')
     return `<div class="card"><h2>Latest announcements</h2>${rows}<div class="row-flex"><a class="btn" href="${esc(allHref)}">All announcements</a><a class="btn quiet" href="${esc(scheduleHref)}">Schedule</a></div></div>`
   } catch (e) { return '' }
+}
+
+// Leave this event: danger zone last on the page. Copy per docs/ux-atlas's
+// copy-deck -- the row text is deliberately generic for every team case
+// (the atlas prototype shows the same "Your teammates keep the team..."
+// line even on the lone-member state; only the dialog, built fresh from its
+// own preview fetch in leave.js, says "you're the only member"). Returns ''
+// (no section at all) if the preview couldn't be loaded -- never show a
+// Leave button whose state we can't vouch for.
+function participantDangerZone(ui, preview, ev) {
+  if (!preview) return ''
+  const b = 'Leave ' + ev.title
+  let span, disabled = false
+  if (preview.blocked) {
+    disabled = true
+    if (preview.blocked.code === 'submissions_closed') {
+      const teamName = preview.team ? preview.team.name : 'your team'
+      span = `Entries have closed, so your team can't change and you can't leave. Your name stays on the ${teamName} entry. If you need to leave, ask an organiser.`
+    } else if (preview.blocked.code === 'event_closed') {
+      span = 'This event has ended, so nobody can leave it. It stays on your Home as a record.'
+    } else if (preview.blocked.code === 'event_taken_down') {
+      span = 'This event has been taken down.'
+    } else {
+      span = preview.blocked.message || "You can't leave this event right now."
+    }
+  } else if (preview.team) {
+    span = `You'll leave ${preview.team.name} and lose access to this event. Your teammates keep the team, its entry and its website.`
+  } else if (preview.rejoin === 'join') {
+    span = "You'll lose access to the event. You can join again while sign-up is open."
+  } else {
+    span = "You'll lose access to the event. Sign-up has closed, so you can't join again."
+  }
+  return `<section class="danger-zone"><h2>Leave this event</h2><div class="setting"><div class="t"><b>${ui.esc(b)}</b><span>${ui.esc(span)}</span></div><button class="btn danger" type="button" id="leave-btn"${disabled ? ' disabled' : ''}>Leave event</button></div></section>`
 }
 
 export async function render(ctx) {
@@ -173,12 +207,20 @@ export async function render(ctx) {
     heroHref = entryHref
   }
 
-  const news = await announcementsCard(api, ui, announcementsHref, scheduleHref, slug, ev)
+  const [news, preview] = await Promise.all([
+    announcementsCard(api, ui, announcementsHref, scheduleHref, slug, ev),
+    previewLeave(client, slug).then(r => (r.ok ? r.data : null)).catch(() => null)
+  ])
+  if (!ctx.alive()) return
 
   main.innerHTML = `<div class="ph"><div class="t"><h1>${esc(ev.title)}</h1></div></div>`
     + (justPlaced ? `<div class="note ok"><b>You are on ${esc(me.team.name)} now.</b> <a href="${esc(teamHref)}">Meet your team</a></div>` : '')
     + `<div class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>${esc(heroTitle)}</h2>${heroNote ? `<p>${esc(heroNote)}</p>` : ''}</div>${heroLabel ? `<a class="btn primary" ${heroExternal ? 'target="_blank" rel="noopener" ' : ''}href="${esc(heroHref)}">${esc(heroLabel)}</a>` : ''}</div>`
     + news
+    + participantDangerZone(ui, preview, ev)
+
+  const leaveBtn = main.querySelector('#leave-btn')
+  if (leaveBtn && !leaveBtn.disabled) leaveBtn.addEventListener('click', () => openLeave({ api: client, ui, slug, title: ev.title, from: 'participant-home' }))
 
   // replay-participant-walkthrough: the shell's Help menu deep-links here
   // with &walkthrough=1 while Overview is the current screen; tour.js itself

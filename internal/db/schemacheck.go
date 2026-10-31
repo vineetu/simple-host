@@ -142,6 +142,8 @@ var hackColumns = map[string][]string{
 	"event_scores":      {"event_id", "judge_id", "team_id", "criterion_id", "points", "comment", "updated_at"},
 	"event_results":     {"event_id", "published_at", "published_by", "full_ranking", "snapshot"},
 	"event_votes":       {"event_id", "voter_email", "team_id", "created_at", "updated_at"},
+	// zq-hack-leave-event.sql
+	"event_former_judges": {"event_id", "user_id", "display_name", "role", "counted_team_ids", "left_at"},
 }
 
 // VerifyHackSchema is VerifySchema for the hosted-events tables.

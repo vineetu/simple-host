@@ -218,6 +218,16 @@ func (h *HackHandler) makeTeamKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
+	// Event row first, FOR SHARE, same lock order as every other hack
+	// writer (Grok security review, SIM-340): leave takes the event row FOR
+	// UPDATE then wants this same member row, so minting a key with the
+	// member row locked first -- and ReplaceTeamKey's insert then taking FOR
+	// KEY SHARE on events -- is a same-user lock-order cycle one tab's leave
+	// can hit against another tab's key mint.
+	if _, err := db.GetEventForShare(r.Context(), tx, a.event.ID); err != nil {
+		writeInternal(w)
+		return
+	}
 	// Read the membership again under a lock: a move or removal that
 	// finished meanwhile must not leave a key bound to the old team.
 	var teamID sql.NullString

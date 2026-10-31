@@ -129,6 +129,21 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-10-31. Anyone can leave an event (SIM-340).** Participants, judges and organisers can
+  all leave an event they are in, from the website (Overview, Settings, or a Home row menu) or
+  an AI app. The only organiser is told up front that leaving closes the event, and chooses
+  to end or delete it. The event's creator must name a successor organiser first. Nobody can
+  leave once the event has ended. Participants and judges were the cases that mattered first.
+  The owner joined as a contestant by mistake on 2026-10-28 and could not get out. Organiser
+  handover and closing exist to make that one route complete, not because they were the
+  original ask.
+- **2026-10-31. Leave this event: design calls, open to the owner's override.** A judge's
+  scores stay and keep counting exactly as they stood when they left. An organiser can delete
+  a departed judge's scores so they stop counting. A participant can leave until their team's
+  effective deadline passes, not after. A team's last remaining member leaving deletes the
+  team, its entry and its site. A pending applicant can withdraw. A rejected one can't, so the
+  organiser's decision holds. Leaving doesn't send any new notifications to teammates or
+  organisers.
 - **2026-10-31. Applications without a join link.** A person can apply to an event from Find
   a hackathon or its public page without a join link, for every event, including ones that
   already exist. Applications are on by default, and the organiser can turn them off per event

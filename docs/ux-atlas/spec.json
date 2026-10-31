@@ -2168,6 +2168,11 @@
      "name": "a judge declares a conflict mid-judging",
      "when": "a judge flags a team they've already partly scored",
      "shows": "Conflicts gains the new row at once; Progress's per-team count for that team drops by one judge, with a small note 'A judge declared a conflict after scoring -- their earlier score for this team no longer counts toward coverage or toward the team's total and rank. The score row itself isn't deleted, but it stops affecting anything until the conflict is removed. Re-check Preview if you've already looked at it.'"
+    },
+    {
+     "name": "a judge left the event",
+     "when": "a judge (or an organiser who scored) left after scoring",
+     "shows": "Progress -> Judges keeps them as a row: 'Pak Budi', a 'Left the event' pill, 'Scored 4 of 6, still counted', and a quiet Delete scores button. Its confirm: 'Delete Pak Budi's scores? Pak Budi left the event. Their scores and comments for 4 teams will be deleted and stop counting toward totals and ranks. Published results only change when you publish again.' [Cancel] [Delete scores]. Disabled while judging is locked, with 'Unlock judging to change scores.'"
     }
    ],
    "replaces": [
@@ -2197,6 +2202,11 @@
      "q": "Does a conflicted judge's earlier score still count toward the team's computed result?",
      "decision": "No -- answered from code, not left open. A declared conflict excludes that judge-team pair's score from both coverage and the team's computed total/rank, with no time qualifier.",
      "why": "computeResultsWithOptions (internal/handler/hack_judging_math.go:83-96) and ScoreCoverage (internal/db/hack_judging.go:282-302) both filter every raw score through the same EligibleJudgeTeams map (internal/db/hack_judging_options.go:64-82), which excludes any judge-team pair with a declared conflict. This was previously left in open_questions as unresolved; it isn't a product judgement call, it's a traceable fact, now reflected directly in this screen's mid-judging-conflict state copy."
+    },
+    {
+     "q": "Can an organiser drop a departed judge's scores?",
+     "decision": "Yes: Delete scores on that judge's row, with a confirm, while judging is not locked. It deletes the score rows and the former-judge record.",
+     "why": "Remove person can't reach someone who already left. Without this a judge could score unfairly, leave, and make those scores untouchable. Deleting (rather than hiding) stops the scores coming back if the judge later rejoins with the judge link."
     }
    ],
    "features": [
@@ -2211,7 +2221,8 @@
     "remove-conflict-organiser",
     "lock-judging",
     "unlock-judging",
-    "view-judging-dashboard"
+    "view-judging-dashboard",
+    "delete-former-judge-scores"
    ],
    "prototype_states": [
     {
@@ -2231,6 +2242,12 @@
      "name": "Judging locked",
      "stage": "judging",
      "next": "Locked · review and publish on Results"
+    },
+    {
+     "slug": "former-judge",
+     "name": "A judge left the event",
+     "stage": "judging",
+     "next": "Scoring is open · lock when ready"
     }
    ],
    "phone": "Single column, same content, full width."
@@ -2518,7 +2535,7 @@
    "nav_id": "settings",
    "title": "Settings",
    "user_moment": "Amara updates the organisation name, wires up a notification for her custom event website, and -- much later -- deletes a test event.",
-   "purpose": "Event identity, who can ask to join, integrations, and the one place irreversible event-level actions live.",
+   "purpose": "Event identity, who can ask to join, integrations, and the one place irreversible event-level actions live: leaving the event and deleting it.",
    "primary_action": "Save organiser identity details.",
    "layout": "Organiser identity card, Applications card (one switch), Notifications card, a red-bordered .danger-zone last.",
    "sections": [
@@ -2577,38 +2594,63 @@
     {
      "name": "Danger zone",
      "contents": [
-      "Delete this event removes the public page, results, team sites, entries, scores, votes and memberships for good. There is no undo.",
-      "Leave this event (planned, SIM-340, not built yet) -- hands the event to another organiser first; the creator can't leave without doing that."
+      "Leave this event (first): creator 'You created this event, so you'll hand it to another organiser before you leave.' / co-organiser 'You'll lose access to managing this event. The other organisers keep running it.' / only organiser 'You're the only organiser, so leaving closes the event. You'll choose to end it or delete it.'",
+      "Delete this event (last): removes the public page, results, team sites, entries, scores, votes and memberships for good. There is no undo."
      ],
      "actions": [
+      {
+       "label": "Leave event",
+       "kind": "danger",
+       "confirm": "Co-organiser: 'Leave Generation Girl Online Hack 2026? You'll stop being an organiser and lose access to everything here. Amara Wijaya and Dimas Pratama keep running it.' [Cancel] [Leave event]. Creator: handover dialog. Only organiser: close dialog (see states)."
+      },
       {
        "label": "Delete this event",
        "kind": "danger",
        "confirm": "Type generationgirl2026 to confirm. This cannot be undone."
-      },
-      {
-       "label": "Leave this event",
-       "kind": "danger",
-       "confirm": "Planned, not available yet: pick another organiser to hand this event to, then leave. Continue?"
       }
      ]
     }
    ],
    "states": [
     {
-     "name": "last organiser tries to leave (planned)",
-     "when": "the only organiser left picks Leave this event",
-     "shows": "Leave is replaced with a .dialog: 'You're the only organiser. Nobody would be left to run Generation Girl Online Hack 2026 if you leave.' with three choices: End the event, Delete the event, or Cancel -- no silent leave that orphans a live event"
-    },
-    {
      "name": "applications off",
      "when": "switch off",
      "shows": "Switch off; the help line reads 'Only people with your join link can join.' Nothing else on the page changes."
     },
     {
+     "name": "creator leaves, other organisers remain",
+     "when": "the person is events.created_by and at least one other organiser exists",
+     "shows": "A .dialog.form 'Hand over Generation Girl Online Hack 2026' with 'You created this event, so choose who takes it over before you leave. They become its main organiser, and nobody can remove them from it.', one choice card per other organiser (name, 'Co-organiser · email'), pre-selected when there is only one, then 'Hand over and leave'. After: Home with 'You handed Generation Girl Online Hack 2026 to Rina Hartono and left it.'"
+    },
+    {
+     "name": "co-organiser leaves",
+     "when": "not the creator (or the event has no recorded creator) and at least one other organiser remains",
+     "shows": "A .dialog naming who keeps running it (up to two names, then 'and N others') and 'To come back, ask an organiser for a new co-organiser invite.' Button 'Leave event'."
+    },
+    {
+     "name": "last organiser tries to leave",
+     "when": "nobody else organises the event",
+     "shows": "A .dialog.form 'You're the only organiser': 'Nobody would be left to run Generation Girl Online Hack 2026 if you leave, so leaving closes it. Choose how.' Two choice cards, End the event ('The public page and results stay up as a record. Nothing can change after this, and you can't come back to manage it.') and Delete the event ('The public page, results, team sites, entries, scores and votes go for good. There is no undo.'), a line 'Want someone else to run it? Cancel and invite a co-organiser from People first.', then Cancel and 'End event and leave' or 'Delete event and leave'. Delete shows 'Type generationgirl2026 to confirm' and stays disabled until it matches. No silent leave that orphans a live event."
+    },
+    {
+     "name": "last organiser, nobody ever joined",
+     "when": "only organiser and no participant has joined",
+     "shows": "The End card is disabled (.choice.off): 'Nobody joined, so there's nothing to keep. Delete it instead.' Delete is pre-selected."
+    },
+    {
+     "name": "something changed while the dialog was open",
+     "when": "another organiser left or joined, or the successor left, before Confirm (409 leave_state_changed, last_organiser, successor_required or invalid_successor)",
+     "shows": "The dialog reloads the preview and redraws for the new case with a .note warn 'Something changed while this was open. Check the details again.' Two organisers leaving at the same moment: the second one lands on the last-organiser dialog, never an event with nobody running it."
+    },
+    {
      "name": "event ended",
-     "when": "stage is ended (archived)",
-     "shows": "The switch is disabled with the page's read-only note, like every other control after the event ends."
+     "when": "stage Ended",
+     "shows": "Leave event disabled with 'This event has ended, so nobody can leave it. It stays on your Home as a record.' Delete this event stays available, as today."
+    },
+    {
+     "name": "after leaving",
+     "when": "the leave succeeded",
+     "shows": "Home with one toast: 'You left Generation Girl Online Hack 2026.', 'You handed Generation Girl Online Hack 2026 to Rina Hartono and left it.', 'You ended Generation Girl Online Hack 2026 and left it.' or 'Generation Girl Online Hack 2026 was deleted.'"
     }
    ],
    "replaces": [
@@ -2635,13 +2677,41 @@
      "q": "Default for the switch?",
      "decision": "On, for every event including ones that already exist (the column defaults to true).",
      "why": "Owner, 2026-10-31: applications are on by default for every event. Flagged to the owner: existing open events gain an Apply button the day this ships."
+    },
+    {
+     "q": "How does the event creator leave while other organisers remain?",
+     "decision": "They pick one co-organiser to take over (choice cards, pre-selected when there is only one). events.created_by moves to that person in the same transaction as the leave. Only a current organiser of this event can be picked, never a judge or participant.",
+     "why": "Owner, SIM-340. The creator is the one organiser nobody can remove, so the event keeps exactly one while organisers remain."
+    },
+    {
+     "q": "What does the last organiser see?",
+     "decision": "'You're the only organiser' with End the event, Delete the event and Cancel. End is offered only when someone has joined (the existing archive_needs_participants rule), Delete asks for the address name typed, as Delete this event does. Either way they are not left as a member. The line about inviting a co-organiser first is the way out for someone who wanted a successor.",
+     "why": "Owner, 2026-10-30: 'If the organiser is exiting and there is no other organiser left, it should tell them this will close the event.' Ending without a member means nobody can change the ended event later, which the End card says."
+    },
+    {
+     "q": "What if two organisers leave at the same moment, or someone joins while the dialog is open?",
+     "decision": "The server takes the event row FOR UPDATE, then works out the case and refuses a request built for another case. The dialog reloads and redraws. The second of two simultaneous leavers gets the last-organiser choice.",
+     "why": "SIM-340: never leave the event orphaned. The server decides which case applies under a lock on the event row (GET .../leave previews it, POST .../leave repeats every check), so the dialog never has to trust what it showed earlier."
+    },
+    {
+     "q": "Does the successor's active-event limit apply to a handover?",
+     "decision": "No. EVENT_MAX_ACTIVE_PER_ORGANISER is not checked on handover. The event counts toward the successor's limit from then on, which only affects what they can create next.",
+     "why": "Handing over is not creating an event. With the limit at 2 by default a check would block ordinary handovers to a busy co-organiser, and it would add no protection because spare accounts can bypass a per-account creation limit anyway."
+    },
+    {
+     "q": "Where does Leave sit, and what about an ended event?",
+     "decision": "In the Danger zone above Delete this event (the most destructive item goes last). On an ended event it stays visible, disabled, with the reason.",
+     "why": "SIM-340: danger-zone section, and 'say why instead of hiding the button'. The layout rule puts the most destructive item last."
     }
    ],
    "features": [
     "edit-organiser-details",
     "event-website-notifications",
     "delete-event",
-    "toggle-applications"
+    "toggle-applications",
+    "leave-event",
+    "hand-over-event",
+    "close-event-on-leave"
    ],
    "prototype_states": [
     {
@@ -2649,6 +2719,36 @@
      "name": "Mid-event settings",
      "stage": "building",
      "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "leave-co-organiser",
+     "name": "Co-organiser leaves",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "handover",
+     "name": "Creator hands over and leaves",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "last-organiser",
+     "name": "Only organiser: end and leave",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "last-organiser-delete",
+     "name": "Only organiser: delete and leave",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 18:00 WIB"
+    },
+    {
+     "slug": "ended",
+     "name": "Ended: leave disabled",
+     "stage": "ended",
+     "next": "This event has ended"
     }
    ],
    "phone": "Single column, same content, full width."
@@ -2757,15 +2857,31 @@
      ]
     },
     {
-     "name": "Leave this event (planned, SIM-340, not built yet)",
+     "name": "Leave this event (danger zone, last on Overview)",
      "contents": [
-      "Leaves your team first, then removes you from the event. You can rejoin with the current join link."
+      "Leave Generation Girl Online Hack 2026",
+      "On a team with others: 'You'll leave SheBuilds and lose access to this event. Your teammates keep the team, its entry and its website.'",
+      "Only member of the team: 'You're the only member of SheBuilds, so the team, its entry and its website will be deleted when you leave.'",
+      "No team: 'You'll lose access to the event. You can join again while sign-up is open.' (from Closed on: 'Sign-up has closed, so you can't join again.')"
      ],
      "actions": [
       {
-       "label": "Leave this event",
+       "label": "Leave event",
        "kind": "danger",
-       "confirm": "Planned, not available yet: you'll leave your team first, then leave the event. Continue?"
+       "confirm": "Leave Generation Girl Online Hack 2026? You'll leave SheBuilds and lose access to the event. Ayu and Nadia keep the team, its entry and its website. You can join again while sign-up is open, but not as part of SheBuilds unless they let you back in. [Cancel] [Leave event]"
+      }
+     ]
+    },
+    {
+     "name": "Withdraw your application (danger zone under the waiting card, pending only)",
+     "contents": [
+      "The organisers stop seeing it, along with your answers. You can apply again while sign-up is open."
+     ],
+     "actions": [
+      {
+       "label": "Withdraw application",
+       "kind": "danger",
+       "confirm": "Withdraw your application? Your application to Generation Girl Online Hack 2026 and your answers will be removed. You can apply again while sign-up is open. [Cancel] [Withdraw application]"
       }
      ]
     }
@@ -2800,6 +2916,51 @@
      "name": "results published",
      "when": "stage is Results",
      "shows": "'Results are out.' with a See results button"
+    },
+    {
+     "name": "leave, on a team with others",
+     "when": "approved, on a team with at least one other member, stage Draft, Open or Building, before the team's own deadline",
+     "shows": "Leave event opens a .dialog naming the team and the teammates who keep it (up to two names, then 'and N others'). Confirm: 'Leave event'. The team, entry and site stay, the team code does not change."
+    },
+    {
+     "name": "leave, only member of the team",
+     "when": "approved, the only member of their team, before the team's deadline",
+     "shows": "The dialog says 'You're the only member of SheBuilds, so the team, its entry and its website will be deleted for good.' and the button reads 'Delete team and leave'. The team site moves to Recently deleted and is purged by the existing sweep, as Leave team does today."
+    },
+    {
+     "name": "leave, no team",
+     "when": "approved, not on a team, any stage until the event ends",
+     "shows": "A plain confirm: 'You'll lose access to the event.' plus the rejoin line for the stage ('You can join again while sign-up is open.' or 'Sign-up has closed, so you can't join again.')."
+    },
+    {
+     "name": "leave blocked after the team's deadline",
+     "when": "on a team whose deadline (with any extension) has passed, or stage Closed, Judging or Results",
+     "shows": "The danger zone stays, with the button disabled and the reason: 'Entries have closed, so your team can't change and you can't leave. Your name stays on the SheBuilds entry. If you need to leave, ask an organiser.'"
+    },
+    {
+     "name": "pending application",
+     "when": "approval_status pending (an application or a join-link sign-up waiting for a decision)",
+     "shows": "Under the waiting card (app.js locked view): a danger zone 'Withdraw your application' with a red Withdraw application button and a confirm. After it, Home with the toast 'You withdrew your application to Generation Girl Online Hack 2026.'"
+    },
+    {
+     "name": "rejected application",
+     "when": "approval_status rejected",
+     "shows": "No Leave or Withdraw control. The 'wasn't accepted' card is all there is (see decisions)."
+    },
+    {
+     "name": "event ended or taken down",
+     "when": "stage Ended, or the event was taken down",
+     "shows": "Leave event disabled, with 'This event has ended, so nobody can leave it. It stays on your Home as a record.' or 'This event was taken down, so it can't change.'"
+    },
+    {
+     "name": "after leaving",
+     "when": "the leave succeeded",
+     "shows": "The app goes to Home (/events) with a toast 'You left Generation Girl Online Hack 2026.' The event is gone from Home and the switcher. Its pages now answer Event not found for this person."
+    },
+    {
+     "name": "something changed while the dialog was open",
+     "when": "POST .../leave answers 409 leave_state_changed or submissions_closed (a teammate left, the deadline passed)",
+     "shows": "The dialog reloads the preview and redraws for the new case with a .note warn line 'Something changed while this was open. Check the details again.'"
     }
    ],
    "replaces": [],
@@ -2814,7 +2975,9 @@
     "view-approval-status",
     "read-schedule-and-announcements",
     "team-removal-notice",
-    "replay-participant-walkthrough"
+    "replay-participant-walkthrough",
+    "leave-event",
+    "withdraw-application"
    ],
    "prototype_states": [
     {
@@ -2834,6 +2997,30 @@
      "name": "Entry done, waiting on judging",
      "stage": "judging",
      "next": "Judging is under way"
+    },
+    {
+     "slug": "leave-confirm",
+     "name": "Leave, on a team with others",
+     "stage": "building",
+     "next": "Entries close in 2 days"
+    },
+    {
+     "slug": "leave-lone",
+     "name": "Leave, only member of the team",
+     "stage": "building",
+     "next": "Entries close in 2 days"
+    },
+    {
+     "slug": "leave-blocked",
+     "name": "Leave blocked after the deadline",
+     "stage": "closed",
+     "next": "Judging starts soon"
+    },
+    {
+     "slug": "withdraw-confirm",
+     "name": "Withdraw a pending application",
+     "stage": "open",
+     "next": "Waiting for an organiser to approve you"
     }
    ],
    "decisions": [
@@ -2841,6 +3028,36 @@
      "q": "Does Home need its own guided walkthrough?",
      "decision": "Yes, same rule as organiser/judge: welcome, the status bar, the next-step block, then every sidebar item (Schedule, Announcements, Team, Entry, Website, Results -- Results itself only appears once results are published, so its step already skips before then), then Help. Auto-starts once per approved participant; seen-state is localStorage (no server field for it).",
      "why": "Every role gets a Home walkthrough under the same owner rule (2026-10-30) that triggered the judge Home fix: explain only what is on screen, skip a step with no target."
+    },
+    {
+     "q": "Can a participant leave after entries close?",
+     "decision": "A participant on a team can leave until their team's own deadline passes, extensions included, and only in Draft, Open or Building. After that the button stays, disabled, with the reason and 'ask an organiser'. A participant with no team can leave at any stage until the event ends.",
+     "why": "The handed-over spec (workspace-3 _hackleave.md) says blocked after the submission deadline so results can't change, and SIM-340 says the participant leaves the team 'with the same rules as Leave team', which already freezes a team at its deadline. The two agree. A teamless participant has no entry or score tied to them, so nothing in the results can move when they go. Organisers keep Remove person for anything later."
+    },
+    {
+     "q": "What happens to a lone member's team, entry and site?",
+     "decision": "They are deleted with the team, exactly as Leave team does today (the site goes to Recently deleted, then the existing sweep purges it). The confirm says so and its button reads 'Delete team and leave'.",
+     "why": "Before the deadline an empty team has nobody to publish, edit or answer for its entry, and keeping it would show judges an entry nobody owns. After the deadline the last member can't leave, so a submitted entry is never orphaned by this."
+    },
+    {
+     "q": "Can a pending applicant withdraw?",
+     "decision": "Yes, through the same leave call, worded 'Withdraw application'. The pending row goes with its answers, city, country, age range and gender. They can apply or use the join link again while sign-up is open, under the usual caps.",
+     "why": "Someone who applied by mistake should not have to wait for a decision to take it back, and deleting the row is what removes their personal answers. The re-apply caps (20 pending per person, the per-event cap, the apply rate limit) already bound any withdraw-and-apply churn."
+    },
+    {
+     "q": "Can a rejected applicant leave?",
+     "decision": "No. No control is shown and the API answers 409 application_rejected.",
+     "why": "The rejected row is what stops a second application (POST .../apply returns the existing row unchanged) and a join-link rejoin. If it could be deleted, anyone could undo an organiser's rejection in two clicks."
+    },
+    {
+     "q": "Are teammates or organisers told?",
+     "decision": "No new notice or email. Teammates see the roster change on Team, organisers see the person gone from People. Unsent announcement emails and entry receipts queued for the person are dropped, and their site notification subscriptions end (the existing trigger).",
+     "why": "Owner rule for this ticket: no new notification unless one already exists, and none exists for Leave team. This replaces SIM-340's 'teammates are told', which has no mechanism behind it today."
+    },
+    {
+     "q": "How does someone come back?",
+     "decision": "As a new member: the join link or Apply while sign-up is open, with the usual approval rules. The old team is not restored and the sign-up answers are asked again.",
+     "why": "Leaving deletes the membership row, so there is nothing to restore, and a fresh row keeps every existing join rule in force."
     }
    ]
   },
@@ -3512,15 +3729,16 @@
      ]
     },
     {
-     "name": "Leave this event (planned, SIM-340, not built yet)",
+     "name": "Leave this event (danger zone, last on Overview)",
      "contents": [
-      "Your scores are kept even after you leave."
+      "Leave Jakarta Women in Tech Hack",
+      "You'll lose access to judging. Your scores for 4 teams stay and still count in the results. (No scores yet: 'You'll lose access to judging.')"
      ],
      "actions": [
       {
-       "label": "Leave this event",
+       "label": "Leave event",
        "kind": "danger",
-       "confirm": "Planned, not available yet: your scores stay on record. Leave this event?"
+       "confirm": "Leave Jakarta Women in Tech Hack? You'll lose access to judging. Your scores for 4 teams stay and still count in the results. You can come back with the judge link until results are published. [Cancel] [Leave event]"
       }
      ]
     }
@@ -3560,6 +3778,16 @@
      "name": "all scored, still open",
      "when": "every assigned team is scored and judging is not locked",
      "shows": "'You're done. Thank you.' with 6 of 6 scored, a note that scores can still be changed until the organiser locks judging, and a quiet 'Review my scores' link"
+    },
+    {
+     "name": "leave",
+     "when": "any stage until the event ends, judging locked or not",
+     "shows": "Leave event opens a .dialog with the number of teams this judge scored. After results are published the last line reads 'Results are out, so you can't rejoin as a judge.' After leaving: Home with 'You left Jakarta Women in Tech Hack.'"
+    },
+    {
+     "name": "event ended",
+     "when": "stage Ended",
+     "shows": "Leave event disabled, with 'This event has ended, so nobody can leave it. It stays on your Home as a record.'"
     }
    ],
    "replaces": [
@@ -3591,10 +3819,26 @@
      "q": "Should Home's walkthrough also explain the scoring page?",
      "decision": "No. Home's tour only covers what is on Home (welcome, status, the next-step block, progress, My teams, Rubric & brief, Help); the two steps that used to explain scoring there (no target, so they always showed) moved to a new tour on the scoring page itself (judgeScoring). The status step is stage-aware: it says the event is open while scoring is open, says when it opens while it isn't, and is left out entirely once judging is locked or results are out.",
      "why": "Owner, 2026-10-30: on Home, steps 5-6 of 7 explained the scoring page while the judge was still on Home looking at nothing, and on an event whose results were already out they didn't apply at all -- scoring was over."
+    },
+    {
+     "q": "Are a departed judge's scores kept?",
+     "decision": "Kept and still counted, frozen as they stood when the judge left. The server records them as a former judge of the event and counts their scores for the teams that were eligible for them at that moment (their conflicts still apply). That list of teams is stored with the record, so later changes to assignments or panels don't move their scores in or out. Their other score rows stay uncounted, as today. An organiser can delete a former judge's scores from Judging.",
+     "why": "Results should not shift because a judge stepped away after doing the work (SIM-340's recommendation). Today eligibility requires membership, so a removed judge's scores silently stop counting. 'Kept' needs this record or the totals would change behind the organiser's back."
+    },
+    {
+     "q": "Can a judge leave after judging locks, or after results?",
+     "decision": "Yes, at any stage until the event ends, with the scores kept and counted.",
+     "why": "Locking freezes scores and the published results are a stored snapshot, so leaving changes nothing in either. A judge who is done should be able to clear the event from their Home."
+    },
+    {
+     "q": "How does a judge come back?",
+     "decision": "With the judge link until results are published. Rejoining removes the former-judge record and their kept scores count as a member's again.",
+     "why": "Same link rule as today, and the person is the same account, so their scores are theirs again."
     }
    ],
    "features": [
-    "replay-judging-walkthrough"
+    "replay-judging-walkthrough",
+    "leave-event"
    ],
    "prototype_states": [
     {
@@ -3626,6 +3870,12 @@
      "name": "Guided walkthrough, step 3 of 9",
      "stage": "judging",
      "next": "Scoring is open · 3 of 6 done"
+    },
+    {
+     "slug": "leave-confirm",
+     "name": "Leave, scores kept",
+     "stage": "judging",
+     "next": "Scoring is open · 4 of 6 done"
     }
    ],
    "phone": "Single column, same content, full width."
@@ -4117,7 +4367,7 @@
    "user_moment": "The top-left brand link, clicked from any screen -- a brand-new account with nothing yet, or a returning person with several events across roles deciding what to do next.",
    "purpose": "The person's home, one level above any event: what needs them first across every event they belong to, plus the three other starting points (find a hackathon, create one, their account).",
    "primary_action": "Open an event -- or Create event, Find a hackathon, Account.",
-   "layout": "Same grouping as the switcher -- needs-attention first, then the rest -- each row: colour mark, name, role pill(s), stage pill, and a plain next action in plain language that fits the role and stage (e.g. organiser in Open: 'Sign-up is open'; judge in Closed/Judging: 'Score teams'; participant in Building: 'Keep building') -- built only from the role and stage the events list already returns, never a count the list doesn't provide. Create event pinned at the bottom, set apart; Find a hackathon and Account sit together in a row under the lists -- Find a hackathon as a normal button, Account as a quiet one -- since both are always one click away in the sidebar's top section too.",
+   "layout": "Same grouping as the switcher -- needs-attention first, then the rest -- each row (an editable list row: the name links to the event, a … menu sits at the right): colour mark, name, role pill(s), stage pill, and a plain next action in plain language that fits the role and stage (e.g. organiser in Open: 'Sign-up is open'; judge in Closed/Judging: 'Score teams'; participant in Building: 'Keep building') -- built only from the role and stage the events list already returns, never a count the list doesn't provide. Create event pinned at the bottom, set apart; Find a hackathon and Account sit together in a row under the lists -- Find a hackathon as a normal button, Account as a quiet one -- since both are always one click away in the sidebar's top section too.",
    "sections": [
     {
      "name": "Your events",
@@ -4144,9 +4394,9 @@
        "confirm": null
       },
       {
-       "label": "Leave this event (planned, SIM-340, not built yet, per-row menu)",
+       "label": "… menu on each row: Open event, then Leave this event… (red, last)",
        "kind": "danger",
-       "confirm": "Planned, not available yet."
+       "confirm": "Opens the same leave dialog as inside the event, for that event and role. Pending rows say 'Withdraw application…'. Ended rows show 'Can't leave, the event has ended' disabled. Rejected rows have no leave item."
       }
      ]
     }
@@ -4161,6 +4411,21 @@
      "name": "waiting on an application",
      "when": "a participant row whose approval_status is pending or rejected",
      "shows": "The row's next action reads 'Waiting for the organisers' (pending) or 'Not accepted' (rejected) instead of a stage guess. Needs approval_status on participant rows of GET /v1/hack/events."
+    },
+    {
+     "name": "row menu open",
+     "when": "the … button of a row is pressed",
+     "shows": "A .row-menu with Open event, a rule, then the red 'Leave this event…' (or 'Withdraw application…' on a pending row). Escape or a click outside closes it."
+    },
+    {
+     "name": "after leaving from Home",
+     "when": "a leave started from a row menu succeeded",
+     "shows": "A .note.ok toast at the top, e.g. 'You left Bandung Climate Jam.', and the row is gone. If it was the last event, the empty state shows."
+    },
+    {
+     "name": "ended or taken-down row",
+     "when": "the row's event has ended or was taken down",
+     "shows": "The menu's leave item is disabled and reads 'Can't leave, the event has ended' (or 'Can't leave, the event was taken down')."
     }
    ],
    "replaces": [
@@ -4171,7 +4436,10 @@
     "'Role and stage as plain text in a dense single line, no visual indicator' -- role and stage are pills now, sorted needs-attention-first, matching the switcher dropdown exactly.",
     "The event switcher doubled as the only way home, with no actual home screen of its own, and its full-page version just repeated the dropdown with no next action per row -- the top-left brand link now always leads here, this page is the person's real home (title 'Home', the switcher is one level below it), and every row says the plain next thing to do."
    ],
-   "features": [],
+   "features": [
+    "leave-event",
+    "withdraw-application"
+   ],
    "prototype_states": [
     {
      "slug": "with-events",
@@ -4184,6 +4452,18 @@
      "name": "Brand-new account",
      "stage": null,
      "next": null
+    },
+    {
+     "slug": "row-menu",
+     "name": "Row menu open",
+     "stage": null,
+     "next": null
+    },
+    {
+     "slug": "left",
+     "name": "After leaving an event",
+     "stage": null,
+     "next": null
     }
    ],
    "decisions": [
@@ -4191,6 +4471,16 @@
      "q": "Where does Home sit relative to the event switcher?",
      "decision": "Home is its own page, one level above any event. The top-left brand link always leads to it, from any screen. The event switcher is not Home -- it is the header of the sidebar's second section, which only exists while an event is open.",
      "why": "owner 2026-10-30: the top-left should lead to my home, the event is one level below."
+    },
+    {
+     "q": "Can people leave from Home, without opening the event?",
+     "decision": "Yes, from each row's … menu, through the same dialog the event's own danger zone uses (one shared leave flow driven by GET .../leave).",
+     "why": "SIM-340 places it on the account-level list of events too. Someone who joined by mistake (the owner's 2026-10-28 hand test) should not have to learn the event's screens to get out of it."
+    },
+    {
+     "q": "Why do Home rows stop being one big link?",
+     "decision": "Each row becomes an editable list row: the name area is the link and the … menu sits at the right, as on Announcements.",
+     "why": "A menu button cannot sit inside a link, and the kit already has this row pattern, so nothing new is invented."
     }
    ],
    "phone": "Single column, same content, full width."
@@ -5748,12 +6038,13 @@
    "id": "leave-event",
    "ticket": "SIM-340",
    "name": "Leave this event",
-   "what": "Any participant, judge or organiser can leave an event they joined. A participant leaves their team first. A judge's scores are kept. The event creator hands the event to another organiser first. The last organiser is told nobody would be left to run it, so leaving closes it: End the event or Delete the event, or Cancel.",
+   "what": "Designed in the atlas 2026-10-31, not built yet. Any participant, judge or organiser can leave from their Overview or Settings danger zone, or from a Home row's … menu. A participant leaves their team first (a lone member's team, entry and site are deleted) and can't leave once their team's deadline passes. A pending applicant withdraws. A judge's scores stay and still count. The creator hands the event to another organiser first. The last organiser ends or deletes the event. Nothing on an ended event.",
    "screens": [
     "participant-home",
     "judge-home",
     "organiser-settings",
-    "landing-your-events"
+    "landing-your-events",
+    "organiser-judging"
    ]
   }
  ],

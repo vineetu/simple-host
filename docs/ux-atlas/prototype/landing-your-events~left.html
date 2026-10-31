@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="" data-nav="" data-top="home" data-stage="" data-next="">
+<main class="page"><div class="ph"><div class="t"><h1>Home</h1></div><a class="btn primary" href="organiser-create-event.html">Create event</a></div><p class="note toast ok" role="status"><span>You left Bandung Climate Jam.</span></p><p class="section-title">Needs attention</p><div class="list editable" aria-label="Needs attention events"><div class="r"><span class="ev-mark">GG</span><a class="main" href="organiser-overview.html"><b>Generation Girl Online Hack 2026</b><span>Organiser · Building</span></a><span class="meta">Teams are building</span><div class="row-acts"><button class="icon-btn" type="button" data-rowmenu aria-haspopup="menu" aria-expanded="false" aria-label="More for Generation Girl Online Hack 2026"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01"/></svg></button><div class="row-menu" role="menu" hidden><button type="button" role="menuitem">Open event</button><hr><button type="button" role="menuitem" class="danger">Leave this event…</button></div></div></div><div class="r"><span class="ev-mark">JW</span><a class="main" href="judge-home.html"><b>Jakarta Women in Tech Hack</b><span>Judge · Judging</span></a><span class="meta">Score teams</span><div class="row-acts"><button class="icon-btn" type="button" data-rowmenu aria-haspopup="menu" aria-expanded="false" aria-label="More for Jakarta Women in Tech Hack"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01"/></svg></button><div class="row-menu" role="menu" hidden><button type="button" role="menuitem">Open event</button><hr><button type="button" role="menuitem" class="danger">Leave this event…</button></div></div></div></div><p class="section-title">Recent</p><div class="list editable" aria-label="Recent events"><div class="r"><span class="ev-mark">HJ</span><a class="main" href="organiser-overview.html"><b>Hack Jakarta 2025</b><span>Organiser · Ended</span></a><span class="meta">Overview</span><div class="row-acts"><button class="icon-btn" type="button" data-rowmenu aria-haspopup="menu" aria-expanded="false" aria-label="More for Hack Jakarta 2025"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01"/></svg></button><div class="row-menu" role="menu" hidden><button type="button" role="menuitem">Open event</button><hr><button type="button" role="menuitem" disabled>Can't leave, the event has ended</button></div></div></div></div><div class="row-flex"><a class="btn" href="https://simple-hack.app/directory">Find a hackathon</a><a class="btn quiet" href="account.html">Account</a></div></main>
+<script>
+(function(){
+  function closeAll(except){ document.querySelectorAll('.row-menu').forEach(function(m){ if(m!==except){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-rowmenu]');
+    if(!b){ if(!e.target.closest('.row-menu')) closeAll(null); return; }
+    var m=b.parentNode.querySelector('.row-menu'); closeAll(m); m.hidden=!m.hidden; b.setAttribute('aria-expanded',String(!m.hidden));
+    if(!m.hidden){ var f=m.querySelector('button:not([disabled])'); if(f) f.focus(); }
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    document.querySelectorAll('.row-menu:not([hidden])').forEach(function(m){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b){ b.setAttribute('aria-expanded','false'); b.focus(); } });
+  });
+})();
+</script>
+</body></html>

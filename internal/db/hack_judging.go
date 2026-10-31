@@ -307,11 +307,28 @@ func ScoreCoverage(ctx context.Context, q Querier, eventID string) (byTeam, byJu
 	return byTeam, byJudge, nil
 }
 
-const scoreEligiblePredicate = `EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id AND m.role IN ('judge', 'organiser'))
- AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=s.event_id AND c.judge_id=s.judge_id AND c.team_id=s.team_id)
- AND (e.judge_assignment_mode='open'
- OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=s.event_id AND a.judge_id=s.judge_id AND a.team_id=s.team_id))
- OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_teams t JOIN event_track_panels p ON p.event_id=t.event_id AND p.track_id=t.track_id AND p.judge_id=s.judge_id WHERE t.event_id=s.event_id AND t.id=s.team_id)))`
+// scoreEligiblePredicate counts a score either the ordinary way (the judge is
+// still a member, in good standing with today's mode, conflicts and
+// assignments) or, for someone who left, when a former-judge record froze
+// this exact team as one that counted at the moment they left (section 3:
+// Leave this event, SIM-340). A conflict declared after they left still
+// excludes them either way.
+// The whole thing is wrapped in an outer pair of parens (Codex review,
+// SIM-340) because every caller ANDs this onto an s.event_id = $1 filter:
+// without it, "AND (member branch) OR (former branch)" lets the former
+// branch through unfiltered by that AND, leaking a former judge's rows
+// across events and teams.
+const scoreEligiblePredicate = `((
+  EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id AND m.role IN ('judge', 'organiser'))
+  AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=s.event_id AND c.judge_id=s.judge_id AND c.team_id=s.team_id)
+  AND (e.judge_assignment_mode='open'
+  OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=s.event_id AND a.judge_id=s.judge_id AND a.team_id=s.team_id))
+  OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_teams t JOIN event_track_panels p ON p.event_id=t.event_id AND p.track_id=t.track_id AND p.judge_id=s.judge_id WHERE t.event_id=s.event_id AND t.id=s.team_id)))
+) OR (
+  NOT EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id)
+  AND EXISTS (SELECT 1 FROM event_former_judges f WHERE f.event_id=s.event_id AND f.user_id=s.judge_id AND s.team_id = ANY(f.counted_team_ids))
+  AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=s.event_id AND c.judge_id=s.judge_id AND c.team_id=s.team_id)
+))`
 
 // AssignmentCounts is how many teams each judge is assigned, in automatic mode.
 func AssignmentCounts(ctx context.Context, q Querier, eventID string) (map[string]int, error) {
@@ -478,12 +495,13 @@ type RawScoreRow struct {
 // scores CSV and for computing results in Go.
 func ListRawScores(ctx context.Context, q Querier, eventID string) ([]RawScoreRow, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT s.judge_id, COALESCE(j.display_name, ''), s.team_id, t.name,
+		SELECT s.judge_id, COALESCE(j.display_name, f.display_name, ''), s.team_id, t.name,
 		       s.criterion_id, r.name, r.position, s.points, r.max_points, s.comment
 		  FROM event_scores s
 		  JOIN event_teams t ON t.id = s.team_id
 		  JOIN rubric_criteria r ON r.id = s.criterion_id
 		  LEFT JOIN event_members j ON j.event_id = s.event_id AND j.user_id = s.judge_id
+		  LEFT JOIN event_former_judges f ON f.event_id = s.event_id AND f.user_id = s.judge_id
 		 WHERE s.event_id = $1`, eventID)
 	if err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -36,25 +37,46 @@ func OrganiserInviteEvent(ctx context.Context, q Querier, hash string, lock bool
 	return GetEventBySlug(ctx, q, slug)
 }
 
+// RemoveCoOrganiser drops an organiser (Grok security review, SIM-340):
+// their own event_scores rows deleted outright -- TestHackOrganisersCanJudge
+// AndRemovedOrganiserScoresStopCounting already establishes "a removed
+// organiser's scores stop counting" as the intended behaviour, unlike a
+// voluntary leave's frozen-but-kept scores, so removal deletes rather than
+// freezes -- plus LeaveMembership's shared cleanup (name reservation,
+// pending team requests, unsent announcement/entry mail, the member row).
+// Previously a single atomic DELETE that skipped the mail cleanup only.
 func RemoveCoOrganiser(ctx context.Context, q *sql.Tx, eventID, actorID, userID string) error {
 	// Serialise removals so a legacy event without its creator cannot lose
 	// both remaining organisers through concurrent requests.
-	var id string
-	if err := q.QueryRowContext(ctx, `SELECT id FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&id); err != nil {
+	var createdBy sql.NullString
+	if err := q.QueryRowContext(ctx, `SELECT created_by FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&createdBy); err != nil {
 		return err
 	}
-	result, err := q.ExecContext(ctx, `DELETE FROM event_members m USING events e
- WHERE m.event_id=e.id AND e.id=$1 AND m.user_id=$2 AND m.role='organiser'
- AND e.created_by IS DISTINCT FROM m.user_id
-	AND EXISTS (SELECT 1 FROM event_members actor WHERE actor.event_id=e.id AND actor.user_id=$3 AND actor.role='organiser')
- AND EXISTS (SELECT 1 FROM event_members other WHERE other.event_id=e.id AND other.role='organiser' AND other.user_id<>m.user_id)`, eventID, userID, actorID)
+	var role string
+	err := q.QueryRowContext(ctx, `SELECT role FROM event_members WHERE event_id=$1 AND user_id=$2 FOR UPDATE`, eventID, userID).Scan(&role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return sql.ErrNoRows
+	}
 	if err != nil {
 		return err
 	}
-	n, err := result.RowsAffected()
-	if err == nil && n == 0 {
+	if role != "organiser" || (createdBy.Valid && createdBy.String == userID) {
 		return sql.ErrNoRows
 	}
+	var actorIsOrganiser, anotherOrganiser bool
+	if err := q.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM event_members WHERE event_id=$1 AND user_id=$2 AND role='organiser'),
+		       EXISTS (SELECT 1 FROM event_members WHERE event_id=$1 AND role='organiser' AND user_id<>$3)`,
+		eventID, actorID, userID).Scan(&actorIsOrganiser, &anotherOrganiser); err != nil {
+		return err
+	}
+	if !actorIsOrganiser || !anotherOrganiser {
+		return sql.ErrNoRows
+	}
+	if _, err := q.ExecContext(ctx, `DELETE FROM event_scores WHERE event_id=$1 AND judge_id=$2`, eventID, userID); err != nil {
+		return err
+	}
+	_, err = LeaveMembership(ctx, q, eventID, userID)
 	return err
 }
 

@@ -34,6 +34,7 @@ func (h *HackHandler) registerJudging(mux *http.ServeMux, wrap func(http.Handler
 	mux.Handle("POST /v1/hack/events/{slug}/conflicts", wrap(h.declareConflict))
 	mux.Handle("DELETE /v1/hack/events/{slug}/conflicts/{team_id}", wrap(h.deleteConflict))
 	mux.Handle("GET /v1/hack/events/{slug}/judging/dashboard", wrap(h.judgingDashboard))
+	mux.Handle("DELETE /v1/hack/events/{slug}/judging/former-judges/{user_id}", wrap(h.deleteFormerJudgeScores))
 	mux.Handle("POST /v1/hack/events/{slug}/judging/lock", wrap(h.lockJudging))
 	mux.Handle("POST /v1/hack/events/{slug}/judging/unlock", wrap(h.unlockJudging))
 	mux.Handle("GET /v1/hack/events/{slug}/judge/queue", wrap(h.judgeQueue))
@@ -888,12 +889,119 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 			"assigned_count": assigned[judge.ID],
 		})
 	}
+	former, err := db.ListFormerJudges(ctx, h.database, a.event.ID)
+	if err != nil {
+		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	formerRows := make([]map[string]any, 0, len(former))
+	for _, f := range former {
+		assignedCount, err := db.FormerJudgeAssignedCount(ctx, h.database, a.event.ID, f.UserID)
+		if err != nil {
+			log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
+			writeInternal(w)
+			return
+		}
+		formerRows = append(formerRows, map[string]any{
+			"user_id":        f.UserID,
+			"display_name":   f.DisplayName,
+			"role":           f.Role,
+			"left_at":        rfc3339Time(f.LeftAt),
+			"counted_teams":  scoredJudges[f.UserID],
+			"assigned_count": assignedCount,
+		})
+	}
 	// Tied totals need scores. The next pass fills this once totals exist.
 	writeJSON(w, http.StatusOK, map[string]any{
-		"teams":       teamRows,
-		"judges":      judgeRows,
-		"tied_groups": []any{},
+		"teams":         teamRows,
+		"judges":        judgeRows,
+		"former_judges": formerRows,
+		"tied_groups":   []any{},
 	})
+}
+
+// deleteFormerJudgeScores is DELETE .../judging/former-judges/{user_id}
+// (SIM-340): an organiser dropping a departed judge's scores so they stop
+// counting. Published results change only on the next publish (the snapshot
+// already taken is untouched).
+func (h *HackHandler) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Request) {
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	if !ok {
+		return
+	}
+	userID := r.PathValue("user_id")
+	if !uuidShape.MatchString(userID) {
+		writeHackErr(w, http.StatusNotFound, "former_judge_not_found", "former judge not found")
+		return
+	}
+	// Destructive, like delete-event and leave's close:"delete" (Grok
+	// security review, SIM-340): confirm must repeat the event's address
+	// name, so an agent or a stray retry can't drop a judge's scores without
+	// the person having agreed to exactly this event.
+	var req struct {
+		Confirm string `json:"confirm"`
+	}
+	if !decodeHackJSON(w, r, &req) {
+		return
+	}
+	if req.Confirm != a.event.Slug {
+		writeHackErr(w, http.StatusConflict, "confirm_required", `to delete this judge's scores, send {"confirm":"`+a.event.Slug+`"} with this event's address name`)
+		return
+	}
+	tx, err := h.database.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	defer tx.Rollback()
+	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	if ev.TakenDown() {
+		writeHackErr(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
+		return
+	}
+	if ev.Stage == "archived" {
+		writeHackErr(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
+		return
+	}
+	if writeIfJudgingLocked(w, ev) {
+		return
+	}
+	// Re-check the caller is still an organiser now that the event is
+	// locked (Grok security review, SIM-340): loadMember's check above runs
+	// before this transaction, so a concurrent remove-organiser that
+	// commits while this request waits on the event lock must not still
+	// let the delete through.
+	var role string
+	if err := tx.QueryRowContext(r.Context(), `SELECT role FROM event_members WHERE event_id = $1 AND user_id = $2 FOR SHARE`, a.event.ID, a.user.ID).Scan(&role); errors.Is(err, sql.ErrNoRows) {
+		writeEventNotFound(w)
+		return
+	} else if err != nil {
+		writeInternal(w)
+		return
+	} else if role != "organiser" {
+		writeEventNotFound(w)
+		return
+	}
+	found, err := db.DeleteFormerJudgeScores(r.Context(), tx, a.event.ID, userID)
+	if err != nil {
+		log.Printf("hack: delete former judge scores %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	if !found {
+		writeHackErr(w, http.StatusNotFound, "former_judge_not_found", "former judge not found")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeInternal(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // --- M3 pass 2: scoring, lock/unlock, publish, results, exports ----------
@@ -1226,6 +1334,22 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, 409, "scoring_not_open", "Scoring opens when entries close.")
 		return
 	}
+	// Recheck current membership now that the event row is locked (Codex
+	// review, SIM-340): the initial loadMember check above is optimistic and
+	// runs before this transaction takes the lock, so a leave that commits
+	// while this request was waiting on it must not let the write through.
+	// db.JudgeTeamEligible below also accepts a former judge's frozen teams
+	// (it is shared with the read side), so a departed judge can never write
+	// only if membership is checked here, separately, first.
+	stillMember, err := db.EventJudgeInEvent(r.Context(), tx, a.event.ID, a.user.ID)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	if !stillMember {
+		writeHackErr(w, http.StatusForbidden, "forbidden", "You are no longer a judge or organiser of this event.")
+		return
+	}
 	crit, err := db.CriterionIDsForEvent(r.Context(), tx, a.event.ID)
 	if err != nil {
 		log.Printf("hack: scores %s: %v", a.event.Slug, err)
@@ -1306,105 +1430,6 @@ type teamResult struct {
 	Rank            *int
 	Tied            bool
 	JudgesScored    int
-}
-
-// computeResults builds the current ranking from raw scores, excluding any
-// judge who has a conflict with that team even if score rows exist. A team
-// with zero qualifying judges gets Total=nil and sorts last, never "tied"
-// with another nil team. A judge's partial (incomplete) scoring still counts
-// with whatever sum they have: a partial score is better signal than none,
-// and "complete" is a UI nicety, not a scoring gate.
-func computeResults(ctx context.Context, database *sql.DB, eventID string) ([]teamResult, error) {
-	rubric, err := db.ListRubric(ctx, database, eventID)
-	if err != nil {
-		return nil, err
-	}
-	weight := map[string]float64{}
-	maxPts := map[string]float64{}
-	for _, c := range rubric {
-		weight[c.ID] = float64(c.Weight)
-		maxPts[c.ID] = float64(c.MaxPoints)
-	}
-	teams, err := db.ListTeamsWithMembers(ctx, database, eventID)
-	if err != nil {
-		return nil, err
-	}
-	raw, err := db.ListRawScores(ctx, database, eventID)
-	if err != nil {
-		return nil, err
-	}
-	pairs, err := db.ListConflictPairs(ctx, database, eventID)
-	if err != nil {
-		return nil, err
-	}
-	conflicted := map[string]bool{}
-	for _, p := range pairs {
-		conflicted[p.JudgeID+"\x00"+p.TeamID] = true
-	}
-	// per (team, judge) weighted sum
-	type key struct{ team, judge string }
-	sums := map[key]float64{}
-	for _, r := range raw {
-		if conflicted[r.JudgeID+"\x00"+r.TeamID] {
-			continue
-		}
-		w := weight[r.CriterionID]
-		m := maxPts[r.CriterionID]
-		if m <= 0 {
-			continue
-		}
-		sums[key{r.TeamID, r.JudgeID}] += (w / 100) * (float64(r.Points) / m) * 100
-	}
-	byTeamJudges := map[string][]float64{}
-	for k, v := range sums {
-		byTeamJudges[k.team] = append(byTeamJudges[k.team], v)
-	}
-	out := make([]teamResult, 0, len(teams))
-	for _, t := range teams {
-		vals := byTeamJudges[t.ID]
-		res := teamResult{TeamID: t.ID, TeamName: t.Name, JudgesScored: len(vals)}
-		if len(vals) > 0 {
-			sum := 0.0
-			for _, v := range vals {
-				sum += v
-			}
-			avg := math.Round((sum/float64(len(vals)))*100) / 100
-			res.Total = &avg
-		}
-		out = append(out, res)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		a, b := out[i].Total, out[j].Total
-		if a == nil && b == nil {
-			return out[i].TeamName < out[j].TeamName
-		}
-		if a == nil {
-			return false
-		}
-		if b == nil {
-			return true
-		}
-		if *a != *b {
-			return *a > *b
-		}
-		return out[i].TeamName < out[j].TeamName
-	})
-	rank := 0
-	for i := range out {
-		if out[i].Total == nil {
-			continue
-		}
-		rank++
-		r := rank
-		out[i].Rank = &r
-		if i > 0 && out[i-1].Total != nil && *out[i-1].Total == *out[i].Total {
-			out[i].Tied = true
-			out[i-1].Tied = true
-			out[i].Rank = out[i-1].Rank
-			rank--
-		}
-	}
-	return out, nil
 }
 
 // rankOverride is one team's chosen final place within its own tied group.

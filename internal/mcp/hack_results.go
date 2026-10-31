@@ -34,6 +34,10 @@ func minimiseHackMemberResult(name, userID string, out map[string]any) {
 		} else {
 			clear(out)
 		}
+	case "hack_preview_leave_event":
+		// successors (creator case) keeps display_name and user_id; email
+		// stays out of model context unless asked (2026-10-28 rule).
+		hackOmitRowField(out["successors"], "email")
 	}
 }
 

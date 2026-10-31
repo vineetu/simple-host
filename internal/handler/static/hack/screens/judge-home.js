@@ -1,6 +1,28 @@
 import { href } from '../nav.js'
 import { errText } from './_judge-util.js'
 import { startTour } from '../tour.js'
+import { previewLeave, openLeave } from '../leave.js'
+
+// Leave this event: danger zone last on the page, text from the preview
+// (copy-deck.md, judge section). Returns '' if the preview couldn't be
+// loaded -- never show a Leave button whose state we can't vouch for.
+function judgeDangerZone(ui, preview, ev) {
+  if (!preview) return ''
+  const b = 'Leave ' + ev.title
+  let span, disabled = false
+  if (preview.blocked) {
+    disabled = true
+    span = preview.blocked.code === 'event_closed' ? 'This event has ended, so nobody can leave it. It stays on your Home as a record.'
+      : preview.blocked.code === 'event_taken_down' ? 'This event has been taken down.'
+      : (preview.blocked.message || "You can't leave this event right now.")
+  } else {
+    const n = preview.scored_teams || 0
+    span = n > 0
+      ? `You'll lose access to judging. Your scores for ${n} team${n === 1 ? '' : 's'} stay and still count in the results.`
+      : "You'll lose access to judging."
+  }
+  return `<section class="danger-zone"><h2>Leave this event</h2><div class="setting"><div class="t"><b>${ui.esc(b)}</b><span>${ui.esc(span)}</span></div><button class="btn danger" type="button" id="leave-btn"${disabled ? ' disabled' : ''}>Leave event</button></div></section>`
+}
 
 // Guided walkthrough: shown once, automatically, the first time a judge
 // lands on Overview (renamed from Home 2026-10-30; tour.js checks the stored
@@ -23,17 +45,19 @@ export async function render(ctx) {
   main.innerHTML = `<div class="ph"><div class="t"><h1>Overview</h1></div></div><div id="jh-body"><p class="muted">Loading…</p></div>`
   const body = main.querySelector('#jh-body')
 
-  let queueRes, confRes
+  let queueRes, confRes, preview
   try {
-    ;[queueRes, confRes] = await Promise.all([
+    ;[queueRes, confRes, preview] = await Promise.all([
       api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/judge/queue`),
-      api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/conflicts`)
+      api('GET', `/v1/hack/events/${encodeURIComponent(slug)}/conflicts`),
+      previewLeave(client, slug).then(r => (r.ok ? r.data : null)).catch(() => null)
     ])
   } catch (e) {
     if (client.isSignedOut(e)) return
     body.innerHTML = `<div class="note bad" role="alert">Cannot reach the server.</div>`
     return
   }
+  if (!ctx.alive()) return
   if (!queueRes.ok || !confRes.ok) {
     body.innerHTML = `<div class="note bad" role="alert">${ui.esc(errText(queueRes.ok ? confRes : queueRes))}</div>`
     return
@@ -91,6 +115,10 @@ export async function render(ctx) {
   const openWalk = ctx.params.get('walkthrough') === '1'
   body.innerHTML = top +
     `<h2 class="section-title">Read first</h2><div class="list"><a class="r" href="${ui.esc(href('judge', slug, 'rubric'))}"><span class="main"><b>Rubric &amp; brief</b><span>Read it once before you start</span></span><span class="meta">Open</span></a></div>`
+    + judgeDangerZone(ui, preview, ev)
+
+  const leaveBtn = body.querySelector('#leave-btn')
+  if (leaveBtn && !leaveBtn.disabled) leaveBtn.addEventListener('click', () => openLeave({ api: client, ui, slug, title: ev.title, from: 'judge-home' }))
 
   if (openWalk) startTour('judge', ctx, { force: true })
   else if (!autoTourTried) { autoTourTried = true; startTour('judge', ctx) }

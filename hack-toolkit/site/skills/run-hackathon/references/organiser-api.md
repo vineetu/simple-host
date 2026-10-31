@@ -35,6 +35,9 @@ Use the Simple Hack connector signed in through its trusted browser window. Foll
 | Set directory listing | `hack_set_directory_listing` |
 | Regenerate code | `hack_regenerate_code` |
 | Delete event at any stage; always ask first, no undo | `hack_delete_event` with `slug` and `body: {"confirm":"<slug>"}` |
+| Preview what leaving does | `hack_preview_leave_event` |
+| Leave the event myself | `hack_leave_event` |
+| Delete a departed judge's scores (ask first, `confirm` is the event's address name) | `hack_delete_former_judge_scores` |
 | Get people | `hack_get_people` |
 | Remove person | `hack_remove_person` |
 | Revoke person key | `hack_revoke_person_key` |
@@ -83,6 +86,8 @@ For a custom event website, read `hack_get_event_website(slug)` first. Publish w
 CSV and private archive exports may be large; the management page is an alternative for downloads. Give a returned private archive link only to the organiser; current membership is checked at download. For another judge's conflict, use the returned `judge_user_id` where the tool accepts it. A team rename changes its display name; keep using the returned slug and site URL.
 
 Before changing a public stage, result, listing, website or invitation link; emailing participants; removing access; deleting; or replacing a scored rubric, explain the effect and ask. A new join or judge link invalidates its predecessor; rubric saves keep existing criterion IDs and scores; confirm reported deletions with confirm_score_deletion; ending an event is final.
+
+Leaving the event is destructive too. Preview it with `hack_preview_leave_event`, tell the organiser what happens, and ask before calling `hack_leave_event`. The creator sends `successor_user_id` from the preview, and the only organiser sends `close: "end"` or `close: "delete"`, chosen by the person.
 
 Automatic assignments default to judges only. Use body.include_organisers=true to include organisers. Judges can save scores only when the stage is closed or judging.
 

@@ -39,6 +39,10 @@ export async function render(ctx) {
   let people = []
   let teams = []
   let assignmentsCount = 0
+  // Former judges (SIM-340): someone who judged and then left. Their scores
+  // keep counting (counted_team_ids frozen server-side) -- an organiser can
+  // delete them from here, which is the only way they stop counting.
+  let formerJudges = []
   // Draft vs. saved: the radios must keep whatever the organiser just
   // clicked (B1 -- clicking used to call paintMode(), which re-read
   // settings.assignment_mode and snapped the choice straight back to
@@ -146,6 +150,10 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     locked = true
     ev.judging_locked_at = (r.data && r.data.locked_at) || new Date().toISOString()
     paintTopAction(); paintLockZone(); paintRubric(); paintTie(); paintMode(); paintConflicts()
+    // Repaint Progress too: a former judge's Delete scores button (and any
+    // real judge's own row) needs to show as locked right away, not only
+    // after the next unrelated reload.
+    await reloadDashboard()
     setLive('Judging locked', 'ok')
   }
 
@@ -160,6 +168,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     locked = false
     ev.judging_locked_at = null
     paintTopAction(); paintLockZone(); paintRubric(); paintTie(); paintMode(); paintConflicts()
+    await reloadDashboard()
     setLive('Judging unlocked', 'ok')
   }
 
@@ -444,7 +453,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     card.appendChild(ui.el('p', { class: 'section-title', text: 'Judges' }))
     const jlist = ui.el('div', { class: 'list' })
     const visibleJudges = judgeRows.filter(j => isCountedJudge(j.judge_id, j.done_count, j.assigned_count))
-    if (!visibleJudges.length) jlist.appendChild(ui.el('div', { class: 'empty', text: 'No judges yet.' }))
+    if (!visibleJudges.length && !formerJudges.length) jlist.appendChild(ui.el('div', { class: 'empty', text: 'No judges yet.' }))
     visibleJudges.forEach(j => {
       const row = ui.el('div', { class: 'r' })
       const mainEl = ui.el('div', { class: 'main' })
@@ -455,6 +464,33 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       mainEl.appendChild(bar)
       row.appendChild(mainEl)
       row.appendChild(ui.el('span', { class: 'meta', text: j.done_count + ' of ' + j.assigned_count + ' done' }))
+      jlist.appendChild(row)
+    })
+    // "Left the event" rows: their own scores stay counted (server-frozen),
+    // Delete scores is the only control, disabled while locked (or by the
+    // same admin/ended lock reason as everything else here).
+    formerJudges.forEach(f => {
+      const row = ui.el('div', { class: 'r' })
+      const mainEl = ui.el('div', { class: 'main' })
+      mainEl.appendChild(ui.el('b', { text: f.display_name || 'A judge' }))
+      mainEl.appendChild(ui.el('span', { class: 'pill', text: 'Left the event' }))
+      row.appendChild(mainEl)
+      // assigned_count is today's live eligible-team count, which can drop
+      // below (or to zero under) counted_teams once the frozen scores
+      // outlive a reassignment or a mode change (Codex review, SIM-340) --
+      // an "of" denominator smaller than the numerator reads as broken, so
+      // drop it rather than show an impossible fraction like "4 of 0".
+      const formerMeta = f.assigned_count >= f.counted_teams && f.assigned_count > 0
+        ? `Scored ${f.counted_teams} of ${f.assigned_count}, still counted`
+        : `${f.counted_teams} team${f.counted_teams === 1 ? '' : 's'} scored, still counted`
+      row.appendChild(ui.el('span', { class: 'meta', text: formerMeta }))
+      const del = ui.el('button', { class: 'btn quiet sm', type: 'button', text: 'Delete scores' })
+      if (locked || adminLockReason) {
+        del.disabled = true
+        if (locked && !adminLockReason) del.title = 'Unlock judging to change scores.'
+      }
+      del.addEventListener('click', () => deleteFormerJudge(f, del))
+      row.appendChild(del)
       jlist.appendChild(row)
     })
     card.appendChild(jlist)
@@ -468,7 +504,32 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     try { r = await api('GET', base + '/judging/dashboard') }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err'); return }
     if (!r.ok) { setLive(ui.errText(r), 'err'); return }
+    formerJudges = (r.data && r.data.former_judges) || []
     paintProgress((r.data && r.data.teams) || [], (r.data && r.data.judges) || [])
+  }
+
+  // Delete a departed judge's scores (SIM-340): organiser only, refused
+  // while judging is locked. Published results change only on the next
+  // publish -- the confirm body says so (copy-deck.md, "Organiser Judging").
+  async function deleteFormerJudge(f, btn) {
+    const name = f.display_name || 'This judge'
+    const ok = await ui.confirm({
+      title: `Delete ${ui.possessive(name)} scores?`,
+      body: `${name} left the event. Their scores and comments for ${f.counted_teams} team${f.counted_teams === 1 ? '' : 's'} will be deleted and stop counting toward totals and ranks. Published results only change when you publish again.`,
+      confirmLabel: 'Delete scores', danger: true
+    })
+    if (!ok) return
+    btn.disabled = true
+    let r
+    // confirm repeats the event's address name (Grok security review,
+    // SIM-340), the same way Settings' Delete this event does -- a
+    // destructive route with no server-side confirm is one stray retry from
+    // deleting the wrong judge's scores.
+    try { r = await api('DELETE', base + '/judging/former-judges/' + encodeURIComponent(f.user_id), { confirm: slug }) }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = false; return }
+    if (!r.ok && r.status !== 204) { setLive(ui.errText(r), 'err', btn); btn.disabled = false; return }
+    setLive('Scores deleted', 'ok')
+    await reloadDashboard()
   }
 
   $('jg-add').addEventListener('click', () => { rubric.push({ id: '', name: '', description: '', weight: 0, max_points: 5 }); paintRubric() })

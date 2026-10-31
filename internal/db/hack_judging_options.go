@@ -61,18 +61,47 @@ func ListEventAssignments(ctx context.Context, q Querier, eventID string) ([]Jud
 
 // EligibleJudgeTeams uses current event mode, event-scoped membership and
 // conflict rows. The same predicate gates queues, score writes and totals.
+//
+// A former judge (no member row left, but an event_former_judges record) has
+// no mode-based eligibility of their own any more: this returns exactly the
+// counted_team_ids frozen when they left, minus any conflict declared since
+// and minus any team that no longer exists (section 3: Leave this event,
+// SIM-340). Score writes and the judge queue never reach this path for a
+// former judge -- they go through loadMember first, which they cannot pass.
 func EligibleJudgeTeams(ctx context.Context, q Querier, eventID, judgeID string) (map[string]bool, error) {
-	rows, err := queryContext(ctx, q, `SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id
-		JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND m.role IN ('judge', 'organiser')
-		WHERE e.id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=e.id AND c.judge_id=$2 AND c.team_id=t.id)
-		AND (e.judge_assignment_mode='open'
-		OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=e.id AND a.judge_id=$2 AND a.team_id=t.id))
-		OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_track_panels p WHERE p.event_id=e.id AND p.track_id=t.track_id AND p.judge_id=$2)))`, eventID, judgeID)
+	isMember, err := EventJudgeInEvent(ctx, q, eventID, judgeID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	if isMember {
+		rows, err := queryContext(ctx, q, `SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id
+			JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND m.role IN ('judge', 'organiser')
+			WHERE e.id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=e.id AND c.judge_id=$2 AND c.team_id=t.id)
+			AND (e.judge_assignment_mode='open'
+			OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=e.id AND a.judge_id=$2 AND a.team_id=t.id))
+			OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_track_panels p WHERE p.event_id=e.id AND p.track_id=t.track_id AND p.judge_id=$2)))`, eventID, judgeID)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return nil, err
+			}
+			out[id] = true
+		}
+		return out, rows.Err()
+	}
+	rows, err := queryContext(ctx, q, `SELECT t.id FROM event_former_judges f
+		JOIN event_teams t ON t.event_id = f.event_id AND t.id = ANY(f.counted_team_ids)
+		WHERE f.event_id = $1 AND f.user_id = $2
+		AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id = f.event_id AND c.judge_id = f.user_id AND c.team_id = t.id)`, eventID, judgeID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := map[string]bool{}
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
