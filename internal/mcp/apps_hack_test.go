@@ -37,7 +37,15 @@ func TestHackAppsGatesAndUnchangedInventory(t *testing.T) {
 				}
 				for _, list := range [][]Tool{full, bare} {
 					for _, tool := range list {
-						if (tool.Meta["ui"] != nil) != (enabled && tool.Name == "list_sites") {
+						// Only appToolMetadata's own resourceUri decoration is
+						// what this loop guards -- never attached outside
+						// list_sites here. A hack_app_* twin's Meta["ui"]
+						// (SIM-344 phase 2, Grok security review) is a
+						// different, unconditional field (visibility, never
+						// resourceUri) under the same "ui" key, so it is not
+						// what this invariant is about.
+						ui, _ := tool.Meta["ui"].(map[string]any)
+						if (ui["resourceUri"] != nil) != (enabled && tool.Name == "list_sites") {
 							t.Fatalf("unexpected UI: %s", tool.Name)
 						}
 					}

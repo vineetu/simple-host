@@ -916,8 +916,8 @@ async function render(ctx) {
   main.innerHTML = `<div class="pub"><section class="hero"><h1>You’re invited to judge</h1><p>${ui.esc(info.title || '')}</p>${meta ? `<p>${ui.esc(meta)}</p>` : ''}${info.tagline ? `<p>${ui.esc(info.tagline)}</p>` : ''}<p><a href="${eventHref}">See the event page</a></p></section>` +
     `<section class="card"><h2>Code of conduct</h2><p>${ui.esc(info.coc_default || '')}</p>${extraCoc ? `<p>${ui.esc(extraCoc)}</p>` : ''}</section>` +
     (signedIn
-      ? `<section class="card" id="pj-accept"><h2>Accept invitation</h2><form id="pj-form"><div class="field"><label for="pj-name">Your name as shown to organisers and teams<input class="input" id="pj-name" type="text" maxlength="100" value="${ui.esc(me.display_name || '')}" required></label></div><label class="check"><input type="checkbox" id="pj-coc" required><span>I agree to the code of conduct</span></label><p class="help" id="pj-err"></p><button class="btn primary" type="submit" id="pj-submit">Join as judge</button></form></section>`
-      : `<div class="card"><p>Read the invitation, then sign in to accept.</p><a class="btn primary lg" href="${ui.esc('/signin?next=' + encodeURIComponent(location.pathname))}">Sign in</a></div>`) +
+      ? `<section class="card" id="pj-accept"><h2>Accept invitation</h2><form id="pj-form"><div class="field"><label for="pj-name">Your name as shown to organisers and teams<input class="input" id="pj-name" type="text" maxlength="100" value="${ui.esc(me.display_name || '')}" required></label></div><label class="check"><input type="checkbox" id="pj-coc" required><span>I agree to the code of conduct</span></label><p class="help" id="pj-err"></p><div class="form-actions"><button class="btn primary" type="submit" id="pj-submit">Join as judge</button></div></form></section>`
+      : `<div class="card"><p>Read the invitation, then sign in to accept.</p><div class="form-actions"><a class="btn primary lg" href="${ui.esc('/signin?next=' + encodeURIComponent(location.pathname))}">Sign in</a></div></div>`) +
     `</div>`
 
   const form = main.querySelector('#pj-form')
@@ -1051,7 +1051,7 @@ async function render(ctx) {
     const sub = subLine(row)
     const openBtn = newTabLink(siteHref(row), 'Open site', 'btn sm')
     const shotBtn = row.has_screenshot ? `<button type="button" class="btn sm" data-shot="${ui.esc(row.team_id)}" data-slug="${ui.esc(row.team.slug)}">View screenshot</button>` : ''
-    const shotFrame = row.has_screenshot ? `<div class="site-frame" id="shot-${ui.esc(row.team_id)}" hidden><img alt="Screenshot of ${ui.esc(row.team.name || title)}" style="max-width:100%" hidden></div>` : ''
+    const shotFrame = row.has_screenshot ? `<div class="site-frame" id="shot-${ui.esc(row.team_id)}" hidden><img alt="Screenshot of ${ui.esc(row.team.name || title)}" hidden></div>` : ''
     const scoreHref = `/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(row.team_id)}`
     let action = ''
     if (mode === 'readonly') {
@@ -1286,7 +1286,7 @@ async function render(ctx) {
   // site (or a stale one) -- show it alongside the website, not instead of
   // telling the judge nothing was published.
   const shotSection = row.has_screenshot
-    ? `<p class="section-title">Screenshot</p><div class="site-frame"><img id="jsc-shot" alt="Screenshot of ${ui.esc(row.team.name || title)}" style="max-width:100%" hidden></div>`
+    ? `<p class="section-title">Screenshot</p><div class="site-frame"><img id="jsc-shot" alt="Screenshot of ${ui.esc(row.team.name || title)}" hidden></div>`
     : ''
 
   const left = `<p class="crumbs"><a href="${ui.esc(href('judge', slug, 'queue'))}">My teams</a> / ${ui.esc(title)}</p>` +
@@ -1330,7 +1330,7 @@ async function render(ctx) {
     `<p class="small"><a class="muted" href="${ui.esc(href('judge', slug, 'rubric'))}">What do the scores mean?</a></p>` +
     `<div id="jsc-criteria">${rubric.map((crit, i) => critRow(crit, i === 0)).join('')}</div>` +
     (locked
-      ? `<div class="field"><label>Comment for the team</label><p>${comment ? ui.esc(comment) : '<span class="muted">No comment.</span>'}</p><p class="help">Not shown with your name.</p></div>`
+      ? `<div class="field"><span class="lab">Comment for the team</span><p>${comment ? ui.esc(comment) : '<span class="muted">No comment.</span>'}</p><p class="help">Not shown with your name.</p></div>`
       : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" data-tour="comment" maxlength="1000" rows="3" placeholder="Share useful feedback"${!hasScore ? ' disabled' : ''}>${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? 'Optional. The team sees it without your name.' : 'Add a score before writing a comment.'}</p><p class="small muted" id="jsc-saved" aria-live="polite"></p></div>`) +
     (locked ? '' : `<p class="small"><button type="button" class="btn quiet sm" id="jsc-conflict" data-tour="conflict">I know someone on this team</button></p>`) +
     `<div class="sticky-foot"><button type="button" class="btn" id="jsc-prev" data-tour="prev"${index <= 0 ? ' disabled' : ''}>Previous</button>${locked ? '' : `<button type="button" class="btn primary" id="jsc-next" data-tour="save-next">${nextLabel}</button>`}</div>`

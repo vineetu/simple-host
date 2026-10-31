@@ -93,7 +93,16 @@ func TestHackAppsRealPermissionsAndFlags(t *testing.T) {
 	listing := a.rpc(t, f.access, "tools/list", map[string]any{}).json(t)["result"].(map[string]any)["tools"].([]any)
 	for _, raw := range listing {
 		tool := raw.(map[string]any)
-		if (tool["_meta"] != nil) != (tool["name"] == "list_sites") {
+		// Only appToolMetadata's own resourceUri decoration is what this
+		// loop guards -- never attached outside list_sites here. A
+		// hack_app_* twin's _meta.ui.visibility (SIM-344 phase 2, Grok
+		// security review) is a different, unconditional field under the
+		// same "ui" key, so it is not what this invariant is about (see
+		// internal/mcp/apps_hack_test.go's own TestHackAppsGatesAndUnchangedInventory
+		// for the same narrowing).
+		meta, _ := tool["_meta"].(map[string]any)
+		ui, _ := meta["ui"].(map[string]any)
+		if (ui["resourceUri"] != nil) != (tool["name"] == "list_sites") {
 			t.Fatalf("unexpected UI metadata on %s", tool["name"])
 		}
 	}

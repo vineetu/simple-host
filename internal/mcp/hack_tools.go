@@ -278,10 +278,21 @@ func HackTools() []Tool {
 	recipe.Name = "hack_get_page_recipe"
 	tools = append(tools, recipe)
 	tools = append(tools, HackWebTools()...)
+	// App-only twins (hack_app_get_applications and the rest, Grok
+	// security review, SIM-344 phase 2): built last, from every tool
+	// above, since each twin wraps an already-registered base tool by
+	// name. Not additionally gated at tools/list the way hack_show_judge/
+	// hack_show_organiser are -- their own content is minimal and safe by
+	// design (fixed sentence, small counts, real data only in _meta), so
+	// over-listing one costs little, where the show tools' whole reason
+	// for conditional listing is that an unflagged or non-UI connection
+	// has no frame to open at all.
+	tools = append(tools, hackAppOnlyTools(tools)...)
 	// Always present, like passcode_screen in the Simple Host inventory:
 	// gated at tools/list (filterHackShowTools) and at call time
-	// (hackShowJudgeAppAllowed), never by being absent from hackByName.
-	return append(tools, hackShowJudgeTool())
+	// (hackShowJudgeAppAllowed, hackShowOrganiserAppAllowed), never by
+	// being absent from hackByName.
+	return append(tools, hackShowJudgeTool(), hackShowOrganiserTool())
 }
 
 func eventSlug(args map[string]any) (string, error) {

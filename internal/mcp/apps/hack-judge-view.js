@@ -18,24 +18,35 @@
   var ui = window.__HACKJ.ui;
 
   // --- judge-scoped wrapper around the bridge --------------------------
-  // Every tool this app ever has a reason to call, by name (Grok security
-  // review, SIM-344): wraps window.SHApp.callTool so nothing -- not a bug
-  // in this file, not a future edit to a reused screen, not a script that
-  // somehow ran despite the nonce CSP -- can reach any other tool this
-  // connection's role might otherwise be allowed to call (hack_lock_
-  // judging, hack_publish_results, anything from the organiser or
-  // participant surfaces). The server is the real backstop (every REST
-  // call is independently role- and membership-checked regardless of
-  // which tool name reached it), but a client-side allowlist is cheap and
-  // narrows the blast radius of a bug in this one file to "calls a judge
-  // tool with the wrong arguments", never "calls an unrelated tool at
-  // all". Also caps concurrent calls at 4 and serialises writes (plan
-  // section 6): a judge tapping several score chips in a burst must not
-  // let a later tap's save overtake an earlier one.
+  // Every tool this app ever has a reason to call, by name. This does NOT
+  // stop an attacker-injected script element or an onerror= handler --
+  // the nonce CSP (hack-judge.html's script-src 'nonce-...') is the
+  // control that actually holds against that, since injected code runs
+  // outside this bundle's own nonced script block and cannot execute at
+  // all. What this narrows is code that DOES already run inside this
+  // bundle: a bug in this file, or a future edit to a reused screen,
+  // reaching a tool this connection's role might otherwise be allowed to
+  // call (hack_lock_judging, hack_publish_results, anything from the
+  // organiser or participant surfaces) (Grok security review finding 3,
+  // SIM-344 phase 2, correcting this comment's earlier overstatement). The
+  // server is the real backstop regardless (every REST call is
+  // independently role- and membership-checked no matter which tool name
+  // reached it); this is defence in depth, not the security boundary.
+  // Also caps concurrent calls at 4 and serialises writes (plan section
+  // 6): a judge tapping several score chips in a burst must not let a
+  // later tap's save overtake an earlier one.
+  //
+  // hack_app_* names are app-only twins (Grok security review finding 1,
+  // SIM-344 phase 2, internal/mcp/hack_app_only_tools.go): the view calls
+  // these, never the originals, for every read it makes on its own --
+  // queue, rubric, scores and conflicts all carry participant-written
+  // text (team/entry names, a judge's own comment) that must never reach
+  // a model's context on a read nobody in chat asked for. The originals
+  // stay reachable only for an explicit chat request.
   var JUDGE_TOOLS = {
     hack_show_judge: 1, hack_preview_judge: 1, hack_join_judge: 1,
-    hack_get_judge_queue: 1, hack_get_rubric: 1, hack_get_event: 1,
-    hack_get_judge_scores: 1, hack_score_team: 1, hack_get_my_conflicts: 1,
+    hack_app_get_judge_queue: 1, hack_app_get_rubric: 1, hack_get_event: 1,
+    hack_app_get_judge_scores: 1, hack_score_team: 1, hack_app_get_my_conflicts: 1,
     hack_declare_my_conflict: 1, hack_remove_my_conflict: 1, hack_get_team_screenshot: 1
   };
   var WRITE_TOOLS = { hack_join_judge: 1, hack_score_team: 1, hack_declare_my_conflict: 1, hack_remove_my_conflict: 1 };
@@ -67,14 +78,36 @@
     writeQueue = result.then(function () {}, function () {});
     return result;
   }
-  var app = Object.assign({}, window.SHApp, {
-    callTool: function (name, args) { return guardedCall(name, args, realCallTool); },
-    callToolResult: function (name, args) { return guardedCall(name, args, realCallToolResult); }
-  });
+  // Replaced in place, then locked (Grok security review finding 3,
+  // SIM-344 phase 2) -- a shadow copy (Object.assign({}, window.SHApp,
+  // {...})) left window.SHApp.callTool/callToolResult themselves
+  // unguarded, reachable by any other code running inside this bundle
+  // that reads window.SHApp directly instead of the local `app` this file
+  // builds. writable:false, configurable:false stops that same code from
+  // reassigning them back. Not a blanket Object.freeze(window.SHApp):
+  // bridge.js's own start() later does `window.SHApp.hostCapabilities =
+  // ...` (its one legitimate post-construction mutation, run from this
+  // file's own app.start() call below) -- 'use strict' there turns that
+  // assignment into a thrown TypeError the instant the whole object is
+  // frozen, which breaks every connection; locking only the two methods
+  // this allowlist exists for avoids that while still making them
+  // tamper-proof.
+  Object.defineProperty(window.SHApp, 'callTool', { value: function (name, args) { return guardedCall(name, args, realCallTool); }, writable: false, configurable: false });
+  Object.defineProperty(window.SHApp, 'callToolResult', { value: function (name, args) { return guardedCall(name, args, realCallToolResult); }, writable: false, configurable: false });
+  var app = window.SHApp;
 
   // --- route table: REST (method, path) -> MCP tool -------------------
-  function route(method, pattern, tool, params, bodyKeys, successStatus) {
-    return { method: method, re: new RegExp('^' + pattern + '$'), tool: tool, params: params, bodyKeys: bodyKeys || null, successStatus: successStatus || 200 };
+  // appOnly marks a route whose tool is an app-only twin (hack_app_get_
+  // judge_queue and the rest, internal/mcp/hack_app_only_tools.go): api()
+  // calls it through callToolResult instead of callTool and reads the
+  // real data out of the result's own _meta, since the twin's own
+  // content/structuredContent is deliberately reduced to a fixed sentence
+  // and small counts. Every judge tool's structured content is already
+  // the REST body directly (memberTool's own shape, hack_member_tools.go)
+  // -- unlike the organiser app's generic hackRouteTool routes, there is
+  // no further {response,status} envelope to unwrap here.
+  function route(method, pattern, tool, params, bodyKeys, successStatus, appOnly) {
+    return { method: method, re: new RegExp('^' + pattern + '$'), tool: tool, params: params, bodyKeys: bodyKeys || null, successStatus: successStatus || 200, appOnly: !!appOnly };
   }
   var SEG = '([^/]+)';
   var routes = [
@@ -90,12 +123,12 @@
     // false` schema check would 400 it -- found live, not by reading the
     // schema side by side, when "accept the invite" never got past this.
     route('POST', '/v1/hack/judge/' + SEG, 'hack_join_judge', ['code'], ['accept_coc', 'display_name']),
-    route('GET', '/v1/hack/events/' + SEG + '/judge/queue', 'hack_get_judge_queue', ['slug']),
-    route('GET', '/v1/hack/events/' + SEG + '/rubric', 'hack_get_rubric', ['slug']),
+    route('GET', '/v1/hack/events/' + SEG + '/judge/queue', 'hack_app_get_judge_queue', ['slug'], null, 200, true),
+    route('GET', '/v1/hack/events/' + SEG + '/rubric', 'hack_app_get_rubric', ['slug'], null, 200, true),
     route('GET', '/v1/hack/events/' + SEG, 'hack_get_event', ['slug']),
-    route('GET', '/v1/hack/events/' + SEG + '/judge/scores/' + SEG, 'hack_get_judge_scores', ['slug', 'team_id']),
+    route('GET', '/v1/hack/events/' + SEG + '/judge/scores/' + SEG, 'hack_app_get_judge_scores', ['slug', 'team_id'], null, 200, true),
     route('PUT', '/v1/hack/events/' + SEG + '/judge/scores/' + SEG, 'hack_score_team', ['slug', 'team_id'], ['scores', 'comment']),
-    route('GET', '/v1/hack/events/' + SEG + '/conflicts', 'hack_get_my_conflicts', ['slug']),
+    route('GET', '/v1/hack/events/' + SEG + '/conflicts', 'hack_app_get_my_conflicts', ['slug'], null, 200, true),
     route('POST', '/v1/hack/events/' + SEG + '/conflicts', 'hack_declare_my_conflict', ['slug'], ['team_id']),
     route('DELETE', '/v1/hack/events/' + SEG + '/conflicts/' + SEG, 'hack_remove_my_conflict', ['slug', 'team_id'], null, 204),
     route('GET', '/v1/hack/events/' + SEG + '/teams/' + SEG + '/screenshot', 'hack_get_team_screenshot', ['slug', 'team'])
@@ -162,7 +195,20 @@
       }
     }
     try {
-      var data = await app.callTool(matched.def.tool, args);
+      var data;
+      if (matched.def.appOnly) {
+        // The twin's own content/structuredContent is a fixed sentence
+        // and small counts (model-safe by construction, hack_app_only_
+        // tools.go) -- the real REST body this screen actually renders
+        // travels only in the result's own _meta, under "simple-hack/
+        // app-only". callToolResult (not callTool, the model-facing path,
+        // which only ever returns structuredContent and silently
+        // discards _meta) is the one bridge entry point that keeps it.
+        var twinResult = await app.callToolResult(matched.def.tool, args);
+        data = (twinResult._meta && twinResult._meta['simple-hack/app-only']) || null;
+      } else {
+        data = await app.callTool(matched.def.tool, args);
+      }
       var summarize = MODEL_CONTEXT_SUMMARY[matched.def.tool];
       if (summarize) app.updateModelContext(summarize(args)).catch(function () {});
       return { ok: true, status: matched.def.successStatus, data: data };

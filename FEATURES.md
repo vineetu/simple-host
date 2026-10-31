@@ -1373,6 +1373,159 @@ iframe resizing on its own postMessage'd schedule, not a layout bug (the live
 DOM was provably correct throughout; see `scripts/hack-judge-app-browser.mjs`'s
 `waitForStableFrame`/`shot` for the full account and the retry-based fix).
 
+**Simple Hack organiser app (SIM-344 phase 2, default off).** `ui://simple-hack/
+organiser` is one resource holding three Phase 2 views (overview, people,
+judging — teams, entries, results and the event page are later phases),
+opened only by the new `hack_show_organiser {slug, view}` tool, behind
+`MCP_APP_HACK_ORGANISER` (`off`, `on`, or `accounts:<handle>,...`), gated and
+built the same way as the judge app: the per-screen flag is checked
+independently of the judge app's own flag (`hackAppsGate` now holds the
+shared mode/app-name/UI-declared half of the gate, with each show tool's
+own `*AppAllowed` function adding its own flag on top — a fix made in this
+phase, since the earlier single-flag `allowed` bool passed into
+`hackAppResources`/`readHackApp` would have hidden the organiser resource
+for any account with `MCP_APP_HACK_JUDGE` off, even with its own flag on;
+`TestHackJudgeAndOrganiserFlagsAreIndependent` pins this). Every organiser
+action keeps its own plain tool (`hack_get_people`, `hack_get_applications`,
+`hack_decide_application`, `hack_get_judging_dashboard`, `hack_lock_judging`,
+...) unmodified; `hack_show_organiser` refuses outright for anyone whose
+role on that event is not `organiser` (a platform admin inspecting without
+real membership passes too, since `loadMember` already sets that role for
+them), with no event data in the refusal.
+
+The view is hand-assembled the same way as the judge app, by
+`internal/mcp/apps/bundlegen` (`GenerateOrganiserJS`/`internal/mcp/apps/
+gentool`), from `internal/handler/static/hack/{ui.js, screens/_orgA-util.js,
+screens/{organiser-overview,organiser-people,organiser-judging}.js}` —
+`_orgB-util.js` (teams/entries) is not needed yet. `TestHackOrganiserBundleFresh`
+rebuilds `hack-organiser-bundle.js`/`hack-organiser-kit.css` in the test
+binary and fails if the checked-in copies have drifted. Five patches apply
+only to the bundled copy (`bundlegen/patches.go`): `organiser-people.js`'s
+two `location.hash === '#signup'` reads (the sandboxed frame's own address
+is never set by a real navigation, so Overview's "Sign-up questions" link —
+built as `href(...) + '#signup'`, not through `href()`'s own return value —
+could never actually open that section) become `window.__hackOrgSignupOpen`,
+set by the glue script's click handler only for that one link and cleared
+once the one `render()` it triggers finishes; and `organiser-judging.js`'s
+two `form.addEventListener('submit', ...)` handlers (the Unlock-reason form
+and the add-a-conflict form) become the submit button's own `click`
+listener, the same sandboxed-frame-has-no-`allow-forms` fix the judge app's
+invite-accept form already carries.
+
+`hack-organiser-stubs.js` answers `nav.js`'s `href(role, slug, section)`
+differently depending on the section: `overview`, `people` and `judging`
+switch in-frame (`#v=<section>`, the same click-handler convention as the
+judge app); anything else nav.js's organiser section lists (`event-page`,
+`announcements`, `teams`, `entries`, `results`, `settings`, the assignment
+grid — none built yet) returns an absolute URL at the real website instead
+(`__ORIGIN__`, substituted by `hack_apps.go`'s `readHackApp` from `https://
+<APIHost>` before the page is served), which the glue script's click
+handler opens through `ui/open-link` rather than attempt a navigation this
+sandboxed frame has no permission for — the same handling applies to
+`organiser-judging.js`'s own hand-built `/e/<slug>/judge` link ("Score as a
+judge") and every plain `https://` link these screens build. `startTour` is
+a no-op, same as the judge app.
+
+`hack_show_organiser`'s own model-visible result carries the same kind of
+fixed whitelist the judge app's does (slug, title, stage, scoring\_open,
+judging\_locked\_at, results\_published, submission\_deadline, time\_zone),
+plus the organiser-only aggregate counts (participants, teams, judges,
+on\_no\_team) — every one a fixed integer, never organiser-written text.
+The event's own join and judge links (`organiser.join_url`/`judge_url`,
+which carry the event's join/judge codes) and the signed-in organiser's
+own `display_name` travel separately, in `_meta` under
+`simple-hack/organiser-view`, read only by `hack-organiser-view.js`'s own
+`refreshEvent()` via `callToolResult` (never `callTool`, which discards
+`_meta`) — the same channel and the same reasoning as the judge app's
+`simple-hack/event-text`. `TestHackShowOrganiserContentNeverCarriesSensitiveData`
+pins that none of the three ever appear in `out.Text` or `out.Structured`.
+
+The glue script (`hack-organiser-view.js`) gives each view a `ctx` shaped
+like the website's own (`main`, `api`, `ui`, `event`, `me`, `params`, `go`,
+`refresh`, `alive`), mirroring the real REST shape (`{event, organiser,
+admin_view}`) directly as `ctx.event`, so organiser-overview.js's own
+`data.organiser.counts`/`data.admin_view` reads need no change at all.
+`ctx.alive()` is a real per-render generation counter (bumped on every
+`renderView()` call), not a stub, since organiser-overview.js's own async
+`/people`+`/applications` fetch checks it to abort a superseded render.
+`ctx.me.id` is never populated — no tool this view calls exposes the
+organiser's own user ID — so organiser-people.js's "(you)"/"(you, creator)"
+labels on co-organiser rows simply never highlight; every actual action on
+that row (Remove co-organiser) is keyed by the row's own user ID,
+unaffected. A hand-maintained route table (26 entries, one per REST call
+these three screens make, checked against the real tool registrations by
+`TestHackOrganiserRouteMapCoversCalls`) resolves `(method, path)` to an MCP
+tool: a flat-schema tool (`hack_set_event_stage`, `hack_set_rubric`) gets
+its REST body fields as individual top-level arguments, while a generic
+`hackRouteTool`-backed one (`hack_set_registration`, `hack_decide_application`,
+`hack_set_judging_settings`, `hack_set_judge_conflict`,
+`hack_generate_assignments`, `hack_delete_former_judge_scores`,
+`hack_unlock_judging`) gets them nested under a single `body` argument,
+matching each tool's own `InputSchema` shape
+(`TestHackOrganiserViewRouteBodyKeysMatchToolSchema`, the organiser
+equivalent of the judge app's `hack_join_judge`/`answers` regression test).
+`hack_remove_judge_conflict`'s `judge_user_id` is forwarded from the REST
+query string as a flat argument, matching `HackOrganiserTools`' own special
+case for that tool. After a write, the glue script calls
+`ui/update-model-context` with one fixed line it writes itself ("Approved
+an application.", "Saved the judging rubric.", ...) — the only
+interpolated values anywhere in these sentences are closed, organiser-
+chosen enums (a code `kind` of join/judge, a decision of approved/
+rejected), never a name, title or other free-text field, closing the same
+prompt-injection path the judge app's own summaries close.
+
+An organiser-scoped wrapper around `window.SHApp.callTool`/`callToolResult`
+(the same allowlist discipline as the judge app) rejects any of the 27
+tools this app ever calls outside that fixed set, and caps concurrent calls
+at 4, serialising all 17 write tools one at a time. A frame-level Back
+control (the same tiny view-history stack as the judge app's) appears
+whenever there is somewhere to go back to, since none of these three
+screens carries a Back link of its own (that normally comes from the shell
+this frame leaves out) — `scripts/hack-organiser-app-browser.mjs` exercises
+it by returning from Judging to Overview.
+
+CSP, nonce and gating follow the judge app's own pattern exactly: `_meta.ui.csp`
+domains are all empty; `clipboardWrite` is declared (the join/judge link and
+co-organiser invite Copy buttons call `navigator.clipboard.writeText`
+directly); the resource's own `<meta http-equiv="Content-Security-Policy">`
+layers a fresh-per-read `script-src 'nonce-<...>'` with no `unsafe-inline`
+on top of the host's own declared one, and `resources/list`/`resources/read`
+for this URI are gated by the same shared three-part check (flag, events
+mode, not ChatGPT/OpenAI/Codex, UI declared) the show tool uses, not only
+the tool's own listing.
+
+Tests: `internal/mcp/hack_apps_organiser_test.go` covers resource/show-tool
+gating, the judge/organiser flag independence fix above, the organiser-only
+role requirement, the event-and-counts whitelist, the sensitive-data-only-
+via-`_meta` channel, CSP and nonce freshness, the route-table-to-tool-call
+check and its body-key-vs-schema check, and the bundle freshness check.
+`internal/handler/hack_apps_organiser_test.go` proves the same tool and
+resource against the real stack (real Postgres, real OAuth): a pending
+application (Apply without a join link, which always stays pending
+regardless of `approval_required`) whose display name and sign-up answer
+both carry `<script>`/`onerror=` payloads, a team with a hostile name, a
+judge connection correctly refused by `hack_show_organiser`, and the
+join/judge codes proven absent from model-visible content while present in
+`_meta`; and, behind `HACK_ORGANISER_APP_FIXTURE`, serves a fixture for
+`scripts/hack-organiser-app-browser.mjs` (the same Playwright fake-host
+harness pattern as the judge app's), which renders all three views at 390
+and 1280 px against a realistic host-served header CSP, injects a raw
+`<img onerror>` directly into the live DOM and asserts the nonce CSP (not
+escaping) stops it, asserts the pending application's hostile text appears
+only as escaped text, exercises Approve and Reject's own confirm dialog
+through the real tool calls, and confirms the Back control returns from
+Judging to Overview.
+
+Known gap (Grok security review finding 4, SIM-344 phase 2): the view's own
+confirm dialogs (Reject, End event, Lock judging, ...) ask the person
+sitting at the frame, but they do not bind the chat path -- `hack_set_
+event_stage`, `hack_decide_application`, `hack_remove_person`, `hack_lock_
+judging` and `hack_unlock_judging` stay model-visible, plain-tool-callable
+with no dialog at all, the same as every other write this app fronts.
+Server-side confirm tokens for an irreversible model-initiated call (the
+former-judge score delete already has one: `confirm` must equal the
+event's own slug) are a follow-up, not yet built for the rest of this list.
+
 **Add photos (SIM-185, 2026-10-23).** `GET /photos?site=<name>` uses the shared
 sign-in card and the dashboard's stored owner key. Pick up to 30 photos, edit
 names, and save once. Native browser decoding handles JPEG, PNG, WebP, AVIF,

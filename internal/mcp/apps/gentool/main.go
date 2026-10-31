@@ -61,5 +61,23 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gentool:", err)
 		os.Exit(1)
 	}
-	fmt.Println("gentool: wrote hack-judge-bundle.js and hack-judge-kit.css")
+
+	orgJS, err := bundlegen.GenerateOrganiserJS()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "gentool:", err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile(filepath.Join(appsDir, "hack-organiser-bundle.js"), []byte(orgJS), 0644); err != nil {
+		fmt.Fprintln(os.Stderr, "gentool:", err)
+		os.Exit(1)
+	}
+	// Same kit.css as the judge bundle (GenerateCSS strips the one
+	// @font-face rule regardless of which app is asking); written to its
+	// own file since each screen's asset names are derived from its own
+	// screen.ID (hack_apps.go's readHackApp).
+	if err := os.WriteFile(filepath.Join(appsDir, "hack-organiser-kit.css"), []byte(css), 0644); err != nil {
+		fmt.Fprintln(os.Stderr, "gentool:", err)
+		os.Exit(1)
+	}
+	fmt.Println("gentool: wrote hack-judge-bundle.js, hack-judge-kit.css, hack-organiser-bundle.js and hack-organiser-kit.css")
 }

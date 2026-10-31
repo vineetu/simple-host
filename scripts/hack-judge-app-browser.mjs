@@ -147,7 +147,11 @@ async function assertOnScreen(frame, locator, label) {
 // An earlier version of this harness restricted the invite mode to three
 // tool names, which made exactly that post-join refresh fail with a
 // disallowed-tool error from this harness itself, not from the server.
-const allowed = new Set(['hack_show_judge','hack_get_judge_queue','hack_get_rubric','hack_get_event','hack_get_judge_scores','hack_score_team','hack_get_my_conflicts','hack_declare_my_conflict','hack_remove_my_conflict','hack_preview_judge','hack_join_judge','hack_get_team_screenshot']);
+// hack_app_* names are app-only twins (Grok security review finding 1,
+// SIM-344 phase 2): the real glue now calls these, not the originals, for
+// every read it makes on its own (queue, rubric, scores, conflicts all
+// carry participant-written text).
+const allowed = new Set(['hack_show_judge','hack_app_get_judge_queue','hack_app_get_rubric','hack_get_event','hack_app_get_judge_scores','hack_score_team','hack_app_get_my_conflicts','hack_declare_my_conflict','hack_remove_my_conflict','hack_preview_judge','hack_join_judge','hack_get_team_screenshot']);
 const hostServer = http.createServer(async(req,res) => {
  try {
   const url = new URL(req.url, 'http://host');

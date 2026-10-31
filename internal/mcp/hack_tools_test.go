@@ -150,14 +150,18 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 		}
 	}
 	events := listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, CallerModeEvents))
+	// hack_app_* twins (hack_app_only_tools.go) are gated the same way as
+	// hack_show_judge/hack_show_organiser: flag, events mode, not ChatGPT/
+	// OpenAI/Codex, UI declared (owner follow-up review, SIM-344 phase 2 --
+	// they used to be listed unconditionally, which this baseline call,
+	// declaring neither flag nor UI support, would otherwise still show).
+	hiddenHere := map[string]bool{"hack_create_team_key": true, "hack_show_judge": true, "hack_show_organiser": true}
+	for _, name := range appOnlyTwinNames() {
+		hiddenHere[name] = true
+	}
 	visibleHack := make([]Tool, 0, len(hack))
 	for _, tool := range hack {
-		// hack_show_judge is listed only once its own flag is set and the
-		// connection has declared MCP Apps UI support (see
-		// TestHackShowJudgeNotListedWithoutUISupport and
-		// TestHackShowJudgeListedOnceUIDeclared in hack_apps_judge_test.go);
-		// this baseline call does neither.
-		if tool.Name != "hack_create_team_key" && tool.Name != "hack_show_judge" {
+		if !hiddenHere[tool.Name] {
 			visibleHack = append(visibleHack, tool)
 		}
 	}

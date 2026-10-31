@@ -882,6 +882,14 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 
 func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMember) map[string]any {
 	me := map[string]any{
+		// user_id: the signed-in person's own ID, same value the people
+		// list already shows for everyone else on this event -- so
+		// exposing it here reveals nothing a member couldn't already read
+		// about themselves. Added for the MCP organiser app's own "(you)"
+		// labels (hack_apps_organiser.go's hackShowOrganiserViewOnly),
+		// which need to compare an event member's user_id against the
+		// caller's own without a dedicated identity tool.
+		"user_id":         member.UserID,
 		"display_name":    member.DisplayName,
 		"coc_accepted_at": rfc3339UTC(member.CocAcceptedAt),
 		"team":            nil,

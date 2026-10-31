@@ -6,16 +6,19 @@ import (
 )
 
 // patch is one named, documented, exact-match textual change applied to a
-// source file before it is folded into a module. Each exists because the
-// real browser environment the website runs in (a real pathname, a
-// same-origin document, a page the browser can navigate to, a <form> that
-// can submit) does not hold inside the judge frame (an isolated,
-// sandboxed iframe with its own, unrelated location, that the host -- not
-// this app -- owns navigation for, and whose sandbox="allow-scripts" has
-// no allow-forms). Every other line of every screen is reused unmodified
-// -- these four are the only exceptions, and the website itself is never
-// touched: patches apply only to the copy folded into the generated
-// bundle.
+// source file before it is folded into a module. Each exists because
+// either the real browser environment the website runs in (a real
+// pathname, a same-origin document, a page the browser can navigate to, a
+// <form> that can submit) does not hold inside a judge or organiser frame
+// (an isolated, sandboxed iframe with its own, unrelated location, that
+// the host -- not this app -- owns navigation for, and whose
+// sandbox="allow-scripts" has no allow-forms), or a render left running
+// past a newer navigation must not touch a `main` a different screen now
+// owns (ctx.alive(), Codex review finding 4, SIM-344 phase 2). Every
+// other line of every screen is reused unmodified -- the patches below
+// are the only exceptions, one list shared by every Hack MCP App, and the
+// website itself is never touched: patches apply only to the copy folded
+// into the generated bundle.
 type patch struct {
 	file, from, to string
 }
@@ -72,6 +75,62 @@ var patches = []patch{
 		// button's own click listener fires there too, same effect).
 		from: "  form.addEventListener('submit', async e => {\n    e.preventDefault()\n",
 		to:   "  form.querySelector('#pj-submit').addEventListener('click', async e => {\n    e.preventDefault()\n",
+	},
+	{
+		file: "screens/organiser-people.js",
+		// location.hash reads the SANDBOXED FRAME'S OWN address, never set
+		// by a real navigation here (this app has no browser address bar;
+		// see hack-organiser-view.js's in-frame router) -- so this always
+		// evaluated false, and the Overview screen's own "Sign-up
+		// questions" link (organiser-overview.js, `href(...) + '#signup'`)
+		// could never actually open the Sign-up section the way it does on
+		// the real page. hack-organiser-view.js's click handler sets
+		// window.__hackOrgSignupOpen instead, bracketing exactly the one
+		// render() call that link triggers, then clears it.
+		from: "  let signupOpen = location.hash === '#signup'",
+		to:   "  let signupOpen = !!window.__hackOrgSignupOpen",
+	},
+	{
+		file: "screens/organiser-people.js",
+		from: "  if (location.hash === '#signup') main.querySelector('#signup')?.scrollIntoView()",
+		to:   "  if (window.__hackOrgSignupOpen) main.querySelector('#signup')?.scrollIntoView()",
+	},
+	{
+		file: "screens/organiser-people.js",
+		// organiser-overview.js already checks ctx.alive() after its own
+		// async /people+/applications fetch, before painting -- this screen
+		// had no equivalent, so a render left running past a newer
+		// navigation (Judging opened while People's own fetch was still in
+		// flight) would go on to replace `main` with its own, now-stale
+		// screen the instant its fetch resolved (Codex review finding 4,
+		// SIM-344 phase 2).
+		from: "  } catch (e) { registrationError = true }\n\n  function guardRegistration(btn) {",
+		to:   "  } catch (e) { registrationError = true }\n  if (!ctx.alive()) return\n\n  function guardRegistration(btn) {",
+	},
+	{
+		file: "screens/organiser-judging.js",
+		// Same allow-forms gap as public-judge.js above, for the Unlock
+		// reason form: wire the submit button's own click instead of the
+		// form's submit event.
+		from: "      form.addEventListener('submit', e => { e.preventDefault(); doUnlock(textarea.value, go) })",
+		to:   "      go.addEventListener('click', e => { e.preventDefault(); doUnlock(textarea.value, go) })",
+	},
+	{
+		file: "screens/organiser-judging.js",
+		// Same allow-forms gap, for the "add a conflict" form: wire the Add
+		// button's own click instead of the form's submit event.
+		from: "      form.addEventListener('submit', e => { e.preventDefault(); addConflict(judgeSelect.value, teamSelect.value, add) })",
+		to:   "      add.addEventListener('click', e => { e.preventDefault(); addConflict(judgeSelect.value, teamSelect.value, add) })",
+	},
+	{
+		file: "screens/organiser-judging.js",
+		// Same ctx.alive() gap as organiser-people.js above: this screen's
+		// initial six-way Promise.all has no check of its own, so a render
+		// superseded while it was in flight would go on to paint a stale
+		// rubric/progress/conflicts screen over whatever newer view had
+		// already taken `main` (Codex review finding 4, SIM-344 phase 2).
+		from: "  if (rubricR.ok) rubric = (rubricR.data && rubricR.data.criteria) || []",
+		to:   "  if (!ctx.alive()) return\n  if (rubricR.ok) rubric = (rubricR.data && rubricR.data.criteria) || []",
 	},
 }
 

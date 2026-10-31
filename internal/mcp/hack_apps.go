@@ -28,25 +28,43 @@ import (
 // own screens get their own small, parallel gate instead of loosening that
 // one.
 //
-// Phase 0 (foundation) + Phase 1 (judge) only: one resource,
-// ui://simple-hack/judge, and one show tool, hack_show_judge. The
-// organiser and participant resources in the plan are later phases.
+// Phase 0 (foundation), Phase 1 (judge) and Phase 2 (organiser core, SIM-344)
+// so far: two resources, ui://simple-hack/judge and
+// ui://simple-hack/organiser, and two show tools, hack_show_judge and
+// hack_show_organiser. The participant resource and the rest of the
+// organiser surface (teams, entries, results, event page) are later
+// phases.
 //
-// apps/hack-judge-bundle.js and apps/hack-judge-kit.css are generated from
-// internal/handler/static/hack by internal/mcp/apps/bundlegen; after
-// changing any judge screen or kit.css, regenerate with:
+// apps/hack-judge-bundle.js/apps/hack-judge-kit.css and
+// apps/hack-organiser-bundle.js/apps/hack-organiser-kit.css are generated
+// from internal/handler/static/hack by internal/mcp/apps/bundlegen; after
+// changing any judge or organiser screen, or kit.css, regenerate with:
 //
 //go:generate go run ./apps/gentool
 //
-// TestHackJudgeBundleFresh rebuilds them in the test binary and fails if
-// the checked-in copies have drifted.
+// TestHackJudgeBundleFresh and TestHackOrganiserBundleFresh rebuild them in
+// the test binary and fail if the checked-in copies have drifted.
 
-// hackAppScreens lists Simple Hack's MCP App resources. One entry so far.
+// hackAppScreens lists Simple Hack's MCP App resources. Each screen's ID
+// also names its own generated/hand-written asset files -- readHackApp
+// below derives "<ID>-kit.css", "<ID>-stubs.js", "<ID>-bundle.js" and
+// "<ID>-view.js" from it, so adding a screen here needs no change to the
+// serving code, only the asset files themselves.
 var hackAppScreens = []appScreen{
 	{
 		ID: "hack-judge", Flag: "MCP_APP_HACK_JUDGE", URI: "ui://simple-hack/judge",
 		Tools: []string{"hack_show_judge"}, Label: "Judge", HTML: "hack-judge.html",
 		CSP: map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
+	},
+	{
+		// clipboardWrite: organiser-overview.js's join/judge link Copy
+		// buttons and organiser-people.js's co-organiser invite Copy
+		// button all call navigator.clipboard.writeText directly (not
+		// ui.copyButton), same as passcode/site-preview's own Copy.
+		ID: "hack-organiser", Flag: "MCP_APP_HACK_ORGANISER", URI: "ui://simple-hack/organiser",
+		Tools: []string{"hack_show_organiser"}, Label: "Organiser", HTML: "hack-organiser.html",
+		CSP:         map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
+		Permissions: map[string]any{"clipboardWrite": map[string]any{}},
 	},
 }
 
@@ -101,13 +119,15 @@ func freshNonce() (string, error) {
 // readHackApp mirrors readApp (apps.go) for Simple Hack's own screens: it
 // is tried by dispatch only after readApp itself reports the URI is not
 // one of its (Simple Host) screens, so neither function's tests need to
-// know about the other's resources. allowed is the same three-part gate
-// hackShowJudgeAppAllowed applies to the show tool (flag, events mode, not
-// ChatGPT/OpenAI/Codex, UI declared) -- a resource read reaches here
-// through its own URI, not through listing, so without this a connection
-// the tool list already hides hack_show_judge from could still read the
-// resource directly by guessing or being given its URI (Grok security
-// review, SIM-344).
+// know about the other's resources. allowed is the common three-part gate
+// every Hack MCP App shares (hackAppsGate: events mode, not ChatGPT/OpenAI/
+// Codex, UI declared) -- a resource read reaches here through its own URI,
+// not through listing, so without this a connection the tool list already
+// hides every hack_show_* tool from could still read a resource directly
+// by guessing or being given its URI (Grok security review, SIM-344). The
+// per-screen flag (MCP_APP_HACK_JUDGE, MCP_APP_HACK_ORGANISER, ...) is
+// checked separately, inside hackEnabledScreens, so one flag being off
+// never hides a screen whose own flag is on.
 func (s *Server) readHackApp(req request, caller Caller, allowed bool) response {
 	if !allowed {
 		return failure(req.ID, codeInvalidParams, "resource not available", nil)
@@ -127,13 +147,22 @@ func (s *Server) readHackApp(req request, caller Caller, allowed bool) response 
 		if err != nil {
 			return failure(req.ID, codeInternalError, "could not prepare this view; try again", nil)
 		}
+		// Stubs are hand-written, not generated, and (organiser only, so far)
+		// carry their own __ORIGIN__ placeholder for the real website's
+		// origin (out-of-scope sections open there via ui/open-link rather
+		// than staying unreachable). Substituted here, before the stubs text
+		// becomes a replacement VALUE below -- strings.Replacer only scans
+		// the page template it is given, never a value it is substituting
+		// in, so a placeholder inside the stubs text would otherwise never
+		// be touched.
+		stubs := strings.ReplaceAll(asset(screen.ID+"-stubs.js"), "__ORIGIN__", "https://"+s.cfg.APIHost)
 		page := strings.NewReplacer(
 			"__NONCE__", nonce,
-			"__STYLE__", asset("hack-judge-kit.css"),
+			"__STYLE__", asset(screen.ID+"-kit.css"),
 			"__BRIDGE__", asset("bridge.js"),
-			"__STUBS__", asset("hack-judge-stubs.js"),
-			"__BUNDLE__", asset("hack-judge-bundle.js"),
-			"__VIEW__", asset("hack-judge-view.js"),
+			"__STUBS__", stubs,
+			"__BUNDLE__", asset(screen.ID+"-bundle.js"),
+			"__VIEW__", asset(screen.ID+"-view.js"),
 		).Replace(asset(screen.HTML))
 		return result(req.ID, map[string]any{"contents": []any{map[string]any{
 			"uri": screen.URI, "mimeType": appMIME, "text": page, "_meta": s.appMeta(screen),
@@ -151,14 +180,25 @@ func (s *Server) readHackApp(req request, caller Caller, allowed bool) response 
 // view, and like every Hack tool its result stays fully readable as plain
 // text for a host or a model with no UI at all.
 
-// hackShowJudgeAppAllowed is the three-part gate the owner set
-// (2026-10-31): the per-account flag, never ChatGPT/OpenAI/Codex app
-// names (the submitted ChatGPT app's pinned tool list must not change),
-// and only once this connection has actually declared MCP Apps UI support
-// -- a client that has not would get a tool whose only job is opening a
-// view it cannot show.
+// hackAppsGate is the three-part gate the owner set (2026-10-31), shared by
+// every Hack MCP App: a personal event connection, never ChatGPT/OpenAI/
+// Codex app names (the submitted ChatGPT app's pinned tool list must not
+// change), and only once this connection has actually declared MCP Apps UI
+// support -- a client that has not would get a tool whose only job is
+// opening a view it cannot show. The per-screen flag (MCP_APP_HACK_JUDGE,
+// MCP_APP_HACK_ORGANISER, ...) is deliberately NOT part of this shared
+// gate: each show-tool-specific *Allowed function below checks its own
+// flag on top, so one app's flag being off can never hide a different
+// app's resource or show tool, and a resource read's shared `allowed`
+// parameter (readHackApp, hackAppResources) can stay a single bool that
+// hackEnabledScreens then narrows per screen.
+func (s *Server) hackAppsGate(c Caller, uiCapable bool) bool {
+	return s.fixed == nil && c.Mode == CallerModeEvents && !flatListApp(c.AppName) && uiCapable
+}
+
+// hackShowJudgeAppAllowed is hackAppsGate plus the judge screen's own flag.
 func (s *Server) hackShowJudgeAppAllowed(c Caller, uiCapable bool) bool {
-	return s.fixed == nil && c.Mode == CallerModeEvents && !flatListApp(c.AppName) && uiCapable && appFlag(os.Getenv("MCP_APP_HACK_JUDGE"), c.Handle)
+	return s.hackAppsGate(c, uiCapable) && appFlag(os.Getenv("MCP_APP_HACK_JUDGE"), c.Handle)
 }
 
 // uiDeclaredForListing reports whether this connection has declared MCP
@@ -195,18 +235,51 @@ func (s *Server) uiDeclaredForListing(caller Caller, params json.RawMessage, mod
 	return known && ui
 }
 
-// filterHackShowTools removes hack_show_* tools from a tools/list result
-// when hackShowJudgeAppAllowed says this connection should not see them.
-// Every other tool is untouched, so an unrelated caller's listing is
-// unaffected byte for byte (TestHackAppsGatesAndUnchangedInventory's own
-// invariant extended to this new tool).
-func filterHackShowTools(list []Tool, allowed bool) []Tool {
-	if allowed {
-		return list
+// hackShowToolsAllowed computes, once per tools/list, whether each
+// hack_show_* tool AND every hack_app_* twin (hack_app_only_tools.go)
+// should appear in this connection's listing -- one entry per tool name,
+// each from that tool's (or that tool's app's) own *Allowed function (its
+// own flag on top of the shared hackAppsGate). A tool with no entry here
+// is left alone by filterHackShowTools below.
+//
+// The twins were originally listed unconditionally for every events
+// connection: `_meta.ui.visibility: ["app"]` only withholds a tool from
+// the model for a host that honours it, so a flagged-off, excluded-app-
+// name or non-UI connection could still see (and, since each twin's own
+// run() used to check only c.uiClient, call) one simply by asking for
+// tools/list (owner follow-up review, SIM-344 phase 2). Filtering them
+// here, the same way hack_show_judge/hack_show_organiser already are, is
+// the fix; hackAppOnlyTwin's own run() gate (hack_app_only_tools.go) is
+// the matching call-time half, so a tool hidden from listing is also
+// refused if called by name anyway.
+func (s *Server) hackShowToolsAllowed(c Caller, uiCapable bool) map[string]bool {
+	judgeAllowed := s.hackShowJudgeAppAllowed(c, uiCapable)
+	organiserAllowed := s.hackShowOrganiserAppAllowed(c, uiCapable)
+	allowed := map[string]bool{
+		"hack_show_judge":     judgeAllowed,
+		"hack_show_organiser": organiserAllowed,
 	}
+	for _, name := range hackAppOnlyJudgeNames {
+		allowed[name] = judgeAllowed
+	}
+	for _, name := range hackAppOnlyOrganiserNames {
+		allowed[name] = organiserAllowed
+	}
+	for _, name := range hackAppOnlySharedNames {
+		allowed[name] = judgeAllowed || organiserAllowed
+	}
+	return allowed
+}
+
+// filterHackShowTools removes any hack_show_* tool from a tools/list
+// result whose own entry in allowed says this connection should not see
+// it. Every other tool is untouched, so an unrelated caller's listing is
+// unaffected byte for byte (TestHackAppsGatesAndUnchangedInventory's own
+// invariant extended to each new show tool).
+func filterHackShowTools(list []Tool, allowed map[string]bool) []Tool {
 	out := make([]Tool, 0, len(list))
 	for _, tool := range list {
-		if tool.Name == "hack_show_judge" {
+		if ok, named := allowed[tool.Name]; named && !ok {
 			continue
 		}
 		out = append(out, tool)

@@ -740,7 +740,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 
 	case "tools/list":
 		full, bare, _ := s.forCaller(caller)
-		hackShowAllowed := s.hackShowJudgeAppAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+		hackShowAllowed := s.hackShowToolsAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
 		full, bare = filterHackShowTools(full, hackShowAllowed), filterHackShowTools(bare, hackShowAllowed)
 		if modern {
 			return result(req.ID, s.withMeta(map[string]any{
@@ -763,7 +763,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 	// the declared capabilities; an empty list is the true answer and keeps
 	// them from treating the connector as broken.
 	case "resources/list":
-		hackResourceAllowed := s.hackShowJudgeAppAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+		hackResourceAllowed := s.hackAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
 		payload := map[string]any{"resources": append(s.appResources(caller), s.hackAppResources(caller, hackResourceAllowed)...)}
 		if modern && (len(s.enabledScreens(caller)) > 0 || (hackResourceAllowed && len(s.hackEnabledScreens(caller)) > 0)) {
 			payload["resultType"] = "complete"
@@ -774,7 +774,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 	case "resources/read":
 		reply := s.readApp(req, caller)
 		if reply.Error != nil {
-			hackResourceAllowed := s.hackShowJudgeAppAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+			hackResourceAllowed := s.hackAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
 			reply = s.readHackApp(req, caller, hackResourceAllowed)
 		}
 		if modern && reply.Error == nil {
@@ -785,7 +785,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 		}
 		return reply
 	case "resources/templates/list":
-		hackResourceAllowed := s.hackShowJudgeAppAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
+		hackResourceAllowed := s.hackAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
 		payload := map[string]any{"resourceTemplates": []any{}}
 		if modern && (len(s.enabledScreens(caller)) > 0 || (hackResourceAllowed && len(s.hackEnabledScreens(caller)) > 0)) {
 			payload["resultType"] = "complete"
