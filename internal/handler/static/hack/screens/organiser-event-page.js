@@ -543,8 +543,8 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
       })
     } catch (e) { if (cacheStale(ctx, ev)) return; setLive('Cannot reach the server.', 'err') }
   }))
-  const add = sp.querySelector('#sched-add') || sp.querySelector('#sched-add-empty')
-  if (add) add.addEventListener('click', () => openDialog(null))
+  // Both the header button and the empty-state button open the dialog.
+  sp.querySelectorAll('#sched-add, #sched-add-empty').forEach(b => b.addEventListener('click', () => openDialog(null)))
 }
 
 // R10: one shared helper for the polite "X moved to position N of M" live
@@ -736,8 +736,8 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
       if (await persist(sponsors)) renderSponsors({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive })
     })
   })
-  const add = sp.querySelector('#sp-add') || sp.querySelector('#sp-add-empty')
-  if (add) add.addEventListener('click', () => openDialog(null))
+  // Both the header button and the empty-state button open the dialog.
+  sp.querySelectorAll('#sp-add, #sp-add-empty').forEach(b => b.addEventListener('click', () => openDialog(null)))
 }
 
 // -------------------------------------------------------------------- FAQ
@@ -862,8 +862,8 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
       if (await persist(faq)) renderFaq({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive })
     })
   })
-  const add = sp.querySelector('#fq-add') || sp.querySelector('#fq-add-empty')
-  if (add) add.addEventListener('click', () => openDialog(null))
+  // Both the header button and the empty-state button open the dialog.
+  sp.querySelectorAll('#fq-add, #fq-add-empty').forEach(b => b.addEventListener('click', () => openDialog(null)))
 }
 
 // ------------------------------------------------------------------- Look
