@@ -1,11 +1,17 @@
 import { nav, href } from './nav.js'
 import { esc, stageLabel, roleLabel, initials, nextDeadline, dateTime, copyButton, markInk } from './ui.js'
+  // Rail rule (atlas 2026-10-30): no two sidebar icons may look alike, since
+  // the collapsed rail has only icons. Overview is now its own dashboard
+  // glyph (Home keeps the house), Teams three heads (People two), Account a
+  // person in a circle -- Teams and Account used to share a single-person
+  // glyph with each other and with Team/User having the same path.
   const I = {
     home:'M3 10.5 10 4l7 6.5V17a1 1 0 0 1-1 1h-3.5v-5h-5v5H4a1 1 0 0 1-1-1z',
+    overview:'M3 3h6v7H3zM11 3h6v4h-6zM11 9h6v8h-6zM3 12h6v5H3z',
     calendar:'M4 5h12a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm-1 4h14M7 3v4m6-4v4',
     megaphone:'M3 8v4h3l6 4V4L6 8zm12-1.5a4 4 0 0 1 0 7',
     users:'M7.5 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 17c0-3 2.5-5 5.5-5s5.5 2 5.5 5m1-8a2.5 2.5 0 1 0 0-5m1.5 8c2 .4 3.5 2.2 3.5 5',
-    team:'M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 17c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5',
+    team:'M10 8a2.4 2.4 0 1 0 0-4.8A2.4 2.4 0 0 0 10 8zM4.6 10a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8zM15.4 10a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8zM6.2 16.5c0-2.4 1.7-4.3 3.8-4.3s3.8 1.9 3.8 4.3M1.8 15c0-1.7 1.2-2.9 2.8-2.9M18.2 15c0-1.7-1.2-2.9-2.8-2.9',
     file:'M5 2h7l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm7 0v4h4M7 10h6M7 13h6',
     globe:'M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM2 10h16M10 2c2.2 2.2 3.3 4.9 3.3 8s-1.1 5.8-3.3 8c-2.2-2.2-3.3-4.9-3.3-8S7.8 4.2 10 2z',
     trophy:'M6 3h8v4a4 4 0 0 1-8 0zm0 1H3v1.5A2.5 2.5 0 0 0 5.5 8M14 4h3v1.5A2.5 2.5 0 0 1 14.5 8M10 11v3m-3 3h6m-5-3h4',
@@ -19,11 +25,13 @@ import { esc, stageLabel, roleLabel, initials, nextDeadline, dateTime, copyButto
     vote:'M4 10l4 4 8-8',
     people:'M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-6 8c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5',
     more:'M5 10h.01M10 10h.01M15 10h.01',
-    user:'M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-6 8c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5',
+    user:'M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM10 10.2a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2zM5.3 15.6c.9-1.9 2.6-3 4.7-3s3.8 1.1 4.7 3',
     signout:'M8 4H4v12h4M12 6l4 4-4 4M16 10H8',
     help:'M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM8 7.5a2 2 0 1 1 2.8 1.8c-.5.3-.8.7-.8 1.2V11m0 3h.01',
     events:'M3 5h14M3 10h14M3 15h14',
-    chev:'M6 8l4 4 4-4'
+    chev:'M6 8l4 4 4-4',
+    collapse:'M3 4h14v12H3zM8 4v12M14 8l-2 2 2 2',
+    expand:'M3 4h14v12H3zM8 4v12M12 8l2 2-2 2'
   };
   export function ico(n,cls){ return '<svg class="'+(cls||'ico')+'" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+(I[n]||I.file)+'"/></svg>'; }
 
@@ -46,14 +54,47 @@ function bindResizeClose() {
     document.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded', 'false'))
   })
 }
+// Collapsible sidebar (atlas 2026-10-30, desktop only, 761px+): the panel
+// button beside the brand, or the `[` key outside a text field, folds the
+// 248px sidebar into a 56px icon rail and back. Remembered per browser
+// (localStorage 'sh_side'; every read/write in try/catch, default
+// expanded) and applied before the first paint, so there's no flash --
+// readSideCollapsed() is called while building the very first innerHTML
+// below, not after.
+function readSideCollapsed() {
+  try { return localStorage.getItem('sh_side') === 'collapsed' } catch (e) { return false }
+}
+function writeSideCollapsed(collapsed) {
+  try { localStorage.setItem('sh_side', collapsed ? 'collapsed' : 'expanded') } catch (e) {}
+}
+let sideKeyBound = false
+function bindSideKeyOnce() {
+  if (sideKeyBound) return
+  sideKeyBound = true
+  document.addEventListener('keydown', e => {
+    if (e.key !== '[' || e.metaKey || e.ctrlKey || e.altKey) return
+    const t = e.target
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+    // A plain viewport-width check, same as the popup positioning below --
+    // the server's own theme test bans the other common way to ask this
+    // (a media-query API call) project-wide as a sign of a page deciding
+    // its own theme.
+    if (window.innerWidth <= 760) return
+    const app = document.querySelector('.app')
+    const toggle = document.querySelector('[data-side-toggle]')
+    if (app && toggle) toggle.click()
+  })
+}
 export function mount(ctx, section, screenId) {
   bindResizeClose()
+  bindSideKeyOnce()
   const { event: detail, role, events, me } = ctx
   const event = detail?.event
   const items = (nav[role] || []).filter(it => !it.stages || (event?.results_published && it.stages.includes(event.stage === 'archived' ? 'ended' : event?.stage)))
+  function tip(label, badge) { return label + (badge ? ' · ' + badge : '') }
   function link(it) {
     const disabled = role === 'participant' && ['entry','website'].includes(it.id) && !detail?.me?.team
-    return `<a href="${esc(href(role,event.slug,it.id))}"${section === it.id ? ' aria-current="page"' : ''}${disabled ? ' class="later" aria-disabled="true" title="Join or start a team first"' : ''}>${ico(it.icon)}<span>${esc(it.label)}</span></a>`
+    return `<a href="${esc(href(role,event.slug,it.id))}"${section === it.id ? ' aria-current="page"' : ''}${disabled ? ' class="later" aria-disabled="true" title="Join or start a team first"' : ''} data-tip="${esc(tip(it.label, it.badge))}">${ico(it.icon)}<span>${esc(it.label)}</span></a>`
   }
   // Top-left brand: the one thing that always leads Home (/events), from any
   // screen (owner decision 2026-10-30). Replaces the switcher's old top-left
@@ -63,11 +104,18 @@ export function mount(ctx, section, screenId) {
   const signedIn = !!ctx.api.apiKey()
   const personName = me?.display_name || me?.username || me?.email || ''
   function brand() {
-    return `<a class="brand" href="/events"><span class="mark">simple<b>·</b>hack</span>${personName ? `<span class="person">${esc(personName)}</span>` : ''}</a>`
+    // mark-short (collapsed rail) is aria-hidden; the sr-only span carries
+    // "Home" for a screen reader once mark-full is display:none, same as
+    // the prototype's own brand().
+    return `<a class="brand" href="/events" data-tip="Home"><span class="mark"><span class="mark-full">simple<b>·</b>hack</span><span class="mark-short" aria-hidden="true">s<b>·</b>h</span><span class="sr-only"> Home</span></span>${personName ? `<span class="person">${esc(personName)}</span>` : ''}</a>`
   }
-  const topNav = `<nav class="top-nav" aria-label="Home"><a href="/events"${screenId === 'landing-your-events' ? ' aria-current="page"' : ''}>${ico('home')}<span>Home</span></a><a href="/directory">${ico('globe')}<span>Find a hackathon</span></a></nav>`
+  function toggleBtn(collapsed) {
+    const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar'
+    return `<button class="side-toggle" type="button" data-side-toggle aria-controls="side" aria-expanded="${!collapsed}" aria-label="${label}" data-tip="${label}  [">${ico(collapsed ? 'expand' : 'collapse')}</button>`
+  }
+  const topNav = `<nav class="top-nav" aria-label="Home"><a href="/events"${screenId === 'landing-your-events' ? ' aria-current="page"' : ''} data-tip="Home">${ico('home')}<span>Home</span></a><a href="/directory" data-tip="Find a hackathon">${ico('globe')}<span>Find a hackathon</span></a></nav>`
   function switcher(id) {
-    return `<button class="switcher" id="${id}" aria-expanded="false" aria-controls="evpop"><span class="ev-mark">${esc(initials(event?.title || 'Simple Hack'))}</span><span><span class="ev-name">${esc(event?.title || 'Simple Hack')}</span><span class="ev-role">${esc(roleLabel(role))}</span></span>${ico('chev','chev')}</button>`
+    return `<button class="switcher" id="${id}" aria-expanded="false" aria-controls="evpop" data-tip="${esc(tip(event?.title || 'Simple Hack', roleLabel(role)))}"><span class="ev-mark">${esc(initials(event?.title || 'Simple Hack'))}</span><span><span class="ev-name">${esc(event?.title || 'Simple Hack')}</span><span class="ev-role">${esc(roleLabel(role))}</span></span>${ico('chev','chev')}</button>`
   }
   // Owner decision 2026-10-30: the dropdown only lists events now -- Home and
   // Find a hackathon already live in the sidebar's always-shown top section,
@@ -136,12 +184,24 @@ export function mount(ctx, section, screenId) {
   // exists while an event is open -- on Home itself (no event) only the top
   // section shows.
   const eventNav = event ? `<div class="event-nav">${switcher('sw1')}<nav class="nav" aria-label="Event">${items.map(link).join('')}</nav></div>` : ''
-  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}"><aside class="side" aria-label="Navigation">${brand()}${topNav}${eventNav}<div class="side-foot"><a href="/account">${ico('user')}<span>Account</span></a>${signedIn ? `<a href="/" data-signout>${ico('signout')}<span>Sign out</span></a>` : ''}<details><summary data-tour="help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}<a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${event ? popup : ''}<div class="col"><div class="phone-top">${phoneTop}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
+  let collapsed = readSideCollapsed()
+  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}${collapsed ? ' side-collapsed' : ''}"><aside class="side" id="side" aria-label="Navigation"><div class="side-top">${brand()}${toggleBtn(collapsed)}</div>${topNav}${eventNav}<div class="side-foot"><a href="/account" data-tip="Account">${ico('user')}<span>Account</span></a>${signedIn ? `<a href="/" data-signout data-tip="Sign out">${ico('signout')}<span>Sign out</span></a>` : ''}<details><summary data-tour="help" data-tip="Help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}<a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${event ? popup : ''}<div class="col"><div class="phone-top">${phoneTop}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
   const app = root.firstElementChild
   // On Home itself (no event) there is no switcher and no popup to toggle --
   // pop is null there, so every branch below that touches it is guarded.
   const pop = root.querySelector('#evpop')
+  function setSide(c) {
+    collapsed = c
+    app.classList.toggle('side-collapsed', c)
+    const old = app.querySelector('[data-side-toggle]')
+    if (old) old.outerHTML = toggleBtn(c)
+    writeSideCollapsed(c)
+    const fresh = app.querySelector('[data-side-toggle]')
+    if (fresh) fresh.focus()
+    if (pop) { pop.classList.remove('open'); pop.style.top = ''; root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded', 'false')) }
+  }
   app.addEventListener('click', e => {
+    if (e.target.closest('[data-side-toggle]')) { e.preventDefault(); setSide(!collapsed); return }
     const sw = e.target.closest('.switcher')
     if (sw && pop) {
       const open = !pop.classList.contains('open')
@@ -150,11 +210,13 @@ export function mount(ctx, section, screenId) {
       // Review #1: kit.css's own top:120px is only a closed-state fallback --
       // it covered the switcher that opened it, since the popup never knew
       // which one that was. On desktop, anchor it under the actual button
-      // just clicked (sw1 in the sidebar, sw2 on the phone top bar never hits
-      // this branch's layout, since kit.css repositions .menu-pop for phone).
+      // just clicked -- under it when expanded, level with it (beside the
+      // rail) when collapsed, same as sw1; sw2 on the phone top bar never
+      // hits this branch's layout, since kit.css repositions .menu-pop for
+      // phone.
       if (open && window.innerWidth > 760) {
         const r = sw.getBoundingClientRect()
-        pop.style.top = (r.bottom + 4) + 'px'
+        pop.style.top = (app.classList.contains('side-collapsed') && sw.id === 'sw1' ? r.top : r.bottom + 4) + 'px'
       } else if (!open) {
         pop.style.top = ''
       }

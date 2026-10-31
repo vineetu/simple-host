@@ -1,6 +1,6 @@
-// Shared helpers for the organiser Overview / Event page / People / Settings
-// / Create event screens and the public co-organiser invite (batch orgA).
-// Not a shell module -- only these screens import it.
+// Shared helpers for the organiser Overview / Event page / Announcements /
+// People / Settings / Create event screens and the public co-organiser
+// invite (batch orgA). Not a shell module -- only these screens import it.
 import { esc, stageLabel } from '../ui.js'
 
 // fileAsDataURL reads a File into a data: URL (sponsor/FAQ logos travel as
@@ -112,4 +112,162 @@ export function stagePicker(current, offered) {
     document.body.append(scrim)
     sel.focus()
   })
+}
+
+// ---------------------------------------------------------------------
+// Atlas 2026-10-30 (Event page redesign): shared pieces for the new
+// sub-page editors (organiser-event-page.js) and the new Announcements
+// screen (organiser-announcements.js). Built on top of ui.dialog/ui.toast
+// rather than beside them -- see each helper's own note.
+// ---------------------------------------------------------------------
+
+// formDialog drives an Add/Edit dialog built on ui.dialog (the shared
+// scrim/focus-trap/Escape primitive -- never reimplemented here). `body` is
+// a Node built once by the caller and reused across retries, so a rejected
+// Save (onSave returns false after writing its own inline error into body)
+// keeps what was typed and shows the error; ui.dialog itself always closes
+// on any button click, so a retry re-opens it with the same body node.
+// Resolves true if onSave eventually returned true, false if the person
+// cancelled or pressed Escape.
+export async function formDialog(ui, { title, body, saveLabel = 'Save', cancelLabel = 'Cancel', focus = 0 }, onSave) {
+  for (;;) {
+    const action = await ui.dialog({
+      title, body,
+      buttons: [
+        { label: cancelLabel, value: 'cancel', attrs: { 'data-cancel': '' } },
+        { label: saveLabel, value: 'save', className: 'btn primary' }
+      ],
+      escapeValue: 'cancel',
+      focus
+    })
+    if (action !== 'save') return false
+    if (await onSave()) return true
+  }
+}
+
+// rowMenuHTML: the icon-btn (...) plus its dropdown, same markup/behaviour as
+// every atlas list row (Schedule, Sponsors, FAQ, Announcements). `items` is
+// [{ label, act, danger, disabled }] in menu order; a danger item gets a
+// <hr> above it automatically. `label` is the row's own name, for the
+// aria-labels ("More for Kopi Kode").
+export function rowMenuHTML(label, items) {
+  let sawDanger = false
+  const body = items.map(it => {
+    const hr = it.danger && !sawDanger ? '<hr>' : ''
+    if (it.danger) sawDanger = true
+    return hr + `<button type="button" role="menuitem"${it.disabled ? ' disabled' : ''}${it.danger ? ' class="danger"' : ''} data-act="${esc(it.act)}">${esc(it.label)}</button>`
+  }).join('')
+  return `<button class="icon-btn" type="button" data-rowmenu aria-haspopup="menu" aria-expanded="false" aria-label="More for ${esc(label)}"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01"/></svg></button><div class="row-menu" role="menu" hidden>${body}</div>`
+}
+
+// wireRowMenus binds the open/close/Escape behaviour for every .row-menu
+// currently in the document -- the same single global listener the atlas
+// prototype's shell script uses (open one at a time, Escape or an outside
+// click closes it). Bound once no matter how many screens or repaints call
+// it (module-level flag, like shell.js's own bindResizeClose).
+let rowMenuBound = false
+export function wireRowMenus() {
+  if (rowMenuBound) return
+  rowMenuBound = true
+  function closeAll(except) {
+    document.querySelectorAll('.row-menu').forEach(m => {
+      if (m === except) return
+      m.hidden = true
+      const b = m.parentNode && m.parentNode.querySelector('[data-rowmenu]')
+      if (b) b.setAttribute('aria-expanded', 'false')
+    })
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-rowmenu]')
+    if (!b) { if (!e.target.closest('.row-menu')) closeAll(null); return }
+    const m = b.parentNode.querySelector('.row-menu')
+    closeAll(m)
+    m.hidden = !m.hidden
+    b.setAttribute('aria-expanded', String(!m.hidden))
+    if (!m.hidden) { const f = m.querySelector('button:not([disabled])'); if (f) f.focus() }
+  })
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return
+    document.querySelectorAll('.row-menu:not([hidden])').forEach(m => {
+      m.hidden = true
+      const b = m.parentNode && m.parentNode.querySelector('[data-rowmenu]')
+      if (b) { b.setAttribute('aria-expanded', 'false'); b.focus() }
+    })
+  })
+}
+
+// undoToast: the "Removed <name>" toast with its own Undo button, for a
+// Remove that writes straight away (Schedule/Sponsors/FAQ rows -- never for
+// deleting an announcement, which keeps a real confirm instead). Not built
+// on ui.toast, which has no second button; placed at the top of the given
+// section (ui.js's own placement logic for a toast near a now-gone row is
+// private to that module). Undo fires `undo` and removes the note; after
+// `ms` (10s per the atlas) the note just disappears, no toast replaces it.
+export function undoToast(section, text, undo, ms = 10000) {
+  section.querySelectorAll('[data-undo-toast]').forEach(n => n.remove())
+  const note = document.createElement('p')
+  note.className = 'note ok'
+  note.setAttribute('data-undo-toast', '')
+  note.setAttribute('role', 'status')
+  const span = document.createElement('span')
+  span.textContent = text + ' '
+  note.append(span)
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.className = 'btn quiet sm'
+  btn.textContent = 'Undo'
+  let done = false
+  const timer = setTimeout(() => { if (!done) { done = true; note.remove() } }, ms)
+  btn.addEventListener('click', () => {
+    if (done) return
+    done = true
+    clearTimeout(timer)
+    note.remove()
+    undo()
+  })
+  note.append(btn)
+  const head = section.querySelector('.sp-head')
+  if (head) head.insertAdjacentElement('afterend', note)
+  else section.insertBefore(note, section.firstChild)
+}
+
+// Unsaved-changes guard for the one-Save forms (Basics, About): "another
+// tab, the sidebar, Back" asks before leaving, closing the browser tab uses
+// beforeunload. Bound once (module-level, like wireRowMenus above);
+// `setDirtyGuard` is called on every render of a form sub-page with a fresh
+// `getDirty` closure over that render's own fields, `clearDirtyGuard` by
+// every other sub-page (and effectively superseded the moment a new
+// Basics/About render calls setDirtyGuard again). Known gap: a real
+// browser Back/Forward (popstate) cannot be intercepted from here without
+// changing app.js's own routing, so only link clicks and tab close/reload
+// are covered -- see organiser-event-page.js's own note where this is used.
+let guardCtx = null, guardGetDirty = null, guardBound = false
+export function setDirtyGuard(ctx, getDirty) { guardCtx = ctx; guardGetDirty = getDirty; bindGuardOnce() }
+export function clearDirtyGuard() { guardGetDirty = null }
+function bindGuardOnce() {
+  if (guardBound) return
+  guardBound = true
+  document.addEventListener('click', onGuardClick, true)
+  window.addEventListener('beforeunload', e => {
+    if (guardGetDirty && guardGetDirty()) { e.preventDefault(); e.returnValue = '' }
+  })
+}
+async function onGuardClick(e) {
+  if (!guardGetDirty) return
+  const info = guardGetDirty()
+  if (!info) return
+  const a = e.target.closest('a[href]')
+  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return
+  let url
+  try { url = new URL(a.href) } catch { return }
+  if (url.origin !== location.origin) return
+  // A same-document jump (an in-page #id link) and a link back to exactly
+  // where we already are both need no guard.
+  if (url.pathname === location.pathname && url.search === location.search) return
+  e.preventDefault()
+  e.stopPropagation()
+  const ok = await guardCtx.ui.confirm({ title: `Discard your changes to ${info.label}?`, body: 'Your changes will be lost.', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
+  if (!ok) return
+  guardGetDirty = null
+  guardCtx.go(url.pathname + url.search + url.hash)
 }

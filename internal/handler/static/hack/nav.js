@@ -3,7 +3,7 @@ export const nav = {
     {
       "id": "overview",
       "label": "Overview",
-      "icon": "home",
+      "icon": "overview",
       "phone_tab": false,
       "stage_rule": "Always shown. This is the organiser's Home: answers what to do next at every stage, Draft to Ended."
     },
@@ -13,6 +13,13 @@ export const nav = {
       "icon": "page",
       "phone_tab": false,
       "stage_rule": "Always editable, even after the event ends (the public page stays up as a record)."
+    },
+    {
+      "id": "announcements",
+      "label": "Announcements",
+      "icon": "megaphone",
+      "phone_tab": false,
+      "stage_rule": "Always shown. Post, edit and delete from Draft until the event ends; after End the list stays readable but nothing can be posted or changed."
     },
     {
       "id": "people",

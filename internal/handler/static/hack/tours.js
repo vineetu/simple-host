@@ -39,7 +39,14 @@ export const tours = {
       { target: '.status', title: 'Stage and next deadline', body: 'The stage and the next deadline are always shown here. The stage decides what participants and judges can do right now.' },
       { target: '[data-tour="change-stage"]', title: 'Move the event on', body: 'When you are ready, change the stage: open sign-up, start building, close entries, judging, results, then end. Each change says what will happen before you confirm.' },
       { target: '[data-tour="share"]', title: 'Invite people', body: 'Send the join link to participants and the judge link to judges. Use New link only if a link leaked, because it stops the old one.' },
-      { target: '.nav a[href*="s=event-page"]', phone: '[data-menu]', title: 'Event page', body: 'What visitors see before they sign up: description, dates, schedule, sponsors, FAQ and announcements. You can also put up your own website.' },
+      // Atlas 2026-10-30: Event page is now sub-pages (Basics, About,
+      // Schedule, Sponsors, FAQ, Look, Website), and Announcements moved to
+      // its own sidebar item right under it -- both steps still point at
+      // real nav links, just the Event page one no longer claims
+      // Announcements lives there, and there is a new step for where it
+      // actually is.
+      { target: '.nav a[href*="s=event-page"]', phone: '[data-menu]', title: 'Event page', body: 'What visitors see before they sign up, one piece at a time: basics, about, schedule, sponsors, FAQ, look, and your own website if you have one.' },
+      { target: '.nav a[href*="s=announcements"]', phone: '[data-menu]', title: 'Announcements', body: 'Post updates for everyone in the event. Tick the box to email every participant too.' },
       { target: '.nav a[href*="s=people"]', phone: '[data-menu]', title: 'People', body: 'Everyone who signed up. Add sign-up questions, approve applications if you want to check people first, and invite co-organisers.' },
       { target: '.nav a[href*="s=teams"]', phone: '[data-menu]', title: 'Teams', body: 'Teams as they form. Set the team size, turn team finding on or off, and place people who are not on a team yet.' },
       { target: '.nav a[href*="s=entries"]', phone: '[data-menu]', title: 'Entries', body: 'What each team submitted. Set the deadline, choose which fields are required, and give one team more time.' },

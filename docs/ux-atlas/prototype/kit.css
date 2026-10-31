@@ -777,3 +777,5 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .row-menu{right:4px}
   .row-menu button{min-height:44px}
 }
+/* Headings that receive focus for screen readers (tab switches) show no box to mouse users. */
+[tabindex="-1"]:focus{outline:none}
