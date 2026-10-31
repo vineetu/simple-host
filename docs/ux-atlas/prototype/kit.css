@@ -867,6 +867,8 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{m
 
 /* --- toggle settings row (.setting lives in the forms section above) -- */
 .setting .t > span{display:block}
+/* a typed-confirm field inside a danger-zone row keeps its <b> inline */
+.setting .t .field b{display:inline}
 
 /* --- several fields on one row --------------------------------------- */
 .field-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--field-gap) var(--s4);margin:0 0 var(--field-gap)}
@@ -889,6 +891,7 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{m
 .form-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2);margin:var(--field-gap) 0 0}
 .form-actions .hint{font-size:13px;color:var(--line-soft)}
 .form-actions + .help{margin-top:var(--s3)}
+.form-actions + :is(.field,.field-row,.check,.control-row){margin-top:var(--field-gap)}
 /* an action row whose every button is hidden right now takes no room */
 .form-actions:not(:has(> :not([hidden]))){display:none}
 
