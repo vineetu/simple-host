@@ -1368,7 +1368,7 @@ routes (`GET /internal/showcase/{handle}`, host-routed person root). Go: `h/show
 
 Simple Hack website storage (2026-10-03): team and custom event websites expose only KV, SQLite and file resources. Legacy state, collections and declared kinds return 410 `legacy_storage_removed` on Hack and their MCP tools are hidden/rejected. Existing rows remain stored for operator recovery; the 1,000,000-byte pool counts only the three current resource kinds. The first-party Hack skills and toolkit 0.2.6 teach only current storage, with trusted-apex event signup. Simple Host retains legacy API behavior but marks it deprecated for existing sites. The public Host 0.9.9 OpenAI skills use the signed-in connector, route site passcode setup to the trusted dashboard and do not solicit credentials in chat. First-party Host coding skills use the connector or a preconfigured local REST credential; sign-in and passcode setup remain in the trusted browser, with no downloaded installer execution.
 
-The v0.7.21 small-box release (2026-10-24: a Go 1.27.3 toolchain and newer golang.org/x/net and x/image, clearing govulncheck's crypto/x509, crypto/tls, net/http, HTTP/2 and WebP advisories against Go 1.27.1; no behavior change) is verified on a real DigitalOcean droplet with a v0.7.20 upgrade; the published image's binary reports go1.27.3. All installer pins use it. v0.7.20 (2026-10-24) added company sign-in through an operator's own OIDC provider, agent notifications with signing secrets sealed under PASSCODE_ENC_KEY, site search over generated summaries, the core MCP toolset's find_tools/run_tool, the photos page, MCP Apps, JSON error envelopes, discovery documents, RateLimit headers, Idempotency-Key and the Rounded icon, and was verified on real DigitalOcean droplets with a fresh install and a v0.7.19 upgrade.
+The v0.7.22 small-box release (2026-10-31: everything since v0.7.21 — a faster owner dashboard, connector visitor tools, default site-listing scope/order (SIM-329), MCP tool-set tuning (SIM-226), a Railway deploy recipe, SSO hop/sign-in review fixes (SIM-348), WebMCP tools, SQLite error codes and the OpenAI 1.0.2 resubmission; Simple Hack's hack-v0.8.13 changes ship in the same binary) is verified in local Docker containers with a v0.7.21 upgrade (no DigitalOcean token configured on the release host); the published image's binary reports v0.7.22 (commit 3a097ad). All installer pins use it. v0.7.21 (2026-10-24) was a Go 1.27.3 toolchain and dependency bump (no behavior change), verified on a real DigitalOcean droplet with a v0.7.20 upgrade. v0.7.20 (2026-10-24) added company sign-in through an operator's own OIDC provider, agent notifications with signing secrets sealed under PASSCODE_ENC_KEY, site search over generated summaries, the core MCP toolset's find_tools/run_tool, the photos page, MCP Apps, JSON error envelopes, discovery documents, RateLimit headers, Idempotency-Key and the Rounded icon, and was verified on real DigitalOcean droplets with a fresh install and a v0.7.19 upgrade.
 
 Sites are built only in people’s own AI apps and agents (2026-10-09). The owner dashboard links to Get started; in-app generation, jobs, model settings and the AI API tag are removed. Existing published sites are unaffected.
 
@@ -1433,19 +1433,25 @@ accepts the platform apex, real event pages and published team sites. It refuses
 invented event/team names, deeper names and deleted team sites; archived event pages
 and retained team sites can still renew their certificates.
 
-**Standalone full-platform package (published v0.8.12).** `deploy/hack/standalone/`
+**Standalone full-platform package (published v0.8.13).** `deploy/hack/standalone/`
 contains a Docker Compose install/upgrade path with a private, persistent environment
 file, PostgreSQL and site/certificate volumes, migration step, and Caddy ingress.
 `docs/platforms/simple-hack-standalone.md` covers installation and verification;
 the DigitalOcean and Coolify guides describe their separate paths. The dedicated
 `hack-v*` workflow builds the base and Simple Hack images from one checkout
 and packages the installers, schema, and guides as ZIP and tar.gz downloads. It
-does not change the existing small-box release pins. v0.8.12 (2026-10-24) is the
-same Go 1.27.3 toolchain and dependency bump as v0.7.21 (no behavior change); it
-was checked on a real DigitalOcean droplet (sfo2, `s-1vcpu-2gb`, a Let's Encrypt
-certificate), a published hack-v0.8.11 install with an event, an admin-created
-participant, a team and a published team site upgraded to it with no new
-migrations, keeping that data; the published image's binary reports go1.27.3
+does not change the existing small-box release pins. v0.8.13 (2026-10-31) carries
+the new default Simple Hack web app, private team finding (SIM-225), announcement
+edit and delete, zip-upload and personal-data-minimisation fixes, the organiser
+Event page as sub-pages with a collapsible sidebar, and applying without a join
+link (`EVENT_APPLY_PENDING_PER_EVENT`); it was checked in local Docker containers
+(no DigitalOcean token configured on the release host), a published hack-v0.8.12
+install with an event, an admin-created participant, a team and a published team
+site upgraded to it, applying the 7 new migrations once and keeping that data; the
+published image's binary reports v0.8.13 (commit 3a097ad)
+([release checks](docs/history/simple-hack-release-v0.8.13.md)).
+v0.8.12 (2026-10-24) was the same Go 1.27.3 toolchain and dependency bump as
+v0.7.21 (no behavior change); it was checked on a real DigitalOcean droplet
 ([release checks](docs/history/simple-hack-release-v0.8.12.md)).
 v0.8.11 (2026-10-24) added Hack server and agent cards with discovery headers,
 opt-in MCP Apps My sites and dashboard, and MCP Events with signed webhooks for

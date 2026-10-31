@@ -22,19 +22,25 @@ part of that onboarding.
 ![Simple Hack Get started](assets/simple-hack-get-started.png)
 
 
-**Release status: v0.8.12 is published.** Its default image and ZIP/tar downloads
-are available from the [hack-v0.8.12 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.12).
-It is a security patch: a Go 1.27.3 toolchain and newer `golang.org/x/net`
-(0.61.0) and `x/image` (0.47.0), clearing the `crypto/x509`, `crypto/tls`,
-`net/http`, HTTP/2 and WebP advisories govulncheck reported against Go 1.27.1,
-with no behavior change. The ZIP and tarball match their checksums, and both
-images are published for arm64 and amd64 (the published image's binary
-reports `go1.27.3`). On a real DigitalOcean droplet (sfo2, `s-1vcpu-2gb`, a
-`<ip>.nip.io` name, a Let's Encrypt certificate): a published v0.8.11 install
-with an event, an admin-created participant, a team and a published team site
-upgraded to v0.8.12 with `upgrade.sh --image`, with no new migrations and
-every item of that data kept. Checked on 2026-10-24;
-[release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.12.md).
+**Release status: v0.8.13 is published.** Its default image and ZIP/tar downloads
+are available from the [hack-v0.8.13 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.13).
+It carries the new default Simple Hack web app (`?ui=classic` for the earlier
+screens), private team finding (join requests, invites, solo listing,
+organiser fill), announcement edit and delete, zip-upload and
+personal-data-minimisation fixes in Hack MCP, the organiser Event page as
+sub-pages with a collapsible sidebar, and applying to a hackathon without a
+join link. The ZIP and tarball match their checksums, and both images are
+published for arm64 and amd64 (the published image's binary reports
+`v0.8.13 (commit 3a097ad)`). No DigitalOcean token was configured on the
+release host, so this was checked in local Docker containers instead of a
+droplet: a published hack-v0.8.12 install with an event, an admin-created
+participant, a team and a published team site, upgraded to v0.8.13 with a
+bare `migrate` re-run, applying the 7 new migrations once and keeping every
+item of that data. Checked on 2026-10-31;
+[release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.13.md).
+v0.8.12 was the same Go 1.27.3 toolchain and dependency bump as v0.7.21 (no
+behavior change), checked on a real DigitalOcean droplet
+([release record](https://github.com/vineetu/simple-host/blob/main/docs/history/simple-hack-release-v0.8.12.md)).
 v0.8.11 added Hack server and agent cards with discovery headers and resource
 URNs, opt-in MCP Apps My sites and dashboard for selected teams and organiser
 event websites, and MCP Events and signed webhooks for team and organiser
@@ -255,7 +261,7 @@ From the new release's checkout, run its upgrade script with that release's
 published image:
 
 ```sh
-sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.12
+sudo bash deploy/hack/standalone/upgrade.sh --image ghcr.io/vineetu/simple-hack:0.8.13
 ```
 
 Upgrades retain the domain, credentials, database and files. The previous environment file is kept
@@ -286,13 +292,13 @@ settings, not limits on event attendance.
 
 ## Build and local verification
 
-The `hack-v0.8.12` release builds a matching base image and platform image from
+The `hack-v0.8.13` release builds a matching base image and platform image from
 one checkout and provides a ZIP or tar.gz installation package. It leaves the
 older Simple Host small-box release pins intact. For a local build after that
 base image exists, use the same release checkout:
 
 ```sh
-docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.12 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
+docker build --build-arg SIMPLE_HOST_IMAGE=ghcr.io/vineetu/simple-host:hack-0.8.13 -f deploy/hack/standalone/Dockerfile -t simple-hack:candidate .
 ```
 
 For an unpublished build, replace `SIMPLE_HOST_IMAGE` with a locally built
