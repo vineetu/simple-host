@@ -39,8 +39,6 @@
 
 2026-10-29: AgentCat receives tool-call arguments and results capped at 8 KB each, plus stated intent. The sender leaves out secrets, file contents, and raw visitor emails; AgentCat redacts personal identifiers before storage. Optional context is offered outside ChatGPT, OpenAI, and Codex pending plugin approval. Review fixes bound traversal, visit SQL cells once, omit rejected wrapper arguments, malformed edits and Hack contact emails, sanitize binary intent, and omit viewer-access error prose.
 
-## Unreleased
-
 2026-10-28: Restore Host SQL visitor reference parameters and Hack API-key own-conflict results, make Hack account email opt-in, preserve notification number precision, and key reviewer failure IP hashes with the connector process secret.
 
 2026-10-28: Matched the OpenAI submission to all 55 ChatGPT tools with MCP Events enabled, added a tool inventory and annotation consistency test, and rewrote the annotation justifications for current behavior.
@@ -113,6 +111,12 @@ deploy and publishing the template. No migrations.
 2026-10-26: SQLite storage errors now say exactly what went wrong and what to do, with a stable `sql_*` code: a syntax error names the word, two statements, placeholder counts, PRAGMA and other unavailable features, the right route for a write or a schema change, a missing table or column (the owner sees the real names), and UNIQUE, NOT NULL, CHECK and foreign key failures naming the column. A wrong site name in the connector lists the account's sites.
 
 2026-10-24: WebMCP tools on the dashboard and Add photos page let a browsing agent (Gemini in Chrome, ChatGPT desktop) list sites, open one, change visibility, and add photos directly, with the same owner-only checks as the page itself; off entirely when nobody is signed in.
+
+## Unreleased
+
+2026-10-31: Small-box release v0.7.22 carries everything since v0.7.21: a faster owner dashboard (direct-to-sites routing, one parallel self/sites call instead of five and three), three connector tools for a shared site (`visitor_read_site`, `visitor_add_entry`, `visitor_change_entry`) with fresh access checks, optional passcodes and a daily write cap, default-sites scoping and ordering with an admin-only `?all=1`/`all_accounts` switch (SIM-329), MCP tool-set tuning from measured AgentCat use (SIM-226) including batched `read_site_file` and in-place `update_site` edits, a Railway deploy recipe, SSO hop/sign-out and sign-in review fixes (SIM-348), WebMCP tools for browsing agents, SQLite storage errors with stable codes, and the Simple Host 1.0.2 OpenAI resubmission with less personal data in connector disclosures. `zn-sso-hop.sql`, `zn-visitor-ai.sql` and `zo-sso-signout-confirm.sql` run on upgrade. Carries Simple Hack's hack-v0.8.13 changes below in the same binary; the installer pins it.
+
+2026-10-31: Simple Hack release hack-v0.8.13 carries everything since hack-v0.8.12: the new default Simple Hack web app (`static/hack`, with `?ui=classic` for the earlier screens), private team finding with join requests, invites, solo listing and organiser fill (SIM-225), announcement edit and delete, zip-upload and personal-data-minimisation fixes in Hack MCP, the organiser Event page split into sub-pages with a collapsible sidebar and walkthroughs, and applying to a hackathon without a join link from Find a hackathon or the event's own public page (`hack_preview_application`/`hack_apply_to_event`, only for events listed in Find a hackathon, every application pending until an organiser decides, a new `EVENT_APPLY_PENDING_PER_EVENT` limit). `zk-hack-directory-opt-in.sql`, `zk-hack-team-removal-notice.sql`, `zl-hack-team-finding.sql` and `zp-hack-applications.sql` run on upgrade; the standalone package pins it.
 
 ## Earlier changes
 
