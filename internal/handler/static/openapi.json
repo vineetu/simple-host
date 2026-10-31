@@ -16040,7 +16040,7 @@
         ],
         "operationId": "getAdminPaperMetrics",
         "summary": "Aggregate measurements for the research papers (admin)",
-        "description": "Admin-only. Service-wide aggregates kept by internal/papermetrics (method in docs/paper-metrics.md): server-side time per route class (histograms and percentiles), five-minute process and box samples, nightly counts, weekly anonymous per-site footprint rows, and the per-route API counts. No IP, hash, path or site name is in any set. Without set (or set=summary) every set comes back in one JSON object; with set and format=csv one set comes back as CSV. A signed-in non-admin gets 404.",
+        "description": "Admin-only. Service-wide aggregates kept by internal/papermetrics (method in docs/paper-metrics.md): server-side time per route class (histograms and percentiles), five-minute process and box samples, nightly counts, weekly anonymous per-site footprint rows, the per-route API counts, and Hack event snapshots, populated one-minute activity, mergeable class/status histograms, relative minute/phase offsets with baseline flags, decimal-string event keys, and run provenance on the Hack collector only. Hack people counts below five and related judge/application totals are NULL with suppression flags in event and daily sets. No event-key row contains absolute dates/timestamps; event snapshots omit creation/snapshot dates. Per-event rows require at least five teams unless include_small=1. Hack responses identify metric_def_version; Host export columns, metadata and values are unchanged. No personal identifiers, request paths or site names are exported; provenance hashes describe only binaries and non-secret config. Without set (or set=summary) every set comes back in one JSON object; with set and format=csv one set comes back as CSV. A signed-in non-admin gets 404.",
         "security": [
           {
             "apiKey": []
@@ -16062,7 +16062,12 @@
                 "process_daily",
                 "footprint",
                 "footprint_summary",
-                "api_routes"
+                "api_routes",
+                "hack_events",
+                "hack_minutes",
+                "hack_latency",
+                "hack_phases",
+                "runs"
               ],
               "default": "summary"
             }
@@ -16086,6 +16091,20 @@
               "format": "date"
             },
             "description": "Last UTC day, default today."
+          },
+          {
+            "name": "include_small",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1"
+              ],
+              "default": "0"
+            },
+            "description": "Admin-only small-event filter override; never disables people-count suppression."
           },
           {
             "name": "format",
@@ -16131,6 +16150,14 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "metric_def_version": {
+                      "type": "integer",
+                      "description": "Hack-only metadata; 4 for new Hack definitions, 1 for legacy histogram sets. Absent from Host exports."
+                    },
+                    "bucket_scheme": {
+                      "type": "string",
+                      "description": "Present on Hack histogram exports; distinguishes legacy and scale-3 buckets. Absent from Host exports."
+                    },
                     "set": {
                       "type": "string"
                     },

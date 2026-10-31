@@ -435,12 +435,17 @@ func main() {
 	// daily/weekly aggregate snapshots for the research papers; aggregates
 	// only. PAPER_METRICS=off turns it off. docs/paper-metrics.md.
 	var paper *papermetrics.Collector
-	if papermetrics.Enabled() {
+	paperOn := papermetrics.Enabled()
+	paperConfig := map[string]any{"limits": cfg.Limits, "events": cfg.Events, "write_auth_mode": cfg.WriteAuthMode, "person_hosts": cfg.PersonHosts, "site_hosts": cfg.SiteHosts, "paper_metrics": paperOn}
+	if paperOn {
 		apex := []string{cfg.SiteDomain}
 		if u, err := url.Parse(cfg.PublicBaseURL); err == nil && u.Hostname() != "" {
 			apex = append(apex, u.Hostname())
 		}
-		paper = papermetrics.New(db, cfg.DataDir, apex...)
+		paper = papermetrics.New(db, cfg.DataDir, apex...).WithRunConfig(paperConfig)
+		if hackEvents != nil {
+			paper.WithHack()
+		}
 		mux.Handle("GET /v1/admin/paper-metrics", authMW(paper.Export(func(r *http.Request) (bool, bool) {
 			u := auth.GetUser(r.Context())
 			return u != nil, u != nil && u.IsAdmin

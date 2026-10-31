@@ -479,6 +479,9 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if didWrite || didSchema {
+		paperHackWrite(r)
+	}
 	successful = true
 	if err = stmt.Close(); err != nil {
 		storageError(w, 500, "internal_error", "SQL commit failed")

@@ -181,6 +181,7 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
+		paperHackWrite(r)
 		h.disk.MarkChanged()
 		unlock()
 		h.emitNotification(c, "file.uploaded", map[string]any{"path": p, "size": len(body), "content_type": http.DetectContentType(body)})
@@ -213,6 +214,7 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
+		paperHackWrite(r)
 		h.disk.MarkChanged()
 		unlock()
 		writeJSON(w, 200, map[string]any{"deleted": true})

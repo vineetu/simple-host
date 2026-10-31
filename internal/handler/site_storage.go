@@ -125,6 +125,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 	if h.refuseSuspendedSiteID(w, r, id) {
 		return storageCall{}, false
 	}
+	paperHackSite(r, ownerID, siteName, nil)
 	c := storageCall{siteID: id, ownerID: ownerID, siteName: siteName}
 	if scope, ok := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); ok {
 		if !hackMode || scope.siteID != id || scope.ownerID != ownerID {
@@ -157,6 +158,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 				c.linkScope = "admin"
 			}
 		}
+		paperHackUser(r, &u)
 		if !c.owner {
 			storageError(w, 403, "forbidden", "owner credential required")
 			return storageCall{}, false
@@ -846,6 +848,7 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 409, "key_exists", "this key already exists")
 			return
 		}
+		paperHackWrite(r)
 		unlock()
 		name := "record.added"
 		data := map[string]any{"key": key, "fields": v.Value}
@@ -874,6 +877,7 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 404, "key_not_found", "key not found")
 			return
 		}
+		paperHackWrite(r)
 		unlock()
 		if n, err := result.RowsAffected(); err == nil && n > 0 {
 			h.emitNotification(c, "record.changed", map[string]any{"key": key, "change": "deleted"})

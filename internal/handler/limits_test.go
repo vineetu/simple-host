@@ -281,8 +281,10 @@ func TestServedTextFollowsLimits(t *testing.T) {
 			"about every 5 minutes", "lapses after 36 hours"},
 			[]string{"a hundred sites", "<b>100 sites</b>", "for one hour", "for 7 days", "two minutes"}},
 		{"/privacy.html", []string{"lasts up to 60 days and covers", "access token that lasts 45 minutes", "expires after 120 days without use", "deleted after 200 days",
-			"shortened IP for 60 days", "Analytics records:</strong> 200 days"},
-			[]string{"up to 30 days", "400 days", "shortened IP for 30 days"}},
+			"shortened IP for 60 days", "Analytics records:</strong> 200 days",
+			// Paper activity has a fixed lifetime, independent of AnalyticsRetention.
+			"one-minute totals are kept for 400 days"},
+			[]string{"up to 30 days", "Analytics records:</strong> 400 days", "shortened IP for 30 days"}},
 		{"/architecture.html", []string{"30,000 entries", "every 5 minutes (releasing unproven bindings after 36 hours)"},
 			[]string{"50,000 entries", "8-minute", "64 in total", "burst 30"}},
 		{"/dashboard", []string{"For 30 days you can restore it"}, []string{"For 7 days"}},

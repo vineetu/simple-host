@@ -26,17 +26,40 @@ func (c *Collector) flush(ctx context.Context) {
 	}
 	var rows []row
 	for i := 1; i < numClasses; i++ {
-		h := &c.hist[i]
-		r := row{class: classNames[i]}
-		r.requests = h.requests.Swap(0)
-		if r.requests == 0 {
-			continue
-		}
-		r.errors = h.errors.Swap(0)
-		r.totalUS = h.totalUS.Swap(0)
-		r.by = h.bytes.Swap(0)
-		for b := range h.buckets {
-			r.buckets[b] = h.buckets[b].Swap(0)
+		var r row
+		if c.hack == nil {
+			h := &c.hist[i]
+			r = row{class: classNames[i]}
+			r.requests = h.requests.Swap(0)
+			if r.requests == 0 {
+				continue
+			}
+			r.errors = h.errors.Swap(0)
+			r.totalUS = h.totalUS.Swap(0)
+			r.by = h.bytes.Swap(0)
+			for b := range h.buckets {
+				r.buckets[b] = h.buckets[b].Swap(0)
+			}
+		} else {
+			r = row{class: classNames[i]}
+			histories := []*classHist{&c.hist[i]}
+			if c.hack != nil {
+				for shard := range c.hack.hist {
+					histories = append(histories, &c.hack.hist[shard][i])
+				}
+			}
+			for _, h := range histories {
+				r.requests += h.requests.Swap(0)
+				r.errors += h.errors.Swap(0)
+				r.totalUS += h.totalUS.Swap(0)
+				r.by += h.bytes.Swap(0)
+				for b := range h.buckets {
+					r.buckets[b] += h.buckets[b].Swap(0)
+				}
+			}
+			if r.requests == 0 {
+				continue
+			}
 		}
 		rows = append(rows, r)
 	}
@@ -237,7 +260,11 @@ func (c *Collector) dailySnapshot(ctx context.Context, now time.Time) error {
 		return nil
 	}
 	n := 0
-	for _, m := range dailyMetrics {
+	metrics := dailyMetrics
+	if c.hack != nil {
+		metrics = append(append([]struct{ name, query string }{}, dailyMetrics...), hackDailyMetrics...)
+	}
+	for _, m := range metrics {
 		var v sql.NullFloat64
 		var args []any
 		if strings.Contains(m.query, "$1") {
@@ -250,9 +277,34 @@ func (c *Collector) dailySnapshot(ctx context.Context, now time.Time) error {
 		if !v.Valid {
 			v.Float64 = 0
 		}
-		if _, err := c.db.ExecContext(ctx, `INSERT INTO paper_daily (day, metric, value) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, day, m.name, v.Float64); err != nil {
+		if c.hack != nil && (strings.HasPrefix(m.name, "hack_") || m.name == "paper_tables_bytes") {
+			run, err := c.ensureRun(ctx)
+			if err != nil {
+				log.Printf("paper metrics Hack daily run: %v", err)
+				continue
+			}
+			tx, err := c.db.BeginTx(ctx, nil)
+			if err != nil {
+				log.Printf("paper metrics Hack daily: %v", err)
+				continue
+			}
+			_, err = tx.ExecContext(ctx, `INSERT INTO paper_hack_daily(run_id,day,metric,value) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, run, day, m.name, v.Float64)
+			if err == nil {
+				_, err = tx.ExecContext(ctx, `INSERT INTO paper_daily(day,metric,value) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, day, m.name, v.Float64)
+			}
+			if err == nil {
+				err = tx.Commit()
+			} else {
+				_ = tx.Rollback()
+			}
+			if err != nil {
+				log.Printf("paper metrics Hack daily: %v", err)
+				continue
+			}
+		} else if _, err := c.db.ExecContext(ctx, `INSERT INTO paper_daily(day,metric,value) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, day, m.name, v.Float64); err != nil {
 			return err
 		}
+
 		n++
 	}
 	log.Printf("paper metrics: daily snapshot for %s, %d metrics", day, n)

@@ -73,6 +73,47 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) error {
 		return err
 	}
 
+	c.walkFootprints(sites)
+
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+	for _, f := range sites {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO paper_site_footprint (week, versions, live_files, live_bytes, total_bytes,
+				html_bytes, js_bytes, css_bytes, media_bytes, other_bytes,
+				sqlite_bytes, file_store_bytes, kv_bytes, kv_rows, legacy_rows, views_30d, age_days, days_since_update)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+			week, f.versions, f.liveFiles, f.liveBytes, f.totalBytes,
+			f.htmlBytes, f.jsBytes, f.cssBytes, f.mediaBytes, f.other,
+			f.sqliteBytes, f.fileStoreBytes, f.kvBytes, f.kvRows, f.legacyRows, f.views30d, f.ageDays, f.daysSinceUpdate); err != nil {
+			return fmt.Errorf("insert footprint: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	log.Printf("paper metrics: footprint for week of %s, %d sites", week, len(sites))
+	return nil
+}
+
+func isDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// walkFootprints is shared by the weekly site and nightly Hack snapshots.
+// Symlinks are not followed; only regular files count.
+func (c *Collector) walkFootprints(sites map[string]*siteFootprint) {
+	if c.dataDir == "" {
+		return
+	}
 	root := filepath.Join(c.dataDir, "by-id")
 	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -132,35 +173,4 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) error {
 		return nil
 	})
 
-	tx, err := c.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck
-	for _, f := range sites {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO paper_site_footprint (week, versions, live_files, live_bytes, total_bytes,
-				html_bytes, js_bytes, css_bytes, media_bytes, other_bytes,
-				sqlite_bytes, file_store_bytes, kv_bytes, kv_rows, legacy_rows, views_30d, age_days, days_since_update)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
-			week, f.versions, f.liveFiles, f.liveBytes, f.totalBytes,
-			f.htmlBytes, f.jsBytes, f.cssBytes, f.mediaBytes, f.other,
-			f.sqliteBytes, f.fileStoreBytes, f.kvBytes, f.kvRows, f.legacyRows, f.views30d, f.ageDays, f.daysSinceUpdate); err != nil {
-			return fmt.Errorf("insert footprint: %w", err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	log.Printf("paper metrics: footprint for week of %s, %d sites", week, len(sites))
-	return nil
-}
-
-func isDigits(s string) bool {
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return s != ""
 }

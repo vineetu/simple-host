@@ -91,6 +91,9 @@ func (h *HackHandler) downloadHackArchive(w http.ResponseWriter, r *http.Request
 		return
 	}
 	ev, err := db.GetEventBySlug(r.Context(), h.database, c.Slug)
+	if err == nil {
+		paperHackEvent(r, ev)
+	}
 	if err != nil || ev.ID != c.EventID {
 		invalid()
 		return

@@ -105,6 +105,14 @@ run "storage presets"     "SELECT name, kind, read_policy, write_policy, site_pa
 run "storage table presets" "SELECT table_name, acc_read, acc_add, acc_edit, acc_delete, preset_base FROM site_storage_tables WHERE site_id = '00000000-0000-0000-0000-000000000000'"
 run "team kept-after-leave marker" "SELECT kept_after_leave FROM event_teams WHERE id = '$NIL'"
 
+run "Hack paper event snapshot" "SELECT snapshot_day,event_key,run_id,synthetic,stage,created_week,duration_hours,expected_participants,participants,organisers,judges,applications,applications_approved,teams,teams_with_entry,teams_kept_after_leave,team_size_p50,team_size_max,team_sites,team_site_bytes_sum,team_site_bytes_p50,team_site_versions_sum,event_storage_bytes,submissions,entries_with_code_url,entries_with_video,scores,score_criteria,assignments,conflicts,votes,announcements,results_published,deploys_total,minutes_create_to_first_deploy FROM paper_hack_event"
+run "Hack paper activity slots" "SELECT run_id,slot,slot_secs,event_key,synthetic,requests,writes,data_writes,deploys,active_members,inflight_max,peak_rps_1s,arrivals_1s,writes_1s FROM paper_hack_minute"
+run "Hack paper histogram cells" "SELECT run_id,slot,event_key,synthetic,class,status_group,n,sum_us,max_us,bytes_out,idx_offset,counts,arrivals_1s,writes_1s FROM paper_hack_latency"
+run "Hack paper phases" "SELECT run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,baseline,recorded_at,origin_change FROM paper_hack_phase"
+run "Paper provenance" "SELECT run_id,started_at,role,vcs_revision,vcs_modified,go_version,binary_sha256,config_hash,metric_def_version,bucket_scheme,gomaxprocs,num_cpu,cgroup_memory_max,cgroup_cpu_max FROM paper_run"
+run "Private Hack key lookup" "SELECT event_id,event_key,synthetic,run_id,first_open_at FROM paper_hack_key"
+run "Hack daily provenance" "SELECT run_id,day,metric,value FROM paper_hack_daily"
+
 # An existing box upgrades by running `simple-host migrate`. Prove, on its own
 # throwaway database and role (the Go test connects over TCP with a password):
 # schema.sql + migrate leaves nothing pending, a second run is a no-op, a box

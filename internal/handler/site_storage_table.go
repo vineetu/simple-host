@@ -565,6 +565,7 @@ func (t *storageTableCall) finish(commit func() error, body map[string]any, noti
 	if _, _, err := t.conn.WALCheckpoint("main", sqlite3.CHECKPOINT_TRUNCATE); err != nil {
 		log.Printf("storage: site %s %s: checkpoint after commit: %v", t.c.siteID, t.c.resourceName, err)
 	}
+	paperHackWrite(t.r)
 	t.h.disk.MarkChanged()
 	*t.after = notify
 	writeJSON(t.w, 200, body)

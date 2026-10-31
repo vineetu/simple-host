@@ -89,11 +89,12 @@ func siteSub(p string) string {
 	if !ok {
 		return ""
 	}
-	parts := strings.SplitN(rest, "/", 3)
-	if len(parts) < 2 {
+	_, rest, found := strings.Cut(rest, "/")
+	if !found {
 		return ""
 	}
-	return parts[1]
+	sub, _, _ := strings.Cut(rest, "/")
+	return sub
 }
 
 // isDataPath: a site's saved data (storage presets, legacy collections, state, data).

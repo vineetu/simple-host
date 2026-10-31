@@ -186,6 +186,9 @@ func (h *HackHandler) patchDirectoryListed(w http.ResponseWriter, r *http.Reques
 
 func (h *HackHandler) getVote(w http.ResponseWriter, r *http.Request) {
 	ev, err := db.GetEventBySlug(r.Context(), h.database, r.PathValue("slug"))
+	if err == nil {
+		paperHackEvent(r, ev)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
@@ -248,6 +251,9 @@ func (h *HackHandler) getMyVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ev, err := db.GetEventBySlug(r.Context(), h.database, r.PathValue("slug"))
+	if err == nil {
+		paperHackEvent(r, ev)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
@@ -307,6 +313,9 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ev, err := db.GetEventBySlug(r.Context(), h.database, r.PathValue("slug"))
+	if err == nil {
+		paperHackEvent(r, ev)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return

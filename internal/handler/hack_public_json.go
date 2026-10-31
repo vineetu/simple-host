@@ -26,6 +26,9 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ev, err := db.GetEventBySlug(r.Context(), h.database, strings.ToLower(r.PathValue("slug")))
+	if err == nil {
+		paperHackEvent(r, ev)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return

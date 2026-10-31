@@ -1692,6 +1692,23 @@ hash, path or name is stored. About 0.4 µs and one allocation per request (`Ben
 `PAPER_METRICS=off` turns it off. Export: `GET /v1/admin/paper-metrics?set=&from=&to=&format=csv`
 (admin only; `scripts/paper-metrics-export.sh` writes every set as CSV).
 
+Simple Hack paper metrics (2026-10-31, SIM-335; definition 4, implemented pending deployment):
+`EVENTS=hosted` adds daily anonymous event histories (`paper_hack_event`), minute activity
+through judging and 24 hours after publication (`paper_hack_minute`: start-time arrivals,
+one-second arrivals/writes, actual in-flight maximum and active-member counts), and
+mergeable per-class/status exponential histograms (`paper_hack_latency`; no stored percentiles).
+A private `paper_hack_key` source-ID mapping assigns stable random event keys and is deleted
+with the event; it is never exported. Event-key/synthetic histories and captured stage/deadline
+phases (`paper_hack_phase`) join per-process `paper_run` provenance. The 18 Hack daily counts
+plus `paper_tables_bytes` retain compatibility in `paper_daily` and gain run provenance in
+`paper_hack_daily`. Existing Host tables, buckets and sampling remain unchanged; PAPER_METRICS=off writes nothing, including provenance. Host export shapes are unchanged. Idle minute rows are omitted; baseline markers survive restarts without fake transitions, panic cleanup releases gauges, all event-key exports have only relative offsets and decimal-string keys, snapshots omit dates, and stage hooks nudge background work without waiting. Export sets are
+`hack_events`, `hack_minutes`, `hack_latency`, `hack_phases`, `runs`; people counts below 5
+export NULL with flags and dependency suppression for judge/application totals in both daily and per-event rows, and events below 5 teams require `include_small=1` for admin inspection.
+Cells use sparse pooled histogram chunks, four counter shards and per-shard pending references; phase rows deduplicate on the source stage change across minute boundaries. Cap: 200 events per minute; activity/histogram retention: 400 days. The strict 1 µs overhead gate remains open because some final benchmark repetitions exceed it (methods document the complete results). Schema:
+`db/migrations/zs-hack-paper-metrics.sql`; code: `internal/papermetrics/{histogram,provenance,hack_*}.go`,
+`h/hack_paper_metrics.go`; full definitions: `docs/paper-metrics-dictionary.md`; method:
+`docs/paper-metrics.md`. No site/member names, emails, IPs or free-form content are exported.
+
 | Surface | Details |
 |---|---|
 | Routes | `GET /v1/sites/{sitename}/analytics` · `GET /v1/sites/{sitename}/analytics/geo` · `GET /v1/sites/{sitename}/analytics/top` · `GET /v1/analytics/sites` · `GET /v1/admin/api-analytics` · `GET /v1/admin/growth` · `GET /v1/admin/paper-metrics` |

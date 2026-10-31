@@ -1017,6 +1017,7 @@ func (h *SiteHandler) resolveSiteIDBare(r *http.Request, siteName string) (strin
 		if key := r.Header.Get("X-API-Key"); key != "" {
 			if u, ok, kerr := h.resolveWriterKey(r.Context(), key); kerr == nil && ok && u.ID != "" {
 				if s, serr := db.GetSiteByUser(r.Context(), h.database, u.ID, siteName); serr == nil {
+					paperHackSite(r, s.UserID, s.Name, &u)
 					return s.ID, true, nil
 				}
 			}
@@ -1053,6 +1054,7 @@ func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (str
 				return "", sql.ErrNoRows
 			}
 		}
+		paperHackSite(r, site.UserID, site.Name, auth.GetUser(r.Context()))
 		return site.ID, nil
 	}
 	// On a family address (<label>.<family>) the host names the site too:
@@ -1771,6 +1773,7 @@ func (h *SiteHandler) commitCreateLocked(w http.ResponseWriter, r *http.Request,
 		}
 	}
 
+	paperHackDeploy(r, user)
 	writeJSON(w, http.StatusCreated, h.siteResponseFor(user, site))
 	return false
 }
@@ -1959,6 +1962,7 @@ func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Req
 	h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, versionNumber, site.KeepVersions)
 
 	site.ActiveVersion = versionNumber
+	paperHackDeploy(r, user)
 	respond(h.siteResponseFor(user, site))
 }
 

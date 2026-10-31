@@ -17,6 +17,9 @@ func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
 	screenshot := HackScreenshot(database, ready)
 	load := func(w http.ResponseWriter, r *http.Request) (db.User, bool) {
 		ev, err := db.GetEventBySlug(r.Context(), database, strings.ToLower(r.PathValue("slug")))
+		if err == nil {
+			paperHackEvent(r, ev)
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			writeHackEventNotFound(w, r, appURL)
 			return db.User{}, false

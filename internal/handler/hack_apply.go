@@ -111,6 +111,9 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
 	ev, err := db.GetEventBySlug(r.Context(), h.database, slug)
+	if err == nil {
+		paperHackEvent(r, ev)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
@@ -301,6 +304,9 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
 	ev, err := db.GetEventBySlug(r.Context(), h.database, slug)
+	if err == nil {
+		paperHackEvent(r, ev)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return

@@ -35,6 +35,9 @@ func (h *HackHandler) registerEventIcon(mux *http.ServeMux, wrap func(http.Handl
 func (h *HackHandler) getEventIcon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	ev, err := db.GetEventBySlug(r.Context(), h.database, strings.ToLower(r.PathValue("slug")))
+	if err == nil {
+		paperHackEvent(r, ev)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return

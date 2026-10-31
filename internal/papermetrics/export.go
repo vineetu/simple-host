@@ -10,12 +10,20 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // Sets the export can produce. Each is a table: columns plus rows.
 var exportSets = map[string]func(c *Collector, ctx context.Context, from, to string, r *http.Request) (table, error){
 	"daily":             (*Collector).setDaily,
+	"hack_events":       (*Collector).setHackEvents,
+	"hack_minutes":      (*Collector).setHackMinutes,
+	"hack_latency":      (*Collector).setHackLatency,
+	"hack_phases":       (*Collector).setHackPhases,
+	"runs":              (*Collector).setRuns,
 	"latency":           (*Collector).setLatency,
 	"latency_buckets":   (*Collector).setLatencyBuckets,
 	"process":           (*Collector).setProcess,
@@ -26,11 +34,13 @@ var exportSets = map[string]func(c *Collector, ctx context.Context, from, to str
 }
 
 type table struct {
-	Set     string   `json:"set"`
-	From    string   `json:"from"`
-	To      string   `json:"to"`
-	Columns []string `json:"columns"`
-	Rows    [][]any  `json:"rows"`
+	BucketScheme     string   `json:"bucket_scheme,omitempty"`
+	MetricDefVersion int      `json:"metric_def_version,omitempty"`
+	Set              string   `json:"set"`
+	From             string   `json:"from"`
+	To               string   `json:"to"`
+	Columns          []string `json:"columns"`
+	Rows             [][]any  `json:"rows"`
 }
 
 // Who reports whether a request is signed in and whether it is the
@@ -76,11 +86,15 @@ func (c *Collector) export(w http.ResponseWriter, r *http.Request) {
 	set := q.Get("set")
 	if set == "" || set == "summary" {
 		if q.Get("format") == "csv" {
-			writeErr(w, http.StatusBadRequest, "csv needs one set: "+setList())
+			writeErr(w, http.StatusBadRequest, "csv needs one set: "+c.exportSetList())
 			return
 		}
 		out := map[string]any{"from": from, "to": to, "classes": ClassNames(), "bucket_upper_us": BucketBounds(), "methodology": "https://github.com/vineetu/simple-host/blob/main/docs/paper-metrics.md"}
-		for _, name := range sortedSets() {
+		if c.hack != nil {
+			out["metric_def_version"] = MetricDefVersion
+			out["bucket_schemes"] = map[string]string{"latency_buckets": LegacyBucketScheme, "hack_latency": BucketScheme}
+		}
+		for _, name := range c.sortedExportSets() {
 			t, err := exportSets[name](c, r.Context(), from, to, r)
 			if err != nil {
 				out[name] = map[string]string{"error": err.Error()}
@@ -93,8 +107,8 @@ func (c *Collector) export(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fn := exportSets[set]
-	if fn == nil {
-		writeErr(w, http.StatusBadRequest, "unknown set; one of: summary, "+setList())
+	if fn == nil || (c.hack == nil && hackExportSet(set)) {
+		writeErr(w, http.StatusBadRequest, "unknown set; one of: summary, "+c.exportSetList())
 		return
 	}
 	t, err := fn(c, r.Context(), from, to, r)
@@ -110,7 +124,17 @@ func (c *Collector) export(w http.ResponseWriter, r *http.Request) {
 		for _, row := range t.Rows {
 			rec := make([]string, len(row))
 			for i, v := range row {
-				rec[i] = fmt.Sprint(v)
+				if c.hack == nil {
+					rec[i] = fmt.Sprint(v)
+				} else if v != nil {
+					switch value := v.(type) {
+					case []int64:
+						encoded, _ := json.Marshal(value)
+						rec[i] = string(encoded)
+					default:
+						rec[i] = fmt.Sprint(v)
+					}
+				}
 			}
 			_ = cw.Write(rec)
 		}
@@ -155,6 +179,18 @@ func (c *Collector) query(ctx context.Context, set, from, to string, cols []stri
 	}
 	defer rows.Close()
 	t := table{Set: set, From: from, To: to, Columns: cols, Rows: [][]any{}}
+	if c.hack != nil {
+		t.MetricDefVersion = MetricDefVersion
+		if set != "daily" && set != "runs" && !strings.HasPrefix(set, "hack_") {
+			t.MetricDefVersion = 1
+		}
+		if set == "latency_buckets" {
+			t.BucketScheme = LegacyBucketScheme
+		}
+		if set == "hack_latency" {
+			t.BucketScheme = BucketScheme
+		}
+	}
 	for rows.Next() {
 		vals := make([]any, len(cols))
 		ptrs := make([]any, len(cols))
@@ -167,6 +203,18 @@ func (c *Collector) query(ctx context.Context, set, from, to string, cols []stri
 		for i, v := range vals {
 			switch x := v.(type) {
 			case []byte:
+				if cols[i] == "event_key" {
+					vals[i] = string(x)
+					continue
+				}
+				if c.hack != nil && (cols[i] == "counts" || cols[i] == "arrivals_1s" || cols[i] == "writes_1s") {
+					var array pq.Int64Array
+					if err := array.Scan(x); err != nil {
+						return table{}, err
+					}
+					vals[i] = []int64(array)
+					continue
+				}
 				if _, err := strconv.ParseFloat(string(x), 64); err == nil {
 					vals[i] = json.Number(x) // numeric columns come back as text
 				} else {
@@ -182,8 +230,15 @@ func (c *Collector) query(ctx context.Context, set, from, to string, cols []stri
 }
 
 func (c *Collector) setDaily(ctx context.Context, from, to string, _ *http.Request) (table, error) {
-	return c.query(ctx, "daily", from, to, []string{"day", "metric", "value"},
-		`SELECT to_char(day, 'YYYY-MM-DD'), metric, value FROM paper_daily WHERE day BETWEEN $1 AND $2 ORDER BY day, metric`, from, to)
+	if c.hack == nil {
+		return c.query(ctx, "daily", from, to, []string{"day", "metric", "value"},
+			`SELECT to_char(day, 'YYYY-MM-DD'), metric, value FROM paper_daily WHERE day BETWEEN $1 AND $2 ORDER BY day, metric`, from, to)
+	}
+	t, err := c.query(ctx, "daily", from, to, []string{"day", "metric", "value", "run_id", "metric_def_version"}, `SELECT to_char(d.day,'YYYY-MM-DD'),d.metric,d.value,h.run_id,COALESCE(r.metric_def_version,1) FROM paper_daily d LEFT JOIN paper_hack_daily h ON h.day=d.day AND h.metric=d.metric LEFT JOIN paper_run r ON r.run_id=h.run_id WHERE d.day BETWEEN $1 AND $2 ORDER BY d.day,d.metric`, from, to)
+	if err != nil {
+		return t, err
+	}
+	return suppressHackDaily(t), nil
 }
 
 func (c *Collector) setLatencyBuckets(ctx context.Context, from, to string, _ *http.Request) (table, error) {
@@ -221,6 +276,10 @@ func (c *Collector) setLatency(ctx context.Context, from, to string, r *http.Req
 	}
 	t := table{Set: "latency", From: from, To: to, Rows: [][]any{},
 		Columns: []string{"day", "class", "requests", "server_error_pct", "bytes_out", "mean_ms", "p50_ms", "p90_ms", "p99_ms", "p999_ms"}}
+	if c.hack != nil {
+		t.MetricDefVersion = 1
+		t.BucketScheme = LegacyBucketScheme
+	}
 	for _, row := range classes.Rows {
 		n, errs, totalUS, bytes := toInt(row[2]), toInt(row[3]), toInt(row[4]), toInt(row[5])
 		h := hist[fmt.Sprint(row[0], "|", row[1])]
@@ -349,3 +408,19 @@ func round(v float64, places int) float64 {
 	p := math.Pow(10, float64(places))
 	return math.Round(v*p) / p
 }
+
+func hackExportSet(name string) bool { return strings.HasPrefix(name, "hack_") || name == "runs" }
+func (c *Collector) sortedExportSets() []string {
+	names := sortedSets()
+	if c.hack != nil {
+		return names
+	}
+	result := names[:0]
+	for _, name := range names {
+		if !hackExportSet(name) {
+			result = append(result, name)
+		}
+	}
+	return result
+}
+func (c *Collector) exportSetList() string { return strings.Join(c.sortedExportSets(), ", ") }

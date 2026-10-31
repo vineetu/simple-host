@@ -4,12 +4,13 @@
 // daily snapshot of counts, and a weekly footprint row per site with no
 // identifier at all. Methodology: docs/paper-metrics.md.
 //
-// Nothing here stores a person, an address, a site name or a path. Every
-// table is a count, a size, a duration, or a histogram bucket.
+// Exported tables store no person, address, site name or path. The private
+// Hack key lookup alone holds an operational event ID, deleted with that event.
 //
 // Cost is the point of the paper, so it has to be near zero here too: a
-// request costs one classification and two atomic adds (BenchmarkWrap), and
-// the database sees one small upsert a minute plus one sample every five.
+// Host request uses classHist (BenchmarkWrap); Hack adds event-slot atomics
+// and a member set (BenchmarkHackWrap and BenchmarkHackWrapParallel). The
+// database sees completed slot batches and a process sample every five minutes.
 // A missing table only loses metrics; it never stops the server.
 package papermetrics
 
@@ -21,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -39,6 +41,10 @@ type Collector struct {
 	started    time.Time
 	hist       [numClasses]classHist
 	lastSample sample
+	hack       *hackMetrics
+	runID      atomic.Int64
+	runMu      sync.Mutex
+	runConfig  map[string]any
 }
 
 // New makes a collector. apexHosts are the platform's own host names
@@ -58,6 +64,15 @@ func New(db *sql.DB, dataDir string, apexHosts ...string) *Collector {
 
 // Start runs the flush, sample and snapshot loops until ctx ends.
 func (c *Collector) Start(ctx context.Context) {
+	if !Enabled() {
+		return
+	}
+	if _, err := c.ensureRun(ctx); err != nil {
+		log.Printf("paper metrics run: %v", err)
+	}
+	if c.hack != nil {
+		go c.hackLoop(ctx)
+	}
 	go c.loop(ctx)
 }
 
@@ -93,6 +108,11 @@ func (c *Collector) snapshots(ctx context.Context) {
 	if err := c.dailySnapshot(ctx, time.Now().UTC()); err != nil {
 		log.Printf("paper metrics daily snapshot: %v", err)
 	}
+	if c.hack != nil {
+		if err := c.hackSnapshot(ctx, time.Now().UTC()); err != nil {
+			log.Printf("paper metrics Hack snapshot: %v", err)
+		}
+	}
 	if err := c.weeklyFootprint(ctx, time.Now().UTC()); err != nil {
 		log.Printf("paper metrics footprint: %v", err)
 	}
@@ -100,6 +120,12 @@ func (c *Collector) snapshots(ctx context.Context) {
 
 // Wrap times every request through h into its class's histogram.
 func (c *Collector) Wrap(h http.Handler) http.Handler {
+	if !Enabled() {
+		return h
+	}
+	if c.hack != nil {
+		return c.wrapHack(h)
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cl := c.classify(r)
 		if cl == classNone {

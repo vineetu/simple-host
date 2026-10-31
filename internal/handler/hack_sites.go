@@ -82,6 +82,7 @@ func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx 
 		writeEventNotFound(w)
 		return false
 	}
+	paperHackSite(r, user.Team.AccountID, siteName, user)
 	st, err := db.TeamWriteStateFor(r.Context(), tx, user.Team.TeamID, true)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -91,6 +92,7 @@ func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx 
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return false
 	}
+	paperHackTeamState(r, user, st.Stage)
 	if code := st.WriteRefusal(); code != "" {
 		status, msg := auth.TeamRefusal(code)
 		writeJSON(w, status, errorResponse{Error: msg, Code: code})

@@ -67,6 +67,9 @@ func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug
 	}
 	slug = strings.ToLower(strings.TrimSpace(slug))
 	ev, err := db.GetEventBySlug(r.Context(), h.database, slug)
+	if err == nil {
+		paperHackEvent(r, ev)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return db.Event{}, db.EventMember{}, "", nil, false
@@ -76,6 +79,9 @@ func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug
 		return db.Event{}, db.EventMember{}, "", nil, false
 	}
 	member, status, err := db.LeaveSelf(r.Context(), h.database, ev.ID, user.ID, false)
+	if err == nil {
+		paperHackKnownMember(r, ev, user.ID)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return db.Event{}, db.EventMember{}, "", nil, false
@@ -275,6 +281,9 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
 	ev0, err := db.GetEventBySlug(r.Context(), h.database, slug)
+	if err == nil {
+		paperHackEvent(r, ev0)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
@@ -407,10 +416,12 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 		}
 	case "last_organiser":
 		if req.Close == "end" {
-			if _, err := archiveEventTx(ctx, tx, ev.ID, ev.Stage); err != nil {
+			updated, err := archiveEventTx(ctx, tx, ev.ID, ev.Stage)
+			if err != nil {
 				writeInternal(w)
 				return
 			}
+			ev.UpdatedAt = updated.UpdatedAt
 			if _, err := tx.ExecContext(ctx, `DELETE FROM event_organiser_invites WHERE event_id = $1`, ev.ID); err != nil {
 				writeInternal(w)
 				return
@@ -465,6 +476,9 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case leaveCase == "last_organiser" && req.Close == "end":
 		eventResult = "ended"
+		ev.Stage = "archived"
+		paperHackStage(r, ev)
+		paperHackTimes(r)
 		h.pinDue(ctx, ev.ID)
 		// setStage calls requestEventCert after archiving too, but that call
 		// is a no-op for an archived event: requestEventCert only asks for a

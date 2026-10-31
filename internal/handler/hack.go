@@ -377,6 +377,9 @@ func (h *HackHandler) loadMember(w http.ResponseWriter, r *http.Request, slug st
 	}
 	slug = strings.ToLower(strings.TrimSpace(slug))
 	ev, err := db.GetEventBySlug(r.Context(), h.database, slug)
+	if err == nil {
+		paperHackEvent(r, ev)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return z, false
@@ -386,6 +389,9 @@ func (h *HackHandler) loadMember(w http.ResponseWriter, r *http.Request, slug st
 		return z, false
 	}
 	m, err := db.GetEventMember(r.Context(), h.database, ev.ID, user.ID)
+	if err == nil {
+		paperHackKnownMember(r, ev, user.ID)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		if user.IsAdmin && !write {
 			z = hackAccess{event: ev, member: db.EventMember{EventID: ev.ID, UserID: user.ID, Role: "organiser"}, user: user, admin: true}
@@ -1377,6 +1383,10 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	if current != updated.Stage {
+		paperHackStage(r, updated)
+	}
+	paperHackTimes(r)
 	h.pinDue(r.Context(), updated.ID)
 	h.requestEventCert(updated)
 	writeJSON(w, http.StatusOK, h.eventView(r.Context(), updated, a.member, true))

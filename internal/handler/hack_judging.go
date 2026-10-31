@@ -1565,6 +1565,7 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	paperHackTimes(r)
 	full, err := db.GetEventResults(r.Context(), h.database, a.event.ID)
 	if err != nil {
 		log.Printf("hack: publish %s: %v", a.event.Slug, err)
@@ -1637,6 +1638,9 @@ func (h *HackHandler) patchResults(w http.ResponseWriter, r *http.Request) {
 func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
 	ev, err := db.GetEventBySlug(r.Context(), h.database, slug)
+	if err == nil {
+		paperHackEvent(r, ev)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return

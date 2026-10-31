@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/papermetrics"
 )
 
 // Storage access presets (owner decision 2026-10-10; INTENT.md and
@@ -510,6 +511,7 @@ func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ow
 		return
 	}
 	if hackMode {
+		papermetrics.HackMember(r.Context(), sess.UserID)
 		if ok, err := db.HackSiteOwnerOnSite(r.Context(), h.database, sess.SiteID, sess.UserID); err != nil || !ok {
 			return
 		}
