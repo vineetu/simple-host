@@ -14,9 +14,9 @@
   // three: git rev-parse vX.Y.Z^{commit}, and
   // git show vX.Y.Z:deploy/install/install.sh | sha256sum. A Go test
   // (TestSetupHelperInstallerRelease) checks them against the tag.
-  var INSTALLER_RELEASE = 'v0.7.21';
-  var INSTALLER_COMMIT = '341ecc201de639383b14d32ca355fca34475e16f';
-  var INSTALLER_SHA256 = 'a39eac2ac0aea1e38e95c810bcb50653a1eabf3da589ee9cbb2d46fe1080fbd6';
+  var INSTALLER_RELEASE = 'v0.7.22';
+  var INSTALLER_COMMIT = '3a097ad574a978ff856ce1fbadec7c82a99a9662';
+  var INSTALLER_SHA256 = '528719a72e1f0ff1913883559b6a3dc1678599c74e06205ba98b88165dce8970';
   var INSTALL_URL = 'https://raw.githubusercontent.com/vineetu/simple-host/' + INSTALLER_COMMIT + '/deploy/install/install.sh';
   // Enterprise installs into a cluster the operator already runs, from this
   // pinned chart (app v0.9.10). The page never provisions a cluster.
