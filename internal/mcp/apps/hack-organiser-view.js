@@ -289,6 +289,20 @@
 
   // --- in-frame routing -------------------------------------------------
   var IN_FRAME_VIEWS = { overview: 1, people: 1, judging: 1 };
+  // VIEW_ORDER/VIEW_LABELS back the view switcher (addViewSwitcher, below):
+  // the one-button Overview redesign (teams-redesign branch) removed every
+  // in-frame link Overview used to carry into People or Judging ("Sign-up
+  // questions", "Set up judging" -- both used to be `<a href="#v=...">`,
+  // now a confirm-driven stage-change button that stays on Overview). With
+  // no organic link left anywhere in the three reused screens (People and
+  // Judging never linked to each other either -- see the click-handler
+  // comment below), an organiser working from chat would otherwise have no
+  // way to reach People or Judging without the model reopening the view
+  // with a fresh hack_show_organiser call. This switcher is frame-level
+  // chrome, not part of any reused screen, so it survives regardless of
+  // what a given screen's own render() does with `main`.
+  var VIEW_ORDER = ['overview', 'people', 'judging'];
+  var VIEW_LABELS = { overview: 'Overview', people: 'People', judging: 'Judging' };
   var main = document.getElementById('app');
   // history is a tiny back-stack of {view, params}, pushed on every normal
   // navigation and popped by goBack() -- same purpose as the judge app's:
@@ -439,6 +453,7 @@
     }
     if (generation !== renderGeneration) return;
     if (state.history.length) addBackControl();
+    addViewSwitcher();
   }
   function goBack() {
     var prev = state.history.pop();
@@ -455,6 +470,34 @@
     back.textContent = '‹ Back';
     back.addEventListener('click', goBack);
     main.insertBefore(back, main.firstChild);
+  }
+  // addViewSwitcher: always present (not gated on history, unlike Back),
+  // since it is the organiser's only way into People or Judging now that
+  // Overview carries no in-frame link to either -- see VIEW_ORDER's own
+  // comment above. Re-added after every render() (each screen replaces
+  // `main.innerHTML` wholesale, same reason addBackControl re-adds itself
+  // every time), inserted above Back so the fixed "jump anywhere" row
+  // always sits above the "go back one step" control.
+  function addViewSwitcher() {
+    if (main.querySelector('[data-app-view-switcher]')) return;
+    var nav = document.createElement('nav');
+    nav.setAttribute('data-app-view-switcher', '');
+    nav.setAttribute('aria-label', 'Organiser app views');
+    nav.style.display = 'flex';
+    nav.style.gap = '8px';
+    nav.style.marginBottom = '14px';
+    VIEW_ORDER.forEach(function (v) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      var current = v === state.view;
+      btn.className = 'btn sm' + (current ? ' primary' : '');
+      btn.setAttribute('data-app-view', v);
+      if (current) btn.setAttribute('aria-current', 'page');
+      btn.textContent = VIEW_LABELS[v];
+      btn.addEventListener('click', function () { if (v !== state.view) renderView(v, {}); });
+      nav.appendChild(btn);
+    });
+    main.insertBefore(nav, main.firstChild);
   }
   // Brackets exactly the one render() call triggered by Overview's
   // "Sign-up questions" link (organiser-overview.js builds that href as

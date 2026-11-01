@@ -258,27 +258,35 @@ try {
   await context.close();
  }
 
- // Back control: a real in-frame navigation (Overview's own hero action --
- // at this fixture's stage, "Set up judging", built through the same
- // href() stub as every other in-frame link, '#v=judging') pushes Overview
- // onto the tiny view-history stack; Back must return to it. Neither
- // organiser-people.js nor organiser-judging.js has a link to the other
- // (that normally comes from the shell this frame leaves out), so Overview
- // is the one real in-frame link into Judging this fixture's stage offers.
+ // Back control: a real in-frame navigation pushes Overview onto the tiny
+ // view-history stack; Back must return to it. Overview used to carry its
+ // own hero-action link into Judging ("Set up judging", an `a.btn.primary`
+ // built through the same href() stub as every other in-frame link), but
+ // the teams-redesign's one-button Overview replaced that with a
+ // confirm-driven stage-change button that stays on Overview -- correct
+ // product behaviour, not a bug (owner decision 2026-11-01). Overview now
+ // carries no in-frame link into People or Judging at all, and neither of
+ // those two links to the other either (that normally comes from the
+ // shell this frame leaves out), so the frame-level view switcher added
+ // alongside this fix (hack-organiser-view.js's addViewSwitcher,
+ // [data-app-view-switcher]/[data-app-view]) is the one real in-frame
+ // navigation left for an organiser working from chat -- and the one
+ // this test now drives: Overview -> People -> Back -> Overview.
  {
   const context=await browser.newContext({viewport:{width:390,height:900}}),page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('dialog',async d=>{errors.push('Unexpected dialog: '+d.message());await d.dismiss();});
   await page.goto(hostURL+'/?host=Claude&theme=light&view=overview');
   const frame=page.frameLocator('iframe');
   await frame.locator('.stat').first().waitFor();
-  await frame.locator('a.btn.primary').click();
-  await frame.locator('#jg-progress-card:not(:has-text("Loading"))').waitFor();
-  await assertOnScreen(frame, '[data-app-back]', 'judging Back control at 390');
+  await assertOnScreen(frame, '[data-app-view="people"]', 'view switcher People tab at 390');
+  await frame.locator('[data-app-view="people"]').click();
+  await frame.locator('#people-list').waitFor();
+  await assertOnScreen(frame, '[data-app-back]', 'People Back control at 390');
   await frame.locator('[data-app-back]').click();
   await frame.locator('.stat').first().waitFor();
-  assert.match(await frame.locator('main').textContent(), /Participants/, 'Back from judging did not return to overview');
+  assert.match(await frame.locator('main').textContent(), /Participants/, 'Back from people did not return to overview');
   assert.deepEqual(errors, []);
-  cases.push({host:'Claude', width:390, view:'judging-back', errors});
+  cases.push({host:'Claude', width:390, view:'people-back', errors});
   await context.close();
  }
 
