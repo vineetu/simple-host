@@ -15,7 +15,6 @@ const roleLabel = role => ({organiser:'Organiser',participant:'Participant',judg
 // or number -- "Mock · Voting" otherwise takes the "·" as its second "word"
 // and returns "M·" instead of "MV".
 const initials = name => String(name || '').split(/\s+/).filter(w => /[\p{L}\p{N}]/u.test(w)).slice(0,2).map(w => w.match(/[\p{L}\p{N}]/u)[0]).join('').toUpperCase()
-function classicURL() { const u = new URL(location.href); u.searchParams.set('ui', 'classic'); return u.pathname + u.search + u.hash }
 // The one date/time formatter every screen uses (A19; owner decision
 // 2026-10-30 overrides the audit's 24-hour pick): 12-hour with am/pm and the
 // weekday, in the event's own zone, never seconds -- "Wed 28 Oct, 6:27 pm".
@@ -234,10 +233,10 @@ const ERROR_MESSAGES = {
   team_kept: "This team can't take new members.",
   team_link_not_found: "That link or code doesn't match a team in this event."
 }
-// errText mirrors hack-app.html's errText: without `codes`, the server's own
-// message (every hack.go / hack_*.go refusal already writes a plain
-// sentence) always wins, since it is usually more specific than anything a
-// client could guess. Pass `codes` (a code -> copy map, usually
+// errText: without `codes`, the server's own message (every hack.go /
+// hack_*.go refusal already writes a plain sentence) always wins, since it
+// is usually more specific than anything a client could guess. Pass `codes`
+// (a code -> copy map, usually
 // ui.ERROR_MESSAGES or a screen-group's override of it) when some of those
 // codes need friendlier client-side copy instead -- then a code match wins
 // over the server's own text.
@@ -253,9 +252,9 @@ function errText(r, { codes, fallback } = {}) {
   if (r && r.data && typeof r.data.error === 'string' && r.data.error) return r.data.error
   return fallback || 'Something went wrong.'
 }
-// Mirrors hack-app.html's writesLocked(): a platform-admin inspection or a
-// taken-down event blocks every write; an archived (ended) event blocks the
-// same controls with its own explanation; reads stay possible either way.
+// writeLockReason: a platform-admin inspection or a taken-down event blocks
+// every write; an archived (ended) event blocks the same controls with its
+// own explanation; reads stay possible either way.
 // Returns '' when writes are fine, else the note to show by the controls.
 // `opts.settings` (S14): the configuration screens -- Event page, People,
 // Teams, Results -- read as one settings form rather than a one-off
@@ -961,7 +960,6 @@ exports.ERROR_MESSAGES = ERROR_MESSAGES;
 exports.GENDER_LABELS = GENDER_LABELS;
 exports.MATURITY = MATURITY;
 exports.TOOL_SUGGESTIONS = TOOL_SUGGESTIONS;
-exports.classicURL = classicURL;
 exports.clearDirtyGuard = clearDirtyGuard;
 exports.confirmDiscardForLeave = confirmDiscardForLeave;
 exports.confirmTyped = confirmTyped;
@@ -2225,8 +2223,9 @@ async function render(ctx) {
   let locked = !!ev.judging_locked_at
   // A platform-admin inspection, a taken-down event or an ended event blocks
   // every write here too, on top of (never instead of) the judging-lock and
-  // stage rules below — matching classic's writesLocked() plus its ended-
-  // event lock, which this screen had been skipping.
+  // stage rules below — the same ui.writeLockReason() every other screen
+  // applies, including its ended-event lock, which this screen had been
+  // skipping.
   const adminLockReason = ui.writeLockReason(ev, ctx.event.admin_view)
   const archived = ev.stage === 'archived'
   const tieClosed = () => locked || !!adminLockReason || ['judging', 'results', 'archived'].includes(ev.stage)

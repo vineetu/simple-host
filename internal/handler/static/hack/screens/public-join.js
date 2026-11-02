@@ -1,11 +1,10 @@
-// Public page reached at /join/{code}, signed in or not. Behaviour mirrors
-// hack-app.html's routeJoin()/join-form: preview before sign-in, the same
-// questions become the live form after, an "already applied" branch that
-// reads the real approval_status, and a closed/dead-link branch. Rendered
-// inside the shared app shell (mount() in shell.js runs for every route, this
-// one included) -- there is no event/role for a bare join link, so the
-// sidebar shows its generic, signed-out state around this card. That shell
-// behaviour is unchanged here.
+// Public page reached at /join/{code}, signed in or not: a preview before
+// sign-in, the same questions become the live form after, an "already
+// applied" branch that reads the real approval_status, and a closed/dead-link
+// branch. Rendered inside the shared app shell (mount() in shell.js runs for
+// every route, this one included) -- there is no event/role for a bare join
+// link, so the sidebar shows its generic, signed-out state around this card.
+// That shell behaviour is unchanged here.
 // This screen's rate_limited reads "tries" (joining is a one-off attempt);
 // the shared default (written for judge/participant screens that are
 // changing something repeatedly) reads "changes". Every other code this
@@ -115,8 +114,7 @@ export async function render(ctx) {
     const joinedSlug = (res.data && res.data.event && res.data.event.slug) || slug
     // A real navigation, not an SPA one: the cached event list from this
     // load does not include the just-created membership yet, and the shell
-    // reads that list for the sidebar. Reloading is what hack-app.html does
-    // here too.
+    // reads that list for the sidebar. A full reload picks up the fresh list.
     location.assign('/e/' + encodeURIComponent(joinedSlug) + '/team')
   })
 }

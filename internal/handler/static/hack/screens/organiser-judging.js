@@ -19,8 +19,9 @@ export async function render(ctx) {
   let locked = !!ev.judging_locked_at
   // A platform-admin inspection, a taken-down event or an ended event blocks
   // every write here too, on top of (never instead of) the judging-lock and
-  // stage rules below — matching classic's writesLocked() plus its ended-
-  // event lock, which this screen had been skipping.
+  // stage rules below — the same ui.writeLockReason() every other screen
+  // applies, including its ended-event lock, which this screen had been
+  // skipping.
   const adminLockReason = ui.writeLockReason(ev, ctx.event.admin_view)
   const archived = ev.stage === 'archived'
   const tieClosed = () => locked || !!adminLockReason || ['judging', 'results', 'archived'].includes(ev.stage)

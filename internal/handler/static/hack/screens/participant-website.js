@@ -511,10 +511,10 @@ function receiverText (n) {
 }
 
 // A notification row: receiver, what it's subscribed to and its state, plus
-// the management actions classic offers (Deliveries always; Send test,
+// the management actions available (Deliveries always; Send test,
 // Pause/Resume and Rotate secret when the caller can manage this
 // subscription and it's one they created -- MCP-sourced subscriptions have
-// no secret to rotate and no manual test, same restriction as classic).
+// no secret to rotate and no manual test).
 function notifRowHTML (ui, n, canManage) {
   const esc = ui.esc
   const sub = (n.events || []).map(e => NOTIFY_EVENT_LABEL[e] || e).join(', ') + ' · ' + (n.storage ? esc(n.storage) : 'all saved data') + ' · ' + esc(NOTIFY_STATE_LABEL[n.state] || n.state)

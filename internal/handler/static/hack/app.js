@@ -370,7 +370,7 @@ const FRAMES_PATH = /^\/e\/[^/]+\/judge\/?$/
 const framesAllowed = FRAMES_PATH.test(location.pathname)
 export function go(path) {
   const url = new URL(path, location.href)
-  if (url.searchParams.has('ui') || url.pathname === '/signin') { location.assign(url); return }
+  if (url.pathname === '/signin') { location.assign(url); return }
   history.pushState({}, '', url)
   ui.notePath(url.pathname + url.search + url.hash)
   route()
@@ -502,8 +502,9 @@ async function route() {
     try { screen = await import('./screens/' + match.id + '.js') }
     catch (e) {
       if (turn !== generation) return
-      ctx.main.innerHTML = `<section class="card"><h1>This screen is being rebuilt</h1><p><a href="${ui.esc(ui.classicURL())}">Use the old screens</a></p></section>`
+      ctx.main.innerHTML = `<section class="card"><h1>This screen could not load</h1><p>Reload the page, or go to <a href="/events">Home</a>.</p><p><button class="btn" type="button" id="screen-reload">Reload</button></p></section>`
       document.title = 'Simple Hack'
+      ctx.main.querySelector('#screen-reload')?.addEventListener('click', () => location.reload())
       return
     }
     if (turn !== generation) return

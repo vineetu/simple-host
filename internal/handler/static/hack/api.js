@@ -66,9 +66,9 @@ export const listEvents = () => api('GET', '/v1/hack/events')
 export const getEvent = slug => api('GET', '/v1/hack/events/' + encodeURIComponent(slug))
 export const me = () => api('GET', '/v1/me')
 
-// Downloads a CSV/archive/etc the same way the classic app does: a plain
-// <a href> can't carry the X-API-Key header, so fetch the bytes by hand and
-// hand the browser a blob to save instead. Shows its own error toast near
+// Downloads a CSV/archive/etc by hand: a plain <a href> can't carry the
+// X-API-Key header, so fetch the bytes and hand the browser a blob to save
+// instead. Shows its own error toast near
 // `btn` (or its closest section) on failure; returns true/false so a caller
 // that wants its own success toast (e.g. "Downloaded x.csv") can show one --
 // most callers don't need to and just ignore the return value.
