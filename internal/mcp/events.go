@@ -82,6 +82,52 @@ func eventPayloadSchema(name string, hack ...bool) map[string]any {
 	return outObject(props, required...)
 }
 
+// Site events (SIM-356) are about the site itself rather than a visitor's
+// write: they take the site argument only (no storage filter) and carry no
+// storage, kind, preset or untrusted fields. Simple Host only; Simple Hack
+// keeps the three record events.
+var siteEventNames = []string{"site.deployed", "domain.status_changed", "viewer.access_requested", "visitor.signed_up"}
+
+func isSiteEvent(name string) bool {
+	for _, n := range siteEventNames {
+		if n == name {
+			return true
+		}
+	}
+	return false
+}
+
+func siteEventInputSchema() map[string]any {
+	return object(map[string]any{"site": str(siteDesc)}, "site")
+}
+
+func siteEventPayloadSchema(name string) map[string]any {
+	props := map[string]any{
+		"v":        map[string]any{"type": "integer", "enum": []int{1}},
+		"site":     outString(outSiteName),
+		"site_url": outString("The site's address."),
+	}
+	required := []string{"v", "site", "site_url"}
+	switch name {
+	case "site.deployed":
+		props["version"] = outInteger("The version that is live now.")
+		props["previous_version"] = outInteger("The version that was live before this one.")
+		props["via"] = outEnum("How it went live: deploy when a new version was published, active_version when an existing version was made live (rollback, roll-forward, or publishing a saved preview).", "deploy", "active_version")
+		required = append(required, "version", "previous_version", "via")
+	case "domain.status_changed":
+		props["domain"] = outString("The site's custom domain.")
+		props["status"] = outEnum("The domain's status now. released means the domain was disconnected after failing its checks for too long.", "pending", "active", "error", "released")
+		props["previous_status"] = outString("The domain's status before this change.")
+		props["reason"] = outString("What the check found, in its own words, or an empty string when there is nothing to add.")
+		props["cert"] = outEnum("Where the certificate stands, or an empty string when the domain was released.", "pending", "issuing", "live", "failed", "")
+		required = append(required, "domain", "status", "previous_status", "reason", "cert")
+	case "viewer.access_requested", "visitor.signed_up":
+		props["visitor"] = outString("An opaque site-scoped visitor reference, the same one record events carry. Never an email.")
+		required = append(required, "visitor")
+	}
+	return outObject(props, required...)
+}
+
 func eventDefinitions(hack ...bool) []map[string]any {
 	schema := eventInputSchema()
 	if len(hack) > 0 && hack[0] {
@@ -97,6 +143,20 @@ func eventDefinitions(hack ...bool) []map[string]any {
 		definitions = append(definitions, map[string]any{
 			"name": event.name, "description": event.description, "delivery": []string{"webhook"},
 			"inputSchema": schema, "payloadSchema": eventPayloadSchema(event.name, hack...),
+		})
+	}
+	if len(hack) > 0 && hack[0] {
+		return definitions
+	}
+	for _, event := range []struct{ name, description string }{
+		{"site.deployed", "A version of the site went live: a new publish, or an earlier version made live again."},
+		{"domain.status_changed", "The site's custom domain changed status after a check, or was released after failing for too long."},
+		{"viewer.access_requested", "Someone signed in on a named-viewers site with an email that is not on its list and was turned away."},
+		{"visitor.signed_up", "A visitor signed in on the site for the first time."},
+	} {
+		definitions = append(definitions, map[string]any{
+			"name": event.name, "description": event.description, "delivery": []string{"webhook"},
+			"inputSchema": siteEventInputSchema(), "payloadSchema": siteEventPayloadSchema(event.name),
 		})
 	}
 	return definitions
@@ -178,8 +238,12 @@ func parseEventParams(raw json.RawMessage, subscribe bool, hack ...bool) (EventS
 	if json.Unmarshal(params["name"], &req.Name) != nil || req.Name == "" {
 		return invalid()
 	}
-	switch req.Name {
-	case "record.added", "record.changed", "file.uploaded":
+	hackMode := len(hack) > 0 && hack[0]
+	siteEvent := false
+	switch {
+	case req.Name == "record.added", req.Name == "record.changed", req.Name == "file.uploaded":
+	case isSiteEvent(req.Name) && !hackMode:
+		siteEvent = true
 	default:
 		return req, &EventError{Code: EventCodeNotFound, Message: "NotFound", Data: map[string]any{"kind": "event"}}
 	}
@@ -188,7 +252,8 @@ func parseEventParams(raw json.RawMessage, subscribe bool, hack ...bool) (EventS
 		return invalid()
 	}
 	for key, value := range args {
-		if key != "site" && key != "storage" && !(key == "event" && len(hack) > 0 && hack[0]) {
+		// A site event takes the site only: its storage filter would mean nothing.
+		if key != "site" && !(key == "storage" && !siteEvent) && !(key == "event" && hackMode) {
 			return invalid()
 		}
 		if _, ok := value.(string); !ok {

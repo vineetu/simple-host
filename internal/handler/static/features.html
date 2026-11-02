@@ -136,7 +136,7 @@
           <li><a class="node" href="#addresses"><b>Domains and addresses</b><span class="n">13</span><span class="l">Where a site answers: its own address from the first minute, a short free name, your own domain, or one wildcard for every site you own.</span></a></li>
           <li><a class="node" href="#storage"><b>Storage and saved data</b><span class="n">27</span><span class="l">Where a site keeps what visitors send and what the owner changes from chat, with rules for who may read, add, edit, and delete.</span></a></li>
           <li><a class="node" href="#access"><b>Sign-in and access</b><span class="n">20</span><span class="l">How owners and visitors sign in, the keys an AI agent uses, and who may open a site.</span></a></li>
-          <li><a class="node" href="#notifications"><b>Notifications</b><span class="n">6</span><span class="l">A signed call to your receiver or your AI app the moment a visitor writes, and the emails Simple Host sends you.</span></a></li>
+          <li><a class="node" href="#notifications"><b>Notifications</b><span class="n">7</span><span class="l">A signed call to your receiver or your AI app the moment a visitor writes, and the emails Simple Host sends you.</span></a></li>
           <li><a class="node" href="#agents"><b>Agents and MCP</b><span class="n">18</span><span class="l">How an AI app or coding agent connects to Simple Host, what it may call, and what it is told while it works.</span></a></li>
           <li><a class="node" href="#dashboard"><b>Owner dashboard</b><span class="n">9</span><span class="l">The screens where you manage your sites yourself, and the screens your AI app can draw inside a chat.</span></a></li>
           <li><a class="node" href="#showcase"><b>Showcase and home page</b><span class="n">4</span><span class="l">What opens at your handle&#x27;s address: a public list of your sites you can pin, order, and caption, or one site you choose as home.</span></a></li>
@@ -1422,7 +1422,7 @@
       <p class="lede">A signed call to your receiver or your AI app the moment a visitor writes, and the emails Simple Host sends you.</p>
       <div class="feats">
       <details class="feat" id="notify-webhook">
-        <summary><span class="fname">A webhook when a visitor writes</span><span class="fline">Add a receiver URL and it gets a signed POST for record.added, record.changed, or file.uploaded, scoped to one site.</span></summary>
+        <summary><span class="fname">A webhook when a visitor writes</span><span class="fline">Add a receiver URL and it gets a signed POST for record.added, record.changed, file.uploaded, and the site events, scoped to one site.</span></summary>
         <div class="fbody">
           <p class="how">Under Notifications, add an HTTPS receiver address for one site, with an optional label, an optional filter to one storage resource, and an optional custom header for your receiver. Simple Host then POSTs a signed body when a visitor adds a record or KV key (record.added), edits or deletes one (record.changed), or uploads a file (file.uploaded). The body carries the event id, time, site, storage, kind, preset, and the visitor&#x27;s id or null, plus the table and row or the KV key with its fields, or the file&#x27;s path, size, and type; visitor-written fields are marked as untrusted. Signatures follow Standard Webhooks (HMAC-SHA256 over the body, timestamp, and id), with matching svix headers. The signing secret is shown once at creation.</p>
           <p class="ex"><b>Example.</b> A tutoring business points a webhook at n8n so each new booking row posts a message to their team chat with the lesson time.</p>
@@ -1434,6 +1434,21 @@
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">Simple Hack offers it on team and organiser websites; Enterprise has its own engine with the same signatures and controls; a small box needs its sealing key set, which the installer does by default.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/docs.html#notifications">API reference: notifications</a> <a href="/recipes/booking">Recipe: bookings</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications">FEATURES.md §19 Signals and notifications</a></span></p>
+        </div>
+      </details>
+      <details class="feat" id="notify-site-events">
+        <summary><span class="fname">Site events for your receiver or agent</span><span class="fline">A signed call when a version goes live, a domain check changes, someone asks for access, or a visitor signs in for the first time.</span></summary>
+        <div class="fbody">
+          <p class="how">Under Notifications, tick the site events next to the record events, or name them in the events list over REST or in MCP events/subscribe. site.deployed fires when a version goes live through a deploy or an active-version change (rollback, roll-forward, publishing a saved preview), with version, previous_version, and via. domain.status_changed fires when a domain check records a status different from the previous one (pending, active, error) or a long-failing domain is released, with domain, status, previous_status, reason, and cert. viewer.access_requested fires when a person signed in with an email that is not on a named-viewers list reaches the no-access page, once per person per site per day. visitor.signed_up fires on a person&#x27;s first sign-in on the site. The last two carry the visitor&#x27;s id only. The same signatures, retries, and delivery history apply.</p>
+          <p class="ex"><b>Example.</b> A bookkeeping firm runs a named-viewers client portal and points viewer.access_requested at their team chat; when a client signs in from a work address that is not on the list, they add it before the client has to call.</p>
+          <dl class="fm">
+            <dt>Who</dt><dd>Site owners who want to know that a publish landed, a domain broke or recovered, a client wants into a private site, or a new visitor arrived, without watching the dashboard.</dd>
+            <dt>Where</dt><dd>Notifications on your sites page, the events list of POST /v1/sites/{sitename}/notifications, or events/list and events/subscribe over MCP.</dd>
+            <dt>Limits</dt><dd class="lim">Simple Host only for now; Simple Hack keeps the three record events and Enterprise has not ported them. An event about the site&#x27;s owner is never sent. Payloads carry no email, IP, user agent, or visitor-written text, and no storage, kind, preset, or untrusted keys. A subscription&#x27;s storage filter narrows record and file events only. The same per-site caps and 7-day history apply. A brand-new site&#x27;s first version has no subscription yet, so there is no event for it, and a save with publish=false emits nothing.</dd>
+          </dl>
+          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
+          <p class="ednote">Simple Host and the small box emit site events; Simple Hack keeps the record events until its port, and Enterprise has not ported them.</p>
+          <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/docs.html#notifications">API reference: notifications</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications">FEATURES.md §19 Signals and notifications</a></span></p>
         </div>
       </details>
       <details class="feat" id="notify-controls">
@@ -1452,7 +1467,7 @@
         </div>
       </details>
       <details class="feat" id="notify-mcp-events">
-        <summary><span class="fname">MCP Events for your AI agent</span><span class="fline">An app connected over MCP can subscribe itself with events/subscribe and get the same signed delivery, without the dashboard.</span></summary>
+        <summary><span class="fname">MCP Events for your AI agent</span><span class="fline">An app connected over MCP can subscribe itself to the record and site events with events/subscribe and get the same signed delivery.</span></summary>
         <div class="fbody">
           <p class="how">Ask the app; it calls <code>events/list</code>, <code>events/subscribe</code>, and <code>events/unsubscribe</code>. The app supplies its own secret and answers a signed challenge before the subscription is active. <code>list_notifications</code> and <code>remove_notification</code> let you check or remove a subscription from chat. Refreshing renews the expiry and resumes delivery, and a cursor lets the app replay retained events and learn when some were dropped.</p>
           <p class="ex"><b>Example.</b> A founder&#x27;s connected assistant subscribes to their waitlist site and tells them in chat each morning how many sign-ups arrived overnight.</p>

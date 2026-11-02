@@ -182,7 +182,7 @@ func (a *privateApp) session(t *testing.T, p person, siteID, host string) string
 	raw := strings.TrimPrefix(key, auth.APIKeyPrefix)
 	id, _ = hex.DecodeString(raw)
 	now := time.Now()
-	if err := db.InsertVisitorSession(context.Background(), a.database, id, uid, siteID, host, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
+	if _, err := db.InsertVisitorSession(context.Background(), a.database, id, uid, siteID, host, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	return raw
@@ -636,7 +636,7 @@ func TestClaimedSubdomainSessionIsolation(t *testing.T) {
 	uid, _ := a.userID(t, vic)
 	sid, _ := hex.DecodeString(strings.Repeat("ab", 32))
 	now := time.Now()
-	if err := db.InsertVisitorSession(context.Background(), a.database, sid, uid, siteID, dom, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
+	if _, err := db.InsertVisitorSession(context.Background(), a.database, sid, uid, siteID, dom, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.DeleteVisitorSession(context.Background(), a.database, sid) })
@@ -783,7 +783,7 @@ func TestEstablishTokenWrongHostBurns(t *testing.T) {
 	now := time.Now()
 	issue := func(sidByte, once string) {
 		sid, _ := hex.DecodeString(strings.Repeat(sidByte, 32))
-		if err := db.InsertVisitorSession(ctx, a.database, sid, uid, siteID, dom, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
+		if _, err := db.InsertVisitorSession(ctx, a.database, sid, uid, siteID, dom, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = db.DeleteVisitorSession(ctx, a.database, sid) })

@@ -155,19 +155,24 @@ func PruneExpiredOAuthStates(ctx context.Context, q Querier) error {
 }
 
 // InsertVisitorSession stores a new site-scoped session. id is 32 raw bytes.
-func InsertVisitorSession(ctx context.Context, q Querier, id []byte, userID, siteID, host string, expiresAt, idleExpiresAt time.Time) error {
+// It reports whether this is the person's first sign-in on the site (a new
+// site_visitor_signins row), which the visitor.signed_up notification keys on.
+func InsertVisitorSession(ctx context.Context, q Querier, id []byte, userID, siteID, host string, expiresAt, idleExpiresAt time.Time) (bool, error) {
 	// The same statement records that this person signed in on this site
 	// (site_visitor_signins, kept after the session ends): the owner's
 	// visitor_id-to-email lookup answers only for such people.
-	_, err := q.ExecContext(ctx, `
+	var first bool
+	err := q.QueryRowContext(ctx, `
 		WITH s AS (
 			INSERT INTO visitor_sessions (id, user_id, site_id, host, expires_at, idle_expires_at)
 			VALUES ($1, $2, $3, $4, $5, $6)
-			RETURNING site_id, user_id)
-		INSERT INTO site_visitor_signins (site_id, user_id) SELECT site_id, user_id FROM s
-		ON CONFLICT DO NOTHING`,
-		id, userID, siteID, host, expiresAt, idleExpiresAt)
-	return err
+			RETURNING site_id, user_id),
+		recorded AS (
+			INSERT INTO site_visitor_signins (site_id, user_id) SELECT site_id, user_id FROM s
+			ON CONFLICT DO NOTHING RETURNING site_id)
+		SELECT EXISTS(SELECT 1 FROM recorded)`,
+		id, userID, siteID, host, expiresAt, idleExpiresAt).Scan(&first)
+	return first, err
 }
 
 // Pending handoffs have no durable identity record and expire with their code.
@@ -175,13 +180,18 @@ func InsertPendingVisitorSession(ctx context.Context, q Querier, id []byte, user
 	_, err := q.ExecContext(ctx, `INSERT INTO visitor_sessions(id,user_id,site_id,host,expires_at,idle_expires_at) VALUES($1,$2,$3,$4,$5,$5)`, id, userID, siteID, host, expires)
 	return err
 }
-func ActivateVisitorSession(ctx context.Context, q Querier, id []byte, ttl, idle time.Duration) error {
-	var site string
-	return q.QueryRowContext(ctx, `WITH s AS (
+
+// ActivateVisitorSession turns a pending handoff into a live session and
+// reports whether this is the person's first sign-in on the site. A missing
+// or expired handoff is sql.ErrNoRows.
+func ActivateVisitorSession(ctx context.Context, q Querier, id []byte, ttl, idle time.Duration) (bool, error) {
+	var first bool
+	err := q.QueryRowContext(ctx, `WITH s AS (
  UPDATE visitor_sessions SET expires_at=now()+make_interval(secs=>$2),idle_expires_at=now()+make_interval(secs=>$3)
  WHERE id=$1 AND expires_at>now() AND idle_expires_at>now() RETURNING site_id,user_id),
- recorded AS (INSERT INTO site_visitor_signins(site_id,user_id) SELECT site_id,user_id FROM s ON CONFLICT DO NOTHING)
- SELECT site_id::text FROM s`, id, ttl.Seconds(), idle.Seconds()).Scan(&site)
+ recorded AS (INSERT INTO site_visitor_signins(site_id,user_id) SELECT site_id,user_id FROM s ON CONFLICT DO NOTHING RETURNING site_id)
+ SELECT EXISTS(SELECT 1 FROM recorded) FROM s`, id, ttl.Seconds(), idle.Seconds()).Scan(&first)
+	return first, err
 }
 
 // GetVisitorSession loads a session by raw id.

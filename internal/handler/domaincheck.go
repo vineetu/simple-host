@@ -260,6 +260,11 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, st
 	}
 	if status != d.Status {
 		log.Printf("domain %s: %s -> %s %s", d.Domain, d.Status, status, reason)
+		// Only when the row took it: an empty check means the site no longer
+		// has this domain.
+		if check.UserID != "" {
+			h.emitSiteNotification(d.SiteID, "domain.status_changed", map[string]any{"domain": d.Domain, "status": status, "previous_status": d.Status, "reason": reason, "cert": cert}, 0)
+		}
 	}
 	if status == "active" {
 		if !d.Verified || d.PreviousDomain != "" {
@@ -290,6 +295,7 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, st
 			h.cancelDomainCert(d.Domain)
 			h.syncDomainRedirect(ctx, d.SiteID)
 			log.Printf("domain %s: failing for %s; released from %s", d.Domain, failing.Round(time.Hour), check.Name)
+			h.emitSiteNotification(d.SiteID, "domain.status_changed", map[string]any{"domain": d.Domain, "status": "released", "previous_status": status, "reason": reason, "cert": ""}, 0)
 		}
 	case failing >= domainLapseWarnAfter() && !check.Notified:
 		h.emailDomainFailing(ctx, d, check.Name, reason)

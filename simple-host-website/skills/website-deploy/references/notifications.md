@@ -12,6 +12,14 @@ Subscribe to `record.added` for new SQLite rows or KV keys, `record.changed` for
 and deletions, or `file.uploaded` for a files resource. Owner credential writes do not fire;
 the owner signed in on their own site as a visitor does. Legacy saved data does not fire.
 
+On Simple Host only, the same subscription can also name four site events: `site.deployed` (a
+version went live through a deploy or an active-version change), `domain.status_changed` (a custom
+domain's check status changed, or a long-failing domain was released), `viewer.access_requested`
+(someone signed in with an email that is not on a named-viewers list and reached the no-access
+page, once per person per site per day), and `visitor.signed_up` (a person's first sign-in on the
+site). They carry a visitor ID at most, never an email, and never fire for the owner. Over MCP a
+site event takes `arguments: {site}` only. Simple Hack keeps the three record events.
+
 Without MCP Events, tell the owner to open Notifications in the dashboard, choose their site,
 events, optional storage filter, and HTTPS receiver URL, then Send test. A configured owner
 client can do the same over REST: `POST /v1/sites/{sitename}/notifications` (see openapi.yaml).

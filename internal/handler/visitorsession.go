@@ -252,11 +252,15 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := db.ActivateVisitorSession(r.Context(), h.database, tok.SessionID, visitorSessionTTL(), visitorSessionIdle()); err != nil {
+	first, err := db.ActivateVisitorSession(r.Context(), h.database, tok.SessionID, visitorSessionTTL(), visitorSessionIdle())
+	if err != nil {
 		fail(400, "activate")
 		return
 	}
 	activated = true
+	if first {
+		h.emitSiteNotification(sess.SiteID, "visitor.signed_up", map[string]any{"visitor": sess.UserID}, 0)
+	}
 	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), visitorCookieMaxAge())
 	setVisitorNonceCookie(w, r, "", -1)
 	w.Header().Set("Cache-Control", "no-store")

@@ -2691,7 +2691,7 @@
     {
      "id": "notify-webhook",
      "name": "A webhook when a visitor writes",
-     "line": "Add a receiver URL and it gets a signed POST for record.added, record.changed, or file.uploaded, scoped to one site.",
+     "line": "Add a receiver URL and it gets a signed POST for record.added, record.changed, file.uploaded, and the site events, scoped to one site.",
      "who": "Anyone who wants Zapier, n8n, Hermes, OpenClaw, or their own receiver to act on new entries or uploads instead of someone checking the page.",
      "how": "Under Notifications, add an HTTPS receiver address for one site, with an optional label, an optional filter to one storage resource, and an optional custom header for your receiver. Simple Host then POSTs a signed body when a visitor adds a record or KV key (record.added), edits or deletes one (record.changed), or uploads a file (file.uploaded). The body carries the event id, time, site, storage, kind, preset, and the visitor's id or null, plus the table and row or the KV key with its fields, or the file's path, size, and type; visitor-written fields are marked as untrusted. Signatures follow Standard Webhooks (HMAC-SHA256 over the body, timestamp, and id), with matching svix headers. The signing secret is shown once at creation.",
      "example": "A tutoring business points a webhook at n8n so each new booking row posts a message to their team chat with the lesson time.",
@@ -2724,6 +2724,37 @@
      "evidence": "features.html notify-webhook and section lede; FEATURES.md §19 Events, REST manage, Payload, Signatures, Delivery, Defaults rows; PARITY rows 'Notifications', 'Notification secret encryption'."
     },
     {
+     "id": "notify-site-events",
+     "name": "Site events for your receiver or agent",
+     "line": "A signed call when a version goes live, a domain check changes, someone asks for access, or a visitor signs in for the first time.",
+     "who": "Site owners who want to know that a publish landed, a domain broke or recovered, a client wants into a private site, or a new visitor arrived, without watching the dashboard.",
+     "how": "Under Notifications, tick the site events next to the record events, or name them in the events list over REST or in MCP events/subscribe. site.deployed fires when a version goes live through a deploy or an active-version change (rollback, roll-forward, publishing a saved preview), with version, previous_version, and via. domain.status_changed fires when a domain check records a status different from the previous one (pending, active, error) or a long-failing domain is released, with domain, status, previous_status, reason, and cert. viewer.access_requested fires when a person signed in with an email that is not on a named-viewers list reaches the no-access page, once per person per site per day. visitor.signed_up fires on a person's first sign-in on the site. The last two carry the visitor's id only. The same signatures, retries, and delivery history apply.",
+     "example": "A bookkeeping firm runs a named-viewers client portal and points viewer.access_requested at their team chat; when a client signs in from a work address that is not on the list, they add it before the client has to call.",
+     "where": "Notifications on your sites page, the events list of POST /v1/sites/{sitename}/notifications, or events/list and events/subscribe over MCP.",
+     "limits": "Simple Host only for now; Simple Hack keeps the three record events and Enterprise has not ported them. An event about the site's owner is never sent. Payloads carry no email, IP, user agent, or visitor-written text, and no storage, kind, preset, or untrusted keys. A subscription's storage filter narrows record and file events only. The same per-site caps and 7-day history apply. A brand-new site's first version has no subscription yet, so there is no event for it, and a save with publish=false emits nothing.",
+     "editions": {
+      "host": "yes",
+      "hack": "no",
+      "enterprise": "no",
+      "smallbox": "yes"
+     },
+     "editions_note": "Simple Host and the small box emit site events; Simple Hack keeps the record events until its port, and Enterprise has not ported them.",
+     "status": "live",
+     "status_note": "",
+     "docs": [
+      {
+       "label": "API reference: notifications",
+       "href": "/docs.html#notifications"
+      },
+      {
+       "label": "FEATURES.md §19 Signals and notifications",
+       "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications"
+      }
+     ],
+     "covers": [],
+     "evidence": "FEATURES.md §19 lead paragraph and Events, Payload, REST list, MCP rows (phase 2, 2026-11-02, SIM-356); PARITY row 'Notifications' (gap → hack, enterprise for the site events); CHANGELOG 2026-11-02."
+    },
+    {
      "id": "notify-controls",
      "name": "Test, pause, rotate, and read delivery history",
      "line": "Each subscription has a test send, pause and resume, secret rotation, and a list of recent deliveries.",
@@ -2753,7 +2784,7 @@
     {
      "id": "notify-mcp-events",
      "name": "MCP Events for your AI agent",
-     "line": "An app connected over MCP can subscribe itself with events/subscribe and get the same signed delivery, without the dashboard.",
+     "line": "An app connected over MCP can subscribe itself to the record and site events with events/subscribe and get the same signed delivery.",
      "who": "An AI app you have connected that wants to tell you when a quote request, order, or sign-up arrives.",
      "how": "Ask the app; it calls `events/list`, `events/subscribe`, and `events/unsubscribe`. The app supplies its own secret and answers a signed challenge before the subscription is active. `list_notifications` and `remove_notification` let you check or remove a subscription from chat. Refreshing renews the expiry and resumes delivery, and a cursor lets the app replay retained events and learn when some were dropped.",
      "example": "A founder's connected assistant subscribes to their waitlist site and tells them in chat each morning how many sign-ups arrived overnight.",

@@ -1961,6 +1961,9 @@ func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Req
 	// committed, promoted and live.
 	h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, versionNumber, site.KeepVersions)
 
+	// The version is live: tell the owner's subscribers (site.ActiveVersion
+	// still holds what was live before).
+	h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": versionNumber, "previous_version": site.ActiveVersion, "via": "deploy"}, 0)
 	site.ActiveVersion = versionNumber
 	paperHackDeploy(r, user)
 	respond(h.siteResponseFor(user, site))
@@ -2457,6 +2460,7 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": req.VersionNumber, "previous_version": prev, "via": "active_version"}, 0)
 	site.ActiveVersion = req.VersionNumber
 	writeJSON(w, http.StatusOK, h.siteResponseFor(user, site))
 }

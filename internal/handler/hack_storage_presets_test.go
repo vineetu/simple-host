@@ -25,7 +25,7 @@ func hackSession(t *testing.T, a *teamSiteApp, uid, siteID, host string) func(me
 		if _, err := rand.Read(id[:]); err != nil {
 			t.Fatal(err)
 		}
-		if err := db.InsertVisitorSession(context.Background(), a.database, id[:], uid, siteID, host, time.Now().Add(time.Hour), time.Now().Add(time.Hour)); err != nil {
+		if _, err := db.InsertVisitorSession(context.Background(), a.database, id[:], uid, siteID, host, time.Now().Add(time.Hour), time.Now().Add(time.Hour)); err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM visitor_sessions WHERE id=$1`, id[:]) })

@@ -23,14 +23,17 @@ type EventsBackend interface {
 
 // EventSubscribeRequest is a validated events/subscribe call.
 type EventSubscribeRequest struct {
-	// Name is one of the advertised event types (record.added,
-	// record.changed, file.uploaded).
+	// Name is one of the advertised event types: the record events
+	// (record.added, record.changed, file.uploaded) everywhere, and on Simple
+	// Host the site events too (site.deployed, domain.status_changed,
+	// viewer.access_requested, visitor.signed_up).
 	Name string
 	// Site is arguments.site, the site's name as the site tools use it.
 	Site string
 	// Event selects a Hack organiser website, instead of a selected team site.
 	Event string
 	// Storage is arguments.storage, "" for every storage resource on the site.
+	// Site events never carry one.
 	Storage string
 	// CanonicalArgs is the arguments object as canonical JSON (sorted keys,
 	// no insignificant whitespace), part of the subscription key.

@@ -81,7 +81,7 @@ func TestHackStorageScopedReview(t *testing.T) {
 	if _, err := rand.Read(sessionID[:]); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.InsertVisitorSession(context.Background(), a.database, sessionID[:], a.uid(t, other), eventSiteID, eventHost, time.Now().Add(time.Hour), time.Now().Add(time.Hour)); err != nil {
+	if _, err := db.InsertVisitorSession(context.Background(), a.database, sessionID[:], a.uid(t, other), eventSiteID, eventHost, time.Now().Add(time.Hour), time.Now().Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM visitor_sessions WHERE id=$1`, sessionID[:]) })

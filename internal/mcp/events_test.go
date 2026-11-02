@@ -177,8 +177,8 @@ func TestEventsListSchemas(t *testing.T) {
 	for _, modern := range []bool{false, true} {
 		out := eventResult(t, sendEvent(t, s, "events/list", nil, eventTestCaller(), modern), modern)
 		events := out["events"].([]any)
-		if len(events) != 3 {
-			t.Fatal("expected three event types")
+		if len(events) != 7 {
+			t.Fatal("expected seven event types on Simple Host")
 		}
 		for i, name := range []string{"record.added", "record.changed", "file.uploaded"} {
 			event := events[i].(map[string]any)
@@ -240,6 +240,114 @@ func TestEventsListSchemas(t *testing.T) {
 				}
 			}
 		}
+		// Site events: the site argument only, and a payload without the
+		// storage, kind, preset, visitor-null or untrusted shape of record events.
+		samples := map[string]map[string]any{
+			"site.deployed":           {"version": 2, "previous_version": 1, "via": "deploy"},
+			"domain.status_changed":   {"domain": "shop.example", "status": "active", "previous_status": "pending", "reason": "", "cert": "live"},
+			"viewer.access_requested": {"visitor": "visitor-ref"},
+			"visitor.signed_up":       {"visitor": "visitor-ref"},
+		}
+		for i, name := range siteEventNames {
+			event := events[3+i].(map[string]any)
+			if event["name"] != name || event["description"] == "" || !reflect.DeepEqual(event["delivery"], []any{"webhook"}) {
+				t.Errorf("bad descriptor for %s", name)
+			}
+			for _, key := range []string{"inputSchema", "payloadSchema"} {
+				if err := CheckOutputSchema(event[key]); err != nil {
+					t.Errorf("%s %s: %v", name, key, err)
+				}
+			}
+			input := event["inputSchema"].(map[string]any)
+			if props := input["properties"].(map[string]any); len(props) != 1 || props["site"] == nil {
+				t.Errorf("%s input schema takes more than site", name)
+			}
+			if err := ValidateOutput(input, map[string]any{"site": "bakery"}, nil); err != nil {
+				t.Error(err)
+			}
+			for _, args := range []any{map[string]any{}, map[string]any{"site": "bakery", "storage": "orders"}, map[string]any{"site": 1}} {
+				if ValidateOutput(input, args, nil) == nil {
+					t.Errorf("%s input schema accepts %v", name, args)
+				}
+			}
+			data := map[string]any{"v": 1, "site": "bakery", "site_url": "https://bakery.example/"}
+			for k, v := range samples[name] {
+				data[k] = v
+			}
+			if err := ValidateOutput(event["payloadSchema"], data, nil); err != nil {
+				t.Errorf("%s payload: %v", name, err)
+			}
+			for _, extra := range []string{"storage", "kind", "preset", "untrusted"} {
+				bad := map[string]any{}
+				for k, v := range data {
+					bad[k] = v
+				}
+				bad[extra] = "x"
+				if ValidateOutput(event["payloadSchema"], bad, nil) == nil {
+					t.Errorf("%s payload accepts %s", name, extra)
+				}
+			}
+			if name == "visitor.signed_up" {
+				data["visitor"] = nil
+				if ValidateOutput(event["payloadSchema"], data, nil) == nil {
+					t.Error("site event visitor accepts null")
+				}
+			}
+			if name == "domain.status_changed" {
+				data["status"], data["cert"] = "released", ""
+				if err := ValidateOutput(event["payloadSchema"], data, nil); err != nil {
+					t.Errorf("released payload: %v", err)
+				}
+			}
+		}
+		// Simple Hack keeps the three record events.
+		hack := eventTestCaller()
+		hack.Mode = CallerModeEvents
+		listed := eventResult(t, sendEvent(t, s, "events/list", nil, hack, modern), modern)["events"].([]any)
+		if len(listed) != 3 {
+			t.Fatal("expected three event types on Simple Hack")
+		}
+	}
+}
+
+func TestEventsSiteEventArguments(t *testing.T) {
+	for _, modern := range []bool{false, true} {
+		for _, name := range siteEventNames {
+			backend := &fakeEventsBackend{}
+			s := NewServer(Config{Events: backend})
+			params := eventTestParams()
+			params["name"] = name
+			// A storage filter means nothing on a site event: InvalidParams, not silently ignored.
+			eventErrorCode(t, sendEvent(t, s, "events/subscribe", params, eventTestCaller(), modern), codeInvalidParams)
+			eventErrorCode(t, sendEvent(t, s, "events/unsubscribe", params, eventTestCaller(), modern), codeInvalidParams)
+			if len(backend.subscribed)+len(backend.unsubscribed) != 0 {
+				t.Fatal("site event with storage reached backend")
+			}
+			params = eventTestParams()
+			params["name"] = name
+			params["arguments"] = map[string]any{"site": "bakery"}
+			eventResult(t, sendEvent(t, s, "events/subscribe", params, eventTestCaller(), modern), modern)
+			if len(backend.subscribed) != 1 || backend.subscribed[0].Name != name || backend.subscribed[0].Storage != "" || backend.subscribed[0].CanonicalArgs != `{"site":"bakery"}` {
+				t.Fatalf("site event subscribe: %+v", backend.subscribed)
+			}
+			// Simple Hack does not offer site events.
+			hack := eventTestCaller()
+			hack.Mode = CallerModeEvents
+			err := eventErrorCode(t, sendEvent(t, s, "events/subscribe", params, hack, modern), EventCodeNotFound)
+			if err["data"].(map[string]any)["kind"] != "event" {
+				t.Error("missing event discriminator")
+			}
+			if len(backend.subscribed) != 1 {
+				t.Fatal("Hack site event reached backend")
+			}
+		}
+	}
+	// Record events keep their storage filter.
+	backend := &fakeEventsBackend{}
+	s := NewServer(Config{Events: backend})
+	eventResult(t, sendEvent(t, s, "events/subscribe", eventTestParams(), eventTestCaller(), false), false)
+	if len(backend.subscribed) != 1 || backend.subscribed[0].Storage != "orders" {
+		t.Fatal("record event lost its storage filter")
 	}
 }
 

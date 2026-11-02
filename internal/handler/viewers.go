@@ -126,6 +126,11 @@ func (h *SiteHandler) viewerGate(w http.ResponseWriter, r *http.Request, row db.
 		return true
 	}
 	if !allowed {
+		// The owner hears about it once a day per person, for a page visit
+		// only (a stray subresource is not someone asking to be let in).
+		if dest := r.Header.Get("Sec-Fetch-Dest"); dest == "" || dest == "document" {
+			h.emitSiteNotification(row.SiteID, "viewer.access_requested", map[string]any{"visitor": sess.UserID}, 24*time.Hour)
+		}
 		serveViewerPage(w, r, viewerPagePrivate, gateNext(r), email, "", h.ssoBaseURL)
 		return true
 	}
@@ -474,9 +479,13 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now()
-	if err := db.InsertVisitorSession(r.Context(), h.database, id, user.ID, row.SiteID, requestHostName(r), now.Add(visitorSessionTTL()), now.Add(visitorSessionIdle())); err != nil {
+	first, err := db.InsertVisitorSession(r.Context(), h.database, id, user.ID, row.SiteID, requestHostName(r), now.Add(visitorSessionTTL()), now.Add(visitorSessionIdle()))
+	if err != nil {
 		h.renderServiceError(w, r)
 		return
+	}
+	if first {
+		h.emitSiteNotification(row.SiteID, "visitor.signed_up", map[string]any{"visitor": user.ID}, 0)
 	}
 	setVisitorSessionCookie(w, r, hex.EncodeToString(id), visitorCookieMaxAge())
 	log.Printf("viewers_sign_in site_id=%s user_id=%s", row.SiteID, user.ID)

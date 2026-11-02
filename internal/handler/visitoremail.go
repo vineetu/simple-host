@@ -131,9 +131,13 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 	}
 	now := time.Now()
 	expires, idle := now.Add(visitorSessionTTL()), now.Add(visitorSessionIdle())
-	if err := db.InsertVisitorSession(r.Context(), h.database, id, user.ID, siteID, requestHostName(r), expires, idle); err != nil {
+	first, err := db.InsertVisitorSession(r.Context(), h.database, id, user.ID, siteID, requestHostName(r), expires, idle)
+	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
+	}
+	if first {
+		h.emitSiteNotification(siteID, "visitor.signed_up", map[string]any{"visitor": user.ID}, 0)
 	}
 	setVisitorSessionCookie(w, r, hex.EncodeToString(id), visitorCookieMaxAge())
 	w.Header().Set("Cache-Control", "private, no-store")

@@ -15,7 +15,7 @@ Anything that must stay true is enforced by a check in `make check`, not by this
 | Geo DB | DB-IP Lite country files, read on this box | `GEOIP_DIR`, refreshed by `simple-host-geoip-refresh.timer` |
 | Email | Resend transactional mail; Hack sends write recipient-free accepted/failure journal records | `internal/email`, `scripts/hack-mail-report.py` |
 | Event DNS | Vercel DNS API, hands hackathon organisers hostnames; off unless configured | `internal/eventdns` |
-| Notifications | Signed HTTPS webhooks and MCP Events on a visitor write (Host and Hack); outbox table, in-process delivery workers, no external queue | `internal/handler/notify*.go`, `internal/mcp/events.go` |
+| Notifications | Signed HTTPS webhooks and MCP Events on a visitor write (Host and Hack) and, Simple Host only, on site events emitted from the deploy and active-version paths (`site.go`), domain checks (`domaincheck.go`), the named-viewers gate (`viewers.go`), and the visitor sign-in paths (`viewers.go`, `visitoremail.go`, `visitorsession.go`); outbox table, in-process delivery workers, no external queue | `internal/handler/notify*.go`, `internal/mcp/events.go` |
 
 There is no object store, CDN, external queue or frontend build. simple-hack.app
 is the same binary behind its own nginx vhost (`/` proxies to `/hackathons`).

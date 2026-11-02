@@ -1394,6 +1394,23 @@ What follows from that, and is not negotiable without changing the line above:
   submitted and is not judged". Dropping a team's whole weekend over one missing line punishes
   the team for the organiser's rule, and the organiser keeps the final say with Exclude.
 
+- **2026-11-02. Site events (notifications phase 2) on Simple Host first (SIM-356).** The
+  notification engine now emits four events that are not storage writes, to the same
+  subscriptions, receivers, and signatures as the record events:
+  `site.deployed` when a version of the site goes live, through any deploy route or an
+  active-version change (rollback, roll-forward, publishing a saved preview);
+  `domain.status_changed` when a domain check records a status different from the previous
+  one, or a long-failing domain is released;
+  `viewer.access_requested` when a person signed in with an email that is not on a
+  named-viewers list reaches the no-access page;
+  `visitor.signed_up` on a person's first sign-in on a site.
+  Rules: payloads carry the visitor ID only, never an email, IP, user agent, or visitor-written
+  text; an event about the site's owner is never emitted; access requests fire once per person
+  per site per day; a subscription's storage filter narrows record and file events only, so a
+  site event reaches every subscription naming it. Simple Hack keeps the three record events
+  and Enterprise has not ported the site events; both follow in a later pass. Reason: the
+  ticket's "Host first, then Hack and Enterprise parity".
+
 ## Open, deliberately parked
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some
