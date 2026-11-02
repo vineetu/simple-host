@@ -77,6 +77,9 @@ Use the Simple Hack connector signed in through its trusted browser window. Foll
 | Get public results | `hack_get_public_results` |
 | Export participants | `hack_export_participants` |
 | Export teams | `hack_export_teams` |
+| Read entry rules | `hack_get_entry_rules` |
+| Set entry rules (preset, per-line modes, judge_first, dry_run) | `hack_set_entry_rules` |
+| Exclude an entry from judging, or include it again | `hack_set_entry_excluded` |
 | Export entries | `hack_export_entries` |
 | Make a private entry archive link | `hack_export_projects_archive` |
 | Get usage | `hack_get_usage` |

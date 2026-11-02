@@ -4,19 +4,40 @@ import { href } from '../nav.js'
 export function title () { return 'Entry' }
 
 // Features on this screen: get-own-entry, edit-entry-fields,
+// fill-entry-summary-card, tag-entry-tools, set-entry-maturity,
+// choose-track-from-entry, submit-entry, move-entry-back-to-draft,
+// auto-submit-complete-draft, preview-entry-as-judges-see-it,
 // entry-edit-conflict-resolution, upload-entry-screenshot,
 // remove-entry-screenshot, view-entry-read-only, view-rubric-participant.
+//
+// Rebuilt for the atlas "entries and participant journey" package
+// (2026-11-02, slice 1): fixed summary-card fields (problem, solution/
+// tagline, audience, track, tools, maturity), a per-event rules engine
+// (Required / Optional / Off, plus One of on the show-your-work lines),
+// and an explicit Submit step.
+//
+// CONTRACT (coordinator decision, 2026-11-02, replacing build-plan.md
+// section 11's "an incomplete draft at the deadline is Not submitted and is
+// not judged"): a complete draft is still auto-submitted; an incomplete
+// draft is now ALSO settled at the deadline, as `status: "not_submitted"`
+// -- still judged, unless an organiser excludes it by hand on Entries
+// (which this view has no visibility into). There is no separate
+// "incomplete" flag: `status === 'not_submitted'` on an entry that has any
+// content (hasAnyContent below) IS the Incomplete case; `status ===
+// 'not_submitted'` with nothing in it at all is a team that never started
+// one. This matches the landed backend (internal/handler/hack_entry_rules.go,
+// internal/db/hack_entries.go EventEntry.Status()) read while building this
+// screen.
 
 // Audit item 1 (2026-11-02): "How you're judged" card, the rubric a judge
-// or organiser already sees -- names, descriptions, weights and max
-// points, never a score (there are none to show here anyway). Mirrors the
-// card markup judge-rubric.js already uses (.card/.crit/.row-flex/.pill/
-// .sub) so the two read the same way. Missing or empty is silent (no card)
-// rather than an error, since the organiser may simply not have written
-// one yet and this is a secondary card on a screen whose own entry load
-// already handles its own errors.
+// or organiser already sees -- names, descriptions and max points, never a
+// score. Mirrors judge-rubric.js's markup (.card/.crit/.row-flex/.pill/.sub)
+// so the two read the same way. Missing or empty is silent (no card): the
+// organiser may simply not have written one yet. It sits in the right-hand
+// column under "How judges see it" (build-plan.md section 13, atlas
+// participant-entry), and under the read-only card once entries close.
 function rubricCardHTML (ui, criteria) {
-  if (!criteria.length) return ''
+  if (!criteria || !criteria.length) return ''
   const esc = ui.esc
   const total = criteria.reduce((s, c) => s + (Number(c.max_points) || 0), 0)
   const rows = criteria.map(c =>
@@ -24,12 +45,23 @@ function rubricCardHTML (ui, criteria) {
     (c.description ? '<p class="small muted">' + esc(c.description) + '</p>' : '') +
     '</div>'
   ).join('')
-  return '<section class="card"><h2>How you’re judged</h2><p class="sub">' + criteria.length + ' ' + (criteria.length === 1 ? 'criterion' : 'criteria') + ' · ' + total + ' points total</p>' + rows + '</section>'
+  return '<section class="card" id="en-rubric"><h2>How you’re judged</h2><p class="sub">' + criteria.length + ' ' + (criteria.length === 1 ? 'criterion' : 'criteria') + ' · ' + total + ' points total</p>' + rows + '</section>'
 }
 
-const FIELDS = ['title', 'tagline', 'description', 'video_url', 'code_url']
-const LABEL = { title: 'Title', tagline: 'Tagline', description: 'Description', video_url: 'Video link', code_url: 'Code link' }
-const PLAIN = { title: 'title', tagline: 'tagline', description: 'description', video_url: 'video link', code_url: 'code link', screenshot: 'screenshot' }
+const SUMMARY_FIELDS = ['problem', 'tagline', 'audience', 'track', 'tools', 'maturity']
+const SHOW_FIELDS = ['video_url', 'site', 'code_url', 'screenshot']
+const LABEL = {
+  title: 'Project name', problem: 'Problem, in one line', tagline: 'Solution, in one line',
+  audience: "Who it's for", track: 'Track', tools: 'Tools and AI you used', maturity: 'What works today',
+  video_url: 'Video link', site: 'Website', code_url: 'Code link', screenshot: 'Screenshot',
+  description: "Anything else judges should know"
+}
+const PLAIN = {
+  title: 'project name', problem: 'the problem, in one line', tagline: 'the solution, in one line',
+  audience: "who it's for", track: 'a track', tools: 'tools and AI', maturity: 'what works today',
+  video_url: 'a video link', site: 'a published website', code_url: 'a code link', screenshot: 'a screenshot', description: 'a description'
+}
+const MAXLEN = { title: 80, problem: 140, tagline: 160, audience: 100, description: 5000 }
 const CLOSED_TEXT = {
   submissions_closed: 'Entries are closed',
   team_site_taken_down: 'The organiser has taken your team’s site down.',
@@ -43,116 +75,365 @@ export async function render (ctx) {
   const esc = ui.esc
   const ev = detail.event
 
-  main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p></div></div><p class="muted">Loading…</p>'
+  main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>' + esc(ev.title) + '</p></div></div><p class="muted">Loading…</p>'
 
   let r
   try { r = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry') } catch (e) { if (client.isSignedOut(e)) return; r = { ok: false, data: {} } }
+  if (!ctx.alive()) return
   if (!r.ok) {
     if (r.data && r.data.code === 'no_team') {
-      main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p></div></div><div class="locked"><h2>Join or start a team first</h2><p><a class="btn" href="' + esc(href('participant', ev.slug, 'team')) + '">Go to Team</a></p></div>'
+      main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>' + esc(ev.title) + '</p></div></div><div class="locked"><h2>Join or start a team first</h2><p><a class="btn" href="' + esc(href('participant', ev.slug, 'team')) + '">Go to Team</a></p></div>'
       return
     }
-    main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p></div></div><div class="note bad" role="alert">' + esc(errText(r, 'Could not load your entry.')) + '</div>'
+    main.innerHTML = '<div class="ph"><div class="t"><h1>Entry</h1><p>' + esc(ev.title) + '</p></div></div><div class="note bad" role="alert">' + esc(errText(r, 'Could not load your entry.')) + '</div>'
     return
   }
 
-  let rubricCriteria = []
+  // The rubric is a secondary card: if it fails to load, the entry still
+  // renders and the card is simply left out. Kept on `main` so every
+  // repaint (save, submit, conflict) puts it back without a second fetch.
+  main.__enRubric = []
   try {
     const rr = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/rubric')
-    if (rr.ok && rr.data && Array.isArray(rr.data.criteria)) rubricCriteria = rr.data.criteria
-  } catch (e) { /* the entry itself loaded fine; the rubric card is just omitted */ }
+    if (rr.ok && rr.data && Array.isArray(rr.data.criteria)) main.__enRubric = rr.data.criteria
+  } catch (e) { /* omitted, see above */ }
   if (!ctx.alive()) return
 
-  paint(ctx, ev, r.data, rubricCriteria)
+  paint(ctx, ev, r.data)
 }
 
-function paint (ctx, ev, data, rubricCriteria) {
+// `mode(rules, hasTracks, field)`: Required / Optional / Off / One of for one
+// field, honouring "a missing key means Optional" and "title is forced
+// Required" (build-plan.md 4.1).
+function mode (rules, hasTracks, field) {
+  if (field === 'title') return 'required'
+  if (field === 'track' && !hasTracks) return 'off'
+  const f = (rules && rules.fields) || {}
+  return f[field] || 'optional'
+}
+
+function paint (ctx, ev, data) {
   const { main, api: client, ui } = ctx
   const api = client.api
   const esc = ui.esc
-  const required = Array.isArray(data.required) ? data.required : []
   const editable = data.editable !== false
   const entry = data.entry || {}
-  const rubricHTML = rubricCardHTML(ui, rubricCriteria || [])
+  const rules = data.rules || { fields: {}, summary: '', preset: '', judge_first: 'video' }
+  const hasTracks = typeof rules.has_tracks === 'boolean' ? rules.has_tracks : !!(ev.tracks && ev.tracks.length)
+  const status = data.status || 'draft'
 
   if (!editable) {
-    const head = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p></div></div>'
-    const closedText = CLOSED_TEXT[data.refusal] || CLOSED_TEXT.submissions_closed
-    const hasAnything = FIELDS.some(f => String(entry[f] || '').trim()) || entry.has_screenshot
-    let body = '<section class="card"><h2>Your entry</h2>'
-    if (!hasAnything) {
-      body += '<p class="muted">' + (data.refusal === 'submissions_closed' ? 'Nothing was entered by the deadline.' : 'No entry.') + '</p>'
-    } else {
-      let dl = ''
-      FIELDS.forEach(f => {
-        const val = String(entry[f] || '')
-        if (!val.trim()) return
-        const isLink = f === 'video_url' || f === 'code_url'
-        const link = isLink ? safeHref(val) : ''
-        const valueHTML = link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(val) + '</a>' : esc(val)
-        dl += '<dt>' + esc(LABEL[f]) + '</dt><dd>' + valueHTML + '</dd>'
-      })
-      if (dl) body += '<dl>' + dl + '</dl>'
-      if (entry.has_screenshot) {
-        body += '<div class="field"><span class="lab">Screenshot</span><div class="site-frame" id="en-shot-view"></div></div>'
-      }
-    }
-    body += '</section>'
-    const closedSentence = closedText.replace(/\.+$/, '') + '. This is what the judges see.'
-    main.innerHTML = head + '<div class="note info">' + esc(closedSentence) + '</div>' + body + rubricHTML
-    if (entry.has_screenshot) {
-      const frame = main.querySelector('#en-shot-view')
-      const img = document.createElement('img')
-      img.alt = 'Screenshot'
-      img.style.maxWidth = '100%'
-      img.hidden = true
-      frame.append(img)
-      ui.showImage(ctx, img, '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot')
-    }
+    paintReadOnly(ctx, ev, data, { rules, hasTracks, status })
     return
   }
 
   const missing = Array.isArray(data.missing) ? data.missing : []
-  const pillHTML = data.complete
-    ? '<span class="pill ok">Complete</span>'
-    : (missing.length ? '<span class="pill warn">Missing: ' + esc(missing.map(f => PLAIN[f] || f).join(', ')) + '</span>' : '')
   const me = ctx.event && ctx.event.me
   const entryDeadline = (me && me.team && me.team.deadline) || ev.submission_deadline
-  const deadlineHTML = entryDeadline ? '<p class="small muted">Entries close ' + esc(ui.dateTime(entryDeadline, ev)) + '.</p>' : ''
-  const head = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p>' + deadlineHTML + '</div>' + pillHTML + '</div>'
+  const deadlineText = entryDeadline ? ui.dateTime(entryDeadline, ev) : ''
 
-  function fieldHTML (f, type) {
-    const req = required.indexOf(f) >= 0
-    const val = esc(entry[f] || '')
-    const labelText = esc(LABEL[f]) + (req ? ' (required)' : '')
-    if (f === 'description') {
-      return '<div class="field"><label for="en-' + f + '">' + labelText + '</label><textarea class="input" id="en-' + f + '" maxlength="5000">' + val + '</textarea><p class="help" id="en-' + f + '-err"></p></div>'
+  const submittedAtText = data.submitted_at ? ui.dateTime(data.submitted_at, ev) : ''
+  const head = '<div class="ph"><div class="t"><h1>Entry</h1><p>' + esc(ev.title) + '</p></div></div>'
+  main.innerHTML = head + statusHTML(ui, status, data, { rules, deadlineText, submittedAtText }) + formHTML(ctx, ev, data, rules, hasTracks, missing, status)
+
+  const submitBtn = main.querySelector('#en-submit')
+  if (submitBtn) submitBtn.addEventListener('click', () => doSubmit(ctx, ev, data))
+  const unsubmitBtn = main.querySelector('#en-unsubmit')
+  if (unsubmitBtn) unsubmitBtn.addEventListener('click', () => doUnsubmit(ctx, ev, data))
+
+  wireForm(ctx, ev, data, rules, hasTracks)
+}
+
+// --- Status block (Draft / Submitted / Incomplete) ------------------------
+
+function statusHTML (ui, status, data, { rules, deadlineText, submittedAtText }) {
+  const esc = ui.esc
+  const missing = Array.isArray(data.missing) ? data.missing : []
+  const complete = !!data.complete
+  const evidenceUnmet = missing.some(f => f === 'video_url' || f === 'site' || f === 'code_url' || f === 'screenshot' || f === 'one_of')
+  const summaryUnmet = missing.some(f => SUMMARY_FIELDS.includes(f) || f === 'title' || f === 'description')
+  const evidenceLabel = rules.summary || 'show your work'
+  // The missing-items list: one line per part of the entry, ticked when
+  // done, and naming exactly what is still missing when not.
+  const summaryStep = ((data.progress && data.progress.steps) || []).find(x => x.id === 'summary') || {}
+  const summaryMissing = missing.filter(f => SUMMARY_FIELDS.includes(f) || f === 'title' || f === 'description')
+  const evidenceMissing = missing.filter(f => !summaryMissing.includes(f))
+  const summaryText = 'Summary card' + (summaryStep.of ? ' · ' + (summaryStep.filled || 0) + ' of ' + summaryStep.of : '') +
+    (summaryMissing.length ? ' · add ' + summaryMissing.map(f => PLAIN[f] || f).join(', ') : '')
+  // The rules sentence already names the one-of group, so only lines it
+  // doesn't name (a required code link or screenshot) are spelled out.
+  const evidenceExtra = evidenceMissing.filter(f => f !== 'one_of' && !(f === 'code_url' && /code link/.test(evidenceLabel)))
+  const evidenceText = ucfirst(evidenceLabel) + (evidenceExtra.length ? ' · add ' + evidenceExtra.map(f => PLAIN[f] || f).join(', ') : '')
+  const need = '<ul class="need" id="en-need">' +
+    '<li class="' + (summaryUnmet ? '' : 'ok') + '">' + esc(summaryText) + '</li>' +
+    (rules.summary || evidenceMissing.length ? '<li class="' + (evidenceUnmet ? '' : 'ok') + '">' + esc(evidenceText) + '</li>' : '') +
+    '</ul>'
+  if (status === 'submitted') {
+    if (!complete) {
+      // Rules tightened after this team pressed Submit (build-plan.md 4.1
+      // "submitted entries stay submitted..."): not the coordinator's
+      // auto-submit-incomplete case, which never reaches this editable
+      // branch (it is always past the deadline, read-only).
+      return '<div class="entry-status submitted"><div class="t"><b>Submitted</b><span>The organisers now also ask for ' + esc(missing.map(f => PLAIN[f] || f).join(', ')) + '. Your entry stays submitted. Add it if you can.</span></div><button class="btn quiet" type="button" id="en-unsubmit">Move back to draft</button></div>'
     }
-    return '<div class="field"><label for="en-' + f + '">' + labelText + '</label><input class="input" id="en-' + f + '"' + (type ? ' type="' + type + '"' : '') + ' value="' + val + '" maxlength="' + (f === 'title' ? 80 : f === 'tagline' ? 160 : 500) + '"><p class="help" id="en-' + f + '-err"></p></div>'
+    const by = data.submit_auto ? '' : (data.submitted_by ? ' by ' + esc(data.submitted_by) : '')
+    const lead = data.submit_auto ? 'Submitted automatically' : ('Submitted' + (submittedAtText ? ' · ' + esc(submittedAtText) : '') + by)
+    return '<div class="entry-status submitted"><div class="t"><b>' + lead + '</b><span>Judges will see this. You can still change it until ' + esc(deadlineText || 'the deadline') + '. It stays submitted.</span></div><button class="btn quiet" type="button" id="en-unsubmit">Move back to draft</button></div>'
+  }
+  const title = complete ? 'Draft · ready to submit' : 'Draft · not submitted yet'
+  // Coordinator decision (2026-11-02): at the deadline a complete draft is
+  // submitted for the team, and an incomplete one is still judged, marked
+  // incomplete. Both lines say so before it happens.
+  const lines = ['Submit by ' + esc(deadlineText || 'the deadline') + '.']
+  if (complete) lines.push('If you don’t, it is submitted for you at the deadline.')
+  else lines.push('Not complete. It will still be judged, marked incomplete.')
+  return '<div class="entry-status draft" id="en-status"><div class="t"><b>' + title + '</b><span>' + lines.join(' ') + '</span>' + need + '</div><button class="btn primary" type="button" id="en-submit">Submit entry</button></div>'
+}
+
+// --- Form -------------------------------------------------------------
+
+function formHTML (ctx, ev, data, rules, hasTracks, missing, status) {
+  const ui = ctx.ui
+  const esc = ui.esc
+  const entry = data.entry || {}
+  const m = f => mode(rules, hasTracks, f)
+  const FIELD_HELP = {
+    problem: 'What goes wrong today, and for whom.',
+    tagline: 'What you built. This line also shows on the team sites list.',
+    video_url: 'YouTube, Vimeo, Loom or Google Drive play right on the judges’ screen. Other links open in a new tab.'
+  }
+  function textField (f, type) {
+    if (m(f) === 'off') return ''
+    const raw = String(entry[f] || '')
+    const val = esc(raw)
+    const max = MAXLEN[f]
+    const help = FIELD_HELP[f] ? '<p class="help">' + esc(FIELD_HELP[f]) + '</p>' : ''
+    return '<div class="field"><div class="lab-row"><label for="en-' + f + '">' + esc(LABEL[f]) + '</label>' +
+      (max ? '<span class="counter" id="en-' + f + '-ctr">' + raw.length + ' / ' + max + '</span>' : '') + '</div>' +
+      '<input class="input" id="en-' + f + '"' + (type ? ' type="' + type + '"' : '') + (max ? ' maxlength="' + max + '"' : '') + ' value="' + val + '">' +
+      help + '<p class="err" id="en-' + f + '-err"></p></div>'
   }
 
-  const shotRequired = required.indexOf('screenshot') >= 0
-  main.innerHTML = head +
-    '<section class="card"><h2>Your entry</h2>' +
-    fieldHTML('title') + fieldHTML('tagline') + fieldHTML('description') + fieldHTML('video_url', 'url') + fieldHTML('code_url', 'url') +
-    '<div class="field"><label for="en-shot">Screenshot' + (shotRequired ? ' (required)' : '') + '</label>' +
-    '<div class="site-frame" id="en-shot-frame"' + (entry.has_screenshot ? '' : ' hidden') + '><img id="en-shot-img" alt="Screenshot" hidden></div>' +
-    '<input class="input" type="file" id="en-shot" accept="image/png,image/jpeg,image/webp">' +
-    '<div class="form-actions"><button type="button" class="btn sm" id="en-shot-remove"' + (entry.has_screenshot ? '' : ' hidden') + '>Remove screenshot</button><span class="hint">Screenshot changes save straight away.</span></div>' +
-    '<p class="help" id="en-screenshot-err"></p>' +
-    '</div>' +
-    '</section>' +
-    rubricHTML +
-    '<div class="sticky-foot"><button type="button" class="btn primary" id="en-save">Save</button><span class="small muted">Saves title, tagline, description and links.</span></div>'
+  function trackField () {
+    if (m('track') === 'off') return ''
+    const opts = (ev.tracks || []).map(t => '<option value="' + esc(t.slug) + '"' + (entry.track && entry.track.slug === t.slug ? ' selected' : '') + '>' + esc(t.name) + '</option>').join('')
+    return '<div class="field"><label for="en-track">' + esc(LABEL.track) + '</label><select class="select" id="en-track"><option value="">No track</option>' + opts + '</select><p class="help">Your team’s track. Changing it here changes it for the whole team.</p></div>'
+  }
+
+  function toolsField () {
+    if (m('tools') === 'off') return ''
+    const tools = Array.isArray(entry.tools) ? entry.tools : []
+    const tagsHTML = tools.map((t, i) => '<span class="tag' + (ui.AI_SUGGESTIONS.some(a => a.toLowerCase() === String(t).toLowerCase()) ? ' ai' : '') + '" data-tag-i="' + i + '">' + esc(t) + '<button type="button" aria-label="Remove ' + esc(t) + '">×</button></span>').join('')
+    const sugg = list => list.filter(s => !tools.some(t => t.toLowerCase() === s.toLowerCase())).map(s => '<button type="button" data-suggest="' + esc(s) + '">+ ' + esc(s) + '</button>').join('')
+    return '<div class="field"><span class="lab" id="en-tools-l">' + esc(LABEL.tools) + '</span>' +
+      '<div class="tag-input" role="group" aria-labelledby="en-tools-l" id="en-tags">' + tagsHTML + '<input id="en-tools-input" aria-label="Add a tool" placeholder="Type and press Enter"' + (tools.length >= 10 ? ' disabled' : '') + '></div>' +
+      '<div class="suggest"><span class="k">AI</span>' + sugg(ui.AI_SUGGESTIONS) + '</div>' +
+      '<div class="suggest"><span class="k">Tools</span>' + sugg(ui.TOOL_SUGGESTIONS) + '</div>' +
+      '<p class="help">Up to 10. Pick from the suggestions or type your own.</p><p class="err" id="en-tools-err"></p></div>'
+  }
+
+  function maturityField () {
+    if (m('maturity') === 'off') return ''
+    const opts = ['working', 'partial', 'concept']
+    const cards = opts.map(k => {
+      const mt = ui.MATURITY[k]
+      const on = entry.maturity === k
+      return '<label class="choice' + (on ? ' on' : '') + '"><input type="radio" name="en-mat" value="' + k + '"' + (on ? ' checked' : '') + '><span><b>' + esc(mt.label) + '</b><span class="d">' + esc(ucfirst(mt.note)) + '</span></span></label>'
+    }).join('')
+    return '<fieldset class="field"><legend>' + esc(LABEL.maturity) + '</legend><div class="choices three">' + cards + '</div><p class="err" id="en-maturity-err"></p></fieldset>'
+  }
+
+  function siteRow () {
+    if (m('site') === 'off') return ''
+    const site = data.site || {}
+    const pill = site.exists && site.live_version ? '<span class="pill ok">Published</span>' : '<span class="pill">Not published yet</span>'
+    const btn = site.exists && site.live_version ? '' : '<a class="btn sm" href="' + esc(href('participant', ev.slug, 'website')) + '">Publish your website</a>'
+    return '<div class="field"><span class="lab">' + esc(LABEL.site) + '</span><div class="row-flex"><span>' + pill + '</span>' + btn + '</div></div>'
+  }
+
+  const summarySection = m('title') === 'off' ? '' : (
+    '<section class="card"><h2>Summary card</h2><p class="sub">Judges read this first, in about 20 seconds. Keep each line short.</p>' +
+    textField('title') + textField('problem') + textField('tagline') + textField('audience') + trackField() + toolsField() + maturityField() +
+    '</section>'
+  )
+
+  const oneOfCount = SHOW_FIELDS.filter(f => m(f) === 'one_of').length
+  const showIntro = rules.summary ? '<p class="sub">This event asks for <b>' + esc(rules.summary) + '</b>.' + (oneOfCount > 1 && m('code_url') !== 'required' ? ' One is enough.' : '') + '</p>' : ''
+  const showSection = SHOW_FIELDS.every(f => m(f) === 'off') ? '' : (
+    '<section class="card' + (missing.some(x => x === 'video_url' || x === 'site' || x === 'code_url' || x === 'screenshot' || x === 'one_of') ? ' has-error' : '') + '"><h2>Show your work</h2>' + showIntro +
+    '<p class="err" id="en-one_of-err"></p>' +
+    textField('video_url', 'url') +
+    siteRow() +
+    (m('code_url') === 'off' ? '' : textField('code_url', 'url')) +
+    (m('screenshot') === 'off' ? '' : shotField()) +
+    '</section>'
+  )
+
+  function shotField () {
+    const suffix = m('screenshot') === 'optional' ? '<span class="opt">(optional)</span>' : ''
+    return '<div class="field"><div class="lab-row"><label for="en-shot">' + esc(LABEL.screenshot) + '</label>' + suffix + '</div>' +
+      '<div class="site-frame" id="en-shot-frame"' + (entry.has_screenshot ? '' : ' hidden') + '><img id="en-shot-img" alt="Screenshot" hidden></div>' +
+      '<input class="input" type="file" id="en-shot" accept="image/png,image/jpeg,image/webp">' +
+      '<div class="form-actions"><button type="button" class="btn sm" id="en-shot-remove"' + (entry.has_screenshot ? '' : ' hidden') + '>Remove screenshot</button><span class="hint">Screenshot changes save straight away.</span></div>' +
+      '<p class="err" id="en-screenshot-err"></p></div>'
+  }
+
+  // `description` is its own rule line server-side (entryRuleFields) --
+  // most presets leave it Optional (so it folds, true to the prototype),
+  // but a custom config, or the "Ideas and design" preset, can make it
+  // Required or Off.
+  const descMode = m('description')
+  const moreSection = descMode === 'off' ? '' : (
+    '<details class="card"' + (descMode === 'required' || entry.description ? ' open' : '') + '><summary>More detail' + (descMode === 'required' ? ' (required)' : ' (optional)') + '</summary><div class="field" style="margin-top:12px"><label for="en-description">' + esc(LABEL.description) + '</label><textarea class="input" id="en-description" maxlength="5000">' + esc(entry.description || '') + '</textarea><p class="err" id="en-description-err"></p></div></details>'
+  )
+
+  const consentLine = '<p class="help">After results, your summary card, video and website can appear on the event’s public page if the organisers show your entry.</p>'
+
+  const footHint = status === 'submitted' ? 'Each change is checked against what the event asks for.' : 'Saving a draft never checks anything.'
+  const footButtons = status === 'submitted'
+    ? '<button type="button" class="btn primary" id="en-save">Save changes</button>'
+    : '<button type="button" class="btn" id="en-save">Save draft</button><button type="button" class="btn primary" id="en-submit-foot">Submit entry</button>'
+  const foot = '<div class="sticky-foot">' + footButtons + '<span class="small muted hint-wide">' + esc(footHint) + '</span></div>'
+
+  const preview = '<p class="section-title" style="margin-top:0">How judges see it</p><div id="en-preview"></div>' +
+    // The "How you're judged" rubric card (audit item 1, on main since
+    // 2026-11-02) goes in this slot, under the live preview.
+    '<div id="entry-rubric-slot" data-slot="judging-rubric">' + rubricCardHTML(ui, ctx.main.__enRubric) + '</div>'
+
+  return '<div class="split"><div>' + summarySection + showSection + moreSection + consentLine + foot + '</div><aside>' + preview + '</aside></div>'
+}
+function ucfirst (s) { return s ? s[0].toUpperCase() + s.slice(1) : s }
+
+// --- Wiring -------------------------------------------------------------
+
+function wireForm (ctx, ev, data, rules, hasTracks) {
+  const { main, api: client, ui } = ctx
+  const api = client.api
+  const entry = data.entry || {}
+  const $ = id => main.querySelector('#' + id)
+  const path = '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry'
+  const m = f => mode(rules, hasTracks, f)
+
+  let tools = Array.isArray(entry.tools) ? entry.tools.slice() : []
+
+  function team () {
+    const me = ctx.event && ctx.event.me
+    const t = me && me.team
+    if (!t) return { name: '', members: '' }
+    return { name: t.name || '', members: (t.members || []).map(x => x.display_name).filter(Boolean).join(', ') }
+  }
+
+  function currentTrackName () {
+    const sel = $('en-track')
+    if (!sel) return entry.track ? entry.track.name : ''
+    const slug = sel.value
+    const t = (ev.tracks || []).find(x => x.slug === slug)
+    return t ? t.name : ''
+  }
+
+  function updatePreview () {
+    const slot = $('en-preview')
+    if (!slot) return
+    const matEl = main.querySelector('input[name="en-mat"]:checked')
+    const t = team()
+    const previewEntry = {
+      title: ($('en-title') && $('en-title').value) || entry.title || 'Untitled',
+      team_name: t.name,
+      team_members: t.members,
+      track: currentTrackName() ? { name: currentTrackName() } : null,
+      problem: ($('en-problem') && $('en-problem').value) || '',
+      tagline: ($('en-tagline') && $('en-tagline').value) || '',
+      audience: ($('en-audience') && $('en-audience').value) || '',
+      tools,
+      maturity: matEl ? matEl.value : (entry.maturity || '')
+    }
+    slot.innerHTML = ''
+    slot.append(ui.entryCard(previewEntry, { compact: true }))
+  }
+
+  // Counters + live preview on every text field this event actually shows.
+  ;['title', 'problem', 'tagline', 'audience'].forEach(f => {
+    const el = $('en-' + f)
+    if (!el) return
+    el.addEventListener('input', () => {
+      const ctr = $('en-' + f + '-ctr')
+      if (ctr) ctr.textContent = el.value.length + ' / ' + MAXLEN[f]
+      updatePreview()
+    })
+  })
+  const trackSel = $('en-track')
+  if (trackSel) trackSel.addEventListener('change', updatePreview)
+  main.querySelectorAll('input[name="en-mat"]').forEach(r => r.addEventListener('change', () => {
+    main.querySelectorAll('.choices.three .choice').forEach(c => c.classList.toggle('on', c.querySelector('input').checked))
+    updatePreview()
+  }))
+
+  // Tag input: Enter or comma adds, Backspace on an empty field removes the
+  // last tag, a suggestion button adds that tag.
+  function renderTags () {
+    const group = $('en-tags')
+    if (!group) return
+    const input = $('en-tools-input')
+    group.querySelectorAll('.tag').forEach(n => n.remove())
+    tools.forEach((t, i) => {
+      const span = document.createElement('span')
+      span.className = 'tag' + (ui.AI_SUGGESTIONS.some(a => a.toLowerCase() === t.toLowerCase()) ? ' ai' : '')
+      span.textContent = t
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.setAttribute('aria-label', 'Remove ' + t)
+      btn.textContent = '×'
+      btn.addEventListener('click', () => { tools.splice(i, 1); renderTags(); updatePreview() })
+      span.append(btn)
+      group.insertBefore(span, input)
+    })
+    if (input) input.disabled = tools.length >= 10
+    renderSuggestions()
+    updatePreview()
+  }
+  function renderSuggestions () {
+    main.querySelectorAll('.suggest').forEach((row, idx) => {
+      const list = idx === 0 ? ui.AI_SUGGESTIONS : ui.TOOL_SUGGESTIONS
+      const k = row.querySelector('.k')
+      row.querySelectorAll('button').forEach(b => b.remove())
+      list.filter(s => !tools.some(t => t.toLowerCase() === s.toLowerCase())).forEach(s => {
+        const b = document.createElement('button')
+        b.type = 'button'
+        b.textContent = '+ ' + s
+        b.addEventListener('click', () => addTag(s))
+        row.append(b)
+      })
+      if (k) row.insertBefore(k, row.firstChild)
+    })
+  }
+  function addTag (raw) {
+    const v = String(raw || '').trim()
+    if (!v || tools.length >= 10) return
+    if (tools.some(t => t.toLowerCase() === v.toLowerCase())) return
+    tools.push(v.slice(0, 30))
+    renderTags()
+  }
+  const toolsInput = $('en-tools-input')
+  if (toolsInput) {
+    toolsInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault()
+        addTag(toolsInput.value)
+        toolsInput.value = ''
+      } else if (e.key === 'Backspace' && !toolsInput.value) {
+        tools.pop()
+        renderTags()
+      }
+    })
+  }
+  if ($('en-tags')) renderTags()
 
   if (entry.has_screenshot) ui.showImage(ctx, main.querySelector('#en-shot-img'), '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot')
 
-  const $ = id => main.querySelector('#' + id)
-  const path = '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry'
+  updatePreview()
 
   // A write that finds the team frozen or taken down meanwhile reloads the
-  // page so it shows that state instead of a stale form (matches
-  // hack-app.html's blockedWrite).
+  // page so it shows that state instead of a stale form.
   async function blockedRefresh (resp) {
     const code = resp && resp.data && resp.data.code
     if (!isBlockedCode(code)) return false
@@ -161,68 +442,86 @@ function paint (ctx, ev, data, rubricCriteria) {
     return true
   }
 
-  // Screenshot upload/remove repaints the whole form from the server's fresh
-  // entry (has_screenshot, updated_at, completeness all change). That must
-  // never discard text the user has typed but not saved yet (finding: a
-  // screenshot mutation erased an unsaved description). Capture the visible
-  // draft first and reapply it over whatever the repaint puts in the inputs.
-  function captureDraft () {
-    const draft = {}
-    FIELDS.forEach(f => { const el = $('en-' + f); if (el) draft[f] = el.value })
-    return draft
+  function clearErrors () { main.querySelectorAll('.err').forEach(n => { n.textContent = '' }); main.querySelectorAll('.has-error').forEach(n => n.classList.remove('has-error')) }
+  function fieldErr (f, msg) {
+    const n = $('en-' + f + '-err')
+    if (n) { n.textContent = msg || ''; const field = n.closest('.field'); if (field) field.classList.add('has-error') }
   }
-  function restoreDraft (draft) {
-    FIELDS.forEach(f => { const el = $('en-' + f); if (el && draft[f] !== undefined) el.value = draft[f] })
-  }
-
-  function clearErrors () { FIELDS.concat('screenshot').forEach(f => { const n = $('en-' + f + '-err'); if (n) n.textContent = '' }) }
-  function fieldErr (f, msg) { const n = $('en-' + f + '-err'); if (n) n.textContent = msg || '' }
   function showFieldError (code, msg, sent) {
     if (code === 'invalid_url') {
       const which = ['video_url', 'code_url'].filter(f => sent && Object.prototype.hasOwnProperty.call(sent, f))
       which.forEach(f => fieldErr(f, msg))
       return which.length > 0
     }
+    if (code === 'invalid_track') { fieldErr('track', msg); return true }
     if (code === 'image_too_large' || code === 'unsupported_image') { fieldErr('screenshot', msg); return true }
-    const field = FIELDS.find(f => code === f || code === 'invalid_' + f)
+    const field = ['title', 'problem', 'tagline', 'audience', 'tools', 'maturity', 'description'].find(f => code === 'invalid_' + f)
     if (!field) return false
     fieldErr(field, msg)
     return true
   }
 
-  $('en-save').addEventListener('click', async () => {
-    clearErrors()
-    const now = {}
-    FIELDS.forEach(f => { now[f] = $('en-' + f).value })
+  function diffBody () {
     const body = {}
-    FIELDS.forEach(f => { if ((now[f] || '') !== (entry[f] || '')) body[f] = f === 'video_url' || f === 'code_url' ? now[f].trim() : now[f] })
-    if (!Object.keys(body).length) { ui.toast('Saved', $('en-save')); return }
+    ;['title', 'problem', 'tagline', 'audience'].forEach(f => { const el = $('en-' + f); if (el && (el.value || '') !== (entry[f] || '')) body[f] = el.value })
+    const vEl = $('en-video_url'); if (vEl && (vEl.value.trim() || '') !== (entry.video_url || '')) body.video_url = vEl.value.trim()
+    const cEl = $('en-code_url'); if (cEl && (cEl.value.trim() || '') !== (entry.code_url || '')) body.code_url = cEl.value.trim()
+    const dEl = $('en-description'); if (dEl && (dEl.value || '') !== (entry.description || '')) body.description = dEl.value
+    if (trackSel) { const was = entry.track ? entry.track.slug : ''; if (trackSel.value !== was) body.track = trackSel.value }
+    const matEl = main.querySelector('input[name="en-mat"]:checked')
+    const matVal = matEl ? matEl.value : ''
+    if (matVal !== (entry.maturity || '')) body.maturity = matVal
+    const was = Array.isArray(entry.tools) ? entry.tools : []
+    if (JSON.stringify(tools) !== JSON.stringify(was)) body.tools = tools
+    return body
+  }
+
+  async function doSave (btn) {
+    clearErrors()
+    const body = diffBody()
+    if (!Object.keys(body).length) { ui.toast('Saved', btn); return { ok: true, data: data } }
     body.updated_at = entry.updated_at || ''
-    $('en-save').disabled = true
+    if (btn) btn.disabled = true
     try {
       const resp = await api('PUT', path, body)
       if (!resp.ok && resp.data && resp.data.code === 'entry_changed') {
-        $('en-save').disabled = false
-        await showConflict(ctx, ev, data, body, resp.data.entry, rubricCriteria)
-        return
+        if (btn) btn.disabled = false
+        await showConflict(ctx, ev, data, body, resp.data.entry)
+        return { ok: false, conflict: true }
       }
       if (!resp.ok) {
-        if (await blockedRefresh(resp)) return
+        if (await blockedRefresh(resp)) return { ok: false, blocked: true }
+        if (resp.data && resp.data.code === 'entry_would_be_incomplete') {
+          // A submitted entry can't lose a line the event asks for. Nothing
+          // was saved, the form keeps what was typed.
+          ui.toast(errText(resp), btn || main, true)
+          markMissing(main, Array.isArray(resp.data.missing) ? resp.data.missing : [], data.rules || {})
+          if (btn) btn.disabled = false
+          return { ok: false }
+        }
         const msg = errText(resp)
-        if (!showFieldError(resp.data && resp.data.code, msg, body)) ui.toast(msg, $('en-save'), true)
-        $('en-save').disabled = false
-        return
+        if (!showFieldError(resp.data && resp.data.code, msg, body)) ui.toast(msg, btn || main, true)
+        if (btn) btn.disabled = false
+        return { ok: false }
       }
-      ui.toast('Saved', $('en-save'))
-      paint(ctx, ev, resp.data || {}, rubricCriteria)
+      return { ok: true, data: resp.data || {} }
     } catch (e) {
-      if (client.isSignedOut(e)) return
-      ui.toast('Cannot reach the server.', $('en-save'), true)
-      $('en-save').disabled = false
+      if (client.isSignedOut(e)) return { ok: false, signedOut: true }
+      ui.toast('Cannot reach the server.', btn || main, true)
+      if (btn) btn.disabled = false
+      return { ok: false }
     }
-  })
+  }
 
-  $('en-shot').addEventListener('change', async () => {
+  const saveBtn = $('en-save')
+  if (saveBtn) saveBtn.addEventListener('click', async () => {
+    const r = await doSave(saveBtn)
+    if (r.ok) { ui.toast('Saved', saveBtn); paint(ctx, ev, r.data) }
+  })
+  const submitFoot = $('en-submit-foot')
+  if (submitFoot) submitFoot.addEventListener('click', () => doSubmit(ctx, ev, data))
+
+  $('en-shot') && $('en-shot').addEventListener('change', async () => {
     const input = $('en-shot')
     const file = input.files && input.files[0]
     if (!file) return
@@ -232,7 +531,6 @@ function paint (ctx, ev, data, rubricCriteria) {
       input.value = ''
       return
     }
-    const draft = captureDraft()
     try {
       const resp = await client.apiBytes('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot', file, file.type)
       input.value = ''
@@ -245,8 +543,7 @@ function paint (ctx, ev, data, rubricCriteria) {
         return
       }
       ui.toast('Screenshot saved', input)
-      paint(ctx, ev, resp.data || {}, rubricCriteria)
-      restoreDraft(draft)
+      paint(ctx, ev, resp.data || {})
     } catch (e) {
       input.value = ''
       if (!client.isSignedOut(e)) ui.toast('Cannot reach the server.', input, true)
@@ -258,7 +555,6 @@ function paint (ctx, ev, data, rubricCriteria) {
     const ok = await ui.confirm({ title: 'Remove the screenshot?', body: 'It comes off your entry.', confirmLabel: 'Remove', danger: true })
     if (!ok) return
     shotRemove.disabled = true
-    const draft = captureDraft()
     try {
       const resp = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot')
       if (!resp.ok) {
@@ -266,34 +562,194 @@ function paint (ctx, ev, data, rubricCriteria) {
         ui.toast(errText(resp), shotRemove, true); shotRemove.disabled = false; return
       }
       ui.toast('Screenshot removed', main.querySelector('.card'))
-      paint(ctx, ev, resp.data || {}, rubricCriteria)
-      restoreDraft(draft)
+      paint(ctx, ev, resp.data || {})
     } catch (e) {
       if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', shotRemove, true); shotRemove.disabled = false }
     }
   })
+
+  // Exposed for doSubmit/doUnsubmit below (module-scope functions need the
+  // live diff + save, not a stale closure from paint()).
+  main.__enDiffBody = diffBody
+  main.__enSave = doSave
+}
+
+// Marks every missing line after a refused submit (or a refused save on a
+// submitted entry): its .err line says what to add, its field is outlined,
+// and focus moves to the first one (atlas participant-entry, "submit
+// refused"). "one_of" is the show-your-work group, named once at the top of
+// that card. "site" has no input, so its line is named on the group's err.
+function markMissing (main, missing, rules) {
+  const ADD = {
+    title: 'Add a project name.', problem: 'Add the problem, in one line.', tagline: 'Add the solution, in one line.',
+    audience: "Add who it's for.", track: 'Choose a track.', tools: 'Add at least one tool.', maturity: 'Choose what works today.',
+    description: 'Add a description.', video_url: 'Add a video link.', code_url: 'Add a code link.', screenshot: 'Add a screenshot.'
+  }
+  let first = null
+  missing.forEach(f => {
+    let errId = 'en-' + f + '-err'
+    let msg = ADD[f]
+    if (f === 'one_of') { errId = 'en-one_of-err'; msg = 'Add ' + (rules.summary || 'a video or a website') + '.' }
+    if (f === 'site') { errId = 'en-one_of-err'; msg = 'Publish your website.' }
+    const n = main.querySelector('#' + errId)
+    if (!n) return
+    n.textContent = msg || ''
+    const holder = n.closest('.field') || n.closest('.card')
+    if (holder) holder.classList.add('has-error')
+    if (!first) {
+      const target = f === 'one_of' ? main.querySelector('#en-video_url') : (f === 'maturity' ? main.querySelector('input[name="en-mat"]') : (f === 'tools' ? main.querySelector('#en-tools-input') : main.querySelector('#en-' + f)))
+      if (target) first = target
+    }
+  })
+  if (first) first.focus()
+}
+
+async function doSubmit (ctx, ev, data) {
+  const { main, api: client, ui } = ctx
+  const api = client.api
+  const path = '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry'
+  const submitBtns = main.querySelectorAll('#en-submit, #en-submit-foot')
+  submitBtns.forEach(b => { b.disabled = true })
+  try {
+    if (main.__enSave) {
+      const saved = await main.__enSave(null)
+      if (!saved.ok) { submitBtns.forEach(b => { b.disabled = false }); return }
+      if (saved.data && saved.data.entry) data = saved.data
+    }
+    const resp = await api('POST', path + '/submit', {})
+    if (resp.ok) { paint(ctx, ev, resp.data || {}); return }
+    // The server unifies this with the save-time guard under one code
+    // (entryWrite, hack_entries.go): 422 entry_would_be_incomplete, with a
+    // ready-made sentence in `error` ("Add these first: …") and the raw
+    // `missing` ids for focus. `data` here is already the freshly-saved
+    // draft (main.__enSave above), so no extra GET is needed to repaint it.
+    if (resp.data && (resp.data.code === 'entry_incomplete' || resp.data.code === 'entry_would_be_incomplete')) {
+      paint(ctx, ev, data)
+      const note = document.createElement('p')
+      note.className = 'note bad'
+      note.setAttribute('role', 'alert')
+      note.textContent = errText(resp, 'Add these before you submit.')
+      const headEl = main.querySelector('.ph')
+      if (headEl) headEl.insertAdjacentElement('afterend', note)
+      const missing = Array.isArray(resp.data.missing) ? resp.data.missing : []
+      markMissing(main, missing, data.rules || {})
+      return
+    }
+    if (resp.data && resp.data.code === 'submissions_closed') { ui.toast(errText(resp), main, true); await render(ctx); return }
+    ui.toast(errText(resp, 'Could not submit.'), main, true)
+    submitBtns.forEach(b => { b.disabled = false })
+  } catch (e) {
+    if (!client.isSignedOut(e)) ui.toast('Cannot reach the server.', main, true)
+    submitBtns.forEach(b => { b.disabled = false })
+  }
+}
+
+async function doUnsubmit (ctx, ev, data) {
+  const { main, api: client, ui } = ctx
+  const api = client.api
+  const title = (data.entry && data.entry.title) || 'this entry'
+  const ok = await ui.confirm({
+    title: 'Move ' + title + ' back to draft?',
+    body: 'It stops counting as submitted. At the deadline a complete draft is submitted for you, and an incomplete one is still judged, marked incomplete.',
+    confirmLabel: 'Move to draft'
+  })
+  if (!ok) return
+  try {
+    const resp = await api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/unsubmit', {})
+    if (!resp.ok) { ui.toast(errText(resp, 'Could not move this entry back to draft.'), main, true); return }
+    paint(ctx, ev, resp.data || {})
+  } catch (e) { if (!client.isSignedOut(e)) ui.toast('Cannot reach the server.', main, true) }
+}
+
+// --- Read-only (after the team's deadline, or stage Closed on) -----------
+
+// Nothing in the saved entry (build-plan.md's entryListItem/ownEntryJSON has
+// no separate "exists"/"started" field) -- same test organiser-entries.js
+// uses to tell a genuinely untouched entry apart from an attempted one.
+function hasAnyContent (entry) {
+  return !!(entry.title || entry.problem || entry.tagline || entry.audience || entry.maturity || (entry.tools && entry.tools.length) || entry.video_url || entry.code_url || entry.has_screenshot)
+}
+
+function paintReadOnly (ctx, ev, data, { rules, hasTracks, status }) {
+  const { main, ui } = ctx
+  const esc = ui.esc
+  const entry = data.entry || {}
+  const head = '<div class="ph"><div class="t"><h1>Entry</h1><p>' + esc(ev.title) + '</p></div></div>'
+
+  if (status === 'submitted') {
+    const by = data.submit_auto ? 'Submitted automatically at the deadline' : ('Submitted' + (data.submitted_at ? ' · ' + ui.dateTime(data.submitted_at, ev) : '') + (data.submitted_by ? ' by ' + data.submitted_by : ''))
+    const bodyCard = buildReadOnlyCard(ctx, ev, entry, false)
+    main.innerHTML = head +
+      '<div class="entry-status submitted"><div class="t"><b>' + esc(by) + '</b><span>Entries are closed. This is what the judges see.</span></div></div>' +
+      '<div class="split"><div>' + bodyCard + '</div><aside><div class="card"><h2>What happens next</h2><p class="small">The judges score every submitted entry. Results show here and on the event page when the organisers publish them.</p></div>' + rubricCardHTML(ui, main.__enRubric) + '</aside></div>'
+    return
+  }
+
+  // status === 'not_submitted': the deadline sweep settled this one without
+  // it ever being submitted (hack_entry_rules.go SettleEntryIncomplete).
+  if (status === 'not_submitted' && hasAnyContent(entry)) {
+    // Coordinator decision (2026-11-02): still judged, flagged, not hidden
+    // -- exact copy given for both this screen and Home.
+    const bodyCard = buildReadOnlyCard(ctx, ev, entry, true)
+    main.innerHTML = head +
+      '<div class="entry-status incomplete" role="status"><div class="t"><b>Entries closed</b><span>Not complete. It will still be judged, marked incomplete.</span></div></div>' +
+      '<div class="split"><div>' + bodyCard + '</div><aside><div class="card"><h2>What happens next</h2><p class="small">The judges score this entry too, with an Incomplete flag. Results show here and on the event page when the organisers publish them.</p></div>' + rubricCardHTML(ui, main.__enRubric) + '</aside></div>'
+    return
+  }
+
+  // Nothing was ever entered.
+  const closedText = CLOSED_TEXT[data.refusal] || CLOSED_TEXT.submissions_closed
+  const closedSentence = closedText.replace(/\.+$/, '') + '. This is what the judges see.'
+  const body = '<section class="card"><h2>Your entry</h2><p class="muted">Nothing was entered by the deadline.</p></section>'
+  main.innerHTML = head + '<div class="note info">' + esc(closedSentence) + '</div>' + body + rubricCardHTML(ui, main.__enRubric)
+}
+
+function buildReadOnlyCard (ctx, ev, entry, incomplete) {
+  const { ui } = ctx
+  const esc = ui.esc
+  const me = ctx.event && ctx.event.me
+  const names = me && me.team ? (me.team.members || []).map(x => x.display_name).filter(Boolean).join(', ') : ''
+  const card = ui.entryCard({
+    title: entry.title, team_name: me && me.team ? me.team.name : '', team_members: names,
+    track: entry.track, problem: entry.problem, tagline: entry.tagline, audience: entry.audience,
+    tools: entry.tools, maturity: entry.maturity
+  }, { incomplete })
+  const wrap = document.createElement('div')
+  wrap.append(card)
+  let extra = '<section class="card"><h2>Show your work</h2><dl>'
+  const videoLink = entry.video_url ? safeHref(entry.video_url) : ''
+  extra += '<dt>Video</dt><dd>' + (videoLink ? '<a href="' + esc(videoLink) + '" target="_blank" rel="noopener">' + esc(entry.video_url) + '</a>' : '(none)') + '</dd>'
+  const codeLink = entry.code_url ? safeHref(entry.code_url) : ''
+  extra += '<dt>Code</dt><dd>' + (codeLink ? '<a href="' + esc(codeLink) + '" target="_blank" rel="noopener">' + esc(entry.code_url) + '</a>' : '(none)') + '</dd>'
+  extra += '<dt>Screenshot</dt><dd>' + (entry.has_screenshot ? '<span id="en-ro-shot">Loading…</span>' : '(none)') + '</dd>'
+  extra += '</dl></section>'
+  wrap.innerHTML += extra
+  if (entry.has_screenshot) {
+    setTimeout(() => {
+      const slot = document.getElementById('en-ro-shot')
+      if (!slot) return
+      slot.textContent = ''
+      const img = document.createElement('img')
+      img.alt = 'Screenshot'
+      img.style.maxWidth = '100%'
+      img.hidden = true
+      slot.append(img)
+      ui.showImage(ctx, img, '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot')
+    }, 0)
+  }
+  return wrap.innerHTML
 }
 
 // A teammate saved over this entry while it was open here. Optimistic
 // concurrency (spec: entry-edit-conflict-resolution) -- a real choice, not a
 // toast, with both versions shown side by side.
-async function showConflict (ctx, ev, data, myBody, newer, rubricCriteria) {
+async function showConflict (ctx, ev, data, myBody, newer) {
   const { ui } = ctx
-  // Confusing #5: this used to fall back to showing every field whenever
-  // none of the fields *this person* touched (myBody) differed from the
-  // newer version -- e.g. only the teammate changed something -- padding
-  // the dialog with fields that read identically on both sides ("Their
-  // tagline" showing the same tagline). Compare every field's actual value
-  // (mine: what's in myBody if this person touched it, else the baseline
-  // they loaded) against the newer version instead, and only ever list
-  // ones that genuinely differ -- never a blanket fallback to FIELDS.
-  function mineOf (f) { return Object.prototype.hasOwnProperty.call(myBody, f) ? myBody[f] : (data.entry && data.entry[f]) || '' }
+  const entry = data.entry || {}
+  function mineOf (f) { return Object.prototype.hasOwnProperty.call(myBody, f) ? myBody[f] : (entry[f] || '') }
+  const FIELDS = ['title', 'problem', 'tagline', 'audience', 'video_url', 'code_url', 'description', 'maturity']
+  const LABELS = { title: 'title', problem: 'problem', tagline: 'solution', audience: "who it's for", video_url: 'video link', code_url: 'code link', description: 'description', maturity: 'what works today' }
   const changed = FIELDS.filter(f => (mineOf(f) || '') !== (newer[f] || ''))
-  // Two-column compare, built on the shared dialog primitive (ui.confirm)
-  // instead of its own scrim: "Keep mine" is the confirm button (focused by
-  // default, since this is a real choice between two versions, not a
-  // destructive action where Cancel should be the safe default), "Take
-  // theirs" is cancel, matching Escape/backdrop-click's existing behaviour.
   const grid = document.createElement('div')
   grid.className = 'grid2'
   if (changed.length) {
@@ -301,11 +757,11 @@ async function showConflict (ctx, ev, data, myBody, newer, rubricCriteria) {
       const mine = mineOf(f)
       const mineCard = document.createElement('div')
       mineCard.className = 'card'
-      mineCard.append(Object.assign(document.createElement('h2'), { textContent: 'Your ' + (LABEL[f] || f).toLowerCase() }))
+      mineCard.append(Object.assign(document.createElement('h2'), { textContent: 'Your ' + LABELS[f] }))
       mineCard.append(Object.assign(document.createElement('p'), { textContent: mine || '(empty)' }))
       const theirCard = document.createElement('div')
       theirCard.className = 'card'
-      theirCard.append(Object.assign(document.createElement('h2'), { textContent: 'Their ' + (LABEL[f] || f).toLowerCase() }))
+      theirCard.append(Object.assign(document.createElement('h2'), { textContent: 'Their ' + LABELS[f] }))
       theirCard.append(Object.assign(document.createElement('p'), { textContent: newer[f] || '(empty)' }))
       grid.append(mineCard, theirCard)
     }
@@ -322,18 +778,16 @@ async function showConflict (ctx, ev, data, myBody, newer, rubricCriteria) {
     const api = ctx.api.api
     const path = '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry'
     if (!keep) {
-      // Take theirs: drop the local edit and reload the current entry.
       const r = await api('GET', path)
-      if (r.ok) paint(ctx, ev, r.data || {}, rubricCriteria)
+      if (r.ok) paint(ctx, ev, r.data || {})
       return
     }
-    // Keep mine: resubmit on top of the newer version.
     const body = Object.assign({}, myBody, { updated_at: newer.updated_at || '' })
     try {
       const r = await api('PUT', path, body)
       if (!r.ok) { ctx.ui.toast(errText(r, 'Could not save. Try again.'), ctx.main, true); return }
       ctx.ui.toast('Saved', ctx.main)
-      paint(ctx, ev, r.data || {}, rubricCriteria)
+      paint(ctx, ev, r.data || {})
     } catch (e) { if (!ctx.api.isSignedOut(e)) ctx.ui.toast('Cannot reach the server.', ctx.main, true) }
   })
 }

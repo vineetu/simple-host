@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"image"
 	_ "image/jpeg"
@@ -39,11 +40,17 @@ const hackScreenshotMaxSide = 8000
 func (h *HackHandler) registerEntries(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("GET /v1/hack/events/{slug}/entry", wrap(h.getEntry))
 	mux.Handle("PUT /v1/hack/events/{slug}/entry", wrap(h.putEntry))
+	mux.Handle("POST /v1/hack/events/{slug}/entry/submit", wrap(h.submitEntry))
+	mux.Handle("POST /v1/hack/events/{slug}/entry/unsubmit", wrap(h.unsubmitEntry))
 	mux.Handle("GET /v1/hack/events/{slug}/entry/screenshot", wrap(h.getEntryScreenshot))
 	mux.Handle("PUT /v1/hack/events/{slug}/entry/screenshot", wrap(h.putEntryScreenshot))
 	mux.Handle("DELETE /v1/hack/events/{slug}/entry/screenshot", wrap(h.deleteEntryScreenshot))
+	mux.Handle("GET /v1/hack/events/{slug}/entry-rules", wrap(h.getEntryRules))
+	mux.Handle("PUT /v1/hack/events/{slug}/entry-rules", wrap(h.putEntryRules))
 	mux.Handle("GET /v1/hack/events/{slug}/teams/{team}/screenshot", wrap(h.getTeamScreenshot))
 	mux.Handle("GET /v1/hack/events/{slug}/entries", wrap(h.listEntries))
+	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/entry/exclude", wrap(h.excludeEntry))
+	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/entry/include", wrap(h.includeEntry))
 }
 
 func (h *HackHandler) getEntry(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +62,7 @@ func (h *HackHandler) getEntry(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	h.writeOwnEntry(w, r, a.event, team.ID)
+	h.writeOwnEntry(w, r, a.event, team.ID, a.user.ID)
 }
 
 func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
@@ -71,12 +78,17 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		UpdatedAt   *string `json:"updated_at"`
-		Title       *string `json:"title"`
-		Tagline     *string `json:"tagline"`
-		Description *string `json:"description"`
-		VideoURL    *string `json:"video_url"`
-		CodeURL     *string `json:"code_url"`
+		UpdatedAt   *string   `json:"updated_at"`
+		Title       *string   `json:"title"`
+		Tagline     *string   `json:"tagline"`
+		Description *string   `json:"description"`
+		VideoURL    *string   `json:"video_url"`
+		CodeURL     *string   `json:"code_url"`
+		Problem     *string   `json:"problem"`
+		Audience    *string   `json:"audience"`
+		Tools       *[]string `json:"tools"`
+		Maturity    *string   `json:"maturity"`
+		Track       *string   `json:"track"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
@@ -117,7 +129,44 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 		}
 		fields["code_url"] = s
 	}
-	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string) error {
+	if req.Problem != nil {
+		s, ok := checkHackText(w, *req.Problem, "problem", 0, 140)
+		if !ok {
+			return
+		}
+		fields["problem"] = s
+	}
+	if req.Audience != nil {
+		s, ok := checkHackText(w, *req.Audience, "audience", 0, 100)
+		if !ok {
+			return
+		}
+		fields["audience"] = s
+	}
+	if req.Maturity != nil {
+		if *req.Maturity != "" && *req.Maturity != "working" && *req.Maturity != "partial" && *req.Maturity != "concept" {
+			writeHackErr(w, http.StatusBadRequest, "invalid_maturity", "maturity must be working, partial, concept or empty")
+			return
+		}
+		fields["maturity"] = *req.Maturity
+	}
+	var tools *[]string
+	if req.Tools != nil {
+		cleaned, ok := checkEntryTools(w, *req.Tools)
+		if !ok {
+			return
+		}
+		tools = &cleaned
+	}
+	var trackSlug string
+	if req.Track != nil {
+		trackSlug = strings.TrimSpace(*req.Track)
+		if trackSlug != "" && !hackTrackSlug.MatchString(trackSlug) {
+			writeHackErr(w, http.StatusBadRequest, "invalid_track", "choose a listed track")
+			return
+		}
+	}
+	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error {
 		if req.UpdatedAt != nil {
 			current, err := db.GetEventEntry(ctx, tx, teamID)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -131,13 +180,184 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 				return errEntryChanged
 			}
 		}
-		return db.UpsertEventEntryText(ctx, tx, a.event.ID, teamID, a.user.ID, fields)
+		wasSubmitted := false
+		if before, err := db.GetEventEntry(ctx, tx, teamID); err == nil {
+			wasSubmitted = before.SubmittedAt.Valid
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if req.Track != nil {
+			if !participantTeamStages(st.Stage) {
+				return &hackWriteRefusalError{status: http.StatusConflict, code: "team_choice_closed", msg: "team choices are closed"}
+			}
+			if _, err := db.SetTeamTrack(ctx, tx, a.event.ID, teamID, trackSlug); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return &hackWriteRefusalError{status: http.StatusNotFound, code: "track_not_found", msg: "track not found"}
+				}
+				return err
+			}
+		}
+		if err := db.UpsertEventEntryText(ctx, tx, a.event.ID, teamID, a.user.ID, fields, tools); err != nil {
+			return err
+		}
+		return h.keepSubmittedComplete(ctx, tx, a.event, st, teamID, wasSubmitted)
+	})
+	if !ok {
+		return
+	}
+	h.writeOwnEntry(w, r, a.event, teamID, a.user.ID)
+}
+
+// submitEntry is POST .../entry/submit (section 4.1): the explicit move from
+// draft to submitted, enforced against the event's rules. Idempotent -- a
+// second call on an already-submitted entry answers 200 and keeps the first
+// submitted_at.
+func (h *HackHandler) submitEntry(w http.ResponseWriter, r *http.Request) {
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
+	if !ok {
+		return
+	}
+	if _, ok := h.participantTeam(w, r, a); !ok {
+		return
+	}
+	// The body is optional (section 4.1: "an empty body, or {updated_at}"):
+	// a bodyless POST submits unconditionally.
+	var req struct {
+		UpdatedAt *string `json:"updated_at"`
+	}
+	if r.ContentLength != 0 {
+		raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, hackMaxBody))
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body", Code: "invalid_request"})
+			return
+		}
+		if len(bytes.TrimSpace(raw)) > 0 {
+			if err := json.Unmarshal(raw, &req); err != nil {
+				writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body", Code: "invalid_request"})
+				return
+			}
+		}
+	}
+	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error {
+		e, err := db.GetEventEntryForUpdate(ctx, tx, teamID)
+		if errors.Is(err, sql.ErrNoRows) {
+			e = db.EventEntry{TeamID: teamID, EventID: a.event.ID}
+		} else if err != nil {
+			return err
+		}
+		if req.UpdatedAt != nil {
+			stamp := ""
+			if e.Exists {
+				stamp = e.UpdatedAt.UTC().Format(time.RFC3339Nano)
+			}
+			if *req.UpdatedAt != stamp {
+				return errEntryChanged
+			}
+		}
+		if e.SubmittedAt.Valid {
+			return nil // idempotent: already submitted, keep it as it is
+		}
+		check, err := h.evaluateEntryTx(ctx, tx, a.event, st, teamID, e)
+		if err != nil {
+			return err
+		}
+		if !check.Complete {
+			return &entryWouldBeIncompleteError{Missing: check.Missing, Submit: true}
+		}
+		_, err = db.SubmitEventEntry(ctx, tx, teamID, a.user.ID)
+		return err
 	})
 	if !ok {
 		return
 	}
 	h.queueReceipt(r.Context(), a.event, teamID, a.user.ID)
-	h.writeOwnEntry(w, r, a.event, teamID)
+	h.writeOwnEntry(w, r, a.event, teamID, a.user.ID)
+}
+
+// unsubmitEntry is POST .../entry/unsubmit: any current member can put the
+// entry back to draft before the deadline. entryWrite's own WriteRefusal
+// already answers 409 submissions_closed once the team is frozen.
+func (h *HackHandler) unsubmitEntry(w http.ResponseWriter, r *http.Request) {
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
+	if !ok {
+		return
+	}
+	if _, ok := h.participantTeam(w, r, a); !ok {
+		return
+	}
+	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error {
+		_, err := db.UnsubmitEventEntry(ctx, tx, teamID)
+		return err
+	})
+	if !ok {
+		return
+	}
+	h.writeOwnEntry(w, r, a.event, teamID, a.user.ID)
+}
+
+// excludeEntry and includeEntry are the organiser's hand exclude of a
+// flagged (or any) entry from judging, with a confirm on the client side
+// (coordinator decision 2026-11-02, INTENT.md).
+func (h *HackHandler) excludeEntry(w http.ResponseWriter, r *http.Request) {
+	h.setEntryExcluded(w, r, true)
+}
+func (h *HackHandler) includeEntry(w http.ResponseWriter, r *http.Request) {
+	h.setEntryExcluded(w, r, false)
+}
+
+func (h *HackHandler) setEntryExcluded(w http.ResponseWriter, r *http.Request, excluded bool) {
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	if !ok {
+		return
+	}
+	team, err := db.GetEventTeamBySlug(r.Context(), h.database, a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
+	if errors.Is(err, sql.ErrNoRows) {
+		writeHackErr(w, http.StatusNotFound, "team_not_found", "team not found")
+		return
+	}
+	if err != nil {
+		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	if _, err := db.GetEventEntry(r.Context(), h.database, team.ID); errors.Is(err, sql.ErrNoRows) {
+		writeHackErr(w, http.StatusNotFound, "no_entry", "this team has no entry")
+		return
+	} else if err != nil {
+		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	if _, err := db.SetEntryExcluded(r.Context(), h.database, team.ID, a.user.ID, excluded); err != nil {
+		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	tl, err := h.loadTeamList(r.Context(), a.event)
+	if err != nil {
+		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	e, err := db.GetEventEntry(r.Context(), h.database, team.ID)
+	if err != nil {
+		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	tracks, err := db.ListEventTracks(r.Context(), h.database, a.event.ID)
+	if err != nil {
+		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	item, err := h.entryListItem(r.Context(), a.event, team, e, loadEntryRules(a.event.EntryRules), len(tracks) > 0, tl)
+	if err != nil {
+		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (h *HackHandler) putEntryScreenshot(w http.ResponseWriter, r *http.Request) {
@@ -160,14 +380,20 @@ func (h *HackHandler) putEntryScreenshot(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string) error {
-		return db.UpsertEventEntryScreenshot(ctx, tx, a.event.ID, teamID, a.user.ID, data, mime)
+	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error {
+		before, err := db.GetEventEntry(ctx, tx, teamID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if err := db.UpsertEventEntryScreenshot(ctx, tx, a.event.ID, teamID, a.user.ID, data, mime); err != nil {
+			return err
+		}
+		return h.keepSubmittedComplete(ctx, tx, a.event, st, teamID, before.SubmittedAt.Valid)
 	})
 	if !ok {
 		return
 	}
-	h.queueReceipt(r.Context(), a.event, teamID, a.user.ID)
-	h.writeOwnEntry(w, r, a.event, teamID)
+	h.writeOwnEntry(w, r, a.event, teamID, a.user.ID)
 }
 
 func (h *HackHandler) deleteEntryScreenshot(w http.ResponseWriter, r *http.Request) {
@@ -182,13 +408,20 @@ func (h *HackHandler) deleteEntryScreenshot(w http.ResponseWriter, r *http.Reque
 	if _, ok := h.participantTeam(w, r, a); !ok {
 		return
 	}
-	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string) error {
-		return db.UpsertEventEntryScreenshot(ctx, tx, a.event.ID, teamID, a.user.ID, nil, "")
+	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error {
+		before, err := db.GetEventEntry(ctx, tx, teamID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if err := db.UpsertEventEntryScreenshot(ctx, tx, a.event.ID, teamID, a.user.ID, nil, ""); err != nil {
+			return err
+		}
+		return h.keepSubmittedComplete(ctx, tx, a.event, st, teamID, before.SubmittedAt.Valid)
 	})
 	if !ok {
 		return
 	}
-	h.writeOwnEntry(w, r, a.event, teamID)
+	h.writeOwnEntry(w, r, a.event, teamID, a.user.ID)
 }
 
 func (h *HackHandler) getEntryScreenshot(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +450,23 @@ func (h *HackHandler) getTeamScreenshot(w http.ResponseWriter, r *http.Request) 
 		log.Printf("hack: team screenshot %s: %v", a.event.Slug, err)
 		writeInternal(w)
 		return
+	}
+	// Section 4.5: a judge sees screenshots only for teams in their queue
+	// (assignment mode, conflicts, and now entry judgeability). Organisers
+	// see every team's screenshot regardless. An ineligible team answers
+	// the same team_not_found a genuinely unknown one would, revealing
+	// nothing about why.
+	if a.member.Role == "judge" {
+		eligible, err := db.JudgeTeamEligible(r.Context(), h.database, a.event.ID, a.user.ID, team.ID)
+		if err != nil {
+			log.Printf("hack: team screenshot %s: %v", a.event.Slug, err)
+			writeInternal(w)
+			return
+		}
+		if !eligible {
+			writeHackErr(w, http.StatusNotFound, "team_not_found", "team not found")
+			return
+		}
 	}
 	h.serveTeamScreenshot(w, r, team.ID)
 }
@@ -255,24 +505,73 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 		byTeam[e.TeamID] = e
 	}
 	required := entryRequiredList(a.event.EntryRequired)
+	fields := loadEntryRules(a.event.EntryRules)
+	tracks, err := db.ListEventTracks(r.Context(), h.database, a.event.ID)
+	if err != nil {
+		log.Printf("hack: entries %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	hasTracks := len(tracks) > 0
+	counts := map[string]int{"submitted": 0, "drafts": 0, "not_started": 0, "not_submitted": 0, "sites_live": 0}
 	out := make([]map[string]any, 0, len(teams))
 	for _, team := range teams {
-		item, err := h.entryListItem(r.Context(), a.event, team, byTeam[team.ID], required, tl)
+		e, hasEntry := byTeam[team.ID]
+		item, err := h.entryListItem(r.Context(), a.event, team, e, fields, hasTracks, tl)
 		if err != nil {
 			log.Printf("hack: entries %s/%s: %v", a.event.Slug, team.Slug, err)
 			writeInternal(w)
 			return
 		}
 		out = append(out, item)
+		switch {
+		case !hasEntry:
+			counts["not_started"]++
+		case e.Status() == "submitted":
+			counts["submitted"]++
+		case e.Status() == "not_submitted":
+			counts["not_submitted"]++
+		default:
+			counts["drafts"]++
+		}
+		if site := tl.site(team.Slug); site != nil && site.ActiveVersion > 0 {
+			counts["sites_live"]++
+		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"required": required, "entries": out})
+	writeJSON(w, http.StatusOK, map[string]any{"required": required, "entries": out, "counts": counts})
 }
+
+// hackWriteRefusalError is a specific, already-worded refusal fn wants
+// entryWrite to send verbatim (status, code, message) instead of the
+// generic errEntryChanged/500 handling -- used for the track write's own
+// rule (team_choice_closed, track_not_found), which sits on top of
+// entryWrite's own WriteRefusal check.
+type hackWriteRefusalError struct {
+	status int
+	code   string
+	msg    string
+}
+
+func (e *hackWriteRefusalError) Error() string { return e.msg }
+
+// entryWouldBeIncompleteError is returned by fn when a save on a submitted
+// entry would make it incomplete (section 4.1): entryWrite rolls back and
+// answers 422 entry_would_be_incomplete, changing nothing.
+type entryWouldBeIncompleteError struct {
+	Missing []string
+	// Submit is true for POST .../entry/submit, which answers
+	// entry_incomplete; a save on a submitted entry answers
+	// entry_would_be_incomplete (section 4.1).
+	Submit bool
+}
+
+func (e *entryWouldBeIncompleteError) Error() string { return "entry would be incomplete" }
 
 // entryWrite runs a change to the caller's entry in one transaction. Inside
 // it the membership is read again FOR SHARE (a move or removal that committed
 // meanwhile wins), and the team row is held FOR UPDATE so a deadline pin waits
 // until this write commits. ok is false after the answer is written.
-func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackAccess, fn func(ctx context.Context, tx *sql.Tx, teamID string) error) (string, bool) {
+func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackAccess, fn func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error) (string, bool) {
 	ctx := r.Context()
 	tx, err := h.database.BeginTx(ctx, nil)
 	if err != nil {
@@ -317,10 +616,10 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 		writeHackErr(w, status, code, msg)
 		return "", false
 	}
-	if err := fn(ctx, tx, teamID.String); err != nil {
+	if err := fn(ctx, tx, teamID.String, st); err != nil {
 		if errors.Is(err, errEntryChanged) {
 			tx.Rollback()
-			view, loadErr := h.ownEntryJSON(ctx, a.event, teamID.String)
+			view, loadErr := h.ownEntryJSON(ctx, a.event, teamID.String, a.user.ID)
 			if loadErr != nil {
 				writeInternal(w)
 				return "", false
@@ -328,6 +627,23 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 			view["code"] = "entry_changed"
 			view["error"] = "A teammate changed this since you opened it"
 			writeJSON(w, 409, view)
+			return "", false
+		}
+		var refusal *hackWriteRefusalError
+		if errors.As(err, &refusal) {
+			tx.Rollback()
+			writeHackErr(w, refusal.status, refusal.code, refusal.msg)
+			return "", false
+		}
+		var incomplete *entryWouldBeIncompleteError
+		if errors.As(err, &incomplete) {
+			tx.Rollback()
+			code := "entry_would_be_incomplete"
+			if incomplete.Submit {
+				code = "entry_incomplete"
+			}
+			writeHackErrMissing(w, http.StatusUnprocessableEntity, code,
+				"Add these first: "+entryMissingMessage(incomplete.Missing, loadEntryRules(a.event.EntryRules)), incomplete.Missing)
 			return "", false
 		}
 		log.Printf("hack: entry write %s: %v", a.event.Slug, err)
@@ -342,8 +658,8 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 	return teamID.String, true
 }
 
-func (h *HackHandler) writeOwnEntry(w http.ResponseWriter, r *http.Request, ev db.Event, teamID string) {
-	body, err := h.ownEntryJSON(r.Context(), ev, teamID)
+func (h *HackHandler) writeOwnEntry(w http.ResponseWriter, r *http.Request, ev db.Event, teamID, userID string) {
+	body, err := h.ownEntryJSON(r.Context(), ev, teamID, userID)
 	if err != nil {
 		log.Printf("hack: entry %s: %v", ev.Slug, err)
 		writeInternal(w)
@@ -352,21 +668,39 @@ func (h *HackHandler) writeOwnEntry(w http.ResponseWriter, r *http.Request, ev d
 	writeJSON(w, http.StatusOK, body)
 }
 
-// ownEntryJSON is the participant's view of their team's entry. editable and
-// refusal come from the team's write state, read outside the write transaction.
-func (h *HackHandler) ownEntryJSON(ctx context.Context, ev db.Event, teamID string) (map[string]any, error) {
+// ownEntryJSON is the participant's view of their team's entry (section
+// 4.1): the summary card, the submit state, the event's rules and summary
+// sentence, completeness, and the Home progress checklist. editable and
+// refusal come from the team's write state, read outside the write
+// transaction.
+func (h *HackHandler) ownEntryJSON(ctx context.Context, ev db.Event, teamID, userID string) (map[string]any, error) {
 	e, err := db.GetEventEntry(ctx, h.database, teamID)
 	if errors.Is(err, sql.ErrNoRows) {
 		e = db.EventEntry{}
 	} else if err != nil {
 		return nil, err
 	}
-	required := entryRequiredList(ev.EntryRequired)
-	complete, missing := entryCompleteness(required, e)
+	team, err := db.GetEventTeamByID(ctx, h.database, teamID)
+	if err != nil {
+		return nil, err
+	}
 	st, err := db.TeamWriteStateFor(ctx, h.database, teamID, false)
 	if err != nil {
 		return nil, err
 	}
+	tracks, err := db.ListEventTracks(ctx, h.database, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	hasTracks := len(tracks) > 0
+	track, err := db.TeamTrack(ctx, h.database, teamID)
+	if err != nil {
+		return nil, err
+	}
+	fields := loadEntryRules(ev.EntryRules)
+	siteExists, siteLiveVersion, siteLive := h.entrySiteState(ctx, ev, team.Slug, st.SiteTakenDown)
+	check := evaluateEntry(fields, e, siteLive, hasTracks, track)
+
 	code := st.WriteRefusal()
 	var refusal any
 	if code != "" {
@@ -376,30 +710,73 @@ func (h *HackHandler) ownEntryJSON(ctx context.Context, ev db.Event, teamID stri
 	if e.Exists {
 		updated = e.UpdatedAt.UTC().Format(time.RFC3339Nano)
 	}
+	var submittedBy any
+	if e.SubmittedAt.Valid && e.SubmittedByName != "" {
+		submittedBy = e.SubmittedByName
+	}
+	var trackJSON any
+	if track != nil {
+		trackJSON = map[string]any{"id": track.ID, "slug": track.Slug, "name": track.Name}
+	}
+	people, err := db.ListTeamPeople(ctx, h.database, team.ID)
+	if err != nil {
+		return nil, err
+	}
+	var teammates []string
+	for _, p := range people {
+		if p.UserID != userID {
+			teammates = append(teammates, p.DisplayName)
+		}
+	}
+	progress, err := h.entryProgressJSON(ctx, ev, team, teammates, st)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
 		"entry": map[string]any{
-			"title":          e.Title,
-			"tagline":        e.Tagline,
-			"description":    e.Description,
-			"video_url":      e.VideoURL,
-			"code_url":       e.CodeURL,
-			"has_screenshot": e.HasScreenshot,
-			"updated_at":     updated,
-			"updated_by":     e.UpdatedByName,
+			"title": e.Title, "tagline": e.Tagline, "description": e.Description,
+			"video_url": e.VideoURL, "code_url": e.CodeURL, "has_screenshot": e.HasScreenshot,
+			"updated_at": updated, "updated_by": e.UpdatedByName,
+			"problem": e.Problem, "audience": e.Audience, "tools": nonNilStrings(e.Tools), "maturity": e.Maturity,
+			"track": trackJSON,
 		},
-		"required": required,
-		"complete": complete,
-		"missing":  missing,
-		"editable": code == "",
-		"refusal":  refusal,
-		"deadline": rfc3339UTC(st.Deadline),
+		"status": e.Status(), "submitted_at": rfc3339UTC(e.SubmittedAt), "submitted_by": submittedBy, "submit_auto": e.SubmitAuto,
+		"rules": map[string]any{
+			"preset": ev.EntryPreset, "fields": fields, "judge_first": ev.JudgeFirst, "summary": entryRulesSummary(fields),
+		},
+		"required": entryRequiredList(ev.EntryRequired),
+		"complete": check.Complete, "missing": check.Missing,
+		"site":                  map[string]any{"exists": siteExists, "live_version": siteLiveVersion},
+		"editable":              code == "",
+		"refusal":               refusal,
+		"deadline":              rfc3339UTC(st.Deadline),
+		"deadline_is_extension": st.HasOverride,
+		"progress":              progress,
 	}, nil
 }
 
-func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.EventTeam, e db.EventEntry, required []string, tl teamList) (map[string]any, error) {
-	complete, missing := entryCompleteness(required, e)
+// nonNilStrings is tools, never nil in the JSON body (an entry with no
+// tools yet still answers "tools": []).
+func nonNilStrings(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
+// entryListItem is one team's entry as organisers and judges see it
+// (section 4.5): the summary card, status, missing and basic video/site
+// evidence (plain links in this slice; the embeddable/frameable judge view
+// is slice 2, build-plan.md section 11).
+func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.EventTeam, e db.EventEntry, fields map[string]string, hasTracks bool, tl teamList) (map[string]any, error) {
 	st := tl.states[team.ID]
-	live := tl.site(team.Slug) != nil
+	site := tl.site(team.Slug)
+	siteLive := site != nil && site.ActiveVersion > 0 && !st.SiteTakenDown && !st.EventTakenDown
+	track, err := db.TeamTrack(ctx, h.database, team.ID)
+	if err != nil {
+		return nil, err
+	}
+	check := evaluateEntry(fields, e, siteLive, hasTracks, track)
 	var updated any
 	if e.Exists {
 		updated = e.UpdatedAt.UTC().Format(time.RFC3339Nano)
@@ -412,6 +789,18 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 			pinnedURL = u
 		}
 	}
+	var trackJSON any
+	if track != nil {
+		trackJSON = map[string]any{"slug": track.Slug, "name": track.Name}
+	}
+	var video any
+	if e.VideoURL != "" {
+		video = map[string]any{"url": e.VideoURL, "host": hackURLHost(e.VideoURL)}
+	}
+	var excludedAt any
+	if e.ExcludedAt.Valid {
+		excludedAt = rfc3339UTC(e.ExcludedAt)
+	}
 	return map[string]any{
 		"team":            map[string]any{"id": team.ID, "slug": team.Slug, "name": team.Name},
 		"title":           e.Title,
@@ -420,11 +809,23 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 		"video_url":       e.VideoURL,
 		"code_url":        e.CodeURL,
 		"has_screenshot":  e.HasScreenshot,
-		"complete":        complete,
-		"missing":         missing,
+		"problem":         e.Problem,
+		"audience":        e.Audience,
+		"tools":           nonNilStrings(e.Tools),
+		"maturity":        e.Maturity,
+		"track":           trackJSON,
+		"status":          e.Status(),
+		"submitted_at":    rfc3339UTC(e.SubmittedAt),
+		"submit_auto":     e.SubmitAuto,
+		"incomplete":      e.Status() == "not_submitted",
+		"excluded":        e.ExcludedAt.Valid,
+		"excluded_at":     excludedAt,
+		"complete":        check.Complete,
+		"missing":         check.Missing,
+		"video":           video,
 		"updated_at":      updated,
 		"site_url":        h.teamSiteURL(ev.Slug, team.Slug),
-		"site_exists":     live,
+		"site_exists":     site != nil,
 		"site_taken_down": st.SiteTakenDown || st.EventTakenDown,
 		"deadline":        rfc3339UTC(st.Deadline),
 		"frozen":          st.Frozen(),
@@ -433,40 +834,44 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 	}, nil
 }
 
-// entryCompleteness reports whether every required field is filled. missing
-// keeps the canonical field order. A screenshot counts as present when one
-// is stored.
-func entryCompleteness(required []string, e db.EventEntry) (bool, []string) {
-	want := map[string]bool{}
-	for _, f := range required {
-		want[f] = true
+// hackURLHost is the host shown next to a link (judge/organiser views,
+// never the public page in this slice). "" on a URL that fails to parse,
+// which cannot happen for a URL that passed checkEntryURL.
+func hackURLHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
 	}
-	missing := []string{}
-	for _, field := range hackEntryFields {
-		if want[field] && !entryFieldPresent(field, e) {
-			missing = append(missing, field)
-		}
-	}
-	return len(missing) == 0, missing
+	return u.Host
 }
 
-func entryFieldPresent(field string, e db.EventEntry) bool {
-	switch field {
-	case "title":
-		return e.Title != ""
-	case "tagline":
-		return e.Tagline != ""
-	case "description":
-		return e.Description != ""
-	case "video_url":
-		return e.VideoURL != ""
-	case "code_url":
-		return e.CodeURL != ""
-	case "screenshot":
-		return e.HasScreenshot
-	default:
-		return false
+// entryToolsMax is how many tools an entry may list, and entryToolMax is
+// each one's length -- section 4.1's "cap of 10, each checkHackLine(1, 30)".
+const entryToolsMax = 10
+
+// checkEntryTools validates the tools array: at most 10 items, each through
+// checkHackLine(1, 30), duplicates dropped case-insensitively (the first
+// spelling kept).
+func checkEntryTools(w http.ResponseWriter, in []string) ([]string, bool) {
+	if len(in) > entryToolsMax {
+		writeHackErr(w, http.StatusBadRequest, "invalid_tools", "tools takes at most 10 items")
+		return nil, false
 	}
+	out := make([]string, 0, len(in))
+	seen := map[string]bool{}
+	for _, raw := range in {
+		s, ok := checkHackLine(w, raw, "tools", 1, 30)
+		if !ok {
+			return nil, false
+		}
+		key := strings.ToLower(s)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, s)
+	}
+	return out, true
 }
 
 // checkEntryURL accepts "" or an absolute http or https URL with a host, at

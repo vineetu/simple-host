@@ -8308,9 +8308,13 @@ paths:
                     invalid_submission_deadline.
                 entry_required:
                   type: array
+                  deprecated: true
                   description: >-
-                    Which fields a complete entry must have (any subset; default title).
-                    Anything else is 400 invalid_entry_field.
+                    Deprecated: use PUT .../entry-rules instead, which replaced this for
+                    the fuller rules model (presets, optional/off/one_of, judge_first).
+                    Sending this still works: it sets required for exactly the listed
+                    fields (everything else optional) and demotes the stored preset to
+                    custom. Anything else is 400 invalid_entry_field.
                   items: { $ref: '#/components/schemas/HackEntryField' }
                 gallery_open:
                   type: boolean
@@ -9275,10 +9279,20 @@ paths:
       operationId: putHackEventEntry
       summary: Update my team's entry (participant) (EVENTS=hosted only)
       description: >-
-        Updates any of the text fields and returns the entry. title is one line,
-        0-80 characters; tagline one line, 0-160; description 0-5000. video_url
-        and code_url are empty or an absolute http or https URL with a host, at
-        most 500 characters, with no spaces or control characters (400 invalid_url).
+        Updates any of the fields supplied and returns the entry. title is one
+        line, 0-80 characters; tagline one line, 0-160 (the one-line solution);
+        description 0-5000; problem 0-140; audience 0-100. video_url and
+        code_url are empty or an absolute http or https URL with a host, at
+        most 500 characters, with no spaces or control characters (400
+        invalid_url). tools is at most 10 items, each 1-30 characters (400
+        invalid_tools); duplicates, compared case-insensitively, are dropped.
+        maturity is working, partial, concept or empty (400 invalid_maturity).
+        track sets the team's chosen track by slug, or clears it with an empty
+        string (400 invalid_track for an unlisted slug; 409 team_choice_closed
+        once team choices are closed). Saving a draft never checks or changes
+        completeness; use POST .../entry/submit to submit. A save on an
+        already-submitted entry that would make it incomplete is refused with
+        422 entry_would_be_incomplete (includes missing), changing nothing.
         Refused inside the write when the team may no longer change its entry.
       security: [{ apiKey: [] }]
       parameters:
@@ -9289,15 +9303,140 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/HackEntryWrite' }
       responses:
-        '400': { description: "invalid_url, invalid_title, invalid_tagline, invalid_description or invalid_request", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '400': { description: "invalid_url, invalid_title, invalid_tagline, invalid_description, invalid_tools, invalid_maturity, invalid_track or invalid_request", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '200':
           description: The entry after the update
           content:
             application/json:
               schema: { $ref: '#/components/schemas/HackEntryView' }
         '403': { description: "event_taken_down or team_site_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: "event_not_found or track_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "entry_changed (includes current entry), no_team, event_closed, submissions_closed or team_choice_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '422': { description: "entry_would_be_incomplete (includes missing); the save is rejected and nothing changes", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/entry/submit:
+    post:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: submitHackEventEntry
+      summary: Submit my team's entry (participant) (EVENTS=hosted only)
+      description: >-
+        Moves the entry from draft to submitted. Refused with 422
+        entry_incomplete (includes missing and error, "Add these first: ...")
+        when a required field, or the show-your-work evidence, is missing.
+        Idempotent: submitting an already-submitted entry answers 200 and
+        keeps its first submitted_at. A complete draft is also auto-submitted
+        by the deadline sweep on its own (submit_auto true); an incomplete one
+        stays a draft, is still judged, flagged Incomplete (status
+        not_submitted), and the organiser may hand-exclude it.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                updated_at: { type: string, description: "Timestamp from the entry read, optional. A conflict returns 409 entry_changed with the current entry." }
+      responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '200':
+          description: The entry after submitting
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HackEntryView' }
+        '403': { description: "event_taken_down or team_site_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '409': { description: "entry_changed (includes current entry), no_team, event_closed or submissions_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '422': { description: "entry_incomplete (includes missing and error)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/entry/unsubmit:
+    post:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: unsubmitHackEventEntry
+      summary: Unsubmit my team's entry (participant) (EVENTS=hosted only)
+      description: >-
+        Puts a submitted entry back to draft. Any current team member may call
+        it. Works only before the deadline; refused with 409 submissions_closed
+        once it has passed. Reversible: submit again anytime before the
+        deadline.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '200':
+          description: The entry back in draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HackEntryView' }
+        '403': { description: "event_taken_down or team_site_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "no_team, event_closed or submissions_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/entry-rules:
+    get:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: getHackEntryRules
+      summary: Read entry rules (organiser) (EVENTS=hosted only)
+      description: >-
+        Which entry fields are required, optional, off or one_of, the active
+        preset, which evidence judges see first, and the one-sentence summary
+        participants see. editable is false from Closed onward.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '200':
+          description: The event's entry rules
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HackEntryRulesView' }
+        '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: putHackEntryRules
+      summary: Set entry rules (organiser) (EVENTS=hosted only)
+      description: >-
+        Choose a preset (build, code, ideas or custom) and/or set individual
+        fields; judge_first picks which evidence judges see first. Setting a
+        field that differs from the active preset's own table demotes the
+        stored preset to custom. dry_run:true returns impact and preview
+        without saving anything (HackEntryRulesImpact instead of
+        HackEntryRulesView). Tightening never un-submits an already-submitted
+        entry. Refused with 409 entry_rules_closed once entries have closed
+        (Closed stage onward): rules are fixed so judging sees one definition
+        of complete.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HackEntryRulesWrite' }
+      responses:
+        '400': { description: "invalid_preset, invalid_entry_field, invalid_entry_field_mode or invalid_judge_first", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '200':
+          description: The entry rules after saving, or (dry_run) the impact and preview without saving
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/HackEntryRulesView' }
+                  - { $ref: '#/components/schemas/HackEntryRulesImpact' }
+        '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "entry_rules_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/hack/events/{slug}/announcements/{announcement}:
@@ -9461,8 +9600,10 @@ paths:
         Every team, including a team that has not written an entry (empty
         fields), sorted by team name. Due teams are pinned before the list is
         read. pinned_url is a preview link for the deadline version, or null
-        when the team is not pinned or had no version. A participant gets 404
-        event_not_found. The platform admin may read.
+        when the team is not pinned or had no version. counts tallies
+        submitted, drafts, not_started, not_submitted (incomplete, still
+        judged) and sites_live. A participant gets 404 event_not_found. The
+        platform admin may read.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -9474,6 +9615,53 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/HackEntryList' }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/teams/{team}/entry/exclude:
+    post:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: excludeHackEventEntry
+      summary: Hand-exclude an entry from judging (organiser) (EVENTS=hosted only)
+      description: >-
+        Excludes one team's entry from judging, typically one flagged
+        Incomplete at the deadline (coordinator decision 2026-11-02: an
+        incomplete draft is still judged by default, and the organiser may
+        exclude it by hand instead). The entry and its scores are unaffected;
+        only judging eligibility changes. Reversible with .../entry/include.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: team, required: true, schema: { type: string } }
+      responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '200':
+          description: The team's updated entries-list item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HackEntryListItem' }
+        '404': { description: "team_not_found, no_entry or event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/hack/events/{slug}/teams/{team}/entry/include:
+    post:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: includeHackEventEntry
+      summary: Undo a hand-exclude (organiser) (EVENTS=hosted only)
+      description: Puts a hand-excluded entry back into judging.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: team, required: true, schema: { type: string } }
+      responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '200':
+          description: The team's updated entries-list item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HackEntryListItem' }
+        '404': { description: "team_not_found, no_entry or event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/hack/events/{slug}/rubric:
@@ -11059,7 +11247,9 @@ paths:
       operationId: exportHackEntriesCSV
       summary: Download entries CSV (EVENTS=hosted only)
       description: 'Organiser only, event scoped. Columns: team, team_slug, title, tagline, description,
-        video_url, code_url, has_screenshot, updated_at. Text cells are formula-safe. Participant export
+        video_url, code_url, has_screenshot, updated_at, status, submitted_at, submit_auto, problem,
+        audience, track, tools, maturity, missing, excluded. New columns are appended at the end so
+        existing spreadsheet imports keep working. Text cells are formula-safe. Participant export
         excludes organisers and judges.'
       parameters:
       - in: path
@@ -14250,6 +14440,21 @@ components:
     HackEntryField:
       type: string
       enum: [title, tagline, description, video_url, code_url, screenshot]
+      description: >-
+        The legacy entry_required single-list model's six fields. Use
+        HackEntryRuleField for the fuller entry-rules model (missing, entry-rules
+        fields and their impact).
+
+    HackEntryRuleField:
+      type: string
+      enum: [title, problem, tagline, audience, track, tools, maturity, description, video_url, site, code_url, screenshot, one_of]
+      description: >-
+        Every field the entry-rules engine understands, plus one_of for an unmet
+        show-your-work group (by default video_url or site; the event's own rules
+        say which fields it covers). Appears in missing/complete results and in
+        entry-rules fields and impact. track is ignored when the event has no
+        tracks; site reflects whether the team's published website is live, never
+        a stored entry field.
 
     HackKeyMeta:
       type: object
@@ -14320,7 +14525,10 @@ components:
         submission_deadline: { type: string, format: date-time, nullable: true, description: The event's deadline, RFC 3339 UTC, or null. }
         entry_required:
           type: array
-          description: Fields a complete entry must have. Default is title.
+          deprecated: true
+          description: >-
+            Deprecated: the fields marked required by the legacy single-list model,
+            kept in step with the fuller rules at .../entry-rules. Default is title.
           items: { $ref: '#/components/schemas/HackEntryField' }
         gallery_open: { type: boolean }
         team_sites_ready: { type: boolean, description: True once the event's team addresses have a certificate. }
@@ -14587,21 +14795,36 @@ components:
       type: object
       properties:
         title: { type: string, description: One line, 0-80 characters. Empty until set. }
-        tagline: { type: string, description: One line, 0-160 characters. }
+        tagline: { type: string, description: "One line, 0-160 characters: the one-line solution." }
         description: { type: string, description: 0-5000 characters. }
         video_url: { type: string, description: Empty, or an absolute http or https URL. }
         code_url: { type: string, description: Empty, or an absolute http or https URL. }
         has_screenshot: { type: boolean }
         updated_at: { type: string, format: date-time, nullable: true }
         updated_by: { type: string, description: Display name of the last editor, or empty. }
+        problem: { type: string, description: The problem it solves, 0-140 characters. }
+        audience: { type: string, description: Who it's for, 0-100 characters. }
+        tools:
+          type: array
+          description: What was used. Up to 10 items, each 1-30 characters. Never null, even when empty.
+          items: { type: string }
+        maturity: { type: string, enum: ['', working, partial, concept], description: How far along it is, or empty when unset. }
+        track:
+          type: object
+          nullable: true
+          description: The team's chosen track, or null when none is chosen (or the event has no tracks).
+          properties:
+            id: { type: string, format: uuid }
+            slug: { type: string }
+            name: { type: string }
 
     HackEntryWrite:
       type: object
-      description: Any subset. A field left out stays as it is.
+      description: Any subset. A field left out stays as it is. Saving a draft never submits it; see POST .../entry/submit.
       properties:
         updated_at: { type: string, description: "Timestamp from the entry read, or empty for a new entry. Stale saves return 409 entry_changed with the current entry." }
         title: { type: string, maxLength: 80, description: One line, 0-80 characters. }
-        tagline: { type: string, maxLength: 160, description: One line, 0-160 characters. }
+        tagline: { type: string, maxLength: 160, description: "One line, 0-160 characters: the one-line solution." }
         description: { type: string, maxLength: 5000, description: 0-5000 characters. }
         video_url:
           type: string
@@ -14613,20 +14836,68 @@ components:
           type: string
           maxLength: 500
           description: Same rules as video_url.
+        problem: { type: string, maxLength: 140, description: The problem it solves, 0-140 characters. }
+        audience: { type: string, maxLength: 100, description: Who it's for, 0-100 characters. }
+        tools:
+          type: array
+          maxItems: 10
+          items: { type: string, minLength: 1, maxLength: 30 }
+          description: >-
+            What was used. At most 10 items, each 1-30 characters (400
+            invalid_tools). Duplicates, compared case-insensitively, are
+            dropped, keeping the first spelling.
+        maturity:
+          type: string
+          enum: ['', working, partial, concept]
+          description: How far along it is, or empty to clear. Anything else is 400 invalid_maturity.
+        track:
+          type: string
+          description: >-
+            Track slug to set the team's chosen track, or empty to clear it.
+            An unlisted slug is 400 invalid_track. Refused with 409
+            team_choice_closed once team choices are closed.
 
     HackEntryView:
       type: object
       properties:
         entry: { $ref: '#/components/schemas/HackEntry' }
+        status:
+          type: string
+          enum: [draft, submitted, not_submitted]
+          description: >-
+            not_submitted is an incomplete draft the deadline sweep left
+            unsubmitted; it is still judged, flagged Incomplete, and the
+            organiser may hand-exclude it (coordinator decision 2026-11-02).
+        submitted_at: { type: string, format: date-time, nullable: true }
+        submitted_by: { type: string, nullable: true, description: Display name of whoever submitted it, or null. }
+        submit_auto: { type: boolean, description: True when the deadline sweep submitted a complete draft automatically rather than the team submitting it by hand. }
+        rules:
+          type: object
+          description: The event's entry rules, read-only here; the organiser changes them with PUT .../entry-rules.
+          properties:
+            preset: { type: string, enum: [build, code, ideas, custom] }
+            fields:
+              type: object
+              description: Every entry-rules field (HackEntryRuleField, minus one_of) mapped to required, optional, off or one_of.
+              additionalProperties: { type: string, enum: [required, optional, off, one_of] }
+            judge_first: { type: string, enum: [video, site], description: Which evidence judges see first. }
+            summary: { type: string, description: 'One sentence naming what "show your work" needs, e.g. "a video or a published website".' }
         required:
           type: array
-          description: The fields a complete entry must have.
+          deprecated: true
+          description: "Deprecated: use rules.fields. The fields entry_required lists under the legacy single-list model."
           items: { $ref: '#/components/schemas/HackEntryField' }
-        complete: { type: boolean, description: True when every required field is filled. A screenshot counts when has_screenshot is true. }
+        complete: { type: boolean, description: True when every rules-required field, and any one_of group, is filled. }
         missing:
           type: array
-          description: Required fields that are still empty.
-          items: { $ref: '#/components/schemas/HackEntryField' }
+          description: Required fields (and one_of, for an unmet show-your-work group) still missing.
+          items: { $ref: '#/components/schemas/HackEntryRuleField' }
+        site:
+          type: object
+          description: The team's published site, as counted by the rules engine's site field (never from the entry row).
+          properties:
+            exists: { type: boolean }
+            live_version: { type: integer, nullable: true, description: Null when nothing is live. }
         editable: { type: boolean, description: False when refusal is set. }
         refusal:
           type: string
@@ -14635,6 +14906,20 @@ components:
             Null when the entry can be edited. Otherwise event_taken_down,
             event_closed, team_site_taken_down or submissions_closed.
         deadline: { type: string, format: date-time, nullable: true, description: This team's effective deadline. }
+        deadline_is_extension: { type: boolean, description: True when deadline is a team-specific extension rather than the event's own deadline. }
+        progress:
+          type: object
+          description: The Home screen's four-step checklist (team, summary, evidence, submit), computed identically here and on the website.
+          properties:
+            steps:
+              type: array
+              description: "team, summary, evidence, submit, each {id, done, ...step-specific fields}."
+              items: { type: object, additionalProperties: true }
+            next: { type: string, description: The next step id to do, or empty when every step is done. }
+            deadline: { type: string, format: date-time, nullable: true }
+            deadline_is_extension: { type: boolean }
+            event_deadline: { type: string, format: date-time, nullable: true, description: The event's own deadline, ignoring any team-specific extension. }
+            server_now: { type: string, format: date-time, description: Server clock at read time, for countdown rendering. }
 
     HackEntryListItem:
       type: object
@@ -14651,10 +14936,35 @@ components:
         video_url: { type: string }
         code_url: { type: string }
         has_screenshot: { type: boolean }
+        problem: { type: string }
+        audience: { type: string }
+        tools:
+          type: array
+          items: { type: string }
+        maturity: { type: string, enum: ['', working, partial, concept] }
+        track:
+          type: object
+          nullable: true
+          properties:
+            slug: { type: string }
+            name: { type: string }
+        status: { type: string, enum: [draft, submitted, not_submitted] }
+        submitted_at: { type: string, format: date-time, nullable: true }
+        submit_auto: { type: boolean }
+        incomplete: { type: boolean, description: "True exactly when status is not_submitted: an incomplete entry judged as-is at the deadline." }
+        excluded: { type: boolean, description: Hand-excluded from judging by the organiser (POST .../entry/exclude). }
+        excluded_at: { type: string, format: date-time, nullable: true }
         complete: { type: boolean }
         missing:
           type: array
-          items: { $ref: '#/components/schemas/HackEntryField' }
+          items: { $ref: '#/components/schemas/HackEntryRuleField' }
+        video:
+          type: object
+          nullable: true
+          description: Present only when video_url is set.
+          properties:
+            url: { type: string }
+            host: { type: string, description: The URL's host, for a plain link label. }
         updated_at: { type: string, format: date-time, nullable: true }
         site_url: { type: string, description: "https://<team>.<event>.simple-hack.app/" }
         site_exists: { type: boolean }
@@ -14668,11 +14978,88 @@ components:
       properties:
         required:
           type: array
+          deprecated: true
+          description: "Deprecated: use entry-rules instead."
           items: { $ref: '#/components/schemas/HackEntryField' }
         entries:
           type: array
           description: Every team, sorted by team name.
           items: { $ref: '#/components/schemas/HackEntryListItem' }
+        counts:
+          type: object
+          properties:
+            submitted: { type: integer }
+            drafts: { type: integer }
+            not_started: { type: integer }
+            not_submitted: { type: integer, description: Incomplete drafts the deadline sweep left unsubmitted. }
+            sites_live: { type: integer }
+
+    HackEntryRulesView:
+      type: object
+      properties:
+        preset: { type: string, enum: [build, code, ideas, custom] }
+        fields:
+          type: object
+          description: Every entry-rules field mapped to required, optional, off or one_of. one_of is only ever set on video_url, site, code_url or screenshot; title is always required.
+          additionalProperties: { type: string, enum: [required, optional, off, one_of] }
+        judge_first: { type: string, enum: [video, site], description: Which evidence judges see first. }
+        summary: { type: string, description: 'One sentence naming what "show your work" needs.' }
+        has_tracks: { type: boolean, description: Whether the event has any tracks; track is ignored when false, even if marked required. }
+        editable: { type: boolean, description: False from Closed onward — rules are fixed once entries close, so judging sees one definition of complete. }
+
+    HackEntryRulesWrite:
+      type: object
+      description: Any subset. A field left out stays as it is.
+      properties:
+        preset:
+          type: string
+          enum: [build, code, ideas, custom]
+          description: >-
+            Expands to that preset's own field table first; any fields below are
+            then applied on top. build = AI build, code = Coding, ideas = Ideas
+            and design. Anything else is 400 invalid_preset.
+        fields:
+          type: object
+          description: >-
+            Field name to required, optional, off or one_of (one_of only on
+            video_url, site, code_url, screenshot; otherwise 400
+            invalid_entry_field_mode). Setting any field that differs from the
+            active preset's own table demotes the stored preset to custom.
+          additionalProperties: { type: string, enum: [required, optional, off, one_of] }
+        judge_first: { type: string, enum: [video, site], description: Which evidence judges see first. Anything else is 400 invalid_judge_first. }
+        dry_run: { type: boolean, description: "true previews impact and the resulting rules in the response, without saving anything." }
+
+    HackEntryRulesImpact:
+      type: object
+      description: The response to a dry_run save.
+      properties:
+        impact:
+          type: object
+          properties:
+            submitted_missing: { type: integer, description: Already-submitted entries that would newly read as missing something. They stay submitted regardless; this is informational. }
+            drafts_newly_blocked: { type: integer, description: Drafts complete today that would become incomplete under the proposed rules. }
+            teams:
+              type: array
+              description: The affected teams (submitted_missing plus drafts_newly_blocked).
+              items:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  missing:
+                    type: array
+                    items: { $ref: '#/components/schemas/HackEntryRuleField' }
+        preview:
+          type: object
+          description: The rules as they would be saved.
+          properties:
+            preset: { type: string, enum: [build, code, ideas, custom] }
+            fields:
+              type: object
+              additionalProperties: { type: string, enum: [required, optional, off, one_of] }
+            judge_first: { type: string, enum: [video, site] }
+            summary: { type: string }
+            has_tracks: { type: boolean }
 
     HackMyTeams:
       type: object

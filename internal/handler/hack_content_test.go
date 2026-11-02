@@ -201,6 +201,12 @@ func TestHackEntryReceiptOnce(t *testing.T) {
 	}
 	a.openEvent(t, org, slug)
 	base := "/v1/hack/events/" + slug
+	// Simplify entry rules to title only (slice 1's build preset otherwise
+	// needs more than a title before an entry can be submitted) -- this test
+	// only exercises the receipt mail, not the rules engine.
+	if r := a.at(t, "PUT", base+"/entry-rules", map[string]any{"preset": "custom"}, a.key(org)); r.status != 200 {
+		t.Fatalf("entry rules: %d %s", r.status, r.body)
+	}
 	join := a.at(t, "GET", base, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
 	if r := a.at(t, "POST", "/v1/hack/join/"+join, map[string]any{"accept_coc": true, "display_name": "Pat"}, a.key(participant)); r.status != 200 {
 		t.Fatalf("join: %d %s", r.status, r.body)
@@ -210,6 +216,11 @@ func TestHackEntryReceiptOnce(t *testing.T) {
 	}
 	if r := a.at(t, "PUT", base+"/entry", map[string]string{"title": "First entry"}, a.key(participant)); r.status != 200 {
 		t.Fatalf("entry: %d %s", r.status, r.body)
+	}
+	// The receipt is queued on submit, not on the first complete save
+	// (section 4.1).
+	if r := a.at(t, "POST", base+"/entry/submit", map[string]any{}, a.key(participant)); r.status != 200 {
+		t.Fatalf("submit: %d %s", r.status, r.body)
 	}
 	a.hack.deliverContentMail(context.Background())
 	if len(sink.notices) != 1 || !strings.Contains(sink.notices[0].subject, "entry received") {
@@ -235,6 +246,11 @@ func TestHackMailFailureDoesNotBlockOtherMessages(t *testing.T) {
 	}
 	a.openEvent(t, org, slug)
 	base := "/v1/hack/events/" + slug
+	// Simplify entry rules to title only, as TestHackEntryReceiptOnce does --
+	// this test only needs a submitted entry to queue a receipt.
+	if r := a.at(t, "PUT", base+"/entry-rules", map[string]any{"preset": "custom"}, a.key(org)); r.status != 200 {
+		t.Fatalf("entry rules: %d %s", r.status, r.body)
+	}
 	join := a.at(t, "GET", base, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
 	for _, p := range []person{first, second} {
 		if r := a.at(t, "POST", "/v1/hack/join/"+join, map[string]any{"accept_coc": true, "display_name": "Participant"}, a.key(p)); r.status != 200 {
@@ -246,6 +262,10 @@ func TestHackMailFailureDoesNotBlockOtherMessages(t *testing.T) {
 	}
 	if r := a.at(t, "PUT", base+"/entry", map[string]string{"title": "First entry"}, a.key(first)); r.status != 200 {
 		t.Fatalf("entry: %d %s", r.status, r.body)
+	}
+	// The receipt is queued on submit, not on the first complete save.
+	if r := a.at(t, "POST", base+"/entry/submit", map[string]any{}, a.key(first)); r.status != 200 {
+		t.Fatalf("submit: %d %s", r.status, r.body)
 	}
 	r := a.at(t, "POST", base+"/announcements", map[string]any{"title": "Notice", "body": "Hello teams", "email_participants": true}, a.key(org))
 	// org is email-shaped and not a participant here, so the organiser copy

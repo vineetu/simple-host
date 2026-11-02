@@ -4872,6 +4872,28 @@
      "evidence": "FEATURES.md §15 'Team finding', 'Teams redesign' (team size default 20, EVENT_TEAM_SIZE_DEFAULT), 'Leave this event'. PARITY rows 'Simple Hack: leave an event', 'Simple Hack: team admins and links', 'Hosted hackathon platform'. Contradiction: the §15 Env table row still lists EVENT_TEAM_SIZE_DEFAULT (4); the 2026-10-31 prose says 20 and wins. Standalone v0.8.13 carries team finding; the 2026-10-31 teams redesign and leave are not stated for the standalone package. 'Notify people when something waits on them' (2026-11-02): Needs you on Home, Overview and Home across events, sidebar badges, emails at most once per kind per 15 minutes, Account opt-out, hack_get_my_todos."
     },
     {
+     "id": "hack-entries",
+     "name": "Entry card, rules and submit",
+     "line": "Every team hands in the same short summary card, organisers decide what a complete entry needs, and a team submits when it is ready.",
+     "who": "Teams finishing their entry before the deadline, and organisers who want every entry in the same shape for judges.",
+     "how": "The card asks for the problem, the solution in one line, who it is for, the track, tools and AI as tags, and what works today, plus show-your-work evidence: a video, the team website, a code link or a screenshot. Organisers pick a preset (AI build, Coding, Ideas and design) or set each line Required, Optional or Off, and the evidence lines also One of; before saving tighter rules they see which teams it affects. Saving a draft never checks anything. Submit does, on the server, the same way on the website and in the AI apps. Home shows a four-step checklist and a countdown to the team's own deadline. At the deadline a complete draft is submitted automatically; an incomplete one is still judged, marked Incomplete, and the organiser can exclude it by hand.",
+     "example": "An organiser picks the Coding preset, so a code link becomes required. A team fills its card, adds its repo and a video, presses Submit and sees the checklist on Home tick over.",
+     "where": "Entry and Home for teams, Entries and the entry detail for organisers, in the Simple Hack app; hack_submit_entry and hack_set_entry_rules in the AI apps.",
+     "limits": "Rules can change only until entries close. Tighter rules never un-submit an entry. A team that never started an entry is not judged.",
+     "editions": {
+      "host": "no",
+      "hack": "yes",
+      "enterprise": "no",
+      "smallbox": "no"
+     },
+     "editions_note": "Simple Hack only",
+     "status": "live",
+     "status_note": "",
+     "covers": [
+      "Entry summary card, rules and submit (audit items 4 and 5, 2026-11-02)."
+     ]
+    },
+    {
      "id": "hack-judging",
      "name": "Judging",
      "line": "A weighted rubric, judges spread openly, automatically, by hand, or by track panel, conflicts of interest, a lock, and published results.",

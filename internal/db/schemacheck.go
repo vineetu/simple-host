@@ -122,7 +122,9 @@ var hackColumns = map[string][]string{
 		"judge_assignment_mode", "judges_per_team", "judging_locked_at", "judging_lock_reason", "score_mode", "tie_criterion_id", "public_scores", "public_ranks",
 		"team_finding", "voting_enabled", "voting_opens_at", "voting_closes_at", "voting_eligibility", "directory_listed",
 		// zp-hack-applications.sql
-		"applications_open"},
+		"applications_open",
+		// zv-hack-entry-summary.sql
+		"entry_preset", "entry_rules", "judge_first"},
 	"event_team_requests": {"id", "event_id", "team_id", "user_id", "kind", "created_by", "created_at"},
 	"event_teams": {"open", "looking_for", "track_id", "id", "event_id", "slug", "name", "code", "created_by", "created_at",
 		// hack2-team-sites.sql
@@ -133,7 +135,10 @@ var hackColumns = map[string][]string{
 		"locked_at", "locked_by"},
 	// hack2-team-sites.sql
 	"event_entries": {"team_id", "event_id", "title", "tagline", "description", "video_url", "code_url",
-		"screenshot", "screenshot_type", "updated_at", "updated_by"},
+		"screenshot", "screenshot_type", "updated_at", "updated_by",
+		// zv-hack-entry-summary.sql
+		"problem", "audience", "tools", "maturity", "submitted_at", "submitted_by", "submit_auto",
+		"submit_settled_at", "excluded_at", "excluded_by"},
 	"event_team_keys": {"key_id", "event_id", "team_id", "user_id", "created_at"},
 	"event_members": {"looking", "looking_intro", "event_id", "user_id", "role", "display_name", "team_id", "coc_accepted_at", "joined_at", "signup_answers", "approval_status", "approval_decided_at", "approval_decided_by",
 		// zp-hack-applications.sql

@@ -118,7 +118,7 @@ func HackTools() []Tool {
 				"starts_at":             str("New start. A date means midnight in the event's time zone."),
 				"ends_at":               str("New end. Empty clears it."),
 				"submission_deadline":   str("Entry deadline in the event time zone. Empty clears it."),
-				"entry_required":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Entry fields required for a complete entry."},
+				"entry_required":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Deprecated: use hack_set_entry_rules instead (presets, per-field required/optional/off/one_of, judge_first). Sending this still works: it sets required for exactly the listed fields and demotes the stored preset to custom."},
 				"team_finding":          map[string]any{"type": "boolean", "description": "Enable private team finding. Codes keep working when off."},
 				"applications_open":     map[string]any{"type": "boolean", "description": "Whether people without the join link can apply from Find a hackathon and the event page. On by default; turning it off stops new applications and keeps waiting ones. Ask the organiser before changing it."},
 				"gallery_open":          map[string]any{"type": "boolean", "description": "Whether the public entry gallery is open."},

@@ -80,7 +80,25 @@ func newJudgingWorld(t *testing.T, nTeams, nJudges int) *judgingWorld {
 		if r.status != http.StatusCreated {
 			t.Fatalf("team %s: %d %s", name, r.status, r.body)
 		}
-		w.teams = append(w.teams, judgingTeam{id: a.teamIDByName(t, slug, name), name: name})
+		id := a.teamIDByName(t, slug, name)
+		w.teams = append(w.teams, judgingTeam{id: id, name: name})
+		// A submitted entry: the judge queue and eligibility (section 4.5,
+		// zv-hack-entry-summary.sql) only ever show a team whose entry has
+		// been decided one way. This test exercises assignment modes, not
+		// entry completeness, so the entry is written directly rather than
+		// threaded through the rules engine.
+		eventID := a.database.QueryRow(`SELECT id FROM events WHERE slug=$1`, slug)
+		var evID string
+		if err := eventID.Scan(&evID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.database.Exec(`
+			INSERT INTO event_entries (team_id, event_id, title, submitted_at, submit_settled_at)
+			VALUES ($1, $2, $3, now(), now())
+			ON CONFLICT (team_id) DO UPDATE SET submitted_at = now(), submit_settled_at = now()`,
+			id, evID, name); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for i := 0; i < nJudges; i++ {
 		p := a.newPerson(t, "jj")

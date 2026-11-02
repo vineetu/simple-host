@@ -1705,6 +1705,40 @@ ALTER TABLE event_notices DROP CONSTRAINT IF EXISTS event_notices_event_id_fkey;
 -- "Email me when something waits on me" on Account. On unless turned off.
 ALTER TABLE hack_account_preferences ADD COLUMN IF NOT EXISTS email_updates BOOLEAN NOT NULL DEFAULT TRUE;
 
+-- Entries and participant journey, slice 1 (db/migrations/zv-hack-entry-summary.sql):
+-- the summary card, explicit submit against per-event rules, and the settle
+-- sweep. entry_required stays, kept in sync, for one release (the deprecated
+-- PATCH .../events/{slug} entry_required key and older readers).
+ALTER TABLE event_entries ADD COLUMN IF NOT EXISTS problem      text    NOT NULL DEFAULT '';
+ALTER TABLE event_entries ADD COLUMN IF NOT EXISTS audience     text    NOT NULL DEFAULT '';
+ALTER TABLE event_entries ADD COLUMN IF NOT EXISTS tools        text[]  NOT NULL DEFAULT '{}';
+ALTER TABLE event_entries ADD COLUMN IF NOT EXISTS maturity     text    NOT NULL DEFAULT ''
+      CHECK (maturity IN ('', 'working', 'partial', 'concept'));
+ALTER TABLE event_entries ADD COLUMN IF NOT EXISTS submitted_at timestamptz;
+ALTER TABLE event_entries ADD COLUMN IF NOT EXISTS submitted_by uuid REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE event_entries ADD COLUMN IF NOT EXISTS submit_auto  boolean NOT NULL DEFAULT false;
+-- The deadline sweep has decided this entry (submitted it, or left it not
+-- submitted): reset by an extension, a stage move back to building, or the
+-- event deadline moving later.
+ALTER TABLE event_entries ADD COLUMN IF NOT EXISTS submit_settled_at timestamptz;
+-- Coordinator decision, 2026-11-02 (INTENT.md, owner may overrule): an
+-- incomplete draft settled as "not submitted" is still judged, carrying an
+-- Incomplete flag, rather than dropped from judging. excluded_at/by is the
+-- organiser's hand exclude of a flagged entry from the Entries screen (with
+-- a confirm) -- the only way such an entry stops being judged.
+ALTER TABLE event_entries ADD COLUMN IF NOT EXISTS excluded_at timestamptz;
+ALTER TABLE event_entries ADD COLUMN IF NOT EXISTS excluded_by uuid REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS event_entries_unsettled_idx
+  ON event_entries (event_id) WHERE submitted_at IS NULL AND submit_settled_at IS NULL;
+
+ALTER TABLE events ADD COLUMN IF NOT EXISTS entry_preset text NOT NULL DEFAULT 'custom'
+      CHECK (entry_preset IN ('build', 'code', 'ideas', 'custom'));
+ALTER TABLE events ADD COLUMN IF NOT EXISTS entry_rules jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judge_first text NOT NULL DEFAULT 'video'
+      CHECK (judge_first IN ('video', 'site'));
+-- A fresh install has no existing events to backfill; zv-hack-entry-summary.sql
+-- backfills entry_rules from entry_required on an existing database.
+
 -- Paper metrics (SIM-335, 2026-10-31): aggregate-only numbers for the research
 -- papers on this deployment. No person, address, site name or path is stored.
 -- Methodology: docs/paper-metrics.md. Written by internal/papermetrics.

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -331,10 +332,39 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 		for _, t := range teams {
 			byID[t.ID] = t
 		}
-		rows = append(rows, []string{"team", "team_slug", "title", "tagline", "description", "video_url", "code_url", "has_screenshot", "updated_at"})
+		fields := loadEntryRules(a.event.EntryRules)
+		tracks, err := db.ListEventTracks(r.Context(), h.database, a.event.ID)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+		hasTracks := len(tracks) > 0
+		// D11-style: the new columns are appended at the end, so existing
+		// spreadsheet imports keep working (section 4.7).
+		rows = append(rows, []string{"team", "team_slug", "title", "tagline", "description", "video_url", "code_url", "has_screenshot", "updated_at",
+			"status", "submitted_at", "submit_auto", "problem", "audience", "track", "tools", "maturity", "missing", "excluded"})
 		for _, e := range entries {
 			t := byID[e.TeamID]
-			rows = append(rows, []string{t.Name, t.Slug, e.Title, e.Tagline, e.Description, e.VideoURL, e.CodeURL, strconv.FormatBool(e.HasScreenshot), rfc3339Time(e.UpdatedAt)})
+			track, err := db.TeamTrack(r.Context(), h.database, e.TeamID)
+			if err != nil {
+				writeInternal(w)
+				return
+			}
+			siteLive := h.entrySiteLive(r.Context(), a.event, t.Slug, t.SiteTakenDownAt.Valid)
+			check := evaluateEntry(fields, e, siteLive, hasTracks, track)
+			trackName := ""
+			if track != nil {
+				trackName = track.Name
+			}
+			submittedAt := ""
+			if e.SubmittedAt.Valid {
+				submittedAt = rfc3339Time(e.SubmittedAt.Time)
+			}
+			rows = append(rows, []string{
+				t.Name, t.Slug, e.Title, e.Tagline, e.Description, e.VideoURL, e.CodeURL, strconv.FormatBool(e.HasScreenshot), rfc3339Time(e.UpdatedAt),
+				e.Status(), submittedAt, strconv.FormatBool(e.SubmitAuto), e.Problem, e.Audience, trackName, strings.Join(e.Tools, "; "), e.Maturity,
+				strings.Join(check.Missing, "; "), strconv.FormatBool(e.ExcludedAt.Valid),
+			})
 		}
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")

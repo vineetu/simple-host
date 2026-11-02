@@ -13,7 +13,10 @@ import (
 func TestHackOrganiserToolRoutes(t *testing.T) {
 	routes := hackOrganiserRoutes()
 	tools := HackOrganiserTools()
-	if len(tools) != len(routes) {
+	// hack_set_entry_excluded is hand-written (a single bool toggle over two
+	// REST actions) and appended after every generic route adapter; see
+	// TestHackSetEntryExcludedTool.
+	if len(tools) != len(routes)+1 {
 		t.Fatalf("%d tools for %d routes", len(tools), len(routes))
 	}
 	for i, route := range routes {
@@ -95,6 +98,70 @@ func TestHackOrganiserToolRoutes(t *testing.T) {
 				t.Fatalf("REST refusal lost: %s", text)
 			}
 		})
+	}
+}
+
+func TestHackSetEntryExcludedTool(t *testing.T) {
+	var tool Tool
+	for _, t2 := range HackOrganiserTools() {
+		if t2.Name == "hack_set_entry_excluded" {
+			tool = t2
+		}
+	}
+	if tool.Name == "" {
+		t.Fatal("hack_set_entry_excluded missing")
+	}
+	if err := CheckOutputSchema(tool.InputSchema); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckOutputSchema(tool.OutputSchema); err != nil {
+		t.Fatal(err)
+	}
+	if tool.Annotations["readOnlyHint"] != false || tool.Annotations["destructiveHint"] != true || tool.Annotations["openWorldHint"] != false {
+		t.Fatalf("annotations: %v", tool.Annotations)
+	}
+
+	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
+	up.ans["POST /v1/hack/events/spring/teams/alpha/entry/exclude"] = jsonReply(200, `{"team":{"slug":"alpha"},"excluded":true}`)
+	up.ans["POST /v1/hack/events/spring/teams/alpha/entry/include"] = jsonReply(200, `{"team":{"slug":"alpha"},"excluded":false}`)
+	s := newTestServer(up)
+
+	text, result, bad := resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": true}), CallerModeEvents))
+	if bad {
+		t.Fatalf("exclude: %s", text)
+	}
+	if err := ValidateOutput(tool.OutputSchema, result, nil); err != nil {
+		t.Fatalf("exclude output: %v", err)
+	}
+	resp, _ := result["response"].(map[string]any)
+	if resp["excluded"] != true {
+		t.Fatalf("exclude response: %v", result)
+	}
+	if up.last().method != "POST" || up.last().path != "/v1/hack/events/spring/teams/alpha/entry/exclude" {
+		t.Fatalf("forwarded %s %s", up.last().method, up.last().path)
+	}
+
+	text, result, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": false}), CallerModeEvents))
+	if bad {
+		t.Fatalf("include: %s", text)
+	}
+	resp, _ = result["response"].(map[string]any)
+	if resp["excluded"] != false {
+		t.Fatalf("include response: %v", result)
+	}
+	if up.last().path != "/v1/hack/events/spring/teams/alpha/entry/include" {
+		t.Fatalf("forwarded %s", up.last().path)
+	}
+
+	text, _, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha"}), CallerModeEvents))
+	if !bad || !strings.Contains(text, "excluded") {
+		t.Fatalf("missing excluded accepted: %s", text)
+	}
+
+	up.ans["POST /v1/hack/events/spring/teams/alpha/entry/exclude"] = jsonReply(404, `{"error":"this team has no entry","code":"no_entry"}`)
+	text, _, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": true}), CallerModeEvents))
+	if !bad || !strings.Contains(text, "no_entry") {
+		t.Fatalf("REST refusal lost: %s", text)
 	}
 }
 

@@ -775,6 +775,149 @@ async function onGuardClick(e) {
   if (isAppRoute(url.pathname)) { lastPath = url.pathname + url.search + url.hash; guardCtx.go(url.pathname + url.search + url.hash) }
   else location.assign(url) // not a screen this SPA renders -- a real navigation, not ctx.go()
 }
+// --- Entries (atlas 2026-11-02, slice 1) --------------------------------
+
+// Fixed tag suggestions for "Tools and AI you used" (owner decision,
+// build-plan.md section 12: "a fixed suggestion list, not from other teams'
+// tags"). Shared by the entry form's own suggestion buttons
+// (participant-entry.js) and ui.entryCard's "ai" tag highlight below, so the
+// two never disagree on which typed word counts as an AI tool.
+const AI_SUGGESTIONS = ['Claude', 'ChatGPT', 'Gemini', 'Lovable', 'Copilot', 'Cursor']
+const TOOL_SUGGESTIONS = ['Canva', 'Google Sheets', 'Figma', 'Supabase', 'Python', 'Airtable']
+const AI_SUGGESTIONS_LOWER = AI_SUGGESTIONS.map(s => s.toLowerCase())
+
+// The maturity choice's plain words and kit pill class, shared by the entry
+// form's three choice cards and the compact preview/judge/organiser card.
+const MATURITY = {
+  working: { label: 'Demo-ready', note: 'works end to end', cls: 'mat-working' },
+  partial: { label: 'Partly working', note: 'some parts are mocked', cls: 'mat-partial' },
+  concept: { label: 'Concept', note: 'designs or a plan, nothing runs yet', cls: 'mat-concept' }
+}
+
+// The one entry summary card renderer (build-plan.md section 6:
+// "ui.entryCard(entry, {compact, missing}), since four screens use it").
+// `entry` takes the shape the server's entryListItem/GET-entry views already
+// share: { title, team_name, team_members (a plain "A, B and C" string, or
+// '' solo/unknown), track: {name}|null, problem, tagline, audience,
+// tools: string[], maturity: ''|'working'|'partial'|'concept' }. Any blank
+// line reads "Not filled in yet" (the atlas's own wording), independent of
+// whether that line is actually Required for this event -- the card is a
+// preview of what judges see, not a rules checker.
+// `opts.compact` is the smaller card used inline (Entry's live preview,
+// organiser Entries' row-level peek); the full size is the one on Entry's
+// read-only view, organiser Entry detail and (slice 2) judge scoring.
+// `opts.incomplete` adds the "Incomplete" flag pill (coordinator decision
+// 2026-11-02: an entry auto-submitted at the deadline while still missing
+// something is judged anyway, flagged, rather than hidden).
+function entryCard (entry, opts = {}) {
+  const e = entry || {}
+  const art = document.createElement('article')
+  art.className = 'entry-card' + (opts.compact ? ' compact' : '')
+  const head = document.createElement('div')
+  head.className = 'ec-head'
+  const t = document.createElement('div')
+  t.className = 't'
+  const h = document.createElement(opts.compact ? 'h3' : 'h2')
+  h.textContent = e.title || 'Untitled'
+  t.append(h)
+  if (e.team_name) {
+    const p = document.createElement('p')
+    p.className = 'ec-team'
+    p.textContent = e.team_name + (e.team_members ? ' · ' + e.team_members : '')
+    t.append(p)
+  }
+  head.append(t)
+  const pills = document.createElement('div')
+  pills.className = 'ec-pills'
+  if (e.track && e.track.name) pills.append(el('span', { class: 'pill stage', text: e.track.name + ' track' }))
+  if (opts.incomplete) pills.append(el('span', { class: 'pill warn', text: 'Incomplete' }))
+  if (pills.childNodes.length) head.append(pills)
+  art.append(head)
+  const dl = document.createElement('dl')
+  dl.className = 'ec-rows'
+  function row (label, valueNode, isBlank) {
+    dl.append(el('dt', { text: label }))
+    const dd = document.createElement('dd')
+    if (isBlank) { dd.className = 'missing'; dd.textContent = 'Not filled in yet' }
+    else if (typeof valueNode === 'string') dd.textContent = valueNode
+    else dd.append(valueNode)
+    dl.append(dd)
+  }
+  row('Problem', e.problem, !e.problem)
+  row('Solution', e.tagline, !e.tagline)
+  row('For', e.audience, !e.audience)
+  const tools = Array.isArray(e.tools) ? e.tools.filter(Boolean) : []
+  if (tools.length) {
+    const ul = document.createElement('ul')
+    ul.className = 'tags'
+    tools.forEach(tool => {
+      const li = document.createElement('li')
+      li.className = 'tag' + (AI_SUGGESTIONS_LOWER.includes(String(tool).toLowerCase()) ? ' ai' : '')
+      li.textContent = tool
+      ul.append(li)
+    })
+    row('Tools & AI', ul, false)
+  } else row('Tools & AI', '', true)
+  if (e.maturity && MATURITY[e.maturity]) {
+    const span = document.createElement('span')
+    const m = MATURITY[e.maturity]
+    const pill = el('span', { class: 'pill ' + m.cls, text: m.label })
+    const note = el('span', { class: 'muted small', text: ' ' + m.note })
+    span.append(pill, note)
+    row('Works today', span, false)
+  } else row('Works today', '', true)
+  art.append(dl)
+  return art
+}
+
+// Live, ticking deadline countdown (build-plan.md section 6: "Countdown in
+// a shared ui.countdown(el, deadline, serverNow), ticking each minute and
+// each second in the last hour, with the amber and red classes": amber
+// under 24 hours, red under 1 hour, per the atlas). `el` is
+// the `<span class="countdown">` itself (prototype markup: a `.v` child for
+// the number, read back out if present, else `el` is written to directly).
+// `serverNow` corrects a wrong phone clock: the skew between it and
+// `Date.now()` at call time is held fixed for the life of this countdown.
+// `opts.quiet` (participant-home.js, once already submitted: the remaining
+// time is "time left to make changes", not a deadline at risk) suppresses
+// the amber/red classes -- the number still ticks, it just never colours.
+// Stops its own timer once the element leaves the DOM (a re-render mounts a
+// fresh element and a fresh countdown call; this one has nothing left to
+// update) or once the deadline is reached.
+function countdown (el, deadline, serverNow, opts = {}) {
+  if (!el) return
+  const target = deadline ? new Date(deadline).getTime() : NaN
+  if (!deadline || Number.isNaN(target)) { el.textContent = ''; return }
+  const skew = serverNow ? new Date(serverNow).getTime() - Date.now() : 0
+  const HOUR = 3600000, DAY = 86400000
+  let timer = null
+  function fmt (ms) {
+    if (ms <= 0) return '0 s'
+    let s = Math.round(ms / 1000)
+    const d = Math.floor(s / 86400); s -= d * 86400
+    const h = Math.floor(s / 3600); s -= h * 3600
+    const m = Math.floor(s / 60); s -= m * 60
+    if (d >= 2) return d + ' days'
+    if (d === 1) return '1 d ' + h + ' h ' + m + ' m'
+    if (h > 0) return h + ' h ' + m + ' m'
+    if (m > 0) return m + ' m ' + String(s).padStart(2, '0') + ' s'
+    return s + ' s'
+  }
+  function tick () {
+    if (!el.isConnected) { if (timer) clearTimeout(timer); return }
+    const ms = target - (Date.now() + skew)
+    const slot = el.querySelector('.v') || el
+    slot.textContent = fmt(ms)
+    const urgent = !opts.quiet && ms > 0 && ms <= HOUR
+    const soon = !opts.quiet && ms > 0 && !urgent && ms <= DAY
+    el.classList.toggle('urgent', urgent)
+    el.classList.toggle('soon', soon)
+    if (ms <= 0) { if (timer) clearTimeout(timer); return }
+    timer = setTimeout(tick, ms <= HOUR ? 1000 : 60000)
+  }
+  tick()
+}
+
 // Exported for app.js's popstate handler: resolves true if it is fine to
 // proceed with a Back/Forward navigation that already changed `location`
 // (no dirty form, or the person confirmed discarding it) -- in both cases
@@ -794,18 +937,23 @@ async function confirmDiscardForLeave() {
 }
 
 exports.AGE_RANGE_LABELS = AGE_RANGE_LABELS;
+exports.AI_SUGGESTIONS = AI_SUGGESTIONS;
 exports.ERROR_MESSAGES = ERROR_MESSAGES;
 exports.GENDER_LABELS = GENDER_LABELS;
+exports.MATURITY = MATURITY;
+exports.TOOL_SUGGESTIONS = TOOL_SUGGESTIONS;
 exports.classicURL = classicURL;
 exports.clearDirtyGuard = clearDirtyGuard;
 exports.confirmDiscardForLeave = confirmDiscardForLeave;
 exports.confirmTyped = confirmTyped;
 exports.copyButton = copyButton;
+exports.countdown = countdown;
 exports.countryName = countryName;
 exports.dateOnly = dateOnly;
 exports.dateTime = dateTime;
 exports.dialog = dialog;
 exports.el = el;
+exports.entryCard = entryCard;
 exports.errText = errText;
 exports.esc = esc;
 exports.fetchBinary = fetchBinary;
@@ -1120,7 +1268,9 @@ async function render(ctx) {
     return t ? `${t.points}/${rubricMax}` : ''
   }
   function subLine(row) {
-    const submitted = row.updated_at ? 'Submitted ' + ui.dateTime(row.updated_at, ev) : ''
+    // Entries slice 1: the real submit time when there is one. An entry
+    // settled incomplete at the deadline has none, and says so instead.
+    const submitted = row.incomplete ? 'Not complete at the deadline' : (row.submitted_at || row.updated_at) ? 'Submitted ' + ui.dateTime(row.submitted_at || row.updated_at, ev) : ''
     const tagline = String(row.tagline || '').trim()
     return [submitted, tagline].filter(Boolean).join(' · ')
   }
@@ -1139,7 +1289,10 @@ async function render(ctx) {
     } else {
       action = `<a class="btn sm${isFirst ? ' primary' : ''}" href="${ui.esc(scoreHref)}">Score this team</a>`
     }
-    return `<div class="r"><span class="main"><b>${ui.esc(title)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ''}</span>${openBtn}${shotBtn}${action}</div>${shotFrame}`
+    // Coordinator decision (2026-11-02): an incomplete entry is still
+    // judged, and judges see the flag.
+    const flag = row.incomplete ? '<span class="pill warn">Incomplete</span>' : ''
+    return `<div class="r"><span class="main"><b>${ui.esc(title)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ''}</span>${flag}${openBtn}${shotBtn}${action}</div>${shotFrame}`
   }
 
   const mode = (resultsOut || locked) ? 'readonly' : 'open'
@@ -1339,7 +1492,19 @@ async function render(ctx) {
   const video = newTabLink(row.video_url, 'Watch video', 'btn')
   const code = newTabLink(row.code_url, 'View code', 'btn')
   const site = siteHref(row)
-  const submitted = row.updated_at ? `<p>Submitted ${ui.esc(ui.dateTime(row.updated_at, ev))}</p>` : ''
+  const submitted = row.incomplete
+    ? '<p>Not complete at the deadline. Judge it as it is.</p>'
+    : (row.submitted_at || row.updated_at) ? `<p>Submitted ${ui.esc(ui.dateTime(row.submitted_at || row.updated_at, ev))}</p>` : ''
+  // Entries slice 1 (build-plan.md section 11): judges get the summary card
+  // as plain text at the top, the same ui.entryCard the team previews. The
+  // full one-screen layout with embedded video and framed site is slice 2.
+  const cardHost = document.createElement('div')
+  cardHost.append(ui.entryCard({
+    title: row.title || row.team.name, team_name: row.team.name, team_members: '',
+    track: row.track, problem: row.problem, tagline: row.tagline, audience: row.audience,
+    tools: row.tools, maturity: row.maturity
+  }, { incomplete: !!row.incomplete }))
+  const cardHTML = cardHost.innerHTML
   // Retest Cosmetic #5: a team that never submitted an entry at all gets a
   // different line than one that submitted an entry but just never
   // published a site -- "Nothing published yet" reads as "it's still
@@ -1371,8 +1536,8 @@ async function render(ctx) {
     (locked ? `<div class="note warn"><b>Scoring is locked.</b> Your scores are read-only.</div>` : '') +
     `<header class="ph"><div class="t"><h1>${ui.esc(title)}</h1>${submitted}</div></header>` +
     `<button type="button" class="btn btn-block" id="jsc-goscore">Go to scoring ↓</button>` +
-    (tagline ? `<p><b>${ui.esc(tagline)}</b></p>` : '') +
-    (desc ? `<p>${ui.esc(desc)}</p>` : '') +
+    (noEntry ? '' : cardHTML) +
+    (desc ? `<details class="card"><summary>More detail from the team</summary><p>${ui.esc(desc)}</p></details>` : '') +
     // Cosmetic #2 (retest 3): "No entry yet" used to show here unconditionally
     // whenever noEntry was true, stacked right above the Team site box's own
     // "No entry was submitted." -- the same fact said twice, one of them in

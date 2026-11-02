@@ -78,6 +78,7 @@ func EligibleJudgeTeams(ctx context.Context, q Querier, eventID, judgeID string)
 		rows, err := queryContext(ctx, q, `SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id
 			JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND m.role IN ('judge', 'organiser')
 			WHERE e.id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=e.id AND c.judge_id=$2 AND c.team_id=t.id)
+			AND `+EntryJudgeableSQL+`
 			AND (e.judge_assignment_mode='open'
 			OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=e.id AND a.judge_id=$2 AND a.team_id=t.id))
 			OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_track_panels p WHERE p.event_id=e.id AND p.track_id=t.track_id AND p.judge_id=$2)))`, eventID, judgeID)
@@ -97,7 +98,8 @@ func EligibleJudgeTeams(ctx context.Context, q Querier, eventID, judgeID string)
 	rows, err := queryContext(ctx, q, `SELECT t.id FROM event_former_judges f
 		JOIN event_teams t ON t.event_id = f.event_id AND t.id = ANY(f.counted_team_ids)
 		WHERE f.event_id = $1 AND f.user_id = $2
-		AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id = f.event_id AND c.judge_id = f.user_id AND c.team_id = t.id)`, eventID, judgeID)
+		AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id = f.event_id AND c.judge_id = f.user_id AND c.team_id = t.id)
+		AND `+EntryJudgeableSQL, eventID, judgeID)
 	if err != nil {
 		return nil, err
 	}

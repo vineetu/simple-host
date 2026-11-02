@@ -121,6 +121,10 @@ export const tours = {
       { title: 'Welcome', body: 'This is Overview. It always says the next thing to do. Here is a one-minute look around.' },
       { target: '.status', title: 'Stage and deadline', body: 'The event stage and the next deadline are always shown here.' },
       { target: '[data-tour="next"]', title: 'Your next step', body: 'This always shows what to do next for where the event is now.' },
+      // Atlas "entries and participant journey" package (2026-11-02): the
+      // checklist card -- team, summary card, show your work, submit -- with
+      // its own live countdown to the deadline.
+      { target: '[data-tour="entry-checklist"]', title: 'Your entry', body: 'The four steps to a submitted entry, with a live countdown to your deadline.' },
       { target: '.nav a[href*="s=schedule"]', phone: '[data-menu]', title: 'Schedule', body: 'What is happening and when.' },
       { target: '.nav a[href*="s=announcements"]', phone: '[data-menu]', title: 'Announcements', body: 'Updates from the organiser.' },
       { target: '.nav a[href*="s=team"]', phone: '.tabbar a[href*="s=team"]', title: 'Team', body: 'Find or start your team here. If team finding is on, you can see teams looking for people.' },

@@ -728,6 +728,11 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 				TeamSizeMax:          config.Active().EventTeamSizeDefault,
 				JoinCode:             joinCode,
 				JudgeCode:            judgeCode,
+				// New events start on the AI-build preset (section 2); a Go
+				// table, not a DB default, so the preset's field list lives
+				// in one place (hack_entry_rules.go).
+				EntryPreset: "build",
+				EntryRules:  marshalEntryRules(expandEntryPreset("build")),
 			})
 			return ierr
 		})
@@ -916,8 +921,41 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 		if status, err := db.MemberApprovalStatus(ctx, h.database, ev.ID, member.UserID); err == nil {
 			body["me"].(map[string]any)["approval_status"] = status
 		}
+		// progress (section 4.3): the Home checklist, only once the person
+		// has a team -- there is nothing to track before that.
+		if member.TeamID.Valid {
+			if progress, err := h.memberProgressJSON(ctx, ev, member); err == nil {
+				body["progress"] = progress
+			} else {
+				log.Printf("hack: progress %s: %v", ev.Slug, err)
+			}
+		}
 	}
 	return body
+}
+
+// memberProgressJSON is eventView's "progress" for a team's participant:
+// entryProgressJSON with the team and teammates loaded.
+func (h *HackHandler) memberProgressJSON(ctx context.Context, ev db.Event, member db.EventMember) (map[string]any, error) {
+	team, err := db.GetEventTeamByID(ctx, h.database, member.TeamID.String)
+	if err != nil {
+		return nil, err
+	}
+	st, err := db.TeamWriteStateFor(ctx, h.database, team.ID, false)
+	if err != nil {
+		return nil, err
+	}
+	people, err := db.ListTeamPeople(ctx, h.database, team.ID)
+	if err != nil {
+		return nil, err
+	}
+	var teammates []string
+	for _, p := range people {
+		if p.UserID != member.UserID {
+			teammates = append(teammates, p.DisplayName)
+		}
+	}
+	return h.entryProgressJSON(ctx, ev, team, teammates, st)
 }
 
 // nextStepJSON is the Overview's one forward move: the server computes it so
@@ -1281,12 +1319,14 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		}
 		deadlineChanged = true
 	}
+	entryRequiredChanged := false
 	if req.EntryRequired != nil {
 		fields, ok := checkEntryRequired(w, *req.EntryRequired)
 		if !ok {
 			return
 		}
 		ev.EntryRequired = fields
+		entryRequiredChanged = true
 	}
 	if req.GalleryOpen != nil {
 		ev.GalleryOpen = *req.GalleryOpen
@@ -1320,6 +1360,26 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	// Deprecated entry_required alias (section 4.2): maps to "required" for
+	// the listed fields, leaves every other field's mode as it is, and
+	// demotes the stored preset to custom -- kept for one release.
+	if entryRequiredChanged {
+		fields := loadEntryRules(updated.EntryRules)
+		want := map[string]bool{}
+		for _, f := range ev.EntryRequired {
+			want[f] = true
+		}
+		for _, f := range hackEntryFields {
+			if want[f] {
+				fields[f] = "required"
+			}
+		}
+		updated, err = db.UpdateEventEntryRules(r.Context(), tx, ev.ID, "custom", marshalEntryRules(fields), updated.JudgeFirst, ev.EntryRequired)
+		if err != nil {
+			writeInternal(w)
+			return
+		}
+	}
 	if deadlineChanged {
 		// Lock every team row: a deploy let in before the old deadline
 		// holds its team FOR SHARE and finishes first.
@@ -1328,6 +1388,12 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := db.UnpinReopened(r.Context(), tx, ev.ID); err != nil {
+			writeInternal(w)
+			return
+		}
+		// A deadline pushed later reopens drafts the sweep had already
+		// settled as not submitted (section 7, "Unsettle").
+		if err := db.UnsettleEventDrafts(r.Context(), tx, ev.ID); err != nil {
 			writeInternal(w)
 			return
 		}
@@ -1447,7 +1513,7 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 	}
 	var updated db.Event
 	if stage == "archived" {
-		updated, err = archiveEventTx(r.Context(), tx, a.event.ID, current)
+		updated, err = h.archiveEventTx(r.Context(), tx, a.event.ID, current)
 		if err != nil {
 			writeInternal(w)
 			return
@@ -1471,6 +1537,11 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 					UPDATE event_teams SET deadline_override = NULL
 					 WHERE event_id = $1 AND deadline_override <= clock_timestamp()`, a.event.ID)
 			}
+			if err == nil {
+				// Section 7, "Unsettle": back to building reopens every
+				// unsubmitted draft the sweep had already settled.
+				err = db.UnsettleEventDrafts(r.Context(), tx, a.event.ID)
+			}
 		}
 		if err != nil {
 			writeInternal(w)
@@ -1484,6 +1555,15 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		if err := db.UnpinReopened(r.Context(), tx, a.event.ID); err != nil {
 			writeInternal(w)
 			return
+		}
+		// Section 7: settle every due entry in the same transaction as a
+		// move that freezes submissions, so judging never has to wait a
+		// minute for the sweep to catch up.
+		if submissionsClosedStage(stage) {
+			if err := h.settleEntriesTx(r.Context(), tx, a.event.ID); err != nil {
+				writeInternal(w)
+				return
+			}
 		}
 		// Moving to results locks judging in the same transaction, when it
 		// is not locked already: Results already stops scoring
@@ -1522,7 +1602,7 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 // event row FOR UPDATE and has checked there is at least one participant
 // (archive_needs_participants is each caller's own 409). current is the
 // event's stage right now, under that same lock.
-func archiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string) (db.Event, error) {
+func (h *HackHandler) archiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string) (db.Event, error) {
 	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, eventID); err != nil {
 		return db.Event{}, err
 	}
@@ -1538,6 +1618,10 @@ func archiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string) (d
 		return db.Event{}, err
 	}
 	if err := db.UnpinReopened(ctx, tx, eventID); err != nil {
+		return db.Event{}, err
+	}
+	// Section 7: an event ending always freezes every remaining draft.
+	if err := h.settleEntriesTx(ctx, tx, eventID); err != nil {
 		return db.Event{}, err
 	}
 	return updated, nil

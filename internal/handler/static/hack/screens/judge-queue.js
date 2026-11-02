@@ -84,7 +84,9 @@ export async function render(ctx) {
     return t ? `${t.points}/${rubricMax}` : ''
   }
   function subLine(row) {
-    const submitted = row.updated_at ? 'Submitted ' + ui.dateTime(row.updated_at, ev) : ''
+    // Entries slice 1: the real submit time when there is one. An entry
+    // settled incomplete at the deadline has none, and says so instead.
+    const submitted = row.incomplete ? 'Not complete at the deadline' : (row.submitted_at || row.updated_at) ? 'Submitted ' + ui.dateTime(row.submitted_at || row.updated_at, ev) : ''
     const tagline = String(row.tagline || '').trim()
     return [submitted, tagline].filter(Boolean).join(' · ')
   }
@@ -103,7 +105,10 @@ export async function render(ctx) {
     } else {
       action = `<a class="btn sm${isFirst ? ' primary' : ''}" href="${ui.esc(scoreHref)}">Score this team</a>`
     }
-    return `<div class="r"><span class="main"><b>${ui.esc(title)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ''}</span>${openBtn}${shotBtn}${action}</div>${shotFrame}`
+    // Coordinator decision (2026-11-02): an incomplete entry is still
+    // judged, and judges see the flag.
+    const flag = row.incomplete ? '<span class="pill warn">Incomplete</span>' : ''
+    return `<div class="r"><span class="main"><b>${ui.esc(title)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ''}</span>${flag}${openBtn}${shotBtn}${action}</div>${shotFrame}`
   }
 
   const mode = (resultsOut || locked) ? 'readonly' : 'open'

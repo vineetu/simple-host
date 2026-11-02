@@ -41,7 +41,15 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 		{"hack_leave_team", "POST", "/v1/hack/events/spring/teams/leave", map[string]any{"slug": "spring"}, nil},
 		{"hack_choose_track", "PUT", "/v1/hack/events/spring/team/track", map[string]any{"slug": "spring", "track": "ai"}, map[string]any{"track": "ai"}},
 		{"hack_get_entry", "GET", "/v1/hack/events/spring/entry", map[string]any{"slug": "spring"}, nil},
-		{"hack_update_entry", "PUT", "/v1/hack/events/spring/entry", map[string]any{"slug": "spring", "title": "My app", "tagline": ""}, map[string]any{"title": "My app", "tagline": ""}},
+		{"hack_update_entry", "PUT", "/v1/hack/events/spring/entry", map[string]any{
+			"slug": "spring", "title": "My app", "tagline": "", "problem": "Finding food trucks is hard",
+			"audience": "Hungry commuters", "tools": []any{"Go", "React"}, "maturity": "working", "track": "ai",
+		}, map[string]any{
+			"title": "My app", "tagline": "", "problem": "Finding food trucks is hard",
+			"audience": "Hungry commuters", "tools": []any{"Go", "React"}, "maturity": "working", "track": "ai",
+		}},
+		{"hack_submit_entry", "POST", "/v1/hack/events/spring/entry/submit", map[string]any{"slug": "spring", "updated_at": "2026-10-01T00:00:00Z"}, map[string]any{"updated_at": "2026-10-01T00:00:00Z"}},
+		{"hack_unsubmit_entry", "POST", "/v1/hack/events/spring/entry/unsubmit", map[string]any{"slug": "spring"}, nil},
 		{"hack_delete_entry_screenshot", "DELETE", "/v1/hack/events/spring/entry/screenshot", map[string]any{"slug": "spring"}, nil},
 		{"hack_get_team_status", "GET", "/v1/hack/events/spring", map[string]any{"slug": "spring"}, nil},
 		{"hack_get_my_teams", "GET", "/v1/hack/my-teams", map[string]any{}, nil},

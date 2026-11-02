@@ -296,6 +296,8 @@ func TestHackLeaveFrozenLoneMemberKeepsTeamEntryAndScores(t *testing.T) {
 	a.joinParticipant(t, join, p2, "Other")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "LoneFrozenTeam")
 	otherTeamID, _ := a.createTeamAndJoin(t, slug, p2, "OtherTeam")
+	a.giveSubmittedEntry(t, slug, teamID)
+	a.giveSubmittedEntry(t, slug, otherTeamID)
 	a.joinJudge(t, judgeCode, judge, "Judge One")
 	base := "/v1/hack/events/" + slug
 	// Through the real stage-transition route, not a raw SQL update: setStage
@@ -525,6 +527,7 @@ func TestHackLeaveJudgeKeepsScoresAndRejoinClears(t *testing.T) {
 	join, judgeCode := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "ScoredTeam")
+	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge One")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
@@ -886,6 +889,7 @@ func TestHackDeleteFormerJudgeScoresRoute(t *testing.T) {
 	join, judgeCode := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
@@ -1118,6 +1122,7 @@ func TestHackScoreEligiblePredicateEventScoped(t *testing.T) {
 	joinA, judgeCodeA := a.joinCodes(t, orgA, slugA)
 	a.joinParticipant(t, joinA, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slugA, p1, "Delendum")
+	a.giveSubmittedEntry(t, slugA, teamID)
 	a.joinJudge(t, judgeCodeA, judge, "Judge")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slugA); err != nil {
 		t.Fatal(err)
@@ -1164,6 +1169,7 @@ func TestHackScorePutRaceRejectsDepartedJudge(t *testing.T) {
 	join, judgeCode := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)

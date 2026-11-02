@@ -6,6 +6,123 @@ import { needsCard, bindDismiss } from '../needs.js'
 
 export function title() { return 'Overview' }
 
+// Atlas "entries and participant journey" package (2026-11-02, slice 1): the
+// "Your entry" card (deadline countdown + four-step checklist, build-plan.md
+// section 4.3's `progress`) and the Submit-from-Home action.
+//
+// CONTRACT (coordinator decision, 2026-11-02 -- see participant-entry.js for
+// the full note): the deadline sweep settles an incomplete draft as
+// `progress.steps[id=submit].status === "not_submitted"` -- still judged,
+// flagged, never a separate boolean. Confirmed against the landed backend
+// (internal/handler/hack_entry_rules.go entryProgressJSON) while building
+// this screen.
+const PLAIN = {
+  title: 'project name', problem: 'the problem', tagline: 'the solution', audience: "who it's for",
+  track: 'a track', tools: 'tools and AI', maturity: 'what works today',
+  video_url: 'a video link', site: 'a published website', code_url: 'a code link', screenshot: 'a screenshot', description: 'a description'
+}
+function joinAnd (items) {
+  if (!items.length) return ''
+  if (items.length === 1) return items[0]
+  return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]
+}
+function stepByID (progress, id) { return ((progress && progress.steps) || []).find(s => s.id === id) || {} }
+
+// "Entries close Sun 8 Nov, 18:00 WIB" / "Your team closes ..., N hours
+// after everyone else" (extension) / "Entries closed ..." (past).
+function deadlineSmallText (ui, ev, progress) {
+  if (!progress || !progress.deadline) return ''
+  const dt = ui.dateTime(progress.deadline, ev)
+  const now = progress.server_now ? new Date(progress.server_now) : new Date()
+  if (now >= new Date(progress.deadline)) return 'Entries closed ' + dt
+  if (progress.deadline_is_extension && progress.event_deadline) {
+    const diffH = Math.round((new Date(progress.deadline) - new Date(progress.event_deadline)) / 3600000)
+    return 'Your team closes ' + dt + (diffH > 0 ? ', ' + diffH + ' hour' + (diffH === 1 ? '' : 's') + ' after everyone else' : '')
+  }
+  return 'Entries close ' + dt
+}
+
+function entrySectionHTML (ctx, ev, progress) {
+  if (!progress) return ''
+  const { ui } = ctx
+  const esc = ui.esc
+  const team = stepByID(progress, 'team'), summary = stepByID(progress, 'summary'), evidence = stepByID(progress, 'evidence'), submit = stepByID(progress, 'submit')
+
+  function row (step, num, titleText, subText, action) {
+    // `step.opt` (kit.css's existing dashed-tick style) marks a step that is
+    // settled but not actually a success -- the deadline-sweep "not
+    // submitted, still judged, Incomplete" outcome, so it never reads as a
+    // plain green checkmark.
+    const cls = [step.done ? 'done' : '', step.opt ? 'opt' : '', !step.done && progress.next === step.id ? 'now' : ''].filter(Boolean).join(' ')
+    const tick = step.done ? '<span class="tick">✓</span>' : '<span class="tick"><span class="num">' + num + '</span></span>'
+    return '<li class="' + cls + '">' + tick + '<span class="what"><b>' + esc(titleText) + '</b><span class="sub">' + esc(subText) + '</span></span>' + (action || '') + '</li>'
+  }
+
+  const teamHref = href('participant', ev.slug, 'team')
+  const entryHref = href('participant', ev.slug, 'entry')
+  const websiteHref = href('participant', ev.slug, 'website')
+
+  const r1 = row(team, 1, 'Join or start a team', team.detail || "You're not on a team yet.", team.done ? '' : '<a class="btn sm act" href="' + esc(teamHref) + '">Find a team</a>')
+
+  const summarySub = !team.done ? "Problem, solution, who it's for, track, tools and what works." : summary.done
+    ? ('All ' + (summary.of || 0) + ' lines filled.')
+    : ((summary.filled || 0) + ' of ' + (summary.of || 0) + ' filled' + ((summary.missing || []).length ? ': add ' + joinAnd(summary.missing.map(f => PLAIN[f] || f)) : '') + '.')
+  const r2 = row(summary, 2, 'Fill in the summary card', summarySub, (!summary.done && team.done) ? '<a class="btn quiet sm act" href="' + esc(entryHref) + '">Edit</a>' : '')
+
+  const evidenceTitle = evidence.summary ? ('Add ' + evidence.summary) : 'Show your work'
+  const evidenceSub = !team.done ? 'A video or your website, as the event asks.' : evidence.done ? 'Done.' : (evidence.summary && evidence.summary.indexOf(' or ') >= 0 && evidence.summary.indexOf(', and ') < 0 ? 'Nothing yet. One of these is enough.' : 'Nothing yet.')
+  const evidenceAction = (!evidence.done && summary.done) ? ('<a class="btn sm act" href="' + esc(websiteHref) + '">Publish website</a>') : ''
+  const r3 = row(evidence, 3, evidenceTitle, evidenceSub, evidenceAction)
+
+  let submitSub, submitAction = ''
+  if (submit.status === 'not_submitted') {
+    // Coordinator decision (2026-11-02, replacing build-plan.md's "not
+    // submitted, not judged" rule): the deadline sweep settles an
+    // incomplete draft as `status: "not_submitted"` without a separate
+    // flag -- still judged unless an organiser excludes it by hand, which
+    // this view has no way to see. Shown verbatim, here and on Entry.
+    submitSub = 'Not complete. It will still be judged, marked incomplete.'
+  } else if (submit.status === 'submitted') {
+    submitSub = submit.auto ? 'Submitted automatically at the deadline.' : ('Submitted' + (submit.submitted_at ? ' ' + ui.dateTime(submit.submitted_at, ev) : '') + '.')
+  } else if (!team.done) {
+    submitSub = 'Then the judges can see it. You can still change it after.'
+  } else if (progress.next === 'submit') {
+    submitSub = 'Ready. Then the judges can see it. You can still change it after.'
+    submitAction = '<button type="button" class="btn primary sm act" id="ph-submit-step">Submit</button>'
+  } else {
+    submitSub = 'Then the judges can see it. You can still change it after.'
+  }
+  const submitSettled = submit.status === 'submitted' || submit.status === 'not_submitted'
+  const r4 = row({ done: submit.status === 'submitted', opt: submit.status === 'not_submitted' }, 4, 'Submit before the deadline', submitSub, submitAction)
+
+  const countdownHTML = (progress.deadline && !submitSettled) || (progress.deadline && submit.status === 'submitted')
+    ? '<span class="countdown" data-deadline="' + esc(progress.deadline) + '"><span class="v"></span> <small>' + (submit.status === 'submitted' ? 'left to make changes' : 'left') + '</small></span>'
+    : ''
+  const smallText = deadlineSmallText(ui, ev, progress)
+  const deadlineLine = progress.deadline ? ('<p class="deadline-line">' + countdownHTML + (smallText ? (countdownHTML ? ' ' : '') + '<small>' + esc(smallText) + '</small>' : '') + '</p>') : ''
+
+  return '<section class="card" data-tour="entry-checklist"><h2>Your entry</h2>' + deadlineLine + '<ul class="steps" style="margin-top:8px">' + r1 + r2 + r3 + r4 + '</ul></section>'
+}
+
+function wireEntrySection (ctx, ev, progress) {
+  const { main, ui, api: client } = ctx
+  const cd = main.querySelector('.countdown[data-deadline]')
+  if (cd) ui.countdown(cd, progress.deadline, progress.server_now, { quiet: stepByID(progress, 'submit').status === 'submitted' })
+  const btn = main.querySelector('#ph-submit-step')
+  if (btn) btn.addEventListener('click', async () => {
+    const deadlineText = progress.deadline ? ui.dateTime(progress.deadline, ev) : 'the deadline'
+    const ok = await ui.confirm({ title: 'Submit your entry', body: 'Judges will see it. You can still change it until ' + deadlineText + '. It stays submitted.', confirmLabel: 'Submit entry' })
+    if (!ok) return
+    btn.disabled = true
+    try {
+      const r = await client.api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/submit', {})
+      if (!r.ok) { ui.toast(ui.errText(r, { fallback: 'Could not submit.' }), btn, true); btn.disabled = false; return }
+      ui.toast('Submitted', btn)
+      await ctx.refresh()
+    } catch (e) { if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', btn, true); btn.disabled = false } }
+  })
+}
+
 // Guided walkthrough: shown once, automatically, the first time an approved
 // participant lands on Overview (renamed from Home 2026-10-30; app.js never
 // even imports this module for a pending/rejected participant, so no extra
@@ -141,6 +258,7 @@ export async function render(ctx) {
   const announcementsHref = href('participant', slug, 'announcements')
   const resultsHref = href('participant', slug, 'results')
   const entryHref = href('participant', slug, 'entry')
+  const websiteHref = href('participant', slug, 'website')
 
   const uid = (ctx.me && (ctx.me.id || ctx.me.username)) || 'anon'
   const justPlaced = justPlacedNote(uid, slug, me)
@@ -152,6 +270,9 @@ export async function render(ctx) {
   const teamsOpen = (ev.stage === 'open' || ev.stage === 'building') && !ev.taken_down
   const deadlinePassed = !!(ev.submission_deadline && new Date(ev.submission_deadline) <= new Date())
   const deadline = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : ''
+  // The entry checklist is for the build-and-submit phase. Once judging has
+  // actually started (or results are out), it has nothing left to say.
+  const showEntryCard = !ev.results_published && !['judging', 'results', 'archived'].includes(ev.stage)
 
   let heroTitle, heroNote = '', heroLabel = '', heroHref = '', heroExternal = false
   // The kind of waiting item the next-step card already leads with, so the
@@ -231,9 +352,53 @@ export async function render(ctx) {
     heroLabel = n === 1 ? 'See request' : 'See requests'
     heroHref = teamHref + '&tab=members'
   } else {
-    heroTitle = teamDeadline ? ('Keep building. Entries close ' + teamDeadline) : ('You are on ' + me.team.name + '. Keep building')
-    heroLabel = 'Go to your entry'
-    heroHref = entryHref
+    // Atlas "entries and participant journey" package: this is the one
+    // branch `progress` (build-plan.md 4.3) now drives -- every
+    // higher-priority state above (results, archived, no team, frozen,
+    // pending requests) keeps its own existing message unchanged.
+    const progress = event.progress
+    const next = progress && progress.next
+    const submitStep = progress && stepByID(progress, 'submit')
+    if (!progress) {
+      // Defensive fallback while the server side of this package hasn't
+      // landed yet, or for an old API response with no `progress` field.
+      heroTitle = teamDeadline ? ('Keep building. Entries close ' + teamDeadline) : ('You are on ' + me.team.name + '. Keep building')
+      heroLabel = 'Go to your entry'
+      heroHref = entryHref
+    } else if (submitStep.status === 'not_submitted') {
+      // The deadline sweep has already settled this one -- checked before
+      // `next` (which can still read "summary"/"evidence"/"submit" off a
+      // post-settlement re-evaluation even though nothing is actionable any
+      // more; see entryProgressJSON's own `next` switch, hack_entry_rules.go).
+      heroTitle = me.team.name + ' is not complete'
+      heroNote = 'Not complete. It will still be judged, marked incomplete.'
+      heroLabel = 'Go to your entry'
+      heroHref = entryHref
+    } else if (next === 'summary') {
+      const step = stepByID(progress, 'summary')
+      const missingWords = (step.missing || []).map(f => PLAIN[f] || f)
+      heroTitle = 'Finish your summary card' + (missingWords.length ? ': add ' + joinAnd(missingWords) : '')
+      heroLabel = 'Finish your entry'
+      heroHref = entryHref
+    } else if (next === 'evidence') {
+      const step = stepByID(progress, 'evidence')
+      heroTitle = step.summary ? ('Add ' + step.summary) : 'Show your work'
+      heroLabel = 'Publish your website'
+      heroHref = websiteHref
+    } else if (next === 'submit') {
+      heroTitle = me.team.name + ' is ready. Submit it so judges can see it.'
+      // The Your-entry card below carries the real Submit button (with its
+      // own confirm); this link is a plain fallback straight to Entry.
+      heroLabel = 'Go to your entry'
+      heroHref = entryHref
+    } else {
+      // next === '' : nothing left in `progress.steps` to do, and status is
+      // "submitted" (the only other value `submitStep.status` can be here).
+      heroTitle = me.team.name + ' is submitted'
+      heroNote = teamDeadline ? ('You can still change it until ' + teamDeadline + '. It stays submitted.') : 'It stays submitted.'
+      heroLabel = 'View your entry'
+      heroHref = entryHref
+    }
   }
 
   const live = ev.stage !== 'archived' && !ev.taken_down
@@ -243,6 +408,13 @@ export async function render(ctx) {
     live ? scheduleRows(api, slug) : Promise.resolve([])
   ])
   if (!ctx.alive()) return
+
+  // No team yet (atlas participant-home, "no team yet"): the server sends no
+  // `progress` until there is a team, but the whole path should still be
+  // visible from minute one -- step 1 is current, 2 to 4 are listed quiet.
+  const noTeamProgress = (!me.team && teamsOpen && ev.stage !== 'draft')
+    ? { steps: [{ id: 'team', done: false }, { id: 'summary', done: false }, { id: 'evidence', done: false }, { id: 'submit', done: false, status: 'draft' }], next: 'team', deadline: ev.submission_deadline || null, server_now: null }
+    : null
 
   // Audit item 1 (2026-11-02): a plain link from Home to the "How you're
   // judged" card that now lives on Entry -- the rubric itself is read
@@ -259,6 +431,7 @@ export async function render(ctx) {
     + '<div id="home-nudge"></div>'
     + (justPlaced ? `<div class="note ok"><b>You are on ${esc(me.team.name)} now.</b> <a href="${esc(teamHref)}">Meet your team</a></div>` : '')
     + `<div class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>${esc(heroTitle)}</h2>${heroNote ? `<p>${esc(heroNote)}</p>` : ''}</div>${heroLabel ? `<a class="btn primary" ${heroExternal ? 'target="_blank" rel="noopener" ' : ''}href="${esc(heroHref)}">${esc(heroLabel)}</a>` : ''}</div>`
+    + entrySectionHTML(ctx, ev, showEntryCard ? (event.progress || noTeamProgress) : null)
     + rubricCard
     + news
     + participantDangerZone(ui, preview, ev)
@@ -268,6 +441,7 @@ export async function render(ctx) {
   paintNudge()
   if (rows.length) keepNudgeFresh(ctx, nudgeHost, paintNudge)
   bindDismiss(main, client, ui, slug, () => { if (ctx.alive()) ctx.refresh() })
+  if (showEntryCard && (event.progress || noTeamProgress)) wireEntrySection(ctx, ev, event.progress || noTeamProgress)
 
   const leaveBtn = main.querySelector('#leave-btn')
   if (leaveBtn && !leaveBtn.disabled) leaveBtn.addEventListener('click', () => openLeave({ api: client, ui, slug, title: ev.title, from: 'participant-home' }))

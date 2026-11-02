@@ -1137,7 +1137,24 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 	for _, e := range stored {
 		byTeamEntry[e.TeamID] = e
 	}
-	required := entryRequiredList(a.event.EntryRequired)
+	// Section 4.5: unsettled, never-started or hand-excluded entries never
+	// reach the queue, whatever the assignment mode (db.EligibleJudgeTeams'
+	// own EntryJudgeableSQL only fires on the non-open-mode branch above).
+	judgeable := make([]db.NamedTeam, 0, len(eligible))
+	for _, t := range eligible {
+		if entryJudgeable(byTeamEntry[t.ID]) {
+			judgeable = append(judgeable, t)
+		}
+	}
+	eligible = judgeable
+	fields := loadEntryRules(a.event.EntryRules)
+	tracks, err := db.ListEventTracks(ctx, h.database, a.event.ID)
+	if err != nil {
+		log.Printf("hack: queue %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	hasTracks := len(tracks) > 0
 	type row struct {
 		item  map[string]any
 		count int
@@ -1148,7 +1165,7 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		if conflicted[team.ID] {
 			continue
 		}
-		item, ierr := h.entryListItem(ctx, a.event, db.EventTeam{ID: team.ID, Name: team.Name, Slug: team.Slug}, byTeamEntry[team.ID], required, tl)
+		item, ierr := h.entryListItem(ctx, a.event, db.EventTeam{ID: team.ID, Name: team.Name, Slug: team.Slug}, byTeamEntry[team.ID], fields, hasTracks, tl)
 		if ierr != nil {
 			log.Printf("hack: queue %s/%s: %v", a.event.Slug, team.ID, ierr)
 			writeInternal(w)
@@ -1176,7 +1193,15 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 	for _, rw := range rows {
 		out = append(out, rw.item)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"queue": out})
+	writeJSON(w, http.StatusOK, map[string]any{"queue": out, "judge_first": a.event.JudgeFirst})
+}
+
+// entryJudgeable mirrors db.EntryJudgeableSQL in Go, for the queue's
+// open-assignment-mode path (EligibleJudgeTeams' own version of this only
+// runs on the non-open branch above). A team with no entry row at all is
+// never judgeable.
+func entryJudgeable(e db.EventEntry) bool {
+	return e.Exists && (e.SubmittedAt.Valid || e.SubmitSettledAt.Valid) && !e.ExcludedAt.Valid
 }
 
 // assignedTeamsFor is the set of team ids a judge is assigned in automatic

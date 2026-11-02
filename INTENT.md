@@ -1373,6 +1373,27 @@ What follows from that, and is not negotiable without changing the line above:
   Reason: owner, 2026-11-02 -- reverses the half-baked "Record guardian consent for under-18s"
   audit item; the existing Under-18 advisory note on the Apply form stays exactly as it is.
 
+- **2026-11-02. Entry summary card, rules and an explicit submit (audit items 4 and 5, slice 1
+  of the entries package).** Every entry has a fixed summary card: problem, solution (the
+  existing tagline), who it's for, the team's track, tools and AI as tags from a fixed
+  suggestion list, and what works today. Organisers pick a preset (AI build, Coding, Ideas and
+  design) and can set each line to Required, Optional or Off, and the show-your-work lines also
+  to One of. Saving a draft never checks the rules. Submit does, on the server, the same way on
+  the website and in the AI apps. A submitted entry stays editable until the deadline and can't
+  lose a line the event asks for. Tighter rules never un-submit an entry. Existing events become
+  Custom rules equal to their old required list, new events start on AI build. Reason: judges
+  were comparing essays of different shapes, and "required" never blocked anything.
+
+- **2026-11-02. At the deadline an incomplete draft is still judged, flagged Incomplete
+  (coordinator decision, the owner can overrule).** A complete draft is submitted automatically
+  at the team's deadline. An incomplete one is not dropped: it is judged, with an "Incomplete"
+  flag that judges and organisers see, and the team is told before the deadline: "Not complete.
+  It will still be judged, marked incomplete." Organisers can exclude a flagged entry from
+  judging by hand on Entries, after a confirm, and include it again. A team that never started
+  an entry is not judged. Reason: this replaces the build plan's "an incomplete draft is not
+  submitted and is not judged". Dropping a team's whole weekend over one missing line punishes
+  the team for the organiser's rule, and the organiser keeps the final say with Exclude.
+
 ## Open, deliberately parked
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some

@@ -88,6 +88,13 @@ type Event struct {
 	// Listed in Find a hackathon (Results settings). Applications are taken
 	// only from listed events (owner, 2026-10-31).
 	DirectoryListed bool
+	// zv-hack-entry-summary.sql: the entry rules engine. EntryRules is
+	// {"v":1,"fields":{field: mode}}, validated and expanded server-side
+	// (internal/handler/hack_entry_rules.go) -- never stored as the client
+	// sent it. JudgeFirst is which evidence judges see first.
+	EntryPreset string
+	EntryRules  []byte
+	JudgeFirst  string
 }
 
 // TakenDown reports whether the platform admin has taken the event down.
@@ -142,7 +149,8 @@ const eventColumns = `
 	taken_down_at, taken_down_reason, created_at, updated_at,
 	entry_required, gallery_open,
 	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason,
-	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding, applications_open, directory_listed`
+	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding, applications_open, directory_listed,
+	entry_preset, entry_rules, judge_first`
 
 // scanEventFields is every events column in eventColumns order.
 func scanEventFields(e *Event) []any {
@@ -156,6 +164,7 @@ func scanEventFields(e *Event) []any {
 		pq.Array(&e.EntryRequired), &e.GalleryOpen,
 		&e.JudgeAssignmentMode, &e.JudgesPerTeam, &e.JudgingLockedAt, &e.JudgingLockReason,
 		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks, &e.TeamFinding, &e.ApplicationsOpen, &e.DirectoryListed,
+		&e.EntryPreset, &e.EntryRules, &e.JudgeFirst,
 	}
 }
 
@@ -312,22 +321,26 @@ func InsertEventCreateLog(ctx context.Context, q Querier, userID string) error {
 // InsertEvent writes a new events row. Unique violations on slug or codes are
 // returned as-is so the caller can retry codes or map a slug clash to name_taken.
 func InsertEvent(ctx context.Context, q Querier, e Event) (Event, error) {
+	// entry_preset/entry_rules: new events start on the AI-build preset (the
+	// create handler passes its expanded rules JSON; zv-hack-entry-summary.sql
+	// section 2 -- a Go table, not a DB default, so the preset's field list
+	// lives in one place, internal/handler/hack_entry_rules.go).
 	row := q.QueryRowContext(ctx, `
 		INSERT INTO events (
 			id, slug, account_id, created_by, title, stage,
 			organiser_name, organisation, contact_email, purpose, expected_participants,
 			tagline, about, rules, prizes, coc_text, time_zone, starts_at, ends_at,
-			team_size_max, join_code, judge_code
+			team_size_max, join_code, judge_code, entry_preset, entry_rules
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10, $11,
 			$12, $13, $14, $15, $16, $17, $18, $19,
-			$20, $21, $22
+			$20, $21, $22, $23, $24
 		) RETURNING `+eventColumns,
 		e.ID, e.Slug, e.AccountID, e.CreatedBy, e.Title, e.Stage,
 		e.OrganiserName, e.Organisation, e.ContactEmail, e.Purpose, nullInt(e.ExpectedParticipants),
 		e.Tagline, e.About, e.Rules, e.Prizes, e.CocText, e.TimeZone, nullTime(e.StartsAt), nullTime(e.EndsAt),
-		e.TeamSizeMax, e.JoinCode, e.JudgeCode,
+		e.TeamSizeMax, e.JoinCode, e.JudgeCode, e.EntryPreset, e.EntryRules,
 	)
 	out, err := scanEvent(row)
 	if err != nil && isUniqueViolation(err) {

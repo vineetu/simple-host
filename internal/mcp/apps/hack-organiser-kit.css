@@ -785,6 +785,213 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .danger-zone .setting{flex-direction:column}
   .danger-zone .setting .btn{width:100%}
 }
+
+/* ======================================================================
+   Entries (atlas 2026-11-02, "entries and participant journey" package,
+   slice 1) -- moved unchanged from docs/ux-atlas/prototype/kit-next.css per
+   BUILD.md. Same tokens as the rest of this file; nothing here is dark,
+   nothing uses a web font.
+   ====================================================================== */
+
+/* --- entry summary card: the 20-second read --------------------------- */
+.entry-card{background:var(--surface);border:1px solid var(--rule);border-left:4px solid var(--teal);border-radius:10px;padding:14px 18px 16px;margin:0 0 14px}
+.entry-card .ec-head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin:0 0 10px}
+.entry-card .ec-head .t{flex:1;min-width:200px}
+.entry-card h1,.entry-card h2,.entry-card h3{font-size:19px;font-weight:700;margin:0;line-height:1.3}
+.entry-card .ec-team{font-size:13px;color:var(--line-soft);margin:2px 0 0}
+.entry-card .ec-pills{display:flex;gap:6px;flex-wrap:wrap}
+.ec-rows{display:grid;grid-template-columns:96px minmax(0,1fr);gap:7px 14px;margin:0;font-size:14.5px;line-height:1.45}
+.ec-rows dt{color:var(--line-soft);font-size:12.5px;font-weight:600;letter-spacing:.02em;padding-top:2px}
+.ec-rows dd{margin:0;overflow-wrap:anywhere}
+.ec-rows dd.missing{color:var(--warn);font-style:italic}
+.entry-card .ec-links{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0;padding-top:12px;border-top:1px solid var(--rule)}
+.entry-card.compact{padding:12px 14px;border-left-width:3px}
+.entry-card.compact h3{font-size:16px}
+.entry-card.compact .ec-rows{grid-template-columns:84px minmax(0,1fr);font-size:14px;gap:5px 12px}
+.entry-card .shot-row{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:16px;align-items:start}
+.entry-card .shot-row .site-frame{width:100%}
+
+/* maturity pill: what works today */
+.pill.mat-working{background:var(--ok-soft);color:var(--ok)}
+.pill.mat-partial{background:var(--warn-soft);color:var(--warn)}
+.pill.mat-concept{background:#ebe4f2;color:#5b3f7a}
+
+/* --- tags (tools and AI used) ------------------------------------------ */
+.tags{display:flex;flex-wrap:wrap;gap:5px;list-style:none;margin:0;padding:0}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:550;padding:2px 9px;border-radius:99px;background:#ece5d3;color:var(--line)}
+.tag.ai{background:var(--teal-soft);color:var(--teal)}
+.tag button{border:0;background:none;padding:0 0 0 2px;font:inherit;font-size:14px;line-height:1;color:var(--line-faint);cursor:pointer}
+.tag-input{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:var(--control-h,40px);padding:5px 8px;background:#fff;border:1px solid var(--rule-hi);border-radius:var(--r-sm)}
+.tag-input:focus-within{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+.tag-input input{flex:1 1 120px;min-width:100px;border:0;outline:0;font:inherit;font-size:14.5px;padding:3px 2px;background:none}
+.suggest{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.suggest .k{font-size:12.5px;color:var(--line-faint);margin-right:2px}
+.suggest button{font:inherit;font-size:12.5px;padding:3px 9px;border-radius:99px;border:1px dashed var(--rule-hi);background:var(--surface);color:var(--line-soft);cursor:pointer}
+.suggest button:hover{border-style:solid;color:var(--line)}
+
+/* --- radio choice row for "what works today" (3 compact cards) ---------- */
+.choices.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+/* --- status line at the top of Entry: Draft / Submitted ---------------- */
+.entry-status{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:14px 18px;margin:0 0 14px}
+.entry-status .t{flex:1;min-width:220px}
+.entry-status .t > b{display:block;font-size:16px;font-weight:650}
+.entry-status .t > span{font-size:13.5px;color:var(--line-soft)}
+.entry-status.draft{border-left:4px solid var(--warn)}
+.entry-status.submitted{border-left:4px solid var(--ok)}
+.entry-status.late{border-left:4px solid var(--danger)}
+/* Coordinator decision 2026-11-02 (replaces the plan's "not submitted /
+   not judged" rule): an incomplete draft at the deadline is still judged,
+   flagged Incomplete -- informational, not an error, so it gets the same
+   amber border as a plain draft rather than the red of .late. */
+.entry-status.incomplete{border-left:4px solid var(--warn)}
+.need{list-style:none;margin:6px 0 0;padding:0;font-size:13.5px}
+.need li{display:inline-flex;align-items:center;gap:5px;margin:0 12px 4px 0;color:var(--line-soft)}
+.need li::before{content:"";width:8px;height:8px;border-radius:50%;border:1.5px solid var(--warn)}
+.need li.ok::before{background:var(--ok);border-color:var(--ok)}
+.need li.ok{color:var(--line-faint)}
+
+/* --- live countdown --------------------------------------------------- */
+.countdown{display:inline-flex;align-items:baseline;gap:6px;font-variant-numeric:tabular-nums;font-weight:700;font-size:20px;color:var(--line)}
+.countdown small{font-size:12px;font-weight:600;color:var(--line-soft)}
+.countdown.soon{color:var(--warn)}
+.countdown.urgent{color:var(--danger)}
+
+/* --- Home checklist: .steps with an action per row ---------------------- */
+.steps .act{flex:none;align-self:center}
+.steps .what .sub{display:block;font-size:13.5px;color:var(--line-soft);margin-top:2px}
+.steps li.opt .tick{border-style:dashed}
+.steps .num{font-size:11px;font-weight:700;color:var(--line-faint)}
+.steps li.done .num{display:none}
+
+/* --- judge view: video and site preview -------------------------------- */
+/* Not used by anything this slice builds (judge-scoring.js is slice 2) --
+   moved over now, with the rest of kit-next.css, so slice 2 doesn't have to
+   touch kit.css again for the classes its own prototype already relies on. */
+.media{border:1px solid var(--rule);border-radius:10px;background:var(--surface);overflow:hidden;margin:0 0 14px}
+.media .mbar{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--rule);background:var(--paper-hi);font-size:13px}
+.media .mbar b{font-weight:650;font-size:13.5px;white-space:nowrap}
+.media .mbar .host{font-family:var(--mono);font-size:12.5px;color:var(--line-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.media .mbar .grow{flex:1}
+.video-box{position:relative;aspect-ratio:16/9;background:#e9e2cf;display:grid;place-items:center;color:var(--line);text-decoration:none;cursor:pointer;border:0;width:100%;font:inherit}
+.video-box .play{width:64px;height:64px;border-radius:50%;background:var(--surface);display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.video-box .play::after{content:"";border-left:18px solid var(--accent);border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:5px}
+.video-box .cap{position:absolute;left:12px;bottom:10px;font-size:13px;color:var(--line-soft);background:rgba(252,248,237,.92);padding:3px 8px;border-radius:6px}
+.video-link{display:flex;align-items:center;gap:12px;padding:14px;text-decoration:none;color:inherit}
+.video-link .play{flex:none;width:44px;height:44px;border-radius:50%;background:var(--accent-soft);display:grid;place-items:center}
+.video-link .play::after{content:"";border-left:13px solid var(--accent);border-top:8px solid transparent;border-bottom:8px solid transparent;margin-left:4px}
+.site-preview{position:relative;height:520px;background:#fff}
+.site-preview .fake{position:absolute;inset:0;overflow:hidden}
+.site-preview.phone-tall{height:560px}
+.site-preview .fallback{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;color:var(--line-soft)}
+.crit .w{font-size:12px;font-weight:600;color:var(--line-faint);margin-left:6px}
+.crit .t-row b{flex:1}
+.jhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.jhead .grow{flex:1}
+.kbd-hint{flex-basis:100%;margin-top:2px}
+.sticky-foot:has(.kbd-hint){flex-wrap:wrap}
+.kbd{font-family:var(--mono);font-size:11.5px;border:1px solid var(--rule-hi);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:#fff;color:var(--line-soft)}
+
+/* --- Website: connect steps per AI app ---------------------------------- */
+/* Not used by anything this slice builds (participant-website.js is slice 3). */
+.conn{display:flex;gap:0;margin:0 0 14px;border:1px solid var(--rule);border-radius:10px;background:var(--surface);overflow:hidden}
+.conn > div{flex:1;padding:12px 14px;border-left:1px solid var(--rule);min-width:0}
+.conn > div:first-child{border-left:0}
+.conn .k{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--line-faint)}
+.conn .k::before{content:"";width:9px;height:9px;border-radius:50%;border:1.5px solid var(--rule-hi)}
+.conn .on .k{color:var(--ok)}
+.conn .on .k::before{background:var(--ok);border-color:var(--ok)}
+.conn .wait .k{color:var(--warn)}
+.conn .wait .k::before{border-color:var(--warn);border-style:dashed}
+.conn b{display:block;font-weight:650;margin-top:4px;font-size:14.5px}
+.conn span.s{display:block;font-size:13px;color:var(--line-soft);margin-top:2px;overflow-wrap:anywhere}
+.howto{list-style:none;counter-reset:howto;margin:12px 0 0;padding:0}
+.howto > li{counter-increment:howto;position:relative;padding:0 0 14px 36px}
+.howto > li::before{content:counter(howto);position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:var(--paper);border:1px solid var(--rule-hi);display:grid;place-items:center;font-size:12.5px;font-weight:700;color:var(--line-soft)}
+.howto > li.done::before{content:"\2713";background:var(--teal);border-color:var(--teal);color:#fff}
+.howto > li b{font-weight:600}
+.howto > li .help{margin:4px 0 0}
+.howto > li .copy{margin-top:8px}
+.howto > li:last-child{padding-bottom:0}
+.app-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 4px}
+.app-tabs a{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border:1px solid var(--rule-hi);border-radius:99px;background:#fff;font-size:13.5px;font-weight:600;color:var(--line-soft);text-decoration:none}
+.app-tabs a[aria-current=true]{background:var(--teal);border-color:var(--teal);color:#fff}
+.prompt{background:var(--paper-hi);border:1px solid var(--rule);border-radius:var(--r-sm);padding:10px 12px;font-size:14px;line-height:1.5;white-space:pre-wrap}
+
+/* --- organiser: what teams hand in ------------------------------------ */
+.rules{margin-top:16px}
+.rules .rr{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--rule)}
+.rules .rr .t{flex:1;min-width:0}
+.rules .rr .t b{display:block;font-weight:600;font-size:14.5px}
+.rules .rr .t span{font-size:13px;color:var(--line-soft)}
+.rules .rr .seg span{padding:5px 10px;font-size:13px}
+.rules h3{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--line-faint);margin:16px 0 2px}
+.stat-row{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.stat-row .stat{flex:1 1 150px}
+
+/* --- public results: a result row that carries its entry card --------- */
+/* Not used by anything this slice builds (results/gallery land in slice 3). */
+.result-entry{background:var(--surface);border:1px solid var(--rule);border-radius:10px;margin:0 0 12px;overflow:hidden}
+.result-entry .re-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--rule)}
+.result-entry .re-head .main{flex:1;min-width:0}
+.result-entry .re-head b{font-size:16px;font-weight:650;display:block}
+.result-entry .re-head span.sub{font-size:13.5px;color:var(--line-soft)}
+.result-entry .re-body{display:grid;grid-template-columns:240px minmax(0,1fr);gap:16px;padding:14px 16px}
+.result-entry .re-body .site-frame{width:100%}
+.result-entry .ec-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.result-entry.winner{border-color:var(--ev,#d15d48);box-shadow:0 0 0 1px var(--ev,#d15d48)}
+.site-card .tags{margin-top:6px}
+/* One-of: the segmented control's third (or fourth) option reads "One of"
+   on the two show-your-work lines that allow it; kept visually identical to
+   Required/Optional/Off otherwise, just its own on-state tint so a glance
+   down the column tells "One of" apart from a plain "Required". (Slice 1
+   addition, not in the original kit-next.css.) */
+.seg span.oneof.on{background:var(--accent);border-color:var(--accent)}
+
+@media (max-width:760px){
+  .media .mbar .host{display:none}
+  .ec-rows{grid-template-columns:1fr;gap:1px}
+  .ec-rows dt{padding-top:6px}
+  .entry-card{padding:12px 14px 14px}
+  .entry-card .shot-row{grid-template-columns:1fr}
+  .choices.three{grid-template-columns:1fr}
+  .site-preview{height:440px}
+  .conn{flex-direction:column}
+  .conn > div{border-left:0;border-top:1px solid var(--rule)}
+  .conn > div:first-child{border-top:0}
+  .rules .rr{flex-wrap:wrap}
+  .rules .rr .seg{width:100%}
+  .rules .rr .seg span{flex:1;text-align:center;min-height:44px;display:grid;place-items:center}
+  .result-entry .re-body{grid-template-columns:1fr}
+  .countdown{font-size:18px}
+  .steps .act{align-self:flex-start}
+  .steps li{flex-wrap:wrap}
+  .steps li .act{margin-left:31px}
+  /* 44px tap targets (phone convention): the tag chip's own remove button
+     and the fixed tool/AI suggestion buttons are both well under that floor
+     at their desktop size. */
+  .tag{min-height:44px;padding:2px 9px 2px 9px}
+  .tag button{min-width:32px;min-height:32px}
+  .suggest button{min-height:44px}
+  .choice{min-height:44px}
+}
+.result-entry .re-head .meta{font-variant-numeric:tabular-nums;color:var(--line-soft);font-size:13.5px;white-space:nowrap}
+.result-entry .re-head .pill{flex:none}
+@media (min-width:1001px){.split > aside{position:sticky;top:16px}}
+.suggest .k{min-width:40px}
+.deadline-line{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:2px 0 6px}
+.deadline-line small{font-size:13.5px;color:var(--line-soft)}
+@media (max-width:760px){.steps li .what{flex:1 1 calc(100% - 40px)}}
+@media (max-width:760px){
+  .entry-card.compact .ec-rows{grid-template-columns:1fr;gap:1px}
+  .sticky-foot .hint-wide{display:none}
+}
+.focus .right > .next-guard{margin:auto 0 8px}
+.focus .right > .next-guard + .sticky-foot{margin-top:0}
+.choices.presets{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:760px){.choices.presets{grid-template-columns:1fr}}
+/* ======================================================================= */
+
 /* ======================================================================
    Form layout (2026-10-31) -- the ONE place form spacing and alignment live.
    ----------------------------------------------------------------------
@@ -966,3 +1173,12 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
 
 /* Headings that receive focus for screen readers (tab switches) show no box to mouse users. */
 [tabindex="-1"]:focus{outline:none}
+
+/* Entries list (slice 1): a flagged row is a div holding the link and the
+   Exclude / Include button, so the link part keeps the plain row look. */
+.list .r a.main{color:inherit;text-decoration:none}
+.list .r a.main:hover b{text-decoration:underline}
+/* Entry: the show-your-work group's own error line ("Add a video or a
+   published website."), which belongs to the card, not to one field. */
+.card > p.err{font-size:13px;color:var(--danger);font-weight:550;margin:0 0 8px}
+.card > p.err:empty{display:none}

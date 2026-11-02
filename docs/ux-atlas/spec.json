@@ -2418,7 +2418,7 @@
     {
      "name": "deadline passed",
      "when": "the event deadline passed",
-     "shows": "Draft becomes Not submitted (red pill) for entries that weren't complete; auto-submitted entries read 'Submitted automatically at the deadline'."
+     "shows": "A draft that wasn't complete gets an amber Incomplete pill and an Exclude button (with a confirm): it is still judged, flagged, unless the organiser excludes it. Auto-submitted entries read 'Submitted automatically at the deadline'. Coordinator decision 2026-11-02, the owner can overrule."
     }
    ],
    "replaces": [
@@ -2552,7 +2552,7 @@
     {
      "name": "not submitted after the deadline",
      "when": "deadline passed with an incomplete draft",
-     "shows": "Red status 'Not submitted. Judges won't see it.' with Give more time, which reopens the entry for that team only."
+     "shows": "Amber status 'Not complete. It will still be judged, marked incomplete.' naming what's missing, with Give more time and Exclude from judging (confirm). Excluded reads 'Excluded from judging' with Include in judging."
     }
    ],
    "replaces": [],
@@ -3556,7 +3556,7 @@
     {
      "name": "deadline passed",
      "when": "the team's effective deadline passed",
-     "shows": "Checklist freezes: step 4 reads 'Submitted Sat 14:02' or 'Submitted automatically at the deadline' or 'Not submitted: entries closed with a video or website still missing'. Countdown is replaced by 'Entries closed Sun 18:00 WIB'."
+     "shows": "Checklist freezes: step 4 reads 'Submitted Sat 14:02' or 'Submitted automatically at the deadline' or 'Not complete. It will still be judged, marked incomplete.' Countdown is replaced by 'Entries closed Sun 18:00 WIB'."
     },
     {
      "name": "extension granted",
@@ -4651,7 +4651,7 @@
     {
      "name": "not submitted at the deadline",
      "when": "the deadline passed with an incomplete draft",
-     "shows": "Red status 'Not submitted. Entries closed with <missing> still missing, so judges won't see this entry. Ask the organisers if you need more time.' Read-only."
+     "shows": "Amber status 'Entries closed. Not complete. It will still be judged, marked incomplete.' The card carries an Incomplete pill. Read-only."
     },
     {
      "name": "a teammate changed this since you opened it",
@@ -4765,8 +4765,8 @@
     },
     {
      "q": "What happens at the deadline to a draft?",
-     "decision": "A draft that meets every rule is submitted automatically (marked automatic). A draft that doesn't is Not submitted: judges, results and the public card skip it. The organiser's way in is the existing per-team extension, after which the team submits normally.",
-     "why": "A complete entry should never miss judging over one button. An incomplete one fails the very rule the organiser set, so judging it anyway would make Required meaningless. Owner may overrule (listed in open_questions)."
+     "decision": "A draft that meets every rule is submitted automatically (marked automatic). A draft that doesn't is still judged, carrying an Incomplete flag judges and organisers see. Organisers can exclude a flagged entry by hand on Entries, with a confirm. Coordinator decision 2026-11-02, replacing 'not judged'; the owner can overrule.",
+     "why": "A complete entry should never miss judging over one button. Dropping an incomplete one would throw away a team's whole weekend over one missing line, so it is judged and flagged, and the organiser keeps the final say with Exclude."
     },
     {
      "q": "Does the team agree to its card being public?",
@@ -7790,6 +7790,6 @@
   "Apply: existing events get applications switched on when this ships (literal reading of 'on by default for every event'), so open events gain an Apply button that day. Keep, or default existing events to off?",
   "Apply: should the applicant get an email when an organiser decides? None exists today, so the copy says 'you'll see their answer here and on your Home'. Recommended: one email on approval only.",
   "Apply: the join-link form keeps not asking location, age range and gender (join links unchanged), so CSV demographics cover applicants only. Ask them there too?",
-  "Entries: at the deadline an incomplete draft is Not submitted and is not judged (a complete draft submits itself). The organiser's way in is a per-team extension. Keep, or judge incomplete drafts too, flagged?"
+  "Entries: at the deadline an incomplete draft is still judged, flagged Incomplete, and organisers can exclude it by hand (coordinator decision 2026-11-02, built in slice 1). Keep, or go back to not judging incomplete drafts?"
  ]
 }

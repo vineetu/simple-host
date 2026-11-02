@@ -108,6 +108,15 @@ func TestHackMemberConnectorParity(t *testing.T) {
 	if bad {
 		t.Fatalf("screenshot removal: %s", text)
 	}
+	// A judge only sees a team whose entry is submitted or settled (section
+	// 4.5, zv-hack-entry-summary.sql); hack_update_entry alone leaves it a
+	// draft, so submit it directly for this parity check.
+	if _, err := a.database.Exec(`
+		UPDATE event_entries SET submitted_at = now(), submit_settled_at = now()
+		 WHERE team_id = (SELECT t.id FROM event_teams t JOIN events e ON e.id = t.event_id
+		                    WHERE e.slug = $1 AND t.slug = $2)`, slug, team["slug"]); err != nil {
+		t.Fatal(err)
+	}
 	judgeCode := links["judge_code"].(string)
 	_, text, bad = call(jtok, "hack_preview_judge", map[string]any{"code": judgeCode})
 	if bad {

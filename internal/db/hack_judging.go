@@ -326,13 +326,16 @@ func ScoreCoverage(ctx context.Context, q Querier, eventID string) (byTeam, byJu
 // assignments) or, for someone who left, when a former-judge record froze
 // this exact team as one that counted at the moment they left (section 3:
 // Leave this event, SIM-340). A conflict declared after they left still
-// excludes them either way.
+// excludes them either way. On top of either branch, the team's own entry
+// must still be judgeable (zv-hack-entry-summary.sql's EntryJudgeableSQL,
+// keyed here on s.team_id): an organiser's hand exclude stops a score from
+// counting even though it was recorded while the entry was eligible.
 // The whole thing is wrapped in an outer pair of parens (Codex review,
 // SIM-340) because every caller ANDs this onto an s.event_id = $1 filter:
 // without it, "AND (member branch) OR (former branch)" lets the former
 // branch through unfiltered by that AND, leaking a former judge's rows
 // across events and teams.
-const scoreEligiblePredicate = `((
+const scoreEligiblePredicate = `(((
   EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id AND m.role IN ('judge', 'organiser'))
   AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=s.event_id AND c.judge_id=s.judge_id AND c.team_id=s.team_id)
   AND (e.judge_assignment_mode='open'
@@ -342,6 +345,10 @@ const scoreEligiblePredicate = `((
   NOT EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id)
   AND EXISTS (SELECT 1 FROM event_former_judges f WHERE f.event_id=s.event_id AND f.user_id=s.judge_id AND s.team_id = ANY(f.counted_team_ids))
   AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=s.event_id AND c.judge_id=s.judge_id AND c.team_id=s.team_id)
+)) AND EXISTS (
+  SELECT 1 FROM event_entries en WHERE en.team_id=s.team_id
+    AND (en.submitted_at IS NOT NULL OR en.submit_settled_at IS NOT NULL)
+    AND en.excluded_at IS NULL
 ))`
 
 // AssignmentCounts is how many teams each judge is assigned, in automatic mode.

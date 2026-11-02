@@ -199,6 +199,27 @@ func (a *hackApp) openEvent(t *testing.T, p person, slug string) {
 	}
 }
 
+// giveSubmittedEntry writes (or updates) a minimal, already-decided entry
+// for teamID directly via SQL: submitted_at and submit_settled_at both set.
+// Entries and participant journey slice 1 (zv-hack-entry-summary.sql) made
+// judging eligibility depend on EntryJudgeableSQL -- a submitted or settled
+// entry, not excluded -- so a team with no entry row at all is never
+// judgeable. Many tests outside the entries package score a team directly
+// to exercise leave/removal/judging behaviour rather than the entries API
+// itself; this is their fixture, the same direct INSERT newJudgingWorld
+// uses (hack_judging_test.go). It never touches title/tagline/etc, so it is
+// safe to call after an entry already exists (e.g. via PUT .../entry).
+func (a *hackApp) giveSubmittedEntry(t *testing.T, slug, teamID string) {
+	t.Helper()
+	if _, err := a.database.Exec(`
+		INSERT INTO event_entries (team_id, event_id, submitted_at, submit_settled_at)
+		VALUES ($1, (SELECT id FROM events WHERE slug = $2), now(), now())
+		ON CONFLICT (team_id) DO UPDATE SET submitted_at = now(), submit_settled_at = now()`,
+		teamID, slug); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func jsonArr(t *testing.T, r resp) []map[string]any {
 	t.Helper()
 	var out []map[string]any

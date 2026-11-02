@@ -395,7 +395,10 @@ func main() {
 		hack.SetSites(siteHandler)
 		auth.SetTeamKeys(true)
 		connector.SetHackTeams(true)
-		hackSweep = hack.RequestOpenEventCerts
+		hackSweep = func(ctx context.Context) {
+			hack.RequestOpenEventCerts(ctx)
+			hack.SettleDueEntries(ctx)
+		}
 		hack.Register(mux, authMW)
 		hack.RegisterDemo(mux, os.Getenv("HACK_DEMO_EVENT_SLUG"))
 		hack.StartCleanup()

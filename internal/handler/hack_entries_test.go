@@ -61,6 +61,15 @@ func newHackEntryWorld(t *testing.T) *hackEntryWorld {
 			t.Fatalf("join %s: %d %s", name, r.status, r.body)
 		}
 	}
+	// Entry rules: slice 1's "build" preset requires more than a title
+	// (problem, tagline, audience, track, tools, maturity, plus a video or
+	// site). This world's tests exercise the title/tagline/etc fields and
+	// the submissions-closed flow, not the rules engine itself, so reset to
+	// a minimal custom rule set (title only, same as the old entry_required
+	// default) to keep their completeness assertions meaningful.
+	if r := a.at(t, "PUT", "/v1/hack/events/"+slug+"/entry-rules", map[string]any{"preset": "custom"}, a.key(org)); r.status != 200 {
+		t.Fatalf("entry rules: %d %s", r.status, r.body)
+	}
 	joinAs(p1, "Ada One", false)
 	joinAs(p2, "Bea Two", false)
 	joinAs(lone, "Lonely", false)
@@ -138,12 +147,16 @@ func wantJSONKeys(t *testing.T, what string, m map[string]any, keys ...string) {
 
 func wantEntryShape(t *testing.T, body map[string]any) map[string]any {
 	t.Helper()
-	wantJSONKeys(t, "entry response", body, "entry", "required", "complete", "missing", "editable", "refusal", "deadline")
+	wantJSONKeys(t, "entry response", body,
+		"entry", "required", "complete", "missing", "editable", "refusal", "deadline",
+		"deadline_is_extension", "rules", "site", "status", "submit_auto", "submitted_at", "submitted_by", "progress")
 	e, ok := body["entry"].(map[string]any)
 	if !ok {
 		t.Fatalf("entry: %#v", body["entry"])
 	}
-	wantJSONKeys(t, "entry", e, "title", "tagline", "description", "video_url", "code_url", "has_screenshot", "updated_at", "updated_by")
+	wantJSONKeys(t, "entry", e,
+		"title", "tagline", "description", "video_url", "code_url", "has_screenshot", "updated_at", "updated_by",
+		"problem", "audience", "tools", "maturity", "track")
 	return e
 }
 
@@ -417,6 +430,11 @@ func TestHackEntryScreenshot(t *testing.T) {
 	if r := a.rawBody(t, "PUT", path, png, "application/octet-stream", a.key(w.p1)); r.status != 200 {
 		t.Fatalf("png again: %d %s", r.status, r.body)
 	}
+	// A judge only sees a team whose entry is submitted or settled (section
+	// 4.5); the organiser and admin views below are unaffected by this.
+	if r := a.at(t, "POST", w.entryPath()+"/submit", map[string]any{}, a.key(w.p1)); r.status != 200 {
+		t.Fatalf("submit: %d %s", r.status, r.body)
+	}
 	teamPath := "/v1/hack/events/" + w.slug + "/teams/" + w.alpha + "/screenshot"
 	wantImageHeaders(t, a.rawBody(t, "GET", teamPath, nil, "", a.key(w.org)), "image/png", png)
 	wantImageHeaders(t, a.rawBody(t, "GET", teamPath, nil, "", a.key(w.judge)), "image/png", png)
@@ -480,6 +498,8 @@ func TestHackEntriesList(t *testing.T) {
 		second := rows[1].(map[string]any)
 		wantJSONKeys(t, "list item", first,
 			"team", "title", "tagline", "description", "video_url", "code_url", "has_screenshot",
+			"problem", "audience", "tools", "maturity", "track", "status", "submitted_at", "submit_auto",
+			"incomplete", "excluded", "excluded_at", "video",
 			"complete", "missing", "updated_at", "site_url", "site_exists", "site_taken_down", "deadline", "frozen",
 			"pinned_version", "pinned_url")
 		team := first["team"].(map[string]any)
@@ -550,6 +570,11 @@ func TestHackEntryDeadlineAndTakedown(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET submission_deadline = clock_timestamp() - interval '1 minute' WHERE slug = $1`, w.slug); err != nil {
 		t.Fatal(err)
 	}
+	// Production settles frozen entries off a per-minute timer (section 7);
+	// this test moves the deadline directly in SQL, so it runs the same
+	// sweep by hand -- alpha's complete draft (title "Before") auto-submits,
+	// which is what later makes it judge-queueable.
+	a.hack.SettleDueEntries(context.Background())
 	wantCode(t, "put closed", a.at(t, "PUT", w.entryPath(), map[string]string{"title": "Late"}, a.key(w.p1)), 409, "submissions_closed")
 	wantCode(t, "screenshot closed", a.rawBody(t, "PUT", w.entryPath()+"/screenshot", png, "image/png", a.key(w.p1)), 409, "submissions_closed")
 	wantCode(t, "delete closed", a.at(t, "DELETE", w.entryPath()+"/screenshot", nil, a.key(w.p1)), 409, "submissions_closed")

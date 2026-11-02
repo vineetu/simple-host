@@ -117,6 +117,7 @@ func TestHackDeleteFormerJudgeScoresRaceTakenDown(t *testing.T) {
 	join, judgeCode := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
@@ -184,6 +185,7 @@ func TestHackDeleteFormerJudgeScoresRaceOrganiserRemoved(t *testing.T) {
 	join, judgeCode := a.joinCodes(t, creator, slug)
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
@@ -317,6 +319,7 @@ func TestHackRemoveCoOrganiserDeletesScoresAndCleansMail(t *testing.T) {
 	join, _ := a.joinCodes(t, creator, slug)
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
@@ -374,6 +377,7 @@ func TestHackRemovePersonFreezesJudgeScores(t *testing.T) {
 	join, judgeCode := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
@@ -413,6 +417,7 @@ func TestHackParticipantRejoinDeletesFormerScores(t *testing.T) {
 	join, judgeCode := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
@@ -474,6 +479,8 @@ func TestHackFormerJudgeConflictReversible(t *testing.T) {
 	a.joinParticipant(t, join, p2, "Quinn")
 	teamX, _ := a.createTeamAndJoin(t, slug, p1, "TeamX")
 	teamY, _ := a.createTeamAndJoin(t, slug, p2, "TeamY")
+	a.giveSubmittedEntry(t, slug, teamX)
+	a.giveSubmittedEntry(t, slug, teamY)
 	a.joinJudge(t, judgeCode, judge, "Judge")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
@@ -556,6 +563,7 @@ func TestHackLeaveDoesNotResurrectNonCountingScore(t *testing.T) {
 	join, judgeCode := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "TeamA")
+	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
 	base := "/v1/hack/events/" + slug
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
@@ -612,6 +620,8 @@ func TestHackLeaveKeepsTotalsAndRanksStable(t *testing.T) {
 	a.joinParticipant(t, join, p2, "Quinn")
 	teamA, _ := a.createTeamAndJoin(t, slug, p1, "TeamA")
 	teamB, _ := a.createTeamAndJoin(t, slug, p2, "TeamB")
+	a.giveSubmittedEntry(t, slug, teamA)
+	a.giveSubmittedEntry(t, slug, teamB)
 	a.joinJudge(t, judgeCode, judge1, "Judge1")
 	a.joinJudge(t, judgeCode, judge2, "Judge2")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
@@ -678,6 +688,7 @@ func TestHackRemoveJudgeVsLeaveDeadlock(t *testing.T) {
 	join, judgeCode := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Team")
+	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
@@ -821,6 +832,7 @@ func TestHackDeleteFormerJudgeScoresRequiresConfirm(t *testing.T) {
 	join, judgeCode := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, p1, "Pat")
 	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
 	a.joinJudge(t, judgeCode, judge, "Judge")
 	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)

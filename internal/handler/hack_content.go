@@ -319,15 +319,13 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"announcement": item, "emails_queued": queued, "organiser_copied": organiserCopied})
 }
 
-// queueReceipt records the first complete entry from a team. A later edit
-// changes the entry but does not send another first-submission receipt.
+// queueReceipt records the team's first submission. A later edit, or a
+// second submit, never sends another one (the receipt table's primary key
+// (event_id, team_id) caps it at one per team -- section 4.1: "moves from
+// 'first time complete' to 'submitted'").
 func (h *HackHandler) queueReceipt(ctx context.Context, ev db.Event, teamID, userID string) {
 	e, err := db.GetEventEntry(ctx, h.database, teamID)
-	if err != nil || !e.Exists || strings.TrimSpace(e.Title) == "" {
-		return
-	}
-	complete, _ := entryCompleteness(entryRequiredList(ev.EntryRequired), e)
-	if !complete {
+	if err != nil || !e.SubmittedAt.Valid {
 		return
 	}
 	if err := db.QueueEntryReceipt(ctx, h.database, ev.ID, teamID, userID); err != nil {

@@ -441,6 +441,14 @@ func (h *HackHandler) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	if t.Valid {
+		// Section 7, "Unsettle": granting or extending a team's deadline
+		// reopens its draft if the sweep had already settled it incomplete.
+		if err := db.UnsettleTeamEntry(r.Context(), tx, team.ID); err != nil {
+			writeInternal(w)
+			return
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		writeInternal(w)
 		return

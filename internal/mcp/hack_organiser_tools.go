@@ -24,7 +24,7 @@ type hackRouteTool struct {
 // the REST handler verifies organiser membership for each request.
 func HackOrganiserTools() []Tool {
 	routes := hackOrganiserRoutes()
-	tools := make([]Tool, 0, len(routes))
+	tools := make([]Tool, 0, len(routes)+1)
 	for _, route := range routes {
 		r := route
 		props := map[string]any{}
@@ -64,6 +64,11 @@ func HackOrganiserTools() []Tool {
 		tool.run = func(c *call, args map[string]any) (output, error) { return runHackRoute(c, r, args) }
 		tools = append(tools, tool)
 	}
+	// hack_set_entry_excluded is a one-tool mirror of the website's two REST
+	// actions (POST .../entry/exclude and .../entry/include): the AI apps
+	// take a bool rather than two tool names for one toggle, so it is
+	// hand-written instead of a hackRouteTool entry.
+	tools = append(tools, hackSetEntryExcludedTool())
 	return tools
 }
 
@@ -95,6 +100,7 @@ var hackRouteBodyDescriptions = map[string]string{
 	"hack_unlock_judging":             "reason explaining why scoring is reopened.",
 	"hack_publish_results":            "rank_overrides [{team_id,rank}], or an empty list for computed ranks.",
 	"hack_set_results_view":           "full_ranking boolean (true for every rank, false for winners only).",
+	"hack_set_entry_rules":            "Any subset: preset (build, code, ideas or custom), fields (map of field name to required/optional/off/one_of -- one_of only on video_url, site, code_url, screenshot), judge_first (video or site), dry_run boolean (true previews impact and the resulting rules, without saving).",
 }
 
 func hackOrganiserRoutes() []hackRouteTool {
@@ -122,7 +128,9 @@ func hackOrganiserRoutes() []hackRouteTool {
 		{"hack_revoke_person_key", "Turn a person's key off", "Revoke a person's event key. Ask first; publishing with it stops. Organiser only.", "DELETE", "/v1/hack/events/{slug}/people/{user_id}/key", []string{"slug", "user_id"}, false, true, false, false, false, false},
 		{"hack_fill_teams", "Fill teams", "Preview with body.apply:false. Show the plan and confirm before body.apply:true. Organiser only.", "POST", "/v1/hack/events/{slug}/teams/fill", []string{"slug"}, true, true, false, false, false, false},
 		{"hack_get_teams", "List event teams", "Read event teams and member names and IDs. Emails are omitted unless include_emails is true. Records any due submission deadline pins. Organiser only.", "GET", "/v1/hack/events/{slug}/teams", []string{"slug"}, false, false, true, false, false, false},
-		{"hack_get_entries", "List entries", "Read all team entries and pinned website links. Records any due submission deadline pins. Organiser or judge.", "GET", "/v1/hack/events/{slug}/entries", []string{"slug"}, false, false, true, false, false, false},
+		{"hack_get_entries", "List entries", "Read all team entries and pinned website links, plus counts by status (submitted, drafts, not_started, not_submitted, sites_live). Records any due submission deadline pins. Organiser or judge.", "GET", "/v1/hack/events/{slug}/entries", []string{"slug"}, false, false, true, false, false, false},
+		{"hack_get_entry_rules", "Read entry rules", "Read which entry fields are required, optional, off or one of (for the show-your-work evidence: video, website, code or screenshot), the active preset (build, code, ideas or custom), which evidence judges see first (judge_first: video or site), the one-sentence rules summary participants see, and whether rules can still change (editable, false from Closed on). Organiser only.", "GET", "/v1/hack/events/{slug}/entry-rules", []string{"slug"}, false, false, false, false, false, false},
+		{"hack_set_entry_rules", "Set entry rules", "Choose a preset (build = AI build, code = Coding, ideas = Ideas and design, custom) and/or set individual fields to required, optional, off, or one_of (video_url, site, code_url and screenshot only; exactly one such field needs to be met). judge_first picks which evidence (video or site) judges see first. Setting a field that differs from the active preset's own table demotes the stored preset to custom. dry_run:true returns the impact (how many submitted entries would newly read as missing something, how many drafts would be newly blocked, and which teams) and a preview, without saving anything. Tightening never un-submits an already-submitted entry. Refused once entries have closed (Closed stage onward): rules are fixed so judging sees one definition of complete. Ask before narrowing rules on a live event. Organiser only.", "PUT", "/v1/hack/events/{slug}/entry-rules", []string{"slug"}, true, true, true, false, false, false},
 		{"hack_get_team_screenshot", "Read team screenshot", "Read one team's entry screenshot as base64 image bytes. Organiser or judge.", "GET", "/v1/hack/events/{slug}/teams/{team}/screenshot", []string{"slug", "team"}, false, false, true, false, false, false},
 		{"hack_move_member", "Move a member to team", "Move a member to the specified team using the REST body. Ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/teams/{team}/members", []string{"slug", "team"}, true, true, false, false, false, false},
 		{"hack_remove_team_member", "Remove a team member", "Take a person off a team. Ask first. Organiser only.", "DELETE", "/v1/hack/events/{slug}/teams/{team}/members/{user_id}", []string{"slug", "team", "user_id"}, false, true, false, false, false, false},
@@ -239,4 +247,62 @@ func runHackRoute(c *call, route hackRouteTool, args map[string]any) (output, er
 	}
 	structured := map[string]any{"response": response, "status": res.status}
 	return output{Text: jsonText(structured), Structured: structured}, nil
+}
+
+// hackSetEntryExcludedTool is hack_set_entry_excluded: a toggle over the
+// website's two REST actions, POST .../teams/{team}/entry/exclude and
+// .../include, chosen by the excluded bool (parity rule, build-plan.md
+// section 4.5: everything on the website must exist in the AI apps too).
+func hackSetEntryExcludedTool() Tool {
+	outSchema := outObject(map[string]any{
+		"response": anyJSON("The team's updated entries-list item (HackEntryListItem)."),
+		"status":   outInteger("REST status code."),
+	}, "response", "status")
+	return Tool{
+		Name:        "hack_set_entry_excluded",
+		Title:       "Exclude or include an entry",
+		Description: "Hand-exclude a team's entry from judging, or put it back in. Organisers typically do this for an entry flagged Incomplete at the deadline (coordinator decision 2026-11-02: an incomplete draft is still judged by default, and organisers can exclude it by hand instead; the entry and its scores are unaffected, only judging eligibility changes). Ask the person first. Organiser only.",
+		InputSchema: object(map[string]any{
+			"slug":     str("The event name."),
+			"team":     str("Team slug."),
+			"excluded": map[string]any{"type": "boolean", "description": "true excludes the entry from judging; false includes it again."},
+		}, "slug", "team", "excluded"),
+		OutputSchema: outSchema,
+		Annotations:  writes(true, true, false),
+		run: func(c *call, args map[string]any) (output, error) {
+			slug, err := eventSlug(args)
+			if err != nil {
+				return output{}, err
+			}
+			team, err := stringArg(args, "team")
+			if err != nil {
+				return output{}, err
+			}
+			excludedRaw, present := args["excluded"]
+			if !present {
+				return output{}, fmt.Errorf("excluded is required")
+			}
+			excluded, ok := excludedRaw.(bool)
+			if !ok {
+				return output{}, fmt.Errorf("excluded must be true or false")
+			}
+			action := "include"
+			if excluded {
+				action = "exclude"
+			}
+			path := "/v1/hack/events/" + url.PathEscape(slug) + "/teams/" + url.PathEscape(team) + "/entry/" + action
+			res := c.do(http.MethodPost, path, nil, nil)
+			if !res.ok() {
+				return output{}, hackRestError("hack_set_entry_excluded", res)
+			}
+			var response any
+			if len(res.body) > 0 {
+				if err := json.Unmarshal(res.body, &response); err != nil {
+					return output{}, fmt.Errorf("hack_set_entry_excluded: server returned invalid JSON: %w", err)
+				}
+			}
+			structured := map[string]any{"response": response, "status": res.status}
+			return output{Text: jsonText(structured), Structured: structured}, nil
+		},
+	}
 }

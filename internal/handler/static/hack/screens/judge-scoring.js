@@ -129,7 +129,19 @@ export async function render(ctx) {
   const video = newTabLink(row.video_url, 'Watch video', 'btn')
   const code = newTabLink(row.code_url, 'View code', 'btn')
   const site = siteHref(row)
-  const submitted = row.updated_at ? `<p>Submitted ${ui.esc(ui.dateTime(row.updated_at, ev))}</p>` : ''
+  const submitted = row.incomplete
+    ? '<p>Not complete at the deadline. Judge it as it is.</p>'
+    : (row.submitted_at || row.updated_at) ? `<p>Submitted ${ui.esc(ui.dateTime(row.submitted_at || row.updated_at, ev))}</p>` : ''
+  // Entries slice 1 (build-plan.md section 11): judges get the summary card
+  // as plain text at the top, the same ui.entryCard the team previews. The
+  // full one-screen layout with embedded video and framed site is slice 2.
+  const cardHost = document.createElement('div')
+  cardHost.append(ui.entryCard({
+    title: row.title || row.team.name, team_name: row.team.name, team_members: '',
+    track: row.track, problem: row.problem, tagline: row.tagline, audience: row.audience,
+    tools: row.tools, maturity: row.maturity
+  }, { incomplete: !!row.incomplete }))
+  const cardHTML = cardHost.innerHTML
   // Retest Cosmetic #5: a team that never submitted an entry at all gets a
   // different line than one that submitted an entry but just never
   // published a site -- "Nothing published yet" reads as "it's still
@@ -161,8 +173,8 @@ export async function render(ctx) {
     (locked ? `<div class="note warn"><b>Scoring is locked.</b> Your scores are read-only.</div>` : '') +
     `<header class="ph"><div class="t"><h1>${ui.esc(title)}</h1>${submitted}</div></header>` +
     `<button type="button" class="btn btn-block" id="jsc-goscore">Go to scoring ↓</button>` +
-    (tagline ? `<p><b>${ui.esc(tagline)}</b></p>` : '') +
-    (desc ? `<p>${ui.esc(desc)}</p>` : '') +
+    (noEntry ? '' : cardHTML) +
+    (desc ? `<details class="card"><summary>More detail from the team</summary><p>${ui.esc(desc)}</p></details>` : '') +
     // Cosmetic #2 (retest 3): "No entry yet" used to show here unconditionally
     // whenever noEntry was true, stacked right above the Team site box's own
     // "No entry was submitted." -- the same fact said twice, one of them in

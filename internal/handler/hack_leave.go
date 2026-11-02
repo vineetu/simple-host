@@ -416,7 +416,7 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 		}
 	case "last_organiser":
 		if req.Close == "end" {
-			updated, err := archiveEventTx(ctx, tx, ev.ID, ev.Stage)
+			updated, err := h.archiveEventTx(ctx, tx, ev.ID, ev.Stage)
 			if err != nil {
 				writeInternal(w)
 				return
