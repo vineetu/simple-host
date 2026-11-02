@@ -1270,7 +1270,7 @@ CREATE INDEX IF NOT EXISTS event_assignments_judge_idx ON event_assignments (eve
 CREATE INDEX IF NOT EXISTS event_assignments_team_idx ON event_assignments (team_id);
 
 CREATE TABLE IF NOT EXISTS event_conflicts (
-  event_id     UUID NOT NULL,
+  event_id     UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   judge_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   team_id      UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
   declared_by  TEXT NOT NULL DEFAULT 'judge',
@@ -1279,7 +1279,7 @@ CREATE TABLE IF NOT EXISTS event_conflicts (
 );
 
 CREATE TABLE IF NOT EXISTS event_scores (
-  event_id     UUID NOT NULL,
+  event_id     UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   judge_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   team_id      UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
   criterion_id UUID NOT NULL REFERENCES rubric_criteria(id) ON DELETE CASCADE,

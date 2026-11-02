@@ -36,8 +36,8 @@ https://simple-host.app and runs in production for real users.
 - The plugin repos github.com/vineetu/simple-host-plugin and simple-hack-plugin are published
   from origin/main by the hourly `sh-plugin-repo-sync.timer` (it runs both `scripts/publish-*claude-plugin-repo.sh`);
   by hand: `sudo systemctl start sh-plugin-repo-sync`, or `DRY_RUN=1 bash scripts/publish-claude-plugin-repo.sh` to preview.
-- Schema changed: edit `db/schema.sql` AND add a file under `db/migrations/` (hosted batches:
-  `<batch>-<what>.sql`; lexical order is apply order). The file must be plain SQL, idempotent
+- Schema changed: edit `db/schema.sql` AND add a file under `db/migrations/` (named `NNNN-what.sql` with the
+  next free number; never rename an existing file). The file must be plain SQL, idempotent
   (`ADD COLUMN IF NOT EXISTS`, `CREATE ... IF NOT EXISTS`) and safe on a live database
   (additive, defaults, no long locks, no `CONCURRENTLY`): `simple-host migrate` runs every file
   not yet recorded in `schema_migrations`, including on databases built from `schema.sql` that

@@ -13,13 +13,18 @@
 //   - is safe on a live database: additive, with defaults, no long locks, no
 //     table rewrites of big tables, no CREATE INDEX CONCURRENTLY (it runs inside
 //     a transaction). Old binaries keep running against it until they restart;
-//   - is named so that lexical order is apply order. Hosted batches use
-//     <batch>-<what>.sql (e.g. cp-ops-suspend.sql).
+//   - is named NNNN-what.sql with the next free number (0001, 0002, ...).
+//     The no-DB test names the next number when a file breaks this.
 //
-// Files are applied in lexical order, each once, each in its own transaction
-// together with the row that records it in schema_migrations, under a Postgres
-// advisory lock so two runs never race. A file may keep its own BEGIN/COMMIT:
-// the row is written first, so it commits with the file either way.
+// Files are applied in apply order: the frozen [Legacy] list first, then the
+// numbered files by number. Digits sort before letters, so this is not lexical
+// order; `migrate -status` lists them in apply order. Each file runs once, in
+// its own transaction together with the row that records it in
+// schema_migrations, under a Postgres advisory lock so two runs never race.
+// Apply refuses to run a pending numbered file at or below the newest applied one,
+// even one this build does not embed (two branches took the same slot): renumber it.
+// A file may keep its own BEGIN/COMMIT: the row is written first, so it commits
+// with the file either way.
 //
 // # Historical files
 //
@@ -45,7 +50,9 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -86,6 +93,89 @@ var Baseline = map[string]bool{
 	"visitor-signin-nonce.sql":         true,
 }
 
+// Legacy is the frozen list of tracked files predating numbered migrations. Never extend it.
+var Legacy = []string{
+	"ask-daily-count.sql",
+	"cp-domains-custom-domain-certs.sql",
+	"cp-gdpr-retired-handles.sql",
+	"cp-int-previous-domain-checks.sql",
+	"cp-keys-key-names.sql",
+	"cp-ops-schema-migrations.sql",
+	"cp-ops-suspend.sql",
+	"cp-proof-domain-ownership.sql",
+	"cp-recover-recently-deleted.sql",
+	"hack1-events.sql",
+	"hack10-event-icons.sql",
+	"hack11-account-preferences.sql",
+	"hack2-team-sites.sql",
+	"hack3-judging.sql",
+	"hack4-administration.sql",
+	"hack5-content.sql",
+	"hack6-registration.sql",
+	"hack7-mail-retries.sql",
+	"hack7-voting-directory.sql",
+	"hack8-judging-options.sql",
+	"hack9-event-websites.sql",
+	"knobs-promised-dates.sql",
+	"sd1-saved-data-safety.sql",
+	"sd1-saved-data-safety2-limits.sql",
+	"sd1-saved-data-safety3-history-bytes.sql",
+	"sd2-saved-data-kinds.sql",
+	"sd3-saved-data-personal-board.sql",
+	"sd3-saved-data-personal-private.sql",
+	"v061-setup-check-daily.sql",
+	"v071-event-account-flag.sql",
+	"v072-notify-last-id.sql",
+	"v073-setup-assist-daily.sql",
+	"v075-signup-source.sql",
+	"v075-site-keep-versions.sql",
+	"v076-site-passcode.sql",
+	"v077-address-families.sql",
+	"v078-api-growth.sql",
+	"v079-api-self-calls.sql",
+	"w2-account-signin-email.sql",
+	"w2-addr-idle-cleanup.sql",
+	"w2-signin-email-undo.sql",
+	"w2-sites-offline.sql",
+	"w2-sites-old-names.sql",
+	"w3-analytics-pages-referrers.sql",
+	"w3-connection-device.sql",
+	"w3-keys-scope-expiry.sql",
+	"w3-network-usage.sql",
+	"z6-hack-connector-selected-team.sql",
+	"z7-site-storage.sql",
+	"z8-hack-ink-color.sql",
+	"z9-home-page.sql",
+	"za-showcase-curation.sql",
+	"zb-storage-story.sql",
+	"zc-site-named-viewers.sql",
+	"zd-storage-access-presets.sql",
+	"ze-spam-checked-posts.sql",
+	"zf-signup-detail.sql",
+	"zg-oidc-signin.sql",
+	"zh-site-notifications.sql",
+	"zi-site-search-summary.sql",
+	"zj-hack-notifications.sql",
+	"zk-hack-directory-opt-in.sql",
+	"zk-hack-team-removal-notice.sql",
+	"zl-hack-team-finding.sql",
+	"zn-sso-hop.sql",
+	"zn-visitor-ai.sql",
+	"zo-sso-signout-confirm.sql",
+	"zp-hack-applications.sql",
+	"zq-hack-leave-event.sql",
+	"zr-hack-team-kept-after-leave.sql",
+	"zr-paper-metrics.sql",
+	"zs-hack-paper-metrics.sql",
+	"zt-hack-teams-redesign.sql",
+	"zv-hack-entry-summary.sql",
+	"zw-hack-wait-notices.sql",
+	"zw-sim-152-version-author.sql",
+	"zx-hack-entry-reminders.sql",
+	"zx-sim-151-owner-visitor-marks.sql",
+	"zz-sim-200-image-scan.sql",
+}
+
 // lockKey is the advisory lock every migrate run takes. Any constant works as
 // long as nothing else in this database uses it.
 const lockKey = 7461_2026_0927
@@ -95,18 +185,45 @@ const createTable = `CREATE TABLE IF NOT EXISTS schema_migrations (
   applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
 )`
 
+// numberedName is the only shape a new migration file may have.
+var numberedName = regexp.MustCompile(`^[0-9]{4}-[a-z0-9]+(-[a-z0-9]+)*\.sql$`)
+
+// number is a numbered file's number, or 0 for any other name.
+func number(name string) int {
+	if !numberedName.MatchString(name) {
+		return 0
+	}
+	n, _ := strconv.Atoi(name[:4])
+	return n
+}
+
 // Tracked returns the files the tool manages (everything but the baseline), in
 // apply order.
 func Tracked() []string {
 	entries, _ := fs.ReadDir(files, ".")
-	var names []string
+	present := map[string]bool{}
 	for _, e := range entries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") && !Baseline[e.Name()] {
-			names = append(names, e.Name())
+			present[e.Name()] = true
 		}
 	}
-	sort.Strings(names)
-	return names
+	var names, numbered, other []string
+	for _, n := range Legacy {
+		if present[n] {
+			names = append(names, n)
+			delete(present, n)
+		}
+	}
+	for n := range present {
+		if number(n) > 0 {
+			numbered = append(numbered, n)
+		} else {
+			other = append(other, n)
+		}
+	}
+	sort.Strings(numbered)
+	sort.Strings(other)
+	return append(append(names, numbered...), other...)
 }
 
 // Entry is one line of `migrate -status`.
@@ -153,28 +270,31 @@ func Status(ctx context.Context, db *sql.DB) ([]Entry, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	entries, _ := fs.ReadDir(files, ".")
 	var out []Entry
 	for _, e := range entries {
-		n := e.Name()
-		if e.IsDir() || !strings.HasSuffix(n, ".sql") {
-			continue
+		if !e.IsDir() && Baseline[e.Name()] {
+			out = append(out, Entry{Name: e.Name(), State: "baseline"})
+			delete(done, e.Name())
 		}
-		switch at, ok := done[n]; {
-		case Baseline[n]:
-			out = append(out, Entry{Name: n, State: "baseline"})
-		case ok:
+	}
+	for _, n := range Tracked() {
+		if at, ok := done[n]; ok {
 			out = append(out, Entry{Name: n, State: "applied", AppliedAt: at})
-		default:
+		} else {
 			out = append(out, Entry{Name: n, State: "pending"})
 		}
 		delete(done, n)
 	}
-	// Recorded by a newer build (this one was rolled back to): still applied.
-	for n, at := range done {
-		out = append(out, Entry{Name: n, State: "applied", AppliedAt: at})
+	var unknown []string
+	for n := range done {
+		unknown = append(unknown, n)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	sort.Strings(unknown)
+	for _, n := range unknown {
+		out = append(out, Entry{Name: n, State: "applied", AppliedAt: done[n]})
+	}
 	return out, nil
 }
 
@@ -207,7 +327,22 @@ func Apply(ctx context.Context, db *sql.DB, logf func(string, ...any)) ([]string
 		if err != nil {
 			return err
 		}
-		for _, name := range Tracked() {
+		// Every recorded name counts, including ones this build does not
+		// embed (applied by another branch or a newer build), and a pending
+		// file in the same slot is refused too.
+		tracked := Tracked()
+		var newest string
+		for name := range done {
+			if number(name) > number(newest) {
+				newest = name
+			}
+		}
+		for _, name := range tracked {
+			if _, ok := done[name]; !ok && number(name) > 0 && number(name) <= number(newest) {
+				return fmt.Errorf("pending %s is not above applied %s; renumber the new file above the newest applied one", name, newest)
+			}
+		}
+		for _, name := range tracked {
 			if _, ok := done[name]; ok {
 				continue
 			}

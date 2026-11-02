@@ -123,11 +123,15 @@ run "Hack wait notices" "SELECT n.id,n.kind,n.seen_at,n.email_state,COALESCE(p.e
 echo "== simple-host migrate on a fresh and an older database =="
 if command -v go >/dev/null 2>&1; then
   MDB=${DB}_migrate
+  MDB_old=${MDB}_old
+  MDB_new=${MDB}_new
   MPW=$(openssl rand -hex 16)
-  mcleanup() { $PSQL -c "DROP DATABASE IF EXISTS $MDB;" -c "DROP ROLE IF EXISTS $MDB;" >/dev/null 2>&1; }
+  mcleanup() { $PSQL -c "DROP DATABASE IF EXISTS $MDB_old;" -c "DROP DATABASE IF EXISTS $MDB_new;" -c "DROP DATABASE IF EXISTS $MDB;" -c "DROP ROLE IF EXISTS $MDB;" >/dev/null 2>&1; }
   mcleanup
-  if $PSQL -c "CREATE ROLE $MDB LOGIN PASSWORD '$MPW';" -c "CREATE DATABASE $MDB OWNER $MDB;" >/dev/null 2>&1; then
+  if $PSQL -c "CREATE ROLE $MDB LOGIN PASSWORD '$MPW';" -c "CREATE DATABASE $MDB OWNER $MDB;" -c "CREATE DATABASE $MDB_old OWNER $MDB;" -c "CREATE DATABASE $MDB_new OWNER $MDB;" >/dev/null 2>&1; then
     if MIGRATE_TEST_DSN="postgres://$MDB:$MPW@127.0.0.1:${PGPORT:-5432}/$MDB?sslmode=disable" \
+        MIGRATE_UPGRADE_OLD_DSN="postgres://$MDB:$MPW@127.0.0.1:${PGPORT:-5432}/$MDB_old?sslmode=disable" \
+        MIGRATE_UPGRADE_NEW_DSN="postgres://$MDB:$MPW@127.0.0.1:${PGPORT:-5432}/$MDB_new?sslmode=disable" \
         go test -count=1 ./db/migrations/ >/tmp/sh-migrate-check.$$ 2>&1; then
       echo "  ok — migrate applies each file once, tracked, and is a no-op after"
     else

@@ -3,8 +3,11 @@ package migrations
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"io/fs"
 	"os"
+	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -38,11 +41,7 @@ func TestTrackedSkipsBaseline(t *testing.T) {
 	if len(tracked)+len(Baseline) != len(all) {
 		t.Errorf("tracked %d + baseline %d != %d files", len(tracked), len(Baseline), len(all))
 	}
-	for i := 1; i < len(tracked); i++ {
-		if tracked[i-1] >= tracked[i] {
-			t.Errorf("not in lexical order: %v", tracked)
-		}
-	}
+
 }
 
 // Every tracked file must be safe to run on a database built from schema.sql,
@@ -356,5 +355,190 @@ func TestSavedDataMigrationsAreOneTransaction(t *testing.T) {
 		if b < 0 || l < b || c < l {
 			t.Errorf("%s: not wrapped in BEGIN; SET LOCAL lock_timeout ...; COMMIT;", n)
 		}
+	}
+}
+
+func TestMigrationNames(t *testing.T) {
+	all, err := fs.Glob(embedded, "*.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	present, legacy, numbers := map[string]bool{}, map[string]bool{}, map[int]string{}
+	next := 1
+	for _, n := range all {
+		present[n] = true
+		if v := number(n); v >= next {
+			next = v + 1
+		}
+	}
+	advice := fmt.Sprintf("name new migrations NNNN-what.sql with the next number (currently %04d)", next)
+	for i, n := range Legacy {
+		if !present[n] || Baseline[n] || legacy[n] || (i > 0 && Legacy[i-1] >= n) {
+			t.Errorf("invalid Legacy entry %s; %s", n, advice)
+		}
+		legacy[n] = true
+	}
+	for _, n := range all {
+		if Baseline[n] || legacy[n] {
+			continue
+		}
+		v := number(n)
+		if v == 0 {
+			t.Errorf("invalid migration %s; %s", n, advice)
+			continue
+		}
+		if prev := numbers[v]; prev != "" {
+			t.Errorf("duplicate number: %s and %s; %s", prev, n, advice)
+		}
+		numbers[v] = n
+	}
+	if _, err := embedded.ReadFile("testdata/hack-v0.8.13-schema.sql"); err == nil {
+		t.Error("testdata must not be embedded")
+	}
+}
+
+func TestNumberedGuard(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	saved := files
+	t.Cleanup(func() {
+		files = saved
+		db.Exec(`DELETE FROM schema_migrations WHERE name IN ('0001-test.sql','0002-test.sql','0002-elsewhere.sql')`)
+	})
+	files = fstest.MapFS{
+		"0001-test.sql":     {Data: []byte("SELECT 1")},
+		"0002-test.sql":     {Data: []byte("SELECT 1")},
+		"zz-test-guard.sql": {Data: []byte("SELECT 1")},
+	}
+	if _, err := db.Exec(createTable); err != nil {
+		t.Fatal(err)
+	}
+	// Recorded by another branch's build: not in this build's files, and it
+	// holds slot 0002, so both pending numbered files are refused.
+	if _, err := db.Exec(`INSERT INTO schema_migrations (name) VALUES ('0002-elsewhere.sql') ON CONFLICT DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
+	ran, err := Apply(ctx, db, nil)
+	if err == nil || !strings.Contains(err.Error(), "0001-test.sql") || !strings.Contains(err.Error(), "0002-elsewhere.sql") || len(ran) != 0 {
+		t.Fatalf("guard: ran %v, error %v", ran, err)
+	}
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM schema_migrations WHERE name IN ('0001-test.sql','0002-test.sql','zz-test-guard.sql')`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("guard ran files: %d, %v", count, err)
+	}
+}
+
+func TestUpgradeFromHackV0813(t *testing.T) {
+	oldDSN, newDSN := os.Getenv("MIGRATE_UPGRADE_OLD_DSN"), os.Getenv("MIGRATE_UPGRADE_NEW_DSN")
+	if oldDSN == "" || newDSN == "" {
+		t.Skip("MIGRATE_UPGRADE_OLD_DSN and MIGRATE_UPGRADE_NEW_DSN not set")
+	}
+	old, err := sql.Open("postgres", oldDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer old.Close()
+	fresh, err := sql.Open("postgres", newDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	ctx := context.Background()
+	oldSchema, err := os.ReadFile("testdata/hack-v0.8.13-schema.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := os.ReadFile("../schema.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := os.ReadFile("testdata/hack-v0.8.13-tracked.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, setup := range []struct {
+		db     *sql.DB
+		schema string
+	}{{old, string(oldSchema)}, {fresh, string(current)}} {
+		built, err := Init(ctx, setup.db, setup.schema, nil)
+		if err != nil || !built {
+			t.Fatalf("Init: built %v: %v", built, err)
+		}
+	}
+	recorded := map[string]bool{}
+	filtered := fstest.MapFS{}
+	for _, n := range strings.Fields(string(list)) {
+		recorded[n] = true
+		data, err := embedded.ReadFile(n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		filtered[n] = &fstest.MapFile{Data: data}
+	}
+	saved := files
+	t.Cleanup(func() { files = saved })
+	files = filtered
+	if ran, err := Apply(ctx, old, nil); err != nil || len(ran) != len(recorded) {
+		t.Fatalf("release Apply ran %v: %v", ran, err)
+	}
+	files = saved
+	var want []string
+	for _, n := range Tracked() {
+		if !recorded[n] {
+			want = append(want, n)
+		}
+	}
+	ran, err := Apply(ctx, old, nil)
+	if err != nil {
+		t.Fatalf("upgrade applied %v: %v", ran, err)
+	}
+	if !reflect.DeepEqual(ran, want) {
+		t.Errorf("upgrade applied %v; want %v", ran, want)
+	}
+	if _, err := Apply(ctx, fresh, nil); err != nil {
+		t.Fatalf("fresh Apply: %v", err)
+	}
+	queries := map[string]string{
+		"tables":      `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p')`,
+		"columns":     `SELECT c.relname || '.' || a.attname || ' | ' || format_type(a.atttypid,a.atttypmod) || ' | not null=' || a.attnotnull || ' | default=' || coalesce(pg_get_expr(d.adbin,d.adrelid),'') FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum WHERE n.nspname='public' AND c.relkind IN ('r','p') AND a.attnum>0 AND NOT a.attisdropped`,
+		"constraints": `SELECT c.relname || '.' || con.conname || ' | ' || pg_get_constraintdef(con.oid) FROM pg_constraint con JOIN pg_class c ON c.oid=con.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public'`,
+		"indexes":     `SELECT tablename || '.' || indexname || ' | ' || indexdef FROM pg_indexes WHERE schemaname='public'`,
+		"triggers":    `SELECT c.relname || '.' || t.tgname || ' | ' || pg_get_triggerdef(t.oid) FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND NOT t.tgisinternal`,
+		"functions":   `SELECT p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public'`,
+	}
+	var diffs []string
+	for kind, query := range queries {
+		sets := [2]map[string]bool{{}, {}}
+		for i, db := range []*sql.DB{old, fresh} {
+			rows, err := db.Query(query)
+			if err != nil {
+				t.Fatalf("%s: %v", kind, err)
+			}
+			for rows.Next() {
+				var line string
+				if err := rows.Scan(&line); err != nil {
+					t.Fatal(err)
+				}
+				sets[i][line] = true
+			}
+			if err := rows.Err(); err != nil {
+				t.Fatal(err)
+			}
+			rows.Close()
+		}
+		for line := range sets[0] {
+			if !sets[1][line] {
+				diffs = append(diffs, kind+" only upgraded: "+line)
+			}
+		}
+		for line := range sets[1] {
+			if !sets[0][line] {
+				diffs = append(diffs, kind+" only fresh: "+line)
+			}
+		}
+	}
+	sort.Strings(diffs)
+	if len(diffs) > 0 {
+		t.Errorf("schema differences:\n%s", strings.Join(diffs, "\n"))
 	}
 }

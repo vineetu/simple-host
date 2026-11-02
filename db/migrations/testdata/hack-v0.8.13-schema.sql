@@ -1,0 +1,1584 @@
+-- Simple Host schema. Apply once to a fresh Postgres before running the server.
+-- Every later change also adds a file under db/migrations/, applied to existing
+-- databases by `simple-host migrate` (tracked in schema_migrations; the rule for
+-- those files is in db/migrations/migrations.go). The trailing ALTERs are
+-- idempotent notes from before that tool existed.
+
+CREATE TABLE users (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username   TEXT UNIQUE NOT NULL,
+  is_admin   BOOLEAN DEFAULT FALSE,
+  display_name       TEXT,                 -- shown on screen; never in a URL, so it is free to change
+  handle             TEXT UNIQUE,          -- URL-safe public path id (^[a-z0-9-]{1,39}$); backfilled separately
+  handle_changed_at  TIMESTAMPTZ,          -- last time handle was set/changed; NULL until first set
+  -- Operator suspension (cp-ops-suspend.sql): keys, connected apps and
+  -- sign-in refused, every site taken down; nothing deleted. NULL = active.
+  suspended_at       TIMESTAMPTZ,
+  suspended_reason   TEXT,
+  -- Email after each owner sign-in (w2-account-signin-email.sql); the owner
+  -- turns it off in the owner app (PATCH /v1/me signin_alerts).
+  signin_alerts      BOOLEAN NOT NULL DEFAULT TRUE,
+  -- An account an organiser made for an event (admin create / new key):
+  -- no sign-in alerts, no email change, no idle cleanup
+  -- (v071-event-account-flag.sql). Never set from a key's name.
+  event_account      BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Where the account came from, set once at creation (v075-signup-source.sql):
+  -- website | connector:<app> | agent | visitor | admin | reviewer; NULL = before
+  -- tracking. signup_agent names the agent; signup_method is email | google |
+  -- issued | password; signup_inferred marks a backfilled guess. Never an IP.
+  signup_source      TEXT,
+  signup_agent       TEXT,
+  signup_method      TEXT,
+  signup_inferred    BOOLEAN NOT NULL DEFAULT FALSE,
+  -- The outside link credited with the sign-up (zf-signup-detail.sql): from,
+  -- utm_*, the linking site's host and when the browser landed, as remembered
+  -- by the first-party arrival cookie. NULL when none. Never an IP.
+  signup_detail      JSONB,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- One pending sign-in email change per account (POST /v1/me/email): the codes
+-- sent to the new address and to the current one, as SHA-256 hashes; both are
+-- needed (w2-account-signin-email.sql, w2-signin-email-undo.sql).
+CREATE TABLE email_changes (
+  user_id       UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  new_email     TEXT NOT NULL,
+  code_hash     TEXT NOT NULL,
+  old_code_hash TEXT,
+  attempts      INT NOT NULL DEFAULT 0,
+  expires_at    TIMESTAMPTZ NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- The undo link in the notice to the old address after a change, as a SHA-256
+-- hash; used once, or expired after 7 days (w2-signin-email-undo.sql).
+CREATE TABLE email_change_undos (
+  token_hash TEXT PRIMARY KEY,
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  old_email  TEXT NOT NULL,
+  new_email  TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ
+);
+CREATE INDEX email_change_undos_user_idx ON email_change_undos (user_id);
+
+-- Sign-in alerts already sent: one per account, browser/app summary and UTC
+-- day (w2-account-signin-email.sql). Pruned after a couple of days.
+CREATE TABLE signin_alerts_sent (
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  summary TEXT NOT NULL,
+  day     DATE NOT NULL,
+  PRIMARY KEY (user_id, summary, day)
+);
+
+-- Account API keys, stored only as hex SHA-256. An account can hold several
+-- (each sign-in issues one); each can be revoked on its own, and rotating
+-- replaces them all. name and last4 are NULL on keys issued before
+-- cp-keys-key-names.sql ("Earlier key" in the Keys panel).
+CREATE TABLE api_keys (
+  id           UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+  key_hash     TEXT PRIMARY KEY,
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name         TEXT,          -- "dashboard sign-in", "agent sign-in", "event account", or typed
+  last4        TEXT,          -- last 4 characters of the key, for recognising it
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at TIMESTAMPTZ,   -- written at most every 5 minutes
+  scope        TEXT NOT NULL DEFAULT 'full',  -- 'full', or 'deploy': create/update/roll back/list sites and preview links only
+  expires_at   TIMESTAMPTZ,   -- optional fixed expiry, chosen when minting from the Keys panel
+  idle_from    TIMESTAMPTZ NOT NULL DEFAULT now()  -- idle expiry (KEY_IDLE_EXPIRY_DAYS) counts from the later of this and last_used_at
+);
+CREATE INDEX api_keys_user_idx ON api_keys (user_id);
+
+CREATE TABLE sites (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID REFERENCES users(id) ON DELETE CASCADE,
+  name           TEXT NOT NULL,
+  active_version INTEGER NOT NULL DEFAULT 1,
+  site_url       TEXT,
+  expires_at     TIMESTAMPTZ,  -- NULL = permanent; set for ephemeral "preview" sites, swept when past
+  allowed_origins TEXT,        -- comma-separated extra origins allowed to call this site's state/collections (for "backend anywhere" — e.g. a GitHub Pages page)
+  custom_domain      TEXT UNIQUE,   -- one custom domain per site; globally unique
+  domain_status      TEXT,          -- pending | active | error (NULL = no domain)
+  domain_verified_at TIMESTAMPTZ,
+  domain_bound_at    TIMESTAMPTZ,
+  domain_last_error  TEXT,
+  previous_domain    TEXT,          -- the proven address still served while a new domain is pending
+  domain_cert_status TEXT,          -- pending | issuing | live | failed (NULL = none)
+  domain_failing_since     TIMESTAMPTZ, -- a verified domain first failed its checks
+  domain_lapse_notified_at TIMESTAMPTZ, -- the owner was emailed about the failing domain
+  previous_domain_failing_since TIMESTAMPTZ, -- the earlier address first failed its checks (let go after 72 h)
+  -- Proof a custom domain is the owner's: a DNS TXT record _simple-host.<domain>
+  -- whose value is this token (per site, never changes).
+  domain_token TEXT DEFAULT ('sh-' || replace(gen_random_uuid()::text, '-', '')),
+  -- Domains verified before the TXT proof existed (2026-09-27): they keep
+  -- working without it while they stay verified; a lapse needs the proof.
+  domain_proof_exempt TEXT[] NOT NULL DEFAULT '{}',
+  -- Per-site JSON datastore. `state_version` backs the atomic set/inc/append
+  -- ops and the ETag, so it must exist for the state API to work at all.
+  state          JSONB,
+  state_version  INTEGER NOT NULL DEFAULT 0,
+  -- UNUSED. The July private-pages feature was removed (it never locked
+  -- anything at the edge). No code reads or writes this column; kept because
+  -- dropping it is irreversible and it costs nothing. The passcode lock of
+  -- 2026-09-29 uses passcode_enc below, never this column.
+  view_password_hash TEXT,
+  -- Operator take-down (cp-ops-suspend.sql): the site keeps everything, is
+  -- served as "taken down" on every address and refuses changes. NULL = live.
+  -- A `suspended` marker file in the site folder mirrors it for the servers
+  -- that read files straight from disk.
+  suspended_at     TIMESTAMPTZ,
+  suspended_reason TEXT,
+  -- Cheap per-site summary for "find my sites by description" (SIM-189): computed
+  -- once per deploy from the new version's index.html, never crawled or re-fetched.
+  -- NULL = never computed yet (pre-feature site, backfill pending); '' = computed,
+  -- nothing found. Capped lengths are enforced in Go before the write.
+  summary_title       TEXT,
+  summary_description TEXT,
+  summary_headings    TEXT,
+  summary_text        TEXT,
+  created_at     TIMESTAMPTZ DEFAULT now(),
+  updated_at     TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT sites_user_name UNIQUE (user_id, name)
+);
+
+-- Whether a site is listed on the owner's public showcase at
+-- sites.<domain>/<handle>. New sites default to 'unlisted': publishing to the
+-- showcase is an explicit act, not a side effect of deploying.
+--
+-- Both values are equally reachable by URL. 'unlisted' also keeps the site
+-- out of search engines unless it has its own domain or name (X-Robots-Tag
+-- noindex, a Disallow robots.txt; the `unlisted` marker in the site folder,
+-- internal/handler/unlisted.go, 2026-10-14). 'unlisted' is not privacy; the one view-lock is a site passcode (passcode_enc below), which
+-- also keeps a site off the showcase whatever this says.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'unlisted'
+  CHECK (visibility IN ('public', 'unlisted'));
+-- Idempotent for databases created before the default flipped. Existing rows
+-- keep whatever they already have; only new sites are affected.
+ALTER TABLE sites ALTER COLUMN visibility SET DEFAULT 'unlisted';
+
+-- Recently deleted (mirrors db/migrations/cp-recover-recently-deleted.sql).
+-- A deleted site keeps its row, data and name for 7 days; NULL = live.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_sites_deleted_at ON sites (deleted_at) WHERE deleted_at IS NOT NULL;
+
+-- Taken offline by its owner (mirrors db/migrations/w2-sites-offline.sql):
+-- every address shows "This site is offline" and visitor saves are refused;
+-- nothing is deleted. NULL = online. An `offline` marker file in the site
+-- folder mirrors it for the servers that read files straight from disk.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS offline_at TIMESTAMPTZ;
+
+-- Deploys kept for this site (mirrors db/migrations/v075-site-keep-versions.sql):
+-- 0 = the instance setting (KEEP_VERSIONS), N >= 1 = the newest N plus always
+-- the live one.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS keep_versions INTEGER NOT NULL DEFAULT 0;
+
+-- A passcode on the whole site (mirrors db/migrations/v076-site-passcode.sql):
+-- passcode_enc is the passcode sealed with AES-256-GCM under PASSCODE_ENC_KEY
+-- (NULL = none); passcode_generation goes up on every change and on "sign
+-- everyone out", which ends every unlock. A `passcode` marker file in the
+-- site folder mirrors it for the servers that read files straight from disk.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS passcode_enc BYTEA;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS passcode_set_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS passcode_generation INTEGER NOT NULL DEFAULT 0;
+
+-- Named viewers (mirrors db/migrations/zc-site-named-viewers.sql): access
+-- 'anyone' (default) or 'specific' (only the owner and the emails in
+-- site_viewers, signed in on the site's own address). Never together with a
+-- passcode; the same `passcode` marker file marks either gate on disk.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS access TEXT NOT NULL DEFAULT 'anyone';
+CREATE TABLE IF NOT EXISTS site_viewers (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (site_id, email)
+);
+
+-- Old names of renamed sites (mirrors db/migrations/w2-sites-old-names.sql):
+-- links to an old name 302 to the site's current address until a site of
+-- that name exists again. A site in Recently deleted is skipped.
+CREATE TABLE IF NOT EXISTS site_name_aliases (
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  site_id    UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_site_name_aliases_site ON site_name_aliases (site_id);
+-- Idle-site cleanup (mirrors db/migrations/w2-addr-idle-cleanup.sql).
+-- idle_keep: the owner's Keep flag (never warned or removed); idle_kept_at: the
+-- last "Keep it" (resets the idle clock); idle_warned_at: owner emailed that
+-- the site is idle; idle_removed_at: the cleanup moved it to Recently deleted;
+-- idle_token_hash: SHA-256 of the token the emailed links carry.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_keep BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_kept_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_warned_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_removed_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_token_hash BYTEA;
+-- Promised dates (mirrors db/migrations/knobs-promised-dates.sql), stored when
+-- the promise is made so a later settings change applies to new events only:
+-- purge_at (deleted site removed for good), idle_remove_at (idle-warned site
+-- moves to Recently deleted), domain_release_at (failing domain disconnected).
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS purge_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS idle_remove_at TIMESTAMPTZ;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_release_at TIMESTAMPTZ;
+
+-- Append-only per-site collections (guestbooks, RSVPs, signups). The other half
+-- of the built-in backend alongside sites.state.
+CREATE TABLE IF NOT EXISTS collection_items (
+  id         BIGSERIAL PRIMARY KEY,
+  site_id    UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  collection TEXT NOT NULL,
+  data       JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  -- Who submitted an item to a PRIVATE collection (server-set; NULL otherwise).
+  submitted_by UUID REFERENCES users(id) ON DELETE SET NULL
+);
+-- id DESC: reads are newest-first within one site's collection.
+CREATE INDEX IF NOT EXISTS idx_collection_items
+  ON collection_items (site_id, collection, id DESC);
+
+-- Private collections (2026-09-24; mirrors db/migrations/private-collections.sql).
+-- No row = public, the default. submitted_by is set by the server from the
+-- visitor session on a private collection, never from the request body.
+CREATE TABLE IF NOT EXISTS collection_settings (
+  site_id    UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  collection TEXT NOT NULL,
+  private    BOOLEAN NOT NULL DEFAULT false,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (site_id, collection)
+);
+
+-- Saved data, step 1 (mirrors db/migrations/sd1-saved-data-safety.sql):
+-- history and undo, recoverable deletes, authors, idempotency, the watch.
+-- Every site that exists before the kinds arrive keeps today's open behaviour.
+-- The default stays true; the server creates every new site with false
+-- (step 2, kinds: with SAVED_DATA_DEFAULT_KIND=declare_first a name nobody
+-- declared takes no saves there; by default it is Shared everywhere).
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS legacy_data BOOLEAN NOT NULL DEFAULT true;
+
+-- Deleted and cleared items stay for the undo window (NULL = live), and the
+-- address the author wrote from is kept beside the account id.
+ALTER TABLE collection_items ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE collection_items ADD COLUMN IF NOT EXISTS submitted_email TEXT;
+CREATE INDEX IF NOT EXISTS idx_collection_items_deleted
+  ON collection_items (site_id, collection, deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_collection_items_submitted_by
+  ON collection_items (submitted_by) WHERE submitted_by IS NOT NULL;
+
+-- One row per change: the value before it (prev), what changed, who and when.
+-- kind 'state' is the site's saved-data document (name ''), kind 'list' one
+-- item of a list (item_id). Kept 30 days by time, thinned past a per-site cap
+-- but always keeping each item's first change of every day.
+CREATE TABLE IF NOT EXISTS data_history (
+  id          BIGSERIAL PRIMARY KEY,
+  site_id     UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  kind        TEXT NOT NULL CHECK (kind IN ('state', 'list', 'storage')),
+  name        TEXT NOT NULL DEFAULT '',
+  item_id     BIGINT REFERENCES collection_items(id) ON DELETE CASCADE,
+  op          TEXT NOT NULL,
+  prev        JSONB,
+  actor_id    UUID REFERENCES users(id) ON DELETE SET NULL,
+  actor_kind  TEXT NOT NULL,
+  actor_email TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_data_history_target ON data_history (site_id, kind, name, id DESC);
+CREATE INDEX IF NOT EXISTS idx_data_history_item ON data_history (item_id) WHERE item_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_data_history_created ON data_history (created_at);
+CREATE INDEX IF NOT EXISTS idx_data_history_actor ON data_history (actor_id) WHERE actor_id IS NOT NULL;
+
+-- A write retried with the same Idempotency-Key is saved once: the first
+-- answer is kept (24 hours) and replayed. scope is a hash of the key, the
+-- route and the caller; status 0 = the first request is still running.
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  scope        BYTEA PRIMARY KEY,
+  status       INTEGER NOT NULL DEFAULT 0,
+  etag         TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created ON idempotency_keys (created_at);
+
+-- The 7-day watch: per site and day, how often each saved-data use that a
+-- later step tightens happened (visitor whole-document replace, non-object
+-- documents, visitor ops by type, large visitor increments, new list names,
+-- large list items). Counts only, never content. Read by /v1/admin/data-watch.
+CREATE TABLE IF NOT EXISTS data_watch (
+  day     DATE NOT NULL,
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  metric  TEXT NOT NULL,
+  count   BIGINT NOT NULL DEFAULT 0,
+  last_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (day, site_id, metric)
+);
+
+-- Saved data, step 1, review fixes (mirrors
+-- db/migrations/sd1-saved-data-safety2-limits.sql).
+
+-- What a site's live saved data takes: the page-data document (state_bytes)
+-- plus every live list item (deleted items and history are not counted).
+-- Kept by the triggers below in the same transaction as every write, so the
+-- per-site cap (SAVED_DATA_SITE_MAX_MB) is one row read, never a scan.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS state_bytes BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS data_bytes BIGINT NOT NULL DEFAULT 0;
+
+CREATE OR REPLACE FUNCTION sh_sites_state_bytes() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  s BIGINT := COALESCE(octet_length(NEW.state::text), 0);
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    NEW.data_bytes := s;
+  ELSE
+    NEW.data_bytes := NEW.data_bytes + s - OLD.state_bytes;
+  END IF;
+  NEW.state_bytes := s;
+  RETURN NEW;
+END $$;
+
+CREATE OR REPLACE FUNCTION sh_items_live_bytes() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    UPDATE sites s SET data_bytes = s.data_bytes + d.n
+      FROM (SELECT site_id, sum(octet_length(data::text)) AS n FROM sh_new
+             WHERE deleted_at IS NULL GROUP BY site_id) d
+     WHERE s.id = d.site_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE sites s SET data_bytes = s.data_bytes - d.n
+      FROM (SELECT site_id, sum(octet_length(data::text)) AS n FROM sh_old
+             WHERE deleted_at IS NULL GROUP BY site_id) d
+     WHERE s.id = d.site_id;
+  ELSE
+    UPDATE sites s SET data_bytes = s.data_bytes + d.n
+      FROM (SELECT site_id, sum(n) AS n FROM (
+              SELECT site_id, octet_length(data::text) AS n FROM sh_new WHERE deleted_at IS NULL
+              UNION ALL
+              SELECT site_id, -octet_length(data::text) FROM sh_old WHERE deleted_at IS NULL) x
+             GROUP BY site_id) d
+     WHERE s.id = d.site_id AND d.n <> 0;
+  END IF;
+  RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS sites_state_bytes ON sites;
+CREATE TRIGGER sites_state_bytes BEFORE INSERT OR UPDATE OF state ON sites
+  FOR EACH ROW EXECUTE FUNCTION sh_sites_state_bytes();
+DROP TRIGGER IF EXISTS collection_items_bytes_ins ON collection_items;
+CREATE TRIGGER collection_items_bytes_ins AFTER INSERT ON collection_items
+  REFERENCING NEW TABLE AS sh_new FOR EACH STATEMENT EXECUTE FUNCTION sh_items_live_bytes();
+DROP TRIGGER IF EXISTS collection_items_bytes_upd ON collection_items;
+CREATE TRIGGER collection_items_bytes_upd AFTER UPDATE ON collection_items
+  REFERENCING OLD TABLE AS sh_old NEW TABLE AS sh_new FOR EACH STATEMENT EXECUTE FUNCTION sh_items_live_bytes();
+DROP TRIGGER IF EXISTS collection_items_bytes_del ON collection_items;
+CREATE TRIGGER collection_items_bytes_del AFTER DELETE ON collection_items
+  REFERENCING OLD TABLE AS sh_old FOR EACH STATEMENT EXECUTE FUNCTION sh_items_live_bytes();
+
+-- Backfill (a no-op on a new database). The UPDATE does not name state, so
+-- the state trigger does not fire.
+UPDATE sites s SET
+  state_bytes = COALESCE(octet_length(s.state::text), 0),
+  data_bytes  = COALESCE(octet_length(s.state::text), 0)
+              + COALESCE((SELECT sum(octet_length(ci.data::text)) FROM collection_items ci
+                           WHERE ci.site_id = s.id AND ci.deleted_at IS NULL), 0);
+
+-- A change made with PATCH ops keeps only what it changed (diff: how to turn
+-- the document after it back into the one before), with a full copy (prev)
+-- at least every SAVED_DATA_SNAPSHOT_EVERY changes and on each day's first.
+ALTER TABLE data_history ADD COLUMN IF NOT EXISTS diff JSONB;
+
+-- Idempotency-Key answers keep the status, the version or item id (ref) and
+-- a hash of the request body (a reused key with another body is refused),
+-- never the response body. site_id bounds the rows kept per site.
+ALTER TABLE idempotency_keys ADD COLUMN IF NOT EXISTS site_id UUID REFERENCES sites(id) ON DELETE CASCADE;
+ALTER TABLE idempotency_keys ADD COLUMN IF NOT EXISTS ref BIGINT;
+ALTER TABLE idempotency_keys ADD COLUMN IF NOT EXISTS body_hash BYTEA;
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_site ON idempotency_keys (site_id, created_at);
+
+-- What a site's history holds (every earlier value and diff), kept by the
+-- trigger below in the same transaction as every history write, so a write
+-- that pushes it past SAVED_DATA_HISTORY_MAX_MB thins that site's history
+-- right away instead of waiting for the sweep. A row's size is the text of
+-- its value (prev) or diff, the same measure the thinning uses.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS history_bytes BIGINT NOT NULL DEFAULT 0;
+
+CREATE OR REPLACE FUNCTION sh_history_bytes() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    UPDATE sites s SET history_bytes = s.history_bytes + d.n
+      FROM (SELECT site_id, sum(COALESCE(octet_length(prev::text), octet_length(diff::text), 0)) AS n
+              FROM sh_hnew GROUP BY site_id) d
+     WHERE s.id = d.site_id AND d.n <> 0;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE sites s SET history_bytes = s.history_bytes - d.n
+      FROM (SELECT site_id, sum(COALESCE(octet_length(prev::text), octet_length(diff::text), 0)) AS n
+              FROM sh_hold GROUP BY site_id) d
+     WHERE s.id = d.site_id AND d.n <> 0;
+  ELSE
+    UPDATE sites s SET history_bytes = s.history_bytes + d.n
+      FROM (SELECT site_id, sum(n) AS n FROM (
+              SELECT site_id, COALESCE(octet_length(prev::text), octet_length(diff::text), 0) AS n FROM sh_hnew
+              UNION ALL
+              SELECT site_id, -COALESCE(octet_length(prev::text), octet_length(diff::text), 0) FROM sh_hold) x
+             GROUP BY site_id) d
+     WHERE s.id = d.site_id AND d.n <> 0;
+  END IF;
+  RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS data_history_bytes_ins ON data_history;
+CREATE TRIGGER data_history_bytes_ins AFTER INSERT ON data_history
+  REFERENCING NEW TABLE AS sh_hnew FOR EACH STATEMENT EXECUTE FUNCTION sh_history_bytes();
+DROP TRIGGER IF EXISTS data_history_bytes_upd ON data_history;
+CREATE TRIGGER data_history_bytes_upd AFTER UPDATE ON data_history
+  REFERENCING OLD TABLE AS sh_hold NEW TABLE AS sh_hnew FOR EACH STATEMENT EXECUTE FUNCTION sh_history_bytes();
+DROP TRIGGER IF EXISTS data_history_bytes_del ON data_history;
+CREATE TRIGGER data_history_bytes_del AFTER DELETE ON data_history
+  REFERENCING OLD TABLE AS sh_hold FOR EACH STATEMENT EXECUTE FUNCTION sh_history_bytes();
+
+-- Backfill (a no-op on a new database). The triggers above lock data_history
+-- until the end of the transaction, so no history write slips in between.
+UPDATE sites s SET history_bytes = COALESCE((
+  SELECT sum(COALESCE(octet_length(h.prev::text), octet_length(h.diff::text), 0))
+    FROM data_history h WHERE h.site_id = s.id), 0);
+
+-- Frozen legacy per-site hostnames (e.g. mysite.simple-host.app) bound to a
+-- site_id. Populated by a later backfill; not wired into request paths yet.
+-- Old handles kept after an operator rename, so links naming them resolve.
+-- user_id NULL = retired: the handle of a deleted account, held by nobody
+-- so no one else can take it (cp-gdpr-retired-handles.sql).
+CREATE TABLE IF NOT EXISTS handle_aliases (
+  handle     TEXT PRIMARY KEY,
+  user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- A released <name>.<SITE_DOMAIN> stays with its site (302 to its current
+-- address) and outlives it (site_id NULL: "this site was removed").
+CREATE TABLE legacy_hostnames (
+  hostname   TEXT PRIMARY KEY,
+  site_id    UUID REFERENCES sites(id) ON DELETE SET NULL,
+  user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_legacy_hostnames_site ON legacy_hostnames(site_id);
+CREATE UNIQUE INDEX IF NOT EXISTS sites_previous_domain_key ON sites (previous_domain) WHERE previous_domain IS NOT NULL;
+
+CREATE TABLE versions (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  site_id        UUID REFERENCES sites(id) ON DELETE CASCADE,
+  version_number INTEGER NOT NULL,
+  disk_path      TEXT NOT NULL,
+  status         TEXT NOT NULL DEFAULT 'uploading',
+  archive_sha256 TEXT NOT NULL DEFAULT '',
+  created_at     TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(site_id, version_number)
+);
+
+CREATE TABLE auth_tokens (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email      TEXT NOT NULL,
+  code       TEXT NOT NULL,
+  link_token TEXT UNIQUE NOT NULL,
+  purpose    TEXT NOT NULL DEFAULT 'dashboard',
+  site_id    UUID REFERENCES sites(id) ON DELETE CASCADE,
+  CONSTRAINT auth_tokens_purpose_check CHECK (purpose IN ('dashboard', 'visitor') AND ((purpose = 'visitor') = (site_id IS NOT NULL))),
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ,
+  attempts   INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX auth_tokens_email_purpose_idx ON auth_tokens (email, purpose, site_id, created_at DESC);
+
+-- Per-site visitor analytics (nginx access log → ingester → aggregates).
+--
+-- These two *_daily tables are the ORIGINAL, pre-classifier storage. They are no
+-- longer written to — the ingester writes the *_hourly tables below — but they
+-- are still READ, for any day earlier than the first classified day, and served
+-- as the `unknown` traffic class. On a deployment that predates the classifier
+-- they hold the only surviving record of that period, so DO NOT DROP THEM.
+CREATE TABLE IF NOT EXISTS site_view_daily (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  day     DATE NOT NULL,
+  views   BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (site_id, day)
+);
+CREATE TABLE IF NOT EXISTS site_visitor_daily (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  day     DATE NOT NULL,
+  ip_hash BYTEA NOT NULL,
+  PRIMARY KEY (site_id, day, ip_hash)
+);
+-- Event hostnames handed to a hackathon organiser, pointing at THEIR server.
+--
+-- Rows exist so teardown knows which records to delete. A record left pointing
+-- at a released cloud address is a subdomain takeover, so expires_at gives a
+-- sweep something to act on when an organiser never tears down.
+CREATE TABLE IF NOT EXISTS event_domains (
+  name         TEXT NOT NULL,
+  domain       TEXT NOT NULL,
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ip           TEXT NOT NULL,
+  record_ids   TEXT[] NOT NULL DEFAULT '{}',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at   TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (name, domain)
+);
+CREATE INDEX IF NOT EXISTS event_domains_expiry_idx ON event_domains (expires_at);
+CREATE INDEX IF NOT EXISTS event_domains_user_idx ON event_domains (user_id);
+
+CREATE TABLE IF NOT EXISTS analytics_ingest_state (
+  logfile      TEXT PRIMARY KEY,
+  offset_bytes BIGINT NOT NULL DEFAULT 0,
+  inode        BIGINT NOT NULL DEFAULT 0,
+  updated_at   TIMESTAMPTZ DEFAULT now()
+);
+
+-- Per-endpoint API traffic, for the admin page. Go middleware aggregates in
+-- memory and flushes here; caller IPs are stored truncated (IPv4 /24, IPv6
+-- /48) and pruned after 30 days. Mirrors db/migrations/api-analytics.sql;
+-- db/migrations/truncate-api-ip.sql truncates rows written before that.
+CREATE TABLE IF NOT EXISTS api_request_daily (
+  day    DATE NOT NULL,
+  route  TEXT NOT NULL,      -- normalized "METHOD /v1/pattern", bounded cardinality
+  status SMALLINT NOT NULL,
+  calls  BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, route, status)
+);
+
+CREATE TABLE IF NOT EXISTS api_ip_daily (
+  day        DATE NOT NULL,
+  ip         TEXT NOT NULL,
+  calls      BIGINT NOT NULL DEFAULT 0,
+  last_route TEXT NOT NULL DEFAULT '',
+  last_seen  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (day, ip)
+);
+
+-- API calls from this server itself (loopback and the box's own public
+-- address, CUSTOM_DOMAIN_IP): health checks, canaries and local tools. Same shape as
+-- api_request_daily, kept apart so they never count as calls or errors on the
+-- admin page; pruned with it. Mirrors db/migrations/v079-api-self-calls.sql.
+CREATE TABLE IF NOT EXISTS api_self_daily (
+  day    DATE NOT NULL,
+  route  TEXT NOT NULL,
+  status SMALLINT NOT NULL,
+  calls  BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, route, status)
+);
+
+-- API calls (/v1/* and /mcp) per UTC day, by caller country (dim 'country',
+-- ISO-3166 alpha-2 key, 'XX' = unknown) and by kind of call (dim 'group':
+-- deploy, data, auth, connector, admin, other); calls from this server itself
+-- only as dim 'source', key 'self'. Feeds the admin
+-- page's API growth views; no address is stored. Kept
+-- API_GROWTH_RETENTION_DAYS. Mirrors db/migrations/v078-api-growth.sql.
+CREATE TABLE IF NOT EXISTS api_growth_daily (
+  day   DATE NOT NULL,
+  dim   TEXT NOT NULL,
+  key   TEXT NOT NULL,
+  calls BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, dim, key)
+);
+
+-- Caller geo (country/city/network) is NOT stored: it is resolved on this box
+-- from local DB-IP Lite files when the admin page asks (internal/geoip). The
+-- old ip_geo cache table is gone from fresh installs; see
+-- db/migrations/local-geo.sql for existing databases.
+
+-- Current analytics storage: hourly buckets, split by who was asking.
+-- Every read path in internal/db/analytics.go targets these two tables, so a
+-- deployment without them has no working analytics at all (both endpoints 500,
+-- and the dashboard renders zeros). Mirrors db/migrations/analytics-v2.sql.
+--
+-- class is one of:
+--   'person' -- no automation signature; the audience number
+--   'bot'    -- crawlers, AI scrapers, SEO tools, security scanners, HTTP libs
+--   'infra'  -- own monitoring: loopback probes and uptime checkers
+CREATE TABLE IF NOT EXISTS site_view_hourly (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  hour    TIMESTAMPTZ NOT NULL,   -- UTC, truncated to the hour
+  class   TEXT NOT NULL,
+  views   BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (site_id, hour, class)
+);
+CREATE INDEX IF NOT EXISTS site_view_hourly_hour_idx ON site_view_hourly (hour);
+
+-- One row per distinct visitor per (site, hour, class). The ingest salt is
+-- stable, not rotated per day, so COUNT(DISTINCT ip_hash) over any window is
+-- genuine unique visitors rather than a sum of per-day uniques.
+-- country is the visitor's ISO-3166 alpha-2 code ('XX' = unresolved), resolved
+-- at ingest from the local ip_country_ranges table. It lives here so uniques
+-- per country are the same COUNT(DISTINCT ip_hash) as everywhere else.
+CREATE TABLE IF NOT EXISTS site_visitor_hourly (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  hour    TIMESTAMPTZ NOT NULL,
+  class   TEXT NOT NULL,
+  ip_hash BYTEA NOT NULL,
+  country TEXT NOT NULL DEFAULT 'XX',
+  PRIMARY KEY (site_id, hour, class, ip_hash)
+);
+CREATE INDEX IF NOT EXISTS site_visitor_hourly_hour_idx ON site_visitor_hourly (hour);
+
+-- Per-country daily traffic. Mirrors db/migrations/analytics-geo.sql.
+--
+-- Country is resolved on this box from ip_country_ranges; no visitor IP is ever
+-- sent to a third party, and the raw IP is still never stored. 'XX' is the
+-- unresolved sentinel — those rows are kept so country totals reconcile with
+-- the site totals rather than quietly going missing.
+CREATE TABLE IF NOT EXISTS site_geo_daily (
+  site_id  UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  day      DATE NOT NULL,   -- UTC
+  country  TEXT NOT NULL,
+  class    TEXT NOT NULL,
+  views    BIGINT NOT NULL DEFAULT 0,
+  visitors BIGINT NOT NULL DEFAULT 0,   -- distinct ip_hash for that day
+  PRIMARY KEY (site_id, day, country, class)
+);
+CREATE INDEX IF NOT EXISTS site_geo_daily_day_idx ON site_geo_daily (day);
+
+-- Top pages and where visitors came from (owner analytics), people only:
+-- views per site-relative path, and per referring domain. The domain is all
+-- that is kept of a referrer (nginx logs only the host; no full URL, no
+-- query); a link from the site's own address is not counted. Same retention
+-- as the other aggregates (ANALYTICS_RETENTION_DAYS).
+CREATE TABLE IF NOT EXISTS site_page_daily (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  day     DATE NOT NULL,   -- UTC
+  path    TEXT NOT NULL,   -- site-relative, no query string, at most 200 bytes
+  views   BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (site_id, day, path)
+);
+CREATE INDEX IF NOT EXISTS site_page_daily_day_idx ON site_page_daily (day);
+CREATE TABLE IF NOT EXISTS site_referrer_daily (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  day     DATE NOT NULL,   -- UTC
+  domain  TEXT NOT NULL,   -- referring host name only, lowercased
+  views   BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (site_id, day, domain)
+);
+CREATE INDEX IF NOT EXISTS site_referrer_daily_day_idx ON site_referrer_daily (day);
+
+-- Bytes and requests served (w3-network-usage.sql), from the analytics log's
+-- ninth field ($bytes_sent). kind: 'pages' (a site's files) or 'api' (/v1).
+-- traffic_daily counts every line; site_traffic_daily those whose host is a
+-- site's. Pruned with ANALYTICS_RETENTION_DAYS.
+CREATE TABLE IF NOT EXISTS traffic_daily (
+  day      DATE NOT NULL,   -- UTC
+  kind     TEXT NOT NULL,
+  bytes    BIGINT NOT NULL DEFAULT 0,
+  requests BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, kind)
+);
+CREATE TABLE IF NOT EXISTS site_traffic_daily (
+  site_id  UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  day      DATE NOT NULL,   -- UTC
+  kind     TEXT NOT NULL,
+  bytes    BIGINT NOT NULL DEFAULT 0,
+  requests BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (site_id, day, kind)
+);
+CREATE INDEX IF NOT EXISTS site_traffic_daily_day_idx ON site_traffic_daily (day);
+
+-- The box's own network use (internal/netusage): growth of the main
+-- interface's /proc/net/dev counters between samples, per UTC day, and the
+-- last reading it grew from.
+CREATE TABLE IF NOT EXISTS net_usage_daily (
+  day      DATE NOT NULL,   -- UTC
+  iface    TEXT NOT NULL,
+  rx_bytes BIGINT NOT NULL DEFAULT 0,
+  tx_bytes BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, iface)
+);
+CREATE TABLE IF NOT EXISTS net_counter_state (
+  iface          TEXT PRIMARY KEY,
+  boot_id        TEXT NOT NULL,
+  rx_bytes       BIGINT NOT NULL,
+  tx_bytes       BIGINT NOT NULL,
+  counting_since TIMESTAMPTZ NOT NULL,
+  sampled_at     TIMESTAMPTZ NOT NULL
+);
+
+-- IP → country ranges, loaded by `ip-country-load` from a public dataset
+-- (default: DB-IP IP-to-Country Lite, CC BY 4.0 — "IP Geolocation by DB-IP",
+-- https://db-ip.com). Not vendored in the repo; a fresh install has an empty
+-- table and every visitor resolves to 'XX' until the loader is run.
+--
+-- Non-overlapping ranges, IPv4 and IPv6 together (Postgres inet sorts all IPv4
+-- below all IPv6). Keyed on start_ip: the containing range is the last one
+-- starting at or below the address, which is one index descent.
+CREATE TABLE IF NOT EXISTS ip_country_ranges (
+  start_ip INET NOT NULL,
+  end_ip   INET NOT NULL,
+  country  TEXT NOT NULL,   -- ISO-3166 alpha-2
+  PRIMARY KEY (start_ip)
+);
+
+-- Upgrading an existing deployment created before archive_sha256 existed:
+--   ALTER TABLE versions ADD COLUMN archive_sha256 TEXT NOT NULL DEFAULT '';
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS allowed_origins TEXT;
+-- Custom domain (v3 path-model Phase 1a); live migration is applied separately:
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS custom_domain TEXT UNIQUE;
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_status TEXT;
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_verified_at TIMESTAMPTZ;
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_last_error TEXT;
+-- Visitor Google/GitHub sign-in (live migration: db/migrations/visitor-oauth.sql):
+--   ALTER TABLE sites ADD COLUMN IF NOT EXISTS allow_anonymous_writes BOOLEAN NOT NULL DEFAULT FALSE;
+-- One-account unification (live migration: db/migrations/unify-identities.sql):
+--   DROP visitors + recreate visitor_sessions(user_id) + oauth_identities.
+
+-- Operator escape hatch. Default FALSE. No owner API in v1; set via
+-- ADMIN_API-Key endpoint or SQL.
+ALTER TABLE sites
+  ADD COLUMN IF NOT EXISTS allow_anonymous_writes BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- ── Visitor sign-in ───────────────────────────────────────────────────────
+-- Visitors are ordinary users rows; an earlier design gave them a separate
+-- `visitors` table, which db/migrations/unify-identities.sql removed.
+
+-- A user's linked Google/GitHub identity. Same human on both providers = two
+-- rows pointing at one user.
+CREATE TABLE IF NOT EXISTS oauth_identities (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider         TEXT NOT NULL CHECK (provider IN ('google', 'github', 'oidc')),
+  provider_user_id TEXT NOT NULL,
+  email            TEXT,
+  email_verified   BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (provider, provider_user_id)
+);
+CREATE INDEX IF NOT EXISTS oauth_identities_user_id_idx
+  ON oauth_identities (user_id);
+
+-- In-flight authorization-code flows. Same pattern as auth_tokens: opaque
+-- secret, short TTL, single-use. purpose 'site' is a visitor signing in to a
+-- hosted site (site_id + host set); 'owner' is someone signing in here.
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state          TEXT PRIMARY KEY,
+  provider       TEXT NOT NULL,
+  code_verifier  TEXT NOT NULL,
+  return_to      TEXT NOT NULL,
+  host           TEXT NOT NULL,
+  site_id        UUID REFERENCES sites(id) ON DELETE CASCADE,
+  purpose        TEXT NOT NULL DEFAULT 'site',
+  -- Site purpose: SHA-256 (base64url) of the __Host- nonce cookie set on the
+  -- site host that started this sign-in (visitor-signin-nonce.sql).
+  nonce_hash     TEXT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at     TIMESTAMPTZ NOT NULL,
+  used_at        TIMESTAMPTZ,
+  CONSTRAINT oauth_states_provider_check CHECK (provider IN ('google', 'github', 'oidc')),
+  CONSTRAINT oauth_states_purpose_check  CHECK (purpose IN ('site', 'owner'))
+);
+CREATE INDEX IF NOT EXISTS oauth_states_expires_idx ON oauth_states (expires_at);
+
+-- Server-side session. Cookie value is id (32 bytes, stored raw).
+CREATE TABLE IF NOT EXISTS visitor_sessions (
+  id              BYTEA PRIMARY KEY,
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  site_id         UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  host            TEXT NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at      TIMESTAMPTZ NOT NULL,
+  idle_expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS visitor_sessions_expires_idx
+  ON visitor_sessions (expires_at);
+-- Who signed in on which site, kept after sessions end (mirrors
+-- db/migrations/zc-site-named-viewers.sql): the owner's visitor_id-to-email
+-- lookup answers only for these people.
+CREATE TABLE IF NOT EXISTS site_visitor_signins (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  first_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (site_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS visitor_sessions_user_idx
+  ON visitor_sessions (user_id);
+
+-- One-time bounce from the apex callback onto the host that will Set-Cookie.
+CREATE TABLE IF NOT EXISTS visitor_establish_tokens (
+  once         TEXT PRIMARY KEY,
+  session_id   BYTEA NOT NULL REFERENCES visitor_sessions(id) ON DELETE CASCADE,
+  host         TEXT NOT NULL,
+  return_to    TEXT NOT NULL,
+  -- The starting browser's nonce hash; establish needs the matching cookie.
+  nonce_hash   TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at   TIMESTAMPTZ NOT NULL,
+  used_at      TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS visitor_establish_tokens_expires_idx
+  ON visitor_establish_tokens (expires_at);
+
+ALTER TABLE oauth_states
+  ALTER COLUMN site_id DROP NOT NULL;
+
+ALTER TABLE oauth_states
+  ADD COLUMN IF NOT EXISTS nonce_hash TEXT;
+ALTER TABLE visitor_establish_tokens
+  ADD COLUMN IF NOT EXISTS nonce_hash TEXT;
+
+ALTER TABLE oauth_states
+  ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'site';
+
+ALTER TABLE oauth_states
+  DROP CONSTRAINT IF EXISTS oauth_states_provider_check;
+ALTER TABLE oauth_states
+  ADD CONSTRAINT oauth_states_provider_check
+  CHECK (provider IN ('google', 'github', 'oidc'));
+
+ALTER TABLE oauth_states
+  DROP CONSTRAINT IF EXISTS oauth_states_purpose_check;
+ALTER TABLE oauth_states
+  ADD CONSTRAINT oauth_states_purpose_check
+  CHECK (purpose IN ('site', 'owner'));
+
+ALTER TABLE oauth_states
+  DROP CONSTRAINT IF EXISTS oauth_states_purpose_shape;
+ALTER TABLE oauth_states
+  ADD CONSTRAINT oauth_states_purpose_shape
+  CHECK (
+    (purpose = 'site'  AND site_id IS NOT NULL AND host <> '')
+    OR
+    (purpose = 'owner' AND site_id IS NULL)
+  );
+
+CREATE TABLE IF NOT EXISTS instance_config (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Connector: OAuth 2.1 for the remote MCP endpoint ─────────────────────
+-- Mirrors db/migrations/oauth-connector.sql; see there for the reasoning.
+CREATE TABLE IF NOT EXISTS oauth_clients (
+  client_id                  TEXT PRIMARY KEY,
+  client_secret_hash         TEXT,
+  client_name                TEXT NOT NULL,
+  redirect_uris              TEXT[] NOT NULL,
+  token_endpoint_auth_method TEXT NOT NULL DEFAULT 'none',
+  -- FALSE only for an operator-registered confidential client whose platform
+  -- cannot send PKCE (ChatGPT GPT Actions). Every self-registered client and
+  -- every public client must use PKCE S256.
+  pkce_required              BOOLEAN NOT NULL DEFAULT TRUE,
+  -- TRUE for RFC 7591 self-registration; FALSE for clients created by the
+  -- operator (`simple-host oauth-client create`), which the sweep never removes.
+  dynamic                    BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at                 TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at               TIMESTAMPTZ,
+  CONSTRAINT oauth_clients_auth_method_check
+    CHECK (token_endpoint_auth_method IN ('none', 'client_secret_post', 'client_secret_basic')),
+  CONSTRAINT oauth_clients_secret_shape
+    CHECK ((token_endpoint_auth_method = 'none') = (client_secret_hash IS NULL)),
+  CONSTRAINT oauth_clients_pkce_check
+    CHECK (pkce_required OR (client_secret_hash IS NOT NULL AND NOT dynamic))
+);
+CREATE INDEX IF NOT EXISTS oauth_clients_created_idx ON oauth_clients (created_at);
+
+-- One grant per "Allow": a person connected an app. It is the refresh-token
+-- family: rotating a refresh token stays inside it, and reuse of a rotated
+-- token deletes it (and with it every token it issued). Disconnecting an app
+-- deletes its grants.
+CREATE TABLE IF NOT EXISTS oauth_grants (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id    TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+  scope        TEXT NOT NULL,
+  resource     TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  device       TEXT,  -- the consent page's browser, summarised ("Chrome on macOS"); never the user agent or an IP
+  selected_team_id UUID
+);
+CREATE INDEX IF NOT EXISTS oauth_grants_user_idx ON oauth_grants (user_id, client_id);
+CREATE INDEX IF NOT EXISTS oauth_grants_client_idx ON oauth_grants (client_id);
+
+-- Authorization codes: single use, ~60 seconds, bound to the client, the
+-- redirect URI, the PKCE challenge and the resource. grant_id is set when the
+-- code is redeemed, so a second redemption can revoke what the first issued.
+CREATE TABLE IF NOT EXISTS oauth_codes (
+  code_hash      TEXT PRIMARY KEY,
+  client_id      TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+  user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  redirect_uri   TEXT NOT NULL,
+  code_challenge TEXT NOT NULL,
+  scope          TEXT NOT NULL,
+  resource       TEXT NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at     TIMESTAMPTZ NOT NULL,
+  used_at        TIMESTAMPTZ,
+  grant_id       UUID REFERENCES oauth_grants(id) ON DELETE SET NULL,
+  device         TEXT   -- copied onto the grant it becomes
+);
+CREATE INDEX IF NOT EXISTS oauth_codes_expires_idx ON oauth_codes (expires_at);
+
+-- Access tokens (~1 hour) and refresh tokens (rotating, long-lived).
+-- used_at on a refresh token marks it rotated; presenting it again is reuse.
+CREATE TABLE IF NOT EXISTS oauth_tokens (
+  token_hash TEXT PRIMARY KEY,
+  grant_id   UUID NOT NULL REFERENCES oauth_grants(id) ON DELETE CASCADE,
+  kind       TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ,
+  CONSTRAINT oauth_tokens_kind_check CHECK (kind IN ('access', 'refresh'))
+);
+CREATE INDEX IF NOT EXISTS oauth_tokens_grant_idx ON oauth_tokens (grant_id);
+CREATE INDEX IF NOT EXISTS oauth_tokens_expires_idx ON oauth_tokens (expires_at);
+
+-- Sign-in links are bound to the browser that asked for them (login-CSRF fix,
+-- same review). The page that requests an emailed code, or starts Google
+-- sign-in, keeps a random nonce and sends its SHA-256 (base64url); the link
+-- token is stored with that hash and /v1/auth/verify redeems a token only
+-- together with the nonce itself. A link token without a hash is never
+-- redeemable; the typed 6-digit code is unaffected.
+ALTER TABLE auth_tokens ADD COLUMN IF NOT EXISTS nonce_hash TEXT;
+
+-- Saved data, step 2: kinds (mirrors db/migrations/sd2-saved-data-kinds.sql).
+-- A declared name's kind (content = Page info, entries = Submissions; NULL =
+-- not declared), one entry per person, and the owner's email choice. The
+-- private column above is the Submissions visibility.
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS kind TEXT;
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS one_per_person BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS notify TEXT NOT NULL DEFAULT 'off';
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS notify_sent_at TIMESTAMPTZ;
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS declared_at TIMESTAMPTZ;
+-- The last entry id a submission email counted (mirrors
+-- db/migrations/v072-notify-last-id.sql); NULL: count by time since the last email.
+ALTER TABLE collection_settings ADD COLUMN IF NOT EXISTS notify_last_id BIGINT;
+-- Who may save: 'anyone' (anyone who signs in) or 'listed' (the allow list
+-- below); the block list applies in both modes.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS savers_mode TEXT NOT NULL DEFAULT 'anyone';
+CREATE TABLE IF NOT EXISTS site_savers (
+  site_id  UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  list     TEXT NOT NULL CHECK (list IN ('allow', 'block')),
+  pattern  TEXT NOT NULL,
+  added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (site_id, list, pattern)
+);
+CREATE INDEX IF NOT EXISTS idx_collection_items_mine
+  ON collection_items (site_id, collection, submitted_by, id DESC) WHERE submitted_by IS NOT NULL;
+
+-- Saved data, steps 3 and 4 (mirrors db/migrations/sd3-saved-data-personal-board.sql):
+-- kinds mine (Personal: one private record per signed-in person per name, the
+-- row's submitted_by) and board (Shared board: a list signed-in visitors edit
+-- together). version counts an item's changes, for a board's If-Match check.
+ALTER TABLE collection_items ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
+
+-- Which db/migrations/ files `simple-host migrate` has applied (or an operator
+-- recorded with `migrate -mark`). A database built from this file already has
+-- every migration's effect; migrate still runs each new (idempotent) file once
+-- and records it. Historical hand-applied files are never recorded here.
+-- New custom-domain certificates asked for, per account (a cap of a few a day).
+CREATE TABLE IF NOT EXISTS domain_cert_requests (
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  domain       TEXT NOT NULL,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS domain_cert_requests_user ON domain_cert_requests (user_id, requested_at);
+
+-- Address families (v077-address-families.sql): *.<suffix> for every site of
+-- one account (<label>.<suffix> is its site <site_prefix><label>). Nothing is
+-- served until verified_at is set and the family's certificate is live.
+CREATE TABLE IF NOT EXISTS address_families (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  suffix            TEXT NOT NULL,
+  site_prefix       TEXT NOT NULL DEFAULT '',
+  rank              INTEGER NOT NULL DEFAULT 0,
+  canonical         BOOLEAN NOT NULL DEFAULT true,
+  token             TEXT NOT NULL DEFAULT ('sh-' || replace(gen_random_uuid()::text, '-', '')),
+  status            TEXT NOT NULL DEFAULT 'pending',
+  last_error        TEXT,
+  bound_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  verified_at       TIMESTAMPTZ,
+  checked_at        TIMESTAMPTZ,
+  failing_since     TIMESTAMPTZ,
+  lapse_notified_at TIMESTAMPTZ,
+  release_at        TIMESTAMPTZ,
+  cert_mode         TEXT NOT NULL DEFAULT 'wildcard' CHECK (cert_mode IN ('per_host', 'wildcard')),
+  cert_name         TEXT,
+  proof_exempt      BOOLEAN NOT NULL DEFAULT false,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS address_families_user_suffix ON address_families (user_id, suffix);
+CREATE UNIQUE INDEX IF NOT EXISTS address_families_verified ON address_families (suffix) WHERE verified_at IS NOT NULL;
+CREATE TABLE IF NOT EXISTS family_cert_requests (
+  user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  host         TEXT NOT NULL,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS family_cert_requests_user ON family_cert_requests (user_id, requested_at);
+
+
+-- simple-hack.app hosted hackathons (EVENTS=hosted; docs/designs/simple-hack-platform.md,
+-- db/migrations/hack1-events.sql). Empty on every other instance.
+CREATE TABLE IF NOT EXISTS events (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug                  TEXT NOT NULL UNIQUE,
+  account_id            UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE RESTRICT,
+  created_by            UUID REFERENCES users(id) ON DELETE SET NULL,
+  title                 TEXT NOT NULL,
+  stage                 TEXT NOT NULL DEFAULT 'draft'
+                        CHECK (stage IN ('draft','open','building','closed','judging','results','archived')),
+  -- Who is running it, collected at creation and shown to the platform admin.
+  organiser_name        TEXT NOT NULL,
+  organisation          TEXT NOT NULL DEFAULT '',
+  contact_email         TEXT NOT NULL,
+  purpose               TEXT NOT NULL DEFAULT '',
+  expected_participants INTEGER CHECK (expected_participants IS NULL OR expected_participants >= 0),
+  -- The public page. Plain text; the server escapes it and never runs it.
+  tagline               TEXT NOT NULL DEFAULT '',
+  website_mode          TEXT NOT NULL DEFAULT 'builtin' CHECK (website_mode IN ('builtin', 'custom')),
+  icon_media_type       TEXT NOT NULL DEFAULT '',
+  accent_color          TEXT NOT NULL DEFAULT '',
+  icon_bytes            BYTEA,
+  about                 TEXT NOT NULL DEFAULT '',
+  rules                 TEXT NOT NULL DEFAULT '',
+  prizes                TEXT NOT NULL DEFAULT '',
+  coc_text              TEXT NOT NULL DEFAULT '',
+  time_zone             TEXT NOT NULL DEFAULT 'UTC',
+  starts_at             TIMESTAMPTZ,
+  ends_at               TIMESTAMPTZ,
+  -- Settings.
+  team_size_max         INTEGER NOT NULL DEFAULT 4 CHECK (team_size_max BETWEEN 1 AND 50),
+  join_code             TEXT NOT NULL UNIQUE,
+  judge_code            TEXT NOT NULL UNIQUE,
+  -- M2: entries freeze at this time.
+  submission_deadline   TIMESTAMPTZ,
+  -- M3: the public sees winners only, or the full ranking. Each team always
+  -- sees its own scores and the judges' comments privately.
+  results_visibility    TEXT NOT NULL DEFAULT 'winners' CHECK (results_visibility IN ('winners','ranking')),
+  results_published_at  TIMESTAMPTZ,
+  -- M4: when the event closed (stage archived). Team sites are removed
+  -- EVENT_SITES_KEEP_DAYS later, after warning emails; the event page and
+  -- results stay.
+  closed_at             TIMESTAMPTZ,
+  removal_warned_at     TIMESTAMPTZ,
+  sites_removed_at      TIMESTAMPTZ,
+  keep_sites            BOOLEAN NOT NULL DEFAULT FALSE,
+  -- The platform admin's take-down.
+  taken_down_at         TIMESTAMPTZ,
+  taken_down_reason     TEXT NOT NULL DEFAULT '',
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS events_created_by_idx ON events (created_by, created_at);
+
+CREATE TABLE IF NOT EXISTS event_teams (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id    UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  -- One DNS label: <slug>.<event>.<SITE_DOMAIN> and, from M2, the site name.
+  slug        TEXT NOT NULL,
+  name        TEXT NOT NULL,
+  code        TEXT NOT NULL UNIQUE,
+  created_by  UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (event_id, slug)
+);
+
+-- Team names are unique within an event, whatever their case.
+CREATE UNIQUE INDEX IF NOT EXISTS event_teams_name_idx ON event_teams (event_id, lower(name));
+
+-- One row per person per event: one role each (an organiser is not also a
+-- participant, a judge is never on a team). A participant is on at most one
+-- team of the event (team_id).
+CREATE TABLE IF NOT EXISTS event_members (
+    team_removal_notice text NOT NULL DEFAULT '',
+  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role            TEXT NOT NULL CHECK (role IN ('organiser','participant','judge')),
+  display_name    TEXT NOT NULL DEFAULT '',
+  team_id         UUID REFERENCES event_teams(id) ON DELETE SET NULL,
+  coc_accepted_at TIMESTAMPTZ,
+  joined_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, user_id),
+  CHECK (team_id IS NULL OR role = 'participant')
+);
+CREATE INDEX IF NOT EXISTS event_members_user_idx ON event_members (user_id);
+CREATE INDEX IF NOT EXISTS event_members_team_idx ON event_members (team_id);
+
+-- Historical and unused event creation log. The daily limit counts existing events.
+CREATE TABLE IF NOT EXISTS event_create_log (
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS event_create_log_user_idx ON event_create_log (user_id, created_at);
+
+-- simple-hack.app M2: team sites, member keys, entries, the submission deadline
+-- (db/migrations/hack2-team-sites.sql). Empty on every other instance.
+
+-- The organiser's entry settings and the public gallery switch.
+--   entry_required: which entry fields a complete entry must have, any of
+--   title, tagline, description, video_url, code_url, screenshot.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS entry_required TEXT[] NOT NULL DEFAULT '{title}';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_open BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Per team:
+--   deadline_override: the organiser gave this team until then instead of
+--     events.submission_deadline.
+--   pinned_version / pinned_at: the team site's live version when the team's
+--     deadline passed (pinned_at set, pinned_version NULL: no site then).
+--     Cleared when the deadline moves back into the future.
+--   site_taken_down_at: the organiser took the team's site down (the site
+--     itself carries sites.suspended_at; this says who did it).
+ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS deadline_override TIMESTAMPTZ;
+ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS pinned_version INTEGER;
+ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMPTZ;
+ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS site_taken_down_at TIMESTAMPTZ;
+ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS site_taken_down_reason TEXT NOT NULL DEFAULT '';
+
+-- One entry per team: what judges and the gallery read, kept apart from the
+-- site. Plain text and links; the screenshot is a small image checked by its
+-- bytes (PNG, JPEG or WebP).
+CREATE TABLE IF NOT EXISTS event_entries (
+  team_id         UUID PRIMARY KEY REFERENCES event_teams(id) ON DELETE CASCADE,
+  event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  title           TEXT NOT NULL DEFAULT '',
+  tagline         TEXT NOT NULL DEFAULT '',
+  description     TEXT NOT NULL DEFAULT '',
+  video_url       TEXT NOT NULL DEFAULT '',
+  code_url        TEXT NOT NULL DEFAULT '',
+  screenshot      BYTEA,
+  screenshot_type TEXT NOT NULL DEFAULT '',
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by      UUID REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS event_entries_event_idx ON event_entries (event_id);
+
+-- Public event-page content and queued participant email.
+CREATE TABLE IF NOT EXISTS event_content (
+  event_id UUID PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+  sponsors JSONB NOT NULL DEFAULT '[]'::jsonb,
+  faq JSONB NOT NULL DEFAULT '[]'::jsonb,
+  schedule JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS event_announcements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS event_announcements_event_idx ON event_announcements (event_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS event_announcement_deliveries (
+  announcement_id UUID NOT NULL REFERENCES event_announcements(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  recipient TEXT NOT NULL,
+  sent_at TIMESTAMPTZ,
+  attempted_at TIMESTAMPTZ,
+  PRIMARY KEY (announcement_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS event_announcement_deliveries_pending_idx
+  ON event_announcement_deliveries (announcement_id, user_id) WHERE sent_at IS NULL;
+CREATE TABLE IF NOT EXISTS event_entry_receipts (
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  team_id UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  recipient TEXT NOT NULL,
+  sent_at TIMESTAMPTZ,
+  attempted_at TIMESTAMPTZ,
+  PRIMARY KEY (event_id, team_id)
+);
+CREATE INDEX IF NOT EXISTS event_entry_receipts_pending_idx
+  ON event_entry_receipts (event_id, team_id) WHERE sent_at IS NULL;
+
+-- A member's key for their team's site (api_keys.scope = 'team'). The key
+-- belongs to the person (api_keys.user_id); it acts on the event's holding
+-- account, on one site only, and only while that person is a participant on
+-- that team (checked on every request). One per person per event.
+CREATE TABLE IF NOT EXISTS event_team_keys (
+  key_id     UUID PRIMARY KEY REFERENCES api_keys(id) ON DELETE CASCADE,
+  event_id   UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  team_id    UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (event_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS event_team_keys_team_idx ON event_team_keys (team_id);
+
+-- Every event name and team name that ever had a team, kept when the event or
+-- team is deleted: a browser keeps an origin's service workers, storage and
+-- cookies, so <team>.<event>.<SITE_DOMAIN> never passes to anyone else. No
+-- foreign keys, on purpose. team_slug '' marks the event name itself.
+CREATE TABLE IF NOT EXISTS event_used_names (
+  event_slug TEXT NOT NULL,
+  team_slug  TEXT NOT NULL DEFAULT '',
+  used_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_slug, team_slug)
+);
+
+-- Names already in use when this runs (events made before M2) are kept too.
+INSERT INTO event_used_names (event_slug, team_slug)
+SELECT e.slug, '' FROM events e WHERE EXISTS (SELECT 1 FROM event_teams t WHERE t.event_id = e.id)
+UNION
+SELECT e.slug, t.slug FROM events e JOIN event_teams t ON t.event_id = e.id
+ON CONFLICT DO NOTHING;
+
+-- simple-hack.app M3: judging (db/migrations/hack3-judging.sql).
+-- Weights sum to 100 in Go, not here. A conflict removes that judge from
+-- totals even when score rows remain. event_results.snapshot is the ranking
+-- at publish time; full_ranking only changes what the public results route shows.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judge_assignment_mode TEXT NOT NULL DEFAULT 'open';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judges_per_team INTEGER NOT NULL DEFAULT 2;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judging_locked_at TIMESTAMPTZ;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS judging_lock_reason TEXT NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS rubric_criteria (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id    UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  position    INTEGER NOT NULL,
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  weight      INTEGER NOT NULL,
+  max_points  INTEGER NOT NULL DEFAULT 5,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS rubric_criteria_event_idx ON rubric_criteria (event_id, position);
+
+CREATE TABLE IF NOT EXISTS event_assignments (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id   UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  judge_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team_id    UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (event_id, judge_id, team_id)
+);
+CREATE INDEX IF NOT EXISTS event_assignments_judge_idx ON event_assignments (event_id, judge_id);
+CREATE INDEX IF NOT EXISTS event_assignments_team_idx ON event_assignments (team_id);
+
+CREATE TABLE IF NOT EXISTS event_conflicts (
+  event_id     UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  judge_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team_id      UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  declared_by  TEXT NOT NULL DEFAULT 'judge',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, judge_id, team_id)
+);
+
+CREATE TABLE IF NOT EXISTS event_scores (
+  event_id     UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  judge_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team_id      UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  criterion_id UUID NOT NULL REFERENCES rubric_criteria(id) ON DELETE CASCADE,
+  points       INTEGER NOT NULL,
+  comment      TEXT NOT NULL DEFAULT '',
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (judge_id, team_id, criterion_id)
+);
+CREATE INDEX IF NOT EXISTS event_scores_event_idx ON event_scores (event_id);
+CREATE INDEX IF NOT EXISTS event_scores_team_idx ON event_scores (team_id);
+
+CREATE TABLE IF NOT EXISTS event_results (
+  event_id      UUID PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+  published_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  published_by  UUID REFERENCES users(id) ON DELETE SET NULL,
+  full_ranking  BOOLEAN NOT NULL DEFAULT FALSE,
+  snapshot      JSONB NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  name       TEXT PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One expiring, single-use co-organiser invitation per event. Only its hash is stored.
+CREATE TABLE IF NOT EXISTS event_organiser_invites (
+  event_id UUID PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+-- P1 registration and tracks. Existing members stay approved.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS signup_questions JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS approval_required BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS signup_answers JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'approved';
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS approval_decided_at TIMESTAMPTZ;
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS approval_decided_by UUID REFERENCES users(id) ON DELETE SET NULL;
+CREATE TABLE IF NOT EXISTS event_tracks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  slug TEXT NOT NULL,
+  name TEXT NOT NULL,
+  challenge TEXT NOT NULL DEFAULT '',
+  prize TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (event_id, slug)
+);
+ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS track_id UUID REFERENCES event_tracks(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS event_teams_track_idx ON event_teams (track_id);
+
+-- simple-hack.app P1: a changeable people's-choice vote per canonical email;
+-- public event directory is listed by default (hack7-voting-directory.sql).
+ALTER TABLE events ADD COLUMN IF NOT EXISTS voting_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS voting_opens_at TIMESTAMPTZ;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS voting_closes_at TIMESTAMPTZ;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS voting_eligibility TEXT NOT NULL DEFAULT 'all_signed_in';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS directory_listed BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE TABLE IF NOT EXISTS event_votes (
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  voter_email TEXT NOT NULL,
+  team_id UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, voter_email)
+);
+CREATE INDEX IF NOT EXISTS event_votes_team_idx ON event_votes (event_id, team_id);
+CREATE INDEX IF NOT EXISTS events_directory_idx ON events (starts_at, slug) WHERE directory_listed AND stage <> 'draft' AND taken_down_at IS NULL;
+
+-- Hosted judging options (hack8-judging-options.sql).
+ALTER TABLE events ADD COLUMN IF NOT EXISTS score_mode TEXT NOT NULL DEFAULT 'raw';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS tie_criterion_id UUID REFERENCES rubric_criteria(id) ON DELETE SET NULL;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS public_scores BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS public_ranks BOOLEAN NOT NULL DEFAULT TRUE;
+CREATE TABLE IF NOT EXISTS event_track_panels (
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  track_id UUID NOT NULL REFERENCES event_tracks(id) ON DELETE CASCADE,
+  judge_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (event_id, track_id, judge_id)
+);
+CREATE INDEX IF NOT EXISTS event_track_panels_judge_idx ON event_track_panels(event_id, judge_id);
+
+-- Hosted-event account preferences; ordinary Simple Host accounts never use it.
+CREATE TABLE IF NOT EXISTS hack_account_preferences (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  theme TEXT NOT NULL DEFAULT 'system' CHECK (theme IN ('system','light','dark')),
+  organiser_walkthrough_done BOOLEAN NOT NULL DEFAULT FALSE,
+  judge_walkthrough_done BOOLEAN NOT NULL DEFAULT FALSE
+);
+-- Additive site storage primitives (mirrors z7-site-storage.sql).
+CREATE TABLE IF NOT EXISTS site_storage_resources (
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('kv','sqlite','files')),
+  read_policy TEXT NOT NULL DEFAULT 'owner' CHECK (read_policy IN ('anyone','signed-in','owner')),
+  write_policy TEXT NOT NULL DEFAULT 'owner' CHECK (write_policy IN ('anyone','signed-in','owner')),
+  site_passcode TEXT NOT NULL DEFAULT 'inherit' CHECK (site_passcode IN ('inherit','off')),
+  PRIMARY KEY (site_id,name)
+);
+CREATE TABLE IF NOT EXISTS site_storage_kv (
+  site_id UUID NOT NULL,
+  resource_name TEXT NOT NULL,
+  key TEXT NOT NULL,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (site_id,resource_name,key),
+  FOREIGN KEY (site_id,resource_name) REFERENCES site_storage_resources(site_id,name) ON DELETE CASCADE
+);
+
+-- Account home follows the site through rename; deletion restores the showcase.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS home_site_id uuid REFERENCES sites(id) ON DELETE SET NULL;
+
+-- Owner curation of the public showcase.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS showcase_bio text NOT NULL DEFAULT '';
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS showcase_pinned boolean NOT NULL DEFAULT false;
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS showcase_order integer NOT NULL DEFAULT 0;
+
+-- Add-only writes and per-person reads (mirrors zb-storage-story.sql).
+-- Older resources retain full writes.
+ALTER TABLE site_storage_resources DROP CONSTRAINT IF EXISTS site_storage_resources_read_policy_check;
+ALTER TABLE site_storage_resources ADD CONSTRAINT site_storage_resources_read_policy_check CHECK (read_policy IN ('anyone','signed-in','owner','own'));
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS write_mode TEXT NOT NULL DEFAULT 'full' CHECK (write_mode IN ('full','add'));
+ALTER TABLE site_storage_kv ADD COLUMN IF NOT EXISTS writer_id TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS site_storage_kv_writer_idx ON site_storage_kv(site_id,resource_name,writer_id,key);
+CREATE TABLE IF NOT EXISTS site_storage_files (
+ site_id UUID NOT NULL,
+ resource_name TEXT NOT NULL,
+ path TEXT NOT NULL,
+ writer_id TEXT NOT NULL DEFAULT '',
+ PRIMARY KEY (site_id,resource_name,path),
+ FOREIGN KEY (site_id,resource_name) REFERENCES site_storage_resources(site_id,name) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS site_storage_files_writer_idx ON site_storage_files(site_id,resource_name,writer_id,path);
+
+-- Storage access presets (mirrors zd-storage-access-presets.sql).
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS acc_read TEXT CHECK (acc_read IN ('nobody','owner','own','signed-in','anyone'));
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS acc_add TEXT CHECK (acc_add IN ('nobody','owner','signed-in','anyone'));
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS acc_edit TEXT CHECK (acc_edit IN ('nobody','owner','own','signed-in'));
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS acc_delete TEXT CHECK (acc_delete IN ('nobody','owner','own','signed-in'));
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS preset_base TEXT NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS site_storage_tables (
+ site_id UUID NOT NULL,
+ resource_name TEXT NOT NULL,
+ table_name TEXT NOT NULL,
+ acc_read TEXT NOT NULL CHECK (acc_read IN ('nobody','owner','own','signed-in','anyone')),
+ acc_add TEXT NOT NULL CHECK (acc_add IN ('nobody','owner','signed-in','anyone')),
+ acc_edit TEXT NOT NULL CHECK (acc_edit IN ('nobody','owner','own','signed-in')),
+ acc_delete TEXT NOT NULL CHECK (acc_delete IN ('nobody','owner','own','signed-in')),
+ preset_base TEXT NOT NULL DEFAULT '',
+ PRIMARY KEY (site_id,resource_name,table_name),
+ FOREIGN KEY (site_id,resource_name) REFERENCES site_storage_resources(site_id,name) ON DELETE CASCADE
+);
+ALTER TABLE site_storage_files ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE site_storage_kv ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- Spam-checked posting (mirrors ze-spam-checked-posts.sql).
+ALTER TABLE site_storage_resources DROP CONSTRAINT IF EXISTS site_storage_resources_acc_add_check;
+ALTER TABLE site_storage_resources ADD CONSTRAINT site_storage_resources_acc_add_check CHECK (acc_add IN ('nobody','owner','signed-in','checked','anyone'));
+ALTER TABLE site_storage_tables DROP CONSTRAINT IF EXISTS site_storage_tables_acc_add_check;
+ALTER TABLE site_storage_tables ADD CONSTRAINT site_storage_tables_acc_add_check CHECK (acc_add IN ('nobody','owner','signed-in','checked','anyone'));
+ALTER TABLE site_storage_resources ADD COLUMN IF NOT EXISTS approve_first BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE TABLE IF NOT EXISTS site_notifications (
+ id TEXT PRIMARY KEY,
+ site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+ owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ source TEXT NOT NULL,
+ grant_id UUID REFERENCES oauth_grants(id) ON DELETE CASCADE,
+ app_name TEXT NOT NULL DEFAULT '', label TEXT NOT NULL DEFAULT '',
+ url TEXT NOT NULL, events TEXT[] NOT NULL, storage TEXT NOT NULL DEFAULT '',
+ args_canonical TEXT NOT NULL DEFAULT '', secret TEXT NOT NULL,
+ prev_secret TEXT NOT NULL DEFAULT '', prev_secret_until TIMESTAMPTZ,
+ auth_header_name TEXT NOT NULL DEFAULT '', auth_header_value TEXT NOT NULL DEFAULT '',
+ state TEXT NOT NULL DEFAULT 'active', verified_at TIMESTAMPTZ, expires_at TIMESTAMPTZ,
+ window_start TIMESTAMPTZ, window_attempts INT NOT NULL DEFAULT 0, window_failures INT NOT NULL DEFAULT 0,
+ failing_since TIMESTAMPTZ, last_attempt_at TIMESTAMPTZ, last_success_at TIMESTAMPTZ,
+ last_result TEXT NOT NULL DEFAULT '', suspended_at TIMESTAMPTZ, suspend_emailed_at TIMESTAMPTZ,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS site_notifications_site ON site_notifications(site_id);
+CREATE INDEX IF NOT EXISTS site_notifications_owner ON site_notifications(owner_id);
+CREATE INDEX IF NOT EXISTS site_notifications_grant ON site_notifications(grant_id);
+CREATE TABLE IF NOT EXISTS site_events (
+ seq BIGSERIAL PRIMARY KEY, event_id TEXT UNIQUE NOT NULL,
+ site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+ name TEXT NOT NULL, storage TEXT NOT NULL, data JSONB NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS site_events_site_seq ON site_events(site_id,seq);
+CREATE INDEX IF NOT EXISTS site_events_created ON site_events(created_at);
+CREATE TABLE IF NOT EXISTS site_event_deliveries (
+ event_seq BIGINT REFERENCES site_events(seq) ON DELETE CASCADE,
+ subscription_id TEXT REFERENCES site_notifications(id) ON DELETE CASCADE,
+ state TEXT NOT NULL DEFAULT 'pending', attempts INT NOT NULL DEFAULT 0,
+ next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(), lease_until TIMESTAMPTZ,
+ last_attempt_at TIMESTAMPTZ, last_http INT, last_category TEXT NOT NULL DEFAULT '', duration_ms INT,
+ PRIMARY KEY(event_seq,subscription_id)
+);
+CREATE INDEX IF NOT EXISTS site_event_deliveries_due ON site_event_deliveries(next_attempt_at) WHERE state='pending';
+CREATE INDEX IF NOT EXISTS site_event_deliveries_subscription ON site_event_deliveries(subscription_id,event_seq);
+-- A subscription belongs to the person, not the event's holding account.
+-- Delete it on membership loss, including moves and approval revocation.
+CREATE OR REPLACE FUNCTION revoke_hack_notifications() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP = 'UPDATE' THEN
+  IF OLD.team_id IS NOT DISTINCT FROM NEW.team_id AND OLD.role = NEW.role
+     AND OLD.approval_status = NEW.approval_status THEN
+   RETURN NEW;
+  END IF;
+ END IF;
+ DELETE FROM site_notifications n USING sites s, events e
+ WHERE n.site_id=s.id AND n.owner_id=OLD.user_id AND e.id=OLD.event_id
+ AND s.user_id=e.account_id;
+ RETURN NULL;
+END;
+$$;
+CREATE OR REPLACE TRIGGER hack_members_notifications
+ AFTER UPDATE OR DELETE ON event_members
+ FOR EACH ROW EXECUTE FUNCTION revoke_hack_notifications();
+
+-- Team finding (SIM-225).
+ALTER TABLE events ADD COLUMN IF NOT EXISTS team_finding boolean NOT NULL DEFAULT true;
+ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS open boolean NOT NULL DEFAULT false;
+ALTER TABLE event_teams ADD COLUMN IF NOT EXISTS looking_for text NOT NULL DEFAULT '';
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS looking_intro text NOT NULL DEFAULT '';
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS looking boolean NOT NULL DEFAULT false;
+
+-- Apply to a hackathon (owner, 2026-10-31). Applications on by default, every event.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS applications_open boolean NOT NULL DEFAULT true;
+-- How a participant arrived, and the optional fields an application asks.
+-- Existing members arrived by link; blanks mean "not shared".
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS joined_via text NOT NULL DEFAULT 'link';
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS city text NOT NULL DEFAULT '';
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS country text NOT NULL DEFAULT '';
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS age_range text NOT NULL DEFAULT '';
+ALTER TABLE event_members ADD COLUMN IF NOT EXISTS gender text NOT NULL DEFAULT '';
+DO $$ BEGIN
+  ALTER TABLE event_members ADD CONSTRAINT event_members_joined_via_chk CHECK (joined_via IN ('link','application'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE event_members ADD CONSTRAINT event_members_age_range_chk CHECK (age_range IN ('','under_18','18_24','25_34','35_plus'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE event_members ADD CONSTRAINT event_members_gender_chk CHECK (gender IN ('','woman','man','non_binary','another','prefer_not_to_say'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Shape-only: two upper-case ASCII letters. It does not know which codes are
+-- real, nameable countries or canonical -- the API's checkHackCountry is the
+-- actual gate (security review Grok 9); this only stops garbage from a
+-- direct insert.
+DO $$ BEGIN
+  ALTER TABLE event_members ADD CONSTRAINT event_members_country_chk CHECK (country = '' OR country ~ '^[A-Z]{2}$');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- The per-account and per-event pending caps (too_many_pending,
+-- event_applications_full) count joined_via='application' AND
+-- approval_status='pending' rows; these are what those counts scan.
+CREATE INDEX IF NOT EXISTS event_members_pending_app_user_idx ON event_members (user_id)
+  WHERE joined_via = 'application' AND approval_status = 'pending';
+CREATE INDEX IF NOT EXISTS event_members_pending_app_event_idx ON event_members (event_id)
+  WHERE joined_via = 'application' AND approval_status = 'pending';
+
+CREATE TABLE IF NOT EXISTS event_team_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  team_id uuid NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind text NOT NULL CHECK (kind IN ('request','invite')),
+  created_by uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (team_id, user_id)
+);
+-- Browser sign-in pass. Deleting a parent account key cascades to every
+-- pass and site session it minted. No owner API accepts this credential.
+CREATE TABLE IF NOT EXISTS sso_passes (
+  id_hash TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  parent_key_hash TEXT NOT NULL REFERENCES api_keys(key_hash) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  idle_expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sso_passes_parent_idx ON sso_passes(parent_key_hash);
+ALTER TABLE visitor_sessions ADD COLUMN IF NOT EXISTS sso_pass_hash TEXT REFERENCES sso_passes(id_hash) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS visitor_sessions_sso_idx ON visitor_sessions(sso_pass_hash) WHERE sso_pass_hash IS NOT NULL;
+CREATE TABLE IF NOT EXISTS sso_consents (
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, site_id)
+);
+CREATE TABLE IF NOT EXISTS sso_hops (
+  state TEXT PRIMARY KEY,
+  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  host TEXT NOT NULL,
+  return_to TEXT NOT NULL,
+  nonce_hash TEXT NOT NULL,
+  consent_hash TEXT,
+  consent_pass_hash TEXT,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+-- Kept after revocation so a site can clear the apex cookie by navigation.
+CREATE TABLE IF NOT EXISTS sso_signouts (
+  token TEXT PRIMARY KEY,
+  form_hash TEXT,
+  form_cookie_hash TEXT,
+  pass_hash TEXT NOT NULL,
+  return_to TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+-- Visitor connector attempts are counted across apps and process restarts.
+CREATE TABLE IF NOT EXISTS visitor_ai_daily (
+ user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+ day DATE NOT NULL,
+ writes INTEGER NOT NULL DEFAULT 0,
+ PRIMARY KEY(user_id,site_id,day)
+);
+ALTER TABLE data_history ADD COLUMN IF NOT EXISTS actor_app TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE oauth_grants ADD COLUMN IF NOT EXISTS last_visitor_site JSONB;
