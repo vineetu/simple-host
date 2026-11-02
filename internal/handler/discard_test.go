@@ -214,4 +214,20 @@ func TestDiscardVersion(t *testing.T) {
 	if got := list(t, "?pending=1"); len(got) != 1 || got[0].VersionNumber != 6 {
 		t.Fatalf("after discarding the newest, the next draft = %+v, want v6", got)
 	}
+	// Retention drops the tombstones below its floor but reports only real
+	// versions: v1 and v3 had been live; v2 and v5 were discarded.
+	r = a.do(t, "PUT", "/v1/sites/"+site+"/keep-versions", jsonBody(map[string]any{"keep_versions": 1}), key)
+	if r.status != http.StatusOK {
+		t.Fatalf("keep-versions: %d %s", r.status, r.body)
+	}
+	var kept struct {
+		Removed []int `json:"removed_versions"`
+	}
+	if err := json.Unmarshal(r.body, &kept); err != nil || len(kept.Removed) != 2 || kept.Removed[0]+kept.Removed[1] != 4 || kept.Removed[0]*kept.Removed[1] != 3 {
+		t.Fatalf("removed_versions = %v (%v), want v1 and v3: %s", kept.Removed, err, r.body)
+	}
+	var max int
+	if err := a.database.QueryRow(`SELECT max(version_number) FROM versions WHERE site_id = $1`, siteID).Scan(&max); err != nil || max != 6 {
+		t.Fatalf("max version after prune = %d %v, want 6", max, err)
+	}
 }

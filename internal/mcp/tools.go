@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -1161,7 +1162,7 @@ func Tools() []Tool {
 		{
 			Name:        "list_versions",
 			Title:       "List a site's versions",
-			Description: "List the versions kept for a site, newest first, with which one is live. Call this before rollback_site. Each version in the text may name its author (whoever the deployer stated); a version marked not_yet_live can be made live with rollback_site or removed with discard_version. `pending: true` lists only those not-yet-live versions.",
+			Description: "List the versions kept for a site, newest first, with which one is live. Call this before rollback_site. Each version in the text may name its author (whoever the deployer stated); a version marked not_yet_live can be made live with rollback_site, or removed with discard_version where that tool is offered. `pending: true` lists only those not-yet-live versions.",
 			InputSchema: object(map[string]any{
 				"site":    str(siteDesc),
 				"pending": map[string]any{"type": "boolean", "description": "true lists only versions stored with publish: false that have never been live."},
@@ -2198,7 +2199,12 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 		if err != nil {
 			return output{}, err
 		}
-		author = strings.TrimSpace(author)
+		author = strings.TrimSpace(strings.Map(func(c rune) rune {
+			if unicode.IsControl(c) {
+				return -1
+			}
+			return c
+		}, author))
 		if utf8.RuneCountInString(author) > maxVersionAuthor {
 			return output{}, fmt.Errorf("author must be at most %d characters", maxVersionAuthor)
 		}

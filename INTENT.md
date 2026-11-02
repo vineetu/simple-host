@@ -1328,6 +1328,11 @@ What follows from that, and is not negotiable without changing the line above:
   students, and the organisers handle consent themselves. Add it only if an organiser asks.
   Reason: owner, 2026-11-02 -- reverses the half-baked "Record guardian consent for under-18s"
   audit item; the existing Under-18 advisory note on the Apply form stays exactly as it is.
+- **2026-11-02. Drafts are pending versions of the one site (SIM-152).** A site's unpublished
+  drafts are versions stored with `publish=false` on that site, each with an author, listable as
+  pending and discardable while never live, instead of a second `draft-<name>` site per page.
+  Reason: owner, via the Auto-ship label on SIM-152; one site per quote for Simple Host for
+  Travel, so the site cap and a site's history mean one thing.
 
 ## Open, deliberately parked
 
@@ -1350,11 +1355,6 @@ What follows from that, and is not negotiable without changing the line above:
   ten direct Google certificate tests and cleanup, with no burst simulation
   and no LE production requests for tests. Reason: each new person needs an
   address despite LE's shared registered-domain limit.
-- **2026-11-02. Drafts are pending versions of the one site (SIM-152).** A site's unpublished
-  drafts are versions stored with `publish=false` on that site, each with an author, listable as
-  pending and discardable while never live, instead of a second `draft-<name>` site per page.
-  Reason: owner, via the Auto-ship label on SIM-152; one site per quote for Simple Host for
-  Travel, so the site cap and a site's history mean one thing.
 
 ## Extensions (planned)
 
