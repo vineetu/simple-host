@@ -3,6 +3,8 @@
 Where things live and how a request moves through them. What the product does is in
 `FEATURES.md`; why it is that way is in `INTENT.md`. This file is only about where it lives.
 Anything that must stay true is enforced by a check in `make check`, not by this document.
+Where the code is heading (package map, the Edition object, where new features go) is
+`docs/architecture/target.md`, the plan of record for the 2026-11 cleanup. Follow it for new code.
 
 ## Components
 
