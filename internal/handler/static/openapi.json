@@ -15721,7 +15721,7 @@
         ],
         "operationId": "getAdminImageScan",
         "summary": "Image matching: state, queue and matches (admin)",
-        "description": "Admin-only (403 for anyone else). Whether uploaded images are checked against known abuse hash sets (PHOTODNA_API_KEY), the queue (due now, retrying, and `gave_up`: jobs stopped after the last allowed attempt), and the matches: every match whose report is pending, failed, or off, plus the newest 200. When the feature is off, `enabled` is false, the queue is zero, and earlier matches are still listed: a record outlives a config change. A match names the site or event, the path, the owner, the uploader and the site address as they were when the match was found, what the service said, whether the site was taken down and the alert sent, the evidence folder, and the report's state. Never the image. `report_configured` is true only when IMAGE_SCAN_REPORT_ORG, IMAGE_SCAN_REPORT_NAME, and the report email are all set.",
+        "description": "Admin-only (403 for anyone else). Whether uploaded images are checked against known abuse hash sets (PHOTODNA_API_KEY), the queue (due now, retrying, `gave_up`: jobs stopped after the last allowed attempt, and `site_deleted`: jobs waiting because their site is in Recently deleted), and the matches: every match whose report is pending, failed, or off, plus the newest 200. When the feature is off, `enabled` is false, the queue is zero, and earlier matches are still listed: a record outlives a config change. A match names the site or event, the path, the owner, the uploader and the site address as they were when the match was found, what the service said, whether the site was taken down and the alert sent, the evidence folder, and the report's state. Never the image. `report_configured` is true only when IMAGE_SCAN_REPORT_ORG, IMAGE_SCAN_REPORT_NAME, and the report email are all set.",
         "security": [
           {
             "apiKey": []
@@ -15762,6 +15762,10 @@
                         },
                         "gave_up": {
                           "type": "integer"
+                        },
+                        "site_deleted": {
+                          "type": "integer",
+                          "description": "Jobs waiting because their site is in Recently deleted; they run after a restore and are dropped at the purge"
                         }
                       }
                     },
@@ -15862,11 +15866,11 @@
                           },
                           "uploader": {
                             "type": "string",
-                            "description": "Who uploaded the file, recorded at detection: the site owner's handle and email, a visitor id, \"anonymous visitor (no account)\", or the uploader of an event icon or entry screenshot"
+                            "description": "Who uploaded the file, recorded at detection: the handle and email of the account that deployed a site file or wrote a files-storage object with owner rights (on Simple Hack the team member or organiser, never the event's holding account), a visitor id, \"anonymous visitor (no account)\", or the uploader of an event icon or entry screenshot. Empty when nothing was recorded."
                           },
                           "address": {
                             "type": "string",
-                            "description": "The site's address (or the event slug), recorded at detection"
+                            "description": "The site's address (or the event slug), recorded at detection. Empty when nothing was recorded."
                           }
                         }
                       }

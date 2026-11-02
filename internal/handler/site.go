@@ -1793,7 +1793,7 @@ func (h *SiteHandler) commitCreateLocked(w http.ResponseWriter, r *http.Request,
 	}
 
 	paperHackDeploy(r, user)
-	h.imageScan.EnqueueSiteFiles(site.ID, user.ID, siteName, versionNumber, files)
+	h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), siteName, versionNumber, files)
 	writeJSON(w, http.StatusCreated, h.siteResponseFor(user, site))
 	return false
 }
@@ -1951,7 +1951,7 @@ func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Req
 			return
 		}
 		h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, site.ActiveVersion, site.KeepVersions)
-		h.imageScan.EnqueueSiteFiles(site.ID, site.UserID, siteName, versionNumber, files)
+		h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), siteName, versionNumber, files)
 		h.writeUnpublished(w, user, site, versionNumber)
 		return
 	}
@@ -1994,7 +1994,7 @@ func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Req
 	h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": versionNumber, "previous_version": liveBefore, "via": "deploy"}, 0)
 	site.ActiveVersion = versionNumber
 	paperHackDeploy(r, user)
-	h.imageScan.EnqueueSiteFiles(site.ID, site.UserID, siteName, versionNumber, files)
+	h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), siteName, versionNumber, files)
 	respond(h.siteResponseFor(user, site))
 }
 

@@ -92,9 +92,10 @@ up" on the admin page's queue line. The last error is in the service log and in
 the `simplehack` database):
 `sudo -u postgres psql -d simplehost -c "UPDATE image_scan_queue SET attempts=0, next_attempt_at=now() WHERE next_attempt_at='infinity'"`
 
-A job for a site in Recently deleted waits, is checked again every hour, and runs after a
-restore, so the live copy and every kept version are checked then. It is dropped when the site
-is purged.
+A job for a site in Recently deleted waits (the admin page's queue line counts these) and runs
+as soon as the site is restored, so the live copy and every kept version are checked then. It is
+dropped when the site is purged. A re-upload of the same bytes to the same place queues a
+given-up job again.
 
 ## Filing the report
 
@@ -107,15 +108,20 @@ A Report sends the image, who uploaded it, the site address or event, and the re
 organisation's contact details to Microsoft's PhotoDNA Report service, which files it with
 NCMEC's CyberTipline. Who uploaded it means:
 
-- a site file: the site owner's handle and email;
-- a files-storage upload: the owner's handle and email when the owner wrote it, the visitor's
-  id when a signed-in visitor wrote it, and "anonymous visitor (no account)" when nobody was
-  signed in;
+- a site file: the handle and email of the account that deployed it (the site owner on Simple
+  Host; on Simple Hack the team member whose key deployed it or the organiser who published it,
+  never the event's holding account);
+- a files-storage upload: the handle and email of the account that wrote it with owner rights
+  (the owner, or on Simple Hack the team member or organiser), the visitor's id when a
+  signed-in visitor wrote it, and "anonymous visitor (no account)" when nobody was signed in;
 - a Simple Hack event icon or entry screenshot: the handle and email of the person who
   uploaded it.
 
 The uploader and the site address are recorded at detection, so a later rename or ownership
-change does not alter the report.
+change does not alter the report. A record without them stays without them; nothing is looked
+up again at report time. If the service accepted a report but saving that failed, the save is
+tried again, and the match's `record.json` says it was filed, so the Report button refuses to
+file it a second time.
 
 - Reporting needs `IMAGE_SCAN_REPORT_ORG`, `IMAGE_SCAN_REPORT_NAME`, and a report email
   (`IMAGE_SCAN_REPORT_EMAIL`, or the support contact). A match recorded while any of them was

@@ -66,6 +66,10 @@ type storageCall struct {
 	// the post limits apply (turnstile.go).
 	spamCheck   string
 	checkedPost bool
+	// uploaderID is the person behind an owner write when the credential
+	// acts for someone (a Simple Hack team member or organiser), else the
+	// account itself. Image matching names them (storageUploader).
+	uploaderID string
 }
 
 type eventStorageContextKey struct{}
@@ -134,6 +138,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 		}
 		c.owner = true
 		c.accountID = scope.organiserID
+		c.uploaderID = scope.organiserID
 		c.linkScope = "event:" + scope.eventID + ":" + scope.organiserID
 	} else if r.Header.Get(visitorPassHeader) != "" {
 		if _, ok := h.internalVisitorSession(r, id); !ok {
@@ -152,6 +157,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 			(u.EventWebsite == nil || (hackMode && u.EventWebsite.EventID == siteName && u.EventWebsite.OrganiserID != "")) {
 			c.owner = true
 			c.accountID = u.ID
+			c.uploaderID = siteWriterID(&u)
 			if u.Team != nil {
 				c.linkScope = "team:" + u.Team.TeamID + ":" + u.Team.MemberID
 			} else if hackMode && u.IsAdmin {

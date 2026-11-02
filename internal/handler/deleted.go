@@ -251,6 +251,13 @@ func (h *SiteHandler) restoreTrashedSite(ctx context.Context, d db.DeletedSite, 
 		}
 		return db.Site{}, err
 	}
+	// Image checks waiting on the delete run now, not at their next hourly
+	// look. A failure only delays them.
+	if h.imageScan != nil {
+		if err := db.WakeImageScans(ctx, h.database, d.ID); err != nil {
+			log.Printf("restore site %s: image checks: %v", d.ID, err)
+		}
+	}
 	// The handle may have changed while the site was deleted.
 	if handle != "" {
 		if err := h.disk.EnsureHandleLink(handle, d.UserID); err != nil {
