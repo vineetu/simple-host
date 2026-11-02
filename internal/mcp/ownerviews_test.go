@@ -31,7 +31,7 @@ func TestOwnerViewsAreTextOnly(t *testing.T) {
 	if isErr {
 		t.Fatal(text)
 	}
-	want := "\n\nViews by people, not counting your own visits (last 7 days / last 30 days): menu 2 / 9; draft 0 / 0"
+	want := "\n\nViews by people, not counting your own visits (last 7 days / last 30 days): menu 2 / 9; draft 0 / 0." + ownVisitsCaveat
 	if !strings.HasSuffix(text, want) {
 		t.Errorf("list_sites text:\n%s", text)
 	}
@@ -45,7 +45,7 @@ func TestOwnerViewsAreTextOnly(t *testing.T) {
 	if isErr {
 		t.Fatal(text)
 	}
-	if !strings.HasSuffix(text, "\n\nViews by people, not counting your own visits: 2 in the last 7 days, 9 in the last 30 days.") {
+	if !strings.HasSuffix(text, "\n\nViews by people, not counting your own visits: 2 in the last 7 days, 9 in the last 30 days."+ownVisitsCaveat) {
 		t.Errorf("get_site text:\n%s", text)
 	}
 	if _, ok := out["views"]; ok {
@@ -56,7 +56,7 @@ func TestOwnerViewsAreTextOnly(t *testing.T) {
 	if isErr {
 		t.Fatal(text)
 	}
-	if !strings.HasSuffix(text, "\n\nYour own visits, left out of person: 4 views by 1 of your devices in this window.") {
+	if !strings.HasSuffix(text, "\n\nYour own visits, left out of person: 4 views from 1 of your addresses in this window."+ownVisitsCaveat) {
 		t.Errorf("site_analytics text:\n%s", text)
 	}
 	for _, key := range []string{"totals", "last_24h"} {
@@ -80,7 +80,7 @@ func TestOwnerViewsAreTextOnly(t *testing.T) {
 		w.Write([]byte(`{"range_days":30,"totals":` + split(`{"views":0,"visitors":0}`) + `,"last_24h":` + split(`{"views":0,"visitors":0}`) + `,"daily":[],"hourly":[]}`))
 	}))
 	text, _, isErr = resultOf(t, send(t, s, toolCall("site_analytics", map[string]any{"site": "menu"}), nil, true))
-	if isErr || !strings.HasSuffix(text, "\n\nYour own visits, left out of person: 0 views in this window.") {
+	if isErr || !strings.HasSuffix(text, "\n\nYour own visits, left out of person: 0 views in this window."+ownVisitsCaveat) {
 		t.Errorf("site_analytics text with no owner visits:\n%s", text)
 	}
 }

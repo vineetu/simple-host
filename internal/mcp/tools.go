@@ -816,7 +816,7 @@ func ownerViewsLine(sites []restSite) string {
 	if !found {
 		return ""
 	}
-	return "Views by people, not counting your own visits (last 7 days / last 30 days): " + strings.Join(parts, "; ")
+	return "Views by people, not counting your own visits (last 7 days / last 30 days): " + strings.Join(parts, "; ") + "." + ownVisitsCaveat
 }
 
 // withoutOwner copies an analytics split and drops its owner class, so the
@@ -846,11 +846,15 @@ func ownVisitsLine(totals any) string {
 		}
 	}
 	if views == 0 {
-		return "Your own visits, left out of person: 0 views in this window."
+		return "Your own visits, left out of person: 0 views in this window." + ownVisitsCaveat
 	}
-	return "Your own visits, left out of person: " + strconv.FormatFloat(views, 'f', -1, 64) + " views by " +
-		strconv.FormatFloat(visitors, 'f', -1, 64) + " of your devices in this window."
+	return "Your own visits, left out of person: " + strconv.FormatFloat(views, 'f', -1, 64) + " views from " +
+		strconv.FormatFloat(visitors, 'f', -1, 64) + " of your addresses in this window." + ownVisitsCaveat
 }
+
+// ownVisitsCaveat goes wherever the owner-excluded figures do (INTENT.md,
+// 2026-11-02 "Your own visits are not counted as people").
+const ownVisitsCaveat = " A device never used while signed in to Simple Host still counts as a person, and other people behind an address you were signed in from are left out while that mark lasts (30 days)."
 
 // itemArgs reads site, collection and a positive whole-number item id.
 // idArg reads an optional id (a JSON number or a string of digits); "" when
@@ -1123,7 +1127,7 @@ func Tools() []Tool {
 				answer := sitePreviewOutput(c, site, out)
 				if site.Views != nil {
 					answer.Text += "\n\nViews by people, not counting your own visits: " + strconv.FormatInt(site.Views.People7Days, 10) +
-						" in the last 7 days, " + strconv.FormatInt(site.Views.People30Days, 10) + " in the last 30 days."
+						" in the last 7 days, " + strconv.FormatInt(site.Views.People30Days, 10) + " in the last 30 days." + ownVisitsCaveat
 				}
 				return answer, nil
 			},

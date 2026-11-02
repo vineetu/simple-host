@@ -632,6 +632,7 @@ func AdminSiteViews(ctx context.Context, database *sql.DB, since time.Time) (map
 // SiteViews is the light per-site count the site list carries: views by
 // people (class 'person') only, over the last 7 x 24 and 30 x 24 hours. The
 // owner's own visits (ClassOwner), bots and infrastructure are excluded.
+// Buckets are hourly, so each window starts at the top of its oldest hour.
 type SiteViews struct {
 	People7Days  int64 `json:"people_7_days"`
 	People30Days int64 `json:"people_30_days"`
@@ -649,9 +650,9 @@ func PersonViewsBySite(ctx context.Context, database *sql.DB, userID string, all
 		       COALESCE(SUM(v.views) FILTER (WHERE v.hour >= $2), 0),
 		       SUM(v.views)
 		FROM site_view_hourly v JOIN sites s ON s.id = v.site_id
-		WHERE ($4 OR s.user_id::text = $1) AND v.class = 'person' AND v.hour >= $3
+		WHERE ($4 OR s.user_id = NULLIF($1, '')::uuid) AND v.class = 'person' AND v.hour >= $3
 		GROUP BY v.site_id
-	`, userID, now.AddDate(0, 0, -7), now.AddDate(0, 0, -30), allSites)
+	`, userID, now.AddDate(0, 0, -7).Truncate(time.Hour), now.AddDate(0, 0, -30).Truncate(time.Hour), allSites)
 	if err != nil {
 		return nil, err
 	}

@@ -566,9 +566,11 @@ function parseAnalyticsSummary(data) {
       // The owner's own visits (SIM-151) are their own class; People stays
       // the audience number above.
       if (t.owner.views > 0) {
-        cells.push(kpi('', 'You', t.owner.views,
-          t.owner.visitors.toLocaleString() + ' device' + (t.owner.visitors === 1 ? '' : 's'),
-          'Your own visits: from a device you used while signed in to Simple Host, or signed in on this site as yourself, in the last 30 days. Not counted as People.'));
+        // An admin reading someone else's site (?owner=) sees that owner's visits.
+        cells.push(kpi('', OWNER ? 'Owner' : 'You', t.owner.views,
+          t.owner.visitors.toLocaleString() + ' address' + (t.owner.visitors === 1 ? '' : 'es'),
+          (OWNER ? 'The owner\u2019s own visits' : 'Your own visits') +
+          ': from an address seen signed in to Simple Host, or signed in on this site as the owner, in the last 30 days. Not counted as People. A device never used while signed in still counts as People, and other people behind a marked address are left out of People while the mark lasts.'));
       }
       if (t.infra.views > 0) {
         cells.push(kpi('', 'Infra', t.infra.views, 'monitoring',
@@ -671,8 +673,9 @@ function parseAnalyticsSummary(data) {
       });
       var total = list.reduce(function (t, c) { return t + c.person.views; }, 0);
       if (!total) {
+        var automated = list.some(function (c) { return c.bot.views + c.infra.views > 0; });
         body.innerHTML = '<div class="empty-state">No people recorded in this range' +
-          (list.length ? ', only bots and monitoring.' : '.') + '</div>';
+          (automated ? ', only bots and monitoring.' : '.') + '</div>';
         return;
       }
 
