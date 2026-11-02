@@ -695,7 +695,9 @@
     {
      "name": "a schedule row lines up with the next move",
      "when": "next_step.cue is set: a row asking for this move (or the entry deadline, or a timed event start or end) has started",
-     "shows": "heading 'Kickoff is now. Open sign-up?', the move's sentence, 'From your schedule. Nothing changes until you press Open sign-up.' The button and its confirm are unchanged. The stage moves only on the press.",
+     "shows": "heading 'Kickoff is now. Open sign-up?', the move's sentence, 'From your schedule. Nothing changes until you press Open sign-up.' The button and its confirm are unchanged. The stage moves only on the press."
+    },
+    {
      "name": "applications waiting",
      "when": "needs_you has an application_new item (2026-11-02 notify design)",
      "shows": "A .note under the next-step card: '3 applications are waiting for a decision.' with a Review applications link to People, the same count as the People sidebar badge. Gone the moment nothing is waiting."
@@ -2292,10 +2294,17 @@
    "nav_id": "entries",
    "title": "Entries",
    "user_moment": "Amara checks which teams haven't finished their entry with two hours left before the deadline.",
-   "purpose": "See every team's entry, set the deadline and what counts as complete, give extensions, and moderate a site if needed.",
-   "primary_action": "Set or change the entry deadline.",
-   "layout": "Deadline card (with its own Clear), 'What a complete entry needs' checklist under its own heading, team deadline extensions list, entries .list with completeness badges linking to entry detail, storage usage line, CSV export.",
+   "purpose": "See who's ready at a glance, set the deadline, say what teams hand in, give extensions, and open any entry.",
+   "primary_action": "Set the deadline and what teams hand in.",
+   "layout": "Four .stat tiles (submitted, drafts, not started, sites live). Deadline card. What teams hand in: three preset choice cards (AI build, Coding, Ideas and design), then rows per line with a Required / Optional / Off segmented control (the show-your-work lines also have One of), a help line explaining One of, Judges see after the card: Video | Website, Save. Extensions. Entries list with a status pill per team (Submitted, Draft, Not started, Not submitted) and what's missing. Export.",
    "sections": [
+    {
+     "name": "Counts",
+     "contents": [
+      "18 submitted · 7 drafts · 6 not started · 21 sites live"
+     ],
+     "actions": []
+    },
     {
      "name": "Deadline",
      "contents": [
@@ -2316,20 +2325,19 @@
      ]
     },
     {
-     "name": "What a complete entry needs",
+     "name": "What teams hand in",
      "contents": [
-      "Title (required, always on)",
-      "Tagline",
-      "Description",
-      "Video link",
-      "Code link",
-      "Screenshot"
+      "Presets: AI build -- Teams build with AI or no-code tools. Video or website. / Coding -- Adds a required code link. Judges open the website first. / Ideas and design -- No build needed. Video, website or a screenshot.",
+      "Summary card: Project name (always Required) · Problem · Solution · Who it's for · Track (when the event has tracks) · Tools and AI · What works today -- each Required / Optional / Off",
+      "Show your work: Video link · Website · Code link · Screenshot -- each Required / One of / Optional / Off",
+      "One of: teams need at least one of the lines marked One of. Here: a video or a website.",
+      "Judges see, after the card, first: Video | Website"
      ],
      "actions": [
       {
-       "label": "changes save as you tick",
-       "kind": "secondary",
-       "confirm": null
+       "label": "Save",
+       "kind": "primary",
+       "confirm": "Only when the change makes something newly Required and submitted entries lack it: 'Make Code link required? 4 submitted entries have no code link. They stay submitted, and their teams see that you now ask for one. 7 drafts will need a code link before they can submit.' [Cancel] [Make it required]"
       }
      ]
     },
@@ -2389,8 +2397,28 @@
    "states": [
     {
      "name": "before any entries",
-     "when": "stage is Draft or Open with no entries started",
-     "shows": "Entries reads 'No entries yet. They'll show up here once teams start filling theirs in.'"
+     "when": "stage Draft or Open with no entries started",
+     "shows": "Tiles at 0 (not started = number of teams); the list reads 'No entries yet. They show up here once teams start filling theirs in.' Presets are fully editable, AI build preselected for a new event."
+    },
+    {
+     "name": "tightening a rule",
+     "when": "Save makes a line Required (or a stricter One of) and some submitted entries don't meet it",
+     "shows": "Confirm with the counts from a dry run (PUT .../entry-rules with dry_run true)."
+    },
+    {
+     "name": "custom",
+     "when": "any line differs from the chosen preset",
+     "shows": "The chosen preset card reads 'Custom (from AI build)'; choosing a preset again resets every line after a confirm."
+    },
+    {
+     "name": "entries closed",
+     "when": "stage Closed or later",
+     "shows": "What teams hand in becomes read-only with 'Entries are closed, so these can't change. To reopen, move the event back to Building on Overview.'"
+    },
+    {
+     "name": "deadline passed",
+     "when": "the event deadline passed",
+     "shows": "Draft becomes Not submitted (red pill) for entries that weren't complete; auto-submitted entries read 'Submitted automatically at the deadline'."
     }
    ],
    "replaces": [
@@ -2401,19 +2429,42 @@
     "'Storage/version stats shown in raw technical units' -- plain units.",
     "'Entries closed ... sits directly above the unrelated checklist with no sub-heading' -- each gets its own heading.",
     "Critique: Clear deadline, per-team Clear extension and View storage usage were all missing -- added.",
-    "Critique: take-team-site-down / restore-team-site were entirely absent -- moved to the per-entry detail page where the specific team and its site are already on screen (see organiser-entry-detail)."
+    "Critique: take-team-site-down / restore-team-site were entirely absent -- moved to the per-entry detail page where the specific team and its site are already on screen (see organiser-entry-detail).",
+    "Audit 2026-11-02 (top 5, 'Required entry fields', 'View entries progress', 'Entries CSV'): ticks only drove a Missing label, nothing was ever enforced, there were no presets or either-or rule, no counts, and the CSV disagreed with the screen."
    ],
    "decisions": [
     {
      "q": "Where does the entry-requirements checklist and deadline live -- Settings, or here?",
      "decision": "Here, in Entries, not Settings.",
      "why": "They're entirely about entries; grouping them with the list they govern removes a run-on section from Settings and puts the control next to what it controls."
+    },
+    {
+     "q": "Presets, per-line switches, or both?",
+     "decision": "Both: three presets set every line, then any line can be changed. Modes: Required, Optional, Off, and One of for the show-your-work lines. Exactly one One-of group.",
+     "why": "Owner: 'All of this should be configurable', with presets for no-code, coding and ideas events. One group covers every real rule we have heard ('video or working site', 'video, site or screenshot') without a rules language."
+    },
+    {
+     "q": "What do the presets set?",
+     "decision": "AI build (default for new events): everything on the card Required, Video and Website One of, Code Off, Screenshot Optional, Video first. Coding: card Required except Who it's for Optional, Code link Required, Video and Website One of, Screenshot Optional, Website first. Ideas and design: Problem, Solution, Who it's for and Track Required, Tools and Works today Optional, Video, Website and Screenshot One of, Code Off, Video first. Title is always Required; Track is ignored when the event has no tracks.",
+     "why": "Matches the audit's three event kinds and the owner's examples; a coding event is where the code link earns its place, and an ideas event shouldn't demand a working build."
+    },
+    {
+     "q": "What happens to existing events?",
+     "decision": "The migration turns each event's entry_required list into a Custom rule set (those lines Required, every new line Optional, no One-of), with Video first. New events start on AI build.",
+     "why": "Existing events keep exactly what they asked for; only the Submit step is new to them. No real events exist yet (owner, 2026-10-31), so the conservative mapping costs nothing."
+    },
+    {
+     "q": "Can rules change after teams submit?",
+     "decision": "Yes until entries close; submitted entries stay submitted and their teams are told what's now asked for. The confirm names the counts. Read-only once the stage is Closed or later.",
+     "why": "Un-submitting entries behind a team's back the night before the deadline would be the worst outcome; telling them keeps the organiser in charge without breaking anyone's work."
     }
    ],
    "features": [
-    "set-entry-required-fields",
     "set-submission-deadline",
     "clear-submission-deadline",
+    "choose-entry-preset",
+    "set-entry-required-fields",
+    "set-judge-media-order",
     "set-team-deadline-override",
     "clear-team-deadline-override",
     "view-entries-progress",
@@ -2425,16 +2476,22 @@
      "slug": "default",
      "name": "Deadline approaching",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 1 day · Sun 18:00 WIB"
     },
     {
      "slug": "empty",
      "name": "Before any entries",
      "stage": "open",
      "next": "Teams are still forming"
+    },
+    {
+     "slug": "confirm",
+     "name": "Making Code link required",
+     "stage": "building",
+     "next": "Entries close in 1 day · Sun 18:00 WIB"
     }
    ],
-   "phone": "Single column, same content, full width."
+   "phone": "Single column. Tiles two by two. Each rule row puts the segmented control on its own full-width line under the label, 40px tall."
   },
   {
    "id": "organiser-entry-detail",
@@ -2444,7 +2501,7 @@
    "user_moment": "Amara opens one team's entry to read what they wrote, or to take its site down after a report.",
    "purpose": "Read a single team's full entry and site, and moderate the site if needed.",
    "primary_action": "Open the team's published site, if there is one.",
-   "layout": "crumbs back to Entries, read-only entry fields, screenshot, site status card with Take down / Put back.",
+   "layout": "crumbs back to Entries, the team as the page title, the status block (Draft / Submitted / Not submitted, what's missing, the team's deadline and Give more time), the summary card exactly as judges see it (unfilled lines marked), Show your work as a definition list, the site card with Take down / Put back, More detail folded.",
    "sections": [
     {
      "name": "Entry",
@@ -2486,6 +2543,16 @@
      "name": "taken down by the platform",
      "when": "the platform, not this organiser, took it down",
      "shows": "Site card reads 'Taken down by Simple Host. You can't restore this one.' with no Put back action"
+    },
+    {
+     "name": "draft, something missing",
+     "when": "entry not submitted",
+     "shows": "Status names what's missing and the team's deadline, with Give more time (to Extensions, team preselected)."
+    },
+    {
+     "name": "not submitted after the deadline",
+     "when": "deadline passed with an incomplete draft",
+     "shows": "Red status 'Not submitted. Judges won't see it.' with Give more time, which reopens the entry for that team only."
     }
    ],
    "replaces": [],
@@ -2497,23 +2564,30 @@
    "features": [
     "get-own-entry",
     "take-team-site-down",
-    "restore-team-site"
+    "restore-team-site",
+    "view-entries-progress"
    ],
    "prototype_states": [
     {
      "slug": "default",
-     "name": "Site live",
+     "name": "Draft with lines missing",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 1 day · Sun 18:00 WIB"
     },
     {
      "slug": "taken-down",
-     "name": "Taken down by organiser",
+     "name": "Submitted, site taken down",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 1 day · Sun 18:00 WIB"
     }
    ],
-   "decisions": []
+   "decisions": [
+    {
+     "q": "What does the organiser see for one entry?",
+     "decision": "The same summary card the judges see, with the status and the deadline above it.",
+     "why": "An organiser checking an entry is checking what judges will read; a different layout would hide what's actually missing."
+    }
+   ]
   },
   {
    "id": "organiser-judging",
@@ -3331,9 +3405,9 @@
    "nav_id": "home",
    "title": "Home",
    "user_moment": "Siti opens the app not sure what to do next -- team? entry? is there something due today?",
-   "purpose": "Answer 'what do I do now' in one sentence.",
+   "purpose": "Answer 'what do I do now' in one sentence, and show the whole path to a submitted entry with a live clock on the team's own deadline.",
    "primary_action": "Whatever the single next step is.",
-   "layout": "event name and stage line, a .next hero card, the deadline clock, then the 2 most recent announcements and the approval banner when relevant.",
+   "layout": "event name and stage line, the .next card (always the first unticked step of the checklist, or a higher-priority notice), then the Your entry card: a live countdown line and four .steps ticked from server progress, each open step with its own button. Then the 2 most recent announcements, then the danger zone.",
    "sections": [
     {
      "name": "Next step",
@@ -3356,6 +3430,38 @@
       "Counts down every 30 seconds while Home is open, appearing and going as rows start and end. Not shown once the event has ended"
      ],
      "actions": []
+    },
+    {
+     "name": "Your entry (checklist)",
+     "contents": [
+      "1 d 6 h 12 m left · Your team closes Sun 8 Nov, 20:00 WIB, 2 hours after everyone else",
+      "1 Join or start a team -- On SheBuilds with Ayu and Dian. (ticked)",
+      "2 Fill in the summary card -- All 6 lines filled. / 4 of 6 filled: add Who it's for and Tools and AI.",
+      "3 Add a video or publish your website -- sentence from the event's rule (Coding: 'Add your code link, and a video or your website').",
+      "4 Submit before the deadline -- Then the judges can see it. You can still change it after."
+     ],
+     "actions": [
+      {
+       "label": "Find a team",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Edit",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Publish website",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Submit",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
     },
     {
      "name": "How you're judged",
@@ -3418,14 +3524,49 @@
    ],
    "states": [
     {
+     "name": "no team yet",
+     "when": "approved, not on a team",
+     "shows": "Next step 'Join a team or start one' with Find a team. Checklist step 1 is current, steps 2-4 are listed but quiet, so the whole path is visible from minute one."
+    },
+    {
+     "name": "on a team, summary incomplete",
+     "when": "team yes, summary card has unfilled Required lines",
+     "shows": "Next step 'Finish your summary card: add Who it's for and Tools and AI.' with Finish your entry (to Entry, focus on the first missing line)."
+    },
+    {
+     "name": "on a team, work not shown yet",
+     "when": "summary complete, the One-of or Required media rule unmet",
+     "shows": "Next step 'Add a video or publish your website' with Publish your website (to Website) and Add a video link (to Entry). Coding events: 'Add your code link, and a video or your website'."
+    },
+    {
+     "name": "ready, not submitted",
+     "when": "every rule met, not submitted",
+     "shows": "Next step 'Jaga Ibu is ready. Submit it so judges can see it.' with Submit entry (submits from Home after a one-line confirm naming the deadline)."
+    },
+    {
+     "name": "submitted",
+     "when": "submitted, before the team's deadline",
+     "shows": "Next step 'Jaga Ibu is submitted' with who and when, 'You can still change it until Sun 18:00 WIB, and it stays submitted.' Countdown reads '... left to make changes'. All four steps ticked."
+    },
+    {
+     "name": "under an hour left, not submitted",
+     "when": "less than 60 minutes to the team's effective deadline and not submitted",
+     "shows": "Next card border turns red; the countdown counts seconds in red; if the draft is complete the copy says it will be submitted automatically, otherwise it names what's missing."
+    },
+    {
+     "name": "deadline passed",
+     "when": "the team's effective deadline passed",
+     "shows": "Checklist freezes: step 4 reads 'Submitted Sat 14:02' or 'Submitted automatically at the deadline' or 'Not submitted: entries closed with a video or website still missing'. Countdown is replaced by 'Entries closed Sun 18:00 WIB'."
+    },
+    {
+     "name": "extension granted",
+     "when": "the team has a deadline_override later than the event's",
+     "shows": "Countdown targets the team's own deadline and says 'your team closes <time>, <n> hours after everyone else'."
+    },
+    {
      "name": "pending / rejected approval",
      "when": "approval is required and not yet decided, or decided no",
      "shows": "a .note warn (pending) or .note bad (rejected) replaces the next-step card: 'Your application is waiting for the organisers. You'll see their answer here.' or 'Your application wasn't accepted this time.' Nothing else on Home is reachable until approved. Same copy for an application and a join-link sign-up."
-    },
-    {
-     "name": "on a team, entry incomplete",
-     "when": "has a team, entry missing required fields",
-     "shows": "next-step card: 'Your entry is missing a Description. Add it before 28 Oct.' with a Finish your entry button"
     },
     {
      "name": "just placed by Fill teams",
@@ -3500,7 +3641,9 @@
     {
      "name": "a schedule row starts soon or is on now",
      "when": "a timed row starts within 15 minutes, or its window contains now",
-     "shows": "the one-line nudge above Your next step, linking to Schedule",
+     "shows": "the one-line nudge above Your next step, linking to Schedule"
+    },
+    {
      "name": "something waits on you",
      "when": "needs_you has at least one item (2026-11-02 notify design)",
      "shows": "A .card titled 'Needs you' above the next-step card, one row per item with a link to its own screen: a live row for a pending join request ('2 people asked to join Kopi Kode', to Team) or an invite, and a news row for a request answered, a site taken down or restored, a deadline changed, or being made admin, each written as a plain sentence by the server. Every news row carries a Dismiss button; live rows don't, since they clear themselves once the request is answered, withdrawn or the application is decided."
@@ -3511,7 +3654,8 @@
     "Addresses the brief's point that every role needs a Home; no atlas screen played this role for participants before.",
     "Critique missing state: 'just placed by Fill teams' and the team-removal notice (team-removal-notice) are now explicit states here, not silently absent.",
     "Retest (Grok SIM-346, round 3): the pending-invite hero dropped the 'Entries close ...' deadline note the find-a-team hero shows -- an invite is just as time-limited, so it keeps the same note instead of going quiet about the deadline.",
-    "The pending note promised 'You'll get an email when it's approved'; no such email exists, so it now says where the answer will appear."
+    "The pending note promised 'You'll get an email when it's approved'; no such email exists, so it now says where the answer will appear.",
+    "Audit 2026-11-02 (top 6): Home showed one generic 'Keep building' card, never fetched the entry and had no live clock. It now shows the whole path, ticked from real data, with a countdown to the team's own deadline."
    ],
    "phone": "Identical layout; default phone tab.",
    "features": [
@@ -3525,7 +3669,10 @@
     "see-event-stage",
     "schedule-nudge",
     "needs-you",
-    "dismiss-notice"
+    "dismiss-notice",
+    "follow-entry-checklist",
+    "see-team-deadline-countdown",
+    "remind-unsubmitted-team"
    ],
    "prototype_states": [
     {
@@ -3533,6 +3680,24 @@
      "name": "No team yet",
      "stage": "open",
      "next": "Teams are forming · join one"
+    },
+    {
+     "slug": "building",
+     "name": "On a team, work not shown yet",
+     "stage": "building",
+     "next": "Entries close in 1 day · Sun 18:00 WIB"
+    },
+    {
+     "slug": "submitted",
+     "name": "Entry submitted, still editable",
+     "stage": "building",
+     "next": "Entries close in 1 day · Sun 18:00 WIB"
+    },
+    {
+     "slug": "last-hour",
+     "name": "Under an hour left, not submitted",
+     "stage": "building",
+     "next": "Entries close in 42 minutes"
     },
     {
      "slug": "pending",
@@ -3633,7 +3798,9 @@
     {
      "q": "How does the schedule nudge a participant? (owner, 2026-11-02)",
      "decision": "One line on Home (and Schedule), in the app only: '<item> starts in N minutes' from 15 minutes before, '<item> is on now' during it. The schedule sends no email of its own.",
-     "why": "Owner 2026-11-02: nudge people at the right time, ideally an in-app line. Deadline reminder emails are built separately, so the schedule must not send a second copy.",
+     "why": "Owner 2026-11-02: nudge people at the right time, ideally an in-app line. Deadline reminder emails are built separately, so the schedule must not send a second copy."
+    },
+    {
      "q": "Do decision emails go out now (2026-11-02)?",
      "decision": "Yes. An application's approval or rejection, a team request or invite answered, a site taken down or restored, a deadline changed and being made admin all queue an email, on top of showing in the Needs you card.",
      "why": "Audit item 7: a missed approval costs more than one email. This supersedes 'No decision email goes out yet' from the 2026-10-31 application design."
@@ -3662,6 +3829,26 @@
      "q": "Does leaving a team or event notify anyone?",
      "decision": "No. Leaving still sends nothing, to the person leaving or anyone else (2026-10-31 rule kept).",
      "why": "No new notification unless one already exists, and none exists for leaving."
+    },
+    {
+     "q": "Checklist or one card?",
+     "decision": "Both: the .next card stays the single next step (the first unticked step, or a higher notice such as join requests), and the Your entry card lists all four steps below it.",
+     "why": "Owner: 'like Your next step for organisers, participants should know they have to submit the entry, and how to connect so they can publish a website easily.' One card says what to do now; the list shows that submitting is a step at all, which today nobody is told."
+    },
+    {
+     "q": "Who computes the ticks?",
+     "decision": "The server: GET /v1/hack/events/{slug} gains progress {steps[], deadline, deadline_is_extension, submitted_at, auto}, and hack_get_team_status returns the same. Home makes no extra call for it.",
+     "why": "The website, an AI app and the reminder email must say the same thing about the same team; computing the rules in three places is how they drift."
+    },
+    {
+     "q": "How does the countdown tick?",
+     "decision": "Every minute; every second in the last hour. Amber under 24 hours, red under 1 hour. It targets the team's effective deadline (GREATEST of event deadline and the team's override) and names an extension when there is one. Server time offset is taken from the response Date header so a wrong phone clock doesn't lie.",
+     "why": "Audit: Home showed a fixed date with no clock, and the extension was visible only by noticing a later time."
+    },
+    {
+     "q": "Can a participant submit from Home?",
+     "decision": "Yes, when the draft is complete: Submit entry on the next card, with a one-line confirm. Otherwise the step's button goes to the screen that fixes the missing part.",
+     "why": "The common last-hour case is 'everything is there, nobody pressed the button'. One tap from Home closes it."
     }
    ]
   },
@@ -4328,26 +4515,57 @@
    "role": "participant",
    "nav_id": "entry",
    "title": "Entry",
-   "user_moment": "Siti and her team sit down to describe what they're building, and once, a teammate edits the same field at the same time.",
-   "purpose": "Write and save the team's entry.",
-   "primary_action": "Save.",
-   "layout": "One form, a completeness note at the top, title first, then tagline, description, video link, code link, screenshot (upload + Remove).",
+   "user_moment": "Siti and her team fill in the short card judges read first, add a video or publish their site, and press Submit before Sunday 18:00. Once, a teammate edits the same line at the same time.",
+   "purpose": "Fill in the entry summary card, show the work the event asks for, and submit it, knowing exactly what judges will see.",
+   "primary_action": "Submit entry.",
+   "layout": "Status block on top (Draft / Submitted / Not submitted, the deadline, what's still needed, Submit). Then .split: left the form in three cards -- Summary card (project name, problem, solution, who it's for, track, tools and AI tags with suggestions, what works today as three choice cards), Show your work (video link, website state with Publish your website, screenshot), More detail (folded description). Right: How judges see it (live compact card, unfilled lines marked) and How you'll be judged (rubric with weights, from the parallel rubric-for-teams change). Sticky foot: Save draft + Submit entry (Save changes once submitted). On a phone the preview follows the form.",
    "sections": [
     {
-     "name": "Your entry",
+     "name": "Status",
      "contents": [
-      "Complete / Missing: Description",
-      "Title (required): Beta Build",
-      "Tagline: A filled entry with no site published yet",
-      "Description: Placeholder description for the UX atlas fixture team.",
-      "Video link",
-      "Code link",
-      "Screenshot"
+      "Draft · not submitted yet -- Judges only see submitted entries. Submit by Sun 18:00 WIB.",
+      "Summary 5 of 6 · Video or website",
+      "Submitted · Sat 14:02 WIB by Siti -- you can still change it until Sun 18:00 WIB; it stays submitted."
      ],
      "actions": [
       {
-       "label": "Save",
+       "label": "Submit entry",
        "kind": "primary",
+       "confirm": null
+      },
+      {
+       "label": "Move back to draft",
+       "kind": "secondary",
+       "confirm": "Move Jaga Ibu back to draft? Judges won't see it unless it's submitted again, or it is complete at the deadline. [Cancel] [Move to draft]"
+      }
+     ]
+    },
+    {
+     "name": "Summary card",
+     "contents": [
+      "Project name (always required, 80)",
+      "Problem, in one line (140) -- What goes wrong today, and for whom.",
+      "Solution, in one line (160) -- What you built. This line also shows on the team sites list.",
+      "Who it's for (100)",
+      "Track (select; changes the team's track)",
+      "Tools and AI you used (tags, up to 10; AI and Tools suggestion rows)",
+      "What works today: Demo-ready / Partly working / Concept"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Show your work",
+     "contents": [
+      "This event asks for a video or a published website. One is enough. (sentence built from the rules)",
+      "Video link -- YouTube, Vimeo, Loom or Google Drive play right on the judges' screen. Other links open in a new tab.",
+      "Website -- Not published yet + Publish your website (to Website), or Published + address",
+      "Code link (only when the event doesn't have it Off)",
+      "Screenshot (optional) -- saves as soon as you pick it"
+     ],
+     "actions": [
+      {
+       "label": "Publish your website",
+       "kind": "secondary",
        "confirm": null
       },
       {
@@ -4358,6 +4576,21 @@
      ]
     },
     {
+     "name": "More detail (optional, folded)",
+     "contents": [
+      "Anything else judges should know (5000)",
+      "After results, your summary card, video and website can appear on the event's public page if the organisers show your entry."
+     ],
+     "actions": []
+    },
+    {
+     "name": "How judges see it",
+     "contents": [
+      "Live compact summary card; unfilled lines read 'Not filled in yet'"
+     ],
+     "actions": []
+    },
+    {
      "name": "How you're judged",
      "contents": [
       "3 criteria · 20 points total",
@@ -4366,23 +4599,69 @@
       "Design (5 points) -- How good is the user experience?"
      ],
      "actions": []
+    },
+    {
+     "name": "Foot",
+     "contents": [],
+     "actions": [
+      {
+       "label": "Save draft",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Submit entry",
+       "kind": "primary",
+       "confirm": null
+      }
+     ]
     }
    ],
    "states": [
     {
-     "name": "empty, just formed",
-     "when": "no fields filled yet",
-     "shows": "same form, empty, completeness note reads 'Missing: Title' (or whichever fields the organiser requires)"
+     "name": "draft, nothing missing",
+     "when": "draft and every rule met",
+     "shows": "Status reads 'Draft · ready to submit', Submit is the primary action; the need list is all ticked."
+    },
+    {
+     "name": "draft, something missing",
+     "when": "draft with Required lines or the One-of rule unmet",
+     "shows": "Status lists the open items with hollow dots (Summary 5 of 6 · Video or website). Submit stays enabled: pressing it is how a team learns precisely what's missing."
+    },
+    {
+     "name": "submit refused",
+     "when": "POST .../entry/submit answers 422 entry_incomplete",
+     "shows": "A .note bad 'Add these before you submit: ...' at the top, each missing field gets its .err line and red outline, focus moves to the first one. Everything typed is saved as the draft first, so nothing is lost."
+    },
+    {
+     "name": "submitted",
+     "when": "submitted_at set, before the team's deadline",
+     "shows": "Green status 'Submitted · <time> by <name>. You can still change it until <deadline>; it stays submitted.' Save becomes Save changes; Move back to draft is a quiet button. A save that would break a rule is refused with the field named (422 entry_would_be_incomplete), so a submitted entry is always complete."
+    },
+    {
+     "name": "rules tightened after submit",
+     "when": "the organiser made a line Required after this entry was submitted",
+     "shows": "Stays submitted. A .note info: 'The organisers now also ask for a code link. Your entry stays submitted; add it if you can.'"
+    },
+    {
+     "name": "submitted automatically",
+     "when": "the deadline passed with a complete draft",
+     "shows": "Status 'Submitted automatically at the deadline · Sun 18:00 WIB'."
+    },
+    {
+     "name": "not submitted at the deadline",
+     "when": "the deadline passed with an incomplete draft",
+     "shows": "Red status 'Not submitted. Entries closed with <missing> still missing, so judges won't see this entry. Ask the organisers if you need more time.' Read-only."
     },
     {
      "name": "a teammate changed this since you opened it",
-     "when": "someone else saved the entry after this person loaded the page, before this person's own Save goes through",
-     "shows": "a .dialog instead of a silent overwrite: 'Dian changed this entry while you were editing. Keep your version, or take hers?' with both texts shown side by side and 'Keep mine' / 'Take theirs' -- this is the worst possible moment to lose work, so it's a real choice, not a toast"
+     "when": "someone else saved the entry after this person loaded the page",
+     "shows": "Unchanged mechanism (updated_at): the .dialog lists only the lines that differ, Keep mine / Take theirs."
     },
     {
      "name": "read-only after Closed",
-     "when": "stage is Closed or later",
-     "shows": "all fields become plain text; Save is replaced with 'Entries are closed' at the top"
+     "when": "the team's deadline passed, or stage Closed or later",
+     "shows": "The summary card as judges see it, Show your work as a definition list, and a What happens next card; no form."
     }
    ],
    "replaces": [
@@ -4395,11 +4674,21 @@
     "'One field behaves differently with no visual cue why' -- Screenshot keeps its immediate-save (it's a file upload, consistent everywhere in the product) and says so in its own label; everything else shares one visible Save.",
     "'No explicit this is now read-only banner' -- added.",
     "Critique: entry-edit-conflict-resolution (domain truth F.5, a teammate's concurrent edit) and remove-entry-screenshot were both missing -- both added.",
-    "Retest (Grok SIM-346, round 3): confirmed as already correct -- the edit-conflict dialog lists only the fields that actually differ from the teammate's saved version, comparing each field's real value with no blanket fallback."
+    "Retest (Grok SIM-346, round 3): confirmed as already correct -- the edit-conflict dialog lists only the fields that actually differ from the teammate's saved version, comparing each field's real value with no blanket fallback.",
+    "Audit 2026-11-02 (top 4, 5): the entry was a title, tagline and a 5000-character essay, so judges compared essays of different shapes. The fixed summary card replaces the summary slide many events ask for.",
+    "Audit 'Entry submitted state': there was no submit moment and required fields never blocked anything. Submit is now explicit and enforced (owner, 2026-11-02: 'Required must be ENFORCED when the entry is submitted')."
    ],
    "features": [
     "get-own-entry",
     "edit-entry-fields",
+    "fill-entry-summary-card",
+    "tag-entry-tools",
+    "set-entry-maturity",
+    "choose-track-from-entry",
+    "submit-entry",
+    "move-entry-back-to-draft",
+    "auto-submit-complete-draft",
+    "preview-entry-as-judges-see-it",
     "entry-edit-conflict-resolution",
     "upload-entry-screenshot",
     "remove-entry-screenshot",
@@ -4409,21 +4698,33 @@
    "prototype_states": [
     {
      "slug": "default",
-     "name": "Filling in the entry",
+     "name": "Draft with lines missing",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 1 day 4 h · Sun 18:00 WIB"
+    },
+    {
+     "slug": "missing",
+     "name": "Submit refused: what's missing",
+     "stage": "building",
+     "next": "Entries close in 1 day 4 h · Sun 18:00 WIB"
+    },
+    {
+     "slug": "submitted",
+     "name": "Submitted, still editable",
+     "stage": "building",
+     "next": "Entries close in 1 day 4 h · Sun 18:00 WIB"
     },
     {
      "slug": "conflict",
      "name": "Teammate edited at the same time",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 1 day 4 h · Sun 18:00 WIB"
     },
     {
      "slug": "closed",
      "name": "Entries closed, read-only",
-     "stage": "closed",
-     "next": "Entries are closed"
+     "stage": "judging",
+     "next": "Judging is under way"
     }
    ],
    "decisions": [
@@ -4431,43 +4732,75 @@
      "q": "Should an organiser be able to hide the rubric from teams (audit item 1, 2026-11-02)?",
      "decision": "No setting. Every team always sees the rubric, the same read-only data judges and organisers already see -- never a score.",
      "why": "The rubric already exists and is harmless to read; the only blocker was hack_judging.go:96's loadMember(..., \"organiser\", \"judge\") role list, which now also accepts \"participant\". The card lives here (one fetch); Home only links down to it."
+    },
+    {
+     "q": "Is 'Solution, one line' a new field?",
+     "decision": "No. It is the existing tagline column and JSON key, relabelled 'Solution, in one line' (160 characters, as today). New columns: problem, audience, tools, maturity.",
+     "why": "Two one-liners that say the same thing would make teams write it twice. Gallery, voting and results already show the tagline, so they get the solution line with no change, and no data moves."
+    },
+    {
+     "q": "Where does the entry's track live?",
+     "decision": "On the team (event_teams.track_id), as today. The entry form's Track select writes the team's track, under the Team screen's rule (any member, until the deadline). Hidden when the event has no tracks.",
+     "why": "Judging panels key off the team's track. A second copy on the entry could disagree with the panel the team is judged by. The audit's 'panels drop untracked teams' problem shrinks once Track is Required on the card."
+    },
+    {
+     "q": "Tools and AI: free text or a list?",
+     "decision": "Tags. Up to 10, 30 characters each, case-insensitive dedupe. Suggestions are a fixed list in two rows, AI apps then tools, and typing anything else is allowed.",
+     "why": "Owner asked for 'tags with suggestions'. A fixed list keeps spelling consistent (Claude, not claude.ai) without hiding uncommon tools. Suggestions are not drawn from other teams' tags, so nobody sees a rival's stack before results."
+    },
+    {
+     "q": "What does 'what works today' offer?",
+     "decision": "Three choice cards: Demo-ready (works end to end), Partly working (some parts are mocked), Concept (designs or a plan, nothing runs yet). Stored as working / partial / concept.",
+     "why": "Judges calibrate 'does it work' scores against it, and in an ideas event Concept is an honest, normal answer, not a failure."
+    },
+    {
+     "q": "Does saving a draft check the rules?",
+     "decision": "No. Save draft never refuses for a missing line (length and URL checks still apply). Only Submit checks, and a submitted entry's saves are checked so it can't become incomplete.",
+     "why": "Teams fill the card over a weekend in pieces; blocking a save loses work. The owner's rule is about submission: 'Required must be ENFORCED when the entry is submitted'."
+    },
+    {
+     "q": "Can a team change a submitted entry?",
+     "decision": "Yes, until the team's deadline, and it stays submitted. Move back to draft exists for a team that wants it out of the submitted count.",
+     "why": "Hackathons keep building to the last minute. Forcing a re-submit after every edit would turn the deadline into a trap for teams that forget to press the button twice."
+    },
+    {
+     "q": "What happens at the deadline to a draft?",
+     "decision": "A draft that meets every rule is submitted automatically (marked automatic). A draft that doesn't is Not submitted: judges, results and the public card skip it. The organiser's way in is the existing per-team extension, after which the team submits normally.",
+     "why": "A complete entry should never miss judging over one button. An incomplete one fails the very rule the organiser set, so judging it anyway would make Required meaningless. Owner may overrule (listed in open_questions)."
+    },
+    {
+     "q": "Does the team agree to its card being public?",
+     "decision": "The Entry screen says, under More detail: 'After results, your summary card, video and website can appear on the event's public page if the organisers show your entry.' No extra switch.",
+     "why": "Entries are made for a public event whose results page already names teams and links their sites. Telling them before they submit is the honest part; a per-team opt-out would let a winner's card vanish from the results."
     }
    ],
-   "phone": "Single column, same content, full width."
+   "phone": "One column: status block, the three form cards, then How judges see it and the rubric. Save draft and Submit pinned in the sticky foot above the tab bar; the foot's hint text is hidden on a phone."
   },
   {
    "id": "participant-website",
    "role": "participant",
    "nav_id": "website",
    "title": "Website",
-   "user_moment": "Siti's team finished building; she wants to get it live, and isn't sure what a 'zip' or an 'API key' is.",
-   "purpose": "Publish the team's site, see its address and status, and keep the technical options out of the way until wanted.",
-   "primary_action": "Upload a zip (or, equivalently, connect an AI app).",
-   "layout": "site address + status, Connect your AI app leading, Upload a zip equally simple below it, an 'Advanced' disclosure (closed by default) for the curl snippet and key controls, a Notifications card, Download our team site at the bottom.",
+   "user_moment": "Siti's team has an idea and an entry; she wants it live and has never heard of a connector. She uses ChatGPT on her phone.",
+   "purpose": "Get the team site published from the AI app the person already uses, with a clear Connected and Published state, and keep the zip and key options out of the way.",
+   "primary_action": "Follow the steps for your AI app (or upload a zip).",
+   "layout": "A two-part state strip: AI app (Not connected / Connected in <app> · last used · teammates connected as a count) and Website (Not published / Published · version · time / Taken down). Then Publish from your AI app: app tabs (Claude, ChatGPT, Other AI apps), numbered steps with ticks from the real state, the connector address with Copy, the email to sign in with, and a ready prompt with Copy prompt. Then Or upload a zip, Advanced (command line and key), and, once published, Notifications and Keep a copy. Once published, the guide folds into 'Publish again, or from another AI app'.",
    "sections": [
     {
-     "name": "Your team site",
+     "name": "State strip",
      "contents": [
-      "filled-team-beta.generationgirl2026.simple-hack.app -- live, usually ready within a few minutes of publishing"
+      "AI app: Connected in Claude -- Last used 4 minutes ago · Dian is connected too",
+      "Website: Published · version 3 -- 12 minutes ago · Open"
      ],
-     "actions": [
-      {
-       "label": "View",
-       "kind": "secondary",
-       "confirm": null
-      },
-      {
-       "label": "Download our team site",
-       "kind": "secondary",
-       "confirm": null
-      }
-     ]
+     "actions": []
     },
     {
-     "name": "Publish",
+     "name": "Publish from your AI app",
      "contents": [
-      "Connect your AI app to https://simple-hack.app/mcp -- it publishes to your team's site, no key needed.",
-      "Upload a zip of your site (static files only, index.html at the root, 25 MB max)"
+      "Claude: 1 Settings, then Connectors, then Browse connectors. Search Simple Hack and choose Connect. (Blocked at work? Add custom connector + the address.) 2 Sign in and choose Allow, with <your email>. 3 Paste this into a new chat. 4 Watch this page.",
+      "ChatGPT: 1 Settings, then Plugins, then Add, then Add custom MCP server; name it Simple Hack and paste the address. 2 Sign in and choose Allow. 3 Paste the prompt. 4 Watch this page.",
+      "Other AI apps: Grok, Copilot, Gemini, Mistral, Meta Muse, coding agents -- one line each linking to /get-started#<app>",
+      "Prompt: Build a one-page website for our hackathon project and publish it as our team site for <event> (team <team>) on Simple Hack. Problem: <problem>. Solution: <solution>."
      ],
      "actions": [
       {
@@ -4476,14 +4809,27 @@
        "confirm": null
       },
       {
-       "label": "Upload",
-       "kind": "primary",
+       "label": "Copy prompt",
+       "kind": "secondary",
        "confirm": null
       }
      ]
     },
     {
-     "name": "Advanced: command line & API key",
+     "name": "Or upload a zip",
+     "contents": [
+      "Static files with index.html at the top, up to 25 MB."
+     ],
+     "actions": [
+      {
+       "label": "Upload",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "Advanced: command line and API key",
      "contents": [
       "curl snippet"
      ],
@@ -4506,9 +4852,9 @@
      ]
     },
     {
-     "name": "Notifications",
+     "name": "Notifications (once published)",
      "contents": [
-      "Get a signed message when a visitor saves something or uploads a file on your team's site"
+      "Signed message when a visitor saves something"
      ],
      "actions": [
       {
@@ -4522,28 +4868,59 @@
        "confirm": null
       }
      ]
+    },
+    {
+     "name": "Keep a copy",
+     "contents": [],
+     "actions": [
+      {
+       "label": "Download our team site",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
     }
    ],
    "states": [
     {
-     "name": "nothing published",
-     "when": "no site uploaded yet",
-     "shows": "'Nothing published yet. Connect your AI app below, or upload a zip.'"
+     "name": "not connected, nothing published",
+     "when": "no grant of this person has this team selected, no site",
+     "shows": "Strip: both hollow. The guide is open on the app this person last connected with (else Claude), step 1 current."
+    },
+    {
+     "name": "connected, waiting for the first publish",
+     "when": "this person's grant has this team selected, no site yet",
+     "shows": "A toast 'Connected in ChatGPT.' when it flips; strip AI app green, Website dashed 'Waiting for the first publish'; steps 1-2 ticked, step 3 current. The page re-checks every 5 seconds for 10 minutes, then shows Check again."
+    },
+    {
+     "name": "connected, other team selected",
+     "when": "this person's grant selected a team in another event",
+     "shows": "AI app reads 'Connected in Claude, but it's set to <other team>' with the line to paste: 'Use my team SheBuilds in Generation Girl Online Hack 2026'. hack_select_team switches it."
+    },
+    {
+     "name": "a teammate's app is connected",
+     "when": "another member's grant has this team selected",
+     "shows": "AI app line adds 'Dian is connected too' (name only for teammates, never their app); this person can still connect their own."
+    },
+    {
+     "name": "published",
+     "when": "the team site has a live version",
+     "shows": "Strip: Published · version N · time ago, with Open. A site card with the live link, who published and how (AI app name or zip), and 'Judges see the version that is live at your deadline'. The guide folds."
     },
     {
      "name": "still propagating",
-     "when": "just published, not yet reachable everywhere",
-     "shows": "'Publishing... usually ready within a few minutes' instead of treating the gap as an error"
+     "when": "just published, certificate or host not ready",
+     "shows": "Website reads 'Publishing... usually ready within a few minutes' (unchanged)."
     },
     {
-     "name": "read-only after Closed",
-     "when": "stage is Closed or later",
-     "shows": "Publish section replaced with 'Publishing is closed. Your site stays live as submitted.'"
+     "name": "read-only after the deadline",
+     "when": "the team's deadline passed or stage Closed or later",
+     "shows": "Strip shows the pinned version: 'Submitted version 3 · pinned Sun 18:00'. The guide and zip are replaced by 'Publishing is closed. Your site stays live as submitted.'"
     },
     {
      "name": "site taken down",
      "when": "organiser or platform took the site down",
-     "shows": "the site card shows the organiser's reason if one was given, or 'Taken down by Simple Host' with no reason, in place of the live address"
+     "shows": "Website state reads Taken down with the reason (unchanged)."
     }
    ],
    "replaces": [
@@ -4553,21 +4930,45 @@
     "'curl snippet and MCP option side by side with equal weight' -- curl/API key moved behind Advanced; AI-app and zip (what a non-technical team uses) stay up front.",
     "Critique: team-site-notifications and download-own-team-archive were both missing -- added.",
     "Critique: 'Turn off key' was described in prose but not wired as an action -- now a real button with its own confirm.",
-    "Retest (Grok SIM-346, round 3): confirmed as the intended behaviour (S12 decision, kept) -- a team that published nothing by the deadline gets the one quiet 'Nothing was published by the deadline.' note, not an error state."
+    "Retest (Grok SIM-346, round 3): confirmed as the intended behaviour (S12 decision, kept) -- a team that published nothing by the deadline gets the one quiet 'Nothing was published by the deadline.' note, not an error state.",
+    "Audit 2026-11-02 (top 9): the screen showed a bare connector address and 'no key needed', with no steps and no Connected state, to people who don't know what a connector is."
    ],
    "decisions": [
     {
      "q": "Which publish method goes first, AI app or zip?",
      "decision": "AI app connect leads, zip sits right below at equal weight; curl/API key goes behind Advanced.",
      "why": "The brief's product paragraph: the participant's moment is 'describing an idea and seeing their AI build a live team site.'"
+    },
+    {
+     "q": "What can the server truthfully call Connected?",
+     "decision": "Connected = an oauth_grants row of this person whose selected_team_id is this team (hack_select_team has run), named by oauth_clients.client_name and dated by last_used_at. A grant with another or no team selected is 'Connected, but set to another team'. A team key used in the last 30 days shows as 'Connected with a key'. Teammates count via their grants' selected_team_id, shown by name only.",
+     "why": "These are the only facts the server holds: the client name is captured at dynamic registration, the team selection is a column, and last use is touched on every MCP call. Anything vaguer ('installed') would be a guess."
+    },
+    {
+     "q": "Why steps per app on this screen, not a link to /get-started?",
+     "decision": "The steps live on Website, numbered, with the person's own email and a prompt prefilled from their entry. The text comes from the same source as /get-started (one JSON shared by both pages) so they can't drift. Other AI apps link to /get-started#<app>.",
+     "why": "Publishing is the participant's main moment (INTENT). A link out loses them at exactly the step they don't understand."
+    },
+    {
+     "q": "What does the ready prompt contain?",
+     "decision": "The event name, the team name and, when filled, the entry's problem and solution lines. Nothing secret; no key, no code.",
+     "why": "The AI app has to pick the right team (hack_select_team) and know what to build; the entry already says both. Agents never handle keys in chat (INTENT 2026-10-03)."
+    },
+    {
+     "q": "Does the AI app's name of a teammate leak?",
+     "decision": "No. A teammate is shown by name ('Dian is connected too'), never which AI app they use.",
+     "why": "Which AI subscription a teammate has is theirs to share; that a teammate can publish is what this person needs to know."
     }
    ],
    "features": [
+    "see-ai-app-connection",
+    "follow-ai-app-connect-steps",
+    "copy-site-build-prompt",
+    "connect-ai-app-to-publish",
     "get-team-publishing-key",
     "replace-team-publishing-key",
     "turn-off-team-publishing-key",
     "upload-team-site-zip",
-    "connect-ai-app-to-publish",
     "view-team-site-status",
     "team-site-notifications",
     "download-own-team-archive"
@@ -4575,18 +4976,24 @@
    "prototype_states": [
     {
      "slug": "published",
-     "name": "Site live",
+     "name": "Connected in Claude, site published",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 1 day · Sun 18:00 WIB"
     },
     {
      "slug": "unpublished",
-     "name": "Nothing published yet",
+     "name": "Not connected, nothing published",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 1 day · Sun 18:00 WIB"
+    },
+    {
+     "slug": "connected",
+     "name": "Connected in ChatGPT, waiting for the first publish",
+     "stage": "building",
+     "next": "Entries close in 1 day · Sun 18:00 WIB"
     }
    ],
-   "phone": "Single column, same content, full width."
+   "phone": "Single column. The strip stacks AI app over Website. App tabs wrap; the prompt box wraps; Copy prompt sits under it."
   },
   {
    "id": "participant-results",
@@ -4635,7 +5042,13 @@
      "next": "Results are live"
     }
    ],
-   "decisions": []
+   "decisions": [
+    {
+     "q": "Does the team's own results screen show its card?",
+     "decision": "Yes, at the top: 'Your entry as the public sees it' when the organiser's visibility shows it, or 'Only the winners are shown publicly' otherwise.",
+     "why": "A team should never learn from a friend that their card is public; the same snapshot drives both."
+    }
+   ]
   },
   {
    "id": "judge-home",
@@ -4966,6 +5379,11 @@
      "q": "Words a first-time judge understands",
      "decision": "'Queue' becomes 'My teams' and the 'Conflicts' tab becomes 'Teams I know'. 'Rubric' stays: judges are often educators or industry reviewers and know it.",
      "why": "Independent walkthrough jargon list, 2026-10-30."
+    },
+    {
+     "q": "Which entries reach the queue, and what does a row show?",
+     "decision": "Only submitted entries. Each row adds the track and the works-today pill beside the team name, and the solution line as the excerpt.",
+     "why": "Judging an entry that failed the event's own rules makes Required meaningless; the extra pills let a judge pace an evening (concepts are quicker than demos)."
     }
    ]
   },
@@ -4974,46 +5392,72 @@
    "role": "judge",
    "nav_id": null,
    "title": "Score: CareCompass",
-   "user_moment": "Pak Budi opens one entry and rates it against the rubric, then moves straight to the next -- often standing up, on a phone.",
-   "purpose": "Full-focus scoring of one entry, Linear-issue style.",
+   "user_moment": "Pak Budi judges remotely from home, 30 teams in an evening: a 20-second read, a 2-minute video, a look at the live site, scores, next. Sometimes on his phone.",
+   "purpose": "One screen per team: the summary card first, then the video, then the live site, with the rubric and score chips beside it and a fast Save and next.",
    "primary_action": "Save & next.",
-   "layout": "kit's .split layout. Left: entry title, tagline, description, Watch video / View code, the team's pinned website via .site-frame (or a prominent Open website button if it can't embed). Right: the rubric as .crit rows, each with a .scale of point chips that save the instant one is tapped (no Save button, no form submit), a comment box below the rubric (enabled once any score exists, autosaves), Previous / Save & next in a .sticky-foot, 'I have a conflict with this team' set apart in red below everything else. A progress line ('3 of 6') sits above the rubric.",
+   "layout": "kit .focus. Left (scrolls): back to My teams and 'Team 4 of 6', the entry summary card as the page header (name, team, track pill, problem, solution, for, tools and AI tags, works today), then the two media blocks in the event's order (Video first by default, Website first for Coding): Video is a .media block with the host named and a click-to-load player for YouTube, Vimeo, Loom and Drive (a large host-named link for anything else); Website is a .media block with the host, Open in a new tab and a framed 520px preview of the submitted (pinned) version. Then the code link when the event asks for one, and More detail from the team folded. Right (fixed): progress bar 'n of m scored', Rubric and brief link, each criterion with its weight and 0-10 chips that save on tap, the comment, the conflict button, and the sticky foot: Previous, Save and next, and the N / P key hint.",
    "sections": [
     {
-     "name": "Entry",
+     "name": "Summary card",
      "contents": [
-      "CareCompass -- As submitted 28 Oct 2026, 18:17",
-      "CareCompass tagline",
-      "What CareCompass built during the event.",
-      "Watch video, View code"
+      "CareCompass -- CareCompass team · Nadia Putri, Siti Rahma -- Health track",
+      "Problem / Solution / For / Tools and AI / Works today: Demo-ready"
+     ],
+     "actions": []
+    },
+    {
+     "name": "Demo video",
+     "contents": [
+      "youtube.com -- Plays here · nothing loads until you press play"
      ],
      "actions": [
       {
-       "label": "Open website",
+       "label": "Play",
+       "kind": "secondary",
+       "confirm": null
+      },
+      {
+       "label": "Open on youtube.com",
        "kind": "secondary",
        "confirm": null
       }
      ]
     },
     {
-     "name": "Rubric",
+     "name": "Website · as submitted",
      "contents": [
-      "Idea & impact -- 0 1 2 3 4 5 6 7 8 9 10",
-      "Technical execution -- 0 1 2 3 4 5 6 7 8 9 10",
-      "Design & polish -- 0 1 2 3 4 5 6 7 8 9 10"
+      "carecompass.generationgirl2026.simple-hack.app -- framed preview"
+     ],
+     "actions": [
+      {
+       "label": "Open",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
+     "name": "More detail from the team (folded)",
+     "contents": [
+      "the free-text description"
      ],
      "actions": []
     },
     {
-     "name": "Comment for the team",
+     "name": "Score",
      "contents": [
-      "optional, not shown with your name, can't be saved before any score exists"
+      "Idea & impact · 40% -- 0..10",
+      "Does it work · 35% -- 0..10",
+      "Design & clarity · 25% -- 0..10",
+      "Comment for the team"
      ],
      "actions": []
     },
     {
      "name": "Navigate",
-     "contents": [],
+     "contents": [
+      "N next · P previous"
+     ],
      "actions": [
       {
        "label": "Previous",
@@ -5026,28 +5470,53 @@
        "confirm": null
       },
       {
-       "label": "I have a conflict with this team",
+       "label": "I know someone on this team",
        "kind": "danger",
-       "confirm": "You won't score this team any more. The organiser can still see any score you already gave it."
+       "confirm": "You know someone on CareCompass? You won't score this team."
       }
      ]
     }
    ],
    "states": [
     {
+     "name": "scoring, video embeddable, site frameable",
+     "when": "judging open, submitted entry, video on an embeddable host, site with no passcode or named viewers",
+     "shows": "As the default prototype."
+    },
+    {
+     "name": "video elsewhere, site can't be framed",
+     "when": "video host not on the embed list; site has a passcode or named viewers (frameable false), or is not ready",
+     "shows": "Video becomes a large link 'Watch the demo video · opens dropbox.com in a new tab'. Website shows the team's screenshot with 'This site asks visitors for a passcode, so it can't show here.' and a primary Open website."
+    },
+    {
+     "name": "website first",
+     "when": "the event's judge_first is site (Coding preset default)",
+     "shows": "Website preview first, then a Code block (host named, Open), then the video."
+    },
+    {
+     "name": "criterion left unscored",
+     "when": "Save and next pressed with one or more criteria unscored",
+     "shows": "One .note warn line above the foot: 'Design & clarity has no score yet. Press again to move on.' A second press within 10 seconds moves on; no dialog."
+    },
+    {
+     "name": "no video, no site",
+     "when": "the entry has neither (only possible when the event made both Optional or Off)",
+     "shows": "The media blocks are omitted, not shown empty; the screenshot shows if there is one."
+    },
+    {
      "name": "already scored (editing)",
      "when": "reopened from the Scored segment",
-     "shows": "point scales show the existing scores pre-selected; button still reads Save & next"
+     "shows": "Chips show the existing scores (unchanged)."
     },
     {
      "name": "last team in the queue",
      "when": "on the final unscored entry",
-     "shows": "Save & next becomes 'Save & finish', returning to Queue when pressed"
+     "shows": "Save & next becomes Save & finish, back to My teams."
     },
     {
      "name": "locked",
      "when": "judging is locked",
-     "shows": "point scales and comment become read-only text; Save & next and the conflict button hidden; 'Scoring is locked' banner at top"
+     "shows": "Chips and comment become read-only text; Save & next and the conflict button hidden; 'Scoring is locked' at the top of the rubric."
     }
    ],
    "replaces": [
@@ -5057,9 +5526,11 @@
     "'A first-visit walkthrough blocked the Score this team button underneath it' -- this is a real, dedicated route with no overlay ever covering an actionable control.",
     "Critique #2 (code-confirmed): the conflict confirm previously claimed scores 'are dropped' -- they are not deleted by DeclareConflict, only excluded from this judge's future queue. Copy corrected to what actually happens, and flagged below as an open product question.",
     "Retest (Grok SIM-346, round 3): 'No entry was submitted.' now also checks the video and code links, not just title/tagline/description -- a team that only submitted one of those had submitted something, and was wrongly told it hadn't.",
-    "Retest (Grok SIM-346, round 4): the conflict confirm named the entry ('Alpha Thing') instead of the team ('Alpha Testers'), unlike the matching undo dialog, and claimed a score 'stops counting' even on a team this judge had never scored. Now uses the team name throughout and only mentions the score on a team that already has one from this judge."
+    "Retest (Grok SIM-346, round 4): the conflict confirm named the entry ('Alpha Thing') instead of the team ('Alpha Testers'), unlike the matching undo dialog, and claimed a score 'stops counting' even on a team this judge had never scored. Now uses the team name throughout and only mentions the score on a team that already has one from this judge.",
+    "Audit 2026-11-02 (top 4): the judge read free text, then pressed three buttons that each left the page. The card, the video and the live site are now on the same screen as the rubric.",
+    "Audit 'Rubric weight visible while scoring': each criterion now shows its weight."
    ],
-   "phone": "Single column: entry content first (collapsible after first read), then rubric and comment, Save & next pinned to the bottom via .sticky-foot.",
+   "phone": "One column: back link and 'Team 4 of 6', the card (never folded: it is the 20-second read), Go to scoring ↓, the video (tap to play inline), the website preview at 440px with Open, More detail, then the rubric with 44px chips and the comment. Previous and Save & next pinned above the tab bar. The key hint and the host text in media bars are hidden on a phone.",
    "decisions": [
     {
      "q": "Does this screen follow the site-wide 'one visible Save button per section' rule from organiser-settings?",
@@ -5080,20 +5551,67 @@
      "q": "Where does the scoring walkthrough live, and when does it start?",
      "decision": "Its own tour (judgeScoring), auto-starting the first time a judge opens scoring while it's actually open and editable (not on a locked/read-only visit). It points at the team's website link, the first criterion's score buttons, the comment box, Save & next, \"I know someone on this team\", and Previous. Seen-state is localStorage, not the preferences API (which only has judge_walkthrough_done).",
      "why": "Owner, 2026-10-30: walkthroughs explain only what is on screen, so scoring is explained on the scoring page, not from Home. Only a locked visit has none of these controls to point at, so it doesn't auto-start there."
+    },
+    {
+     "q": "In what order does a judge see an entry?",
+     "decision": "Card, then the event's first medium (Video by default, Website for the Coding preset), then the other, then code and More detail. The organiser chooses Video or Website first in Entries; the card is always first.",
+     "why": "Owner: 'Judges see it first, then the video if there is one, then the website. Website and video can be interchangeable. A coding hackathon can be different.'"
+    },
+    {
+     "q": "Can the video play on the scoring screen?",
+     "decision": "Yes for YouTube (as youtube-nocookie.com), Vimeo, Loom and Google Drive: the server parses the ID with a strict pattern and returns video.embed_url; the page loads the iframe only when the judge presses play, with no autoplay. The app CSP adds exactly those four frame hosts. Every other host is a large link naming the host.",
+     "why": "A 2-minute video in another tab breaks the one-screen flow, but a raw user URL must never become an iframe source. Click-to-load keeps third parties out until the judge asks, and keeps the screen fast."
+    },
+    {
+     "q": "Can the live site be framed?",
+     "decision": "Yes, from the team's own origin: the app CSP's frame-src gains https://*.<team-sites domain> (one wildcard, not per event: the app is one page that navigates between events without reloading, so a per-route CSP would go stale), and the page only ever frames the preview_url the server returns. The frame shows the pinned (submitted) version once the team's deadline passed, the live site before. sandbox allows scripts, forms, same-origin and popups (to escape the sandbox for links), never top navigation. Sites with a passcode or named viewers, or not ready, are frameable:false and show the screenshot with Open website.",
+     "why": "Team sites send no frame-ancestors, so the only blocker was the app's frame-src 'self'. Previews never get owner rights (INTENT 2026-10-10), and signed-in member pages already refuse framing by another origin."
+    },
+    {
+     "q": "Keyboard on desktop?",
+     "decision": "N = Save and next, P = Previous, outside text fields. Shown as a small hint under the buttons. Digits are not bound.",
+     "why": "A remote judge scoring 30 teams uses a laptop. Binding digits would collide with three criteria on one screen."
+    },
+    {
+     "q": "What stops a skipped criterion?",
+     "decision": "The one-line guard on Save and next, not a dialog.",
+     "why": "Fast flow first; a dialog on every partial score would be the very friction the owner wants gone."
     }
    ],
    "features": [
+    "read-entry-summary-card-judging",
+    "watch-entry-video-while-judging",
     "open-entry-website-while-judging",
+    "see-criterion-weight-while-scoring",
     "score-criterion",
     "comment-on-entry",
     "save-and-next",
+    "guard-unscored-on-next",
     "declare-own-conflict",
     "replay-scoring-walkthrough"
    ],
    "prototype_states": [
     {
      "slug": "scoring",
-     "name": "Scoring an entry",
+     "name": "Card, video and site on one screen",
+     "stage": "judging",
+     "next": "Scoring is open · 3 of 6 done"
+    },
+    {
+     "slug": "links",
+     "name": "Video elsewhere, site can't be framed",
+     "stage": "judging",
+     "next": "Scoring is open · 3 of 6 done"
+    },
+    {
+     "slug": "site-first",
+     "name": "Coding event: website first",
+     "stage": "judging",
+     "next": "Scoring is open · 3 of 6 done"
+    },
+    {
+     "slug": "unscored",
+     "name": "Save and next with a criterion unscored",
      "stage": "judging",
      "next": "Scoring is open · 3 of 6 done"
     },
@@ -6160,12 +6678,12 @@
     {
      "name": "results, winners only",
      "when": "results published, winners only",
-     "shows": "A 'Winners' list replaces the stage card, first thing under the header: the rank-1 team(s) with a Winner pill and each track winner with '<Track> winner · <prize>'. Team names link to their sites. Ranks and scores only when the organiser shows them."
+     "shows": "A 'Winners' section replaces the stage card: each winner (overall and track winners) is a result card -- avatar, team name, team and track, its pill -- with the screenshot or letter mark beside the summary card lines (problem, solution, for, tools and AI, works today) and Open website / Watch video · <host> (and Code · <host> when the event asks for code). Team names link to their sites."
     },
     {
      "name": "results, full ranking",
      "when": "results published, full ranking",
-     "shows": "A 'Results' list replaces the stage card: every ranked team in order, Tied pills, track-winner pills, scores when public. Unscored teams never appear. With ranks hidden: A to Z, no numbers."
+     "shows": "A 'Results' list replaces the stage card: every ranked team in order with Tied and track-winner pills and scores when public. Winners show their result card open; every other team is a closed row that opens to the same card. Unscored and unsubmitted teams never appear."
     },
     {
      "name": "ended",
@@ -6191,6 +6709,11 @@
      "name": "signed in, not a member",
      "when": "the visitor is signed in (localStorage.apiKey, same origin as AppURL) but the membership check 404s for this event",
      "shows": "The stage card drops every sign-in reference: 'Apply to join' with a primary Apply button when the page already rendered one (applications open), else 'Ask the organisers for the join link' with no button. 'Already joined? Sign in' was already hidden the moment we knew they're signed in."
+    },
+    {
+     "name": "team sites after results",
+     "when": "results published and the gallery is on",
+     "shows": "Site cards of teams shown in the results add their tools tags and link to their result card (#entry-<team>); other cards are unchanged."
     }
    ],
    "replaces": [
@@ -6302,6 +6825,21 @@
      "q": "Does the public schedule show the real deadlines? (owner, 2026-11-02)",
      "decision": "Yes. The event's start and end, the entry deadline, the voting window (while voting is on) and results published are merged into the Schedule as rows, computed from the settings, so the page never shows a stale time. No prompts and no team extensions on the public page.",
      "why": "Prospects and participants check the Schedule for when things happen. The deadline is the time that matters most and must match the countdown."
+    },
+    {
+     "q": "Whose summary shows after results?",
+     "decision": "Exactly the teams the results already show: winners only (overall and track winners) or every ranked team, following the existing visibility setting. Taken from the results snapshot, so moving the event back a stage never changes a published card.",
+     "why": "Owner: 'When the results are out, if all entries are enabled or even only winners, you should see the summary along with the website.' Reusing the setting means no new switch and no team appears that the organiser chose not to show."
+    },
+    {
+     "q": "Is the video embedded on the public page?",
+     "decision": "No. A button 'Watch video · <host>' opens it in a new tab. The public page keeps frame-src none.",
+     "why": "The public page is opened on cheap phones from WhatsApp; embeds cost data and bring third-party cookies to every visitor. The judge view is where watching in place matters."
+    },
+    {
+     "q": "How long is a full ranking with 31 cards?",
+     "decision": "Winners open, every other team a closed row that opens to its card (details/summary, no script).",
+     "why": "A parent scrolling for one team shouldn't page through thirty essays; nothing is hidden, only folded."
     }
    ],
    "features": [
@@ -6309,7 +6847,9 @@
     "view-public-results-page",
     "open-team-site-from-gallery",
     "apply-to-event",
-    "schedule-fixed-rows"
+    "schedule-fixed-rows",
+    "see-entry-cards-in-results",
+    "see-entry-tools-in-gallery"
    ],
    "feature_ideas": [
     "(Done 2026-10-31, replaced by Apply) 1. Show a Join button on the public page.",
@@ -6357,14 +6897,14 @@
      "name": "Results, winners only",
      "stage": "results",
      "next": null,
-     "note": "Winners list first: overall winner plus track winners, linked to sites, no scores. People's choice closed card. Sponsors moved up. Schedule and Rules collapsed."
+     "note": "Winners as result cards: summary card, website and video buttons with the host. Team sites cards add tools tags."
     },
     {
      "slug": "results-full",
      "name": "Results, full ranking",
      "stage": "results",
      "next": null,
-     "note": "Full ranked list with Tied pills, track-winner pills and scores with the one method line above."
+     "note": "Full ranking: winners open as result cards, other teams fold into rows that open to the card."
     },
     {
      "slug": "taken-down",
@@ -7223,6 +7763,23 @@
     "landing-your-events",
     "organiser-judging"
    ]
+  },
+  {
+   "id": "entries-journey",
+   "ticket": "audit 2026-11-02 top 4, 5, 6, 8, 9",
+   "name": "Entries and participant journey",
+   "what": "Designed in the atlas 2026-11-02, not built yet. Entry summary card (problem, solution, who it's for, track, tools and AI tags, what works today) with presets and per-line Required / One of / Optional / Off rules enforced on an explicit Submit; complete drafts submit themselves at the deadline. Judges get the card, video and live site on one screen beside the rubric. Participant Home is a four-step checklist with a live countdown to the team's own deadline. Website guides each AI app and shows Connected and Published from real data. Results and the public page show each shown team's card, site and video. Build plan: scratchpad entries-design/build-plan.md (three slices).",
+   "screens": [
+    "participant-entry",
+    "participant-home",
+    "participant-website",
+    "judge-scoring",
+    "judge-queue",
+    "organiser-entries",
+    "organiser-entry-detail",
+    "public-event-page",
+    "participant-results"
+   ]
   }
  ],
  "open_questions": [
@@ -7232,6 +7789,7 @@
   "Public event page: Should the team and participant counts show during Open? They are reassuring for a big event and off-putting for a new one with 3 sign-ups.",
   "Apply: existing events get applications switched on when this ships (literal reading of 'on by default for every event'), so open events gain an Apply button that day. Keep, or default existing events to off?",
   "Apply: should the applicant get an email when an organiser decides? None exists today, so the copy says 'you'll see their answer here and on your Home'. Recommended: one email on approval only.",
-  "Apply: the join-link form keeps not asking location, age range and gender (join links unchanged), so CSV demographics cover applicants only. Ask them there too?"
+  "Apply: the join-link form keeps not asking location, age range and gender (join links unchanged), so CSV demographics cover applicants only. Ask them there too?",
+  "Entries: at the deadline an incomplete draft is Not submitted and is not judged (a complete draft submits itself). The organiser's way in is a per-team extension. Keep, or judge incomplete drafts too, flagged?"
  ]
 }
