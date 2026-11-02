@@ -47,7 +47,7 @@ func newImportTest(t *testing.T) (*ConnectorHandler, http.Handler, mcp.Caller) {
 	t.Helper()
 	h := NewConnectorHandler(nil, "https://simple-host.test", "", "simple-host.test", "sites.simple-host.test", "1", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 201, map[string]any{"site_url": "https://blog.person.simple-host.test/", "active_version": 1})
-	}))
+	}), false)
 	mux := http.NewServeMux()
 	h.Register(mux, func(h http.Handler) http.Handler { return h })
 	return h, CORS(mux), mcp.Caller{APIKey: "test-key", Owner: "owner", MintUpload: func(context.Context, bool) (string, func(), error) { return "fresh", func() {}, nil }}

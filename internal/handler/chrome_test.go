@@ -9,12 +9,18 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // chromeTestHandler is a SiteHandler with no database. Every route exercised
 // here avoids the DB: handle-shaped paths are the only ones that query it.
 func chromeTestHandler() *SiteHandler {
-	return &SiteHandler{siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
+	kind := edition.Host
+	if hackMode {
+		kind = edition.Hack
+	}
+	return &SiteHandler{ed: edition.ForKind(kind), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
 }
 
 func chromeTestMux(t *testing.T) *http.ServeMux {

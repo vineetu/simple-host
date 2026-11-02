@@ -38,14 +38,14 @@ func isHackHost(r *http.Request) bool {
 // sitemapBase is the origin the sitemap names, and whether it is a Simple
 // Hack one: the hosted brands by name, and any other server (a self-hosted
 // Simple Host or Simple Hack) by its own SITE_DOMAIN, never by the request's Host.
-func sitemapBase(r *http.Request) (string, bool) {
+func sitemapBase(r *http.Request, hostedEvents bool) (string, bool) {
 	if isHackHost(r) {
 		return "https://simple-hack.app", true
 	}
 	if instanceSiteDomain == "" {
-		return "https://" + canonicalSiteDomain, hackMode
+		return "https://" + canonicalSiteDomain, hostedEvents
 	}
-	return "https://" + instanceSiteDomain, hackMode
+	return "https://" + instanceSiteDomain, hostedEvents
 }
 
 // serveRobotsTxt and serveSitemapXML answer the platform's own robots.txt and
@@ -54,14 +54,14 @@ func sitemapBase(r *http.Request) (string, bool) {
 // (admin.html, the signed-out events flow, offline/suspended/preview tenant
 // pages), so this stays a plain allow-all plus a pointer at the sitemap
 // rather than duplicating that per-path logic here.
-func serveRobotsTxt(w http.ResponseWriter, r *http.Request) {
-	base, _ := sitemapBase(r)
+func serveRobotsTxt(w http.ResponseWriter, r *http.Request, hostedEvents bool) {
+	base, _ := sitemapBase(r, hostedEvents)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte("User-agent: *\nAllow: /\nSitemap: " + base + "/sitemap.xml\n"))
 }
 
-func serveSitemapXML(w http.ResponseWriter, r *http.Request) {
-	base, hack := sitemapBase(r)
+func serveSitemapXML(w http.ResponseWriter, r *http.Request, hostedEvents bool) {
+	base, hack := sitemapBase(r, hostedEvents)
 	paths := hostSitemapPaths
 	if hack {
 		paths = hackSitemapPaths

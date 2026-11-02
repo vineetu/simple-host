@@ -23,10 +23,10 @@ func TestHackPublicDiscovery(t *testing.T) {
 			mux := http.NewServeMux()
 			RegisterUIRoutes(mux, base, chromeTestHandler())
 			RegisterHackHome(mux)
-			RegisterSkillsHub(mux, base)
+			RegisterSkillsHub(mux, base, true)
 			host := strings.SplitN(base, "://", 2)[1]
 			server := mcp.NewServer(mcp.Config{APIHost: host})
-			connector := &ConnectorHandler{issuer: base, mcp: server}
+			connector := &ConnectorHandler{issuer: base, mcp: server, hostedEvents: true}
 			connector.Register(mux, func(next http.Handler) http.Handler { return next })
 			readJSON := func(path string, dst any) string {
 				t.Helper()

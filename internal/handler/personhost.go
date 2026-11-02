@@ -226,7 +226,7 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 	if !ok {
 		return "", false
 	}
-	if !hackMode {
+	if !h.ed.Routes().HostedEvents {
 		home, has, err := db.HomeSite(ctx, h.database, owner.ID)
 		if err != nil {
 			return "", false
@@ -236,7 +236,7 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 		}
 	}
 	seg, _, _ := strings.Cut(strings.TrimPrefix(path.Clean("/"+p), "/"), "/")
-	if hackMode {
+	if h.ed.Routes().HostedEvents {
 		if ev, err := db.GetEventByAccount(ctx, h.database, owner.ID); err == nil && ev.WebsiteMode == "custom" && !ev.TakenDown() {
 			if site, err := db.GetSiteByUser(ctx, h.database, owner.ID, ev.ID); err == nil {
 				return site.ID, true
@@ -292,7 +292,7 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if hackMode {
+		if h.ed.Routes().HostedEvents {
 			h.serveHackEventHost(w, r, user, api)
 			return
 		}

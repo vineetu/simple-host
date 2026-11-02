@@ -8,10 +8,10 @@ import (
 
 // The original diagrams are still served on Hack. Host's copies use its paper
 // and ink; the shared theme script keeps standalone SVGs on the same override.
-func hostDiagram(next http.Handler) http.Handler {
+func hostDiagram(hostedEvents bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/")
-		if hackMode || !strings.HasPrefix(name, "diagrams/") || !strings.HasSuffix(name, ".svg") {
+		if hostedEvents || !strings.HasPrefix(name, "diagrams/") || !strings.HasSuffix(name, ".svg") {
 			next.ServeHTTP(w, r)
 			return
 		}

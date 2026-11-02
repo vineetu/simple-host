@@ -70,9 +70,10 @@ const (
 
 // ConnectorHandler serves the OAuth authorization server and /mcp.
 type ConnectorHandler struct {
-	database    *sql.DB
-	issuer      string // e.g. https://simple-host.app
-	mcpResource string // issuer + "/mcp"
+	hostedEvents bool
+	database     *sql.DB
+	issuer       string // e.g. https://simple-host.app
+	mcpResource  string // issuer + "/mcp"
 	// brainResource is issuer + "/brain/mcp" when the owner's knowledge
 	// server is on (EnableBrain), else "".
 	brainResource string
@@ -109,7 +110,7 @@ type ConnectorHandler struct {
 // NewConnectorHandler builds the connector. upstream is the application mux
 // behind the key scope gate (auth.ScopeGate): MCP tool calls are served into
 // it in process, so a deploy-only key's tools meet the same route table.
-func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomain, contentHost, skillVersion string, upstream http.Handler) *ConnectorHandler {
+func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomain, contentHost, skillVersion string, upstream http.Handler, hostedEvents bool) *ConnectorHandler {
 	issuer := strings.TrimRight(publicBaseURL, "/")
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
@@ -123,11 +124,12 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		apiHost = siteDomain
 	}
 	h := &ConnectorHandler{
-		database:    database,
-		issuer:      issuer,
-		mcpResource: issuer + "/mcp",
-		adminAPIKey: adminAPIKey,
-		consentKey:  key,
+		hostedEvents: hostedEvents,
+		database:     database,
+		issuer:       issuer,
+		mcpResource:  issuer + "/mcp",
+		adminAPIKey:  adminAPIKey,
+		consentKey:   key,
 		// Registration: a chat app registers once per install, so a handful
 		// an hour per address is plenty. Authorize and token: one person's
 		// sign-in or a client's refresh loop, with room for retries.
@@ -175,7 +177,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	// Another Simple Host server names itself in the connector's text, with
 	// the rewriter its llms.txt and Get started use (SetInstanceHosts runs
 	// first). Simple Hack rewrites its own text.
-	if instanceHosts != nil && !hackMode {
+	if instanceHosts != nil && !h.hostedEvents {
 		h.mcpConfig.Rewrite = instanceHosts.r.Replace
 	}
 	h.mcp = mcp.NewServer(h.mcpConfig)
@@ -238,8 +240,8 @@ func (h *ConnectorHandler) StartSweep(every time.Duration) {
 }
 
 func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
-	RegisterAgentCard(mux, h.issuer, h.mcp)
-	RegisterMCPServerCard(mux, h.issuer)
+	RegisterAgentCard(mux, h.issuer, h.mcp, h.hostedEvents)
+	RegisterMCPServerCard(mux, h.issuer, h.hostedEvents)
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource", h.protectedResourceMetadata)
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", h.protectedResourceMetadata)
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", h.authorizationServerMetadata)

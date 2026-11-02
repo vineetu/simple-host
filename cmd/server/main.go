@@ -22,6 +22,7 @@ import (
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/config"
 	dbpkg "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/eventdns"
 	"github.com/vsriram/simple-host/internal/geoip"
@@ -136,7 +137,8 @@ func main() {
 	}
 	// Hosted events (EVENTS=hosted, simple-hack.app): set before any route is
 	// registered, because the dashboard, the chrome and the host dispatch read it.
-	hosted := cfg.Events == "hosted"
+	ed := edition.New(cfg)
+	hosted := ed.Routes().HostedEvents
 	if hosted {
 		if err := dbpkg.VerifyHackSchema(context.Background(), db); err != nil {
 			log.Fatalf("schema check (EVENTS=hosted): %v", err)
@@ -236,7 +238,7 @@ func main() {
 	mailer := email.NewResendSender(cfg.ResendAPIKey, cfg.MailFrom)
 	mailer.SetCodeLifetime(config.Span(cfg.Limits.SigninCodeTTL))
 	if hosted {
-		mailer.SetProductName("Simple Hack")
+		mailer.SetProductName(ed.Presentation().ProductName)
 	}
 	if cfg.ResendAPIKey == "" {
 		log.Printf("no RESEND_API_KEY: no email is sent, so sign-in codes (/v1/auth) and Submissions emails are off; accounts use keys the admin issues")
@@ -268,7 +270,7 @@ func main() {
 	handler.RegisterHealthRoutes(mux, db)
 	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL)
 	userHandler.Register(mux, authMW, noticeMW)
-	siteHandler := handler.NewSiteHandler(db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
+	siteHandler := handler.NewSiteHandler(ed, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	userHandler.SetFileUsage(siteHandler)
 	siteHandler.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
@@ -351,7 +353,7 @@ func main() {
 	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(handler.HackLegacyStorageGate(auth.ScopeGate(db, mux))), cfg.PublicBaseURL)
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
-	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated)
+	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, ed.Routes().HostedEvents)
 	connector.SetVisitorReferences(siteHandler)
 	connector.SetVisitorTools(siteHandler, oauthHandler)
 	connector.SetPreviewBases(siteHandler.ServedBases())
@@ -377,7 +379,7 @@ func main() {
 		connector.EnableBrain(mux, authMW, filepath.Join(dir, "bundle.json"))
 	}
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
-	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL)
+	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL, ed.Presentation().HackAssets)
 	var hackSweep func(context.Context)
 	var hackEvents *handler.HackHandler
 	if hosted {

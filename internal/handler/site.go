@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/netusage"
 	"io"
 	"log"
 	"net/http"
@@ -27,8 +26,10 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/geoip"
+	"github.com/vsriram/simple-host/internal/netusage"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
 )
@@ -60,6 +61,7 @@ func init() {
 }
 
 type SiteHandler struct {
+	ed                *edition.Edition
 	createIdempotency *createIdempotencyStore
 
 	notifyOnce    sync.Once
@@ -343,7 +345,7 @@ type versionResponse struct {
 	IsActive      bool      `json:"is_active"`
 }
 
-func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string, mailer email.Sender, emailLimiter *rateLimiter) *SiteHandler {
+func NewSiteHandler(ed *edition.Edition, database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string, mailer email.Sender, emailLimiter *rateLimiter) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
 	lim := config.Active()
@@ -363,6 +365,7 @@ func NewSiteHandler(database *sql.DB, disk *storage.DiskStorage, siteDomain, con
 	stateLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 
 	h := &SiteHandler{
+		ed:                     ed,
 		mailer:                 mailer,
 		emailLimiter:           emailLimiter,
 		database:               database,

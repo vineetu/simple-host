@@ -16,7 +16,7 @@ import (
 
 func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if hackMode {
+	if h.ed.Routes().HostedEvents {
 		writeJSON(w, 404, errorResponse{Error: "home pages are unavailable", Code: "not_found"})
 		return
 	}
@@ -69,7 +69,7 @@ func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
 
 // Selected home is an additional origin of exactly one site, even when it has a domain.
 func (h *SiteHandler) isHomeSiteHost(ctx context.Context, siteID, host string) bool {
-	if hackMode {
+	if h.ed.Routes().HostedEvents {
 		return false
 	}
 	owner, ok := h.personHostOwner(ctx, host)

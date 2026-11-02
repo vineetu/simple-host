@@ -27,7 +27,7 @@ func TestServeHackInkBrowser(t *testing.T) {
 	a.sites.mailer = mb
 	a.hack.SetMailer(mb)
 	RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
-	RegisterSkillsHub(a.mux, a.srv.URL)
+	RegisterSkillsHub(a.mux, a.srv.URL, true)
 	RegisterHackHome(a.mux)
 	RegisterHackUI(a.mux, "")
 	RegisterHackPublic(a.mux, a.database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady)

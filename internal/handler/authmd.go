@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-func serveAuthMarkdown(w http.ResponseWriter, r *http.Request) {
+func (h *SiteHandler) serveAuthMarkdown(w http.ResponseWriter, r *http.Request) {
 	name := "auth.md"
-	if hackMode {
+	if h.ed.Presentation().HackAssets {
 		name = "hack-auth.md"
 	}
 	body, err := staticFiles.ReadFile("static/" + name)
@@ -16,7 +16,7 @@ func serveAuthMarkdown(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	if hackMode {
+	if h.ed.Presentation().HackAssets {
 		body = hackInstanceText(bytes.ReplaceAll(body, []byte("{sign_in}"), []byte(authSignInMethods())))
 	} else if !emailSignInEnabled {
 		body = hostAuthWithoutEmail(body)

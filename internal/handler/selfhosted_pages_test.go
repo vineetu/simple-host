@@ -51,14 +51,14 @@ func TestSitemapNamesThisServer(t *testing.T) {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/robots.txt", nil)
 		req.Host = host
-		serveRobotsTxt(rec, req)
+		serveRobotsTxt(rec, req, false)
 		if !strings.Contains(rec.Body.String(), "Sitemap: "+want) {
 			t.Errorf("%s robots.txt: %q", host, rec.Body.String())
 		}
 		rec = httptest.NewRecorder()
 		req = httptest.NewRequest("GET", "/sitemap.xml", nil)
 		req.Host = host
-		serveSitemapXML(rec, req)
+		serveSitemapXML(rec, req, false)
 		if !strings.Contains(rec.Body.String(), "<loc>"+strings.TrimSuffix(want, "sitemap.xml")+"</loc>") {
 			t.Errorf("%s sitemap.xml does not list its own home page", host)
 		}

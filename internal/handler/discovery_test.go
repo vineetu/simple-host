@@ -173,7 +173,7 @@ func TestSitemapBuildLastmod(t *testing.T) {
 	buildinfo.BuildTime = "2026-10-23T09:12:34Z"
 	t.Cleanup(func() { buildinfo.BuildTime = previous })
 	for _, host := range []string{"simple-host.app", "simple-hack.app"} {
-		rec := get(t, http.HandlerFunc(serveSitemapXML), host, "/sitemap.xml")
+		rec := get(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { serveSitemapXML(w, r, false) }), host, "/sitemap.xml")
 		var parsed struct {
 			URLs []struct {
 				Loc     string `xml:"loc"`

@@ -21,6 +21,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/storage"
 )
@@ -301,12 +302,12 @@ func newConnectorApp(t *testing.T) *connectorApp {
 
 	users := NewUserHandler(database, mailer, app.srv.URL)
 	users.Register(mux, authMW, noticeMW)
-	sites := NewSiteHandler(database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	sites := NewSiteHandler(edition.ForKind(edition.Host), database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	app.sites = sites
 	t.Cleanup(sites.WaitNotifications)
 	sites.Register(mux, authMW, noticeMW)
 	gated := auth.ScopeGate(database, mux)
-	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated)
+	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated, false)
 	conn.Register(mux, authMW)
 	app.conn = conn
 	root = CORS(conn.BearerAuth(gated))

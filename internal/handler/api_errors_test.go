@@ -96,7 +96,7 @@ func checkAPIError(t *testing.T, rec *httptest.ResponseRecorder, status int, cod
 func TestAPIErrorCodesAndHeaders(t *testing.T) {
 	t.Run("missing skills", func(t *testing.T) {
 		mux := http.NewServeMux()
-		RegisterSkillsHub(mux, "https://simple-host.test")
+		RegisterSkillsHub(mux, "https://simple-host.test", false)
 		for _, path := range []string{"/v1/skills/unknown-skill", "/v1/skills/unknown-skill/references/missing.md", "/v1/skills/website-deploy/references/missing.md"} {
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))

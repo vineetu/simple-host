@@ -17,6 +17,7 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/storage"
 	"net/http/httptest"
@@ -85,14 +86,14 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string) *pr
 	users := NewUserHandler(database, mailer, base)
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.users = users
-	a.sites = NewSiteHandler(database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	a.sites = NewSiteHandler(edition.ForKind(edition.Host), database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.sites.WaitNotifications)
 	users.SetFileUsage(a.sites)
 	users.SetPublicPage(a.sites.PersonPageURL)
 	users.SetAddressState(a.sites.AddressState)
 	gated := a.sites.LegacyStorageCutoffGate(HackLegacyStorageGate(mux))
-	a.conn = NewConnectorHandler(database, base, adminKey, pcSiteDomain, pcContentHost, "1.0.0", gated)
+	a.conn = NewConnectorHandler(database, base, adminKey, pcSiteDomain, pcContentHost, "1.0.0", gated, false)
 	a.conn.Register(mux, authMW)
 	a.conn.SetSignInAlerts(users.SignInAlerts())
 	app := SecurityHeaders(CORS(a.conn.BearerAuth(gated)))

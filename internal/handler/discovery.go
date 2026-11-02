@@ -104,16 +104,16 @@ func homepageMarkdown(page []byte) ([]byte, error) {
 	return []byte(strings.Join(lines, "\n") + "\n"), nil
 }
 
-func homepageMarkdownHandler(publicBaseURL string) http.HandlerFunc {
-	return landingMarkdownHandler("host-story.html", "Simple Host", "Describe a website. It goes online.", publicBaseURL)
+func homepageMarkdownHandler(publicBaseURL string, hackAssets bool) http.HandlerFunc {
+	return landingMarkdownHandler("host-story.html", "Simple Host", "Describe a website. It goes online.", publicBaseURL, hackAssets)
 }
 
-func landingMarkdownHandler(file, title, description, publicBaseURL string) http.HandlerFunc {
+func landingMarkdownHandler(file, title, description, publicBaseURL string, hackAssets bool) http.HandlerFunc {
 	page, err := staticFiles.ReadFile("static/" + file)
 	if err != nil {
 		panic(err)
 	}
-	if hackMode {
+	if hackAssets {
 		page = hackInstanceText(page)
 	}
 	body, err := homepageMarkdown(page)
@@ -129,16 +129,16 @@ func landingMarkdownHandler(file, title, description, publicBaseURL string) http
 }
 
 // Both discovery files name the configured server, like the served API spec.
-func discoveryDocument(name, contentType, publicBaseURL string) http.HandlerFunc {
+func discoveryDocument(hackAssets bool, name, contentType, publicBaseURL string) http.HandlerFunc {
 	source := name
-	if hackMode {
+	if hackAssets {
 		source = "hack-" + name
 	}
 	body, err := staticFiles.ReadFile("static/.well-known/" + source)
 	if err != nil {
 		panic(err)
 	}
-	if hackMode {
+	if hackAssets {
 		body = hackInstanceText(body)
 	} else {
 		body = bytes.ReplaceAll(body, []byte("https://simple-host.app"), []byte(strings.TrimRight(publicBaseURL, "/")))

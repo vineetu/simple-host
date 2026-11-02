@@ -13,7 +13,7 @@ func RegisterHackHome(mux *http.ServeMux) {
 	if hackInkBaseURL == "https://simple-hack.app" {
 		page = "hack-home.html"
 	}
-	markdown := landingMarkdownHandler(page, "Simple Hack", "Create events, join teams, and judge entries.", hackInkBaseURL)
+	markdown := landingMarkdownHandler(page, "Simple Hack", "Create events, join teams, and judge entries.", hackInkBaseURL, true)
 	mux.HandleFunc("GET /index.md", markdown)
 	mux.HandleFunc("GET /llms.md", markdown)
 	mux.Handle("GET /{$}", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

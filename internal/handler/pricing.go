@@ -13,7 +13,7 @@ import (
 // outside config.Limits (the version-retention package var). Computed fresh
 // on every request, straight from this install's own settings, the same
 // source every other page or email draws its numbers from.
-func pricingNumbers() map[string]string {
+func pricingNumbers(hostedEvents bool) map[string]string {
 	accountMB := config.Active().MaxAccountMB
 	account := "no account-wide cap by default"
 	switch {
@@ -30,7 +30,7 @@ func pricingNumbers() map[string]string {
 	// Files bucket per site: the same branch as (*SiteHandler).storageFilesLimitBytes,
 	// which falls back to the KV+SQLite pool in Hack mode rather than its own env var.
 	filesBytes := storageSiteLimitBytes()
-	if !hackMode {
+	if !hostedEvents {
 		filesBytes = storageLimitBytes(os.Getenv("SITE_STORAGE_FILES_MAX_BYTES"), 10000000, 10<<30)
 	}
 	return map[string]string{
@@ -46,8 +46,8 @@ func pricingNumbers() map[string]string {
 	}
 }
 
-func applyPricingNumbers(body []byte) []byte {
-	for token, value := range pricingNumbers() {
+func applyPricingNumbers(body []byte, hostedEvents bool) []byte {
+	for token, value := range pricingNumbers(hostedEvents) {
 		body = bytes.ReplaceAll(body, []byte(token), []byte(value))
 	}
 	return body

@@ -45,7 +45,7 @@ func TestHostSkillsHideHostedMemberGuides(t *testing.T) {
 	hackMode = false
 	defer func() { hackMode = previousMode }()
 	mux := http.NewServeMux()
-	RegisterSkillsHub(mux, "https://simple-host.app")
+	RegisterSkillsHub(mux, "https://simple-host.app", false)
 	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
 	get := func(path string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()

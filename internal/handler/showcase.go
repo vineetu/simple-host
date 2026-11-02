@@ -91,7 +91,7 @@ func (h *SiteHandler) showcase(w http.ResponseWriter, r *http.Request) {
 	if h.redirectHandleAlias(w, r, handle) {
 		return
 	}
-	if !hackMode && !h.personHostsOn() && showcaseHandleRe.MatchString(handle) && !reservedShowcaseHandles[handle] {
+	if !h.ed.Routes().HostedEvents && !h.personHostsOn() && showcaseHandleRe.MatchString(handle) && !reservedShowcaseHandles[handle] {
 		user, err := db.GetUserByHandle(r.Context(), h.database, handle)
 		if err == nil {
 			s, has, err := db.HomeSite(r.Context(), h.database, user.ID)
@@ -148,7 +148,7 @@ func (h *SiteHandler) ownerAppOrStatic(fileServer http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seg := strings.Trim(r.URL.Path, "/")
 		// The hackathon platform has no person pages (hack_mode.go).
-		if seg != "" && !hackMode && !strings.ContainsAny(seg, "/.") &&
+		if seg != "" && !h.ed.Routes().HostedEvents && !strings.ContainsAny(seg, "/.") &&
 			showcaseHandleRe.MatchString(strings.ToLower(seg)) && !reservedShowcaseHandles[strings.ToLower(seg)] {
 			if _, err := db.GetUserByHandle(r.Context(), h.database, strings.ToLower(seg)); err == nil {
 				h.renderShowcase(w, r, strings.ToLower(seg))
@@ -298,7 +298,7 @@ func (h *SiteHandler) showcaseFeed(w http.ResponseWriter, r *http.Request) {
 	w.Header().Del("Access-Control-Allow-Credentials")
 	w.Header().Set("Cache-Control", "no-store")
 	handle := strings.ToLower(strings.TrimSpace(r.PathValue("handle")))
-	if hackMode || !showcaseHandleRe.MatchString(handle) || reservedShowcaseHandles[handle] {
+	if h.ed.Routes().HostedEvents || !showcaseHandleRe.MatchString(handle) || reservedShowcaseHandles[handle] {
 		writeJSON(w, 404, errorResponse{Error: "not found", Code: "not_found"})
 		return
 	}

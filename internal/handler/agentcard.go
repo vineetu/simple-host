@@ -33,16 +33,16 @@ type agentCardAuth struct {
 }
 
 // RegisterAgentCard serves public DNS-AID discovery metadata for this instance.
-func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server) {
+func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server, hostedEvents bool) {
 
 	mux.HandleFunc("GET /.well-known/agent-card.json", func(w http.ResponseWriter, r *http.Request) {
 		var tools []mcp.Tool
-		if hackMode {
+		if hostedEvents {
 			tools = mcpServer.HackListedTools()
 		} else {
 			tools = mcpServer.ListedTools()
 		}
-		endpoint, aliases := mcpDiscoveryEndpoints(issuer)
+		endpoint, aliases := mcpDiscoveryEndpoints(issuer, hostedEvents)
 		card := agentCard{
 			Name:        "Simple Host",
 			Description: "Simple Host publishes websites with a small backend (KV, SQLite and files), each at its own address. This MCP server lets an agent build and manage sites on behalf of a signed-in person.",
@@ -55,13 +55,13 @@ func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server)
 			},
 			Tools: make([]agentCardTool, 0, len(tools)),
 		}
-		if hackMode {
+		if hostedEvents {
 			card.Name = "Simple Hack"
 			card.Description = "Organisers manage events, teams, judging, and results. Participants join teams, submit entries, and publish to a selected team website. Judges read rubrics and score assigned entries. Each call checks the signed-in person's role, membership, stage, and deadline. This public tool overview contains no account or event data."
 		}
 		for _, tool := range tools {
 			description := tool.Description
-			if hackMode {
+			if hostedEvents {
 				// Titles describe generic actions without inherited Host address examples.
 				description = tool.Title
 			}
@@ -74,9 +74,9 @@ func RegisterAgentCard(mux *http.ServeMux, issuer string, mcpServer *mcp.Server)
 }
 
 // mcpDiscoveryEndpoints keeps both public discovery cards on the same URLs.
-func mcpDiscoveryEndpoints(issuer string) (string, []string) {
+func mcpDiscoveryEndpoints(issuer string, hostedEvents bool) (string, []string) {
 	var aliases []string
-	if !hackMode && strings.EqualFold(issuer, "https://simple-host.app") {
+	if !hostedEvents && strings.EqualFold(issuer, "https://simple-host.app") {
 		aliases = []string{"https://mcp.simple-host.app/mcp"}
 	}
 	return issuer + "/mcp", aliases

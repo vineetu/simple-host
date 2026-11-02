@@ -45,7 +45,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 
 		// The hackathon platform has no content host: sites.<domain> is its
 		// 404, never a second origin for the signed-in app (hack_mode.go).
-		if hackMode && contentHost != "" && host == contentHost {
+		if h.ed.Routes().HostedEvents && contentHost != "" && host == contentHost {
 			h.renderHackNotFound(w, r)
 			return
 		}
@@ -61,7 +61,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 		}
 		// The hackathon platform has no per-name past: a name that is no
 		// event is our 404 (hack_mode.go).
-		if hackMode {
+		if h.ed.Routes().HostedEvents {
 			h.renderHackNotFound(w, r)
 			return
 		}

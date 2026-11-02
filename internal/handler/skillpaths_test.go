@@ -12,7 +12,7 @@ import (
 // a 404 because only /skills/… accepted the /SKILL.md suffix.
 func TestSkillPathsWorkUnderBothPrefixes(t *testing.T) {
 	mux := http.NewServeMux()
-	RegisterSkillsHub(mux, "https://simple-host.app")
+	RegisterSkillsHub(mux, "https://simple-host.app", false)
 	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
 
 	get := func(path string) *httptest.ResponseRecorder {

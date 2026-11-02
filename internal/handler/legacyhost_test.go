@@ -4,10 +4,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestLegacyHostRedirectMCPReachesNext(t *testing.T) {
-	h := &SiteHandler{siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
+	h := &SiteHandler{ed: edition.ForKind(edition.Host), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true

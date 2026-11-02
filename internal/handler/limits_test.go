@@ -427,7 +427,7 @@ func TestSkillRoutesFollowArchiveLimit(t *testing.T) {
 	ApplyLimits(config.DefaultLimits())
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
-	RegisterSkillsHub(mux, "https://simple-host.app")
+	RegisterSkillsHub(mux, "https://simple-host.app", false)
 	for _, c := range []struct{ path, want string }{
 		{"/v1/skills/website-deploy", "**Archive limit** is 300 MB."},
 		{"/v1/skills/website-deploy/SKILL.md", "**Archive limit** is 300 MB."},

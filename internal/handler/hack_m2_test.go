@@ -16,6 +16,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/storage"
 )
@@ -91,7 +92,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	users := NewUserHandler(database, mailer, a.srv.URL)
 	a.users = users
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
-	a.sites = NewSiteHandler(database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	a.sites = NewSiteHandler(edition.ForKind(edition.Hack), database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.sites.WaitNotifications)
 	a.sites.SetPersonHosts("canonical")
@@ -102,7 +103,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.sites.SetHackEventPage(HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady))
 	a.sites.SetHackScreenshot(HackScreenshot(database, a.sites.TeamSitesReady))
 	gated := a.sites.LegacyStorageCutoffGate(HackLegacyStorageGate(auth.ScopeGate(database, mux)))
-	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated)
+	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true)
 	a.conn.Register(mux, authMW)
 	a.conn.SetHackTeams(true)
 	a.conn.SetSignInAlerts(users.SignInAlerts())

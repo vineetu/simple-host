@@ -34,6 +34,8 @@ import (
 //   - An account's handle is never chosen or changed by its person: it is a
 //     random u-<hex> label, so sign-ups cannot squat event names.
 //   - Sign-in email says Simple Hack.
+//
+// hackMode is transitional; converted code must use the injected Edition.
 var hackMode bool
 
 // SetHackMode turns hosted-events mode on. Call once at startup, before

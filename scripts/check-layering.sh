@@ -20,6 +20,7 @@ allowed_for() {
   case "$1" in
     handler) echo "ANY" ;;
     auth)    echo "db" ;;
+    edition) echo "config" ;;
     *)       echo "" ;;
   esac
 }

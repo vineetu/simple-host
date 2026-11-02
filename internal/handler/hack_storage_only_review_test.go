@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // Checks the public router and both connector grant shapes, not only the
@@ -128,7 +130,7 @@ func TestHackRegisteredDocsReview(t *testing.T) {
 		SetInstanceHosts("simple-host.app", "", "")
 	})
 	mux := http.NewServeMux()
-	RegisterUIRoutes(mux, "https://simple-hack.test", &SiteHandler{})
+	RegisterUIRoutes(mux, "https://simple-hack.test", &SiteHandler{ed: edition.ForKind(edition.Hack)})
 	get := func(path string) []byte {
 		t.Helper()
 		rec := httptest.NewRecorder()

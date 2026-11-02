@@ -167,7 +167,7 @@ func validSkillName(s string) bool {
 	return true
 }
 
-func serveSkillsCatalog(publicBaseURL string) http.HandlerFunc {
+func serveSkillsCatalog(publicBaseURL string, hackAssets bool) http.HandlerFunc {
 	base := strings.TrimRight(publicBaseURL, "/")
 	return func(w http.ResponseWriter, r *http.Request) {
 		version, _ := PluginVersion()
@@ -176,7 +176,7 @@ func serveSkillsCatalog(publicBaseURL string) http.HandlerFunc {
 			skills[i].URL = base + "/v1/skills/" + skills[i].Name
 		}
 		pluginName := "website-deploy"
-		if hackMode {
+		if hackAssets {
 			pluginName = "simple-hack"
 		}
 		cat := skillsCatalog{Plugin: pluginName, Version: version, Count: len(skills), Skills: skills}
@@ -298,8 +298,8 @@ func writeSkillNotFound(w http.ResponseWriter, r *http.Request, message string) 
 
 // RegisterSkillsHub mounts the public skills catalog + per-skill markdown fetch,
 // plus the /.well-known/skills discovery endpoint used by agent skill hubs.
-func RegisterSkillsHub(mux *http.ServeMux, publicBaseURL string) {
-	mux.HandleFunc("GET /v1/skills", serveSkillsCatalog(publicBaseURL))
+func RegisterSkillsHub(mux *http.ServeMux, publicBaseURL string, hackAssets bool) {
+	mux.HandleFunc("GET /v1/skills", serveSkillsCatalog(publicBaseURL, hackAssets))
 	mux.HandleFunc("GET /v1/skills/{name}", serveSkillDoc)
 	// Agents append /SKILL.md by habit (it works under /skills/ and
 	// /.well-known/skills/), so accept it here too.
