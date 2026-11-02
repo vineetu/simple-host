@@ -6809,7 +6809,7 @@
                       "type": "string",
                       "format": "date",
                       "example": "2026-08-09",
-                      "description": "First UTC day for which the person/bot/infra/owner split exists. Earlier days in `daily` report under `unknown`. Omitted when nothing has been classified yet."
+                      "description": "First UTC day for which the person/bot/infra split exists (the owner class starts later, with the first owner marks). Earlier days in `daily` report under `unknown`. Omitted when nothing has been classified yet."
                     },
                     "totals": {
                       "$ref": "#/components/schemas/TrafficSplit"
@@ -36471,7 +36471,7 @@
           },
           "views": {
             "type": "object",
-            "description": "Site list only: views by people in the last 7 and 30 days (rolling, from now), from the same classified analytics as GET .../analytics. The owner's own visits (from a device they used while signed in, or signed in on the site as themselves, within 30 days) are filed as class owner and left out. A visit from a device never used while signed in still counts; other people behind the same address as a marked device are not counted while the mark lasts.",
+            "description": "Site list only: views by people in the last 7 and 30 days (rolling, counted in whole hours from the start of the oldest hour), from the same classified analytics as GET .../analytics. The owner's own visits (from a device they used while signed in, or signed in on the site as themselves, within 30 days) are filed as class owner and left out. A visit from a device never used while signed in still counts; other people behind the same address as a marked device are not counted while the mark lasts.",
             "properties": {
               "people_7_days": {
                 "type": "integer",

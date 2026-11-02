@@ -3309,7 +3309,7 @@ function parseAnalyticsSummary(data) {
       // sites is not possible from per-site totals, so the label says what the
       // number actually is instead of overstating it.
       document.getElementById('an-totals').innerHTML =
-        '<div class="stat"><div class="s-val">' + totalViews.toLocaleString() + '</div><div class="s-lbl">' + label + ' views (people)</div></div>' +
+        '<div class="stat" title="Not counting your own visits (from an address seen signed in to Simple Host in the last 30 days). A device never used while signed in still counts, and other people behind a marked address are left out while the mark lasts."><div class="s-val">' + totalViews.toLocaleString() + '</div><div class="s-lbl">' + label + ' views (people)</div></div>' +
         '<div class="stat"><div class="s-val">' + totalVisitors.toLocaleString() + '</div><div class="s-lbl">' + label + ' visits across sites</div></div>';
       document.getElementById('an-body').innerHTML =
         (failed ? '<div class="an-failed">Couldn\'t load analytics for ' + failed + ' site' +

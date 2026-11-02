@@ -559,7 +559,8 @@ function parseAnalyticsSummary(data) {
       var cells = [
         // The range is already stated in the toolbar, so it is not repeated here.
         kpi('is-people', 'People', t.person.views,
-          t.person.visitors.toLocaleString() + ' visitor' + (t.person.visitors === 1 ? '' : 's'), ''),
+          t.person.visitors.toLocaleString() + ' visitor' + (t.person.visitors === 1 ? '' : 's'),
+          'Not counting the owner\u2019s own visits (from an address seen signed in to Simple Host in the last 30 days). A device never used while signed in still counts as People, and other people behind a marked address are left out while the mark lasts.'),
         kpi('is-bots', 'Bots', t.bot.views,
           t.bot.visitors.toLocaleString() + ' crawler' + (t.bot.visitors === 1 ? '' : 's'), ''),
       ];
@@ -674,8 +675,11 @@ function parseAnalyticsSummary(data) {
       var total = list.reduce(function (t, c) { return t + c.person.views; }, 0);
       if (!total) {
         var automated = list.some(function (c) { return c.bot.views + c.infra.views > 0; });
-        body.innerHTML = '<div class="empty-state">No people recorded in this range' +
-          (automated ? ', only bots and monitoring.' : '.') + '</div>';
+        var own = list.some(function (c) { return c.owner.views > 0; });
+        var only = own && automated ? ', only ' + (OWNER ? 'the owner\u2019s' : 'your') + ' own visits, bots, and monitoring.' :
+          own ? ', only ' + (OWNER ? 'the owner\u2019s' : 'your') + ' own visits.' :
+          automated ? ', only bots and monitoring.' : '.';
+        body.innerHTML = '<div class="empty-state">No people recorded in this range' + only + '</div>';
         return;
       }
 

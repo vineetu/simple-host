@@ -1744,11 +1744,11 @@ the address matches that account's mark; a bot stays `bot`, and another account'
 the same address stays `person`. People counts (`person`) leave `owner` out everywhere they mean
 people; idle-site cleanup still counts `owner` views as activity, because a site its owner keeps
 opening is in use. Every item of `GET /v1/sites` carries `views {people_7_days, people_30_days}`
-(people only, rolling windows of the last 7 x 24 and 30 x 24 hours), and every analytics split
+(people only, rolling windows of the last 7 and 30 days, counted in whole hours from the top of the oldest hour), and every analytics split
 carries `owner {views, visitors}` next to the other classes. The connector says it in text only,
 with no new structured fields: `list_sites` and `get_site` state the 7- and 30-day figures, and
 `site_analytics` drops `owner` from its structured totals and states the owner's own visits in
-words. The per-site analytics page shows a "You" figure (views and devices over the range) when
+words. The per-site analytics page shows a "You" figure (views and distinct addresses over the range; "Owner" when an admin reads someone else's site) when
 there is any; People stays the audience number. Two caveats, always both: a visit from a device
 the owner never used while signed in still counts as a person, and other people behind the same
 address as a marked device are not counted while the mark lasts (30 days). Marks are per account:

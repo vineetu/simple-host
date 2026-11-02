@@ -1076,7 +1076,9 @@ func Tools() []Tool {
 					return output{Text: "This account has no sites yet. Publish one with create_site.", Structured: out}, nil
 				}
 				text := jsonText(out)
-				if views := ownerViewsLine(sites); views != "" {
+				// A Hack team connection is the team's, never marked, so the
+				// "not counting your own visits" line would not be true there.
+				if views := ownerViewsLine(sites); views != "" && c.caller.Mode != CallerModeHackSite {
 					text += "\n\n" + views
 				}
 				if c.server.mySitesEnabled(c.caller) {
@@ -1125,7 +1127,7 @@ func Tools() []Tool {
 					}
 				}
 				answer := sitePreviewOutput(c, site, out)
-				if site.Views != nil {
+				if site.Views != nil && c.caller.Mode != CallerModeHackSite {
 					answer.Text += "\n\nViews by people, not counting your own visits: " + strconv.FormatInt(site.Views.People7Days, 10) +
 						" in the last 7 days, " + strconv.FormatInt(site.Views.People30Days, 10) + " in the last 30 days." + ownVisitsCaveat
 				}
@@ -1884,7 +1886,11 @@ func Tools() []Tool {
 						out["top_pages"], out["top_referrers"] = t.Pages, t.Referrers
 					}
 				}
-				answer := output{Text: jsonText(out) + "\n\n" + ownVisitsLine(full["totals"]), Structured: out}
+				text := jsonText(out)
+				if c.caller.Mode != CallerModeHackSite {
+					text += "\n\n" + ownVisitsLine(full["totals"])
+				}
+				answer := output{Text: text, Structured: out}
 				if c.server.dashboardEnabled(c.caller) {
 					answer.Meta = map[string]any{"simple-host/daily": full["daily"]}
 				}

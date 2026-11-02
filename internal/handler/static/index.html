@@ -1805,18 +1805,20 @@ function parseAnalyticsSummary(data) {
 
     // Takes the parsed shape from parseSiteAnalytics, never a raw response.
     function renderAnalytics(a) {
-      const { person: people, bot: bots, infra, unknown } = a.totals;
+      const { person: people, bot: bots, infra, owner, unknown } = a.totals;
       const days = a.rangeDays;
       const from = a.classifiedFrom;
 
       if (people.views === 0 && bots.views === 0 && unknown.views === 0) {
         // Infra-only traffic is not "visits" -- saying so would repeat exactly
         // the mistake this whole view exists to correct.
+        // The owner's own visits are not people either (SIM-151); say they were seen.
+        if (owner.views) return `<span class="an-empty">No visits by people yet · only the owner's own visits${infra.views ? ' and monitoring' : ''}</span>`;
         return `<span class="an-empty">No visits yet${infra.views ? ' · only monitoring traffic' : ''}</span>`;
       }
 
       const cells = [
-        `<div class="an-cell is-people">` +
+        `<div class="an-cell is-people" title="Not counting the owner&rsquo;s own visits (from an address seen signed in to Simple Host in the last 30 days). A device never used while signed in still counts as People, and other people behind a marked address are left out while the mark lasts.">` +
           `<span class="an-k">People</span>` +
           `<span class="an-v">${people.views.toLocaleString()}</span>` +
           `<span class="an-s">${people.visitors.toLocaleString()} visitor${people.visitors === 1 ? '' : 's'} · ${days}d</span>` +
