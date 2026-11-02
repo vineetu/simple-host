@@ -620,7 +620,7 @@ CREATE TABLE IF NOT EXISTS site_visitor_hourly (
 );
 CREATE INDEX IF NOT EXISTS site_visitor_hourly_hour_idx ON site_visitor_hourly (hour);
 
--- Owner marks (SIM-151, 2026-11-02). Mirrors db/migrations/zu-sim-151-owner-visitor-marks.sql.
+-- Owner marks (SIM-151, 2026-11-02). Mirrors db/migrations/zx-sim-151-owner-visitor-marks.sql.
 --
 -- One row per (account, address) the account was seen signed in from: the
 -- owner's own browser on the apex, or a visitor sign-in on a site the account

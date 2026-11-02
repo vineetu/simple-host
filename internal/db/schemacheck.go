@@ -70,7 +70,7 @@ var requiredColumns = map[string][]string{
 	"collection_settings": {"site_id", "collection", "private", "kind", "one_per_person", "notify", "notify_sent_at", "declared_at", "notify_last_id"},
 	"site_savers":         {"site_id", "list", "pattern", "added_at"},
 	"site_view_hourly":    {"site_id", "hour", "class", "views"},
-	// zu-sim-151-owner-visitor-marks.sql
+	// zx-sim-151-owner-visitor-marks.sql
 	"owner_visitor_marks": {"user_id", "ip_hash", "last_seen"},
 	// v078-api-growth.sql
 	"api_growth_daily": {"day", "dim", "key", "calls"},
