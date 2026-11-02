@@ -491,7 +491,7 @@ async function route() {
       const ended = event.event.stage === 'archived'
       const leaveCopy = ended
         ? (pending ? 'This event has ended, so you can’t withdraw. It stays on your Home as a record.' : 'This event has ended, so nobody can leave it. It stays on your Home as a record.')
-        : (pending ? 'The organisers stop seeing it, along with your answers. You can apply again while sign-up is open.' : 'Your answers are removed. You can apply again while sign-up is open, and the organisers decide again.')
+        : (pending ? 'The organisers stop seeing it, along with your answers. You can apply again while sign-up is open.' : 'Leaving removes your answers. You can then apply again while the event takes applications, and the organisers decide again.')
       const withdrawZone = `<section class="danger-zone"><h2>${pending ? 'Withdraw your application' : 'Leave this event'}</h2><div class="setting"><div class="t"><span>${leaveCopy}</span></div><button class="btn danger" type="button" id="withdraw-btn"${ended ? ' disabled' : ''}>${pending ? 'Withdraw application' : 'Leave event'}</button></div></section>`
       ctx.main.innerHTML = `<div class="locked"><h2>${pending ? 'Your application is waiting for the organisers' : "Your application wasn't accepted this time"}</h2><p>${pending ? "You'll see their answer here. Ask them if you have questions." : 'Ask an organiser if you have questions.'}</p></div>${withdrawZone}`
       const btn = ctx.main.querySelector('#withdraw-btn')

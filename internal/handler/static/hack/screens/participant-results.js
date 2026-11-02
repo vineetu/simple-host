@@ -81,10 +81,14 @@ export async function render(ctx) {
   // "of M" only makes sense against the full ranking; a winners-only
   // standings list isn't the whole field, so it's left off rather than
   // implying a count that isn't the real one.
-  const totalTeams = (!winnersOnly && rows.length) ? rows.length : null
+  // The count is the teams that got a place (my-results' ranked_teams), not
+  // every team in the event: teams with no entry or no scores have no place,
+  // so "1st of 2" in a four-team event reads "1st of 2 judged teams".
+  const ranked = typeof mine.ranked_teams === 'number' ? mine.ranked_teams : rows.filter(r => r.rank != null).length
+  const totalTeams = (!winnersOnly && ranked) ? ranked : null
   const mineScore = decidingScore(mine)
   const headline = mine.rank != null
-    ? ordinal(mine.rank) + (totalTeams ? ' of ' + totalTeams : '') + (mine.tied ? ' (tied)' : '')
+    ? (mine.tied ? 'Joint ' : '') + ordinal(mine.rank) + (totalTeams ? ' of ' + totalTeams + (totalTeams === 1 ? ' judged team' : ' judged teams') : '')
     : "Not scored yet"
   const scoreLine = mineScore != null ? 'Score ' + scoreText(mineScore) : ''
 

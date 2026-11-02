@@ -24984,7 +24984,7 @@
         ],
         "operationId": "listHackEventEntries",
         "summary": "Every team's entry (organiser, judge) (EVENTS=hosted only)",
-        "description": "Every team, including a team that has not written an entry (empty fields), sorted by team name. Due teams are pinned before the list is read. pinned_url is a preview link for the deadline version, or null when the team is not pinned or had no version. counts tallies submitted, drafts, not_started, not_submitted (incomplete, still judged) and sites_live. A participant gets 404 event_not_found. The platform admin may read.",
+        "description": "Every team, including a team that has not written an entry (empty fields), sorted by team name. Due teams are pinned before the list is read. pinned_url is a preview link for the deadline version, or null when the team is not pinned or had no version. counts tallies submitted, drafts, not_started, not_submitted (incomplete, still judged) and sites_live. A participant gets 404 event_not_found. The platform admin may read. For a judge (not an organiser), a team's site preview_url and pinned_url are null unless that judge may score the team (its entry submitted or settled, not excluded, assigned to them or on their panel, no declared conflict) and entries are closed. For everyone, preview_url is null whenever the site can't be framed (passcode, named viewers, offline, taken down).",
         "security": [
           {
             "apiKey": []
@@ -26306,7 +26306,7 @@
         ],
         "operationId": "getHackJudgingDashboard",
         "summary": "Judging coverage and progress (organiser) (EVENTS=hosted only)",
-        "description": "Per-team score coverage (flagged when short of the target \u2014 judges_per_team in automatic mode, 2 in open mode) and per-judge progress (done_count, assigned_count). tied_groups is always empty until scores exist (a later release fills this in once totals can be computed). former_judges (SIM-340) lists people who left after scoring: counted_teams is how many of their scores still count (frozen at the moment they left), assigned_count is how many of today's teams they would be assigned under the current mode. They are never in judges.",
+        "description": "Per-team score coverage (flagged when short of the target \u2014 judges_per_team in automatic mode, 2 in open mode) and per-judge progress (done_count, assigned_count). tied_groups is always empty until scores exist (a later release fills this in once totals can be computed). former_judges (SIM-340) lists people who left after scoring: counted_teams is how many of their scores still count (frozen at the moment they left), assigned_count is how many of today's teams they would be assigned under the current mode. They are never in judges. teams lists only the teams that will be judged: an entry not excluded by hand, or a live team site (moving to judging starts an entry for it); a team with neither has no entry and is left out, as it is from automatic assignment and every judge's queue. entries counts the same split (judged, no_entry, excluded) for the Start judging confirm.",
         "security": [
           {
             "apiKey": []
@@ -26404,6 +26404,20 @@
                     "tied_groups": {
                       "type": "array",
                       "items": {}
+                    },
+                    "entries": {
+                      "type": "object",
+                      "properties": {
+                        "judged": {
+                          "type": "integer"
+                        },
+                        "no_entry": {
+                          "type": "integer"
+                        },
+                        "excluded": {
+                          "type": "integer"
+                        }
+                      }
                     }
                   }
                 }
@@ -26705,7 +26719,7 @@
         ],
         "operationId": "getHackJudgeQueue",
         "summary": "This judge's queue (judge or organiser) (EVENTS=hosted only)",
-        "description": "Teams this judge may score (minus any declared conflict), each with its entry card data (same fields as HackEntryListItem, plus team_id), done (every current rubric criterion scored by this judge) and scores_count (how many judges total have scored it so far). Ordered least-covered first, then by team name. Organisers use the same queue without changing their membership role. Platform admin read-only access does not grant judging access.",
+        "description": "Teams this judge may score (minus any declared conflict), each with its entry card data (same fields as HackEntryListItem, plus team_id), done (every current rubric criterion scored by this judge) and scores_count (how many judges total have scored it so far). Ordered least-covered first, then by team name. Organisers use the same queue without changing their membership role. Platform admin read-only access does not grant judging access. A judge (not an organiser) gets each team's site preview_url and pinned_url only once entries are closed; before that they are null. assignment_mode is the event's judge assignment mode.",
         "security": [
           {
             "apiKey": []
@@ -26753,6 +26767,18 @@
                           }
                         ]
                       }
+                    },
+                    "judge_first": {
+                      "type": "string"
+                    },
+                    "assignment_mode": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "automatic",
+                        "manual",
+                        "panel"
+                      ]
                     }
                   }
                 }
@@ -27308,6 +27334,10 @@
                     },
                     "tied": {
                       "type": "boolean"
+                    },
+                    "ranked_teams": {
+                      "type": "integer",
+                      "description": "How many teams got a place (the N in '1st of N judged teams')."
                     },
                     "comments": {
                       "type": "array",
@@ -38401,7 +38431,7 @@
               "preview_url": {
                 "type": "string",
                 "nullable": true,
-                "description": "A preview of the pinned (submitted) version once the team is pinned, else of the live version; null when there is none."
+                "description": "A preview of the pinned (submitted) version once the team is pinned, else of the live version; null when there is none, when the site can't be framed (frameable false), and for a judge who may not score the team yet."
               },
               "frameable": {
                 "type": "boolean",

@@ -143,7 +143,7 @@ function confirmParticipant(ui, preview, title, warn) {
 // reads wrong -- preview.approval_status tells the two apart.
 function confirmApplicant(ui, preview, title, warn) {
   if (preview.approval_status === 'rejected') {
-    const body = [para('It will be removed from your Home. You can apply again later.')]
+    const body = [para('It will be removed from your Home. You can apply again while the event takes applications, and the organisers decide again.')]
     if (warn) body.unshift(warnNote(warn))
     return ui.confirm({ title: `Leave ${title}?`, body, confirmLabel: 'Leave event', danger: true })
   }
@@ -163,9 +163,14 @@ function confirmJudge(ui, preview, title, warn) {
 }
 
 function confirmCoOrganiser(ui, preview, title, warn) {
+  const staying = (preview.organisers_staying || []).filter(Boolean)
   const names = joinNames(preview.organisers_staying)
+  // Cosmetic (prod full test, round 7): "Org Five keep running it" --
+  // one name left (or none, "They") takes "keeps", more than one takes
+  // "keep".
+  const verb = staying.length === 1 ? 'keeps' : 'keep'
   const body = [
-    para(`You'll stop being an organiser and lose access to everything here. ${names} keep running it.`),
+    para(`You'll stop being an organiser and lose access to everything here. ${names} ${verb} running it.`),
     para('To come back, ask an organiser for a new co-organiser invite.', 'muted')
   ]
   if (warn) body.unshift(warnNote(warn))

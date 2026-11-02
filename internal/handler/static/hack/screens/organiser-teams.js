@@ -166,7 +166,7 @@ ${tracks.length ? `<div class="list editable">${tracks.map(trackRow).join('')}</
 
   async function paint() {
     const onNoTeamCount = onNoTeam.length
-    const subtitle = teams.length + ' team' + (teams.length === 1 ? '' : 's') + ' · ' + (onNoTeamCount ? onNoTeamCount + ' people not on a team' : 'Everyone is on a team')
+    const subtitle = teams.length + ' team' + (teams.length === 1 ? '' : 's') + ' · ' + (onNoTeamCount ? onNoTeamCount + (onNoTeamCount === 1 ? ' person' : ' people') + ' not on a team' : 'Everyone is on a team')
     main.innerHTML = `<div class="ph"><div class="t"><h1>Teams</h1><p>${esc(subtitle)}</p></div></div>
 <div class="subnav-split">${subnavHTML()}<section class="sp" aria-labelledby="sp-h"></section></div>`
     const sp = main.querySelector('.sp')
@@ -226,7 +226,7 @@ ${tracks.length ? `<div class="list editable">${tracks.map(trackRow).join('')}</
       function skipNote(s) { return `${esc(s.name)} is locked, so it was skipped.` }
       function saveLabel() {
         const n = plan.reduce((s, p) => s + p.members.length, 0)
-        return n ? 'Place ' + n + ' people' : 'Nothing to place'
+        return n ? 'Place ' + n + (n === 1 ? ' person' : ' people') : 'Nothing to place'
       }
       // The Save/Apply button lives in formDialog's own footer, outside
       // `body` -- reached through the open dialog once it exists (never on

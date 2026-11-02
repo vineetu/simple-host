@@ -79,6 +79,7 @@ func EligibleJudgeTeams(ctx context.Context, q Querier, eventID, judgeID string)
 			JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND m.role IN ('judge', 'organiser')
 			WHERE e.id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=e.id AND c.judge_id=$2 AND c.team_id=t.id)
 			AND `+EntryJudgeableSQL+`
+			AND (EXISTS (SELECT 1 FROM event_members tm WHERE tm.team_id=t.id) OR t.kept_after_leave)
 			AND (e.judge_assignment_mode='open'
 			OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=e.id AND a.judge_id=$2 AND a.team_id=t.id))
 			OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_track_panels p WHERE p.event_id=e.id AND p.track_id=t.track_id AND p.judge_id=$2)))`, eventID, judgeID)

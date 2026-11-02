@@ -72,9 +72,28 @@ function dateTime(value, event, options = {}) {
 function dateOnly(value, event) {
   return dateTime(value, event, { dateOnly: true })
 }
+// True when an instant falls exactly on midnight in the event's zone: Basics
+// saves start and end as dates only, stored as that midnight.
+function isLocalMidnight(value, event) {
+  const p = zonedParts(value, typeof event === 'string' ? event : event?.time_zone)
+  return !!p && p.h === '00' && p.min === '00'
+}
+// The next of start, entry deadline and end still ahead, as
+// [label, value, dateOnly]. A date-only start or end (local midnight) shows
+// as a date with no "12:00 am", and a date-only end lasts the whole of that
+// day, so it stays "next" until the day is over (full-test fix 2026-11-02).
 function nextDeadline(event) {
+  const now = Date.now()
+  const day = 24 * 60 * 60 * 1000
   return [['Starts', event?.starts_at], ['Entries close', event?.submission_deadline], ['Ends', event?.ends_at]]
-    .filter(([, value]) => value && new Date(value) > new Date()).sort((a,b) => new Date(a[1]) - new Date(b[1]))[0]
+    .filter(([, value]) => value && !Number.isNaN(new Date(value).getTime()))
+    .map(([label, value]) => {
+      const dateOnly = label !== 'Entries close' && isLocalMidnight(value, event)
+      const until = new Date(value).getTime() + (label === 'Ends' && dateOnly ? day : 0)
+      return [label, value, dateOnly, until]
+    })
+    .filter(r => r[3] > now).sort((a, b) => a[3] - b[3])
+    .map(r => r.slice(0, 3))[0]
 }
 // C2: a toast lands where it will actually be seen.
 // - Next to a real control (`near` is some element inside the page, not the
@@ -959,6 +978,7 @@ exports.esc = esc;
 exports.fetchBinary = fetchBinary;
 exports.hostLabel = hostLabel;
 exports.initials = initials;
+exports.isLocalMidnight = isLocalMidnight;
 exports.live = live;
 exports.localInputValue = localInputValue;
 exports.markInk = markInk;
@@ -1084,7 +1104,7 @@ function codeFromPath() {
 // screen module to touch; this renders the right content inside whatever
 // shell wraps it.
 async function render(ctx) {
-  const { main, api: client, ui, me } = ctx
+  const { main, api: client, ui, me, events } = ctx
   const api = client.api
   const code = codeFromPath()
   const signedIn = !!(me && (me.username || me.email))
@@ -1126,7 +1146,15 @@ async function render(ctx) {
   }
 
   // Already a member: skip straight to "you're already in", like public-join.
-  if (signedIn) {
+  // Finding #9 (prod full test, round 7): this used to call client.getEvent
+  // unconditionally for every signed-in visitor -- a 404 (the expected
+  // answer for the common case, a fresh invite nobody has used yet) every
+  // time, logged by the browser regardless of the try/catch around it.
+  // public-join.js already has the fix for the same pattern: check the
+  // already-loaded event list first (ctx.events, from app.js's own
+  // listEvents() call) and only make the member-scoped call when it can
+  // actually succeed.
+  if (signedIn && (events || []).some(e => e.slug === info.slug)) {
     let mine
     try { mine = await client.getEvent(info.slug) } catch (e) { mine = { ok: false } }
     if (mine.ok) {
@@ -1300,10 +1328,21 @@ async function render(ctx) {
     return `<div class="r"><span class="main"><b>${ui.esc(title)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ''}</span>${pills}${flag}${openBtn}${shotBtn}${action}</div>${shotFrame}`
   }
 
+  // Full-test fix (2026-11-02): an empty list only means "done" when this
+  // judge has scored something. With nothing scored and nothing to score,
+  // there is nothing to judge yet: no team has an entry, or (assigned and
+  // panel modes) none was given to this judge.
+  function emptyToScore() {
+    if (scored.length) return 'Nothing left — you’ve scored everyone assigned to you.'
+    if (conflicts.length) return 'Nothing to score — you know someone on every team on your list.'
+    if (queueRes.data.assignment_mode && queueRes.data.assignment_mode !== 'open') return 'Nothing to score yet. No team with an entry is on your list.'
+    return 'Nothing to score yet. No team has an entry to judge.'
+  }
+
   const mode = (resultsOut || locked) ? 'readonly' : 'open'
   const toScorePanel = toScore.length
     ? '<div class="list">' + toScore.map((r, i) => rowFor(r, mode === 'readonly' ? 'readonly' : 'to-score', i === 0)).join('') + '</div>'
-    : `<div class="note">${conflicts.length && !scored.length ? 'Nothing to score — you know someone on every team on your list.' : 'Nothing left — you’ve scored everyone assigned to you.'}</div>`
+    : `<div class="note">${ui.esc(emptyToScore())}</div>`
   const scoredPanel = scored.length
     ? '<div class="list">' + scored.map(r => rowFor(r, mode === 'readonly' ? 'readonly' : 'scored')).join('') + '</div>'
     : `<div class="note">No teams scored yet.</div>`

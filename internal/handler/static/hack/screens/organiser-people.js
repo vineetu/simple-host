@@ -87,7 +87,7 @@ export async function render(ctx) {
 <p class="small muted">${verb} ${esc(ui.dateTime(a.joined_at, ev))}</p>
 ${appFacts(ui, a)}
 ${(a.answers || []).map(q => `<p><b>${esc(q.prompt)}</b><br>${q.answer ? esc(q.answer) : '<span class="muted">No answer</span>'}</p>`).join('')}
-<div class="row-flex"><button class="btn" type="button" data-app-approve>Approve</button><button class="btn danger sm" type="button" data-app-reject title="${esc(a.display_name)} stays a member but can't start or join a team or publish for this event. This can't be undone by re-approving later.">Reject</button></div></section>`
+<div class="row-flex"><button class="btn" type="button" data-app-approve>Approve</button><button class="btn danger" type="button" data-app-reject title="${esc(a.display_name)} can't join a team or take part in this event, and you can't change this decision later. They can still leave and apply again while your event takes applications, and you'd decide again.">Reject</button></div></section>`
   }
   function personRow(p) {
     const bits = [personCategory(p)]

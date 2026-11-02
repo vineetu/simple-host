@@ -61,6 +61,13 @@ const PLAIN = {
   audience: "who it's for", track: 'a track', tools: 'tools and AI', maturity: 'what works today',
   video_url: 'a video link', site: 'a published website', code_url: 'a code link', screenshot: 'a screenshot', description: 'a description'
 }
+// The missing-items list names fields the way the form labels them, as a
+// plain list (full-test fix 2026-11-02): "Missing: Problem, Solution, Track".
+const FIELD_NAME = {
+  title: 'Project name', problem: 'Problem', tagline: 'Solution', audience: "Who it's for",
+  track: 'Track', tools: 'Tools and AI', maturity: 'What works today', description: 'Description',
+  video_url: 'Video link', site: 'Website', code_url: 'Code link', screenshot: 'Screenshot'
+}
 const MAXLEN = { title: 80, problem: 140, tagline: 160, audience: 100, description: 5000 }
 const CLOSED_TEXT = {
   submissions_closed: 'Entries are closed',
@@ -159,11 +166,11 @@ function statusHTML (ui, status, data, { rules, deadlineText, submittedAtText })
   const summaryMissing = missing.filter(f => SUMMARY_FIELDS.includes(f) || f === 'title' || f === 'description')
   const evidenceMissing = missing.filter(f => !summaryMissing.includes(f))
   const summaryText = 'Summary card' + (summaryStep.of ? ' · ' + (summaryStep.filled || 0) + ' of ' + summaryStep.of : '') +
-    (summaryMissing.length ? ' · add ' + summaryMissing.map(f => PLAIN[f] || f).join(', ') : '')
+    (summaryMissing.length ? ' · Missing: ' + summaryMissing.map(f => FIELD_NAME[f] || f).join(', ') : '')
   // The rules sentence already names the one-of group, so only lines it
   // doesn't name (a required code link or screenshot) are spelled out.
   const evidenceExtra = evidenceMissing.filter(f => f !== 'one_of' && !(f === 'code_url' && /code link/.test(evidenceLabel)))
-  const evidenceText = ucfirst(evidenceLabel) + (evidenceExtra.length ? ' · add ' + evidenceExtra.map(f => PLAIN[f] || f).join(', ') : '')
+  const evidenceText = ucfirst(evidenceLabel) + (evidenceExtra.length ? ' · Missing: ' + evidenceExtra.map(f => FIELD_NAME[f] || f).join(', ') : '')
   const need = '<ul class="need" id="en-need">' +
     '<li class="' + (summaryUnmet ? '' : 'ok') + '">' + esc(summaryText) + '</li>' +
     (rules.summary || evidenceMissing.length ? '<li class="' + (evidenceUnmet ? '' : 'ok') + '">' + esc(evidenceText) + '</li>' : '') +

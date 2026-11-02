@@ -116,10 +116,21 @@ export async function render(ctx) {
     return `<div class="r"><span class="main"><b>${ui.esc(title)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ''}</span>${pills}${flag}${openBtn}${shotBtn}${action}</div>${shotFrame}`
   }
 
+  // Full-test fix (2026-11-02): an empty list only means "done" when this
+  // judge has scored something. With nothing scored and nothing to score,
+  // there is nothing to judge yet: no team has an entry, or (assigned and
+  // panel modes) none was given to this judge.
+  function emptyToScore() {
+    if (scored.length) return 'Nothing left — you’ve scored everyone assigned to you.'
+    if (conflicts.length) return 'Nothing to score — you know someone on every team on your list.'
+    if (queueRes.data.assignment_mode && queueRes.data.assignment_mode !== 'open') return 'Nothing to score yet. No team with an entry is on your list.'
+    return 'Nothing to score yet. No team has an entry to judge.'
+  }
+
   const mode = (resultsOut || locked) ? 'readonly' : 'open'
   const toScorePanel = toScore.length
     ? '<div class="list">' + toScore.map((r, i) => rowFor(r, mode === 'readonly' ? 'readonly' : 'to-score', i === 0)).join('') + '</div>'
-    : `<div class="note">${conflicts.length && !scored.length ? 'Nothing to score — you know someone on every team on your list.' : 'Nothing left — you’ve scored everyone assigned to you.'}</div>`
+    : `<div class="note">${ui.esc(emptyToScore())}</div>`
   const scoredPanel = scored.length
     ? '<div class="list">' + scored.map(r => rowFor(r, mode === 'readonly' ? 'readonly' : 'scored')).join('') + '</div>'
     : `<div class="note">No teams scored yet.</div>`

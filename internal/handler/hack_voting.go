@@ -363,7 +363,7 @@ func (h *HackHandler) getDirectory(w http.ResponseWriter, r *http.Request) {
 	groups := map[string][]map[string]any{"now": {}, "upcoming": {}, "past": {}}
 	for _, ev := range events {
 		group := "now"
-		if ev.Stage == "archived" || (ev.EndsAt.Valid && !now.Before(ev.EndsAt.Time)) {
+		if ev.Stage == "archived" || (ev.EndsAt.Valid && !now.Before(hackEventOver(ev.EndsAt.Time, ev.TimeZone))) {
 			group = "past"
 		} else if ev.StartsAt.Valid && now.Before(ev.StartsAt.Time) {
 			group = "upcoming"

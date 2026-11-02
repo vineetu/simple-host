@@ -15,6 +15,8 @@ this worktree; that parity review and any port remain outstanding.
 
 2026-10-30: The opt-in modular Simple Hack signed-in app is a hosted hackathon presentation change. Enterprise has no hackathon UI. APIs, MCP tools and session rules are unchanged.
 
+2026-11-02: Simple Hack full-test fixes (judging settles every draft at the stage move, assignment and progress use the queue's eligibility, date-only event ends last the day, copy and layout fixes) are hosted hackathon-only changes. Enterprise has no hackathon UI, so no parity action is needed.
+
 2026-11-02: Two Simple Hack audit fixes (teams can read the rubric; a panel-mode warning for teams with no track) are hosted hackathon-only changes. Enterprise has no hackathon UI, so no parity action is needed.
 
 This file is identical in both repos:
@@ -187,6 +189,7 @@ The weekly Simple Hack demo reset (2026-10-10, installation pending) is an opera
 
 | Date | Fixed in | Fix | Other side |
 |---|---|---|---|
+| 2026-11-02 | hosted (Simple Hack) | Judge screen review F1: a team site's preview link (which skips passcode, named-viewer and offline checks) is no longer issued in entry list items when the site can't be framed, and a judge only gets a team's preview and deadline links for a team they may score, once that team can no longer change its site | `hosted only`: checked; Enterprise has no hackathon entries, judge queue or team-site preview links in entry lists, n/a |
 | 2026-10-28 | Hosted connector result minimisation (OpenAI resubmission) | Connector result minimisation: account email only on request, per-site visitor references, targeted identity lookup, viewer changes only, opaque signed links, and separate tools for ChatGPT and Codex | `hosted only`: checked against Enterprise origin/main e858c76 (v0.9.10) on 2026-10-28. Enterprise is a company instance connected as a custom connector, not a directory listing; it has no `who_am_i` or `storage_visitor_emails` and names colleagues by username. No Enterprise change or release. |
 | 2026-10-24 | Enterprise (v0.9.9), then hosted | Build toolchain Go 1.27.3, golang.org/x/net 0.61.0 and x/image 0.47.0, clearing govulncheck findings in crypto/x509, crypto/tls, net/http, HTTP/2 and WebP decoding | Hosted checked the same day: it had the same findings on Go 1.27.1 and x/net 0.38.0; bumped and deployed, govulncheck clean |
 | 2026-10-23 | hosted | New create-call Idempotency-Key cache (SIM-orank agent-readiness work) capped per account and in total, refusing new keys with 429 once a cap is hit, so distinct keys (including ones that only cache an error) cannot exhaust server memory (Codex adversarial review) | ported 2026-10-24 as Enterprise's own Postgres-backed create replay (migration 0062), capped per person and per installation rather than per process; see Idempotency-Key create replay row |

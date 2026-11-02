@@ -672,7 +672,7 @@ func TestHackEntryDeadlineAndTakedown(t *testing.T) {
 		if _, err := a.database.Exec(`UPDATE sites SET `+c.set+` WHERE user_id = $1 AND name = $2`, accountID, w.alpha); err != nil {
 			t.Fatal(err)
 		}
-		if s := queueSite(t); s["frameable"] != false || s["not_frameable_why"] != c.why || s["preview_url"] != alpha["pinned_url"] {
+		if s := queueSite(t); s["frameable"] != false || s["not_frameable_why"] != c.why || s["preview_url"] != nil {
 			t.Fatalf("%s site must not be frameable: %#v", c.why, s)
 		}
 		if _, err := a.database.Exec(`UPDATE sites SET `+c.reset+` WHERE user_id = $1 AND name = $2`, accountID, w.alpha); err != nil {

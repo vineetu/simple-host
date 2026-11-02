@@ -303,6 +303,55 @@ func UnsettledFrozenTeamIDs(ctx context.Context, q Querier, eventID string) ([]s
 	return out, rows.Err()
 }
 
+// FrozenTeamWithoutEntry is a team the settle sweep may start an entry for:
+// it has members (or was kept after its last member left), its write window
+// has closed, and it never saved an entry row.
+type FrozenTeamWithoutEntry struct {
+	TeamID        string
+	Slug          string
+	SiteTakenDown bool
+}
+
+// FrozenTeamsWithoutEntry lists the event's frozen teams that have no entry
+// row. The settle hook (settleEntriesTx) starts an empty entry for each one
+// whose team site is live, so a team that published its site but never
+// opened the entry form is still judged, flagged Incomplete (full-test fix,
+// 2026-11-02): the site is part of the entry. A team with neither stays out.
+func FrozenTeamsWithoutEntry(ctx context.Context, q Querier, eventID string) ([]FrozenTeamWithoutEntry, error) {
+	rows, err := queryContext(ctx, q, `
+		SELECT t.id, t.slug, t.site_taken_down_at IS NOT NULL FROM event_teams t
+		  JOIN events e ON e.id = t.event_id
+		 WHERE e.id = $1
+		   AND NOT EXISTS (SELECT 1 FROM event_entries en WHERE en.team_id = t.id)
+		   AND (EXISTS (SELECT 1 FROM event_members m WHERE m.team_id = t.id) OR t.kept_after_leave)
+		   AND (e.stage IN ('judging', 'results', 'archived')
+		        OR (`+EffectiveDeadlineSQL+` IS NOT NULL AND `+EffectiveDeadlineSQL+` <= clock_timestamp()))
+		 ORDER BY t.id`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []FrozenTeamWithoutEntry
+	for rows.Next() {
+		var t FrozenTeamWithoutEntry
+		if err := rows.Scan(&t.TeamID, &t.Slug, &t.SiteTakenDown); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// StartEmptyEventEntry inserts an empty entry row for the team, leaving any
+// existing row alone. updated_by stays NULL: nobody on the team wrote it.
+func StartEmptyEventEntry(ctx context.Context, q Querier, eventID, teamID string) error {
+	_, err := q.ExecContext(ctx, `
+		INSERT INTO event_entries (team_id, event_id, updated_at)
+		VALUES ($1, $2, now())
+		ON CONFLICT (team_id) DO NOTHING`, teamID, eventID)
+	return err
+}
+
 // UnsettleTeamEntry clears submit_settled_at on one team's unsubmitted draft
 // (an extension, section 7 "Unsettle"): the sweep reconsiders it against the
 // new deadline. A submitted entry is untouched -- tightening or loosening the

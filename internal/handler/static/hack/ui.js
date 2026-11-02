@@ -64,9 +64,28 @@ export function dateTime(value, event, options = {}) {
 export function dateOnly(value, event) {
   return dateTime(value, event, { dateOnly: true })
 }
+// True when an instant falls exactly on midnight in the event's zone: Basics
+// saves start and end as dates only, stored as that midnight.
+export function isLocalMidnight(value, event) {
+  const p = zonedParts(value, typeof event === 'string' ? event : event?.time_zone)
+  return !!p && p.h === '00' && p.min === '00'
+}
+// The next of start, entry deadline and end still ahead, as
+// [label, value, dateOnly]. A date-only start or end (local midnight) shows
+// as a date with no "12:00 am", and a date-only end lasts the whole of that
+// day, so it stays "next" until the day is over (full-test fix 2026-11-02).
 export function nextDeadline(event) {
+  const now = Date.now()
+  const day = 24 * 60 * 60 * 1000
   return [['Starts', event?.starts_at], ['Entries close', event?.submission_deadline], ['Ends', event?.ends_at]]
-    .filter(([, value]) => value && new Date(value) > new Date()).sort((a,b) => new Date(a[1]) - new Date(b[1]))[0]
+    .filter(([, value]) => value && !Number.isNaN(new Date(value).getTime()))
+    .map(([label, value]) => {
+      const dateOnly = label !== 'Entries close' && isLocalMidnight(value, event)
+      const until = new Date(value).getTime() + (label === 'Ends' && dateOnly ? day : 0)
+      return [label, value, dateOnly, until]
+    })
+    .filter(r => r[3] > now).sort((a, b) => a[3] - b[3])
+    .map(r => r.slice(0, 3))[0]
 }
 // C2: a toast lands where it will actually be seen.
 // - Next to a real control (`near` is some element inside the page, not the

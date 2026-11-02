@@ -38,7 +38,14 @@ import { needCount, newsCount, unreadAnnouncements } from './needs.js'
 
 export function eventOrder(events) {
   // The list endpoint has role and stage, but no pending-work counts.
-  const attention = e => !e.taken_down && ((e.role === 'organiser' && !['archived','ended'].includes(e.stage)) || (e.role === 'judge' && ['closed','judging'].includes(e.stage)))
+  // Finding #4 (prod full test, round 7): this used to treat every
+  // non-archived organiser event as needing attention, sorting an event
+  // that just says "Sign-up is open" above one with a real pending action
+  // -- the same bug landing-your-events.js had for its "Needs attention"
+  // heading, fixed there the same way, so the switcher dropdown and the
+  // Home page agree on what counts (atlas: landing-your-events "same
+  // grouping as the switcher").
+  const attention = e => !e.taken_down && ((e.role === 'organiser' && ['draft','closed'].includes(e.stage)) || (e.role === 'judge' && ['closed','judging'].includes(e.stage)))
   return [...events].sort((a,b) => Number(attention(b)) - Number(attention(a)))
 }
 // The event dropdown is positioned for the layout it was opened in, so a
@@ -209,7 +216,7 @@ export function mount(ctx, section, screenId) {
   // own home screen (organiser Overview, participant/judge Home, nav_id
   // "home") -- not only the organiser's, per the same decision.
   const showTrack = !!event && ((role === 'organiser' && section === 'overview') || ((role === 'participant' || role === 'judge') && section === 'home'))
-  const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(stageLabel(event.stage))}</span>${judgeScoringPill}${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1],event))}</span>` : ''}<span class="grow"></span>${showTrack ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
+  const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(stageLabel(event.stage))}</span>${judgeScoringPill}${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1], event, next[2] ? { dateOnly: true } : {}))}</span>` : ''}<span class="grow"></span>${showTrack ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
   const root = document.getElementById('app')
   // Two sidebar levels (owner decision 2026-10-30): the top-nav (Home, Find a
   // hackathon) is always shown; the event section (switcher + role nav) only

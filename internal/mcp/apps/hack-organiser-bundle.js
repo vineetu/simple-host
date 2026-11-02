@@ -72,9 +72,28 @@ function dateTime(value, event, options = {}) {
 function dateOnly(value, event) {
   return dateTime(value, event, { dateOnly: true })
 }
+// True when an instant falls exactly on midnight in the event's zone: Basics
+// saves start and end as dates only, stored as that midnight.
+function isLocalMidnight(value, event) {
+  const p = zonedParts(value, typeof event === 'string' ? event : event?.time_zone)
+  return !!p && p.h === '00' && p.min === '00'
+}
+// The next of start, entry deadline and end still ahead, as
+// [label, value, dateOnly]. A date-only start or end (local midnight) shows
+// as a date with no "12:00 am", and a date-only end lasts the whole of that
+// day, so it stays "next" until the day is over (full-test fix 2026-11-02).
 function nextDeadline(event) {
+  const now = Date.now()
+  const day = 24 * 60 * 60 * 1000
   return [['Starts', event?.starts_at], ['Entries close', event?.submission_deadline], ['Ends', event?.ends_at]]
-    .filter(([, value]) => value && new Date(value) > new Date()).sort((a,b) => new Date(a[1]) - new Date(b[1]))[0]
+    .filter(([, value]) => value && !Number.isNaN(new Date(value).getTime()))
+    .map(([label, value]) => {
+      const dateOnly = label !== 'Entries close' && isLocalMidnight(value, event)
+      const until = new Date(value).getTime() + (label === 'Ends' && dateOnly ? day : 0)
+      return [label, value, dateOnly, until]
+    })
+    .filter(r => r[3] > now).sort((a, b) => a[3] - b[3])
+    .map(r => r.slice(0, 3))[0]
 }
 // C2: a toast lands where it will actually be seen.
 // - Next to a real control (`near` is some element inside the page, not the
@@ -959,6 +978,7 @@ exports.esc = esc;
 exports.fetchBinary = fetchBinary;
 exports.hostLabel = hostLabel;
 exports.initials = initials;
+exports.isLocalMidnight = isLocalMidnight;
 exports.live = live;
 exports.localInputValue = localInputValue;
 exports.markInk = markInk;
@@ -1522,6 +1542,20 @@ function nextStepContent(ev, step, resultsHref, settingsHref) {
   }
 }
 
+// "3 teams will be judged. 1 team has no entry, so it won't be." -- the
+// Start judging confirm's count line (entries: the judging dashboard's
+// {judged, no_entry, excluded}).
+function judgingPoolLine(e) {
+  const n = e.judged || 0
+  const none = e.no_entry || 0
+  const out = e.excluded || 0
+  const teams = k => k + (k === 1 ? ' team' : ' teams')
+  let line = n ? teams(n) + ' will be judged.' : 'No team has an entry to judge yet.'
+  if (none) line += ' ' + teams(none) + (none === 1 ? " has no entry, so it won't be." : " have no entry, so they won't be.")
+  if (out) line += ' ' + teams(out) + (out === 1 ? ' you excluded stays out.' : ' you excluded stay out.')
+  return line
+}
+
 const END_CONFIRM = {
   title: 'End this event?',
   body: 'This is final. The event moves to Ended, scoring and sign-up lock for good, and team sites start their 30-day countdown before cleanup. Continue?',
@@ -1570,12 +1604,16 @@ async function render(ctx) {
   // Fetched only before "Start judging" is offered -- the same conditional-
   // fetch pattern as the pending-approvals and zero-judges heads-ups above.
   let noTrackTeams = []
+  // Full-test fix (2026-11-02): before Start judging, say how many teams
+  // will be judged and how many have no entry (the server's judging pool,
+  // the same set the judges' queues use).
+  let judgingEntries = null
   const atStartJudging = step.kind === 'stage' && step.stage === 'judging'
   try {
     const base = '/v1/hack/events/' + encodeURIComponent(ev.slug)
     const calls = [api('GET', base + '/people')]
     if (step.kind === 'stage' && step.stage === 'building') calls.push(api('GET', base + '/applications'))
-    if (atStartJudging) calls.push(api('GET', base + '/judging/settings'), api('GET', base + '/teams'))
+    if (atStartJudging) calls.push(api('GET', base + '/judging/settings'), api('GET', base + '/teams'), api('GET', base + '/judging/dashboard'))
     const results = await Promise.all(calls)
     const p = results[0]
     if (p.ok && Array.isArray(p.data)) judgesOnly = p.data.filter(x => x.role === 'judge').length
@@ -1586,6 +1624,8 @@ async function render(ctx) {
     if (atStartJudging) {
       const settingsRes = results[1]
       const teamsRes = results[2]
+      const dashRes = results[3]
+      if (dashRes && dashRes.ok && dashRes.data && dashRes.data.entries) judgingEntries = dashRes.data.entries
       if (settingsRes && settingsRes.ok && settingsRes.data && settingsRes.data.assignment_mode === 'panel' &&
           teamsRes && teamsRes.ok && teamsRes.data && Array.isArray(teamsRes.data.teams)) {
         noTrackTeams = teamsRes.data.teams.filter(t => !t.track)
@@ -1600,9 +1640,10 @@ async function render(ctx) {
   // ever offered at a time.
   let headsUp = content.headsUp || ''
   if (step.kind === 'stage' && step.stage === 'building' && pendingCount > 0) {
-    headsUp = pendingCount + ' people are still waiting for approval. You can approve them later too.'
+    headsUp = pendingCount + (pendingCount === 1 ? ' person is' : ' people are') + ' still waiting for approval. You can approve them later too.'
   } else if (step.kind === 'stage' && step.stage === 'closed' && (counts.on_no_team ?? 0) > 0) {
-    headsUp = (counts.on_no_team) + ' people are not on a team yet.'
+    const onNoTeam = counts.on_no_team
+    headsUp = onNoTeam + (onNoTeam === 1 ? ' person is' : ' people are') + ' not on a team yet.'
   } else if (step.kind === 'stage' && step.stage === 'judging' && judgesOnly === 0) {
     headsUp = 'No judges have joined yet. Share the judge link first.'
   } else if (atStartJudging && noTrackTeams.length > 0) {
@@ -1630,8 +1671,14 @@ async function render(ctx) {
   const needsLines = (data.needs_you || []).map(n =>
     `<div class="note info">${ui.esc(n.text)} <a href="${ui.esc(href('organiser', ev.slug, n.section === 'home' ? undefined : n.section))}">${n.kind === 'application_new' ? 'Review applications' : 'Open'}</a></div>`).join('')
 
+  // Finding #9 (prod full test, round 7): the bare host (e.g.
+  // "e2e-c-0301.simple-hack.app/") used to break mid-word on a narrow
+  // screen -- there's nowhere sensible for the browser to wrap a string
+  // with no spaces. <wbr> after each dot gives it the one sensible break
+  // point, same word either side.
+  const hostHTML = ui.esc(ev.url.replace(/^https?:\/\//, '')).split('.').join('.<wbr>')
   main.innerHTML = `
-<div class="ph keep-row"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button></div>
+<div class="ph keep-row"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button></div>
 ${content.button
     ? `<section class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ''}</div><button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? ' disabled' : ''}>${ui.esc(content.button)}</button></section>`
     : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
@@ -1712,6 +1759,7 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
       // button, never the generic heads-up confirm.
       if (content.isEnd) { await runEndFromNext(); return }
       const bodyNodes = [ui.el('p', { text: content.confirmBody || content.sentence || '' })]
+      if (atStartJudging && judgingEntries) bodyNodes.push(ui.el('p', { text: judgingPoolLine(judgingEntries) }))
       if (headsUp) bodyNodes.push(ui.el('p', { class: 'note warn', text: headsUp }))
       const ok = await ui.confirm({ title: content.button + '?', body: bodyNodes, confirmLabel: content.button })
       if (!ok) return
@@ -1847,7 +1895,7 @@ async function render(ctx) {
 <p class="small muted">${verb} ${esc(ui.dateTime(a.joined_at, ev))}</p>
 ${appFacts(ui, a)}
 ${(a.answers || []).map(q => `<p><b>${esc(q.prompt)}</b><br>${q.answer ? esc(q.answer) : '<span class="muted">No answer</span>'}</p>`).join('')}
-<div class="row-flex"><button class="btn" type="button" data-app-approve>Approve</button><button class="btn danger sm" type="button" data-app-reject title="${esc(a.display_name)} stays a member but can't start or join a team or publish for this event. This can't be undone by re-approving later.">Reject</button></div></section>`
+<div class="row-flex"><button class="btn" type="button" data-app-approve>Approve</button><button class="btn danger" type="button" data-app-reject title="${esc(a.display_name)} can't join a team or take part in this event, and you can't change this decision later. They can still leave and apply again while your event takes applications, and you'd decide again.">Reject</button></div></section>`
   }
   function personRow(p) {
     const bits = [personCategory(p)]
@@ -2184,11 +2232,12 @@ async function render(ctx) {
   const tieClosed = () => locked || !!adminLockReason || ['judging', 'results', 'archived'].includes(ev.stage)
   const beforeClosed = () => !['closed', 'judging', 'results', 'archived'].includes(ev.stage)
   // Layout: before judging starts, the rubric is still being written, so
-  // setup comes first and the header's primary action is Save rubric
-  // (organiser-judging~setup.html). Once judging opens or is locked,
-  // progress/conflicts lead and setup collapses out of the way
-  // (organiser-judging.html / ~locked.html). Decided once per page load —
-  // the stage doesn't change on this screen, only `locked` does.
+  // setup comes first (organiser-judging~setup.html); its own Save rubric
+  // button lives under the rubric card, not repeated in the header. Once
+  // judging opens or is locked, progress/conflicts lead and setup collapses
+  // out of the way (organiser-judging.html / ~locked.html). Decided once
+  // per page load — the stage doesn't change on this screen, only `locked`
+  // does.
   const setupFirst = ['draft', 'open', 'building', 'closed'].includes(ev.stage) && !locked
 
   let rubric = []
@@ -2261,9 +2310,10 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       // Nothing writable to offer here while admin-viewing or on a
       // taken-down/ended event — the rubric/lock cards below explain why.
     } else if (setupFirst) {
-      const b = ui.el('button', { class: 'btn primary', type: 'button', text: 'Save rubric' })
-      b.addEventListener('click', saveRubric)
-      slot.appendChild(b)
+      // Finding #9 (prod full test, round 7): this used to repeat the
+      // rubric card's own "Save rubric" button up here too -- two buttons
+      // with the same label on one screen, different sizes. The card's
+      // button (right under the fields it saves) is the one that stays.
     } else {
       const b = ui.el('button', { class: 'btn primary', type: 'button', text: 'Lock judging' })
       b.addEventListener('click', doLock)

@@ -513,6 +513,12 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hasTracks := len(tracks) > 0
+	mayLink, err := h.judgeSiteLinkGate(r.Context(), a)
+	if err != nil {
+		log.Printf("hack: entries %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
 	counts := map[string]int{"submitted": 0, "drafts": 0, "not_started": 0, "not_submitted": 0, "sites_live": 0}
 	out := make([]map[string]any, 0, len(teams))
 	for _, team := range teams {
@@ -522,6 +528,9 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 			log.Printf("hack: entries %s/%s: %v", a.event.Slug, team.Slug, err)
 			writeInternal(w)
 			return
+		}
+		if !mayLink(team.ID) {
+			redactEntrySiteLinks(item)
 		}
 		out = append(out, item)
 		switch {
@@ -539,6 +548,51 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"required": required, "entries": out, "counts": counts})
+}
+
+// judgeSiteLinkGate says, per team, whether the caller may have the team's
+// site preview and pinned links in an entry list item (security review F1,
+// 2026-11-02). Organisers (and the admin key) always may. A judge may only
+// for a team they can score -- the queue's own eligibility
+// (db.EligibleJudgeTeams: entry submitted or settled and not excluded,
+// assigned to them in automatic or manual mode or on their track's panel,
+// no declared conflict) -- and only once that team can no longer change
+// its site: entries are closed for the event (closed, judging, results,
+// ended) or the team's own deadline has passed. Never while the team is
+// still building, even if it pressed Submit early.
+func (h *HackHandler) judgeSiteLinkGate(ctx context.Context, a hackAccess) (func(teamID string) bool, error) {
+	if a.admin || a.member.Role == "organiser" {
+		return func(string) bool { return true }, nil
+	}
+	eligible, err := db.EligibleJudgeTeams(ctx, h.database, a.event.ID, a.user.ID)
+	if err != nil {
+		return nil, err
+	}
+	// scoringStage also covers the standing demo, scored while building.
+	if submissionsClosedStage(a.event.Stage) || a.event.Stage == "archived" || h.scoringStage(ctx, a.event) {
+		return func(teamID string) bool { return eligible[teamID] }, nil
+	}
+	states, err := db.TeamWriteStatesForEvent(ctx, h.database, a.event.ID)
+	if err != nil {
+		return nil, err
+	}
+	return func(teamID string) bool {
+		st, ok := states[teamID]
+		return eligible[teamID] && ok && st.Frozen()
+	}, nil
+}
+
+// redactEntrySiteLinks drops an entry list item's preview and pinned links:
+// the site block keeps its public address and host but can't be framed.
+func redactEntrySiteLinks(item map[string]any) {
+	item["pinned_url"] = nil
+	if site, ok := item["site"].(map[string]any); ok {
+		site["preview_url"] = nil
+		if site["frameable"] == true {
+			site["frameable"] = false
+			site["not_frameable_why"] = "not_ready"
+		}
+	}
 }
 
 // hackWriteRefusalError is a specific, already-worded refusal fn wants
@@ -899,8 +953,11 @@ func (h *HackHandler) entrySiteView(ctx context.Context, ev db.Event, team db.Ev
 	if why != "" {
 		whyJSON = why
 	}
+	// Security review F1 (2026-11-02): a preview link carries no passcode,
+	// viewer or offline check of its own (servePreview checks only the
+	// token), so a site that can't be framed gets no preview link at all.
 	var previewJSON any
-	if preview != "" {
+	if preview != "" && frameable {
 		previewJSON = preview
 	}
 	return map[string]any{

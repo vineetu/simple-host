@@ -320,7 +320,15 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
 
 /* confirm dialog (static mock) */
 .dialog{max-width:440px;background:var(--surface);border:1px solid var(--rule-hi);border-radius:12px;box-shadow:0 16px 40px rgba(43,41,37,.18);padding:18px 20px}
-.dialog h2{font-size:16px;margin:0 0 6px}
+/* Finding #9 (prod full test, round 7): the "same 12px as a card heading"
+   rule below only ever matched when a dialog's body was literally a
+   .field/.field-row/etc. as ui.dialog()'s next DOM sibling after <h2> --
+   Fill teams and Add track (like most formDialog callers) hand it one
+   plain wrapper <div> instead, which the :is(...) selector never matches,
+   so those titles got only the h2's own 6px and sat right on the first
+   label. Setting the 12px on the h2 itself holds regardless of what kind
+   of element follows it. */
+.dialog h2{font-size:16px;margin:0 0 var(--s3)}
 .dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .scrim{position:fixed;inset:0;background:rgba(43,41,37,.28);display:grid;place-items:center;z-index:60;padding:16px}
 
@@ -521,7 +529,13 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
   .toc-split{display:block}
   .toc{position:static;flex-direction:row;overflow-x:auto;gap:6px;margin:0 0 12px}
   .toc a{flex:none;background:#ece5d3;border-radius:99px;padding:8px 14px;font-weight:600}
-  .crit-row{grid-template-columns:1fr 1fr}
+  /* Finding #9 (prod full test, round 7): .crit-row's desktop align-items:end
+     lines up one single-row of 5 unequal-width columns, where every label is
+     one line. Stacked two-up on phone, "Description (optional)" wraps to two
+     lines and end-alignment then shoves the shorter "Max points" field's
+     label down to match its bottom, so the two labels in a row no longer
+     start at the same height. Top alignment reads as one plain stack again. */
+  .crit-row{grid-template-columns:1fr 1fr;align-items:start}
   .page .focus .left,.page .focus .right{padding-left:0;padding-right:0}
 }
 
@@ -733,6 +747,25 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .subnav-split{display:block}
   .subnav{position:static;flex-direction:row;overflow-x:auto;gap:2px;margin:-4px -16px 16px;padding:0 12px;border-bottom:1px solid var(--rule);scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .subnav::-webkit-scrollbar{display:none}
+  /* Finding #9 (prod full test, round 7): on phone this strip (Event page's
+     Basics/About/Schedule/..., Teams' own subnav, a participant team's
+     Members/Find people/Settings -- same shared .subnav) scrolls
+     horizontally with no sign it does, so the last tabs just look cut off.
+     A classic CSS-only scroll-shadow: two gradients that scroll WITH the
+     tabs (background-attachment:local) paint over the shadow near either
+     end, so a shadow only shows past where there is more to scroll to --
+     neither shows at all when every tab already fits, and the left one
+     only appears once actually scrolled right. No JS needed to tell
+     "overflowing" apart from "not". */
+  .subnav{
+    background:
+      linear-gradient(to right, var(--paper) 40%, rgba(244,239,223,0)) left / 24px 100%,
+      linear-gradient(to left, var(--paper) 40%, rgba(244,239,223,0)) right / 24px 100%,
+      linear-gradient(to right, rgba(43,41,37,.14), rgba(43,41,37,0)) left / 12px 100%,
+      linear-gradient(to left, rgba(43,41,37,.14), rgba(43,41,37,0)) right / 12px 100%;
+    background-repeat:no-repeat;
+    background-attachment:local,local,scroll,scroll;
+  }
   .subnav a{flex:none;border-radius:0;padding:0 10px;min-height:44px;border-bottom:2px solid transparent;margin-bottom:-1px;background:none!important}
   .subnav a[aria-current=page]{border-color:var(--accent)}
   .subnav .n{display:none}
@@ -845,8 +878,8 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
    amber border as a plain draft rather than the red of .late. */
 .entry-status.incomplete{border-left:4px solid var(--warn)}
 .need{list-style:none;margin:6px 0 0;padding:0;font-size:13.5px}
-.need li{display:inline-flex;align-items:center;gap:5px;margin:0 12px 4px 0;color:var(--line-soft)}
-.need li::before{content:"";width:8px;height:8px;border-radius:50%;border:1.5px solid var(--warn)}
+.need li{display:inline-flex;align-items:flex-start;gap:5px;margin:0 12px 4px 0;color:var(--line-soft)}
+.need li::before{content:"";flex:none;width:8px;height:8px;margin-top:.45em;border-radius:50%;border:1.5px solid var(--warn)}
 .need li.ok::before{background:var(--ok);border-color:var(--ok)}
 .need li.ok{color:var(--line-faint)}
 
@@ -1067,6 +1100,13 @@ fieldset.field > legend{margin:0 0 var(--label-gap)}
 .field.inline{grid-template-columns:max-content minmax(0,1fr);column-gap:var(--s3);align-items:baseline}
 .field.inline > :not(label,.lab,.lab-row){grid-column:2}
 .field.inline > label,.field.inline > .lab{grid-column:1}
+
+/* --- tie-break group (organiser Results, Finding #9): one shared grid so
+   every input in the group lines up under the longest team name, instead
+   of each row sizing its own label column -------------------------------- */
+.tie-group{display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:var(--s3);row-gap:10px;align-items:center;margin:0 0 var(--field-gap)}
+.tie-group label{font-weight:600}
+.tie-group input{justify-self:start;width:100%;max-width:160px}
 
 /* --- one control height everywhere ----------------------------------- */
 .input:not(textarea),.select{min-height:var(--control-h)}

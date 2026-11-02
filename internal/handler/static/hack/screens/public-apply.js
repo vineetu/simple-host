@@ -219,7 +219,7 @@ export async function render(ctx) {
 
   main.innerHTML = header + `<form class="card" id="ap-form">
 <h2>Your application</h2>
-<p class="sub">Signed in as ${esc(email)} · <button class="btn quiet sm" type="button" id="ap-signout">Not you? Sign out</button></p>
+<div class="sub row-flex">Signed in as ${esc(email)}<button class="btn quiet sm" type="button" id="ap-signout">Not you? Sign out</button></div>
 
 <div class="field"><label for="ap-name">Your name</label><input class="input" id="ap-name" type="text" maxlength="100" required value="${esc(name)}" autocomplete="name"><p class="help">Shown to the organisers, and to your teammates once you're in.</p></div>
 

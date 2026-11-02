@@ -58,6 +58,20 @@ function nextStepContent(ev, step, resultsHref, settingsHref) {
   }
 }
 
+// "3 teams will be judged. 1 team has no entry, so it won't be." -- the
+// Start judging confirm's count line (entries: the judging dashboard's
+// {judged, no_entry, excluded}).
+function judgingPoolLine(e) {
+  const n = e.judged || 0
+  const none = e.no_entry || 0
+  const out = e.excluded || 0
+  const teams = k => k + (k === 1 ? ' team' : ' teams')
+  let line = n ? teams(n) + ' will be judged.' : 'No team has an entry to judge yet.'
+  if (none) line += ' ' + teams(none) + (none === 1 ? " has no entry, so it won't be." : " have no entry, so they won't be.")
+  if (out) line += ' ' + teams(out) + (out === 1 ? ' you excluded stays out.' : ' you excluded stay out.')
+  return line
+}
+
 const END_CONFIRM = {
   title: 'End this event?',
   body: 'This is final. The event moves to Ended, scoring and sign-up lock for good, and team sites start their 30-day countdown before cleanup. Continue?',
@@ -106,12 +120,16 @@ export async function render(ctx) {
   // Fetched only before "Start judging" is offered -- the same conditional-
   // fetch pattern as the pending-approvals and zero-judges heads-ups above.
   let noTrackTeams = []
+  // Full-test fix (2026-11-02): before Start judging, say how many teams
+  // will be judged and how many have no entry (the server's judging pool,
+  // the same set the judges' queues use).
+  let judgingEntries = null
   const atStartJudging = step.kind === 'stage' && step.stage === 'judging'
   try {
     const base = '/v1/hack/events/' + encodeURIComponent(ev.slug)
     const calls = [api('GET', base + '/people')]
     if (step.kind === 'stage' && step.stage === 'building') calls.push(api('GET', base + '/applications'))
-    if (atStartJudging) calls.push(api('GET', base + '/judging/settings'), api('GET', base + '/teams'))
+    if (atStartJudging) calls.push(api('GET', base + '/judging/settings'), api('GET', base + '/teams'), api('GET', base + '/judging/dashboard'))
     const results = await Promise.all(calls)
     const p = results[0]
     if (p.ok && Array.isArray(p.data)) judgesOnly = p.data.filter(x => x.role === 'judge').length
@@ -122,6 +140,8 @@ export async function render(ctx) {
     if (atStartJudging) {
       const settingsRes = results[1]
       const teamsRes = results[2]
+      const dashRes = results[3]
+      if (dashRes && dashRes.ok && dashRes.data && dashRes.data.entries) judgingEntries = dashRes.data.entries
       if (settingsRes && settingsRes.ok && settingsRes.data && settingsRes.data.assignment_mode === 'panel' &&
           teamsRes && teamsRes.ok && teamsRes.data && Array.isArray(teamsRes.data.teams)) {
         noTrackTeams = teamsRes.data.teams.filter(t => !t.track)
@@ -136,9 +156,10 @@ export async function render(ctx) {
   // ever offered at a time.
   let headsUp = content.headsUp || ''
   if (step.kind === 'stage' && step.stage === 'building' && pendingCount > 0) {
-    headsUp = pendingCount + ' people are still waiting for approval. You can approve them later too.'
+    headsUp = pendingCount + (pendingCount === 1 ? ' person is' : ' people are') + ' still waiting for approval. You can approve them later too.'
   } else if (step.kind === 'stage' && step.stage === 'closed' && (counts.on_no_team ?? 0) > 0) {
-    headsUp = (counts.on_no_team) + ' people are not on a team yet.'
+    const onNoTeam = counts.on_no_team
+    headsUp = onNoTeam + (onNoTeam === 1 ? ' person is' : ' people are') + ' not on a team yet.'
   } else if (step.kind === 'stage' && step.stage === 'judging' && judgesOnly === 0) {
     headsUp = 'No judges have joined yet. Share the judge link first.'
   } else if (atStartJudging && noTrackTeams.length > 0) {
@@ -166,8 +187,14 @@ export async function render(ctx) {
   const needsLines = (data.needs_you || []).map(n =>
     `<div class="note info">${ui.esc(n.text)} <a href="${ui.esc(href('organiser', ev.slug, n.section === 'home' ? undefined : n.section))}">${n.kind === 'application_new' ? 'Review applications' : 'Open'}</a></div>`).join('')
 
+  // Finding #9 (prod full test, round 7): the bare host (e.g.
+  // "e2e-c-0301.simple-hack.app/") used to break mid-word on a narrow
+  // screen -- there's nowhere sensible for the browser to wrap a string
+  // with no spaces. <wbr> after each dot gives it the one sensible break
+  // point, same word either side.
+  const hostHTML = ui.esc(ev.url.replace(/^https?:\/\//, '')).split('.').join('.<wbr>')
   main.innerHTML = `
-<div class="ph keep-row"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button></div>
+<div class="ph keep-row"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button></div>
 ${content.button
     ? `<section class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ''}</div><button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? ' disabled' : ''}>${ui.esc(content.button)}</button></section>`
     : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
@@ -248,6 +275,7 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
       // button, never the generic heads-up confirm.
       if (content.isEnd) { await runEndFromNext(); return }
       const bodyNodes = [ui.el('p', { text: content.confirmBody || content.sentence || '' })]
+      if (atStartJudging && judgingEntries) bodyNodes.push(ui.el('p', { text: judgingPoolLine(judgingEntries) }))
       if (headsUp) bodyNodes.push(ui.el('p', { class: 'note warn', text: headsUp }))
       const ok = await ui.confirm({ title: content.button + '?', body: bodyNodes, confirmLabel: content.button })
       if (!ok) return

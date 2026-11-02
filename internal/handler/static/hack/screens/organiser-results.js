@@ -209,16 +209,21 @@ ${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>`
     const inputs = []
     ranks.forEach(rank => {
       box.appendChild(ui.el('p', { class: 'small muted', text: 'Tied for #' + rank + ':' }))
+      // Finding #9 (prod full test, round 7): each row used to be its own
+      // ".field.inline" -- a separate grid per row, so its label column
+      // sized to that one team's own name and the inputs landed in a
+      // ragged line (e.g. "Alpha Squad"'s input further right than "Team
+      // 1"'s). One shared grid per tied group lines every input in this
+      // group up under the one with the longest name.
+      const group = ui.el('div', { class: 'tie-group' })
       byRank[rank].forEach(row => {
-        // Inline field (kit "Form layout"): team name beside its place.
-        const field = ui.el('div', { class: 'field inline' })
         const id = 'res-tie-' + row.team_id
         const label = ui.el('label', { for: id, text: row.team_name || 'A team' })
         const input = ui.el('input', { class: 'input', id, type: 'number', min: '1', step: '1', value: String(row.rank) })
-        field.append(label, input)
-        box.appendChild(field)
+        group.append(label, input)
         inputs.push({ team_id: row.team_id, input })
       })
+      box.appendChild(group)
     })
     const go = ui.el('button', { class: 'btn', type: 'button', text: 'Save order and publish' })
     go.addEventListener('click', () => {

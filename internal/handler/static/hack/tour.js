@@ -79,6 +79,30 @@ function contentBox() {
 // beside it instead needs no vertical stacking to cover anything; it falls
 // back to the ordinary rule when there isn't room to the side (phone's
 // single-column layout).
+// Finding #3 (prod full test, round 7): the card used to be positioned next
+// to (or, with no target, in a corner of) the real content, which on a short
+// screen landed it right on top of an interactive element underneath --
+// Playwright's own click log showed `#leave-btn` (Home's "Leave event")
+// hidden behind `.tour-card`, and on phone the welcome step covered the
+// "Your entry" checklist the same way. There is still no dark overlay (the
+// page stays clickable by design -- see the file header), but the card
+// itself must never be the thing in the way.
+//
+// Fix: on phone the card always docks as a bar along the bottom (like
+// .sticky-foot/.tabbar), never positioned relative to the target, so it
+// can't land mid-page over a checklist or a button. On every width, whatever
+// space the card occupies is also reserved as bottom padding on the one
+// scroll container (.content), with scroll-padding-bottom to match, so
+// anything that would sit underneath can always be scrolled into view
+// instead of being permanently covered, and scrollIntoView keeps a ringed
+// target above the card rather than behind it.
+function reserveContent(px) {
+  const el = document.querySelector('.content')
+  if (!el) return
+  el.style.paddingBottom = px > 0 ? px + 'px' : ''
+  el.style.scrollPaddingBottom = px > 0 ? px + 'px' : ''
+}
+
 function place(card, target, step) {
   const pad = 8, gap = 12
   const vw = document.documentElement.clientWidth
@@ -91,7 +115,12 @@ function place(card, target, step) {
   }
   const c = card.getBoundingClientRect()
   let top, left
-  if (target) {
+  if (isPhone()) {
+    // Docked along the bottom, independent of the target's position, so
+    // the card never ends up over a button or checklist mid-page.
+    top = vh - c.height - pad - gap
+    left = (vw - c.width) / 2
+  } else if (target) {
     const t = target.getBoundingClientRect()
     if (step && step.side === 'left' && t.left - gap - c.width >= pad) {
       left = t.left - gap - c.width
@@ -105,23 +134,19 @@ function place(card, target, step) {
     // is also where a screen's own first card sits right under it (e.g.
     // judge-home's "Not open yet" before scoring opens) -- the tour card
     // still covered it, just one header-height lower. Bottom-right of the
-    // content area on desktop never overlaps that first card, whatever its
-    // height. On phone there's no room for a corner card, so it stays
-    // bottom-centred, above the phone tab bar / sticky save bar (the `vh`
-    // clamp above already keeps it off those fixed bars -- kept as is).
+    // content area never overlaps that first card, whatever its height.
     const box = contentBox()
-    if (isPhone()) {
-      top = vh - c.height - pad - gap
-      left = box.left + (box.width - c.width) / 2
-    } else {
-      top = box.bottom - c.height - gap
-      left = box.right - c.width - gap
-    }
+    top = box.bottom - c.height - gap
+    left = box.right - c.width - gap
   }
   left = Math.min(Math.max(left, pad), Math.max(pad, vw - c.width - pad))
   top = Math.min(Math.max(top, pad), Math.max(pad, vh - c.height - pad))
   card.style.left = left + 'px'
   card.style.top = top + 'px'
+  // Reserve the vertical room the card itself occupies near the bottom of
+  // the viewport, so a short page's last section (e.g. "Leave event") is
+  // always reachable by scrolling past it rather than stuck underneath.
+  reserveContent(Math.max(0, Math.ceil(vh - top) + gap))
 }
 
 function teardown() {
@@ -134,6 +159,7 @@ function teardown() {
   window.removeEventListener('scroll', a.reposition, true)
   if (a.target) a.target.classList.remove('tour-ring')
   document.querySelector('.app')?.classList.remove('menu-open')
+  reserveContent(0)
   a.card.remove()
   try { if (a.previous && a.previous.focus) a.previous.focus() } catch (e) {}
 }

@@ -678,11 +678,9 @@ func (h *HackHandler) entryProgressJSON(ctx context.Context, ev db.Event, team d
 		if fields[f] == "off" {
 			continue
 		}
-		// title counts only while it is empty (section 4.3): the six card
-		// lines are what the step is about.
-		if f == "title" && e.Title != "" {
-			continue
-		}
+		// The project name always counts (full-test fix, 2026-11-02): it
+		// used to count only while empty, so "1 of 7 filled" became "6 of
+		// 6" once it was typed, and Home and Entry disagreed mid-edit.
 		of++
 		if entryFieldPresent(f, e, siteLive, track) {
 			filled++
@@ -770,13 +768,43 @@ func (h *HackHandler) settleDueEntries(ctx context.Context, eventID string) {
 // the caller's own transaction (the setStage hook: one commit covers the
 // stage move and every team's settle). The caller has already locked
 // event_teams FOR UPDATE.
+//
+// Before that, a frozen team that never opened the entry form but has a live
+// team site gets an empty entry started, so it is settled (and judged,
+// flagged Incomplete) too: the site is part of the entry (full-test fix,
+// 2026-11-02). A team with neither an entry nor a live site stays out.
 func (h *HackHandler) settleEntriesTx(ctx context.Context, tx *sql.Tx, eventID string) error {
+	if err := h.startSiteOnlyEntries(ctx, tx, eventID); err != nil {
+		return err
+	}
 	ids, err := db.UnsettledFrozenTeamIDs(ctx, tx, eventID)
 	if err != nil {
 		return err
 	}
 	for _, teamID := range ids {
 		if err := h.settleOneEntryIn(ctx, tx, teamID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// startSiteOnlyEntries starts an empty entry row for each frozen team of the
+// event that has no entry but a live team site (settleEntriesTx's first step).
+func (h *HackHandler) startSiteOnlyEntries(ctx context.Context, tx *sql.Tx, eventID string) error {
+	teams, err := db.FrozenTeamsWithoutEntry(ctx, tx, eventID)
+	if err != nil || len(teams) == 0 {
+		return err
+	}
+	ev, err := db.GetEventByID(ctx, tx, eventID)
+	if err != nil {
+		return err
+	}
+	for _, t := range teams {
+		if !h.entrySiteLive(ctx, ev, t.Slug, t.SiteTakenDown) {
+			continue
+		}
+		if err := db.StartEmptyEventEntry(ctx, tx, eventID, t.TeamID); err != nil {
 			return err
 		}
 	}

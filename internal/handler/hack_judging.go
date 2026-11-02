@@ -467,6 +467,63 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, judgingSettingsJSON(ev))
 }
 
+// judgingPool sorts the event's teams (ListTeamsWithMembers) by whether they
+// will be judged, the same rule the judge queue applies once judging starts
+// (full-test fix, 2026-11-02): a team is in when it has an entry an
+// organiser has not excluded -- submitted, settled or still a draft, since
+// moving to judging settles every draft (settleEntriesTx) -- or, with no
+// entry row, a live team site (settleEntriesTx starts an entry for it). A
+// team with neither has no entry and stays out; an excluded entry stays out.
+// Automatic assignment, the Judging progress and Overview's Start judging
+// confirm all use this, so none of them counts a team the queue never shows.
+type judgingPool struct {
+	in       map[string]bool
+	judged   int
+	noEntry  int
+	excluded int
+}
+
+func (h *HackHandler) judgingPoolFor(ctx context.Context, ev db.Event, teams []db.NamedTeam) (judgingPool, error) {
+	pool := judgingPool{in: map[string]bool{}}
+	entries, err := db.ListEventEntries(ctx, h.database, ev.ID)
+	if err != nil {
+		return pool, err
+	}
+	byTeam := map[string]db.EventEntry{}
+	for _, e := range entries {
+		byTeam[e.TeamID] = e
+	}
+	var tl teamList
+	loaded := false
+	for _, t := range teams {
+		e, ok := byTeam[t.ID]
+		switch {
+		case ok && e.ExcludedAt.Valid:
+			pool.excluded++
+			continue
+		case ok:
+			pool.in[t.ID] = true
+			pool.judged++
+			continue
+		}
+		if !loaded {
+			if tl, err = h.loadTeamList(ctx, ev); err != nil {
+				return pool, err
+			}
+			loaded = true
+		}
+		st := tl.states[t.ID]
+		site := tl.site(t.Slug)
+		if site != nil && site.ActiveVersion > 0 && !site.Suspended() && !st.SiteTakenDown && !st.EventTakenDown {
+			pool.in[t.ID] = true
+			pool.judged++
+		} else {
+			pool.noEntry++
+		}
+	}
+	return pool, nil
+}
+
 func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
@@ -479,6 +536,20 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 		if !decodeHackJSON(w, r, &req) {
 			return
 		}
+	}
+	// Read before the transaction: judgingPoolFor reads team sites and may
+	// pin due teams in transactions of its own.
+	allTeams, err := db.ListTeamsWithMembers(r.Context(), h.database, a.event.ID)
+	if err != nil {
+		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	pool, err := h.judgingPoolFor(r.Context(), a.event, allTeams)
+	if err != nil {
+		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
 	}
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
@@ -530,10 +601,23 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 		writeHackErr(w, http.StatusBadRequest, "too_few_judges", "Invite at least one judge first.")
 		return
 	}
+	// Only teams that will be judged get judges: a team with no entry would
+	// take a judge's slot and never show in anyone's queue.
+	judgedTeams := make([]db.NamedTeam, 0, len(teams))
+	for _, t := range teams {
+		if pool.in[t.ID] {
+			judgedTeams = append(judgedTeams, t)
+		}
+	}
 	if len(teams) == 0 {
 		writeHackErr(w, http.StatusBadRequest, "too_few_teams", "No teams to assign yet.")
 		return
 	}
+	if len(judgedTeams) == 0 {
+		writeHackErr(w, http.StatusBadRequest, "too_few_teams", "No team has an entry to judge yet.")
+		return
+	}
+	teams = judgedTeams
 	pairs, err := db.ListConflictPairs(r.Context(), tx, a.event.ID)
 	if err != nil {
 		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
@@ -831,11 +915,25 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	teams, err := db.ListTeamsWithMembers(ctx, h.database, a.event.ID)
+	allTeams, err := db.ListTeamsWithMembers(ctx, h.database, a.event.ID)
 	if err != nil {
 		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
 		writeInternal(w)
 		return
+	}
+	// Progress lists only the teams that will be judged (judgingPoolFor),
+	// the same set the queue and automatic assignment use.
+	pool, err := h.judgingPoolFor(ctx, a.event, allTeams)
+	if err != nil {
+		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	teams := make([]db.NamedTeam, 0, len(allTeams))
+	for _, t := range allTeams {
+		if pool.in[t.ID] {
+			teams = append(teams, t)
+		}
 	}
 	judges, err := db.ListEventJudges(ctx, h.database, a.event.ID)
 	if err != nil {
@@ -925,6 +1023,10 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 		"judges":        judgeRows,
 		"former_judges": formerRows,
 		"tied_groups":   []any{},
+		// What Start judging will do, for Overview's confirm: teams that
+		// will be judged, teams with no entry (left out), and entries an
+		// organiser excluded by hand.
+		"entries": map[string]any{"judged": pool.judged, "no_entry": pool.noEntry, "excluded": pool.excluded},
 	})
 }
 
@@ -1155,6 +1257,12 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hasTracks := len(tracks) > 0
+	mayLink, err := h.judgeSiteLinkGate(ctx, a)
+	if err != nil {
+		log.Printf("hack: queue %s: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
 	type row struct {
 		item  map[string]any
 		count int
@@ -1172,6 +1280,9 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		item["team_id"] = team.ID
+		if !mayLink(team.ID) {
+			redactEntrySiteLinks(item)
+		}
 		done, derr := judgeDoneForTeam(ctx, h.database, a.event.ID, a.user.ID, team.ID, len(rubric))
 		if derr != nil {
 			log.Printf("hack: queue %s/%s: %v", a.event.Slug, team.ID, derr)
@@ -1193,7 +1304,7 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 	for _, rw := range rows {
 		out = append(out, rw.item)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"queue": out, "judge_first": a.event.JudgeFirst})
+	writeJSON(w, http.StatusOK, map[string]any{"queue": out, "judge_first": a.event.JudgeFirst, "assignment_mode": a.event.JudgeAssignmentMode})
 }
 
 // entryJudgeable mirrors db.EntryJudgeableSQL in Go, for the queue's
@@ -1808,7 +1919,16 @@ func (h *HackHandler) getMyResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sort.Strings(comments)
-	out := map[string]any{"published": true, "comments": comments}
+	// ranked_teams is how many teams got a place, the "of N" in "1st of 2
+	// judged teams": teams with no entry or no scores have no place, so the
+	// event's team count would overstate it (full-test fix, 2026-11-02).
+	ranked := 0
+	for _, row := range rows {
+		if row["rank"] != nil {
+			ranked++
+		}
+	}
+	out := map[string]any{"published": true, "comments": comments, "ranked_teams": ranked}
 	if mine != nil {
 		out["total"] = mine["total"]
 		out["raw_total"] = mine["raw_total"]

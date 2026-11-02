@@ -129,6 +129,17 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-02. Full-test fixes, the coordinator's calls (open to the owner's override).**
+  Moving the event to Closed or Judging settles every draft, so incomplete drafts are judged
+  (flagged Incomplete) even in an Open-mode event with no deadline. A team that never opened the
+  entry form but published its team site is judged too, as an Incomplete entry: the site is part
+  of the entry. A team with neither stays out. Automatic assignment, Judging progress and the
+  Start judging confirm count exactly the teams the judges' queues will show. A date-only event
+  end means the whole of that day. A judge (not an organiser) gets a team's site preview and
+  deadline links only for a team they may score and only once that team can no longer change its
+  site (entries closed or its own deadline passed), not only once judging starts, because judges
+  score from Closed on. Reason: today's full production test (judges saw "you've scored
+  everyone" with nothing to judge) and security review F1.
 - **2026-11-02. A schedule that acts (feature audit item 10).** The event's real times show in
   the schedule by themselves as fixed, non-editable rows that can never drift: event start and
   end, the entry deadline (and a team's own extension in that team's view), the voting window

@@ -87,7 +87,17 @@ export async function render(ctx) {
     const menu = rowMenuHTML(e.title, menuItems(e))
     return `<div class="r" data-slug="${ui.esc(e.slug)}">${mark}${mainLink}${meta}<div class="row-acts">${menu}</div></div>`
   }
-  const attention = e => !e.taken_down && ((e.role === 'organiser' && !['archived','ended'].includes(e.stage)) || (e.role === 'judge' && ['closed','judging'].includes(e.stage)))
+  // Finding #4 (prod full test, round 7): this used to mark every
+  // non-archived organiser event as "Needs attention", including one that
+  // just says "Sign-up is open" or "Teams are building" -- ordinary
+  // progress, not a pending action, and confusing right next to the real
+  // "Needs you" list above (built from actual todos, e.g. applications
+  // waiting on a decision). Only stages with a real pending organiser
+  // action -- finish setting up a draft, or set up judging once entries
+  // close -- count here now; a judge still sees it once there is scoring to
+  // do. Everything else (including "results", where the organiser's own
+  // next move is just to open the event) is ordinary, in-progress work.
+  const attention = e => !e.taken_down && ((e.role === 'organiser' && ['draft','closed'].includes(e.stage)) || (e.role === 'judge' && ['closed','judging'].includes(e.stage)))
   const list = eventOrder(events)
   // Needs you (atlas 2026-11-02): what waits on the person in every event,
   // from GET /v1/hack/todos (the same list hack_get_my_todos reads). One
@@ -113,7 +123,11 @@ export async function render(ctx) {
   const flashText = takeFlash()
   main.innerHTML = `<div class="ph"><div class="t"><h1>Home</h1></div>${list.length ? `<a class="btn primary" href="/events/new">Create event</a>` : ''}</div>` + needs + (!list.length ? `<div class="locked"><h2>You’re not part of any event yet</h2><p><a class="btn primary" href="/events/new">Create event</a></p><p><a class="btn" href="/directory">Find a hackathon</a></p><p>Have a join or judge link? Open it to get started.</p></div><div class="row-flex"><a class="btn quiet" href="/account">Account</a></div>` : [true,false].map(needed => {
     const group = list.filter(e => attention(e) === needed)
-    return group.length ? `<p class="section-title">${needed ? 'Needs attention' : 'Recent'}</p><div class="list editable" aria-label="${needed ? 'Needs attention' : 'Recent'} events">${group.map(row).join('')}</div>` : ''
+    // Neutral heading for ordinary events (finding #4): covers both events
+    // still running and ones already archived/ended, so "Running now"
+    // would be wrong for the latter -- "Your events" reads fine for either.
+    const label = needed ? 'Needs attention' : 'Your events'
+    return group.length ? `<p class="section-title">${label}</p><div class="list editable" aria-label="${label}">${group.map(row).join('')}</div>` : ''
   }).join('') + quickLinks)
   main.querySelectorAll('.ev-mark').forEach((mark,i) => {
     const color = list[i].color

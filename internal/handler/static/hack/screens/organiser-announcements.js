@@ -44,7 +44,7 @@ export async function render(ctx) {
   // rows actually sent, not merely queued), so the pill below reports real
   // delivery rather than being dropped for lack of the field.
   function rowHTML(a) {
-    const emailedPill = a.emails_sent > 0 ? `<span class="pill ok">Emailed ${a.emails_sent} people</span>` : ''
+    const emailedPill = a.emails_sent > 0 ? `<span class="pill ok">Emailed ${a.emails_sent} ${a.emails_sent === 1 ? 'person' : 'people'}</span>` : ''
     const meta = `<span class="meta"><span>${ui.esc(ui.dateTime(a.created_at, ev))}</span>${emailedPill}</span>`
     if (readOnly) return `<div class="r ann"><span class="main"><b>${ui.esc(a.title)}</b><span class="clamp2">${ui.esc(a.body)}</span></span>${meta}</div>`
     const menu = rowMenuHTML(a.title, [{ label: 'Edit', act: 'edit' }, { label: 'Delete', act: 'delete', danger: true }])
@@ -94,7 +94,7 @@ ${announcements.length ? `<div class="list editable" aria-label="Posted announce
           setLive('Posted. Nobody had an email address on file, so no email was sent.', 'err')
         } else {
           const copy = r.data.organiser_copied ? ' (including a copy to you)' : ''
-          setLive(`Posted and emailed to ${queued} people${copy}.`, 'ok')
+          setLive(`Posted and emailed to ${queued} ${queued === 1 ? 'person' : 'people'}${copy}.`, 'ok')
         }
       }
       await ctx.refresh()

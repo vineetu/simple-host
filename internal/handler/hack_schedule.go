@@ -68,6 +68,23 @@ func hackEventLoc(ev db.Event) *time.Location {
 	return loc
 }
 
+// hackEventOver is the instant an event's end has passed. Basics saves the
+// end as a date only, stored as that day's midnight in the event's zone; a
+// date-only end means the whole of that day, so it is over at the next
+// midnight (full-test fix, 2026-11-02). An end with a time of day is over at
+// that time.
+func hackEventOver(end time.Time, zone string) time.Time {
+	loc, err := time.LoadLocation(zone)
+	if err != nil || zone == "" {
+		loc = time.UTC
+	}
+	if hackMidnight(end, loc) {
+		l := end.In(loc)
+		return time.Date(l.Year(), l.Month(), l.Day()+1, 0, 0, 0, 0, loc)
+	}
+	return end
+}
+
 func hackMidnight(t time.Time, loc *time.Location) bool {
 	l := t.In(loc)
 	return l.Hour() == 0 && l.Minute() == 0 && l.Second() == 0

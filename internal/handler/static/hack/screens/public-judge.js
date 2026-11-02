@@ -22,7 +22,7 @@ function codeFromPath() {
 // screen module to touch; this renders the right content inside whatever
 // shell wraps it.
 export async function render(ctx) {
-  const { main, api: client, ui, me } = ctx
+  const { main, api: client, ui, me, events } = ctx
   const api = client.api
   const code = codeFromPath()
   const signedIn = !!(me && (me.username || me.email))
@@ -64,7 +64,15 @@ export async function render(ctx) {
   }
 
   // Already a member: skip straight to "you're already in", like public-join.
-  if (signedIn) {
+  // Finding #9 (prod full test, round 7): this used to call client.getEvent
+  // unconditionally for every signed-in visitor -- a 404 (the expected
+  // answer for the common case, a fresh invite nobody has used yet) every
+  // time, logged by the browser regardless of the try/catch around it.
+  // public-join.js already has the fix for the same pattern: check the
+  // already-loaded event list first (ctx.events, from app.js's own
+  // listEvents() call) and only make the member-scoped call when it can
+  // actually succeed.
+  if (signedIn && (events || []).some(e => e.slug === info.slug)) {
     let mine
     try { mine = await client.getEvent(info.slug) } catch (e) { mine = { ok: false } }
     if (mine.ok) {

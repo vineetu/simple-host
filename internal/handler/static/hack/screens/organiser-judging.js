@@ -26,11 +26,12 @@ export async function render(ctx) {
   const tieClosed = () => locked || !!adminLockReason || ['judging', 'results', 'archived'].includes(ev.stage)
   const beforeClosed = () => !['closed', 'judging', 'results', 'archived'].includes(ev.stage)
   // Layout: before judging starts, the rubric is still being written, so
-  // setup comes first and the header's primary action is Save rubric
-  // (organiser-judging~setup.html). Once judging opens or is locked,
-  // progress/conflicts lead and setup collapses out of the way
-  // (organiser-judging.html / ~locked.html). Decided once per page load —
-  // the stage doesn't change on this screen, only `locked` does.
+  // setup comes first (organiser-judging~setup.html); its own Save rubric
+  // button lives under the rubric card, not repeated in the header. Once
+  // judging opens or is locked, progress/conflicts lead and setup collapses
+  // out of the way (organiser-judging.html / ~locked.html). Decided once
+  // per page load — the stage doesn't change on this screen, only `locked`
+  // does.
   const setupFirst = ['draft', 'open', 'building', 'closed'].includes(ev.stage) && !locked
 
   let rubric = []
@@ -103,9 +104,10 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       // Nothing writable to offer here while admin-viewing or on a
       // taken-down/ended event — the rubric/lock cards below explain why.
     } else if (setupFirst) {
-      const b = ui.el('button', { class: 'btn primary', type: 'button', text: 'Save rubric' })
-      b.addEventListener('click', saveRubric)
-      slot.appendChild(b)
+      // Finding #9 (prod full test, round 7): this used to repeat the
+      // rubric card's own "Save rubric" button up here too -- two buttons
+      // with the same label on one screen, different sizes. The card's
+      // button (right under the fields it saves) is the one that stays.
     } else {
       const b = ui.el('button', { class: 'btn primary', type: 'button', text: 'Lock judging' })
       b.addEventListener('click', doLock)

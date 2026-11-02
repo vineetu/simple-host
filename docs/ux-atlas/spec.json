@@ -680,7 +680,7 @@
     {
      "name": "confirming the move",
      "when": "the organiser presses the next-step button",
-     "shows": "ui.confirm titled with the button label plus '?', the same effect sentence as the card, then any heads-up lines that apply, and the button label as the confirm. Heads-ups: Start building with people waiting for approval ('3 people are still waiting for approval. You can approve them later too.'), Close entries with people not on a team ('2 people are not on a team yet.'), Start judging with no judges ('No judges have joined yet. Share the judge link first.'), Start judging in panel mode with untracked teams ('N teams with no track won't be judged until they pick one, or you assign one.', audit item 2, 2026-11-02), Publish results ('To set a final order for ties, use Results first.'). End event keeps its danger confirm. Only one heads-up shows at a time."
+     "shows": "ui.confirm titled with the button label plus '?', the same effect sentence as the card, then any heads-up lines that apply, and the button label as the confirm. Heads-ups: Start building with people waiting for approval ('3 people are still waiting for approval. You can approve them later too.'), Close entries with people not on a team ('2 people are not on a team yet.'), Start judging with no judges ('No judges have joined yet. Share the judge link first.'), Start judging in panel mode with untracked teams ('N teams with no track won't be judged until they pick one, or you assign one.', audit item 2, 2026-11-02), Publish results ('To set a final order for ties, use Results first.'). End event keeps its danger confirm. Only one heads-up shows at a time. Start judging also always says what it will judge, from the judging dashboard's entries counts, under the effect sentence: '3 teams will be judged. 1 team has no entry, so it won't be.' (plus 'N teams you excluded stay out.' when any were excluded; 'No team has an entry to judge yet.' when none). Moving to judging settles every draft (judged, flagged Incomplete) and starts an empty entry for a team that only published its site; a team with neither stays out (full-test fix, 2026-11-02)."
     },
     {
      "name": "the move failed",
@@ -729,6 +729,11 @@
      "q": "How does the new guided tour replace the old modal walkthrough panel?",
      "decision": "Guided walkthrough replaces the old modal tour: non-modal, points at real elements, shown once, replay from Help.",
      "why": "The old modal tour once blocked the judge's Score button and dialogs hide the page."
+    },
+    {
+     "q": "Why does the tour card dock at the bottom on phone instead of floating next to its target?",
+     "decision": "On phone the card always sits as a bar along the bottom, clear of the step's target and the rest of the screen, with that space reserved (so whatever would sit underneath can always be scrolled to, never left stuck behind the card). On desktop it still sits beside or below its target, or in the content area's corner when the step has none.",
+     "why": "Prod full test (2026-11-02): the old target-relative placement could land the card on top of a real button on a short screen -- Playwright's own click log showed #leave-btn (Home's Leave event) hidden behind .tour-card, and the welcome step covered the entry checklist the same way. There is still no dark overlay; the card itself just can't be the thing in the way any more."
     },
     {
      "q": "What does the one next-step button do?",
@@ -1338,7 +1343,7 @@
     "Announcements, a live-event feed, no longer sit between Schedule and Sponsors in a page editor (see organiser-announcements).",
     "Kept from the retest round: old #section links still land on the right tab; the read-only state after End; the contentError guard so a failed load never overwrites sponsors/FAQ/schedule with empty lists; Saved shown after a Basics save."
    ],
-   "phone": "No organiser tab bar (unchanged). The sub-nav becomes a row of tabs that scrolls sideways under the page title, the current one underlined in red and scrolled into view. 'View public page' is hidden (the address in the subtitle is the same link). Forms are single column except the two dates, which sit side by side. A long form's foot (About) is pinned to the bottom of the screen with Save full width. List rows hide the grip and the Edit label: the row opens Edit, the 44px … button holds Move up, Move down and Remove. Dialogs rise from the bottom as sheets with full-width Cancel and primary.",
+   "phone": "No organiser tab bar (unchanged). The sub-nav becomes a row of tabs that scrolls sideways under the page title, the current one underlined in red and scrolled into view, a soft edge fade on whichever side still has more tabs to scroll to so the strip never just looks cut off (prod full test, 2026-11-02; shared .subnav style, same fix on Teams and a participant's Team tabs). 'View public page' is hidden (the address in the subtitle is the same link). Forms are single column except the two dates, which sit side by side. A long form's foot (About) is pinned to the bottom of the screen with Save full width. List rows hide the grip and the Edit label: the row opens Edit, the 44px … button holds Move up, Move down and Remove. Dialogs rise from the bottom as sheets with full-width Cancel and primary.",
    "decisions": [
     {
      "q": "One long page with a jump nav, or one sub-page at a time?",
@@ -1680,7 +1685,7 @@
       {
        "label": "Reject",
        "kind": "danger",
-       "confirm": "Siti stays a member but can't start or join a team or publish for this event. This can't be undone by re-approving later. Reject this application?"
+       "confirm": "Reject this application? Siti can't join a team or take part in this event, and you can't change this decision later. They can still leave and apply again while your event takes applications, and you'd decide again."
       },
       {
        "label": "Clear filters",
@@ -2056,7 +2061,7 @@
      "why": "It is the organiser placing people, like Move, not participants discovering each other. Locked teams are the teams' own way to say no."
     }
    ],
-   "phone": "Sub-page tabs scroll sideways. Rows wrap, Fill teams sits in the sub-page head, the Fill teams dialog rises as a sheet.",
+   "phone": "Sub-page tabs scroll sideways, with a soft edge fade hinting there is more to scroll to (shared .subnav fix, prod full test 2026-11-02). Rows wrap, Fill teams sits in the sub-page head, the Fill teams dialog rises as a sheet.",
    "sub_pages": [
     {
      "tab": "teams",
@@ -2642,7 +2647,7 @@
      "name": "How judges are assigned",
      "contents": [
       "Open: judges pick any entry from the full list",
-      "Automatic: Simple Hack assigns judges to teams evenly",
+      "Automatic: Simple Hack assigns judges to teams evenly, only teams that will be judged (an entry not excluded, or a live team site); a team with no entry gets no judge (full-test fix 2026-11-02)",
       "Manual: you assign each judge to specific teams",
       "Panel: judges are grouped by track, one panel per track",
       "Judges per team: 2"
@@ -2687,7 +2692,8 @@
      "name": "Progress",
      "contents": [
       "Teams: CodeBloom 2 judges scored, SheBuilds 2 judges scored, NusaTech 0 judges scored",
-      "Judges: Pak Budi 3 of 6 done, Judge Two 3 of 6 done"
+      "Judges: Pak Budi 3 of 6 done, Judge Two 3 of 6 done",
+      "Only teams that will be judged are listed, and each judge's 'of N' is exactly what their My teams queue shows (full-test fix 2026-11-02)"
      ],
      "actions": [
       {
@@ -3436,7 +3442,7 @@
      "contents": [
       "1 d 6 h 12 m left · Your team closes Sun 8 Nov, 20:00 WIB, 2 hours after everyone else",
       "1 Join or start a team -- On SheBuilds with Ayu and Dian. (ticked)",
-      "2 Fill in the summary card -- All 6 lines filled. / 4 of 6 filled: add Who it's for and Tools and AI.",
+      "2 Fill in the summary card -- All 7 lines filled. / 5 of 7 filled: add who it's for and tools and AI. (The project name always counts, so the total never changes mid-edit; full-test fix 2026-11-02.)",
       "3 Add a video or publish your website -- sentence from the event's rule (Coding: 'Add your code link, and a video or your website').",
       "4 Submit before the deadline -- Then the judges can see it. You can still change it after."
      ],
@@ -3759,6 +3765,11 @@
      "q": "Does Home need its own guided walkthrough?",
      "decision": "Yes, same rule as organiser/judge: welcome, the status bar, the next-step block, then every sidebar item (Schedule, Announcements, Team, Entry, Website, Results -- Results itself only appears once results are published, so its step already skips before then), then Help. Auto-starts once per approved participant; seen-state is localStorage (no server field for it).",
      "why": "Every role gets a Home walkthrough under the same owner rule (2026-10-30) that triggered the judge Home fix: explain only what is on screen, skip a step with no target."
+    },
+    {
+     "q": "Why does the tour card dock at the bottom on phone instead of floating next to its target?",
+     "decision": "On phone the card always sits as a bar along the bottom, clear of the step's target and the rest of the screen, with that space reserved (so whatever would sit underneath can always be scrolled to, never left stuck behind the card). On desktop it still sits beside or below its target, or in the content area's corner when the step has none.",
+     "why": "Prod full test (2026-11-02): the old target-relative placement could land the welcome step's card right over the entry checklist on a short screen. There is still no dark overlay; the card itself just can't be the thing in the way any more."
     },
     {
      "q": "Can a participant leave after entries close?",
@@ -4286,7 +4297,7 @@
     "Retest (round 6, Cosmetic 1 and 2): the Remove member confirm asked its question twice (title and body) and used a hand-built \"'s\" that always added an extra s to a name already ending in one ('Testers's') -- the body now states only the consequence, once, through ui.possessive.",
     "Retest (round 5, C1 and Cosmetic 1): the Overview danger-zone row for Leave this event used to hand-roll a shorter, sometimes-wrong copy of the Leave dialog's own first line (promising teammates keep the team even for the one case -- the lone member before the deadline -- where leaving deletes it). Both now call leave.js's participantWarning(preview), which also fixes 'keep'/'keeps' agreement and routes every possessive through ui.possessive."
    ],
-   "phone": "No team: the three choice cards stack full width, the chosen panel under them, buttons full width. On a team: the sub-page list becomes tabs that scroll sideways under the page header. Member rows wrap the role under the name, the row menu button is 44px.",
+   "phone": "No team: the three choice cards stack full width, the chosen panel under them, buttons full width. On a team: the sub-page list becomes tabs that scroll sideways under the page header, with a soft edge fade hinting there is more to scroll to (shared .subnav fix, prod full test 2026-11-02). Member rows wrap the role under the name, the row menu button is 44px.",
    "decisions": [
     {
      "q": "Should Entry and Website stay part of Team, as today, or split out?",
@@ -4524,7 +4535,7 @@
      "name": "Status",
      "contents": [
       "Draft · not submitted yet -- Judges only see submitted entries. Submit by Sun 18:00 WIB.",
-      "Summary 5 of 6 · Video or website",
+      "Summary card · 6 of 7 · Missing: Who it's for · Video or website",
       "Submitted · Sat 14:02 WIB by Siti -- you can still change it until Sun 18:00 WIB; it stays submitted."
      ],
      "actions": [
@@ -4626,7 +4637,7 @@
     {
      "name": "draft, something missing",
      "when": "draft with Required lines or the One-of rule unmet",
-     "shows": "Status lists the open items with hollow dots (Summary 5 of 6 · Video or website). Submit stays enabled: pressing it is how a team learns precisely what's missing."
+     "shows": "Status lists the open items with hollow dots (Summary card · 6 of 7 · Missing: Who it's for, then Video or website), naming fields as the form labels them. Submit stays enabled: pressing it is how a team learns precisely what's missing."
     },
     {
      "name": "submit refused",
@@ -5003,12 +5014,12 @@
    "user_moment": "Siti hears results are out and checks how her team did.",
    "purpose": "See the published standings once they're out.",
    "primary_action": "None -- read-only; View on the public page available.",
-   "layout": "Rank, deciding score (raw and normalised shown), track-winner note if any, judges' anonymous comments; your own team's row highlighted.",
+   "layout": "Rank, deciding score (raw and normalised shown), track-winner note if any, judges' anonymous comments; your own team's row highlighted. The headline counts only teams that got a place: '2nd of 6 judged teams', and 'Joint 1st of 2 judged teams' on a tie (my-results ranked_teams; full-test fix 2026-11-02 -- teams with no entry have no place, so the event's team count overstated it).",
    "sections": [
     {
      "name": "Your result",
      "contents": [
-      "Rank 2 of 6",
+      "2nd of 6 judged teams",
       "Score: 24.5 raw · 8.2 normalised",
       "Judges' comments: 'Great use of the rubric's second criterion, polish could go further.'"
      ],
@@ -5175,6 +5186,11 @@
      "why": "The old modal tour once blocked the judge's Score button and dialogs hide the page."
     },
     {
+     "q": "Why does the tour card dock at the bottom on phone instead of floating next to its target?",
+     "decision": "On phone the card always sits as a bar along the bottom, clear of the step's target and the rest of the screen, with that space reserved (so whatever would sit underneath can always be scrolled to, never left stuck behind the card). On desktop it still sits beside or below its target, or in the content area's corner when the step has none.",
+     "why": "Prod full test (2026-11-02): the old target-relative placement could land the card on top of a real button on a short screen -- Playwright's own click log showed #leave-btn (Home's Leave event) hidden behind .tour-card on judge Home specifically. There is still no dark overlay; the card itself just can't be the thing in the way any more."
+    },
+    {
      "q": "Should Home's walkthrough also explain the scoring page?",
      "decision": "No. Home's tour only covers what is on Home (welcome, status, the next-step block, progress, My teams, Rubric & brief, Help); the two steps that used to explain scoring there (no target, so they always showed) moved to a new tour on the scoring page itself (judgeScoring). The status step is stage-aware: it says the event is open while scoring is open, says when it opens while it isn't, and is left out entirely once judging is locked or results are out.",
      "why": "Owner, 2026-10-30: on Home, steps 5-6 of 7 explained the scoring page while the judge was still on Home looking at nothing, and on an event whose results were already out they didn't apply at all -- scoring was over."
@@ -5325,6 +5341,11 @@
      "name": "all done",
      "when": "everything assigned is scored",
      "shows": "'To score' reads 'Nothing left -- you've scored everyone assigned to you.'"
+    },
+    {
+     "name": "nothing to judge yet",
+     "when": "scoring is open but this judge has nothing scored and nothing to score (no team has an entry, or none was given to them)",
+     "shows": "'To score' reads 'Nothing to score yet. No team has an entry to judge.' (open mode) or 'Nothing to score yet. No team with an entry is on your list.' (assigned and panel modes) -- never the all-done line (full-test fix, 2026-11-02)"
     },
     {
      "name": "everything conflicted",
@@ -5961,7 +5982,8 @@
    ],
    "fixes": [
     "'Role and stage as plain text in a dense single line, no visual indicator' -- role and stage are pills now, sorted needs-attention-first, matching the switcher dropdown exactly.",
-    "The event switcher doubled as the only way home, with no actual home screen of its own, and its full-page version just repeated the dropdown with no next action per row -- the top-left brand link now always leads here, this page is the person's real home (title 'Home', the switcher is one level below it), and every row says the plain next thing to do."
+    "The event switcher doubled as the only way home, with no actual home screen of its own, and its full-page version just repeated the dropdown with no next action per row -- the top-left brand link now always leads here, this page is the person's real home (title 'Home', the switcher is one level below it), and every row says the plain next thing to do.",
+    "Prod full test (2026-11-02): 'Needs attention' used to catch every organiser event short of archived/ended, so one that just says 'Sign-up is open' or 'Teams are building' sat under the same heading as the real 'Needs you' list right above it. Needs attention now means a real pending organiser action only -- a draft not finished setting up, or entries closed with judging not set up yet -- plus a judge with scoring to do; everything else (including an event at Results, where the organiser's own next move is just to open it) is an ordinary row under Your events. The switcher dropdown's own sort (eventOrder, shell.js) got the identical fix so the two stay in sync."
    ],
    "features": [
     "leave-event",
