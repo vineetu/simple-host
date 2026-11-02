@@ -333,6 +333,9 @@ func chromePage(name string, d chromeData) ([]byte, error) {
 	if hackMode {
 		page = hackPersonalPresentationHTML(name, page)
 	}
+	if name == "privacy.html" {
+		page = stripImageScanItem(page)
+	}
 	return hostedBlocks(hackInstanceText(instanceLimits.apply(page)), hostedOwner() != ""), nil
 }
 

@@ -64,10 +64,13 @@ type SiteHandler struct {
 	notifyOnce    sync.Once
 	notifications *notificationEngine
 
-	mailer         email.Sender
-	emailLimiter   *rateLimiter
-	database       *sql.DB
-	disk           *storage.DiskStorage
+	mailer       email.Sender
+	emailLimiter *rateLimiter
+	database     *sql.DB
+	disk         *storage.DiskStorage
+	// imageScan checks uploaded images against known abuse hash sets
+	// (imagescan.go); nil until PHOTODNA_API_KEY is set.
+	imageScan      *ImageScan
 	siteDomain     string
 	contentHost    string // shared v3 content host, e.g. sites.simple-host.app
 	cnameTarget    string // CNAME target for custom domains, e.g. cname.simple-host.app
@@ -677,6 +680,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/u/{handle}/sites/{sitename}/history", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.clearDataHistory)))))
 	// The saved-data watch: what the later tightening would affect.
 	mux.Handle("GET /v1/admin/data-watch", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminDataWatch))))
+	// Image matching (imagescan.go): the matches, the queue, and filing a report.
+	mux.Handle("GET /v1/admin/image-scan", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminImageScan))))
+	mux.Handle("POST /v1/admin/image-scan/{id}/report", authMiddleware(auth.RequireAdmin(http.HandlerFunc(h.adminImageScanReport))))
 	// Kinds (kinds.go): the owner declares what each data name is and who may
 	// save; pages read Page info and add, list, change and withdraw their own
 	// Submissions. The page-facing routes run the same Origin policy as the
@@ -1774,6 +1780,7 @@ func (h *SiteHandler) commitCreateLocked(w http.ResponseWriter, r *http.Request,
 	}
 
 	paperHackDeploy(r, user)
+	h.imageScan.EnqueueSiteFiles(site.ID, user.ID, siteName, versionNumber, files)
 	writeJSON(w, http.StatusCreated, h.siteResponseFor(user, site))
 	return false
 }
@@ -1923,6 +1930,7 @@ func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Req
 			return
 		}
 		h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, site.ActiveVersion, site.KeepVersions)
+		h.imageScan.EnqueueSiteFiles(site.ID, site.UserID, siteName, versionNumber, files)
 		h.writeUnpublished(w, user, site, versionNumber)
 		return
 	}
@@ -1963,6 +1971,7 @@ func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Req
 
 	site.ActiveVersion = versionNumber
 	paperHackDeploy(r, user)
+	h.imageScan.EnqueueSiteFiles(site.ID, site.UserID, siteName, versionNumber, files)
 	respond(h.siteResponseFor(user, site))
 }
 

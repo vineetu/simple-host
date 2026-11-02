@@ -609,6 +609,60 @@ func (d *DiskStorage) DeleteVersion(userID, siteName string, versionNum int) (er
 	return nil
 }
 
+// RemoveFileEverywhere deletes one file of a site from every retained
+// version and from the live copy (image matching, SIM-200). A path that is
+// not there is fine. relPath is validated the way WriteFiles validates it.
+func (d *DiskStorage) RemoveFileEverywhere(userID, siteName, relPath string) (err error) {
+	defer func() {
+		if err == nil {
+			d.changed()
+		}
+	}()
+	if !validPathKey(userID) {
+		return fmt.Errorf("invalid user id %q", userID)
+	}
+	if !validPathKey(siteName) {
+		return fmt.Errorf("invalid site name %q", siteName)
+	}
+	cleanPath := filepath.Clean(filepath.FromSlash(relPath))
+	if cleanPath == "." || cleanPath == "" || cleanPath == ".." || strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) || filepath.IsAbs(cleanPath) {
+		return fmt.Errorf("invalid relative path %q", relPath)
+	}
+	siteDir := d.SiteDir(userID, siteName)
+	entries, err := os.ReadDir(siteDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("read site dir: %w", err)
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if name != "current" && !(strings.HasPrefix(name, "v") && isDigits(name[1:])) {
+			continue
+		}
+		if rerr := os.Remove(filepath.Join(siteDir, name, cleanPath)); rerr != nil && !os.IsNotExist(rerr) {
+			err = fmt.Errorf("remove %s/%s: %w", name, relPath, rerr)
+		}
+	}
+	return err
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // suspendedMarker is the file that marks a site taken down by the operator.
 // It sits next to `current` (and `domain-redirect`) in the site directory, so
 // every server that reads files straight from disk can test for it: Go's

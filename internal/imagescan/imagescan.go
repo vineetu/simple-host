@@ -52,14 +52,7 @@ type PrepareOptions struct {
 	MaxSide int
 }
 
-// Prepare sniffs raw upload bytes and returns an Image ready to send, or a
-// non-empty skip reason when the bytes are not an image the service can
-// check (SVG, ICO, a text file with an image name, a 16 px favicon, a
-// decode failure). err is for genuine failures only (an encoder error).
-// WebP is re-encoded as PNG; oversized images are scaled to MaxSide.
-func Prepare(raw []byte, opts PrepareOptions) (img *Image, skip string, err error) {
-	return nil, "not implemented", nil
-}
+// Prepare lives in prepare.go.
 
 // Match is what the service answered for one image.
 type Match struct {
@@ -131,6 +124,9 @@ type PhotoDNA struct {
 	MatchURL  string // default DefaultMatchURL
 	ReportURL string // default DefaultReportURL
 	Client    *http.Client
+	// Enhance asks the Match operation for its enhanced matching
+	// (?enhance=true). Off by default.
+	Enhance bool
 }
 
 const (
@@ -150,12 +146,4 @@ func NewPhotoDNA(key string) *PhotoDNA {
 // Name implements Matcher.
 func (p *PhotoDNA) Name() string { return "photodna" }
 
-// Match implements Matcher: POST the image bytes to MatchURL.
-func (p *PhotoDNA) Match(ctx context.Context, img *Image) (Match, error) {
-	return Match{}, errors.New("not implemented")
-}
-
-// Report implements Reporter: POST the report JSON to ReportURL.
-func (p *PhotoDNA) Report(ctx context.Context, in Report) (ReportResult, error) {
-	return ReportResult{}, errors.New("not implemented")
-}
+// Match and Report live in photodna.go.
