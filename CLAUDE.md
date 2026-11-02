@@ -43,7 +43,8 @@ https://simple-host.app and runs in production for real users.
   not yet recorded in `schema_migrations`, including on databases built from `schema.sql` that
   already have its effect. Full rule: `db/migrations/migrations.go`. The historical files listed
   there as baseline are never run. Small boxes migrate from `install.sh` on every run; the
-  server never migrates on start. Production: apply the file by hand before deploying (the
+  server migrates on start only with `MIGRATE_ON_START=true` (Kubernetes; off in hosted
+  production). Production: apply the file by hand before deploying (the
   binary refuses to start if a column it reads is missing), then
   `simple-host migrate -mark <file>` (or just `simple-host migrate`); `migrate -status` lists
   what is pending.

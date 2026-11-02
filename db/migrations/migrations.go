@@ -38,10 +38,11 @@
 // A small box runs `simple-host migrate` from install.sh on every run, before
 // the new app version starts. A startup data-only sweep seals legacy notification
 // secrets when PASSCODE_ENC_KEY is set, only after the new binary starts.
-// The server never migrates schema on start, so hosted
-// production, where SQL is applied by hand, is never surprised: there, apply the
-// file by hand and record it with `simple-host migrate -mark <file>` (or run
-// `simple-host migrate`, which is what the idempotency rule above makes safe).
+// The server migrates schema on start only with MIGRATE_ON_START=true (off by
+// default; Kubernetes, see cmd/server/main.go and docs/kubernetes.md). Hosted
+// production leaves it off, so SQL applied by hand is never a surprise: there,
+// apply the file by hand and record it with `simple-host migrate -mark <file>`
+// (or run `simple-host migrate`, which is what the idempotency rule above makes safe).
 package migrations
 
 import (
