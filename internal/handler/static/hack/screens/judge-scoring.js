@@ -1,6 +1,7 @@
 import { href } from '../nav.js'
 import { errText, siteHref } from './_judge-util.js'
 import { startTour } from '../tour.js'
+import { replaceUrl } from '../platform.js'
 
 // A generic fallback: render() below sets the exact "Score: <entry>" title
 // once the queue has loaded, since the team's name isn't known this early.
@@ -71,7 +72,7 @@ export async function render(ctx) {
     teamID = pick.team_id
     const url = new URL(location.href)
     url.searchParams.set('team', teamID)
-    history.replaceState({}, '', url)
+    replaceUrl(url)
   }
 
   // The queue's own order is by global score coverage (least-scored team

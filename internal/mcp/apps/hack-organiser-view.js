@@ -503,8 +503,9 @@
   // "Sign-up questions" link (organiser-overview.js builds that href as
   // `href('organiser', slug, 'people') + '#signup'`, so the frame sees
   // '#v=people#signup'): set before navigating, read once by organiser-
-  // people.js's own render() (the bundlegen patch that replaced its
-  // location.hash reads), cleared once that render() finishes so a later,
+  // people.js's own render() (through the platform adapter's
+  // wantsSection, which this frame answers by reading this flag instead
+  // of location.hash), cleared once that render() finishes so a later,
   // ordinary navigation to People does not re-open Sign-up or re-scroll.
   function openPeopleSignup() {
     window.__hackOrgSignupOpen = true;
@@ -512,7 +513,7 @@
     renderView('people', {}).then(done, done);
   }
   // Same-role in-frame links, generalised past the judge app's narrower
-  // version: an organiser-only hostless URL our own __hackHref stub
+  // version: an organiser-only hostless URL our own frame/organiser-nav.js
   // builds (nav.js's own href() shape, nothing this frame renders on its
   // own), a site-relative path a reused screen builds BY HAND rather than
   // through href() (organiser-judging.js's own "Score as a judge" link,

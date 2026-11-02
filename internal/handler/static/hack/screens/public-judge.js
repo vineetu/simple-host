@@ -1,13 +1,9 @@
 import { errText, dateRange } from './_judge-util.js'
+import { judgeCode, judgeJoined, onSubmit } from '../platform.js'
 
 // A generic fallback; render() below sets the exact "Judge <event>" title
 // once the invite has loaded.
 export function title() { return 'Judge invite' }
-
-function codeFromPath() {
-  const m = location.pathname.match(/^\/judge\/([^/]+)\/?$/)
-  return m ? decodeURIComponent(m[1]) : ''
-}
 
 // public-judge: preview the event and code of conduct, then accept
 // (docs/ux-atlas/prototype/public-judge.html), mirroring public-join.
@@ -24,7 +20,7 @@ function codeFromPath() {
 export async function render(ctx) {
   const { main, api: client, ui, me, events } = ctx
   const api = client.api
-  const code = codeFromPath()
+  const code = judgeCode()
   const signedIn = !!(me && (me.username || me.email))
   main.innerHTML = `<div class="pub"><p class="muted">Loading…</p></div>`
   if (!code) {
@@ -94,7 +90,7 @@ export async function render(ctx) {
 
   const form = main.querySelector('#pj-form')
   if (!form) return
-  form.addEventListener('submit', async e => {
+  onSubmit(form, main.querySelector('#pj-submit'), async e => {
     e.preventDefault()
     const errBox = main.querySelector('#pj-err')
     errBox.textContent = ''
@@ -116,6 +112,6 @@ export async function render(ctx) {
     }
     if (!jr.ok) { errBox.textContent = errText(jr); submit.disabled = false; return }
     const slug = (jr.data && (jr.data.slug || (jr.data.event && jr.data.event.slug))) || info.slug
-    location.assign('/e/' + encodeURIComponent(slug) + '/judge')
+    judgeJoined(slug)
   })
 }

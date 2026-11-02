@@ -1,5 +1,6 @@
 import { adminLock } from './_orgA-util.js'
 import { href } from '../nav.js'
+import { wantsSection } from '../platform.js'
 
 export function title(ctx) { return 'People' }
 
@@ -52,6 +53,13 @@ export async function render(ctx) {
     if (r.ok) { questions = r.data.questions || []; approvalRequired = !!r.data.approval_required; applicationsOpen = r.data.applications_open !== false; savedQuestions = questions.map(q => ({ ...q })) }
     else registrationError = true
   } catch (e) { registrationError = true }
+  // A render left running past a newer navigation (Judging opened while
+  // People's own fetch was still in flight) must not go on to replace
+  // `main` with its own, now-stale screen the instant this fetch resolves
+  // -- organiser-overview.js already checks ctx.alive() after its own
+  // async /people+/applications fetch, before painting; this screen had no
+  // equivalent (Codex review finding 4, SIM-344 phase 2).
+  if (!ctx.alive()) return
 
   function guardRegistration(btn) {
     if (!registrationError) return false
@@ -69,7 +77,7 @@ export async function render(ctx) {
   // listener below keeps them in sync with whatever the person just did by
   // hand, independent of why either was opened.
   let coorgOpen = false
-  let signupOpen = location.hash === '#signup'
+  let signupOpen = wantsSection('signup')
   // Applications filter row (spec.json organiser-people "Applications"
   // section): client-side only, shown once anything is waiting. 'from' is
   // 'all'|'applied'|'link', 'age' is '' (Any) or an age_range value,
@@ -385,5 +393,5 @@ ${registrationError ? '<div class="note bad">Sign-up questions could not be load
   // one-time scroll so the person actually sees it land, not just un-collapse
   // off-screen. Not repeated on later repaints (Add question etc.), which
   // would otherwise yank the page back down on every click.
-  if (location.hash === '#signup') main.querySelector('#signup')?.scrollIntoView()
+  if (wantsSection('signup')) main.querySelector('#signup')?.scrollIntoView()
 }

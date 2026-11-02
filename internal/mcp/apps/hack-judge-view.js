@@ -393,8 +393,10 @@
     back.addEventListener('click', goBack);
     main.insertBefore(back, main.firstChild);
   }
-  // Called by the one documented patch to public-judge.js's accept-invite
-  // handler (bundlegen/patches.go): the real screen's own success path is
+  // Called by public-judge.js's accept-invite handler through the
+  // platform adapter (internal/handler/static/hack/platform.js's
+  // judgeJoined, internal/mcp/apps/frame/platform.js's frame version):
+  // the website's own success path is
   // `location.assign('/e/<slug>/judge')`, a real page navigation this
   // sandboxed frame cannot make (no allow-top-navigation) and should not
   // even if it could -- it would drop the judge out of the app they just

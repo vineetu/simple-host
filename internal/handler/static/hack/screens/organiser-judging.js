@@ -1,4 +1,5 @@
 import { href } from '../nav.js'
+import { onSubmit } from '../platform.js'
 
 export function title() { return 'Judging' }
 
@@ -139,7 +140,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       const actions = ui.el('div', { class: 'form-actions' })
       actions.appendChild(go)
       form.appendChild(actions)
-      form.addEventListener('submit', e => { e.preventDefault(); doUnlock(textarea.value, go) })
+      onSubmit(form, go, e => { e.preventDefault(); doUnlock(textarea.value, go) })
       zone.appendChild(form)
     }
   }
@@ -367,7 +368,7 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
       judgeSelect.disabled = teamSelect.disabled = add.disabled = locked || !!adminLockReason
       row.append(judgeSelect, teamSelect, add)
       form.appendChild(row)
-      form.addEventListener('submit', e => { e.preventDefault(); addConflict(judgeSelect.value, teamSelect.value, add) })
+      onSubmit(form, add, e => { e.preventDefault(); addConflict(judgeSelect.value, teamSelect.value, add) })
       card.appendChild(form)
     } else {
       card.appendChild(ui.el('button', { class: 'btn', type: 'button', text: 'Add', disabled: '' }))
@@ -615,6 +616,12 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err')
     return
   }
+  // This screen's initial six-way Promise.all has no check of its own; a
+  // render superseded while it was in flight must not go on to paint a
+  // stale rubric/progress/conflicts screen over whatever newer view has
+  // already taken `main` (same ctx.alive() gap as organiser-people.js
+  // above, Codex review finding 4, SIM-344 phase 2).
+  if (!ctx.alive()) return
   if (rubricR.ok) rubric = (rubricR.data && rubricR.data.criteria) || []
   if (settingsR.ok) settings = settingsR.data || settings
   if (conflictsR.ok) conflicts = (conflictsR.data && conflictsR.data.conflicts) || []

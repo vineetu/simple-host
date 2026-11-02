@@ -147,21 +147,22 @@ func (s *Server) readHackApp(req request, caller Caller, allowed bool) response 
 		if err != nil {
 			return failure(req.ID, codeInternalError, "could not prepare this view; try again", nil)
 		}
-		// Stubs are hand-written, not generated, and (organiser only, so far)
-		// carry their own __ORIGIN__ placeholder for the real website's
-		// origin (out-of-scope sections open there via ui/open-link rather
-		// than staying unreachable). Substituted here, before the stubs text
-		// becomes a replacement VALUE below -- strings.Replacer only scans
-		// the page template it is given, never a value it is substituting
-		// in, so a placeholder inside the stubs text would otherwise never
-		// be touched.
-		stubs := strings.ReplaceAll(asset(screen.ID+"-stubs.js"), "__ORIGIN__", "https://"+s.cfg.APIHost)
+		// The organiser bundle (only, so far) carries its own __ORIGIN__
+		// placeholder for the real website's origin (frame/organiser-
+		// nav.js: out-of-scope sections open there via ui/open-link rather
+		// than staying unreachable). Substituted here, before the bundle
+		// text becomes a replacement VALUE below -- strings.Replacer only
+		// scans the page template it is given, never a value it is
+		// substituting in, so a placeholder inside the bundle would
+		// otherwise never be touched. The judge bundle never contains this
+		// token (bundlegen.GenerateJS fails generation if it ever does),
+		// so this ReplaceAll is a no-op there.
+		bundle := strings.ReplaceAll(asset(screen.ID+"-bundle.js"), "__ORIGIN__", "https://"+s.cfg.APIHost)
 		page := strings.NewReplacer(
 			"__NONCE__", nonce,
 			"__STYLE__", asset(screen.ID+"-kit.css"),
 			"__BRIDGE__", asset("bridge.js"),
-			"__STUBS__", stubs,
-			"__BUNDLE__", asset(screen.ID+"-bundle.js"),
+			"__BUNDLE__", bundle,
 			"__VIEW__", asset(screen.ID+"-view.js"),
 		).Replace(asset(screen.HTML))
 		return result(req.ID, map[string]any{"contents": []any{map[string]any{
