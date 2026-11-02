@@ -61,8 +61,12 @@ The box is aarch64 with little RAM, so builds run under a memory cap.
 ```
 make check
 ```
-(gofmt, build, vet, `go test ./...` and the `scripts/check-*.sh` checks; `check-fresh-install.sh`
-needs a local postgres superuser.) Quick loop: `go test ./internal/handler/` (wrap heavy runs in the same `sudo systemd-run ... MemoryMax=2G` as the build).
+(gofmt, build, vet, `scripts/test-integration.sh` and the `scripts/check-*.sh` checks;
+`check-fresh-install.sh` needs a local postgres superuser.) `scripts/test-integration.sh` gives
+the DB-backed test fixtures (connector, hack, analytics, netusage, papermetrics -- anything
+gated on `DB_DSN`) a disposable Postgres and fails if any of them skip instead of running;
+`make test` is the fast no-DB loop (`go test ./...`), which still skips those fixtures. Quick
+loop: `go test ./internal/handler/` (wrap heavy runs in the same `sudo systemd-run ... MemoryMax=2G` as the build).
 
 Build, back up, install, restart (one line, from the repo root):
 
