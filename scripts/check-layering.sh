@@ -3,6 +3,7 @@
 #
 #   internal/handler is the only package that may import other internal
 #   packages. internal/auth may import internal/db. Everything else is a leaf.
+#   Test files (*_test.go) may also import internal/testdb.
 #
 # A document saying so would rot. This fails the build instead.
 #
@@ -29,9 +30,13 @@ for dir in internal/*/; do
   allowed=$(allowed_for "$pkg")
   [ "$allowed" = "ANY" ] && continue
 
-  # Internal packages this one imports, excluding itself.
-  deps=$(grep -rhoE '"github\.com/vsriram/simple-host/internal/[a-z]+' "$dir" 2>/dev/null \
-    | sed -E 's|.*internal/||' | sort -u | grep -v "^$pkg$" || true)
+  # Internal packages this one imports, excluding itself. Test files may also
+  # import internal/testdb, the shared test-database helper.
+  deps=$( {
+      grep -rhoE --exclude='*_test.go' '"github\.com/vsriram/simple-host/internal/[a-z]+' "$dir" 2>/dev/null
+      grep -rhoE --include='*_test.go' '"github\.com/vsriram/simple-host/internal/[a-z]+' "$dir" 2>/dev/null \
+        | grep -v '/internal/testdb$'
+    } | sed -E 's|.*internal/||' | sort -u | grep -v "^$pkg$" || true)
 
   for d in $deps; do
     if ! grep -qxF "$d" <<<"$(tr ' ' '\n' <<<"$allowed")"; then
@@ -44,7 +49,7 @@ done
 
 echo
 if [ "$fail" -ne 0 ]; then
-  echo "LAYERING VIOLATION — see the Boundaries section of ARCHITECTURE.md."
+  echo "LAYERING VIOLATION — see the Invariants section of ARCHITECTURE.md."
   echo "Either move the shared code into the caller, or make the case for a new boundary."
   exit 1
 fi
