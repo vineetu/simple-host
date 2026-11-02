@@ -1,6 +1,6 @@
 import { href } from '../nav.js'
 import { startTour } from '../tour.js'
-import { previewLeave, openLeave } from '../leave.js'
+import { previewLeave, openLeave, participantWarning } from '../leave.js'
 
 export function title() { return 'Overview' }
 
@@ -82,13 +82,14 @@ async function announcementsCard(api, ui, allHref, scheduleHref, slug, ev) {
   } catch (e) { return '' }
 }
 
-// Leave this event: danger zone last on the page. Copy per docs/ux-atlas's
-// copy-deck -- the row text is deliberately generic for every team case
-// (the atlas prototype shows the same "Your teammates keep the team..."
-// line even on the lone-member state; only the dialog, built fresh from its
-// own preview fetch in leave.js, says "you're the only member"). Returns ''
-// (no section at all) if the preview couldn't be loaded -- never show a
-// Leave button whose state we can't vouch for.
+// Leave this event: danger zone last on the page. Round-5 C1: this row now
+// calls leave.js's own participantWarning(), the exact text the Leave
+// dialog's first line builds from the same preview, so the two can never
+// disagree -- the row used to hand-roll a shorter version that, for a lone
+// member before the deadline, wrongly promised "your teammates keep the
+// team" when leaving actually deletes it. Returns '' (no section at all) if
+// the preview couldn't be loaded -- never show a Leave button whose state
+// we can't vouch for.
 //
 // Owner decision 2026-10-31: leaving is no longer blocked past a team's
 // deadline (submissions_closed never appears in preview.blocked for a
@@ -107,14 +108,8 @@ function participantDangerZone(ui, preview, ev) {
     } else {
       span = preview.blocked.message || "You can't leave this event right now."
     }
-  } else if (preview.team && preview.team.frozen) {
-    span = `You'll lose access to this event. ${preview.team.name}'s entry and site stay as they are.`
-  } else if (preview.team) {
-    span = `You'll leave ${preview.team.name} and lose access to this event. Your teammates keep the team, its entry and its website.`
-  } else if (preview.rejoin === 'join') {
-    span = "You'll lose access to the event. You can join again while sign-up is open."
   } else {
-    span = "You'll lose access to the event. Sign-up has closed, so you can't join again."
+    span = participantWarning(ui, preview)
   }
   return `<section class="danger-zone"><h2>Leave this event</h2><div class="setting"><div class="t"><b>${ui.esc(b)}</b><span>${ui.esc(span)}</span></div><button class="btn danger" type="button" id="leave-btn"${disabled ? ' disabled' : ''}>Leave event</button></div></section>`
 }

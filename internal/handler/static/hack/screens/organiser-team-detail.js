@@ -100,7 +100,10 @@ export async function render(ctx) {
     if (team.kept) {
       membersBlock = `<div class="sp-head"><h2>Members</h2><p>Nobody is on this team now.</p></div>`
     } else {
-      membersBlock = `<div class="sp-head"><h2>Members</h2><p>Admins decide who joins. Make someone admin if the team has lost theirs.</p>${lockReason ? '' : `<button class="btn" type="button" id="add-someone"${addDisabled ? ' disabled' : ''}><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add someone</button>`}</div>${full ? '<p class="help">' + esc(team.name) + ' is full.</p>' : ''}
+      // Round-6 Confusing 2: same one-clear-rule fix as participant-team.js's
+      // Members header -- this page's own Joining card below already says
+      // "Anyone in this event who opens it joins straight away."
+      membersBlock = `<div class="sp-head"><h2>Members</h2><p>Anyone with the team link joins straight away. Admins approve requests to join. Make someone admin if the team has lost theirs.</p>${lockReason ? '' : `<button class="btn" type="button" id="add-someone"${addDisabled ? ' disabled' : ''}><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add someone</button>`}</div>${full ? '<p class="help">' + esc(team.name) + ' is full.</p>' : ''}
 ${team.locked ? `<div class="note warn" role="status">Locked by the team. You can still place people here.</div>` : ''}
 <div class="list editable" aria-label="Members">${members.length ? members.map(m => memberRow(m, lockReason)).join('') : '<div class="empty">No members.</div>'}</div>`
     }

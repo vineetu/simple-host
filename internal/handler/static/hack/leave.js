@@ -69,6 +69,40 @@ function teammatesPhrase(team) {
   if (extra > 0) names.push(extra === 1 ? '1 other' : extra + ' others')
   return joinNames(names)
 }
+// Round-5 Cosmetic #1: "keep"/"keeps" must agree with how many teammates are
+// left -- team.others_count is the real remaining total (teammatesPhrase
+// above may only show up to 3 names of it), one of them means a singular
+// "keeps".
+function teammatesVerb(team) {
+  const total = team.others_count != null ? team.others_count : (team.others || []).length
+  return total === 1 ? 'keeps' : 'keep'
+}
+
+// The participant case's own warning line -- shared by the dialog
+// (confirmParticipant below) and a screen's danger-zone row
+// (participant-home.js's participantDangerZone), so the two can never say
+// different things about what leaving does (Round-5 C1: the Overview row
+// used to claim "your teammates keep the team" even for the one case where
+// leaving deletes it instead -- the lone member before the deadline).
+export function participantWarning(ui, preview) {
+  const team = preview.team
+  if (!team) {
+    return preview.rejoin === 'join'
+      ? "You'll lose access to the event. You can join again while sign-up is open."
+      : "You'll lose access to the event. Sign-up has closed, so you can't join again."
+  }
+  if (team.frozen) {
+    // Past the team's deadline, or the event closed/judging/results:
+    // leaving never changes the team, its entry, its site or its scores --
+    // not even for its last member -- it only takes this person off the
+    // member list (owner decision 2026-10-31).
+    return `You'll lose access to the event. ${ui.possessive(team.name)} entry and site stay as they are, and you won't be listed on the team any more.`
+  }
+  if (team.deleted_on_leave) {
+    return `You're the only member of ${team.name}, so the team, its entry and its website will be deleted for good.`
+  }
+  return `You'll leave ${team.name} and lose access to the event. ${teammatesPhrase(team)} ${teammatesVerb(team)} the team, its entry and its website.`
+}
 
 // ---- the simple (ui.confirm) cases: participant, applicant, judge, co_organiser ----
 
@@ -77,31 +111,26 @@ function confirmParticipant(ui, preview, title, warn) {
   let body, confirmLabel
   if (team) {
     if (team.frozen) {
-      // Past the team's deadline, or the event closed/judging/results:
-      // leaving never changes the team, its entry, its site or its scores
-      // -- not even for its last member -- it only takes this person off
-      // the member list (owner decision 2026-10-31).
       body = [
-        para(`You'll lose access to the event. ${team.name}'s entry and site stay as they are, and you won't be listed on the team any more.`),
+        para(participantWarning(ui, preview)),
         para("You can't rejoin this team.", 'muted')
       ]
       confirmLabel = 'Leave event'
     } else if (team.deleted_on_leave) {
       body = [
-        para(`You're the only member of ${team.name}, so the team, its entry and its website will be deleted for good.`),
+        para(participantWarning(ui, preview)),
         para("You'll lose access to the event. You can join again while sign-up is open.", 'muted')
       ]
       confirmLabel = 'Delete team and leave'
     } else {
       body = [
-        para(`You'll leave ${team.name} and lose access to the event. ${teammatesPhrase(team)} keep the team, its entry and its website.`),
+        para(participantWarning(ui, preview)),
         para(`You can join again while sign-up is open, but not as part of ${team.name} unless they let you back in.`, 'muted')
       ]
       confirmLabel = 'Leave event'
     }
   } else {
-    const open = preview.rejoin === 'join'
-    body = [para(open ? "You'll lose access to the event. You can join again while sign-up is open." : "You'll lose access to the event. Sign-up has closed, so you can't join again.")]
+    body = [para(participantWarning(ui, preview))]
     confirmLabel = 'Leave event'
   }
   if (warn) body.unshift(warnNote(warn))

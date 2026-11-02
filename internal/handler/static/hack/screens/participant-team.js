@@ -252,7 +252,10 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
     const pendingRequests = finding.pending.filter(p => p.kind === 'request')
     const parts = []
     if (justPlaced) parts.push(`<div class="note ok" role="status">You joined ${esc(team.name)}.</div>`)
-    parts.push(`<div class="sp-head"><h2 id="sp-h" tabindex="-1">Members</h2><p>Everyone on ${esc(team.name)}. Admins decide who joins.</p></div>`)
+    // Round-6 Confusing 2: one clear rule instead of two that contradicted
+    // each other -- "Admins decide who joins" sat right above the Team
+    // link card's own "Anyone ... joins straight away."
+    parts.push(`<div class="sp-head"><h2 id="sp-h" tabindex="-1">Members</h2><p>Anyone with the team link joins straight away. Admins approve requests to join.</p></div>`)
     if (frozen) parts.push(`<div class="note" role="status">Entries are closed, so ${esc(team.name)} can’t change now.</div>`)
     parts.push(teamLinkCardHTML())
     if (!frozen) parts.push(requestsHTML(pendingRequests))
@@ -275,7 +278,10 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
   }
 
   function settingsPanelHTML() {
-    const parts = [`<div class="sp-head"><h2 id="sp-h" tabindex="-1">Settings</h2><p>${isAdmin ? 'Admins change the team’s name, who can join and its link.' : 'Settings for ' + esc(team.name) + '.'}</p></div>`]
+    // Round-6 Cosmetic 3: "who can join" dropped -- that setting is gone
+    // (Ask to join and the team link/code are just how joining works now,
+    // not something admins turn on or off).
+    const parts = [`<div class="sp-head"><h2 id="sp-h" tabindex="-1">Settings</h2><p>${isAdmin ? 'Admins change the team’s name, what it’s looking for, the lock and its link.' : 'Settings for ' + esc(team.name) + '.'}</p></div>`]
     if (isAdmin) {
       parts.push(`<section class="card"><h2>Team</h2><div class="field"><label for="set-name">Team name</label><input class="input" id="set-name" maxlength="80" value="${esc(team.name)}"${canAct ? '' : ' disabled'}></div><div class="field"><label for="set-looking">Looking for</label><input class="input" id="set-looking" maxlength="120" value="${esc(team.looking_for || '')}"${canAct ? '' : ' disabled'}><p class="help">Shown to people browsing teams. Leave it empty if you’re not looking.</p></div><div class="card-foot"><span class="hint" id="set-hint">No changes</span><button class="btn quiet" type="button" id="set-discard" disabled>Discard</button><button class="btn primary" type="button" id="set-save" disabled${canAct ? '' : ' disabled'}>Save</button></div></section>`)
       if (!frozen) {
@@ -297,8 +303,8 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
       } else {
         const successor = me.team.admin_successor
         const span = successor
-          ? `You’ll lose access to ${esc(team.name)}’s entry and website. ${esc(successor)} becomes admin when you leave.`
-          : `You’ll lose access to ${esc(team.name)}’s entry and website.`
+          ? `You’ll lose access to ${esc(ui.possessive(team.name))} entry and website. ${esc(successor)} becomes admin when you leave.`
+          : `You’ll lose access to ${esc(ui.possessive(team.name))} entry and website.`
         parts.push(`<section class="danger-zone"><h2>Leave team</h2><div class="setting"><div class="t"><span>${span}</span></div><button class="btn danger" type="button" id="leave-team">Leave team</button></div></section>`)
       }
     }
@@ -367,7 +373,11 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
       return
     }
     if (actName === 'remove') {
-      const ok = await ui.confirm({ title: 'Remove ' + name + '?', body: name + ' loses access to ' + team.name + '’s entry and website. The team link changes, so the old one stops working. Remove ' + name + '?', confirmLabel: 'Remove from team', danger: true })
+      // Round-6 Cosmetic 1: the question appears once, in the title -- the
+      // body says only what happens, with the possessive routed through
+      // ui.possessive (Round-6 Cosmetic 2) instead of a hand-built "'s"
+      // that always added an extra s to a name already ending in one.
+      const ok = await ui.confirm({ title: 'Remove ' + name + '?', body: name + ' loses access to ' + ui.possessive(team.name) + ' entry and website. The team link changes, so the old one stops working.', confirmLabel: 'Remove from team', danger: true })
       if (!ok) return
       act(item, () => api('DELETE', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team/members/' + encodeURIComponent(userID)))
       return

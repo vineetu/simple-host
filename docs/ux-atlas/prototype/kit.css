@@ -906,6 +906,12 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{m
 /* a card heading -> its first field: the same 12px as heading -> .sub */
 .card > h2 + :is(.field,.field-row,.check,.control-row),
 .card > h2 + form > :is(.field,.field-row,.check,.control-row):first-child{margin-top:var(--s3)}
+/* Round-6 Cosmetic 4: a dialog's own title -> its first field, the same
+   12px -- formDialog's body (Add track, Fill teams, the schedule, sponsor
+   and FAQ dialogs) sits directly under ui.dialog()'s <h2> with no .card to
+   pick up the rule above, so the title used to sit right on the first
+   label (only the h2's own 6px). Fixed once here, not per dialog. */
+.dialog > h2 + :is(.field,.field-row,.check,.control-row,.form-intro){margin-top:var(--s3)}
 /* a disclosure (Advanced, Read the standard code) -> the next form block */
 details + :is(.field,.field-row,.check,.form-actions){margin-top:var(--field-gap)}
 details > .help:last-child{margin:var(--s2) 0 0}

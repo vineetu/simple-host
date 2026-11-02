@@ -1,7 +1,7 @@
 import * as api from './api.js'
 import * as ui from './ui.js'
 import { mount } from './shell.js'
-import { resolveRoute, isAppRoute } from './nav.js'
+import { resolveRoute, isAppRoute, href } from './nav.js'
 import { endTour } from './tour.js'
 import { openLeave } from './leave.js'
 // Attribution carry-over (arrival.js) is only present on chromed pages.
@@ -417,12 +417,26 @@ async function route() {
         // level: brand, top nav, no switcher) instead.
         if (turn !== generation) return
         if (r.status === 404 || (r.data && r.data.code === 'event_not_found')) {
+          // Round-5 Cos2: the member-scoped GET 404s the same way whether
+          // the event is really gone or this person just isn't (or isn't
+          // any more) a member of it -- a left participant hitting an old
+          // /e/<slug>/team link used to see "Event not found" about an
+          // event that's still very much there. The public feed needs no
+          // membership, so it tells the two cases apart.
+          let pub = null
+          try { const pr = await api.api('GET', '/v1/hack/events/' + encodeURIComponent(match.slug) + '/public'); if (pr.ok) pub = pr.data } catch (e) {}
+          if (turn !== generation) return
           const notFoundCtx = { ...data, api, ui, event: null, role: null, params: new URLSearchParams(location.search), go,
             alive: () => turn === generation,
             refresh: async () => { initialData = null; return route() } }
           const notFoundMain = mount(notFoundCtx, null, 'event-not-found')
-          notFoundMain.innerHTML = `<section class="locked"><h2>Event not found</h2><p>It may have been deleted, or the link is wrong.</p><p><a class="btn primary" href="/events">Home</a> <a class="btn" href="/directory">Find a hackathon</a></p></section>`
-          document.title = 'Event not found · Simple Hack'
+          if (pub) {
+            notFoundMain.innerHTML = `<section class="locked"><h2>You're not in ${ui.esc(pub.title)}</h2><p>You're signed in, but not a member of this event -- you may have left it, or never joined.</p><p><a class="btn primary" href="/events">Home</a> <a class="btn" href="/directory">Find a hackathon</a></p></section>`
+            document.title = `You're not in ${pub.title} · Simple Hack`
+          } else {
+            notFoundMain.innerHTML = `<section class="locked"><h2>Event not found</h2><p>It may have been deleted, or the link is wrong.</p><p><a class="btn primary" href="/events">Home</a> <a class="btn" href="/directory">Find a hackathon</a></p></section>`
+            document.title = 'Event not found · Simple Hack'
+          }
           document.body.classList.remove('booting')
           return
         }
@@ -431,6 +445,12 @@ async function route() {
       event = r.data
       role = event.role
       if (!['organiser', 'participant', 'judge'].includes(role)) throw new Error('You do not have access to this event')
+      // Round-6 Confusing #1: match.role is only what the URL segment
+      // (manage/team/judge) implies, which can be stale -- an organiser
+      // (or judge) who opens a participant's /team link, from a shared
+      // link, a stale bookmark or Back, lands on their own area instead of
+      // a screen built for someone else's role.
+      if (match.role && match.role !== role) { go(href(role, match.slug)); return }
     }
     if (turn !== generation) return
     const ctx = { ...data, api, ui, event, role, params: new URLSearchParams(location.search), go,

@@ -514,9 +514,15 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
   // publish -- the confirm body says so (copy-deck.md, "Organiser Judging").
   async function deleteFormerJudge(f, btn) {
     const name = f.display_name || 'This judge'
-    const ok = await ui.confirm({
+    // Round-5 C3: a typed confirm, the event's own address name, same as
+    // Settings' Delete this event -- the server already requires
+    // confirm=slug (SIM-340 security review), so the dialog should ask for
+    // exactly the text that route checks, not a plain OK.
+    const ok = await ui.confirmTyped({
       title: `Delete ${ui.possessive(name)} scores?`,
       body: `${name} left the event. Their scores and comments for ${f.counted_teams} team${f.counted_teams === 1 ? '' : 's'} will be deleted and stop counting toward totals and ranks. Published results only change when you publish again.`,
+      matchText: slug,
+      fieldLabel: `Type ${slug} to confirm`,
       confirmLabel: 'Delete scores', danger: true
     })
     if (!ok) return

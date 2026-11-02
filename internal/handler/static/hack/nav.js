@@ -184,5 +184,10 @@ export function resolveRoute(url) {
   const section = sections.includes(wanted) ? wanted : sections[0]
   const alias = { 'organiser-team': 'organiser-team-detail', 'organiser-entry': 'organiser-entry-detail', 'organiser-assignments': 'organiser-judging-assignments' }
   const id = role + '-' + section
-  return { id: alias[id] || id, section, slug: decodeURIComponent(m[1]) }
+  // `role` here is only what the URL segment (manage/team/judge) implies --
+  // app.js compares it against the signed-in person's real event.role and
+  // redirects to their own area on a mismatch (Grok retest round 6,
+  // Confusing #1: an organiser opening a participant's /team link used to
+  // render that participant's screen instead of bouncing to /manage).
+  return { id: alias[id] || id, section, slug: decodeURIComponent(m[1]), role }
 }

@@ -617,6 +617,77 @@ function askConfirm({ title, body, confirmLabel = 'Continue', cancelLabel = 'Can
 }
 export { askConfirm as confirm }
 
+// Typed confirm: same shape as ui.confirm, but the confirm button stays
+// disabled until the person types `matchText` exactly, same as Settings'
+// own Delete event (organiser-settings.js) -- for a destructive route that
+// already requires `confirm: <text>` server-side (SIM-340 Round-5 C3:
+// Delete scores), so one stray click can't do it by accident. Hand-rolled
+// like leave.js's own sheets rather than built on ui.dialog(): the confirm
+// button's disabled state has to track an input as the person types, and
+// dialog()'s button list is fixed the moment it opens.
+export function confirmTyped({ title, body, matchText, confirmLabel = 'Confirm', cancelLabel = 'Cancel', fieldLabel, danger = true }) {
+  return new Promise(resolve => {
+    const previous = document.activeElement
+    const scrim = document.createElement('div')
+    scrim.className = 'scrim'
+    const box = document.createElement('div')
+    box.className = 'dialog'
+    box.setAttribute('role', 'dialog')
+    box.setAttribute('aria-modal', 'true')
+    box.setAttribute('aria-labelledby', 'ct-h')
+    const h2 = document.createElement('h2')
+    h2.id = 'ct-h'
+    h2.textContent = title
+    box.append(h2)
+    const nodes = body == null ? []
+      : Array.isArray(body) ? body
+      : body instanceof Node ? [body]
+      : [Object.assign(document.createElement('p'), { textContent: body })]
+    box.append(...nodes)
+    const field = document.createElement('div')
+    field.className = 'field'
+    const inputId = 'ct-input'
+    const label = document.createElement('label')
+    label.htmlFor = inputId
+    label.textContent = fieldLabel || `Type ${matchText} to confirm`
+    const input = document.createElement('input')
+    input.className = 'input mono'
+    input.id = inputId
+    input.type = 'text'
+    field.append(label, input)
+    box.append(field)
+    const acts = document.createElement('div')
+    acts.className = 'acts'
+    const cancelBtn = document.createElement('button')
+    cancelBtn.type = 'button'; cancelBtn.className = 'btn'; cancelBtn.textContent = cancelLabel
+    const okBtn = document.createElement('button')
+    okBtn.type = 'button'; okBtn.className = 'btn ' + (danger ? 'danger' : 'primary'); okBtn.textContent = confirmLabel
+    okBtn.disabled = true
+    acts.append(cancelBtn, okBtn)
+    box.append(acts)
+    scrim.append(box)
+    function done(value) { document.removeEventListener('keydown', keydown, true); scrim.remove(); previous?.focus(); resolve(value) }
+    function sync() { okBtn.disabled = input.value.trim() !== matchText }
+    input.addEventListener('input', sync)
+    cancelBtn.addEventListener('click', () => done(false))
+    okBtn.addEventListener('click', () => { if (!okBtn.disabled) done(true) })
+    function keydown(e) {
+      if (e.key === 'Escape') { e.preventDefault(); done(false); return }
+      if (e.key === 'Tab') {
+        const list = focusablesIn(box)
+        if (!list.length) return
+        e.preventDefault()
+        const i = list.indexOf(document.activeElement)
+        list[(i + (e.shiftKey ? list.length - 1 : 1) + list.length) % list.length].focus()
+      }
+    }
+    scrim.addEventListener('click', e => { if (e.target === scrim) done(false) })
+    document.addEventListener('keydown', keydown, true)
+    document.body.append(scrim)
+    input.focus()
+  })
+}
+
 // Unsaved-changes guard for the one-Save forms (Basics, About): "another
 // tab, the sidebar, Back" asks before leaving, closing the browser tab uses
 // beforeunload. Bound once (module-level); `setDirtyGuard` is called on

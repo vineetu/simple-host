@@ -298,6 +298,25 @@
     // membership role returned by GET /v1/hack/events/{slug}; approval_status
     // ('pending'/'rejected') is only ever set for a participant -- an
     // organiser or judge always has full access the moment they join.
+    // Round-5 Cos3 (Grok re-test, round 5): a signed-in visitor who turns
+    // out NOT to be a member of this event (left it, or never joined) kept
+    // the default anonymous copy, "Sign in with your email...", which makes
+    // no sense once we already know they're signed in. The member-scoped
+    // GET 404s precisely for that case here (the page only exists because
+    // the event itself is real, so a 404 from this call always means "not a
+    // member", never "event not found") -- swap in the one CTA that still
+    // makes sense: Apply, if the page already rendered one (applications
+    // open), else "Ask the organisers for the join link".
+    function showNonMember(card) {
+      var apply = card.querySelector('a[href*="/apply"]');
+      if (apply) {
+        setStageCard(card, 'Apply to join', "The organisers decide who joins, and you'll see their answer on your Simple Hack Home.", [
+          { href: apply.getAttribute('href'), label: 'Apply', primary: true }
+        ]);
+      } else {
+        setStageCard(card, 'Ask the organisers for the join link', '', []);
+      }
+    }
     function checkAlreadyJoined(appURL) {
       var card = document.getElementById('stage-card');
       if (!card) return;
@@ -306,7 +325,7 @@
       try { key = localStorage.getItem('apiKey') || ''; } catch (e) {}
       if (!slug || !key) return;
       fetch(appURL + '/v1/hack/events/' + encodeURIComponent(slug), { headers: { 'X-API-Key': key } })
-        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (r) { if (r.status === 404) { showNonMember(card); return null; } return r.ok ? r.json() : null; })
         .then(function (data) {
           if (!data || !data.role) return;
           var role = data.role;

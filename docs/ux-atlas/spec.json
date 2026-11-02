@@ -52,7 +52,9 @@
   "status_header": "Every role sees the same stage, in the same words (owner decision 2026-10-31): a .pill.stage with the event's stage -- Not open yet, Sign-up open, Building, Entries closed, Judging, Results, Ended -- plus the next deadline as muted text. On each role's home screen (organiser Overview, participant Overview, judge Home) the full .stages track sits on the right of the bar, done/now/upcoming, read-only for participants and judges (plain spans, nothing to click). Judges also get a second pill for scoring right after the stage pill: 'Scoring open' (.pill.ok), 'Scoring locked' (.pill.warn) or 'Scoring not open' (.pill), none once the event has ended. Organisers keep the join/judge Copy buttons on screens other than Overview. Phone: the track is hidden (as today), the pill or pills and the deadline stay on one line.",
   "fixes": [
    "Retest (Grok SIM-346, round 3): a judge on an event that ended without ever being locked (archived, judging_locked_at never set) saw the status pill read 'Scoring not open', as if scoring had simply never started -- it now reads 'Event ended' first, checked before the locked/open/not-open wording.",
-   "Retest (Grok SIM-346, round 1 S15): a signed-in person opening an event they're not part of (or that was deleted) gets an in-app 'Event not found' card instead of the generic error catch -- only for 404 event_not_found, guarded against a superseded navigation."
+   "Retest (Grok SIM-346, round 1 S15): a signed-in person opening an event they're not part of (or that was deleted) gets an in-app 'Event not found' card instead of the generic error catch -- only for 404 event_not_found, guarded against a superseded navigation.",
+   "Retest (round 6, Confusing #1): resolveRoute's role (nav.js), derived only from the URL's own /manage|/team|/judge segment, was never checked against the signed-in person's real event.role -- an organiser opening a participant's /team link (a shared link, a stale bookmark, Back) rendered that participant's screen instead of bouncing to their own area. app.js's route() now compares the two and redirects (go(href(real_role, slug))) on a mismatch.",
+   "Retest (round 5, Cosmetic 2): the 404 above looks identical whether the event is truly gone or this signed-in person simply isn't (or isn't any more) a member of it -- a participant who left and later opened an old /e/<slug>/team link saw 'Event not found' about an event that still exists. route() now falls back to the credential-less public feed (GET .../public, no membership needed) on that 404: found there, it shows \"You're not in <event>\" with Home and Find a hackathon instead of the generic not-found card."
   ],
   "collapsible_sidebar": "Desktop only (761px and up); phone is unchanged. A panel button sits at the right end of the brand row ('Collapse sidebar', shortcut [ outside a text field). Collapsed, the 248px sidebar becomes a 56px icon rail: the brand shows the short mark s·h (still a link Home), the toggle sits under it ('Expand sidebar'), then the top nav icons (Home, Find a hackathon), the divider, the event switcher as just its colour mark, the role's nav icons, and the foot icons (Account, Sign out, Help). Both sidebar levels keep their order and the divider between them, so the two-level structure reads the same folded. Count badges become small red bubbles on the icon's corner. Every item shows its label in a tooltip on hover and on keyboard focus (data-tip, drawn by CSS with empty alt text so the name is not read twice); the label itself stays in the DOM, visually hidden, so links keep their accessible names. The switcher opens the same event list beside the rail, aligned to it. Help opens its submenu beside the rail the same way. The toggle is a real button with aria-expanded and aria-controls=\"side\"; focus stays on it after toggling. The choice is remembered per browser in localStorage 'sh_side' ('collapsed' | 'expanded', every read and write in try/catch, default expanded) and applied before the shell first paints, so there is no flash. Rail rule: no two sidebar icons may look alike, so Overview uses a dashboard glyph (Home keeps the house), Teams three heads (People two), Account a person in a circle. The app's shell.js needs the same icon set (prototype/shell.js has the paths).",
   "layout_rules": {
@@ -2132,7 +2134,8 @@
    "replaces": [],
    "fixes": [
     "No atlas entry captured this sub-view; added because 'Manage team' existed with nowhere documented to land.",
-    "Critique: rename-team, move-member-to-team and delete-team were all NO HOME in v1 -- all three now have a real control here."
+    "Critique: rename-team, move-member-to-team and delete-team were all NO HOME in v1 -- all three now have a real control here.",
+    "Retest (Grok SIM-346, round 6, Confusing #2 fix applied by analogy): Members' sub-head said 'Admins decide who joins', contradicting the Joining card's 'Anyone in this event who opens it joins straight away' lower on the same page -- now 'Anyone with the team link joins straight away. Admins approve requests to join. Make someone admin if the team has lost theirs.'"
    ],
    "phone": "Single column. Member rows wrap, the row menu button is 44px, dialogs rise as sheets.",
    "decisions": [
@@ -2563,7 +2566,7 @@
     {
      "name": "a judge left the event",
      "when": "a judge (or an organiser who scored) left after scoring",
-     "shows": "Progress -> Judges keeps them as a row: 'Pak Budi', a 'Left the event' pill, 'Scored 4 of 6, still counted', and a quiet Delete scores button. Its confirm: 'Delete Pak Budi's scores? Pak Budi left the event. Their scores and comments for 4 teams will be deleted and stop counting toward totals and ranks. Published results only change when you publish again.' [Cancel] [Delete scores]. Disabled while judging is locked, with 'Unlock judging to change scores.'"
+     "shows": "Progress -> Judges keeps them as a row: 'Pak Budi', a 'Left the event' pill, 'Scored 4 of 6, still counted', and a quiet Delete scores button. Its confirm (Round-5 C3: typed, same pattern as Settings' Delete this event, since the server already requires confirm=slug): 'Delete Pak Budi’s scores? Pak Budi left the event. Their scores and comments for 4 teams will be deleted and stop counting toward totals and ranks. Published results only change when you publish again.' with a 'Type generationgirl2026 to confirm' field, [Cancel] [Delete scores] disabled until it matches. Disabled while judging is locked, with 'Unlock judging to change scores.'"
     }
    ],
    "replaces": [
@@ -3257,9 +3260,10 @@
      "name": "Leave this event (danger zone, last on Overview)",
      "contents": [
       "Leave Generation Girl Online Hack 2026",
-      "On a team with others: 'You'll leave SheBuilds and lose access to this event. Your teammates keep the team, its entry and its website.'",
-      "Only member of the team: 'You're the only member of SheBuilds, so the team, its entry and its website will be deleted when you leave.'",
-      "Past the team's deadline, or once the event is closed, judging or results: 'You'll lose access to this event. SheBuilds's entry and site stay as they are.' -- same line whether or not they were the only member.",
+      "Round-5 C1: this row's text is leave.js's own participantWarning(preview) -- the exact first line the Leave dialog itself builds from the same preview fetch, so the row and the dialog can never disagree.",
+      "On a team with others: 'You'll leave SheBuilds and lose access to the event. Ayu and Nadia keep the team, its entry and its website.' ('keeps' when exactly one teammate remains.)",
+      "Only member of the team: 'You're the only member of SheBuilds, so the team, its entry and its website will be deleted for good.'",
+      "Past the team's deadline, or once the event is closed, judging or results: 'You'll lose access to the event. SheBuilds’ entry and site stay as they are, and you won't be listed on the team any more.' -- same line whether or not they were the only member.",
       "No team: 'You'll lose access to the event. You can join again while sign-up is open.' (from Closed on: 'Sign-up has closed, so you can't join again.')"
      ],
      "actions": [
@@ -3318,7 +3322,7 @@
     {
      "name": "leave, on a team with others",
      "when": "approved, on a team with at least one other member, stage Draft, Open or Building, before the team's own deadline",
-     "shows": "Leave event opens a .dialog naming the team and the teammates who keep it (up to two names, then 'and N others'). Confirm: 'Leave event'. The team, entry and site stay, the team code does not change."
+     "shows": "Leave event opens a .dialog naming the team and the teammates who keep it (up to two names, then 'and N others'; 'keeps' when exactly one remains). Confirm: 'Leave event'. The team, entry and site stay, the team code does not change."
     },
     {
      "name": "leave, only member of the team",
@@ -3875,7 +3879,11 @@
     "Critique: withdraw-join-request, invite-solo-participant, cancel-sent-invite, the solo-side accept/decline of an invite, an editable who-can-join/looking-for with Save, remove-teammate and the team-removal/just-filled states were all missing -- every one now has a section or state.",
     "Retest (Grok SIM-346, round 3): confirmed as already correct -- 'Copy join code' is hidden once the event has ended (S14), since a new team can no longer form with it.",
     "Owner, 2026-10-31: the side-by-side Start a team / Join a team boxes are replaced by one question with three choices that each say what happens.",
-    "'Who can join: Anyone / Only people with the code' is gone. Two ways in: Ask to join (admins approve) and the team link or code (instant)."
+    "'Who can join: Anyone / Only people with the code' is gone. Two ways in: Ask to join (admins approve) and the team link or code (instant).",
+    "Retest (Grok SIM-346, round 6, Confusing #2): the Members header's 'Admins decide who joins' sat directly above the Team link card's own 'Anyone ... joins straight away' -- one clear rule now: 'Anyone with the team link joins straight away. Admins approve requests to join.' Same fix on organiser-team-detail's Members header.",
+    "Retest (round 6, Cosmetic 3): the Settings sub-heading still said 'who can join', a setting removed in the 2026-10-31 teams redesign -- now 'Admins change the team's name, what it's looking for, the lock and its link.' The read-only member view's stray 'Who can join' row (never in the real data) is also gone.",
+    "Retest (round 6, Cosmetic 1 and 2): the Remove member confirm asked its question twice (title and body) and used a hand-built \"'s\" that always added an extra s to a name already ending in one ('Testers's') -- the body now states only the consequence, once, through ui.possessive.",
+    "Retest (round 5, C1 and Cosmetic 1): the Overview danger-zone row for Leave this event used to hand-roll a shorter, sometimes-wrong copy of the Leave dialog's own first line (promising teammates keep the team even for the one case -- the lone member before the deadline -- where leaving deletes it). Both now call leave.js's participantWarning(preview), which also fixes 'keep'/'keeps' agreement and routes every possessive through ui.possessive."
    ],
    "phone": "No team: the three choice cards stack full width, the chosen panel under them, buttons full width. On a team: the sub-page list becomes tabs that scroll sideways under the page header. Member rows wrap the role under the name, the row menu button is 44px.",
    "decisions": [
@@ -5884,6 +5892,11 @@
      "name": "applications off",
      "when": "the organiser turned applications off (stage open or building)",
      "shows": "Today's card: 'Join with the link from the organisers' and the explanation of where the link comes from, no Apply anywhere on the page. The page never says applications are off: it simply describes the one way in."
+    },
+    {
+     "name": "signed in, not a member",
+     "when": "the visitor is signed in (localStorage.apiKey, same origin as AppURL) but the membership check 404s for this event",
+     "shows": "The stage card drops every sign-in reference: 'Apply to join' with a primary Apply button when the page already rendered one (applications open), else 'Ask the organisers for the join link' with no button. 'Already joined? Sign in' was already hidden the moment we knew they're signed in."
     }
    ],
    "replaces": [
@@ -5921,7 +5934,8 @@
     "Taken down keeps the 410 and the reason, drops the event colour and adds a way out (Find another hackathon).",
     "Corrects the previous atlas entry, which promised status tags on gallery cards and a 'results expected' date. Neither exists in the data, both moved to feature ideas.",
     "Retest (Grok SIM-346, round 2): the header's Sign in/Home swap only ever worked on the app's own origin -- localStorage.apiKey can never be read at the event's own canonical URL (the slug subdomain), so a signed-in visitor there still saw 'Sign in'. It now checks location.host against the AppURL host first: same origin keeps the old localStorage check, any other host always shows 'Sign in', linking straight at the app's sign-in page instead of the neutral Home. The schedule's own ordering is a stable sort, so same-time items keep a fixed order across loads instead of reshuffling.",
-    "Retest (Grok SIM-346, round 4): a pending or rejected applicant saw the same 'You've already joined / Continue to your event' as a full member, with Continue only leading to a second screen saying the application was still waiting (or wasn't accepted) -- the membership check now reads role and approval_status and shows 'Your application is waiting for the organisers.' with 'See your application' (pending), or 'Your application wasn't accepted this time.' with no Continue (rejected). A signed-in visitor who isn't a member of this event no longer sees 'Already joined? Sign in' -- that signal is hidden the moment we know they're signed in, independent of whether the membership check that follows finds a role."
+    "Retest (Grok SIM-346, round 4): a pending or rejected applicant saw the same 'You've already joined / Continue to your event' as a full member, with Continue only leading to a second screen saying the application was still waiting (or wasn't accepted) -- the membership check now reads role and approval_status and shows 'Your application is waiting for the organisers.' with 'See your application' (pending), or 'Your application wasn't accepted this time.' with no Continue (rejected). A signed-in visitor who isn't a member of this event no longer sees 'Already joined? Sign in' -- that signal is hidden the moment we know they're signed in, independent of whether the membership check that follows finds a role.",
+    "Retest (round 5, Cosmetic 3): hiding 'Already joined? Sign in' wasn't enough -- a signed-in visitor confirmed NOT a member (the membership check 404s) still read the card's default body, 'Sign in with your email...', which makes no sense once they're already signed in. On that 404 the card now reads 'Apply' (reusing whatever Apply link the page already rendered, so it still respects applications_open) or, with no Apply on the page, 'Ask the organisers for the join link' -- no sign-in wording either way."
    ],
    "phone": "Same order as desktop, one column, 16px gutter. Icon sits above the title, facts on short separate lines, chips scroll sideways, stage card button is full width, Team sites are compact rows with a small thumbnail, Schedule times sit under titles, every tap target is at least 44px. No sticky bars.",
    "decisions": [
