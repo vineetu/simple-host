@@ -5,6 +5,7 @@ go 1.27.1
 toolchain go1.27.3
 
 require (
+	github.com/evanw/esbuild v0.28.2
 	github.com/lib/pq v1.10.9
 	github.com/ncruces/go-sqlite3 v0.35.6
 	github.com/oschwald/maxminddb-golang/v2 v2.2.0
