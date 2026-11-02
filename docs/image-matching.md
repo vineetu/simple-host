@@ -112,7 +112,8 @@ NCMEC's CyberTipline. Who uploaded it means:
   Host; on Simple Hack the team member whose key deployed it or the organiser who published it,
   never the event's holding account);
 - a files-storage upload: the handle and email of the account that wrote it with owner rights
-  (the owner, or on Simple Hack the team member or organiser), the visitor's id when a
+  (the owner, or on Simple Hack the team member or organiser, or an operator whose admin key
+  wrote into someone else's files storage), the visitor's id when a
   signed-in visitor wrote it, and "anonymous visitor (no account)" when nobody was signed in;
 - a Simple Hack event icon or entry screenshot: the handle and email of the person who
   uploaded it.

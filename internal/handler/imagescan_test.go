@@ -1588,3 +1588,108 @@ func TestImageScanHackOrganiserUploader(t *testing.T) {
 		}
 	}
 }
+
+// Pass 3c, item 4: a team key's deploy to an EXISTING team site, published
+// and with publish=false, records the member as the writer.
+func TestImageScanHackUploaderExistingSite(t *testing.T) {
+	a := newTeamSiteApp(t)
+	f := newImageScanFixtureDB(t, a.database, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	org, p1 := a.newPerson(t, "org"), a.newPerson(t, "p1")
+	slug := a.makeEvent(t, org)
+	a.join(t, slug, p1, org)
+	team, _ := a.startTeam(t, slug, "Alpha", p1)
+	key := a.teamKey(t, slug, p1)
+	markReady(t, a.certDir, slug)
+	first := map[string]any{"files": map[string]string{"index.html": "<h1>alpha</h1>"}}
+	if r := a.api(t, "PUT", "/v1/sites/"+team+"/files?create=1", first, key); r.status != http.StatusCreated && r.status != http.StatusOK {
+		t.Fatalf("team create: %d %s", r.status, r.body)
+	}
+	published, unpublished := testPNG(t), testPNG(t)
+	f.markMatch(sha256Hex(published))
+	f.markMatch(sha256Hex(unpublished))
+	deploy := func(query string, img []byte) {
+		t.Helper()
+		body := map[string]any{"files": map[string]string{"index.html": "<h1>alpha</h1>"},
+			"files_base64": map[string]string{"img/bad.png": base64.StdEncoding.EncodeToString(img)}}
+		if r := a.api(t, "PUT", "/v1/sites/"+team+"/files"+query, body, key); r.status != http.StatusOK {
+			t.Fatalf("team update %q: %d %s", query, r.status, r.body)
+		}
+	}
+	deploy("?publish=false", unpublished)
+	deploy("", published)
+	f.wait()
+	member := a.uid(t, p1)
+	var holding string
+	if err := a.database.QueryRow(`SELECT s.user_id FROM sites s WHERE s.name = $1`, team).Scan(&holding); err != nil {
+		t.Fatal(err)
+	}
+	if holding == member {
+		t.Fatal("the team site is owned by the member; the test proves nothing")
+	}
+	for name, img := range map[string][]byte{"publish=false": unpublished, "published": published} {
+		var writer string
+		if err := a.database.QueryRow(`SELECT writer_id FROM image_scan_queue WHERE sha256 = $1`, sha256Hex(img)).Scan(&writer); err != nil {
+			t.Fatalf("%s: queued job: %v", name, err)
+		}
+		if writer != member {
+			t.Fatalf("%s: queued writer %q, want the member %s", name, writer, member)
+		}
+	}
+}
+
+// Pass 3c, item 1: when the site is deleted, loadJobBytes has postponed the
+// job by the time it returns (so under the site lock, not after it).
+func TestImageScanPostponeUnderLock(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	olive := a.newPerson(t, "olive")
+	okey := map[string]string{"X-API-Key": olive.key}
+	deployWithImages(t, a, olive, "locked", map[string][]byte{"pic.png": testPNG(t)})
+	f.wait()
+	siteID := a.siteID(t, olive, "locked")
+	ctx := context.Background()
+	j := db.ImageScanJob{Kind: "site_file", SiteID: siteID}
+	if err := a.database.QueryRow(`SELECT id, version, path, sha256 FROM image_scan_queue WHERE site_id = $1`, siteID).Scan(&j.ID, &j.Version, &j.Path, &j.SHA256); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/sites/locked", nil, okey); r.status != http.StatusNoContent {
+		t.Fatalf("delete: %d %s", r.status, r.body)
+	}
+	if _, err := f.scan.loadJobBytes(ctx, j); !errors.Is(err, errImageScanSiteDeleted) {
+		t.Fatalf("loadJobBytes: %v, want errImageScanSiteDeleted", err)
+	}
+	var due bool
+	if err := a.database.QueryRow(`SELECT next_attempt_at <= now() FROM image_scan_queue WHERE id = $1`, j.ID).Scan(&due); err != nil {
+		t.Fatal(err)
+	}
+	if due {
+		t.Fatal("loadJobBytes returned without postponing the job under the site lock")
+	}
+}
+
+// Pass 3c, item 2: the restore's wake runs even when the request's context
+// is already cancelled (the client hung up after the commit).
+func TestImageScanWakeCancelledContext(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	olive := a.newPerson(t, "olive")
+	deployWithImages(t, a, olive, "hungup", map[string][]byte{"pic.png": testPNG(t)})
+	f.wait()
+	siteID := a.siteID(t, olive, "hungup")
+	if _, err := a.database.Exec(`UPDATE image_scan_queue SET next_attempt_at = now() + interval '1 hour' WHERE site_id = $1`, siteID); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	a.sites.wakeImageScans(ctx, siteID)
+	var due bool
+	if err := a.database.QueryRow(`SELECT bool_and(next_attempt_at <= now()) FROM image_scan_queue WHERE site_id = $1`, siteID).Scan(&due); err != nil {
+		t.Fatal(err)
+	}
+	if !due {
+		t.Fatal("a cancelled request context stopped the wake")
+	}
+}

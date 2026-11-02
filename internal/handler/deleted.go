@@ -207,6 +207,20 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 
 var errRestoreFiles = errors.New("could not restore the site's files")
 
+// wakeImageScans makes image checks waiting on a restored site's delete
+// run now, not at their next hourly look. A failure only delays them. The
+// restore has committed by then, so a client that hangs up does not stop it.
+func (h *SiteHandler) wakeImageScans(ctx context.Context, siteID string) {
+	if h.imageScan == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	if err := db.WakeImageScans(ctx, h.database, siteID); err != nil {
+		log.Printf("restore site %s: image checks: %v", siteID, err)
+	}
+}
+
 // restoreTrashedSite brings a site in Recently deleted back exactly as it
 // was (plus whatever also records in the same transaction). handle is the
 // owner's current handle ("" if none). The caller holds the site's lock.
@@ -251,13 +265,7 @@ func (h *SiteHandler) restoreTrashedSite(ctx context.Context, d db.DeletedSite, 
 		}
 		return db.Site{}, err
 	}
-	// Image checks waiting on the delete run now, not at their next hourly
-	// look. A failure only delays them.
-	if h.imageScan != nil {
-		if err := db.WakeImageScans(ctx, h.database, d.ID); err != nil {
-			log.Printf("restore site %s: image checks: %v", d.ID, err)
-		}
-	}
+	h.wakeImageScans(ctx, d.ID)
 	// The handle may have changed while the site was deleted.
 	if handle != "" {
 		if err := h.disk.EnsureHandleLink(handle, d.UserID); err != nil {

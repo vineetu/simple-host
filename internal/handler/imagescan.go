@@ -409,6 +409,11 @@ func (s *ImageScan) loadJobBytes(ctx context.Context, j db.ImageScanJob) ([]byte
 			return nil, err
 		}
 		if site.Deleted {
+			// Postpone under the lock: a restore takes the same lock, so it
+			// cannot land between this check and the postpone.
+			if perr := db.PostponeImageScan(ctx, s.database, j.ID, imageScanDeletedWait); perr != nil {
+				log.Printf("image scan: postpone job %d: %v", j.ID, perr)
+			}
 			unlock()
 			return nil, errImageScanSiteDeleted
 		}
@@ -461,17 +466,16 @@ func (s *ImageScan) readSiteJobFile(site db.Site, j db.ImageScanJob) ([]byte, er
 	return os.ReadFile(filepath.Join(dir, filepath.FromSlash(j.Path)))
 }
 
-// errImageScanSiteDeleted: the job's site is in Recently deleted. The job
-// waits (imageScanDeletedWait) for a restore, which brings the bytes back
-// at the same paths, or for the purge, which removes the row.
+// errImageScanSiteDeleted: the job's site is in Recently deleted.
+// loadJobBytes has postponed the job (imageScanDeletedWait) to wait for a
+// restore, which brings the bytes back at the same paths, or for the purge,
+// which removes the row.
 var errImageScanSiteDeleted = errors.New("the site is in Recently deleted")
 
 func (s *ImageScan) runJob(ctx context.Context, j db.ImageScanJob) {
 	raw, err := s.loadJobBytes(ctx, j)
 	if errors.Is(err, errImageScanSiteDeleted) {
-		if perr := db.PostponeImageScan(ctx, s.database, j.ID, imageScanDeletedWait); perr != nil {
-			log.Printf("image scan: postpone job %d: %v", j.ID, perr)
-		}
+		// loadJobBytes has postponed it.
 		return
 	}
 	if err != nil {
@@ -760,7 +764,7 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 			if err := db.SetImageMatchEvidence(ctx, s.database, id, dir); err != nil {
 				log.Printf("image scan: evidence path of #%d: %v", id, err)
 			}
-			s.writeRecord(dir, m, steps)
+			s.writeRecordKeepFiled(dir, m, steps)
 		}
 	}
 
@@ -842,15 +846,21 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 		add("alert email", stepNotFiled, "no alert address is configured", nil)
 	}
 	if evidence != "" {
-		// A report filed from the admin page in the meantime has written
-		// record.json under imageReportMu; keep it.
-		imageReportMu.Lock()
-		if rid, at, filed := filedInRecord(db.ImageMatch{EvidencePath: evidence}); filed && m.ReportStatus != "filed" {
-			m.ReportStatus, m.ReportID, m.ReportError, m.ReportedAt = "filed", rid, "", sql.NullTime{Time: at, Valid: true}
-		}
-		s.writeRecord(evidence, m, steps)
-		imageReportMu.Unlock()
+		s.writeRecordKeepFiled(evidence, m, steps)
 	}
+}
+
+// writeRecordKeepFiled is writeRecord for the worker. Once the evidence
+// path is saved, a report filed from the admin page can write record.json
+// under imageReportMu at any time; this write takes the same lock and keeps
+// that filed report.
+func (s *ImageScan) writeRecordKeepFiled(dir string, m db.ImageMatch, steps []imageStep) {
+	imageReportMu.Lock()
+	defer imageReportMu.Unlock()
+	if rid, at, filed := filedInRecord(db.ImageMatch{EvidencePath: dir}); filed && m.ReportStatus != "filed" {
+		m.ReportStatus, m.ReportID, m.ReportError, m.ReportedAt = "filed", rid, "", sql.NullTime{Time: at, Valid: true}
+	}
+	s.writeRecord(dir, m, steps)
 }
 
 // fillSiteOwner copies the site's name and owner onto the match.
