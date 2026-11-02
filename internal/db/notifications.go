@@ -334,29 +334,55 @@ func HasNotifications(ctx context.Context, q Querier, site string) (bool, error)
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications n JOIN users u ON u.id=n.owner_id WHERE n.site_id=$1 AND n.state IN ('active','suspended') AND NOT u.event_account AND (n.expires_at IS NULL OR n.expires_at>now()))`, site).Scan(&yes)
 	return yes, err
 }
+
+// HasNotificationsFor is HasNotifications narrowed to subscriptions naming
+// name, so a site event nobody asked for spends no budget and stores nothing.
+func HasNotificationsFor(ctx context.Context, q Querier, site, name string) (bool, error) {
+	var yes bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications n JOIN users u ON u.id=n.owner_id WHERE n.site_id=$1 AND $2=ANY(n.events) AND n.state IN ('active','suspended') AND NOT u.event_account AND (n.expires_at IS NULL OR n.expires_at>now()))`, site, name).Scan(&yes)
+	return yes, err
+}
 func EmitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storage string, data []byte) error {
+	_, err := emitSiteEvent(ctx, database, site, id, name, storage, data, "", 0)
+	return err
+}
+
+// EmitSiteEventOnce is EmitSiteEvent for a visitor-bearing event that fires
+// once per visitor inside within: the RecentSiteEvent check runs under the
+// site's row lock, so two simultaneous emissions store one event. stored is
+// false when the event was skipped.
+func EmitSiteEventOnce(ctx context.Context, database *sql.DB, site, id, name string, data []byte, visitor string, within time.Duration) (bool, error) {
+	return emitSiteEvent(ctx, database, site, id, name, "", data, visitor, within)
+}
+func emitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storage string, data []byte, visitor string, within time.Duration) (bool, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback()
 	// Serialize sequence allocation with subscription creation and replay on this site.
 	var locked string
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, site).Scan(&locked); err != nil {
-		return err
+		return false, err
+	}
+	if within > 0 {
+		recent, err := RecentSiteEvent(ctx, tx, site, name, visitor, within)
+		if err != nil || recent {
+			return false, err
+		}
 	}
 	var seq int64
 	err = tx.QueryRowContext(ctx, `INSERT INTO site_events(site_id,event_id,name,storage,data) VALUES($1,$2,$3,$4,$5) RETURNING seq`, site, id, name, storage, data).Scan(&seq)
 	if err != nil {
-		return err
+		return false, err
 	}
 	// A subscription's storage filter narrows record and file events; a site
 	// event (storage '') reaches every subscription naming it.
 	_, err = tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT $1,id FROM site_notifications WHERE site_id=$2 AND state IN ('active','suspended') AND $3=ANY(events) AND ($4='' OR storage='' OR storage=$4) AND (expires_at IS NULL OR expires_at>now())`, seq, site, name, storage)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return tx.Commit()
+	return true, tx.Commit()
 }
 
 // RecentSiteEvent reports whether a name event for visitor on site was stored

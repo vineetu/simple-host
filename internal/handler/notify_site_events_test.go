@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
 )
@@ -233,5 +234,80 @@ func TestNotifySiteEventsHack(t *testing.T) {
 	var n int
 	if err := a.database.QueryRow(`SELECT count(*) FROM site_events WHERE site_id=$1 AND name='site.deployed'`, f.sid).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("Hack site event stored: %d %v", n, err)
+	}
+}
+
+// A site event no subscription names stores nothing and spends no budget.
+func TestNotifySiteEventsUnsubscribedFree(t *testing.T) {
+	s, x := notificationFixture(t)
+	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"record.added"}, "secret": notifyTestSecret}, 201)
+	engine := s.a.sites.notifyEngine()
+	engine.minute = newRateLimiter(1, 0)
+	s.a.sites.storeSiteNotification(s.sid, "visitor.signed_up", map[string]any{"visitor": s.aliceID}, 0)
+	if n := siteEventCount(t, s, "visitor.signed_up"); n != 0 {
+		t.Fatalf("unsubscribed site event stored: %d", n)
+	}
+	if !engine.minute.allow(s.sid) {
+		t.Fatal("unsubscribed site event spent the minute budget")
+	}
+}
+
+// Two simultaneous refused page loads by one person store one event: the
+// dedupe check runs under the site's row lock.
+func TestNotifySiteEventsDedupeUnderLock(t *testing.T) {
+	s, x := notificationFixture(t)
+	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"viewer.access_requested"}, "secret": notifyTestSecret}, 201)
+	tx, err := s.a.database.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`SELECT id FROM sites WHERE id=$1 FOR UPDATE`, s.sid); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		s.a.sites.emitSiteNotification(s.sid, "viewer.access_requested", map[string]any{"visitor": s.aliceID}, 24*time.Hour)
+	}
+	// Both emissions passed the cheap check and now wait on the lock.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		var waiting int
+		if err := s.a.database.QueryRow(`SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE 'SELECT id FROM sites WHERE id=$1 FOR UPDATE%'`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting >= 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("emissions not waiting on the site lock: %d", waiting)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	waitNotificationEmits(t, s)
+	if n := siteEventCount(t, s, "viewer.access_requested"); n != 1 {
+		t.Fatalf("want one stored access request, got %d", n)
+	}
+	drainNotifications(t, s)
+	if got := siteEventDeliveries(x, "viewer.access_requested"); len(got) != 1 {
+		t.Fatalf("want one delivery, got %d", len(got))
+	}
+}
+
+// A site event whose body would exceed NotifyBodyMaxBytes is dropped, not
+// stored with a misleading truncation.
+func TestNotifySiteEventsBodyTooLarge(t *testing.T) {
+	s, x := notificationFixture(t)
+	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"site.deployed"}, "secret": notifyTestSecret}, 201)
+	big := strings.Repeat("x", config.Active().NotifyBodyMaxBytes+1)
+	s.a.sites.storeSiteNotification(s.sid, "site.deployed", map[string]any{"version": 2, "previous_version": 1, "via": big}, 0)
+	if n := siteEventCount(t, s, "site.deployed"); n != 0 {
+		t.Fatalf("oversized site event stored: %d", n)
+	}
+	s.a.sites.storeSiteNotification(s.sid, "site.deployed", map[string]any{"version": 2, "previous_version": 1, "via": "deploy"}, 0)
+	if n := siteEventCount(t, s, "site.deployed"); n != 1 {
+		t.Fatalf("normal site event not stored: %d", n)
 	}
 }

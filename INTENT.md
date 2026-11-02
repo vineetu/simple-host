@@ -1404,8 +1404,9 @@ What follows from that, and is not negotiable without changing the line above:
   `viewer.access_requested` when a person signed in with an email that is not on a
   named-viewers list reaches the no-access page;
   `visitor.signed_up` on a person's first sign-in on a site.
-  Rules: payloads carry the visitor ID only, never an email, IP, user agent, or visitor-written
-  text; an event about the site's owner is never emitted; access requests fire once per person
+  Rules: payloads carry the visitor ID only, never a visitor's email, IP address, or user agent,
+  or visitor-written text (the domain event's reason may name the addresses the domain points
+  at); an event about the site's owner is never emitted; access requests fire once per person
   per site per day; a subscription's storage filter narrows record and file events only, so a
   site event reaches every subscription naming it. Simple Hack keeps the three record events
   and Enterprise has not ported the site events; both follow in a later pass. Reason: the

@@ -1422,7 +1422,7 @@
       <p class="lede">A signed call to your receiver or your AI app the moment a visitor writes, and the emails Simple Host sends you.</p>
       <div class="feats">
       <details class="feat" id="notify-webhook">
-        <summary><span class="fname">A webhook when a visitor writes</span><span class="fline">Add a receiver URL and it gets a signed POST for record.added, record.changed, file.uploaded, and the site events, scoped to one site.</span></summary>
+        <summary><span class="fname">A webhook when a visitor writes</span><span class="fline">A receiver URL gets a signed POST for record.added, record.changed, file.uploaded, and (Simple Host only) the site events, for one site.</span></summary>
         <div class="fbody">
           <p class="how">Under Notifications, add an HTTPS receiver address for one site, with an optional label, an optional filter to one storage resource, and an optional custom header for your receiver. Simple Host then POSTs a signed body when a visitor adds a record or KV key (record.added), edits or deletes one (record.changed), or uploads a file (file.uploaded). The body carries the event id, time, site, storage, kind, preset, and the visitor&#x27;s id or null, plus the table and row or the KV key with its fields, or the file&#x27;s path, size, and type; visitor-written fields are marked as untrusted. Signatures follow Standard Webhooks (HMAC-SHA256 over the body, timestamp, and id), with matching svix headers. The signing secret is shown once at creation.</p>
           <p class="ex"><b>Example.</b> A tutoring business points a webhook at n8n so each new booking row posts a message to their team chat with the lesson time.</p>
@@ -1432,7 +1432,7 @@
             <dt>Limits</dt><dd class="lim">Up to 10 subscriptions per site, about 60 events a minute and 5,000 a day per site, 7 days of delivery history. Five retries over about 10 minutes; sustained failure suspends delivery and emails you once. Public HTTPS addresses only, no redirects, a 5-second timeout. The visitor&#x27;s email is never in the payload; strings over 2 KB are cut and bodies over 16 KB drop fields and say which. Owner writes never trigger one, and neither do writes to legacy saved data. Offline or taken-down sites skip deliveries.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="ednote">Simple Hack offers it on team and organiser websites; Enterprise has its own engine with the same signatures and controls; a small box needs its sealing key set, which the installer does by default.</p>
+          <p class="ednote">Simple Hack offers it on team and organiser websites; Enterprise has its own engine with the same signatures and controls; Simple Hack and Enterprise have the three record events, and site events are Simple Host only; a small box needs its sealing key set, which the installer does by default.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/docs.html#notifications">API reference: notifications</a> <a href="/recipes/booking">Recipe: bookings</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications">FEATURES.md §19 Signals and notifications</a></span></p>
         </div>
       </details>
@@ -1444,7 +1444,7 @@
           <dl class="fm">
             <dt>Who</dt><dd>Site owners who want to know that a publish landed, a domain broke or recovered, a client wants into a private site, or a new visitor arrived, without watching the dashboard.</dd>
             <dt>Where</dt><dd>Notifications on your sites page, the events list of POST /v1/sites/{sitename}/notifications, or events/list and events/subscribe over MCP.</dd>
-            <dt>Limits</dt><dd class="lim">Simple Host only for now; Simple Hack keeps the three record events and Enterprise has not ported them. An event about the site&#x27;s owner is never sent. Payloads carry no email, IP, user agent, or visitor-written text, and no storage, kind, preset, or untrusted keys. A subscription&#x27;s storage filter narrows record and file events only. The same per-site caps and 7-day history apply. A brand-new site&#x27;s first version has no subscription yet, so there is no event for it, and a save with publish=false emits nothing.</dd>
+            <dt>Limits</dt><dd class="lim">Simple Host only for now; Simple Hack keeps the three record events and Enterprise has not ported them. An event about the site&#x27;s owner is never sent. Payloads never carry a visitor&#x27;s email, IP address, or user agent, or visitor-written text, and have no storage, kind, preset, or untrusted keys; the domain event&#x27;s reason, cut to 1,024 bytes, may name the addresses the domain points at. A subscription&#x27;s storage filter narrows record and file events only. The same per-site caps and 7-day history apply. A brand-new site&#x27;s first version has no subscription yet, so there is no event for it, and a save with publish=false emits nothing.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">Simple Host and the small box emit site events; Simple Hack keeps the record events until its port, and Enterprise has not ported them.</p>
@@ -1467,7 +1467,7 @@
         </div>
       </details>
       <details class="feat" id="notify-mcp-events">
-        <summary><span class="fname">MCP Events for your AI agent</span><span class="fline">An app connected over MCP can subscribe itself to the record and site events with events/subscribe and get the same signed delivery.</span></summary>
+        <summary><span class="fname">MCP Events for your AI agent</span><span class="fline">A connected app subscribes with events/subscribe to the record events, and on Simple Host only the site events, with signed delivery.</span></summary>
         <div class="fbody">
           <p class="how">Ask the app; it calls <code>events/list</code>, <code>events/subscribe</code>, and <code>events/unsubscribe</code>. The app supplies its own secret and answers a signed challenge before the subscription is active. <code>list_notifications</code> and <code>remove_notification</code> let you check or remove a subscription from chat. Refreshing renews the expiry and resumes delivery, and a cursor lets the app replay retained events and learn when some were dropped.</p>
           <p class="ex"><b>Example.</b> A founder&#x27;s connected assistant subscribes to their waitlist site and tells them in chat each morning how many sign-ups arrived overnight.</p>
@@ -1477,7 +1477,7 @@
             <dt>Limits</dt><dd class="lim">Each connected app gets its own subscription, tied to its sign-in. Subscriptions expire after 7 days unless the app refreshes or holds a longer-lived sign-in; the shortest explicit expiry is 5 minutes. The list the app sees redacts receiver paths. On Simple Hack, new team subscriptions stop at the submission deadline, membership loss removes them, and organiser delivery stops when the event ends. Event accounts and team keys cannot subscribe. A deploy-only key cannot subscribe.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
-          <p class="ednote">On Simple Hack the connector offers list and remove only; Enterprise binds the subscription to the connector grant and rechecks membership before each delivery.</p>
+          <p class="ednote">Site events are Simple Host only; Simple Hack and Enterprise have the three record events. On Simple Hack the connector offers list and remove only; Enterprise binds the subscription to the connector grant and rechecks membership before each delivery.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/docs.html#notifications">API reference: notifications</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications">FEATURES.md §19 Signals and notifications</a></span></p>
         </div>
       </details>

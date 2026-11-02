@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -123,6 +124,14 @@ func TestNotifyHooksSiteDeployed(t *testing.T) {
 	data = l.one(t, "site.deployed")
 	if data["version"] != float64(3) || data["previous_version"] != float64(1) || data["via"] != "active_version" {
 		t.Fatalf("publish preview event: %v", data)
+	}
+	// Two publishes in a row: each names the version live just before it.
+	for want := 4; want <= 5; want++ {
+		l.deployShop(t, "<h1>again</h1>")
+		data = l.one(t, "site.deployed")
+		if data["version"] != float64(want) || data["previous_version"] != float64(want-1) || data["via"] != "deploy" {
+			t.Fatalf("deploy v%d event: %v", want, data)
+		}
 	}
 }
 
@@ -294,6 +303,42 @@ func TestNotifyHooksDomainStatusChanged(t *testing.T) {
 	}
 	if _, has, _ := db.GetSiteDomainInfo(ctx, s.a.database, s.sid); has {
 		t.Fatal("domain still bound after the lapse")
+	}
+}
+
+// Overlapping checks working from one stale snapshot notify once per real
+// change, against the status the row held, and a long reason is cut.
+func TestNotifyHooksDomainStaleSnapshot(t *testing.T) {
+	l := newSiteEventLog(t)
+	s := l.s
+	ctx := context.Background()
+	dom := uniq("shop") + ".example.test"
+	if r := s.a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/domain", map[string]string{"domain": dom}, s.key); r.status != 200 {
+		t.Fatalf("bind: %d %s", r.status, r.body)
+	}
+	stale := s.a.boundDomain(t, s.sid)
+	if stale.Status != "pending" {
+		t.Fatalf("fresh binding status %q", stale.Status)
+	}
+	s.a.sites.applyDomainCheck(ctx, stale, "active", "", "live")
+	s.a.sites.applyDomainCheck(ctx, stale, "active", "", "live")
+	if data := l.one(t, "domain.status_changed"); data["status"] != "active" || data["previous_status"] != "pending" {
+		t.Fatalf("active event: %v", data)
+	}
+	s.a.sites.applyDomainCheck(ctx, stale, "pending", "", "pending")
+	if data := l.one(t, "domain.status_changed"); data["status"] != "pending" || data["previous_status"] != "active" {
+		t.Fatalf("flap back event: %v", data)
+	}
+
+	why := "resolves to " + strings.Repeat("192.0.2.9, é ", 200)
+	s.a.sites.applyDomainCheck(ctx, stale, "error", why, "failed")
+	data := l.one(t, "domain.status_changed")
+	reason, _ := data["reason"].(string)
+	if len(why) <= 2000 || len(reason) > 1024 || len(reason) < 1000 || !utf8.ValidString(reason) || !strings.HasPrefix(why, reason) {
+		t.Fatalf("reason not cut: %d bytes", len(reason))
+	}
+	if _, has := data["truncated"]; has {
+		t.Fatalf("cut reason marked truncated: %v", data)
 	}
 }
 

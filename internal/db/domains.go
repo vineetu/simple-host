@@ -249,6 +249,9 @@ type DomainCheck struct {
 	// ReleaseAt is the disconnect date the owner's email gave (only while
 	// Notified, and NULL for emails sent before it was stored).
 	ReleaseAt sql.NullTime
+	// PreviousStatus is the status the row held before this write, read
+	// under the row lock: the one a change notice compares against.
+	PreviousStatus string
 }
 
 // SetDomainStatus records one check of siteID's bound domain: status
@@ -262,17 +265,18 @@ func SetDomainStatus(ctx context.Context, database *sql.DB, siteID, domain, stat
 		SET domain_status = $3,
 		    domain_last_error = NULLIF($4, ''),
 		    domain_cert_status = NULLIF($5, ''),
-		    domain_verified_at = CASE WHEN $3 = 'active' THEN now() ELSE domain_verified_at END,
+		    domain_verified_at = CASE WHEN $3 = 'active' THEN now() ELSE sites.domain_verified_at END,
 		    domain_failing_since = CASE
-		        WHEN $3 = 'active' OR domain_verified_at IS NULL THEN NULL
-		        ELSE COALESCE(domain_failing_since, now()) END,
-		    domain_lapse_notified_at = CASE WHEN $3 = 'active' THEN NULL ELSE domain_lapse_notified_at END
-		WHERE id = $1 AND custom_domain = $2
-		RETURNING user_id, name, domain_failing_since, domain_lapse_notified_at IS NOT NULL,
-		          CASE WHEN domain_lapse_notified_at IS NOT NULL THEN domain_release_at END
+		        WHEN $3 = 'active' OR sites.domain_verified_at IS NULL THEN NULL
+		        ELSE COALESCE(sites.domain_failing_since, now()) END,
+		    domain_lapse_notified_at = CASE WHEN $3 = 'active' THEN NULL ELSE sites.domain_lapse_notified_at END
+		FROM (SELECT id, COALESCE(domain_status, '') AS prev FROM sites WHERE id = $1 FOR UPDATE) old
+		WHERE sites.id = old.id AND sites.custom_domain = $2
+		RETURNING sites.user_id, sites.name, sites.domain_failing_since, sites.domain_lapse_notified_at IS NOT NULL,
+		          CASE WHEN sites.domain_lapse_notified_at IS NOT NULL THEN sites.domain_release_at END, old.prev
 	`
 	var c DomainCheck
-	err := database.QueryRowContext(ctx, query, siteID, domain, status, lastErr, certStatus).Scan(&c.UserID, &c.Name, &c.FailingSince, &c.Notified, &c.ReleaseAt)
+	err := database.QueryRowContext(ctx, query, siteID, domain, status, lastErr, certStatus).Scan(&c.UserID, &c.Name, &c.FailingSince, &c.Notified, &c.ReleaseAt, &c.PreviousStatus)
 	if errors.Is(err, sql.ErrNoRows) {
 		return DomainCheck{}, nil
 	}

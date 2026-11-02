@@ -400,7 +400,7 @@ Coding agents with a shell: create_upload_link with archive: true returns a priv
 
 ## NOTIFICATIONS
 
-After building a form, offer entry notifications through MCP Events or a dashboard webhook. Read the [notification reference](https://simple-host.app/docs.html#notifications) for signatures, retries, and limits. Simple Hack uses personal team or organiser subscriptions; Enterprise needs a separate port. On Simple Host the same subscription also takes four site events, site.deployed, domain.status_changed, viewer.access_requested, and visitor.signed_up (visitor ID only, never an email, never the owner); Simple Hack keeps the three record events.
+After building a form, offer entry notifications through MCP Events or a dashboard webhook. Read the [notification reference](https://simple-host.app/docs.html#notifications) for signatures, retries, and limits. Simple Hack uses personal team or organiser subscriptions. On Simple Host the same subscription also takes four site events, site.deployed, domain.status_changed, viewer.access_requested, and visitor.signed_up (visitor ID only, never an email, never the owner); Simple Hack and Enterprise keep the three record events, and Enterprise needs a separate port for the site events.
 
 ## REQUEST RELIABILITY
 

@@ -1879,6 +1879,13 @@ func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Req
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// What is live now, read under the lock (site.ActiveVersion was read
+	// before it): only the site.deployed event uses it.
+	liveBefore, err := db.SiteActiveVersion(r.Context(), tx, site.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 
 	if !h.hackTeamTxGate(w, r, tx, user, siteName) {
 		return
@@ -1961,9 +1968,8 @@ func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Req
 	// committed, promoted and live.
 	h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, versionNumber, site.KeepVersions)
 
-	// The version is live: tell the owner's subscribers (site.ActiveVersion
-	// still holds what was live before).
-	h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": versionNumber, "previous_version": site.ActiveVersion, "via": "deploy"}, 0)
+	// The version is live: tell the owner's subscribers.
+	h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": versionNumber, "previous_version": liveBefore, "via": "deploy"}, 0)
 	site.ActiveVersion = versionNumber
 	paperHackDeploy(r, user)
 	respond(h.siteResponseFor(user, site))
@@ -2460,7 +2466,9 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": req.VersionNumber, "previous_version": prev, "via": "active_version"}, 0)
+	if prev != req.VersionNumber {
+		h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": req.VersionNumber, "previous_version": prev, "via": "active_version"}, 0)
+	}
 	site.ActiveVersion = req.VersionNumber
 	writeJSON(w, http.StatusOK, h.siteResponseFor(user, site))
 }

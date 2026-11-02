@@ -189,7 +189,7 @@ func (h *SiteHandler) emitSiteNotification(siteID, name string, data map[string]
 func (h *SiteHandler) storeSiteNotification(siteID, name string, data map[string]any, dedupe time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	yes, err := db.HasNotifications(ctx, h.database, siteID)
+	yes, err := db.HasNotificationsFor(ctx, h.database, siteID, name)
 	if err != nil {
 		log.Printf("notifications: subscription lookup failed for site %s", siteID)
 		return
@@ -227,11 +227,35 @@ func (h *SiteHandler) storeSiteNotification(siteID, name string, data map[string
 	if err != nil {
 		return
 	}
-	if err = db.EmitSiteEvent(ctx, h.database, siteID, notifyEventID(), name, "", raw); err != nil {
+	if len(raw) > config.Active().NotifyBodyMaxBytes {
+		log.Printf("notifications: site %s %s event too large, dropped=%d", siteID, name, e.dropped.Add(1))
+		return
+	}
+	stored := true
+	if dedupe > 0 && visitor != "" {
+		stored, err = db.EmitSiteEventOnce(ctx, h.database, siteID, notifyEventID(), name, raw, visitor, dedupe)
+	} else {
+		err = db.EmitSiteEvent(ctx, h.database, siteID, notifyEventID(), name, "", raw)
+	}
+	if err != nil {
 		log.Printf("notifications: emit failed for site %s", siteID)
 		return
 	}
-	e.signal()
+	if stored {
+		e.signal()
+	}
+}
+
+// notifyCut shortens s to at most max bytes on a UTF-8 boundary.
+func notifyCut(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	n := max
+	for n > 0 && !utf8.ValidString(s[:n]) {
+		n--
+	}
+	return s[:n]
 }
 func notifyTruncate(data map[string]any) {
 	fields, ok := data["fields"].(map[string]any)
