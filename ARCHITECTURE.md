@@ -416,7 +416,8 @@ Tables (`db/schema.sql`):
 
 ## Checks
 
-`make check` runs gofmt, build, vet, `go test ./...` and `scripts/check-html.sh`,
+`make check` runs gofmt, build, vet, `scripts/test-integration.sh` (the DB-backed test
+fixtures against a disposable Postgres) and `scripts/check-html.sh`,
 `check-layering.sh`, `check-docs-sync.sh`, `check-claude-plugin.sh`,
 `check-fresh-install.sh`. The Makefile is what executes; this list is prose.
 `scripts/check-features.sh` (every route and MCP tool is placed in `FEATURES.md`) and
