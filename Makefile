@@ -8,8 +8,15 @@
 # fails if any of them still skip -- that's what `check` runs.
 .PHONY: check test test-integration
 
+# `check` stays the default goal (`make` with no target) even though `test`
+# and `test-integration` are declared above it.
+.DEFAULT_GOAL := check
+
 test:
-	go test ./...
+	# Cleared explicitly: a DB_DSN or MIGRATE_TEST_DSN already set in the
+	# calling shell (e.g. left over from running scripts/test-integration.sh
+	# by hand) would silently turn this back into a DB-backed run.
+	DB_DSN= MIGRATE_TEST_DSN= go test ./...
 
 test-integration:
 	bash scripts/test-integration.sh
