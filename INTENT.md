@@ -1041,8 +1041,10 @@ What follows from that, and is not negotiable without changing the line above:
   "Restore it" link. Never touched: sites with a custom domain or claimed name, sites the owner
   marks Keep (owner app and `keep_site`), sites the owner took offline (they acted on it on
   purpose), preview sites, admin and operator sites, taken-down sites. The owner's
-  own visits cannot be told apart from anyone else's (visitor addresses are only kept hashed), so
-  any person's visit counts. Off until `IDLE_CLEANUP=on`, with an admin dry run to check first,
+  own visits could not be told apart from anyone else's then (visitor addresses are only kept
+  hashed), so any person's visit counted; since 2026-11-02 the owner's visits from a marked device
+  are filed as their own class (`owner`) and still count as activity for idle cleanup, because a
+  site its owner keeps opening is in use. Off until `IDLE_CLEANUP=on`, with an admin dry run to check first,
   a per-run email cap, and nothing done while visit records are too short or stale to trust.
   Reason: abandoned free sites pile up; a removal the owner did not see coming would break trust.
   Owner approved 2026-09-27 (completeness plan). Tightened after review 2026-09-27: activity also
@@ -1416,6 +1418,16 @@ What follows from that, and is not negotiable without changing the line above:
   site event reaches every subscription naming it. Simple Hack keeps the three record events
   and Enterprise has not ported the site events; both follow in a later pass. Reason: the
   ticket's "Host first, then Hack and Enterprise parity".
+- **2026-11-02. Your own visits are not counted as people.** A page view from a device the
+  owner used while signed in to Simple Host (their browser on the dashboard or the owner app),
+  or after signing in on the site as themselves, is filed as class `owner` for 30 days from the
+  last sighting and left out of People everywhere People means people. The site list carries
+  `views` (people in the last 7 and 30 days), the per-site analytics page shows a "You" figure,
+  and the connector says the figures in text only, never as new structured fields. Two caveats
+  go wherever the figure does: a device never used while signed in still counts as a person,
+  and other people behind a marked address are not counted while the mark lasts. Reason: an
+  owner checking their own page several times a day was inflating People, the one number the
+  product calls the audience. Owner approved through the Auto-ship label (SIM-151).
 
 ## Open, deliberately parked
 

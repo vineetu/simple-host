@@ -3994,6 +3994,39 @@
      "evidence": "features.html #analytics-people; FEATURES.md §12 (views by class); PARITY row 'Analytics'."
     },
     {
+     "id": "analytics-own-visits",
+     "name": "Your own visits are not counted",
+     "line": "Opening your own site from a device you use while signed in does not add to People; those visits are filed as yours.",
+     "who": "Anyone who checks their own page often and wants People to mean other people.",
+     "how": "When you use the dashboard or the owner app, or sign in on your site as yourself, the server remembers that device's hashed address for 30 days. Page views of your sites from it are filed as your own, in their own figure, instead of as People. They still count as activity, so a site you keep opening is never treated as idle.",
+     "example": "A bakery owner opens the menu page several times a day to check prices and photos. Those visits land under You, and People shows the customers who read the menu.",
+     "where": "A You figure on the site's analytics page when there is any; views on the site list in the API, counted by people only; the connector says it in words in list_sites, get_site and site_analytics.",
+     "limits": "A visit from a device you never used while signed in still counts as a person. Other people behind the same address as a marked device are not counted while the mark lasts, which is 30 days from the last time you were seen there.",
+     "editions": {
+      "host": "yes",
+      "hack": "partial",
+      "enterprise": "no",
+      "smallbox": "yes"
+     },
+     "editions_note": "On Simple Hack a team site belongs to the event, so a member's visits are not the site owner's visits. Enterprise counts from its own in-app log (see PARITY). The small box has it when ANALYTICS_LOG is set.",
+     "status": "live",
+     "status_note": "",
+     "docs": [
+      {
+       "label": "FEATURES.md: Analytics and geo",
+       "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo"
+      },
+      {
+       "label": "llms.txt: Analytics",
+       "href": "/llms.txt"
+      }
+     ],
+     "covers": [
+      "Your own visits are not counted"
+     ],
+     "evidence": "FEATURES.md §12 'Your own visits are not counted' (2026-11-02, SIM-151); PARITY row 'Own visits left out of view counts'; web/analytics-parse.js owner class; internal/mcp/tools.go text in list_sites, get_site and site_analytics."
+    },
+    {
      "id": "analytics-infra-separated",
      "name": "The service's own monitoring is kept out",
      "line": "The service checks every site is up about twice a minute; those hits sit in their own Infra figure, out of the way.",

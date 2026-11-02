@@ -26,20 +26,23 @@ function test(name, fn) {
 
 const zero = [0, 0];
 const counts = (views, visitors) => ({ views, visitors });
-const split = (p, b, i, u) => ({
+// Every split carries owner (the site owner's own visits, SIM-151); the
+// fixtures default it to zero so only the cases about it spell it out.
+const split = (p, b, i, u, o) => ({
   person: counts(p[0], p[1]), bot: counts(b[0], b[1]),
-  infra: counts(i[0], i[1]), unknown: counts(u[0], u[1]),
+  infra: counts(i[0], i[1]), owner: counts((o || zero)[0], (o || zero)[1]),
+  unknown: counts(u[0], u[1]),
 });
 const day = (d, s) => Object.assign({ day: d }, s);
 const hour = (h, s) => Object.assign({ hour: h }, s);
 const site = (name, s) => Object.assign({ name }, s);
 
-// ── 1. the current four-class shape ────────────────────────────────────────
+// ── 1. the current five-class shape ────────────────────────────────────────
 const fourClass = {
   range_days: 30,
   classified_from: '2026-08-22',
-  totals: split([306, 258], [1841, 92], [3612, 2], [44, 31]),
-  last_24h: split([12, 9], [63, 7], [120, 1], zero),
+  totals: split([306, 258], [1841, 92], [3612, 2], [44, 31], [37, 2]),
+  last_24h: split([12, 9], [63, 7], [120, 1], zero, [3, 1]),
   daily: [
     day('2026-08-20', split(zero, zero, zero, [21, 15])),
     day('2026-08-21', split(zero, zero, zero, [23, 16])),
@@ -53,7 +56,7 @@ const fourClass = {
   ],
 };
 
-test('four-class site analytics parses', () => {
+test('five-class site analytics parses', () => {
   const a = parseSiteAnalytics(fourClass);
   assert.strictEqual(a.rangeDays, 30);
   assert.strictEqual(a.classifiedFrom, '2026-08-22');
@@ -61,8 +64,11 @@ test('four-class site analytics parses', () => {
   assert.strictEqual(a.totals.person.visitors, 258);
   assert.strictEqual(a.totals.bot.views, 1841);
   assert.strictEqual(a.totals.infra.views, 3612);
+  assert.strictEqual(a.totals.owner.views, 37);
+  assert.strictEqual(a.totals.owner.visitors, 2);
   assert.strictEqual(a.totals.unknown.views, 44);
   assert.strictEqual(a.last24h.person.views, 12);
+  assert.strictEqual(a.last24h.owner.views, 3);
   assert.strictEqual(a.daily.length, 5);
   assert.strictEqual(a.daily[0].day, '2026-08-20');
   assert.strictEqual(a.daily[0].unknown.views, 21);
@@ -74,7 +80,7 @@ test('four-class site analytics parses', () => {
   assert.strictEqual(a.daily.reduce((t, d) => t + d.unknown.views, 0), 44);
 });
 
-test('four-class analytics summary parses and keeps server order', () => {
+test('five-class analytics summary parses and keeps server order', () => {
   const s = parseAnalyticsSummary({
     range_days: 30,
     sites: [
@@ -150,6 +156,8 @@ test('malformed and truncated payloads throw, naming the field', () => {
     [{ range_days: 30 }, /totals/],
     // truncated mid-totals: the classes after the cut are simply gone
     [{ range_days: 30, totals: { person: counts(5, 3), bot: counts(2, 1) } }, /totals\.infra/],
+    // the four-class shape from before the owner's own visits were split out
+    [{ range_days: 30, totals: { person: counts(5, 3), bot: counts(2, 1), infra: counts(1, 1), unknown: counts(0, 0) } }, /totals\.owner/],
     [{ range_days: 30, totals: ok, last_24h: ok, daily: null }, /daily: expected an array/],
     [{
       range_days: 30, totals: ok, last_24h: ok, hourly: [],

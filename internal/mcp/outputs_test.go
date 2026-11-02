@@ -125,7 +125,8 @@ func TestOutputSchemaAdvertisedByRevision(t *testing.T) {
 func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 	site := func(name string, version int, vis, domain, status string) string {
 		m := map[string]any{"id": "s-" + name, "user_id": "u-1", "name": name, "active_version": version,
-			"site_url": "https://sites.simple-host.app/ann/" + name + "/", "visibility": vis}
+			"site_url": "https://sites.simple-host.app/ann/" + name + "/", "visibility": vis,
+			"views": map[string]any{"people_7_days": 2, "people_30_days": 9}}
 		m["summary"] = map[string]any{"title": "Page title", "description": "Page description", "headings": "First heading", "text": "Page text"}
 		if domain != "" {
 			m["custom_domain"], m["domain_status"] = domain, status
@@ -136,7 +137,9 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 	fixed := func(status int, body string) func() (int, string) {
 		return func() (int, string) { return status, body }
 	}
-	split := `{"person":{"views":5,"visitors":2},"bot":{"views":9,"visitors":3},"infra":{"views":1,"visitors":1},"unknown":{"views":0,"visitors":0}}`
+	// owner is the site owner's own visits; the tool must leave it out of the
+	// structured split (the schema has no such key) and say it in text.
+	split := `{"person":{"views":5,"visitors":2},"bot":{"views":9,"visitors":3},"infra":{"views":1,"visitors":1},"owner":{"views":4,"visitors":1},"unknown":{"views":0,"visitors":0}}`
 	big := strings.Repeat("a", maxFileText+10)
 	up := &recordingUpstream{answers: map[string]func() (int, string){
 		"PUT /v1/me/bio":                   fixed(200, `{"bio":"My projects","max_length":280}`),

@@ -1731,14 +1731,37 @@ Cells use sparse pooled histogram chunks, four counter shards and per-shard pend
 `h/hack_paper_metrics.go`; full definitions: `docs/paper-metrics-dictionary.md`; method:
 `docs/paper-metrics.md`. No site/member names, emails, IPs or free-form content are exported.
 
+**Your own visits are not counted** (2026-11-02, SIM-151): a page view from a device the owner
+used while signed in is theirs, not a person's. The server marks a device (its hashed address, the
+same salt and truncation as `site_visitor_hourly.ip_hash`) for the owner's account when their own
+browser on the apex loads the site list or an analytics read (`Sec-Fetch-Site: same-origin`: the
+dashboard and the owner app, never curl, an SDK, the connector's own calls, or a team credential),
+or when a visitor signs in on a site with the account that owns it (emailed code, viewer sign-in
+page, or OAuth/SSO). A mark lasts 30 days from the last sighting (`owner_visitor_marks`, one upsert
+per account and address at most every 10 minutes, best effort, loopback never marked). The ingester
+files a hit that would be `person` as class `owner` when the site belongs to a marked account and
+the address matches that account's mark; a bot stays `bot`, and another account's site seen from
+the same address stays `person`. People counts (`person`) leave `owner` out everywhere they mean
+people; idle-site cleanup still counts `owner` views as activity, because a site its owner keeps
+opening is in use. Every item of `GET /v1/sites` carries `views {people_7_days, people_30_days}`
+(people only, rolling windows of the last 7 x 24 and 30 x 24 hours), and every analytics split
+carries `owner {views, visitors}` next to the other classes. The connector says it in text only,
+with no new structured fields: `list_sites` and `get_site` state the 7- and 30-day figures, and
+`site_analytics` drops `owner` from its structured totals and states the owner's own visits in
+words. The per-site analytics page shows a "You" figure (views and devices over the range) when
+there is any; People stays the audience number. Two caveats, always both: a visit from a device
+the owner never used while signed in still counts as a person, and other people behind the same
+address as a marked device are not counted while the mark lasts (30 days). Marks are per account:
+another account's sites are unaffected. **Status: live** (`ANALYTICS_LOG` set).
+
 | Surface | Details |
 |---|---|
 | Routes | `GET /v1/sites/{sitename}/analytics` · `GET /v1/sites/{sitename}/analytics/geo` · `GET /v1/sites/{sitename}/analytics/top` · `GET /v1/analytics/sites` · `GET /v1/admin/api-analytics` · `GET /v1/admin/growth` · `GET /v1/admin/paper-metrics` |
 | MCP tools | `site_analytics` |
 | Skill | `website-deploy/references/operations.md` §Analytics |
 | Pages | `st/analytics.html`, `st/showcase.html` Analytics tab, `st/index.html` site cards, `st/admin.html` API tab (growth and traffic) |
-| Go | `internal/analytics/{ingest,classify,geo,countries,rebuild}.go` (attributes views on site hosts, person hosts, claimed names, custom domains; bot/human classes; salted ip_hash), `h/analytics.go`, `h/apimetrics.go` (every `/v1/*` and `/mcp` request; IPs stored as /24 or /48), `h/apigrowth.go` (per-day calls by country and kind, no addresses), `internal/geoip/geoip.go` (DB-IP mmdb, watched), `cmd/analytics-rebuild` (replays the rotated archives oldest first, then the live log), `cmd/ip-country-load`, `web/analytics-parse.js` |
-| DB | `site_view_hourly`, `site_visitor_hourly`, `site_geo_daily`, `site_page_daily`, `site_referrer_daily` (`w3-analytics-pages-referrers.sql`), `traffic_daily`, `site_traffic_daily` (bytes and requests per day, pages / API; `w3-network-usage.sql`), `site_view_daily`, `site_visitor_daily` (legacy, pruned after 400 days), `analytics_ingest_state`, `ip_country_ranges`, `api_request_daily`, `api_ip_daily`, `api_growth_daily` |
+| Go | `internal/analytics/{ingest,classify,geo,countries,rebuild}.go` (attributes views on site hosts, person hosts, claimed names, custom domains; bot/human classes; salted ip_hash), `internal/analytics/ownermarks.go`, `h/ownermarks.go` (the owner's own visits, SIM-151), `h/analytics.go`, `h/apimetrics.go` (every `/v1/*` and `/mcp` request; IPs stored as /24 or /48), `h/apigrowth.go` (per-day calls by country and kind, no addresses), `internal/geoip/geoip.go` (DB-IP mmdb, watched), `cmd/analytics-rebuild` (replays the rotated archives oldest first, then the live log), `cmd/ip-country-load`, `web/analytics-parse.js` |
+| DB | `site_view_hourly`, `site_visitor_hourly`, `owner_visitor_marks` (`zu-sim-151-owner-visitor-marks.sql`), `site_geo_daily`, `site_page_daily`, `site_referrer_daily` (`w3-analytics-pages-referrers.sql`), `traffic_daily`, `site_traffic_daily` (bytes and requests per day, pages / API; `w3-network-usage.sql`), `site_view_daily`, `site_visitor_daily` (legacy, pruned after 400 days), `analytics_ingest_state`, `ip_country_ranges`, `api_request_daily`, `api_ip_daily`, `api_growth_daily` |
 | Env | `ANALYTICS_LOG`, `ANALYTICS_SALT`, `GEOIP_DIR` |
 | External | nginx `log_format shanalytics` (`deploy/prod/nginx-analytics-logformat.conf`, query string stripped, eighth field the referring host only, ninth `$bytes_sent` (2026-09-30); installed by `deploy/prod/nginx-analytics-logformat-apply.sh`, dry run by default; the ingester reads 7-, 8- and 9-field lines), `deploy/prod/logrotate-analytics.conf` (29 archives: raw IPs ≤30 days), DB-IP Lite via `scripts/geoip-refresh.sh` + `deploy/prod/simple-host-geoip-refresh.{service,timer}` |
 

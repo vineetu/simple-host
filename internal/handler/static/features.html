@@ -140,7 +140,7 @@
           <li><a class="node" href="#agents"><b>Agents and MCP</b><span class="n">18</span><span class="l">How an AI app or coding agent connects to Simple Host, what it may call, and what it is told while it works.</span></a></li>
           <li><a class="node" href="#dashboard"><b>Owner dashboard</b><span class="n">9</span><span class="l">The screens where you manage your sites yourself, and the screens your AI app can draw inside a chat.</span></a></li>
           <li><a class="node" href="#showcase"><b>Showcase and home page</b><span class="n">4</span><span class="l">What opens at your handle&#x27;s address: a public list of your sites you can pin, order, and caption, or one site you choose as home.</span></a></li>
-          <li><a class="node" href="#analytics"><b>Traffic and analytics</b><span class="n">16</span><span class="l">How many people read each site, counted on the server from the web log, with crawlers and the service&#x27;s own monitoring kept apart.</span></a></li>
+          <li><a class="node" href="#analytics"><b>Traffic and analytics</b><span class="n">17</span><span class="l">How many people read each site, counted on the server from the web log, with crawlers and the service&#x27;s own monitoring kept apart.</span></a></li>
           <li><a class="node" href="#admin"><b>Admin and operations</b><span class="n">13</span><span class="l">What the operator can see and do, the rules every account and visitor meets, and how to run a copy of the software yourself.</span></a></li>
           <li class="hackb"><a class="node" href="#hack"><b>Simple Hack</b><span class="n">10</span><span class="l">Simple Hack runs hackathons from sign-up to results, team sites included. It is the same software run as its own product.</span><span class="tag">A separate product on the same software</span></a></li>
         </ol>
@@ -2053,6 +2053,21 @@
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="partial"><b>Enterprise</b>partly</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">Enterprise keeps an in-app access log with daily views (bots split) and top pages for owners.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo">FEATURES.md: Analytics and geo</a></span></p>
+        </div>
+      </details>
+      <details class="feat" id="analytics-own-visits">
+        <summary><span class="fname">Your own visits are not counted</span><span class="fline">Opening your own site from a device you use while signed in does not add to People; those visits are filed as yours.</span></summary>
+        <div class="fbody">
+          <p class="how">When you use the dashboard or the owner app, or sign in on your site as yourself, the server remembers that device&#x27;s hashed address for 30 days. Page views of your sites from it are filed as your own, in their own figure, instead of as People. They still count as activity, so a site you keep opening is never treated as idle.</p>
+          <p class="ex"><b>Example.</b> A bakery owner opens the menu page several times a day to check prices and photos. Those visits land under You, and People shows the customers who read the menu.</p>
+          <dl class="fm">
+            <dt>Who</dt><dd>Anyone who checks their own page often and wants People to mean other people.</dd>
+            <dt>Where</dt><dd>A You figure on the site&#x27;s analytics page when there is any; views on the site list in the API, counted by people only; the connector says it in words in list_sites, get_site and site_analytics.</dd>
+            <dt>Limits</dt><dd class="lim">A visit from a device you never used while signed in still counts as a person. Other people behind the same address as a marked device are not counted while the mark lasts, which is 30 days from the last time you were seen there.</dd>
+          </dl>
+          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="partial"><b>Simple Hack</b>partly</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
+          <p class="ednote">On Simple Hack a team site belongs to the event, so a member&#x27;s visits are not the site owner&#x27;s visits. Enterprise counts from its own in-app log (see PARITY). The small box has it when ANALYTICS_LOG is set.</p>
+          <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#12-analytics-and-geo">FEATURES.md: Analytics and geo</a> <a href="/llms.txt">llms.txt: Analytics</a></span></p>
         </div>
       </details>
       <details class="feat" id="analytics-infra-separated">

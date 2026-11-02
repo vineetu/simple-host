@@ -358,19 +358,25 @@ stored raw. `visitors` is unique visitors over the window asked for — the rang
 total is real uniques, not the sum of the daily numbers, so someone who visited
 on five days counts once in `totals` and five times across `daily`.
 
-Every count is split four ways by who was asking:
+Every count is split five ways by who was asking:
 
 | Class | What it is |
 |---|---|
 | `person` | No automation signature — **this is the audience number** |
 | `bot` | Crawlers, AI scrapers, SEO tools, security scanners, HTTP libraries |
 | `infra` | Uptime probes and health checks pointed at the site |
+| `owner` | The owner's own visits: from a device they used while signed in to Simple Host, or signed in on the site as themselves, in the last 30 days. Left out of `person`. A device never used while signed in still counts as a person; other people behind the same address as a marked device are not counted while the mark lasts |
 | `unknown` | Days recorded before classification existed (before `classified_from`); cannot be broken down — never fold it into the others |
 
 Report `person` when a user asks how many people visited. Never quote a combined
 total: `infra` is typically an order of magnitude larger than real traffic (a
 probe hitting `/` every 30s is 2,880 requests a day), so a total answers a
 question nobody asked.
+
+Every item of `GET /v1/sites` carries `views {people_7_days, people_30_days}`:
+views by people, owner excluded, rolling windows. `list_sites` and `get_site`
+state those figures in their text, and `site_analytics` leaves `owner` out of
+its structured totals and reports the owner's own visits in its text.
 
 - The dashboard shows People / Bots / Infra side by side per site, with a
   24-hour bar chart of people and bots.
@@ -381,10 +387,10 @@ question nobody asked.
   → {
       range_days,
       classified_from,                                        // e.g. "2026-08-09"
-      totals:   {person:{views,visitors}, bot:{…}, infra:{…}, unknown:{…}},
-      last_24h: {person:{views,visitors}, bot:{…}, infra:{…}, unknown:{…}},
-      daily:    [{day,  person:{…}, bot:{…}, infra:{…}, unknown:{…}}…],  // dense
-      hourly:   [{hour, person:{…}, bot:{…}, infra:{…}, unknown:{…}}…]   // 24 buckets
+      totals:   {person:{views,visitors}, bot:{…}, infra:{…}, owner:{…}, unknown:{…}},
+      last_24h: {person:{views,visitors}, bot:{…}, infra:{…}, owner:{…}, unknown:{…}},
+      daily:    [{day,  person:{…}, bot:{…}, infra:{…}, owner:{…}, unknown:{…}}…],  // dense
+      hourly:   [{hour, person:{…}, bot:{…}, infra:{…}, owner:{…}, unknown:{…}}…]   // 24 buckets
     }
   ```
 

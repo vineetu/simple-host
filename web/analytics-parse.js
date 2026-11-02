@@ -21,11 +21,12 @@ function anCounts(v, path) {
 }
 
 function anSplit(v, path) {
-  if (!v || typeof v !== 'object') throw new Error(path + ': expected a person/bot/infra/unknown split');
+  if (!v || typeof v !== 'object') throw new Error(path + ': expected a person/bot/infra/owner/unknown split');
   return {
     person: anCounts(v.person, path + '.person'),
     bot: anCounts(v.bot, path + '.bot'),
     infra: anCounts(v.infra, path + '.infra'),
+    owner: anCounts(v.owner, path + '.owner'),
     unknown: anCounts(v.unknown, path + '.unknown'),
   };
 }

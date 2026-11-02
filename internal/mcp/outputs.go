@@ -106,7 +106,7 @@ func trafficSplitSchema(description string) map[string]any {
 		}, "views", "visitors"), desc)
 	}
 	return withDescription(outObject(map[string]any{
-		"person":  counts("Real people. Report these when asked how many people visited."),
+		"person":  counts("Real people, not counting the owner's own visits from a device they used while signed in. Report these when asked how many people visited."),
 		"bot":     counts("Crawlers, scanners and other automated clients."),
 		"infra":   counts("Simple Host's own health checks and monitoring."),
 		"unknown": counts("Traffic from before visits were classified; not split by kind."),

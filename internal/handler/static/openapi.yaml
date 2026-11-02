@@ -2900,10 +2900,11 @@ paths:
       summary: Get per-site visitor analytics
       description: >-
         Owner-scoped view and visitor counts derived server-side from the access
-        log (no client beacon). Every bucket is split three ways by who was
-        asking: `person` (no automation signature), `bot` (crawlers, AI
-        scrapers, SEO tools, security scanners, HTTP libraries) and `infra`
-        (uptime probes and health checks aimed at the site). Read `person` as
+        log (no client beacon). Every bucket is split four ways by who was
+        asking: `person` (no automation signature, and not the owner's own
+        visits), `bot` (crawlers, AI scrapers, SEO tools, security scanners,
+        HTTP libraries), `infra` (uptime probes and health checks aimed at the
+        site) and `owner` (the site owner's own visits, see Site.views). Read `person` as
         the audience number — a total that folds in `infra` is dominated by
         monitoring, not people.
 
@@ -2951,7 +2952,7 @@ paths:
                     format: date
                     example: "2026-08-09"
                     description: >-
-                      First UTC day for which the person/bot/infra split exists.
+                      First UTC day for which the person/bot/infra/owner split exists.
                       Earlier days in `daily` report under `unknown`. Omitted
                       when nothing has been classified yet.
                   totals: { $ref: '#/components/schemas/TrafficSplit' }
@@ -2985,7 +2986,7 @@ paths:
       summary: Where a site's visitors are, by country
       description: >-
         Per-country traffic for one site over the last `days` UTC days, split by
-        the same `person` / `bot` / `infra` classes as the rest of analytics and
+        the same `person` / `bot` / `infra` / `owner` classes as the rest of analytics and
         ordered by `person.views` descending (ties broken by country code).
 
 
@@ -6558,7 +6559,7 @@ paths:
       tags: ["Admin"]
       operationId: adminSites
       summary: List sites for the admin Sites table
-      description: Admin only. Sorts and filters before pagination. Size includes live files and kept versions from the shared usage cache. Views count people in the last 30 days, excluding bots and infrastructure. Default is recently updated, preserving the existing admin default. Ties use site id.
+      description: Admin only. Sorts and filters before pagination. Size includes live files and kept versions from the shared usage cache. Views count people in the last 30 days, excluding bots, infrastructure, and the owner's own visits. Default is recently updated, preserving the existing admin default. Ties use site id.
       security:
         - apiKey: []
       parameters:
@@ -14202,11 +14203,13 @@ components:
         than either of the other two. `unknown` is non-zero only for days before
         `classified_from`, which were recorded before traffic was classified and
         cannot be broken down after the fact — do not fold it into any of the
-        other three.
+        other three. `owner` is the site owner's own visits (see Site.views);
+        they are not in `person`.
       properties:
         person: { $ref: '#/components/schemas/TrafficCounts' }
         bot: { $ref: '#/components/schemas/TrafficCounts' }
         infra: { $ref: '#/components/schemas/TrafficCounts' }
+        owner: { $ref: '#/components/schemas/TrafficCounts' }
         unknown: { $ref: '#/components/schemas/TrafficCounts' }
 
     APIKey:
@@ -14321,6 +14324,12 @@ components:
         family_addresses: { type: array, items: { type: string }, description: "Every address family address the site answers at, the most specific first" }
         passcode_protected: { type: boolean, description: "Present and true when the site has a passcode (PUT .../lock): every address shows \"This site is protected\" until a visitor enters it. The passcode itself is only in GET .../lock." }
         access: { type: string, enum: [anyone, specific], description: "Who can open the site: anyone, or specific (only the owner and its named viewers; GET .../access)." }
+        views:
+          type: object
+          description: "Site list only: views by people in the last 7 and 30 days (rolling, from now), from the same classified analytics as GET .../analytics. The owner's own visits (from a device they used while signed in, or signed in on the site as themselves, within 30 days) are filed as class owner and left out. A visit from a device never used while signed in still counts; other people behind the same address as a marked device are not counted while the mark lasts."
+          properties:
+            people_7_days: { type: integer, example: 12 }
+            people_30_days: { type: integer, example: 40 }
 
     AddressFamilyRequest:
       type: object

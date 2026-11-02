@@ -6761,7 +6761,7 @@
         ],
         "operationId": "getSitesBySitenameAnalytics",
         "summary": "Get per-site visitor analytics",
-        "description": "Owner-scoped view and visitor counts derived server-side from the access log (no client beacon). Every bucket is split three ways by who was asking: `person` (no automation signature), `bot` (crawlers, AI scrapers, SEO tools, security scanners, HTTP libraries) and `infra` (uptime probes and health checks aimed at the site). Read `person` as the audience number \u2014 a total that folds in `infra` is dominated by monitoring, not people.\n\n`visitors` are unique visitors: COUNT(DISTINCT hashed IP) over the window asked for. The salt is stable, so `totals.*.visitors` is genuine uniques for the range and is NOT the sum of the `daily` figures \u2014 someone who visited on five days is one unique in `totals` and five in `daily`. IP-based, so a shared office NAT reads as one visitor and a phone switching wifi\u2192cellular reads as two.\n\n`daily` is zero-filled dense for the requested window (oldest \u2192 newest). `hourly` is always 24 zero-filled buckets ending with the hour in progress. Only successful document responses (200/304, non-asset paths) count as views, for every class alike. Owner only (API key).",
+        "description": "Owner-scoped view and visitor counts derived server-side from the access log (no client beacon). Every bucket is split four ways by who was asking: `person` (no automation signature, and not the owner's own visits), `bot` (crawlers, AI scrapers, SEO tools, security scanners, HTTP libraries), `infra` (uptime probes and health checks aimed at the site) and `owner` (the site owner's own visits, see Site.views). Read `person` as the audience number \u2014 a total that folds in `infra` is dominated by monitoring, not people.\n\n`visitors` are unique visitors: COUNT(DISTINCT hashed IP) over the window asked for. The salt is stable, so `totals.*.visitors` is genuine uniques for the range and is NOT the sum of the `daily` figures \u2014 someone who visited on five days is one unique in `totals` and five in `daily`. IP-based, so a shared office NAT reads as one visitor and a phone switching wifi\u2192cellular reads as two.\n\n`daily` is zero-filled dense for the requested window (oldest \u2192 newest). `hourly` is always 24 zero-filled buckets ending with the hour in progress. Only successful document responses (200/304, non-asset paths) count as views, for every class alike. Owner only (API key).",
         "security": [
           {
             "apiKey": []
@@ -6809,7 +6809,7 @@
                       "type": "string",
                       "format": "date",
                       "example": "2026-08-09",
-                      "description": "First UTC day for which the person/bot/infra split exists. Earlier days in `daily` report under `unknown`. Omitted when nothing has been classified yet."
+                      "description": "First UTC day for which the person/bot/infra/owner split exists. Earlier days in `daily` report under `unknown`. Omitted when nothing has been classified yet."
                     },
                     "totals": {
                       "$ref": "#/components/schemas/TrafficSplit"
@@ -6885,7 +6885,7 @@
         ],
         "operationId": "getSitesBySitenameAnalyticsGeo",
         "summary": "Where a site's visitors are, by country",
-        "description": "Per-country traffic for one site over the last `days` UTC days, split by the same `person` / `bot` / `infra` classes as the rest of analytics and ordered by `person.views` descending (ties broken by country code).\n\nCountry is resolved on the server from a local IP-range table refreshed from a public dataset \u2014 no visitor address is ever sent to a geolocation service, and the raw address is still never stored. Country data: \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0.\n\n`country` is ISO-3166 alpha-2. `\"XX\"` / `\"Unknown\"` is traffic the table could not place (an unlisted block, or a server whose ranges have not been loaded); it is listed rather than dropped, so the countries still add up to the site's totals.\n\n`visitors` is COUNT(DISTINCT hashed IP) over the whole window, exactly as in the main analytics endpoint \u2014 genuine uniques for the range, not the sum of the daily figures. Someone whose address changes country mid-range counts once in each, so the columns can total slightly more than the site's own figure. `unknown` is always zero here: the pre-classifier history has no addresses left to place. Owner only (API key).",
+        "description": "Per-country traffic for one site over the last `days` UTC days, split by the same `person` / `bot` / `infra` / `owner` classes as the rest of analytics and ordered by `person.views` descending (ties broken by country code).\n\nCountry is resolved on the server from a local IP-range table refreshed from a public dataset \u2014 no visitor address is ever sent to a geolocation service, and the raw address is still never stored. Country data: \"IP Geolocation by DB-IP\" (https://db-ip.com), CC BY 4.0.\n\n`country` is ISO-3166 alpha-2. `\"XX\"` / `\"Unknown\"` is traffic the table could not place (an unlisted block, or a server whose ranges have not been loaded); it is listed rather than dropped, so the countries still add up to the site's totals.\n\n`visitors` is COUNT(DISTINCT hashed IP) over the whole window, exactly as in the main analytics endpoint \u2014 genuine uniques for the range, not the sum of the daily figures. Someone whose address changes country mid-range counts once in each, so the columns can total slightly more than the site's own figure. `unknown` is always zero here: the pre-classifier history has no addresses left to place. Owner only (API key).",
         "security": [
           {
             "apiKey": []
@@ -16576,7 +16576,7 @@
         ],
         "operationId": "adminSites",
         "summary": "List sites for the admin Sites table",
-        "description": "Admin only. Sorts and filters before pagination. Size includes live files and kept versions from the shared usage cache. Views count people in the last 30 days, excluding bots and infrastructure. Default is recently updated, preserving the existing admin default. Ties use site id.",
+        "description": "Admin only. Sorts and filters before pagination. Size includes live files and kept versions from the shared usage cache. Views count people in the last 30 days, excluding bots, infrastructure, and the owner's own visits. Default is recently updated, preserving the existing admin default. Ties use site id.",
         "security": [
           {
             "apiKey": []
@@ -36086,7 +36086,7 @@
       },
       "TrafficSplit": {
         "type": "object",
-        "description": "One bucket of traffic, split by who was asking. `person` is the audience figure; `infra` is the site's own monitoring and is normally far larger than either of the other two. `unknown` is non-zero only for days before `classified_from`, which were recorded before traffic was classified and cannot be broken down after the fact \u2014 do not fold it into any of the other three.",
+        "description": "One bucket of traffic, split by who was asking. `person` is the audience figure; `infra` is the site's own monitoring and is normally far larger than either of the other two. `unknown` is non-zero only for days before `classified_from`, which were recorded before traffic was classified and cannot be broken down after the fact \u2014 do not fold it into any of the other three. `owner` is the site owner's own visits (see Site.views); they are not in `person`.",
         "properties": {
           "person": {
             "$ref": "#/components/schemas/TrafficCounts"
@@ -36095,6 +36095,9 @@
             "$ref": "#/components/schemas/TrafficCounts"
           },
           "infra": {
+            "$ref": "#/components/schemas/TrafficCounts"
+          },
+          "owner": {
             "$ref": "#/components/schemas/TrafficCounts"
           },
           "unknown": {
@@ -36465,6 +36468,20 @@
               "specific"
             ],
             "description": "Who can open the site: anyone, or specific (only the owner and its named viewers; GET .../access)."
+          },
+          "views": {
+            "type": "object",
+            "description": "Site list only: views by people in the last 7 and 30 days (rolling, from now), from the same classified analytics as GET .../analytics. The owner's own visits (from a device they used while signed in, or signed in on the site as themselves, within 30 days) are filed as class owner and left out. A visit from a device never used while signed in still counts; other people behind the same address as a marked device are not counted while the mark lasts.",
+            "properties": {
+              "people_7_days": {
+                "type": "integer",
+                "example": 12
+              },
+              "people_30_days": {
+                "type": "integer",
+                "example": 40
+              }
+            }
           }
         }
       },
@@ -38522,7 +38539,7 @@
           },
           "editable": {
             "type": "boolean",
-            "description": "False from Closed onward — rules are fixed once entries close",
+            "description": "False from Closed onward \u2014 rules are fixed once entries close",
             "so judging sees one definition of complete.": null
           }
         }

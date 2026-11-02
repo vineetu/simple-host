@@ -563,6 +563,13 @@ type restSite struct {
 	AddressState *struct {
 		Note string `json:"note"`
 	} `json:"address_state"`
+	// Views is the site list's summary of views by people over rolling
+	// windows; the owner's own visits are left out. Said in text only: the
+	// cached output schemas in chat apps reject new structured keys.
+	Views *struct {
+		People7Days  int64 `json:"people_7_days"`
+		People30Days int64 `json:"people_30_days"`
+	} `json:"views"`
 }
 
 // liveURL is the one address to give people: a connected, working custom
@@ -793,6 +800,58 @@ func jsonText(v any) string {
 	return string(b)
 }
 
+// ownerViewsLine states each site's views by people (the owner's own visits
+// left out) for list_sites' text; "" when the server sent no views at all.
+func ownerViewsLine(sites []restSite) string {
+	parts := make([]string, 0, len(sites))
+	found := false
+	for _, s := range sites {
+		if s.Views == nil {
+			parts = append(parts, s.Name+" 0 / 0")
+			continue
+		}
+		found = true
+		parts = append(parts, s.Name+" "+strconv.FormatInt(s.Views.People7Days, 10)+" / "+strconv.FormatInt(s.Views.People30Days, 10))
+	}
+	if !found {
+		return ""
+	}
+	return "Views by people, not counting your own visits (last 7 days / last 30 days): " + strings.Join(parts, "; ")
+}
+
+// withoutOwner copies an analytics split and drops its owner class, so the
+// structured result keeps exactly person, bot, infra and unknown.
+func withoutOwner(split any) any {
+	m, ok := split.(map[string]any)
+	if !ok {
+		return split
+	}
+	copied := make(map[string]any, len(m))
+	for k, v := range m {
+		if k != "owner" {
+			copied[k] = v
+		}
+	}
+	return copied
+}
+
+// ownVisitsLine reads the owner class out of the totals split and says it in
+// words, so the person hears their own visits were left out of person.
+func ownVisitsLine(totals any) string {
+	views, visitors := 0.0, 0.0
+	if m, ok := totals.(map[string]any); ok {
+		if o, ok := m["owner"].(map[string]any); ok {
+			views, _ = o["views"].(float64)
+			visitors, _ = o["visitors"].(float64)
+		}
+	}
+	if views == 0 {
+		return "Your own visits, left out of person: 0 views in this window."
+	}
+	return "Your own visits, left out of person: " + strconv.FormatFloat(views, 'f', -1, 64) + " views by " +
+		strconv.FormatFloat(visitors, 'f', -1, 64) + " of your devices in this window."
+}
+
 // itemArgs reads site, collection and a positive whole-number item id.
 // idArg reads an optional id (a JSON number or a string of digits); "" when
 // it is absent.
@@ -1013,6 +1072,9 @@ func Tools() []Tool {
 					return output{Text: "This account has no sites yet. Publish one with create_site.", Structured: out}, nil
 				}
 				text := jsonText(out)
+				if views := ownerViewsLine(sites); views != "" {
+					text += "\n\n" + views
+				}
 				if c.server.mySitesEnabled(c.caller) {
 					for i, s := range sites {
 						items[i].(map[string]any)["display"] = map[string]any{
@@ -1058,7 +1120,12 @@ func Tools() []Tool {
 						out["files"] = files
 					}
 				}
-				return sitePreviewOutput(c, site, out), nil
+				answer := sitePreviewOutput(c, site, out)
+				if site.Views != nil {
+					answer.Text += "\n\nViews by people, not counting your own visits: " + strconv.FormatInt(site.Views.People7Days, 10) +
+						" in the last 7 days, " + strconv.FormatInt(site.Views.People30Days, 10) + " in the last 30 days."
+				}
+				return answer, nil
 			},
 		},
 		{
@@ -1773,7 +1840,7 @@ func Tools() []Tool {
 		{
 			Name:        "site_analytics",
 			Title:       "How many people visited",
-			Description: "Visits to a site over the last N days, split into people, bots and monitoring, with the most viewed pages and the domains visitors came from (people only). When asked how many people visited, report the `person` numbers only.",
+			Description: "Visits to a site over the last N days, split into people (not counting the owner's own visits), bots and monitoring, with the most viewed pages and the domains visitors came from (people only). When asked how many people visited, report the `person` numbers only.",
 			InputSchema: object(map[string]any{
 				"site": str(siteDesc),
 				"days": map[string]any{"type": "integer", "description": "Window in days (1–90, default 30)."},
@@ -1799,7 +1866,9 @@ func Tools() []Tool {
 				_ = json.Unmarshal(res.body, &full)
 				// Totals only: the daily and hourly series are for charts and
 				// would swamp a conversation.
-				out := map[string]any{"site": name, "range_days": full["range_days"], "totals": full["totals"], "last_24h": full["last_24h"]}
+				// The structured split stays person/bot/infra/unknown: the
+				// owner's own visits (class owner) are stated in the text.
+				out := map[string]any{"site": name, "range_days": full["range_days"], "totals": withoutOwner(full["totals"]), "last_24h": withoutOwner(full["last_24h"])}
 				// Top pages and referring domains are a second read; the
 				// totals stand without them if it fails.
 				if top := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/analytics/top?days="+strconv.Itoa(days), nil, nil); top.ok() {
@@ -1811,7 +1880,7 @@ func Tools() []Tool {
 						out["top_pages"], out["top_referrers"] = t.Pages, t.Referrers
 					}
 				}
-				answer := output{Text: jsonText(out), Structured: out}
+				answer := output{Text: jsonText(out) + "\n\n" + ownVisitsLine(full["totals"]), Structured: out}
 				if c.server.dashboardEnabled(c.caller) {
 					answer.Meta = map[string]any{"simple-host/daily": full["daily"]}
 				}
