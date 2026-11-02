@@ -167,7 +167,11 @@ export async function render(ctx) {
   const embedURL = video && !noFrames && typeof video.embed_url === 'string' &&
     /^https:\/\/(www\.youtube-nocookie\.com\/embed\/|player\.vimeo\.com\/video\/|www\.loom\.com\/embed\/|drive\.google\.com\/file\/d\/)/.test(video.embed_url)
     ? video.embed_url : ''
-  const framed = site && site.frameable && !noFrames ? ui.safeHref(site.preview_url) : ''
+  // Only the server-issued preview, and only on the team site's own host
+  // (the CSP's sites wildcard is the backstop).
+  const framed = site && site.frameable && !noFrames && ui.safeHref(site.preview_url) &&
+    ui.hostLabel(site.preview_url) === String(site.host || '').toLowerCase() && /^https:/.test(site.preview_url)
+    ? site.preview_url : ''
 
   function videoBlock() {
     if (!video) return ''
