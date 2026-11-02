@@ -95,6 +95,9 @@ type HackHandler struct {
 	// noticeTiming overrides the notice email delay and window (tests only;
 	// hack_notices.go).
 	noticeTiming *noticeMailPolicy
+	// imageScan checks event icons and entry screenshots (imagescan.go);
+	// nil until PHOTODNA_API_KEY is set.
+	imageScan *ImageScan
 }
 
 // hackSiteHooks is what the events API needs of the site side.

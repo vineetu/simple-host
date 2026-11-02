@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/fs"
@@ -607,6 +609,113 @@ func (d *DiskStorage) DeleteVersion(userID, siteName string, versionNum int) (er
 		return fmt.Errorf("remove version %d: %w", versionNum, err)
 	}
 	return nil
+}
+
+// RemoveFileEverywhere deletes one file of a site from every retained
+// version and from the live copy (image matching, SIM-200), but only the
+// copies whose SHA-256 (hex) is sha: a later version with other bytes at the
+// same path stays. A path that is not there is fine. relPath is validated
+// the way WriteFiles validates it.
+func (d *DiskStorage) RemoveFileEverywhere(userID, siteName, relPath, sha string) (err error) {
+	defer func() {
+		if err == nil {
+			d.changed()
+		}
+	}()
+	if !validPathKey(userID) {
+		return fmt.Errorf("invalid user id %q", userID)
+	}
+	if !validPathKey(siteName) {
+		return fmt.Errorf("invalid site name %q", siteName)
+	}
+	cleanPath := filepath.Clean(filepath.FromSlash(relPath))
+	if cleanPath == "." || cleanPath == "" || cleanPath == ".." || strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) || filepath.IsAbs(cleanPath) {
+		return fmt.Errorf("invalid relative path %q", relPath)
+	}
+	siteDir := d.SiteDir(userID, siteName)
+	entries, err := os.ReadDir(siteDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("read site dir: %w", err)
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if name != "current" && !(strings.HasPrefix(name, "v") && isDigits(name[1:])) {
+			continue
+		}
+		p := filepath.Join(siteDir, name, cleanPath)
+		if !parentInside(filepath.Join(siteDir, name), p) {
+			continue
+		}
+		same, herr := fileHasSHA256(p, sha)
+		if herr != nil {
+			if !os.IsNotExist(herr) {
+				err = fmt.Errorf("read %s/%s: %w", name, relPath, herr)
+			}
+			continue
+		}
+		if !same {
+			continue
+		}
+		if rerr := os.Remove(p); rerr != nil && !os.IsNotExist(rerr) {
+			err = fmt.Errorf("remove %s/%s: %w", name, relPath, rerr)
+		}
+	}
+	return err
+}
+
+// parentInside reports whether p's parent directory, with its symlinks
+// resolved, stays inside root (also resolved). A directory symlink that
+// leads out of the version folder is never followed for a removal.
+func parentInside(root, p string) bool {
+	r, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return false
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Dir(p))
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(r, dir)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
+}
+
+// fileHasSHA256 reports whether the regular file at p hashes to sha (hex).
+func fileHasSHA256(p, sha string) (bool, error) {
+	fi, err := os.Lstat(p)
+	if err != nil {
+		return false, err
+	}
+	if !fi.Mode().IsRegular() {
+		return false, nil
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return false, err
+	}
+	return hex.EncodeToString(h.Sum(nil)) == sha, nil
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // suspendedMarker is the file that marks a site taken down by the operator.

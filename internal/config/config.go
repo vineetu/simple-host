@@ -26,6 +26,9 @@ const (
 	defaultDeployScript  = ""
 	defaultPublicBaseURL = "https://simple-host.app"
 	defaultMailFrom      = "Simple Host <noreply@simple-host.app>"
+	// PhotoDNA Cloud Service v1.0 operations (image matching, SIM-200).
+	defaultPhotoDNAMatchURL  = "https://api.microsoftmoderator.com/photodna/v1.0/Match"
+	defaultPhotoDNAReportURL = "https://api.microsoftmoderator.com/photodna/v1.0/Report"
 )
 
 type Config struct {
@@ -189,6 +192,23 @@ type Config struct {
 	GitHubOAuthClientID     string
 	GitHubOAuthClientSecret string
 
+	// Image matching (SIM-200): uploaded images are checked against known
+	// abuse hash sets through PhotoDNA. Everything is off while
+	// PhotoDNAKey is empty (PHOTODNA_API_KEY or, preferred,
+	// PHOTODNA_API_KEY_FILE). The report fields name the operator on the
+	// CyberTipline report; AlertEmail is where a match is announced;
+	// EvidenceDir ("" = <DATA_DIR>/.evidence, resolved in main) keeps the
+	// quarantined copy and the record of each match.
+	PhotoDNAKey          string
+	PhotoDNAMatchURL     string
+	PhotoDNAReportURL    string
+	PhotoDNAAutoReport   bool
+	ImageScanReportOrg   string
+	ImageScanReportName  string
+	ImageScanReportEmail string
+	ImageScanAlertEmail  string
+	ImageScanEvidenceDir string
+
 	// Company sign-in (OIDC): OIDC_ISSUER, OIDC_CLIENT_ID and
 	// OIDC_CLIENT_SECRET turn it on only when all three are set; a partial
 	// set is a misconfiguration (warning, treated as off), the same
@@ -339,6 +359,21 @@ func Load() (Config, error) {
 	cfg.GoogleOAuthClientID = os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
 	cfg.GoogleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 	cfg.TurnstileSiteKey, cfg.TurnstileSecret = loadTurnstile()
+	cfg.PhotoDNAKey = loadPhotoDNAKey()
+	cfg.PhotoDNAMatchURL = strings.TrimSpace(getEnvOrDefault("PHOTODNA_MATCH_URL", defaultPhotoDNAMatchURL))
+	cfg.PhotoDNAReportURL = strings.TrimSpace(getEnvOrDefault("PHOTODNA_REPORT_URL", defaultPhotoDNAReportURL))
+	switch v := strings.ToLower(strings.TrimSpace(os.Getenv("PHOTODNA_AUTO_REPORT"))); v {
+	case "on":
+		cfg.PhotoDNAAutoReport = true
+	case "", "off":
+	default:
+		log.Printf("warning: PHOTODNA_AUTO_REPORT=%q is not on or off; treating as off", v)
+	}
+	cfg.ImageScanReportOrg = strings.TrimSpace(os.Getenv("IMAGE_SCAN_REPORT_ORG"))
+	cfg.ImageScanReportName = strings.TrimSpace(os.Getenv("IMAGE_SCAN_REPORT_NAME"))
+	cfg.ImageScanReportEmail = strings.TrimSpace(os.Getenv("IMAGE_SCAN_REPORT_EMAIL"))
+	cfg.ImageScanAlertEmail = strings.TrimSpace(os.Getenv("IMAGE_SCAN_ALERT_EMAIL"))
+	cfg.ImageScanEvidenceDir = strings.TrimSpace(os.Getenv("IMAGE_SCAN_EVIDENCE_DIR"))
 	cfg.GitHubOAuthClientID = os.Getenv("GITHUB_OAUTH_CLIENT_ID")
 	cfg.GitHubOAuthClientSecret = os.Getenv("GITHUB_OAUTH_CLIENT_SECRET")
 	if xorNonEmpty(cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret) {
@@ -675,6 +710,23 @@ func isLoopbackHost(h string) bool {
 	}
 	ip := net.ParseIP(h)
 	return ip != nil && ip.IsLoopback()
+}
+
+// loadPhotoDNAKey reads the PhotoDNA subscription key from PHOTODNA_API_KEY
+// or, preferred, the file PHOTODNA_API_KEY_FILE names (a systemd
+// credential). Missing or unreadable means image matching is off; the key
+// itself is never printed.
+func loadPhotoDNAKey() string {
+	key := strings.TrimSpace(os.Getenv("PHOTODNA_API_KEY"))
+	if path := strings.TrimSpace(os.Getenv("PHOTODNA_API_KEY_FILE")); key == "" && path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("warning: PHOTODNA_API_KEY_FILE cannot be read (%v); image matching is off", err)
+			return ""
+		}
+		key = strings.TrimSpace(string(b))
+	}
+	return key
 }
 
 // loadTurnstile reads the Turnstile site key and secret. The secret comes

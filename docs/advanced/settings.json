@@ -2066,6 +2066,120 @@
       "small_box": false
     },
     {
+      "name": "PHOTODNA_API_KEY",
+      "group": "data",
+      "description": "Subscription key for Microsoft PhotoDNA Cloud Service, which checks uploaded images against known abuse hash sets. Empty: image matching is off and nothing is queued. Prefer PHOTODNA_API_KEY_FILE.",
+      "type": "secret",
+      "default": "",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "PHOTODNA_API_KEY_FILE",
+      "group": "data",
+      "description": "A file holding the PhotoDNA key, read once at start when PHOTODNA_API_KEY is empty, for example a systemd credential: LoadCredential=photodna-key:/etc/simple-host-secrets/photodna-key and Environment=PHOTODNA_API_KEY_FILE=%d/photodna-key. Unreadable: matching is off, with a warning in the log.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "PHOTODNA_MATCH_URL",
+      "group": "data",
+      "description": "The PhotoDNA Match operation.",
+      "type": "string",
+      "default": "https://api.microsoftmoderator.com/photodna/v1.0/Match",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "PHOTODNA_REPORT_URL",
+      "group": "data",
+      "description": "The PhotoDNA Report operation, which files a CyberTipline report with NCMEC through PhotoDNA.",
+      "type": "string",
+      "default": "https://api.microsoftmoderator.com/photodna/v1.0/Report",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "PHOTODNA_AUTO_REPORT",
+      "group": "data",
+      "description": "on: every match is reported through the Report operation as soon as it is recorded. off: the admin Moderation tab offers a Report button per match.",
+      "type": "bool",
+      "default": "off",
+      "allowed": [
+        "off",
+        "on"
+      ],
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "IMAGE_SCAN_REPORT_ORG",
+      "group": "data",
+      "description": "Organisation name on reports. Reports are off until this, IMAGE_SCAN_REPORT_NAME, and the report email are all set.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "IMAGE_SCAN_REPORT_NAME",
+      "group": "data",
+      "description": "Reporter's name on reports. Reports are off without it.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "IMAGE_SCAN_REPORT_EMAIL",
+      "group": "data",
+      "description": "Reporter's email on reports.",
+      "type": "string",
+      "default": "the support contact",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "IMAGE_SCAN_ALERT_EMAIL",
+      "group": "data",
+      "description": "Where each match alert is emailed.",
+      "type": "string",
+      "default": "the support contact",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "IMAGE_SCAN_EVIDENCE_DIR",
+      "group": "data",
+      "description": "Folder for the quarantined copy and the record of each match (mode 0700, under no served path). Must be writable by the service (ReadWritePaths on a hardened unit).",
+      "type": "string",
+      "default": "<DATA_DIR>/.evidence",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "WRITE_AUTH_MODE",
       "group": "data",
       "description": "on: page saves need a signed-in visitor or the owner's key. log: allowed, and logged.",

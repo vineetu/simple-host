@@ -26,6 +26,7 @@ import (
 	"github.com/vsriram/simple-host/internal/eventdns"
 	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/internal/imagescan"
 	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/papermetrics"
 	"github.com/vsriram/simple-host/internal/storage"
@@ -412,6 +413,65 @@ func main() {
 		handler.RegisterHackUI(mux, siteHandler.TeamSitesFrameBase())
 	}
 
+	// Image matching (SIM-200): uploaded images are checked against known
+	// abuse hash sets through PhotoDNA. Nothing is built while the key is
+	// empty, so a box without it is unchanged.
+	var imageScan *handler.ImageScan
+	if cfg.PhotoDNAKey != "" {
+		client := imagescan.NewPhotoDNA(cfg.PhotoDNAKey)
+		if cfg.PhotoDNAMatchURL != "" {
+			client.MatchURL = cfg.PhotoDNAMatchURL
+		}
+		if cfg.PhotoDNAReportURL != "" {
+			client.ReportURL = cfg.PhotoDNAReportURL
+		}
+		// The support contact is the default reporter and alert address; a
+		// server whose contact is not an address gets a log line instead.
+		contact := auth.SupportContact
+		if !strings.Contains(contact, "@") {
+			contact = cfg.Limits.IdleReplyTo
+		}
+		if !strings.Contains(contact, "@") {
+			contact = ""
+		}
+		scanCfg := handler.ImageScanConfig{
+			EvidenceDir: cfg.ImageScanEvidenceDir, AlertEmail: cfg.ImageScanAlertEmail,
+			ReportOrg: cfg.ImageScanReportOrg, ReportName: cfg.ImageScanReportName, ReportEmail: cfg.ImageScanReportEmail,
+			AutoReport: cfg.PhotoDNAAutoReport, PublicBaseURL: cfg.PublicBaseURL,
+		}
+		if scanCfg.EvidenceDir == "" {
+			scanCfg.EvidenceDir = filepath.Join(cfg.DataDir, ".evidence")
+		}
+		if scanCfg.AlertEmail == "" {
+			scanCfg.AlertEmail = contact
+		}
+		if scanCfg.ReportEmail == "" {
+			scanCfg.ReportEmail = contact
+		}
+		// A report needs the organisation, a name, and an email on it.
+		var reporter imagescan.Reporter
+		if scanCfg.ReportOrg != "" && scanCfg.ReportName != "" && scanCfg.ReportEmail != "" {
+			reporter = client
+		}
+		imageScan = handler.NewImageScan(db, diskStorage, client, reporter, mailer, scanCfg)
+		siteHandler.SetImageScan(imageScan)
+		if hackEvents != nil {
+			hackEvents.SetImageScan(imageScan)
+		}
+		handler.SetImageScanOn(true)
+		reports := "reports from the admin page"
+		if reporter == nil {
+			reports = "reports off (set IMAGE_SCAN_REPORT_ORG, IMAGE_SCAN_REPORT_NAME, and a report email)"
+		} else if cfg.PhotoDNAAutoReport {
+			reports = "reports filed automatically"
+		}
+		alerts := "alerts to " + scanCfg.AlertEmail
+		if scanCfg.AlertEmail == "" {
+			alerts = "no alert address (log only)"
+		}
+		log.Printf("image matching on (photodna); %s; %s; evidence in %s", reports, alerts, scanCfg.EvidenceDir)
+	}
+
 	// Event hostnames for hackathon organisers. Off unless a DNS token and at
 	// least one domain are configured, so a self-hosted instance never tries to
 	// hand out names under a domain it does not control.
@@ -526,6 +586,7 @@ func main() {
 	siteHandler.StartNotifications(ctx)
 	siteHandler.StartAddressFamilies(ctx)
 	siteHandler.StartNetworkUsage(ctx)
+	imageScan.Start(ctx)
 	if paper != nil {
 		paper.Start(ctx)
 	}

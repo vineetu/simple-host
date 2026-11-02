@@ -329,6 +329,25 @@ What follows from that, and is not negotiable without changing the line above:
   owner correction 2026-10-25, building is not Simple Host's job and posting is not
   Simple Hack's job.
 
+- **2026-10-24. Image hash matching through PhotoDNA (SIM-200).** Every image written to a
+  site, to files storage, or as a Simple Hack event icon or entry screenshot is checked after
+  the write against hash sets of known child sexual abuse material through Microsoft PhotoDNA
+  Cloud Service. A Match check sends only the image bytes, never a visitor's or owner's IP
+  address, name, or email, and nothing is logged or stored beyond the evidence copy of a match.
+  A Report, which the law requires after a match, sends the image, the account details of the
+  uploader when known (the site owner for a site file; "anonymous visitor (no account)" for a
+  files-storage upload with nobody signed in), the site address or event, and the reporting organisation's
+  contact details to Microsoft's PhotoDNA Report service, which files it with NCMEC's
+  CyberTipline. On a match the file is quarantined to an evidence folder that outlives the
+  site and the account, removed from every served copy, the site (or event) is taken down with
+  the existing operator take-down with nothing else deleted, the operator is emailed, and a
+  CyberTipline report is filed with NCMEC through PhotoDNA, automatically or from a Report
+  button on the admin page. Cloudflare's scanning tool was ruled out because sites are not
+  proxied through Cloudflare; Google's Content Safety API is a classifier, not hash matching,
+  and Thorn Safer is paid. Shipped 2026-11-02 off by default (nothing runs until
+  `PHOTODNA_API_KEY` is set) pending the owner's PhotoDNA application. Reason: 18 U.S.C. 2258A
+  requires a provider to report apparent child sexual abuse material it learns of and to
+  preserve it, and the owner's standing rule that visitor IPs never leave the box.
 - **2026-10-24. Simple Hack notification phase 3.** Team members and organisers receive
   visitor-save events through MCP Events or signed webhooks, using the hosted engine and
   sealed secrets. New team subscriptions stop at submission deadlines; deliveries continue.

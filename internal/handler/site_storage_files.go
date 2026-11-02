@@ -18,6 +18,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/storage"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -40,7 +41,13 @@ func (h *SiteHandler) storageFilesDir(c storageCall) string {
 	return filepath.Join(h.storageRuntimeDir(c), "files", c.resourceName)
 }
 func (h *SiteHandler) storageFilePath(c storageCall, p string) string {
-	return filepath.Join(h.storageFilesDir(c), filepath.FromSlash(p))
+	return storageFileOnDisk(h.disk, c.ownerID, c.siteName, c.resourceName, p)
+}
+
+// storageFileOnDisk is where a files-storage object lives, from the parts
+// the image-scan worker holds (imagescan.go) as well as from a call.
+func storageFileOnDisk(disk *storage.DiskStorage, ownerID, siteName, resourceName, p string) string {
+	return filepath.Join(disk.SiteDir(ownerID, siteName), "runtime", "files", resourceName, filepath.FromSlash(p))
 }
 
 func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
@@ -182,6 +189,7 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		paperHackWrite(r)
+		h.imageScan.EnqueueStorageFile(c.siteID, c.resourceName, p, storageUploader(c), body)
 		h.disk.MarkChanged()
 		unlock()
 		h.emitNotification(c, "file.uploaded", map[string]any{"path": p, "size": len(body), "content_type": http.DetectContentType(body)})

@@ -96,6 +96,16 @@ owner's key.
 | `TURNSTILE_SITE_KEY` | none | text | The Cloudflare Turnstile site key for the spam check on the comments preset (anyone posts without signing in once the check passes). With no site key and secret, the preset is not offered. The widget's hostnames must include this server's own address (PUBLIC_BASE_URL), where the check runs in a small frame. |
 | `TURNSTILE_SECRET` | none | secret | The Turnstile secret key that goes with TURNSTILE_SITE_KEY. Prefer TURNSTILE_SECRET_FILE. **Security-sensitive.** |
 | `TURNSTILE_SECRET_FILE` | none | text | A file holding the Turnstile secret key (read once at start, used when TURNSTILE_SECRET is empty), for example a systemd credential: LoadCredential=turnstile-secret:/path and TURNSTILE_SECRET_FILE=%d/turnstile-secret. **Security-sensitive.** |
+| `PHOTODNA_API_KEY` | none | secret | Subscription key for Microsoft PhotoDNA Cloud Service, which checks uploaded images against known abuse hash sets. Empty: image matching is off and nothing is queued. Prefer PHOTODNA_API_KEY_FILE. **Security-sensitive.** |
+| `PHOTODNA_API_KEY_FILE` | none | text | A file holding the PhotoDNA key, read once at start when PHOTODNA_API_KEY is empty, for example a systemd credential: LoadCredential=photodna-key:/etc/simple-host-secrets/photodna-key and Environment=PHOTODNA_API_KEY_FILE=%d/photodna-key. Unreadable: matching is off, with a warning in the log. **Security-sensitive.** |
+| `PHOTODNA_MATCH_URL` | `https://api.microsoftmoderator.com/photodna/v1.0/Match` | text | The PhotoDNA Match operation. |
+| `PHOTODNA_REPORT_URL` | `https://api.microsoftmoderator.com/photodna/v1.0/Report` | text | The PhotoDNA Report operation, which files a CyberTipline report with NCMEC through PhotoDNA. |
+| `PHOTODNA_AUTO_REPORT` | `off` | `off` / `on` | on: every match is reported through the Report operation as soon as it is recorded. off: the admin Moderation tab offers a Report button per match. |
+| `IMAGE_SCAN_REPORT_ORG` | none | text | Organisation name on reports. Reports are off until this, IMAGE_SCAN_REPORT_NAME, and the report email are all set. |
+| `IMAGE_SCAN_REPORT_NAME` | none | text | Reporter's name on reports. Reports are off without it. |
+| `IMAGE_SCAN_REPORT_EMAIL` | `the support contact` | text | Reporter's email on reports. |
+| `IMAGE_SCAN_ALERT_EMAIL` | `the support contact` | text | Where each match alert is emailed. |
+| `IMAGE_SCAN_EVIDENCE_DIR` | `<DATA_DIR>/.evidence` | text | Folder for the quarantined copy and the record of each match (mode 0700, under no served path). Must be writable by the service (ReadWritePaths on a hardened unit). |
 | `WRITE_AUTH_MODE` | `log` | `off` / `log` / `on` | on: page saves need a signed-in visitor or the owner's key. log: allowed, and logged. **Security-sensitive.** |
 | `LEGACY_STORAGE_CUTOFF` | `off` | text | YYYY-MM-DD (00:00 UTC that day): sites created on or after this date get 410 legacy_storage_closed from the old saved-state, collections and declared-data routes. Empty or off disables the gate (the default, so self-hosted boxes are unchanged). An unparsable value logs a warning at boot and disables the gate. simple-host.app: 2026-10-12. |
 <!-- /settings -->
