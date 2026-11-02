@@ -129,6 +129,30 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-02. A schedule that acts (feature audit item 10).** The event's real times show in
+  the schedule by themselves as fixed, non-editable rows that can never drift: event start and
+  end, the entry deadline (and a team's own extension in that team's view), the voting window
+  and results published once known. They are computed from the settings on every read, never
+  copied, and each says where it is set ("Set in Entries", with a link for organisers). The
+  schedule nudges people at the right time: participant Home shows "<item> starts in 15
+  minutes" and "<item> is on now", and the organiser's next step picks up a schedule row that
+  lines up with a forward stage move ("Kickoff is now. Open sign-up?", "Entries are due now.
+  Close entries?"). The nudge is an in-app line only. The schedule sends no email of its own,
+  because deadline reminder emails are being built separately. It never acts by itself:
+  schedule rows never move stages, because a delayed kickoff must not close entries early. It
+  only prompts, and the organiser presses the button. Reason: owner, 2026-11-02.
+- **2026-11-02. A schedule that acts, the coordinator's calls (open to the owner's override).**
+  An organiser links a typed row to a move with "When this starts, ask to" (Open sign-up,
+  Start building, Close entries, Start judging, Finish judging, Publish results; never End
+  event, which is final). The entry deadline always asks to close entries, a start with a time
+  of day asks to start building, and an end with a time asks to close entries when there is no
+  deadline. A date with no time shows as All day and prompts nothing, since Basics saves dates
+  only. The latest row whose time has come wins, and the cue stays until the stage moves. A
+  team's extension replaces the event deadline in that team's view rather than adding a second
+  row. Judges get no schedule changes. Prompts are shown to organisers only. No migration: the
+  prompt lives in the existing schedule JSON. Reason: small, reversible calls made to build it
+  end to end without waiting on the owner.
+
 - **2026-10-31. Anyone can leave an event (SIM-340).** Participants, judges and organisers can
   all leave an event they are in, from the website (Overview, Settings, or a Home row menu) or
   an AI app. The only organiser is told up front that leaving closes the event, and chooses

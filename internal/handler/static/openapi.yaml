@@ -8505,7 +8505,7 @@ paths:
       x-audience: ["public-hack"]
       tags: ["Hosted events"]
       operationId: getHackEventContent
-      summary: Read sponsors, FAQ and schedule as an event member (EVENTS=hosted only)
+      summary: Read sponsors, FAQ, schedule and the fixed schedule rows as an event member (EVENTS=hosted only)
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -11301,7 +11301,7 @@ paths:
       tags: ["Hosted events"]
       operationId: getHackPublicEvent
       summary: Public, credentialless event data for custom websites (EVENTS=hosted)
-      description: Cross-origin GET is allowed without credentials. Private join codes, contact addresses, unpublished scores, voter identities, open-vote counts and approval_required are omitted. Adds applications_open and, only when true, apply_url.
+      description: Cross-origin GET is allowed without credentials. Private join codes, contact addresses, unpublished scores, voter identities, open-vote counts and approval_required are omitted. Adds applications_open and, only when true, apply_url. fixed_schedule lists the event's real times as read-only schedule rows (HackFixedScheduleRow, without prompts), and schedule rows carry no prompt.
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
       responses:
@@ -14379,6 +14379,53 @@ components:
               description: { type: string }
               start_at: { type: string, description: Event-local datetime on write; RFC 3339 UTC on read }
               end_at: { type: string, description: Event-local datetime on write; RFC 3339 UTC on read }
+              prompt:
+                type: string
+                enum: [open, building, closed, judging, results, publish_results]
+                description: Optional. The forward move the organiser's next step asks for once this row starts (next_step.cue). It never moves the stage. Returned to organisers only. Any other value is 400 invalid_schedule_prompt.
+        fixed_schedule:
+          type: array
+          readOnly: true
+          description: >-
+            The event's real times as read-only schedule rows, computed from its settings on every
+            read and never stored (a schedule that acts, 2026-11-02). Ignored on PUT, and a schedule
+            row sent with fixed true is dropped. A participant whose team was given more time sees
+            team_deadline in place of entry_deadline.
+          items: { $ref: '#/components/schemas/HackFixedScheduleRow' }
+    HackFixedScheduleRow:
+      type: object
+      required: [key, title, description, start_at, end_at, all_day, fixed, set_in]
+      properties:
+        key: { type: string, enum: [event_start, event_end, entry_deadline, team_deadline, voting, results_published] }
+        title: { type: string, example: Entries due }
+        description: { type: string }
+        start_at: { type: string, format: date-time }
+        end_at: { type: string, format: date-time, nullable: true, description: Null for a moment such as a deadline; set for the voting window. }
+        all_day: { type: boolean, description: An event start or end saved as a date only. Shown without a time and never prompts or nudges. }
+        fixed: { type: boolean, enum: [true] }
+        set_in: { type: string, enum: [basics, entries, results], description: Where the organiser changes it. }
+        prompt: { type: string, description: Organisers only. The move this row asks for once its time comes (entry_deadline asks closed). }
+    HackNextStep:
+      type: object
+      description: The organiser Overview's one forward move, computed by the server.
+      properties:
+        kind: { type: string, enum: [stage, publish_results, none] }
+        stage: { type: string }
+        label: { type: string, example: Close entries }
+        deadline_passed: { type: boolean }
+        blocked: { type: string, nullable: true, enum: [archive_needs_participants] }
+        cue:
+          type: object
+          nullable: true
+          description: The latest schedule row (typed with a prompt, or fixed) that lines up with this move and whose time has come. It only words the card. The stage never moves by itself.
+          properties:
+            key: { type: string, description: The fixed row's key, or empty for a typed row. }
+            title: { type: string }
+            start_at: { type: string, format: date-time }
+            end_at: { type: string, format: date-time, nullable: true }
+            fixed: { type: boolean }
+            now: { type: boolean, description: True during the row's window, or within 15 minutes of a moment. }
+            text: { type: string, example: "Kickoff is now. Open sign-up?" }
     HackEventAnnouncement:
       type: object
       properties:
@@ -14400,6 +14447,10 @@ components:
         admin_view:
           type: boolean
           description: True when the platform admin reads an event it is not in. Writes on these routes are refused.
+        next_step:
+          description: Present for an organiser, and when the platform admin reads the event.
+          allOf:
+            - $ref: '#/components/schemas/HackNextStep'
 
     HackTeamKeyStatus:
       type: object

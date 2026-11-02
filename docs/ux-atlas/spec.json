@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updated": "2026-10-31",
+ "updated": "2026-11-02",
  "summary": [
   "Home (top left: the Simple Hack wordmark and your name) is always one click away. The event switcher sits one level below it -- it lists all your events with your role in each, and the sidebar below it changes with that role.",
   "Home itself is a full page: your events grouped by what needs you first, each with its role, stage and a plain next action, plus Find a hackathon, Create event and Account.",
@@ -622,7 +622,7 @@
     {
      "name": "deadline passed, still Building",
      "when": "submission_deadline has passed and stage is still Building",
-     "shows": "the same card turns amber: 'The entry deadline has passed' / 'Close entries so judges can start scoring. Teams with their own extension keep it.' with Close entries. No separate warning note any more."
+     "shows": "the same card turns amber, and the entry deadline's fixed schedule row words it: 'Entries were due at 6:00 pm. Close entries?' / 'Close entries so judges can start scoring. Teams with their own extension keep it.' / 'From your schedule. Nothing changes until you press Close entries.' with Close entries. No separate warning note."
     },
     {
      "name": "Closed, ready to start judging",
@@ -673,6 +673,11 @@
      "name": "viewing as platform admin",
      "when": "the Simple Host platform admin opened this event",
      "shows": "the read-only banner, and the next-step button disabled with every other control"
+    },
+    {
+     "name": "a schedule row lines up with the next move",
+     "when": "next_step.cue is set: a row asking for this move (or the entry deadline, or a timed event start or end) has started",
+     "shows": "heading 'Kickoff is now. Open sign-up?', the move's sentence, 'From your schedule. Nothing changes until you press Open sign-up.' The button and its confirm are unchanged. The stage moves only on the press."
     }
    ],
    "replaces": [
@@ -731,6 +736,11 @@
      "q": "Should Overview block moving to Judging while a team has no track in panel mode (audit item 2, 2026-11-02)?",
      "decision": "Warn, don't block. Name the affected teams on the card itself before Start judging is even clicked, repeat the count in the confirm, and link to Teams so the organiser can fix it there or move on anyway.",
      "why": "Picked over blocking: an organiser may want to start judging the tracked teams right away and assign the rest later, or simply decide not to judge an abandoned team. Silent dropping (today's behaviour) was the actual bug, not the ability to proceed."
+    },
+    {
+     "q": "Does the schedule move the stage at its time? (owner, 2026-11-02)",
+     "decision": "Never. The server adds next_step.cue (the latest row lining up with the move whose time has come, with the wording) and Overview asks. AI apps read the same cue through hack_get_event. A delayed kickoff therefore never closes entries early.",
+     "why": "Owner 2026-11-02: it never acts by itself, it only prompts, and the organiser presses the button."
     }
    ],
    "features": [
@@ -743,7 +753,8 @@
     "replay-organiser-walkthrough",
     "view-as-platform-admin",
     "move-event-forward",
-    "warn-teams-without-track"
+    "warn-teams-without-track",
+    "schedule-row-prompt"
    ],
    "prototype_states": [
     {
@@ -811,6 +822,12 @@
      "name": "Guided walkthrough, the next-step step",
      "stage": "building",
      "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "schedule-cue",
+     "name": "Kickoff is now. Open sign-up?",
+     "stage": "draft",
+     "next": "Not open yet"
     }
    ],
    "next_step_map": [
@@ -883,6 +900,13 @@
      "sentence": "The public page stays up as a record.",
      "button": "none",
      "does": "nothing"
+    },
+    {
+     "when": "Any forward move, once a schedule row lining up with it has come (next_step.cue)",
+     "h2": "The cue replaces the heading: 'Kickoff is now. Open sign-up?', 'Entries are due now. Close entries?'. After the row's window (or 15 minutes after a deadline): 'Kickoff was at 9:00 am. Open sign-up?', 'Entries were due at 6:00 pm. Close entries?'",
+     "sentence": "The move's own sentence stays, then a small line: 'From your schedule. Nothing changes until you press Open sign-up.'",
+     "button": "unchanged",
+     "does": "nothing new: the same confirm and the same POST. The cue only words the card"
     }
    ]
   },
@@ -923,10 +947,12 @@
      "url": "?s=event-page&tab=schedule",
      "holds": [
       "add-schedule-item",
+      "schedule-fixed-rows",
+      "schedule-row-prompt",
       "reorder-remove-content-rows (remove only, see decisions)"
      ],
      "save": "list: each dialog Save, and each Remove, writes straight away",
-     "empty": "empty-state card: 'Nothing scheduled yet' + Add time"
+     "empty": "empty-state card: 'Nothing scheduled yet' + Add time, only when there are no typed rows and no fixed rows either (no dates, deadline or voting yet). The card says the dates and entry deadline show here on their own once set."
     },
     {
      "tab": "sponsors",
@@ -1024,10 +1050,12 @@
      "name": "Schedule",
      "contents": [
       "Rows grouped under a day header (in the event's zone), always in start-time order",
-      "Row: start time (bold) and end ('– 19:00', or '– Sun 18:00' when it ends on another day), title, details on one line ('No details' when empty), a Now or Next pill on the current and next item",
-      "Row actions on the right: Edit (quiet) and the row menu (… : Edit, then Remove in red). Clicking the row's title also opens Edit; on a phone the whole row does and only … shows",
-      "Add time / Edit time dialog: Title (required, 120), Details (optional, 500), Starts (date + time), Ends (date + time). Dialog sub-line: 'Times are in WIB (Asia/Jakarta).' Error under Ends: 'Ends must be after it starts.'",
-      "Up to 100 items"
+      "Row: start time (bold) and end ('– 7:00 pm', or '– Sun 6:00 pm' when it ends on another day), title, details on one line ('No details' when empty), a Now or Next pill on the current and next item. 12-hour times, from ui.dateTime",
+      "Fixed rows, merged in time order: Event starts and Event ends (from Basics; 'All day' when the date has no time), Entries due (from Entries), People's choice voting (from Results, when voting is on), Results published (once published). Each shows 'Set in Basics/Entries/Results' as a link and a 'Fixed' pill with a lock, and has no Edit or menu. Under the list: 'Rows marked Fixed come from your event settings, so they always match. Change them where they are set.'",
+      "A row that asks for a next step shows a faint line 'Then asks: Close entries?' under its details. Entries due always asks to close entries",
+      "Row actions on the right (typed rows only): Edit (quiet) and the row menu (… : Edit, then Remove in red). Clicking the row's title also opens Edit; on a phone the whole row does and only … shows",
+      "Add time / Edit time dialog: Title (required, 120), Details (optional, 500), Starts (date + time), Ends (date + time), 'When this starts, ask to' (optional select: Nothing, Open sign-up, Start building, Close entries, Start judging, Finish judging, Publish results; help: 'Overview asks you at this time, like “Kickoff is now. Open sign-up?” Nothing changes until you press the button.'). Dialog sub-line: 'Times are in WIB (Asia/Jakarta).' Error under Ends: 'Ends must be after it starts.'",
+      "Up to 100 typed items. The sub-nav count includes the fixed rows"
      ],
      "actions": [
       {
@@ -1203,12 +1231,12 @@
     {
      "name": "Schedule",
      "when": "items exist",
-     "shows": "day-grouped rows with Now/Next"
+     "shows": "day-grouped rows with Now/Next, the fixed rows (Event starts, Entries due, voting, Event ends) merged in with their 'Set in' links and Fixed pills, and 'Then asks' lines on rows that prompt a next step"
     },
     {
      "name": "Add time dialog",
      "when": "Add time or Edit pressed",
-     "shows": "dialog (a bottom sheet on a phone)"
+     "shows": "dialog (a bottom sheet on a phone) with the optional 'When this starts, ask to' select"
     },
     {
      "name": "Schedule empty",
@@ -1341,6 +1369,26 @@
      "q": "Can the Event page be edited after the event ends?",
      "decision": "Basics, About, colour and the ‘Show entries’ switch stay editable after End, with the note ‘This event has ended. You can still fix the page text and colour.’ Sponsors, FAQ, the event icon, Schedule, Website and Announcements are read-only after End.",
      "why": "The server refuses those changes after End -- PUT /content (schedule, sponsors, FAQ), PUT/DELETE /icon, PATCH/PUT /website and posting an announcement all answer 409 event_ended/event_closed once the event is archived, while PATCH on the event itself (title, tagline, about, prizes, rules, coc_text, accent_color, gallery_open, dates, time zone) keeps working. Matching the UI to that avoids promising edits that fail. Decided 2026-10-31 (coordinator, correcting the 2026-10-30 reading, which had this backwards)."
+    },
+    {
+     "q": "Where do the real deadlines live in the schedule? (owner, 2026-11-02)",
+     "decision": "They appear automatically as fixed rows: event start and end, the entry deadline, the voting window and results published. The server computes them from the settings on every read and never stores them, so they can never drift. They can't be edited here. Each carries 'Set in Entries' (or Basics, Results) linking to where it changes.",
+     "why": "Owner 2026-11-02: a row saying submissions close at 5pm could say one time while the real deadline said another. Copying the time in would drift the first time either changed."
+    },
+    {
+     "q": "Can a schedule time move the event's stage? (owner, 2026-11-02)",
+     "decision": "No. A typed row can be set to ask for a forward move when it starts ('When this starts, ask to'), and Entries due always asks to close entries, but the stage only moves when the organiser presses the button on Overview.",
+     "why": "Owner 2026-11-02: a delayed kickoff must not close entries early. The schedule prompts. The organiser decides."
+    },
+    {
+     "q": "Which moves can a row ask for?",
+     "decision": "The forward moves next_step offers: Open sign-up, Start building, Close entries, Start judging, Finish judging, Publish results. Not End event.",
+     "why": "Those are the moves people time to a schedule. Ending is final and never urgent, so it stays a deliberate action."
+    },
+    {
+     "q": "Do the event's dates prompt anything?",
+     "decision": "A start or end with a time of day does (start asks to Start building, end asks to Close entries when there is no entry deadline). A date with no time shows as 'All day' and prompts nothing.",
+     "why": "Basics saves dates only, so most events start at midnight on paper. Prompting at midnight would be noise."
     }
    ],
    "features": [
@@ -1357,7 +1405,9 @@
     "reorder-remove-content-rows",
     "add-faq",
     "add-schedule-item",
-    "toggle-gallery-open"
+    "toggle-gallery-open",
+    "schedule-fixed-rows",
+    "schedule-row-prompt"
    ],
    "prototype_states": [
     {
@@ -3271,9 +3321,11 @@
      ]
     },
     {
-     "name": "Coming up",
+     "name": "Starting soon / on now (above the next step)",
      "contents": [
-      "Entries close 28 Oct 2026, 18:17"
+      "Shown only when a schedule row (typed or fixed) starts within 15 minutes or is on now: '.note.info' 'Demos starts in 12 minutes. Build time is on now. See schedule'",
+      "On now alone: 'Build time is on now. Until Sun 1 Nov, 6:00 pm.' Deadlines read 'Entries are due in 12 minutes.'",
+      "Counts down every 30 seconds while Home is open, appearing and going as rows start and end. Not shown once the event has ended"
      ],
      "actions": []
     },
@@ -3416,6 +3468,11 @@
      "name": "team admin, someone asked to join",
      "when": "the participant is an admin of their team, it has pending join requests, and nothing higher on the list applies (results, removal notice, entry missing)",
      "shows": "next-step card '2 people asked to join Kopi Kode' / 'Say yes or no on your Team page.' with See requests (to Team, Members). Members who aren't admins never see this card."
+    },
+    {
+     "name": "a schedule row starts soon or is on now",
+     "when": "a timed row starts within 15 minutes, or its window contains now",
+     "shows": "the one-line nudge above Your next step, linking to Schedule"
     }
    ],
    "replaces": [],
@@ -3434,7 +3491,8 @@
     "replay-participant-walkthrough",
     "leave-event",
     "withdraw-application",
-    "see-event-stage"
+    "see-event-stage",
+    "schedule-nudge"
    ],
    "prototype_states": [
     {
@@ -3484,6 +3542,12 @@
      "name": "Team admin with join requests",
      "stage": "building",
      "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "starting-soon",
+     "name": "Building, Demos starts in 12 minutes",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
     }
    ],
    "decisions": [
@@ -3526,6 +3590,11 @@
      "q": "How does an admin notice a join request?",
      "decision": "Home's next-step card says so when nothing more urgent applies, and the sidebar's Team item shows the pending count to admins only.",
      "why": "Only admins can now say yes, so the request has to reach them without anyone else nudging."
+    },
+    {
+     "q": "How does the schedule nudge a participant? (owner, 2026-11-02)",
+     "decision": "One line on Home (and Schedule), in the app only: '<item> starts in N minutes' from 15 minutes before, '<item> is on now' during it. The schedule sends no email of its own.",
+     "why": "Owner 2026-11-02: nudge people at the right time, ideally an in-app line. Deadline reminder emails are built separately, so the schedule must not send a second copy."
     }
    ]
   },
@@ -3537,14 +3606,14 @@
    "user_moment": "Siti checks when demos start.",
    "purpose": "Read the event's schedule.",
    "primary_action": "None -- read-only.",
-   "layout": "A plain chronological .list, Now/Next labelled.",
+   "layout": "Times-are-in line, then the starting-soon / on-now line when there is one, then one chronological .sched list with Now/Next pills.",
    "sections": [
     {
      "name": "Schedule",
      "contents": [
-      "Kickoff & team formation -- 28 Oct 2026, 18:27",
-      "Build time -- 28 Oct 2026, 19:27 (Now)",
-      "Demos & judging -- 29 Oct 2026, 04:27 (Next)"
+      "The organisers' rows and the fixed rows in one list, in time order: Event starts (date only when it has no time), Kickoff and team formation · Fri 30 Oct, 6:00 pm – 7:00 pm, Build time (Now), Mentor office hours (Next), Entries due · Sun 1 Nov, 6:00 pm, People's choice voting, Event ends",
+      "A team given more time sees 'Entries due for your team' at its own time, with 'Your team was given more time.' in place of the event's deadline",
+      "Above the list, when a row starts within 15 minutes or is on now: '.note.info' 'Mentor office hours starts in 12 minutes. Build time is on now.' It counts down while the page is open"
      ],
      "actions": []
     }
@@ -3552,8 +3621,18 @@
    "states": [
     {
      "name": "empty",
-     "when": "organiser hasn't added any times",
-     "shows": "'Nothing scheduled yet. Check back soon.'"
+     "when": "no typed rows and no dates, deadline or voting set",
+     "shows": "'Nothing scheduled yet. Times show here once the organisers add them.'"
+    },
+    {
+     "name": "starting soon or on now",
+     "when": "a timed row starts within 15 minutes, or a window is on now",
+     "shows": "the one-line nudge above the list (the same line Home shows)"
+    },
+    {
+     "name": "team with an extension",
+     "when": "the organiser gave this team more time",
+     "shows": "'Entries due for your team' at the team's own deadline, not the event's"
     }
    ],
    "replaces": [],
@@ -3561,17 +3640,25 @@
     "Gives the schedule a stable, findable home instead of only appearing embedded at the top of another page."
    ],
    "features": [
-    "read-schedule-and-announcements"
+    "read-schedule-and-announcements",
+    "schedule-fixed-rows",
+    "schedule-nudge"
    ],
    "prototype_states": [
     {
      "slug": "default",
      "name": "Mid-event",
      "stage": "building",
-     "next": "Entries close in 2 days · Sun 18:00 WIB"
+     "next": "Entries close in 2 days · Sun 6:00 pm"
     }
    ],
-   "decisions": [],
+   "decisions": [
+    {
+     "q": "Do participants see the real deadlines in the schedule? (owner, 2026-11-02)",
+     "decision": "Yes, as ordinary rows in time order. Their own team's extension replaces the event deadline in their view. No 'Set in' note, since they can't change it.",
+     "why": "The schedule is where they look for what is next. The deadline that matters to them is their own."
+    }
+   ],
    "phone": "Single column, same content, full width."
   },
   {
@@ -4613,6 +4700,11 @@
      "q": "What does the top bar say for a judge?",
      "decision": "The event's stage like everyone else (pill plus the track on Home), then a scoring pill: Scoring open, Scoring locked or Scoring not open. Nothing else on judge screens changes.",
      "why": "Owner, 2026-10-31, top bar for judges and participants. The judge UX is otherwise fine, so this is the only judge change."
+    },
+    {
+     "q": "Do judges get the schedule's fixed rows or nudges? (2026-11-02)",
+     "decision": "No change. Judges have no Schedule section. Their timing is the scoring lock and the queue, which Home already shows. The public page's Schedule is one link away.",
+     "why": "Nothing in 'a schedule that acts' changes what a judge does or when. Adding a screen for it would be clutter."
     }
    ],
    "features": [
@@ -5759,11 +5851,14 @@
     },
     {
      "name": "Schedule",
-     "stages": "all but taken down (when items exist). Collapsed in Results and Ended",
+     "stages": "all but taken down (when typed rows or fixed rows exist). Collapsed in Results and Ended",
      "contents": [
-      "[Now] Kickoff and team formation · Wed 28 Oct, 09:00–10:00 WIB · Welcome, rules and finding teammates.",
-      "[Next] Build time · Wed 28 Oct 10:00 – Thu 29 Oct 18:00 WIB · Mentors are on call.",
-      "Demos and judging · Thu 29 Oct, 19:00–21:00 WIB · Teams present, judges score.",
+      "Event starts · Wed 28 Oct (a date with no time shows the date only)",
+      "[Now] Kickoff and team formation · Wed 28 Oct, 9:00 am–10:00 am WIB · Welcome, rules and finding teammates.",
+      "[Next] Build time · Wed 28 Oct 10:00 am – Thu 29 Oct 6:00 pm WIB · Mentors are on call.",
+      "Entries due · Thu 29 Oct, 6:00 pm WIB (fixed: from the entry deadline, one time)",
+      "Demos and judging · Thu 29 Oct, 7:00 pm–9:00 pm WIB · Teams present, judges score.",
+      "People's choice voting while voting is on, Results published once out, Event ends",
       "Now and Next are words in a pill, not colour alone"
      ],
      "actions": []
@@ -6069,13 +6164,19 @@
      "q": "An organiser's own uploaded site at the event address: where is Apply?",
      "decision": "On the built-in page at simple-hack.app/e/<slug> as always. The organiser can link their own site to simple-hack.app/e/<slug>/apply; organiser-api.md says so.",
      "why": "The redesign touches only the built-in page; the apply address is stable and works from anywhere."
+    },
+    {
+     "q": "Does the public schedule show the real deadlines? (owner, 2026-11-02)",
+     "decision": "Yes. The event's start and end, the entry deadline, the voting window (while voting is on) and results published are merged into the Schedule as rows, computed from the settings, so the page never shows a stale time. No prompts and no team extensions on the public page.",
+     "why": "Prospects and participants check the Schedule for when things happen. The deadline is the time that matters most and must match the countdown."
     }
    ],
    "features": [
     "view-public-event-page",
     "view-public-results-page",
     "open-team-site-from-gallery",
-    "apply-to-event"
+    "apply-to-event",
+    "schedule-fixed-rows"
    ],
    "feature_ideas": [
     "(Done 2026-10-31, replaced by Apply) 1. Show a Join button on the public page.",

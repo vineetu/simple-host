@@ -124,9 +124,15 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 				})
 			}
 		}
+		fixedIn := hackFixedInputs{Event: ev, Now: time.Now()}
 		if voting, verr := db.GetVotingSettings(r.Context(), database, ev.ID); verr == nil {
 			p.VoteStatus = votingStatus(ev, voting, time.Now())
+			fixedIn.Voting = &voting
 		}
+		if res, rerr := db.GetEventResults(r.Context(), database, ev.ID); rerr == nil {
+			fixedIn.Results = res
+		}
+		p.Fixed = hackFixedSchedule(fixedIn)
 		if hackGalleryPublic(ev, ready) {
 			cards, gerr := db.ListGalleryCards(r.Context(), database, ev.ID, ev.AccountID)
 			if gerr != nil {

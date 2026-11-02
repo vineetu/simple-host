@@ -33,12 +33,34 @@ type hackScheduleItem struct {
 	Description string `json:"description"`
 	StartAt     string `json:"start_at"`
 	EndAt       string `json:"end_at"`
+	// Prompt is the forward move this row lines up with (hackScheduleMoves),
+	// or empty. Organisers only: hackPublicSchedule drops it for everyone else.
+	Prompt string `json:"prompt,omitempty"`
+	// Fixed is never stored. A fixed row sent back in a PUT (a client that
+	// wrote back what it read) is dropped: fixed rows come from settings.
+	Fixed bool `json:"fixed,omitempty"`
 }
 
 type hackContent struct {
 	Sponsors []hackSponsor      `json:"sponsors"`
 	FAQ      []hackFAQ          `json:"faq"`
 	Schedule []hackScheduleItem `json:"schedule"`
+}
+
+// hackContentView is what GET and PUT /content answer: the stored document
+// plus the fixed rows derived from the event's settings (hack_schedule.go).
+type hackContentView struct {
+	hackContent
+	FixedSchedule []hackFixedRow `json:"fixed_schedule"`
+}
+
+func (h *HackHandler) contentView(ctx context.Context, a hackAccess, c hackContent) (hackContentView, error) {
+	organiser := a.member.Role == "organiser" || a.admin
+	if !organiser {
+		c.Schedule = hackPublicSchedule(c.Schedule)
+	}
+	fixed, err := h.fixedScheduleFor(ctx, a.event, &a.member, organiser)
+	return hackContentView{hackContent: c, FixedSchedule: fixed}, err
 }
 
 func (h *HackHandler) registerContent(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
@@ -76,7 +98,12 @@ func (h *HackHandler) getContent(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, c)
+	view, err := h.contentView(r.Context(), a, c)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 func cleanLogo(s string) bool {
@@ -108,6 +135,13 @@ func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &c) {
 		return
 	}
+	editable := []hackScheduleItem{}
+	for _, s := range c.Schedule {
+		if !s.Fixed {
+			editable = append(editable, s)
+		}
+	}
+	c.Schedule = editable
 	if len(c.Sponsors) > 20 || len(c.FAQ) > 30 || len(c.Schedule) > 100 {
 		writeHackErr(w, http.StatusBadRequest, "invalid_content", "too many items")
 		return
@@ -168,6 +202,10 @@ func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {
 			writeHackErr(w, http.StatusBadRequest, "invalid_schedule", "each schedule item must end after it starts")
 			return
 		}
+		if _, known := hackScheduleMoves[s.Prompt]; s.Prompt != "" && !known {
+			writeHackErr(w, http.StatusBadRequest, "invalid_schedule_prompt", "prompt must be empty or one of open, building, closed, judging, results, publish_results")
+			return
+		}
 		s.StartAt, s.EndAt = start.Time.UTC().Format(time.RFC3339), end.Time.UTC().Format(time.RFC3339)
 	}
 	sponsors, _ := json.Marshal(c.Sponsors)
@@ -196,7 +234,12 @@ func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, c)
+	view, err := h.contentView(r.Context(), a, c)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 func (h *HackHandler) getAnnouncements(w http.ResponseWriter, r *http.Request) {

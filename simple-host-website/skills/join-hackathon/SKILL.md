@@ -26,6 +26,7 @@ Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs
 | Read/edit entry and screenshot | `hack_get_entry`, `hack_update_entry`, `hack_get_entry_screenshot`, `hack_set_entry_screenshot`, `hack_delete_entry_screenshot` |
 | Read the rubric (how the entry is judged) | `hack_get_rubric` |
 | Check team site and deadline | `hack_get_team_status`, `hack_get_my_teams` |
+| Read the schedule, with the event's real times | `hack_get_content` (`schedule` plus read-only `fixed_schedule`, which shows the team's own deadline when it was given more time) |
 | Read choices, vote, see own result | `hack_get_voting`, `hack_get_my_vote`, `hack_vote`, `hack_get_my_results` |
 | Make private team archive link | `hack_export_own_team_archive` |
 | Account theme | `hack_get_preferences`, `hack_set_preferences` |

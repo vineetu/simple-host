@@ -1,6 +1,7 @@
 import { href } from '../nav.js'
 import { startTour } from '../tour.js'
 import { previewLeave, openLeave, participantWarning } from '../leave.js'
+import { merge, nudgeHTML, keepNudgeFresh } from '../schedule.js'
 
 export function title() { return 'Overview' }
 
@@ -80,6 +81,19 @@ async function announcementsCard(api, ui, allHref, scheduleHref, slug, ev) {
     ).join('<hr class="rule">')
     return `<div class="card"><h2>Latest announcements</h2>${rows}<div class="row-flex"><a class="btn" href="${esc(allHref)}">All announcements</a><a class="btn quiet" href="${esc(scheduleHref)}">Schedule</a></div></div>`
   } catch (e) { return '' }
+}
+
+// A schedule that acts (owner, 2026-11-02): a row starting within 15
+// minutes, or on now, shows as one line above the next step ("Demos starts
+// in 12 minutes", "Build time is on now"), counting down while Home is open.
+// The rows include the event's real times (the entry deadline, or this
+// team's own extension). In the app only: the schedule sends no email.
+async function scheduleRows(api, slug) {
+  try {
+    const r = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/content')
+    if (!r.ok || !r.data) return []
+    return merge(r.data.schedule, r.data.fixed_schedule)
+  } catch (e) { return [] }
 }
 
 // Leave this event: danger zone last on the page. Round-5 C1: this row now
@@ -216,9 +230,11 @@ export async function render(ctx) {
     heroHref = entryHref
   }
 
-  const [news, preview] = await Promise.all([
+  const live = ev.stage !== 'archived' && !ev.taken_down
+  const [news, preview, rows] = await Promise.all([
     announcementsCard(api, ui, announcementsHref, scheduleHref, slug, ev),
-    previewLeave(client, slug).then(r => (r.ok ? r.data : null)).catch(() => null)
+    previewLeave(client, slug).then(r => (r.ok ? r.data : null)).catch(() => null),
+    live ? scheduleRows(api, slug) : Promise.resolve([])
   ])
   if (!ctx.alive()) return
 
@@ -228,11 +244,17 @@ export async function render(ctx) {
   const rubricCard = `<div class="card"><h2>How you're judged</h2><p>See the rubric the judges use to score your entry: criteria, descriptions and points.</p><a class="btn" href="${esc(entryHref)}">See the rubric</a></div>`
 
   main.innerHTML = `<div class="ph"><div class="t"><h1>${esc(ev.title)}</h1></div></div>`
+    + '<div id="home-nudge"></div>'
     + (justPlaced ? `<div class="note ok"><b>You are on ${esc(me.team.name)} now.</b> <a href="${esc(teamHref)}">Meet your team</a></div>` : '')
     + `<div class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>${esc(heroTitle)}</h2>${heroNote ? `<p>${esc(heroNote)}</p>` : ''}</div>${heroLabel ? `<a class="btn primary" ${heroExternal ? 'target="_blank" rel="noopener" ' : ''}href="${esc(heroHref)}">${esc(heroLabel)}</a>` : ''}</div>`
     + rubricCard
     + news
     + participantDangerZone(ui, preview, ev)
+
+  const nudgeHost = main.querySelector('#home-nudge')
+  const paintNudge = () => { nudgeHost.innerHTML = nudgeHTML(ui, ev, rows, scheduleHref) }
+  paintNudge()
+  if (rows.length) keepNudgeFresh(ctx, nudgeHost, paintNudge)
 
   const leaveBtn = main.querySelector('#leave-btn')
   if (leaveBtn && !leaveBtn.disabled) leaveBtn.addEventListener('click', () => openLeave({ api: client, ui, slug, title: ev.title, from: 'participant-home' }))

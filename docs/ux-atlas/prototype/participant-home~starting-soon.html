@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview · Starting soon · Simple Hack prototype</title>
+<link rel="stylesheet" href="kit.css"><script src="nav.js"></script><script src="shell.js" defer></script></head>
+<body class="booting" data-role="participant" data-nav="home" data-stage="Building" data-next="Entries close in 2 days · Sun 6:00 pm">
+<main class="page">
+<div class="ph"><div class="t"><h1>Overview</h1><p>Generation Girl Online Hack 2026</p></div></div><div class="note info" role="status"><b>Demos starts in 12 minutes.</b> Build time is on now. <a href="participant-schedule.html">See schedule</a></div><section class="next"><div class="t"><p class="k">Your next step</p><h2>Keep building. Entries close Sun 1 Nov, 6:00 pm</h2></div><a class="btn primary lg" href="participant-entry.html">Go to your entry</a></section><div class="card"><h2>Latest announcements</h2><h3>Demos are at 7</h3><p class="small muted">Sun 1 Nov</p><p>Two minutes per team. Have your site open and ready.</p><div class="row-flex"><a class="btn" href="participant-announcements.html">All announcements</a><a class="btn quiet" href="participant-schedule.html">Schedule</a></div></div>
+</main>
+<script>
+(function(){
+  function closeAll(except){ document.querySelectorAll('.row-menu').forEach(function(m){ if(m!==except){ m.hidden=true; var b=m.parentNode.querySelector('[data-rowmenu]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-rowmenu]');
+    if(!b){ if(!e.target.closest('.row-menu')) closeAll(null); return; }
+    var m=b.parentNode.querySelector('.row-menu'); closeAll(m); m.hidden=!m.hidden; b.setAttribute('aria-expanded',String(!m.hidden));
+  });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeAll(null); });
+  document.querySelectorAll('button.toggle').forEach(function(t){ t.addEventListener('click',function(){ var on=t.classList.toggle('on'); t.setAttribute('aria-checked',String(on)); }); });
+  document.querySelectorAll('.choice input[data-go]').forEach(function(r){ r.addEventListener('change',function(){ location.href=r.getAttribute('data-go'); }); });
+  document.querySelectorAll('[data-copy]').forEach(function(b){ b.addEventListener('click',function(){ try{ navigator.clipboard.writeText(b.getAttribute('data-copy')); }catch(e){} b.textContent='Copied'; }); });
+  window.addEventListener('load',function(){ var cur=document.querySelector('.subnav [aria-current=page]'); if(cur&&window.matchMedia('(max-width:760px)').matches){ var n=cur.parentNode; n.scrollLeft=cur.offsetLeft-(n.clientWidth-cur.offsetWidth)/2; } });
+})();
+</script>
+</body></html>

@@ -44,6 +44,9 @@ type hackEventPage struct {
 	Announcements   []hackAnnouncementView
 	Deadline        time.Time
 	VoteStatus      string
+	// Fixed is the event's real times as schedule rows (hackFixedSchedule,
+	// public view: no prompts, no team rows).
+	Fixed []hackFixedRow
 }
 
 // hackAnnouncementView carries the raw time so the public page can format it
@@ -58,7 +61,10 @@ type hackSponsorView struct {
 	Logo            template.URL
 	Avatar          string // letters shown when there is no logo
 }
-type hackScheduleView struct{ Title, Description, When, Status string }
+type hackScheduleView struct {
+	Title, Description, When, Status string
+	Fixed                            bool // from the event's settings, not typed into Schedule
+}
 type hackTrackView struct{ Name, Challenge, Prize string }
 
 // hackResultsRow is one row the public page shows: winners-only has just the
@@ -387,7 +393,7 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 		v.Sponsors = append(v.Sponsors, sponsor)
 	}
 
-	v.Schedule = hackScheduleViews(p.Content.Schedule, loc, zoneFallback)
+	v.Schedule = hackScheduleViews(p.Content.Schedule, p.Fixed, loc, zoneFallback)
 	v.ScheduleCollapsed = effStage == "results" || effStage == "archived"
 	v.RulesCollapsed = v.ScheduleCollapsed
 
@@ -842,49 +848,69 @@ func hackDateRange(a, b time.Time) string {
 // marks Now/Next, and shows the end date too when an item spans more than one
 // day (tech_notes/fixes: "Multi-day schedule items showed only the end time").
 // A row with an unparseable time sorts last and is dropped below, same as
-// before.
-func hackScheduleViews(items []hackScheduleItem, loc *time.Location, zoneFallback string) []hackScheduleView {
-	items = append([]hackScheduleItem(nil), items...)
-	sort.SliceStable(items, func(i, j int) bool {
-		si, ei := time.Parse(time.RFC3339, items[i].StartAt)
-		sj, ej := time.Parse(time.RFC3339, items[j].StartAt)
-		if ei != nil {
-			return false
-		}
-		if ej != nil {
-			return true
-		}
-		return si.Before(sj)
-	})
-	now := time.Now()
-	next, ongoing := -1, -1
-	for i, item := range items {
+// before. The fixed rows (hack_schedule.go: the event's real start, end,
+// entry deadline, voting window and results) are merged in: a moment shows
+// one time, a date-only event start or end shows just the date and is never
+// Now or Next.
+func hackScheduleViews(items []hackScheduleItem, fixed []hackFixedRow, loc *time.Location, zoneFallback string) []hackScheduleView {
+	type row struct {
+		title, desc         string
+		start, end, sortAt  time.Time
+		hasEnd, allDay, fix bool
+	}
+	var rows []row
+	for _, item := range items {
 		start, e1 := time.Parse(time.RFC3339, item.StartAt)
 		end, e2 := time.Parse(time.RFC3339, item.EndAt)
 		if e1 != nil || e2 != nil {
 			continue
 		}
-		if ongoing < 0 && !now.Before(start) && now.Before(end) {
+		rows = append(rows, row{title: item.Title, desc: item.Description, start: start, end: end, sortAt: start, hasEnd: true})
+	}
+	for _, f := range fixed {
+		start, err := time.Parse(time.RFC3339, f.StartAt)
+		if err != nil {
+			continue
+		}
+		r := row{title: f.Title, desc: f.Description, start: start, sortAt: hackFixedSortTime(f, loc), allDay: f.AllDay, fix: true}
+		if f.EndAt != nil {
+			if end, err := time.Parse(time.RFC3339, *f.EndAt); err == nil {
+				r.end, r.hasEnd = end, true
+			}
+		}
+		rows = append(rows, r)
+	}
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].sortAt.Before(rows[j].sortAt) })
+	now := time.Now()
+	next, ongoing := -1, -1
+	for i, r := range rows {
+		if r.allDay {
+			continue
+		}
+		if ongoing < 0 && r.hasEnd && !now.Before(r.start) && now.Before(r.end) {
 			ongoing = i
 		}
-		if now.Before(start) && (next < 0 || item.StartAt < items[next].StartAt) {
+		if now.Before(r.start) && (next < 0 || r.start.Before(rows[next].start)) {
 			next = i
 		}
 	}
 	var out []hackScheduleView
-	for i, item := range items {
-		start, e1 := time.Parse(time.RFC3339, item.StartAt)
-		end, e2 := time.Parse(time.RFC3339, item.EndAt)
-		if e1 != nil || e2 != nil {
-			continue
-		}
-		ls, le := start.In(loc), end.In(loc)
-		abbr := hackZoneAbbr(le, zoneFallback)
+	for i, r := range rows {
+		ls := r.start.In(loc)
 		var when string
-		if ls.Year() == le.Year() && ls.Month() == le.Month() && ls.Day() == le.Day() {
-			when = ls.Format("Mon 2 Jan, 3:04 pm") + "–" + le.Format("3:04 pm") + " " + abbr
-		} else {
-			when = ls.Format("Mon 2 Jan 3:04 pm") + " – " + le.Format("Mon 2 Jan 3:04 pm") + " " + abbr
+		switch {
+		case r.allDay:
+			when = ls.Format("Mon 2 Jan")
+		case !r.hasEnd:
+			when = ls.Format("Mon 2 Jan, 3:04 pm") + " " + hackZoneAbbr(ls, zoneFallback)
+		default:
+			le := r.end.In(loc)
+			abbr := hackZoneAbbr(le, zoneFallback)
+			if ls.Year() == le.Year() && ls.Month() == le.Month() && ls.Day() == le.Day() {
+				when = ls.Format("Mon 2 Jan, 3:04 pm") + "–" + le.Format("3:04 pm") + " " + abbr
+			} else {
+				when = ls.Format("Mon 2 Jan 3:04 pm") + " – " + le.Format("Mon 2 Jan 3:04 pm") + " " + abbr
+			}
 		}
 		status := ""
 		if i == ongoing {
@@ -892,7 +918,7 @@ func hackScheduleViews(items []hackScheduleItem, loc *time.Location, zoneFallbac
 		} else if i == next {
 			status = "Next"
 		}
-		out = append(out, hackScheduleView{Title: item.Title, Description: item.Description, When: when, Status: status})
+		out = append(out, hackScheduleView{Title: r.title, Description: r.desc, When: when, Status: status, Fixed: r.fix})
 	}
 	return out
 }

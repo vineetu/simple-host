@@ -52,7 +52,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		"icon_url": h.iconURL(ev), "color": hackEventAccent(ev),
 		"gallery": []any{}, "results": []any{}, "vote_ranking": []any{},
 		"vote_status": "disabled", "tracks": []any{}, "announcements": []any{},
-		"sponsors": []any{}, "faq": []any{}, "schedule": []any{},
+		"sponsors": []any{}, "faq": []any{}, "schedule": []any{}, "fixed_schedule": []any{},
 	}
 	if open := hackApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()); open {
 		out["applications_open"], out["apply_url"] = true, strings.TrimRight(h.publicBaseURL, "/")+"/e/"+ev.Slug+"/apply"
@@ -88,7 +88,15 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		}
 		sponsors = append(sponsors, item)
 	}
-	out["sponsors"], out["faq"], out["schedule"] = sponsors, content.FAQ, content.Schedule
+	out["sponsors"], out["faq"], out["schedule"] = sponsors, content.FAQ, hackPublicSchedule(content.Schedule)
+	// The event's real times as fixed schedule rows (hack_schedule.go), the
+	// same ones the built-in page lists.
+	fixed, err := h.fixedScheduleFor(r.Context(), ev, nil, false)
+	if err != nil {
+		writeInternal(w)
+		return
+	}
+	out["fixed_schedule"] = fixed
 	announcements, err := db.ListEventAnnouncements(r.Context(), h.database, ev.ID)
 	if err != nil {
 		writeInternal(w)

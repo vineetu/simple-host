@@ -4796,7 +4796,7 @@
      "name": "Registration, applications, tracks, and announcements",
      "line": "People join by link or apply from the public listing; organisers ask sign-up questions, set tracks and prizes, and post announcements.",
      "who": "Participants joining an event, and organisers deciding who gets in and keeping everyone informed.",
-     "how": "Participants join with the event's link, or, for an event listed in Find a hackathon, apply from the listing or the event's public page without a link. Applications are on by default and every application waits for an organiser's decision in People, Applications; an applicant may add a city, country, age range, and gender, which stay with that event and are never shown to other organisers. Organisers can ask up to eight text questions at sign-up and require approval; pending and rejected applicants see their own status. Up to twelve tracks each carry a challenge and a prize, and each team picks one track before its deadline. Organisers publish sponsors, an FAQ, a schedule with time zones, and announcements, can edit or delete an announcement, and can email participants, send a receipt on a team's first complete entry, and show a public submission countdown.",
+     "how": "Participants join with the event's link, or, for an event listed in Find a hackathon, apply from the listing or the event's public page without a link. Applications are on by default and every application waits for an organiser's decision in People, Applications; an applicant may add a city, country, age range, and gender, which stay with that event and are never shown to other organisers. Organisers can ask up to eight text questions at sign-up and require approval; pending and rejected applicants see their own status. Up to twelve tracks each carry a challenge and a prize, and each team picks one track before its deadline. Organisers publish sponsors, an FAQ, a schedule with time zones, and announcements, can edit or delete an announcement, and can email participants, send a receipt on a team's first complete entry, and show a public submission countdown. The schedule shows the real times on its own (event start and end, the entry deadline, the voting window, results), so they never drift, and a schedule row can ask the organiser for the next step when its time comes, for example “Kickoff is now. Open sign-up?” It never moves the stage itself. Participants see “Demos starts in 12 minutes” on their Home.",
      "example": "A company running a public AI hackathon lists it in Find a hackathon, takes applications over two weeks, approves 80 people, and announces the final schedule by email the night before.",
      "where": "Find a hackathon and the event's public page for applicants; Manage (Settings, People, Content) for organisers; or ask your AI app.",
      "limits": "Only listed events take applications; unlisted events are join-link only. Five applications per account and 30 per IP address each hour, 20 pending applications per account, and 500 pending applications per event. A rejected applicant can apply again only after withdrawing. Editing an announcement does not send a new email. Track names may repeat; removing a chosen track warns how many teams lose their choice.",
@@ -4825,6 +4825,7 @@
      ],
      "covers": [
       "Applications without a join link (2026-10-31).",
+      "A schedule that acts (2026-11-02).",
       "Registration, tracks and challenges (P1, deployed 2026-10-01).",
       "Outgoing mail visibility (P1, deployed 2026-10-01)."
      ],
@@ -4906,7 +4907,9 @@
       "Judging choices (P1, deployed 2026-10-01).",
       "Organisers can also judge (2026-10-02).",
       "Judging fixes (2026-10-27).",
-      "Stage and entry fixes (2026-10-27)."
+      "Stage and entry fixes (2026-10-27).",
+      "Teams can see the rubric (audit item 1, 2026-11-02).",
+      "Panel judging warns about untracked teams (audit item 2, 2026-11-02)."
      ],
      "evidence": "FEATURES.md §15 'Judging (M3)', 'Judging choices', 'Organisers can also judge', 'Judging fixes' (confirmation on scored criteria, judges-only default, scoring opens when entries close), 'Archive cleanup' (default rubric). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system' (judging-first Manage). Standalone v0.8.9 carries judging-first Manage."
     },

@@ -893,7 +893,12 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 				"emailable_participants": emailable,
 			},
 		}
-		body["next_step"] = nextStepJSON(ev, resultState, participants)
+		step := nextStepJSON(ev, resultState, participants)
+		// cue: a schedule row lining up with this move has come (owner,
+		// 2026-11-02). It only words the card. The move still waits for the
+		// organiser's press.
+		step["cue"] = h.scheduleCue(ctx, ev, step)
+		body["next_step"] = step
 	}
 	if member.Role == "participant" {
 		if status, err := db.MemberApprovalStatus(ctx, h.database, ev.ID, member.UserID); err == nil {
@@ -908,7 +913,9 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 // (set stage to the given stage), "publish_results" (POST .../results/publish
 // {}) or "none" (archived: no button). blocked is nil or
 // "archive_needs_participants" (End with nobody in the event): the button
-// still shows, disabled, pointing to Settings -> Delete.
+// still shows, disabled, pointing to Settings -> Delete. eventView adds cue
+// (hackScheduleCue): the schedule row that lines up with this move once its
+// time has come, or nil.
 func nextStepJSON(ev db.Event, results db.EventResultsRow, participants int) map[string]any {
 	step := func(stage, label string, deadlinePassed bool, blocked any) map[string]any {
 		return map[string]any{"kind": "stage", "stage": stage, "label": label, "deadline_passed": deadlinePassed, "blocked": blocked}

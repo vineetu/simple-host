@@ -9,6 +9,7 @@
 // plain errors, versions, read-only states, admin view). Announcements
 // moved out to its own screen (screens/organiser-announcements.js).
 import { fileAsDataURL, fileAsArrayBuffer, moveItem, rowMenuHTML, wireRowMenus, formDialog, undoToast } from './_orgA-util.js'
+import { merge, label as labelRows, MOVES, setInLink, timeOnly } from '../schedule.js'
 
 // R19: title() used to read only ctx.params ('tab='), so an old #schedule
 // deep link (no tab= query param, resolved from the hash only once render()
@@ -75,7 +76,15 @@ function archiveErrorText(ui, r, fallback) {
 // /website then (R6: a stale copy from before someone else's edit, or
 // before an upload made elsewhere, used to sit in this cache indefinitely
 // and could overwrite a co-organiser's change on the next list write).
-const cache = { slug: null, content: null, contentError: false, website: null, websiteError: false }
+const cache = { slug: null, content: null, fixed: [], contentError: false, website: null, websiteError: false }
+// Every /content answer refreshes the three stored lists and the fixed
+// schedule rows the server derives from the event's settings (a schedule
+// that acts, 2026-11-02). cache.content is exactly what PUT /content sends
+// back, so the fixed rows live beside it, never inside it.
+function setContent(d) {
+  cache.content = { sponsors: d.sponsors || [], faq: d.faq || [], schedule: d.schedule || [] }
+  cache.fixed = d.fixed_schedule || []
+}
 // R7: every assignment to cache.content/cache.website after an await must
 // check this first -- a slow request started on event A must never land in
 // event B's cache after the organiser has switched events, and a request
@@ -120,7 +129,7 @@ function focusHeading(sp) {
 }
 
 function subnavHTML(tab, ev) {
-  const counts = { schedule: cache.content.schedule.length, sponsors: cache.content.sponsors.length, faq: cache.content.faq.length }
+  const counts = { schedule: cache.content.schedule.length + cache.fixed.length, sponsors: cache.content.sponsors.length, faq: cache.content.faq.length }
   return `<nav class="subnav" aria-label="Event page sections">${TABS.map(t => {
     const n = counts[t]
     const badge = n ? `<span class="n" aria-label="${n} items">${n}</span>` : ''
@@ -181,6 +190,7 @@ export async function render(ctx) {
   if (cache.slug !== ev.slug) {
     cache.slug = ev.slug
     cache.content = { sponsors: [], faq: [], schedule: [] }
+    cache.fixed = []
     cache.website = { mode: ev.website_mode, has_custom_page: false, versions: [], upload_limits: '' }
   }
   cache.contentError = false
@@ -188,7 +198,7 @@ export async function render(ctx) {
   try {
     const [c, w] = await Promise.all([api('GET', path + '/content'), api('GET', path + '/website')])
     if (cacheStale(ctx, ev)) return
-    if (c.ok) cache.content = { sponsors: c.data.sponsors || [], faq: c.data.faq || [], schedule: c.data.schedule || [] }
+    if (c.ok) setContent(c.data)
     else cache.contentError = true
     // R16: a failed /website GET used to leave the stale "no uploads"
     // default in place with no sign anything went wrong -- the own-website
@@ -406,46 +416,65 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
 }
 
 // --------------------------------------------------------------- Schedule
-function dayHeader(ui, iso, ev) { return ui.dateOnly(iso, ev) }
 // R20: one consistent sentence for every read-only-after-End sub-page
 // (Schedule, Sponsors, FAQ, Website) -- the server rejects PUT /content,
 // PUT/DELETE /icon and PATCH/PUT /website once archived, so the copy here
 // must not promise an edit that would fail (decision 2026-10-31).
 function endedReadOnlyNote(what) { return `<div class="note">This event has ended. ${what} can't change any more.</div>` }
+// A schedule that acts (owner, 2026-11-02): the event's real times (start
+// and end, the entry deadline, the voting window, results) show here as fixed
+// rows, merged in time order with the rows typed here. A fixed row has no
+// Edit or Remove, only a "Set in Entries"-style link to where it changes, so
+// it can never drift from the real setting. A typed row can also prompt a
+// forward move ("When this starts, ask to"): Overview then asks, e.g.
+// "Kickoff is now. Open sign-up?". It never moves the stage itself.
+const LOCK_ICON = '<svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="9" width="10" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/></svg>'
 function renderSchedule({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive }) {
   const readOnly = locked || ended // decision: Schedule (unlike Basics/About/Look) is read-only after End, not just under admin view -- the server rejects PUT /content once archived.
-  const items = cache.content.schedule.slice().sort((a, b) => new Date(a.start_at) - new Date(b.start_at))
-  const now = Date.now()
-  const nowIdx = items.findIndex(it => new Date(it.start_at).getTime() <= now && now < new Date(it.end_at).getTime())
-  const nextIdx = items.findIndex(it => new Date(it.start_at).getTime() > now)
+  const items = labelRows(merge(cache.content.schedule, cache.fixed))
 
-  // 12-hour with am/pm, like every other time in the app (owner, 2026-10-30).
-  function timeLabel(iso) { return new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit', hourCycle: 'h12', timeZone: ev.time_zone }).format(new Date(iso)) }
+  // 12-hour with am/pm, like every other time in the app (owner, 2026-10-30),
+  // through ui.dateTime so every time reads the same way.
+  function timeLabel(iso) { return timeOnly(ui, iso, ev) }
   function endLabel(startIso, endIso) {
     const sameDay = ui.dateOnly(startIso, ev) === ui.dateOnly(endIso, ev)
     return sameDay ? timeLabel(endIso) : ui.dateOnly(endIso, ev).replace(/^(\S+)\s.*/, '$1') + ' ' + timeLabel(endIso)
   }
+  function whenHTML(item) {
+    if (item.all_day) return '<b>All day</b>'
+    if (!item.end_at) return `<b>${ui.esc(timeLabel(item.start_at))}</b>`
+    return `<b>${ui.esc(timeLabel(item.start_at))}</b>– ${ui.esc(endLabel(item.start_at, item.end_at))}`
+  }
+  function pillHTML(item) { return item.now ? '<span class="pill stage">Now</span>' : item.next ? '<span class="pill">Next</span>' : '' }
+  function promptLine(item) { return item.prompt && MOVES[item.prompt] ? `<span class="faint">Then asks: ${ui.esc(MOVES[item.prompt])}?</span>` : '' }
+  function fixedRowHTML(item) {
+    const where = setInLink(item.set_in, ev.slug)
+    const setIn = where ? `<span>Set in <a href="${ui.esc(where.href)}">${ui.esc(where.label)}</a></span>` : ''
+    return `<div class="r sched-row fixed"><span class="r-when">${whenHTML(item)}</span><span class="main"><b>${ui.esc(item.title)}</b>${item.description ? `<span>${ui.esc(item.description)}</span>` : ''}${setIn}${promptLine(item)}</span>${pillHTML(item)}<span class="pill" title="Comes from the event's settings">${LOCK_ICON}Fixed</span></div>`
+  }
   function rowHTML(item, i) {
-    const pill = i === nowIdx ? '<span class="pill stage">Now</span>' : i === nextIdx ? '<span class="pill">Next</span>' : ''
+    if (item.fixed) return fixedRowHTML(item)
+    const details = item.description ? `<span>${ui.esc(item.description)}</span>` : '<span class="faint">No details</span>'
     const acts = readOnly ? '' : `<div class="row-acts"><button class="btn quiet sm" type="button" data-act="edit" data-idx="${i}" aria-label="Edit ${ui.esc(item.title)}">Edit</button>${rowMenuHTML(item.title, [{ label: 'Edit', act: 'edit' }, { label: 'Remove', act: 'remove', danger: true }])}</div>`
-    return `<div class="r sched-row"${readOnly ? '' : ` data-idx="${i}"`}><span class="r-when"><b>${timeLabel(item.start_at)}</b>– ${endLabel(item.start_at, item.end_at)}</span>${readOnly ? `<span class="main"><b>${ui.esc(item.title)}</b>${item.description ? `<span>${ui.esc(item.description)}</span>` : '<span class="faint">No details</span>'}</span>` : `<a class="main" href="#" data-act="edit" data-idx="${i}"><b>${ui.esc(item.title)}</b>${item.description ? `<span>${ui.esc(item.description)}</span>` : '<span class="faint">No details</span>'}</a>`}${pill}${acts}</div>`
+    return `<div class="r sched-row"${readOnly ? '' : ` data-idx="${i}"`}><span class="r-when">${whenHTML(item)}</span>${readOnly ? `<span class="main"><b>${ui.esc(item.title)}</b>${details}${promptLine(item)}</span>` : `<a class="main" href="#" data-act="edit" data-idx="${i}"><b>${ui.esc(item.title)}</b>${details}${promptLine(item)}</a>`}${pillHTML(item)}${acts}</div>`
   }
   function listHTML() {
     let html = '', lastDay = null
     items.forEach((item, i) => {
-      const day = dayHeader(ui, item.start_at, ev)
+      const day = ui.dateOnly(item.start_at, ev)
       if (day !== lastDay) { html += `<div class="lh">${ui.esc(day)}</div>`; lastDay = day }
       html += rowHTML(item, i)
     })
     return html
   }
+  const fixedNote = cache.fixed.length && !cache.contentError ? '<p class="help">Rows marked Fixed come from your event settings, so they always match. Change them where they are set.</p>' : ''
 
   sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">Schedule</h2><p>In ${ui.esc(ev.time_zone)}. Your page lists them in time order and marks Now and Next.</p>${readOnly || cache.contentError ? '' : '<button class="btn primary" type="button" id="sched-add"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add time</button>'}</div>
 ${customSiteNote(readOnly)}
 ${ended && !admin ? endedReadOnlyNote('Schedule') : ''}
 ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could not be loaded. Reload to edit them.<button class="btn sm" type="button" id="sched-reload">Reload</button></div>` :
-    items.length ? `<div class="list editable" aria-label="Schedule" id="sched-list">${listHTML()}</div>` :
-    (readOnly ? '<p class="muted">Nothing scheduled.</p>' : `<div class="empty-state"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h12a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm-1 4h14M7 3v4m6-4v4"/></svg><h3>Nothing scheduled yet</h3><p>Add the kickoff, build time and demos. They show on your page, and participants see what is on now.</p><button class="btn primary" type="button" id="sched-add-empty"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add time</button></div>`)}`
+    items.length ? `<div class="list editable" aria-label="Schedule" id="sched-list">${listHTML()}</div>${fixedNote}` :
+    (readOnly ? '<p class="muted">Nothing scheduled.</p>' : `<div class="empty-state"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h12a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm-1 4h14M7 3v4m6-4v4"/></svg><h3>Nothing scheduled yet</h3><p>Add the kickoff, build time and demos. They show on your page, and participants see what is on now. Your dates and entry deadline show here on their own once you set them.</p><button class="btn primary" type="button" id="sched-add-empty"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add time</button></div>`)}`
 
   const reload = sp.querySelector('#sched-reload')
   if (reload) reload.addEventListener('click', async () => {
@@ -453,33 +482,31 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
     try {
       const r = await api('GET', path + '/content')
       if (cacheStale(ctx, ev)) return
-      if (r.ok) { cache.content = { sponsors: r.data.sponsors || [], faq: r.data.faq || [], schedule: r.data.schedule || [] }; cache.contentError = false }
+      if (r.ok) { setContent(r.data); cache.contentError = false }
     } catch (e) { if (cacheStale(ctx, ev)) return }
     renderSchedule({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive })
   })
   if (readOnly || cache.contentError) return
 
-  // R1 (blocker, silent data loss): `existing` is always the exact object
-  // reference out of `items` (itself a sorted *copy* of cache.content.schedule
-  // -- same item references, different order), so the write below finds
+  // R1 (blocker, silent data loss): `existing` is always the exact stored
+  // object (each merged row keeps it as `src`), so the write below finds
   // where that same item actually sits in the server's own (unsorted)
-  // order by identity (`indexOf`), instead of trusting the display index
-  // -- which was the sorted position, not the stored one, and could
-  // silently overwrite a different row the moment two items weren't
-  // already added in time order (Remove already matched by identity; Edit
-  // now does too).
+  // order by identity (`indexOf`), never by display position. Fixed rows
+  // have no src and are never written: the server derives them.
   async function openDialog(existing) {
-    const item = existing ? { ...existing } : { title: '', description: '', start_at: '', end_at: '' }
+    const item = existing ? { ...existing } : { title: '', description: '', start_at: '', end_at: '', prompt: '' }
     const startVal = existing ? ui.localInputValue(existing.start_at, ev.time_zone) : ''
     const endVal = existing ? ui.localInputValue(existing.end_at, ev.time_zone) : ''
     const [sd, st] = startVal ? startVal.split('T') : ['', '']
     const [ed, et] = endVal ? endVal.split('T') : ['', '']
+    const promptOptions = [['', 'Nothing'], ...Object.entries(MOVES)].map(([v, l]) => `<option value="${ui.esc(v)}"${(item.prompt || '') === v ? ' selected' : ''}>${ui.esc(l)}</option>`).join('')
     const body = document.createElement('div')
     body.innerHTML = `<p class="form-intro">Times are in ${ui.esc(ev.time_zone)}.</p>
 <div class="field"><label for="d-title">Title</label><input class="input" id="d-title" maxlength="120" value="${ui.esc(item.title)}"></div>
 <div class="field"><div class="lab-row"><label for="d-desc">Details</label><span class="opt">Optional</span></div><textarea class="input" id="d-desc" rows="2" maxlength="500">${ui.esc(item.description || '')}</textarea></div>
 <div class="field"><span class="lab" id="d-start-l">Starts</span><div class="dt-pair" role="group" aria-labelledby="d-start-l"><input class="input" type="date" aria-label="Start date" id="d-start-date" value="${ui.esc(sd)}"><input class="input" type="time" aria-label="Start time" id="d-start-time" value="${ui.esc(st)}"></div></div>
-<div class="field" id="d-end-field"><span class="lab" id="d-end-l">Ends</span><div class="dt-pair" role="group" aria-labelledby="d-end-l"><input class="input" type="date" aria-label="End date" id="d-end-date" value="${ui.esc(ed)}"><input class="input" type="time" aria-label="End time" id="d-end-time" value="${ui.esc(et)}"></div></div>`
+<div class="field" id="d-end-field"><span class="lab" id="d-end-l">Ends</span><div class="dt-pair" role="group" aria-labelledby="d-end-l"><input class="input" type="date" aria-label="End date" id="d-end-date" value="${ui.esc(ed)}"><input class="input" type="time" aria-label="End time" id="d-end-time" value="${ui.esc(et)}"></div></div>
+<div class="field"><div class="lab-row"><label for="d-prompt">When this starts, ask to</label><span class="opt">Optional</span></div><select class="select" id="d-prompt">${promptOptions}</select><p class="help">Overview asks you at this time, like “Kickoff is now. Open sign-up?” Nothing changes until you press the button.</p></div>`
     const q = id => body.querySelector('#' + id)
     const saved = await formDialog(ui, { title: existing ? 'Edit time' : 'Add time', body, saveLabel: existing ? 'Save' : 'Add time' }, async () => {
       body.querySelectorAll('.err').forEach(n => n.remove())
@@ -490,6 +517,7 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
       if (!startAt || !endAt) { q('d-end-field').insertAdjacentHTML('beforeend', '<p class="err">Starts and ends are both required.</p>'); return false }
       if (endAt <= startAt) { q('d-end-field').insertAdjacentHTML('beforeend', '<p class="err">Ends must be after it starts.</p>'); return false }
       const next = { title, description: q('d-desc').value, start_at: startAt, end_at: endAt }
+      if (q('d-prompt').value) next.prompt = q('d-prompt').value
       const schedule = cache.content.schedule.slice()
       if (!existing) schedule.push(next)
       else {
@@ -501,7 +529,7 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
         const r = await api('PUT', path + '/content', { ...cache.content, schedule })
         if (cacheStale(ctx, ev)) return false
         if (!r.ok) { body.insertAdjacentHTML('beforeend', `<p class="err">${ui.esc(ui.errText(r))}</p>`); return false }
-        cache.content = { sponsors: r.data.sponsors || [], faq: r.data.faq || [], schedule: r.data.schedule || [] }
+        setContent(r.data)
         return true
       } catch (e) { if (cacheStale(ctx, ev)) return false; body.insertAdjacentHTML('beforeend', '<p class="err">Cannot reach the server.</p>'); return false }
     })
@@ -515,18 +543,19 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
   sp.querySelectorAll('[data-act="edit"]').forEach(el => el.addEventListener('click', e => {
     e.preventDefault()
     const i = Number(el.dataset.idx ?? el.closest('[data-idx]').dataset.idx)
-    openDialog(items[i])
+    if (items[i] && items[i].src) openDialog(items[i].src)
   }))
   sp.querySelectorAll('[data-act="remove"]').forEach(el => el.addEventListener('click', async () => {
     const i = Number(el.closest('[data-idx]').dataset.idx)
-    const removed = items[i]
+    const removed = items[i] && items[i].src
+    if (!removed) return
     const schedule = cache.content.schedule.filter(x => x !== removed)
     try {
       const r = await api('PUT', path + '/content', { ...cache.content, schedule })
       if (cacheStale(ctx, ev)) return
       if (!r.ok) { setLive(ui.errText(r), 'err'); return }
       const before = cache.content
-      cache.content = { sponsors: r.data.sponsors || [], faq: r.data.faq || [], schedule: r.data.schedule || [] }
+      setContent(r.data)
       renderSchedule({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive })
       undoToast(sp, `Removed “${removed.title}”`, async () => {
         try {
@@ -537,7 +566,7 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
           // the list without the restored row, so the organiser believed
           // it had come back when it hadn't.
           if (!r2.ok) { setLive(ui.errText(r2), 'err'); return }
-          cache.content = { sponsors: r2.data.sponsors || [], faq: r2.data.faq || [], schedule: r2.data.schedule || [] }
+          setContent(r2.data)
         } catch (e) { if (cacheStale(ctx, ev)) return; setLive('Cannot reach the server.', 'err'); return }
         renderSchedule({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive })
       })
@@ -585,7 +614,7 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
     try {
       const r = await api('GET', path + '/content')
       if (cacheStale(ctx, ev)) return
-      if (r.ok) { cache.content = { sponsors: r.data.sponsors || [], faq: r.data.faq || [], schedule: r.data.schedule || [] }; cache.contentError = false }
+      if (r.ok) { setContent(r.data); cache.contentError = false }
     } catch (e) { if (cacheStale(ctx, ev)) return }
     renderSponsors({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive })
   })
@@ -596,7 +625,7 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
       const r = await api('PUT', path + '/content', { ...cache.content, sponsors })
       if (cacheStale(ctx, ev)) return false
       if (!r.ok) { setLive(ui.errText(r), 'err'); return false }
-      cache.content = { sponsors: r.data.sponsors || [], faq: r.data.faq || [], schedule: r.data.schedule || [] }
+      setContent(r.data)
       return true
     } catch (e) { if (cacheStale(ctx, ev)) return false; setLive('Cannot reach the server.', 'err'); return false }
   }
@@ -764,7 +793,7 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
     try {
       const r = await api('GET', path + '/content')
       if (cacheStale(ctx, ev)) return
-      if (r.ok) { cache.content = { sponsors: r.data.sponsors || [], faq: r.data.faq || [], schedule: r.data.schedule || [] }; cache.contentError = false }
+      if (r.ok) { setContent(r.data); cache.contentError = false }
     } catch (e) { if (cacheStale(ctx, ev)) return }
     renderFaq({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive })
   })
@@ -775,7 +804,7 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
       const r = await api('PUT', path + '/content', { ...cache.content, faq })
       if (cacheStale(ctx, ev)) return false
       if (!r.ok) { setLive(ui.errText(r), 'err'); return false }
-      cache.content = { sponsors: r.data.sponsors || [], faq: r.data.faq || [], schedule: r.data.schedule || [] }
+      setContent(r.data)
       return true
     } catch (e) { if (cacheStale(ctx, ev)) return false; setLive('Cannot reach the server.', 'err'); return false }
   }

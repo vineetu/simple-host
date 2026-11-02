@@ -86,7 +86,7 @@ func HackTools() []Tool {
 		{
 			Name:        "hack_get_event",
 			Title:       "Get an event",
-			Description: "Read one event: its page, stage and settings. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. Give those links exactly as returned. Records any due submission deadline pins.",
+			Description: "Read one event: its page, stage and settings. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. \"Kickoff is now. Open sign-up?\"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.",
 			InputSchema: object(map[string]any{"slug": str("The event name.")}, "slug"),
 			Annotations: writes(false, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -575,6 +575,15 @@ type hackEventView struct {
 		Label          string  `json:"label"`
 		DeadlinePassed bool    `json:"deadline_passed"`
 		Blocked        *string `json:"blocked"`
+		Cue            *struct {
+			Key     string  `json:"key"`
+			Title   string  `json:"title"`
+			StartAt string  `json:"start_at"`
+			EndAt   *string `json:"end_at"`
+			Fixed   bool    `json:"fixed"`
+			Now     bool    `json:"now"`
+			Text    string  `json:"text"`
+		} `json:"cue"`
 	} `json:"next_step"`
 	Organiser *struct {
 		OrganiserName        string `json:"organiser_name"`
@@ -631,12 +640,21 @@ func hackEventOutput(verb string, body []byte) (output, error) {
 		if n.Blocked != nil {
 			blocked = *n.Blocked
 		}
+		var cue any
+		if c := n.Cue; c != nil {
+			var end any
+			if c.EndAt != nil {
+				end = *c.EndAt
+			}
+			cue = map[string]any{"key": c.Key, "title": c.Title, "start_at": c.StartAt, "end_at": end, "fixed": c.Fixed, "now": c.Now, "text": c.Text}
+		}
 		out["next_step"] = map[string]any{
 			"kind":            n.Kind,
 			"stage":           n.Stage,
 			"label":           n.Label,
 			"deadline_passed": n.DeadlinePassed,
 			"blocked":         blocked,
+			"cue":             cue,
 		}
 	}
 	text := fmt.Sprintf("%s %s (%s), stage %s. Role: %s.", verb, view.Event.Title, view.Event.Slug, view.Event.Stage, view.Role)
@@ -773,6 +791,11 @@ func hackOutputSchemas() map[string]map[string]any {
 	nullableInteger := func(desc string) map[string]any {
 		return map[string]any{"type": []any{"integer", "null"}, "description": desc}
 	}
+	nullableObject := func(schema map[string]any, desc string) map[string]any {
+		schema["type"] = []any{"object", "null"}
+		schema["description"] = desc
+		return schema
+	}
 	event := outObject(map[string]any{
 		"slug":           outString("The event name."),
 		"title":          outString("The event title."),
@@ -797,7 +820,16 @@ func hackOutputSchemas() map[string]map[string]any {
 			"label":           outString("The button's own text, e.g. \"Start building\"."),
 			"deadline_passed": outBool("True only for Close entries once the submission deadline has passed."),
 			"blocked":         nullableString("archive_needs_participants (End with nobody in the event), or null."),
-		}, "kind", "stage", "label", "deadline_passed", "blocked"), "The one forward move the website offers (its one button) for the current stage. Present only when this person is the organiser."),
+			"cue": nullableObject(outObject(map[string]any{
+				"key":      outString("The fixed row this comes from (entry_deadline, event_start, event_end), or empty for a row the organiser typed into the schedule."),
+				"title":    outString("The schedule row's title."),
+				"start_at": outString("When the row starts, RFC 3339."),
+				"end_at":   nullableString("When the row ends, or null for a moment such as a deadline."),
+				"fixed":    outBool("True when the row comes from the event's settings and can't be edited in the schedule."),
+				"now":      outBool("True while the row is on (or within 15 minutes of a moment)."),
+				"text":     outString("The website's wording, e.g. \"Kickoff is now. Open sign-up?\". Ask the organiser. Nothing moves until they agree."),
+			}, "key", "title", "start_at", "end_at", "fixed", "now", "text"), "The schedule row that lines up with this move once its time has come, or null. It only prompts: the stage never moves by itself."),
+		}, "kind", "stage", "label", "deadline_passed", "blocked", "cue"), "The one forward move the website offers (its one button) for the current stage. Present only when this person is the organiser."),
 		"organiser": withDescription(outObject(map[string]any{
 			"organiser_name":        outString("Name shown as the organiser."),
 			"organisation":          outString("Organisation or community. Empty when unset."),

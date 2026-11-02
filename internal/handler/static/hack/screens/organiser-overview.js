@@ -1,6 +1,7 @@
 import { href } from '../nav.js'
 import { adminLock, stagePicker } from './_orgA-util.js'
 import { startTour } from '../tour.js'
+import { cueHeading } from '../schedule.js'
 
 const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results', 'archived']
 
@@ -79,6 +80,15 @@ export async function render(ctx) {
 
   const step = data.next_step || { kind: 'none' }
   const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref))
+  // A schedule that acts (owner, 2026-11-02): when a schedule row lining up
+  // with this move has come (next_step.cue, computed by the server), the
+  // heading asks, e.g. "Kickoff is now. Open sign-up?". It only asks. The
+  // move still waits for this button and its confirm.
+  const cue = content.button && !content.blocked ? cueHeading(ui, ev, step) : ''
+  if (cue) {
+    content.h2 = cue
+    content.cueNote = 'From your schedule. Nothing changes until you press ' + content.button + '.'
+  }
 
   // C7 (owner decision 2026-10-30): the server's judges count includes
   // organisers who can judge (db.CountEligibleJudges, by design). The
@@ -152,7 +162,7 @@ export async function render(ctx) {
   main.innerHTML = `
 <div class="ph keep-row"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button></div>
 ${content.button
-    ? `<section class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div><button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? ' disabled' : ''}>${ui.esc(content.button)}</button></section>`
+    ? `<section class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ''}</div><button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? ' disabled' : ''}>${ui.esc(content.button)}</button></section>`
     : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
 ${noTrackNoteHTML}
 <h2 class="section-title">Snapshot</h2>

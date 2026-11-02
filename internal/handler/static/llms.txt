@@ -425,6 +425,14 @@ move the website's Overview button offers for the current stage. Moving the stag
 also locks judging in the same step, when it was not locked already. Participants and judges
 see the same stage pill and stage track as organisers, plus a separate scoring pill for judges.
 
+A schedule that acts (2026-11-02): hack_get_content returns fixed_schedule beside schedule, the
+event's real times as read-only rows marked fixed: true (event start and end, the entry deadline
+or the caller's own team extension, the voting window, results published), each with set_in
+naming where it changes. Never send them back. A schedule row's optional prompt (open, building,
+closed, judging, results or publish_results) makes next_step.cue ask for that move once the row
+starts, e.g. "Kickoff is now. Open sign-up?", and the entry deadline always asks to close
+entries. The cue only asks: the stage never moves by itself, so confirm with the organiser.
+
 Teams (redesigned 2026-10-31): a team's creator is its first admin. Admins approve or decline
 join requests, lock or unlock the team, rename it, edit its looking-for note, remove members,
 make or remove other admins, and roll a new link, https://<hack host>/team/<code>, read with
