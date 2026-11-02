@@ -425,10 +425,6 @@ func main() {
 		if cfg.PhotoDNAReportURL != "" {
 			client.ReportURL = cfg.PhotoDNAReportURL
 		}
-		var reporter imagescan.Reporter
-		if cfg.ImageScanReportOrg != "" {
-			reporter = client
-		}
 		// The support contact is the default reporter and alert address; a
 		// server whose contact is not an address gets a log line instead.
 		contact := auth.SupportContact
@@ -452,6 +448,11 @@ func main() {
 		if scanCfg.ReportEmail == "" {
 			scanCfg.ReportEmail = contact
 		}
+		// A report needs the organisation, a name, and an email on it.
+		var reporter imagescan.Reporter
+		if scanCfg.ReportOrg != "" && scanCfg.ReportName != "" && scanCfg.ReportEmail != "" {
+			reporter = client
+		}
 		imageScan = handler.NewImageScan(db, diskStorage, client, reporter, mailer, scanCfg)
 		siteHandler.SetImageScan(imageScan)
 		if hackEvents != nil {
@@ -460,7 +461,7 @@ func main() {
 		handler.SetImageScanOn(true)
 		reports := "reports from the admin page"
 		if reporter == nil {
-			reports = "reports off (no IMAGE_SCAN_REPORT_ORG)"
+			reports = "reports off (set IMAGE_SCAN_REPORT_ORG, IMAGE_SCAN_REPORT_NAME, and a report email)"
 		} else if cfg.PhotoDNAAutoReport {
 			reports = "reports filed automatically"
 		}

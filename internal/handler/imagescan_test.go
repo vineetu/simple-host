@@ -166,10 +166,10 @@ func deployWithImages(t *testing.T, a *privateApp, p person, site string, files 
 	for name, b := range files {
 		b64[name] = base64.StdEncoding.EncodeToString(b)
 	}
-	r := a.at(t, "POST", pcSiteDomain, "/v1/sites/"+site+"/files",
+	r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/"+site+"/files?create=1",
 		map[string]any{"files": map[string]string{"index.html": "<h1>" + site + "</h1>"}, "files_base64": b64},
 		map[string]string{"X-API-Key": p.key})
-	if r.status != http.StatusCreated {
+	if r.status != http.StatusCreated && r.status != http.StatusOK {
 		t.Fatalf("deploy %s: %d %s", site, r.status, r.body)
 	}
 }
@@ -272,7 +272,7 @@ func TestImageScanDeployMatch(t *testing.T) {
 	if err := json.Unmarshal(rec, &record); err != nil {
 		t.Fatal(err)
 	}
-	if wh, _ := record["what_happened"].([]any); len(wh) < 4 || record["path"] != "img/bad.png" {
+	if st, _ := record["steps"].([]any); len(st) < 5 || record["path"] != "img/bad.png" || record["raw_reply"] == nil || record["writer_id"] != uid {
 		t.Fatalf("record.json: %s", rec)
 	}
 	if st, _ := os.Stat(filepath.Join(dir, "record.json")); st.Mode().Perm() != 0o600 {
@@ -480,7 +480,11 @@ func TestImageScanEventIcon(t *testing.T) {
 	if err := db.SetEventIcon(context.Background(), a.database, ev.ID, "image/png", icon); err != nil {
 		t.Fatal(err)
 	}
-	s.EnqueueEventIcon(ev.ID, icon)
+	var adaID string
+	if err := a.database.QueryRow(`SELECT id FROM users WHERE username = $1`, ada.email).Scan(&adaID); err != nil {
+		t.Fatal(err)
+	}
+	s.EnqueueEventIcon(ev.ID, adaID, icon)
 	runs.Wait()
 	if n := s.RunOnce(context.Background()); n != 1 {
 		t.Fatalf("RunOnce handled %d", n)
@@ -502,8 +506,12 @@ func TestImageScanEventIcon(t *testing.T) {
 	if err != nil || len(matches) == 0 || matches[0].Kind != "event_icon" || matches[0].EventSlug != slug || matches[0].ReportStatus != "off" || !matches[0].TakenDown {
 		t.Fatalf("match row: %+v %v", matches, err)
 	}
-	if sent := mailer.sent(); len(sent) != 1 || !strings.Contains(sent[0], "event "+slug) {
+	if sent := mailer.sent(); len(sent) != 1 || !strings.Contains(sent[0], "event "+slug) || !strings.Contains(sent[0], "report: not filed") || !strings.Contains(sent[0], "CyberTipline") {
 		t.Fatalf("alert: %v", sent)
+	}
+	// The report names the organiser who uploaded the icon.
+	if who := s.reporteeOf(context.Background(), matches[0]); !strings.Contains(who, ada.email) {
+		t.Fatalf("reportee %q, want the uploader %s", who, ada.email)
 	}
 }
 
@@ -539,7 +547,7 @@ func TestImageScanRetry(t *testing.T) {
 	f.matcher.err = errors.New("permanent trouble")
 	f.scan.RunOnce(context.Background())
 	row()
-	if attempts != 2 || !next.After(time.Now().Add(2*time.Minute)) || lastErr != "permanent trouble" {
+	if attempts != 2 || !next.After(time.Now().Add(90*time.Second)) || lastErr != "permanent trouble" {
 		t.Fatalf("after a permanent error: attempts=%d next=%s err=%q", attempts, next, lastErr)
 	}
 	if _, err := a.database.Exec(`UPDATE image_scan_queue SET next_attempt_at = now() WHERE site_id::text = $1`, siteID); err != nil {
@@ -569,7 +577,7 @@ func TestImageScanDisabled(t *testing.T) {
 	}
 	s.EnqueueSiteFiles("x", "y", "z", 1, map[string][]byte{"a.png": testPNG(t)})
 	s.EnqueueStorageFile("x", "r", "p", "", nil)
-	s.EnqueueEventIcon("x", nil)
+	s.EnqueueEventIcon("x", "y", nil)
 	s.EnqueueEntryScreenshot("x", "y", "z", nil)
 	s.Start(context.Background())
 	if n := s.RunOnce(context.Background()); n != 0 {
@@ -600,9 +608,9 @@ func TestImageScanPrivacyItem(t *testing.T) {
 		t.Skip("privacy.html has no image-scan item yet")
 	}
 	was := imageScanOn
-	t.Cleanup(func() { imageScanOn = was })
+	t.Cleanup(func() { SetImageScanOn(was) })
 	for _, on := range []bool{true, false} {
-		imageScanOn = on
+		SetImageScanOn(on)
 		page, err := chromePage("privacy.html", chromeData{})
 		if err != nil {
 			t.Fatal(err)
@@ -632,3 +640,298 @@ func TestImageCandidate(t *testing.T) {
 }
 
 func id64(n int64) string { return strconv.FormatInt(n, 10) }
+
+// rerun makes every parked-for-later job of a site due again (not the ones
+// given up for good).
+func rerun(t *testing.T, a *privateApp, siteID string) {
+	t.Helper()
+	if _, err := a.database.Exec(`UPDATE image_scan_queue SET next_attempt_at = now() WHERE site_id::text = $1 AND next_attempt_at <> 'infinity'`, siteID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// 2.1: the same bytes redeployed as v2 while v1 is pruned still get checked.
+func TestImageScanVersionDedup(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	olive := a.newPerson(t, "olive")
+	bad := testPNG(t)
+	f.markMatch(sha256Hex(bad))
+	deployWithImages(t, a, olive, "keep1", map[string][]byte{"bad.png": bad})
+	f.wait()
+	siteID := a.siteID(t, olive, "keep1")
+	if _, err := a.database.Exec(`UPDATE sites SET keep_versions = 1 WHERE id = $1`, siteID); err != nil {
+		t.Fatal(err)
+	}
+	deployWithImages(t, a, olive, "keep1", map[string][]byte{"bad.png": bad})
+	f.wait()
+	uid, _ := a.userID(t, olive)
+	siteDir := a.sites.disk.SiteDir(uid, "keep1")
+	if _, err := os.Stat(filepath.Join(siteDir, "v1")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("v1 was not pruned: %v", err)
+	}
+	if n := queueCount(t, a, siteID); n != 2 {
+		t.Fatalf("queued %d jobs, want one per version", n)
+	}
+	f.scan.RunOnce(context.Background())
+	if f.matcher.callCount() != 1 {
+		t.Fatalf("matcher calls %d, want 1", f.matcher.callCount())
+	}
+	if _, err := os.Stat(filepath.Join(siteDir, "v2", "bad.png")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("v2/bad.png still there: %v", err)
+	}
+	if m := latestMatch(t, a, siteID); m.Version != 2 || !m.TakenDown {
+		t.Fatalf("match row: %+v", m)
+	}
+}
+
+// 2.2: a site deleted before its job ran is checked when it is restored.
+func TestImageScanRestore(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	olive := a.newPerson(t, "olive")
+	okey := map[string]string{"X-API-Key": olive.key}
+	bad := testPNG(t)
+	f.markMatch(sha256Hex(bad))
+	deployWithImages(t, a, olive, "comeback", map[string][]byte{"img/bad.png": bad})
+	f.wait()
+	siteID := a.siteID(t, olive, "comeback")
+	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/sites/comeback", nil, okey); r.status != http.StatusNoContent {
+		t.Fatalf("delete: %d %s", r.status, r.body)
+	}
+	f.scan.RunOnce(context.Background())
+	if n := queueCount(t, a, siteID); n != 0 || f.matcher.callCount() != 0 {
+		t.Fatalf("job not dropped while deleted: queue %d, calls %d", n, f.matcher.callCount())
+	}
+	if r := a.at(t, "POST", pcSiteDomain, "/v1/sites/comeback/restore", nil, okey); r.status != http.StatusOK {
+		t.Fatalf("restore: %d %s", r.status, r.body)
+	}
+	f.wait()
+	if n := queueCount(t, a, siteID); n != 1 {
+		t.Fatalf("queued %d after restore, want 1", n)
+	}
+	f.scan.RunOnce(context.Background())
+	uid, _ := a.userID(t, olive)
+	if _, err := os.Stat(filepath.Join(a.sites.disk.SiteDir(uid, "comeback"), "current", "img", "bad.png")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("bad.png still served after restore: %v", err)
+	}
+	if site, _ := db.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
+		t.Fatal("restored site not taken down")
+	}
+	if !a.sites.disk.IsSuspended(uid, "comeback") {
+		t.Fatal("no marker after restore")
+	}
+}
+
+// 2.3: twelve failed tries, then the job is given up and never claimed again.
+func TestImageScanGiveUp(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	olive := a.newPerson(t, "olive")
+	f.matcher.err = imagescan.ErrRetryable
+	deployWithImages(t, a, olive, "stuck", map[string][]byte{"pic.png": testPNG(t)})
+	f.wait()
+	siteID := a.siteID(t, olive, "stuck")
+	for i := 0; i < 13; i++ {
+		f.scan.RunOnce(context.Background())
+		rerun(t, a, siteID)
+	}
+	if n := f.matcher.callCount(); n != 12 {
+		t.Fatalf("matcher calls %d, want 12", n)
+	}
+	var attempts int
+	var lastErr string
+	var gaveUp bool
+	if err := a.database.QueryRow(`SELECT attempts, last_error, next_attempt_at = 'infinity' FROM image_scan_queue WHERE site_id::text = $1`, siteID).Scan(&attempts, &lastErr, &gaveUp); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 12 || !gaveUp || !strings.HasPrefix(lastErr, "gave up: ") {
+		t.Fatalf("given-up row: attempts=%d infinity=%v err=%q", attempts, gaveUp, lastErr)
+	}
+	r := a.at(t, "GET", pcSiteDomain, "/v1/admin/image-scan", nil, map[string]string{"X-API-Key": a.admin})
+	var page struct {
+		Queue map[string]int `json:"queue"`
+	}
+	if err := json.Unmarshal(r.body, &page); err != nil || page.Queue["gave_up"] != 1 || page.Queue["retrying"] != 0 {
+		t.Fatalf("admin queue: %s", r.body)
+	}
+}
+
+// 2.5 and 2.6: no evidence copy, so the file stays; the site still goes
+// down and the alert says what failed.
+func TestImageScanEvidenceFailure(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can write anywhere")
+	}
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	if err := os.Chmod(f.evidence, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(f.evidence, 0o700) })
+	olive := a.newPerson(t, "olive")
+	bad := testPNG(t)
+	f.markMatch(sha256Hex(bad))
+	deployWithImages(t, a, olive, "nocopy", map[string][]byte{"bad.png": bad})
+	f.wait()
+	f.scan.RunOnce(context.Background())
+	uid, _ := a.userID(t, olive)
+	siteID := a.siteID(t, olive, "nocopy")
+	for _, v := range []string{"v1", "current"} {
+		if got, err := os.ReadFile(filepath.Join(a.sites.disk.SiteDir(uid, "nocopy"), v, "bad.png")); err != nil || !bytes.Equal(got, bad) {
+			t.Fatalf("%s/bad.png was not kept: %v", v, err)
+		}
+	}
+	if site, _ := db.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
+		t.Fatal("site not taken down")
+	}
+	if !a.sites.disk.IsSuspended(uid, "nocopy") {
+		t.Fatal("no marker")
+	}
+	sent := f.mailer.sent()
+	if len(sent) != 1 || !strings.Contains(sent[0], "evidence copy: FAILED") || !strings.Contains(sent[0], "file was kept") || !strings.Contains(sent[0], "take-down: done") || !strings.Contains(sent[0], "CyberTipline") {
+		t.Fatalf("alert: %v", sent)
+	}
+	if strings.Contains(sent[0], f.evidence) {
+		t.Fatalf("alert names the evidence folder: %s", sent[0])
+	}
+}
+
+// 2.8: only copies with the matched bytes are removed.
+func TestImageScanOnlyMatchedBytes(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	olive := a.newPerson(t, "olive")
+	bad, benign := testPNG(t), testPNG(t)
+	f.markMatch(sha256Hex(bad))
+	deployWithImages(t, a, olive, "swap", map[string][]byte{"img/bad.png": bad})
+	f.wait()
+	deployWithImages(t, a, olive, "swap", map[string][]byte{"img/bad.png": benign})
+	f.wait()
+	f.scan.RunOnce(context.Background())
+	uid, _ := a.userID(t, olive)
+	siteDir := a.sites.disk.SiteDir(uid, "swap")
+	if _, err := os.Stat(filepath.Join(siteDir, "v1", "img", "bad.png")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("v1 copy still there: %v", err)
+	}
+	for _, v := range []string{"v2", "current"} {
+		if got, err := os.ReadFile(filepath.Join(siteDir, v, "img", "bad.png")); err != nil || !bytes.Equal(got, benign) {
+			t.Fatalf("%s lost the benign file: %v", v, err)
+		}
+	}
+}
+
+// 2.9: an evidence folder reached through a symlink into a site is refused.
+func TestImageScanEvidenceSymlink(t *testing.T) {
+	data := t.TempDir()
+	disk, err := storage.NewDiskStorage(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	siteDir := disk.SiteDir("u1", "s1")
+	if err := os.MkdirAll(siteDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "evidence-link")
+	if err := os.Symlink(siteDir, link); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{link, filepath.Join(link, "not-yet")} {
+		s := &ImageScan{disk: disk, cfg: ImageScanConfig{EvidenceDir: dir}}
+		if why := s.evidenceDirRefused(); why == "" {
+			t.Fatalf("%s accepted", dir)
+		}
+	}
+	s := &ImageScan{disk: disk, cfg: ImageScanConfig{EvidenceDir: filepath.Join(data, ".evidence")}}
+	if why := s.evidenceDirRefused(); why != "" {
+		t.Fatalf("default refused: %s", why)
+	}
+}
+
+// 2.11: two sites queue the same bytes; the service is asked once.
+func TestImageScanWorkerHashCache(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	olive := a.newPerson(t, "olive")
+	bad := testPNG(t)
+	f.markMatch(sha256Hex(bad))
+	deployWithImages(t, a, olive, "first", map[string][]byte{"a.png": bad})
+	deployWithImages(t, a, olive, "second", map[string][]byte{"b.png": bad})
+	f.wait()
+	f.scan.RunOnce(context.Background())
+	if n := f.matcher.callCount(); n != 1 {
+		t.Fatalf("matcher calls %d, want 1", n)
+	}
+	for _, site := range []string{"first", "second"} {
+		if m := latestMatch(t, a, a.siteID(t, olive, site)); !m.TakenDown {
+			t.Fatalf("%s: %+v", site, m)
+		}
+	}
+	if m := latestMatch(t, a, a.siteID(t, olive, "second")); m.Provider != "hash-cache" {
+		t.Fatalf("second provider %q", m.Provider)
+	}
+}
+
+// 2.4 and 2.14: an automatic report is filed before the alert, the alert
+// drops the CyberTipline line, and record.json carries the report.
+func TestImageScanAutoReport(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	f.scan.cfg.AutoReport = true
+	a.sites.SetImageScan(f.scan)
+	olive := a.newPerson(t, "olive")
+	bad := testPNG(t)
+	f.markMatch(sha256Hex(bad))
+	deployWithImages(t, a, olive, "auto", map[string][]byte{"bad.png": bad})
+	f.wait()
+	f.scan.RunOnce(context.Background())
+	m := latestMatch(t, a, a.siteID(t, olive, "auto"))
+	if m.ReportStatus != "filed" || m.ReportID != "RPT-TEST-1" {
+		t.Fatalf("match row: %+v", m)
+	}
+	sent := f.mailer.sent()
+	if len(sent) != 1 || !strings.Contains(sent[0], "report: done, filed as RPT-TEST-1") || strings.Contains(sent[0], "CyberTipline") {
+		t.Fatalf("alert: %v", sent)
+	}
+	b, err := os.ReadFile(filepath.Join(m.EvidencePath, "record.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rec map[string]any
+	if err := json.Unmarshal(b, &rec); err != nil || rec["report_status"] != "filed" || rec["report_id"] != "RPT-TEST-1" || rec["reported_at"] == nil {
+		t.Fatalf("record.json: %s", b)
+	}
+	// Reports not configured: the match is 'off' and the route still files it once configured.
+	f.scan.cfg.ReportName = ""
+	other := testPNG(t)
+	f.markMatch(sha256Hex(other))
+	deployWithImages(t, a, olive, "auto2", map[string][]byte{"x.png": other})
+	f.wait()
+	f.scan.RunOnce(context.Background())
+	m2 := latestMatch(t, a, a.siteID(t, olive, "auto2"))
+	if m2.ReportStatus != "off" {
+		t.Fatalf("unconfigured match status %q", m2.ReportStatus)
+	}
+	f.scan.cfg.ReportName = "Tester"
+	if r := a.at(t, "POST", pcSiteDomain, "/v1/admin/image-scan/"+id64(m2.ID)+"/report", nil, map[string]string{"X-API-Key": a.admin}); r.status != 200 {
+		t.Fatalf("report of an 'off' match: %d %s", r.status, r.body)
+	}
+}
+
+// 2.17: a reply cut at the cap is kept as a JSON string.
+func TestImageScanRawJSON(t *testing.T) {
+	if got := rawJSON(json.RawMessage(`{"IsMatch":true}`)); string(got) != `{"IsMatch":true}` {
+		t.Fatalf("valid reply changed: %s", got)
+	}
+	got := rawJSON(json.RawMessage(`{"IsMatch":tr`))
+	var s string
+	if !json.Valid(got) || json.Unmarshal(got, &s) != nil || s != `{"IsMatch":tr` {
+		t.Fatalf("cut reply: %s", got)
+	}
+}

@@ -70,12 +70,13 @@ type ImageMatch struct {
 // ImageScanQueueCounts is the queue at a glance.
 type ImageScanQueueCounts struct {
 	Pending  int // due now
-	Retrying int // tried at least once
+	Retrying int // tried at least once, still to be tried again
+	GaveUp   int // stopped after the last allowed attempt
 }
 
 // Lease length while a worker holds a job, and the retry ceiling.
 const (
-	imageScanLease      = 2 * time.Minute
+	imageScanLease      = 15 * time.Minute
 	imageScanMaxBackoff = 6 * time.Hour
 )
 
@@ -116,15 +117,16 @@ func RecordImageHash(ctx context.Context, q Querier, sha, verdict, provider, tra
 	return err
 }
 
-// EnqueueImageScan adds a job unless the same bytes at the same place are
-// already waiting. Returns whether a row was inserted.
+// EnqueueImageScan adds a job unless the same bytes at the same place and
+// version are already waiting. Returns whether a row was inserted.
 func EnqueueImageScan(ctx context.Context, q Querier, j ImageScanJob) (bool, error) {
 	var exists bool
 	err := q.QueryRowContext(ctx, `
 		SELECT EXISTS (SELECT 1 FROM image_scan_queue
 		 WHERE kind = $1 AND site_id IS NOT DISTINCT FROM $2::uuid AND event_id IS NOT DISTINCT FROM $3::uuid
-		   AND team_id IS NOT DISTINCT FROM $4::uuid AND resource_name = $5 AND path = $6 AND sha256 = $7)`,
-		j.Kind, nullUUID(j.SiteID), nullUUID(j.EventID), nullUUID(j.TeamID), j.ResourceName, j.Path, j.SHA256).Scan(&exists)
+		   AND team_id IS NOT DISTINCT FROM $4::uuid AND resource_name = $5 AND path = $6 AND sha256 = $7
+		   AND version IS NOT DISTINCT FROM $8::integer)`,
+		j.Kind, nullUUID(j.SiteID), nullUUID(j.EventID), nullUUID(j.TeamID), j.ResourceName, j.Path, j.SHA256, nullVersion(j.Version)).Scan(&exists)
 	if err != nil {
 		return false, err
 	}
@@ -152,7 +154,7 @@ func scanImageScanJob(rows *sql.Rows) (ImageScanJob, error) {
 }
 
 // ClaimImageScans takes up to limit due jobs, oldest first, and leases them
-// (next_attempt_at moves two minutes out) so another worker skips them.
+// (next_attempt_at moves fifteen minutes out) so another worker skips them.
 func ClaimImageScans(ctx context.Context, database *sql.DB, limit int) ([]ImageScanJob, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
@@ -193,11 +195,11 @@ func ClaimImageScans(ctx context.Context, database *sql.DB, limit int) ([]ImageS
 	return jobs, nil
 }
 
-// DeferImageScan records a failed attempt and schedules the next one:
-// one minute doubled per attempt, six hours at most.
+// DeferImageScan records a failed attempt and schedules the next one: one
+// minute after the first, doubled per attempt, six hours at most.
 func DeferImageScan(ctx context.Context, q Querier, id int64, errText string, attempts int) error {
 	wait := time.Minute
-	for i := 0; i < attempts && wait < imageScanMaxBackoff; i++ {
+	for i := 1; i < attempts && wait < imageScanMaxBackoff; i++ {
 		wait *= 2
 	}
 	if wait > imageScanMaxBackoff {
@@ -209,18 +211,30 @@ func DeferImageScan(ctx context.Context, q Querier, id int64, errText string, at
 	return err
 }
 
+// GiveUpImageScan records the last failed attempt and parks the job for
+// good (next_attempt_at 'infinity'): it stays listed, never claimed again.
+func GiveUpImageScan(ctx context.Context, q Querier, id int64, errText string, attempts int) error {
+	_, err := q.ExecContext(ctx, `
+		UPDATE image_scan_queue SET attempts = $2, last_error = $3, next_attempt_at = 'infinity'
+		 WHERE id = $1`, id, attempts, errText)
+	return err
+}
+
 // DeleteImageScan removes a finished job.
 func DeleteImageScan(ctx context.Context, q Querier, id int64) error {
 	_, err := q.ExecContext(ctx, `DELETE FROM image_scan_queue WHERE id = $1`, id)
 	return err
 }
 
-// ImageScanQueueCountsNow reports what is due and what is on a retry.
+// ImageScanQueueCountsNow reports what is due, what is on a retry, and what
+// was given up.
 func ImageScanQueueCountsNow(ctx context.Context, q Querier) (ImageScanQueueCounts, error) {
 	var c ImageScanQueueCounts
 	err := q.QueryRowContext(ctx, `
-		SELECT count(*) FILTER (WHERE next_attempt_at <= now()), count(*) FILTER (WHERE attempts > 0)
-		  FROM image_scan_queue`).Scan(&c.Pending, &c.Retrying)
+		SELECT count(*) FILTER (WHERE next_attempt_at <= now()),
+		       count(*) FILTER (WHERE attempts > 0 AND next_attempt_at <> 'infinity'),
+		       count(*) FILTER (WHERE next_attempt_at = 'infinity')
+		  FROM image_scan_queue`).Scan(&c.Pending, &c.Retrying, &c.GaveUp)
 	return c, err
 }
 
@@ -276,9 +290,13 @@ func scanImageMatch(row imageMatchScanner) (ImageMatch, error) {
 	return m, nil
 }
 
-// ListImageMatches is the newest matches, at most limit.
+// ListImageMatches is every match whose report is still open (pending,
+// failed, or off) plus the newest limit matches, newest first.
 func ListImageMatches(ctx context.Context, q Querier, limit int) ([]ImageMatch, error) {
-	rows, err := queryContext(ctx, q, `SELECT `+imageMatchColumns+` FROM image_scan_matches ORDER BY detected_at DESC, id DESC LIMIT $1`, limit)
+	rows, err := queryContext(ctx, q, `SELECT `+imageMatchColumns+` FROM image_scan_matches
+		 WHERE report_status IN ('pending', 'failed', 'off')
+		    OR id IN (SELECT id FROM image_scan_matches ORDER BY detected_at DESC, id DESC LIMIT $1)
+		 ORDER BY detected_at DESC, id DESC`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -332,17 +350,29 @@ func SetImageMatchReport(ctx context.Context, q Querier, id int64, status, repor
 	return err
 }
 
-// ClearEventIcon removes an event's icon (the image bytes and their type).
-func ClearEventIcon(ctx context.Context, q Querier, eventID string) error {
-	_, err := q.ExecContext(ctx, `UPDATE events SET icon_media_type = '', icon_bytes = NULL, updated_at = now() WHERE id = $1`, eventID)
-	return err
+// ClearEventIcon removes an event's icon (the image bytes and their type),
+// only while the stored bytes still hash to sha. Reports whether it did.
+func ClearEventIcon(ctx context.Context, q Querier, eventID, sha string) (bool, error) {
+	res, err := q.ExecContext(ctx, `UPDATE events SET icon_media_type = '', icon_bytes = NULL, updated_at = now()
+		 WHERE id = $1 AND icon_bytes IS NOT NULL AND encode(sha256(icon_bytes), 'hex') = $2`, eventID, sha)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
-// ClearEventScreenshot removes a team's entry screenshot and leaves the
-// entry text and its last writer as they are.
-func ClearEventScreenshot(ctx context.Context, q Querier, teamID string) error {
-	_, err := q.ExecContext(ctx, `UPDATE event_entries SET screenshot = NULL, screenshot_type = '' WHERE team_id = $1`, teamID)
-	return err
+// ClearEventScreenshot removes a team's entry screenshot, only while the
+// stored bytes still hash to sha, and leaves the entry text and its last
+// writer as they are. Reports whether it did.
+func ClearEventScreenshot(ctx context.Context, q Querier, teamID, sha string) (bool, error) {
+	res, err := q.ExecContext(ctx, `UPDATE event_entries SET screenshot = NULL, screenshot_type = ''
+		 WHERE team_id = $1 AND screenshot IS NOT NULL AND encode(sha256(screenshot), 'hex') = $2`, teamID, sha)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
 // DeleteStorageFileRow drops a files-storage object's row after its bytes

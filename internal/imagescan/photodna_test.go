@@ -112,13 +112,15 @@ func TestMatchStatusCodes(t *testing.T) {
 		name        string
 		body        string
 		unsupported bool
+		retryable   bool
 	}{
-		{"3002", `{"Status":{"Code":3002,"Description":"Invalid image format"},"IsMatch":false}`, true},
-		{"3004", `{"Status":{"Code":3004,"Description":"Image too small"},"IsMatch":false}`, true},
-		{"3005", `{"Status":{"Code":3005,"Description":"Image too large"},"IsMatch":false}`, true},
-		{"3xxx by description", `{"Status":{"Code":3009,"Description":"The Image Size is not supported"},"IsMatch":false}`, true},
-		{"quoted code", `{"Status":{"Code":"3002","Description":"bad image"},"IsMatch":false}`, true},
-		{"other code", `{"Status":{"Code":3001,"Description":"Quota exceeded"},"IsMatch":false}`, false},
+		{"3002 bad request", `{"Status":{"Code":3002,"Description":"Invalid or missing request parameter"},"IsMatch":false}`, false, false},
+		{"3004 unknown scenario", `{"Status":{"Code":3004,"Description":"Unknown scenario or unhandled error"},"IsMatch":false}`, false, true},
+		{"3206 not an image", `{"Status":{"Code":3206,"Description":"Could not verify file as image"},"IsMatch":false}`, true, false},
+		{"3208 pixel size", `{"Status":{"Code":3208,"Description":"Image dimensions not within allowed range"},"IsMatch":false}`, true, false},
+		{"3209 too large", `{"Status":{"Code":3209,"Description":"Request size exceeded"},"IsMatch":false}`, true, false},
+		{"quoted code", `{"Status":{"Code":"3206","Description":"bad image"},"IsMatch":false}`, true, false},
+		{"unknown code", `{"Status":{"Code":3001,"Description":"Quota exceeded"},"IsMatch":false}`, false, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -132,13 +134,48 @@ func TestMatchStatusCodes(t *testing.T) {
 			if errors.Is(err, ErrUnsupported) != c.unsupported {
 				t.Errorf("ErrUnsupported = %v, want %v: %v", !c.unsupported, c.unsupported, err)
 			}
-			if IsRetryable(err) {
-				t.Errorf("must not be retryable: %v", err)
+			if IsRetryable(err) != c.retryable {
+				t.Errorf("retryable = %v, want %v: %v", !c.retryable, c.retryable, err)
 			}
-			if !strings.Contains(err.Error(), "300") {
+			if !strings.Contains(err.Error(), "status 3") {
 				t.Errorf("error does not name the code: %v", err)
 			}
 		})
+	}
+}
+
+func TestMatchNoVerdictIsRetryable(t *testing.T) {
+	for _, body := range []string{`{}`, `null`, `{"Status":{"Code":3000,"Description":"OK"},"TrackingId":"t"}`} {
+		srv := server(t, 200, body, nil)
+		p := NewPhotoDNA("k")
+		p.MatchURL = srv.URL
+		m, err := p.Match(context.Background(), testImg())
+		if err == nil || !IsRetryable(err) {
+			t.Errorf("%s: want a retryable error, got %+v %v", body, m, err)
+		} else if !strings.Contains(err.Error(), "no IsMatch") {
+			t.Errorf("%s: %v", body, err)
+		}
+		srv.Close()
+	}
+}
+
+func TestMatch400WithImageStatusIsUnsupported(t *testing.T) {
+	for _, code := range []string{"3206", "3208", "3209"} {
+		srv := server(t, 400, `{"Status":{"Code":`+code+`,"Description":"image refused"}}`, nil)
+		p := NewPhotoDNA("k")
+		p.MatchURL = srv.URL
+		_, err := p.Match(context.Background(), testImg())
+		if !errors.Is(err, ErrUnsupported) || IsRetryable(err) {
+			t.Errorf("%s: want ErrUnsupported: %v", code, err)
+		}
+		srv.Close()
+	}
+	srv := server(t, 400, `{"Status":{"Code":3002,"Description":"Invalid or missing request parameter"}}`, nil)
+	p := NewPhotoDNA("k")
+	p.MatchURL = srv.URL
+	_, err := p.Match(context.Background(), testImg())
+	if err == nil || errors.Is(err, ErrUnsupported) || IsRetryable(err) {
+		t.Errorf("400 with 3002: want a permanent error: %v", err)
 	}
 }
 
@@ -149,7 +186,7 @@ func TestMatchHTTPErrors(t *testing.T) {
 		unsupported bool
 		contains    string
 	}{
-		{400, false, true, "HTTP 400"},
+		{400, false, false, "HTTP 400"},
 		{401, false, false, "subscription key refused (HTTP 401)"},
 		{403, false, false, "subscription key refused (HTTP 403)"},
 		{408, true, false, "HTTP 408"},
@@ -393,9 +430,7 @@ func TestReportIDParsing(t *testing.T) {
 		{`{"Id":123}`, "123"},
 		{`{"TrackingId":"d","ReportId":"a"}`, "a"},
 		{`{"Status":{"Code":3000,"Description":"OK"},"ReportID":"b"}`, "b"},
-		{`{}`, ""},
-		{``, ""},
-		{`not json`, ""},
+		{`{"Status":{"Code":3000,"Description":"OK"}}`, ""},
 	}
 	for _, c := range cases {
 		srv := server(t, 200, c.body, nil)
@@ -407,6 +442,26 @@ func TestReportIDParsing(t *testing.T) {
 		}
 		if res.ReportID != c.want {
 			t.Errorf("%q: ReportID = %q, want %q", c.body, res.ReportID, c.want)
+		}
+		srv.Close()
+	}
+}
+
+func TestReportNotAcknowledged(t *testing.T) {
+	for _, body := range []string{``, `{}`, `null`, `<html>ok</html>`, `{"Message":"accepted"}`, `{"ReportId":""}`} {
+		srv := server(t, 200, body, nil)
+		p := NewPhotoDNA("k")
+		p.ReportURL = srv.URL
+		res, err := p.Report(context.Background(), sampleReport())
+		if err == nil {
+			t.Errorf("%q: want an error, got %+v", body, res)
+		} else {
+			if IsRetryable(err) || errors.Is(err, ErrUnsupported) {
+				t.Errorf("%q: want a permanent error: %v", body, err)
+			}
+			if !strings.Contains(err.Error(), "report not acknowledged") {
+				t.Errorf("%q: %v", body, err)
+			}
 		}
 		srv.Close()
 	}

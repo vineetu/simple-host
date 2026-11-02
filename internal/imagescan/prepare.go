@@ -13,21 +13,22 @@ import (
 
 	"golang.org/x/image/draw"
 
-	// Decoders register themselves with package image on import.
-	_ "golang.org/x/image/bmp"
-	_ "golang.org/x/image/tiff"
+	// Decoders register themselves with package image on import. BMP and
+	// TIFF are left out on purpose: registering them changes image decoding
+	// for the whole binary (WordPress import included).
 	_ "golang.org/x/image/webp"
 	_ "image/gif"
 )
 
 // Defaults for PrepareOptions.
 const (
-	DefaultMaxBytes int64 = 4 << 20
-	DefaultMinSide        = 50
+	DefaultMaxBytes int64 = 4_000_000
+	DefaultMinSide        = 160
 	DefaultMaxSide        = 1600
 	// maxPixels bounds decoding cost. DecodeConfig is cheap; a full decode
-	// of more pixels than this is refused before it starts.
-	maxPixels = 50_000_000
+	// of more pixels than this is refused before it starts (a 16-bit PNG
+	// at this size still decodes in about 128 MB).
+	maxPixels = 16_000_000
 )
 
 // Skip reasons Prepare returns. The worker records them as VerdictSkipped.
@@ -38,6 +39,7 @@ const (
 	SkipTooManyPixels = "too many pixels"
 	SkipUndecodable   = "undecodable"
 	SkipTooLarge      = "too large after resize"
+	SkipTooThin       = "too small after resize"
 )
 
 // Prepare sniffs raw upload bytes and returns an Image ready to send, or a
@@ -82,8 +84,8 @@ func Prepare(raw []byte, opts PrepareOptions) (img *Image, skip string, err erro
 	}
 
 	tooBig := int64(len(raw)) > opts.MaxBytes
-	// JPEG, PNG, BMP, and TIFF go as uploaded when they fit. GIF (first
-	// frame) and WebP are always re-encoded as PNG.
+	// JPEG and PNG go as uploaded when they fit. GIF (first frame) and
+	// WebP are always re-encoded as PNG.
 	if !tooBig && format != "gif" && format != "webp" {
 		return &Image{Data: raw, ContentType: "image/" + format, Width: cfg.Width, Height: cfg.Height, SHA256: sha}, "", nil
 	}
@@ -93,6 +95,9 @@ func Prepare(raw []byte, opts PrepareOptions) (img *Image, skip string, err erro
 	scaled := false
 	if tooBig {
 		m = downscale(m, opts.MaxSide)
+		if shortSide(m) < opts.MinSide {
+			return nil, SkipTooThin, nil
+		}
 		scaled = true
 		out, ct, err = encodeJPEG(m)
 	} else {
@@ -103,6 +108,9 @@ func Prepare(raw []byte, opts PrepareOptions) (img *Image, skip string, err erro
 	}
 	if int64(len(out)) > opts.MaxBytes && !scaled {
 		m = downscale(m, opts.MaxSide)
+		if shortSide(m) < opts.MinSide {
+			return nil, SkipTooThin, nil
+		}
 		out, ct, err = encodeJPEG(m)
 		if err != nil {
 			return nil, "", err
@@ -128,9 +136,14 @@ func (o PrepareOptions) withDefaults() PrepareOptions {
 	return o
 }
 
+func shortSide(m image.Image) int {
+	b := m.Bounds()
+	return min(b.Dx(), b.Dy())
+}
+
 func acceptedFormat(format string) bool {
 	switch format {
-	case "jpeg", "png", "gif", "bmp", "tiff", "webp":
+	case "jpeg", "png", "gif", "webp":
 		return true
 	}
 	return false
@@ -154,13 +167,17 @@ func notRasterReason(raw []byte) string {
 		return SkipNotRaster + " (svg)"
 	case ct == "image/x-icon":
 		return SkipNotRaster + " (icon)"
+	case ct == "image/bmp":
+		return SkipNotRaster + " (bmp)"
+	case bytes.HasPrefix(raw, []byte("II*\x00")) || bytes.HasPrefix(raw, []byte("MM\x00*")):
+		return SkipNotRaster + " (tiff)"
 	case isHEIF(raw):
 		return SkipNotRaster + " (heic)"
 	case ct == "text/html":
 		return SkipNotRaster + " (html)"
 	case strings.HasPrefix(ct, "text/"):
 		return SkipNotRaster + " (text)"
-	case ct == "image/jpeg", ct == "image/png", ct == "image/gif", ct == "image/bmp", ct == "image/webp":
+	case ct == "image/jpeg", ct == "image/png", ct == "image/gif", ct == "image/webp":
 		return SkipUndecodable
 	}
 	return SkipNotRaster

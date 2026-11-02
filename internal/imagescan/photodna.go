@@ -66,7 +66,11 @@ func (p *PhotoDNA) Match(ctx context.Context, img *Image) (Match, error) {
 	if r.Status != nil && int(r.Status.Code) != StatusOK {
 		return Match{}, statusError(int(r.Status.Code), r.Status.Description)
 	}
-	m := Match{IsMatch: r.IsMatch, TrackingID: r.TrackingID, Raw: capRaw(body)}
+	if r.IsMatch == nil {
+		// A reply without a verdict is not a clean result.
+		return Match{}, fmt.Errorf("photodna: match: %w: HTTP %d with no IsMatch in the reply: %s", ErrRetryable, status, snippet(body))
+	}
+	m := Match{IsMatch: *r.IsMatch, TrackingID: r.TrackingID, Raw: capRaw(body)}
 	seen := map[string]bool{}
 	for _, f := range r.MatchDetails.MatchFlags {
 		if m.Source == "" {
@@ -104,19 +108,21 @@ func (p *PhotoDNA) Report(ctx context.Context, in Report) (ReportResult, error) 
 		return ReportResult{}, httpError("report", status, resp, false)
 	}
 	res := ReportResult{Raw: capRaw(resp)}
-	if len(bytes.TrimSpace(resp)) == 0 {
-		return res, nil
-	}
+	// Success needs a JSON body with a report id or an explicit OK status.
+	// Anything else is a permanent error: an automatic retry could file a
+	// duplicate, so the operator decides.
 	var top map[string]json.RawMessage
-	if err := json.Unmarshal(resp, &top); err != nil {
-		// The service accepted the report (2xx). Keep what it said and
-		// move on; a retry would file a duplicate.
-		return res, nil
+	if err := json.Unmarshal(resp, &top); err != nil || top == nil {
+		return ReportResult{}, fmt.Errorf("photodna: report not acknowledged: HTTP %d: %s", status, snippet(resp))
 	}
+	statusOK := false
 	if raw, ok := top["Status"]; ok {
 		var st statusBlock
-		if json.Unmarshal(raw, &st) == nil && st.Code != 0 && int(st.Code) != StatusOK {
-			return ReportResult{}, statusError(int(st.Code), st.Description)
+		if json.Unmarshal(raw, &st) == nil && st.Code != 0 {
+			if int(st.Code) != StatusOK {
+				return ReportResult{}, fmt.Errorf("photodna: report: status %d: %s", int(st.Code), st.Description)
+			}
+			statusOK = true
 		}
 	}
 	for _, k := range []string{"ReportId", "ReportID", "Id", "TrackingId"} {
@@ -128,6 +134,9 @@ func (p *PhotoDNA) Report(ctx context.Context, in Report) (ReportResult, error) 
 			res.ReportID = id
 			break
 		}
+	}
+	if res.ReportID == "" && !statusOK {
+		return ReportResult{}, fmt.Errorf("photodna: report not acknowledged: HTTP %d with no report id: %s", status, snippet(resp))
 	}
 	return res, nil
 }
@@ -155,15 +164,21 @@ func (p *PhotoDNA) post(ctx context.Context, u, contentType string, body []byte)
 	return resp.StatusCode, data, nil
 }
 
-// httpError classifies a non-2xx response. unsupported400 is true for
-// Match, where a 400 means the service refused the image itself.
-func httpError(op string, status int, body []byte, unsupported400 bool) error {
+// httpError classifies a non-2xx response. imageStatus400 is true for
+// Match, where a 400 whose body carries an image-content status code means
+// the service refused the image itself. Any other 400 is permanent.
+func httpError(op string, status int, body []byte, imageStatus400 bool) error {
 	switch {
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
 		return fmt.Errorf("photodna: subscription key refused (HTTP %d)", status)
 	case status == http.StatusBadRequest:
-		if unsupported400 {
-			return fmt.Errorf("photodna: %s: %w (HTTP 400): %s", op, ErrUnsupported, snippet(body))
+		if imageStatus400 {
+			var r struct {
+				Status *statusBlock `json:"Status"`
+			}
+			if json.Unmarshal(body, &r) == nil && r.Status != nil && imageContentStatus(int(r.Status.Code)) {
+				return fmt.Errorf("photodna: %s: %w (HTTP 400): status %d: %s", op, ErrUnsupported, int(r.Status.Code), r.Status.Description)
+			}
 		}
 		return fmt.Errorf("photodna: %s: HTTP 400: %s", op, snippet(body))
 	case status == http.StatusRequestTimeout || status == http.StatusTooManyRequests || status >= 500:
@@ -172,27 +187,37 @@ func httpError(op string, status int, body []byte, unsupported400 bool) error {
 	return fmt.Errorf("photodna: %s: HTTP %d: %s", op, status, snippet(body))
 }
 
-// statusError classifies a non-3000 code inside a 2xx body.
-func statusError(code int, desc string) error {
-	if unsupportedStatus(code, desc) {
-		return fmt.Errorf("photodna: %w: status %d: %s", ErrUnsupported, code, desc)
-	}
-	return fmt.Errorf("photodna: status %d: %s", code, desc)
-}
+// PhotoDNA status codes, as Wikimedia's MediaModeration integration lists
+// them (src/PhotoDNA/Response.php).
+const (
+	statusBadRequest      = 3002 // invalid or missing request parameter
+	statusUnknownScenario = 3004 // unknown scenario or unhandled error
+	statusNotAnImage      = 3206 // could not verify the file as an image (size in bytes out of range)
+	statusPixelSize       = 3208 // image dimensions out of range
+	statusRequestTooLarge = 3209 // request too large
+)
 
-func unsupportedStatus(code int, desc string) bool {
+// imageContentStatus is true for codes that mean the image itself cannot be
+// checked.
+func imageContentStatus(code int) bool {
 	switch code {
-	case 3002, 3004, 3005:
+	case statusNotAnImage, statusPixelSize, statusRequestTooLarge:
 		return true
 	}
-	if code < 3000 || code > 3999 {
-		return false
+	return false
+}
+
+// statusError classifies a non-3000 code inside a Match reply: image-content
+// codes are ErrUnsupported, a request-shape code is permanent, and 3004 or
+// any unknown code is retryable.
+func statusError(code int, desc string) error {
+	switch {
+	case imageContentStatus(code):
+		return fmt.Errorf("photodna: %w: status %d: %s", ErrUnsupported, code, desc)
+	case code == statusBadRequest:
+		return fmt.Errorf("photodna: status %d: %s", code, desc)
 	}
-	d := strings.ToLower(desc)
-	if !strings.Contains(d, "image") {
-		return false
-	}
-	return strings.Contains(d, "size") || strings.Contains(d, "format") || strings.Contains(d, "small") || strings.Contains(d, "large")
+	return fmt.Errorf("photodna: %w: status %d: %s", ErrRetryable, code, desc)
 }
 
 type statusBlock struct {
@@ -202,7 +227,7 @@ type statusBlock struct {
 
 type matchResponse struct {
 	Status       *statusBlock `json:"Status"`
-	IsMatch      bool         `json:"IsMatch"`
+	IsMatch      *bool        `json:"IsMatch"`
 	TrackingID   string       `json:"TrackingId"`
 	MatchDetails struct {
 		MatchFlags []struct {

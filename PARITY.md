@@ -1,11 +1,13 @@
 # PARITY — Simple Host (hosted) and Simple Host Enterprise
 
-2026-11-02 image matching (SIM-200): hosted and small-box Simple Host and Simple Hack gain
-image hash matching against known child sexual abuse material through Microsoft PhotoDNA Cloud
-Service (same binary, same knobs; off until `PHOTODNA_API_KEY` or `PHOTODNA_API_KEY_FILE` is
-set), with quarantine to an evidence folder, the existing take-down, an operator alert, and
-CyberTipline reporting, automatic or from the admin Moderation tab. Only image bytes leave the
-box, never an IP address. Enterprise does not have it yet; the port is outstanding. An
+2026-11-02 image matching (SIM-200): hosted Simple Host and Simple Hack (server installs with
+a systemd unit) gain image hash matching against known child sexual abuse material through
+Microsoft PhotoDNA Cloud Service (off until `PHOTODNA_API_KEY` or `PHOTODNA_API_KEY_FILE` is
+set; Docker Compose small boxes do not pass these settings through yet), with quarantine to an
+evidence folder, the existing take-down, an operator alert, and CyberTipline reporting,
+automatic or from the admin Moderation tab. A Match check sends only image bytes, never an IP
+address; a Report sends the image, the uploader's handle and email, the site or event, and the
+reporting organisation's contact details. Enterprise does not have it yet; the port is outstanding. An
 Enterprise operator is itself the provider under 18 U.S.C. 2258A, so the same knobs should be
 offered there. Status: `gap → enterprise`.
 

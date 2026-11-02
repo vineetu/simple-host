@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/fs"
@@ -610,9 +612,11 @@ func (d *DiskStorage) DeleteVersion(userID, siteName string, versionNum int) (er
 }
 
 // RemoveFileEverywhere deletes one file of a site from every retained
-// version and from the live copy (image matching, SIM-200). A path that is
-// not there is fine. relPath is validated the way WriteFiles validates it.
-func (d *DiskStorage) RemoveFileEverywhere(userID, siteName, relPath string) (err error) {
+// version and from the live copy (image matching, SIM-200), but only the
+// copies whose SHA-256 (hex) is sha: a later version with other bytes at the
+// same path stays. A path that is not there is fine. relPath is validated
+// the way WriteFiles validates it.
+func (d *DiskStorage) RemoveFileEverywhere(userID, siteName, relPath, sha string) (err error) {
 	defer func() {
 		if err == nil {
 			d.changed()
@@ -644,11 +648,43 @@ func (d *DiskStorage) RemoveFileEverywhere(userID, siteName, relPath string) (er
 		if name != "current" && !(strings.HasPrefix(name, "v") && isDigits(name[1:])) {
 			continue
 		}
-		if rerr := os.Remove(filepath.Join(siteDir, name, cleanPath)); rerr != nil && !os.IsNotExist(rerr) {
+		p := filepath.Join(siteDir, name, cleanPath)
+		same, herr := fileHasSHA256(p, sha)
+		if herr != nil {
+			if !os.IsNotExist(herr) {
+				err = fmt.Errorf("read %s/%s: %w", name, relPath, herr)
+			}
+			continue
+		}
+		if !same {
+			continue
+		}
+		if rerr := os.Remove(p); rerr != nil && !os.IsNotExist(rerr) {
 			err = fmt.Errorf("remove %s/%s: %w", name, relPath, rerr)
 		}
 	}
 	return err
+}
+
+// fileHasSHA256 reports whether the regular file at p hashes to sha (hex).
+func fileHasSHA256(p, sha string) (bool, error) {
+	fi, err := os.Lstat(p)
+	if err != nil {
+		return false, err
+	}
+	if !fi.Mode().IsRegular() {
+		return false, nil
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return false, err
+	}
+	return hex.EncodeToString(h.Sum(nil)) == sha, nil
 }
 
 func isDigits(s string) bool {

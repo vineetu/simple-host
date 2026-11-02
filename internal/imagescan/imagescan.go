@@ -34,7 +34,7 @@ const (
 // accepts, and the SHA-256 of the ORIGINAL upload (the dedupe key).
 type Image struct {
 	Data        []byte
-	ContentType string // image/jpeg, image/png, image/gif, image/bmp or image/tiff
+	ContentType string // image/jpeg or image/png
 	Width       int
 	Height      int
 	SHA256      string // hex, of the original bytes as uploaded
@@ -42,11 +42,11 @@ type Image struct {
 
 // PrepareOptions bounds Prepare. Zero values take the defaults.
 type PrepareOptions struct {
-	// MaxBytes is the largest payload the service takes (default 4 MB). A
+	// MaxBytes is the largest payload sent (default 4,000,000 bytes). A
 	// larger image is decoded, scaled down and re-encoded.
 	MaxBytes int64
-	// MinSide is the smallest width or height worth checking (default 50
-	// px); smaller images are skipped.
+	// MinSide is the smallest width or height worth checking (default 160
+	// px); smaller images are skipped, also after a downscale.
 	MinSide int
 	// MaxSide is the longest side after a downscale (default 1600 px).
 	MaxSide int

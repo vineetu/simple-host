@@ -345,16 +345,16 @@ another setting.
 | `TURNSTILE_SITE_KEY` | none | The Cloudflare Turnstile site key for the comments preset's spam check. With no site key and secret, the preset is not offered (400 `spam_check_unavailable`). The widget's hostnames must include this server's own address (`PUBLIC_BASE_URL`): the check runs in a frame served there, `/v1/turnstile/frame`, whatever address the site has. |
 | `TURNSTILE_SECRET` | none | Its secret key. Secret. Prefer `TURNSTILE_SECRET_FILE`. |
 | `TURNSTILE_SECRET_FILE` | none | A file holding the secret, read once at start (when `TURNSTILE_SECRET` is empty), e.g. a systemd credential: `LoadCredential=turnstile-secret:/etc/simple-host-secrets/turnstile-secret` and `Environment=TURNSTILE_SECRET_FILE=%d/turnstile-secret`. Unreadable: the spam check is off. |
-| `PHOTODNA_API_KEY` | none | Subscription key for Microsoft PhotoDNA Cloud Service, which turns image matching on (`docs/image-matching.md`). Secret. Empty: image matching is off and nothing is queued. Prefer `PHOTODNA_API_KEY_FILE`. |
+| `PHOTODNA_API_KEY` | none | Subscription key for Microsoft PhotoDNA Cloud Service, which turns image matching on (`docs/image-matching.md`). Server installs (systemd) only; Docker Compose does not pass it through yet. Secret. Empty: image matching is off and nothing is queued. Prefer `PHOTODNA_API_KEY_FILE`. |
 | `PHOTODNA_API_KEY_FILE` | none | A file holding the key, read once at start when `PHOTODNA_API_KEY` is empty, e.g. a systemd credential: `LoadCredential=photodna-key:/etc/simple-host-secrets/photodna-key` and `Environment=PHOTODNA_API_KEY_FILE=%d/photodna-key`. Unreadable: matching is off, with a warning in the log. |
 | `PHOTODNA_MATCH_URL` | `https://api.microsoftmoderator.com/photodna/v1.0/Match` | The Match operation. |
 | `PHOTODNA_REPORT_URL` | `https://api.microsoftmoderator.com/photodna/v1.0/Report` | The Report operation, which files a CyberTipline report with NCMEC through PhotoDNA. |
 | `PHOTODNA_AUTO_REPORT` | `off` | `on`: every match is reported through the Report operation as soon as it is recorded. `off`: the admin Moderation tab offers a Report button per match. |
-| `IMAGE_SCAN_REPORT_ORG` | none | Organisation name on reports. A report is refused without it. |
-| `IMAGE_SCAN_REPORT_NAME` | none | Reporter's name on reports. |
+| `IMAGE_SCAN_REPORT_ORG` | none | Organisation name on reports. Reports need it, `IMAGE_SCAN_REPORT_NAME`, and a report email; without all three, matches are recorded with report status off and the admin Report button appears once they are set. |
+| `IMAGE_SCAN_REPORT_NAME` | none | Reporter's name on reports. Required for reports. |
 | `IMAGE_SCAN_REPORT_EMAIL` | `the support contact` (`support@simple-host.app` here) | Reporter's email on reports. |
 | `IMAGE_SCAN_ALERT_EMAIL` | `the support contact` (`support@simple-host.app` here) | Where each match alert is emailed. |
-| `IMAGE_SCAN_EVIDENCE_DIR` | `<DATA_DIR>/.evidence` | Folder for the quarantined copy and the record of each match (mode 0700, under no served path). Must be writable by the service (`ReadWritePaths` on a hardened unit). |
+| `IMAGE_SCAN_EVIDENCE_DIR` | `<DATA_DIR>/.evidence` | Folder for the quarantined copy and the record of each match (mode 0700, under no served path, symlinks resolved). Must be writable by the service (`ReadWritePaths` on a hardened unit). Exclude it from your own backups. |
 | `GITHUB_OAUTH_CLIENT_ID` | none | An optional second visitor sign-in provider (with the secret). |
 | `GITHUB_OAUTH_CLIENT_SECRET` | none | Its client secret. |
 | `OIDC_ISSUER` | none | Company sign-in: the identity provider's issuer URL (https). Set with `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` to turn it on. Redirect URI: `<PUBLIC_BASE_URL>/v1/auth/oauth/oidc/callback`. |

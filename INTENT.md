@@ -320,10 +320,13 @@ What follows from that, and is not negotiable without changing the line above:
 
 - **2026-10-24. Image hash matching through PhotoDNA (SIM-200).** Every image written to a
   site, to files storage, or as a Simple Hack event icon or entry screenshot is checked after
-  the write against the NCMEC and IWF hash sets of known child sexual abuse material through
-  Microsoft PhotoDNA Cloud Service. Only the image bytes go to the service, never a visitor's
-  or owner's IP address, name, or email, and nothing is logged or stored beyond the evidence
-  copy of a match. On a match the file is quarantined to an evidence folder that outlives the
+  the write against hash sets of known child sexual abuse material through Microsoft PhotoDNA
+  Cloud Service. A Match check sends only the image bytes, never a visitor's or owner's IP
+  address, name, or email, and nothing is logged or stored beyond the evidence copy of a match.
+  A Report, which the law requires after a match, sends the image, the account handle and email
+  of the person who uploaded it, the site address or event, and the reporting organisation's
+  contact details to Microsoft's PhotoDNA Report service, which files it with NCMEC's
+  CyberTipline. On a match the file is quarantined to an evidence folder that outlives the
   site and the account, removed from every served copy, the site (or event) is taken down with
   the existing operator take-down with nothing else deleted, the operator is emailed, and a
   CyberTipline report is filed with NCMEC through PhotoDNA, automatically or from a Report

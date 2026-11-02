@@ -333,9 +333,6 @@ func chromePage(name string, d chromeData) ([]byte, error) {
 	if hackMode {
 		page = hackPersonalPresentationHTML(name, page)
 	}
-	if name == "privacy.html" {
-		page = stripImageScanItem(page)
-	}
 	return hostedBlocks(hackInstanceText(instanceLimits.apply(page)), hostedOwner() != ""), nil
 }
 
@@ -382,6 +379,10 @@ func chromePageRaw(name string, d chromeData) ([]byte, error) {
 	}
 	if name == "setup.html" && !d.Hack {
 		page = addHostInk(page, d.Base)
+	}
+	if name == "privacy.html" {
+		// Stripped once here; SetImageScanOn drops these cached copies.
+		page = stripImageScanItem(page)
 	}
 	chromeCache.Store(key, page)
 	return page, nil

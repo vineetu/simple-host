@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -43,7 +45,7 @@ type ImageScanConfig struct {
 	// AlertEmail gets one email per match. Empty: no email, a log line only.
 	AlertEmail string
 	// ReportOrg, ReportName and ReportEmail name the operator on a report.
-	// A report is refused without ReportOrg.
+	// A report is refused unless all three are set.
 	ReportOrg   string
 	ReportName  string
 	ReportEmail string
@@ -72,8 +74,6 @@ type ImageScan struct {
 	// and address, and the event take-down markers.
 	sites *SiteHandler
 	hack  *HackHandler
-	// gaveUp remembers which jobs were logged as given up, once each.
-	gaveUp sync.Map
 }
 
 const (
@@ -110,6 +110,12 @@ func NewImageScan(database *sql.DB, disk *storage.DiskStorage, matcher imagescan
 // Enabled reports whether image matching is on.
 func (s *ImageScan) Enabled() bool { return s != nil }
 
+// reportReady reports whether a CyberTipline report can be filed: a
+// reporter, and the organisation, name, and email a report carries.
+func (s *ImageScan) reportReady() bool {
+	return s != nil && s.reporter != nil && s.cfg.ReportOrg != "" && s.cfg.ReportName != "" && s.cfg.ReportEmail != ""
+}
+
 // SetImageScan connects the worker to the site side (site locks, addresses,
 // take-down markers).
 func (h *SiteHandler) SetImageScan(s *ImageScan) {
@@ -132,12 +138,22 @@ func (h *HackHandler) SetImageScan(s *ImageScan) {
 var imageScanOn bool
 
 // SetImageScanOn records whether image matching is on for the served pages.
-func SetImageScanOn(on bool) { imageScanOn = on }
+// The privacy page is assembled once and cached (chromePageRaw strips the
+// line there), so a change drops its cached copies.
+func SetImageScanOn(on bool) {
+	imageScanOn = on
+	chromeCache.Range(func(k, _ any) bool {
+		if k.(chromeCacheKey).name == "privacy.html" {
+			chromeCache.Delete(k)
+		}
+		return true
+	})
+}
 
 var imageScanPrivacyItem = regexp.MustCompile(`(?s)[ \t]*<li data-sh="image-scan">.*?</li>[ \t]*\r?\n?`)
 
 // stripImageScanItem removes the privacy page's image-matching line while
-// the feature is off.
+// the feature is off. Called once per cached page (chromePageRaw).
 func stripImageScanItem(page []byte) []byte {
 	if imageScanOn {
 		return page
@@ -215,8 +231,9 @@ func (s *ImageScan) EnqueueStorageFile(siteID, resourceName, path, writerID stri
 	}}})
 }
 
-// EnqueueEventIcon queues an event's icon.
-func (s *ImageScan) EnqueueEventIcon(eventID string, raw []byte) {
+// EnqueueEventIcon queues an event's icon. userID is the organiser who
+// uploaded it (the report names them).
+func (s *ImageScan) EnqueueEventIcon(eventID, userID string, raw []byte) {
 	if s == nil {
 		return
 	}
@@ -224,7 +241,46 @@ func (s *ImageScan) EnqueueEventIcon(eventID string, raw []byte) {
 	if !ok {
 		return
 	}
-	s.enqueue([]enqueueCandidate{{data: raw, ct: ct, job: db.ImageScanJob{Kind: "event_icon", EventID: eventID, Path: "icon"}}})
+	s.enqueue([]enqueueCandidate{{data: raw, ct: ct, job: db.ImageScanJob{Kind: "event_icon", EventID: eventID, WriterID: userID, Path: "icon"}}})
+}
+
+// EnqueueRestoredSite queues the images of a site's live version when it
+// comes back from Recently deleted: a job that ran while the site was
+// deleted found no bytes and was dropped. Only files that pass the image
+// filter are read. Nil-safe.
+func (s *ImageScan) EnqueueRestoredSite(site db.Site) {
+	if s == nil || s.disk == nil {
+		return
+	}
+	dir := s.disk.VersionDir(site.UserID, site.Name, site.ActiveVersion)
+	if dir == "" {
+		return
+	}
+	files := map[string][]byte{}
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || !d.Type().IsRegular() {
+			return nil
+		}
+		f, err := os.Open(p)
+		if err != nil {
+			return nil
+		}
+		head := make([]byte, 512)
+		n, _ := io.ReadFull(f, head)
+		f.Close()
+		if _, ok := imageCandidate(head[:n]); !ok {
+			return nil
+		}
+		rel, err := filepath.Rel(dir, p)
+		if err != nil {
+			return nil
+		}
+		if b, err := os.ReadFile(p); err == nil {
+			files[filepath.ToSlash(rel)] = b
+		}
+		return nil
+	})
+	s.EnqueueSiteFiles(site.ID, site.UserID, site.Name, site.ActiveVersion, files)
 }
 
 // EnqueueEntryScreenshot queues a team's entry screenshot.
@@ -300,8 +356,9 @@ func (s *ImageScan) Start(ctx context.Context) {
 	}()
 }
 
-// RunOnce claims due jobs and runs them, a few at a time. Returns how many
-// jobs were handled.
+// RunOnce claims due jobs and runs them, a few at a time. Jobs for the same
+// bytes run one after another, so the second finds the first one's verdict
+// in the hash cache. Returns how many jobs were handled.
 func (s *ImageScan) RunOnce(ctx context.Context) int {
 	if s == nil {
 		return 0
@@ -311,16 +368,26 @@ func (s *ImageScan) RunOnce(ctx context.Context) int {
 		log.Printf("image scan: claim: %v", err)
 		return 0
 	}
+	groups := map[string][]db.ImageScanJob{}
+	var order []string
+	for _, j := range jobs {
+		if _, ok := groups[j.SHA256]; !ok {
+			order = append(order, j.SHA256)
+		}
+		groups[j.SHA256] = append(groups[j.SHA256], j)
+	}
 	sem := make(chan struct{}, imageScanConcurrency)
 	var wg sync.WaitGroup
-	for _, j := range jobs {
+	for _, sha := range order {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(j db.ImageScanJob) {
+		go func(group []db.ImageScanJob) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			s.runJob(ctx, j)
-		}(j)
+			for _, j := range group {
+				s.runJob(ctx, j)
+			}
+		}(groups[sha])
 	}
 	wg.Wait()
 	return len(jobs)
@@ -396,6 +463,20 @@ func (s *ImageScan) runJob(ctx context.Context, j db.ImageScanJob) {
 		return
 	}
 	ct, _ := imageCandidate(raw)
+	// The same bytes may have been checked since this job was queued.
+	verdict, tracking, found, err := db.LookupImageHash(ctx, s.database, j.SHA256)
+	if err != nil {
+		s.deferJob(ctx, j, fmt.Errorf("hash lookup: %w", err))
+		return
+	}
+	if found {
+		if verdict == string(imagescan.VerdictMatch) {
+			s.quarantine(ctx, imageFinding{job: j, data: raw, contentType: ct, provider: "hash-cache",
+				match: imagescan.Match{IsMatch: true, TrackingID: tracking}})
+		}
+		s.finish(ctx, j.ID)
+		return
+	}
 	img, skip, err := s.prepare(raw, imagescan.PrepareOptions{})
 	if err != nil {
 		s.deferJob(ctx, j, fmt.Errorf("prepare: %w", err))
@@ -438,18 +519,20 @@ func (s *ImageScan) finish(ctx context.Context, id int64) {
 	}
 }
 
-// deferJob schedules another attempt with a growing wait. After the limit
-// the job stays with its error (one log line), so the admin page's retrying
-// count and the log say what happened.
+// deferJob schedules another attempt with a growing wait. The last allowed
+// failure parks the job for good with its error (one log line), so the
+// admin page's gave-up count and the log say what happened.
 func (s *ImageScan) deferJob(ctx context.Context, j db.ImageScanJob, err error) {
 	attempts := j.Attempts + 1
 	text := err.Error()
-	if attempts > imageScanMaxAttempts {
-		text = "gave up: " + text
-		if _, logged := s.gaveUp.LoadOrStore(j.ID, true); !logged {
-			log.Printf("image scan: job %d (%s %s) gave up after %d attempts: %v", j.ID, j.Kind, j.Path, j.Attempts, err)
+	if attempts >= imageScanMaxAttempts {
+		log.Printf("image scan: job %d (%s %s) gave up after %d attempts: %v", j.ID, j.Kind, j.Path, attempts, err)
+		if derr := db.GiveUpImageScan(ctx, s.database, j.ID, "gave up: "+text, attempts); derr != nil {
+			log.Printf("image scan: give up job %d: %v", j.ID, derr)
 		}
-	} else if imagescan.IsRetryable(err) {
+		return
+	}
+	if imagescan.IsRetryable(err) {
 		log.Printf("image scan: job %d (%s %s) attempt %d: %v (will retry)", j.ID, j.Kind, j.Path, attempts, err)
 	} else {
 		log.Printf("image scan: job %d (%s %s) attempt %d: %v", j.ID, j.Kind, j.Path, attempts, err)
@@ -459,10 +542,31 @@ func (s *ImageScan) deferJob(ctx context.Context, j db.ImageScanJob, err error) 
 	}
 }
 
+// resolvedPath is p made absolute with its symlinks resolved. A path that
+// does not exist yet is resolved through its nearest existing parent.
+func resolvedPath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+	rest := ""
+	for cur := abs; ; {
+		if r, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(r, rest), nil
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return abs, nil
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
+}
+
 // evidenceDirRefused says why the evidence folder cannot be used: it must
-// never sit under a served path.
+// never sit under a served path, also through a symlink.
 func (s *ImageScan) evidenceDirRefused() string {
-	dir, err := filepath.Abs(s.cfg.EvidenceDir)
+	dir, err := resolvedPath(s.cfg.EvidenceDir)
 	if err != nil {
 		return fmt.Sprintf("evidence dir %q: %v", s.cfg.EvidenceDir, err)
 	}
@@ -470,13 +574,17 @@ func (s *ImageScan) evidenceDirRefused() string {
 		return ""
 	}
 	for _, served := range []string{"by-id", "handles", "domains"} {
-		base, err := filepath.Abs(filepath.Join(s.disk.DataDir(), served))
-		if err != nil {
-			continue
-		}
-		rel, err := filepath.Rel(base, dir)
-		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return fmt.Sprintf("evidence dir %q is under the served path %s", dir, base)
+		p := filepath.Join(s.disk.DataDir(), served)
+		abs, aerr := filepath.Abs(p)
+		res, rerr := resolvedPath(p)
+		for _, base := range []string{abs, res} {
+			if (base == abs && aerr != nil) || (base == res && rerr != nil) {
+				continue
+			}
+			rel, err := filepath.Rel(base, dir)
+			if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return fmt.Sprintf("evidence dir %q is under the served path %s", dir, base)
+			}
 		}
 	}
 	return ""
@@ -508,36 +616,65 @@ func matchWhere(m db.ImageMatch) string {
 	return "site " + m.SiteName
 }
 
+// imageStep is one action taken on a match, as the alert, the log, and
+// record.json list it. Detail is safe for the alert (no path, no image);
+// Error carries the underlying error for the log and record.json only.
+type imageStep struct {
+	Step   string `json:"step"`
+	Status string `json:"status"` // done, FAILED, or (for the report) not filed
+	Detail string `json:"detail,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+const (
+	stepDone      = "done"
+	stepFailed    = "FAILED"
+	stepNotFiled  = "not filed"
+	keptNoCopyMsg = "the file was kept in place because the evidence copy failed"
+)
+
+// rawJSON is the service's reply as valid JSON: as it is, or, when it is
+// not valid JSON (a reply cut at the size cap), as a JSON string.
+func rawJSON(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 || json.Valid(raw) {
+		return raw
+	}
+	b, err := json.Marshal(string(raw))
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
 // quarantine acts on a match, in this order: record the match row first so
 // nothing is lost, keep the evidence copy, remove the file from every served
-// copy, take the site or event down, email the alert, file the report. Each
-// step logs its own failure and the next one still runs.
+// copy (only once the evidence copy is safe), take the site or event down,
+// file the report when automatic reports are on, then email the alert,
+// which lists what happened. Each step logs its own failure and the next
+// one still runs.
 func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 	j := f.job
 	m := db.ImageMatch{
 		Kind: j.Kind, SiteID: j.SiteID, EventID: j.EventID, TeamID: j.TeamID, Version: j.Version,
 		ResourceName: j.ResourceName, Path: j.Path, WriterID: j.WriterID, SHA256: j.SHA256, Bytes: int64(len(f.data)),
 		ContentType: f.contentType, Provider: f.provider, TrackingID: f.match.TrackingID, Source: f.match.Source,
-		Violations: strings.Join(f.match.Violations, ","), Raw: f.match.Raw, UploadedAt: j.CreatedAt,
+		Violations: strings.Join(f.match.Violations, ","), Raw: rawJSON(f.match.Raw), UploadedAt: j.CreatedAt,
 		ReportStatus: "pending",
 	}
-	if s.reporter == nil {
+	if !s.reportReady() {
 		m.ReportStatus = "off"
 	}
+	siteKind := j.Kind == "site_file" || j.Kind == "storage_file"
 	var site db.Site
 	var ev db.Event
-	switch j.Kind {
-	case "site_file", "storage_file":
+	if siteKind {
 		var err error
 		if site, err = db.GetSiteByID(ctx, s.database, j.SiteID); err != nil {
 			log.Printf("image scan: site %s: %v", j.SiteID, err)
 		} else {
-			m.SiteName, m.OwnerID, m.OwnerHandle = site.Name, site.UserID, site.OwnerHandle
-			if u, err := db.GetUserByID(ctx, s.database, site.UserID); err == nil && strings.Contains(u.Username, "@") {
-				m.OwnerEmail = u.Username
-			}
+			s.fillSiteOwner(ctx, &m, site)
 		}
-	default:
+	} else {
 		var err error
 		if ev, err = db.GetEventByID(ctx, s.database, j.EventID); err != nil {
 			log.Printf("image scan: event %s: %v", j.EventID, err)
@@ -548,11 +685,20 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 			}
 		}
 	}
-	var did []string
-	note := func(format string, args ...any) {
-		line := fmt.Sprintf(format, args...)
-		did = append(did, line)
-		log.Printf("image scan: match on %s %s: %s", matchWhere(m), m.Path, line)
+	var steps []imageStep
+	add := func(name, status, detail string, err error) {
+		st := imageStep{Step: name, Status: status, Detail: detail}
+		if err != nil {
+			st.Error = err.Error()
+		}
+		steps = append(steps, st)
+		log.Printf("image scan: match #%d on %s %s: %s: %s %s %s", m.ID, matchWhere(m), m.Path, name, status, detail, st.Error)
+	}
+	ok := func(b bool) string {
+		if b {
+			return stepDone
+		}
+		return stepFailed
 	}
 
 	// 1. The record.
@@ -564,98 +710,59 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 	m.DetectedAt = s.now().UTC()
 	log.Printf("image scan: MATCH #%d on %s %s (%s, %s)", id, matchWhere(m), m.Path, f.provider, m.Source)
 
-	// 2. The evidence copy.
-	var evidence string
+	// 2. The evidence copy. Without it the file stays where it is.
+	evidence, evidenceOK := "", false
 	if why := s.evidenceDirRefused(); why != "" {
-		note("evidence copy NOT kept: %s", why)
+		add("evidence copy", stepFailed, "the evidence folder is refused", errors.New(why))
 	} else if id == 0 {
-		note("evidence copy NOT kept: no match id")
+		add("evidence copy", stepFailed, "the match could not be recorded", nil)
 	} else {
-		evidence = filepath.Join(s.cfg.EvidenceDir, strconv.FormatInt(id, 10))
-		if err := os.MkdirAll(evidence, 0o700); err != nil {
-			note("evidence folder %s: %v", evidence, err)
-			evidence = ""
-		} else if err := os.WriteFile(filepath.Join(evidence, "image"+imageExt(f.contentType)), f.data, 0o600); err != nil {
-			note("evidence copy in %s: %v", evidence, err)
+		dir := filepath.Join(s.cfg.EvidenceDir, strconv.FormatInt(id, 10))
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			add("evidence copy", stepFailed, "", err)
+		} else if err := os.WriteFile(filepath.Join(dir, "image"+imageExt(f.contentType)), f.data, 0o600); err != nil {
+			add("evidence copy", stepFailed, "", err)
+			evidence = dir // record.json still goes beside it, when it can
 		} else {
-			note("copy kept in %s", evidence)
-			m.EvidencePath = evidence
-			if err := db.SetImageMatchEvidence(ctx, s.database, id, evidence); err != nil {
+			evidence, evidenceOK = dir, true
+			add("evidence copy", stepDone, "kept in the evidence folder", nil)
+			m.EvidencePath = dir
+			if err := db.SetImageMatchEvidence(ctx, s.database, id, dir); err != nil {
 				log.Printf("image scan: evidence path of #%d: %v", id, err)
 			}
-			s.writeRecord(evidence, m, did)
+			s.writeRecord(dir, m, steps)
 		}
 	}
 
-	// 3. Out of service.
-	switch j.Kind {
-	case "site_file":
-		if site.ID == "" {
-			note("file NOT removed: site row missing")
+	// 3 and 4. Out of service, and the take-down.
+	if siteKind {
+		s.takeDownSite(ctx, &m, site, evidenceOK, add, ok)
+	} else {
+		if !evidenceOK {
+			add("file removal", stepFailed, keptNoCopyMsg, nil)
 		} else {
-			unlock := s.lockSite(site)
-			err := s.disk.RemoveFileEverywhere(site.UserID, site.Name, j.Path)
-			unlock()
-			if err != nil {
-				note("file removal: %v", err)
+			var cleared bool
+			var err error
+			if j.Kind == "event_icon" {
+				cleared, err = db.ClearEventIcon(ctx, s.database, j.EventID, j.SHA256)
 			} else {
-				note("file removed from every version and the live copy")
+				cleared, err = db.ClearEventScreenshot(ctx, s.database, j.TeamID, j.SHA256)
+			}
+			switch {
+			case err != nil:
+				add("file removal", stepFailed, "", err)
+			case cleared:
+				add("file removal", stepDone, "the image was removed", nil)
+			default:
+				add("file removal", stepDone, "the stored image had already changed; nothing to remove", nil)
 			}
 		}
-	case "storage_file":
-		if site.ID == "" {
-			note("object NOT removed: site row missing")
-		} else {
-			p := storageFileOnDisk(s.disk, site.UserID, site.Name, j.ResourceName, j.Path)
-			if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
-				note("object removal: %v", err)
-			} else if err := db.DeleteStorageFileRow(ctx, s.database, j.SiteID, j.ResourceName, j.Path); err != nil {
-				note("object row removal: %v", err)
-			} else {
-				note("object removed from the files resource")
-				s.disk.MarkChanged()
-			}
-		}
-	case "event_icon":
-		if err := db.ClearEventIcon(ctx, s.database, j.EventID); err != nil {
-			note("icon removal: %v", err)
-		} else {
-			note("event icon removed")
-		}
-	case "entry_screenshot":
-		if err := db.ClearEventScreenshot(ctx, s.database, j.TeamID); err != nil {
-			note("screenshot removal: %v", err)
-		} else {
-			note("entry screenshot removed")
-		}
-	}
-
-	// 4. Take-down.
-	switch j.Kind {
-	case "site_file", "storage_file":
-		if site.ID == "" {
-			note("site NOT taken down: site row missing")
-		} else if err := db.SetSiteSuspended(ctx, s.database, site.ID, imageScanTakeDownMsg); err != nil {
-			note("take-down: %v", err)
-		} else {
-			fresh, err := db.GetSiteByID(ctx, s.database, site.ID)
-			if err != nil {
-				note("site taken down, but the marker could not be written: %v", err)
-			} else if err := s.disk.SetSuspended(fresh.UserID, fresh.Name, fresh.Suspended()); err != nil {
-				note("site taken down, but the marker could not be written: %v", err)
-			} else {
-				note("site taken down")
-			}
-			m.TakenDown = true
-		}
-	default:
 		if ev.ID == "" {
-			note("event NOT taken down: event row missing")
-		} else if err := s.takeDownEvent(ctx, ev); err != nil {
-			note("event take-down: %v", err)
+			add("take-down", stepFailed, "the event row is missing", nil)
 		} else {
-			note("event taken down")
-			m.TakenDown = true
+			err := s.takeDownEvent(ctx, ev)
+			add("take-down", ok(err == nil), "the event", err)
+			m.TakenDown = err == nil
 		}
 	}
 	if m.TakenDown && id != 0 {
@@ -664,39 +771,145 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 		}
 	}
 
-	// 5. The alert.
-	if err := s.sendAlert(m); err != nil {
-		note("alert email: %v", err)
+	// 5. The report, before the alert so the alert can say whether it went.
+	reportFiled := false
+	switch {
+	case s.cfg.AutoReport && s.reportReady() && id != 0:
+		rid, at, err := s.fileReport(ctx, id)
+		if err != nil {
+			add("report", stepFailed, "", err)
+			m.ReportStatus, m.ReportError = "failed", err.Error()
+		} else {
+			reportFiled = true
+			add("report", stepDone, "filed as "+rid, nil)
+			m.ReportStatus, m.ReportID, m.ReportedAt = "filed", rid, sql.NullTime{Time: at, Valid: true}
+		}
+	case !s.reportReady():
+		add("report", stepNotFiled, "reports are not configured", nil)
+	default:
+		add("report", stepNotFiled, "file it from the admin page", nil)
+	}
+
+	// 6. The alert.
+	if err := s.sendAlert(m, steps, reportFiled); err != nil {
+		add("alert email", stepFailed, "", err)
 	} else if s.cfg.AlertEmail != "" {
-		note("alert emailed to %s", s.cfg.AlertEmail)
+		add("alert email", stepDone, "sent to "+s.cfg.AlertEmail, nil)
 		if id != 0 {
 			if err := db.SetImageMatchAlerted(ctx, s.database, id); err != nil {
 				log.Printf("image scan: alerted_at of #%d: %v", id, err)
 			}
+			m.AlertedAt = sql.NullTime{Time: s.now().UTC(), Valid: true}
 		}
 	} else {
-		note("no alert address configured; not emailed")
-	}
-
-	// 6. The report.
-	if s.cfg.AutoReport && s.reporter != nil && id != 0 {
-		if rid, _, err := s.fileReport(ctx, id); err != nil {
-			note("report: %v", err)
-		} else {
-			note("report filed (%s)", rid)
-		}
+		add("alert email", stepNotFiled, "no alert address is configured", nil)
 	}
 	if evidence != "" {
-		s.writeRecord(evidence, m, did)
+		s.writeRecord(evidence, m, steps)
 	}
 }
 
-// lockSite serialises the removal with deploys of the same site.
-func (s *ImageScan) lockSite(site db.Site) func() {
-	if s.sites == nil {
-		return func() {}
+// fillSiteOwner copies the site's name and owner onto the match.
+func (s *ImageScan) fillSiteOwner(ctx context.Context, m *db.ImageMatch, site db.Site) {
+	m.SiteName, m.OwnerID, m.OwnerHandle = site.Name, site.UserID, site.OwnerHandle
+	m.OwnerEmail = ""
+	if u, err := db.GetUserByID(ctx, s.database, site.UserID); err == nil && strings.Contains(u.Username, "@") {
+		m.OwnerEmail = u.Username
 	}
-	return s.sites.lockSite(site.UserID, site.Name)
+}
+
+// takeDownSite removes the matched file (when the evidence copy is safe) and
+// takes the site down, the way the operator take-down does (suspend.go):
+// under the site's lock, with the row read again under it so a rename in
+// between is seen, held through the removal, the suspension, and the marker.
+// The same lock guards the files-storage PUT path. TakenDown is set only
+// when both the suspension and the marker succeeded.
+func (s *ImageScan) takeDownSite(ctx context.Context, m *db.ImageMatch, site db.Site, evidenceOK bool, add func(string, string, string, error), ok func(bool) string) {
+	if site.ID == "" {
+		add("file removal", stepFailed, "the site row is missing", nil)
+		add("take-down", stepFailed, "the site row is missing", nil)
+		return
+	}
+	site, unlock, err := s.lockFreshSite(ctx, site)
+	if err != nil {
+		add("file removal", stepFailed, "the site could not be read", err)
+		add("take-down", stepFailed, "the site could not be read", err)
+		return
+	}
+	defer unlock()
+	s.fillSiteOwner(ctx, m, site)
+	switch {
+	case !evidenceOK:
+		add("file removal", stepFailed, keptNoCopyMsg, nil)
+	case m.Kind == "site_file":
+		err := s.disk.RemoveFileEverywhere(site.UserID, site.Name, m.Path, m.SHA256)
+		add("file removal", ok(err == nil), "every copy with the matched bytes, in every version and the live copy", err)
+	default:
+		detail, err := s.removeStorageObject(ctx, site, *m)
+		add("file removal", ok(err == nil), detail, err)
+	}
+	if err := db.SetSiteSuspended(ctx, s.database, site.ID, imageScanTakeDownMsg); err != nil {
+		add("take-down", stepFailed, "the site", err)
+		return
+	}
+	fresh, err := db.GetSiteByID(ctx, s.database, site.ID)
+	if err == nil && !fresh.Deleted {
+		// A site in Recently deleted has no served folder; Restore writes
+		// its marker from the database.
+		err = s.disk.SetSuspended(fresh.UserID, fresh.Name, fresh.Suspended())
+	}
+	if err != nil {
+		add("take-down", stepFailed, "the site was marked taken down, but its files could not be marked", err)
+		return
+	}
+	add("take-down", stepDone, "the site", nil)
+	m.TakenDown = true
+}
+
+// lockFreshSite takes the site's lock and reads the row again under it,
+// retrying under the new name after a rename (suspend.go does the same).
+func (s *ImageScan) lockFreshSite(ctx context.Context, site db.Site) (db.Site, func(), error) {
+	if s.sites == nil {
+		fresh, err := db.GetSiteByID(ctx, s.database, site.ID)
+		return fresh, func() {}, err
+	}
+	for {
+		unlock := s.sites.lockSite(site.UserID, site.Name)
+		fresh, err := db.GetSiteByID(ctx, s.database, site.ID)
+		if err != nil {
+			unlock()
+			return db.Site{}, nil, err
+		}
+		if fresh.UserID == site.UserID && fresh.Name == site.Name {
+			return fresh, unlock, nil
+		}
+		unlock()
+		site = fresh
+	}
+}
+
+// removeStorageObject removes a files-storage object and its row, only when
+// the object still holds the matched bytes. The caller holds the site lock.
+func (s *ImageScan) removeStorageObject(ctx context.Context, site db.Site, m db.ImageMatch) (string, error) {
+	p := storageFileOnDisk(s.disk, site.UserID, site.Name, m.ResourceName, m.Path)
+	b, err := os.ReadFile(p)
+	if errors.Is(err, os.ErrNotExist) {
+		return "the object was already gone", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if sha256Hex(b) != m.SHA256 {
+		return "the object had already been replaced; nothing to remove", nil
+	}
+	if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	s.disk.MarkChanged()
+	if err := db.DeleteStorageFileRow(ctx, s.database, site.ID, m.ResourceName, m.Path); err != nil {
+		return "the object was removed, but its row could not be", err
+	}
+	return "the object was removed from the files resource", nil
 }
 
 // takeDownEvent is the operator take-down of an event (hack_admin.go): the
@@ -723,22 +936,50 @@ func (s *ImageScan) takeDownEvent(ctx context.Context, ev db.Event) error {
 }
 
 // writeRecord keeps record.json beside the evidence copy: the match row's
-// fields plus what was done.
-func (s *ImageScan) writeRecord(dir string, m db.ImageMatch, did []string) {
+// fields, the service's raw reply, and the steps taken.
+func (s *ImageScan) writeRecord(dir string, m db.ImageMatch, steps []imageStep) {
 	rec := s.matchJSON(m)
-	rec["what_happened"] = did
+	rec["steps"] = steps
+	if len(m.Raw) > 0 {
+		rec["raw_reply"] = m.Raw
+	}
+	s.saveRecord(dir, m.ID, rec)
+}
+
+// recordReport rewrites record.json after a report attempt so it carries
+// the report's outcome. A missing or unreadable record starts from the row.
+func (s *ImageScan) recordReport(m db.ImageMatch) {
+	if m.EvidencePath == "" {
+		return
+	}
+	rec := map[string]any{}
+	if b, err := os.ReadFile(filepath.Join(m.EvidencePath, "record.json")); err != nil || json.Unmarshal(b, &rec) != nil {
+		rec = s.matchJSON(m)
+		if len(m.Raw) > 0 {
+			rec["raw_reply"] = m.Raw
+		}
+	}
+	rec["report_status"], rec["report_id"], rec["report_error"] = m.ReportStatus, m.ReportID, m.ReportError
+	if m.ReportedAt.Valid {
+		rec["reported_at"] = m.ReportedAt.Time.UTC()
+	}
+	s.saveRecord(m.EvidencePath, m.ID, rec)
+}
+
+func (s *ImageScan) saveRecord(dir string, id int64, rec map[string]any) {
 	b, err := json.MarshalIndent(rec, "", "  ")
 	if err != nil {
-		log.Printf("image scan: record.json of #%d: %v", m.ID, err)
+		log.Printf("image scan: record.json of #%d: %v", id, err)
 		return
 	}
 	if err := os.WriteFile(filepath.Join(dir, "record.json"), b, 0o600); err != nil {
-		log.Printf("image scan: record.json of #%d: %v", m.ID, err)
+		log.Printf("image scan: record.json of #%d: %v", id, err)
 	}
 }
 
-// alert emails the alert address. Never the image, never a link to it.
-func (s *ImageScan) sendAlert(m db.ImageMatch) error {
+// sendAlert emails the alert address what happened, step by step. Never the
+// image, never a path or link to it.
+func (s *ImageScan) sendAlert(m db.ImageMatch, steps []imageStep, reportFiled bool) error {
 	if s.cfg.AlertEmail == "" {
 		return nil
 	}
@@ -764,9 +1005,16 @@ func (s *ImageScan) sendAlert(m db.ImageMatch) error {
 	}
 	fmt.Fprintf(&b, "Path: %s\nDetected: %s\nService: %s\nTracking id: %s\nSource: %s\nViolations: %s\n\n",
 		m.Path, m.DetectedAt.UTC().Format(time.RFC3339), m.Provider, m.TrackingID, m.Source, m.Violations)
-	fmt.Fprintf(&b, "What was done: a copy was kept in the evidence folder, the file was removed from every version and the live copy, and the %s was taken down.\n\n", strings.Fields(where)[0])
-	fmt.Fprintf(&b, "What to do next: open %s/admin#moderation.\n", strings.TrimRight(s.cfg.PublicBaseURL, "/"))
-	if !s.cfg.AutoReport {
+	fmt.Fprintf(&b, "What was done:\n")
+	for _, st := range steps {
+		fmt.Fprintf(&b, "- %s: %s", st.Step, st.Status)
+		if st.Detail != "" {
+			fmt.Fprintf(&b, ", %s", st.Detail)
+		}
+		b.WriteString("\n")
+	}
+	fmt.Fprintf(&b, "\nWhat to do next: open %s/admin#moderation.\n", strings.TrimRight(s.cfg.PublicBaseURL, "/"))
+	if !reportFiled {
 		fmt.Fprintf(&b, "File the CyberTipline report (the Report button on the admin page, or https://report.cybertip.org/) as soon as reasonably possible; the law requires it.\n")
 	}
 	return sender.SendNotice(s.cfg.AlertEmail, subject, b.String())
@@ -793,14 +1041,56 @@ func (s *ImageScan) addressOf(m db.ImageMatch) string {
 
 var (
 	errReportAlreadyFiled = errors.New("already reported")
-	errReportUnavailable  = errors.New("reports cannot be filed: set IMAGE_SCAN_REPORT_ORG and a PhotoDNA key")
+	errReportUnavailable  = errors.New("reports cannot be filed: set IMAGE_SCAN_REPORT_ORG, IMAGE_SCAN_REPORT_NAME, and IMAGE_SCAN_REPORT_EMAIL")
+	// imageReportMu serialises fileReport, so two clicks (or a click and
+	// the automatic report) cannot file the same match twice.
+	imageReportMu sync.Mutex
 )
 
+// reportSaveError is a report the service accepted whose 'filed' status
+// could not be saved.
+type reportSaveError struct {
+	reportID string
+	err      error
+}
+
+func (e *reportSaveError) Error() string {
+	return fmt.Sprintf("the report WAS filed with id %s, but saving that failed: %v", e.reportID, e.err)
+}
+
+// reporteeOf names the person a report is about: the participant or
+// organiser who uploaded an entry screenshot or event icon, the writer of a
+// files-storage object, and the owner of a site file.
+func (s *ImageScan) reporteeOf(ctx context.Context, m db.ImageMatch) string {
+	switch m.Kind {
+	case "entry_screenshot", "event_icon":
+		if m.WriterID != "" {
+			if u, err := db.GetUserByID(ctx, s.database, m.WriterID); err == nil {
+				name := u.Handle.String
+				if strings.Contains(u.Username, "@") {
+					name += " " + u.Username
+				}
+				if name = strings.TrimSpace(name); name != "" {
+					return name
+				}
+			}
+			return "user " + m.WriterID
+		}
+	case "storage_file":
+		if m.WriterID != "" {
+			return "visitor " + m.WriterID
+		}
+	}
+	return strings.TrimSpace(m.OwnerHandle + " " + m.OwnerEmail)
+}
+
 // fileReport files the CyberTipline report for one match through the
-// service and records the outcome. Refused when already filed or when no
-// reporter is configured; a service failure leaves 'failed' with the error
-// so the admin page can retry.
+// service and records the outcome, in the database and in record.json.
+// Refused when already filed or when reports are not configured; a service
+// failure leaves 'failed' with the error so the admin page can retry.
 func (s *ImageScan) fileReport(ctx context.Context, id int64) (string, time.Time, error) {
+	imageReportMu.Lock()
+	defer imageReportMu.Unlock()
 	m, err := db.GetImageMatch(ctx, s.database, id)
 	if err != nil {
 		return "", time.Time{}, err
@@ -808,17 +1098,20 @@ func (s *ImageScan) fileReport(ctx context.Context, id int64) (string, time.Time
 	if m.ReportStatus == "filed" {
 		return m.ReportID, m.ReportedAt.Time, errReportAlreadyFiled
 	}
-	if s.reporter == nil || s.cfg.ReportOrg == "" {
+	if !s.reportReady() {
 		return "", time.Time{}, errReportUnavailable
+	}
+	failed := func(err error) (string, time.Time, error) {
+		if serr := db.SetImageMatchReport(ctx, s.database, id, "failed", "", err.Error()); serr != nil {
+			log.Printf("image scan: report failure of #%d: %v", id, serr)
+		}
+		m.ReportStatus, m.ReportID, m.ReportError = "failed", "", err.Error()
+		s.recordReport(m)
+		return "", time.Time{}, err
 	}
 	data, ct, err := s.evidenceImage(m)
 	if err != nil {
-		_ = db.SetImageMatchReport(ctx, s.database, id, "failed", "", err.Error())
-		return "", time.Time{}, err
-	}
-	reportee := strings.TrimSpace(m.OwnerHandle + " " + m.OwnerEmail)
-	if m.WriterID != "" && m.Kind == "storage_file" {
-		reportee = "visitor " + m.WriterID
+		return failed(err)
 	}
 	platform := "Simple Host"
 	if hackMode {
@@ -826,7 +1119,7 @@ func (s *ImageScan) fileReport(ctx context.Context, id int64) (string, time.Time
 	}
 	in := imagescan.Report{
 		OrgName: s.cfg.ReportOrg, ReporterName: s.cfg.ReportName, ReporterEmail: s.cfg.ReportEmail,
-		IncidentTime: m.DetectedAt, ReporteeName: reportee,
+		IncidentTime: m.DetectedAt, ReporteeName: s.reporteeOf(ctx, m),
 		Files: []imagescan.ReportFile{{
 			Name: path.Base(m.Path), Data: data, ContentType: ct, UploadedAt: m.UploadedAt,
 			Metadata: map[string]string{
@@ -839,16 +1132,17 @@ func (s *ImageScan) fileReport(ctx context.Context, id int64) (string, time.Time
 	}
 	res, err := s.reporter.Report(ctx, in)
 	if err != nil {
-		if serr := db.SetImageMatchReport(ctx, s.database, id, "failed", "", err.Error()); serr != nil {
-			log.Printf("image scan: report failure of #%d: %v", id, serr)
-		}
-		return "", time.Time{}, err
+		return failed(err)
 	}
+	at := s.now().UTC()
+	m.ReportStatus, m.ReportID, m.ReportError, m.ReportedAt = "filed", res.ReportID, "", sql.NullTime{Time: at, Valid: true}
+	s.recordReport(m)
 	if err := db.SetImageMatchReport(ctx, s.database, id, "filed", res.ReportID, ""); err != nil {
-		log.Printf("image scan: report of #%d filed as %s but not recorded: %v", id, res.ReportID, err)
+		log.Printf("image scan: report of #%d WAS filed as %s, but saving that failed: %v", id, res.ReportID, err)
+		return res.ReportID, at, &reportSaveError{reportID: res.ReportID, err: err}
 	}
 	log.Printf("image scan: report of #%d filed (%s)", id, res.ReportID)
-	return res.ReportID, s.now().UTC(), nil
+	return res.ReportID, at, nil
 }
 
 // evidenceImage reads the quarantined copy back for the report.
@@ -886,6 +1180,7 @@ func (s *ImageScan) matchJSON(m db.ImageMatch) map[string]any {
 		"provider": m.Provider, "tracking_id": m.TrackingID, "source": m.Source, "violations": m.Violations,
 		"detected_at": m.DetectedAt.UTC(), "evidence_path": m.EvidencePath, "taken_down": m.TakenDown,
 		"report_status": m.ReportStatus, "report_id": m.ReportID, "report_error": m.ReportError,
+		"event_id": m.EventID, "team_id": m.TeamID, "writer_id": m.WriterID, "uploaded_at": m.UploadedAt.UTC(),
 	}
 	if m.AlertedAt.Valid {
 		out["alerted_at"] = m.AlertedAt.Time.UTC()
@@ -897,21 +1192,21 @@ func (s *ImageScan) matchJSON(m db.ImageMatch) map[string]any {
 }
 
 // adminImageScan is GET /v1/admin/image-scan: the feature's state, the
-// queue, and the newest matches. Matches are listed whether or not the
+// queue, every match whose report is still open, and the newest matches. Matches are listed whether or not the
 // feature is on: a record outlives a config change.
 func (h *SiteHandler) adminImageScan(w http.ResponseWriter, r *http.Request) {
 	s := h.imageScan
 	out := map[string]any{
 		"enabled": s.Enabled(), "provider": "", "auto_report": false, "report_configured": false, "evidence_dir": "",
-		"queue": map[string]int{"pending": 0, "retrying": 0},
+		"queue": map[string]int{"pending": 0, "retrying": 0, "gave_up": 0},
 	}
 	if s != nil {
 		out["provider"] = s.matcher.Name()
 		out["auto_report"] = s.cfg.AutoReport
-		out["report_configured"] = s.reporter != nil && s.cfg.ReportOrg != ""
+		out["report_configured"] = s.reportReady()
 		out["evidence_dir"] = s.cfg.EvidenceDir
 		if c, err := db.ImageScanQueueCountsNow(r.Context(), h.database); err == nil {
-			out["queue"] = map[string]int{"pending": c.Pending, "retrying": c.Retrying}
+			out["queue"] = map[string]int{"pending": c.Pending, "retrying": c.Retrying, "gave_up": c.GaveUp}
 		} else {
 			log.Printf("image scan: queue counts: %v", err)
 		}
@@ -941,11 +1236,14 @@ func (h *SiteHandler) adminImageScanReport(w http.ResponseWriter, r *http.Reques
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "match not found"})
 			return
 		}
-		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "image matching is off; set PHOTODNA_API_KEY and IMAGE_SCAN_REPORT_ORG to file reports from here", Code: "report_unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "image matching is off; set PHOTODNA_API_KEY, IMAGE_SCAN_REPORT_ORG, IMAGE_SCAN_REPORT_NAME, and IMAGE_SCAN_REPORT_EMAIL to file reports from here", Code: "report_unavailable"})
 		return
 	}
 	rid, at, err := h.imageScan.fileReport(r.Context(), id)
+	var saveErr *reportSaveError
 	switch {
+	case errors.As(err, &saveErr):
+		writeJSON(w, http.StatusBadGateway, errorResponse{Error: err.Error(), Code: "report_failed"})
 	case errors.Is(err, sql.ErrNoRows):
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "match not found"})
 	case errors.Is(err, errReportAlreadyFiled):

@@ -1226,14 +1226,13 @@ async function loadImageScan(){
     var d=await res.json(), list=d.matches||[];
     $('im-note').textContent=d.enabled?'Uploaded images are checked against known abuse hash sets through PhotoDNA. A match keeps a copy in the evidence folder, removes the file, takes the site down, and emails the alert address.':'Image matching is off. Set PHOTODNA_API_KEY to turn it on. Earlier matches stay listed.';
     var q=d.queue||{};
-    $('im-queue').textContent=d.enabled?('Queue: '+(q.pending||0)+' pending, '+(q.retrying||0)+' retrying.'+(d.auto_report?' Reports are filed automatically.':d.report_configured?' Reports are filed from this page.':' Reports cannot be filed from here (set IMAGE_SCAN_REPORT_ORG).')):'';
+    $('im-queue').textContent=d.enabled?('Queue: '+(q.pending||0)+' pending, '+(q.retrying||0)+' retrying, '+(q.gave_up||0)+' gave up.'+(d.auto_report&&d.report_configured?' Reports are filed automatically.':d.report_configured?' Reports are filed from this page.':' Reports cannot be filed from here (set IMAGE_SCAN_REPORT_ORG, IMAGE_SCAN_REPORT_NAME, and IMAGE_SCAN_REPORT_EMAIL).')):'';
     $('im-count').textContent='('+list.length+')';
     $('im-rows').innerHTML=list.map(function(m){
       var where=m.event_slug?('Event '+m.event_slug):('Site '+(m.site_name||m.site_id||''));
       var report;
       if(m.report_status==='filed') report='Filed'+(m.report_id?' <span class="mono">'+esc(m.report_id)+'</span>':'')+(m.reported_at?'<div class="sub">'+esc(fmtWhen(m.reported_at))+'</div>':'');
-      else if(m.report_status==='off') report='Off';
-      else report=esc(m.report_status==='failed'?'Failed':'Pending')+(d.report_configured?' <button type="button" class="btn ghost sm" data-im-report="'+esc(m.id)+'">Report</button>':'')+(m.report_error?'<div class="sub">'+esc(m.report_error)+'</div>':'');
+      else report=esc(m.report_status==='failed'?'Failed':m.report_status==='off'?'Off':'Pending')+(d.report_configured?' <button type="button" class="btn ghost sm" data-im-report="'+esc(m.id)+'">Report</button>':'')+(m.report_error?'<div class="sub">'+esc(m.report_error)+'</div>':'');
       return '<tr><td>'+esc(fmtWhen(m.detected_at))+(m.taken_down?' <span class="tag down">taken down</span>':'')+'</td>'+
         '<td>'+esc(where)+'<div class="sub mono">'+esc(m.path)+(m.resource_name?' ('+esc(m.resource_name)+')':'')+'</div></td>'+
         '<td>'+esc(m.owner_handle||'')+'<div class="sub">'+esc(m.owner_email||'')+'</div></td>'+

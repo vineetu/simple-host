@@ -2127,7 +2127,7 @@
     {
       "name": "IMAGE_SCAN_REPORT_ORG",
       "group": "data",
-      "description": "Organisation name on reports. A report is refused without it.",
+      "description": "Organisation name on reports. Reports are off until this, IMAGE_SCAN_REPORT_NAME, and the report email are all set.",
       "type": "string",
       "default": "",
       "security_sensitive": false,
@@ -2138,7 +2138,7 @@
     {
       "name": "IMAGE_SCAN_REPORT_NAME",
       "group": "data",
-      "description": "Reporter's name on reports.",
+      "description": "Reporter's name on reports. Reports are off without it.",
       "type": "string",
       "default": "",
       "security_sensitive": false,

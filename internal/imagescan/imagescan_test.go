@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/gif"
@@ -13,8 +14,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"golang.org/x/image/bmp"
-	"golang.org/x/image/tiff"
 	"golang.org/x/image/webp"
 )
 
@@ -51,10 +50,6 @@ func encode(t *testing.T, format string, m image.Image) []byte {
 		err = png.Encode(&buf, m)
 	case "gif":
 		err = gif.Encode(&buf, m, nil)
-	case "bmp":
-		err = bmp.Encode(&buf, m)
-	case "tiff":
-		err = tiff.Encode(&buf, m, nil)
 	default:
 		t.Fatalf("no encoder for %s", format)
 	}
@@ -164,8 +159,6 @@ func TestPrepareRasterFormats(t *testing.T) {
 		{"jpeg", encode(t, "jpeg", src), "image/jpeg", true},
 		{"png", encode(t, "png", src), "image/png", true},
 		{"gif", encode(t, "gif", src), "image/png", false},
-		{"bmp", encode(t, "bmp", src), "image/bmp", true},
-		{"tiff", encode(t, "tiff", src), "image/tiff", true},
 		{"webp", solidWebP(200, 200, 90, 90, 90), "image/png", false},
 	}
 	for _, c := range cases {
@@ -200,6 +193,10 @@ func TestPrepareRasterFormats(t *testing.T) {
 
 func TestPrepareSkips(t *testing.T) {
 	small := encode(t, "png", testImage(20, 20))
+	under := encode(t, "png", testImage(150, 150))
+	bmpHead := append([]byte("BM"), make([]byte, 64)...)
+	tiffLE := append([]byte("II*\x00"), make([]byte, 64)...)
+	tiffBE := append([]byte("MM\x00*"), make([]byte, 64)...)
 	jp := encode(t, "jpeg", testImage(200, 200))
 	truncated := jp[:len(jp)/3]
 	ico := append([]byte{0, 0, 1, 0, 1, 0, 16, 16, 0, 0, 1, 0, 32, 0}, make([]byte, 64)...)
@@ -211,6 +208,10 @@ func TestPrepareSkips(t *testing.T) {
 		want string
 	}{
 		{"too small", small, SkipTooSmall},
+		{"150x150", under, SkipTooSmall},
+		{"bmp", bmpHead, SkipNotRaster + " (bmp)"},
+		{"tiff little endian", tiffLE, SkipNotRaster + " (tiff)"},
+		{"tiff big endian", tiffBE, SkipNotRaster + " (tiff)"},
 		{"svg", []byte(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>`), SkipNotRaster + " (svg)"},
 		{"svg without prolog", []byte(`<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>`), SkipNotRaster + " (svg)"},
 		{"text", []byte("hello, this is a text file named photo.jpg\n"), SkipNotRaster + " (text)"},
@@ -239,8 +240,8 @@ func TestPrepareSkips(t *testing.T) {
 }
 
 func TestPrepareTruncatedNeverPanics(t *testing.T) {
-	for _, format := range []string{"jpeg", "png", "gif", "bmp", "tiff"} {
-		full := encode(t, format, testImage(120, 120))
+	for _, format := range []string{"jpeg", "png", "gif"} {
+		full := encode(t, format, testImage(200, 200))
 		for _, n := range []int{8, 16, 40, len(full) / 2, len(full) - 1} {
 			if n > len(full) {
 				continue
@@ -259,35 +260,34 @@ func TestPrepareTruncatedNeverPanics(t *testing.T) {
 }
 
 func TestPrepareTooManyPixels(t *testing.T) {
-	// A PNG header claiming 10000 x 10000 with no real pixel data. Prepare
-	// must refuse before trying to decode it.
+	// A PNG header claiming 7000 x 7000 over the pixel data of a 60 x 60
+	// image. The IHDR checksum is fixed so DecodeConfig accepts it. A full
+	// decode would fail as undecodable, so "too many pixels" proves the
+	// refusal comes before the decode.
 	huge := encode(t, "png", testImage(60, 60))
-	// Patch IHDR width and height (bytes 16..23) to 10000 each. The CRC no
-	// longer matches, so DecodeConfig has to be tolerant for this test to
-	// exercise the pixel guard; if it is not, the skip is "undecodable"
-	// and the guard is covered by TestPrepareTooManyPixelsBMP instead.
-	binary.BigEndian.PutUint32(huge[16:], 10000)
-	binary.BigEndian.PutUint32(huge[20:], 10000)
+	binary.BigEndian.PutUint32(huge[16:], 7000)
+	binary.BigEndian.PutUint32(huge[20:], 7000)
+	binary.BigEndian.PutUint32(huge[29:], crc32.ChecksumIEEE(huge[12:29]))
 	img, skip, err := Prepare(huge, PrepareOptions{})
-	if err != nil || img != nil {
-		t.Fatalf("img=%v err=%v", img, err)
-	}
-	if skip != SkipTooManyPixels && skip != SkipUndecodable {
-		t.Errorf("skip = %q", skip)
-	}
-}
-
-func TestPrepareTooManyPixelsBMP(t *testing.T) {
-	// BMP headers carry no checksum, so a patched header reaches the guard.
-	raw := encode(t, "bmp", testImage(60, 60))
-	binary.LittleEndian.PutUint32(raw[18:], 10000) // width
-	binary.LittleEndian.PutUint32(raw[22:], 10000) // height
-	img, skip, err := Prepare(raw, PrepareOptions{})
 	if err != nil || img != nil {
 		t.Fatalf("img=%v err=%v", img, err)
 	}
 	if skip != SkipTooManyPixels {
 		t.Errorf("skip = %q, want %q", skip, SkipTooManyPixels)
+	}
+}
+
+func TestPrepareThinAfterResize(t *testing.T) {
+	raw := encode(t, "png", noiseImage(8000, 200))
+	if int64(len(raw)) <= DefaultMaxBytes {
+		t.Fatalf("fixture is only %d bytes, not over %d", len(raw), DefaultMaxBytes)
+	}
+	img, skip, err := Prepare(raw, PrepareOptions{})
+	if err != nil || img != nil {
+		t.Fatalf("img=%v err=%v", img, err)
+	}
+	if skip != SkipTooThin {
+		t.Errorf("skip = %q, want %q", skip, SkipTooThin)
 	}
 }
 
@@ -332,7 +332,7 @@ func TestPrepareDownscaleKeepsAspect(t *testing.T) {
 	if len(raw) <= 8000 {
 		t.Fatalf("fixture is only %d bytes", len(raw))
 	}
-	img, skip, err := Prepare(raw, PrepareOptions{MaxBytes: 8000, MaxSide: 80})
+	img, skip, err := Prepare(raw, PrepareOptions{MaxBytes: 8000, MaxSide: 80, MinSide: 10})
 	if err != nil || skip != "" {
 		t.Fatalf("Prepare: skip=%q err=%v", skip, err)
 	}
@@ -349,7 +349,7 @@ func TestPrepareDownscaleKeepsAspect(t *testing.T) {
 
 func TestPrepareTooLargeAfterResize(t *testing.T) {
 	raw := encode(t, "png", testImage(200, 200))
-	img, skip, err := Prepare(raw, PrepareOptions{MaxBytes: 100, MaxSide: 60})
+	img, skip, err := Prepare(raw, PrepareOptions{MaxBytes: 100, MaxSide: 60, MinSide: 10})
 	if err != nil || img != nil {
 		t.Fatalf("img=%v err=%v", img, err)
 	}
@@ -360,8 +360,8 @@ func TestPrepareTooLargeAfterResize(t *testing.T) {
 
 func TestPrepareGIFFirstFrame(t *testing.T) {
 	var buf bytes.Buffer
-	first := image.NewPaletted(image.Rect(0, 0, 100, 100), color.Palette{color.Black, color.White})
-	second := image.NewPaletted(image.Rect(0, 0, 100, 100), color.Palette{color.Black, color.White})
+	first := image.NewPaletted(image.Rect(0, 0, 200, 200), color.Palette{color.Black, color.White})
+	second := image.NewPaletted(image.Rect(0, 0, 200, 200), color.Palette{color.Black, color.White})
 	for i := range second.Pix {
 		second.Pix[i] = 1
 	}

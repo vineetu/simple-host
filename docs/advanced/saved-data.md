@@ -101,8 +101,8 @@ owner's key.
 | `PHOTODNA_MATCH_URL` | `https://api.microsoftmoderator.com/photodna/v1.0/Match` | text | The PhotoDNA Match operation. |
 | `PHOTODNA_REPORT_URL` | `https://api.microsoftmoderator.com/photodna/v1.0/Report` | text | The PhotoDNA Report operation, which files a CyberTipline report with NCMEC through PhotoDNA. |
 | `PHOTODNA_AUTO_REPORT` | `off` | `off` / `on` | on: every match is reported through the Report operation as soon as it is recorded. off: the admin Moderation tab offers a Report button per match. |
-| `IMAGE_SCAN_REPORT_ORG` | none | text | Organisation name on reports. A report is refused without it. |
-| `IMAGE_SCAN_REPORT_NAME` | none | text | Reporter's name on reports. |
+| `IMAGE_SCAN_REPORT_ORG` | none | text | Organisation name on reports. Reports are off until this, IMAGE_SCAN_REPORT_NAME, and the report email are all set. |
+| `IMAGE_SCAN_REPORT_NAME` | none | text | Reporter's name on reports. Reports are off without it. |
 | `IMAGE_SCAN_REPORT_EMAIL` | `the support contact` | text | Reporter's email on reports. |
 | `IMAGE_SCAN_ALERT_EMAIL` | `the support contact` | text | Where each match alert is emailed. |
 | `IMAGE_SCAN_EVIDENCE_DIR` | `<DATA_DIR>/.evidence` | text | Folder for the quarantined copy and the record of each match (mode 0700, under no served path). Must be writable by the service (ReadWritePaths on a hardened unit). |
