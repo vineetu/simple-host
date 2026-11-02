@@ -311,6 +311,7 @@ func TestAnnotationsMatchBehaviour(t *testing.T) {
 		"site_analytics":         {true, false, false},
 		"export_site":            {true, false, false},
 		"preview_version":        {true, false, false},
+		"discard_version":        {false, true, false},
 		"create_site":            {false, false, true},
 		"update_site":            {false, true, true},
 		"create_upload_link":     {false, true, true},

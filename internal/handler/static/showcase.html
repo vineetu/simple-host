@@ -3880,12 +3880,16 @@ function parseAnalyticsSummary(data) {
           return '<div class="version-row"' + (v.is_active || shown[n] ? '' : ' data-version-extra hidden') + '>' +
             '<span class="version-num">v' + esc(v.version_number) + '</span>' +
             '<span class="version-date">' + esc(new Date(v.created_at).toLocaleString()) +
+              (v.author ? ' · by ' + esc(v.author) : '') +
               (!v.is_active && v.status === 'ready' ? ' · not live yet' : '') + '</span>' +
             '<span class="version-acts">' +
             '<button type="button" class="btn-small btn-secondary" data-act="previewVersion" data-name="' + esc(name) + '" data-version="' + n + '">Preview</button>' +
             (v.is_active
               ? '<span class="version-active-tag">live</span>'
               : '<button type="button" class="btn-small btn-secondary" data-act="rollbackTo" data-name="' + esc(name) + '" data-version="' + n + '">Make live</button>') +
+            (!v.is_active && v.status === 'ready'
+              ? '<button type="button" class="btn-small btn-danger" data-act="discardVersion" data-name="' + esc(name) + '" data-version="' + n + '">Discard</button>'
+              : '') +
             '</span></div>';
         }).join('') + '</div>' +
           (extra ? '<div class="panel-btns"><button type="button" class="btn-small btn-ghost" data-versions-more aria-expanded="false">Show all ' + versions.length + ' versions</button></div>' : '');
@@ -4007,6 +4011,25 @@ function parseAnalyticsSummary(data) {
         toggleVersions(name); // collapse
       } catch (e) {
         toast('Could not change active version', 'error');
+      }
+    }
+
+    // Discard: a version stored without going live (not live yet) is removed
+    // for good. The live version and versions that have been live stay; the
+    // server refuses those and says why.
+    async function discardVersion(name, versionNumber) {
+      if (!(await shConfirm({ title: 'Discard version ' + versionNumber + ' of "' + name + '"?', body: 'It was never live and cannot be brought back.', confirmLabel: 'Discard', danger: true }))) return;
+      try {
+        var res = await api('DELETE', '/v1/sites/' + encodeURIComponent(name) + '/versions/' + versionNumber);
+        if (!res.ok) {
+          var err = await res.json().catch(function () { return null; });
+          toast((err && err.error) || 'Could not discard the version', 'error');
+          return;
+        }
+        toast('Discarded v' + versionNumber, 'success');
+        loadVersions(name);
+      } catch (e) {
+        toast('Could not discard the version', 'error');
       }
     }
 
@@ -4218,6 +4241,7 @@ function parseAnalyticsSummary(data) {
       confirmDelete: function (d) { confirmDelete(d.name); },
       doDelete: function (d, el) { doDelete(d.name, el); },
       rollbackTo: function (d) { rollbackTo(d.name, Number(d.version)); },
+      discardVersion: function (d) { discardVersion(d.name, Number(d.version)); },
       previewVersion: function (d) { previewVersion(d.name, Number(d.version)); },
       openStorage: function (d) { openStorage(d.name, true); },
       openRename: function (d) { openRename(d.name); },

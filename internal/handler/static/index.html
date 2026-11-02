@@ -1903,10 +1903,13 @@ function parseAnalyticsSummary(data) {
         panel.innerHTML = `<div class="versions-list">${versions.map(v => `
           <div class="version-row">
             <span class="version-num">v${v.version_number}</span>
-            <span class="version-date">${esc(new Date(v.created_at).toLocaleString())}</span>
+            <span class="version-date">${esc(new Date(v.created_at).toLocaleString())}${v.author ? ' · by ' + esc(v.author) : ''}${!v.is_active && v.status === 'ready' ? ' · not live yet' : ''}</span>
             ${v.is_active
               ? '<span class="version-active-tag">active</span>'
               : `<button type="button" class="btn-small btn-secondary" data-act="rollbackTo" data-name="${esc(name)}" data-version="${esc(String(v.version_number))}">Make active</button>`}
+            ${!v.is_active && v.status === 'ready'
+              ? `<button type="button" class="btn-small btn-danger" data-act="discardVersion" data-name="${esc(name)}" data-version="${esc(String(v.version_number))}">Discard</button>`
+              : ''}
           </div>`).join('')}</div>`;
       } catch {
         panel.innerHTML = `<div class="versions-status">Could not load versions</div>`;
@@ -2053,6 +2056,27 @@ function parseAnalyticsSummary(data) {
         await loadSites();
       } catch {
         toast('Could not change active version', 'error');
+      }
+    }
+
+    // Discard: a version stored without going live is removed for good. The
+    // active version and versions that have been active stay; the server
+    // refuses those and says why.
+    async function discardVersion(name, versionNumber) {
+      if (!(await shConfirm({ title: `Discard version ${versionNumber} of "${name}"?`, body: 'It was never live and cannot be brought back.', confirmLabel: 'Discard', danger: true }))) return;
+      try {
+        const res = await api('DELETE', `/v1/sites/${encodeURIComponent(name)}/versions/${versionNumber}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          toast((err && err.error) || 'Could not discard the version', 'error');
+          return;
+        }
+        toast(`Discarded v${versionNumber}`, 'success');
+        const panel = document.getElementById(`versions-${name}`);
+        if (panel) panel.hidden = true;
+        await toggleVersions(name);
+      } catch {
+        toast('Could not discard the version', 'error');
       }
     }
 
@@ -2329,6 +2353,7 @@ function parseAnalyticsSummary(data) {
       connectDomain: d => connectDomain(d.name),
       confirmDelete: d => confirmDelete(d.name),
       rollbackTo: d => rollbackTo(d.name, Number(d.version)),
+      discardVersion: d => discardVersion(d.name, Number(d.version)),
       downloadCollectionCSV: d => downloadCollectionCSV(d.name, d.coll),
       toggleCollectionView: d => toggleCollectionView(d.name, d.coll),
     };

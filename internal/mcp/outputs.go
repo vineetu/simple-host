@@ -287,6 +287,12 @@ func outputSchemas() map[string]map[string]any {
 			"expires_at": outString("When the link stops working (RFC 3339)."),
 		}, "site", "version", "live", "url", "expires_at"),
 
+		"discard_version": outObject(map[string]any{
+			"site":              outString(outSiteName),
+			"discarded_version": outInteger("The never-live version that was removed for good."),
+			"active_version":    outInteger("The version visitors see, unchanged."),
+		}, "site", "discarded_version", "active_version"),
+
 		"delete_site": outObject(map[string]any{
 			"deleted":         outString("Name of the site that was deleted."),
 			"restorable_days": outInteger("How many days restore_site can bring it back."),

@@ -38,6 +38,7 @@ func (h *SiteHandler) registerAdminSiteActions(mux *http.ServeMux, authMiddlewar
 	// admin never reads it). Logged like every call here.
 	mux.Handle("DELETE /v1/admin/sites/{id}/lock", authMiddleware(h.asSiteOwner(h.deleteSitePasscode)))
 	mux.Handle("POST /v1/admin/sites/{id}/versions/{version}/preview-link", authMiddleware(h.asSiteOwner(h.createPreviewLink)))
+	mux.Handle("DELETE /v1/admin/sites/{id}/versions/{version}", authMiddleware(h.asSiteOwner(h.discardVersion)))
 }
 
 // asSiteOwner runs next for the admin as the owner of the site {id}, with

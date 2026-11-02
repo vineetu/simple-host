@@ -1201,20 +1201,23 @@ func UpdateSiteActiveVersion(ctx context.Context, db Querier, siteID string, ver
 	return err
 }
 
-func CreateVersion(ctx context.Context, db Querier, siteID string, versionNumber int, diskPath, archiveSHA256 string) (Version, error) {
+// CreateVersion opens a version row ('uploading'). author is who made it
+// (?author= on the deploy, already cleaned by the handler) or "".
+func CreateVersion(ctx context.Context, db Querier, siteID string, versionNumber int, diskPath, archiveSHA256, author string) (Version, error) {
 	const query = `
-		INSERT INTO versions (site_id, version_number, disk_path, status, archive_sha256)
-		VALUES ($1, $2, $3, 'uploading', $4)
-		RETURNING id, site_id, version_number, disk_path, status, created_at
+		INSERT INTO versions (site_id, version_number, disk_path, status, archive_sha256, author)
+		VALUES ($1, $2, $3, 'uploading', $4, $5)
+		RETURNING id, site_id, version_number, disk_path, status, author, created_at
 	`
 
 	var version Version
-	err := db.QueryRowContext(ctx, query, siteID, versionNumber, diskPath, archiveSHA256).Scan(
+	err := db.QueryRowContext(ctx, query, siteID, versionNumber, diskPath, archiveSHA256, author).Scan(
 		&version.ID,
 		&version.SiteID,
 		&version.VersionNumber,
 		&version.DiskPath,
 		&version.Status,
+		&version.Author,
 		&version.CreatedAt,
 	)
 	version.ArchiveSHA256 = archiveSHA256
@@ -1223,7 +1226,7 @@ func CreateVersion(ctx context.Context, db Querier, siteID string, versionNumber
 
 func ListVersionsBySite(ctx context.Context, db *sql.DB, siteID string) ([]Version, error) {
 	const query = `
-		SELECT id, site_id, version_number, disk_path, status, created_at
+		SELECT id, site_id, version_number, disk_path, status, author, created_at
 		FROM versions
 		WHERE site_id = $1
 		ORDER BY version_number DESC
@@ -1238,7 +1241,7 @@ func ListVersionsBySite(ctx context.Context, db *sql.DB, siteID string) ([]Versi
 	var versions []Version
 	for rows.Next() {
 		var v Version
-		if err := rows.Scan(&v.ID, &v.SiteID, &v.VersionNumber, &v.DiskPath, &v.Status, &v.CreatedAt); err != nil {
+		if err := rows.Scan(&v.ID, &v.SiteID, &v.VersionNumber, &v.DiskPath, &v.Status, &v.Author, &v.CreatedAt); err != nil {
 			return nil, err
 		}
 		versions = append(versions, v)
@@ -1324,6 +1327,25 @@ func GetActiveSiteVersion(ctx context.Context, db *sql.DB, siteID string) (Versi
 		&version.CreatedAt,
 	)
 	return version, err
+}
+
+// DeleteReadyVersion removes one version a deploy stored with publish=false
+// and nobody has made live since (status 'ready'). It reports whether a row
+// went. The live version is read again inside the DELETE: a rollback that
+// made this version live between the handler's check and this statement must
+// not lose it. The caller removes the folder afterwards (rows first, disk
+// second, as PruneVersions explains).
+func DeleteReadyVersion(ctx context.Context, q Querier, siteID string, n int) (bool, error) {
+	var gone int
+	err := q.QueryRowContext(ctx,
+		`DELETE FROM versions
+		  WHERE site_id = $1 AND version_number = $2 AND status = 'ready'
+		    AND version_number <> (SELECT active_version FROM sites WHERE id = $1)
+		  RETURNING version_number`, siteID, n).Scan(&gone)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // PruneVersions deletes a site's version rows below keepFrom, never touching

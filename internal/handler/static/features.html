@@ -132,7 +132,7 @@
       <div class="tree">
         <div class="root"><b>Simple Host</b><span>Hosting for the sites your AI made</span></div>
         <ol class="branches">
-          <li><a class="node" href="#publish"><b>Sites and deploy</b><span class="n">24</span><span class="l">Your AI app sends the finished site to Simple Host, which puts it online and keeps it there, with versions, a copy to download, and an undo for delete.</span></a></li>
+          <li><a class="node" href="#publish"><b>Sites and deploy</b><span class="n">25</span><span class="l">Your AI app sends the finished site to Simple Host, which puts it online and keeps it there, with versions, a copy to download, and an undo for delete.</span></a></li>
           <li><a class="node" href="#addresses"><b>Domains and addresses</b><span class="n">13</span><span class="l">Where a site answers: its own address from the first minute, a short free name, your own domain, or one wildcard for every site you own.</span></a></li>
           <li><a class="node" href="#storage"><b>Storage and saved data</b><span class="n">27</span><span class="l">Where a site keeps what visitors send and what the owner changes from chat, with rules for who may read, add, edit, and delete.</span></a></li>
           <li><a class="node" href="#access"><b>Sign-in and access</b><span class="n">20</span><span class="l">How owners and visitors sign in, the keys an AI agent uses, and who may open a site.</span></a></li>
@@ -367,6 +367,21 @@
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">Enterprise preview links open only for the owner or a team member.</p>
+          <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/skills/website-deploy/SKILL.md">Deploy skill</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy">FEATURES: Sites and deploy</a></span></p>
+        </div>
+      </details>
+      <details class="feat" id="site-drafts">
+        <summary><span class="fname">Drafts as versions</span><span class="fline">Keep several unpublished drafts of one site, each marked with who made it, and discard the ones you will not use.</span></summary>
+        <div class="fbody">
+          <p class="how">Publish without making it live, and name the author with the deploy. The version list shows who made each draft and can show only the drafts that have never been live. Make the chosen one live from the list; discard the others and they are gone for good. A version that is live, or has been live before, cannot be discarded, so the history visitors saw stays intact.</p>
+          <p class="ex"><b>Example.</b> A travel agency keeps one site per quote. Two staff each store a draft of the itinerary; the manager previews both, makes one live, and discards the other.</p>
+          <dl class="fm">
+            <dt>Who</dt><dd>Anyone whose agent prepares a few versions of a page before one is chosen: a quote, a proposal, a redesign.</dd>
+            <dt>Where</dt><dd>Versions under Manage on your sites page (the author beside each draft, Discard on drafts not live yet), or ask your AI app.</dd>
+            <dt>Limits</dt><dd class="lim">An author name is at most 80 characters. Discarding is final and applies only to versions that were never live; a deploy-only key or a Simple Hack team key cannot discard.</dd>
+          </dl>
+          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
+          <p class="ednote">On Simple Hack the version list and authors work the same way; team keys cannot discard.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/skills/website-deploy/SKILL.md">Deploy skill</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy">FEATURES: Sites and deploy</a></span></p>
         </div>
       </details>

@@ -469,6 +469,7 @@ CREATE TABLE versions (
   disk_path      TEXT NOT NULL,
   status         TEXT NOT NULL DEFAULT 'uploading',
   archive_sha256 TEXT NOT NULL DEFAULT '',
+  author         TEXT NOT NULL DEFAULT '',  -- who made it (?author= on a deploy); mirrors db/migrations/zw-sim-152-version-author.sql
   created_at     TIMESTAMPTZ DEFAULT now(),
   UNIQUE(site_id, version_number)
 );

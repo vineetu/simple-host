@@ -245,7 +245,7 @@ Add query to match every word against names, domains, and compact page summaries
 
 The response carries site_url (https://<name>.<handle>.simple-host.app/, or briefly https://<handle>.simple-host.app/<name>/ for a new account), which is the link to share. Every deploy is versioned; GET /v1/sites/<name>/versions lists the versions this instance still holds and PUT /v1/sites/<name>/active-version switches to one of them.
 
-To look before it goes live, PUT with ?publish=false: the version is stored, not made live (status "ready" in the list), and the answer carries unpublished_version and preview_url, a link that works for anyone who has it, for one hour (give it only to the person) (POST /v1/sites/<name>/versions/<n>/preview-link mints one for any kept version; connector: update_site publish false, preview_version). Pages opened from a preview cannot save (403 preview_read_only).
+To look before it goes live, PUT with ?publish=false: the version is stored, not made live (status "ready" in the list), and the answer carries unpublished_version and preview_url, a link that works for anyone who has it, for one hour (give it only to the person) (POST /v1/sites/<name>/versions/<n>/preview-link mints one for any kept version; connector: update_site publish false, preview_version). Pages opened from a preview cannot save (403 preview_read_only). Add ?author=<who> to any deploy (at most 80 characters; connector: update_site author) and the versions list returns author on each item; ?pending=1 on that list shows only drafts never made live. DELETE /v1/sites/<name>/versions/<n> discards a never-live draft for good (connector: discard_version; ask the person first).
 
 Make it live with active-version. An event instance may keep only the live version to save disk, in which case that list has one entry and redeploying is how you go back. A site that is redeployed often (a photo library republished on every upload) can keep fewer: PUT /v1/sites/<name>/keep-versions {"keep_versions": 5} keeps the newest 5 plus the live one, removes the older ones at once and for good (the answer lists removed_versions), and every later deploy prunes to it; {"keep_versions": 0} goes back to the server's setting.
 
@@ -288,7 +288,7 @@ Errors are JSON {"error":"...","code":"..."}; branch on code, not the wording:
 
 ### Read a retained version
 
-With the owner API key: GET /v1/sites/<name>/versions/<n>/files lists paths and byte sizes; GET /v1/sites/<name>/versions/<n>/files/<path> returns raw file bytes with sandbox CSP. Pruned versions return 404.
+With the owner API key: GET /v1/sites/<name>/versions/<n>/files lists paths and byte sizes; GET /v1/sites/<name>/versions/<n>/files/<path> returns raw file bytes with sandbox CSP. Pruned versions return 404. DELETE /v1/sites/<name>/versions/<n> removes a never-live version (404 version_not_found, 409 version_live or version_published); not for deploy-only keys.
 
 ## AGENT SIGN-IN (ACCOUNT OWNERS AND THEIR AGENTS ONLY)
 

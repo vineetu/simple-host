@@ -1675,7 +1675,7 @@ paths:
         site_exists says so); PUT with ?create=1 creates or updates in one call.
         On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.
       security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' } , { $ref: '#/components/parameters/createIdempotencyKey' }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } , { $ref: '#/components/parameters/createIdempotencyKey' }, { $ref: '#/components/parameters/author' } ]
       requestBody:
         required: true
         content:
@@ -1704,7 +1704,7 @@ paths:
         in a patch. The merged version meets the ordinary file and storage caps.
         On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.
       security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' }, { $ref: '#/components/parameters/create' }, { name: keep, in: query, schema: { type: integer, enum: [1] }, description: Keep unchanged files from the live version; merged files use ordinary unpacked-file caps } ]
+      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' }, { $ref: '#/components/parameters/create' }, { $ref: '#/components/parameters/author' }, { name: keep, in: query, schema: { type: integer, enum: [1] }, description: Keep unchanged files from the live version; merged files use ordinary unpacked-file caps } ]
       requestBody:
         required: true
         content:
@@ -1956,7 +1956,7 @@ paths:
         Upload a `.tar.gz` or `.zip` (for framework builds, binary assets, large sites). Max 100 MB.
         On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.
       security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' } , { $ref: '#/components/parameters/createIdempotencyKey' }]
+      parameters: [ { $ref: '#/components/parameters/sitename' } , { $ref: '#/components/parameters/createIdempotencyKey' }, { $ref: '#/components/parameters/author' } ]
       requestBody:
         required: true
         content:
@@ -1981,7 +1981,7 @@ paths:
         e.g. `curl -X PUT ".../v1/sites/<name>?create=1" -H "X-API-Key: $KEY" --data-binary @site.tar.gz`.
         On simple-hack.app (EVENTS=hosted) only a team key (or a connector bound to a team) deploys, to its own team's site only; errors 403 no_personal_sites, 403 team_site_only, 403 team_key_scope, 401 team_key_inactive, 409 team_sites_not_ready, 409 submissions_closed, 403 team_site_taken_down.
       security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' }, { $ref: '#/components/parameters/create' } ]
+      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' }, { $ref: '#/components/parameters/create' }, { $ref: '#/components/parameters/author' } ]
       requestBody:
         required: true
         content:
@@ -2127,8 +2127,11 @@ paths:
         The versions this instance still holds, newest first. An instance may be configured to
         keep only the last few deploys, or only the live one, in which case older versions are
         absent here and from disk. KEEP_VERSIONS controls it; event boxes are installed with 1.
+        Every item carries author (who made it, as given with ?author= on the deploy; empty when none
+        was given). ?pending=1 lists only the versions stored with publish=false that have never been
+        live; DELETE /v1/sites/{sitename}/versions/{version} discards one of those.
       security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/pending' } ]
       responses:
         '200':
           description: Versions (newest first)
@@ -2143,8 +2146,40 @@ paths:
                     created_at: { type: string, format: date-time }
                     is_active: { type: boolean }
                     status: { type: string, enum: [active, ready], description: "active: complete and live now or before; ready: stored with publish=false and never live yet" }
+                    author: { type: string, description: "Who made the version, as given with ?author= on the deploy; empty when none was given" }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/sites/{sitename}/versions/{version}:
+    delete:
+      x-audience: ["public-host", "public-hack"]
+      tags: ["Versions"]
+      operationId: deleteSitesBySitenameVersion
+      summary: Discard a version that was never live
+      description: >-
+        Removes a version stored with publish=false that nobody has made live since: its row, then
+        its files, for good, under the same per-site lock as deploys. The live version and any version
+        that has been live before stay (retention prunes those, discard does not). Owner only (a full
+        API key or the connector): a deploy-only key or a team key is refused. Rate-limited like the
+        other site operations (30 burst, 0.5/s). Connector: discard_version.
+      security: [{ apiKey: [] }]
+      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/version' } ]
+      responses:
+        '200':
+          description: Discarded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  site: { type: string }
+                  discarded_version: { type: integer }
+                  active_version: { type: integer, description: The version that is live }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: 'A deploy-only key (deploy_only_key), a team key (team_key_scope), or a site that is taken down (site_suspended)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: 'Site not found, or no such kept version (version_not_found, including an upload that never finished)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: 'The version is live (version_live: make another one live first), or has been live before (version_published)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sites/{sitename}/versions/{version}/files:
     get:
@@ -7608,10 +7643,11 @@ paths:
       summary: A site's versions, for the admin (admin only)
       description: >-
         GET /v1/sites/{sitename}/versions for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
-        owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
+        owner, on the site named by id, with the same checks and effects; each call is logged with the admin. ?pending=1 filters the same way.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/pending' }
       responses:
         '200': { description: 'Versions, newest first, as GET /v1/sites/{sitename}/versions' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -7674,6 +7710,25 @@ paths:
         '403': { description: The site is taken down (site_suspended), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: No address of its own to preview on (preview_unavailable), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /v1/admin/sites/{id}/versions/{version}:
+    delete:
+      x-audience: ["internal"]
+      tags: ["Versions"]
+      operationId: adminDiscardSiteVersion
+      summary: Discard a never-live version of a site, for the admin (admin only)
+      description: >-
+        DELETE /v1/sites/{sitename}/versions/{version} for anyone's site. Admin only (anyone else gets 404). Runs the owner route of the same name as the site's
+        owner, on the site named by id, with the same checks and effects; each call is logged with the admin.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/version' }
+      responses:
+        '200': { description: 'As DELETE /v1/sites/{sitename}/versions/{version}' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: The site is taken down (site_suspended), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: 'Site not found, or no such kept version (version_not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: 'The version is live (version_live) or has been live before (version_published)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/admin/sites/{id}/collections:
     get:
       x-audience: ["internal"]
@@ -13833,6 +13888,8 @@ components:
     sitename: { name: sitename, in: path, required: true, schema: { type: string }, example: my-cool-site }
     create: { name: create, in: query, required: false, schema: { type: string, enum: ['1', '0', 'true', 'false'], default: '0' }, description: "1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists" }
     publish: { name: publish, in: query, required: false, schema: { type: boolean, default: true }, description: "false stores the new version without making it live (updates only; a new site's first version always goes live: 400)" }
+    author: { name: author, in: query, required: false, schema: { type: string, maxLength: 80 }, description: "Who made this version: free text, trimmed, control characters removed, at most 80 characters. Stored on the version and returned as author by GET /v1/sites/{sitename}/versions." }
+    pending: { name: pending, in: query, required: false, schema: { type: string, enum: ['1'] }, description: "1 lists only the versions stored with publish=false that have never been live (status ready, not the live one)" }
     familySuffix: { name: suffix, in: path, required: true, description: "The family: trips.example.com or *.trips.example.com (URL-escaped)", schema: { type: string }, example: trips.example.com }
     coll: { name: coll, in: path, required: true, schema: { type: string }, example: signups }
     csrf: { name: X-SH-CSRF, in: header, required: false, schema: { type: string, enum: ['1'] }, description: Required on cookie-authenticated writes }

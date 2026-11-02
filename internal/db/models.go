@@ -145,5 +145,8 @@ type Version struct {
 	DiskPath      string
 	Status        string
 	ArchiveSHA256 string
-	CreatedAt     time.Time
+	// Author is who made the version, as given by ?author= on the deploy
+	// (trimmed, at most 80 runes); "" when the deploy did not say.
+	Author    string
+	CreatedAt time.Time
 }

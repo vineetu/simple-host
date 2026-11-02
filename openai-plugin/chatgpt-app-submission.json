@@ -188,6 +188,18 @@
         "destructive_justification": "Does not publish, overwrite, or delete a version."
       }
     },
+    "discard_version": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Removes a stored version that was never live.",
+        "open_world_justification": "Nothing visitors see changes; the live version stays as it is.",
+        "destructive_justification": "The discarded version's files are removed for good and cannot be brought back."
+      }
+    },
     "delete_site": {
       "annotations": {
         "readOnlyHint": false,
