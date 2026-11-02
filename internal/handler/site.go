@@ -326,6 +326,7 @@ type siteResponse struct {
 type versionResponse struct {
 	VersionNumber int       `json:"version_number"`
 	Status        string    `json:"status"`
+	Author        string    `json:"author"` // who made it (?author= on the deploy), "" when unset
 	CreatedAt     time.Time `json:"created_at"`
 	IsActive      bool      `json:"is_active"`
 }
@@ -534,6 +535,9 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersionFiles))))
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files/{path...}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getVersionFile))))
 	mux.Handle("PUT /v1/sites/{sitename}/active-version", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setActiveVersion))))
+	// Not in auth/scope.go deployRoutes or teamRoutes on purpose: a deploy-only
+	// or team key cannot remove a version.
+	mux.Handle("DELETE /v1/sites/{sitename}/versions/{version}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.discardVersion)))))
 	// An hour-long, owner-only preview address for one kept version (preview.go).
 	mux.Handle("POST /v1/sites/{sitename}/versions/{version}/preview-link", authMiddleware(h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createPreviewLink)))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
@@ -1708,7 +1712,7 @@ func (h *SiteHandler) commitCreateLocked(w http.ResponseWriter, r *http.Request,
 	const versionNumber = 1
 	diskPath := fmt.Sprintf("by-id/%s/%s/v%d/", user.ID, siteName, versionNumber)
 
-	version, err := db.CreateVersion(r.Context(), tx, site.ID, versionNumber, diskPath, archiveSHA)
+	version, err := db.CreateVersion(r.Context(), tx, site.ID, versionNumber, diskPath, archiveSHA, versionAuthor(r))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1834,11 +1838,12 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 
 // Caller holds the account lock (when quotas apply) and the site lock.
 func (h *SiteHandler) commitSiteUpdateLocked(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
-	h.commitSiteUpdateRespond(w, r, user, siteName, files, archiveSHA, publish, func(site siteResponse) { writeJSON(w, http.StatusOK, site) })
+	h.commitSiteUpdateRespond(w, r, user, siteName, files, archiveSHA, publish, versionAuthor(r), func(site siteResponse) { writeJSON(w, http.StatusOK, site) })
 }
 
-// Caller holds the same locks as commitSiteUpdateLocked.
-func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool, respond func(siteResponse)) {
+// Caller holds the same locks as commitSiteUpdateLocked. author is stored on
+// the new version (?author= on a deploy route; "" from other callers).
+func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool, author string, respond func(siteResponse)) {
 	// Serialize write+promote for this site (in-process), and read the site
 	// only once the lock is held: a delete or rename that finished while this
 	// upload waited must not be undone by a stale copy. The DB row lock below
@@ -1903,7 +1908,7 @@ func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Req
 	}
 	diskPath := fmt.Sprintf("by-id/%s/%s/v%d/", site.UserID, siteName, versionNumber)
 
-	version, err := db.CreateVersion(r.Context(), tx, site.ID, versionNumber, diskPath, archiveSHA)
+	version, err := db.CreateVersion(r.Context(), tx, site.ID, versionNumber, diskPath, archiveSHA, author)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -2334,14 +2339,22 @@ func (h *SiteHandler) listVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out := make([]versionResponse, len(versions))
-	for i, v := range versions {
-		out[i] = versionResponse{
+	// ?pending=1: only versions stored with publish=false that nobody has
+	// made live yet, the ones discardVersion can remove.
+	pending := pendingParam(r)
+	out := make([]versionResponse, 0, len(versions))
+	for _, v := range versions {
+		isActive := v.VersionNumber == site.ActiveVersion
+		if pending && (v.Status != "ready" || isActive) {
+			continue
+		}
+		out = append(out, versionResponse{
 			VersionNumber: v.VersionNumber,
 			Status:        v.Status,
+			Author:        v.Author,
 			CreatedAt:     v.CreatedAt,
-			IsActive:      v.VersionNumber == site.ActiveVersion,
-		}
+			IsActive:      isActive,
+		})
 	}
 	writeJSON(w, http.StatusOK, out)
 }

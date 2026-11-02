@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
@@ -203,5 +204,126 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 		"effective_keep_versions": effective,
 		"active_version":          site.ActiveVersion,
 		"removed_versions":        removed,
+	})
+}
+
+// maxVersionAuthorRunes bounds ?author= on a deploy: a name or a short note,
+// not a changelog.
+const maxVersionAuthorRunes = 80
+
+// versionAuthor reads ?author= on a deploy route: who made the version, kept
+// on the row and shown in the version list. Spaces around it and control
+// characters are dropped and it is cut to maxVersionAuthorRunes whole runes;
+// "" when the deploy did not say.
+func versionAuthor(r *http.Request) string {
+	s := strings.Map(func(c rune) rune {
+		if c < 0x20 || c == 0x7f {
+			return -1
+		}
+		return c
+	}, r.URL.Query().Get("author"))
+	s = strings.TrimSpace(s)
+	if utf8.RuneCountInString(s) > maxVersionAuthorRunes {
+		runes := []rune(s)
+		s = strings.TrimSpace(string(runes[:maxVersionAuthorRunes]))
+	}
+	return s
+}
+
+// pendingParam reads ?pending= on the version list: 1, true or yes narrows it
+// to versions stored with publish=false that nobody has made live.
+func pendingParam(r *http.Request) bool {
+	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("pending"))) {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
+}
+
+// discardVersion removes one version a deploy stored with publish=false and
+// nobody has made live since.
+//
+// DELETE /v1/sites/{sitename}/versions/{version}
+//
+// The live version and any version that has been live are refused (409):
+// those leave through retention (keep_versions), never by hand. A deploy-only
+// or team key cannot call this (auth/scope.go lists neither route). The admin
+// mirror DELETE /v1/admin/sites/{id}/versions/{version} runs the same handler.
+func (h *SiteHandler) discardVersion(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	siteName := strings.TrimSpace(r.PathValue("sitename"))
+	if siteName == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
+		return
+	}
+	n, err := strconv.Atoi(r.PathValue("version"))
+	if err != nil || n < 1 {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found", Code: "version_not_found"})
+		return
+	}
+	// Same per-site lock as deploy, rollback, rename and delete, and the site
+	// read only once it is held: a rollback copying this version into place
+	// must not have its folder removed underneath it.
+	unlock := h.lockSite(user.ID, siteName)
+	defer unlock()
+	site, err := h.siteForCaller(r, user.ID, siteName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeSiteNotFound(w, siteName)
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if refuseSuspendedSite(w, site) {
+		return
+	}
+	versions, err := db.ListVersionsBySite(r.Context(), h.database, site.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	var found *db.Version
+	for i := range versions {
+		if versions[i].VersionNumber == n {
+			found = &versions[i]
+			break
+		}
+	}
+	if found == nil || found.Status == "uploading" {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found", Code: "version_not_found"})
+		return
+	}
+	if n == site.ActiveVersion {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("version %d is live; make another version live first", n), Code: "version_live"})
+		return
+	}
+	if found.Status == "active" {
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("version %d has been live; kept versions are removed by retention, not discarded", n), Code: "version_published"})
+		return
+	}
+	gone, err := db.DeleteReadyVersion(r.Context(), h.database, site.ID, n)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	if !gone {
+		// Made live or removed since the list above.
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found", Code: "version_not_found"})
+		return
+	}
+	if err := h.disk.DeleteVersion(site.UserID, site.Name, n); err != nil {
+		// The row is gone, so nothing can serve this version; the files are
+		// wasted space until someone notices.
+		log.Printf("discard version for %s: v%d row removed but files remain: %v", site.Name, n, err)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"site":              site.Name,
+		"discarded_version": n,
+		"active_version":    site.ActiveVersion,
 	})
 }

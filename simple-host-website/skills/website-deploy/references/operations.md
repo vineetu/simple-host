@@ -176,6 +176,19 @@ link for any kept version (`GET .../versions` shows a stored, never-live one
 as `"status": "ready"`). Pages opened from a preview cannot save (403
 `preview_read_only`). A new site's first version always goes live.
 
+Add `?author=<who>` to any deploy (at most 80 characters) to record who made the
+version; `GET .../versions` returns it as `author` on each item, and `?pending=1`
+lists only the drafts that have never been live. Discard a draft nobody will use
+(it is final, so confirm with the person first; connector: `discard_version`):
+
+```bash
+curl -fsS -X DELETE "https://simple-host.app/v1/sites/<sitename>/versions/<n>" -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.91"
+```
+
+200 answers `discarded_version` and `active_version`; 404 `version_not_found`; 409
+`version_live` (make another version live first) or `version_published` (it has been
+live before, so retention handles it). A deploy-only key cannot discard.
+
 ### Reading an old version
 
 Read a retained version's files (owner API key required):

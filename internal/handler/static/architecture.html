@@ -310,7 +310,7 @@
         <details class="feat"><summary><span class="fname">Versions &amp; rollback</span><span class="fid">versions</span><span class="fsum">Every deploy is a new version; rollback re-points which one is live.</span></summary>
           <div class="fbody">
             <div class="frow"><span class="fk">Go</span><span class="fv">internal/handler/site.go <em>(listVersions, setActiveVersion)</em> · <b>internal/storage/disk.go</b> <em>(UpdateCurrent: copy, remove, rename)</em> · internal/db/queries.go</span></div>
-            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /v1/sites/{sitename}/versions · PUT /v1/sites/{sitename}/active-version</span></div>
+            <div class="frow"><span class="fk">Routes</span><span class="fv">GET /v1/sites/{sitename}/versions · PUT /v1/sites/{sitename}/active-version · DELETE /v1/sites/{sitename}/versions/{version}</span></div>
             <div class="frow ui"><span class="fk">UI</span><span class="fv"><b>index.html → Sites tab</b> <code>#versions-{name}</code>: <em>expects a bare array</em><br><b>showcase.html → owner Sites tab</b> <code>[data-versions]</code>: <em>accepts an array or a <code>{data:[…]}</code> envelope</em><br><b>These two disagree today.</b> If this route ever starts being notice-wrapped, showcase.html survives and index.html silently renders nothing.</span></div>
             <div class="frow"><span class="fk">Tables</span><span class="fv"><b>versions</b> · sites.active_version</span></div>
             <div class="frow"><span class="fk">Docs</span><span class="fv">openapi.yaml · operations.md <em>("there is no .../activate: this is the one")</em> · README.md · CLAUDE.md §Versioning</span></div>

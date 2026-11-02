@@ -38,6 +38,8 @@ func TestFindToolsRanking(t *testing.T) {
 		{"disconnect my custom domain", "remove_domain"},
 		{"let everyone in without a code", "remove_site_passcode"},
 		{"see an old version without publishing it", "preview_version"},
+		{"discard the draft", "discard_version"},
+		{"make the draft live", "rollback_site"},
 		{"download my entire website", "export_site"},
 		{"recover a website I deleted", "restore_site"},
 		{"show me the trash", "list_deleted_sites"},

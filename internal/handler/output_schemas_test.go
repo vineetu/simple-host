@@ -102,6 +102,9 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 		t.Fatalf("list_versions: %v", s)
 	}
 	call("preview_version", map[string]any{"site": "shop", "version": 3})
+	if s := call("discard_version", map[string]any{"site": "shop", "version": 3}); s["discarded_version"] != float64(3) || s["active_version"] != float64(2) {
+		t.Fatalf("discard_version: %v", s)
+	}
 	call("rollback_site", map[string]any{"site": "shop", "version": 1})
 	call("set_visibility", map[string]any{"site": "shop", "visibility": "public"})
 	call("set_home_page", map[string]any{"site": "shop"})

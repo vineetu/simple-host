@@ -244,6 +244,9 @@ var codeHints = map[string]string{
 	"site_suspended":                 "The operator has taken this site down, and changes to it are refused until it is restored. Tell the person; do not retry.",
 	"account_suspended":              "This account is suspended by the operator. Tell the person to contact support@simple-host.app; do not retry.",
 	"preview_unavailable":            "This site has no address of its own to show a preview on. Tell the person; the version can still be made live with rollback_site.",
+	"version_not_found":              "No kept version of that number on this site. list_versions shows the versions that exist.",
+	"version_live":                   "That version is live. Make another version live with rollback_site first, or leave it.",
+	"version_published":              "That version has been live, so it stays as history; only never-live versions can be discarded.",
 	"site_offline":                   "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",
 	"site_locked":                    "This site asks visitors for a passcode; the owner's key and this connector still work. Ask the person to reconnect Simple Host in their app; never ask for a key in chat.",
 	"passcodes_not_enabled":          "This server cannot put a passcode on a site (whoever runs it has not turned passcodes on). Tell the person; do not retry.",
@@ -1093,7 +1096,7 @@ func Tools() []Tool {
 			Description: "Replace the live files of an EXISTING site with a new version, at its public address. By default the files you send are the complete new version. To change one or two pages of a big site, send just those files with keep_other_files: true. remove_files lists paths to drop, only when keeping other files. " +
 				"For a small change (hours, a price, a line of text), send edits instead: each {path, find, replace} replaces text that occurs exactly once in the live file; if a find is missing or repeated, nothing is published. " +
 				"`index.html` is required unless keeping other files; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). " +
-				deployFormTip + deploySizeTips + " With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(lim().PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy.",
+				deployFormTip + deploySizeTips + " With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(lim().PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy. `author` names who made the version in list_versions.",
 			InputSchema: object(map[string]any{
 				"site":             str(siteDesc),
 				"files":            filesSchema(),
@@ -1107,6 +1110,7 @@ func Tools() []Tool {
 						"replace": str("Text to put in its place."),
 					}}},
 				"publish": map[string]any{"type": "boolean", "description": "Default true: the new version goes live at once. false stores it without making it live, and returns a preview link."},
+				"author":  map[string]any{"type": "string", "maxLength": maxVersionAuthor, "description": "Who made this version, shown in list_versions; free text, for example a person's name."},
 			}, "site"),
 			// Overwrites what is live (destructive, even though rollback_site
 			// can restore it) and publishes to the public web.
@@ -1157,7 +1161,7 @@ func Tools() []Tool {
 		{
 			Name:        "list_versions",
 			Title:       "List a site's versions",
-			Description: "List the versions kept for a site, newest first, with which one is live. Call this before rollback_site.",
+			Description: "List the versions kept for a site, newest first, with which one is live. Call this before rollback_site. Each version in the text may name its author (whoever the deployer stated); a version marked not_yet_live can be made live with rollback_site or removed with discard_version.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -1174,22 +1178,34 @@ func Tools() []Tool {
 					CreatedAt     string `json:"created_at"`
 					IsActive      bool   `json:"is_active"`
 					Status        string `json:"status"`
+					Author        string `json:"author"`
 				}
 				_ = json.Unmarshal(res.body, &raw)
 				sort.SliceStable(raw, func(i, j int) bool { return raw[i].VersionNumber > raw[j].VersionNumber })
 				// When each version was published is what a person picks a
 				// rollback by ("the one from yesterday"), so it stays; nothing
-				// else about the stored version is shown.
+				// else about the stored version is shown. The author goes in
+				// the text only: the structured output's schema is cached by
+				// clients and refuses keys it does not know.
 				versions := make([]any, 0, len(raw))
+				told := make([]any, 0, len(raw))
 				for _, v := range raw {
 					item := map[string]any{"version": v.VersionNumber, "live": v.IsActive, "published_at": v.CreatedAt}
 					if v.Status == "ready" && !v.IsActive {
 						item["not_yet_live"] = true
 					}
 					versions = append(versions, item)
+					said := make(map[string]any, len(item)+1)
+					for k, val := range item {
+						said[k] = val
+					}
+					if v.Author != "" {
+						said["author"] = v.Author
+					}
+					told = append(told, said)
 				}
 				out := map[string]any{"site": name, "versions": versions}
-				return output{Text: jsonText(out), Structured: out}, nil
+				return output{Text: jsonText(map[string]any{"site": name, "versions": told}), Structured: out}, nil
 			},
 		},
 		{
@@ -1262,6 +1278,46 @@ func Tools() []Tool {
 					text += fmt.Sprintf("\nIt is not live; rollback_site with version %d makes it live.", version)
 				}
 				return output{Text: text, Structured: out}, nil
+			},
+		},
+		{
+			Name:  "discard_version",
+			Title: "Discard a version that was never live",
+			Description: "DESTRUCTIVE: removes, for good, a version stored with update_site `publish: false` that has never been live. The live version and versions that have been live cannot be discarded (retention prunes those). " +
+				"Confirm with the person first, naming the version number from list_versions.",
+			InputSchema: object(map[string]any{
+				"site":    str(siteDesc),
+				"version": map[string]any{"type": "integer", "description": "The never-live version to discard, from list_versions (marked not_yet_live)."},
+			}, "site", "version"),
+			// Removes stored files for good; nothing the public sees changes.
+			Annotations: writes(true, true, false),
+			run: func(c *call, args map[string]any) (output, error) {
+				name, err := siteArg(args)
+				if err != nil {
+					return output{}, err
+				}
+				version, _, err := wholeNumber(args, "version", true, 1, math.MaxInt32)
+				if err != nil {
+					return output{}, err
+				}
+				res := c.do(http.MethodDelete, "/v1/sites/"+url.PathEscape(name)+"/versions/"+strconv.Itoa(version), nil, nil)
+				if !res.ok() {
+					return output{}, restError("discard_version", res)
+				}
+				var body struct {
+					Site      string `json:"site"`
+					Discarded int    `json:"discarded_version"`
+					Active    int    `json:"active_version"`
+				}
+				_ = json.Unmarshal(res.body, &body)
+				if body.Site == "" {
+					body.Site = name
+				}
+				if body.Discarded == 0 {
+					body.Discarded = version
+				}
+				out := map[string]any{"site": body.Site, "discarded_version": body.Discarded, "active_version": body.Active}
+				return output{Text: fmt.Sprintf("Discarded version %d of %s; version %d stays live.", body.Discarded, body.Site, body.Active), Structured: out}, nil
 			},
 		},
 		{
@@ -2008,6 +2064,10 @@ func applyEdits(c *call, site string, raw any) (map[string]string, error) {
 	return texts, nil
 }
 
+// maxVersionAuthor is the longest author a version keeps (the REST route
+// trims and caps at the same length).
+const maxVersionAuthor = 80
+
 // deploySite publishes the given files. mode is "create" (a new site only,
 // never overwriting) or "replace" (an existing site only).
 func deploySite(c *call, args map[string]any, mode string) (output, error) {
@@ -2110,6 +2170,26 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 			sep = "&"
 		}
 		path += sep + "keep=1"
+	}
+	if raw, present := args["author"]; present && raw != nil {
+		if mode != "replace" {
+			return output{}, errors.New("author is only for update_site")
+		}
+		author, err := stringArg(args, "author")
+		if err != nil {
+			return output{}, err
+		}
+		author = strings.TrimSpace(author)
+		if utf8.RuneCountInString(author) > maxVersionAuthor {
+			return output{}, fmt.Errorf("author must be at most %d characters", maxVersionAuthor)
+		}
+		if author != "" {
+			sep := "?"
+			if strings.Contains(path, "?") {
+				sep = "&"
+			}
+			path += sep + "author=" + url.QueryEscape(author)
+		}
 	}
 	var res upstreamResult
 	if mode == "create" {

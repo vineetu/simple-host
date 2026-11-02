@@ -473,6 +473,39 @@
      "evidence": "features.html #site-preview; FEATURES.md §1 preview prose (publish=false, hour-long bearer link, noindex, saves refused, 409 preview_unavailable with no own address); PARITY row 'Look before it goes live' (Enterprise owner/team only). Hack: preview_version tool exists; the §10 note that 'preview remains unavailable on Hack' refers to the MCP Apps screen. Not rendered."
     },
     {
+     "id": "site-drafts",
+     "name": "Drafts as versions",
+     "line": "Keep several unpublished drafts of one site, each marked with who made it, and discard the ones you will not use.",
+     "who": "Anyone whose agent prepares a few versions of a page before one is chosen: a quote, a proposal, a redesign.",
+     "how": "Publish without making it live, and name the author with the deploy. The version list shows who made each draft and can show only the drafts that have never been live. Make the chosen one live from the list; discard the others and they are gone for good. A version that is live, or has been live before, cannot be discarded, so the history visitors saw stays intact.",
+     "example": "A travel agency keeps one site per quote. Two staff each store a draft of the itinerary; the manager previews both, makes one live, and discards the other.",
+     "where": "Versions under Manage on your sites page (the author beside each draft, Discard on drafts not live yet), or ask your AI app.",
+     "limits": "An author name is at most 80 characters. Discarding is final and applies only to versions that were never live; a deploy-only key or a Simple Hack team key cannot discard.",
+     "editions": {
+      "host": "yes",
+      "hack": "yes",
+      "enterprise": "no",
+      "smallbox": "yes"
+     },
+     "editions_note": "On Simple Hack the version list and authors work the same way; team keys cannot discard.",
+     "status": "live",
+     "status_note": "",
+     "docs": [
+      {
+       "label": "Deploy skill",
+       "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "FEATURES: Sites and deploy",
+       "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#1-sites-and-deploy"
+      }
+     ],
+     "covers": [
+      "Drafts as versions (2026-11-02, SIM-152). Status: live."
+     ],
+     "evidence": "FEATURES.md §1 'Drafts as versions' (author on deploys, ?pending=1, DELETE .../versions/{version}, discard_version); PARITY row 'Drafts as versions' (Enterprise: not ported)."
+    },
+    {
      "id": "site-rename",
      "name": "Rename a site",
      "line": "Give a site a new name without republishing it; its versions and its saved data come with it.",

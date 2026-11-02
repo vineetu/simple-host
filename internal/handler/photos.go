@@ -250,7 +250,7 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	h.commitSiteUpdateRespond(w, r, user, name, files, digest, true, func(site siteResponse) {
+	h.commitSiteUpdateRespond(w, r, user, name, files, digest, true, "", func(site siteResponse) {
 		for i := range results {
 			results[i].URL = strings.TrimRight(site.SiteURL, "/") + "/" + results[i].Path
 		}
