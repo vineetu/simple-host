@@ -842,7 +842,14 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 		add("alert email", stepNotFiled, "no alert address is configured", nil)
 	}
 	if evidence != "" {
+		// A report filed from the admin page in the meantime has written
+		// record.json under imageReportMu; keep it.
+		imageReportMu.Lock()
+		if rid, at, filed := filedInRecord(db.ImageMatch{EvidencePath: evidence}); filed && m.ReportStatus != "filed" {
+			m.ReportStatus, m.ReportID, m.ReportError, m.ReportedAt = "filed", rid, "", sql.NullTime{Time: at, Valid: true}
+		}
 		s.writeRecord(evidence, m, steps)
+		imageReportMu.Unlock()
 	}
 }
 
@@ -1159,7 +1166,7 @@ func (s *ImageScan) reporteeOf(ctx context.Context, m db.ImageMatch) string {
 		}
 	}
 	if strings.HasSuffix(m.OwnerEmail, holdingAccountSuffix) {
-		return "uploader not recorded (event account " + m.OwnerHandle + ")"
+		return "uploader not recorded"
 	}
 	return strings.TrimSpace(m.OwnerHandle + " " + m.OwnerEmail)
 }

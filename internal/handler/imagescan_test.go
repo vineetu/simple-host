@@ -715,6 +715,29 @@ func TestImageScanRestore(t *testing.T) {
 	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/sites/comeback", nil, okey); r.status != http.StatusNoContent {
 		t.Fatalf("delete: %d %s", r.status, r.body)
 	}
+	queue := func() map[string]int {
+		t.Helper()
+		r := a.at(t, "GET", pcSiteDomain, "/v1/admin/image-scan", nil, map[string]string{"X-API-Key": a.admin})
+		var page struct {
+			Queue map[string]int `json:"queue"`
+		}
+		if err := json.Unmarshal(r.body, &page); err != nil {
+			t.Fatalf("admin GET: %d %s", r.status, r.body)
+		}
+		return page.Queue
+	}
+	waiting := func() int { return queue()["site_deleted"] }
+	// Pass 3b: a due job, and one on a retry, waiting on the deleted site
+	// count as site_deleted only.
+	if _, err := a.database.Exec(`UPDATE image_scan_queue SET attempts = 1 WHERE id = (SELECT min(id) FROM image_scan_queue WHERE site_id = $1)`, siteID); err != nil {
+		t.Fatal(err)
+	}
+	if q := queue(); q["site_deleted"] != 2 || q["pending"] != 0 || q["retrying"] != 0 {
+		t.Fatalf("queue while deleted and due: %v, want only site_deleted 2", q)
+	}
+	if _, err := a.database.Exec(`UPDATE image_scan_queue SET attempts = 0 WHERE site_id = $1`, siteID); err != nil {
+		t.Fatal(err)
+	}
 	f.scan.RunOnce(context.Background())
 	if n := queueCount(t, a, siteID); n != 2 || f.matcher.callCount() != 0 {
 		t.Fatalf("while deleted: queue %d (want 2 kept), calls %d", n, f.matcher.callCount())
@@ -726,17 +749,6 @@ func TestImageScanRestore(t *testing.T) {
 	}
 	if maxAttempts != 0 || !soonest.After(time.Now().Add(50*time.Minute)) {
 		t.Fatalf("postponed jobs: attempts %d, next %s", maxAttempts, soonest)
-	}
-	waiting := func() int {
-		t.Helper()
-		r := a.at(t, "GET", pcSiteDomain, "/v1/admin/image-scan", nil, map[string]string{"X-API-Key": a.admin})
-		var page struct {
-			Queue map[string]int `json:"queue"`
-		}
-		if err := json.Unmarshal(r.body, &page); err != nil {
-			t.Fatalf("admin GET: %d %s", r.status, r.body)
-		}
-		return page.Queue["site_deleted"]
 	}
 	if n := waiting(); n != 2 {
 		t.Fatalf("admin queue site_deleted %d, want 2", n)
@@ -1203,10 +1215,13 @@ func TestImageScanReportSaveFails(t *testing.T) {
 	if n := len(f.reporter.reports); n != 1 {
 		t.Fatalf("reporter called %d times, want 1", n)
 	}
-	// A save that fails once is tried again and lands.
+	// A save that fails once is tried again and lands. The first call fails
+	// whatever its context; a retry on the caller's context would fail too
+	// when that context has ended.
+	flaky := 0
 	f.scan.saveReport = func(ctx context.Context, q db.Querier, id int64, st, rid, e string) error {
-		saves++
-		if saves == imageReportSaveTries+1 {
+		flaky++
+		if flaky == 1 {
 			return errors.New("database blip")
 		}
 		return db.SetImageMatchReport(ctx, q, id, st, rid, e)
@@ -1215,8 +1230,24 @@ func TestImageScanReportSaveFails(t *testing.T) {
 	if _, _, err := f.scan.fileReport(ctx, m2.ID); err != nil {
 		t.Fatalf("report with one failed save: %v", err)
 	}
+	if flaky != 2 {
+		t.Fatalf("save called %d times, want a failure then a success", flaky)
+	}
 	if got, _ := db.GetImageMatch(ctx, a.database, m2.ID); got.ReportStatus != "filed" || got.ReportID != "RPT-TEST-1" {
 		t.Fatalf("after a retried save: %+v", got)
+	}
+	// The caller's request has ended: the retry still lands.
+	if _, err := a.database.Exec(`UPDATE image_scan_matches SET report_status = 'pending', report_id = '' WHERE id = $1`, m2.ID); err != nil {
+		t.Fatal(err)
+	}
+	flaky = 0
+	gone, cancel := context.WithCancel(ctx)
+	cancel()
+	if err := f.scan.saveFiled(gone, m2.ID, "RPT-ENDED"); err != nil {
+		t.Fatalf("save after the caller ended: %v", err)
+	}
+	if got, _ := db.GetImageMatch(ctx, a.database, m2.ID); flaky != 2 || got.ReportStatus != "filed" || got.ReportID != "RPT-ENDED" {
+		t.Fatalf("after the caller ended: calls %d, %+v", flaky, got)
 	}
 }
 
@@ -1361,20 +1392,199 @@ func TestImageScanRequeueGivenUp(t *testing.T) {
 	f.wait()
 	uid, _ := a.userID(t, olive)
 	siteID := a.siteID(t, olive, "again")
-	if _, err := a.database.Exec(`UPDATE image_scan_queue SET attempts = 12, last_error = 'gave up: x', next_attempt_at = 'infinity' WHERE site_id = $1`, siteID); err != nil {
+	if _, err := a.database.Exec(`UPDATE image_scan_queue SET attempts = 12, last_error = 'gave up: x', next_attempt_at = 'infinity',
+		created_at = now() - interval '3 days' WHERE site_id = $1`, siteID); err != nil {
 		t.Fatal(err)
 	}
-	f.scan.EnqueueSiteFiles(siteID, uid, "again", 1, map[string][]byte{"pic.png": pic})
+	// Pass 3b: someone else re-uploads the same bytes; the revived job
+	// names them and the time of their upload.
+	otto := a.newPerson(t, "otto")
+	ottoID, _ := a.userID(t, otto)
+	if ottoID == uid {
+		t.Fatal("same writer; the test proves nothing")
+	}
+	f.scan.EnqueueSiteFiles(siteID, ottoID, "again", 1, map[string][]byte{"pic.png": pic})
 	f.wait()
 	var rows, attempts int
 	var due bool
-	if err := a.database.QueryRow(`SELECT count(*), max(attempts), bool_and(next_attempt_at <= now()) FROM image_scan_queue WHERE site_id = $1`, siteID).Scan(&rows, &attempts, &due); err != nil {
+	var writer string
+	var created time.Time
+	if err := a.database.QueryRow(`SELECT count(*), max(attempts), bool_and(next_attempt_at <= now()), max(writer_id), max(created_at)
+		 FROM image_scan_queue WHERE site_id = $1`, siteID).Scan(&rows, &attempts, &due, &writer, &created); err != nil {
 		t.Fatal(err)
 	}
 	if rows != 1 || attempts != 0 || !due {
 		t.Fatalf("after a re-upload: rows %d attempts %d due %v", rows, attempts, due)
 	}
+	if writer != ottoID || time.Since(created) > time.Hour {
+		t.Fatalf("revived job: writer %q (want the re-uploader %s), created %s", writer, ottoID, created)
+	}
 	if n := f.scan.RunOnce(context.Background()); n != 1 || f.matcher.callCount() != 1 {
 		t.Fatalf("RunOnce handled %d, matcher calls %d", n, f.matcher.callCount())
+	}
+}
+
+// Pass 3b, item 2: the worker read the site as deleted, then a restore made
+// the job due before the worker's postpone landed. The postpone must not
+// push it an hour out again.
+func TestImageScanPostponeAfterRestore(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	olive := a.newPerson(t, "olive")
+	okey := map[string]string{"X-API-Key": olive.key}
+	deployWithImages(t, a, olive, "racing", map[string][]byte{"pic.png": testPNG(t)})
+	f.wait()
+	siteID := a.siteID(t, olive, "racing")
+	ctx := context.Background()
+	var id int64
+	if err := a.database.QueryRow(`SELECT id FROM image_scan_queue WHERE site_id = $1`, siteID).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/sites/racing", nil, okey); r.status != http.StatusNoContent {
+		t.Fatalf("delete: %d %s", r.status, r.body)
+	}
+	due := func() bool {
+		t.Helper()
+		var d bool
+		if err := a.database.QueryRow(`SELECT next_attempt_at <= now() FROM image_scan_queue WHERE id = $1`, id).Scan(&d); err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	// While deleted the postpone works.
+	if err := db.PostponeImageScan(ctx, a.database, id, imageScanDeletedWait); err != nil {
+		t.Fatal(err)
+	}
+	if due() {
+		t.Fatal("postpone on a deleted site left the job due")
+	}
+	// The worker sees the site deleted; the restore lands; then its postpone.
+	if r := a.at(t, "POST", pcSiteDomain, "/v1/sites/racing/restore", nil, okey); r.status != http.StatusOK {
+		t.Fatalf("restore: %d %s", r.status, r.body)
+	}
+	if !due() {
+		t.Fatal("restore did not make the job due")
+	}
+	if err := db.PostponeImageScan(ctx, a.database, id, imageScanDeletedWait); err != nil {
+		t.Fatal(err)
+	}
+	if !due() {
+		t.Fatal("a postpone after the restore pushed the job out again")
+	}
+}
+
+// hookMailer runs a hook before each notice, so a test can act while the
+// worker is between its last step and its last record.json write.
+type hookMailer struct {
+	fakeNoticeMailer
+	hook func()
+}
+
+func (h *hookMailer) SendNotice(to, subject, text string) error {
+	if h.hook != nil {
+		h.hook()
+	}
+	return h.fakeNoticeMailer.SendNotice(to, subject, text)
+}
+
+// Pass 3b, item 3: a report filed from the admin page while the worker is
+// still finishing the match stays filed in record.json.
+func TestImageScanRecordKeepsFiledReport(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	olive := a.newPerson(t, "olive")
+	bad := testPNG(t)
+	f.markMatch(sha256Hex(bad))
+	deployWithImages(t, a, olive, "clicked", map[string][]byte{"bad.png": bad})
+	f.wait()
+	siteID := a.siteID(t, olive, "clicked")
+	ctx := context.Background()
+	var filedErr error
+	filed := false
+	f.scan.mailer = &hookMailer{hook: func() {
+		m := latestMatch(t, a, siteID)
+		_, _, filedErr = f.scan.fileReport(ctx, m.ID)
+		filed = true
+	}}
+	f.scan.RunOnce(ctx)
+	if !filed || filedErr != nil {
+		t.Fatalf("admin report during the worker: ran %v, %v", filed, filedErr)
+	}
+	m := latestMatch(t, a, siteID)
+	b, err := os.ReadFile(filepath.Join(m.EvidencePath, "record.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rec map[string]any
+	if err := json.Unmarshal(b, &rec); err != nil {
+		t.Fatal(err)
+	}
+	if rec["report_status"] != "filed" || rec["report_id"] != "RPT-TEST-1" {
+		t.Fatalf("record.json lost the filed report: status %v id %v", rec["report_status"], rec["report_id"])
+	}
+	if _, ok := rec["steps"]; !ok {
+		t.Fatal("record.json has no steps; the worker's last write did not land")
+	}
+}
+
+// Pass 3b, item 5: with no uploader on record on an event's site, the
+// report names nobody, not the event's holding account.
+func TestImageScanReporteeNoHoldingAccount(t *testing.T) {
+	s := &ImageScan{}
+	m := db.ImageMatch{Kind: "site_file", OwnerHandle: "ev-holding", OwnerEmail: "ev-holding" + holdingAccountSuffix}
+	if got := s.reporteeOf(context.Background(), m); got != "uploader not recorded" {
+		t.Fatalf("reportee %q, want %q", got, "uploader not recorded")
+	}
+	m = db.ImageMatch{Kind: "storage_file", WriterID: "owner", OwnerHandle: "ev-holding", OwnerEmail: "ev-holding" + holdingAccountSuffix}
+	if got := s.reporteeOf(context.Background(), m); got != "uploader not recorded" {
+		t.Fatalf("owner write: reportee %q, want %q", got, "uploader not recorded")
+	}
+}
+
+// Pass 3b, item 6: an organiser's publish of the event website and an
+// organiser's event-storage upload record the organiser.
+func TestImageScanHackOrganiserUploader(t *testing.T) {
+	a := newTeamSiteApp(t)
+	f := newImageScanFixtureDB(t, a.database, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	org := a.newPerson(t, "org")
+	slug := a.makeEvent(t, org)
+	markReady(t, a.certDir, slug)
+	deployed, stored := testPNG(t), testPNG(t)
+	f.markMatch(sha256Hex(deployed))
+	f.markMatch(sha256Hex(stored))
+	ev := "/v1/hack/events/" + slug + "/website"
+	body := map[string]any{"files": map[string]string{"index.html": "<h1>event</h1>"},
+		"files_base64": map[string]string{"img/bad.png": base64.StdEncoding.EncodeToString(deployed)}}
+	wantTS(t, "organiser publish", a.api(t, "PUT", ev+"/files?create=1", body, org.key), 201, "")
+	wantTS(t, "organiser files resource", a.api(t, "PUT", ev+"/storage/resources/pics", map[string]string{"kind": "files"}, org.key), 201, "")
+	wantTS(t, "organiser file", a.api(t, "PUT", ev+"/storage/files/pics/objects/bad.png", string(stored), org.key), 200, "")
+	f.wait()
+	f.scan.RunOnce(context.Background())
+	organiser := a.uid(t, org)
+	rows, err := db.ListImageMatches(context.Background(), a.database, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bySHA := map[string]db.ImageMatch{}
+	for _, m := range rows {
+		bySHA[m.SHA256] = m
+	}
+	site, obj := bySHA[sha256Hex(deployed)], bySHA[sha256Hex(stored)]
+	if site.Kind != "site_file" || site.WriterID != organiser {
+		t.Fatalf("publish match writer %q, want the organiser %s: %+v", site.WriterID, organiser, site)
+	}
+	if obj.Kind != "storage_file" || obj.WriterID != "user:"+organiser {
+		t.Fatalf("storage match writer %q, want user:%s: %+v", obj.WriterID, organiser, obj)
+	}
+	for _, m := range []db.ImageMatch{site, obj} {
+		if !strings.HasSuffix(m.OwnerEmail, holdingAccountSuffix) {
+			t.Fatalf("%s: owner %q is not the holding account; the test proves nothing", m.Kind, m.OwnerEmail)
+		}
+		if !strings.Contains(m.Uploader, org.email) {
+			t.Fatalf("%s: uploader %q, want the organiser %s", m.Kind, m.Uploader, org.email)
+		}
 	}
 }

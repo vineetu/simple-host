@@ -348,6 +348,9 @@ What follows from that, and is not negotiable without changing the line above:
   `PHOTODNA_API_KEY` is set) pending the owner's PhotoDNA application. Reason: 18 U.S.C. 2258A
   requires a provider to report apparent child sexual abuse material it learns of and to
   preserve it, and the owner's standing rule that visitor IPs never leave the box.
+  2026-11-02: for a site file the uploader is whoever deployed it, not the site owner: on
+  Simple Hack the team member whose key deployed it or the organiser who published it, never
+  the event's holding account.
 - **2026-10-24. Simple Hack notification phase 3.** Team members and organisers receive
   visitor-save events through MCP Events or signed webhooks, using the hosted engine and
   sealed secrets. New team subscriptions stop at submission deadlines; deliveries continue.

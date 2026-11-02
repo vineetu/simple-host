@@ -126,15 +126,18 @@ func RecordImageHash(ctx context.Context, q Querier, sha, verdict, provider, tra
 
 // EnqueueImageScan adds a job unless the same bytes at the same place and
 // version are already waiting. A given-up job for them is made due again
-// with a fresh count of attempts, so a re-upload is checked. Returns whether
+// with a fresh count of attempts, so a re-upload is checked, and it takes
+// the re-upload's writer and time (a report names who uploaded it last and
+// when). Returns whether
 // a row was inserted or made due.
 func EnqueueImageScan(ctx context.Context, q Querier, j ImageScanJob) (bool, error) {
 	const same = `kind = $1 AND site_id IS NOT DISTINCT FROM $2::uuid AND event_id IS NOT DISTINCT FROM $3::uuid
 		   AND team_id IS NOT DISTINCT FROM $4::uuid AND resource_name = $5 AND path = $6 AND sha256 = $7
 		   AND version IS NOT DISTINCT FROM $8::integer`
 	args := []any{j.Kind, nullUUID(j.SiteID), nullUUID(j.EventID), nullUUID(j.TeamID), j.ResourceName, j.Path, j.SHA256, nullVersion(j.Version)}
-	res, err := q.ExecContext(ctx, `UPDATE image_scan_queue SET attempts = 0, last_error = '', next_attempt_at = now()
-		 WHERE `+same+` AND next_attempt_at = 'infinity'`, args...)
+	res, err := q.ExecContext(ctx, `UPDATE image_scan_queue SET attempts = 0, last_error = '', next_attempt_at = now(),
+		writer_id = $9, created_at = now()
+		 WHERE `+same+` AND next_attempt_at = 'infinity'`, append(args, j.WriterID)...)
 	if err != nil {
 		return false, err
 	}
@@ -239,8 +242,11 @@ func GiveUpImageScan(ctx context.Context, q Querier, id int64, errText string, a
 
 // PostponeImageScan moves a job's next attempt d out without counting an
 // attempt (a site in Recently deleted waits for a restore or the purge).
+// Only while the site is still deleted: a restore in between has already
+// made the job due (WakeImageScans), and that stands.
 func PostponeImageScan(ctx context.Context, q Querier, id int64, d time.Duration) error {
-	_, err := q.ExecContext(ctx, `UPDATE image_scan_queue SET next_attempt_at = now() + $2 * interval '1 second' WHERE id = $1`,
+	_, err := q.ExecContext(ctx, `UPDATE image_scan_queue SET next_attempt_at = now() + $2 * interval '1 second'
+		 WHERE id = $1 AND EXISTS (SELECT 1 FROM sites WHERE id = image_scan_queue.site_id AND deleted_at IS NOT NULL)`,
 		id, int(d.Seconds()))
 	return err
 }
@@ -259,12 +265,13 @@ func WakeImageScans(ctx context.Context, q Querier, siteID string) error {
 }
 
 // ImageScanQueueCountsNow reports what is due, what is on a retry, what was
-// given up, and what waits on a site in Recently deleted.
+// given up, and what waits on a site in Recently deleted. A job waiting on
+// a deleted site counts there only, not as due or retrying.
 func ImageScanQueueCountsNow(ctx context.Context, q Querier) (ImageScanQueueCounts, error) {
 	var c ImageScanQueueCounts
 	err := q.QueryRowContext(ctx, `
-		SELECT count(*) FILTER (WHERE q.next_attempt_at <= now()),
-		       count(*) FILTER (WHERE q.attempts > 0 AND q.next_attempt_at <> 'infinity'),
+		SELECT count(*) FILTER (WHERE q.next_attempt_at <= now() AND s.deleted_at IS NULL),
+		       count(*) FILTER (WHERE q.attempts > 0 AND q.next_attempt_at <> 'infinity' AND s.deleted_at IS NULL),
 		       count(*) FILTER (WHERE q.next_attempt_at = 'infinity'),
 		       count(*) FILTER (WHERE s.deleted_at IS NOT NULL AND q.next_attempt_at <> 'infinity')
 		  FROM image_scan_queue q LEFT JOIN sites s ON s.id = q.site_id`).Scan(&c.Pending, &c.Retrying, &c.GaveUp, &c.SiteDeleted)
