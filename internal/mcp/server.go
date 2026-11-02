@@ -161,6 +161,12 @@ type Config struct {
 	// Events serves MCP Events webhook subscriptions. Nil: events are not
 	// offered (no capability, no events/* methods, no notification tools).
 	Events EventsBackend
+	// MutationResultHook, when set, runs after every in-process tool call
+	// with the REST method, path and the status it got back. It exists so
+	// the Hack paper-metrics collector can see successful hack-event writes
+	// without this leaf package importing internal/papermetrics; the
+	// handler package wires it to papermetrics.HackMutationResult. Nil-safe.
+	MutationResultHook func(ctx context.Context, method, path string, status int)
 }
 
 type Server struct {

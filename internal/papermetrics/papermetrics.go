@@ -45,6 +45,8 @@ type Collector struct {
 	runID      atomic.Int64
 	runMu      sync.Mutex
 	runConfig  map[string]any
+	// commit is the build commit used for provenance (see WithCommit).
+	commit string
 }
 
 // New makes a collector. apexHosts are the platform's own host names

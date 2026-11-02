@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	"github.com/vsriram/simple-host/internal/papermetrics"
 )
 
 // Tool is one callable operation. run turns validated arguments into REST
@@ -99,7 +97,9 @@ func (c *call) do(method, path string, body []byte, extra map[string]string) ups
 	}
 	rec := &capture{header: http.Header{}, status: http.StatusOK}
 	c.server.cfg.Upstream.ServeHTTP(rec, req)
-	papermetrics.HackMutationResult(c.orig.Context(), method, path, rec.status)
+	if hook := c.server.cfg.MutationResultHook; hook != nil {
+		hook(c.orig.Context(), method, path, rec.status)
+	}
 	return upstreamResult{status: rec.status, header: rec.header, body: rec.body.Bytes()}
 }
 

@@ -50,6 +50,7 @@ import (
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/papermetrics"
 )
 
 const (
@@ -164,6 +165,10 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// deploy route then holds each account to its own.
 		MaxBodyBytes:   largestSiteLimit()*4/3 + (1 << 20),
 		SelectHackTeam: h.selectHackTeam,
+		// internal/mcp is a leaf package (check-layering.sh) and may not
+		// import internal/papermetrics directly; this is the same hook it
+		// used to call inline from internal/mcp/tools.go.
+		MutationResultHook: papermetrics.HackMutationResult,
 		// main sets it from the server's Turnstile keys (OfferSpamCheck).
 		SelfHosted: siteDomain != canonicalSiteDomain,
 	}

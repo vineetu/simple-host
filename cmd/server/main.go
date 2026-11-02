@@ -442,7 +442,7 @@ func main() {
 		if u, err := url.Parse(cfg.PublicBaseURL); err == nil && u.Hostname() != "" {
 			apex = append(apex, u.Hostname())
 		}
-		paper = papermetrics.New(db, cfg.DataDir, apex...).WithRunConfig(paperConfig)
+		paper = papermetrics.New(db, cfg.DataDir, apex...).WithRunConfig(paperConfig).WithCommit(buildinfo.Commit)
 		if hackEvents != nil {
 			paper.WithHack()
 		}

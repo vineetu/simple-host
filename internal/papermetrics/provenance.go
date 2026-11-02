@@ -15,8 +15,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/vsriram/simple-host/internal/buildinfo"
 )
 
 var processStartedAt = time.Now()
@@ -24,6 +22,15 @@ var processStartedAt = time.Now()
 // Only these parsed, non-secret config fields are ever hashed. No whole-config
 // serialisation or environment dump is used, even transiently.
 var runConfigKeys = []string{"limits", "events", "write_auth_mode", "person_hosts", "site_hosts", "paper_metrics"}
+
+// WithCommit sets the build commit used for provenance (paper_run.vcs_revision
+// and its "-dirty" flag, when the VCS stamp from debug.ReadBuildInfo is itself
+// unavailable). The caller (cmd/server) passes buildinfo.Commit; this leaf
+// package does not import internal/buildinfo (see check-layering.sh).
+func (c *Collector) WithCommit(commit string) *Collector {
+	c.commit = commit
+	return c
+}
 
 func (c *Collector) WithRunConfig(values map[string]any) *Collector {
 	c.runConfig = map[string]any{}
@@ -114,8 +121,8 @@ func (c *Collector) ensureRun(ctx context.Context) (int64, error) {
 		return id, nil
 	}
 	var revision any
-	dirty := strings.HasSuffix(buildinfo.Commit, "-dirty")
-	candidate := strings.TrimSuffix(buildinfo.Commit, "-dirty")
+	dirty := strings.HasSuffix(c.commit, "-dirty")
+	candidate := strings.TrimSuffix(c.commit, "-dirty")
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
 			switch setting.Key {
