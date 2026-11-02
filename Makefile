@@ -1,13 +1,24 @@
 # check-docs-sync.sh needs python3 with PyYAML; check-fresh-install.sh needs a
 # local postgres superuser (it creates and drops a throwaway database).
 # check-prices-age.sh only warns: the cost calculator's prices are checked monthly.
-.PHONY: check
+#
+# `test` is the fast loop: go test ./... with no database, so the ~15 DB-backed
+# fixtures (see scripts/test-integration.sh) skip. `test-integration` gives
+# them a disposable Postgres (TEST_PG_URL, or Docker if that's unset) and
+# fails if any of them still skip -- that's what `check` runs.
+.PHONY: check test test-integration
+
+test:
+	go test ./...
+
+test-integration:
+	bash scripts/test-integration.sh
 
 check:
 	@test -z "$$(gofmt -l internal/ cmd/ db/)" || { echo "gofmt: $$(gofmt -l internal/ cmd/ db/)"; exit 1; }
 	go build ./...
 	go vet ./...
-	go test ./...
+	bash scripts/test-integration.sh
 	node --test scripts/tests/arrival.test.cjs scripts/tests/photo-process.test.cjs scripts/tests/my-sites.test.cjs scripts/tests/site-preview.test.cjs
 	bash scripts/check-html.sh
 	bash scripts/check-layering.sh
