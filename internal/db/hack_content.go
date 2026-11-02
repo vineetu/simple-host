@@ -62,6 +62,26 @@ func ListEventAnnouncements(ctx context.Context, q Querier, eventID string) ([]E
 	return out, rows.Err()
 }
 
+// ListAnnouncementTimes is when the latest 20 announcements were posted,
+// newest first, as RFC 3339 UTC strings.
+func ListAnnouncementTimes(ctx context.Context, q Querier, eventID string) ([]string, error) {
+	rows, err := queryContext(ctx, q, `SELECT created_at FROM event_announcements WHERE event_id = $1
+		ORDER BY created_at DESC, id DESC LIMIT 20`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var t time.Time
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		out = append(out, t.UTC().Format(time.RFC3339Nano))
+	}
+	return out, rows.Err()
+}
+
 // CreateEventAnnouncement queues one delivery row per approved participant
 // with an email-shaped username, plus one more for organiserUserID (the
 // posting organiser) when their own username is email-shaped too -- never a

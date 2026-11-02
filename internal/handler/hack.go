@@ -92,6 +92,9 @@ type HackHandler struct {
 	// sender that cannot send a notice, makes that sweep log and do nothing.
 	mailer         email.Sender
 	archiveLinkKey []byte
+	// noticeTiming overrides the notice email delay and window (tests only;
+	// hack_notices.go).
+	noticeTiming *noticeMailPolicy
 }
 
 // hackSiteHooks is what the events API needs of the site side.
@@ -242,6 +245,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	h.registerEventWebsite(mux, wrap)
 	h.registerHackPreferences(mux, wrap)
 	h.registerLeave(mux, wrap)
+	h.registerNotices(mux, wrap)
 }
 
 // SetNamePeer: fn reports whether the peer instance holds name; nil = no peer.
@@ -865,6 +869,14 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 		},
 		"role": member.Role,
 		"me":   h.meView(ctx, ev, member),
+		// What waits on this person here (hack_notices.go): the sidebar
+		// badges, Overview's Needs you card and hack_get_team_status.
+		"needs_you": h.needsYou(ctx, ev, member),
+	}
+	// Newest first, for the participant's client-side unread badge on
+	// Announcements (audit 2026-11-02): no read state is kept on the server.
+	if times, err := db.ListAnnouncementTimes(ctx, h.database, ev.ID); err == nil {
+		body["event"].(map[string]any)["announcement_times"] = times
 	}
 	if organiser {
 		participants, teams, _, _ := db.CountEventMembers(ctx, h.database, ev.ID)
@@ -1892,6 +1904,10 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 			return
 		}
 		member, err = db.JoinParticipantRegistration(r.Context(), tx, ev.ID, user.ID, display, answers, required)
+		if err == nil && required {
+			// A sign-up that waits for approval waits on the organisers.
+			err = db.NotifyOrganisers(r.Context(), tx, ev.ID, db.NoticeApplicationNew, user.ID)
+		}
 		if err == nil {
 			err = tx.Commit()
 		}

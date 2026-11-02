@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -21,7 +22,20 @@ func (h *HackHandler) getHackPreferences(w http.ResponseWriter, r *http.Request)
 		writeInternal(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, p)
+	writeJSON(w, http.StatusOK, hackPreferencesJSON(user, p))
+}
+
+// hackPreferencesJSON adds email_possible: false for a key-only account
+// (a sign-in name that is not an email address), which is never emailed
+// whatever email_updates says.
+func hackPreferencesJSON(user *db.User, p db.HackPreferences) map[string]any {
+	return map[string]any{
+		"theme":                      p.Theme,
+		"organiser_walkthrough_done": p.OrganiserWalkthroughDone,
+		"judge_walkthrough_done":     p.JudgeWalkthroughDone,
+		"email_updates":              p.EmailUpdates,
+		"email_possible":             strings.Contains(user.Username, "@"),
+	}
 }
 
 func (h *HackHandler) patchHackPreferences(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +47,7 @@ func (h *HackHandler) patchHackPreferences(w http.ResponseWriter, r *http.Reques
 		Theme                    *string `json:"theme"`
 		OrganiserWalkthroughDone *bool   `json:"organiser_walkthrough_done"`
 		JudgeWalkthroughDone     *bool   `json:"judge_walkthrough_done"`
+		EmailUpdates             *bool   `json:"email_updates"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
@@ -55,9 +70,12 @@ func (h *HackHandler) patchHackPreferences(w http.ResponseWriter, r *http.Reques
 	if req.JudgeWalkthroughDone != nil {
 		p.JudgeWalkthroughDone = *req.JudgeWalkthroughDone
 	}
+	if req.EmailUpdates != nil {
+		p.EmailUpdates = *req.EmailUpdates
+	}
 	if err := db.SetHackPreferences(r.Context(), h.database, user.ID, p); err != nil {
 		writeInternal(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, p)
+	writeJSON(w, http.StatusOK, hackPreferencesJSON(user, p))
 }

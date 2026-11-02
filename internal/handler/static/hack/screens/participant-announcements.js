@@ -1,3 +1,5 @@
+import { markAnnouncementsSeen } from '../needs.js'
+
 export function title() { return 'Announcements' }
 
 export async function render(ctx) {
@@ -15,6 +17,8 @@ export async function render(ctx) {
   }
   if (!r.ok) { body.innerHTML = `<div class="note bad" role="alert">Could not load announcements.</div>`; return }
   const items = (r.data && r.data.announcements) || [] // already newest-first from the API
+  // Seen on this browser: clears the sidebar's unread count (needs.js).
+  if (items.length) markAnnouncementsSeen(ev.slug, [items[0].created_at])
   if (!items.length) { body.innerHTML = `<div class="locked"><h2>No announcements yet</h2><p>News from the organisers shows here.</p></div>`; return }
   body.innerHTML = `<div class="list">${items.map(a => `<article class="r"><div class="main"><h2>${esc(a.title)}</h2><p class="small muted">${esc(ui.dateTime(a.created_at, ev, { timeStyle: undefined }))}</p><p>${esc(a.body)}</p></div></article>`).join('')}</div>`
 }

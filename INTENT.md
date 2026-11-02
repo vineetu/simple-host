@@ -153,6 +153,26 @@ What follows from that, and is not negotiable without changing the line above:
   prompt lives in the existing schedule JSON. Reason: small, reversible calls made to build it
   end to end without waiting on the owner.
 
+- **2026-11-02. Decision emails now go out (audit item 7).** Approving or rejecting an
+  application now emails the applicant, as part of the wider "notify people when something
+  waits on them" feature. This supersedes "No decision email goes out yet" in the 2026-10-31
+  "Application design calls" entry below. Reason: a missed approval or rejection costs the
+  organiser and the applicant more than one more email.
+- **2026-11-02. Email is on by default with one account-level opt-out.** A single Account
+  switch, "Email me when something waits on me," turns every kind of these notices off at
+  once; there is no per-kind matrix. Reason: these are transactional notices about the
+  person's own team and application, the brief allows an opt-out, and a matrix is more UI
+  than the problem needs.
+- **2026-11-02. One email per kind per 15 minutes per person, batched.** Everything of one
+  kind that piles up in the window goes out together in the next email, across events.
+  Reason: owner's brief, and it caps a request/withdraw loop at four emails an hour.
+- **2026-11-02. Organisers get counts, never applicant names, by email; team admins get
+  names.** Team admins already see requester names on Team, so their email repeats what
+  they can already see; organisers never see an applicant's name there. Reason: least
+  personal data in inboxes.
+- **2026-11-02. Team lock is in-app only, no email.** Reason: nothing to act on.
+- **2026-11-02. Leaving still sends nothing.** Confirms the 2026-10-31 rule stands even now
+  that email notifications exist for other kinds.
 - **2026-10-31. Anyone can leave an event (SIM-340).** Participants, judges and organisers can
   all leave an event they are in, from the website (Overview, Settings, or a Home row menu) or
   an AI app. The only organiser is told up front that leaving closes the event, and chooses
@@ -184,7 +204,7 @@ What follows from that, and is not negotiable without changing the line above:
 - **2026-10-31. Application design calls, open to the owner's override.** Every application
   waits for an organiser's decision even when join-link sign-ups don't, because a stranger who
   found a listed event is not the same as someone the organiser invited. No decision email goes
-  out yet. The join-link sign-up form stays as it was. AgentCat never receives city, country,
+  out yet (superseded 2026-11-02: decision emails now go out). The join-link sign-up form stays as it was. AgentCat never receives city, country,
   age range or gender. There is no age restriction on applying. Under 18 shows a line asking a
   parent or guardian to agree to the Terms.
 - **2026-10-31. Only listed events take applications.** Apply shows, and applications are

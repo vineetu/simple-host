@@ -68,6 +68,9 @@ export async function render(ctx) {
   const canJoinByCode = teamsOpen && !ended
   const canDiscover = teamsOpen && !deadlinePassed
   const isAdmin = !!(team && team.admin)
+  // Removal notice (audit 2026-11-02): someone taken off a team lands here
+  // next, so the reason shows on Team too, not only on Overview.
+  const removalNote = !team && me.team_removal_notice ? `<div class="note bad">${esc(me.team_removal_notice)}</div>` : ''
   // canAct: on-team writes in general (not frozen/ended); admin-only
   // actions (rename, looking-for, lock, new link, requests, remove,
   // admin toggles) additionally require isAdmin. Invites stay open to
@@ -418,7 +421,7 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
     let body
     if (!team) {
       body = noTeamHTML()
-      main.innerHTML = `<div class="ph"><div class="t"><h1>Team</h1><p>You’re not on a team yet.</p></div></div>` + body
+      main.innerHTML = `<div class="ph"><div class="t"><h1>Team</h1><p>You’re not on a team yet.</p></div></div>` + removalNote + body
       wireNoTeam()
       return
     }
@@ -441,7 +444,7 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
   // closed): the one empty-state replaces everything (spec.json
   // "teams closed, no team").
   if (!team && !canJoinByCode && !canStart && !(finding.enabled && canDiscover)) {
-    main.innerHTML = `<div class="ph"><div class="t"><h1>Team</h1><p>You’re not on a team.</p></div></div><div class="empty-state">${LOCK_ICON}<h3>Teams can’t be started or joined now</h3><p>Entries are closed. If you should be on a team, ask the organiser.</p></div>`
+    main.innerHTML = `<div class="ph"><div class="t"><h1>Team</h1><p>You’re not on a team.</p></div></div>${removalNote}<div class="empty-state">${LOCK_ICON}<h3>Teams can’t be started or joined now</h3><p>Entries are closed. If you should be on a team, ask the organiser.</p></div>`
   } else {
     paint()
   }

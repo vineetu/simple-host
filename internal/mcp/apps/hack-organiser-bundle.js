@@ -1475,12 +1475,20 @@ async function render(ctx) {
   // dismissed before. tour.js itself checks organiser_walkthrough_done.
   const openWalk = params.get('walkthrough') === '1'
 
+  // Needs you (atlas 2026-11-02): applications waiting for a decision, the
+  // server's own line (needs_you), linking to People. needs.js's needHref
+  // inlined: this screen is also bundled into the organiser MCP App, whose
+  // bundlegen maps only nav.js's href.
+  const needsLines = (data.needs_you || []).map(n =>
+    `<div class="note info">${ui.esc(n.text)} <a href="${ui.esc(href('organiser', ev.slug, n.section === 'home' ? undefined : n.section))}">${n.kind === 'application_new' ? 'Review applications' : 'Open'}</a></div>`).join('')
+
   main.innerHTML = `
 <div class="ph keep-row"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${ui.esc(ev.url.replace(/^https?:\/\//, ''))}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button></div>
 ${content.button
     ? `<section class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ''}</div><button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? ' disabled' : ''}>${ui.esc(content.button)}</button></section>`
     : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
 ${noTrackNoteHTML}
+${needsLines}
 <h2 class="section-title">Snapshot</h2>
 <div class="grid4">
   <div class="stat"><b>${counts.participants ?? 0}</b><span>Participants</span></div>

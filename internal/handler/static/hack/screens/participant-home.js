@@ -2,6 +2,7 @@ import { href } from '../nav.js'
 import { startTour } from '../tour.js'
 import { previewLeave, openLeave, participantWarning } from '../leave.js'
 import { merge, nudgeHTML, keepNudgeFresh } from '../schedule.js'
+import { needsCard, bindDismiss } from '../needs.js'
 
 export function title() { return 'Overview' }
 
@@ -153,6 +154,9 @@ export async function render(ctx) {
   const deadline = ev.submission_deadline ? ui.dateTime(ev.submission_deadline, ev) : ''
 
   let heroTitle, heroNote = '', heroLabel = '', heroHref = '', heroExternal = false
+  // The kind of waiting item the next-step card already leads with, so the
+  // Needs you card above it doesn't say the same thing twice.
+  let heroKind = ''
   // A team with its own extension follows its own deadline (R2-1).
   const teamDeadline = me.team && me.team.deadline ? ui.dateTime(me.team.deadline, ev) : deadline
   const teamFrozen = me.team ? !!me.team.frozen : deadlinePassed
@@ -180,6 +184,7 @@ export async function render(ctx) {
     const finding = teamsOpen && !deadlinePassed ? await findingData(api, slug) : null
     const invite = pendingInvite(finding)
     if (invite) {
+      heroKind = 'invite'
       heroTitle = 'You have an invite from ' + invite.team_name
       // Nit: the find-a-team branch below keeps the deadline in view; an
       // invite is just as time-limited (the team's own deadline still
@@ -220,6 +225,7 @@ export async function render(ctx) {
     // the next-step card says so when nothing more urgent applies (results,
     // the removal notice, an incomplete entry).
     const n = me.team.pending_requests
+    heroKind = 'join_request'
     heroTitle = n + (n === 1 ? ' person' : ' people') + ' asked to join ' + me.team.name
     heroNote = 'Say yes or no on your Team page.'
     heroLabel = n === 1 ? 'See request' : 'See requests'
@@ -243,7 +249,13 @@ export async function render(ctx) {
   // there (one fetch, not two), this is just the way in.
   const rubricCard = `<div class="card"><h2>How you're judged</h2><p>See the rubric the judges use to score your entry: criteria, descriptions and points.</p><a class="btn" href="${esc(entryHref)}">See the rubric</a></div>`
 
+  // Needs you (atlas 2026-11-02): what waits on this person, from the
+  // event view's needs_you -- requests and invites first, then news lines
+  // (an application answer, a site taken down, an extension, being made
+  // admin, a lock), each with Dismiss.
+  const needs = (event.needs_you || []).filter(n => n.kind !== heroKind)
   main.innerHTML = `<div class="ph"><div class="t"><h1>${esc(ev.title)}</h1></div></div>`
+    + needsCard(ui, 'participant', slug, needs)
     + '<div id="home-nudge"></div>'
     + (justPlaced ? `<div class="note ok"><b>You are on ${esc(me.team.name)} now.</b> <a href="${esc(teamHref)}">Meet your team</a></div>` : '')
     + `<div class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>${esc(heroTitle)}</h2>${heroNote ? `<p>${esc(heroNote)}</p>` : ''}</div>${heroLabel ? `<a class="btn primary" ${heroExternal ? 'target="_blank" rel="noopener" ' : ''}href="${esc(heroHref)}">${esc(heroLabel)}</a>` : ''}</div>`
@@ -255,6 +267,7 @@ export async function render(ctx) {
   const paintNudge = () => { nudgeHost.innerHTML = nudgeHTML(ui, ev, rows, scheduleHref) }
   paintNudge()
   if (rows.length) keepNudgeFresh(ctx, nudgeHost, paintNudge)
+  bindDismiss(main, client, ui, slug, () => { if (ctx.alive()) ctx.refresh() })
 
   const leaveBtn = main.querySelector('#leave-btn')
   if (leaveBtn && !leaveBtn.disabled) leaveBtn.addEventListener('click', () => openLeave({ api: client, ui, slug, title: ev.title, from: 'participant-home' }))

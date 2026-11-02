@@ -62,7 +62,7 @@ window.PROTO = {
     "icon": "users",
     "phone_tab": false,
     "badge": "4",
-    "stage_rule": "Always shown. Applications badge is the pending count; reads 'Sign-up isn't open yet' before Open."
+    "stage_rule": "Always shown. Badge: applications waiting for a decision, the same count as Overview's Needs you line; reads 'Sign-up isn't open yet' before Open."
    },
    {
     "id": "teams",
@@ -112,8 +112,8 @@ window.PROTO = {
     "icon": "overview",
     "short": "Overview",
     "phone_tab": true,
-    "badge": null,
-    "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet."
+    "badge": "1",
+    "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet. Badge: unseen news (the Needs you card's dismissable rows not yet dismissed)."
    },
    {
     "id": "schedule",
@@ -129,7 +129,7 @@ window.PROTO = {
     "icon": "megaphone",
     "phone_tab": false,
     "badge": "2",
-    "stage_rule": "Always reachable once approved; empty state until the organiser posts one."
+    "stage_rule": "Always reachable once approved; empty state until the organiser posts one. Badge: announcements posted since this browser last opened this screen, counted client-side and cleared the moment it opens."
    },
    {
     "id": "team",
@@ -138,7 +138,7 @@ window.PROTO = {
     "short": "Team",
     "phone_tab": true,
     "badge": "1",
-    "stage_rule": "Shown Open through Ended. No team: the ways onto a team (Open through Building). On a team: Members, Find people and Settings sub-pages, read-only once the team's deadline passes or entries close. Badge: pending join requests, shown to team admins only."
+    "stage_rule": "Shown Open through Ended. No team: the ways onto a team (Open through Building). On a team: Members, Find people and Settings sub-pages, read-only once the team's deadline passes or entries close. Badge: pending join requests for admins, plus invites addressed to this person, shown to whoever they apply to."
    },
    {
     "id": "entry",

@@ -475,6 +475,10 @@ func DeleteEventAndAccount(ctx context.Context, q Querier, ev Event) error {
 		ON CONFLICT DO NOTHING`, ev.ID, ev.Slug); err != nil {
 		return err
 	}
+	// event_notices has no foreign key to events (zw-hack-wait-notices.sql).
+	if _, err := q.ExecContext(ctx, `DELETE FROM event_notices WHERE event_id = $1`, ev.ID); err != nil {
+		return err
+	}
 	if _, err := q.ExecContext(ctx, `DELETE FROM events WHERE id = $1`, ev.ID); err != nil {
 		return err
 	}
@@ -1002,13 +1006,22 @@ func EnsureTeamAdmin(ctx context.Context, q Querier, teamID string) error {
 	// earlier tenure (Grok security review, 2026-11-01). Every current
 	// writer sets team_joined_at, but this ordering must not depend on
 	// that staying true.
-	_, err := q.ExecContext(ctx, `
+	var eventID, userID string
+	err := q.QueryRowContext(ctx, `
 		UPDATE event_members SET team_admin = true
 		 WHERE team_id = $1 AND user_id = (
 		   SELECT user_id FROM event_members WHERE team_id = $1
-		    ORDER BY team_joined_at NULLS LAST, user_id LIMIT 1)`,
-		teamID)
-	return err
+		    ORDER BY team_joined_at NULLS LAST, user_id LIMIT 1)
+		RETURNING event_id, user_id`,
+		teamID).Scan(&eventID, &userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	// The successor hears they now answer the team's requests (2026-11-02).
+	return NotifyUsers(ctx, q, eventID, NoticeTeamAdmin, teamID, "", "", userID)
 }
 
 // SetTeamAdmin makes or removes an admin. The caller has already decided the
@@ -1048,8 +1061,24 @@ func SetTeamAdmin(ctx context.Context, q Querier, eventID, teamID, userID string
 			return ErrHackLastTeamAdmin
 		}
 	}
-	_, err = q.ExecContext(ctx, `UPDATE event_members SET team_admin = $3 WHERE event_id = $1 AND user_id = $2`, eventID, userID, admin)
-	return err
+	var was bool
+	if err := q.QueryRowContext(ctx, `SELECT team_admin FROM event_members WHERE event_id = $1 AND user_id = $2`, eventID, userID).Scan(&was); err != nil {
+		return err
+	}
+	if _, err = q.ExecContext(ctx, `UPDATE event_members SET team_admin = $3 WHERE event_id = $1 AND user_id = $2`, eventID, userID, admin); err != nil {
+		return err
+	}
+	switch {
+	case admin && !was:
+		if err := SupersedeTeamNotices(ctx, q, teamID, userID, NoticeTeamAdmin); err != nil {
+			return err
+		}
+		return NotifyUsers(ctx, q, eventID, NoticeTeamAdmin, teamID, "", "", userID)
+	case !admin && was:
+		// No longer true: drop the line and any email not yet sent.
+		return SupersedeTeamNotices(ctx, q, teamID, userID, NoticeTeamAdmin)
+	}
+	return nil
 }
 
 // SetTeamLock locks or unlocks a team. Locking deletes every pending request
@@ -1065,8 +1094,10 @@ func SetTeamLock(ctx context.Context, q Querier, teamID, actor string, locked bo
 		if team.KeptAfterLeave {
 			return 0, 0, ErrHackTeamKept
 		}
-		_, err = q.ExecContext(ctx, `UPDATE event_teams SET locked_at = NULL, locked_by = NULL WHERE id = $1`, teamID)
-		return 0, 0, err
+		if _, err = q.ExecContext(ctx, `UPDATE event_teams SET locked_at = NULL, locked_by = NULL WHERE id = $1`, teamID); err != nil {
+			return 0, 0, err
+		}
+		return 0, 0, SupersedeTeamNotices(ctx, q, teamID, "", NoticeTeamLocked)
 	}
 	if err = q.QueryRowContext(ctx, `
 		SELECT COUNT(*) FILTER (WHERE kind = 'request'), COUNT(*) FILTER (WHERE kind = 'invite')
@@ -1080,6 +1111,12 @@ func SetTeamLock(ctx context.Context, q Querier, teamID, actor string, locked bo
 		UPDATE event_teams SET locked_at = COALESCE(locked_at, clock_timestamp()), locked_by = $2 WHERE id = $1`,
 		teamID, actor); err != nil {
 		return 0, 0, err
+	}
+	if !team.Locked() {
+		// In the app only: a lock has nothing for the team to act on.
+		if err = NotifyTeamMembers(ctx, q, team.EventID, teamID, NoticeTeamLocked, "", actor); err != nil {
+			return 0, 0, err
+		}
 	}
 	return requests, invites, nil
 }

@@ -11441,6 +11441,32 @@ paths:
       responses:
         '200': { description: Default initial icon restored }
         '404': { description: event_not_found for non-organisers, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /v1/hack/todos:
+    get:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: getHackTodos
+      summary: List what waits on the person in every event they are in
+      description: 'One entry per event with something waiting, each with slug, title, role and items. An item is {kind, id, count, text, section, at, dismissable}. Live to-dos (join_request for a team the person admins, invite, application_new for organisers) have id null and clear when answered. News lines (request_answered, application_decided, site_taken_down, site_restored, deadline_changed, team_admin, team_locked, team_removed) have an id and stay until dismissed or 14 days old. Also returns email_updates and email_possible. The same items appear as needs_you on GET /v1/hack/events/{slug}.'
+      security: [{ apiKey: [] }]
+      responses:
+        '200': { description: '{events: [{slug, title, role, items}], email_updates, email_possible}' }
+  /v1/hack/events/{slug}/notices/seen:
+    post:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: markHackNoticesSeen
+      summary: Dismiss the caller's own news lines in one event
+      description: 'Marks the listed notice ids (the id of a needs_you item with dismissable true, at most 50) seen, or every news line in the event when ids is empty or the body is left out. Only the caller''s own lines change. Live to-dos cannot be dismissed, only answered.'
+      security: [{ apiKey: [] }]
+      parameters: [{ in: path, name: slug, required: true, schema: { type: string } }]
+      requestBody:
+        required: false
+        content: { application/json: { schema: { type: object, properties: { ids: { type: array, maxItems: 50, items: { type: string, format: uuid } } } } } }
+      responses:
+        '200': { description: '{ok: true, marked: n}' }
+        '400': { description: invalid_id or too_many_ids, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: Event not found or the caller is not in it, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/hack/preferences:
     get:
       x-audience: ["public-hack"]
@@ -11449,7 +11475,7 @@ paths:
       summary: Read account-saved theme and walkthrough completion
       security: [{ apiKey: [] }]
       responses:
-        '200': { description: 'theme (system, light, dark), organiser_walkthrough_done and judge_walkthrough_done' }
+        '200': { description: 'theme (system, light, dark), organiser_walkthrough_done, judge_walkthrough_done, email_updates (Email me when something waits on me, default true) and read-only email_possible (false for an account whose sign-in is not an email address, which is never emailed)' }
     patch:
       x-audience: ["public-hack"]
       tags: ["Hosted events"]
@@ -11458,7 +11484,7 @@ paths:
       security: [{ apiKey: [] }]
       requestBody:
         required: true
-        content: { application/json: { schema: { type: object, properties: { theme: { type: string, enum: [system, light, dark] }, organiser_walkthrough_done: { type: boolean }, judge_walkthrough_done: { type: boolean } } } } }
+        content: { application/json: { schema: { type: object, properties: { theme: { type: string, enum: [system, light, dark] }, organiser_walkthrough_done: { type: boolean }, judge_walkthrough_done: { type: boolean }, email_updates: { type: boolean } } } } }
       responses:
         '200': { description: Saved account preferences }
         '400': { description: invalid_theme, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }

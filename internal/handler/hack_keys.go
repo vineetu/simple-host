@@ -425,11 +425,15 @@ func (h *HackHandler) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// FOR UPDATE on the team row: a deploy let in holds it FOR SHARE.
-	if _, err := tx.ExecContext(r.Context(), `SELECT 1 FROM event_teams WHERE id = $1 FOR UPDATE`, team.ID); err != nil {
+	if err := tx.QueryRowContext(r.Context(), `SELECT deadline_override FROM event_teams WHERE id = $1 FOR UPDATE`, team.ID).Scan(&team.DeadlineOverride); err != nil {
 		writeInternal(w)
 		return
 	}
 	if _, err := tx.ExecContext(r.Context(), `UPDATE event_teams SET deadline_override = $2 WHERE id = $1`, team.ID, nullTimeArg(t)); err != nil {
+		writeInternal(w)
+		return
+	}
+	if err := noticeDeadlineChange(r.Context(), tx, a.event.ID, team, t); err != nil {
 		writeInternal(w)
 		return
 	}
@@ -485,6 +489,7 @@ func (h *HackHandler) takeDownTeamSite(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	h.noticeSiteChange(r.Context(), a.event.ID, team.ID, true, reason)
 	h.writeTeamFull(w, r, a.event, team)
 }
 
@@ -506,6 +511,9 @@ func (h *HackHandler) restoreTeamSite(w http.ResponseWriter, r *http.Request) {
 		log.Printf("hack: restore %s/%s: %v", a.event.Slug, team.Slug, err)
 		writeInternal(w)
 		return
+	}
+	if team.SiteTakenDownAt.Valid {
+		h.noticeSiteChange(r.Context(), a.event.ID, team.ID, false, "")
 	}
 	h.writeTeamFull(w, r, a.event, team)
 }
@@ -638,4 +646,63 @@ func (h *HackHandler) putTeamSiteArchive(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	sites.PublishTeamArchive(w, r, *a.user, team.ID)
+}
+
+// noticeSiteChange tells the team their site was taken down, with the
+// organiser's reason, or put back. It runs after the site handler's own
+// transaction has committed (that one is the site's, not the event's), so a
+// failure here is logged and the change itself stands. A restore reaches only
+// members who could have known it was down: anyone whose take-down notice
+// was never seen nor emailed (a restore within the first minute) hears
+// nothing at all.
+func (h *HackHandler) noticeSiteChange(ctx context.Context, eventID, teamID string, down bool, reason string) {
+	tx, err := h.database.BeginTx(ctx, nil)
+	if err != nil {
+		log.Printf("hack: site notice: %v", err)
+		return
+	}
+	defer tx.Rollback()
+	family := []string{db.NoticeSiteTakenDown, db.NoticeSiteRestored}
+	if down {
+		if err = db.SupersedeTeamNotices(ctx, tx, teamID, "", family...); err == nil {
+			err = db.NotifyTeamMembers(ctx, tx, eventID, teamID, db.NoticeSiteTakenDown, reason, "")
+		}
+	} else {
+		var knew []string
+		if knew, err = db.TeamMembersWhoKnew(ctx, tx, eventID, teamID, "", db.NoticeSiteTakenDown); err == nil {
+			if err = db.SupersedeTeamNotices(ctx, tx, teamID, "", family...); err == nil {
+				err = db.NotifyUsers(ctx, tx, eventID, db.NoticeSiteRestored, teamID, "", "", knew...)
+			}
+		}
+	}
+	if err == nil {
+		err = tx.Commit()
+	}
+	if err != nil {
+		log.Printf("hack: site notice: %v", err)
+	}
+}
+
+// noticeDeadlineChange tells the team about a new, moved or removed
+// extension, in the organiser's transaction. Taking an extension away only
+// reaches members who could have known they had it.
+func noticeDeadlineChange(ctx context.Context, tx *sql.Tx, eventID string, team db.EventTeam, t sql.NullTime) error {
+	before := team.DeadlineOverride
+	if before.Valid == t.Valid && (!t.Valid || before.Time.Equal(t.Time)) {
+		return nil
+	}
+	if t.Valid {
+		if err := db.SupersedeTeamNotices(ctx, tx, team.ID, "", db.NoticeDeadlineChanged); err != nil {
+			return err
+		}
+		return db.NotifyTeamMembers(ctx, tx, eventID, team.ID, db.NoticeDeadlineChanged, "extended", "")
+	}
+	knew, err := db.TeamMembersWhoKnew(ctx, tx, eventID, team.ID, "", db.NoticeDeadlineChanged)
+	if err != nil {
+		return err
+	}
+	if err := db.SupersedeTeamNotices(ctx, tx, team.ID, "", db.NoticeDeadlineChanged); err != nil {
+		return err
+	}
+	return db.NotifyUsers(ctx, tx, eventID, db.NoticeDeadlineChanged, team.ID, "", "cleared", knew...)
 }

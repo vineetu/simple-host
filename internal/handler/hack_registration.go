@@ -169,6 +169,12 @@ func (h *HackHandler) decideApplication(w http.ResponseWriter, r *http.Request) 
 		writeHackErr(w, 409, "application_not_pending", "only pending applications can be decided")
 		return
 	}
+	// The applicant hears the answer, in the app and by email (INTENT
+	// 2026-11-02, superseding "no decision email goes out yet").
+	if err := db.NotifyUsers(r.Context(), tx, a.event.ID, db.NoticeApplicationDecided, "", "", req.Decision, id); err != nil {
+		writeInternal(w)
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		writeInternal(w)
 		return

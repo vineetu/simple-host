@@ -1,5 +1,6 @@
 import { nav, href } from './nav.js'
 import { esc, stageLabel, roleLabel, initials, nextDeadline, dateTime, copyButton, markInk } from './ui.js'
+import { needCount, newsCount, unreadAnnouncements } from './needs.js'
   // Rail rule (atlas 2026-10-30): no two sidebar icons may look alike, since
   // the collapsed rail has only icons. Overview is now its own dashboard
   // glyph (Home keeps the house), Teams three heads (People two), Account a
@@ -103,8 +104,19 @@ export function mount(ctx, section, screenId) {
   // requests, admins only (members never see a number they can't act on).
   // Organiser Teams: people not on a team, Open through Building only (the
   // stage Teams itself disables Fill teams/placement past).
+  //
+  // What waits on the person (atlas 2026-11-02): the server's needs_you
+  // items drive the rest. Participant Team: pending requests (admins) plus
+  // invites. Participant Overview: unseen news lines. Participant
+  // Announcements: posted since this browser last opened that screen
+  // (client-only, needs.js). Organiser People: applications waiting for a
+  // decision (nav.js's own stage_rule for People).
+  const needs = detail?.needs_you || []
   function badgeFor(it) {
-    if (role === 'participant' && it.id === 'team') return (detail?.me?.team?.admin && detail.me.team.pending_requests) || 0
+    if (role === 'participant' && it.id === 'team') return needCount(needs, ['join_request', 'invite']) || (detail?.me?.team?.admin && detail.me.team.pending_requests) || 0
+    if (role === 'participant' && it.id === 'home') return newsCount(needs)
+    if (role === 'participant' && it.id === 'announcements') return section === 'announcements' ? 0 : unreadAnnouncements(event?.slug, event?.announcement_times)
+    if (role === 'organiser' && it.id === 'people') return needCount(needs, ['application_new'])
     if (role === 'organiser' && it.id === 'teams' && ['open','building'].includes(event?.stage)) return detail?.organiser?.counts?.on_no_team || 0
     return 0
   }
@@ -144,7 +156,7 @@ export function mount(ctx, section, screenId) {
   // the same sheet. Keep one control: More always sits in the tab bar
   // (Account and Help live inside its sheet); kit.css hides the top button
   // whenever a tab bar is present.
-  const tabbar = role && role !== 'organiser' ? `<nav class="tabbar" aria-label="Sections">${tabs.map(it => `<a href="${esc(href(role,event.slug,it.id))}"${section === it.id ? ' aria-current="page"' : ''}>${ico(it.icon)}<span>${esc(it.short || it.label)}</span></a>`).join('')}<a href="#" data-menu>${ico('more')}<span>More</span></a></nav>` : ''
+  const tabbar = role && role !== 'organiser' ? `<nav class="tabbar" aria-label="Sections">${tabs.map(it => { const badge = badgeFor(it); return `<a href="${esc(href(role,event.slug,it.id))}"${section === it.id ? ' aria-current="page"' : ''}>${ico(it.icon)}<span>${esc(it.short || it.label)}</span>${badge ? `<span class="count">${badge}</span>` : ''}</a>` }).join('')}<a href="#" data-menu>${ico('more')}<span>More</span></a></nav>` : ''
   // On phone, inside an event the top bar shows the switcher (context + a
   // quick jump to another event) instead of the brand; outside an event
   // (Home, Account, Create event) there is nothing to switch, so it shows

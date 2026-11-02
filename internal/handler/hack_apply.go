@@ -451,6 +451,11 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
+	// Every application waits on the organisers.
+	if err := db.NotifyOrganisers(r.Context(), tx, ev.ID, db.NoticeApplicationNew, user.ID); err != nil {
+		writeInternal(w)
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		writeInternal(w)
 		return

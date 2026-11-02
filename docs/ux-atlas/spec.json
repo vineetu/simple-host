@@ -68,6 +68,11 @@
     "q": "Should judges and participants see the event's stage in the top bar?",
     "decision": "Yes, the same pill and words as the organiser on every screen, and the same read-only stage track on their home screen. The judge's scoring state moves to a second pill beside it instead of replacing the stage.",
     "why": "Owner, 2026-10-31: 'For the organiser on the top it shows the current event status, but for the judge and the participant it doesn't. It should show the same thing.' This overrides the 2026-10-30 rule that a judge's pill reads only Open or Locked."
+   },
+   {
+    "q": "What does each sidebar badge count, now that notifications exist (2026-11-02)?",
+    "decision": "Participant Team: pending join requests for admins, plus invites addressed to this person, shown to whoever they apply to. Participant Overview: unseen news (dismissable items not yet dismissed). Participant Announcements: announcements posted since this browser last opened that screen, counted client-side and kept in this browser's own storage, cleared the moment the screen opens. Organiser People: applications waiting for a decision, the same count as the Overview Needs you line.",
+    "why": "Notify people when something waits on them (2026-11-02 design): live todo counts (requests, invites, applications) come straight from the server's needs_you list, but the Announcements badge has no server-side seen state yet, so it stays a per-browser count like today's rather than inventing a new synced field."
    }
   ]
  },
@@ -329,7 +334,7 @@
      "icon": "users",
      "phone_tab": false,
      "badge": "4",
-     "stage_rule": "Always shown. Applications badge is the pending count; reads 'Sign-up isn't open yet' before Open."
+     "stage_rule": "Always shown. Badge: applications waiting for a decision, the same count as Overview's Needs you line; reads 'Sign-up isn't open yet' before Open."
     },
     {
      "id": "teams",
@@ -383,8 +388,8 @@
      "icon": "overview",
      "short": "Overview",
      "phone_tab": true,
-     "badge": null,
-     "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet."
+     "badge": "1",
+     "stage_rule": "Always shown once approved. Shows the pending/rejected message instead of the app if sign-up isn't approved yet. Badge: unseen news (the Needs you card's dismissable rows not yet dismissed)."
     },
     {
      "id": "schedule",
@@ -400,7 +405,7 @@
      "icon": "megaphone",
      "phone_tab": false,
      "badge": "2",
-     "stage_rule": "Always reachable once approved; empty state until the organiser posts one."
+     "stage_rule": "Always reachable once approved; empty state until the organiser posts one. Badge: announcements posted since this browser last opened this screen, counted client-side and cleared the moment it opens."
     },
     {
      "id": "team",
@@ -409,7 +414,7 @@
      "short": "Team",
      "phone_tab": true,
      "badge": "1",
-     "stage_rule": "Shown Open through Ended. No team: the ways onto a team (Open through Building). On a team: Members, Find people and Settings sub-pages, read-only once the team's deadline passes or entries close. Badge: pending join requests, shown to team admins only."
+     "stage_rule": "Shown Open through Ended. No team: the ways onto a team (Open through Building). On a team: Members, Find people and Settings sub-pages, read-only once the team's deadline passes or entries close. Badge: pending join requests for admins, plus invites addressed to this person, shown to whoever they apply to."
     },
     {
      "id": "entry",
@@ -519,7 +524,7 @@
    "user_moment": "Amara opens the event Monday morning to see what needs her before the weekend.",
    "purpose": "Answer 'what do I do now' for the whole event with ONE button that performs the next forward move, hold the links organisers hand out, and show the stage track.",
    "primary_action": "The 'Your next step' button: the next forward move, in plain words (Open sign-up, Start building, Close entries, Start judging, Finish judging, Publish results, End event). Change stage in the header stays for any other move, backward included.",
-   "layout": "status bar with the .stages track, then the page header (h1 Overview, the public address as a link, Change stage as a plain .btn on the right), then ONE .next card: kicker 'Your next step', an h2 saying the move in plain words, one sentence saying exactly what the button does, and one .btn.primary on the right -- nothing else in the card, no secondary buttons, no links. The card turns amber (.next.warn, border-left warn) only when the entry deadline has passed while still Building. Then the Snapshot .grid4 (Participants, Teams, Judges, Not on a team), the Share cards (join link, judge link, each Copy + New link), and the danger zone End the event (hidden once the next-step button itself is End event, and once ended). Platform-admin view: the card's button is disabled with the rest.",
+   "layout": "status bar with the .stages track, then the page header (h1 Overview, the public address as a link, Change stage as a plain .btn on the right), then ONE .next card: kicker 'Your next step', an h2 saying the move in plain words, one sentence saying exactly what the button does, and one .btn.primary on the right -- nothing else in the card, no secondary buttons, no links. The card turns amber (.next.warn, border-left warn) only when the entry deadline has passed while still Building. A Needs you .note appears under the next-step card only while applications are waiting, one line with a Review applications link to People (2026-11-02). Then the Snapshot .grid4 (Participants, Teams, Judges, Not on a team), the Share cards (join link, judge link, each Copy + New link), and the danger zone End the event (hidden once the next-step button itself is End event, and once ended). Platform-admin view: the card's button is disabled with the rest.",
    "sections": [
     {
      "name": "Your next step",
@@ -532,6 +537,19 @@
        "label": "Close entries",
        "kind": "primary",
        "confirm": "Close entries? Entries close for every team now, except teams with their own extension. Judges can start scoring. 2 people are not on a team yet."
+      }
+     ]
+    },
+    {
+     "name": "Needs you (applications waiting)",
+     "contents": [
+      "3 applications are waiting for a decision."
+     ],
+     "actions": [
+      {
+       "label": "Review applications",
+       "kind": "secondary",
+       "confirm": null
       }
      ]
     },
@@ -677,7 +695,10 @@
     {
      "name": "a schedule row lines up with the next move",
      "when": "next_step.cue is set: a row asking for this move (or the entry deadline, or a timed event start or end) has started",
-     "shows": "heading 'Kickoff is now. Open sign-up?', the move's sentence, 'From your schedule. Nothing changes until you press Open sign-up.' The button and its confirm are unchanged. The stage moves only on the press."
+     "shows": "heading 'Kickoff is now. Open sign-up?', the move's sentence, 'From your schedule. Nothing changes until you press Open sign-up.' The button and its confirm are unchanged. The stage moves only on the press.",
+     "name": "applications waiting",
+     "when": "needs_you has an application_new item (2026-11-02 notify design)",
+     "shows": "A .note under the next-step card: '3 applications are waiting for a decision.' with a Review applications link to People, the same count as the People sidebar badge. Gone the moment nothing is waiting."
     }
    ],
    "replaces": [
@@ -754,12 +775,19 @@
     "view-as-platform-admin",
     "move-event-forward",
     "warn-teams-without-track",
-    "schedule-row-prompt"
+    "schedule-row-prompt",
+    "organiser-needs-you"
    ],
    "prototype_states": [
     {
      "slug": "building",
      "name": "Building: Close entries",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "applications-waiting",
+     "name": "Applications waiting",
      "stage": "building",
      "next": "Entries close in 2 days · Sun 6:00 pm"
     },
@@ -3472,7 +3500,10 @@
     {
      "name": "a schedule row starts soon or is on now",
      "when": "a timed row starts within 15 minutes, or its window contains now",
-     "shows": "the one-line nudge above Your next step, linking to Schedule"
+     "shows": "the one-line nudge above Your next step, linking to Schedule",
+     "name": "something waits on you",
+     "when": "needs_you has at least one item (2026-11-02 notify design)",
+     "shows": "A .card titled 'Needs you' above the next-step card, one row per item with a link to its own screen: a live row for a pending join request ('2 people asked to join Kopi Kode', to Team) or an invite, and a news row for a request answered, a site taken down or restored, a deadline changed, or being made admin, each written as a plain sentence by the server. Every news row carries a Dismiss button; live rows don't, since they clear themselves once the request is answered, withdrawn or the application is decided."
     }
    ],
    "replaces": [],
@@ -3492,7 +3523,9 @@
     "leave-event",
     "withdraw-application",
     "see-event-stage",
-    "schedule-nudge"
+    "schedule-nudge",
+    "needs-you",
+    "dismiss-notice"
    ],
    "prototype_states": [
     {
@@ -3548,6 +3581,12 @@
      "name": "Building, Demos starts in 12 minutes",
      "stage": "building",
      "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "needs-you",
+     "name": "Something waits on you",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
     }
    ],
    "decisions": [
@@ -3594,7 +3633,35 @@
     {
      "q": "How does the schedule nudge a participant? (owner, 2026-11-02)",
      "decision": "One line on Home (and Schedule), in the app only: '<item> starts in N minutes' from 15 minutes before, '<item> is on now' during it. The schedule sends no email of its own.",
-     "why": "Owner 2026-11-02: nudge people at the right time, ideally an in-app line. Deadline reminder emails are built separately, so the schedule must not send a second copy."
+     "why": "Owner 2026-11-02: nudge people at the right time, ideally an in-app line. Deadline reminder emails are built separately, so the schedule must not send a second copy.",
+     "q": "Do decision emails go out now (2026-11-02)?",
+     "decision": "Yes. An application's approval or rejection, a team request or invite answered, a site taken down or restored, a deadline changed and being made admin all queue an email, on top of showing in the Needs you card.",
+     "why": "Audit item 7: a missed approval costs more than one email. This supersedes 'No decision email goes out yet' from the 2026-10-31 application design."
+    },
+    {
+     "q": "Is email on by default, and can it be turned off per kind?",
+     "decision": "On by default, with one account-level opt-out on the Account page (email-when-waiting), not a per-kind matrix.",
+     "why": "These are transactional notices about the person's own team and application. The brief allows an opt-out, and a per-kind matrix is more UI than the problem needs."
+    },
+    {
+     "q": "How often can the same kind of email arrive?",
+     "decision": "At most one email per kind every 15 minutes per person, batching everything of that kind that piled up in the window, across every event.",
+     "why": "Owner's brief. It also caps a request/withdraw loop at four emails an hour."
+    },
+    {
+     "q": "Do organiser emails name the applicant?",
+     "decision": "No. Organisers get a count of new applications by email, never names; team admins keep seeing requester names, since they already see them on Team.",
+     "why": "Least personal data in inboxes."
+    },
+    {
+     "q": "Does locking or unlocking a team send anything?",
+     "decision": "In-app only (a news row on Needs you), no email.",
+     "why": "Nothing to act on."
+    },
+    {
+     "q": "Does leaving a team or event notify anyone?",
+     "decision": "No. Leaving still sends nothing, to the person leaving or anyone else (2026-10-31 rule kept).",
+     "why": "No new notification unless one already exists, and none exists for leaving."
     }
    ]
   },
@@ -3684,12 +3751,18 @@
      "name": "empty",
      "when": "nothing posted yet",
      "shows": "'No announcements yet. Organisers will post updates here.'"
+    },
+    {
+     "name": "unread badge clears on open",
+     "when": "this screen is opened (2026-11-02 notify design)",
+     "shows": "The sidebar's Announcements badge, a count of announcements posted since this browser last opened the screen, is cleared at once. The count lives in this browser's own storage, not the server, so it does not change on another device."
     }
    ],
    "replaces": [],
    "fixes": [],
    "features": [
-    "read-schedule-and-announcements"
+    "read-schedule-and-announcements",
+    "announcements-unread-badge"
    ],
    "prototype_states": [
     {
@@ -3710,7 +3783,7 @@
    "user_moment": "Siti has no team yet and wants one: a friend sent her a team link, or she wants to ask a team that's looking, or start her own. Once on a team, she copies its link to bring people in, and as its admin says yes or no to requests and locks it when it's complete.",
    "purpose": "Get onto a team (no team), then run the team you're on: who's in, who wants in, how people join, and its settings.",
    "primary_action": "No team: the chosen way in (Ask to join, Join team, Start team). On a team: Copy link (Members).",
-   "layout": "No team: page header (h1 Team, 'You're not on a team yet.'), any 'Invites for you' first, then the question 'How do you want to team up?' with three stacked .choice radio cards (one column at every width): Ask to join a team, Join with a link or code, Start a new team. Under them only the chosen way's panel: Ask -> 'Teams looking for people' .list (name, size, track, members, Looking for) with Ask to join / Withdraw request, then a 'Let teams find you' form. Join -> one field 'Team link or code' and Join team. Start -> one field 'Team name' and Start team. On a team: page header (h1 the team name, 'Good Health · 3 of 20 people · You're an admin'), then .subnav-split: Members (default), Find people (team finding on), Settings. Members: the Team link card (.addr: link + Copy link, then 'Or share the code k7m2-p9qa'), then join requests (if any, admin rows have Accept/Decline), then the member .list.editable (name, 'Admin · You', row menu for admins: Make admin / Remove as admin / Remove from team). Find people: solo people looking for a team with Invite / Cancel invite. Settings: Team form (name, Looking for) with one Save in the card foot, Track select that saves on change, Lock team toggle and New team link (admins), Leave team in a danger zone.",
+   "layout": "No team: page header (h1 Team, 'You're not on a team yet.'), the team-removal notice first if there is one (2026-11-02), then any 'Invites for you', then the question 'How do you want to team up?' with three stacked .choice radio cards (one column at every width): Ask to join a team, Join with a link or code, Start a new team. Under them only the chosen way's panel: Ask -> 'Teams looking for people' .list (name, size, track, members, Looking for) with Ask to join / Withdraw request, then a 'Let teams find you' form. Join -> one field 'Team link or code' and Join team. Start -> one field 'Team name' and Start team. On a team: page header (h1 the team name, 'Good Health · 3 of 20 people · You're an admin'), then .subnav-split: Members (default), Find people (team finding on), Settings. Members: the Team link card (.addr: link + Copy link, then 'Or share the code k7m2-p9qa'), then join requests (if any, admin rows have Accept/Decline), then the member .list.editable (name, 'Admin · You', row menu for admins: Make admin / Remove as admin / Remove from team). Find people: solo people looking for a team with Invite / Cancel invite. Settings: Team form (name, Looking for) with one Save in the card foot, Track select that saves on change, Lock team toggle and New team link (admins), Leave team in a danger zone.",
    "sections": [
     {
      "name": "Invites for you (no team)",
@@ -4001,6 +4074,11 @@
      "name": "event ended",
      "when": "stage Ended",
      "shows": "read-only, the code as a record, no Copy"
+    },
+    {
+     "name": "removed from a team",
+     "when": "a teammate or organiser removed this person and they have no current team (2026-11-02, team-removal-notice)",
+     "shows": "At the top of the no-team page, above 'Invites for you': a .note bad 'You were taken off Kopi Kode.' The three ways to team up stay reachable underneath. The same notice already shows on Home; here it sits where the person actually needs to act."
     }
    ],
    "replaces": [
@@ -4108,12 +4186,19 @@
     "start-a-team",
     "join-team-by-code",
     "copy-team-code",
-    "replay-participant-walkthrough"
+    "replay-participant-walkthrough",
+    "team-removal-notice"
    ],
    "prototype_states": [
     {
      "slug": "no-team",
      "name": "No team: Ask to join",
+     "stage": "open",
+     "next": "Teams are forming"
+    },
+    {
+     "slug": "removed",
+     "name": "Removed from a team",
      "stage": "open",
      "next": "Teams are forming"
     },
@@ -5102,7 +5187,7 @@
    "user_moment": "Anyone -- organiser, participant or judge -- checks or changes their sign-in details.",
    "purpose": "Manage display name, email, linked sign-in, preferences and the account itself, with irreversible actions visibly separated.",
    "primary_action": "Save display name.",
-   "layout": "Name, Email, Google sign-in (with per-identity Unlink), Preferences (sign-in alerts, theme), an 'AI apps' note, then a red-bordered Danger zone (API key rotation, sign out everywhere, delete account) -- identical for every role, independent of the event switcher.",
+   "layout": "Name, Email, Google sign-in (with per-identity Unlink), Preferences (sign-in alerts, email me when something waits on me, theme), an 'AI apps' note, then a red-bordered Danger zone (API key rotation, sign out everywhere, delete account) -- identical for every role, independent of the event switcher.",
    "sections": [
     {
      "name": "Name",
@@ -5152,6 +5237,7 @@
      "name": "Preferences",
      "contents": [
       "Email me after each new sign-in or connected app, so I notice one that wasn't me (toggle, on)",
+      "Email me when something waits on me (toggle, on). Team requests and invites, application answers, and changes to your team or its site. Organisers also hear about new applications. At most one email of each kind every 15 minutes.",
       "Theme: System -- Simple Hack is light-only today, this is saved for when that changes"
      ],
      "actions": []
@@ -5189,7 +5275,23 @@
      ]
     }
    ],
-   "states": [],
+   "states": [
+    {
+     "name": "email updates on",
+     "when": "email_updates is true (the default)",
+     "shows": "The toggle on, help text listing what it covers."
+    },
+    {
+     "name": "email updates off",
+     "when": "the person turned it off",
+     "shows": "The toggle off. Nothing of this kind is queued from that point, and anything already queued for this person is dropped at send time."
+    },
+    {
+     "name": "key-only account",
+     "when": "email_possible is false (the sign-in name has no @)",
+     "shows": "The toggle disabled, reading 'Your account has no email address, so there's nothing to email.'"
+    }
+   ],
    "replaces": [
     "participant-account"
    ],
@@ -5207,6 +5309,16 @@
      "q": "How much UI does a light-only theme preference deserve?",
      "decision": "One line, no selector, since the product renders light-only regardless today.",
      "why": "The stored preference is real and AI-app-reachable, so it needs a home per the brief's hard rule, but building a working theme switcher for a setting with no visible effect yet would be inventing UI weight the feature doesn't currently need."
+    },
+    {
+     "q": "Is 'email me when something waits on me' on or off by default (2026-11-02)?",
+     "decision": "On by default, one account-level toggle, no per-kind matrix.",
+     "why": "These are transactional notices about the person's own team and application. The brief allows an opt-out, and a per-kind matrix is more UI than the problem needs."
+    },
+    {
+     "q": "What happens to the toggle for a key-only account?",
+     "decision": "Disabled, with 'Your account has no email address, so there's nothing to email.' instead of hiding the row.",
+     "why": "Only an account whose sign-in name is an email address can ever receive one; a key-only or event-holding account has nothing to turn on, and saying so plainly beats a row that silently does nothing."
     }
    ],
    "features": [
@@ -5220,7 +5332,8 @@
     "rotate-api-key",
     "sign-out",
     "sign-out-everywhere",
-    "delete-own-account"
+    "delete-own-account",
+    "email-when-waiting"
    ],
    "prototype_states": [
     {
@@ -5240,8 +5353,16 @@
    "user_moment": "The top-left brand link, clicked from any screen -- a brand-new account with nothing yet, or a returning person with several events across roles deciding what to do next.",
    "purpose": "The person's home, one level above any event: what needs them first across every event they belong to, plus the three other starting points (find a hackathon, create one, their account).",
    "primary_action": "Open an event -- or Create event, Find a hackathon, Account.",
-   "layout": "Same grouping as the switcher -- needs-attention first, then the rest -- each row (an editable list row: the name links to the event, a … menu sits at the right): colour mark, name, role pill(s), stage pill, and a plain next action in plain language that fits the role and stage (e.g. organiser in Open: 'Sign-up is open'; judge in Closed/Judging: 'Score teams'; participant in Building: 'Keep building') -- built only from the role and stage the events list already returns, never a count the list doesn't provide. Create event pinned at the bottom, set apart; Find a hackathon and Account sit together in a row under the lists -- Find a hackathon as a normal button, Account as a quiet one -- since both are always one click away in the sidebar's top section too.",
+   "layout": "A Needs you card sits above Your events, one row per thing waiting on this person across every event, each row named for its event and linking into it (2026-11-02). Then same grouping as the switcher -- needs-attention first, then the rest -- each row (an editable list row: the name links to the event, a … menu sits at the right): colour mark, name, role pill(s), stage pill, and a plain next action in plain language that fits the role and stage (e.g. organiser in Open: 'Sign-up is open'; judge in Closed/Judging: 'Score teams'; participant in Building: 'Keep building') -- built only from the role and stage the events list already returns, never a count the list doesn't provide. Create event pinned at the bottom, set apart; Find a hackathon and Account sit together in a row under the lists -- Find a hackathon as a normal button, Account as a quiet one -- since both are always one click away in the sidebar's top section too.",
    "sections": [
+    {
+     "name": "Needs you (across events)",
+     "contents": [
+      "Generation Girl Online Hack 2026 -- 2 people asked to join Kopi Kode",
+      "Jakarta Women in Tech Hack -- Your application wasn't accepted this time"
+     ],
+     "actions": []
+    },
     {
      "name": "Your events",
      "contents": [
@@ -5299,6 +5420,11 @@
      "name": "ended or taken-down row",
      "when": "the row's event has ended or was taken down",
      "shows": "The menu's leave item is disabled and reads 'Can't leave, the event has ended' (or 'Can't leave, the event was taken down')."
+    },
+    {
+     "name": "something waits on you",
+     "when": "GET /v1/hack/todos returns at least one event with items (2026-11-02 notify design)",
+     "shows": "A 'Needs you' card above Your events, one row per item, each prefixed with its event's name and linking straight into that event's screen for it. The card is absent when every event answers with no items."
     }
    ],
    "replaces": [
@@ -5311,12 +5437,19 @@
    ],
    "features": [
     "leave-event",
-    "withdraw-application"
+    "withdraw-application",
+    "my-todos-across-events"
    ],
    "prototype_states": [
     {
      "slug": "with-events",
      "name": "Four events, three roles",
+     "stage": null,
+     "next": null
+    },
+    {
+     "slug": "needs-you",
+     "name": "Something waits on you, across events",
      "stage": null,
      "next": null
     },

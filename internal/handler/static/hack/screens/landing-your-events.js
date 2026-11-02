@@ -2,6 +2,7 @@ import { href } from '../nav.js'
 import { eventOrder } from '../shell.js'
 import { rowMenuHTML, wireRowMenus } from './_orgA-util.js'
 import { openLeave, takeFlash } from '../leave.js'
+import { needHref } from '../needs.js'
 
 export function title() { return 'Home' }
 
@@ -88,9 +89,29 @@ export async function render(ctx) {
   }
   const attention = e => !e.taken_down && ((e.role === 'organiser' && !['archived','ended'].includes(e.stage)) || (e.role === 'judge' && ['closed','judging'].includes(e.stage)))
   const list = eventOrder(events)
+  // Needs you (atlas 2026-11-02): what waits on the person in every event,
+  // from GET /v1/hack/todos (the same list hack_get_my_todos reads). One
+  // row per item, the event's name on top, linking into that event. Left
+  // out quietly if the call fails: the event rows below still work.
+  let needs = ''
+  if (list.length) {
+    try {
+      const r = await api.api('GET', '/v1/hack/todos')
+      if (!ctx.alive()) return
+      const rows = []
+      for (const e of (r.ok && r.data && Array.isArray(r.data.events)) ? r.data.events : []) {
+        for (const item of e.items || []) {
+          rows.push(`<a class="r" href="${ui.esc(needHref(e.role, e.slug, item))}"><span class="main"><b>${ui.esc(e.title)}</b><span>${ui.esc(item.text)}</span></span></a>`)
+        }
+      }
+      if (rows.length) needs = `<p class="section-title">Needs you</p><div class="list" aria-label="Needs you across events">${rows.join('')}</div>`
+    } catch (e) {
+      if (!ctx.alive()) return
+    }
+  }
   const quickLinks = `<div class="row-flex"><a class="btn" href="/directory">Find a hackathon</a><a class="btn quiet" href="/account">Account</a></div>`
   const flashText = takeFlash()
-  main.innerHTML = `<div class="ph"><div class="t"><h1>Home</h1></div>${list.length ? `<a class="btn primary" href="/events/new">Create event</a>` : ''}</div>` + (!list.length ? `<div class="locked"><h2>You’re not part of any event yet</h2><p><a class="btn primary" href="/events/new">Create event</a></p><p><a class="btn" href="/directory">Find a hackathon</a></p><p>Have a join or judge link? Open it to get started.</p></div><div class="row-flex"><a class="btn quiet" href="/account">Account</a></div>` : [true,false].map(needed => {
+  main.innerHTML = `<div class="ph"><div class="t"><h1>Home</h1></div>${list.length ? `<a class="btn primary" href="/events/new">Create event</a>` : ''}</div>` + needs + (!list.length ? `<div class="locked"><h2>You’re not part of any event yet</h2><p><a class="btn primary" href="/events/new">Create event</a></p><p><a class="btn" href="/directory">Find a hackathon</a></p><p>Have a join or judge link? Open it to get started.</p></div><div class="row-flex"><a class="btn quiet" href="/account">Account</a></div>` : [true,false].map(needed => {
     const group = list.filter(e => attention(e) === needed)
     return group.length ? `<p class="section-title">${needed ? 'Needs attention' : 'Recent'}</p><div class="list editable" aria-label="${needed ? 'Needs attention' : 'Recent'} events">${group.map(row).join('')}</div>` : ''
   }).join('') + quickLinks)

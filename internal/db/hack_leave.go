@@ -132,6 +132,10 @@ func LeaveMembership(ctx context.Context, q Querier, eventID, userID string, sel
 	if _, err := q.ExecContext(ctx, `DELETE FROM event_entry_receipts WHERE event_id=$1 AND user_id=$2 AND sent_at IS NULL`, eventID, userID); err != nil {
 		return "", err
 	}
+	// Their notices go too, lines and unsent emails alike (2026-11-02).
+	if _, err := q.ExecContext(ctx, `DELETE FROM event_notices WHERE event_id=$1 AND user_id=$2`, eventID, userID); err != nil {
+		return "", err
+	}
 	if _, err := q.ExecContext(ctx, `DELETE FROM event_members WHERE event_id = $1 AND user_id = $2`, eventID, userID); err != nil {
 		return "", err
 	}

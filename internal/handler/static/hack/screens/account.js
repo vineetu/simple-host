@@ -16,7 +16,7 @@ export async function render(ctx) {
 <form id="acct-email-form" hidden><div class="field"><label>New email<input class="input" id="acct-email-input" type="email" required autocomplete="email"></label></div><div class="form-actions"><button class="btn primary" id="acct-email-send">Send codes</button><button class="btn" id="acct-email-cancel" type="button">Cancel</button></div></form>
 <form id="acct-code-form" hidden><p>Enter the codes sent to <span id="acct-code-to"></span> and <span id="acct-current-to"></span>.</p><div class="field"><label>New email code<input class="input" id="acct-code" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6}"></label></div><div class="field"><label>Current email code<input class="input" id="acct-current-code" inputmode="numeric" required pattern="[0-9]{6}"></label></div><div class="form-actions"><button class="btn primary" id="acct-code-go">Change email</button><button class="btn" id="acct-code-cancel" type="button">Cancel</button></div></form></section>
 <section class="card"><h2>Google sign-in</h2><div id="acct-ids"></div><p class="help" id="acct-google-hint" hidden>Use the Google account with your sign-in email.</p><div class="form-actions"><button class="btn" id="acct-google" hidden>Link Google</button></div></section>
-<section class="card"><h2>Preferences</h2><label class="check"><input type="checkbox" id="acct-alerts"><span>Email me after each new sign-in or connected app, so I notice one that wasn’t me</span></label></section>
+<section class="card"><h2>Preferences</h2><label class="check"><input type="checkbox" id="acct-alerts"><span>Email me after each new sign-in or connected app, so I notice one that wasn’t me</span></label><div class="setting"><div class="t"><div class="t-row"><b>Email me when something waits on me</b><span class="saved" id="acct-wait-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span id="acct-wait-help">Team requests and invites, application answers, and changes to your team or its site. Organisers also hear about new applications. At most one email of each kind every 15 minutes.</span></div><div class="ctl"><button class="toggle" type="button" role="switch" aria-checked="false" id="acct-wait" aria-label="Email me when something waits on me" disabled></button></div></div></section>
 <section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Make a new account key</b><span>The old key stops working at once, including in connected AI apps.</span></div><button class="btn danger" id="rotate-key">New key</button></div><div class="setting"><div class="t"><b>Sign out everywhere</b><span>Every key stops working and connected apps are disconnected. This browser keeps the new key.</span></div><button class="btn danger" id="acct-everywhere">Sign out everywhere</button></div><div class="setting" id="acct-delete-row"><div class="t"><b>Delete your account</b><span>Delete your account and all its data at once and for good. Blocked while you’re organising an event that hasn’t ended.</span></div><button class="btn danger" id="acct-delete-open">Delete account</button></div><div class="setting" id="acct-delete" hidden><div class="t"><div class="field"><label for="acct-delete-input">Type <b id="acct-delete-word"></b> to confirm. This cannot be undone.</label><input class="input" id="acct-delete-input" type="email" autocomplete="off"></div><div class="form-actions"><button class="btn danger" id="acct-delete-go" disabled>Delete account</button><button class="btn" id="acct-delete-cancel">Cancel</button></div></div></div></section>`
   async function showKey(key) {
     const box = document.createElement('section')
@@ -295,6 +295,40 @@ export async function render(ctx) {
   });
 
 
+  // Email me when something waits on me (atlas 2026-11-02): on by default.
+  // A key-only account has no address, so the switch stays off and says why.
+  function paintWait(p) {
+    var t = $('acct-wait');
+    var on = !!(p && p.email_updates && p.email_possible);
+    t.classList.toggle('on', on);
+    t.setAttribute('aria-checked', String(on));
+    t.disabled = !(p && p.email_possible);
+    if (p && !p.email_possible) $('acct-wait-help').textContent = "Your account has no email address, so there's nothing to email.";
+  }
+  async function loadWait() {
+    try {
+      var r = await api('GET', '/v1/hack/preferences');
+      if (r.ok) paintWait(r.data);
+    } catch (e) {}
+  }
+  $('acct-wait').addEventListener('click', async function () {
+    var t = $('acct-wait');
+    var want = !t.classList.contains('on');
+    t.disabled = true;
+    setLive('');
+    try {
+      var r = await api('PATCH', '/v1/hack/preferences', { email_updates: want });
+      if (!r.ok) { setLive(accountErr(r, 'Could not save'), 'err', t); t.disabled = false; return; }
+      paintWait(r.data);
+      var saved = $('acct-wait-saved');
+      saved.hidden = false;
+      clearTimeout(saved._t);
+      saved._t = setTimeout(function () { saved.hidden = true; }, 3000);
+    } catch (err) {
+      t.disabled = false;
+      if (!client.isSignedOut(err)) setLive('Cannot reach the server.', 'err', t);
+    }
+  });
   paintAccount(me)
-  await Promise.all([loadGoogleProvider(), loadIdentities()])
+  await Promise.all([loadGoogleProvider(), loadIdentities(), loadWait()])
 }

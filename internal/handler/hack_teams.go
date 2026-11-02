@@ -626,6 +626,13 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	if err == nil && participant {
 		_, err = tx.ExecContext(r.Context(), `UPDATE event_members SET team_removal_notice=$3 WHERE event_id=$1 AND user_id=$2`, a.event.ID, userID, "A teammate took you off "+teamName+".")
 	}
+	if err == nil {
+		// The same words as the removal notice, by email too (2026-11-02).
+		var notice string
+		if err = tx.QueryRowContext(r.Context(), `SELECT team_removal_notice FROM event_members WHERE event_id=$1 AND user_id=$2`, a.event.ID, userID).Scan(&notice); err == nil && notice != "" {
+			err = db.NotifyUsers(r.Context(), tx, a.event.ID, db.NoticeTeamRemoved, oldTeam, "", notice, userID)
+		}
+	}
 	if err == nil && oldTeam != "" {
 		err = rotateTeamCode(r.Context(), tx, oldTeam)
 	}
@@ -676,6 +683,10 @@ func (h *HackHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := tx.ExecContext(r.Context(), `UPDATE event_members SET team_removal_notice=$2 WHERE team_id=$1`, team.ID, team.Name+" was removed by the organiser."); err != nil {
+		writeInternal(w)
+		return
+	}
+	if err := db.NotifyTeamMembers(r.Context(), tx, a.event.ID, team.ID, db.NoticeTeamRemoved, team.Name+" was removed by the organiser.", ""); err != nil {
 		writeInternal(w)
 		return
 	}

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -357,6 +358,9 @@ func (h *HackHandler) createTeamRequest(w http.ResponseWriter, r *http.Request) 
 	if err = db.LockFindingEvent(r.Context(), tx, a.event.ID); err == nil {
 		state, err = db.NewTeamRequest(r.Context(), tx, a.event, a.user.ID, team, userID, kind)
 	}
+	if err == nil {
+		err = h.noticeTeamRequest(r.Context(), tx, a.event.ID, team, userID, kind, state)
+	}
 	if err != nil {
 		findingError(w, err)
 		return
@@ -395,8 +399,23 @@ func (h *HackHandler) resolveTeamRequest(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	defer tx.Rollback()
+	var answered struct{ teamID, userID, kind string }
 	if err = db.LockFindingEvent(r.Context(), tx, a.event.ID); err == nil {
-		err = db.ResolveTeamRequest(r.Context(), tx, a.event, a.user.ID, id, action)
+		// Read before it is resolved: resolving deletes the row.
+		err = tx.QueryRowContext(r.Context(), `SELECT team_id, user_id, kind FROM event_team_requests WHERE event_id = $1 AND id = $2`,
+			a.event.ID, id).Scan(&answered.teamID, &answered.userID, &answered.kind)
+		if err == nil {
+			err = db.ResolveTeamRequest(r.Context(), tx, a.event, a.user.ID, id, action)
+		}
+	}
+	// A team's admin answered someone's request to join: tell that person.
+	// An invite's answer and a withdrawal are the actor's own news.
+	if err == nil && answered.kind == "request" && action != "withdraw" {
+		detail := "declined"
+		if action == "accept" {
+			detail = "accepted"
+		}
+		err = db.NotifyUsers(r.Context(), tx, a.event.ID, db.NoticeRequestAnswered, answered.teamID, "", detail, answered.userID)
 	}
 	if err != nil {
 		findingError(w, err)
@@ -504,4 +523,29 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"plan": plan, "applied": req.Apply, "skipped": skipped, "size": size})
+}
+
+// noticeTeamRequest queues the notice for a new request or invite, inside
+// the transaction that made it and after its event, member and team locks: a
+// request reaches the team's admins, an invite the invited person. When the
+// call instead completed an earlier offer ("joined"), a teammate's invite
+// answered someone's waiting request, so that person hears they're in.
+func (h *HackHandler) noticeTeamRequest(ctx context.Context, tx *sql.Tx, eventID, teamSlug, userID, kind, state string) error {
+	if state != "created" && !(state == "joined" && kind == "invite") {
+		return nil
+	}
+	var teamID, requestID string
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM event_teams WHERE event_id = $1 AND slug = $2`, eventID, teamSlug).Scan(&teamID); err != nil {
+		return err
+	}
+	if state == "joined" {
+		return db.NotifyUsers(ctx, tx, eventID, db.NoticeRequestAnswered, teamID, "", "accepted", userID)
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM event_team_requests WHERE team_id = $1 AND user_id = $2`, teamID, userID).Scan(&requestID); err != nil {
+		return err
+	}
+	if kind == "request" {
+		return db.NotifyTeamAdmins(ctx, tx, eventID, teamID, db.NoticeJoinRequest, requestID, "")
+	}
+	return db.NotifyUsers(ctx, tx, eventID, db.NoticeInvite, teamID, requestID, "", userID)
 }
