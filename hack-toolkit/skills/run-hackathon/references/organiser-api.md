@@ -16,7 +16,7 @@ Use the Simple Hack connector signed in through its trusted browser window. Foll
 | Read, set or clear event icon | public icon URL from event, `hack_set_event_icon`, `hack_clear_event_icon` |
 | Read or set my account theme and walkthroughs | `hack_get_preferences`, `hack_set_preferences` |
 | Change event stage | `hack_set_event_stage` |
-| Read or replace rubric | `hack_get_rubric`, `hack_set_rubric` |
+| Read or replace rubric | `hack_get_rubric`, `hack_set_rubric` (an approved participant can also call `hack_get_rubric`; there is no setting to hide it from teams) |
 | Export scores or results CSV | `hack_export_scores`, `hack_export_results` |
 | Get directory | `hack_get_directory` |
 | Get content | `hack_get_content` |

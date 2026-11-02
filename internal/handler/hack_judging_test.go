@@ -407,8 +407,17 @@ func TestHackJudgingRubric(t *testing.T) {
 	if orgGet.status != http.StatusOK || string(orgGet.body) != string(judgeGet.body) {
 		t.Fatalf("organiser %d %s\njudge %d %s", orgGet.status, orgGet.body, judgeGet.status, judgeGet.body)
 	}
+	// Audit item 1 (2026-11-02): an approved participant reads the exact
+	// same rubric a judge or organiser does -- no score ever appears in
+	// this response, so there is nothing participant-unsafe to strip.
+	partGet := w.call(t, "GET", "/rubric", nil, w.part.person)
+	if partGet.status != http.StatusOK || string(partGet.body) != string(orgGet.body) {
+		t.Fatalf("participant %d %s\norganiser %d %s", partGet.status, partGet.body, orgGet.status, orgGet.body)
+	}
 
-	// A non-member, and a participant, both look like a missing event.
+	// A non-member looks like a missing event. A participant may now read
+	// the rubric, but writing it is still organiser-only, so PUT still
+	// looks like a missing event for them too.
 	for _, tc := range []struct {
 		name, method string
 		who          person
@@ -416,7 +425,6 @@ func TestHackJudgingRubric(t *testing.T) {
 	}{
 		{"outsider get", "GET", w.outsider, nil},
 		{"outsider put", "PUT", w.outsider, firstBody},
-		{"participant get", "GET", w.part.person, nil},
 		{"participant put", "PUT", w.part.person, firstBody},
 	} {
 		r := w.call(t, tc.method, "/rubric", tc.body, tc.who)
@@ -435,6 +443,38 @@ func TestHackJudgingRubric(t *testing.T) {
 	if decodeRubric(t, w.call(t, "GET", "/rubric", nil, w.org)).Criteria[0].Name != "Clarity of purpose" {
 		t.Fatal("locked put changed the rubric")
 	}
+}
+
+// TestHackRubricParticipantAccess is audit item 1 (2026-11-02): an approved
+// participant can read the rubric; a pending or rejected applicant gets the
+// same approval_<status> refusal every other participant route gives them;
+// a non-member gets the same 404 a wrong-role member would.
+func TestHackRubricParticipantAccess(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "rbog")
+	slug := uniqueSlug()
+	a.createEvent(t, org, slug, nil)
+	a.openEvent(t, org, slug)
+	a.listEvent(t, slug)
+	base := "/v1/hack/events/" + slug
+
+	pending := a.newPerson(t, "rbpending")
+	wantTS(t, "apply pending", a.apply(t, slug, pending, map[string]any{"age_range": ""}), 200, "")
+
+	rejected := a.newPerson(t, "rbrejected")
+	wantTS(t, "apply rejected target", a.apply(t, slug, rejected, map[string]any{"age_range": ""}), 200, "")
+	wantTS(t, "reject", a.at(t, "POST", base+"/applications/"+a.userID(t, rejected)+"/decision", map[string]string{"decision": "rejected"}, a.key(org)), 200, "")
+
+	approved := a.newPerson(t, "rbapproved")
+	wantTS(t, "apply approved target", a.apply(t, slug, approved, map[string]any{"age_range": ""}), 200, "")
+	wantTS(t, "approve", a.at(t, "POST", base+"/applications/"+a.userID(t, approved)+"/decision", map[string]string{"decision": "approved"}, a.key(org)), 200, "")
+
+	outsider := a.newPerson(t, "rboutsider")
+
+	wantTS(t, "approved reads rubric", a.at(t, "GET", base+"/rubric", nil, a.key(approved)), 200, "")
+	wantTS(t, "pending reads rubric", a.at(t, "GET", base+"/rubric", nil, a.key(pending)), 403, "approval_pending")
+	wantTS(t, "rejected reads rubric", a.at(t, "GET", base+"/rubric", nil, a.key(rejected)), 403, "approval_rejected")
+	wantTS(t, "non-member reads rubric", a.at(t, "GET", base+"/rubric", nil, a.key(outsider)), 404, "event_not_found")
 }
 
 func TestHackJudgingSettings(t *testing.T) {

@@ -1305,6 +1305,30 @@ What follows from that, and is not negotiable without changing the line above:
   cap. A team's track choice stays editable by every member, not admins only. Reason: small,
   reversible calls made to keep the redesign moving without waiting on the owner for each one.
 
+- **2026-11-02. Teams can see the rubric; no organiser setting to hide it (audit item 1).**
+  An approved participant can read the event's rubric (criterion names, descriptions, weights
+  and max points, never a score) the same way a judge or organiser already does -- a "How
+  you're judged" card on the participant Entry screen, linked from Home, `GET
+  /v1/hack/events/{slug}/rubric` now also accepting the `participant` role, and the same MCP
+  tool (`hack_get_rubric`) for parity. Reason: the audit found teams building blind to
+  judging criteria that already existed and were harmless to read; the only blocker was one
+  role check.
+
+- **2026-11-02. Panel judging warns, but does not block, before dropping untracked teams
+  (audit item 2).** In panel mode a team with no track matches no panel and gets no judges.
+  The organiser Judging Progress card and the Overview next-step card (before "Start judging")
+  now name every such team with a link to Teams, and the Start judging confirm repeats the
+  count. Computed client-side from data the organiser app already fetches (`GET .../teams`'s
+  per-team track, `GET .../judging/settings`'s assignment mode); no server or schema change.
+  Reason: an organiser may genuinely want to judge the tracked teams now and fix the rest
+  later, or decide not to judge an abandoned team at all -- silently dropping the team with no
+  explanation (the actual bug) was the problem, not the ability to proceed anyway.
+
+- **2026-11-02. Guardian consent is not collected.** Events are for school and college
+  students, and the organisers handle consent themselves. Add it only if an organiser asks.
+  Reason: owner, 2026-11-02 -- reverses the half-baked "Record guardian consent for under-18s"
+  audit item; the existing Under-18 advisory note on the Apply form stays exactly as it is.
+
 ## Open, deliberately parked
 
 - Whether a site that disconnects its domain should be migrated back to a "normal" shared-host site in some

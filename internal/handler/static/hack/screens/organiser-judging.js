@@ -438,6 +438,24 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     if (settings.assignment_mode === 'automatic' && assignmentsCount === 0) {
       card.appendChild(ui.el('div', { class: 'note info', text: 'Assignments not generated yet' }))
     }
+    // Audit item 2 (2026-11-02): in panel mode, a team matches no track
+    // panel and so gets no judges at all (internal/db/hack_judging_options.go,
+    // the panel branch requires p.track_id=t.track_id). `teams` already
+    // carries each team's track (GET .../teams, teamOrganiserFrom), so this
+    // is computed client-side -- no server change needed to name them.
+    if (settings.assignment_mode === 'panel') {
+      const noTrack = teams.filter(t => !t.track)
+      if (noTrack.length) {
+        const note = ui.el('div', { class: 'note warn' })
+        const n = noTrack.length
+        note.appendChild(document.createTextNode(
+          n + ' team' + (n === 1 ? '' : 's') + " with no track won't be judged until " +
+          (n === 1 ? 'it picks' : 'they pick') + ' a track, or you assign one: ' + noTrack.map(t => t.name || 'A team').join(', ') + '. '
+        ))
+        note.appendChild(ui.el('a', { class: 'btn sm', href: href('organiser', slug, 'teams'), text: 'Go to Teams' }))
+        card.appendChild(note)
+      }
+    }
     card.appendChild(ui.el('p', { class: 'section-title', text: 'Teams' }))
     const tlist = ui.el('div', { class: 'list' })
     if (!teamsRows.length) tlist.appendChild(ui.el('div', { class: 'empty', text: 'No teams yet.' }))

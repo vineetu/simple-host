@@ -91,13 +91,32 @@ export async function render(ctx) {
   // actually being offered.
   let judgesOnly = counts.judges ?? 0
   let pendingCount = 0
+  // Audit item 2 (2026-11-02): in panel mode, a team with no track matches
+  // no track panel and gets no judges at all (internal/db/hack_judging_options.go).
+  // Fetched only before "Start judging" is offered -- the same conditional-
+  // fetch pattern as the pending-approvals and zero-judges heads-ups above.
+  let noTrackTeams = []
+  const atStartJudging = step.kind === 'stage' && step.stage === 'judging'
   try {
     const base = '/v1/hack/events/' + encodeURIComponent(ev.slug)
     const calls = [api('GET', base + '/people')]
     if (step.kind === 'stage' && step.stage === 'building') calls.push(api('GET', base + '/applications'))
-    const [p, a] = await Promise.all(calls)
+    if (atStartJudging) calls.push(api('GET', base + '/judging/settings'), api('GET', base + '/teams'))
+    const results = await Promise.all(calls)
+    const p = results[0]
     if (p.ok && Array.isArray(p.data)) judgesOnly = p.data.filter(x => x.role === 'judge').length
-    if (a && a.ok && Array.isArray(a.data)) pendingCount = a.data.filter(x => x.status === 'pending').length
+    if (step.kind === 'stage' && step.stage === 'building') {
+      const a = results[1]
+      if (a && a.ok && Array.isArray(a.data)) pendingCount = a.data.filter(x => x.status === 'pending').length
+    }
+    if (atStartJudging) {
+      const settingsRes = results[1]
+      const teamsRes = results[2]
+      if (settingsRes && settingsRes.ok && settingsRes.data && settingsRes.data.assignment_mode === 'panel' &&
+          teamsRes && teamsRes.ok && teamsRes.data && Array.isArray(teamsRes.data.teams)) {
+        noTrackTeams = teamsRes.data.teams.filter(t => !t.track)
+      }
+    }
   } catch (e) {}
   if (!ctx.alive()) return
 
@@ -112,7 +131,18 @@ export async function render(ctx) {
     headsUp = (counts.on_no_team) + ' people are not on a team yet.'
   } else if (step.kind === 'stage' && step.stage === 'judging' && judgesOnly === 0) {
     headsUp = 'No judges have joined yet. Share the judge link first.'
+  } else if (atStartJudging && noTrackTeams.length > 0) {
+    const n = noTrackTeams.length
+    headsUp = n + ' team' + (n === 1 ? '' : 's') + " with no track won't be judged until " + (n === 1 ? 'it picks' : 'they pick') + ' one, or you assign one.'
   }
+
+  // Named list, visible on the card itself (not only in the confirm) --
+  // the organiser should see this before clicking "Start judging", not
+  // just when confirming it.
+  const teamsHref = href('organiser', ev.slug, 'teams')
+  const noTrackNoteHTML = (atStartJudging && noTrackTeams.length > 0)
+    ? `<div class="note warn">${noTrackTeams.length} team${noTrackTeams.length === 1 ? '' : 's'} with no track won't be judged until ${noTrackTeams.length === 1 ? 'it picks' : 'they pick'} one, or you assign one: ${noTrackTeams.map(t => ui.esc(t.name || 'A team')).join(', ')}. <a href="${ui.esc(teamsHref)}">Go to Teams</a></div>`
+    : ''
 
   // replay-organiser-walkthrough: the shell's Help menu links here with
   // ?walkthrough=1, which forces the guided tour open even if it was
@@ -124,6 +154,7 @@ export async function render(ctx) {
 ${content.button
     ? `<section class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div><button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? ' disabled' : ''}>${ui.esc(content.button)}</button></section>`
     : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
+${noTrackNoteHTML}
 <h2 class="section-title">Snapshot</h2>
 <div class="grid4">
   <div class="stat"><b>${counts.participants ?? 0}</b><span>Participants</span></div>

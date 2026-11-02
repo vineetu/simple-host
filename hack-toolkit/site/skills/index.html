@@ -122,7 +122,7 @@ Use the Simple Hack connector signed in through its trusted browser window. Foll
 | Read, set or clear event icon | public icon URL from event, `hack_set_event_icon`, `hack_clear_event_icon` |
 | Read or set my account theme and walkthroughs | `hack_get_preferences`, `hack_set_preferences` |
 | Change event stage | `hack_set_event_stage` |
-| Read or replace rubric | `hack_get_rubric`, `hack_set_rubric` |
+| Read or replace rubric | `hack_get_rubric`, `hack_set_rubric` (an approved participant can also call `hack_get_rubric`; there is no setting to hide it from teams) |
 | Export scores or results CSV | `hack_export_scores`, `hack_export_results` |
 | Get directory | `hack_get_directory` |
 | Get content | `hack_get_content` |
@@ -303,6 +303,7 @@ Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs
 | Leave the event, or withdraw my application | `hack_preview_leave_event`, `hack_leave_event` |
 | Read/choose track | `hack_get_tracks`, `hack_choose_track` |
 | Read/edit entry and screenshot | `hack_get_entry`, `hack_update_entry`, `hack_get_entry_screenshot`, `hack_set_entry_screenshot`, `hack_delete_entry_screenshot` |
+| Read the rubric (how the entry is judged) | `hack_get_rubric` |
 | Check team site and deadline | `hack_get_team_status`, `hack_get_my_teams` |
 | Read choices, vote, see own result | `hack_get_voting`, `hack_get_my_vote`, `hack_vote`, `hack_get_my_results` |
 | Make private team archive link | `hack_export_own_team_archive` |

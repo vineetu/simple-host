@@ -28,6 +28,7 @@ Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs
 | Leave the event, or withdraw my application | `hack_preview_leave_event`, `hack_leave_event` |
 | Read/choose track | `hack_get_tracks`, `hack_choose_track` |
 | Read/edit entry and screenshot | `hack_get_entry`, `hack_update_entry`, `hack_get_entry_screenshot`, `hack_set_entry_screenshot`, `hack_delete_entry_screenshot` |
+| Read the rubric (how the entry is judged) | `hack_get_rubric` |
 | Check team site and deadline | `hack_get_team_status`, `hack_get_my_teams` |
 | Read choices, vote, see own result | `hack_get_voting`, `hack_get_my_vote`, `hack_vote`, `hack_get_my_results` |
 | Make private team archive link | `hack_export_own_team_archive` |

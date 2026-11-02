@@ -625,6 +625,16 @@
      "shows": "the same card turns amber: 'The entry deadline has passed' / 'Close entries so judges can start scoring. Teams with their own extension keep it.' with Close entries. No separate warning note any more."
     },
     {
+     "name": "Closed, ready to start judging",
+     "when": "stage closed",
+     "shows": "'Start judging when every entry is in' with Start judging"
+    },
+    {
+     "name": "panel mode, teams with no track (audit item 2, 2026-11-02)",
+     "when": "stage closed (next step Start judging) and the saved judging assignment mode is panel and at least one team has no track",
+     "shows": "a .note.warn under the next-step card, before Snapshot, naming every such team: 'N team(s) with no track won't be judged until it picks/they pick one, or you assign one: <names>.' with a 'Go to Teams' link. Computed client-side (GET .../teams's per-team track plus GET .../judging/settings's assignment_mode); no server field needed. The same list, by name, also shows on organiser-judging's Progress card."
+    },
+    {
      "name": "Judging",
      "when": "stage judging, locked or not",
      "shows": "'Finish judging when every judge is done' with Finish judging. Locking from the Judging screen first is fine, the button still moves on to Results."
@@ -652,7 +662,7 @@
     {
      "name": "confirming the move",
      "when": "the organiser presses the next-step button",
-     "shows": "ui.confirm titled with the button label plus '?', the same effect sentence as the card, then any heads-up lines that apply, and the button label as the confirm. Heads-ups: Start building with people waiting for approval ('3 people are still waiting for approval. You can approve them later too.'), Close entries with people not on a team ('2 people are not on a team yet.'), Start judging with no judges ('No judges have joined yet. Share the judge link first.'), Publish results ('To set a final order for ties, use Results first.'). End event keeps its danger confirm."
+     "shows": "ui.confirm titled with the button label plus '?', the same effect sentence as the card, then any heads-up lines that apply, and the button label as the confirm. Heads-ups: Start building with people waiting for approval ('3 people are still waiting for approval. You can approve them later too.'), Close entries with people not on a team ('2 people are not on a team yet.'), Start judging with no judges ('No judges have joined yet. Share the judge link first.'), Start judging in panel mode with untracked teams ('N teams with no track won't be judged until they pick one, or you assign one.', audit item 2, 2026-11-02), Publish results ('To set a final order for ties, use Results first.'). End event keeps its danger confirm. Only one heads-up shows at a time."
     },
     {
      "name": "the move failed",
@@ -716,6 +726,11 @@
      "q": "What happened to the shortcuts the card used to hold (Review applications, See entries)?",
      "decision": "Gone from the card. Pending approvals already show as the People count in the sidebar and as a heads-up in the Start building confirm.",
      "why": "Owner: no checklist, one button."
+    },
+    {
+     "q": "Should Overview block moving to Judging while a team has no track in panel mode (audit item 2, 2026-11-02)?",
+     "decision": "Warn, don't block. Name the affected teams on the card itself before Start judging is even clicked, repeat the count in the confirm, and link to Teams so the organiser can fix it there or move on anyway.",
+     "why": "Picked over blocking: an organiser may want to start judging the tracked teams right away and assign the rest later, or simply decide not to judge an abandoned team. Silent dropping (today's behaviour) was the actual bug, not the ability to proceed."
     }
    ],
    "features": [
@@ -727,7 +742,8 @@
     "view-event-stats",
     "replay-organiser-walkthrough",
     "view-as-platform-admin",
-    "move-event-forward"
+    "move-event-forward",
+    "warn-teams-without-track"
    ],
    "prototype_states": [
     {
@@ -753,6 +769,12 @@
      "name": "Deadline passed, still Building",
      "stage": "building",
      "next": "Entries closed Sun 6:00 pm"
+    },
+    {
+     "slug": "closed",
+     "name": "Entries closed: Start judging, panel mode with untracked teams (audit item 2, 2026-11-02)",
+     "stage": "closed",
+     "next": "Entries closed"
     },
     {
      "slug": "judging",
@@ -2544,6 +2566,11 @@
      "shows": "Progress shows a distinct 'Assignments not generated yet' banner above the per-team/per-judge counts, instead of the same 0-of-0 rows a genuinely empty queue would show"
     },
     {
+     "name": "teams with no track (Panel mode, audit item 2, 2026-11-02)",
+     "when": "saved mode is Panel and at least one team has no track",
+     "shows": "Progress shows a .note.warn above the per-team/per-judge counts, naming every such team: 'N team(s) with no track won't be judged until it picks/they pick one, or you assign one: <names>.' with a 'Go to Teams' link. The panel branch of EligibleJudgeTeams (internal/db/hack_judging_options.go) matches a team to a judge only when p.track_id=t.track_id, so an untracked team matches no panel row and gets zero judges -- this names that gap instead of leaving it a generic low-coverage flag."
+    },
+    {
      "name": "before entries close",
      "when": "stage is before Closed",
      "shows": "Assignment mode and Generate are visible but disabled: 'Judges get matched once entries close'"
@@ -2616,7 +2643,8 @@
     "lock-judging",
     "unlock-judging",
     "view-judging-dashboard",
-    "delete-former-judge-scores"
+    "delete-former-judge-scores",
+    "warn-teams-without-track"
    ],
    "prototype_states": [
     {
@@ -2640,6 +2668,12 @@
     {
      "slug": "former-judge",
      "name": "A judge left the event",
+     "stage": "judging",
+     "next": "Scoring is open · lock when ready"
+    },
+    {
+     "slug": "panel-untracked",
+     "name": "Panel mode, teams with no track (audit item 2, 2026-11-02)",
      "stage": "judging",
      "next": "Scoring is open · lock when ready"
     }
@@ -3244,6 +3278,20 @@
      "actions": []
     },
     {
+     "name": "How you're judged",
+     "contents": [
+      "See the rubric the judges use to score your entry: criteria, descriptions and points.",
+      "Audit item 1 (2026-11-02): a plain link down to the same card on Entry, not a second copy of the rubric -- one fetch, one place it can go stale."
+     ],
+     "actions": [
+      {
+       "label": "See the rubric",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
+    },
+    {
      "name": "Latest announcements",
      "contents": [
       "Welcome! -- 28 Oct 2026 -- We're glad you're here."
@@ -3381,6 +3429,7 @@
    "features": [
     "view-approval-status",
     "read-schedule-and-announcements",
+    "view-rubric-participant",
     "team-removal-notice",
     "replay-participant-walkthrough",
     "leave-event",
@@ -4135,6 +4184,16 @@
        "confirm": null
       }
      ]
+    },
+    {
+     "name": "How you're judged",
+     "contents": [
+      "3 criteria · 20 points total",
+      "Idea (5 points) -- How original or useful is it?",
+      "Execution (5 points) -- How well does it work?",
+      "Design (5 points) -- How good is the user experience?"
+     ],
+     "actions": []
     }
    ],
    "states": [
@@ -4172,7 +4231,8 @@
     "entry-edit-conflict-resolution",
     "upload-entry-screenshot",
     "remove-entry-screenshot",
-    "view-entry-read-only"
+    "view-entry-read-only",
+    "view-rubric-participant"
    ],
    "prototype_states": [
     {
@@ -4194,7 +4254,13 @@
      "next": "Entries are closed"
     }
    ],
-   "decisions": [],
+   "decisions": [
+    {
+     "q": "Should an organiser be able to hide the rubric from teams (audit item 1, 2026-11-02)?",
+     "decision": "No setting. Every team always sees the rubric, the same read-only data judges and organisers already see -- never a score.",
+     "why": "The rubric already exists and is harmless to read; the only blocker was hack_judging.go:96's loadMember(..., \"organiser\", \"judge\") role list, which now also accepts \"participant\". The card lives here (one fetch); Home only links down to it."
+    }
+   ],
    "phone": "Single column, same content, full width."
   },
   {

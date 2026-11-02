@@ -222,9 +222,15 @@ export async function render(ctx) {
   ])
   if (!ctx.alive()) return
 
+  // Audit item 1 (2026-11-02): a plain link from Home to the "How you're
+  // judged" card that now lives on Entry -- the rubric itself is read
+  // there (one fetch, not two), this is just the way in.
+  const rubricCard = `<div class="card"><h2>How you're judged</h2><p>See the rubric the judges use to score your entry: criteria, descriptions and points.</p><a class="btn" href="${esc(entryHref)}">See the rubric</a></div>`
+
   main.innerHTML = `<div class="ph"><div class="t"><h1>${esc(ev.title)}</h1></div></div>`
     + (justPlaced ? `<div class="note ok"><b>You are on ${esc(me.team.name)} now.</b> <a href="${esc(teamHref)}">Meet your team</a></div>` : '')
     + `<div class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>${esc(heroTitle)}</h2>${heroNote ? `<p>${esc(heroNote)}</p>` : ''}</div>${heroLabel ? `<a class="btn primary" ${heroExternal ? 'target="_blank" rel="noopener" ' : ''}href="${esc(heroHref)}">${esc(heroLabel)}</a>` : ''}</div>`
+    + rubricCard
     + news
     + participantDangerZone(ui, preview, ev)
 

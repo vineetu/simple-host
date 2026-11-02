@@ -93,7 +93,14 @@ func rubricJSON(items []db.RubricCriterion) map[string]any {
 }
 
 func (h *HackHandler) getRubric(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser", "judge")
+	// Teams can see the rubric (2026-11-02, audit item 1): an approved
+	// participant reads the same criteria judges and organisers do --
+	// names, descriptions, weights and max points, never a score.
+	// loadMember's own approval-status gate (len(roles) > 0) still refuses a
+	// pending or rejected participant with 403 approval_<status>, and a
+	// non-member still gets 404 event_not_found. rubricJSON never includes
+	// scores, so no response-shape change is needed for this role.
+	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser", "judge", "participant")
 	if !ok {
 		return
 	}

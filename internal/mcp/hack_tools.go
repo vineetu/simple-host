@@ -187,7 +187,7 @@ func HackTools() []Tool {
 		{
 			Name:        "hack_get_rubric",
 			Title:       "Get the rubric",
-			Description: "Read an event's judging rubric: each criterion's name, description, weight and maximum points. Organiser or judge.",
+			Description: "Read an event's judging rubric: each criterion's name, description, weight and maximum points, never scores. Organiser, judge, or an approved participant reading their own event's rubric.",
 			InputSchema: object(map[string]any{"slug": str("The event name.")}, "slug"),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {

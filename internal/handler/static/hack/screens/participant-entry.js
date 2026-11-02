@@ -5,7 +5,27 @@ export function title () { return 'Entry' }
 
 // Features on this screen: get-own-entry, edit-entry-fields,
 // entry-edit-conflict-resolution, upload-entry-screenshot,
-// remove-entry-screenshot, view-entry-read-only.
+// remove-entry-screenshot, view-entry-read-only, view-rubric-participant.
+
+// Audit item 1 (2026-11-02): "How you're judged" card, the rubric a judge
+// or organiser already sees -- names, descriptions, weights and max
+// points, never a score (there are none to show here anyway). Mirrors the
+// card markup judge-rubric.js already uses (.card/.crit/.row-flex/.pill/
+// .sub) so the two read the same way. Missing or empty is silent (no card)
+// rather than an error, since the organiser may simply not have written
+// one yet and this is a secondary card on a screen whose own entry load
+// already handles its own errors.
+function rubricCardHTML (ui, criteria) {
+  if (!criteria.length) return ''
+  const esc = ui.esc
+  const total = criteria.reduce((s, c) => s + (Number(c.max_points) || 0), 0)
+  const rows = criteria.map(c =>
+    '<div class="crit"><div class="row-flex"><b>' + esc(c.name) + '</b><span class="pill">' + (Number(c.max_points) || 0) + ' points</span></div>' +
+    (c.description ? '<p class="small muted">' + esc(c.description) + '</p>' : '') +
+    '</div>'
+  ).join('')
+  return '<section class="card"><h2>How you’re judged</h2><p class="sub">' + criteria.length + ' ' + (criteria.length === 1 ? 'criterion' : 'criteria') + ' · ' + total + ' points total</p>' + rows + '</section>'
+}
 
 const FIELDS = ['title', 'tagline', 'description', 'video_url', 'code_url']
 const LABEL = { title: 'Title', tagline: 'Tagline', description: 'Description', video_url: 'Video link', code_url: 'Code link' }
@@ -36,16 +56,24 @@ export async function render (ctx) {
     return
   }
 
-  paint(ctx, ev, r.data)
+  let rubricCriteria = []
+  try {
+    const rr = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/rubric')
+    if (rr.ok && rr.data && Array.isArray(rr.data.criteria)) rubricCriteria = rr.data.criteria
+  } catch (e) { /* the entry itself loaded fine; the rubric card is just omitted */ }
+  if (!ctx.alive()) return
+
+  paint(ctx, ev, r.data, rubricCriteria)
 }
 
-function paint (ctx, ev, data) {
+function paint (ctx, ev, data, rubricCriteria) {
   const { main, api: client, ui } = ctx
   const api = client.api
   const esc = ui.esc
   const required = Array.isArray(data.required) ? data.required : []
   const editable = data.editable !== false
   const entry = data.entry || {}
+  const rubricHTML = rubricCardHTML(ui, rubricCriteria || [])
 
   if (!editable) {
     const head = '<div class="ph"><div class="t"><h1>Entry</h1><p>What the judges see about your project.</p></div></div>'
@@ -71,7 +99,7 @@ function paint (ctx, ev, data) {
     }
     body += '</section>'
     const closedSentence = closedText.replace(/\.+$/, '') + '. This is what the judges see.'
-    main.innerHTML = head + '<div class="note info">' + esc(closedSentence) + '</div>' + body
+    main.innerHTML = head + '<div class="note info">' + esc(closedSentence) + '</div>' + body + rubricHTML
     if (entry.has_screenshot) {
       const frame = main.querySelector('#en-shot-view')
       const img = document.createElement('img')
@@ -114,6 +142,7 @@ function paint (ctx, ev, data) {
     '<p class="help" id="en-screenshot-err"></p>' +
     '</div>' +
     '</section>' +
+    rubricHTML +
     '<div class="sticky-foot"><button type="button" class="btn primary" id="en-save">Save</button><span class="small muted">Saves title, tagline, description and links.</span></div>'
 
   if (entry.has_screenshot) ui.showImage(ctx, main.querySelector('#en-shot-img'), '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/entry/screenshot')
@@ -174,7 +203,7 @@ function paint (ctx, ev, data) {
       const resp = await api('PUT', path, body)
       if (!resp.ok && resp.data && resp.data.code === 'entry_changed') {
         $('en-save').disabled = false
-        await showConflict(ctx, ev, data, body, resp.data.entry)
+        await showConflict(ctx, ev, data, body, resp.data.entry, rubricCriteria)
         return
       }
       if (!resp.ok) {
@@ -185,7 +214,7 @@ function paint (ctx, ev, data) {
         return
       }
       ui.toast('Saved', $('en-save'))
-      paint(ctx, ev, resp.data || {})
+      paint(ctx, ev, resp.data || {}, rubricCriteria)
     } catch (e) {
       if (client.isSignedOut(e)) return
       ui.toast('Cannot reach the server.', $('en-save'), true)
@@ -216,7 +245,7 @@ function paint (ctx, ev, data) {
         return
       }
       ui.toast('Screenshot saved', input)
-      paint(ctx, ev, resp.data || {})
+      paint(ctx, ev, resp.data || {}, rubricCriteria)
       restoreDraft(draft)
     } catch (e) {
       input.value = ''
@@ -237,7 +266,7 @@ function paint (ctx, ev, data) {
         ui.toast(errText(resp), shotRemove, true); shotRemove.disabled = false; return
       }
       ui.toast('Screenshot removed', main.querySelector('.card'))
-      paint(ctx, ev, resp.data || {})
+      paint(ctx, ev, resp.data || {}, rubricCriteria)
       restoreDraft(draft)
     } catch (e) {
       if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', shotRemove, true); shotRemove.disabled = false }
@@ -248,7 +277,7 @@ function paint (ctx, ev, data) {
 // A teammate saved over this entry while it was open here. Optimistic
 // concurrency (spec: entry-edit-conflict-resolution) -- a real choice, not a
 // toast, with both versions shown side by side.
-async function showConflict (ctx, ev, data, myBody, newer) {
+async function showConflict (ctx, ev, data, myBody, newer, rubricCriteria) {
   const { ui } = ctx
   // Confusing #5: this used to fall back to showing every field whenever
   // none of the fields *this person* touched (myBody) differed from the
@@ -295,7 +324,7 @@ async function showConflict (ctx, ev, data, myBody, newer) {
     if (!keep) {
       // Take theirs: drop the local edit and reload the current entry.
       const r = await api('GET', path)
-      if (r.ok) paint(ctx, ev, r.data || {})
+      if (r.ok) paint(ctx, ev, r.data || {}, rubricCriteria)
       return
     }
     // Keep mine: resubmit on top of the newer version.
@@ -304,7 +333,7 @@ async function showConflict (ctx, ev, data, myBody, newer) {
       const r = await api('PUT', path, body)
       if (!r.ok) { ctx.ui.toast(errText(r, 'Could not save. Try again.'), ctx.main, true); return }
       ctx.ui.toast('Saved', ctx.main)
-      paint(ctx, ev, r.data || {})
+      paint(ctx, ev, r.data || {}, rubricCriteria)
     } catch (e) { if (!ctx.api.isSignedOut(e)) ctx.ui.toast('Cannot reach the server.', ctx.main, true) }
   })
 }
