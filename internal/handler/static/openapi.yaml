@@ -2178,7 +2178,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: 'A deploy-only key (deploy_only_key), a team key (team_key_scope), or a site that is taken down (site_suspended)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: 'Site not found, or no such kept version (version_not_found, including an upload that never finished)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': { description: 'The version is live (version_live: make another one live first), or has been live before (version_published)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: 'The version is live (version_live: only a version that was never live can be discarded), or has been live before (version_published)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sites/{sitename}/versions/{version}/files:
@@ -7728,7 +7728,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: The site is taken down (site_suspended), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: 'Site not found, or no such kept version (version_not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': { description: 'The version is live (version_live) or has been live before (version_published)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: 'The version is live (version_live: only a version that was never live can be discarded) or has been live before (version_published)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/admin/sites/{id}/collections:
     get:
       x-audience: ["internal"]
@@ -14105,7 +14105,7 @@ components:
     create: { name: create, in: query, required: false, schema: { type: string, enum: ['1', '0', 'true', 'false'], default: '0' }, description: "1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists" }
     publish: { name: publish, in: query, required: false, schema: { type: boolean, default: true }, description: "false stores the new version without making it live (updates only; a new site's first version always goes live: 400)" }
     author: { name: author, in: query, required: false, schema: { type: string, maxLength: 80 }, description: "Who made this version: free text, trimmed, control characters removed, at most 80 characters. Stored on the version and returned as author by GET /v1/sites/{sitename}/versions." }
-    pending: { name: pending, in: query, required: false, schema: { type: string, enum: ['1'] }, description: "1 lists only the versions stored with publish=false that have never been live (status ready, not the live one)" }
+    pending: { name: pending, in: query, required: false, schema: { type: string, enum: ['1', 'true', 'yes'] }, description: "1 lists only the versions stored with publish=false that have never been live (status ready, not the live one)" }
     familySuffix: { name: suffix, in: path, required: true, description: "The family: trips.example.com or *.trips.example.com (URL-escaped)", schema: { type: string }, example: trips.example.com }
     coll: { name: coll, in: path, required: true, schema: { type: string }, example: signups }
     csrf: { name: X-SH-CSRF, in: header, required: false, schema: { type: string, enum: ['1'] }, description: Required on cookie-authenticated writes }

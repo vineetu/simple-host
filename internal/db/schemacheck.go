@@ -48,6 +48,8 @@ var requiredColumns = map[string][]string{
 	// v075-site-keep-versions.sql adds keep_versions; v076-site-passcode.sql the passcode_* columns.
 	// w2-sites-old-names.sql
 	"site_name_aliases": {"user_id", "name", "site_id"},
+	// zw-sim-152-version-author.sql adds author.
+	"versions": {"id", "site_id", "version_number", "disk_path", "status", "archive_sha256", "author", "created_at"},
 	// v077-address-families.sql
 	"address_families":     {"id", "user_id", "suffix", "site_prefix", "rank", "canonical", "token", "status", "last_error", "bound_at", "verified_at", "checked_at", "failing_since", "lapse_notified_at", "release_at", "cert_mode", "cert_name", "proof_exempt", "created_at"},
 	"family_cert_requests": {"user_id", "host", "requested_at"},

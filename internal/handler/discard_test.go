@@ -16,6 +16,7 @@ func TestVersionAuthor(t *testing.T) {
 		{"", ""},
 		{"  Alice  ", "Alice"},
 		{"Bo\x01b\x7f", "Bob"},
+		{"A\u0085B\u009f", "AB"}, // C1 controls go too
 		{"\tTab\nNew\rLine ", "TabNewLine"},
 		{long, strings.Repeat("é", 80)},
 		{strings.Repeat("a", 79) + " b", strings.Repeat("a", 79)}, // trimmed again after the cut
@@ -172,11 +173,18 @@ func TestDiscardVersion(t *testing.T) {
 	if _, err := os.Stat(a.sites.disk.VersionDir(userID, site, 1)); err != nil {
 		t.Fatalf("v1 folder must stay: %v", err)
 	}
-	var rows int
-	if err := a.database.QueryRow(`SELECT count(*) FROM versions WHERE site_id = $1 AND version_number = 2`, siteID).Scan(&rows); err != nil || rows != 0 {
-		t.Fatalf("v2 row after discard: %d %v", rows, err)
+	// The row stays as a tombstone so the number is never handed out again.
+	var status string
+	if err := a.database.QueryRow(`SELECT status FROM versions WHERE site_id = $1 AND version_number = 2`, siteID).Scan(&status); err != nil || status != "discarded" {
+		t.Fatalf("v2 row after discard: %q %v", status, err)
 	}
 	errCode(t, discard(t, base+"2"), http.StatusNotFound, "version_not_found")
+	if r := a.do(t, "POST", base+"2/preview-link", nil, key); r.status < 400 {
+		t.Fatalf("preview link for a discarded version: %d %s", r.status, r.body)
+	}
+	if r := a.do(t, "PUT", "/v1/sites/"+site+"/active-version", jsonBody(map[string]any{"version_number": 2}), key); r.status < 400 {
+		t.Fatalf("rollback to a discarded version: %d %s", r.status, r.body)
+	}
 	if all = list(t, ""); len(all) != 4 {
 		t.Fatalf("after discard: %+v", all)
 	}
@@ -199,5 +207,11 @@ func TestDiscardVersion(t *testing.T) {
 	}
 	if r := a.do(t, "GET", "/v1/sites/"+site+"/versions?pending=1", nil, key); r.status != http.StatusOK || strings.TrimSpace(string(r.body)) != "[]" {
 		t.Fatalf("empty pending list must be []: %d %s", r.status, r.body)
+	}
+
+	// v5 was the newest and is discarded: the next draft is v6, not v5 again.
+	deploy(t, "PUT", "?publish=false", http.StatusOK)
+	if got := list(t, "?pending=1"); len(got) != 1 || got[0].VersionNumber != 6 {
+		t.Fatalf("after discarding the newest, the next draft = %+v, want v6", got)
 	}
 }

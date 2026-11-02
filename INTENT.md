@@ -1433,6 +1433,11 @@ What follows from that, and is not negotiable without changing the line above:
   ten direct Google certificate tests and cleanup, with no burst simulation
   and no LE production requests for tests. Reason: each new person needs an
   address despite LE's shared registered-domain limit.
+- **2026-11-02. Drafts are pending versions of the one site (SIM-152).** A site's unpublished
+  drafts are versions stored with `publish=false` on that site, each with an author, listable as
+  pending and discardable while never live, instead of a second `draft-<name>` site per page.
+  Reason: owner, via the Auto-ship label on SIM-152; one site per quote for Simple Host for
+  Travel, so the site cap and a site's history mean one thing.
 
 ## Extensions (planned)
 

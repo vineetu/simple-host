@@ -87,9 +87,10 @@ removed, at most 80 characters), stored on the version (`versions.author`, defau
 on every item of `GET /v1/sites/{sitename}/versions` (empty when none was given). `?pending=1` on that list, and on
 the admin mirror `GET /v1/admin/sites/{id}/versions`, returns only versions stored with `publish=false` that have
 never been live (status `ready`, not the live one). `DELETE /v1/sites/{sitename}/versions/{version}` discards a
-never-live version for good (row, then its files) under the same per-site lock as deploys: 200 `{"site",
+never-live version for good (its files go; the row stays as a `discarded` tombstone so the number is never reused,
+left out of every list and preview, and pruned with retention) under the same account and per-site locks as deploys: 200 `{"site",
 "discarded_version", "active_version"}`; 404 `version_not_found` (no such kept version, or an upload that never
-finished); 409 `version_live` (it is the live one: make another live first); 409 `version_published` (it has been
+finished); 409 `version_live` (it is the live one; only a version that was never live can be discarded); 409 `version_published` (it has been
 live before: retention prunes those, discard does not); deploy-only keys (403 `deploy_only_key`) and team keys
 (403 `team_key_scope`) are refused, since it is not a deploy route; admin mirror
 `DELETE /v1/admin/sites/{id}/versions/{version}`; `siteOpLimiter` (30 burst, 0.5/s). Making a pending version

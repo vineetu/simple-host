@@ -528,14 +528,14 @@ func ListMyTeams(ctx context.Context, q interface {
 	return out, rows.Err()
 }
 
-// StoredVersionsOfAccount is every stored (not uploading) version of the
+// StoredVersionsOfAccount is every stored (not uploading, not discarded) version of the
 // account's live sites, as "<site id>/<n>".
 func StoredVersionsOfAccount(ctx context.Context, q interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }, accountID string) (map[string]bool, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT v.site_id::text || '/' || v.version_number FROM versions v JOIN sites s ON s.id = v.site_id
-		 WHERE s.user_id = $1 AND s.deleted_at IS NULL AND v.status <> 'uploading'`, accountID)
+		 WHERE s.user_id = $1 AND s.deleted_at IS NULL AND v.status <> 'uploading' AND v.status <> 'discarded'`, accountID)
 	if err != nil {
 		return nil, err
 	}
