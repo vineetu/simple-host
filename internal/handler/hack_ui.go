@@ -8,21 +8,25 @@ import (
 )
 
 // RegisterHackUI serves the signed-in simple-hack.app pages from one HTML
-// shell that routes on location.pathname. The JSON API is registered
-// separately. These pages are not indexed and must not be cached: they are
-// the signed-in app, not the public product page.
+// shell (static/hack/app.html) that routes on location.pathname. The JSON
+// API is registered separately. These pages are not indexed and must not be
+// cached: they are the signed-in app, not the public product page.
 //
 // sitesBase is the domain team sites are served under (team.event.<base>),
 // or "" when this server gives sites no hosts of their own; the judge
 // route's CSP (hackAppCSP) may frame them.
 func RegisterHackUI(mux *http.ServeMux, sitesBase string) {
-	classic := serveStaticPage("hack-app.html")
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	app := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Robots-Tag", "noindex")
 		body, err := staticFiles.ReadFile("static/hack/app.html")
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
+		// The sign-in script tag is only injected on /signin: every other
+		// route mounts the app without it, since nothing there needs
+		// window.SHSignIn.
 		if r.URL.Path != "/signin" {
 			body = bytes.ReplaceAll(body, []byte(markerSignin), nil)
 		}
@@ -36,33 +40,6 @@ func RegisterHackUI(mux *http.ServeMux, sitesBase string) {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(stampNonce(r, body))
-	})
-	app := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("X-Robots-Tag", "noindex")
-		useNext := true // The new app is the default (owner, 2026-10-30); ?ui=classic keeps the old one reachable.
-		if cookie, err := r.Cookie("sh_hack_ui"); err == nil {
-			useNext = cookie.Value == "next"
-		}
-		// "new" is accepted as an alias of "next" (Grok retest BROKEN #1:
-		// classic is sticky once chosen via a cookie no page offers a way back
-		// out of; a visitor guessing the opposite of ?ui=classic typed ?ui=new
-		// and got no effect).
-		if choice := r.URL.Query().Get("ui"); choice == "next" || choice == "new" || choice == "classic" {
-			useNext = choice != "classic"
-			cookie := &http.Cookie{Name: "sh_hack_ui", Value: "next", Path: "/", SameSite: http.SameSiteLaxMode, Secure: r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https"), MaxAge: 365 * 24 * 60 * 60}
-			if !useNext {
-				cookie.Value = "classic" // remembered, now that next is the default
-			}
-			http.SetCookie(w, cookie)
-		}
-		// Sign-in stays on the shared page (site chrome, SSO handoff); people
-		// return to the new app afterwards because the cookie is kept.
-		if useNext && r.URL.Path != "/signin" {
-			next.ServeHTTP(w, r)
-		} else {
-			classic.ServeHTTP(w, r)
-		}
 	})
 	page := adminUICSP(app)
 	votePage := adminUICSP(serveStaticPage("hack-voting.html"))

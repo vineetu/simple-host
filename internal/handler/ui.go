@@ -215,7 +215,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// raw here matches what the file server would hand back at "/".
 	if hackMode {
 		// The hackathon platform has no sites dashboard: a signed-in person's
-		// place is their events (hack-app.html).
+		// place is their events (RegisterHackUI's app shell, static/hack/app.html).
 		mux.Handle("GET /dashboard", http.RedirectHandler("/events", http.StatusFound))
 	} else {
 		markdown := homepageMarkdownHandler(publicBaseURL)
@@ -294,10 +294,11 @@ var handlerOnlyPages = map[string]bool{
 	"notfound.html":     true,
 	"showcase.html":     true,
 	"host-story.html":   true,
-	// The hackathon platform's pages (EVENTS=hosted): hack-app.html is served
-	// by RegisterHackUI's routes, hack-story.html at / by RegisterHackHome, and
-	// hack-event.html is the event page's template.
-	"hack-app.html":                true,
+	// The hackathon platform's pages (EVENTS=hosted): the signed-in app shell
+	// (static/hack/app.html, under hack/ so it is already outside this
+	// top-level map) is served by RegisterHackUI's own handler, hack-story.html
+	// at / is served by RegisterHackHome, and hack-event.html is the event
+	// page's template.
 	"hack-home.html":               true,
 	"hack-story.html":              true,
 	"hack-watch.html":              true,

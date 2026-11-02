@@ -7,53 +7,46 @@ import (
 	"testing"
 )
 
+// TestHackUINext (cleanup step 2.2: the classic app is gone) checks that the
+// app shell is served everywhere regardless of query string or an old
+// sh_hack_ui cookie left over from before the ?ui= switch was deleted, that
+// no cookie is ever set, and that the static assets it depends on are still
+// reachable.
 func TestHackUINext(t *testing.T) {
 	previous := hackChrome
 	SetHackChrome(true)
 	t.Cleanup(func() { SetHackChrome(previous) })
 	mux := chromeTestMux(t) // Includes the existing embedded file server.
 	RegisterHackUI(mux, "")
-	for _, tc := range []struct {
-		name, path, cookie string
-		next               bool
-		age                int
-	}{
-		{"default", "/events", "", true, 0},
-		{"opt in", "/events?ui=next", "sh_hack_ui=classic", true, 365 * 24 * 60 * 60},
-		// BROKEN #1 (Grok re-test): classic is sticky with no way back once
-		// chosen. ?ui=new is accepted as an alias of ?ui=next so the obvious
-		// opposite of ?ui=classic also works.
-		{"new alias", "/events?ui=new", "sh_hack_ui=classic", true, 365 * 24 * 60 * 60},
-		{"cookie", "/events", "sh_hack_ui=next", true, 0},
-		{"opt out", "/events?ui=classic", "sh_hack_ui=next", false, 365 * 24 * 60 * 60},
-		{"classic remembered", "/events", "sh_hack_ui=classic", false, 0},
+	for _, tc := range []struct{ name, path, cookie string }{
+		{"default", "/events", ""},
+		{"old classic cookie", "/events", "sh_hack_ui=classic"},
+		{"old next cookie", "/events", "sh_hack_ui=next"},
+		{"leftover ?ui=classic", "/events?ui=classic", "sh_hack_ui=next"},
+		{"leftover ?ui=next", "/events?ui=next", "sh_hack_ui=classic"},
+		{"leftover ?ui=new", "/events?ui=new", "sh_hack_ui=classic"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", tc.path, nil)
-			req.Header.Set("Cookie", tc.cookie)
+			if tc.cookie != "" {
+				req.Header.Set("Cookie", tc.cookie)
+			}
 			req.Header.Set("X-Forwarded-Proto", "https")
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status %d", rec.Code)
 			}
-			if got := strings.Contains(rec.Body.String(), `src="/hack/app.js"`); got != tc.next {
-				t.Fatalf("next = %v, want %v", got, tc.next)
+			if !strings.Contains(rec.Body.String(), `src="/hack/app.js"`) {
+				t.Fatal("the app shell was not served")
 			}
 			if rec.Header().Get("Cache-Control") != "no-store" || rec.Header().Get("X-Robots-Tag") != "noindex" || rec.Header().Get("Content-Security-Policy") == "" {
 				t.Fatal("missing app headers")
 			}
-			if tc.age != 0 {
-				cookies := rec.Result().Cookies()
-				if len(cookies) != 1 {
-					t.Fatalf("cookies: %d", len(cookies))
-				}
-				c := cookies[0]
-				if c.Name != "sh_hack_ui" || c.Path != "/" || c.MaxAge != tc.age || !c.Secure || c.SameSite != http.SameSiteLaxMode {
-					t.Errorf("incorrect UI cookie attributes")
-				}
+			if cookies := rec.Result().Cookies(); len(cookies) != 0 {
+				t.Errorf("set a cookie %v; the UI switch was deleted", cookies)
 			}
-			if tc.next && strings.Contains(rec.Body.String(), "/signin.js?") {
+			if strings.Contains(rec.Body.String(), "/signin.js?") {
 				t.Error("sign-in card loaded outside /signin")
 			}
 		})
@@ -68,14 +61,18 @@ func TestHackUINext(t *testing.T) {
 			t.Errorf("%s: status %d type %s", path, rec.Code, rec.Header().Get("Content-Type"))
 		}
 	}
-	// Sign-in always uses the shared page (chrome, SSO handoff), even with the
-	// new UI chosen; the cookie is kept so people return to the new app.
-	rec := get(t, mux, "simple-host.app", "/signin?ui=next")
+	// /signin serves the same app shell as every other route now; the
+	// sign-in script tag and the arrival helper (statically included in
+	// static/hack/app.html, not the chrome's own injector) are both still there.
+	rec := get(t, mux, "simple-host.app", "/signin?ui=classic")
 	body := rec.Body.String()
-	if strings.Contains(body, `src="/hack/app.js"`) {
-		t.Error("/signin must serve the shared sign-in page, not the new app")
+	if !strings.Contains(body, `src="/hack/app.js"`) {
+		t.Error("/signin must serve the app shell")
 	}
-	if !strings.Contains(body, "/signin.js?") || !strings.Contains(body, "window.SHArrival") {
-		t.Error("shared sign-in page lacks its sign-in script or arrival helper")
+	if !strings.Contains(body, "/signin.js?") {
+		t.Error("/signin lacks its sign-in script")
+	}
+	if !strings.Contains(body, `src="/arrival.js"`) {
+		t.Error("/signin lacks the arrival helper")
 	}
 }

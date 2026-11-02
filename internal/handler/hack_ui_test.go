@@ -8,20 +8,11 @@ import (
 	"testing"
 )
 
+// TestHackUIRoutes checks every signed-in route RegisterHackUI serves: the
+// new app shell (static/hack/app.html), not the retired classic page. A
+// leftover ?ui=classic query parameter or sh_hack_ui cookie from before the
+// classic app was deleted must be silently ignored: no switch, no cookie set.
 func TestHackUIRoutes(t *testing.T) {
-	raw, err := staticFiles.ReadFile("static/hack-app.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	src := string(raw)
-	for _, m := range []string{markerHead, markerHeader, markerFooter, markerSignin} {
-		if n := strings.Count(src, m); n != 1 {
-			t.Errorf("hack-app.html: %s appears %d times, want 1", m, n)
-		}
-	}
-	if i, st := strings.Index(src, markerHead), strings.Index(src, "<style"); st >= 0 && i > st {
-		t.Error("hack-app.html: <!--sh:head--> must come before the page's own <style>")
-	}
 	signinJSTag := regexp.MustCompile(`/signin\.js\?v=[0-9a-f]{10}`)
 
 	mux := http.NewServeMux()
@@ -31,20 +22,22 @@ func TestHackUIRoutes(t *testing.T) {
 	t.Cleanup(func() { SetHackChrome(prevChrome) })
 	for _, path := range []string{
 		"/signin",
+		"/signin?ui=classic",
 		"/account",
 		"/events",
+		"/events?ui=next",
 		"/events/new",
 		"/e/demo/team",
 		"/e/demo/judge",
 		"/e/demo/manage",
+		"/e/demo/apply",
 		"/join/abcdefgh",
 		"/judge/abcdefghjkmn",
 		"/organiser/abcdefghjkmnpqrstuvwxyz23456789ab",
+		"/team/abcdefgh",
 	} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
-		// The new app (static/hack/) is the default and has its own test in
-		// hack_ui_next_test.go; this one checks the classic page, still served
-		// to people who chose it.
+		// A cookie from before the classic app was deleted must have no effect.
 		req.Header.Set("Cookie", "sh_hack_ui=classic")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -64,51 +57,29 @@ func TestHackUIRoutes(t *testing.T) {
 		if rec.Header().Get("Content-Security-Policy") == "" {
 			t.Errorf("%s: missing CSP", path)
 		}
-		assertStrictScriptCSP(t, path, rec)
-		body := rec.Body.String()
-		// The hack-mode header carries an extra "sh-hack" class
-		// (class="sh-header sh-hack"), so match the class token's
-		// opening quote only, not its exact closing quote.
-		if !strings.Contains(body, `class="sh-header`) || !strings.Contains(body, `class="sh-footer"`) {
-			t.Errorf("%s: missing chrome", path)
+		if len(rec.Result().Cookies()) != 0 {
+			t.Errorf("%s: set a cookie %v; the UI switch was deleted", path, rec.Result().Cookies())
 		}
+		// Unlike the retired classic page, the app shell has no inline
+		// script for assertStrictScriptCSP (built for apex pages that do) to
+		// check; app.js and arrival.js are both external, non-nonced <script
+		// src> tags the CSP's script-src already covers by origin.
+		body := rec.Body.String()
 		if strings.Contains(body, "<!--sh:") {
 			t.Errorf("%s: chrome markers leaked into the served page", path)
 		}
-		if !strings.Contains(body, `id="hack-app"`) {
-			t.Errorf("%s: not the hack app page", path)
+		if !strings.Contains(body, `id="app"`) {
+			t.Errorf("%s: not the app shell", path)
 		}
-		if !signinJSTag.MatchString(body) {
+		if !strings.Contains(body, `src="/hack/app.js"`) {
+			t.Errorf("%s: missing the app's own script", path)
+		}
+		isSignin := strings.HasPrefix(path, "/signin")
+		if isSignin && !signinJSTag.MatchString(body) {
 			t.Errorf("%s: missing versioned /signin.js", path)
 		}
-		if strings.Contains(body, `id="email-input"`) || strings.Contains(body, `id="code-input"`) || strings.Contains(body, `id="auth-btn"`) {
-			t.Errorf("%s: old hack sign-in controls are still in the page", path)
-		}
-		if !strings.Contains(body, "This link does not work any more") {
-			t.Errorf("%s: missing dead-link heading", path)
-		}
-		if !strings.Contains(body, `id="acct-email-input"`) {
-			t.Errorf("%s: account email change was removed", path)
-		}
-		if !strings.Contains(body, `href="/account"`) {
-			t.Errorf("%s: missing Account link", path)
-		}
-		if path == "/account" && !strings.Contains(body, `id="view-account"`) {
-			t.Errorf("%s: missing account view", path)
-		}
-		// BROKEN #1 (Grok re-test): classic had no visible way back to the
-		// new screens (the account page and the judge/organiser Help areas
-		// are where someone stuck on ?ui=classic would look).
-		for _, id := range []string{"judge-new-ui", "manage-new-ui", "acct-new-ui"} {
-			if !strings.Contains(body, `id="`+id+`"`) {
-				t.Errorf("%s: missing %q link back to the new screens", path, id)
-			}
-		}
-		if !strings.Contains(body, `>Use the new screens</a>`) {
-			t.Errorf("%s: missing visible 'Use the new screens' link text", path)
-		}
-		if !strings.Contains(body, `href="?ui=next"`) {
-			t.Errorf("%s: 'Use the new screens' link does not point at ?ui=next", path)
+		if !isSignin && strings.Contains(body, "/signin.js?") {
+			t.Errorf("%s: sign-in card loaded outside /signin", path)
 		}
 	}
 }

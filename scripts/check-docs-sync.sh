@@ -196,7 +196,7 @@ for f in internal/handler/static/*; do
   # Pages served through serveStaticPage are templates, not agent-facing docs;
   # they are allowed to name the canonical host in prose. features.json is the
   # data behind features.html (scripts/build-features-page.py), same rule.
-  case "$base" in features.json|admin.html|analytics.html|notfound.html|showcase.html|index.html|features.html|pricing.html|architecture.html|privacy.html|terms.html|support.html|report.html|docs.html|enterprise.html|enterprise-brief.html|enterprise-architecture.html|hackathons.html|hack-home.html|hack-story.html|host-story.html|hack-app.html|hack-get-started.html|setup.html|costs.html) continue ;; esac
+  case "$base" in features.json|admin.html|analytics.html|notfound.html|showcase.html|index.html|features.html|pricing.html|architecture.html|privacy.html|terms.html|support.html|report.html|docs.html|enterprise.html|enterprise-brief.html|enterprise-architecture.html|hackathons.html|hack-home.html|hack-story.html|host-story.html|hack-get-started.html|setup.html|costs.html) continue ;; esac
   missing="$missing $base"
 done
 if [ -n "$missing" ]; then
