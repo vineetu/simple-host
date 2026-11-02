@@ -649,6 +649,9 @@ func (d *DiskStorage) RemoveFileEverywhere(userID, siteName, relPath, sha string
 			continue
 		}
 		p := filepath.Join(siteDir, name, cleanPath)
+		if !parentInside(filepath.Join(siteDir, name), p) {
+			continue
+		}
 		same, herr := fileHasSHA256(p, sha)
 		if herr != nil {
 			if !os.IsNotExist(herr) {
@@ -664,6 +667,22 @@ func (d *DiskStorage) RemoveFileEverywhere(userID, siteName, relPath, sha string
 		}
 	}
 	return err
+}
+
+// parentInside reports whether p's parent directory, with its symlinks
+// resolved, stays inside root (also resolved). A directory symlink that
+// leads out of the version folder is never followed for a removal.
+func parentInside(root, p string) bool {
+	r, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return false
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Dir(p))
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(r, dir)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
 // fileHasSHA256 reports whether the regular file at p hashes to sha (hex).

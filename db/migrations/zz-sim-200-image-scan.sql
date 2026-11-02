@@ -30,5 +30,6 @@ CREATE TABLE IF NOT EXISTS image_scan_matches (
   raw JSONB, evidence_path TEXT NOT NULL DEFAULT '', uploaded_at TIMESTAMPTZ, detected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   taken_down BOOLEAN NOT NULL DEFAULT false, alerted_at TIMESTAMPTZ,
   report_status TEXT NOT NULL DEFAULT 'pending' CHECK (report_status IN ('pending','filed','failed','off')),
-  report_id TEXT NOT NULL DEFAULT '', reported_at TIMESTAMPTZ, report_error TEXT NOT NULL DEFAULT '');
+  report_id TEXT NOT NULL DEFAULT '', reported_at TIMESTAMPTZ, report_error TEXT NOT NULL DEFAULT '',
+  uploader TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS image_scan_matches_detected ON image_scan_matches (detected_at DESC);

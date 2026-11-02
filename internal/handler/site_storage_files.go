@@ -189,7 +189,7 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		paperHackWrite(r)
-		h.imageScan.EnqueueStorageFile(c.siteID, c.resourceName, p, c.stampID(), body)
+		h.imageScan.EnqueueStorageFile(c.siteID, c.resourceName, p, storageUploader(c), body)
 		h.disk.MarkChanged()
 		unlock()
 		h.emitNotification(c, "file.uploaded", map[string]any{"path": p, "size": len(body), "content_type": http.DetectContentType(body)})

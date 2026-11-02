@@ -323,8 +323,9 @@ What follows from that, and is not negotiable without changing the line above:
   the write against hash sets of known child sexual abuse material through Microsoft PhotoDNA
   Cloud Service. A Match check sends only the image bytes, never a visitor's or owner's IP
   address, name, or email, and nothing is logged or stored beyond the evidence copy of a match.
-  A Report, which the law requires after a match, sends the image, the account handle and email
-  of the person who uploaded it, the site address or event, and the reporting organisation's
+  A Report, which the law requires after a match, sends the image, the account details of the
+  uploader when known (the site owner for a site file; "anonymous visitor (no account)" for a
+  files-storage upload with nobody signed in), the site address or event, and the reporting organisation's
   contact details to Microsoft's PhotoDNA Report service, which files it with NCMEC's
   CyberTipline. On a match the file is quarantined to an evidence folder that outlives the
   site and the account, removed from every served copy, the site (or event) is taken down with

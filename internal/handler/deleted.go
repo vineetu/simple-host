@@ -270,8 +270,6 @@ func (h *SiteHandler) restoreTrashedSite(ctx context.Context, d db.DeletedSite, 
 	if err := h.syncUnlistedMarker(ctx, site); err != nil {
 		log.Printf("restore site %s: unlisted marker: %v", site.ID, err)
 	}
-	// Image matching dropped any job that ran while it was deleted.
-	h.imageScan.EnqueueRestoredSite(site)
 	return site, nil
 }
 

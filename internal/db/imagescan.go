@@ -65,6 +65,10 @@ type ImageMatch struct {
 	ReportID     string
 	ReportedAt   sql.NullTime
 	ReportError  string
+	// Uploader and Address are who uploaded the file and where it was
+	// served, as they stood when the match was found.
+	Uploader string
+	Address  string
 }
 
 // ImageScanQueueCounts is the queue at a glance.
@@ -220,6 +224,14 @@ func GiveUpImageScan(ctx context.Context, q Querier, id int64, errText string, a
 	return err
 }
 
+// PostponeImageScan moves a job's next attempt d out without counting an
+// attempt (a site in Recently deleted waits for a restore or the purge).
+func PostponeImageScan(ctx context.Context, q Querier, id int64, d time.Duration) error {
+	_, err := q.ExecContext(ctx, `UPDATE image_scan_queue SET next_attempt_at = now() + $2 * interval '1 second' WHERE id = $1`,
+		id, int(d.Seconds()))
+	return err
+}
+
 // DeleteImageScan removes a finished job.
 func DeleteImageScan(ctx context.Context, q Querier, id int64) error {
 	_, err := q.ExecContext(ctx, `DELETE FROM image_scan_queue WHERE id = $1`, id)
@@ -256,19 +268,22 @@ func InsertImageMatch(ctx context.Context, q Querier, m ImageMatch) (int64, erro
 	err := q.QueryRowContext(ctx, `
 		INSERT INTO image_scan_matches (kind, site_id, site_name, owner_id, owner_handle, owner_email,
 			event_id, event_slug, team_id, version, resource_name, path, writer_id,
-			sha256, bytes, content_type, provider, tracking_id, source, violations, raw, uploaded_at, report_status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+			sha256, bytes, content_type, provider, tracking_id, source, violations, raw, uploaded_at, report_status,
+			uploader, address)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
 		RETURNING id`,
 		m.Kind, nullUUID(m.SiteID), m.SiteName, nullUUID(m.OwnerID), m.OwnerHandle, m.OwnerEmail,
 		nullUUID(m.EventID), m.EventSlug, nullUUID(m.TeamID), nullVersion(m.Version), m.ResourceName, m.Path, m.WriterID,
-		m.SHA256, m.Bytes, m.ContentType, m.Provider, m.TrackingID, m.Source, m.Violations, raw, uploaded, status).Scan(&id)
+		m.SHA256, m.Bytes, m.ContentType, m.Provider, m.TrackingID, m.Source, m.Violations, raw, uploaded, status,
+		m.Uploader, m.Address).Scan(&id)
 	return id, err
 }
 
 const imageMatchColumns = `id, kind, COALESCE(site_id::text, ''), site_name, COALESCE(owner_id::text, ''), owner_handle, owner_email,
 	COALESCE(event_id::text, ''), event_slug, COALESCE(team_id::text, ''), COALESCE(version, 0), resource_name, path, writer_id,
 	sha256, bytes, content_type, provider, tracking_id, source, violations, COALESCE(raw::text, ''), evidence_path,
-	COALESCE(uploaded_at, detected_at), detected_at, taken_down, alerted_at, report_status, report_id, reported_at, report_error`
+	COALESCE(uploaded_at, detected_at), detected_at, taken_down, alerted_at, report_status, report_id, reported_at, report_error,
+	uploader, address`
 
 type imageMatchScanner interface {
 	Scan(dest ...any) error
@@ -280,7 +295,8 @@ func scanImageMatch(row imageMatchScanner) (ImageMatch, error) {
 	err := row.Scan(&m.ID, &m.Kind, &m.SiteID, &m.SiteName, &m.OwnerID, &m.OwnerHandle, &m.OwnerEmail,
 		&m.EventID, &m.EventSlug, &m.TeamID, &m.Version, &m.ResourceName, &m.Path, &m.WriterID,
 		&m.SHA256, &m.Bytes, &m.ContentType, &m.Provider, &m.TrackingID, &m.Source, &m.Violations, &raw, &m.EvidencePath,
-		&m.UploadedAt, &m.DetectedAt, &m.TakenDown, &m.AlertedAt, &m.ReportStatus, &m.ReportID, &m.ReportedAt, &m.ReportError)
+		&m.UploadedAt, &m.DetectedAt, &m.TakenDown, &m.AlertedAt, &m.ReportStatus, &m.ReportID, &m.ReportedAt, &m.ReportError,
+		&m.Uploader, &m.Address)
 	if err != nil {
 		return ImageMatch{}, err
 	}

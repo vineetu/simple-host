@@ -59,10 +59,12 @@ these settings through yet.
 In this order, with no human in the loop:
 
 1. A row in `image_scan_matches`: site or event, owner handle and email, path, version, the
-   writer reference for a visitor upload, provider, tracking id, hash set source, violation
-   codes, and the service's own answer.
+   writer reference for a visitor upload, the uploader and the site address as they were at
+   detection, provider, tracking id, hash set source, violation codes, and the service's own
+   answer.
 2. A copy of the original bytes and a `record.json` in `IMAGE_SCAN_EVIDENCE_DIR/<match id>/`
    (mode 0700, never served, kept until you remove it; a record outlives a deleted site or account).
+   An existing match folder is never reused: if it already exists, this step fails.
 3. The matched bytes are removed from every kept version and the live copy. Only copies whose
    SHA-256 equals the match are removed; a different file at the same path stays. A storage
    object is deleted only if it still holds the matched bytes; an event icon or entry screenshot
@@ -84,9 +86,15 @@ In this order, with no human in the loop:
 Any step that fails is listed as FAILED in the alert and the log; the operator acts on it. A
 hash already on record is not sent again: a known match is quarantined at once, and a known
 clean or skipped image is dropped from the queue. When the service fails, a job retries after
-1 minute, then doubling, capped at 6 hours. After 12 failed tries it stops and shows as "gave
-up" on the admin page's queue line, with the last error on the row. A site that is deleted and
-then restored from the trash has its live images queued again.
+1 minute, then doubling, capped at 6 hours. After 12 failed tries it stops and counts as "gave
+up" on the admin page's queue line. The last error is in the service log and in
+`image_scan_queue.last_error`. To retry those jobs after fixing the cause (on Simple Hack, use
+the `simplehack` database):
+`sudo -u postgres psql -d simplehost -c "UPDATE image_scan_queue SET attempts=0, next_attempt_at=now() WHERE next_attempt_at='infinity'"`
+
+A job for a site in Recently deleted waits, is checked again every hour, and runs after a
+restore, so the live copy and every kept version are checked then. It is dropped when the site
+is purged.
 
 ## Filing the report
 
@@ -95,10 +103,19 @@ report it to NCMEC's CyberTipline, and to preserve the material and the report s
 enforcement can obtain them (one year since the REPORT Act of 2024). The evidence folder is the
 preservation; the report is yours to file.
 
-A Report sends the image, the account handle and email of the person who uploaded it (for an
-entry screenshot or event icon, the participant or organiser who uploaded it; for a site file,
-the site owner), the site address or event, and the reporting organisation's contact details
-to Microsoft's PhotoDNA Report service, which files it with NCMEC's CyberTipline.
+A Report sends the image, who uploaded it, the site address or event, and the reporting
+organisation's contact details to Microsoft's PhotoDNA Report service, which files it with
+NCMEC's CyberTipline. Who uploaded it means:
+
+- a site file: the site owner's handle and email;
+- a files-storage upload: the owner's handle and email when the owner wrote it, the visitor's
+  id when a signed-in visitor wrote it, and "anonymous visitor (no account)" when nobody was
+  signed in;
+- a Simple Hack event icon or entry screenshot: the handle and email of the person who
+  uploaded it.
+
+The uploader and the site address are recorded at detection, so a later rename or ownership
+change does not alter the report.
 
 - Reporting needs `IMAGE_SCAN_REPORT_ORG`, `IMAGE_SCAN_REPORT_NAME`, and a report email
   (`IMAGE_SCAN_REPORT_EMAIL`, or the support contact). A match recorded while any of them was
@@ -110,7 +127,8 @@ to Microsoft's PhotoDNA Report service, which files it with NCMEC's CyberTipline
   is already filed; 503 means reporting is not configured; 502 means the report failed. A 502
   that says the report was filed with an id but saving failed means the report is on record
   with NCMEC: note that id, and do not file again.
-- A report counts as filed only when the service acknowledges it with a report id. The list
+- A report counts as filed only when the service returns a report id or an explicit success
+  status (the id can then be empty). The list
   shows every match still waiting for a report (off, pending, or failed) plus the newest 200.
 - If PhotoDNA's Report operation is unavailable, file directly at https://report.cybertip.org/
   from the evidence folder, and note the report id in `record.json`.
@@ -128,7 +146,10 @@ Do not open, copy, or forward the quarantined image beyond what the report needs
                 and the report status, id, and time once a report is attempted
 ```
 
-It is under no served path. Remove a folder only after the preservation period has passed and
+It is under no served path. A match folder is created fresh: an existing folder is never
+reused and an existing file or symlink inside it is never followed. If the folder for a match
+already exists, the evidence step fails and the file is kept in place (the site is still taken
+down). Remove a folder only after the preservation period has passed and
 the report is on record.
 
 Backups: on the hosted box the off-box backup excludes `.evidence`. If you run your own backups,

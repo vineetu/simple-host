@@ -15615,7 +15615,7 @@
         ],
         "operationId": "getAdminImageScan",
         "summary": "Image matching: state, queue and matches (admin)",
-        "description": "Admin-only (403 for anyone else). Whether uploaded images are checked against known abuse hash sets (PHOTODNA_API_KEY), the queue, and the newest matches (at most 200). When the feature is off, `enabled` is false, the queue is zero, and earlier matches are still listed: a record outlives a config change. A match names the site or event, the path, the owner, what the service said, whether the site was taken down and the alert sent, the evidence folder, and the report's state. Never the image.",
+        "description": "Admin-only (403 for anyone else). Whether uploaded images are checked against known abuse hash sets (PHOTODNA_API_KEY), the queue (due now, retrying, and `gave_up`: jobs stopped after the last allowed attempt), and the matches: every match whose report is pending, failed, or off, plus the newest 200. When the feature is off, `enabled` is false, the queue is zero, and earlier matches are still listed: a record outlives a config change. A match names the site or event, the path, the owner, the uploader and the site address as they were when the match was found, what the service said, whether the site was taken down and the alert sent, the evidence folder, and the report's state. Never the image. `report_configured` is true only when IMAGE_SCAN_REPORT_ORG, IMAGE_SCAN_REPORT_NAME, and the report email are all set.",
         "security": [
           {
             "apiKey": []
@@ -15623,7 +15623,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The state and the matches, newest first",
+            "description": "The state and the matches (open reports plus the newest 200), newest first",
             "content": {
               "application/json": {
                 "schema": {
@@ -15652,6 +15652,9 @@
                           "type": "integer"
                         },
                         "retrying": {
+                          "type": "integer"
+                        },
+                        "gave_up": {
                           "type": "integer"
                         }
                       }
@@ -15750,6 +15753,14 @@
                           },
                           "report_error": {
                             "type": "string"
+                          },
+                          "uploader": {
+                            "type": "string",
+                            "description": "Who uploaded the file, recorded at detection: the site owner's handle and email, a visitor id, \"anonymous visitor (no account)\", or the uploader of an event icon or entry screenshot"
+                          },
+                          "address": {
+                            "type": "string",
+                            "description": "The site's address (or the event slug), recorded at detection"
                           }
                         }
                       }
@@ -15778,7 +15789,7 @@
         ],
         "operationId": "reportAdminImageMatch",
         "summary": "File the CyberTipline report for one match (admin)",
-        "description": "Admin-only (403 for anyone else). Files the report for one match through the matching service's Report operation, with the evidence copy. 409 `already_reported` once it is filed; 503 `report_unavailable` when image matching is off or IMAGE_SCAN_REPORT_ORG is not set; 502 `report_failed` with the service's error, after which the call can be made again.",
+        "description": "Admin-only (403 for anyone else). Files the report for one match through the matching service's Report operation, with the evidence copy. 409 `already_reported` once it is filed; 503 `report_unavailable` when image matching is off or any of IMAGE_SCAN_REPORT_ORG, IMAGE_SCAN_REPORT_NAME, and IMAGE_SCAN_REPORT_EMAIL is not set (the error text names all three); 502 `report_failed` with the service's error. The error text says whether the report was already filed; do not retry when it says it was filed.",
         "security": [
           {
             "apiKey": []
@@ -38528,7 +38539,7 @@
           },
           "editable": {
             "type": "boolean",
-            "description": "False from Closed onward — rules are fixed once entries close",
+            "description": "False from Closed onward \u2014 rules are fixed once entries close",
             "so judging sees one definition of complete.": null
           }
         }

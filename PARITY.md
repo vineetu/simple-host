@@ -6,7 +6,7 @@ Microsoft PhotoDNA Cloud Service (off until `PHOTODNA_API_KEY` or `PHOTODNA_API_
 set; Docker Compose small boxes do not pass these settings through yet), with quarantine to an
 evidence folder, the existing take-down, an operator alert, and CyberTipline reporting,
 automatic or from the admin Moderation tab. A Match check sends only image bytes, never an IP
-address; a Report sends the image, the uploader's handle and email, the site or event, and the
+address; a Report sends the image, the uploader's account details when known (the site owner for a site file; "anonymous visitor (no account)" for a files-storage upload with nobody signed in), the site or event, both recorded at detection, and the
 reporting organisation's contact details. Enterprise does not have it yet; the port is outstanding. An
 Enterprise operator is itself the provider under 18 U.S.C. 2258A, so the same knobs should be
 offered there. Status: `gap → enterprise`.

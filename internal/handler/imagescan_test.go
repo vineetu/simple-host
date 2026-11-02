@@ -686,36 +686,60 @@ func TestImageScanVersionDedup(t *testing.T) {
 	}
 }
 
-// 2.2: a site deleted before its job ran is checked when it is restored.
+// A3: a job for a site in Recently deleted waits without counting an
+// attempt, and runs after a restore, also for a retained version: v1 holds
+// the matched file, v2 a clean one, and v1's copy is quarantined.
 func TestImageScanRestore(t *testing.T) {
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
 	okey := map[string]string{"X-API-Key": olive.key}
-	bad := testPNG(t)
+	bad, clean := testPNG(t), testPNG(t)
 	f.markMatch(sha256Hex(bad))
 	deployWithImages(t, a, olive, "comeback", map[string][]byte{"img/bad.png": bad})
 	f.wait()
+	deployWithImages(t, a, olive, "comeback", map[string][]byte{"img/bad.png": clean})
+	f.wait()
 	siteID := a.siteID(t, olive, "comeback")
+	if n := queueCount(t, a, siteID); n != 2 {
+		t.Fatalf("queued %d, want 2", n)
+	}
 	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/sites/comeback", nil, okey); r.status != http.StatusNoContent {
 		t.Fatalf("delete: %d %s", r.status, r.body)
 	}
 	f.scan.RunOnce(context.Background())
-	if n := queueCount(t, a, siteID); n != 0 || f.matcher.callCount() != 0 {
-		t.Fatalf("job not dropped while deleted: queue %d, calls %d", n, f.matcher.callCount())
+	if n := queueCount(t, a, siteID); n != 2 || f.matcher.callCount() != 0 {
+		t.Fatalf("while deleted: queue %d (want 2 kept), calls %d", n, f.matcher.callCount())
+	}
+	var maxAttempts int
+	var soonest time.Time
+	if err := a.database.QueryRow(`SELECT max(attempts), min(next_attempt_at) FROM image_scan_queue WHERE site_id::text = $1`, siteID).Scan(&maxAttempts, &soonest); err != nil {
+		t.Fatal(err)
+	}
+	if maxAttempts != 0 || !soonest.After(time.Now().Add(50*time.Minute)) {
+		t.Fatalf("postponed jobs: attempts %d, next %s", maxAttempts, soonest)
 	}
 	if r := a.at(t, "POST", pcSiteDomain, "/v1/sites/comeback/restore", nil, okey); r.status != http.StatusOK {
 		t.Fatalf("restore: %d %s", r.status, r.body)
 	}
-	f.wait()
-	if n := queueCount(t, a, siteID); n != 1 {
-		t.Fatalf("queued %d after restore, want 1", n)
-	}
+	rerun(t, a, siteID)
 	f.scan.RunOnce(context.Background())
+	if n := queueCount(t, a, siteID); n != 0 {
+		t.Fatalf("queue after restore and a pass: %d", n)
+	}
 	uid, _ := a.userID(t, olive)
-	if _, err := os.Stat(filepath.Join(a.sites.disk.SiteDir(uid, "comeback"), "current", "img", "bad.png")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("bad.png still served after restore: %v", err)
+	siteDir := a.sites.disk.SiteDir(uid, "comeback")
+	if _, err := os.Stat(filepath.Join(siteDir, "v1", "img", "bad.png")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("v1 copy still there after restore: %v", err)
+	}
+	for _, v := range []string{"v2", "current"} {
+		if got, err := os.ReadFile(filepath.Join(siteDir, v, "img", "bad.png")); err != nil || !bytes.Equal(got, clean) {
+			t.Fatalf("%s lost the clean file: %v", v, err)
+		}
+	}
+	if m := latestMatch(t, a, siteID); m.Version != 1 || !m.TakenDown {
+		t.Fatalf("match row: %+v", m)
 	}
 	if site, _ := db.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
 		t.Fatal("restored site not taken down")
@@ -933,5 +957,133 @@ func TestImageScanRawJSON(t *testing.T) {
 	var s string
 	if !json.Valid(got) || json.Unmarshal(got, &s) != nil || s != `{"IsMatch":tr` {
 		t.Fatalf("cut reply: %s", got)
+	}
+}
+
+// A1 and A2: a files-storage upload names who wrote it (the owner, or an
+// anonymous visitor, never the owner in their place), and the match keeps
+// the uploader and the address as they were at detection.
+func TestImageScanStorageUploader(t *testing.T) {
+	ps := newPresetSite(t)
+	a := ps.a
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	ps.must(t, "PUT", "/resources/drop", map[string]string{"kind": "files", "preset": "inbox"}, ps.key, 201)
+	anonPic, ownerPic := testPNG(t), testPNG(t)
+	f.markMatch(sha256Hex(anonPic))
+	f.markMatch(sha256Hex(ownerPic))
+	anon := map[string]string{"Content-Type": "image/png"}
+	for k, v := range ps.callers["anon"] {
+		anon[k] = v
+	}
+	ps.must(t, "PUT", "/files/drop/objects/anon.png", string(anonPic), anon, 200)
+	ps.must(t, "PUT", "/files/drop/objects/owner.png", string(ownerPic), map[string]string{"X-API-Key": ps.owner.key, "Content-Type": "image/png"}, 200)
+	f.wait()
+	f.scan.RunOnce(context.Background())
+	rows, err := db.ListImageMatches(context.Background(), a.database, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string]db.ImageMatch{}
+	for _, m := range rows {
+		if m.SiteID == ps.sid {
+			byPath[m.Path] = m
+		}
+	}
+	am, om := byPath["anon.png"], byPath["owner.png"]
+	if am.Uploader != "anonymous visitor (no account)" || am.Address == "" {
+		t.Fatalf("anonymous upload: uploader %q address %q", am.Uploader, am.Address)
+	}
+	if !strings.Contains(om.Uploader, ps.owner.email) || om.WriterID != "owner" {
+		t.Fatalf("owner upload: uploader %q writer %q", om.Uploader, om.WriterID)
+	}
+	admin := map[string]string{"X-API-Key": a.admin}
+	if r := a.at(t, "POST", pcSiteDomain, "/v1/admin/image-scan/"+id64(am.ID)+"/report", nil, admin); r.status != 200 {
+		t.Fatalf("report: %d %s", r.status, r.body)
+	}
+	if len(f.reporter.reports) != 1 || !strings.Contains(f.reporter.reports[0].ReporteeName, "anonymous visitor") || strings.Contains(f.reporter.reports[0].ReporteeName, ps.owner.email) {
+		t.Fatalf("report names %+v", f.reporter.reports)
+	}
+	r := a.at(t, "GET", pcSiteDomain, "/v1/admin/image-scan", nil, admin)
+	if !strings.Contains(string(r.body), `"uploader":"anonymous visitor (no account)"`) || !strings.Contains(string(r.body), `"address":"`+am.Address+`"`) {
+		t.Fatalf("admin GET lacks uploader or address: %s", r.body)
+	}
+}
+
+// A6: an existing folder for the match is never reused: the evidence step
+// fails and the file stays in place.
+func TestImageScanEvidenceFolderExists(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	f := newImageScanFixture(t, a, a.sites.disk)
+	a.sites.SetImageScan(f.scan)
+	var last int64
+	if err := a.database.QueryRow(`SELECT nextval(pg_get_serial_sequence('image_scan_matches', 'id'))`).Scan(&last); err != nil {
+		t.Fatal(err)
+	}
+	for id := last + 1; id <= last+5; id++ {
+		if err := os.Mkdir(filepath.Join(f.evidence, id64(id)), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	olive := a.newPerson(t, "olive")
+	bad := testPNG(t)
+	f.markMatch(sha256Hex(bad))
+	deployWithImages(t, a, olive, "taken", map[string][]byte{"bad.png": bad})
+	f.wait()
+	f.scan.RunOnce(context.Background())
+	uid, _ := a.userID(t, olive)
+	siteID := a.siteID(t, olive, "taken")
+	m := latestMatch(t, a, siteID)
+	if m.ID <= last || m.ID > last+5 {
+		t.Fatalf("match id %d outside the pre-created %d..%d", m.ID, last+1, last+5)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(f.evidence, id64(m.ID))); len(entries) != 0 || m.EvidencePath != "" {
+		t.Fatalf("existing folder was written to: %d entries, evidence_path %q", len(entries), m.EvidencePath)
+	}
+	if got, err := os.ReadFile(filepath.Join(a.sites.disk.SiteDir(uid, "taken"), "current", "bad.png")); err != nil || !bytes.Equal(got, bad) {
+		t.Fatalf("file not kept: %v", err)
+	}
+	if site, _ := db.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
+		t.Fatal("site not taken down")
+	}
+	if sent := f.mailer.sent(); len(sent) != 1 || !strings.Contains(sent[0], "evidence copy: FAILED") || !strings.Contains(sent[0], "file was kept") {
+		t.Fatalf("alert: %v", sent)
+	}
+}
+
+// A7: a directory symlink out of a version folder is never followed for a
+// removal.
+func TestRemoveFileEverywhereSymlinkedDir(t *testing.T) {
+	disk, err := storage.NewDiskStorage(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad := testPNG(t)
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "bad.png"), bad, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	siteDir := disk.SiteDir("u1", "s1")
+	if err := os.MkdirAll(filepath.Join(siteDir, "v2", "img"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(siteDir, "v1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(siteDir, "v1", "img")); err != nil {
+		t.Fatal(err)
+	}
+	inside := filepath.Join(siteDir, "v2", "img", "bad.png")
+	if err := os.WriteFile(inside, bad, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := disk.RemoveFileEverywhere("u1", "s1", "img/bad.png", sha256Hex(bad)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "bad.png")); err != nil {
+		t.Fatalf("the file outside the site was removed: %v", err)
+	}
+	if _, err := os.Stat(inside); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the copy inside v2 was kept: %v", err)
 	}
 }

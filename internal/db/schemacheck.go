@@ -81,7 +81,7 @@ var requiredColumns = map[string][]string{
 	// zz-sim-200-image-scan.sql: image matching (imagescan.go).
 	"image_scan_hashes":  {"sha256", "verdict", "provider", "tracking_id", "detail", "checked_at"},
 	"image_scan_queue":   {"id", "kind", "site_id", "event_id", "team_id", "version", "resource_name", "path", "writer_id", "sha256", "bytes", "attempts", "next_attempt_at", "last_error", "created_at"},
-	"image_scan_matches": {"id", "kind", "site_id", "site_name", "owner_id", "owner_handle", "owner_email", "event_id", "event_slug", "team_id", "version", "resource_name", "path", "writer_id", "sha256", "bytes", "content_type", "provider", "tracking_id", "source", "violations", "raw", "evidence_path", "uploaded_at", "detected_at", "taken_down", "alerted_at", "report_status", "report_id", "reported_at", "report_error"},
+	"image_scan_matches": {"id", "kind", "site_id", "site_name", "owner_id", "owner_handle", "owner_email", "event_id", "event_slug", "team_id", "version", "resource_name", "path", "writer_id", "sha256", "bytes", "content_type", "provider", "tracking_id", "source", "violations", "raw", "evidence_path", "uploaded_at", "detected_at", "taken_down", "alerted_at", "report_status", "report_id", "reported_at", "report_error", "uploader", "address"},
 	"net_usage_daily":    {"day", "iface", "rx_bytes", "tx_bytes"},
 	"net_counter_state":  {"iface", "boot_id", "rx_bytes", "tx_bytes", "counting_since", "sampled_at"},
 	"instance_config":    {"key", "value"},
