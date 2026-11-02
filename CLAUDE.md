@@ -20,7 +20,12 @@ https://simple-host.app and runs in production for real users.
 
 ## In the same commit as a feature change
 
-- Update `FEATURES.md` and add a line to `CHANGELOG.md` (newest first, plain language).
+- Update `FEATURES.md` and add a line to `CHANGELOG.md` (newest first, plain language). A new
+  section or bold-lead feature in `FEATURES.md` also gets an entry in
+  `internal/handler/static/features.json` (the public /features page: plain words, an example,
+  editions, status, docs links; or a `not_shown` row with a why), then
+  `python3 scripts/build-features-page.py` regenerates `features.html`. `scripts/check-features-page.py`
+  (in `check-docs-sync.sh`) fails on a missing entry or a stale page.
 - Route changed: update `internal/handler/static/openapi.yaml` (the contract), regenerate
   `openapi.json` with
   `python3 -c "import yaml,json;json.dump(yaml.safe_load(open('internal/handler/static/openapi.yaml')),open('internal/handler/static/openapi.json','w'),indent=2)"`,

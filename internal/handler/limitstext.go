@@ -238,6 +238,9 @@ var limitPhrases = []limitPhrase{
 	phrase("(SAVED_DATA_HISTORY_MAX_MB, 20 MB)", knob("SAVED_DATA_HISTORY_MAX_MB"), func(l *config.Limits) string {
 		return "(SAVED_DATA_HISTORY_MAX_MB, " + limitNum(l.SavedData.HistoryMaxMB) + " MB)"
 	}),
+	phrase("Past 20 MB of history per site,", knob("SAVED_DATA_HISTORY_MAX_MB"), func(l *config.Limits) string {
+		return "Past " + limitNum(l.SavedData.HistoryMaxMB) + " MB of history per site,"
+	}),
 	phrase("every 50 changes (SAVED_DATA_SNAPSHOT_EVERY", knob("SAVED_DATA_SNAPSHOT_EVERY"), func(l *config.Limits) string {
 		return "every " + limitNum(l.SavedData.SnapshotEvery) + " changes (SAVED_DATA_SNAPSHOT_EVERY"
 	}),
@@ -340,6 +343,8 @@ var archivePhrases = []struct {
 	{"The API rejects archives over 100 MB.", func(mb int) string { return "The API rejects archives over " + limitNum(mb) + " MB." }},
 	{"Warn if the directory exceeds 100 MB.", func(mb int) string { return "Warn if the directory exceeds " + limitNum(mb) + " MB." }},
 	{"large sites). Max 100 MB.", func(mb int) string { return "large sites). Max " + limitNum(mb) + " MB." }},
+	{"Each upload may be at most 100 MB.", func(mb int) string { return "Each upload may be at most " + limitNum(mb) + " MB." }},
+	{"A site archive is capped at 100 MB;", func(mb int) string { return "A site archive is capped at " + limitNum(mb) + " MB;" }},
 }
 
 // archiveMBInForce is the upload cap this server enforces, in MB.

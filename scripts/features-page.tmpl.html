@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Features · Simple Host</title>
+  <meta name="description" content="What Simple Host is and how its features fit together: sites and deploy, addresses, storage, sign-in, notifications, agents, the dashboard, analytics, and operations, with a detail view for every feature.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Simple Host">
+  <meta property="og:url" content="https://simple-host.app/features">
+  <meta property="og:title" content="Simple Host features">
+  <meta property="og:description" content="Every area of Simple Host and the features inside it, with what each does, a real example, which editions have it, and where to read more.">
+  <meta property="og:image" content="https://simple-host.app/og.png">
+  <!--sh:head-->
+  <style>
+    /* Tokens, base type and the header/footer live in /site.css. */
+    .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px; }
+    main { padding: 40px 0 80px; }
+    a { color: var(--accent); text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset: 3px; }
+    a:hover { color: var(--accent-hover); }
+    h1 { font-size: clamp(30px, 5vw, 42px); font-weight: 700; line-height: 1.1; letter-spacing: -.02em; margin: 0 0 14px; color: var(--text); }
+    h2 { font-size: 26px; font-weight: 700; line-height: 1.2; letter-spacing: -.015em; margin: 0 0 8px; color: var(--text); }
+    .kicker { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
+    .lede { font-size: 17px; line-height: 1.55; color: var(--text); margin: 0 0 10px; max-width: 720px; }
+    p { color: var(--text-secondary); margin: 0 0 12px; line-height: 1.6; }
+    .fine { font-size: 13px; color: var(--text-secondary); }
+    code { font-family: var(--mono); font-size: .88em; color: var(--text); background: var(--surface); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+    section { padding: 36px 0; border-bottom: 1px solid var(--border); }
+    section:last-of-type { border-bottom: 0; }
+    section.intro { padding-top: 0; }
+
+    /* The hierarchy picture: a spine with branches. */
+    .map { padding-bottom: 28px; }
+    .maphead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; margin-bottom: 18px; }
+    .maphead p { margin: 0; }
+    .linkbtn { font: inherit; font-size: 14px; color: var(--accent); background: none; border: 0; padding: 4px 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .tree { position: relative; }
+    .root { position: relative; z-index: 1; width: max-content; max-width: 100%; margin: 0 auto; text-align: center; padding: 12px 22px; border: 2px solid var(--text); border-radius: 12px; background: var(--bg); }
+    .root b { display: block; font-size: 19px; color: var(--text); letter-spacing: -.01em; }
+    .root span { display: block; font-size: 13.5px; color: var(--text-secondary); margin-top: 2px; }
+    .branches { list-style: none; position: relative; margin: 0; padding: 28px 0 0; display: grid; grid-template-columns: 1fr 1fr; column-gap: 72px; row-gap: 14px; }
+    .branches::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 36px; width: 2px; margin-left: -1px; background: var(--border-hi); }
+    .branches li { position: relative; }
+    .branches li::before { content: ""; position: absolute; top: 50%; height: 2px; width: 36px; background: var(--border-hi); }
+    .branches li:nth-child(odd)::before { right: -36px; }
+    .branches li:nth-child(even)::before { left: -36px; }
+    .branches li.hackb { grid-column: 1 / -1; justify-self: center; width: min(100%, 440px); margin-top: 14px; }
+    .branches li.hackb::before { top: -28px; left: 50%; right: auto; width: 2px; height: 28px; margin-left: -1px; background: repeating-linear-gradient(to bottom, var(--border-hi) 0 4px, transparent 4px 8px); }
+    .node { display: block; position: relative; z-index: 1; padding: 11px 14px 11px 14px; border: 1px solid var(--border-hi); border-radius: 10px; background: var(--surface); color: var(--text); text-decoration: none; min-height: 100%; box-sizing: border-box; }
+    .node:hover { border-color: var(--accent); color: var(--text); }
+    .node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .node b { display: inline; font-size: 15.5px; font-weight: 650; letter-spacing: -.005em; }
+    .node .n { display: inline-block; margin-left: 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary); background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 0 7px; line-height: 1.6; vertical-align: 1px; font-variant-numeric: tabular-nums; }
+    .node .l { display: block; font-size: 13.5px; color: var(--text-secondary); margin-top: 3px; line-height: 1.45; }
+    .hackb .node { border-style: dashed; }
+    .hackb .node .tag { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+    /* Areas and features */
+    .alias { display: block; height: 0; scroll-margin-top: 84px; }
+    section.area { scroll-margin-top: 72px; }
+    section.area:target h2 { text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 3px; text-underline-offset: 6px; }
+    .areahead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+    .areahead .up { font-size: 13px; white-space: nowrap; }
+    .feats { margin-top: 14px; border-top: 1px solid var(--border); }
+    details.feat { border-bottom: 1px solid var(--border); scroll-margin-top: 84px; }
+    details.feat:target { background: var(--row-hi); }
+    details.feat summary { list-style: none; cursor: pointer; padding: 14px 0 14px 26px; position: relative; }
+    details.feat summary::-webkit-details-marker { display: none; }
+    details.feat summary::before { content: ""; position: absolute; left: 6px; top: 22px; width: 7px; height: 7px; border-right: 2px solid var(--text-secondary); border-bottom: 2px solid var(--text-secondary); transform: rotate(-45deg); transition: transform .12s; }
+    details.feat[open] summary::before { transform: rotate(45deg); top: 20px; }
+    details.feat summary:hover .fname { color: var(--accent); }
+    details.feat summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+    .fname { font-size: 16.5px; font-weight: 600; color: var(--text); line-height: 1.35; }
+    .fline { display: block; font-family: var(--font); font-size: 14.5px; color: var(--text-secondary); margin-top: 2px; line-height: 1.5; letter-spacing: normal; }
+    .st { display: inline-block; font-size: 11.5px; font-weight: 600; line-height: 1.5; padding: 0 8px; margin-left: 8px; border-radius: 999px; border: 1px solid var(--border-hi); color: var(--text-secondary); background: transparent; vertical-align: 2px; white-space: nowrap; }
+    .st.flag { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); color: var(--accent); }
+    .st.planned { border-style: dashed; }
+    .fbody { padding: 0 0 20px 26px; }
+    .fbody p { font-size: 15.5px; }
+    .fbody p.how { color: var(--text); }
+    .fbody p.ex b { color: var(--text); font-weight: 600; }
+    dl.fm { margin: 0 0 14px; display: grid; grid-template-columns: 72px 1fr; gap: 6px 14px; }
+    dl.fm dt { font-size: 13px; font-weight: 600; color: var(--text-secondary); padding-top: 2px; }
+    dl.fm dd { margin: 0; font-size: 15px; line-height: 1.55; color: var(--text-secondary); }
+    dl.fm dd.lim strong { color: var(--text); font-weight: 600; }
+    .eds { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .eds li { font-size: 13px; line-height: 1.5; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border-hi); color: var(--text-secondary); background: var(--surface); }
+    .eds li b { font-weight: 600; color: var(--text); margin-right: 5px; }
+    .eds li.yes { border-color: color-mix(in srgb, var(--success) 60%, var(--border)); }
+    .eds li.yes b { color: var(--text); }
+    .eds li.no { opacity: .72; }
+    .eds li.partial, .eds li.planned { border-style: dashed; }
+    .ednote { font-size: 13.5px; margin: 6px 0 10px; }
+    .meta { font-size: 13.5px; color: var(--text-secondary); margin: 8px 0 0; }
+    .meta .docs a { margin-right: 10px; }
+    .meta .status b { color: var(--text); font-weight: 600; }
+
+    @media (max-width: 720px) {
+      .wrap { padding: 0 16px; }
+      main { padding: 28px 0 64px; }
+      section { padding: 28px 0; }
+      h2 { font-size: 23px; }
+      .branches { grid-template-columns: 1fr; column-gap: 0; row-gap: 10px; padding: 24px 0 0 26px; }
+      .branches::before { left: 11px; margin-left: 0; bottom: 36px; }
+      .branches li::before, .branches li:nth-child(odd)::before, .branches li:nth-child(even)::before { left: -15px; right: auto; width: 15px; }
+      .branches li.hackb { grid-column: auto; justify-self: stretch; width: auto; margin-top: 4px; }
+      .branches li.hackb::before { top: 50%; left: -15px; width: 15px; height: 2px; margin-left: 0; background: repeating-linear-gradient(to right, var(--border-hi) 0 3px, transparent 3px 6px); }
+      .root { width: auto; }
+      dl.fm { grid-template-columns: 1fr; gap: 0; }
+      dl.fm dt { padding-top: 8px; }
+      details.feat summary { padding-left: 22px; }
+      details.feat summary::before { left: 3px; }
+      .fbody { padding-left: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+  <main class="wrap">
+    <section class="intro">
+      <div class="kicker">Features</div>
+      <h1>What Simple Host is, and how its parts fit together</h1>
+<!--features:intro-->
+    </section>
+
+    <section class="map" aria-labelledby="map-title">
+      <div class="maphead">
+        <p class="lede" id="map-title">The areas. Pick one to see the features inside it; open a feature for how it works, an example, which editions have it, and where to read more.</p>
+        <button class="linkbtn" id="expand-all" type="button" hidden>Show every detail</button>
+      </div>
+      <div class="tree">
+<!--features:tree-->
+      </div>
+    </section>
+
+<!--features:areas-->
+  </main>
+
+  <!--sh:footer-->
+
+  <script>
+  (function () {
+    var all = document.querySelectorAll('details.feat');
+    var quiet = false;
+    function openFor(id) {
+      if (!id) return;
+      var el = document.getElementById(id);
+      if (!el) return;
+      var d = el.closest ? el.closest('details') : null;
+      if (d && !d.open) { quiet = true; d.open = true; quiet = false; }
+    }
+    function fromHash() {
+      var h = decodeURIComponent(location.hash.slice(1));
+      if (!h) return;
+      openFor(h);
+      var el = document.getElementById(h);
+      if (el) el.scrollIntoView({ block: 'start' });
+    }
+    Array.prototype.forEach.call(all, function (d) {
+      d.addEventListener('toggle', function () {
+        if (quiet || !d.open || !d.id) return;
+        if (history.replaceState) history.replaceState(null, '', '#' + d.id);
+      });
+    });
+    window.addEventListener('hashchange', fromHash);
+    fromHash();
+    var btn = document.getElementById('expand-all');
+    if (btn) {
+      btn.hidden = false;
+      btn.addEventListener('click', function () {
+        var any = Array.prototype.some.call(all, function (d) { return !d.open; });
+        quiet = true;
+        Array.prototype.forEach.call(all, function (d) { d.open = any; });
+        quiet = false;
+        btn.textContent = any ? 'Collapse every detail' : 'Show every detail';
+      });
+    }
+  })();
+  </script>
+</body>
+</html>

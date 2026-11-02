@@ -222,11 +222,12 @@ func hackDocsHTML(body []byte) []byte {
 func hackPersonalPresentationHTML(name string, body []byte) []byte {
 	switch name {
 	case "features.html":
-		start := bytes.Index(body, []byte(`<div class="feat" id="your-home-page">`))
+		// The page is generated from features.json; each feature is one <details>.
+		start := bytes.Index(body, []byte(`<details class="feat" id="your-home-page">`))
 		if start >= 0 {
-			end := bytes.Index(body[start:], []byte("</div>"))
+			end := bytes.Index(body[start:], []byte("</details>"))
 			if end >= 0 {
-				return append(append([]byte{}, body[:start]...), body[start+end+len("</div>"):]...)
+				return append(append([]byte{}, body[:start]...), body[start+end+len("</details>"):]...)
 			}
 		}
 	case "architecture.html":

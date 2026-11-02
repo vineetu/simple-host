@@ -194,8 +194,9 @@ for f in internal/handler/static/*; do
   grep -q "simple-host\.app" "$f" 2>/dev/null || continue
   grep -qxF "$base" <<<"$listed" && continue
   # Pages served through serveStaticPage are templates, not agent-facing docs;
-  # they are allowed to name the canonical host in prose.
-  case "$base" in admin.html|analytics.html|notfound.html|showcase.html|index.html|features.html|pricing.html|architecture.html|privacy.html|terms.html|support.html|report.html|docs.html|enterprise.html|enterprise-brief.html|enterprise-architecture.html|hackathons.html|hack-home.html|hack-story.html|host-story.html|hack-app.html|hack-get-started.html|setup.html|costs.html) continue ;; esac
+  # they are allowed to name the canonical host in prose. features.json is the
+  # data behind features.html (scripts/build-features-page.py), same rule.
+  case "$base" in features.json|admin.html|analytics.html|notfound.html|showcase.html|index.html|features.html|pricing.html|architecture.html|privacy.html|terms.html|support.html|report.html|docs.html|enterprise.html|enterprise-brief.html|enterprise-architecture.html|hackathons.html|hack-home.html|hack-story.html|host-story.html|hack-app.html|hack-get-started.html|setup.html|costs.html) continue ;; esac
   missing="$missing $base"
 done
 if [ -n "$missing" ]; then
@@ -344,6 +345,9 @@ fi
 
 # ── PARITY.md covers every FEATURES.md section ──
 bash scripts/check-parity.sh || fail=1
+
+# ── the public /features page (features.json) covers every FEATURES.md section and bold lead ──
+python3 scripts/check-features-page.py || fail=1
 
 echo
 if [ "$fail" -ne 0 ]; then
