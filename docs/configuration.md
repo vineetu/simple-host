@@ -352,8 +352,8 @@ another setting.
 | `PHOTODNA_AUTO_REPORT` | `off` | `on`: every match is reported through the Report operation as soon as it is recorded. `off`: the admin Moderation tab offers a Report button per match. |
 | `IMAGE_SCAN_REPORT_ORG` | none | Organisation name on reports. A report is refused without it. |
 | `IMAGE_SCAN_REPORT_NAME` | none | Reporter's name on reports. |
-| `IMAGE_SCAN_REPORT_EMAIL` | `support@simple-host.app` (the support contact) | Reporter's email on reports. |
-| `IMAGE_SCAN_ALERT_EMAIL` | `support@simple-host.app` (the support contact) | Where each match alert is emailed. |
+| `IMAGE_SCAN_REPORT_EMAIL` | `the support contact` (`support@simple-host.app` here) | Reporter's email on reports. |
+| `IMAGE_SCAN_ALERT_EMAIL` | `the support contact` (`support@simple-host.app` here) | Where each match alert is emailed. |
 | `IMAGE_SCAN_EVIDENCE_DIR` | `<DATA_DIR>/.evidence` | Folder for the quarantined copy and the record of each match (mode 0700, under no served path). Must be writable by the service (`ReadWritePaths` on a hardened unit). |
 | `GITHUB_OAUTH_CLIENT_ID` | none | An optional second visitor sign-in provider (with the secret). |
 | `GITHUB_OAUTH_CLIENT_SECRET` | none | Its client secret. |

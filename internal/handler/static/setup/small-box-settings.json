@@ -2074,7 +2074,7 @@
       "security_sensitive": true,
       "required": false,
       "basic": false,
-      "small_box": true
+      "small_box": false
     },
     {
       "name": "PHOTODNA_API_KEY_FILE",
@@ -2085,7 +2085,7 @@
       "security_sensitive": true,
       "required": false,
       "basic": false,
-      "small_box": true
+      "small_box": false
     },
     {
       "name": "PHOTODNA_MATCH_URL",
@@ -2096,7 +2096,7 @@
       "security_sensitive": false,
       "required": false,
       "basic": false,
-      "small_box": true
+      "small_box": false
     },
     {
       "name": "PHOTODNA_REPORT_URL",
@@ -2107,7 +2107,7 @@
       "security_sensitive": false,
       "required": false,
       "basic": false,
-      "small_box": true
+      "small_box": false
     },
     {
       "name": "PHOTODNA_AUTO_REPORT",
@@ -2122,7 +2122,7 @@
       "security_sensitive": false,
       "required": false,
       "basic": false,
-      "small_box": true
+      "small_box": false
     },
     {
       "name": "IMAGE_SCAN_REPORT_ORG",
@@ -2133,7 +2133,7 @@
       "security_sensitive": false,
       "required": false,
       "basic": false,
-      "small_box": true
+      "small_box": false
     },
     {
       "name": "IMAGE_SCAN_REPORT_NAME",
@@ -2144,7 +2144,7 @@
       "security_sensitive": false,
       "required": false,
       "basic": false,
-      "small_box": true
+      "small_box": false
     },
     {
       "name": "IMAGE_SCAN_REPORT_EMAIL",
@@ -2155,7 +2155,7 @@
       "security_sensitive": false,
       "required": false,
       "basic": false,
-      "small_box": true
+      "small_box": false
     },
     {
       "name": "IMAGE_SCAN_ALERT_EMAIL",
@@ -2166,7 +2166,7 @@
       "security_sensitive": false,
       "required": false,
       "basic": false,
-      "small_box": true
+      "small_box": false
     },
     {
       "name": "IMAGE_SCAN_EVIDENCE_DIR",
@@ -2177,7 +2177,7 @@
       "security_sensitive": false,
       "required": false,
       "basic": false,
-      "small_box": true
+      "small_box": false
     },
     {
       "name": "WRITE_AUTH_MODE",
