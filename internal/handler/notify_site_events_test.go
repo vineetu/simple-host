@@ -252,6 +252,22 @@ func TestNotifySiteEventsUnsubscribedFree(t *testing.T) {
 	}
 }
 
+// A record write on a site whose subscriptions name only site events stores
+// nothing and spends no budget.
+func TestNotifyRecordEventsUnsubscribedFree(t *testing.T) {
+	s, x := notificationFixture(t)
+	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"site.deployed"}, "secret": notifyTestSecret}, 201)
+	engine := s.a.sites.notifyEngine()
+	engine.minute = newRateLimiter(1, 0)
+	s.a.sites.storeNotification(storageCall{siteID: s.sid}, "record.added", map[string]any{"visitor": s.aliceID})
+	if n := siteEventCount(t, s, "record.added"); n != 0 {
+		t.Fatalf("unsubscribed record event stored: %d", n)
+	}
+	if !engine.minute.allow(s.sid) {
+		t.Fatal("unsubscribed record event spent the minute budget")
+	}
+}
+
 // Two simultaneous refused page loads by one person store one event: the
 // dedupe check runs under the site's row lock.
 func TestNotifySiteEventsDedupeUnderLock(t *testing.T) {

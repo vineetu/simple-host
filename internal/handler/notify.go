@@ -104,7 +104,7 @@ func (h *SiteHandler) emitNotification(c storageCall, name string, data map[stri
 func (h *SiteHandler) storeNotification(c storageCall, name string, data map[string]any) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	yes, err := db.HasNotifications(ctx, h.database, c.siteID)
+	yes, err := db.HasNotificationsFor(ctx, h.database, c.siteID, name)
 	if err != nil {
 		log.Printf("notifications: subscription lookup failed for site %s", c.siteID)
 		return
