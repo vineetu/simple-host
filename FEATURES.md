@@ -1191,49 +1191,50 @@ listing already uses) — the ChatGPT app's submitted, pinned tool list
 tool keeps its existing availability on any connection with the role for it;
 flags-off and non-UI listings are byte for byte what they are today.
 
-The view is hand-assembled at build time from the real screens (`internal/
+The view is built at generation time from the real screens (`internal/
 handler/static/hack/{ui.js, screens/_judge-util.js, screens/{public-judge,
-judge-queue,judge-scoring,judge-rubric}.js}`), not bundled with esbuild: the plan's
-first choice, a pinned `go run github.com/evanw/esbuild/...`, needs to fetch and
-run a third-party module, which this box's build sandbox refuses. Instead
-`internal/mcp/apps/bundlegen` folds each file into its own closure (a minimal,
-hand-written CommonJS: a local `exports` object per module, each `import`
-rewritten to a local alias pointing at the dependency's already-built
-`exports`), concatenated into one `<script>`; `internal/mcp/apps/gentool` (`go
-generate ./internal/mcp/apps/...`) writes the checked-in result
-(`hack-judge-bundle.js`, plus `kit.css` inlined with its one `@font-face` rule
-stripped as `hack-judge-kit.css`), and `TestHackJudgeBundleFresh` rebuilds it
-in the test binary and fails if the checked-in copy has drifted; it also now
-fails generation loudly on any default export, `export * from`, or multiline
-import it does not support (`checkSupported`, Codex review, SIM-344), and the
-import-line replacement is anchored to a full line, not a bare substring
-(Grok security review), so a future screen edit cannot silently mis-bundle.
-Screens are reused unmodified except four named, documented patches applied
-only to the bundled copy (`bundlegen/patches.go`): `judge-scoring.js`'s
-`history.replaceState` is wrapped in `try/catch` (a sandboxed iframe's opaque
-origin can reject it; harmless either way); `public-judge.js`'s `codeFromPath`
-(which reads the real page's own `/judge/<code>` URL) instead reads a global
-the glue script sets, since this frame is never navigated to that address;
-accepting the invite calls `window.__hackJudgeJoined(slug)` instead of
-`location.assign('/e/<slug>/judge')`, which a `sandbox="allow-scripts"` frame
-cannot do, and would otherwise drop the judge out of the app they just joined
-through (Codex review, SIM-344 P1) — the hand-off loads that event and
-switches the frame to its queue view, in-frame; and the accept form's submit
-button is wired to its own `click` instead of the form's `submit` event,
-since a sandboxed frame with no `allow-forms` blocks native form submission
-before that event ever reaches a listener — confirmed live when "accept the
-invite" hung with `hack_join_judge` never called at all — the same fix
-`passcode.js` already carries for the same reason. `nav.js` and `tour.js` are
-left out (per the reuse plan) and answered by two small hand-written
-stand-ins (`hack-judge-stubs.js`): `href()` returns an in-frame `#v=<view>`
-the glue script's own click handler intercepts (and, since `judge-queue.js`'s
-"Score this team" link and `public-judge.js`'s "Open it" link are both built
-by hand rather than through `href()`, that same handler also recognizes and
-resolves the slug from the judge app's literal `/e/<slug>/judge[?s=...]` path
-shape, rather than falling back to whatever view already happened to be
-showing — Codex review, SIM-344 P2); `startTour` is a no-op, since the guided
-walkthrough is a full-page, first-visit feature this small frame does not
-have. A small frame-level Back control (`hack-judge-view.js`'s own tiny view
+judge-queue,judge-scoring,judge-rubric}.js}`) with a pinned `esbuild` (its Go
+API, no Node, no network at build time: `internal/mcp/apps/bundlegen` calls
+`github.com/evanw/esbuild` from `internal/mcp/apps/entry/judge.js`, a small
+hand-written entry module that imports the screens it needs and sets
+`window.__HACKJ`). `internal/mcp/apps/gentool` (`go generate ./internal/mcp/
+apps/...`) writes the checked-in result (`hack-judge-bundle.js`, plus
+`kit.css` inlined with its one `@font-face` rule stripped as
+`hack-judge-kit.css`), and `TestHackJudgeBundleFresh` rebuilds it in the test
+binary and fails if the checked-in copy has drifted. Screens are reused
+unmodified except for calls to a small platform adapter
+(`internal/handler/static/hack/platform.js` on the website,
+`internal/mcp/apps/frame/platform.js` here) where the real browser
+environment does not hold inside this frame — ordinary source in both
+screen and adapter, not a generation-time patch: `judge-scoring.js`'s
+`history.replaceState` (via `platform.replaceUrl`) is wrapped in `try/catch`
+on this side (a sandboxed iframe's opaque origin can reject it; harmless
+either way); `public-judge.js`'s `judgeCode()` (which reads the real page's
+own `/judge/<code>` URL on the website) reads a global the glue script sets
+here, since this frame is never navigated to that address; accepting the
+invite calls `platform.judgeJoined(slug)`, which here calls
+`window.__hackJudgeJoined(slug)` instead of the website's
+`location.assign('/e/<slug>/judge')` — a `sandbox="allow-scripts"` frame
+cannot do that, and would otherwise drop the judge out of the app they just
+joined through (Codex review, SIM-344 P1) — the hand-off loads that event
+and switches the frame to its queue view, in-frame; and the accept form's
+`platform.onSubmit` wires the submit button's own `click` here instead of
+the form's `submit` event, since a sandboxed frame with no `allow-forms`
+blocks native form submission before that event ever reaches a listener —
+confirmed live when "accept the invite" hung with `hack_join_judge` never
+called at all — the same fix `passcode.js` already carries for the same
+reason. `nav.js` and `tour.js` are swapped for this frame's own
+`internal/mcp/apps/frame/{judge-nav.js,tour.js}` by an esbuild `OnResolve`
+plugin (`bundlegen`'s `framePlugin`), not a global: `href()` returns an
+in-frame `#v=<view>` the glue script's own click handler intercepts (and,
+since `judge-queue.js`'s "Score this team" link and `public-judge.js`'s
+"Open it" link are both built by hand rather than through `href()`, that
+same handler also recognizes and resolves the slug from the judge app's
+literal `/e/<slug>/judge[?s=...]` path shape, rather than falling back to
+whatever view already happened to be showing — Codex review, SIM-344 P2);
+`startTour` is a no-op, since the guided walkthrough is a full-page,
+first-visit feature this small frame does not have. A small frame-level Back
+control (`hack-judge-view.js`'s own tiny view
 history, not a screen change) appears on the rubric view, which the reused
 screen has no return link for on its own, and returns to the same team's
 scoring (Codex review, SIM-344 P3). Every event-backed view refetches through
@@ -1360,9 +1361,8 @@ requirement (`TestHackShowJudgeRequiresJudgeOrOrganiserRole`) and the event
 field whitelist, CSP and nonce freshness, the route-table-to-tool-call check,
 a check that `hack-judge-view.js`'s route table's body keys are actually in
 each tool's own schema (`TestHackJudgeViewRouteBodyKeysMatchToolSchema` — the
-regression test for the `hack_join_judge`/`answers` bug below), the
-`bundlegen` guard against unsupported constructs, and the bundle freshness
-check; `TestSubmissionToolsMatchChatGPTListing` (unchanged) keeps pinning the
+regression test for the `hack_join_judge`/`answers` bug below), and the
+bundle freshness check; `TestSubmissionToolsMatchChatGPTListing` (unchanged) keeps pinning the
 ChatGPT app's own 58-tool list.
 `internal/handler/hack_apps_judge_test.go` proves the same tool and resource
 against the real stack (real Postgres, real OAuth, a team with an entry whose
@@ -1415,38 +1415,52 @@ role on that event is not `organiser` (a platform admin inspecting without
 real membership passes too, since `loadMember` already sets that role for
 them), with no event data in the refusal.
 
-The view is hand-assembled the same way as the judge app, by
-`internal/mcp/apps/bundlegen` (`GenerateOrganiserJS`/`internal/mcp/apps/
-gentool`), from `internal/handler/static/hack/{ui.js, screens/_orgA-util.js,
-screens/{organiser-overview,organiser-people,organiser-judging}.js}` —
+The view is built the same way as the judge app, by `internal/mcp/apps/
+bundlegen` (`GenerateOrganiserJS`/`internal/mcp/apps/gentool`), from
+`internal/handler/static/hack/{ui.js, schedule.js, screens/_orgA-util.js,
+screens/{organiser-overview,organiser-people,organiser-judging}.js}` via its
+own entry module (`internal/mcp/apps/entry/organiser.js`) —
 `_orgB-util.js` (teams/entries) is not needed yet. `TestHackOrganiserBundleFresh`
 rebuilds `hack-organiser-bundle.js`/`hack-organiser-kit.css` in the test
-binary and fails if the checked-in copies have drifted. Five patches apply
-only to the bundled copy (`bundlegen/patches.go`): `organiser-people.js`'s
-two `location.hash === '#signup'` reads (the sandboxed frame's own address
-is never set by a real navigation, so Overview's "Sign-up questions" link —
-built as `href(...) + '#signup'`, not through `href()`'s own return value —
-could never actually open that section) become `window.__hackOrgSignupOpen`,
-set by the glue script's click handler only for that one link and cleared
-once the one `render()` it triggers finishes; and `organiser-judging.js`'s
-two `form.addEventListener('submit', ...)` handlers (the Unlock-reason form
-and the add-a-conflict form) become the submit button's own `click`
-listener, the same sandboxed-frame-has-no-`allow-forms` fix the judge app's
-invite-accept form already carries.
+binary and fails if the checked-in copies have drifted. The same platform
+adapter the judge app uses (`platform.js`, website and frame
+implementations) covers two more call sites here, ordinary source in both:
+`organiser-people.js`'s two `location.hash === '#signup'` reads (the
+sandboxed frame's own address is never set by a real navigation, so
+Overview's "Sign-up questions" link — built as `href(...) + '#signup'`, not
+through `href()`'s own return value — could never actually open that
+section) become `platform.wantsSection('signup')`, which here reads
+`window.__hackOrgSignupOpen`, set by the glue script's click handler only
+for that one link and cleared once the one `render()` it triggers finishes;
+and `organiser-judging.js`'s two `form.addEventListener('submit', ...)`
+handlers (the Unlock-reason form and the add-a-conflict form) go through
+`platform.onSubmit`, which wires the submit button's own `click` listener
+here, the same sandboxed-frame-has-no-`allow-forms` fix the judge app's
+invite-accept form already carries. Two more Codex-review fixes (SIM-344
+phase 2, finding 4) live directly in the real screens, not behind the
+adapter, since no platform difference is involved: `organiser-people.js`
+and `organiser-judging.js` now both check `ctx.alive()` after their own
+async load, before painting, so a render superseded by a newer navigation
+can't go on to replace `main` with a now-stale screen — the same guard
+`organiser-overview.js` already had.
 
-`hack-organiser-stubs.js` answers `nav.js`'s `href(role, slug, section)`
-differently depending on the section: `overview`, `people` and `judging`
-switch in-frame (`#v=<section>`, the same click-handler convention as the
-judge app); anything else nav.js's organiser section lists (`event-page`,
-`announcements`, `teams`, `entries`, `results`, `settings`, the assignment
-grid — none built yet) returns an absolute URL at the real website instead
-(`__ORIGIN__`, substituted by `hack_apps.go`'s `readHackApp` from `https://
-<APIHost>` before the page is served), which the glue script's click
-handler opens through `ui/open-link` rather than attempt a navigation this
-sandboxed frame has no permission for — the same handling applies to
-`organiser-judging.js`'s own hand-built `/e/<slug>/judge` link ("Score as a
-judge") and every plain `https://` link these screens build. `startTour` is
-a no-op, same as the judge app.
+`nav.js` and `tour.js` are swapped for this frame's own
+`internal/mcp/apps/frame/{organiser-nav.js,tour.js}` by the same esbuild
+`OnResolve` plugin the judge app uses. `organiser-nav.js` answers `nav.js`'s
+`href(role, slug, section)` differently depending on the section:
+`overview`, `people` and `judging` switch in-frame (`#v=<section>`, the same
+click-handler convention as the judge app); anything else nav.js's organiser
+section lists (`event-page`, `announcements`, `teams`, `entries`, `results`,
+`settings`, the assignment grid — none built yet) returns an absolute URL at
+the real website instead (`__ORIGIN__`, substituted by `hack_apps.go`'s
+`readHackApp` from `https://<APIHost>` before the page is served —
+`bundlegen.GenerateOrganiserJS` fails generation if that token isn't present
+exactly once), which the glue script's click handler opens through
+`ui/open-link` rather than attempt a navigation this sandboxed frame has no
+permission for — the same handling applies to `organiser-judging.js`'s own
+hand-built `/e/<slug>/judge` link ("Score as a judge") and every plain
+`https://` link these screens build. `startTour` is a no-op, same as the
+judge app.
 
 `hack_show_organiser`'s own model-visible result carries the same kind of
 fixed whitelist the judge app's does (slug, title, stage, scoring\_open,
