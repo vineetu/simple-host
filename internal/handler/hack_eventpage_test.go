@@ -1256,6 +1256,10 @@ func TestHackEventPageApplicationsOffUnchanged(t *testing.T) {
 				t.Fatal("test fixture must not set ApplyURL")
 			}
 			body := renderHackEvent(t, p).Body.String()
+			// Only the server-rendered card counts: the page's inline script
+			// carries "Apply to join" copy for a signed-in member whose
+			// application is pending, which never renders for this fixture.
+			body = regexp.MustCompile(`(?s)<script\b.*?</script>`).ReplaceAllString(body, "")
 			if strings.Contains(body, "Apply to join") || strings.Contains(body, ">Apply<") {
 				t.Errorf("applications-off card still mentions Apply: %s", body)
 			}
