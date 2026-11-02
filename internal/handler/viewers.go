@@ -489,6 +489,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 	}
 	setVisitorSessionCookie(w, r, hex.EncodeToString(id), visitorCookieMaxAge())
 	log.Printf("viewers_sign_in site_id=%s user_id=%s", row.SiteID, user.ID)
+	h.noteOwnerVisitorSignIn(r, row.SiteID, user.ID)
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }

@@ -261,6 +261,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 	if first {
 		h.emitSiteNotification(sess.SiteID, "visitor.signed_up", map[string]any{"visitor": sess.UserID}, 0)
 	}
+	h.noteOwnerVisitorSignIn(r, sess.SiteID, sess.UserID)
 	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), visitorCookieMaxAge())
 	setVisitorNonceCookie(w, r, "", -1)
 	w.Header().Set("Cache-Control", "no-store")

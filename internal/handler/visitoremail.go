@@ -139,6 +139,7 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 	if first {
 		h.emitSiteNotification(siteID, "visitor.signed_up", map[string]any{"visitor": user.ID}, 0)
 	}
+	h.noteOwnerVisitorSignIn(r, siteID, user.ID)
 	setVisitorSessionCookie(w, r, hex.EncodeToString(id), visitorCookieMaxAge())
 	w.Header().Set("Cache-Control", "private, no-store")
 	writeJSON(w, http.StatusOK, h.visitorSignedInResponse(r, idle, user.Username, "email"))

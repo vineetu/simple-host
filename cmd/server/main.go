@@ -484,6 +484,9 @@ func main() {
 			WithRetentionDays(cfg.Limits.AnalyticsRetention).
 			WithItemCaps(cfg.Limits.AnalyticsPagesDay, cfg.Limits.AnalyticsRefsDay).
 			Start(5 * time.Minute)
+		// The owner's own visits are told apart by marks the handlers write
+		// (ownermarks.go); an install without analytics writes none.
+		siteHandler.SetOwnerMarks(analytics.NewOwnerMarks(db, cfg.AdminAPIKey, cfg.AnalyticsSalt))
 		log.Printf("analytics ingester enabled: %s", cfg.AnalyticsLog)
 	}
 	siteHandler.SetTrafficLog(cfg.AnalyticsLog != "")

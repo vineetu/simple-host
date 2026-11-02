@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/analytics"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -87,6 +88,10 @@ type SiteHandler struct {
 	// trafficOn: the analytics log is read, so traffic figures exist.
 	netUsage  *netusage.Sampler
 	trafficOn bool
+	// ownerMarks notes the addresses an account is seen signed in from, so
+	// the owner's own visits are filed apart from People (ownermarks.go);
+	// nil when the analytics log is off.
+	ownerMarks *analytics.OwnerMarks
 
 	// uploadLimiter throttles create/update uploads per client IP; stateLimiter
 	// throttles per-site state writes (Origin-gated reads; writes also go
@@ -260,6 +265,9 @@ type siteResponse struct {
 	DomainStatus  string    `json:"domain_status,omitempty"`
 	// Only in the site list: compact content from the latest uploaded index.
 	Summary *siteSummaryFields `json:"summary,omitempty"`
+	// Only in the site list, on every item: views by people over the rolling
+	// last 7 and 30 days, the owner's own visits excluded (db.SiteViews).
+	Views *db.SiteViews `json:"views,omitempty"`
 	// Only in the site list: what is wrong with a domain that is not active
 	// yet, the DNS record it needs, and when an unproven binding lapses.
 	DomainLastError string     `json:"domain_last_error,omitempty"`
@@ -2570,6 +2578,7 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "admin only"})
 		return
 	}
+	h.noteOwnerBrowser(r, user)
 
 	var sites []db.Site
 	var err error
@@ -2615,9 +2624,16 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	}
+	views, err := db.PersonViewsBySite(r.Context(), h.database, flagsFor, allAccounts)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	response := make([]siteResponse, 0, len(sites))
 	for _, site := range sites {
 		resp := h.toSiteResponse(site, "")
+		v := views[site.ID] // zero when the site had no people views
+		resp.Views = &v
 		footprint, err := h.disk.SiteFootprint(site.UserID, site.Name)
 		if err != nil {
 			writeJSON(w, 500, errorResponse{Error: "could not measure website files"})

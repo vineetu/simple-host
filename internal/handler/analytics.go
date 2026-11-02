@@ -21,6 +21,7 @@ func (h *SiteHandler) getSiteAnalytics(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
+	h.noteOwnerBrowser(r, user)
 
 	site, ok := h.analyticsSite(w, r, user)
 	if !ok {
@@ -60,6 +61,7 @@ func (h *SiteHandler) getSiteGeoAnalytics(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
+	h.noteOwnerBrowser(r, user)
 
 	site, ok := h.analyticsSite(w, r, user)
 	if !ok {
@@ -102,6 +104,7 @@ func (h *SiteHandler) getSiteTopAnalytics(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
+	h.noteOwnerBrowser(r, user)
 	site, ok := h.analyticsSite(w, r, user)
 	if !ok {
 		return
@@ -185,6 +188,7 @@ func (h *SiteHandler) getAnalyticsSummary(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
+	h.noteOwnerBrowser(r, user)
 
 	days, ok := analyticsDays(w, r)
 	if !ok {

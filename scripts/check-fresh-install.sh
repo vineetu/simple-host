@@ -87,6 +87,7 @@ run "visitor sessions"      "SELECT id, user_id, site_id, host FROM visitor_sess
 run "oauth identities"      "SELECT provider, provider_user_id FROM oauth_identities WHERE provider_user_id='x'"
 run "site analytics"        "SELECT class, SUM(views) FROM site_view_hourly WHERE site_id='$NIL' GROUP BY 1"
 run "unique visitors"       "SELECT COUNT(DISTINCT ip_hash) FROM site_visitor_hourly WHERE site_id='$NIL'"
+run "owner visit marks"     "SELECT user_id, ip_hash, last_seen FROM owner_visitor_marks WHERE last_seen >= now() - interval '30 days'"
 run "pre-classifier history" "SELECT day, views FROM site_view_daily WHERE site_id='$NIL'"
 run "geo views"             "SELECT country, class, SUM(views) FROM site_geo_daily WHERE site_id='$NIL' GROUP BY 1,2"
 run "top pages"             "SELECT path, SUM(views) FROM site_page_daily WHERE site_id='$NIL' GROUP BY path ORDER BY 2 DESC LIMIT 20"

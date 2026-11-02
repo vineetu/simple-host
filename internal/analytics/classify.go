@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Class splits traffic three ways so "how many people came" has an honest answer.
+// Class splits traffic four ways so "how many people came" has an honest answer.
 type Class string
 
 const (
@@ -17,6 +17,11 @@ const (
 	// ClassInfra is our own automation: loopback health probes and the
 	// third-party uptime checkers pointed at these sites.
 	ClassInfra Class = "infra"
+	// ClassOwner is the site owner's own visits. It is decided by a mark
+	// rather than by the request (see ownermarks.go): a hit that Classify
+	// files as a person is refiled as the owner when its address was marked
+	// for the account that owns the site. Classify itself never returns it.
+	ClassOwner Class = "owner"
 )
 
 // infraUA matches monitoring that exists because we put it there. nginx-directory

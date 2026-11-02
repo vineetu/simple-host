@@ -1,6 +1,8 @@
 // Package analytics periodically ingests an nginx analytics access log into
 // per-site hourly view/visitor aggregates, split by traffic class (person / bot
-// / infra). Disabled unless ANALYTICS_LOG is set.
+// / infra / owner; owner is a person's hit from an address the site's owner
+// was seen signed in from, see ownermarks.go). Disabled unless ANALYTICS_LOG
+// is set.
 package analytics
 
 import (
@@ -198,6 +200,10 @@ type attrMaps struct {
 	nameToOldest map[string]string // name -> oldest site_id
 	domainToID   map[string]string // lower(custom_domain) -> site_id
 	families     map[string]familyAttr
+	siteOwner    map[string]string // site_id -> user_id
+	// ownerMarks: user_id+"|"+hex(ip_hash) for every mark newer than
+	// OwnerMarkDays (owner_visitor_marks; ownermarks.go).
+	ownerMarks map[string]struct{}
 }
 
 // familyAttr is a verified address family: its owner and site-name prefix.
@@ -584,7 +590,7 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 	i.pruneOld(ctx)
 
 	if n := len(viewDelta); n > 0 || len(lines) > 0 {
-		var people, bots, infra int64
+		var people, bots, infra, owner int64
 		for k, v := range viewDelta {
 			switch k.class {
 			case ClassPerson:
@@ -593,10 +599,12 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 				bots += v
 			case ClassInfra:
 				infra += v
+			case ClassOwner:
+				owner += v
 			}
 		}
-		log.Printf("analytics ingest: lines=%d buckets=%d people=%d bots=%d infra=%d offset=%d inode=%d",
-			len(lines), n, people, bots, infra, offset, inode)
+		log.Printf("analytics ingest: lines=%d buckets=%d people=%d bots=%d infra=%d owner=%d offset=%d inode=%d",
+			len(lines), n, people, bots, infra, owner, offset, inode)
 	}
 	return nil
 }
@@ -610,6 +618,10 @@ func (i *Ingester) pruneOld(ctx context.Context) {
 	if _, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_visitor_hourly WHERE hour < $1::timestamptz`, cutoff); err != nil {
 		log.Printf("analytics prune visitors: %v", err)
+	}
+	if _, err := i.db.ExecContext(ctx,
+		`DELETE FROM owner_visitor_marks WHERE last_seen < now() - ($1 * interval '1 day')`, OwnerMarkDays); err != nil {
+		log.Printf("analytics prune owner marks: %v", err)
 	}
 	if _, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_geo_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
@@ -661,6 +673,8 @@ func (i *Ingester) buildAttrMaps(ctx context.Context) (*attrMaps, error) {
 		nameToOldest: map[string]string{},
 		domainToID:   map[string]string{},
 		families:     map[string]familyAttr{},
+		siteOwner:    map[string]string{},
+		ownerMarks:   map[string]struct{}{},
 	}
 
 	// handle -> user_id
@@ -697,6 +711,7 @@ func (i *Ingester) buildAttrMaps(ctx context.Context) (*attrMaps, error) {
 			return nil, err
 		}
 		m.userNameToID[userID+"/"+name] = id
+		m.siteOwner[id] = userID
 		if custom.Valid && custom.String != "" {
 			m.domainToID[strings.ToLower(custom.String)] = id
 		}
@@ -723,6 +738,27 @@ func (i *Ingester) buildAttrMaps(ctx context.Context) (*attrMaps, error) {
 		m.families[strings.ToLower(suffix)] = fa
 	}
 	if err := frows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Owner marks still in their window: the owner's own hits on their sites
+	// are filed as ClassOwner (viewHit).
+	mrows, err := i.db.QueryContext(ctx, `
+		SELECT user_id, ip_hash FROM owner_visitor_marks WHERE last_seen >= now() - ($1 * interval '1 day')
+	`, OwnerMarkDays)
+	if err != nil {
+		return nil, err
+	}
+	defer mrows.Close()
+	for mrows.Next() {
+		var userID string
+		var hash []byte
+		if err := mrows.Scan(&userID, &hash); err != nil {
+			return nil, err
+		}
+		m.ownerMarks[userID+"|"+hex.EncodeToString(hash)] = struct{}{}
+	}
+	if err := mrows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -1146,13 +1182,24 @@ func (i *Ingester) viewHit(l logLine, maps *attrMaps) (hit, bool) {
 		ref = ""
 	}
 
+	ipHash := hashIP(i.salt, remoteAddr)
+	class := Classify(remoteAddr, ua, uri)
+	// A person's hit from an address the site's owner was seen signed in
+	// from is the owner's own visit. Bots stay bots, and the same address on
+	// another account's site stays a person.
+	if class == ClassPerson {
+		if _, marked := maps.ownerMarks[maps.siteOwner[siteID]+"|"+hex.EncodeToString(ipHash)]; marked {
+			class = ClassOwner
+		}
+	}
+
 	return hit{
 		key: bucketKey{
 			siteID: siteID,
 			hour:   ts.Truncate(time.Hour).Format(time.RFC3339),
-			class:  Classify(remoteAddr, ua, uri),
+			class:  class,
 		},
-		ipHash:   hashIP(i.salt, remoteAddr),
+		ipHash:   ipHash,
 		ip:       remoteAddr,
 		path:     pagePath(sitePath),
 		referrer: ref,

@@ -16,9 +16,10 @@ import (
 // version, the last hour a real person (analytics class 'person') viewed it,
 // its newest collection entry, the last change to its saved data or settings
 // (sites.updated_at: state writes, restore, offline, visibility), and when its
-// owner last chose "Keep it" or restored it. A visit by the owner cannot be
-// told apart from anyone else's (visitor addresses are only kept salted and
-// hashed), so any person's visit counts.
+// owner last chose "Keep it" or restored it. Since 2026-11-02 the owner's own
+// visits from a marked device are filed as class 'owner' (analytics.go,
+// ClassOwner) and still count as activity here, because a site its owner
+// keeps opening is in use.
 //
 // Never considered: sites in Recently deleted, taken down, owned by a
 // suspended or admin account, with the Keep flag, with a custom domain or a
@@ -78,7 +79,7 @@ const idleLastActivity = `GREATEST(
 	COALESCE(s.idle_kept_at, s.created_at),
 	COALESCE((SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id), s.created_at),
 	COALESCE((SELECT max(c.created_at) FROM collection_items c WHERE c.site_id = s.id), s.created_at),
-	COALESCE((SELECT max(h.hour) + interval '1 hour' FROM site_view_hourly h WHERE h.site_id = s.id AND h.class = 'person' AND h.views > 0), s.created_at))`
+	COALESCE((SELECT max(h.hour) + interval '1 hour' FROM site_view_hourly h WHERE h.site_id = s.id AND h.class IN ('person','owner') AND h.views > 0), s.created_at))`
 
 // idleEligible is the WHERE clause every stage shares: the exemptions (s is
 // the sites row, u its owner). $p is the exempt handles (text[]) and $p+1 the

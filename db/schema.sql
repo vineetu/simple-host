@@ -620,6 +620,21 @@ CREATE TABLE IF NOT EXISTS site_visitor_hourly (
 );
 CREATE INDEX IF NOT EXISTS site_visitor_hourly_hour_idx ON site_visitor_hourly (hour);
 
+-- Owner marks (SIM-151, 2026-11-02). Mirrors db/migrations/zu-sim-151-owner-visitor-marks.sql.
+--
+-- One row per (account, address) the account was seen signed in from: the
+-- owner's own browser on the apex, or a visitor sign-in on a site the account
+-- owns. The ingester files a person's hit on that account's sites from a
+-- marked address as class 'owner' for 30 days after last_seen, so People
+-- excludes the owner's own visits. ip_hash is the same salted, truncated hash
+-- as site_visitor_hourly.ip_hash; no address is stored.
+CREATE TABLE IF NOT EXISTS owner_visitor_marks (
+  user_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ip_hash   BYTEA NOT NULL,            -- same salt and truncation as site_visitor_hourly.ip_hash
+  last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, ip_hash)
+);
+
 -- Per-country daily traffic. Mirrors db/migrations/analytics-geo.sql.
 --
 -- Country is resolved on this box from ip_country_ranges; no visitor IP is ever

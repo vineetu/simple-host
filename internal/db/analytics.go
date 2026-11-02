@@ -13,6 +13,10 @@ const (
 	ClassPerson = "person"
 	ClassBot    = "bot"
 	ClassInfra  = "infra"
+	// ClassOwner is the site owner's own visits: a person's hit from an
+	// address the owner was seen signed in from in the last 30 days
+	// (owner_visitor_marks; internal/analytics/ownermarks.go). Not people.
+	ClassOwner = "owner"
 
 	// ClassUnknown is never written by the ingester. It carries the pre-v2
 	// aggregates in site_view_daily, which were recorded before traffic was
@@ -34,6 +38,8 @@ type Split struct {
 	Person Counts `json:"person"`
 	Bot    Counts `json:"bot"`
 	Infra  Counts `json:"infra"`
+	// Owner is the owner's own visits (ClassOwner); not people.
+	Owner Counts `json:"owner"`
 	// Unknown is non-zero only for days predating the classifier.
 	Unknown Counts `json:"unknown"`
 }
@@ -55,6 +61,9 @@ func (s *Split) add(class string, views, visitors int64) {
 	case ClassInfra:
 		s.Infra.Views += views
 		s.Infra.Visitors += visitors
+	case ClassOwner:
+		s.Owner.Views += views
+		s.Owner.Visitors += visitors
 	case ClassUnknown:
 		s.Unknown.Views += views
 		s.Unknown.Visitors += visitors
@@ -616,6 +625,45 @@ func AdminSiteViews(ctx context.Context, database *sql.DB, since time.Time) (map
 			return nil, err
 		}
 		out[id] = n
+	}
+	return out, rows.Err()
+}
+
+// SiteViews is the light per-site count the site list carries: views by
+// people (class 'person') only, over the last 7 x 24 and 30 x 24 hours. The
+// owner's own visits (ClassOwner), bots and infrastructure are excluded.
+type SiteViews struct {
+	People7Days  int64 `json:"people_7_days"`
+	People30Days int64 `json:"people_30_days"`
+}
+
+// PersonViewsBySite returns SiteViews keyed by site_id for every site owned
+// by userID (or every site when allSites is set; userID may then be ""), in
+// one grouped query over site_view_hourly. People only: class 'person';
+// 'owner' is excluded. Sites with no people views in the last 30 days have
+// no entry.
+func PersonViewsBySite(ctx context.Context, database *sql.DB, userID string, allSites bool) (map[string]SiteViews, error) {
+	now := time.Now().UTC()
+	rows, err := database.QueryContext(ctx, `
+		SELECT v.site_id,
+		       COALESCE(SUM(v.views) FILTER (WHERE v.hour >= $2), 0),
+		       SUM(v.views)
+		FROM site_view_hourly v JOIN sites s ON s.id = v.site_id
+		WHERE ($4 OR s.user_id::text = $1) AND v.class = 'person' AND v.hour >= $3
+		GROUP BY v.site_id
+	`, userID, now.AddDate(0, 0, -7), now.AddDate(0, 0, -30), allSites)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]SiteViews{}
+	for rows.Next() {
+		var id string
+		var v SiteViews
+		if err := rows.Scan(&id, &v.People7Days, &v.People30Days); err != nil {
+			return nil, err
+		}
+		out[id] = v
 	}
 	return out, rows.Err()
 }
