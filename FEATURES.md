@@ -1743,7 +1743,7 @@ files a hit that would be `person` as class `owner` when the site belongs to a m
 the address matches that account's mark; a bot stays `bot`, and another account's site seen from
 the same address stays `person`. People counts (`person`) leave `owner` out everywhere they mean
 people; idle-site cleanup still counts `owner` views as activity, because a site its owner keeps
-opening is in use. Every item of `GET /v1/sites` carries `views {people_7_days, people_30_days}`
+opening is in use. Every item of `GET /v1/sites` carries `views {people_7_days, people_30_days}` (on installs that read the analytics log; left out elsewhere)
 (people only, rolling windows of the last 7 and 30 days, counted in whole hours from the top of the oldest hour), and every analytics split
 carries `owner {views, visitors}` next to the other classes. The connector says it in text only,
 with no new structured fields: `list_sites` and `get_site` state the 7- and 30-day figures, and

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,6 +40,11 @@ func TestListSitesViews(t *testing.T) {
 	add(db.ClassOwner, 2, 40)
 	add(db.ClassBot, 2, 60)
 
+	// Without the analytics log nothing was measured, so views is left out.
+	if r := a.at(t, "GET", "simple-host.test", "/v1/sites", nil, map[string]string{"X-API-Key": olive.key}); r.status != 200 || strings.Contains(string(r.body), `"views"`) {
+		t.Fatalf("views without the analytics log: %d %s", r.status, r.body)
+	}
+	a.sites.SetTrafficLog(true)
 	r := a.at(t, "GET", "simple-host.test", "/v1/sites", nil, map[string]string{"X-API-Key": olive.key})
 	if r.status != http.StatusOK {
 		t.Fatalf("list: %d %s", r.status, r.body)

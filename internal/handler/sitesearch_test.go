@@ -101,7 +101,7 @@ func TestListSitesSearch(t *testing.T) {
 				t.Errorf("empty response=%s", r.body)
 			}
 			if tt.query == "" {
-				// Rebuild the old response projection, allowing only the new summary and views.
+				// Rebuild the old response projection, allowing only the new summary.
 				loaded, err := db.ListSitesByUser(context.Background(), a.database, userID)
 				if err != nil {
 					t.Fatal(err)
@@ -118,7 +118,6 @@ func TestListSitesSearch(t *testing.T) {
 						t.Fatal(err)
 					}
 					resp.FileBytes = footprint.Total()
-					resp.Views = &db.SiteViews{} // no traffic in this fixture
 					want = append(want, resp)
 				}
 				for i := range sites {
