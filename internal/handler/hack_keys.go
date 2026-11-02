@@ -19,6 +19,7 @@ import (
 
 func (h *HackHandler) registerTeamSites(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("PUT /v1/hack/events/{slug}/site", wrap(h.putTeamSiteArchive))
+	mux.Handle("GET /v1/hack/events/{slug}/site", wrap(h.getTeamSiteStatus))
 	mux.Handle("GET /v1/hack/events/{slug}/key", wrap(h.getTeamKey))
 	mux.Handle("POST /v1/hack/events/{slug}/key", wrap(h.makeTeamKey))
 	mux.Handle("DELETE /v1/hack/events/{slug}/key", wrap(h.deleteTeamKey))

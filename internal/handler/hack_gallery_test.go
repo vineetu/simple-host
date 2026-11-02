@@ -562,22 +562,28 @@ func assertEventPageCSP(t *testing.T, h http.Header) {
 	}
 }
 
+// galleryCardHTML extracts each gallery card's markup. The card's own
+// element became a <div> in slice 3 (build-plan §4.6): the clickable site
+// link is now a nested <a class="site-link">, since the card also carries
+// the tool tags and a "See result" link outside that anchor (an <a> cannot
+// nest another <a>). No gallery card nests a further <div>, so the first
+// "</div>" after the opener still closes exactly this card.
 func galleryCardHTML(body string) []string {
 	var out []string
 	rest := body
-	const open = `<a class="site-card"`
+	const open = `<div class="site-card"`
 	for {
 		i := strings.Index(rest, open)
 		if i < 0 {
 			return out
 		}
 		rest = rest[i:]
-		j := strings.Index(rest, "</a>")
+		j := strings.Index(rest, "</div>")
 		if j < 0 {
 			return out
 		}
 		out = append(out, rest[:j])
-		rest = rest[j+4:]
+		rest = rest[j+6:]
 	}
 }
 

@@ -115,7 +115,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		}
 		gg := make([]any, 0, len(cards))
 		for _, c := range hackGalleryCards(ev.Slug, cards, h.sites.TeamSiteURL) {
-			item := map[string]any{"title": c.Title, "tagline": c.Tagline, "team": c.Team, "url": c.URL}
+			item := map[string]any{"title": c.Title, "tagline": c.Tagline, "team": c.Team, "url": c.URL, "tools": nonNilStrings(c.Tools)}
 			if c.Shot != "" {
 				item["screenshot_url"] = strings.TrimRight(h.publicBaseURL, "/") + "/e/" + ev.Slug + c.Shot
 			}
@@ -130,6 +130,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	if res.Published {
 		if view := hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks); view != nil {
+			live := h.liveResultSites(r.Context(), ev)
 			rr := make([]any, 0, len(view.Rows))
 			for _, row := range view.Rows {
 				item := map[string]any{"team_name": row.TeamName, "track_name": row.TrackName, "track_prize": row.TrackPrize, "track_winner": row.TrackWinner}
@@ -138,6 +139,11 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 				}
 				if ev.PublicScores {
 					item["score"], item["score_mode"] = row.Score, row.ScoreMode
+				}
+				if row.Card != nil {
+					card := *row.Card
+					card.SiteURL = live[row.TeamID]
+					item["entry"] = card
 				}
 				rr = append(rr, item)
 			}

@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	db "github.com/vsriram/simple-host/internal/db"
 )
 
 // hackEventPage is the public event page at <event>.simple-hack.app/. The
@@ -85,6 +87,60 @@ type hackResultsRow struct {
 	Overall   bool
 	Score     string
 	ScoreMode string
+	// Card is this team's public summary card (build-plan §4.6), nil for a
+	// row from a snapshot published before slice 3, or for a team whose
+	// snapshot entry was somehow never written. hackResultsFromSnapshot
+	// fills it in only for a row it already decided to emit, so a winners-
+	// only view never carries a card for a team it does not otherwise show.
+	Card *hackResultCard
+	// Shot is the template-ready absolute screenshot URL (hack_wire.go's
+	// HackEventPage), set only when the gallery is public and this team's
+	// site is live right now -- the same freshness gate the Team sites
+	// section already applies, reused here instead of trusting the
+	// publish-time has_screenshot forever.
+	Shot string
+}
+
+// hackResultCard is one ranked team's public entry summary (build-plan
+// §4.6), round-tripped through JSON from the snapshot's per-row "entry"
+// field (see resultsSnapshotJSON/resultsEntryCards in hack_judging.go) so
+// its field tags double as the wire shape for GET .../results, GET
+// .../public and the MCP reads that proxy them. SiteURL is re-derived at
+// render time on the HTML page (HackEventPage, hack_wire.go) from the same
+// live gallery-cards query the Team sites section already runs, so a site
+// taken down after publish drops its link without a republish; the public
+// JSON routes do the same through liveResultSites (hack_judging.go).
+type hackResultCard struct {
+	Title         string         `json:"title"`
+	Tagline       string         `json:"tagline"`
+	Problem       string         `json:"problem"`
+	Audience      string         `json:"audience"`
+	Tools         []string       `json:"tools"`
+	Maturity      string         `json:"maturity"`
+	Track         *db.EventTrack `json:"track"`
+	VideoURL      string         `json:"video_url"`
+	VideoHost     string         `json:"video_host"`
+	CodeURL       string         `json:"code_url"`
+	CodeHost      string         `json:"code_host"`
+	SiteURL       string         `json:"site_url"`
+	HasScreenshot bool           `json:"has_screenshot"`
+}
+
+// hackMaturityLabel is the plain word for what works today, kept in step by
+// hand with ui.js's MATURITY table (build-plan §6 point "Maturity wording
+// must match what slice 1 uses elsewhere") since this is a server-rendered
+// page with no script of its own to share that table with.
+func hackMaturityLabel(m string) string {
+	switch m {
+	case "working":
+		return "Demo-ready"
+	case "partial":
+		return "Partly working"
+	case "concept":
+		return "Concept"
+	default:
+		return ""
+	}
 }
 
 // hackResultsView is nil when nothing is published yet.
@@ -95,10 +151,19 @@ type hackResultsView struct {
 
 // hackGalleryCard is one project on the public event page. Team is set only
 // when it differs from Title. Shot and URL are built from a validated slug.
+// Tools and ResultAnchor are set only once results are published (build-plan
+// §4.6: "hackGalleryCard gains Tools []string and ResultAnchor ... for teams
+// shown in the results").
 type hackGalleryCard struct {
 	Title, Tagline, Team string
 	Shot, URL            string
 	Initial              string // the title's first letter, for a card with no screenshot
+	Tools                []string
+	ResultAnchor         string // "#result-<team id>" when this team has a visible result card, else ""
+	// TeamID is never rendered by the template; HackEventPage (hack_wire.go)
+	// uses it to match a gallery card to its results row when filling in
+	// ResultAnchor.
+	TeamID string
 }
 
 var hackEventTmpl = template.Must(template.New("hack-event.html").ParseFS(staticFiles, "static/hack-event.html"))
@@ -145,6 +210,14 @@ type hackResultsBlockView struct {
 	AnyRanked       bool
 	ShowScoreHeader bool
 	Rows            []hackResultsRowView
+	// HasCards is true once any row carries a public summary card
+	// (build-plan §4.6). A snapshot is built in one pass, so in practice
+	// this is all-or-nothing across the rows: every ranked team gets a card
+	// together (a publish after this slice shipped), or none do (a
+	// snapshot published before it, never republished). The template
+	// switches its whole rendering on this one flag rather than per row, so
+	// a pre-slice-3 snapshot keeps the exact markup it always had.
+	HasCards bool
 }
 
 type hackResultsRowView struct {
@@ -159,6 +232,16 @@ type hackResultsRowView struct {
 	// keep its full, untrimmed precision -- the two can't be the same
 	// string any more now that display trims and JSON doesn't.
 	Score string
+	// ShotLetter and MaturityLabel are template-only strings the Go
+	// template itself cannot compute (hackEventTmpl registers no custom
+	// funcs, so every bit of formatting happens here first, same as Score
+	// above). Set only for a row with a Card. ShotLetter is the fallback
+	// initials shown in the shot box when there is no Shot image -- Avatar
+	// already carries this for a winners-only row, but a full-ranking row's
+	// Avatar is only ever set for a track winner (buildHackResultsBlock), so
+	// a plain ranked row with a card still needs its own fallback letter.
+	ShotLetter    string
+	MaturityLabel string
 }
 
 type hackEventView struct {
@@ -715,6 +798,18 @@ func buildHackResultsBlock(res *hackResultsView) *hackResultsBlockView {
 			}
 		} else {
 			rv.TrackPill = trackPill
+		}
+		if row.Card != nil {
+			rv.ShotLetter = rv.Avatar
+			if rv.ShotLetter == "" {
+				name := row.Card.Title
+				if name == "" {
+					name = row.TeamName
+				}
+				rv.ShotLetter = hackInitials(name)
+			}
+			rv.MaturityLabel = hackMaturityLabel(row.Card.Maturity)
+			out.HasCards = true
 		}
 		out.Rows = append(out.Rows, rv)
 	}

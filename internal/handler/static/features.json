@@ -4973,7 +4973,7 @@
      "name": "Entry card, rules and submit",
      "line": "Every team hands in the same short summary card, organisers decide what a complete entry needs, and a team submits when it is ready.",
      "who": "Teams finishing their entry before the deadline, and organisers who want every entry in the same shape for judges.",
-     "how": "The card asks for the problem, the solution in one line, who it is for, the track, tools and AI as tags, and what works today, plus show-your-work evidence: a video, the team website, a code link or a screenshot. Organisers pick a preset (AI build, Coding, Ideas and design) or set each line Required, Optional or Off, and the evidence lines also One of; before saving tighter rules they see which teams it affects. Saving a draft never checks anything. Submit does, on the server, the same way on the website and in the AI apps. Home shows a four-step checklist and a countdown to the team's own deadline. At the deadline a complete draft is submitted automatically; an incomplete one is still judged, marked Incomplete, and the organiser can exclude it by hand.",
+     "how": "The card asks for the problem, the solution in one line, who it is for, the track, tools and AI as tags, and what works today, plus show-your-work evidence: a video, the team website, a code link or a screenshot. Organisers pick a preset (AI build, Coding, Ideas and design) or set each line Required, Optional or Off, and the evidence lines also One of; before saving tighter rules they see which teams it affects. Saving a draft never checks anything. Submit does, on the server, the same way on the website and in the AI apps. Home shows a four-step checklist and a countdown to the team's own deadline. At the deadline a complete draft is submitted automatically; an incomplete one is still judged, marked Incomplete, and the organiser can exclude it by hand. 24 hours and 1 hour before the deadline, teams whose entry isn't submitted get a reminder email naming what is missing. Published results show each shown team's card on the public page.",
      "example": "An organiser picks the Coding preset, so a code link becomes required. A team fills its card, adds its repo and a video, presses Submit and sees the checklist on Home tick over.",
      "where": "Entry and Home for teams, Entries and the entry detail for organisers, in the Simple Hack app; hack_submit_entry and hack_set_entry_rules in the AI apps.",
      "limits": "Rules can change only until entries close. Tighter rules never un-submit an entry. A team that never started an entry is not judged.",
@@ -4987,7 +4987,9 @@
      "status": "live",
      "status_note": "",
      "covers": [
-      "Entry summary card, rules and submit (audit items 4 and 5, 2026-11-02)."
+      "Entry summary card, rules and submit (audit items 4 and 5, 2026-11-02).",
+      "Entry deadline reminders (entries slice 3, 2026-11-02).",
+      "Results show what each team built (entries slice 3, 2026-11-02)."
      ]
     },
     {
@@ -5100,7 +5102,8 @@
       }
      ],
      "covers": [
-      "Archive cleanup (M4)."
+      "Archive cleanup (M4).",
+      "Guided team-site publishing (entries slice 3, 2026-11-02)."
      ],
      "evidence": "FEATURES.md §15 L1806-1814 (zip uploads, versions, latest five), M2 status (team sites, take-down), 'Archive cleanup' (30 and 14 days), Env row MAX_ARCHIVE_MB=25 and KEEP_VERSIONS=2, 2026-10-27 review (zip limiter, freezes), 'Stage and entry fixes' (freeze at Judging), 'Personal connector parity' (select team then generic site tools). hackathons.html L96-101 (addresses, 25 MB, two versions, 1,000,000-byte allowance). PARITY rows 'Hack event websites and icon', 'Hosted hackathon platform'; webhooks from v0.8.11 release note."
     },

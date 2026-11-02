@@ -119,6 +119,8 @@ var hackColumns = map[string][]string{
 	"event_announcements":           {"id", "event_id", "title", "body", "created_at"},
 	"event_announcement_deliveries": {"announcement_id", "user_id", "recipient", "sent_at", "attempted_at"},
 	"event_entry_receipts":          {"event_id", "team_id", "user_id", "recipient", "sent_at", "attempted_at"},
+	// zx-hack-entry-reminders.sql
+	"event_entry_reminders": {"event_id", "team_id", "kind", "deadline", "sent_at"},
 	"events": {"signup_questions", "approval_required", "id", "slug", "account_id", "created_by", "title", "stage", "organiser_name", "organisation",
 		"contact_email", "purpose", "expected_participants", "tagline", "website_mode", "icon_media_type", "icon_bytes", "accent_color", "about", "rules", "prizes", "coc_text",
 		"time_zone", "starts_at", "ends_at", "team_size_max", "join_code", "judge_code", "submission_deadline",

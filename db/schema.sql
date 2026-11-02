@@ -1698,7 +1698,7 @@ CREATE TABLE IF NOT EXISTS event_notices (
   user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   kind         TEXT NOT NULL CHECK (kind IN ('join_request','invite','request_answered','application_new',
                  'application_decided','site_taken_down','site_restored','deadline_changed','team_admin',
-                 'team_locked','team_removed')),
+                 'team_locked','team_removed','entry_reminder')),
   team_id      UUID,
   ref_id       UUID,
   detail       TEXT NOT NULL DEFAULT '',
@@ -1718,6 +1718,18 @@ CREATE INDEX IF NOT EXISTS event_notices_created_idx ON event_notices (created_a
 CREATE INDEX IF NOT EXISTS event_notices_event_idx ON event_notices (event_id);
 -- A database that ran an earlier draft of this file kept the foreign key.
 ALTER TABLE event_notices DROP CONSTRAINT IF EXISTS event_notices_event_id_fkey;
+
+-- Entry deadline reminders (zx-hack-entry-reminders.sql): one row per team per
+-- reminder (24h, 1h), for the effective deadline it was sent for.
+CREATE TABLE IF NOT EXISTS event_entry_reminders (
+  event_id  UUID NOT NULL,
+  team_id   UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  kind      TEXT NOT NULL CHECK (kind IN ('24h','1h')),
+  deadline  TIMESTAMPTZ NOT NULL,
+  sent_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, team_id, kind)
+);
+CREATE INDEX IF NOT EXISTS event_entry_reminders_team_idx ON event_entry_reminders (team_id);
 -- "Email me when something waits on me" on Account. On unless turned off.
 ALTER TABLE hack_account_preferences ADD COLUMN IF NOT EXISTS email_updates BOOLEAN NOT NULL DEFAULT TRUE;
 

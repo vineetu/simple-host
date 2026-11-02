@@ -339,6 +339,7 @@ func (h *HackHandler) StartContentDelivery(ctx context.Context) {
 		defer ticker.Stop()
 		for {
 			h.deliverContentMail(ctx)
+			h.queueEntryReminders(ctx)
 			h.deliverNoticeMail(ctx)
 			select {
 			case <-ctx.Done():

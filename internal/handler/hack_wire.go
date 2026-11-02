@@ -152,15 +152,41 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			} else if res.Published {
 				p.Results = hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks)
 				if p.Results != nil {
+					galleryPublic := hackGalleryPublic(ev, ready)
 					cards, err := db.ListGalleryCards(r.Context(), database, ev.ID, ev.AccountID)
 					if err != nil {
 						log.Printf("event page %s: result sites: %v", ev.Slug, err)
 					}
+					resultTeamIDs := make(map[string]bool, len(p.Results.Rows))
 					for i := range p.Results.Rows {
+						resultTeamIDs[p.Results.Rows[i].TeamID] = true
+						// Default to "no live site" every render: a card's
+						// SiteURL/Shot reflect this exact query, run fresh on
+						// every page load, not whatever the snapshot captured
+						// at publish time -- a team taken down or whose site
+						// went offline since publish drops its link and shot
+						// here without needing a republish (build-plan §4.6
+						// render-time filtering, extended to the card).
+						if p.Results.Rows[i].Card != nil {
+							p.Results.Rows[i].Card.SiteURL = ""
+						}
 						for _, card := range cards {
-							if card.ID == p.Results.Rows[i].TeamID {
-								p.Results.Rows[i].URL = hackGalleryLink(teamSiteURL, ev.Slug, card.Slug)
+							if card.ID != p.Results.Rows[i].TeamID {
+								continue
 							}
+							link := hackGalleryLink(teamSiteURL, ev.Slug, card.Slug)
+							p.Results.Rows[i].URL = link
+							if p.Results.Rows[i].Card != nil {
+								p.Results.Rows[i].Card.SiteURL = link
+								if galleryPublic && card.HasScreenshot {
+									p.Results.Rows[i].Shot = strings.TrimRight(appURL, "/") + "/e/" + ev.Slug + "/screenshots/" + card.Slug
+								}
+							}
+						}
+					}
+					for i := range p.Gallery {
+						if resultTeamIDs[p.Gallery[i].TeamID] {
+							p.Gallery[i].ResultAnchor = "#result-" + p.Gallery[i].TeamID
 						}
 					}
 				}
@@ -216,6 +242,21 @@ func hackResultsFromSnapshot(res db.EventResultsRow, publicScores, publicRanks b
 			}
 			view.ScoreMode, _ = row["deciding_mode"].(string)
 		}
+		// build-plan §4.6: a card is copied only into a row this function
+		// already decided to emit, so a winners-only view never carries a
+		// card for a team it does not otherwise show, even though the
+		// snapshot holds every ranked team's card. A snapshot published
+		// before slice 3 has no "entry" key on any row, which round-trips to
+		// Card staying nil here -- "old snapshots must keep rendering, no
+		// card".
+		if raw, ok := row["entry"]; ok && raw != nil {
+			if b, merr := json.Marshal(raw); merr == nil {
+				var c hackResultCard
+				if uerr := json.Unmarshal(b, &c); uerr == nil {
+					view.Card = &c
+				}
+			}
+		}
 		v.Rows = append(v.Rows, view)
 	}
 	if !publicRanks {
@@ -235,7 +276,7 @@ func hackGalleryCards(eventSlug string, cards []db.GalleryCard, teamSiteURL func
 		if title == "" {
 			title = c.Name
 		}
-		card := hackGalleryCard{Title: title, Tagline: c.Tagline, URL: link}
+		card := hackGalleryCard{Title: title, Tagline: c.Tagline, URL: link, Tools: c.Tools, TeamID: c.ID}
 		if rs := []rune(strings.TrimSpace(title)); len(rs) > 0 {
 			card.Initial = strings.ToUpper(string(rs[0]))
 		}

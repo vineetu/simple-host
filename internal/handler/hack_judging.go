@@ -1693,7 +1693,13 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	snapshot := resultsSnapshotJSON(results)
+	cards, err := h.resultsEntryCards(r.Context(), tx, a.event, results)
+	if err != nil {
+		log.Printf("hack: publish %s: cards: %v", a.event.Slug, err)
+		writeInternal(w)
+		return
+	}
+	snapshot := resultsSnapshotJSON(results, cards)
 	body, err := json.Marshal(snapshot)
 	if err != nil {
 		writeInternal(w)
@@ -1718,7 +1724,17 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"results": snapshot, "full_ranking": full.FullRanking})
 }
 
-func resultsSnapshotJSON(results []teamResult) []map[string]any {
+// resultsSnapshotJSON is the array stored as the published results snapshot
+// and returned by POST .../results/publish (build-plan §4.6). Each ranked
+// team's row also carries its public summary card under "entry" — the same
+// card every ranked team gets, keyed implicitly by the row's own "team_id"
+// rather than a separate top-level map, so the snapshot stays the plain
+// array every existing reader (getPublicResults, getMyResults,
+// hackResultsFromSnapshot) already unmarshals with `[]map[string]any`. A
+// snapshot published before this slice simply has no "entry" key on any
+// row, which every reader already treats as "no card" (judgement call;
+// documented in the slice 3 report).
+func resultsSnapshotJSON(results []teamResult, cards map[string]map[string]any) []map[string]any {
 	out := make([]map[string]any, 0, len(results))
 	for _, res := range results {
 		var total, rank any
@@ -1728,7 +1744,7 @@ func resultsSnapshotJSON(results []teamResult) []map[string]any {
 		if res.Rank != nil {
 			rank = *res.Rank
 		}
-		out = append(out, map[string]any{
+		row := map[string]any{
 			"team_id":          res.TeamID,
 			"team_name":        res.TeamName,
 			"total":            total,
@@ -1742,9 +1758,95 @@ func resultsSnapshotJSON(results []teamResult) []map[string]any {
 			"track":            res.Track,
 			"track_rank":       res.TrackRank,
 			"track_winner":     res.TrackWinner,
-		})
+		}
+		if card, ok := cards[res.TeamID]; ok {
+			row["entry"] = card
+		}
+		out = append(out, row)
 	}
 	return out
+}
+
+// resultsEntryCards builds every ranked team's public summary card for a
+// results snapshot (build-plan §4.6): title, tagline, problem, audience,
+// tools, maturity, track, the video link and its host, the code link
+// (omitted -- left "" -- when the event's code rule is Off), the site link
+// (only when the team's site is currently live and not taken down; a
+// passcode or named-viewer site still gets its public URL, since the
+// visitor just meets the gate there, never a preview link) and whether a
+// screenshot is stored. Only ranked teams need a card: an excluded or never-
+// scored entry has no Rank and so is never looked up here, which is how
+// "excluded entries get no card" falls out for free -- EntryJudgeableSQL
+// already kept them out of every judge's eligible set, so they carry no
+// score and computeResultsWithOptions never ranks them.
+func (h *HackHandler) resultsEntryCards(ctx context.Context, q db.Querier, ev db.Event, results []teamResult) (map[string]map[string]any, error) {
+	ranked := false
+	for _, res := range results {
+		if res.Rank != nil {
+			ranked = true
+			break
+		}
+	}
+	if !ranked {
+		return nil, nil
+	}
+	teams, err := db.ListTeamsWithMembers(ctx, q, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	slugByID := make(map[string]string, len(teams))
+	for _, t := range teams {
+		slugByID[t.ID] = t.Slug
+	}
+	entries, err := db.ListEventEntries(ctx, q, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	entryByTeam := make(map[string]db.EventEntry, len(entries))
+	for _, e := range entries {
+		entryByTeam[e.TeamID] = e
+	}
+	tl, err := h.loadTeamList(ctx, ev)
+	if err != nil {
+		return nil, err
+	}
+	fields := loadEntryRules(ev.EntryRules)
+	codeOff := fields["code_url"] == "off"
+	out := make(map[string]map[string]any, len(results))
+	for _, res := range results {
+		if res.Rank == nil {
+			continue
+		}
+		e := entryByTeam[res.TeamID]
+		slug := slugByID[res.TeamID]
+		site := tl.site(slug)
+		st := tl.states[res.TeamID]
+		live := site != nil && site.ActiveVersion > 0 && !site.Suspended()
+		takenDown := st.SiteTakenDown || st.EventTakenDown
+		siteURL := ""
+		if live && !takenDown {
+			siteURL = h.teamSiteURL(ev.Slug, slug)
+		}
+		videoHost, codeHost := "", ""
+		if e.VideoURL != "" {
+			videoHost = hackURLHost(e.VideoURL)
+		}
+		codeURL := e.CodeURL
+		if codeOff {
+			codeURL = ""
+		}
+		if codeURL != "" {
+			codeHost = hackURLHost(codeURL)
+		}
+		out[res.TeamID] = map[string]any{
+			"title": e.Title, "tagline": e.Tagline, "problem": e.Problem, "audience": e.Audience,
+			"tools": nonNilStrings(e.Tools), "maturity": e.Maturity, "track": res.Track,
+			"video_url": e.VideoURL, "video_host": videoHost,
+			"code_url": codeURL, "code_host": codeHost,
+			"site_url": siteURL, "has_screenshot": e.HasScreenshot,
+		}
+	}
+	return out, nil
 }
 
 func (h *HackHandler) patchResults(w http.ResponseWriter, r *http.Request) {
@@ -1830,6 +1932,7 @@ func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	live := h.liveResultSites(r.Context(), ev)
 	if !res.FullRanking {
 		winners := make([]map[string]any, 0, 1)
 		for _, row := range rows {
@@ -1840,6 +1943,9 @@ func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 					item["total"] = row["total"]
 					item["raw_total"] = row["raw_total"]
 					item["normalised_total"] = row["normalised_total"]
+				}
+				if row["entry"] != nil {
+					item["entry"] = publicResultEntry(row["entry"], row["team_id"], live)
 				}
 				winners = append(winners, item)
 			}
@@ -1870,6 +1976,9 @@ func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 			item["total"] = row["total"]
 			item["raw_total"] = row["raw_total"]
 			item["normalised_total"] = row["normalised_total"]
+		}
+		if row["entry"] != nil {
+			item["entry"] = publicResultEntry(row["entry"], row["team_id"], live)
 		}
 		ranking = append(ranking, item)
 	}
@@ -1929,6 +2038,25 @@ func (h *HackHandler) getMyResults(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out := map[string]any{"published": true, "comments": comments, "ranked_teams": ranked}
+	// shownPublicly and entry (build-plan §9 point 5, participant-results.js
+	// "Your entry as the public sees it"): the same visibility the public
+	// page and /results already apply -- full ranking shows every ranked
+	// row, winners-only shows only rank 1 or a track winner, and an
+	// unranked (unscored or excluded) team is never shown either way. The
+	// team always sees its own rank/score above regardless; this flag is
+	// only about what a STRANGER sees, so the screen can say so plainly.
+	shownPublicly := false
+	if mine != nil && mine["rank"] != nil {
+		rank, _ := mine["rank"].(float64)
+		trackWinner, _ := mine["track_winner"].(bool)
+		shownPublicly = res.FullRanking || rank == 1 || trackWinner
+	}
+	out["shown_publicly"] = shownPublicly
+	if shownPublicly && mine != nil {
+		out["entry"] = mine["entry"]
+	} else {
+		out["entry"] = nil
+	}
 	if mine != nil {
 		out["total"] = mine["total"]
 		out["raw_total"] = mine["raw_total"]
@@ -2124,4 +2252,42 @@ func (h *HackHandler) scoringStage(ctx context.Context, ev db.Event) bool {
 	}
 	demo, err := db.GetDemoEvent(ctx, h.database, h.demoSlug)
 	return err == nil && demo.ID == ev.ID
+}
+
+// liveResultSites maps team id to the public address of every team site that
+// is live right now (the gallery's own query), so the public result routes
+// (/results, /public) drop a card's site link once a site is taken down or
+// goes offline after publish, without a republish -- as the event page does.
+func (h *HackHandler) liveResultSites(ctx context.Context, ev db.Event) map[string]string {
+	out := map[string]string{}
+	if h.sites == nil {
+		return out
+	}
+	cards, err := db.ListGalleryCards(ctx, h.database, ev.ID, ev.AccountID)
+	if err != nil {
+		log.Printf("hack: result sites %s: %v", ev.Slug, err)
+		return out
+	}
+	for _, c := range cards {
+		if link := hackGalleryLink(h.sites.TeamSiteURL, ev.Slug, c.Slug); link != "" {
+			out[c.ID] = link
+		}
+	}
+	return out
+}
+
+// publicResultEntry is a snapshot row's card for a public route: a copy with
+// site_url set from the live sites, never the snapshot's own.
+func publicResultEntry(entry any, teamID any, live map[string]string) any {
+	m, ok := entry.(map[string]any)
+	if !ok {
+		return nil
+	}
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	id, _ := teamID.(string)
+	out["site_url"] = live[id]
+	return out
 }

@@ -100,6 +100,56 @@ export async function render(ctx) {
     return `<tr>${hasRank ? `<td>${r.rank != null ? esc(r.rank) : ''}</td>` : ''}<td>${esc(r.team_name)}${mineRow ? ' <span class="pill accent">Your team</span>' : ''}</td>${hasScores ? `<td class="num">${rScore != null ? esc(scoreText(rScore)) : ''}</td>` : ''}</tr>`
   }).join('')}</tbody></table></div>` : ''
 
+  // "Your entry as the public sees it" (atlas participant-results decision,
+  // 2026-11-02): the same snapshot card the public page would show for this
+  // team, so a team never learns from a friend whether or how it is shown.
+  // shown_publicly comes straight from the server (getMyResults,
+  // hack_judging.go), applying the exact same winners-only/full-ranking
+  // test the public page and /results already use -- this screen does not
+  // re-derive it from winnersOnly/amWinner above, which only gate the
+  // *standings table* a stranger would never see anyway.
+  const entryCardHTML = mine.shown_publicly
+    ? `<h2 class="section-title">Your entry as the public sees it</h2><div id="res-entry-card"></div>`
+    : `<p class="note">${mine.rank != null ? 'Only the winners are shown publicly — your entry itself is not public.' : "Your entry isn't part of the published results yet."}</p>`
+
   body.innerHTML = `<div class="card"><h2>${esc(headline)}</h2>${scoreLine ? `<p class="sub">${esc(scoreLine)}</p>` : ''}${trackLine ? `<p>${trackLine}</p>` : ''}${comments.length ? `<h2>Judges' anonymous comments</h2>${comments.map(c => `<p>“${esc(c)}”</p>`).join('')}` : ''}<a class="btn" href="/e/${encodeURIComponent(ev.slug)}">See it on the event page</a></div>`
-    + table
+    + entryCardHTML + table
+
+  if (mine.shown_publicly && mine.entry) {
+    const slot = body.querySelector('#res-entry-card')
+    if (slot) {
+      const card = ui.entryCard({
+        title: mine.entry.title,
+        team_name: me.team && me.team.name,
+        track: mine.entry.track,
+        problem: mine.entry.problem,
+        tagline: mine.entry.tagline,
+        audience: mine.entry.audience,
+        tools: mine.entry.tools,
+        maturity: mine.entry.maturity
+      }, { compact: true })
+      slot.append(card)
+      // kit.css's .entry-card .ec-links is a child-of-the-card selector,
+      // so the link row nests inside the card element, not beside it.
+      const links = document.createElement('div')
+      links.className = 'ec-links'
+      const siteHref = ui.safeHref(mine.entry.site_url)
+      const videoHref = ui.safeHref(mine.entry.video_url)
+      const codeHref = ui.safeHref(mine.entry.code_url)
+      if (siteHref) links.append(linkEl(siteHref, 'Open website ↗', 'btn primary'))
+      if (videoHref) links.append(linkEl(videoHref, 'Watch video' + (mine.entry.video_host ? ' · ' + mine.entry.video_host : '') + ' ↗', 'btn quiet'))
+      if (codeHref) links.append(linkEl(codeHref, 'View code' + (mine.entry.code_host ? ' · ' + mine.entry.code_host : '') + ' ↗', 'btn quiet'))
+      if (links.childNodes.length) card.append(links)
+    }
+  }
+}
+
+function linkEl (href, text, cls) {
+  const a = document.createElement('a')
+  a.className = cls
+  a.href = href
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  a.textContent = text
+  return a
 }

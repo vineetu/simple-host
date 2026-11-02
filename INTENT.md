@@ -1431,6 +1431,18 @@ What follows from that, and is not negotiable without changing the line above:
   submitted and is not judged". Dropping a team's whole weekend over one missing line punishes
   the team for the organiser's rule, and the organiser keeps the final say with Exclude.
 
+- **2026-11-02. Publishing and showing (entries slice 3; coordinator's calls, the owner can
+  overrule).** Connected on the Website page means the person's own Simple Hack connector has
+  this team selected; teammates are shown by name only, never with their AI app. Published
+  results show each team's summary card only on rows the existing results setting already
+  shows (no new switch), and the website link is checked on every read so a take-down removes
+  it at once. Teams whose entry is not submitted get one reminder email 24 hours and one 1 hour
+  before their own deadline, naming what is missing; it is email only (Home already shows the
+  countdown), follows the Account email switch and the key-only rule like every other notice,
+  and goes out once more if the deadline moves. /get-started and the Website page read the
+  same connect steps from one file. Reason: the owner called guided publishing very important,
+  and results should show what each team built.
+
 - **2026-11-02. Site events (notifications phase 2) on Simple Host first (SIM-356).** The
   notification engine now emits four events that are not storage writes, to the same
   subscriptions, receivers, and signatures as the record events:

@@ -1,0 +1,146 @@
+{
+  "v": 2,
+  "_about": "One source for the per-app connect steps: /get-started renders each app's list from here (hack_connect_steps.go), and the Website screen (participant-website.js) shows the tab apps with the publish steps below. html is our own trusted markup.",
+  "mcp_path": "/mcp",
+  "mcp_address": "https://simple-hack.app/mcp",
+  "signin_hint": "Sign in with {email}, the email you use here, so {app} can see your team.",
+  "publish": [
+    {
+      "html": "Paste this into a new chat. {app} builds the page and publishes it to your team site.",
+      "prompt": true
+    },
+    {
+      "html": "Watch this page. It says Connected as soon as {app} reaches your team, and Published when the site is live."
+    }
+  ],
+  "apps": [
+    {
+      "id": "claude",
+      "label": "Claude",
+      "tab": true,
+      "connect": [
+        {
+          "html": "Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Browse connectors</b>."
+        },
+        {
+          "html": "Search for <b>Simple Hack</b>, choose <b>Connect</b>, sign in, then choose <b>Allow</b>."
+        }
+      ],
+      "fallback": "On a network that blocks the directory, add it as a custom connector instead: name it Simple Hack, paste this address:"
+    },
+    {
+      "id": "chatgpt",
+      "label": "ChatGPT",
+      "tab": true,
+      "connect": [
+        {
+          "html": "<a href=\"https://chatgpt.com/plugins\" target=\"_blank\" rel=\"noopener\">Open ChatGPT Plugins</a>."
+        },
+        {
+          "html": "Click <b>Add</b>, then choose <b>Add custom MCP server</b>."
+        },
+        {
+          "html": "Name it <b>Simple Hack</b>, paste this address, and save.",
+          "address": true
+        },
+        {
+          "html": "A sign-in window opens. Sign in with Google or an email code, then choose <b>Allow</b>."
+        }
+      ]
+    },
+    {
+      "id": "grok",
+      "label": "Grok",
+      "connect": [
+        {
+          "html": "Open <a href=\"https://grok.com/connectors\">grok.com/connectors</a>, then <b>New Connector → Custom</b>."
+        },
+        {
+          "html": "Name it <b>Simple Hack</b>, paste this address into Server URL, and click <b>Add Connector</b>:",
+          "address": true
+        },
+        {
+          "html": "Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>."
+        }
+      ]
+    },
+    {
+      "id": "copilot",
+      "label": "GitHub Copilot",
+      "connect": [
+        {
+          "html": "Open the Command Palette, run <b>MCP: Add Server</b> and choose <b>HTTP</b>."
+        },
+        {
+          "html": "Paste this address, name it <b>simple-hack</b>, save and start the server. Accept the trust prompt.",
+          "address": true
+        },
+        {
+          "html": "Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>. Use Copilot Chat’s agent mode."
+        }
+      ]
+    },
+    {
+      "id": "muse",
+      "label": "Meta Muse",
+      "connect": [
+        {
+          "html": "In Muse, open <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>."
+        },
+        {
+          "html": "Paste this address as the MCP URL:",
+          "address": true
+        },
+        {
+          "html": "Muse asks for a Client ID. Type this, not your email:",
+          "copy": {
+            "id": "muse-client-id",
+            "value": "meta-muse",
+            "label": "Copy Meta Muse Client ID"
+          }
+        },
+        {
+          "html": "Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>."
+        }
+      ]
+    },
+    {
+      "id": "gemini",
+      "label": "Gemini",
+      "connect": [
+        {
+          "html": "On a computer, open <a href=\"https://gemini.google.com\">gemini.google.com</a>, then <b>Settings</b>, then <b>Connected Apps</b>."
+        },
+        {
+          "html": "Under <b>Custom apps</b>, choose <b>Add a custom app</b>, paste this address, and choose <b>Next</b>:",
+          "address": true
+        },
+        {
+          "html": "Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>."
+        }
+      ]
+    },
+    {
+      "id": "mistral",
+      "label": "Mistral Vibe",
+      "connect": [
+        {
+          "html": "Open <b>Connectors</b>, choose <b>Add Connector</b>, then the <b>Custom MCP Connector</b> tab."
+        },
+        {
+          "html": "Name it <b>simplehack</b>, paste this address as the Server URL, and choose <b>Connect</b>:",
+          "address": true
+        },
+        {
+          "html": "Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>."
+        }
+      ]
+    },
+    {
+      "id": "coding-agents",
+      "label": "Claude Code, Codex and other coding agents",
+      "connect": [],
+      "note": "Steps live in hack-get-started.html itself: check-docs-sync.sh reads the install command from that page."
+    }
+  ]
+}

@@ -1072,6 +1072,15 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 		"members":     members,
 		"site":        h.teamSiteJSON(ctx, ev, team),
 	}
+	// site.connection: the Website screen's state strip, mirrored for MCP
+	// (hack_get_team_status) -- the caller's own connector/key status only
+	// (build plan §4.4). Best-effort: a lookup failure here must not break
+	// the whole team-status read.
+	if site, ok := t["site"].(map[string]any); ok {
+		if conn, err := h.connectionStatusJSON(ctx, ev.ID, team, member.UserID); err == nil {
+			site["connection"] = conn
+		}
+	}
 	// admin_successor: shown only when the caller is the team's one admin and
 	// others remain, so they know who takes over if they leave or step down
 	// (EnsureTeamAdmin's own tie-break: longest-standing, then user_id;

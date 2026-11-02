@@ -430,6 +430,8 @@ func noticeSubject(kind string) string {
 		return "you're now a team admin"
 	case db.NoticeTeamRemoved:
 		return "you were taken off a team"
+	case db.NoticeEntryReminder:
+		return "your entry is due soon"
 	}
 	return "something is waiting for you"
 }
@@ -443,7 +445,7 @@ func (h *HackHandler) noticeLink(kind, slug string) string {
 		return base + "/team"
 	case db.NoticeSiteTakenDown, db.NoticeSiteRestored:
 		return base + "/team?s=website"
-	case db.NoticeDeadlineChanged:
+	case db.NoticeDeadlineChanged, db.NoticeEntryReminder:
 		return base + "/team?s=entry"
 	}
 	return base + "/team?s=team"
@@ -529,6 +531,11 @@ func (h *HackHandler) mailLine(ctx context.Context, tx *sql.Tx, n db.MailNotice)
 		if role != "participant" {
 			return "", false, nil
 		}
+	case db.NoticeEntryReminder:
+		if role != "participant" {
+			return "", false, nil
+		}
+		return h.entryReminderLine(ctx, tx, n)
 	}
 	text, _, ok := h.newsText(ctx, tx, n.EventTitle, n.EventTimeZone, n.Notice)
 	return oneLine(text), ok, nil

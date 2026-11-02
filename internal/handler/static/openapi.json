@@ -27495,7 +27495,7 @@
         ],
         "operationId": "getHackPublicResults",
         "summary": "Public results (EVENTS=hosted only)",
-        "description": "No sign-in required. Winners only (the rank-1 team(s)) by default, or every ranked team when the organiser has switched to a full public listing. Shows track winners and prizes even in winners-only mode. Scores are omitted when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden; judges' comments remain private. Before publication returns 200 with published false. Returns 404 for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser's own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch \u2014 `{\"results\":[{\"team_id\",\"team_name\",\"total\",\"rank\",\"tied\",\"judges_scored\"}],\"full_ranking\"}` \u2014 the same shape `results/publish` returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public `{\"winners\":[...]}` / `{\"ranking\":[...]}` view.",
+        "description": "No sign-in required. Winners only (the rank-1 team(s)) by default, or every ranked team when the organiser has switched to a full public listing. Shows track winners and prizes even in winners-only mode. Scores are omitted when public_scores is disabled. Public ranks can be hidden separately with public_ranks; the full list is alphabetical when ranks are hidden; judges' comments remain private. Before publication returns 200 with published false. Returns 404 for a taken-down event (its results are not programmatically readable even though its page may still partially render). Sending the organiser's own API key (or the admin key) instead returns the full computed snapshot regardless of the public full_ranking switch \u2014 `{\"results\":[{\"team_id\",\"team_name\",\"total\",\"rank\",\"tied\",\"judges_scored\"}],\"full_ranking\"}` \u2014 the same shape `results/publish` returns, so the Judging tab can redraw its own view after a page reload; a missing or non-organiser key falls through to the public `{\"winners\":[...]}` / `{\"ranking\":[...]}` view. Each shown row carries entry, the team's public summary card (HackResultCard), when the results were published with cards; a team that is not shown never has a card here. site_url is the team site only while it is live now.",
         "security": [],
         "parameters": [
           {
@@ -27606,6 +27606,19 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "shown_publicly": {
+                      "type": "boolean",
+                      "description": "true when this team's row is in the public results (a winner, or full ranking is on)"
+                    },
+                    "entry": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/HackResultCard"
+                        }
+                      ],
+                      "nullable": true,
+                      "description": "Your entry as the public sees it; null unless shown_publicly"
                     }
                   }
                 }
@@ -29991,7 +30004,7 @@
         ],
         "operationId": "getHackPublicEvent",
         "summary": "Public, credentialless event data for custom websites (EVENTS=hosted)",
-        "description": "Cross-origin GET is allowed without credentials. Private join codes, contact addresses, unpublished scores, voter identities, open-vote counts and approval_required are omitted. Adds applications_open and, only when true, apply_url. fixed_schedule lists the event's real times as read-only schedule rows (HackFixedScheduleRow, without prompts), and schedule rows carry no prompt.",
+        "description": "Cross-origin GET is allowed without credentials. Private join codes, contact addresses, unpublished scores, voter identities, open-vote counts and approval_required are omitted. Adds applications_open and, only when true, apply_url. Gallery items carry tools (the entry's tags). Each shown results row carries entry (HackResultCard) when the results were published with cards; rows the visibility setting hides are not emitted, so their cards never appear. fixed_schedule lists the event's real times as read-only schedule rows (HackFixedScheduleRow, without prompts), and schedule rows carry no prompt.",
         "parameters": [
           {
             "in": "path",
@@ -30027,6 +30040,113 @@
       }
     },
     "/v1/hack/events/{slug}/site": {
+      "get": {
+        "x-audience": [
+          "public-hack"
+        ],
+        "tags": [
+          "Hosted events"
+        ],
+        "operationId": "getHackTeamSiteStatus",
+        "summary": "My team site and AI app connection (participant) (EVENTS=hosted only)",
+        "description": "The Website screen's live state, polled while a team waits for its first publish. site is the team site (name, url, ready, exists, live_version, published_at, published_via (the live version's recorded author, often null), taken_down, taken_down_reason, pinned_version, pinned_at). connection is the caller's own state: connected (their Simple Hack connector has this team selected; app names the app), other_team (it has another team selected; other_team names the event and team), key (no connector, but their team key was used in the last 30 days) or none, plus teammates_connected, the display names of current teammates whose connector has this team selected. Never client ids, grant ids, devices or tokens, and never a teammate's app. Participant on a team only: 409 no_team otherwise; anyone else gets 404 event_not_found.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team site and connection state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "site": {
+                      "type": "object"
+                    },
+                    "connection": {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "connected",
+                            "other_team",
+                            "key"
+                          ]
+                        },
+                        "app": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "last_used_at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "other_team": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "event": {
+                              "type": "string"
+                            },
+                            "team": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "teammates_connected": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "event_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "no_team",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
       "put": {
         "x-audience": [
           "public-hack"
@@ -37943,6 +38063,62 @@
                 "$ref": "#/components/schemas/HackNextStep"
               }
             ]
+          }
+        }
+      },
+      "HackResultCard": {
+        "type": "object",
+        "description": "A ranked team's public summary card, snapshotted when results are published. code_url is empty when the event's code line is Off; site_url is the team site's public address only while it is live and not taken down.",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": "string",
+            "description": "The one-line solution"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "audience": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maturity": {
+            "type": "string",
+            "enum": [
+              "",
+              "working",
+              "partial",
+              "concept"
+            ]
+          },
+          "track": {
+            "type": "object",
+            "nullable": true
+          },
+          "video_url": {
+            "type": "string"
+          },
+          "video_host": {
+            "type": "string"
+          },
+          "code_url": {
+            "type": "string"
+          },
+          "code_host": {
+            "type": "string"
+          },
+          "site_url": {
+            "type": "string"
+          },
+          "has_screenshot": {
+            "type": "boolean"
           }
         }
       },

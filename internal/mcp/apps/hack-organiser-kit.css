@@ -934,7 +934,6 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .jump{display:none}
 
 /* --- Website: connect steps per AI app ---------------------------------- */
-/* Not used by anything this slice builds (participant-website.js is slice 3). */
 .conn{display:flex;gap:0;margin:0 0 14px;border:1px solid var(--rule);border-radius:10px;background:var(--surface);overflow:hidden}
 .conn > div{flex:1;padding:12px 14px;border-left:1px solid var(--rule);min-width:0}
 .conn > div:first-child{border-left:0}
@@ -958,6 +957,9 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .app-tabs a{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border:1px solid var(--rule-hi);border-radius:99px;background:#fff;font-size:13.5px;font-weight:600;color:var(--line-soft);text-decoration:none}
 .app-tabs a[aria-current=true]{background:var(--teal);border-color:var(--teal);color:#fff}
 .prompt{background:var(--paper-hi);border:1px solid var(--rule);border-radius:var(--r-sm);padding:10px 12px;font-size:14px;line-height:1.5;white-space:pre-wrap}
+.site-row{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:16px;align-items:start}
+.site-row .site-frame{width:100%}
+@media (max-width: 560px){.site-row{grid-template-columns:1fr}}
 
 /* --- organiser: what teams hand in ------------------------------------ */
 .rules{margin-top:16px}
@@ -982,6 +984,16 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .result-entry .ec-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .result-entry.winner{border-color:var(--ev,#d15d48);box-shadow:0 0 0 1px var(--ev,#d15d48)}
 .site-card .tags{margin-top:6px}
+/* Gallery cards (entries slice 3, build-plan §4.6): .site-card keeps its
+   original two flex children (the shot and a text block), now a link and a
+   div instead of two spans, so the sizing above (including the
+   row-at-phone-width switch) needs no change. The tag list and "See
+   result" link live inside that second block, below the site link, since a
+   link element cannot nest another one. */
+.site-card .site-link{display:block;text-decoration:none;color:inherit}
+.site-card .site-text{flex:1;min-width:0}
+.site-result-link{display:block;margin-top:6px;font-size:12.5px;color:var(--line-soft);text-decoration:none}
+.site-result-link:hover{text-decoration:underline}
 /* One-of: the segmented control's third (or fourth) option reads "One of"
    on the two show-your-work lines that allow it; kept visually identical to
    Required/Optional/Off otherwise, just its own on-state tint so a glance
@@ -1006,6 +1018,14 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .rules .rr .seg{width:100%}
   .rules .rr .seg span{flex:1;text-align:center;min-height:44px;display:grid;place-items:center}
   .result-entry .re-body{grid-template-columns:1fr}
+  /* A winner's re-head can carry a team name, a track pill, a Winner pill
+     and a score all at once; .re-head has no wrap and every pill is
+     flex:none, so at phone width .main (the only shrinkable item) was
+     being squeezed to a sliver and its own title/subtitle text wrapped
+     word-by-word instead. Letting the row wrap gives the title its own
+     full-width line and drops the pills to the next one. */
+  .result-entry .re-head{flex-wrap:wrap;row-gap:6px}
+  .result-entry .re-head .main{flex-basis:100%}
   .countdown{font-size:18px}
   .steps .act{align-self:flex-start}
   .steps li{flex-wrap:wrap}

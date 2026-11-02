@@ -28,6 +28,19 @@
      announcement bodies were losing them; schedule descriptions already get
      this from kit.css's .sched .what>span). */
   .announcement-body,#faq details p{white-space:pre-wrap}
+  /* Result cards (build-plan §4.6): kit.css's .result-entry/.re-head/
+     .re-body/.ec-links already exist for this (moved over with slice 1's
+     kit-next.css merge, unused until now); these few rules are the page-
+     local bits that only this template needs, kept here rather than in the
+     shared kit so this slice touches kit.css not at all. */
+  .result-entry{scroll-margin-top:12px}
+  .result-entry .re-head .sub{display:block;margin-top:2px}
+  .result-entry .ec-links{padding:0 16px 14px}
+  details.result-entry>summary{cursor:pointer;list-style:none}
+  details.result-entry>summary::-webkit-details-marker{display:none}
+  details.result-entry>summary::after{content:none}
+  details.result-entry>summary .chev{width:9px;height:9px;border-right:2px solid var(--line-faint);border-bottom:2px solid var(--line-faint);transform:rotate(45deg);transition:transform .15s}
+  details.result-entry[open]>summary .chev{transform:rotate(-135deg)}
 </style>
 </head>
 <body>
@@ -133,9 +146,73 @@
   <h2 class="section-title">{{.Results.Heading}}</h2>
   {{if .Results.ScoreNote}}<p class="muted small">{{.Results.ScoreNote}}</p>{{end}}
   {{if not .Results.AnyRanked}}<p class="muted small">Listed A to Z.</p>{{end}}
+  {{$full := eq .Results.Heading "Results"}}
+  {{if .Results.HasCards}}
+  {{/* build-plan §4.6: each ranked team's card (title, problem, solution,
+       for, tools, maturity, and Open website/Watch video/View code links).
+       A winners-only row is always "open" here -- hackResultsFromSnapshot
+       only ever emits a winners-only row for the overall winner or a track
+       winner, the same test this uses to decide whether a full-ranking row
+       opens by itself. Every other full-ranking row collapses into a
+       details-and-summary disclosure the visitor expands. Same row twice
+       so every branch opens and closes its own tag (scripts/check-html.sh;
+       note for future edits here: that checker reads this file as plain
+       text, so a literal angle-bracket tag name must never appear inside a
+       template comment either). */}}
+  {{range .Results.Rows}}
+  {{if or .Overall .TrackWinner}}<article class="result-entry{{if .Overall}} winner{{end}}" id="result-{{.TeamID}}">
+    <div class="re-head">
+      {{if $full}}{{if .Rank}}<span class="rank">{{.Rank}}</span>{{end}}{{end}}
+      <span class="main"><b>{{if .Card.Title}}{{.Card.Title}}{{else}}{{.TeamName}}{{end}}</b><span class="sub">{{.TeamName}}{{if .TrackName}} · {{.TrackName}} track{{end}}</span></span>
+      {{if .Tied}}<span class="pill">Tied</span>{{end}}
+      {{if .WinnerPill}}<span class="pill accent">Winner</span>{{end}}
+      {{if .TrackPill}}<span class="pill">{{.TrackPill}}</span>{{end}}
+      {{if .Score}}<span class="meta">{{.Score}}</span>{{end}}
+    </div>
+    <div class="re-body">
+      {{if .Shot}}<span class="site-frame"><img src="{{.Shot}}" alt="" width="240" height="150" loading="lazy"></span>{{else}}<span class="site-frame letter">{{.ShotLetter}}</span>{{end}}
+      <dl class="ec-rows">
+        {{if .Card.Problem}}<dt>Problem</dt><dd>{{.Card.Problem}}</dd>{{end}}
+        {{if .Card.Tagline}}<dt>Solution</dt><dd>{{.Card.Tagline}}</dd>{{end}}
+        {{if .Card.Audience}}<dt>For</dt><dd>{{.Card.Audience}}</dd>{{end}}
+        {{if .Card.Tools}}<dt>Tools &amp; AI</dt><dd><ul class="tags">{{range .Card.Tools}}<li class="tag">{{.}}</li>{{end}}</ul></dd>{{end}}
+        {{if .MaturityLabel}}<dt>Works today</dt><dd><span class="pill mat-{{.Card.Maturity}}">{{.MaturityLabel}}</span></dd>{{end}}
+      </dl>
+    </div>
+    {{if or .Card.SiteURL .Card.VideoURL .Card.CodeURL}}<div class="ec-links">
+      {{if .Card.SiteURL}}<a class="btn primary" href="{{.Card.SiteURL}}" target="_blank" rel="noopener noreferrer nofollow ugc">Open website ↗</a>{{end}}
+      {{if .Card.VideoURL}}<a class="btn quiet" href="{{.Card.VideoURL}}" target="_blank" rel="noopener noreferrer nofollow ugc">Watch video{{if .Card.VideoHost}} · {{.Card.VideoHost}}{{end}} ↗</a>{{end}}
+      {{if .Card.CodeURL}}<a class="btn quiet" href="{{.Card.CodeURL}}" target="_blank" rel="noopener noreferrer nofollow ugc">View code{{if .Card.CodeHost}} · {{.Card.CodeHost}}{{end}} ↗</a>{{end}}
+    </div>{{end}}
+  </article>{{else}}<details class="result-entry" id="result-{{.TeamID}}">
+    <summary class="re-head">
+      {{if $full}}{{if .Rank}}<span class="rank">{{.Rank}}</span>{{end}}{{end}}
+      <span class="main"><b>{{if .Card.Title}}{{.Card.Title}}{{else}}{{.TeamName}}{{end}}</b><span class="sub">{{.TeamName}}{{if .TrackName}} · {{.TrackName}} track{{end}}</span></span>
+      {{if .Tied}}<span class="pill">Tied</span>{{end}}
+      {{if .Score}}<span class="meta">{{.Score}}</span>{{end}}
+      <span class="grow"></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="re-body">
+      {{if .Shot}}<span class="site-frame"><img src="{{.Shot}}" alt="" width="240" height="150" loading="lazy"></span>{{else}}<span class="site-frame letter">{{.ShotLetter}}</span>{{end}}
+      <dl class="ec-rows">
+        {{if .Card.Problem}}<dt>Problem</dt><dd>{{.Card.Problem}}</dd>{{end}}
+        {{if .Card.Tagline}}<dt>Solution</dt><dd>{{.Card.Tagline}}</dd>{{end}}
+        {{if .Card.Audience}}<dt>For</dt><dd>{{.Card.Audience}}</dd>{{end}}
+        {{if .Card.Tools}}<dt>Tools &amp; AI</dt><dd><ul class="tags">{{range .Card.Tools}}<li class="tag">{{.}}</li>{{end}}</ul></dd>{{end}}
+        {{if .MaturityLabel}}<dt>Works today</dt><dd><span class="pill mat-{{.Card.Maturity}}">{{.MaturityLabel}}</span></dd>{{end}}
+      </dl>
+    </div>
+    {{if or .Card.SiteURL .Card.VideoURL .Card.CodeURL}}<div class="ec-links">
+      {{if .Card.SiteURL}}<a class="btn primary" href="{{.Card.SiteURL}}" target="_blank" rel="noopener noreferrer nofollow ugc">Open website ↗</a>{{end}}
+      {{if .Card.VideoURL}}<a class="btn quiet" href="{{.Card.VideoURL}}" target="_blank" rel="noopener noreferrer nofollow ugc">Watch video{{if .Card.VideoHost}} · {{.Card.VideoHost}}{{end}} ↗</a>{{end}}
+      {{if .Card.CodeURL}}<a class="btn quiet" href="{{.Card.CodeURL}}" target="_blank" rel="noopener noreferrer nofollow ugc">View code{{if .Card.CodeHost}} · {{.Card.CodeHost}}{{end}} ↗</a>{{end}}
+    </div>{{end}}
+  </details>{{end}}
+  {{end}}
+  {{else}}
   <div class="list results">
     {{if .Results.ShowScoreHeader}}<div class="lh"><span style="flex:1">Team</span><span>Score</span></div>{{end}}
-    {{$full := eq .Results.Heading "Results"}}
     {{range .Results.Rows}}
     {{/* Same row twice so every branch opens and closes its own tag (scripts/check-html.sh). */}}
     {{if .URL}}<a class="r" href="{{.URL}}">
@@ -155,6 +232,7 @@
     </div>{{end}}
     {{end}}
   </div>
+  {{end}}
 </section>
 {{else if .StageCard}}
 <div class="next" id="stage-card" data-slug="{{.Slug}}">
@@ -461,10 +539,22 @@
   <h2 class="section-title">Team sites · {{if eq (len .Gallery) 1}}1 team has{{else}}{{len .Gallery}} teams have{{end}} a live site</h2>
   <div class="site-grid">
     {{range .Gallery}}
-    <a class="site-card" href="{{.URL}}">
-      <span class="site-frame{{if not .Shot}} letter{{end}}">{{if .Shot}}<img src="{{.Shot}}" alt="" width="320" height="200" loading="lazy">{{else}}{{.Initial}}{{end}}</span>
-      <span><b>{{.Title}}</b>{{if .Tagline}}<span class="site-tagline">{{.Tagline}}</span>{{end}}{{if .Team}}<span class="site-team">by {{.Team}}</span>{{end}}</span>
-    </a>
+    {{/* Two sibling links, not one link wrapping both: a link element cannot
+         nest another one, and this card also needs a tags list and (once
+         results are out) a "See result" link outside the site link
+         entirely. Both halves open the same site, so the whole visible area
+         still reads as one clickable card even though it is two anchors
+         under the hood. (Checker note: this comment reads as plain text to
+         scripts/check-html.sh, so it never spells out a real tag name in
+         angle brackets.) */}}
+    <div class="site-card">
+      <a class="site-link" href="{{.URL}}"><span class="site-frame{{if not .Shot}} letter{{end}}">{{if .Shot}}<img src="{{.Shot}}" alt="" width="320" height="200" loading="lazy">{{else}}{{.Initial}}{{end}}</span></a>
+      <div class="site-text">
+        <a class="site-link" href="{{.URL}}"><b>{{.Title}}</b>{{if .Tagline}}<span class="site-tagline">{{.Tagline}}</span>{{end}}{{if .Team}}<span class="site-team">by {{.Team}}</span>{{end}}</a>
+        {{if .Tools}}<ul class="tags">{{range .Tools}}<li class="tag">{{.}}</li>{{end}}</ul>{{end}}
+        {{if .ResultAnchor}}<a class="site-result-link" href="{{.ResultAnchor}}">See result ↑</a>{{end}}
+      </div>
+    </div>
     {{end}}
   </div>
 </section>

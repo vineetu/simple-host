@@ -3,14 +3,19 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	"github.com/lib/pq"
 )
 
 // GalleryCard is one team on an event's public gallery. The team's site
 // exists, is not deleted or suspended, the holding account is not suspended,
 // and the organiser has not taken the team down. Title and Tagline are the
-// entry's, or empty when the team has not written one.
+// entry's, or empty when the team has not written one. Tools is the entry's
+// tools list (build-plan §4.6: once results are published, the gallery card
+// shows tool tags too), never nil.
 type GalleryCard struct {
 	ID, Slug, Name, Title, Tagline string
+	Tools                          []string
 	HasScreenshot                  bool
 }
 
@@ -33,7 +38,7 @@ const galleryHasShot = `COALESCE(e.screenshot_type, '') IN ('image/png', 'image/
 // compared case-insensitively. The team slug breaks ties.
 func ListGalleryCards(ctx context.Context, q Querier, eventID, accountID string) ([]GalleryCard, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT t.id, t.slug, t.name, COALESCE(e.title, ''), COALESCE(e.tagline, ''),
+		SELECT t.id, t.slug, t.name, COALESCE(e.title, ''), COALESCE(e.tagline, ''), COALESCE(e.tools, '{}'),
 		       (`+galleryHasShot+`)
 		`+galleryLiveFrom+`
 		 ORDER BY lower(COALESCE(NULLIF(e.title, ''), t.name)), t.slug`, eventID, accountID)
@@ -44,7 +49,7 @@ func ListGalleryCards(ctx context.Context, q Querier, eventID, accountID string)
 	var out []GalleryCard
 	for rows.Next() {
 		var c GalleryCard
-		if err := rows.Scan(&c.ID, &c.Slug, &c.Name, &c.Title, &c.Tagline, &c.HasScreenshot); err != nil {
+		if err := rows.Scan(&c.ID, &c.Slug, &c.Name, &c.Title, &c.Tagline, pq.Array(&c.Tools), &c.HasScreenshot); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

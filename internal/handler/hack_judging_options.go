@@ -33,7 +33,10 @@ func (h *HackHandler) previewJudging(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"results": resultsSnapshotJSON(rows), "deciding_mode": a.event.ScoreMode})
+	// A judging preview is read-only maths, never published, so it carries
+	// no entry cards (nil cards map -- resultsSnapshotJSON reads a nil map
+	// fine, same as "no card for this team").
+	writeJSON(w, 200, map[string]any{"results": resultsSnapshotJSON(rows, nil), "deciding_mode": a.event.ScoreMode})
 }
 
 func judgingOptionsTx(w http.ResponseWriter, r *http.Request, h *HackHandler, eventID string) (*sql.Tx, db.Event, bool) {

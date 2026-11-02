@@ -373,6 +373,9 @@ func chromePageRaw(name string, d chromeData) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if name == "hack-get-started.html" {
+		raw = expandConnectSteps(raw)
+	}
 	page, err := withChrome(raw, d)
 	if err != nil {
 		return nil, err

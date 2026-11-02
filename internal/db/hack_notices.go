@@ -50,7 +50,8 @@ func noticeEmails(kind string) bool { return kind != NoticeTeamLocked }
 // team never reaches someone who has since moved to another one.
 func NoticeTeamScoped(kind string) bool {
 	switch kind {
-	case NoticeSiteTakenDown, NoticeSiteRestored, NoticeDeadlineChanged, NoticeTeamAdmin, NoticeTeamLocked:
+	case NoticeSiteTakenDown, NoticeSiteRestored, NoticeDeadlineChanged, NoticeTeamAdmin, NoticeTeamLocked,
+		NoticeEntryReminder:
 		return true
 	}
 	return false
