@@ -111,6 +111,22 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// MIGRATE_ON_START=true (Kubernetes, where no install command runs before
+	// the pod): build an empty database from the embedded schema.sql and apply
+	// every pending migration, under the migrate advisory lock, before the
+	// schema check below. A database that is still starting is waited for.
+	if cfg.MigrateOnStart {
+		log.Printf("MIGRATE_ON_START: building the schema if the database is empty, then applying pending migrations")
+		if err := waitForDB(db, 2*time.Minute); err != nil {
+			log.Fatalf("migrate on start: database not reachable: %v", err)
+		}
+		migrateCtx, cancelMigrate := context.WithTimeout(context.Background(), 15*time.Minute)
+		if err := migrateDatabase(migrateCtx, db, true, log.Printf); err != nil {
+			log.Fatalf("migrate on start: %v", err)
+		}
+		cancelMigrate()
+	}
+
 	// Before anything else touches the database: a build that reads a column the
 	// database does not have fails at the first query, not at startup, which
 	// looks like a 404 on every page rather than a deployment mistake.
@@ -225,6 +241,10 @@ func main() {
 		log.Printf("no RESEND_API_KEY: no email is sent, so sign-in codes (/v1/auth) and Submissions emails are off; accounts use keys the admin issues")
 	}
 	handler.SetEmailSignIn(cfg.EmailSignInEnabled())
+	handler.SetTrustedProxies(cfg.TrustedProxyCIDRs)
+	if len(cfg.TrustedProxyCIDRs) > 0 {
+		log.Printf("trusted proxies: %d network(s) (TRUSTED_PROXY_CIDRS); X-Forwarded-For is believed only from them", len(cfg.TrustedProxyCIDRs))
+	}
 	if cfg.EmailSignIn == "off" {
 		log.Printf("EMAIL_SIGNIN=off: email-code sign-in is off everywhere; sign in with a company account")
 	}

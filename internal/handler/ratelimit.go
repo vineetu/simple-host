@@ -122,20 +122,82 @@ func (rl *rateLimiter) evictIdle(idle time.Duration) {
 	}
 }
 
-// clientIP returns the originating client address. We sit behind the trusted
-// nginx appends the real client to X-Forwarded-For; earlier entries can be forged.
-// Fall back to the transport peer otherwise.
-func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if last := strings.TrimSpace(xff[strings.LastIndex(xff, ",")+1:]); last != "" {
-			return last
+// trustedProxies are the networks the proxies in front of this server
+// connect from (TRUSTED_PROXY_CIDRS). Empty keeps the one-local-nginx rule.
+var (
+	trustedProxiesMu sync.RWMutex
+	trustedProxies   []*net.IPNet
+)
+
+// SetTrustedProxies installs TRUSTED_PROXY_CIDRS. nil or empty: X-Forwarded-For
+// is believed from any peer (its last entry), as behind one local nginx.
+func SetTrustedProxies(nets []*net.IPNet) {
+	trustedProxiesMu.Lock()
+	defer trustedProxiesMu.Unlock()
+	trustedProxies = nets
+}
+
+func trustedProxy(addr string) bool {
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return false
+	}
+	for _, n := range trustedProxies {
+		if n.Contains(ip) {
+			return true
 		}
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	return false
+}
+
+// clientIP returns the originating client address.
+//
+// Without TRUSTED_PROXY_CIDRS we sit behind one trusted local nginx that
+// appends the real client to X-Forwarded-For, so its last entry is the client;
+// earlier entries can be forged. With TRUSTED_PROXY_CIDRS (a load balancer or
+// ingress controller on Kubernetes) the header is believed only when the peer
+// is a trusted proxy, and is read from the right past every trusted hop: the
+// first address no trusted proxy owns is the client. A direct connection from
+// outside those networks is its own client, whatever header it sends. Fall
+// back to the transport peer otherwise.
+func clientIP(r *http.Request) string {
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		peer = r.RemoteAddr
 	}
-	return host
+	xff := r.Header.Get("X-Forwarded-For")
+	trustedProxiesMu.RLock()
+	gated := len(trustedProxies) > 0
+	trusted := trustedProxy(peer)
+	trustedProxiesMu.RUnlock()
+	if !gated {
+		if xff != "" {
+			if last := strings.TrimSpace(xff[strings.LastIndex(xff, ",")+1:]); last != "" {
+				return last
+			}
+		}
+		return peer
+	}
+	if !trusted || xff == "" {
+		return peer
+	}
+	hops := strings.Split(xff, ",")
+	trustedProxiesMu.RLock()
+	defer trustedProxiesMu.RUnlock()
+	for i := len(hops) - 1; i >= 0; i-- {
+		hop := strings.TrimSpace(hops[i])
+		if hop == "" {
+			continue
+		}
+		if !trustedProxy(hop) {
+			return hop
+		}
+	}
+	// Every hop is a proxy of ours: the leftmost is the nearest to a client.
+	if first := strings.TrimSpace(hops[0]); first != "" {
+		return first
+	}
+	return peer
 }
 
 // rateLimitByIP wraps next, rejecting requests from a client IP that has

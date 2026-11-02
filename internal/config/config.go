@@ -206,6 +206,19 @@ type Config struct {
 	// OIDCInsecureAllowed is OIDC_INSECURE_ALLOWED=true: permits a
 	// plain-http issuer. Local testing only.
 	OIDCInsecureAllowed bool
+	// MigrateOnStart is MIGRATE_ON_START=true: before listening, the server
+	// builds an empty database from the embedded schema.sql and applies every
+	// pending migration (`simple-host migrate -init`). For a container
+	// platform with no psql and no install command (Kubernetes). Default off:
+	// a hosted box migrates by hand or from its install command.
+	MigrateOnStart bool
+	// TrustedProxyCIDRs is TRUSTED_PROXY_CIDRS: the networks the reverse
+	// proxies in front of this server connect from (a load balancer, an
+	// ingress controller). With it set, X-Forwarded-For is believed only from
+	// a peer inside one of them, walked from the right past every trusted
+	// hop. Empty (default): the last X-Forwarded-For entry is believed from
+	// any peer, which is right behind one local nginx that appends it.
+	TrustedProxyCIDRs []*net.IPNet
 	// EmailSignIn is EMAIL_SIGNIN: "on" (default) or "off". off turns
 	// email-code sign-in off everywhere (account, connector, team-site
 	// visitors); refused at load unless company sign-in is configured.
@@ -345,6 +358,12 @@ func Load() (Config, error) {
 	}
 	cfg.OIDCLabel = getEnvOrDefault("OIDC_LABEL", "your company account")
 	cfg.OIDCInsecureAllowed = strings.EqualFold(strings.TrimSpace(os.Getenv("OIDC_INSECURE_ALLOWED")), "true")
+	cfg.MigrateOnStart = strings.EqualFold(strings.TrimSpace(os.Getenv("MIGRATE_ON_START")), "true")
+	cidrs, err := parseCIDRList(os.Getenv("TRUSTED_PROXY_CIDRS"))
+	if err != nil {
+		return Config{}, fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)
+	}
+	cfg.TrustedProxyCIDRs = cidrs
 	if set := nonEmptyCount(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret); set > 0 && set < 3 {
 		log.Printf("warning: company sign-in is misconfigured (need all of OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET); treating as off")
 		cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret = "", "", ""
@@ -680,4 +699,33 @@ func loadTurnstile() (string, string) {
 		return "", ""
 	}
 	return key, secret
+}
+
+// parseCIDRList reads a comma-separated list of networks (10.0.0.0/8,
+// fd00::/8) or single addresses (a /32 or /128). Empty is nil.
+func parseCIDRList(raw string) ([]*net.IPNet, error) {
+	var out []*net.IPNet
+	for _, item := range strings.Split(raw, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if !strings.Contains(item, "/") {
+			ip := net.ParseIP(item)
+			if ip == nil {
+				return nil, fmt.Errorf("%q is not an address or a network", item)
+			}
+			if v4 := ip.To4(); v4 != nil {
+				item += "/32"
+			} else {
+				item += "/128"
+			}
+		}
+		_, network, err := net.ParseCIDR(item)
+		if err != nil {
+			return nil, fmt.Errorf("%q is not a network", item)
+		}
+		out = append(out, network)
+	}
+	return out, nil
 }

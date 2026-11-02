@@ -1,0 +1,44 @@
+{{- include "hack.validate" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hack.configName" . }}
+  labels:
+    {{- include "hack.labels" . | nindent 4 }}
+data:
+  # The platform: the hackathon product on this hostname.
+  SITE_DOMAIN: {{ .Values.host | quote }}
+  PUBLIC_BASE_URL: {{ printf "https://%s" .Values.host | quote }}
+  EVENTS: hosted
+  PERSON_HOSTS: canonical
+  SITE_HOSTS: canonical
+  WRITE_AUTH_MODE: "on"
+  # Where it listens and keeps files. /data is the persistent volume.
+  PORT: "8090"
+  DATA_DIR: /data/sites
+  GEOIP_DIR: /data/geoip
+  MIGRATE_ON_START: {{ ternary "true" "false" .Values.migrateOnStart | quote }}
+  {{- with .Values.trustedProxyCIDRs }}
+  TRUSTED_PROXY_CIDRS: {{ . | quote }}
+  {{- end }}
+  # Sign-in.
+  {{- if include "hack.oidcOn" . }}
+  OIDC_ISSUER: {{ .Values.signIn.oidc.issuer | quote }}
+  OIDC_CLIENT_ID: {{ .Values.signIn.oidc.clientId | quote }}
+  {{- with .Values.signIn.oidc.allowedEmailDomains }}
+  ALLOWED_EMAIL_DOMAINS: {{ . | quote }}
+  {{- end }}
+  OIDC_LABEL: {{ .Values.signIn.oidc.label | quote }}
+  {{- end }}
+  EMAIL_SIGNIN: {{ .Values.signIn.email.enabled | quote }}
+  {{- with .Values.signIn.email.from }}
+  MAIL_FROM: {{ . | quote }}
+  {{- end }}
+  # Connector screens that need the hosted service's pieces: off.
+  MCP_APP_PHOTO_PICKER: "off"
+  MCP_APP_MY_SITES: "off"
+  MCP_APP_DASHBOARD: "off"
+  MCP_APP_SITE_PREVIEW: "off"
+  {{- range $k, $v := .Values.extraConfig }}
+  {{ $k }}: {{ $v | toString | quote }}
+  {{- end }}

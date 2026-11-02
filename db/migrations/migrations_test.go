@@ -99,8 +99,30 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(string(schema)); err != nil {
-		t.Fatalf("schema.sql: %v", err)
+
+	// An empty database is built by Init, which is what a container with no
+	// psql runs (`migrate -init`, MIGRATE_ON_START). Two pods starting at once
+	// both call it: exactly one builds the schema, the other waits on the lock
+	// and then finds the users table.
+	var initWG sync.WaitGroup
+	built := make([]bool, 2)
+	initErrs := make([]error, 2)
+	for i := range built {
+		initWG.Add(1)
+		go func(i int) {
+			defer initWG.Done()
+			built[i], initErrs[i] = Init(ctx, db, string(schema), nil)
+		}(i)
+	}
+	initWG.Wait()
+	if initErrs[0] != nil || initErrs[1] != nil {
+		t.Fatalf("racing Init: %v / %v", initErrs[0], initErrs[1])
+	}
+	if built[0] == built[1] {
+		t.Fatalf("racing Init built %v and %v; want the schema built exactly once", built[0], built[1])
+	}
+	if again, err := Init(ctx, db, "THIS IS NEVER RUN", nil); err != nil || again {
+		t.Errorf("Init on a built database: built %v, err %v; want a no-op", again, err)
 	}
 
 	// A fresh database from schema.sql: every tracked file runs once as a

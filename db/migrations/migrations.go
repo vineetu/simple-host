@@ -277,3 +277,39 @@ func Mark(ctx context.Context, db *sql.DB, name string) (bool, error) {
 	})
 	return added, err
 }
+
+// Init builds an empty database from schema (db/schema.sql, embedded by the
+// db package) and reports whether it did. A database that already has the
+// users table is left alone, so running it on every start is safe; it takes
+// the same advisory lock as Apply, so two pods starting at once never both
+// build the schema (the second waits, then sees the table and does nothing).
+// Call Apply afterwards: schema.sql is current, so Apply only records each
+// tracked file as applied.
+func Init(ctx context.Context, db *sql.DB, schema string, logf func(string, ...any)) (bool, error) {
+	built := false
+	err := locked(ctx, db, func(conn *sql.Conn) error {
+		var empty bool
+		if err := conn.QueryRowContext(ctx, `SELECT to_regclass('public.users') IS NULL`).Scan(&empty); err != nil {
+			return fmt.Errorf("look for the users table: %w", err)
+		}
+		if !empty {
+			return nil
+		}
+		if logf != nil {
+			logf("empty database: applying schema.sql")
+		}
+		if _, err := conn.ExecContext(ctx, `BEGIN`); err != nil {
+			return err
+		}
+		if _, err := conn.ExecContext(ctx, schema); err != nil {
+			conn.ExecContext(context.Background(), `ROLLBACK`)
+			return fmt.Errorf("schema.sql: %w (rolled back)", err)
+		}
+		if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+			return err
+		}
+		built = true
+		return nil
+	})
+	return built, err
+}

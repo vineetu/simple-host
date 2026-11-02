@@ -1,0 +1,221 @@
+# Simple Hack on an existing Kubernetes cluster. One pod, your Postgres, your
+# load balancer. Every value has a default; the ones marked "set this" have to
+# be filled in before the pod can start. docs/kubernetes.md is the runbook.
+
+# The platform's own hostname (set this), for example hack.example.com.
+# Organisers open https://<host>/, an event's page is https://<event>.<host>/,
+# and a team's site is https://<team>.<event>.<host>/ (see ingress.events).
+# DNS for <host> and *.<host> must point at the load balancer in front of
+# the ingress; that one wildcard resolves both levels.
+host: ""
+
+# The image. The chart needs a Simple Hack release of 0.8.14 or later (the
+# first that can build an empty database itself); an empty tag means
+# hack-<Chart.appVersion>. pullSecrets names Secrets of type
+# kubernetes.io/dockerconfigjson in this namespace for a private registry.
+image:
+  repository: ghcr.io/vineetu/simple-host
+  tag: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Your Postgres. One database, owned by one role that is not a superuser
+# (CREATE DATABASE hack OWNER hack). Postgres 16; no extensions. Either put
+# the connection string here (it lands in the chart's Secret), or name an
+# existing Secret and the key inside it that holds the string. The pod builds
+# the schema in an empty database on its first start and applies migrations
+# on every start (migrateOnStart), so the role must own the database.
+database:
+  # postgres://hack:PASSWORD@postgres.example.internal:5432/hack?sslmode=require
+  dsn: ""
+  existingSecret: ""
+  existingSecretKey: DB_DSN
+
+# Before the server listens: build the schema when the database is empty, then
+# apply every pending migration, under a Postgres advisory lock. Leave this on.
+# Off, the database has to be prepared by hand (docs/kubernetes.md, Upgrades).
+migrateOnStart: true
+
+# The platform admin's API key (X-API-Key against /v1/admin/*: create accounts
+# and keys, list events, take sites down). Empty generates a random one on the
+# first install and keeps it across upgrades; read it back with the command in
+# the notes. The admin is not a person: people sign in below.
+adminApiKey: ""
+
+# How people sign in. Company sign-in (OpenID Connect against your identity
+# provider) is the way in for an internal installation: register a web
+# client with the redirect URI https://<host>/v1/auth/oauth/oidc/callback and
+# fill in the three values. Email-code sign-in needs a Resend key and a
+# verified sender; it is the only way in when oidc is empty. With oidc set,
+# email becomes optional, and email.enabled "off" removes the email-code form
+# everywhere (so only company accounts can sign in).
+signIn:
+  oidc:
+    # Issuer URL (https), e.g. https://login.microsoftonline.com/<tenant>/v2.0,
+    # https://your-org.okta.com, https://accounts.google.com.
+    issuer: ""
+    clientId: ""
+    clientSecret: ""     # or put OIDC_CLIENT_SECRET in secrets.existingSecret
+    # Email domains the provider's accounts must belong to, comma-separated.
+    # Required when the issuer is Google; a good idea everywhere.
+    allowedEmailDomains: ""
+    # The name on the button: "Sign in with <label>".
+    label: "your company account"
+  email:
+    enabled: "on"        # "on" or "off"; off needs oidc configured
+    resendApiKey: ""     # or RESEND_API_KEY in secrets.existingSecret
+    from: ""             # a verified sender, e.g. Simple Hack <hack@example.com>
+
+# Every team's site is its own origin, https://<team>.<event>.<host>/, as on
+# simple-hack.app (a team's page can never read another team's visitor
+# sessions). One DNS wildcard (*.<host>) resolves both levels, but an Ingress
+# host wildcard matches one label only and a *.<host> certificate covers one
+# label only, so each event needs: its slug under ingress.events (which adds
+# a *.<event>.<host> rule), and that name among the certificate's SANs at
+# whatever terminates TLS. One hackathon is one line and one SAN.
+
+# The networks the load balancer and the ingress controller connect from.
+# X-Forwarded-For is believed only from these, read right to left past every
+# trusted hop, so a client cannot pick its own address for rate limits. The
+# default is every private range, which covers pod and node networks on
+# every common cluster. Narrow it to the ingress controller's pod range when
+# you know it. Empty believes the last entry from any peer (not for here).
+trustedProxyCIDRs: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,127.0.0.0/8,fc00::/7"
+
+# The one disk: every event's and team's site files, versions and the
+# per-site SQLite, KV and files under /data. ReadWriteOnce, because the server
+# runs as exactly one pod (its upload locks and rate limits are in-process).
+# existingClaim uses a PVC you made (for a restored snapshot). Size it for
+# the events you expect: a team site is a few MB, versions are kept
+# (KEEP_VERSIONS, default 2 in Hack), and the storage budget is
+# HACK_INSTANCE_BUDGET_GB.
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClassName: ""   # empty: the cluster default
+  accessModes: [ReadWriteOnce]
+  size: 20Gi
+  annotations: {}
+
+# Scratch space for a request body being spooled and a site import being
+# unpacked. The root filesystem is read-only; this is an emptyDir at /tmp.
+tmpSize: 1Gi
+
+# The Service the ingress sends to. ClusterIP is right behind an ingress;
+# LoadBalancer gives the pod its own address when there is no ingress
+# controller (then the load balancer in front must still send
+# X-Forwarded-Proto: https, or sign-in cookies lose their Secure flag).
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+# The Ingress: <host> and *.<host> to the Service. TLS ends at your load
+# balancer or ingress controller, never in the pod. tlsSecretName names a
+# Secret of type kubernetes.io/tls holding a certificate for <host> and
+# *.<host>; leave it empty when the load balancer in front of the ingress
+# terminates TLS itself (then set tls false too, or the controller serves its
+# default certificate). The annotations shown are for ingress-nginx and are
+# ignored by other controllers; add your controller's equivalents (a 64 MB
+# body for site uploads, and a 300 s read timeout for exports).
+ingress:
+  enabled: true
+  className: ""
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 64m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+  tls: true
+  tlsSecretName: ""
+  # The events' slugs: each adds a rule (and a TLS host) for *.<event>.<host>,
+  # where that event's team sites live. The slug is what the organiser types
+  # when creating the event (https://<event>.<host>/).
+  events: []
+  # Instead of listing events: a rule with no host, so every
+  # <team>.<event>.<host> reaches the pod. Only when this ingress controller
+  # is dedicated to Simple Hack, or orders host rules before host-less ones
+  # (ingress-nginx does). TLS still needs the names.
+  catchAll: false
+  # Any other hostnames to route here, verbatim.
+  extraHosts: []
+
+# A NetworkPolicy for the pod: in from the ingress controller only, out to
+# Postgres, DNS and (for OIDC, Resend and site-storage webhooks) the
+# internet. Off by default because the selectors are cluster-specific; the
+# values below are the ingress-nginx defaults. ingressFrom is a list of
+# NetworkPolicyPeer; egressTo likewise, appended to DNS and the database.
+networkPolicy:
+  enabled: false
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
+  # The database: a CIDR (an external host) or a namespace/pod selector.
+  databaseTo:
+    - ipBlock:
+        cidr: 10.0.0.0/8
+  databasePort: 5432
+  # Everything else the pod talks to (the identity provider, Resend, team
+  # webhooks). Default: anywhere public.
+  egressTo:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+
+# What the pod asks for. The server idles at ~60 MB and a hackathon of a few
+# hundred people fits in 512 MB; the limit keeps a runaway import from taking
+# the node. No CPU limit: a single Go process throttled by CFS only gets slow.
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# Probes against the server's own endpoints: /healthz answers as soon as it
+# listens, /readyz pings Postgres. The startup probe allows up to two minutes
+# for migrateOnStart on a fresh database.
+probes:
+  startup:
+    periodSeconds: 3
+    failureThreshold: 40
+  liveness:
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Any other setting from docs/configuration.md, by its environment name:
+# extraConfig for plain values (the ConfigMap), extraSecrets for secrets
+# (the chart's Secret). Common ones for an internal hackathon:
+#   HACK_INSTANCE_BUDGET_GB: "10"     disk budget for every site together
+#   EVENT_SITES_KEEP_DAYS: "30"       team sites kept after an event ends
+#   KEEP_VERSIONS: "2"                versions of each site kept
+#   MAX_ARCHIVE_MB: "25"              largest site upload
+#   SIGNUP_BLOCKED_COUNTRIES: ""      ISO country codes refused at sign-in
+#   OIDC_INSECURE_ALLOWED: "true"     a plain-http issuer; tests only
+extraConfig: {}
+extraSecrets: {}
+
+# Bring your own Secret with every secret setting (DB_DSN unless
+# database.existingSecret, ADMIN_API_KEY, PASSCODE_ENC_KEY, ANALYTICS_SALT,
+# OIDC_CLIENT_SECRET, RESEND_API_KEY) and the chart makes none: for GitOps,
+# for `helm template`, and for a secret store. Then adminApiKey,
+# signIn.oidc.clientSecret, signIn.email.resendApiKey and extraSecrets are
+# ignored.
+secrets:
+  existingSecret: ""
+
+# Scheduling and labels, passed through.
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""

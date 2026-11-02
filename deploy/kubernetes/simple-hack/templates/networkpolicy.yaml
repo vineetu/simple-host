@@ -1,0 +1,47 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "hack.name" . }}
+  labels:
+    {{- include "hack.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "hack.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- toYaml .Values.networkPolicy.ingressFrom | nindent 8 }}
+      ports:
+        - port: 8090
+          protocol: TCP
+  egress:
+    # DNS.
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Postgres.
+    - to:
+        {{- toYaml .Values.networkPolicy.databaseTo | nindent 8 }}
+      ports:
+        - port: {{ .Values.networkPolicy.databasePort }}
+          protocol: TCP
+    # The identity provider, Resend, team webhooks.
+    {{- with .Values.networkPolicy.egressTo }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+    {{- end }}
+{{- end }}

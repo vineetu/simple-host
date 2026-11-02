@@ -1,0 +1,40 @@
+# Simple Hack inside a company: company sign-in, your Postgres, your load
+# balancer. Copy, fill in the four "set this" lines, then
+#   helm install simple-hack deploy/kubernetes/simple-hack -n simple-hack --create-namespace -f my-values.yaml
+# Every value is explained in deploy/kubernetes/simple-hack/values.yaml.
+
+host: hack.example.com                                   # set this
+
+database:
+  dsn: postgres://hack:PASSWORD@postgres.example.internal:5432/hack?sslmode=require   # set this
+
+signIn:
+  oidc:
+    issuer: https://login.microsoftonline.com/TENANT-ID/v2.0   # set this
+    clientId: CLIENT-ID                                        # set this
+    clientSecret: CLIENT-SECRET                                # set this
+    allowedEmailDomains: example.com
+    label: Example SSO
+  email:
+    enabled: "off"       # company accounts only; "on" with a Resend key adds emailed codes
+
+ingress:
+  className: nginx
+  # The event(s) this installation runs: team sites live at
+  # https://<team>.<event>.hack.example.com/, so each event's wildcard gets
+  # its own rule here and its own SAN in the certificate below.
+  events: [spring-hack]
+  tls: true
+  tlsSecretName: hack-example-com-tls   # kubernetes.io/tls: hack.example.com, *.hack.example.com, *.spring-hack.hack.example.com
+
+persistence:
+  size: 20Gi
+
+networkPolicy:
+  enabled: true
+  databaseTo:
+    - ipBlock:
+        cidr: 10.20.0.0/16    # where Postgres lives
+
+extraConfig:
+  HACK_INSTANCE_BUDGET_GB: "10"

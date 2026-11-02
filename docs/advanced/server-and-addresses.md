@@ -38,6 +38,7 @@ address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it al
 | `PUBLIC_BASE_URL` | `https://simple-host.app` | text | The server's own address, used in emails and sign-in redirects. install.sh sets it to https://<SITE_DOMAIN>. |
 | `PORT` | `8090` | 1–65535 | The port the server listens on. |
 | `BIND_ADDR` | none | text | The interface the server listens on, like 127.0.0.1 behind a proxy. Empty listens on all. |
+| `TRUSTED_PROXY_CIDRS` | none | text | The networks the proxies in front of this server connect from, comma-separated (10.0.0.0/8,fd00::/8). Set, X-Forwarded-For is believed only from a peer in one of them and read right to left past every trusted hop, so a client cannot choose its own address for rate limits. Empty believes the last entry from any peer, which is right behind one local nginx. **Security-sensitive.** |
 | `DEPLOY_SCRIPT` | none | text | A script run after each site goes live. Empty runs nothing. |
 | `PERSON_HOSTS` | `off` | `off` / `serve` / `canonical` | Each account at its own address, <handle>.<SITE_DOMAIN>. canonical makes it the address handed out. |
 | `SITE_HOSTS` | `off` | `off` / `serve` / `canonical` | Each site at its own address, <site>.<handle>.<SITE_DOMAIN>. Needs PERSON_HOSTS. |

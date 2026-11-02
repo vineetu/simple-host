@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -58,6 +59,50 @@ func TestClientIP(t *testing.T) {
 		{"xff with spaces", "  203.0.113.7  ,70.0.0.1", "10.0.0.1:5000", "70.0.0.1"},
 		{"no xff falls back to remote", "", "10.0.0.1:5000", "10.0.0.1"},
 		{"no port remote", "", "10.0.0.1", "10.0.0.1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", "/", nil)
+			r.RemoteAddr = tc.remoteAddr
+			if tc.xff != "" {
+				r.Header.Set("X-Forwarded-For", tc.xff)
+			}
+			if got := clientIP(r); got != tc.want {
+				t.Fatalf("clientIP = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// With TRUSTED_PROXY_CIDRS set (Kubernetes: a load balancer or an ingress
+// controller in front), X-Forwarded-For is believed only from a trusted peer
+// and read right to left past every trusted hop.
+func TestClientIPTrustedProxies(t *testing.T) {
+	var nets []*net.IPNet
+	for _, c := range []string{"10.0.0.0/8", "127.0.0.0/8", "fd00::/8"} {
+		_, n, err := net.ParseCIDR(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nets = append(nets, n)
+	}
+	SetTrustedProxies(nets)
+	t.Cleanup(func() { SetTrustedProxies(nil) })
+	cases := []struct {
+		name       string
+		xff        string
+		remoteAddr string
+		want       string
+	}{
+		{"one trusted proxy appends the client", "203.0.113.7", "10.244.1.9:5000", "203.0.113.7"},
+		{"forged entry before the real client", "198.51.100.1, 203.0.113.7", "10.244.1.9:5000", "203.0.113.7"},
+		{"two trusted hops are walked past", "203.0.113.7, 10.0.0.2", "10.244.1.9:5000", "203.0.113.7"},
+		{"a forged trusted-looking entry is still skipped", "198.51.100.1, 10.9.9.9", "10.244.1.9:5000", "198.51.100.1"},
+		{"direct connection ignores the header", "203.0.113.7", "198.51.100.1:5000", "198.51.100.1"},
+		{"trusted peer with no header", "", "10.244.1.9:5000", "10.244.1.9"},
+		{"every hop trusted takes the leftmost", "10.0.0.5, 10.0.0.2", "10.244.1.9:5000", "10.0.0.5"},
+		{"ipv6 trusted peer", "203.0.113.7", "[fd00::1]:5000", "203.0.113.7"},
+		{"loopback peer as on a small box", "203.0.113.7", "127.0.0.1:5000", "203.0.113.7"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

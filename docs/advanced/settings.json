@@ -114,6 +114,17 @@
       "small_box": false
     },
     {
+      "name": "TRUSTED_PROXY_CIDRS",
+      "group": "server",
+      "description": "The networks the proxies in front of this server connect from, comma-separated (10.0.0.0/8,fd00::/8). Set, X-Forwarded-For is believed only from a peer in one of them and read right to left past every trusted hop, so a client cannot choose its own address for rate limits. Empty believes the last entry from any peer, which is right behind one local nginx.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": true,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "DEPLOY_SCRIPT",
       "group": "server",
       "description": "A script run after each site goes live. Empty runs nothing.",
@@ -3063,6 +3074,21 @@
       "required": false,
       "basic": false,
       "small_box": true
+    },
+    {
+      "name": "MIGRATE_ON_START",
+      "group": "storage",
+      "description": "true makes the server build an empty database from the embedded schema.sql and apply every pending migration before it listens (the same as `simple-host migrate -init`). For Kubernetes, where there is no psql and no install command; two pods starting at once are safe (an advisory lock).",
+      "type": "bool",
+      "default": "false",
+      "allowed": [
+        "true",
+        "false"
+      ],
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
     },
     {
       "name": "DATA_DIR",

@@ -8,30 +8,37 @@ import (
 	"os"
 	"time"
 
+	schema "github.com/vsriram/simple-host/db"
 	"github.com/vsriram/simple-host/db/migrations"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	dbpkg "github.com/vsriram/simple-host/internal/db"
 )
 
-const migrateUsage = `usage: simple-host migrate [-status | -mark FILE]
+const migrateUsage = `usage: simple-host migrate [-init | -status | -mark FILE]
 
   (no flag)   Apply every pending file in db/migrations/, in order, each once,
               each in its own transaction, under a lock so two runs cannot race.
               Then checks the database has everything this build reads.
+  -init       First build an EMPTY database from the embedded db/schema.sql
+              (a database that already has the users table is left alone),
+              then apply as above. For a container with no psql; safe to run
+              on every start, and safe when two starts race.
   -status     List every migration file as applied, pending or baseline
               (historical files applied by hand before this tool; never run).
   -mark FILE  Record FILE as applied without running it, for a database where
               the SQL was applied by hand.
 
-Reads DB_DSN from the environment. The server itself never migrates on start;
-on a small box, re-running the install command runs this.`
+Reads DB_DSN from the environment. The server itself never migrates on start
+unless MIGRATE_ON_START=true, which runs the -init form before it listens; on a
+small box, re-running the install command runs this.`
 
 func runMigrateCommand(args []string) int {
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	fs.Usage = func() { fmt.Fprintln(os.Stderr, migrateUsage) }
 	status := fs.Bool("status", false, "")
 	mark := fs.String("mark", "", "")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || (*status && *mark != "") {
+	initSchema := fs.Bool("init", false, "")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || (*status && *mark != "") || (*initSchema && (*status || *mark != "")) {
 		fs.Usage()
 		return 2
 	}
@@ -91,21 +98,38 @@ func runMigrateCommand(args []string) int {
 	}
 
 	fmt.Println(buildinfo.String())
-	ran, err := migrations.Apply(ctx, database, func(f string, a ...any) { fmt.Printf(f+"\n", a...) })
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "migrate failed:", err)
-		return 1
-	}
-	if len(ran) == 0 {
-		fmt.Println("database is up to date; nothing to apply")
-	} else {
-		fmt.Printf("applied %d migration(s)\n", len(ran))
-	}
-	if err := dbpkg.VerifySchema(ctx, database); err != nil {
+	if err := migrateDatabase(ctx, database, *initSchema, func(f string, a ...any) { fmt.Printf(f+"\n", a...) }); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	return 0
+}
+
+// migrateDatabase is `simple-host migrate` (with -init when initSchema is set)
+// on an open database: build an empty one from the embedded schema.sql when
+// asked, apply every pending migration file, then check the database has
+// everything this build reads. The server runs it before listening when
+// MIGRATE_ON_START=true.
+func migrateDatabase(ctx context.Context, database *sql.DB, initSchema bool, logf func(string, ...any)) error {
+	if initSchema {
+		built, err := migrations.Init(ctx, database, schema.SQL, logf)
+		if err != nil {
+			return fmt.Errorf("init failed: %w", err)
+		}
+		if built {
+			logf("built the schema from db/schema.sql")
+		}
+	}
+	ran, err := migrations.Apply(ctx, database, logf)
+	if err != nil {
+		return fmt.Errorf("migrate failed: %w", err)
+	}
+	if len(ran) == 0 {
+		logf("database is up to date; nothing to apply")
+	} else {
+		logf("applied %d migration(s)", len(ran))
+	}
+	return dbpkg.VerifySchema(ctx, database)
 }
 
 func waitForDB(database *sql.DB, limit time.Duration) error {

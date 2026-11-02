@@ -298,6 +298,7 @@ another setting.
 | `PUBLIC_BASE_URL` | `https://simple-host.app` | The server's own address, used in emails and sign-in redirects. |
 | `ADMIN_API_KEY` | none (required) | The admin's key; the admin is a real account upserted from it at boot. |
 | `DB_DSN` | none (required) | Postgres connection string. |
+| `MIGRATE_ON_START` | `false` | `true` makes the server build an empty database from the embedded `db/schema.sql` and apply every pending migration before it listens (`simple-host migrate -init`). For Kubernetes ([docs/kubernetes.md](kubernetes.md)), where no install command runs first; two pods starting at once are safe. |
 | `DATA_DIR` | `./data/sites` | Where site files and versions live. |
 | `SITE_STORAGE_MAX_BYTES` | `10000000` | Decimal-byte allowance pooled across each site's KV and SQLite (Hack defaults to `1000000` and also pools files); excludes deployment versions, legacy saved data and transient SQLite WAL. |
 | `SPAM_CHECKED_POST_MAX_BYTES` | 4000 | Largest post someone not signed in may add to a comments-preset resource, as the JSON the page sends (100–65536). Larger: 413 `post_too_large`. |
@@ -308,6 +309,7 @@ another setting.
 | `SITE_STORAGE_SQL_RESULT_MAX_BYTES` | `1000000` | Maximum JSON bytes returned by one new SQLite query. |
 | `PORT` | `8090` | Listen port. |
 | `BIND_ADDR` | none (all interfaces) | Listen interface, e.g. `127.0.0.1` behind nginx. |
+| `TRUSTED_PROXY_CIDRS` | none | Security-sensitive. The networks the proxies in front of this server connect from, comma-separated (`10.0.0.0/8,fd00::/8`). Set, `X-Forwarded-For` is believed only from a peer in one of them and read right to left past every trusted hop, so a client cannot pick its own address for rate limits and the country gate. Empty believes the last entry from any peer, which is right behind one local nginx. Kubernetes sets it to the cluster's pod and node ranges ([docs/kubernetes.md](kubernetes.md)). |
 | `DEPLOY_SCRIPT` | none | A script run after a site goes live. |
 | `CNAME_TARGET` | `cname.<SITE_DOMAIN>` | The CNAME target for custom domains. |
 | `CUSTOM_DOMAIN_IP` | none | The A record handed out for a bare custom domain. |
@@ -422,7 +424,7 @@ whole-space domain is included. See [Your home page](your-home-page.md).
 | `SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS` | 2000 | Visitor write timeout (1–5000 ms). |
 | `SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS` | 1000 | Visitor SQLite query timeout (1–5000 ms). |
 
-The existing clientIP logic trusts the last X-Forwarded-For address. Keep the app behind a local proxy that appends the transport client address and restrict direct access to the app port. Unproxied installs do not have a trustworthy IP write limit. N4 is deferred; no TRUSTED_PROXIES setting is implemented.
+Without `TRUSTED_PROXY_CIDRS` the client address is the last `X-Forwarded-For` entry from any peer. Keep the app behind a local proxy that appends the transport client address and restrict direct access to the app port; an unproxied install set up that way has no trustworthy IP write limit. With `TRUSTED_PROXY_CIDRS` set (Kubernetes, a load balancer in front), the header is believed only from those networks and a direct connection from anywhere else is its own client.
 
 ### Add photos
 

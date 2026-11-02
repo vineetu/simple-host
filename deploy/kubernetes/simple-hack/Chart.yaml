@@ -1,0 +1,20 @@
+apiVersion: v2
+name: simple-hack
+description: Simple Hack, the hackathon platform, on an existing Kubernetes cluster with your own Postgres and load balancer.
+type: application
+# The chart's own version. appVersion is the Simple Hack release the default
+# image tag (hack-<appVersion>) belongs to: the first whose image can build an
+# empty database itself (`simple-host migrate -init`, MIGRATE_ON_START).
+version: 0.1.0
+appVersion: "0.8.14"
+kubeVersion: ">=1.27.0-0"
+home: https://simple-hack.app
+sources:
+  - https://github.com/vineetu/simple-host
+keywords:
+  - hackathon
+  - static-sites
+  - oidc
+maintainers:
+  - name: Simple Host
+    email: support@simple-host.app
