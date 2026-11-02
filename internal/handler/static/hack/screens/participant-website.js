@@ -102,8 +102,8 @@ function teammateText (esc, names) {
 // with its own punctuation.
 function sentenceEnd (text) { return /[.!?]$/.test(text) ? text : text + '.' }
 
-// buildPrompt is the ready-to-paste prompt (atlas participant-website
-// "Prompt" section), from GET /entry and the event/team names.
+// buildPrompt builds the ready-to-paste text (atlas participant-website
+// "Prompt" section) from GET /entry and the event/team names.
 function buildPrompt (ev, team, entry) {
   const lines = ['Build a one-page website for our hackathon project and publish it as our team site for ' +
     (ev.title || 'our hackathon') + ' (team ' + (team.name || '') + ') on Simple Hack.']
