@@ -12,10 +12,9 @@
 # and `test-integration` are declared above it.
 .DEFAULT_GOAL := check
 
+# DB_DSN and MIGRATE_TEST_DSN are cleared explicitly: one left set in the
+# calling shell would silently turn this back into a DB-backed run.
 test:
-	# Cleared explicitly: a DB_DSN or MIGRATE_TEST_DSN already set in the
-	# calling shell (e.g. left over from running scripts/test-integration.sh
-	# by hand) would silently turn this back into a DB-backed run.
 	DB_DSN= MIGRATE_TEST_DSN= go test ./...
 
 test-integration:
