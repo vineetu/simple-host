@@ -156,7 +156,10 @@ json_file=$(mktemp)
 # "$@" comes first so our own -p/-count/-json always win over anything in
 # it trying to turn JSON output off or repeat the run -- go's flag parser
 # takes the last occurrence of a repeated flag.
-DB_DSN="$target_url" go test ./... "$@" -p 1 -count=1 -json >"$json_file" 2>&1
+# MIGRATE_TEST_DSN is cleared: the migration tests drop columns and need an
+# EMPTY database, so they belong to scripts/check-fresh-install.sh (also run
+# by `make check`), never to a database inherited from the caller's shell.
+DB_DSN="$target_url" MIGRATE_TEST_DSN= go test ./... "$@" -p 1 -count=1 -json >"$json_file" 2>&1
 go_test_exit=$?
 
 echo
