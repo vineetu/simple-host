@@ -2157,8 +2157,8 @@ paths:
       operationId: deleteSitesBySitenameVersion
       summary: Discard a version that was never live
       description: >-
-        Removes a version stored with publish=false that nobody has made live since: its row, then
-        its files, for good, under the same per-site lock as deploys. The live version and any version
+        Removes a version stored with publish=false that nobody has made live since: its files go for
+        good and the number is never reused, under the same per-site lock as deploys. The live version and any version
         that has been live before stay (retention prunes those, discard does not). Owner only (a full
         API key or the connector): a deploy-only key or a team key is refused. Rate-limited like the
         other site operations (30 burst, 0.5/s). Connector: discard_version.

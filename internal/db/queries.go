@@ -1357,7 +1357,8 @@ func DiscardReadyVersion(ctx context.Context, q Querier, siteID string, n int) (
 // PruneVersions deletes a site's version rows below keepFrom, never touching
 // the active one, and returns the version numbers removed so the caller can
 // delete the matching directories. Discarded tombstones below the floor go
-// too; their folders are already gone, so DeleteVersion is a no-op for them.
+// too but are not returned: their folders are already gone, and no list ever
+// showed them.
 //
 // Rows go first and disk second. The other order leaves rows pointing at
 // directories that are already gone, so a rollback to one of them would serve
@@ -1369,10 +1370,12 @@ func DiscardReadyVersion(ctx context.Context, q Querier, siteID string, n int) (
 // must not lose the version it just made live.
 func PruneVersions(ctx context.Context, db *sql.DB, siteID string, keepFrom, activeVersion int) ([]int, error) {
 	rows, err := db.QueryContext(ctx,
-		`DELETE FROM versions
-		  WHERE site_id = $1 AND version_number < $2 AND version_number <> $3
-		    AND version_number <> (SELECT active_version FROM sites WHERE id = $1)
-		  RETURNING version_number`, siteID, keepFrom, activeVersion)
+		`WITH gone AS (
+		   DELETE FROM versions
+		    WHERE site_id = $1 AND version_number < $2 AND version_number <> $3
+		      AND version_number <> (SELECT active_version FROM sites WHERE id = $1)
+		    RETURNING version_number, status)
+		 SELECT version_number FROM gone WHERE status <> 'discarded'`, siteID, keepFrom, activeVersion)
 	if err != nil {
 		return nil, err
 	}
