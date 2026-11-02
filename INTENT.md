@@ -1418,6 +1418,7 @@ What follows from that, and is not negotiable without changing the line above:
   site event reaches every subscription naming it. Simple Hack keeps the three record events
   and Enterprise has not ported the site events; both follow in a later pass. Reason: the
   ticket's "Host first, then Hack and Enterprise parity".
+
 - **2026-11-02. Your own visits are not counted as people.** A page view from a device the
   owner used while signed in to Simple Host (their browser on the dashboard or the owner app),
   or after signing in on the site as themselves, is filed as class `owner` for 30 days from the
