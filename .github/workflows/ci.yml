@@ -51,4 +51,7 @@ jobs:
           # how it runs on the server. In CI the database is a service container.
           PSQL: psql -h 127.0.0.1 -U postgres
           PGPASSWORD: postgres
+          # scripts/test-integration.sh (run by `make check`) creates its own
+          # throwaway database on this server rather than starting Docker.
+          TEST_PG_URL: postgres://postgres:postgres@127.0.0.1:5432
         run: make check
