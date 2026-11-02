@@ -5,8 +5,10 @@
 # `test` is the fast loop: go test ./... with no database, so the ~15 DB-backed
 # fixtures (see scripts/test-integration.sh) skip. `test-integration` gives
 # them a disposable Postgres (TEST_PG_URL, or Docker if that's unset) and
-# fails if any of them still skip -- that's what `check` runs.
-.PHONY: check test test-integration
+# fails if any of them still skip -- that's what `check` runs. `test-db` is the
+# same run narrowed for chasing a flaky test, e.g.
+#   make test-db PKGS=./internal/handler RUN='^TestNotify' COUNT=5
+.PHONY: check test test-integration test-db
 
 # `check` stays the default goal (`make` with no target) even though `test`
 # and `test-integration` are declared above it.
@@ -19,6 +21,12 @@ test:
 
 test-integration:
 	bash scripts/test-integration.sh
+
+PKGS ?= ./...
+COUNT ?= 1
+RUN ?=
+test-db:
+	TEST_PKGS='$(PKGS)' TEST_COUNT='$(COUNT)' bash scripts/test-integration.sh $(if $(RUN),-run '$(RUN)')
 
 check:
 	@test -z "$$(gofmt -l internal/ cmd/ db/)" || { echo "gofmt: $$(gofmt -l internal/ cmd/ db/)"; exit 1; }

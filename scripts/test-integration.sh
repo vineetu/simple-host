@@ -30,13 +30,16 @@
 # for a DB-related reason (DB_DSN unset / postgres not reachable), in any
 # -count iteration, or if the output stream isn't real `go test -json`
 # output (e.g. -json got disabled). Other skips (e.g. "needs network") are
-# fine and just counted. The required -p 1 -count=1 -json flags are placed
+# fine and just counted. The required -p 1 -count=N -json flags are placed
 # AFTER "$@" so an overriding flag in extra args can never disable them.
 #
 # Usage:
 #   bash scripts/test-integration.sh                 # starts its own Postgres via Docker
 #   TEST_PG_URL=postgres://postgres:postgres@127.0.0.1:5432 bash scripts/test-integration.sh
 #   bash scripts/test-integration.sh -run '^TestFoo$' # extra args passed through to `go test`
+#   TEST_PKGS=./internal/handler TEST_COUNT=5 bash scripts/test-integration.sh -shuffle=on -run '^TestFoo'
+#     # packages via TEST_PKGS (default ./...), repeat count via TEST_COUNT (default 1);
+#     # `make test-db PKGS=... RUN=... COUNT=...` wraps this.
 set -u
 cd "$(dirname "$0")/.."
 
@@ -151,15 +154,24 @@ if ! psql "$target_url" -v ON_ERROR_STOP=1 -f db/schema.sql >/dev/null; then
   exit 1
 fi
 
-echo "== running go test ./... (DB_DSN set; forcing -p 1 -count=1 -json) =="
+test_pkgs="${TEST_PKGS:-./...}"
+test_count="${TEST_COUNT:-1}"
+echo "== running go test $test_pkgs (DB_DSN set; TESTDB_ISOLATE=1; forcing -p 1 -count=$test_count -json) =="
 json_file=$(mktemp)
 # "$@" comes first so our own -p/-count/-json always win over anything in
-# it trying to turn JSON output off or repeat the run -- go's flag parser
-# takes the last occurrence of a repeated flag.
+# it trying to turn JSON output off -- go's flag parser takes the last
+# occurrence of a repeated flag. Packages go LAST, after every flag: go test
+# stops parsing its own flags at the first package path, so a path inside
+# "$@" would hand -json to the test binary instead. Pass packages via
+# TEST_PKGS (space-separated), never in "$@".
+# TESTDB_ISOLATE=1 makes each test package's TestMain (internal/testdb)
+# clone this database into its own throwaway copy, so this one stays an
+# untouched, connection-free template.
 # MIGRATE_TEST_DSN is cleared: the migration tests drop columns and need an
 # EMPTY database, so they belong to scripts/check-fresh-install.sh (also run
 # by `make check`), never to a database inherited from the caller's shell.
-DB_DSN="$target_url" MIGRATE_TEST_DSN= go test ./... "$@" -p 1 -count=1 -json >"$json_file" 2>&1
+# $test_pkgs is unquoted on purpose: it may list several packages.
+DB_DSN="$target_url" MIGRATE_TEST_DSN= TESTDB_ISOLATE=1 go test "$@" -p 1 -count="$test_count" -json $test_pkgs >"$json_file" 2>&1
 go_test_exit=$?
 
 echo
