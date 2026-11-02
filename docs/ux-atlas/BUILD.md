@@ -68,7 +68,7 @@ internal/handler/static/hack/
 | `/events` | `landing-your-events` |
 | `/events/new` | `organiser-create-event` |
 | `/account` | `account` |
-| `/signin` | the existing shared sign-in card (`<!--sh:signin-->` marker, `SHSignIn`) — reuse, do not rebuild |
+| `/signin` | `app.js`'s own sign-in route (`routeSignIn`/`presentSignIn`), mounting the shared sign-in card (`<!--sh:signin-->` marker, `SHSignIn`) — reuse the card, do not rebuild it |
 | `/join/{code}` | `public-join` |
 | `/judge/{code}` | `public-judge` |
 | `/organiser/{code}` | `public-organiser-invite` |
@@ -79,37 +79,32 @@ internal/handler/static/hack/
 Inside the app, navigation is `history.pushState` + re-render (no full reload); back/forward work.
 Old deep links keep working: unknown `?s=` values fall back to the section's home.
 
-## Switching between old and new
+## One app (classic removed 2026-11-02)
 
-- The server serves `static/hack/app.html` instead of `hack-app.html` when the cookie
-  `sh_hack_ui=next` is set. `next` is the default (one constant, flipped 2026-10-30, every role
-  verified on production); `?ui=classic` on any of those routes sets the cookie to `classic` and
-  keeps the old app reachable, `?ui=next` sets it back to `next`. `?ui=new` is also accepted, as
-  an alias of `?ui=next` (Grok retest round 1 BROKEN #1: someone stuck on classic and guessing
-  the opposite of `?ui=classic` types `new`, not `next` -- both land on the new app).
-- The account page and the shell's Help menu no longer offer "Use the old screens" (owner
-  decision 2026-10-30: classic is being retired, not kept as a standing option). The one place
-  that still links to it is the "this screen is being rebuilt" fallback card (`app.js`, shown
-  when a screen module import fails) -- that is the one case someone genuinely needs the old
-  screen today, until every screen module exists and `?ui=classic` itself is deleted.
-- Classic itself (`hack-app.html`) carries the other direction back: judge Help (`#judge-new-ui`),
-  manage Help (`#manage-new-ui`) and the Account page (`#acct-new-ui`) each have a visible "Use the
-  new screens" link to `?ui=next`, so someone who ended up on `?ui=classic` (a bookmark, a shared
-  link, the fallback card above) can get back to the new app without knowing the query parameter.
+`static/hack/app.html` now serves every signed-in route, including `/signin`; there is no more
+old/new switch to build against. (History: the classic single-page app, `static/hack-app.html`,
+was the default until 2026-10-30, kept reachable via `?ui=classic`/cookie `sh_hack_ui=next` while
+this app was built out screen by screen, and deleted once every screen existed and sign-in was
+ported. A leftover `?ui=classic`, `?ui=next` or `?ui=new` on a URL, or an old `sh_hack_ui` cookie,
+is simply ignored now; the server never sets that cookie.) A screen whose module fails to import
+shows a plain reload/Home error card (`app.js`'s `route()`), not a link back to anything classic.
 
 ## Sign-in and session
 
-Reuse exactly what `hack-app.html` does today (read it, do not reinvent): `localStorage.apiKey`,
-the `SHArrival` handoff, `saveNext`/`safeNext` for returning after sign-in, the join-link
-re-auth rule, the email-code nonce. Move that logic into `app.js`/`api.js` unchanged in behaviour.
-Never print or log the key.
+`app.js` owns this (`goSignIn`, `signedOut`, `routeSignIn`/`presentSignIn`, `mountSignInCard`,
+`startOAuthProvider`, `completeSignIn`): `localStorage.apiKey`, the arrival-attribution handoff
+(`window.SHArrival`, loaded by `static/hack/app.html`'s own `<script src="/arrival.js">`, not the
+chrome's injector, since this shell carries no `<!--sh:head-->`), `saveNext`/`safeNext` for
+returning after sign-in (including invite returns to `/join`, `/judge`, `/organiser` and `/team`
+links), the join-link re-auth rule, and the email-code/magic-link/OAuth nonce dance. Never print
+or log the key.
 
 ## Data
 
-- Every call goes through `api.js` to the same endpoints `hack-app.html` uses. `features.json`
-  lists the endpoint for each capability. Where the old app shows a confirm or computes a count
-  before a destructive call (score deletion, vote removal, approval-off, regenerate link), the new
-  screen does the same, with the copy from `spec.json`.
+- Every call goes through `api.js` to the documented endpoints (`features.json` lists the
+  endpoint for each capability). Where a screen shows a confirm or computes a count before a
+  destructive call (score deletion, vote removal, approval-off, regenerate link), it does so
+  with the copy from `spec.json`.
 - One screen's data loads in that screen's module. The shell gets `me` and the event list once.
 - Saving follows the spec: one Save per section for forms, instant save for toggles, ticks and
   judge scores (with a visible "Saved" note).

@@ -24,8 +24,9 @@ part of that onboarding.
 
 **Release status: v0.8.13 is published.** Its default image and ZIP/tar downloads
 are available from the [hack-v0.8.13 release](https://github.com/vineetu/simple-host/releases/tag/hack-v0.8.13).
-It carries the new default Simple Hack web app (`?ui=classic` for the earlier
-screens), private team finding (join requests, invites, solo listing,
+It carries the new default Simple Hack web app (the classic screens it
+replaced, reachable then via `?ui=classic`, were removed in a later release),
+private team finding (join requests, invites, solo listing,
 organiser fill), announcement edit and delete, zip-upload and
 personal-data-minimisation fixes in Hack MCP, the organiser Event page as
 sub-pages with a collapsible sidebar, and applying to a hackathon without a
