@@ -409,7 +409,7 @@ func main() {
 		siteHandler.SetHackScreenshot(handler.HackScreenshot(db, siteHandler.TeamSitesReady))
 		handler.RegisterHackHome(mux)
 		handler.RegisterHackPublic(mux, db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady)
-		handler.RegisterHackUI(mux)
+		handler.RegisterHackUI(mux, siteHandler.TeamSitesFrameBase())
 	}
 
 	// Event hostnames for hackathon organisers. Off unless a DNS token and at

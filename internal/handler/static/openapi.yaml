@@ -15022,6 +15022,25 @@ components:
           properties:
             url: { type: string }
             host: { type: string, description: The URL's host, for a plain link label. }
+            embed_url:
+              type: string
+              nullable: true
+              description: >-
+                A player URL the judge screen may frame, rebuilt by the server from the
+                parsed video id: https://www.youtube-nocookie.com/embed/{id} (YouTube watch,
+                youtu.be and shorts links), https://player.vimeo.com/video/{id},
+                https://www.loom.com/embed/{id} or https://drive.google.com/file/d/{id}/preview.
+                Null for every other link, which is shown as a plain link.
+        site:
+          type: object
+          nullable: true
+          description: The team's website as the judge screen shows it. Null when the team has no site.
+          properties:
+            url: { type: string, description: The team site's own address. }
+            host: { type: string, description: The host named above the preview. }
+            preview_url: { type: string, nullable: true, description: "A preview of the pinned (submitted) version once the team is pinned, else of the live version; null when there is none." }
+            frameable: { type: boolean, description: "True when the judge screen may frame preview_url: no passcode, no named viewers, not offline, not taken down, sites ready." }
+            not_frameable_why: { type: string, nullable: true, enum: [passcode, viewers, offline, taken_down, not_ready, null], description: Why frameable is false. }
         updated_at: { type: string, format: date-time, nullable: true }
         site_url: { type: string, description: "https://<team>.<event>.simple-hack.app/" }
         site_exists: { type: boolean }

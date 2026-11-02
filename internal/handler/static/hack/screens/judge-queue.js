@@ -108,7 +108,12 @@ export async function render(ctx) {
     // Coordinator decision (2026-11-02): an incomplete entry is still
     // judged, and judges see the flag.
     const flag = row.incomplete ? '<span class="pill warn">Incomplete</span>' : ''
-    return `<div class="r"><span class="main"><b>${ui.esc(title)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ''}</span>${flag}${openBtn}${shotBtn}${action}</div>${shotFrame}`
+    // Entries slice 2: the track and how far it works, as pills, so a judge
+    // can tell entries apart at a glance; the solution line is the excerpt.
+    const mat = ui.MATURITY[row.maturity]
+    const pills = (row.track && row.track.name ? `<span class="pill stage">${ui.esc(row.track.name)} track</span>` : '') +
+      (mat ? `<span class="pill ${ui.esc(mat.cls)}">${ui.esc(mat.label)}</span>` : '')
+    return `<div class="r"><span class="main"><b>${ui.esc(title)}</b>${sub ? `<span>${ui.esc(sub)}</span>` : ''}</span>${pills}${flag}${openBtn}${shotBtn}${action}</div>${shotFrame}`
   }
 
   const mode = (resultsOut || locked) ? 'readonly' : 'open'

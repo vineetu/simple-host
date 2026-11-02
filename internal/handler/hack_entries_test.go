@@ -499,7 +499,7 @@ func TestHackEntriesList(t *testing.T) {
 		wantJSONKeys(t, "list item", first,
 			"team", "title", "tagline", "description", "video_url", "code_url", "has_screenshot",
 			"problem", "audience", "tools", "maturity", "track", "status", "submitted_at", "submit_auto",
-			"incomplete", "excluded", "excluded_at", "video",
+			"incomplete", "excluded", "excluded_at", "video", "site",
 			"complete", "missing", "updated_at", "site_url", "site_exists", "site_taken_down", "deadline", "frozen",
 			"pinned_version", "pinned_url")
 		team := first["team"].(map[string]any)
@@ -645,6 +645,47 @@ func TestHackEntryDeadlineAndTakedown(t *testing.T) {
 	if queuedAlpha == nil || queuedAlpha["team"].(map[string]any)["slug"] != w.alpha ||
 		queuedAlpha["site_exists"] != true || queuedAlpha["pinned_url"] != alpha["pinned_url"] {
 		t.Fatalf("judge queue lost the team's real slug or deadline link: %#v", queuedAlpha)
+	}
+	// Slice 2: the judge screen frames the submitted version, from the
+	// server-issued preview link only, and only when nothing locks the site.
+	queueSite := func(t *testing.T) map[string]any {
+		t.Helper()
+		q := a.at(t, "GET", "/v1/hack/events/"+w.slug+"/judge/queue", nil, a.key(w.judge))
+		for _, raw := range q.json(t)["queue"].([]any) {
+			item := raw.(map[string]any)
+			if item["team_id"] == alpha["team"].(map[string]any)["id"] {
+				s, _ := item["site"].(map[string]any)
+				return s
+			}
+		}
+		t.Fatalf("alpha left the queue: %s", q.body)
+		return nil
+	}
+	if s := queueSite(t); s == nil || s["frameable"] != true || s["preview_url"] != alpha["pinned_url"] ||
+		s["host"] != w.alpha+"."+w.slug+".simple-hack.test" || s["not_frameable_why"] != nil {
+		t.Fatalf("frameable site: %#v", s)
+	}
+	for _, c := range []struct{ set, reset, why string }{
+		{`passcode_enc = '\x01'::bytea`, `passcode_enc = NULL`, "passcode"},
+		{`access = 'specific'`, `access = 'anyone'`, "viewers"},
+	} {
+		if _, err := a.database.Exec(`UPDATE sites SET `+c.set+` WHERE user_id = $1 AND name = $2`, accountID, w.alpha); err != nil {
+			t.Fatal(err)
+		}
+		if s := queueSite(t); s["frameable"] != false || s["not_frameable_why"] != c.why || s["preview_url"] != alpha["pinned_url"] {
+			t.Fatalf("%s site must not be frameable: %#v", c.why, s)
+		}
+		if _, err := a.database.Exec(`UPDATE sites SET `+c.reset+` WHERE user_id = $1 AND name = $2`, accountID, w.alpha); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The video player URL is rebuilt from the parsed id, never the link.
+	if _, err := a.database.Exec(`UPDATE event_entries SET video_url = 'https://youtu.be/dQw4w9WgXcQ?t=3'
+		WHERE team_id = $1`, alpha["team"].(map[string]any)["id"]); err != nil {
+		t.Fatal(err)
+	}
+	if q := a.at(t, "GET", "/v1/hack/events/"+w.slug+"/judge/queue", nil, a.key(w.judge)); !strings.Contains(string(q.body), `"embed_url":"https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"`) {
+		t.Fatalf("queue video embed: %s", q.body)
 	}
 
 	if _, err := a.database.Exec(`UPDATE event_teams SET deadline_override = clock_timestamp() + interval '1 day'

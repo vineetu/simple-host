@@ -5564,8 +5564,8 @@
     },
     {
      "q": "Can the live site be framed?",
-     "decision": "Yes, from the team's own origin: the app CSP's frame-src gains https://*.<team-sites domain> (one wildcard, not per event: the app is one page that navigates between events without reloading, so a per-route CSP would go stale), and the page only ever frames the preview_url the server returns. The frame shows the pinned (submitted) version once the team's deadline passed, the live site before. sandbox allows scripts, forms, same-origin and popups (to escape the sandbox for links), never top navigation. Sites with a passcode or named viewers, or not ready, are frameable:false and show the screenshot with Open website.",
-     "why": "Team sites send no frame-ancestors, so the only blocker was the app's frame-src 'self'. Previews never get owner rights (INTENT 2026-10-10), and signed-in member pages already refuse framing by another origin."
+     "decision": "Yes, from the team's own origin, as a preview: the frame always loads the server's site.preview_url, the submitted (pinned) version once the team is pinned and a preview of the live version before, never the bare live address. Only the judge route (/e/{slug}/judge) is served with the wider CSP (hackAppCSP): its frame-src adds https://*.<team-sites domain> (one wildcard, not per event) and the four video players; every other app route keeps frame-src 'self' blob:, and the app reloads the page when it navigates to the judge route from one of them. Previews on the Simple Hack platform answer frame-ancestors 'self' https://<app origin>, which also overrides the proxy's X-Frame-Options SAMEORIGIN; a signed-in member's own pages keep frame-ancestors 'self'. sandbox allows scripts, forms, same-origin and popups (to escape the sandbox for links), never top navigation. Sites with a passcode or named viewers, offline, taken down or not ready are frameable:false with not_frameable_why, and show the screenshot, the reason in one line and Open website.",
+     "why": "Team sites send no frame-ancestors, so the only blocker was the app's frame-src 'self'. Previews never get owner rights (INTENT 2026-10-10), and signed-in member pages already refuse framing by another origin. Built 2026-11-02 (slice 2): the live proxy adds X-Frame-Options SAMEORIGIN to every response, so previews carry their own frame-ancestors for the app origin; and the wider frame-src is limited to the judge route because only it frames anything."
     },
     {
      "q": "Keyboard on desktop?",
@@ -5576,6 +5576,16 @@
      "q": "What stops a skipped criterion?",
      "decision": "The one-line guard on Save and next, not a dialog.",
      "why": "Fast flow first; a dialog on every partial score would be the very friction the owner wants gone."
+    },
+    {
+     "q": "What does the MCP App judge view show?",
+     "decision": "The same screen with the card first, and the video and website as links (Watch the demo video, Open website) with the screenshot. No embeds: the App frame's own CSP is frame-src 'none'.",
+     "why": "Build plan section 5: MCP App frames have their own CSP, so no embeds there in v1."
+    },
+    {
+     "q": "Are team members' names on the judge's card?",
+     "decision": "No. The card names the team only, as slice 1 shipped it; the prototype's member names are not sent to judges.",
+     "why": "Judges have never been sent member names (queue and MCP alike); adding them is a privacy change, left for the owner to decide."
     }
    ],
    "features": [

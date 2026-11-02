@@ -12,7 +12,7 @@ func TestHackUINext(t *testing.T) {
 	SetHackChrome(true)
 	t.Cleanup(func() { SetHackChrome(previous) })
 	mux := chromeTestMux(t) // Includes the existing embedded file server.
-	RegisterHackUI(mux)
+	RegisterHackUI(mux, "")
 	for _, tc := range []struct {
 		name, path, cookie string
 		next               bool

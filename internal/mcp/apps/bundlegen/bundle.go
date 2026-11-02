@@ -276,7 +276,7 @@ func judgeModules() []module {
 	}}
 	scoring := module{varName: "scoring", srcPath: "screens/judge-scoring.js", imports: []importRewrite{
 		navImport,
-		{"import { errText, newTabLink, siteHref } from './_judge-util.js'", "var errText = __M_judgeutil.errText, newTabLink = __M_judgeutil.newTabLink, siteHref = __M_judgeutil.siteHref;"},
+		{"import { errText, siteHref } from './_judge-util.js'", "var errText = __M_judgeutil.errText, siteHref = __M_judgeutil.siteHref;"},
 		{"import { startTour } from '../tour.js'", "var startTour = __hackStartTour;"},
 	}}
 	rubric := module{varName: "rubric", srcPath: "screens/judge-rubric.js", imports: []importRewrite{

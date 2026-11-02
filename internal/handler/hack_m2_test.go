@@ -352,6 +352,9 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	}
 	if r := a.on(t, "GET", pu.Host, pu.Path, nil, ""); r.status != 200 || !strings.Contains(string(r.body), "alpha two") {
 		t.Fatalf("pinned page: %d %s", r.status, r.body)
+	} else if csp := strings.Join(r.header.Values("Content-Security-Policy"), ";"); !strings.Contains(csp, "frame-ancestors 'self' https://"+tsDomain) {
+		// The judge's scoring screen on the app origin frames the submitted version.
+		t.Fatalf("pinned page frame-ancestors: %q", csp)
 	}
 	// A future deadline while submissions are closed is refused.
 	if r := a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "closed"}, org.key); r.status != 200 {

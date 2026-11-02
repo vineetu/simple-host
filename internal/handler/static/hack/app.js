@@ -362,6 +362,12 @@ const setLive = msg => ui.toast(msg)
 
 
 let initialData, generation = 0
+// Only the judge route is served with the CSP that may frame a team's site
+// and the four video players (hackAppCSP, hack_ui.go). A page first loaded
+// on any other route keeps the narrower one for its whole life, so arriving
+// at the judge route from there loads the page afresh (route() below).
+const FRAMES_PATH = /^\/e\/[^/]+\/judge\/?$/
+const framesAllowed = FRAMES_PATH.test(location.pathname)
 export function go(path) {
   const url = new URL(path, location.href)
   if (url.searchParams.has('ui') || url.pathname === '/signin') { location.assign(url); return }
@@ -389,6 +395,7 @@ async function route() {
   // next screen with its ringed target detached. Every route change clears
   // whatever tour is open first.
   endTour()
+  if (!framesAllowed && FRAMES_PATH.test(location.pathname)) { location.reload(); return }
   const turn = ++generation
   const path = location.pathname.replace(/\/+$/, '') || '/'
   if (path === '/signin') {

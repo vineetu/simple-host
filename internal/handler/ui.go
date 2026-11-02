@@ -366,13 +366,18 @@ func serveStaticPage(name string) http.Handler {
 // it. The pages' own inline scripts run under a per-response nonce, which the
 // handlers stamp onto them with stampNonce. Inline styles stay allowed.
 func adminUICSP(next http.Handler) http.Handler {
+	return uiCSP(next, "'self' blob:")
+}
+
+// uiCSP is adminUICSP with the page's own frame-src sources.
+func uiCSP(next http.Handler, frameSrc string) http.Handler {
 	const policyFmt = "default-src 'self'; " +
 		"script-src 'self' 'nonce-%s'; " +
 		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 		"img-src 'self' data:; " +
 		"font-src 'self' data: https://fonts.gstatic.com; " +
 		"connect-src 'self'; " +
-		"frame-src 'self' blob:; " +
+		"frame-src %s; " +
 		"object-src 'none'; " +
 		"base-uri 'none'; " +
 		"frame-ancestors 'none'"
@@ -388,7 +393,7 @@ func adminUICSP(next http.Handler) http.Handler {
 			policy = strings.ReplaceAll(policy, " https://fonts.googleapis.com", "")
 			policy = strings.ReplaceAll(policy, " https://fonts.gstatic.com", "")
 		}
-		w.Header().Set("Content-Security-Policy", fmt.Sprintf(policy, nonce))
+		w.Header().Set("Content-Security-Policy", fmt.Sprintf(policy, nonce, frameSrc))
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), cspNonceKey{}, nonce)))
 	})
 }

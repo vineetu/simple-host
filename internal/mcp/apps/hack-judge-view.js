@@ -286,6 +286,9 @@
       event: { event: state.event },
       me: { username: 'me', display_name: '' },
       params: paramsObj(params || {}),
+      // This frame's own CSP is frame-src 'none': judge-scoring.js shows the
+      // entry's video and website as links here, never as embeds.
+      noFrames: true,
       go: function (path) {
         var q = (path.split('?')[1] || '');
         var parts = {};

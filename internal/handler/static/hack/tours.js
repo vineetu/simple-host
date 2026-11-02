@@ -97,13 +97,18 @@ export const tours = {
     localKey: 'sh-judge-scoring-tour-done',
     home: 'scoring',
     steps: [
-      { target: '[data-tour="site"]', title: 'See what they built', body: 'Open the team’s website to see their project.' },
+      // Entries slice 2: the card, the video and the site are all on this
+      // screen now; each step is skipped when its target isn't there (no
+      // video, no site).
+      { target: '[data-tour="card"]', title: 'Start with the card', body: 'The team’s problem, solution, who it is for and what works today. A 20-second read.' },
+      { target: '[data-tour="video"]', title: 'Watch the demo', body: 'Press play to watch it here. Nothing loads until you do.' },
+      { target: '[data-tour="site"]', title: 'See what they built', body: 'The team’s website as they submitted it. Use Open for a new tab.' },
       { target: '[data-tour="score"]', title: 'Score each criterion', body: 'Tap a score. It saves straight away.' },
       // Cosmetic #3 (retest 3): side:'left' keeps this card from landing on
       // top of the Execution/Design score rows above the comment box --
       // see tour.js's place().
       { target: '[data-tour="comment"]', side: 'left', title: 'Add a comment', body: 'Add feedback once you score. The team sees it without your name.' },
-      { target: '[data-tour="save-next"]', title: 'Save & next', body: 'Your scores already saved themselves. This just moves you to the next team. On your last team it reads Save & finish.' },
+      { target: '[data-tour="save-next"]', title: 'Save & next', body: 'Your scores already saved themselves. This just moves you to the next team. On your last team it reads Save & finish. On a keyboard, N does the same and P goes back.' },
       { target: '[data-tour="conflict"]', title: 'Know someone on this team?', body: 'If you know someone on this team, press this. The team leaves your list and your score for it stops counting. You can undo it from My teams.' },
       { target: '[data-tour="prev"]', title: 'Previous', body: 'Go back to the team before this one. Disabled on your first team.' }
     ]

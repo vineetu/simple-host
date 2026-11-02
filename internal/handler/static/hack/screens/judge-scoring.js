@@ -1,5 +1,5 @@
 import { href } from '../nav.js'
-import { errText, newTabLink, siteHref } from './_judge-util.js'
+import { errText, siteHref } from './_judge-util.js'
 import { startTour } from '../tour.js'
 
 // A generic fallback: render() below sets the exact "Score: <entry>" title
@@ -12,15 +12,27 @@ export function title() { return 'Score entry' }
 // so re-rendering this same screen (switching teams with Save & next)
 // doesn't keep popping it back open within one page load.
 let autoTourTried = false
+// The N/P key listener of the screen on show (see render()).
+let keyAbort = null
 
 // judge-scoring: full-focus scoring of one entry (docs/ux-atlas/prototype/
 // judge-scoring*.html). No nav_id — only reached from judge-queue /
 // judge-home with ?team=. Every point chip PUTs and saves immediately
 // (score-criterion); there is no Save button for scores, ever, only
 // Save & next, which also flushes the comment (save-and-next,
-// comment-on-entry). The team's live/pinned site cannot be framed (the
-// app's CSP is frame-src 'self'), so "open the entry's website" is the
-// prominent button BUILD.md allows as the fallback, not an iframe.
+// comment-on-entry).
+//
+// Entries slice 2 ("the judge's one screen", build-plan.md section 11): the
+// summary card first, then the video and the team's site in the event's
+// judge_first order, on the same screen as the rubric.
+//  - The video plays here only from the server-built video.embed_url (one of
+//    four fixed player origins, rebuilt from a parsed id -- videoEmbed in
+//    hack_video.go), and only after the judge presses play. Any other link
+//    is a plain new-tab link naming its host.
+//  - The site is framed only from the server-issued site.preview_url, and
+//    only when site.frameable; otherwise the screenshot and Open website.
+//  - ctx.noFrames (the MCP App judge view, whose own CSP frames nothing)
+//    turns both into links.
 export async function render(ctx) {
   const { main, api: client, ui, event: detail } = ctx
   const api = client.api
@@ -124,70 +136,120 @@ export async function render(ctx) {
   let commentSave = null
 
   const title = row.title || row.team.name || 'Entry'
-  const tagline = String(row.tagline || '').trim()
   const desc = String(row.description || '').trim()
-  const video = newTabLink(row.video_url, 'Watch video', 'btn')
-  const code = newTabLink(row.code_url, 'View code', 'btn')
-  const site = siteHref(row)
-  const submitted = row.incomplete
-    ? '<p>Not complete at the deadline. Judge it as it is.</p>'
-    : (row.submitted_at || row.updated_at) ? `<p>Submitted ${ui.esc(ui.dateTime(row.submitted_at || row.updated_at, ev))}</p>` : ''
-  // Entries slice 1 (build-plan.md section 11): judges get the summary card
-  // as plain text at the top, the same ui.entryCard the team previews. The
-  // full one-screen layout with embedded video and framed site is slice 2.
-  const cardHost = document.createElement('div')
-  cardHost.append(ui.entryCard({
+  const teamName = row.team.name || title
+  const noFrames = !!ctx.noFrames
+  const judgeFirst = (queueRes.data && queueRes.data.judge_first) === 'site' ? 'site' : 'video'
+
+  // The summary card is the page header (the 20-second read): its title
+  // becomes the page's h1.
+  const card = ui.entryCard({
     title: row.title || row.team.name, team_name: row.team.name, team_members: '',
     track: row.track, problem: row.problem, tagline: row.tagline, audience: row.audience,
     tools: row.tools, maturity: row.maturity
-  }, { incomplete: !!row.incomplete }))
+  }, { incomplete: !!row.incomplete })
+  card.setAttribute('data-tour', 'card')
+  const cardH = card.querySelector('h2')
+  if (cardH) { const h1 = document.createElement('h1'); h1.textContent = cardH.textContent; cardH.replaceWith(h1) }
+  const cardHost = document.createElement('div')
+  cardHost.append(card)
   const cardHTML = cardHost.innerHTML
-  // Retest Cosmetic #5: a team that never submitted an entry at all gets a
-  // different line than one that submitted an entry but just never
-  // published a site -- "Nothing published yet" reads as "it's still
-  // coming", which is misleading once there's no entry to publish from.
-  // (row.title, not the fallback-to-"Entry" `title` above, which is never
-  // falsy -- same raw check the Team site box's own "No entry was
-  // submitted." text below uses.)
-  // Round 2: a title/tagline/description alone isn't the whole entry -- a
-  // team that only submitted a video or code link still submitted
-  // something, so that counts too.
-  const noEntry = !row.title && !tagline && !desc && !row.video_url && !row.code_url
-
-  // No empty "Team site" heading over nothing (SIM-346 cosmetic #7): only
-  // show the heading when there's a site to show, or when there's neither a
-  // site nor a screenshot (so the judge still gets told nothing was
-  // published, instead of the section just vanishing).
-  const siteSection = site
-    ? `<p class="section-title">Team site</p><div class="site-frame"><div class="stack"><p><b>${ui.esc(row.team.name || title)}</b></p><a class="btn" data-tour="site" href="${ui.esc(site)}" target="_blank" rel="noopener noreferrer">Open ${ui.esc(row.team.name || 'site')} →</a></div></div>`
-    : (row.has_screenshot ? '' : `<p class="section-title">Team site</p><div class="site-frame"><p class="muted">${noEntry ? 'No entry was submitted.' : 'Nothing published yet.'}</p></div>`)
-
-  // The screenshot is often the only evidence for a team with no published
-  // site (or a stale one) -- show it alongside the website, not instead of
-  // telling the judge nothing was published.
-  const shotSection = row.has_screenshot
-    ? `<p class="section-title">Screenshot</p><div class="site-frame"><img id="jsc-shot" alt="Screenshot of ${ui.esc(row.team.name || title)}" hidden></div>`
+  const incompleteNote = row.incomplete
+    ? '<p class="small muted">Not complete at the deadline. Judge it as it is.</p>'
     : ''
 
-  const left = `<p class="crumbs"><a href="${ui.esc(href('judge', slug, 'queue'))}">My teams</a> / ${ui.esc(title)}</p>` +
-    (locked ? `<div class="note warn"><b>Scoring is locked.</b> Your scores are read-only.</div>` : '') +
-    `<header class="ph"><div class="t"><h1>${ui.esc(title)}</h1>${submitted}</div></header>` +
-    `<button type="button" class="btn btn-block" id="jsc-goscore">Go to scoring ↓</button>` +
-    (noEntry ? '' : cardHTML) +
-    (desc ? `<details class="card"><summary>More detail from the team</summary><p>${ui.esc(desc)}</p></details>` : '') +
-    // Cosmetic #2 (retest 3): "No entry yet" used to show here unconditionally
-    // whenever noEntry was true, stacked right above the Team site box's own
-    // "No entry was submitted." -- the same fact said twice, one of them in
-    // the present tense after entries had already closed. Said once, below.
-    `<div class="row-flex">${video}${code}</div>` +
-    siteSection +
-    shotSection
+  const video = row.video && ui.safeHref(row.video.url) ? row.video : null
+  const site = row.site || null
+  const siteOpen = siteHref(row)
+  const codeHref = ui.safeHref(row.code_url)
+  // Only one of the four fixed player origins, whatever the server sent
+  // (it never sends anything else; this is the client's own check).
+  const embedURL = video && !noFrames && typeof video.embed_url === 'string' &&
+    /^https:\/\/(www\.youtube-nocookie\.com\/embed\/|player\.vimeo\.com\/video\/|www\.loom\.com\/embed\/|drive\.google\.com\/file\/d\/)/.test(video.embed_url)
+    ? video.embed_url : ''
+  const framed = site && site.frameable && !noFrames ? ui.safeHref(site.preview_url) : ''
+
+  function videoBlock() {
+    if (!video) return ''
+    const host = video.host || ui.hostLabel(video.url)
+    const openLink = `<a class="btn quiet sm" href="${ui.esc(ui.safeHref(video.url))}" target="_blank" rel="noopener noreferrer">Open on ${ui.esc(host)} ↗</a>`
+    if (embedURL) {
+      return `<section class="media" id="jsc-video" data-tour="video"><div class="mbar"><b>Demo video</b><span class="host">${ui.esc(host)}</span><span class="grow"></span>${openLink}</div>` +
+        `<button type="button" class="video-box" id="jsc-play" aria-label="Play the ${ui.esc(teamName)} demo video here"><span class="play"></span><span class="cap">Plays here · nothing loads until you press play</span></button></section>`
+    }
+    return `<section class="media" id="jsc-video" data-tour="video"><div class="mbar"><b>Demo video</b><span class="host">${ui.esc(host)}</span></div>` +
+      `<a class="video-link" href="${ui.esc(ui.safeHref(video.url))}" target="_blank" rel="noopener noreferrer"><span class="play"></span><span><b>Watch the demo video</b><br><span class="small muted">Opens ${ui.esc(host)} in a new tab</span></span></a></section>`
+  }
+
+  const WHY = {
+    passcode: 'This site asks visitors for a passcode, so it can’t show here.',
+    viewers: 'Only people the team named can open this site, so it can’t show here.',
+    offline: 'The team took this site offline.',
+    taken_down: 'The organiser took this site down.',
+    not_ready: 'This site can’t show here.'
+  }
+  function siteBlock() {
+    const shot = row.has_screenshot
+      ? `<div class="site-frame"><img id="jsc-shot" alt="Screenshot of ${ui.esc(teamName)}" hidden></div>`
+      : ''
+    if (!site && !siteOpen) {
+      // No site at all: the screenshot (when there is one) is the only
+      // evidence, shown on its own; nothing else is shown empty.
+      return shot ? `<section class="media" id="jsc-site"><div class="mbar"><b>Screenshot</b></div><div class="media-body">${shot}</div></section>` : ''
+    }
+    const label = row.pinned_version != null ? 'Website · as submitted' : 'Website'
+    const host = (site && site.host) || ui.hostLabel(siteOpen)
+    const openHref = siteOpen
+    const bar = `<div class="mbar"><b>${ui.esc(label)}</b><span class="host">${ui.esc(host)}</span><span class="grow"></span>${openHref ? `<a class="btn quiet sm" href="${ui.esc(openHref)}" target="_blank" rel="noopener noreferrer">Open ↗</a>` : ''}</div>`
+    if (framed) {
+      return `<section class="media" id="jsc-site" data-tour="site">${bar}<div class="site-preview"><iframe id="jsc-site-frame" title="${ui.esc(teamName)} website" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe></div></section>`
+    }
+    const why = noFrames ? '' : (WHY[site && site.not_frameable_why] || '')
+    const body = openHref
+      ? `${shot}${why ? `<p class="small muted">${ui.esc(why)}</p>` : ''}<p><a class="btn primary" data-tour="site" href="${ui.esc(openHref)}" target="_blank" rel="noopener noreferrer">Open website ↗</a></p>`
+      : `${shot}<p class="muted">${site && site.not_frameable_why === 'taken_down' ? ui.esc(WHY.taken_down) : 'Nothing published.'}</p>`
+    return `<section class="media" id="jsc-site">${bar}<div class="media-body">${body}</div></section>`
+  }
+
+  function codeBlock() {
+    if (!codeHref) return ''
+    const host = ui.hostLabel(codeHref)
+    return `<section class="media" id="jsc-code"><div class="mbar"><b>Code</b><span class="host">${ui.esc(host)}</span><span class="grow"></span><a class="btn quiet sm" href="${ui.esc(codeHref)}" target="_blank" rel="noopener noreferrer">Open ↗</a></div></section>`
+  }
+
+  // Card, then the event's first medium, then the other; code follows the
+  // website in a website-first (coding) event, else comes last.
+  const media = judgeFirst === 'site'
+    ? siteBlock() + codeBlock() + videoBlock()
+    : videoBlock() + siteBlock() + codeBlock()
+
+  const left = `<div class="jhead"><a class="muted small" href="${ui.esc(href('judge', slug, 'queue'))}">← My teams</a><span class="grow"></span><span class="small muted">Team ${index + 1} of ${orderedQueue.length}</span></div>` +
+    cardHTML + incompleteNote +
+    `<p class="small jump"><a href="#score" id="jsc-goscore">Go to scoring ↓</a></p>` +
+    media +
+    (desc ? `<details class="card"><summary>More detail from the team</summary><p>${ui.esc(desc)}</p></details>` : '')
+
+  // Each criterion's weight as a share of the whole rubric, the way the
+  // rubric editor and results compute it (weights are whole numbers that
+  // usually add up to 100; this is right either way).
+  const weightSum = rubric.reduce((sum, c) => sum + (Number(c.weight) || 0), 0)
+  function weightPct(crit) {
+    const w = Number(crit.weight)
+    if (!weightSum || crit.weight == null || Number.isNaN(w)) return ''
+    return Math.round(w / weightSum * 100) + '%'
+  }
+
+  function critHead(crit) {
+    const pct = weightPct(crit)
+    return `<div class="t-row"><b>${ui.esc(crit.name)}</b>${pct ? `<span class="w">${ui.esc(pct)}</span>` : ''}</div>` +
+      (crit.description ? `<p class="small muted">${ui.esc(crit.description)}</p>` : '')
+  }
 
   function critRow(crit, isFirst) {
     const current = scores[crit.id]
     const maxPoints = Number(crit.max_points) || 0
     if (locked) {
-      return `<div class="crit"><b>${ui.esc(crit.name)}</b>${crit.description ? `<p class="small muted">${ui.esc(crit.description)}</p>` : ''}<p>Your score: <b>${current == null ? '—' : Number(current) || 0} / ${maxPoints}</b></p></div>`
+      return `<div class="crit">${critHead(crit)}<p>Your score: <b>${current == null ? '—' : Number(current) || 0} / ${maxPoints}</b></p></div>`
     }
     let chips = ''
     for (let p = 0; p <= maxPoints; p++) {
@@ -195,7 +257,7 @@ export async function render(ctx) {
     }
     // Walkthrough: only the first criterion needs a target -- "tap a score"
     // applies to all of them the same way.
-    return `<div class="crit" data-crit-row="${ui.esc(crit.id)}"><b>${ui.esc(crit.name)}</b>${crit.description ? `<p class="small muted">${ui.esc(crit.description)}</p>` : ''}<div class="scale" role="radiogroup" aria-label="${ui.esc(crit.name)}"${isFirst ? ' data-tour="score"' : ''}>${chips}</div></div>`
+    return `<div class="crit" data-crit-row="${ui.esc(crit.id)}">${critHead(crit)}<div class="scale" role="radiogroup" aria-label="${ui.esc(crit.name)}"${isFirst ? ' data-tour="score"' : ''}>${chips}</div></div>`
   }
 
   document.title = `Score: ${title} · Simple Hack`
@@ -203,29 +265,57 @@ export async function render(ctx) {
   const hasScore = Object.keys(scores).length > 0
   const last = index >= orderedQueue.length - 1
   const nextLabel = last ? 'Save & finish' : 'Save & next'
-  const posText = `${index + 1} of ${orderedQueue.length}${row.done ? ', done' : ''}`
+  const doneCount = () => orderedQueue.filter(q => q.done).length
+  const progressHTML = () => {
+    const n = doneCount(), m = orderedQueue.length
+    return `<div class="row-flex"><span class="small muted">${n} of ${m} scored</span><span class="grow"></span><a class="small muted" href="${ui.esc(href('judge', slug, 'rubric'))}">Rubric &amp; brief</a></div>` +
+      `<div class="bar" style="margin:6px 0 10px" role="img" aria-label="${n} of ${m} scored"><i style="width:${m ? Math.round(n / m * 100) : 0}%"></i></div>`
+  }
 
-  const right = `<h2 id="score">Scores <span class="small muted">${ui.esc(posText)}</span></h2>` +
-    (locked ? '' : `<p class="small muted">Tap a score. It saves straight away.</p>`) +
-    `<p class="small"><a class="muted" href="${ui.esc(href('judge', slug, 'rubric'))}">What do the scores mean?</a></p>` +
+  const right = `<div id="jsc-progress">${progressHTML()}</div>` +
+    `<h2 id="score">Score</h2>` +
+    (locked ? `<div class="note warn"><b>Scoring is locked.</b> Your scores are read-only.</div>` : '') +
     `<div id="jsc-criteria">${rubric.map((crit, i) => critRow(crit, i === 0)).join('')}</div>` +
     (locked
       ? `<div class="field"><span class="lab">Comment for the team</span><p>${comment ? ui.esc(comment) : '<span class="muted">No comment.</span>'}</p><p class="help">Not shown with your name.</p></div>`
-      : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" data-tour="comment" maxlength="1000" rows="3" placeholder="Share useful feedback"${!hasScore ? ' disabled' : ''}>${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? 'Optional. The team sees it without your name.' : 'Add a score before writing a comment.'}</p><p class="small muted" id="jsc-saved" aria-live="polite"></p></div>`) +
-    (locked ? '' : `<p class="small"><button type="button" class="btn quiet sm" id="jsc-conflict" data-tour="conflict">I know someone on this team</button></p>`) +
-    `<div class="sticky-foot"><button type="button" class="btn" id="jsc-prev" data-tour="prev"${index <= 0 ? ' disabled' : ''}>Previous</button>${locked ? '' : `<button type="button" class="btn primary" id="jsc-next" data-tour="save-next">${nextLabel}</button>`}</div>`
+      : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" data-tour="comment" maxlength="1000" rows="3" placeholder="Share useful feedback"${!hasScore ? ' disabled' : ''}>${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? 'Optional. Not shown with your name. Saves automatically.' : 'Optional. Not shown with your name. Add a score before writing a comment.'}</p><p class="small muted" id="jsc-saved" aria-live="polite">${hasScore ? '' : 'Tap a score. It saves straight away.'}</p></div>`) +
+    (locked ? '' : `<div class="danger-zone"><h2>Know this team?</h2><div class="setting"><button type="button" class="btn danger sm" id="jsc-conflict" data-tour="conflict">I know someone on this team</button></div></div>`) +
+    `<div class="note warn next-guard" id="jsc-guard" role="status" hidden></div>` +
+    `<div class="sticky-foot"><button type="button" class="btn" id="jsc-prev" data-tour="prev"${index <= 0 ? ' disabled' : ''}>Previous</button>${locked ? '' : `<button type="button" class="btn primary" id="jsc-next" data-tour="save-next">${nextLabel}</button>`}<span class="small muted kbd-hint">${locked ? '' : '<span class="kbd">N</span> next · '}<span class="kbd">P</span> previous</span></div>`
 
   // S7: the shared shell already mounts into a <main class="page">, so this
   // full-focus layout must be a div, not another <main> -- a nested <main>
   // breaks landmark navigation for screen readers.
   main.innerHTML = `<div class="page wide" style="padding:0;height:100%"><div class="focus"><section class="left">${left}</section><section class="right">${right}</section></div></div>`
 
-  if (row.has_screenshot) {
-    ui.showImage(ctx, main.querySelector('#jsc-shot'), `/v1/hack/events/${encodeURIComponent(slug)}/teams/${encodeURIComponent(row.team.slug)}/screenshot`)
+  const shotImg = main.querySelector('#jsc-shot')
+  if (shotImg) {
+    ui.showImage(ctx, shotImg, `/v1/hack/events/${encodeURIComponent(slug)}/teams/${encodeURIComponent(row.team.slug)}/screenshot`)
+  }
+
+  // The framed site: src set from the server-issued preview_url only.
+  const siteFrame = main.querySelector('#jsc-site-frame')
+  if (siteFrame && framed) siteFrame.src = framed
+
+  // Click-to-load video: nothing from the player's origin loads until the
+  // judge presses play, and it never autoplays (no autoplay in `allow`).
+  const play = main.querySelector('#jsc-play')
+  if (play && embedURL) {
+    play.addEventListener('click', () => {
+      const frame = document.createElement('iframe')
+      frame.className = 'video-frame'
+      frame.title = `${teamName} demo video`
+      frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-popups')
+      frame.setAttribute('allow', 'fullscreen; picture-in-picture')
+      frame.setAttribute('allowfullscreen', '')
+      frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin')
+      frame.src = embedURL
+      play.replaceWith(frame)
+    })
   }
 
   const goscore = main.querySelector('#jsc-goscore')
-  if (goscore) goscore.addEventListener('click', () => { main.querySelector('#score').scrollIntoView({ behavior: 'smooth', block: 'start' }) })
+  if (goscore) goscore.addEventListener('click', e => { e.preventDefault(); main.querySelector('#score').scrollIntoView({ behavior: 'smooth', block: 'start' }) })
 
   function goTeam(id) {
     ctx.go(`/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(id)}`)
@@ -266,6 +356,13 @@ export async function render(ctx) {
     return next
   }
   async function flushScores() { await Promise.allSettled(Object.values(scoreChain)) }
+
+  let guardUntil = 0
+  function hideGuard() {
+    const guard = main.querySelector('#jsc-guard')
+    if (guard) guard.hidden = true
+    guardUntil = 0
+  }
 
   if (!locked) {
     const commentBox = main.querySelector('#jsc-comment')
@@ -325,6 +422,9 @@ export async function render(ctx) {
         return
       }
       row.done = !!(r.data && r.data.complete)
+      const prog = main.querySelector('#jsc-progress')
+      if (prog) prog.innerHTML = progressHTML()
+      if (rubric.every(c => scores[c.id] != null)) hideGuard()
       const box = main.querySelector('#jsc-comment')
       if (box.disabled) {
         box.disabled = false
@@ -369,6 +469,18 @@ export async function render(ctx) {
     })
 
     main.querySelector('#jsc-next').addEventListener('click', async () => {
+      // guard-unscored-on-next: one line, not a dialog. A second press
+      // within 10 seconds moves on.
+      const unscored = rubric.filter(c => scores[c.id] == null)
+      if (unscored.length && Date.now() > guardUntil) {
+        const names = unscored.map(c => c.name)
+        const list = names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+        const guard = main.querySelector('#jsc-guard')
+        guard.textContent = `${list} ${names.length === 1 ? 'has' : 'have'} no score yet. Press again to move on.`
+        guard.hidden = false
+        guardUntil = Date.now() + 10000
+        return
+      }
       const ok = await flushComment()
       if (!ok) return
       await flushScores()
@@ -386,6 +498,27 @@ export async function render(ctx) {
     }
     goTeam(orderedQueue[index - 1].team_id)
   })
+
+  // N = Save & next, P = Previous, outside text fields (atlas decision
+  // "Keyboard on desktop?"); digits are deliberately not bound. One
+  // listener at a time: a re-render (the next team) replaces the last one,
+  // and it removes itself once this screen is gone.
+  if (keyAbort) keyAbort.abort()
+  keyAbort = new AbortController()
+  const ownRoot = main.querySelector('.focus')
+  const signal = keyAbort.signal
+  document.addEventListener('keydown', e => {
+    if (!ownRoot.isConnected) { keyAbort.abort(); return }
+    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.repeat) return
+    const t = e.target
+    if (t && (t.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]'))) return
+    if (document.querySelector('dialog[open], [role="dialog"], [role="alertdialog"]')) return
+    const k = e.key.toLowerCase()
+    const btn = k === 'n' ? main.querySelector('#jsc-next') : k === 'p' ? main.querySelector('#jsc-prev') : null
+    if (!btn || btn.disabled) return
+    e.preventDefault()
+    btn.click()
+  }, { signal })
 
   // replay-scoring-walkthrough: the shell's Help menu deep-links here with
   // &walkthrough=1 while this is the current screen; tour.js itself checks

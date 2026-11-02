@@ -269,6 +269,15 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 		return
 	}
 	h.ownerFrameGuard(w, r, site.UserID)
+	if hackMode && !strings.Contains(strings.Join(w.Header().Values("Content-Security-Policy"), ";"), "frame-ancestors") {
+		// The judge's scoring screen on the app origin frames the submitted
+		// version of a team site (hackAppCSP, entryListItem's frameable).
+		// Only that origin, never any other site: a CSP frame-ancestors
+		// also overrides the proxy's X-Frame-Options SAMEORIGIN, which would
+		// otherwise refuse the app. A signed-in member's own pages keep
+		// ownerFrameGuard's 'self' (checked above).
+		w.Header().Add("Content-Security-Policy", "frame-ancestors 'self' "+h.mainSiteURL())
+	}
 	h.serveDirFile(w, r, h.disk.VersionDir(site.UserID, site.Name, n), "/"+rest, r.URL.EscapedPath())
 }
 

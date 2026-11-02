@@ -29,7 +29,7 @@ func TestServeHackInkBrowser(t *testing.T) {
 	RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
 	RegisterSkillsHub(a.mux, a.srv.URL)
 	RegisterHackHome(a.mux)
-	RegisterHackUI(a.mux)
+	RegisterHackUI(a.mux, "")
 	RegisterHackPublic(a.mux, a.database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady)
 	a.mux.HandleFunc("GET /_fixture/mail", func(w http.ResponseWriter, r *http.Request) {
 		mb.mu.Lock()

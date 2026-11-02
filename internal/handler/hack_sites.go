@@ -439,3 +439,13 @@ func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request,
 	}
 	rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)).ServeHTTP(w, r)
 }
+
+// TeamSitesFrameBase is the domain team sites are served under
+// (<team>.<event>.<base>), for the judge route's frame-src; "" when sites
+// have no hosts of their own, so nothing is ever framed.
+func (h *SiteHandler) TeamSitesFrameBase() string {
+	if !h.siteHostsOn() {
+		return ""
+	}
+	return h.handoutBase()
+}

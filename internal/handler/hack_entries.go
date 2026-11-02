@@ -765,9 +765,9 @@ func nonNilStrings(s []string) []string {
 }
 
 // entryListItem is one team's entry as organisers and judges see it
-// (section 4.5): the summary card, status, missing and basic video/site
-// evidence (plain links in this slice; the embeddable/frameable judge view
-// is slice 2, build-plan.md section 11).
+// (section 4.5): the summary card, status, missing and the video and site
+// evidence, with the embeddable video player (videoEmbed) and whether the
+// judge screen may frame the site (entrySiteView).
 func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.EventTeam, e db.EventEntry, fields map[string]string, hasTracks bool, tl teamList) (map[string]any, error) {
 	st := tl.states[team.ID]
 	site := tl.site(team.Slug)
@@ -795,7 +795,15 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 	}
 	var video any
 	if e.VideoURL != "" {
-		video = map[string]any{"url": e.VideoURL, "host": hackURLHost(e.VideoURL)}
+		var embed any
+		if u := videoEmbed(e.VideoURL); u != "" {
+			embed = u
+		}
+		video = map[string]any{"url": e.VideoURL, "host": hackURLHost(e.VideoURL), "embed_url": embed}
+	}
+	siteView, err := h.entrySiteView(ctx, ev, team, tl, pinnedURL)
+	if err != nil {
+		return nil, err
 	}
 	var excludedAt any
 	if e.ExcludedAt.Valid {
@@ -823,6 +831,7 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 		"complete":        check.Complete,
 		"missing":         check.Missing,
 		"video":           video,
+		"site":            siteView,
 		"updated_at":      updated,
 		"site_url":        h.teamSiteURL(ev.Slug, team.Slug),
 		"site_exists":     site != nil,
@@ -831,6 +840,75 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 		"frozen":          st.Frozen(),
 		"pinned_version":  pinned,
 		"pinned_url":      pinnedURL,
+	}, nil
+}
+
+// entrySiteView is the site block of an entry list item: the address the
+// judge screen frames or opens, the host it names, and whether framing is
+// allowed. preview_url is the submitted (pinned) version once the team is
+// pinned, else a preview of the live version; both are previews on the
+// team's own host, which never carry owner rights and are the only pages
+// that let the app frame them (servePreview). frameable is false for a
+// site with a passcode or named viewers, one that is offline, taken down or
+// not ready, and on a server with no per-site hosts (no preview link);
+// not_frameable_why says which.
+// nil when the team has no site.
+func (h *HackHandler) entrySiteView(ctx context.Context, ev db.Event, team db.EventTeam, tl teamList, pinnedURL any) (any, error) {
+	site := tl.site(team.Slug)
+	if site == nil {
+		return nil, nil
+	}
+	st := tl.states[team.ID]
+	liveURL := h.teamSiteURL(ev.Slug, team.Slug)
+	preview, _ := pinnedURL.(string)
+	if preview == "" && site.ActiveVersion > 0 {
+		if u, ok := h.pinnedLink(ev, team, tl, site.ActiveVersion); ok {
+			preview = u
+		}
+	}
+	// why names the first reason the site can't be framed, for the
+	// screen's one-line explanation ("" when it can).
+	why := ""
+	switch {
+	case st.SiteTakenDown || st.EventTakenDown || site.Suspended():
+		why = "taken_down"
+	case site.Offline:
+		why = "offline"
+	case !tl.ready || preview == "":
+		why = "not_ready"
+	}
+	if why == "" {
+		row, err := db.GetSitePasscode(ctx, h.database, site.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		switch {
+		case row.Offline:
+			why = "offline"
+		case row.Enc != nil:
+			why = "passcode"
+		case row.NamedViewers:
+			why = "viewers"
+		}
+	}
+	frameable := why == ""
+	var whyJSON any
+	if why != "" {
+		whyJSON = why
+	}
+	var previewJSON any
+	if preview != "" {
+		previewJSON = preview
+	}
+	return map[string]any{
+		"url":               liveURL,
+		"preview_url":       previewJSON,
+		"host":              hackURLHost(liveURL),
+		"frameable":         frameable,
+		"not_frameable_why": whyJSON,
 	}, nil
 }
 
