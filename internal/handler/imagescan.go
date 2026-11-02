@@ -665,7 +665,7 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 	}
 
 	// 5. The alert.
-	if err := s.alert(m); err != nil {
+	if err := s.sendAlert(m); err != nil {
 		note("alert email: %v", err)
 	} else if s.cfg.AlertEmail != "" {
 		note("alert emailed to %s", s.cfg.AlertEmail)
@@ -738,7 +738,7 @@ func (s *ImageScan) writeRecord(dir string, m db.ImageMatch, did []string) {
 }
 
 // alert emails the alert address. Never the image, never a link to it.
-func (s *ImageScan) alert(m db.ImageMatch) error {
+func (s *ImageScan) sendAlert(m db.ImageMatch) error {
 	if s.cfg.AlertEmail == "" {
 		return nil
 	}
