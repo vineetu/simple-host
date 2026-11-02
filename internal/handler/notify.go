@@ -161,6 +161,78 @@ func (h *SiteHandler) storeNotification(c storageCall, name string, data map[str
 	}
 	e.signal()
 }
+
+// Site events (SIM-356, phase 2): a new version live, a custom domain's
+// status, a refused named-viewers sign-in, a first visitor sign-in. The
+// caller has already finished its own work and answered; nothing here can
+// change that. Simple Host only: Simple Hack follows later (INTENT
+// 2026-11-02). data carries the event's own fields; the engine adds v, site
+// and site_url. A visitor-bearing event about the site's owner (signed in
+// on their own site) is dropped, and dedupe > 0 drops a repeat of the same
+// event for the same visitor inside that window.
+func (h *SiteHandler) emitSiteNotification(siteID, name string, data map[string]any, dedupe time.Duration) {
+	if hackMode {
+		return
+	}
+	e := h.notifyEngine()
+	select {
+	case e.emitting <- struct{}{}:
+	default:
+		log.Printf("notifications: emit queue full, dropped=%d", e.dropped.Add(1))
+		return
+	}
+	go func() {
+		defer func() { <-e.emitting }()
+		h.storeSiteNotification(siteID, name, data, dedupe)
+	}()
+}
+func (h *SiteHandler) storeSiteNotification(siteID, name string, data map[string]any, dedupe time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	yes, err := db.HasNotifications(ctx, h.database, siteID)
+	if err != nil {
+		log.Printf("notifications: subscription lookup failed for site %s", siteID)
+		return
+	}
+	if !yes {
+		return
+	}
+	site, err := db.GetSiteByID(ctx, h.database, siteID)
+	if err != nil {
+		return
+	}
+	visitor, _ := data["visitor"].(string)
+	if visitor != "" && visitor == site.UserID {
+		return
+	}
+	if dedupe > 0 && visitor != "" {
+		recent, err := db.RecentSiteEvent(ctx, h.database, siteID, name, visitor, dedupe)
+		if err != nil || recent {
+			return
+		}
+	}
+	e := h.notifyEngine()
+	if !e.minute.allow(siteID) || !e.day.allow(siteID) {
+		log.Printf("notifications: site %s event cap reached, dropped=%d", siteID, e.dropped.Add(1))
+		return
+	}
+	data["v"] = 1
+	siteName, siteURL, err := h.notificationSiteInfo(ctx, site)
+	if err != nil {
+		return
+	}
+	data["site"] = siteName
+	data["site_url"] = siteURL
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+	if err = db.EmitSiteEvent(ctx, h.database, siteID, notifyEventID(), name, "", raw); err != nil {
+		log.Printf("notifications: emit failed for site %s", siteID)
+		return
+	}
+	e.signal()
+}
 func notifyTruncate(data map[string]any) {
 	fields, ok := data["fields"].(map[string]any)
 	if !ok {

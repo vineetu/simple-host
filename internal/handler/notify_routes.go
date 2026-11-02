@@ -82,13 +82,41 @@ func validNotifyHeader(name, value string) bool {
 	}
 	return true
 }
+
+// notifyRecordEvents fire on visitor writes to site storage; notifySiteEvents
+// (SIM-356) on things that happen to the site itself. Simple Hack offers the
+// record events only for now.
+var notifyRecordEvents = []string{"record.added", "record.changed", "file.uploaded"}
+var notifySiteEvents = []string{"site.deployed", "domain.status_changed", "viewer.access_requested", "visitor.signed_up"}
+
+func notifyEventNames() []string {
+	if hackMode {
+		return notifyRecordEvents
+	}
+	return append(append([]string{}, notifyRecordEvents...), notifySiteEvents...)
+}
+func isNotifySiteEvent(name string) bool {
+	for _, e := range notifySiteEvents {
+		if e == name {
+			return true
+		}
+	}
+	return false
+}
 func validNotifyEvents(events []string) bool {
-	if len(events) < 1 || len(events) > 3 {
+	names := notifyEventNames()
+	if len(events) < 1 || len(events) > len(names) {
 		return false
 	}
 	seen := map[string]bool{}
 	for _, e := range events {
-		if e != "record.added" && e != "record.changed" && e != "file.uploaded" || seen[e] {
+		known := false
+		for _, n := range names {
+			if n == e {
+				known = true
+			}
+		}
+		if !known || seen[e] {
 			return false
 		}
 		seen[e] = true

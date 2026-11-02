@@ -350,11 +350,21 @@ func EmitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storag
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT $1,id FROM site_notifications WHERE site_id=$2 AND state IN ('active','suspended') AND $3=ANY(events) AND (storage='' OR storage=$4) AND (expires_at IS NULL OR expires_at>now())`, seq, site, name, storage)
+	// A subscription's storage filter narrows record and file events; a site
+	// event (storage '') reaches every subscription naming it.
+	_, err = tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT $1,id FROM site_notifications WHERE site_id=$2 AND state IN ('active','suspended') AND $3=ANY(events) AND ($4='' OR storage='' OR storage=$4) AND (expires_at IS NULL OR expires_at>now())`, seq, site, name, storage)
 	if err != nil {
 		return err
 	}
 	return tx.Commit()
+}
+
+// RecentSiteEvent reports whether a name event for visitor on site was stored
+// inside the last within (the once-a-day rule for viewer.access_requested).
+func RecentSiteEvent(ctx context.Context, q Querier, site, name, visitor string, within time.Duration) (bool, error) {
+	var yes bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_events WHERE site_id=$1 AND name=$2 AND data->>'visitor'=$3 AND created_at>now()-make_interval(secs=>$4))`, site, name, visitor, within.Seconds()).Scan(&yes)
+	return yes, err
 }
 
 type NotificationDelivery struct {
