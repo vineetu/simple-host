@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
@@ -217,7 +218,7 @@ const maxVersionAuthorRunes = 80
 // "" when the deploy did not say.
 func versionAuthor(r *http.Request) string {
 	s := strings.Map(func(c rune) rune {
-		if c < 0x20 || c == 0x7f {
+		if unicode.IsControl(c) {
 			return -1
 		}
 		return c
@@ -240,8 +241,9 @@ func pendingParam(r *http.Request) bool {
 	return false
 }
 
-// discardVersion removes one version a deploy stored with publish=false and
-// nobody has made live since.
+// discardVersion discards one version a deploy stored with publish=false and
+// nobody has made live since: its files go, and its row stays as a tombstone
+// (status 'discarded') so the number is never handed to a later deploy.
 //
 // DELETE /v1/sites/{sitename}/versions/{version}
 //
@@ -265,9 +267,13 @@ func (h *SiteHandler) discardVersion(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found", Code: "version_not_found"})
 		return
 	}
-	// Same per-site lock as deploy, rollback, rename and delete, and the site
-	// read only once it is held: a rollback copying this version into place
-	// must not have its folder removed underneath it.
+	// Same locks in the same order as a deploy (commitSiteUpdate): the account
+	// file lock first, so an account-wide file walk does not meet a folder
+	// going away, then the per-site lock shared with rollback, rename and
+	// delete, with the site read only once it is held: a rollback copying this
+	// version into place must not have its folder removed underneath it.
+	unlockAccount := h.lockAccountFiles(user.ID)
+	defer unlockAccount()
 	unlock := h.lockSite(user.ID, siteName)
 	defer unlock()
 	site, err := h.siteForCaller(r, user.ID, siteName)
@@ -299,14 +305,14 @@ func (h *SiteHandler) discardVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if n == site.ActiveVersion {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("version %d is live; make another version live first", n), Code: "version_live"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("version %d is live; only a version that was never live can be discarded", n), Code: "version_live"})
 		return
 	}
 	if found.Status == "active" {
 		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("version %d has been live; kept versions are removed by retention, not discarded", n), Code: "version_published"})
 		return
 	}
-	gone, err := db.DeleteReadyVersion(r.Context(), h.database, site.ID, n)
+	gone, err := db.DiscardReadyVersion(r.Context(), h.database, site.ID, n)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -317,9 +323,9 @@ func (h *SiteHandler) discardVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.disk.DeleteVersion(site.UserID, site.Name, n); err != nil {
-		// The row is gone, so nothing can serve this version; the files are
-		// wasted space until someone notices.
-		log.Printf("discard version for %s: v%d row removed but files remain: %v", site.Name, n, err)
+		// The row is a tombstone now, so nothing can serve this version; the
+		// files are wasted space until someone notices.
+		log.Printf("discard version for %s: v%d discarded but files remain: %v", site.Name, n, err)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"site":              site.Name,

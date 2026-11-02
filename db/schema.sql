@@ -467,7 +467,7 @@ CREATE TABLE versions (
   site_id        UUID REFERENCES sites(id) ON DELETE CASCADE,
   version_number INTEGER NOT NULL,
   disk_path      TEXT NOT NULL,
-  status         TEXT NOT NULL DEFAULT 'uploading',
+  status         TEXT NOT NULL DEFAULT 'uploading',  -- uploading | ready (publish=false, never live) | active (live now or before) | discarded (tombstone: files gone, number never reused)
   archive_sha256 TEXT NOT NULL DEFAULT '',
   author         TEXT NOT NULL DEFAULT '',  -- who made it (?author= on a deploy); mirrors db/migrations/zw-sim-152-version-author.sql
   created_at     TIMESTAMPTZ DEFAULT now(),

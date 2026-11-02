@@ -4938,7 +4938,7 @@
             }
           },
           "409": {
-            "description": "The version is live (version_live: make another one live first), or has been live before (version_published)",
+            "description": "The version is live (version_live: only a version that was never live can be discarded), or has been live before (version_published)",
             "content": {
               "application/json": {
                 "schema": {
@@ -19558,7 +19558,7 @@
             }
           },
           "409": {
-            "description": "The version is live (version_live) or has been live before (version_published)",
+            "description": "The version is live (version_live: only a version that was never live can be discarded) or has been live before (version_published)",
             "content": {
               "application/json": {
                 "schema": {
@@ -35289,7 +35289,9 @@
         "schema": {
           "type": "string",
           "enum": [
-            "1"
+            "1",
+            "true",
+            "yes"
           ]
         },
         "description": "1 lists only the versions stored with publish=false that have never been live (status ready, not the live one)"

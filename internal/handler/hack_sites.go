@@ -183,7 +183,7 @@ func (h *SiteHandler) TeamPreviewLink(ctx context.Context, accountID, eventSlug,
 		return "", time.Time{}, false
 	}
 	var exists bool
-	if err := h.database.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM versions WHERE site_id = $1 AND version_number = $2 AND status <> 'uploading')`, site.ID, n).Scan(&exists); err != nil || !exists {
+	if err := h.database.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM versions WHERE site_id = $1 AND version_number = $2 AND status IN ('active', 'ready'))`, site.ID, n).Scan(&exists); err != nil || !exists {
 		return "", time.Time{}, false
 	}
 	site.OwnerHandle = eventSlug

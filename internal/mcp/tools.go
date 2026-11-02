@@ -245,7 +245,7 @@ var codeHints = map[string]string{
 	"account_suspended":              "This account is suspended by the operator. Tell the person to contact support@simple-host.app; do not retry.",
 	"preview_unavailable":            "This site has no address of its own to show a preview on. Tell the person; the version can still be made live with rollback_site.",
 	"version_not_found":              "No kept version of that number on this site. list_versions shows the versions that exist.",
-	"version_live":                   "That version is live. Make another version live with rollback_site first, or leave it.",
+	"version_live":                   "That version is live, so it cannot be discarded; only versions that were never live can be.",
 	"version_published":              "That version has been live, so it stays as history; only never-live versions can be discarded.",
 	"site_offline":                   "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",
 	"site_locked":                    "This site asks visitors for a passcode; the owner's key and this connector still work. Ask the person to reconnect Simple Host in their app; never ask for a key in chat.",
@@ -1161,15 +1161,30 @@ func Tools() []Tool {
 		{
 			Name:        "list_versions",
 			Title:       "List a site's versions",
-			Description: "List the versions kept for a site, newest first, with which one is live. Call this before rollback_site. Each version in the text may name its author (whoever the deployer stated); a version marked not_yet_live can be made live with rollback_site or removed with discard_version.",
-			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
+			Description: "List the versions kept for a site, newest first, with which one is live. Call this before rollback_site. Each version in the text may name its author (whoever the deployer stated); a version marked not_yet_live can be made live with rollback_site or removed with discard_version. `pending: true` lists only those not-yet-live versions.",
+			InputSchema: object(map[string]any{
+				"site":    str(siteDesc),
+				"pending": map[string]any{"type": "boolean", "description": "true lists only versions stored with publish: false that have never been live."},
+			}, "site"),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
 					return output{}, err
 				}
-				res := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/versions", nil, nil)
+				pending := false
+				if raw, present := args["pending"]; present && raw != nil {
+					b, ok := raw.(bool)
+					if !ok {
+						return output{}, errors.New("pending must be true or false")
+					}
+					pending = b
+				}
+				path := "/v1/sites/" + url.PathEscape(name) + "/versions"
+				if pending {
+					path += "?pending=1"
+				}
+				res := c.do(http.MethodGet, path, nil, nil)
 				if !res.ok() {
 					return output{}, restError("list_versions", res)
 				}
@@ -1205,7 +1220,11 @@ func Tools() []Tool {
 					told = append(told, said)
 				}
 				out := map[string]any{"site": name, "versions": versions}
-				return output{Text: jsonText(map[string]any{"site": name, "versions": told}), Structured: out}, nil
+				said := map[string]any{"site": name, "versions": told}
+				if pending {
+					said["pending_only"] = true
+				}
+				return output{Text: jsonText(said), Structured: out}, nil
 			},
 		},
 		{
