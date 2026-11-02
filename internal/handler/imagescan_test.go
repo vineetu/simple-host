@@ -135,10 +135,8 @@ func newImageScanFixture(t *testing.T, a *privateApp, disk *storage.DiskStorage)
 
 func newImageScanFixtureDB(t *testing.T, database *sql.DB, disk *storage.DiskStorage) *scanFixture {
 	t.Helper()
-	if _, err := database.Exec(`TRUNCATE image_scan_queue`); err != nil {
-		t.Fatal(err)
-	}
 	f := &scanFixture{matcher: &fakeMatcher{matches: map[string]imagescan.Match{}}, reporter: &fakeReporter{}, mailer: &fakeNoticeMailer{}, evidence: t.TempDir()}
+	t.Cleanup(f.runs.Wait)
 	f.scan = NewImageScan(database, disk, f.matcher, f.reporter, f.mailer, ImageScanConfig{
 		EvidenceDir: f.evidence, AlertEmail: "alerts@example.com", ReportOrg: "Test Org", ReportName: "Tester",
 		ReportEmail: "reports@example.com", PublicBaseURL: "https://host.test",
@@ -218,6 +216,7 @@ func latestMatch(t *testing.T, a *privateApp, siteID string) db.ImageMatch {
 
 // 1. A deploy with a matched PNG, a clean PNG and an SVG.
 func TestImageScanDeployMatch(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -402,6 +401,7 @@ func TestImageScanDeployMatch(t *testing.T) {
 
 // 3. A files-storage object.
 func TestImageScanStorageFile(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -448,12 +448,10 @@ func TestImageScanStorageFile(t *testing.T) {
 
 // 4. An event icon: cleared, and the event taken down.
 func TestImageScanEventIcon(t *testing.T) {
+	isolateQueueTest(t)
 	a := newHackApp(t)
 	disk, err := storage.NewDiskStorage(t.TempDir())
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := a.database.Exec(`TRUNCATE image_scan_queue`); err != nil {
 		t.Fatal(err)
 	}
 	matcher := &fakeMatcher{matches: map[string]imagescan.Match{}}
@@ -461,6 +459,7 @@ func TestImageScanEventIcon(t *testing.T) {
 	s := NewImageScan(a.database, disk, matcher, nil, mailer, ImageScanConfig{EvidenceDir: t.TempDir(), AlertEmail: "alerts@example.com"})
 	s.prepare = fakePrepare
 	var runs sync.WaitGroup
+	t.Cleanup(runs.Wait)
 	s.run = func(fn func()) {
 		runs.Add(1)
 		go func() {
@@ -523,6 +522,7 @@ func TestImageScanEventIcon(t *testing.T) {
 // 5. Retries: a retryable error and a permanent one both back off; an
 // unsupported image is recorded as skipped and dropped.
 func TestImageScanRetry(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -588,6 +588,7 @@ func TestImageScanDisabled(t *testing.T) {
 	if n := s.RunOnce(context.Background()); n != 0 {
 		t.Fatal("nil RunOnce did work")
 	}
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	a.sites.SetImageScan(nil)
 	olive := a.newPerson(t, "olive")
@@ -657,6 +658,7 @@ func rerun(t *testing.T, a *privateApp, siteID string) {
 
 // 2.1: the same bytes redeployed as v2 while v1 is pruned still get checked.
 func TestImageScanVersionDedup(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -697,6 +699,7 @@ func TestImageScanVersionDedup(t *testing.T) {
 // the restore makes the waiting jobs due at once (no hour's wait), and the
 // admin queue counts the jobs waiting on a deleted site.
 func TestImageScanRestore(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -786,6 +789,7 @@ func TestImageScanRestore(t *testing.T) {
 
 // 2.3: twelve failed tries, then the job is given up and never claimed again.
 func TestImageScanGiveUp(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -825,6 +829,7 @@ func TestImageScanEvidenceFailure(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root can write anywhere")
 	}
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -862,6 +867,7 @@ func TestImageScanEvidenceFailure(t *testing.T) {
 
 // 2.8: only copies with the matched bytes are removed.
 func TestImageScanOnlyMatchedBytes(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -914,6 +920,7 @@ func TestImageScanEvidenceSymlink(t *testing.T) {
 
 // 2.11: two sites queue the same bytes; the service is asked once.
 func TestImageScanWorkerHashCache(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -940,6 +947,7 @@ func TestImageScanWorkerHashCache(t *testing.T) {
 // 2.4 and 2.14: an automatic report is filed before the alert, the alert
 // drops the CyberTipline line, and record.json carries the report.
 func TestImageScanAutoReport(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	f.scan.cfg.AutoReport = true
@@ -999,6 +1007,7 @@ func TestImageScanRawJSON(t *testing.T) {
 // anonymous visitor, never the owner in their place), and the match keeps
 // the uploader and the address as they were at detection.
 func TestImageScanStorageUploader(t *testing.T) {
+	isolateQueueTest(t)
 	ps := newPresetSite(t)
 	a := ps.a
 	f := newImageScanFixture(t, a, a.sites.disk)
@@ -1048,6 +1057,7 @@ func TestImageScanStorageUploader(t *testing.T) {
 // A6: an existing folder for the match is never reused: the evidence step
 // fails and the file stays in place.
 func TestImageScanEvidenceFolderExists(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -1127,6 +1137,7 @@ func TestRemoveFileEverywhereSymlinkedDir(t *testing.T) {
 // A job run in that window waits for the rename's lock and then reads the
 // files at the new name; it is not dropped.
 func TestImageScanRenameWindow(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -1179,6 +1190,7 @@ func TestImageScanRenameWindow(t *testing.T) {
 // The save is tried again, and a second report is refused because
 // record.json says it was filed; the reporter is not called twice.
 func TestImageScanReportSaveFails(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -1255,6 +1267,7 @@ func TestImageScanReportSaveFails(t *testing.T) {
 // upload record the member, and the report names the member, never the
 // event's holding account.
 func TestImageScanHackUploader(t *testing.T) {
+	isolateQueueTest(t)
 	a := newTeamSiteApp(t)
 	f := newImageScanFixtureDB(t, a.database, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -1317,6 +1330,7 @@ func TestImageScanHackUploader(t *testing.T) {
 // detection, not today's; the admin list shows an empty recorded value as
 // empty.
 func TestImageScanRecordedValues(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -1383,6 +1397,7 @@ func TestImageScanRecordedValues(t *testing.T) {
 // Pass 3, item 6a: a re-upload of bytes whose job was given up is queued
 // again with a fresh count and checked.
 func TestImageScanRequeueGivenUp(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -1428,6 +1443,7 @@ func TestImageScanRequeueGivenUp(t *testing.T) {
 // the job due before the worker's postpone landed. The postpone must not
 // push it an hour out again.
 func TestImageScanPostponeAfterRestore(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -1491,6 +1507,7 @@ func (h *hookMailer) SendNotice(to, subject, text string) error {
 // Pass 3b, item 3: a report filed from the admin page while the worker is
 // still finishing the match stays filed in record.json.
 func TestImageScanRecordKeepsFiledReport(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -1546,6 +1563,7 @@ func TestImageScanReporteeNoHoldingAccount(t *testing.T) {
 // Pass 3b, item 6: an organiser's publish of the event website and an
 // organiser's event-storage upload record the organiser.
 func TestImageScanHackOrganiserUploader(t *testing.T) {
+	isolateQueueTest(t)
 	a := newTeamSiteApp(t)
 	f := newImageScanFixtureDB(t, a.database, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -1592,6 +1610,7 @@ func TestImageScanHackOrganiserUploader(t *testing.T) {
 // Pass 3c, item 4: a team key's deploy to an EXISTING team site, published
 // and with publish=false, records the member as the writer.
 func TestImageScanHackUploaderExistingSite(t *testing.T) {
+	isolateQueueTest(t)
 	a := newTeamSiteApp(t)
 	f := newImageScanFixtureDB(t, a.database, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -1641,6 +1660,7 @@ func TestImageScanHackUploaderExistingSite(t *testing.T) {
 // Pass 3c, item 1: when the site is deleted, loadJobBytes has postponed the
 // job by the time it returns (so under the site lock, not after it).
 func TestImageScanPostponeUnderLock(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
@@ -1672,6 +1692,7 @@ func TestImageScanPostponeUnderLock(t *testing.T) {
 // Pass 3c, item 2: the restore's wake runs even when the request's context
 // is already cancelled (the client hung up after the commit).
 func TestImageScanWakeCancelledContext(t *testing.T) {
+	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)

@@ -36,6 +36,7 @@ func (s *contentMailSink) SendNotice(to, subject, body string) error {
 }
 
 func TestHackContentAndMail(t *testing.T) {
+	isolateQueueTest(t)
 	a := newHackApp(t)
 	sink := &contentMailSink{}
 	a.hack.SetMailer(sink)
@@ -125,6 +126,7 @@ func TestHackContentAndMail(t *testing.T) {
 }
 
 func TestHackAnnouncementRequiresConfiguredEmail(t *testing.T) {
+	isolateQueueTest(t)
 	a := newHackApp(t)
 	a.hack.SetMailer(email.NewResendSender("", "test@example.com"))
 	org := a.newPerson(t, "content-no-mail")
@@ -143,6 +145,7 @@ func TestHackAnnouncementRequiresConfiguredEmail(t *testing.T) {
 }
 
 func TestHackAnnouncementEmailsApprovedApplicantsOnly(t *testing.T) {
+	isolateQueueTest(t)
 	a := newHackApp(t)
 	sink := &contentMailSink{}
 	a.hack.SetMailer(sink)
@@ -191,6 +194,7 @@ func TestHackAnnouncementEmailsApprovedApplicantsOnly(t *testing.T) {
 }
 
 func TestHackEntryReceiptOnce(t *testing.T) {
+	isolateQueueTest(t)
 	a := newHackApp(t)
 	sink := &contentMailSink{}
 	a.hack.SetMailer(sink)
@@ -236,6 +240,7 @@ func TestHackEntryReceiptOnce(t *testing.T) {
 }
 
 func TestHackMailFailureDoesNotBlockOtherMessages(t *testing.T) {
+	isolateQueueTest(t)
 	a := newHackApp(t)
 	sink := &failingContentSink{failNext: true}
 	a.hack.SetMailer(sink)
@@ -306,6 +311,7 @@ func TestHackMailFailureDoesNotBlockOtherMessages(t *testing.T) {
 // same shape as Simple Hack's key-only test accounts. An announcement must
 // report that truthfully instead of claiming it emailed anyone.
 func TestHackAnnouncementEmailsZeroForKeyOnlyParticipants(t *testing.T) {
+	isolateQueueTest(t)
 	a := newHackApp(t)
 	sink := &contentMailSink{}
 	a.hack.SetMailer(sink)
@@ -348,6 +354,7 @@ func TestHackAnnouncementEmailsZeroForKeyOnlyParticipants(t *testing.T) {
 // db.CreateEventAnnouncement, since the real API can never put the posting
 // organiser in the participant query too (one role per event per user).
 func TestHackCreateEventAnnouncementNoDuplicateForSameUser(t *testing.T) {
+	isolateQueueTest(t)
 	a := newHackApp(t)
 	org, participant := a.newPerson(t, "dup-org"), a.newPerson(t, "dup-part")
 	slug := uniqueSlug()

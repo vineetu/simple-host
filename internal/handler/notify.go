@@ -35,7 +35,16 @@ type notificationEngine struct {
 	rest                   *rateLimiter
 	start                  sync.Once
 	dropped                atomic.Uint64
+	// wg counts every goroutine the engine starts (workers, sweeper,
+	// emits) so WaitNotifications can join them; the server never waits.
+	wg sync.WaitGroup
 }
+
+// WaitNotifications blocks until every notification goroutine has
+// returned: the workers and sweeper (which stop when the context passed to
+// StartNotifications is cancelled) and any emit still storing an event.
+// Tests call it before closing the database; the server does not.
+func (h *SiteHandler) WaitNotifications() { h.notifyEngine().wg.Wait() }
 
 func (h *SiteHandler) notifyEngine() *notificationEngine {
 	h.notifyOnce.Do(func() {
@@ -96,7 +105,9 @@ func (h *SiteHandler) emitNotification(c storageCall, name string, data map[stri
 		log.Printf("notifications: emit queue full, dropped=%d", e.dropped.Add(1))
 		return
 	}
+	e.wg.Add(1)
 	go func() {
+		defer e.wg.Done()
 		defer func() { <-e.emitting }()
 		h.storeNotification(c, name, data)
 	}()
@@ -181,7 +192,9 @@ func (h *SiteHandler) emitSiteNotification(siteID, name string, data map[string]
 		log.Printf("notifications: emit queue full, dropped=%d", e.dropped.Add(1))
 		return
 	}
+	e.wg.Add(1)
 	go func() {
+		defer e.wg.Done()
 		defer func() { <-e.emitting }()
 		h.storeSiteNotification(siteID, name, data, dedupe)
 	}()
@@ -385,7 +398,9 @@ func (h *SiteHandler) StartNotifications(ctx context.Context) {
 	e.start.Do(func() {
 		h.sweepNotifications(ctx)
 		for i := 0; i < config.Active().NotifyWorkers; i++ {
+			e.wg.Add(1)
 			go func() {
+				defer e.wg.Done()
 				tick := time.NewTicker(time.Second)
 				defer tick.Stop()
 				for {
@@ -400,7 +415,9 @@ func (h *SiteHandler) StartNotifications(ctx context.Context) {
 				}
 			}()
 		}
+		e.wg.Add(1)
 		go func() {
+			defer e.wg.Done()
 			tick := time.NewTicker(time.Hour)
 			defer tick.Stop()
 			for {

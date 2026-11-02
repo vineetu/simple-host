@@ -68,10 +68,11 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 			t.Fatal(err)
 		}
 	}
+	oldMode, oldDomain := HackMode(), db.PlatformDomain()
 	SetHackMode(true)
 	auth.SetTeamKeys(true)
 	db.SetPlatformDomain(tsDomain)
-	t.Cleanup(func() { SetHackMode(false); auth.SetTeamKeys(false); db.SetPlatformDomain("") })
+	t.Cleanup(func() { SetHackMode(oldMode); auth.SetTeamKeys(false); db.SetPlatformDomain(oldDomain) })
 
 	adminKey, _ := auth.GenerateAPIKey()
 	adminID, err := db.EnsureAdminUser(context.Background(), database)
@@ -92,6 +93,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.sites = NewSiteHandler(database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
+	t.Cleanup(a.sites.WaitNotifications)
 	a.sites.SetPersonHosts("canonical")
 	a.sites.SetSiteHosts("canonical", certDir)
 	a.hack = NewHackHandler(database, a.srv.URL, tsDomain)

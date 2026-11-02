@@ -22,7 +22,9 @@ type hackNotifyFixture struct {
 
 func newHackNotifyFixture(t *testing.T) hackNotifyFixture {
 	t.Helper()
+	isolateQueueTest(t)
 	a := newTeamSiteApp(t)
+	t.Cleanup(a.sites.WaitNotifications)
 	x := newNotificationReceiver(t)
 	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
@@ -399,7 +401,7 @@ func TestHackNotificationsWorkerAndMembershipMove(t *testing.T) {
 	a := f.a
 	id := f.create(t, f.base, f.member)
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(func() { cancel(); a.sites.WaitNotifications() })
 	a.sites.StartNotifications(ctx)
 	f.emit(t)
 	deadline := time.Now().Add(5 * time.Second)
@@ -410,6 +412,7 @@ func TestHackNotificationsWorkerAndMembershipMove(t *testing.T) {
 		t.Fatal("Hack worker did not deliver")
 	}
 	cancel()
+	a.sites.WaitNotifications()
 	// Moving teams cannot leave a live subscription to the old team.
 	f.sql(t, `UPDATE event_members SET team_id=NULL WHERE user_id=$1`, a.uid(t, f.member))
 	f.gone(t, id)

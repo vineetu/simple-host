@@ -87,6 +87,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string) *pr
 	a.users = users
 	a.sites = NewSiteHandler(database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
+	t.Cleanup(a.sites.WaitNotifications)
 	users.SetFileUsage(a.sites)
 	users.SetPublicPage(a.sites.PersonPageURL)
 	users.SetAddressState(a.sites.AddressState)

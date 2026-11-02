@@ -131,7 +131,9 @@ func notificationSettings(t *testing.T, change func(*config.Limits)) {
 }
 func notificationFixture(t *testing.T) (presetSite, *notificationReceiver) {
 	t.Helper()
+	isolateQueueTest(t)
 	s := newPresetSite(t)
+	t.Cleanup(s.a.sites.WaitNotifications)
 	x := newNotificationReceiver(t)
 	if err := s.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
@@ -285,7 +287,7 @@ func TestNotifyVisitorRoutes(t *testing.T) {
 	waitNotificationEmits(t, s)
 	ctx, cancel := context.WithCancel(context.Background())
 	s.a.sites.StartNotifications(ctx)
-	t.Cleanup(cancel)
+	t.Cleanup(func() { cancel(); s.a.sites.WaitNotifications() })
 	r := s.must(t, "POST", "/sqlite/orders/tables/orders/rows", map[string]string{"item": "Chocolate cake"}, s.callers["alice"], 200)
 	waitNotificationEmits(t, s)
 	row := fmt.Sprint(r.json(t)["last_insert_id"])
@@ -1043,6 +1045,7 @@ func TestNotifyHistoryAndDeletedListings(t *testing.T) {
 	run, cancel := context.WithCancel(ctx)
 	s.a.sites.StartNotifications(run)
 	cancel()
+	s.a.sites.WaitNotifications()
 	if err := s.a.database.QueryRow(`SELECT count(*) FROM site_events WHERE site_id=$1`, s.sid).Scan(&count); err != nil || count != 0 {
 		t.Fatal("startup did not sweep history")
 	}

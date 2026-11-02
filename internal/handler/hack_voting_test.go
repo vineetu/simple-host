@@ -102,7 +102,14 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	}
 	upcoming := a.api(t, "GET", "/v1/hack/directory", nil, "")
 	wantTS(t, "upcoming directory", upcoming, 200, "")
-	if !strings.Contains(string(upcoming.json(t)["upcoming"].([]any)[0].(map[string]any)["slug"].(string)), otherSlug) {
+	foundUpcoming := false
+	for _, event := range upcoming.json(t)["upcoming"].([]any) {
+		if event.(map[string]any)["slug"] == otherSlug {
+			foundUpcoming = true
+			break
+		}
+	}
+	if !foundUpcoming {
 		t.Fatalf("future event not upcoming: %s", upcoming.body)
 	}
 
