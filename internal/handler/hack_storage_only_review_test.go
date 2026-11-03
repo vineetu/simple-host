@@ -120,13 +120,8 @@ func TestHostRetainsLegacyStorageReview(t *testing.T) {
 // Exercises the registered public routes: the Hack spec must be the same
 // complete JSON document at both extensions, with no dangling component refs.
 func TestHackRegisteredDocsReview(t *testing.T) {
-	oldMode, oldChrome := HackMode(), hackChrome
-	SetHackMode(true)
-	SetHackChrome(true)
 	SetInstanceHosts("simple-hack.test", "sites.simple-hack.test", "")
 	t.Cleanup(func() {
-		SetHackMode(oldMode)
-		SetHackChrome(oldChrome)
 		SetInstanceHosts("simple-host.app", "", "")
 	})
 	mux := http.NewServeMux()

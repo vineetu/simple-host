@@ -573,7 +573,7 @@ func TestViewerAndPasscodeGateHTML(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "https://scale.sam.example/days/", nil)
 	req.Host = "Scale.Sam.Example"
 	req.Header.Set("X-Forwarded-Proto", "https")
-	start := viewerPageHTML(req, viewerPageSignIn, "/days/", "", signInMessages["rate_limited"])
+	start := (&SiteHandler{}).viewerPageHTML(req, viewerPageSignIn, "/days/", "", signInMessages["rate_limited"])
 	for _, want := range []string{
 		">Continue</button>",
 		"This site is private",
@@ -595,7 +595,7 @@ func TestViewerAndPasscodeGateHTML(t *testing.T) {
 	android := httptest.NewRequest(http.MethodGet, "https://scale.sam.example/days/", nil)
 	android.Host = "scale.sam.example"
 	android.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel)")
-	code := viewerPageHTML(android, viewerPageCode, "/days/", `a<b>@gmail.com`, "")
+	code := (&SiteHandler{}).viewerPageHTML(android, viewerPageCode, "/days/", `a<b>@gmail.com`, "")
 	for _, want := range []string{
 		"Check your email",
 		"We sent a 6-digit code to <b>a&lt;b&gt;@gmail.com</b>",
@@ -620,14 +620,14 @@ func TestViewerAndPasscodeGateHTML(t *testing.T) {
 	if strings.Contains(code, `a<b>@gmail.com`) || strings.Contains(code, ">Use another email</button>") {
 		t.Error("code page leaked the raw email or kept Use another email")
 	}
-	web := viewerPageHTML(req, viewerPageCode, "/days/", "Sam@GoogleMail.com", "That code is not right")
+	web := (&SiteHandler{}).viewerPageHTML(req, viewerPageCode, "/days/", "Sam@GoogleMail.com", "That code is not right")
 	if !strings.Contains(web, `href="https://mail.google.com/mail/"`) || strings.Contains(web, "intent://") || !strings.Contains(web, `data-sh-sent="0"`) || !strings.Contains(web, "That code is not right") {
 		t.Fatal("gmail web link or error state")
 	}
-	if other := viewerPageHTML(req, viewerPageCode, "/days/", "sam@example.com", ""); strings.Contains(other, "Open Gmail") {
+	if other := (&SiteHandler{}).viewerPageHTML(req, viewerPageCode, "/days/", "sam@example.com", ""); strings.Contains(other, "Open Gmail") {
 		t.Error("Open Gmail offered for a non-gmail address")
 	}
-	denied := viewerPageHTML(req, viewerPagePrivate, "/days/", "sam@example.com", "")
+	denied := (&SiteHandler{}).viewerPageHTML(req, viewerPagePrivate, "/days/", "sam@example.com", "")
 	for _, want := range []string{
 		"You do not have access",
 		"Signed in as <b>sam@example.com</b>",
@@ -641,15 +641,15 @@ func TestViewerAndPasscodeGateHTML(t *testing.T) {
 			t.Errorf("denied page missing %q", want)
 		}
 	}
-	closed := viewerPageHTML(req, viewerPageSignIn, "", "", "")
+	closed := (&SiteHandler{}).viewerPageHTML(req, viewerPageSignIn, "", "", "")
 	if !strings.Contains(closed, "Open it at its own address to sign in.") || strings.Contains(closed, "<form") {
 		t.Fatal("shared host still offers a form")
 	}
-	pass := passcodeGateHTML("menu.sam.example", "/days/", "")
+	pass := (&SiteHandler{}).passcodeGateHTML("menu.sam.example", "/days/", "")
 	if !strings.Contains(pass, "Enter the passcode") || !strings.Contains(pass, ">Open site</button>") || !strings.Contains(pass, "menu.sam.example") || strings.Contains(pass, "<body ") {
 		t.Fatal("passcode gate wording")
 	}
-	wrong := passcodeGateHTML("menu.sam.example", "/", "That passcode is not right")
+	wrong := (&SiteHandler{}).passcodeGateHTML("menu.sam.example", "/", "That passcode is not right")
 	if !strings.Contains(wrong, "That passcode is not right") || !strings.Contains(wrong, `class="bad"`) {
 		t.Fatal("passcode error")
 	}
@@ -671,10 +671,10 @@ func TestViewerAndPasscodeGateHTML(t *testing.T) {
 		shot.Host = "scale-plan.vineetu.simple-host.app"
 		shot.Header.Set("X-Forwarded-Proto", "https")
 		files := map[string]string{
-			"private-gate.html":   viewerPageHTML(shot, viewerPageSignIn, "/", "", ""),
-			"private-code.html":   viewerPageHTML(shot, viewerPageCode, "/", "sam@gmail.com", ""),
-			"private-denied.html": viewerPageHTML(shot, viewerPagePrivate, "/", "sam@example.com", ""),
-			"passcode-gate.html":  passcodeGateHTML("menu.sam.simple-host.app", "/", ""),
+			"private-gate.html":   (&SiteHandler{}).viewerPageHTML(shot, viewerPageSignIn, "/", "", ""),
+			"private-code.html":   (&SiteHandler{}).viewerPageHTML(shot, viewerPageCode, "/", "sam@gmail.com", ""),
+			"private-denied.html": (&SiteHandler{}).viewerPageHTML(shot, viewerPagePrivate, "/", "sam@example.com", ""),
+			"passcode-gate.html":  (&SiteHandler{}).passcodeGateHTML("menu.sam.simple-host.app", "/", ""),
 		}
 		auth, err := staticFiles.ReadFile("static/auth.js")
 		if err != nil {

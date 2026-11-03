@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // TestHackUIRoutes checks every signed-in route RegisterHackUI serves: the
@@ -16,10 +18,7 @@ func TestHackUIRoutes(t *testing.T) {
 	signinJSTag := regexp.MustCompile(`/signin\.js\?v=[0-9a-f]{10}`)
 
 	mux := http.NewServeMux()
-	RegisterHackUI(mux, "")
-	prevChrome := hackChrome
-	SetHackChrome(true)
-	t.Cleanup(func() { SetHackChrome(prevChrome) })
+	RegisterHackUI(mux, chromeTestHandler(edition.Hack), "")
 	for _, path := range []string{
 		"/signin",
 		"/signin?ui=classic",
@@ -92,7 +91,7 @@ func TestHackUIRoutes(t *testing.T) {
 // behaviour.
 func TestHackVotePageUsesTheKit(t *testing.T) {
 	mux := http.NewServeMux()
-	RegisterHackUI(mux, "")
+	RegisterHackUI(mux, chromeTestHandler(edition.Hack), "")
 	rec := get(t, mux, "simple-hack.app", "/e/demo/vote")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
@@ -135,7 +134,7 @@ func TestHackVotePageUsesTheKit(t *testing.T) {
 // TestNoNativeDialogs).
 func TestHackVotingSettingsHasOwnConfirm(t *testing.T) {
 	mux := http.NewServeMux()
-	RegisterHackUI(mux, "")
+	RegisterHackUI(mux, chromeTestHandler(edition.Hack), "")
 	rec := get(t, mux, "simple-hack.app", "/e/demo/voting-settings")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)

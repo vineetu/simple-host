@@ -302,7 +302,7 @@ func newConnectorApp(t *testing.T) *connectorApp {
 
 	users := NewUserHandler(database, mailer, app.srv.URL)
 	users.Register(mux, authMW, noticeMW)
-	sites := NewSiteHandler(edition.ForKind(edition.Host), database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	sites := NewSiteHandler(edition.ForKind(edition.Host), "", database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	app.sites = sites
 	t.Cleanup(sites.WaitNotifications)
 	sites.Register(mux, authMW, noticeMW)

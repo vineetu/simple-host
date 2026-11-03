@@ -7,6 +7,7 @@ import "net/http"
 // answers on simple-hack.app and on every full self-hosted Simple Hack
 // instance (both run with EVENTS=hosted); the page describes the standalone
 // package itself, so it reads the same wherever it is reached.
-func RegisterHackCompanies(mux *http.ServeMux) {
-	mux.Handle("GET /companies", adminUICSP(serveStaticPage("hack-companies.html")))
+func RegisterHackCompanies(mux *http.ServeMux, sh *SiteHandler) {
+	assets := sh.pipeline()
+	mux.Handle("GET /companies", assets.adminUICSP(assets.serveStaticPage("hack-companies.html")))
 }

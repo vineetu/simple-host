@@ -4,15 +4,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // The owner line names who runs the hosted services, so it shows on
 // simple-host.app and simple-hack.app only, never on someone else's install.
 func TestOwnerLineOnlyOnHostedServices(t *testing.T) {
-	prevHosted, prevChrome, prevMode, prevBase := instanceIsHostedService, hackChrome, hackMode, hackInkBaseURL
-	t.Cleanup(func() {
-		instanceIsHostedService, hackChrome, hackMode, hackInkBaseURL = prevHosted, prevChrome, prevMode, prevBase
-	})
+	prevHosted := instanceIsHostedService
+	t.Cleanup(func() { instanceIsHostedService = prevHosted })
 	cases := []struct {
 		name               string
 		hosted, hack       bool
@@ -24,13 +24,18 @@ func TestOwnerLineOnlyOnHostedServices(t *testing.T) {
 		{"self-hosted hack", false, true, "https://hack.example.com", ""},
 	}
 	for _, c := range cases {
-		instanceIsHostedService, hackChrome, hackMode, hackInkBaseURL = c.hosted, c.hack, c.hack, c.hackBase
+		instanceIsHostedService = c.hosted
+		kind := edition.Host
+		if c.hack {
+			kind = edition.Hack
+		}
+		assets := newAssetPipeline(edition.ForKind(kind), c.hackBase)
 		for _, name := range []string{"privacy.html", "support.html", "index.html"} {
 			src, err := staticFiles.ReadFile("static/" + name)
 			if err != nil {
 				t.Fatal(err)
 			}
-			page, err := withChrome(src, chromeDataFor(httptest.NewRequest("GET", "/", nil), ""))
+			page, err := withChrome(src, assets.chromeDataFor(httptest.NewRequest("GET", "/", nil), ""))
 			if err != nil {
 				t.Fatal(err)
 			}

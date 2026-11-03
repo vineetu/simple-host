@@ -349,7 +349,9 @@ type versionResponse struct {
 	IsActive      bool      `json:"is_active"`
 }
 
-func NewSiteHandler(ed *edition.Edition, database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string, mailer email.Sender, emailLimiter *rateLimiter) *SiteHandler {
+// hackInstanceURL is this instance's own public address, used only when ed is
+// the Hack edition (the pipeline's inkBaseURL; "" takes canonicalHackBaseURL).
+func NewSiteHandler(ed *edition.Edition, hackInstanceURL string, database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string, mailer email.Sender, emailLimiter *rateLimiter) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
 	lim := config.Active()
@@ -395,7 +397,7 @@ func NewSiteHandler(ed *edition.Edition, database *sql.DB, disk *storage.DiskSto
 		adminUserID:            adminUserID,
 		exportKey:              newExportKey(),
 	}
-	h.assets = newAssetPipeline(ed)
+	h.assets = newAssetPipeline(ed, hackInstanceURL)
 	h.createIdempotency = newCreateIdempotencyStore()
 	h.createIdempotency.startCleanup()
 	h.SetSavedData(config.DefaultSavedData())

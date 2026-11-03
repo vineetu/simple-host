@@ -16,6 +16,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
@@ -46,11 +47,11 @@ var (
 // region" — the same wording the email-code path returns as JSON.
 var oauthHTMLSignupBlocked = themed(`<!DOCTYPE html><html><head><meta charset="utf-8"><!--sh:theme--><title>Sign-in unavailable</title></head><body><p>` + signupBlockedMessage + `</p></body></html>`)
 
-func writeOAuthHTMLBlocked(w http.ResponseWriter) {
+func (h *OAuthHandler) writeOAuthHTMLBlocked(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusForbidden)
-	_, _ = w.Write(hostedStatusPage(oauthHTMLSignupBlocked))
+	_, _ = w.Write(h.pipeline().hostedStatusPage(oauthHTMLSignupBlocked))
 }
 
 type OAuthHandler struct {
@@ -82,6 +83,23 @@ type OAuthHandler struct {
 	// visitor) by the request's country (SIGNUP_BLOCKED_COUNTRIES). Zero
 	// value: off. See signupgeo.go.
 	geoBlock signupGeoBlock
+
+	// assets is the asset/chrome pipeline for ed and cfg.PublicBaseURL
+	// (sso.go's status and sign-in pages); read it through pipeline().
+	assets     *assetPipeline
+	assetsOnce sync.Once
+}
+
+// pipeline is h's asset pipeline. NewOAuthHandler builds its edition; a bare
+// &OAuthHandler{} (tests) gets one for its (possibly nil, so Host) edition on
+// first use.
+func (h *OAuthHandler) pipeline() *assetPipeline {
+	h.assetsOnce.Do(func() {
+		if h.assets == nil {
+			h.assets = newAssetPipeline(h.ed, h.cfg.PublicBaseURL)
+		}
+	})
+	return h.assets
 }
 
 // SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
@@ -262,7 +280,7 @@ func (h *OAuthHandler) startOnSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !signInNavigationAllowed(r) {
-		writeOAuthHTMLError(w, 403)
+		writeOAuthHTMLError(h.pipeline(), w, 403)
 		return
 	}
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("provider")))
@@ -379,28 +397,28 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	// this identity already have an account" question to ask first, so this
 	// is unconditional and happens before the state/provider round-trip.
 	if _, blocked := h.geoBlock.blockedCountry(clientIP(r)); blocked {
-		writeOAuthHTMLBlocked(w)
+		h.writeOAuthHTMLBlocked(w)
 		return
 	}
 
 	q := r.URL.Query()
 	state := strings.TrimSpace(q.Get("state"))
 	if state == "" {
-		writeOAuthHTMLError(w, http.StatusBadRequest)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadRequest)
 		return
 	}
 
 	st, err := db.ConsumeOAuthState(r.Context(), h.database, state)
 	if err != nil {
-		writeOAuthHTMLError(w, http.StatusBadRequest)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadRequest)
 		return
 	}
 	if st.Provider != name {
-		writeOAuthHTMLError(w, http.StatusBadRequest)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadRequest)
 		return
 	}
 	if q.Get("error") != "" || strings.TrimSpace(q.Get("code")) == "" {
-		writeOAuthHTMLError(w, http.StatusBadRequest)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadRequest)
 		return
 	}
 
@@ -410,34 +428,34 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &refused) {
 			// A business-rule refusal (unverified email, domain not
 			// allowed): the message names no internals and is safe to show.
-			writeOAuthHTMLRefused(w, refused.Message)
+			writeOAuthHTMLRefused(h.pipeline(), w, refused.Message)
 			return
 		}
 		log.Printf("oauth: %s exchange: %v", name, err)
-		writeOAuthHTMLError(w, http.StatusBadGateway)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 		return
 	}
 	if ident.UserID == "" {
-		writeOAuthHTMLError(w, http.StatusBadGateway)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 		return
 	}
 
 	tx, err := h.database.BeginTx(r.Context(), nil)
 	if err != nil {
 		log.Printf("oauth: begin: %v", err)
-		writeOAuthHTMLError(w, http.StatusBadGateway)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 		return
 	}
 	defer tx.Rollback()
 
 	user, created, err := resolveUser(r.Context(), tx, ident)
 	if errors.Is(err, errOAuthEmailRefused) || errors.Is(err, errOAuthAdminRefused) {
-		writeOAuthHTMLError(w, http.StatusBadRequest)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadRequest)
 		return
 	}
 	if err != nil {
 		log.Printf("oauth: resolve user: %v", err)
-		writeOAuthHTMLError(w, http.StatusBadGateway)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 		return
 	}
 	// Where a new account came from, recorded after the commit below so a
@@ -458,7 +476,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	// A suspended account signs in on no site. (A dashboard sign-in is
 	// refused, with the reason, when its token is redeemed at /v1/auth/verify.)
 	if susp, serr := db.UserSuspended(r.Context(), tx, user.ID); st.Purpose != "owner" && (serr != nil || susp) {
-		writeOAuthHTMLError(w, http.StatusForbidden)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusForbidden)
 		return
 	}
 
@@ -469,25 +487,25 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		linkToken, err := generateLinkToken(24)
 		if err != nil {
 			log.Printf("oauth: owner link token: %v", err)
-			writeOAuthHTMLError(w, http.StatusBadGateway)
+			writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 			return
 		}
 		code, err := generateNumericCode(6)
 		if err != nil {
 			log.Printf("oauth: owner unused code: %v", err)
-			writeOAuthHTMLError(w, http.StatusBadGateway)
+			writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 			return
 		}
 		// The one-time token is bound to the nonce of the tab that started
 		// this sign-in (cn in its return_to), so only that tab can redeem it.
 		if err := db.CreateAuthToken(r.Context(), tx, user.Username, code, linkToken, time.Now().Add(authTokenTTL()), "dashboard", sql.NullString{}, returnToNonceHash(st.ReturnTo)); err != nil {
 			log.Printf("oauth: owner auth token: %v", err)
-			writeOAuthHTMLError(w, http.StatusBadGateway)
+			writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 			return
 		}
 		if err := tx.Commit(); err != nil {
 			log.Printf("oauth: commit: %v", err)
-			writeOAuthHTMLError(w, http.StatusBadGateway)
+			writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 			return
 		}
 		recordAfterCommit()
@@ -500,37 +518,37 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 
 	// A site sign-in must have started on the site host, bound to a browser.
 	if !st.SiteID.Valid || st.SiteID.String == "" || st.Host == "" || !st.NonceHash.Valid || !nonceHashRe.MatchString(st.NonceHash.String) {
-		writeOAuthHTMLError(w, http.StatusBadRequest)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadRequest)
 		return
 	}
 
 	sessionID, err := randomRaw(32)
 	if err != nil {
 		log.Printf("oauth: session id: %v", err)
-		writeOAuthHTMLError(w, http.StatusBadGateway)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 		return
 	}
 	now := time.Now()
 	if err := db.InsertPendingVisitorSession(r.Context(), tx, sessionID, user.ID, st.SiteID.String, st.Host, now.Add(time.Minute)); err != nil {
 		log.Printf("oauth: insert session: %v", err)
-		writeOAuthHTMLError(w, http.StatusBadGateway)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 		return
 	}
 
 	once, err := randomHex(32)
 	if err != nil {
 		log.Printf("oauth: establish once: %v", err)
-		writeOAuthHTMLError(w, http.StatusBadGateway)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 		return
 	}
 	if err := db.InsertEstablishToken(r.Context(), tx, once, sessionID, st.Host, st.ReturnTo, st.NonceHash, now.Add(60*time.Second)); err != nil {
 		log.Printf("oauth: insert establish: %v", err)
-		writeOAuthHTMLError(w, http.StatusBadGateway)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 		return
 	}
 	if err := tx.Commit(); err != nil {
 		log.Printf("oauth: commit: %v", err)
-		writeOAuthHTMLError(w, http.StatusBadGateway)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadGateway)
 		return
 	}
 	recordAfterCommit()
@@ -545,11 +563,11 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, dest, http.StatusFound)
 }
 
-func writeOAuthHTMLError(w http.ResponseWriter, status int) {
+func writeOAuthHTMLError(assets *assetPipeline, w http.ResponseWriter, status int) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	_, _ = w.Write(hostedStatusPage(oauthHTMLFailed))
+	_, _ = w.Write(assets.hostedStatusPage(oauthHTMLFailed))
 }
 
 // oauthHTMLRefusedTemplate carries a placeholder for the per-refusal
@@ -559,12 +577,12 @@ var oauthHTMLRefusedTemplate = themed(`<!DOCTYPE html><html><head><meta charset=
 
 // writeOAuthHTMLRefused shows a company sign-in's business-rule refusal
 // (unverified email, domain not allowed): 403, themed like oauthHTMLFailed.
-func writeOAuthHTMLRefused(w http.ResponseWriter, message string) {
+func writeOAuthHTMLRefused(assets *assetPipeline, w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusForbidden)
 	page := strings.Replace(oauthHTMLRefusedTemplate, "__MESSAGE__", html.EscapeString(message), 1)
-	_, _ = w.Write(hostedStatusPage(page))
+	_, _ = w.Write(assets.hostedStatusPage(page))
 }
 
 // resolveUser maps a provider identity onto one users row.

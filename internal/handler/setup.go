@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/eventdns"
 )
 
@@ -29,6 +30,9 @@ type SetupHandler struct {
 	client                     *http.Client
 	ipMu                       sync.Mutex
 	ip                         string
+	// assets is the asset/chrome pipeline for the configured edition and
+	// instance address, same as the routes registered once setup finishes.
+	assets *assetPipeline
 
 	// done is closed once setup succeeds, so the process can leave setup mode.
 	// Settings chosen here are read at startup — the hostnames, and the
@@ -44,16 +48,18 @@ type SetupHandler struct {
 // sees "Done", reloads, and gets the setup page back.
 func (h *SetupHandler) Done() <-chan struct{} { return h.done }
 
-func NewSetupHandler(db *sql.DB, publicAPI string, password string, dataDir string) *SetupHandler {
+// ed and instanceURL match what the routes registered once setup finishes
+// will use (cmd/server/main.go): setup.html renders with the same chrome.
+func NewSetupHandler(db *sql.DB, publicAPI string, password string, dataDir string, ed *edition.Edition, instanceURL string) *SetupHandler {
 	return &SetupHandler{db: db, publicAPI: strings.TrimRight(publicAPI, "/"), password: password, dataDir: dataDir,
 		token: rand.Text(), limiter: newRateLimiter(5, 1.0/60), client: &http.Client{Timeout: 30 * time.Second},
-		done: make(chan struct{})}
+		assets: newAssetPipeline(ed, instanceURL), done: make(chan struct{})}
 }
 
 func (h *SetupHandler) Register(mux *http.ServeMux) {
-	mux.Handle("/", serveStaticPage("setup.html"))
+	mux.Handle("/", h.assets.serveStaticPage("setup.html"))
 	// Only host-ink.css and the fonts: no product-specific file is served here.
-	assets, _ := fs.Sub(newAssetPipeline(nil).staticFS(), "static")
+	assets, _ := fs.Sub(h.assets.staticFS(), "static")
 	files := http.FileServerFS(assets)
 	mux.Handle("GET /host-ink.css", files)
 	mux.Handle("GET /fonts/{file...}", files)

@@ -48,8 +48,6 @@ func TestParseLegacyStoragePath(t *testing.T) {
 }
 
 func TestLegacyStorageCutoffGateSkipsOptionsAndHack(t *testing.T) {
-	old := HackMode()
-	t.Cleanup(func() { SetHackMode(old) })
 	h := &SiteHandler{}
 	h.SetLegacyStorageCutoff(legacyCutoffTime())
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
@@ -61,7 +59,6 @@ func TestLegacyStorageCutoffGateSkipsOptionsAndHack(t *testing.T) {
 		t.Errorf("OPTIONS: %d %s", r.Code, r.Body.String())
 	}
 
-	SetHackMode(true)
 	h.ed = edition.ForKind(edition.Hack)
 	r = httptest.NewRecorder()
 	gate.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/v1/sites/shop/state", nil))

@@ -1579,7 +1579,7 @@ Simple Host
 func (h *SiteHandler) notifyStop(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	if fragmentLinkGET(w, r, h.chromeBase(r), "/v1/data-notify/stop") {
+	if fragmentLinkGET(h.pipeline(), w, r, h.chromeBase(r), "/v1/data-notify/stop") {
 		return
 	}
 	tok := linkToken(w, r)
@@ -1590,7 +1590,7 @@ func (h *SiteHandler) notifyStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if linkConfirming(r) {
-		writeMessagePage(w, r, h.chromeBase(r), http.StatusOK, "Stop emails about "+html.EscapeString(name)+"?",
+		writeMessagePage(h.pipeline(), w, r, h.chromeBase(r), http.StatusOK, "Stop emails about "+html.EscapeString(name)+"?",
 			"You will not be emailed about new entries in "+html.EscapeString(name)+" any more. You can turn it back on from your sites page.",
 			"", "", confirmForm("/v1/data-notify/stop", map[string]string{"t": tok}, "Stop these emails"))
 		return

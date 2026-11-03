@@ -12,6 +12,7 @@ import (
 	"net/mail"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -19,6 +20,7 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 )
 
@@ -98,6 +100,21 @@ type HackHandler struct {
 	// imageScan checks event icons and entry screenshots (imagescan.go);
 	// nil until PHOTODNA_API_KEY is set.
 	imageScan *ImageScan
+	// assets is the asset/chrome pipeline for RegisterDemo's pages
+	// (hack_watch.go); read it through pipeline(). HackHandler only exists
+	// when EVENTS=hosted, so its edition is always Hack.
+	assets     *assetPipeline
+	assetsOnce sync.Once
+}
+
+// pipeline is h's asset pipeline, for the Hack edition at publicBaseURL.
+func (h *HackHandler) pipeline() *assetPipeline {
+	h.assetsOnce.Do(func() {
+		if h.assets == nil {
+			h.assets = newAssetPipeline(edition.ForKind(edition.Hack), h.publicBaseURL)
+		}
+	})
+	return h.assets
 }
 
 // hackSiteHooks is what the events API needs of the site side.

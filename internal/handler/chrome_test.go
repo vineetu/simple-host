@@ -15,18 +15,14 @@ import (
 
 // chromeTestHandler is a SiteHandler with no database. Every route exercised
 // here avoids the DB: handle-shaped paths are the only ones that query it.
-func chromeTestHandler() *SiteHandler {
-	kind := edition.Host
-	if hackMode {
-		kind = edition.Hack
-	}
+func chromeTestHandler(kind edition.Kind) *SiteHandler {
 	return &SiteHandler{ed: edition.ForKind(kind), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
 }
 
-func chromeTestMux(t *testing.T) *http.ServeMux {
+func chromeTestMux(t *testing.T, kind edition.Kind) *http.ServeMux {
 	t.Helper()
 	mux := http.NewServeMux()
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(kind))
 	return mux
 }
 
@@ -96,7 +92,7 @@ func assertChrome(t *testing.T, label, body, wantCurrentHref string) {
 }
 
 func TestChromeOnEveryMainOriginPage(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	for _, tc := range []struct {
 		path, current string
 	}{
@@ -137,7 +133,7 @@ func TestChromeOnEveryMainOriginPage(t *testing.T) {
 }
 
 func TestChromeOnShowcaseAndNotFound(t *testing.T) {
-	h := chromeTestHandler()
+	h := chromeTestHandler(edition.Host)
 
 	// The 404 via the nginx fallback, as the content host reaches it.
 	req := httptest.NewRequest(http.MethodGet, "/internal/notfound", nil)
@@ -179,7 +175,7 @@ func TestChromeOnShowcaseAndNotFound(t *testing.T) {
 		if got := h.chromeBase(r); got != tc.base {
 			t.Errorf("chromeBase(%s) = %q, want %q", tc.path, got, tc.base)
 		}
-		page, err := globalAssets().showcasePage(chromeDataFor(r, h.chromeBase(r)), data)
+		page, err := h.pipeline().showcasePage(h.pipeline().chromeDataFor(r, h.chromeBase(r)), data)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -210,7 +206,7 @@ func TestChromeOnRewrittenInstallPage(t *testing.T) {
 	// the file server. It must get the chrome too.
 	SetInstanceHosts("hack.example.com", "", "")
 	defer SetInstanceHosts("simple-host.app", "", "")
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	rec := get(t, mux, "hack.example.com", "/install.html")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
@@ -226,7 +222,7 @@ func TestChromeOnHackathonHomepage(t *testing.T) {
 	// simple-hack.app serves /hackathons as its homepage (nginx proxies / to
 	// /hackathons). There "Home" would be this same page and "For hackathons"
 	// a second link to it: Home points at the main product, the duplicate goes.
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	body := get(t, mux, "simple-hack.app", "/hackathons").Body.String()
 	assertChrome(t, "simple-hack.app homepage", body, "")
 	if !strings.Contains(body, `<a href="https://simple-host.app/">Simple Host</a>`) {
@@ -249,7 +245,7 @@ func TestChromeOnHackathonHomepage(t *testing.T) {
 }
 
 func TestChromeFileServerLeavesTheRestAlone(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	// The partials are fragments, never pages.
 	for _, p := range []string{"/partials/header.html", "/partials/footer.html", "/partials/head.html"} {
 		if rec := get(t, mux, "simple-host.app", p); rec.Code != http.StatusNotFound {
@@ -290,7 +286,7 @@ func TestSetupPageHasNoChrome(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	serveStaticPage("setup.html").ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	newAssetPipeline(edition.ForKind(edition.Host), "").serveStaticPage("setup.html").ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	body := rec.Body.String()
 	if strings.Contains(body, `class="sh-header"`) || strings.Contains(body, `class="sh-footer"`) || strings.Contains(body, "site.css") {
 		t.Error("setup.html gained chrome")
@@ -358,14 +354,15 @@ func TestServeChromeForScreenshots(t *testing.T) {
 	if addr == "" {
 		t.Skip("CHROME_SERVE_ADDR unset")
 	}
-	h := chromeTestHandler()
+	h := chromeTestHandler(edition.Host)
+	assets := h.pipeline()
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, "http://"+addr, h)
 	sample := showcaseData{Handle: "jane", SitesBaseURL: "https://sites.simple-host.app", PublicShowcaseURL: "https://jane.simple-host.app/", OwnerAppURL: "https://simple-host.app/jane", MainURL: "https://simple-host.app",
 		Sites: []showcaseSite{{Name: "recipes", URL: "https://recipes.jane.simple-host.app/", CreatedAt: time.Now(), Visibility: "public"}}}
 	// Both under the apex CSP, as they are served in production.
-	mux.Handle("GET /jane", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		page, err := globalAssets().showcasePage(chromeDataFor(r, ""), sample)
+	mux.Handle("GET /jane", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page, err := assets.showcasePage(assets.chromeDataFor(r, ""), sample)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -373,10 +370,10 @@ func TestServeChromeForScreenshots(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(stampNonce(r, page))
 	})))
-	mux.Handle("GET /_404", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.renderNotFound(w, r, "/nothing-here.html") })))
-	mux.HandleFunc("GET /_offline", serveOffline)
-	mux.HandleFunc("GET /_takendown", serveTakedown)
-	mux.Handle("GET /_wizard", serveStaticPage("setup.html"))
+	mux.Handle("GET /_404", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.renderNotFound(w, r, "/nothing-here.html") })))
+	mux.HandleFunc("GET /_offline", h.serveOffline)
+	mux.HandleFunc("GET /_takendown", h.serveTakedown)
+	mux.Handle("GET /_wizard", assets.serveStaticPage("setup.html"))
 	srv := &http.Server{Addr: addr, Handler: mux}
 	go srv.ListenAndServe()
 	d, _ := time.ParseDuration(os.Getenv("CHROME_SERVE_FOR"))
@@ -389,7 +386,7 @@ func TestServeChromeForScreenshots(t *testing.T) {
 
 // The static GET catch-all must not turn absent POST endpoints into 405.
 func TestAbsentPostEndpoint(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/no-such-endpoint", nil))
 	if rec.Code != http.StatusNotFound {
@@ -404,10 +401,11 @@ func TestProductIconPerMode(t *testing.T) {
 		hack bool
 		dot  string
 	}{{false, "#157e8a"}, {true, "#d15d48"}} {
-		previous := hackMode
-		hackMode = mode.hack
-		mux := chromeTestMux(t)
-		hackMode = previous
+		kind := edition.Host
+		if mode.hack {
+			kind = edition.Hack
+		}
+		mux := chromeTestMux(t, kind)
 		rec := get(t, mux, "", "/favicon.svg?v=c")
 		if rec.Code != 200 || !strings.Contains(rec.Body.String(), mode.dot) || !strings.HasPrefix(rec.Header().Get("Content-Type"), "image/svg+xml") {
 			t.Fatalf("hack=%v favicon.svg: %d %q %q", mode.hack, rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
@@ -426,7 +424,7 @@ func TestProductIconPerMode(t *testing.T) {
 // Every chrome page links the versioned icon addresses, so a browser that
 // cached the old pre-rebrand favicon treats the new one as a different URL.
 func TestHeadPartialVersionsIconLinks(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	rec := get(t, mux, "", "/")
 	body := rec.Body.String()
 	for _, want := range []string{

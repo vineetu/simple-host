@@ -170,7 +170,7 @@ func (h *ConnectorHandler) importPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not open import page", 500)
 		return
 	}
-	page, err := withChrome(raw, chromeDataFor(r, ""))
+	page, err := withChrome(raw, h.pipeline().chromeDataFor(r, ""))
 	if err != nil {
 		http.Error(w, "could not open import page", 500)
 		return

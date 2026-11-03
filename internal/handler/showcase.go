@@ -458,7 +458,7 @@ func (h *SiteHandler) renderNotFoundPage(w http.ResponseWriter, r *http.Request,
 // layout) with any status. message and subtext are inserted as given: escape
 // anything that did not come from this code.
 func (h *SiteHandler) renderMessagePage(w http.ResponseWriter, r *http.Request, status int, message, subtext, backURL, backLabel string) {
-	writeMessagePage(w, r, h.chromeBase(r), status, message, subtext, backURL, backLabel, "")
+	writeMessagePage(h.pipeline(), w, r, h.chromeBase(r), status, message, subtext, backURL, backLabel, "")
 }
 
 // confirmForm is a one-button POST form for a confirmation page: action is
@@ -499,7 +499,7 @@ func linkConfirming(r *http.Request) bool {
 // fragmentLinkGET answers the GET of an emailed link that carries its token
 // in the fragment (no ?t=): the page that reads it and posts it back. It
 // reports whether it wrote the response.
-func fragmentLinkGET(w http.ResponseWriter, r *http.Request, base, action string) bool {
+func fragmentLinkGET(assets *assetPipeline, w http.ResponseWriter, r *http.Request, base, action string) bool {
 	if r.Method == http.MethodPost || r.URL.Query().Get("t") != "" {
 		return false
 	}
@@ -516,7 +516,7 @@ func fragmentLinkGET(w http.ResponseWriter, r *http.Request, base, action string
 		`<script` + attr + `>(function(){var m=/[#&]t=([^&]+)/.exec(location.hash||"");var f=document.getElementById("sh-link");` +
 		`if(!m){f.hidden=true;return;}f.elements.t.value=decodeURIComponent(m[1]);` +
 		`try{history.replaceState(null,"",location.pathname);}catch(e){}f.submit();})();</script>`
-	writeMessagePage(w, r, base, http.StatusOK, "Opening your link…",
+	writeMessagePage(assets, w, r, base, http.StatusOK, "Opening your link…",
 		"If nothing happens, press Continue. If there is no button, open the link from the email again.", "", "", form)
 	return true
 }
@@ -525,8 +525,8 @@ func fragmentLinkGET(w http.ResponseWriter, r *http.Request, base, action string
 // confirmForm) takes the place of the way-back link: emailed links open such
 // a page on GET and act only when the person presses its button, so a mail
 // scanner that follows every link changes nothing.
-func writeMessagePage(w http.ResponseWriter, r *http.Request, base string, status int, message, subtext, backURL, backLabel, form string) {
-	tmpl, err := chromePage("notfound.html", chromeDataFor(r, base))
+func writeMessagePage(assets *assetPipeline, w http.ResponseWriter, r *http.Request, base string, status int, message, subtext, backURL, backLabel, form string) {
+	tmpl, err := assets.chromePage("notfound.html", assets.chromeDataFor(r, base))
 	if err != nil {
 		// Last-resort inline page so a miss never falls through to nginx's default.
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -536,9 +536,9 @@ func writeMessagePage(w http.ResponseWriter, r *http.Request, base string, statu
 			tail = form
 		}
 		fallback := []byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>simple-host</title><h1>` + message + `</h1><p>` + subtext + `</p>` + tail)
-		if !hackChrome {
+		if !assets.chromeHack {
 			page := themed(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><!--sh:theme--><title>simple-host</title></head><body><h1>` + message + `</h1><p>` + subtext + `</p>` + tail + `</body></html>`)
-			fallback = stampNonce(r, hostedStatusPage(page))
+			fallback = stampNonce(r, assets.hostedStatusPage(page))
 		}
 		_, _ = w.Write(fallback)
 		return

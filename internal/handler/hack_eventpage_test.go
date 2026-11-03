@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
@@ -223,14 +224,11 @@ func TestHackEventPageBadZoneFallsBackToUTC(t *testing.T) {
 }
 
 func TestHackChromeHeader(t *testing.T) {
-	orig := hackChrome
-	t.Cleanup(func() { SetHackChrome(orig) })
-
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	page := []byte("<!--sh:header--><!--sh:footer-->")
 
-	SetHackChrome(true)
-	on, err := withChrome(page, chromeDataFor(r, ""))
+	hackAssets := newAssetPipeline(edition.ForKind(edition.Hack), "")
+	on, err := withChrome(page, hackAssets.chromeDataFor(r, ""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,8 +271,8 @@ func TestHackChromeHeader(t *testing.T) {
 		t.Error("hack header missing sh-hack class")
 	}
 
-	SetHackChrome(false)
-	off, err := withChrome(page, chromeDataFor(r, ""))
+	hostAssets := newAssetPipeline(edition.ForKind(edition.Host), "")
+	off, err := withChrome(page, hostAssets.chromeDataFor(r, ""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,12 +298,9 @@ func TestHackEventPageKeepsLineBreaks(t *testing.T) {
 }
 
 func TestHackHomePage(t *testing.T) {
-	orig := hackChrome
-	t.Cleanup(func() { SetHackChrome(orig) })
-	SetHackChrome(true)
-
+	sh := chromeTestHandler(edition.Hack)
 	mux := http.NewServeMux()
-	RegisterHackHome(mux)
+	RegisterHackHome(mux, sh)
 	rec := get(t, mux, "simple-hack.app", "/")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)

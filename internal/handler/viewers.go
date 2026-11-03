@@ -108,7 +108,7 @@ func (h *SiteHandler) viewerAllowed(r *http.Request, row db.SitePasscodeRow, use
 // subresource never gets in. The caller has set the private-cache headers.
 func (h *SiteHandler) viewerGate(w http.ResponseWriter, r *http.Request, row db.SitePasscodeRow) bool {
 	if crossSiteSubresource(r) || framedElsewhere(r) {
-		writeOAuthHTMLError(w, http.StatusForbidden)
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusForbidden)
 		return true
 	}
 	sess, ok := h.viewerSession(r, row.SiteID)
@@ -116,7 +116,7 @@ func (h *SiteHandler) viewerGate(w http.ResponseWriter, r *http.Request, row db.
 		if h.startGateSSO(w, r) {
 			return true
 		}
-		serveViewerPage(w, r, viewerPageSignIn, gateNext(r), "", "")
+		h.serveViewerPage(w, r, viewerPageSignIn, gateNext(r), "", "")
 		return true
 	}
 	allowed, email, err := h.viewerAllowed(r, row, sess.UserID)
@@ -131,7 +131,7 @@ func (h *SiteHandler) viewerGate(w http.ResponseWriter, r *http.Request, row db.
 		if dest := r.Header.Get("Sec-Fetch-Dest"); dest == "" || dest == "document" {
 			h.emitSiteNotification(row.SiteID, "viewer.access_requested", map[string]any{"visitor": sess.UserID}, 24*time.Hour)
 		}
-		serveViewerPage(w, r, viewerPagePrivate, gateNext(r), email, "", h.ssoBaseURL)
+		h.serveViewerPage(w, r, viewerPagePrivate, gateNext(r), email, "", h.ssoBaseURL)
 		return true
 	}
 	if dest := r.Header.Get("Sec-Fetch-Dest"); dest == "" || dest == "document" {
@@ -219,7 +219,7 @@ var viewerGateHead = strings.Replace(strings.Replace(passcodeGateHead, "<title>P
 // bar. next "" leaves the forms out (a shared host, or a subresource). Like
 // the passcode gate, a request that is not a page gets a short plain answer
 // and /robots.txt says "Disallow: /".
-func serveViewerPage(w http.ResponseWriter, r *http.Request, page viewerPage, next, email, msg string, apex ...string) {
+func (h *SiteHandler) serveViewerPage(w http.ResponseWriter, r *http.Request, page viewerPage, next, email, msg string, apex ...string) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 	w.Header().Set("Referrer-Policy", "same-origin")
@@ -250,7 +250,7 @@ func serveViewerPage(w http.ResponseWriter, r *http.Request, page viewerPage, ne
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", passcodeGateCSP)
-	if !hackChrome {
+	if !h.pipeline().chromeHack {
 		w.Header().Set("Content-Security-Policy", hostPasscodeGateCSP)
 	}
 	if len(apex) > 0 && publicBaseOrigin(apex[0]) != nil {
@@ -260,16 +260,16 @@ func serveViewerPage(w http.ResponseWriter, r *http.Request, page viewerPage, ne
 	if r.Method == http.MethodHead {
 		return
 	}
-	_, _ = w.Write([]byte(viewerPageHTML(r, page, next, email, msg)))
+	_, _ = w.Write([]byte(h.viewerPageHTML(r, page, next, email, msg)))
 }
 
-func viewerPageHTML(r *http.Request, page viewerPage, next, email, msg string) string {
+func (h *SiteHandler) viewerPageHTML(r *http.Request, page viewerPage, next, email, msg string) string {
 	host := requestHostName(r)
 	var b strings.Builder
-	if hackChrome {
+	if h.pipeline().chromeHack {
 		b.WriteString(viewerGateHead)
 	} else {
-		b.Write(hostedStatusPage(viewerGateHead))
+		b.Write(h.pipeline().hostedStatusPage(viewerGateHead))
 	}
 	b.WriteString(`<body><main class="gate"`)
 	if page == viewerPageCode {
@@ -437,7 +437,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.visitorAuthLimiter.allow(clientIP(r)) {
-		serveViewerPage(w, r, viewerPageSignIn, next, "", signInMessages["rate_limited"])
+		h.serveViewerPage(w, r, viewerPageSignIn, next, "", signInMessages["rate_limited"])
 		return
 	}
 	address := r.PostForm.Get("email")
@@ -445,7 +445,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 	siteID := sql.NullString{String: row.SiteID, Valid: true}
 	if strings.TrimSpace(code) == "" {
 		if h.noEmail {
-			serveViewerPage(w, r, viewerPageSignIn, next, "", signInMessages["email_unavailable"])
+			h.serveViewerPage(w, r, viewerPageSignIn, next, "", signInMessages["email_unavailable"])
 			return
 		}
 		sent, _, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, address, "", "visitor", siteID, sql.NullString{}, clientIP(r), h.geoBlock)
@@ -454,10 +454,10 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 			if msg == "" {
 				msg = signInMessages["unknown"]
 			}
-			serveViewerPage(w, r, viewerPageSignIn, next, "", msg)
+			h.serveViewerPage(w, r, viewerPageSignIn, next, "", msg)
 			return
 		}
-		serveViewerPage(w, r, viewerPageCode, next, sent, "")
+		h.serveViewerPage(w, r, viewerPageCode, next, sent, "")
 		return
 	}
 	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: address, Code: code}, "visitor", siteID, h.ed.Identity().RandomHandles)
@@ -467,7 +467,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 		if msg == "" {
 			msg = signInMessages["unknown"]
 		}
-		serveViewerPage(w, r, viewerPageCode, next, norm, msg)
+		h.serveViewerPage(w, r, viewerPageCode, next, norm, msg)
 		return
 	}
 	if created {

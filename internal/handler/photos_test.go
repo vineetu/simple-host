@@ -18,6 +18,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func photoJPEG(t *testing.T, w, h int) []byte {
@@ -248,7 +249,7 @@ func TestPhotosQuota(t *testing.T) {
 }
 
 func TestPhotosPage(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	r := get(t, mux, "simple-host.app", "/photos?site=home")
 	if r.Code != 200 || !strings.Contains(r.Body.String(), "Save to site") || !strings.Contains(r.Body.String(), themeScriptNeedle) || !strings.Contains(r.Body.String(), "/signin.js") {
 		t.Fatalf("page: %d", r.Code)
@@ -272,9 +273,6 @@ func TestPhotosPage(t *testing.T) {
 			t.Fatalf("asset %s: %d", file, r.Code)
 		}
 	}
-	old := hackMode
-	hackMode = true
-	defer func() { hackMode = old }()
 	for _, path := range []string{"/photos", "/v1/sites/home/photos"} {
 		rec := httptest.NewRecorder()
 		photosHostOnly(false, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Fatal("Hack route reached") })).ServeHTTP(rec, httptest.NewRequest("GET", path, nil))

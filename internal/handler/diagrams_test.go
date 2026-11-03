@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // The architecture diagrams under static/diagrams are what the GitHub guides
@@ -12,7 +14,7 @@ import (
 // Each is served as SVG off the file server, and carries a title and a
 // description for screen readers.
 func TestDiagramsServedAsSVG(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	for _, name := range []string{"fly", "render", "railway", "upcloud", "enterprise-aws"} {
 		path := "/diagrams/" + name + ".svg"
 		rec := get(t, mux, "simple-host.app", path)

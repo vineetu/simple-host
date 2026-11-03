@@ -112,9 +112,9 @@ type chromeData struct {
 	// There "Home" would be a link back to this same page and "For hackathons"
 	// a second one, so Home points at the main product and the duplicate goes.
 	HackHome bool
-	// Hack is the simple-hack.app chrome (the pipeline's chromeHack, set at
-	// startup via SetHackChrome when EVENTS=hosted); false leaves the header
-	// and footer as they are.
+	// Hack is the simple-hack.app chrome (the pipeline's chromeHack, fixed at
+	// construction from the edition's Presentation().HackAssets); false
+	// leaves the header and footer as they are.
 	Hack       bool
 	CSSVersion string
 	// SigninVersion busts caches on /signin.js, the same way CSSVersion does
@@ -129,7 +129,7 @@ type chromeData struct {
 
 // hostedOwner names the hosted service this process is, or "".
 func (p *assetPipeline) hostedOwner() string {
-	if p.chromeHack.Load() {
+	if p.chromeHack {
 		if p.inkBaseURL() == canonicalHackBaseURL {
 			return "Simple Hack"
 		}
@@ -178,7 +178,7 @@ func (p *assetPipeline) chromeDataFor(r *http.Request, base string) chromeData {
 		Base:          base,
 		Current:       current,
 		HackHome:      current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
-		Hack:          p.chromeHack.Load(),
+		Hack:          p.chromeHack,
 		CSSVersion:    siteCSSVersion,
 		SigninVersion: SigninJSVersion(),
 		Owner:         p.hostedOwner(),
@@ -263,7 +263,7 @@ func addHackInk(page []byte, base string) []byte {
 
 // Go-built status pages were themed at package init, before hosted mode is known.
 func (p *assetPipeline) hostedStatusPage(page string) []byte {
-	if p.chromeHack.Load() {
+	if p.chromeHack {
 		d := chromeData{Hack: true, Base: p.inkBaseURL(), CSSVersion: siteCSSVersion, SigninVersion: SigninJSVersion()}
 		if !strings.Contains(page, "<head>") && !strings.Contains(page, "<head ") {
 			page = "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\">" + markerHead + "</head><body>" + page + "</body></html>"
@@ -407,7 +407,7 @@ func (p *assetPipeline) chromeFileServer(fsys fs.FS, next http.Handler) http.Han
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if p.chromeHack.Load() {
+		if p.chromeHack {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		// A zero modtime, as the embedded FS reports, so no Last-Modified —

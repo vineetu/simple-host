@@ -30,7 +30,7 @@ var (
 )
 
 // The hosted bundle has the five Simple Hack skills from the canonical embed.
-func buildHackSkillsZip() ([]byte, error) {
+func buildHackSkillsZip(assets *assetPipeline) ([]byte, error) {
 	hackSkillsZipOnce.Do(func() {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
@@ -52,7 +52,7 @@ func buildHackSkillsZip() ([]byte, error) {
 				if err != nil {
 					return err
 				}
-				_, err = dst.Write(skillServedText(name+"/"+path, data))
+				_, err = dst.Write(assets.skillServedText(name+"/"+path, data))
 				return err
 			})
 			if err != nil {
@@ -70,22 +70,25 @@ func buildHackSkillsZip() ([]byte, error) {
 	return hackSkillsZipData, hackSkillsZipErr
 }
 
-func serveHackSkillsZip(w http.ResponseWriter, r *http.Request) {
-	data, err := buildHackSkillsZip()
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
+func serveHackSkillsZip(assets *assetPipeline) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		data, err := buildHackSkillsZip(assets)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills.zip"`)
+		http.ServeContent(w, r, "simple-hack-skills.zip", skillsModTime, bytes.NewReader(data))
 	}
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="simple-hack-skills.zip"`)
-	http.ServeContent(w, r, "simple-hack-skills.zip", skillsModTime, bytes.NewReader(data))
 }
 
 // RegisterHackGetStarted is mounted only when EVENTS=hosted.
-func RegisterHackGetStarted(mux *http.ServeMux) {
-	mux.Handle("GET /get-started", adminUICSP(serveStaticPage("hack-get-started.html")))
+func RegisterHackGetStarted(mux *http.ServeMux, sh *SiteHandler) {
+	assets := sh.pipeline()
+	mux.Handle("GET /get-started", assets.adminUICSP(assets.serveStaticPage("hack-get-started.html")))
 	mux.Handle("GET /skills", http.RedirectHandler("/get-started", http.StatusMovedPermanently))
-	mux.HandleFunc("GET /hack-skills.zip", serveHackSkillsZip)
+	mux.HandleFunc("GET /hack-skills.zip", serveHackSkillsZip(assets))
 	for _, version := range []string{"0.2.0", "0.2.1", "0.2.2", "0.2.3", "0.2.4", "0.2.5"} {
 		mux.HandleFunc("GET /simple-hack-skills-only-"+version+".zip", func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "this older download was withdrawn", http.StatusGone)
@@ -98,8 +101,8 @@ func RegisterHackGetStarted(mux *http.ServeMux) {
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
-			if hackInkBaseURL != "https://simple-hack.app" {
-				data, err = rewriteHackPluginZip(data)
+			if assets.inkBaseURL() != canonicalHackBaseURL {
+				data, err = rewriteHackPluginZip(assets, data)
 				if err != nil {
 					http.Error(w, "Could not prepare the download", 500)
 					return
@@ -113,7 +116,7 @@ func RegisterHackGetStarted(mux *http.ServeMux) {
 }
 
 // rewriteHackPluginZip keeps binary assets intact and rewrites only our text.
-func rewriteHackPluginZip(data []byte) ([]byte, error) {
+func rewriteHackPluginZip(assets *assetPipeline, data []byte) ([]byte, error) {
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, err
@@ -132,7 +135,7 @@ func rewriteHackPluginZip(data []byte) ([]byte, error) {
 		}
 		switch filepath.Ext(f.Name) {
 		case ".md", ".yaml", ".json":
-			body = hackInstanceText(body)
+			body = assets.hackInstanceText(body)
 		}
 		dst, err := zw.Create(f.Name)
 		if err != nil {

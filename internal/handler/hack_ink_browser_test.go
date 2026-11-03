@@ -6,8 +6,6 @@ import (
 	"os"
 	"testing"
 	"time"
-
-	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // Opt-in isolated full app and mail sink for the Playwright presentation rehearsal.
@@ -18,20 +16,16 @@ func TestServeHackInkBrowser(t *testing.T) {
 		t.Skip("HACK_INK_BROWSER_FILE unset")
 	}
 	a := newTeamSiteApp(t)
-	previousBase := hackInkBaseURL
-	SetHackInstanceURL(a.srv.URL)
-	t.Cleanup(func() { SetHackInstanceURL(previousBase) })
-	SetHackChrome(true)
-	t.Cleanup(func() { SetHackChrome(false) })
+	a.sites.assets = newAssetPipeline(a.sites.ed, a.srv.URL)
 	mb := &mailbox{}
 	a.users.mailer = mb
 	a.users.alerts.mailer = mb
 	a.sites.mailer = mb
 	a.hack.SetMailer(mb)
 	RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
-	newAssetPipeline(edition.ForKind(edition.Hack)).registerSkillsHub(a.mux, a.srv.URL)
-	RegisterHackHome(a.mux)
-	RegisterHackUI(a.mux, "")
+	a.sites.pipeline().registerSkillsHub(a.mux, a.srv.URL)
+	RegisterHackHome(a.mux, a.sites)
+	RegisterHackUI(a.mux, a.sites, "")
 	RegisterHackPublic(a.mux, a.database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady)
 	a.mux.HandleFunc("GET /_fixture/mail", func(w http.ResponseWriter, r *http.Request) {
 		mb.mu.Lock()
@@ -42,8 +36,8 @@ func TestServeHackInkBrowser(t *testing.T) {
 		markReady(t, a.certDir, r.PathValue("slug"))
 		w.WriteHeader(204)
 	})
-	a.mux.HandleFunc("GET /_fixture/takedown", serveTakedown)
-	a.mux.HandleFunc("GET /_fixture/offline", serveOffline)
+	a.mux.HandleFunc("GET /_fixture/takedown", a.sites.serveTakedown)
+	a.mux.HandleFunc("GET /_fixture/offline", a.sites.serveOffline)
 	a.mux.HandleFunc("GET /_fixture/error", a.sites.renderServiceError)
 	stop := make(chan struct{})
 	a.mux.HandleFunc("POST /_fixture/stop", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204); close(stop) })

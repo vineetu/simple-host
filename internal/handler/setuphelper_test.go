@@ -15,12 +15,13 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // The setup helper is served at /setup with its script, and the small-box
 // settings list it reads is the one the code describes.
 func TestSetupHelper(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	rec := get(t, mux, "simple-host.app", "/setup")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("/setup: status %d", rec.Code)
@@ -174,7 +175,7 @@ func TestSetupHelperBundledEnterpriseChart(t *testing.T) {
 		t.Fatal("missing dependency version or checksum")
 	}
 	path := "/setup/charts/simple-host-enterprise-" + string(version[1]) + ".tgz"
-	rec := get(t, chromeTestMux(t), "simple-host.app", path)
+	rec := get(t, chromeTestMux(t, edition.Host), "simple-host.app", path)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("chart download status: %d", rec.Code)
 	}

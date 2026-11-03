@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // One light/dark setting for the whole site (INTENT, 2026-09-28): every page
@@ -109,7 +111,7 @@ func TestNoPageDecidesItsOwnTheme(t *testing.T) {
 // (so the choice is applied before first paint), and every page with the
 // header has the one theme menu.
 func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	// Served pages under the apex CSP carry a nonce on <script>; compare the
 	// script's body.
 	script := strings.TrimPrefix(themeScriptFor(t), "<script>")
@@ -182,14 +184,14 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 			continue
 		}
 		name := strings.TrimPrefix(p, "static/")
-		page, err := chromePage(name, chromeData{})
+		page, err := newAssetPipeline(edition.ForKind(edition.Host), "").chromePage(name, chromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		check(name, string(page), name != "setup.html" && name != "hack-story.html")
 	}
 	// The 404 as the content host reaches it, and the Go-built pages.
-	h := chromeTestHandler()
+	h := chromeTestHandler(edition.Host)
 	req := httptest.NewRequest(http.MethodGet, "/internal/notfound", nil)
 	req.Header.Set("X-Original-URI", "/nothing-here.html")
 	rec := httptest.NewRecorder()

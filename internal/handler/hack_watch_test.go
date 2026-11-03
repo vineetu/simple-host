@@ -7,16 +7,16 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestHackWatchPage(t *testing.T) {
-	mode, chrome, base := hackMode, hackChrome, hackInkBaseURL
-	SetHackMode(true)
-	SetHackChrome(true)
-	SetHackInstanceURL("https://simple-hack.app")
-	t.Cleanup(func() { SetHackMode(mode); SetHackChrome(chrome); SetHackInstanceURL(base) })
-	mux := chromeTestMux(t)
-	RegisterHackHome(mux)
+	sh := chromeTestHandler(edition.Hack)
+	sh.assets = newAssetPipeline(sh.ed, "https://simple-hack.app")
+	mux := http.NewServeMux()
+	RegisterUIRoutes(mux, "https://simple-host.app", sh)
+	RegisterHackHome(mux, sh)
 	rec := get(t, mux, "simple-hack.app", "/watch")
 	body := rec.Body.String()
 	if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" {
@@ -42,8 +42,12 @@ func TestHackWatchPage(t *testing.T) {
 	if hidden := get(t, mux, "simple-hack.app", "/hack-watch.html"); hidden.Code != 404 {
 		t.Fatalf("filename route: %d", hidden.Code)
 	}
-	SetHackInstanceURL("https://hack.college.test")
-	rewritten := get(t, mux, "hack.college.test", "/watch").Body.String()
+	sh2 := chromeTestHandler(edition.Hack)
+	sh2.assets = newAssetPipeline(sh2.ed, "https://hack.college.test")
+	mux2 := http.NewServeMux()
+	RegisterUIRoutes(mux2, "https://simple-host.app", sh2)
+	RegisterHackHome(mux2, sh2)
+	rewritten := get(t, mux2, "hack.college.test", "/watch").Body.String()
 	for _, want := range []string{"https://hack.college.test/mcp", "campushack.hack.college.test", "team.campushack.hack.college.test"} {
 		if !strings.Contains(rewritten, want) {
 			t.Errorf("instance rewrite missing %s", want)
@@ -55,7 +59,7 @@ func TestHackWatchPage(t *testing.T) {
 }
 
 func TestHackWatchNarration(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	for _, role := range []string{"organizer", "judge", "participant"} {
 		path := "/hack-watch-" + role + ".mp3?v=202610102330"
 		rec := get(t, mux, "simple-hack.app", path)
@@ -74,7 +78,7 @@ func TestHackWatchNarration(t *testing.T) {
 
 func TestHackWatchHostedOnly(t *testing.T) {
 	a := newHackApp(t)
-	sh := chromeTestHandler()
+	sh := chromeTestHandler(edition.Host)
 	sh.database = a.database
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, "https://simple-host.app", sh)

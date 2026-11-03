@@ -33,20 +33,20 @@ var offlinePage = themed(`<!doctype html>
 
 // serveOffline writes the offline page: 503 (a pause, not a removal) and
 // no-store, so switching the site back on takes effect on the next load.
-func serveOffline(w http.ResponseWriter, r *http.Request) {
+func (h *SiteHandler) serveOffline(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "noindex")
 	w.WriteHeader(http.StatusServiceUnavailable)
 	if r.Method != http.MethodHead {
-		_, _ = w.Write(hostedStatusPage(offlinePage))
+		_, _ = w.Write(h.pipeline().hostedStatusPage(offlinePage))
 	}
 }
 
 // offlinePageHandler answers /internal/offline, where nginx and Caddy send a
 // request for a site whose folder carries the offline marker.
 func (h *SiteHandler) offlinePageHandler(w http.ResponseWriter, r *http.Request) {
-	serveOffline(w, r)
+	h.serveOffline(w, r)
 }
 
 func writeSiteOffline(w http.ResponseWriter) {

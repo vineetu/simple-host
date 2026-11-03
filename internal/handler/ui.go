@@ -80,7 +80,7 @@ var (
 )
 
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
-	registerPhotosUI(mux, publicBaseURL, sh.ed.Storage().Photos)
+	registerPhotosUI(mux, publicBaseURL, sh)
 	mux.HandleFunc("GET /auth.md", sh.serveAuthMarkdown)
 	// The connector's page recipes (get_page_recipe), for agents that read
 	// llms.txt without the connector: the same text, with a placeholder site.
@@ -148,9 +148,11 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 
 	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) { serveRobotsTxt(w, r, sh.ed.Routes().HostedEvents) })
 	mux.HandleFunc("GET /sitemap.xml", func(w http.ResponseWriter, r *http.Request) { serveSitemapXML(w, r, sh.ed.Routes().HostedEvents) })
-	mux.HandleFunc("GET /.well-known/ard.json", discoveryDocument(sh.ed.Presentation().HackAssets, "ard.json", "application/json", publicBaseURL))
-	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument(sh.ed.Presentation().HackAssets, "api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
-	mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) { serveSkillsZip(w, r, sh.ed.Presentation().HackAssets) })
+	mux.HandleFunc("GET /.well-known/ard.json", discoveryDocument(assets, sh.ed.Presentation().HackAssets, "ard.json", "application/json", publicBaseURL))
+	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument(assets, sh.ed.Presentation().HackAssets, "api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
+	mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) {
+		serveSkillsZip(assets, w, r, sh.ed.Presentation().HackAssets)
+	})
 	mux.HandleFunc("GET /skills/version", func(w http.ResponseWriter, r *http.Request) {
 		serveSkillsVersion(w, r, sh.ed.Presentation().HackAssets)
 	})
@@ -222,7 +224,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		// place is their events (RegisterHackUI's app shell, static/hack/app.html).
 		mux.Handle("GET /dashboard", http.RedirectHandler("/events", http.StatusFound))
 	} else {
-		markdown := homepageMarkdownHandler(publicBaseURL, sh.ed.Presentation().HackAssets)
+		markdown := homepageMarkdownHandler(assets, publicBaseURL, sh.ed.Presentation().HackAssets)
 		mux.HandleFunc("GET /index.md", markdown)
 		mux.HandleFunc("GET /llms.md", markdown)
 		mux.Handle("GET /dashboard", assets.adminUICSP(assets.serveStaticPage("index.html")))
@@ -362,7 +364,7 @@ func (p *assetPipeline) serveStaticPage(name string) http.Handler {
 			body = bytes.ReplaceAll(body, []byte("Yes. Running an event, joining, judging and hosting team sites are free."), []byte("Simple Hack is free software. Server, domain and email costs are your provider’s bill."))
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if p.chromeHack.Load() {
+		if p.chromeHack {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		w.Write(stampNonce(r, body))
@@ -398,7 +400,7 @@ func (p *assetPipeline) uiCSP(next http.Handler, frameSrc string) http.Handler {
 		}
 		nonce := base64.StdEncoding.EncodeToString(b[:])
 		policy := policyFmt
-		if p.chromeHack.Load() {
+		if p.chromeHack {
 			policy = strings.ReplaceAll(policy, " https://fonts.googleapis.com", "")
 			policy = strings.ReplaceAll(policy, " https://fonts.gstatic.com", "")
 		}
@@ -436,9 +438,9 @@ func serveSkillsVersion(w http.ResponseWriter, r *http.Request, hackAssets bool)
 
 // serveSkillsZip returns a flat zip of the skill folders, suitable for
 // extraction directly into ~/.claude/skills or ~/.agents/skills.
-func serveSkillsZip(w http.ResponseWriter, r *http.Request, hackAssets bool) {
+func serveSkillsZip(assets *assetPipeline, w http.ResponseWriter, r *http.Request, hackAssets bool) {
 	if hackAssets {
-		serveHackSkillsZip(w, r)
+		serveHackSkillsZip(assets)(w, r)
 		return
 	}
 	data, err := buildSkillsZip()

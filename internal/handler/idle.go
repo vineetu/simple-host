@@ -344,7 +344,7 @@ Simple Host
 func (h *SiteHandler) idleLinkSite(w http.ResponseWriter, r *http.Request) (db.IdleLink, bool) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	if fragmentLinkGET(w, r, h.chromeBase(r), r.URL.Path) {
+	if fragmentLinkGET(h.pipeline(), w, r, h.chromeBase(r), r.URL.Path) {
 		return db.IdleLink{}, false
 	}
 	tok := idleLinkToken(w, r)
@@ -401,7 +401,7 @@ func (h *SiteHandler) idleKeep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if linkConfirming(r) {
-		writeMessagePage(w, r, h.chromeBase(r), http.StatusOK, "Keep "+html.EscapeString(l.Name)+" online?",
+		writeMessagePage(h.pipeline(), w, r, h.chromeBase(r), http.StatusOK, "Keep "+html.EscapeString(l.Name)+" online?",
 			"It stays up, and we only ask again if it goes another "+config.Span(idleAfter())+" without visitors, a new version or saved data.",
 			"", "", confirmForm("/v1/idle/keep", map[string]string{"t": idleLinkToken(w, r)}, "Keep it online"))
 		return
@@ -431,7 +431,7 @@ func (h *SiteHandler) idleRestore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if linkConfirming(r) {
-		writeMessagePage(w, r, h.chromeBase(r), http.StatusOK, "Restore "+html.EscapeString(l.Name)+"?",
+		writeMessagePage(h.pipeline(), w, r, h.chromeBase(r), http.StatusOK, "Restore "+html.EscapeString(l.Name)+"?",
 			"It comes back exactly as it was, with all its versions and saved data.",
 			"", "", confirmForm("/v1/idle/restore", map[string]string{"t": idleLinkToken(w, r)}, "Restore it"))
 		return

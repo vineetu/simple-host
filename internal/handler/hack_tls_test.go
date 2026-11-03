@@ -45,7 +45,6 @@ func TestHackOnDemandTLSNames(t *testing.T) {
 	ask(team+"."+slug+"."+tsDomain, http.StatusForbidden)
 	ask(slug+"."+tsDomain, http.StatusOK)
 	// The ordinary small-box product retains its existing platform allowlist.
-	SetHackMode(false)
 	a.sites.ed = edition.ForKind(edition.Host)
 	ask("ordinary-platform-name."+tsDomain, http.StatusOK)
 }

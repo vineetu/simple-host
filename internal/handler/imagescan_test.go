@@ -21,6 +21,7 @@ import (
 	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/imagescan"
 	"github.com/vsriram/simple-host/internal/storage"
 )
@@ -617,7 +618,7 @@ func TestImageScanPrivacyItem(t *testing.T) {
 	t.Cleanup(func() { SetImageScanOn(was) })
 	for _, on := range []bool{true, false} {
 		SetImageScanOn(on)
-		page, err := chromePage("privacy.html", chromeData{})
+		page, err := newAssetPipeline(edition.ForKind(edition.Host), "").chromePage("privacy.html", chromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}
