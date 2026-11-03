@@ -27,35 +27,6 @@ func (h *HackHandler) registerLeave(mux *http.ServeMux, wrap func(http.HandlerFu
 	mux.Handle("POST /v1/hack/events/{slug}/leave", wrap(h.postLeaveEvent))
 }
 
-// leaveCaseFor names which of the six outcomes applies to one membership,
-// from role, approval status and how many other organisers the event has.
-// A pending or rejected participant is the same "applicant" case either
-// way: withdrawing and leaving a rejected application do the same thing
-// (delete the row), so there is nothing left to tell them apart on. An
-// organiser with nobody else left is last_organiser whether or not they
-// are the creator; a creator with others is creator; any other organiser
-// with others is co_organiser.
-func leaveCaseFor(role, approvalStatus string, isCreator bool, otherOrganisers int) string {
-	switch role {
-	case "participant":
-		if approvalStatus == "pending" || approvalStatus == "rejected" {
-			return "applicant"
-		}
-		return "participant"
-	case "judge":
-		return "judge"
-	case "organiser":
-		if otherOrganisers == 0 {
-			return "last_organiser"
-		}
-		if isCreator {
-			return "creator"
-		}
-		return "co_organiser"
-	}
-	return ""
-}
-
 // loadLeaveSelf is GetEventBySlug plus the caller's own membership row, for
 // GET/POST .../leave: any role, any approval status. Unlike loadMember
 // there is no admin bypass -- a platform admin who never joined gets 404
@@ -68,19 +39,10 @@ func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug
 		return db.Event{}, db.EventMember{}, "", nil, false
 	}
 	slug = strings.ToLower(strings.TrimSpace(slug))
-	ev, err := db.GetEventBySlug(r.Context(), h.database, slug)
-	if err == nil {
+	ev, member, status, err := h.membersSvc().LookupLeaveSelf(r.Context(), slug, user.ID)
+	if ev.ID != "" {
 		paperHackEvent(r, ev)
 	}
-	if errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return db.Event{}, db.EventMember{}, "", nil, false
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return db.Event{}, db.EventMember{}, "", nil, false
-	}
-	member, status, err := db.LeaveSelf(r.Context(), h.database, ev.ID, user.ID, false)
 	if err == nil {
 		paperHackKnownMember(r, ev, user.ID)
 	}
@@ -104,14 +66,13 @@ func (h *HackHandler) previewLeaveEvent(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	ctx := r.Context()
-	otherOrganisers, err := db.OtherEventOrganisers(ctx, h.database, ev.ID, user.ID)
+	preview, err := h.membersSvc().PreviewLeave(r.Context(), ev, member, approvalStatus, user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	isCreator := ev.CreatedBy.Valid && ev.CreatedBy.String == user.ID
-	leaveCase := leaveCaseFor(member.Role, approvalStatus, isCreator, len(otherOrganisers))
+	otherOrganisers := preview.Organisers
+	leaveCase := preview.Case
 
 	out := map[string]any{
 		"slug":  ev.Slug,
@@ -138,16 +99,7 @@ func (h *HackHandler) previewLeaveEvent(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if leaveCase == "participant" && member.TeamID.Valid {
-		team, err := db.GetEventTeamByID(ctx, h.database, member.TeamID.String)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		people, err := db.ListTeamPeople(ctx, h.database, team.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
+		team, people := preview.Team, preview.People
 		teammates := make([]string, 0, len(people))
 		for _, p := range people {
 			if p.UserID != user.ID {
@@ -167,11 +119,7 @@ func (h *HackHandler) previewLeaveEvent(w http.ResponseWriter, r *http.Request) 
 		// path would actually delete (Codex review, SIM-340, P1: a team with
 		// a future deadline_override extension stays deletable-if-empty even
 		// once the event's own stage and deadline have moved past it).
-		kept, err := db.TeamKeptIfEmptied(ctx, h.database, team.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
+		kept := preview.Kept
 		out["team"] = map[string]any{
 			"slug": team.Slug, "name": team.Name,
 			"others": shown, "others_count": len(teammates),
@@ -182,12 +130,7 @@ func (h *HackHandler) previewLeaveEvent(w http.ResponseWriter, r *http.Request) 
 
 	switch leaveCase {
 	case "judge", "co_organiser", "creator", "last_organiser":
-		_, byJudge, err := db.ScoreCoverage(ctx, h.database, ev.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		out["scored_teams"] = byJudge[user.ID]
+		out["scored_teams"] = preview.ScoredTeams
 	}
 
 	if leaveCase == "co_organiser" {
@@ -212,11 +155,7 @@ func (h *HackHandler) previewLeaveEvent(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if leaveCase == "last_organiser" {
-		participants, _, _, err := db.CountEventMembers(ctx, h.database, ev.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
+		participants := preview.Participants
 		end := map[string]any{"allowed": true, "blocked": nil}
 		if participants == 0 {
 			end = map[string]any{"allowed": false, "blocked": "archive_needs_participants"}
@@ -282,8 +221,8 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
-	ev0, err := db.GetEventBySlug(r.Context(), h.database, slug)
-	if err == nil {
+	ev0, err := h.membersSvc().LookupLeaveMember(r.Context(), slug, user.ID)
+	if ev0.ID != "" {
 		paperHackEvent(r, ev0)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
@@ -294,185 +233,14 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	if _, err := db.GetEventMember(r.Context(), h.database, ev0.ID, user.ID); errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return
-	} else if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
 
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
 	ctx := r.Context()
-
-	ev, err := db.GetEventForUpdate(ctx, tx, ev0.ID)
+	result, err := h.membersSvc().Leave(ctx, ev0, user.ID, req.Confirm, req.SuccessorUserID, req.Close)
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeMemberError(w, err)
 		return
 	}
-	member, approvalStatus, err := db.LeaveSelf(ctx, tx, ev.ID, user.ID, true)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if ev.TakenDown() {
-		httpx.WriteError(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
-		return
-	}
-	if ev.Stage == "archived" {
-		httpx.WriteError(w, http.StatusConflict, "event_closed", "this event has ended, so nobody can leave it")
-		return
-	}
-	if req.Confirm != ev.Slug {
-		httpx.WriteError(w, http.StatusConflict, "leave_needs_confirm", `to leave, send {"confirm":"<slug>"} with this event's address name`)
-		return
-	}
-
-	otherOrganisers, err := db.OtherEventOrganisers(ctx, tx, ev.ID, user.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	isCreator := ev.CreatedBy.Valid && ev.CreatedBy.String == user.ID
-	leaveCase := leaveCaseFor(member.Role, approvalStatus, isCreator, len(otherOrganisers))
-
-	var successor db.OtherOrganiser
-	switch leaveCase {
-	case "participant", "applicant", "judge", "co_organiser":
-		if req.SuccessorUserID != "" || req.Close != "" {
-			httpx.WriteError(w, http.StatusConflict, "leave_state_changed", leaveStateChangedMsg)
-			return
-		}
-	case "creator":
-		if req.Close != "" {
-			httpx.WriteError(w, http.StatusConflict, "leave_state_changed", leaveStateChangedMsg)
-			return
-		}
-		if req.SuccessorUserID == "" {
-			httpx.WriteError(w, http.StatusConflict, "successor_required", "you created this event, so hand it to another organiser first: send successor_user_id")
-			return
-		}
-		found := false
-		for _, o := range otherOrganisers {
-			if o.UserID == req.SuccessorUserID {
-				successor = o
-				found = true
-				break
-			}
-		}
-		if !found {
-			httpx.WriteError(w, http.StatusConflict, "invalid_successor", "pick another organiser of this event")
-			return
-		}
-	case "last_organiser":
-		if req.SuccessorUserID != "" {
-			httpx.WriteError(w, http.StatusConflict, "leave_state_changed", leaveStateChangedMsg)
-			return
-		}
-		if req.Close == "" {
-			httpx.WriteError(w, http.StatusConflict, "last_organiser", `you are the only organiser, so leaving closes the event: send close "end" or "delete"`)
-			return
-		}
-		if req.Close == "end" {
-			participants, _, _, err := db.CountEventMembers(ctx, tx, ev.ID)
-			if err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-			if participants == 0 {
-				httpx.WriteError(w, http.StatusConflict, "archive_needs_participants", "nobody has joined, so delete the event instead")
-				return
-			}
-		}
-	}
-
-	// Owner decision 2026-10-31: leaving no longer refuses past the team's
-	// deadline (or once the event is closed, judging or results). The team
-	// row still gets locked, in the usual event/member/team order, inside
-	// LeaveMembership below -- db.LeaveMembership -> deleteTeamIfEmpty keeps
-	// a frozen team even once this leave empties it (TeamKeepableSQL is
-	// false once frozen), so the team, its entry, its site and its scores
-	// are never touched here.
-
-	if member.Role == "judge" || member.Role == "organiser" {
-		if err := db.RecordFormerJudge(ctx, tx, ev.ID, user.ID, member.Role, member.DisplayName); err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-	}
-
-	switch leaveCase {
-	case "creator":
-		if _, err := tx.ExecContext(ctx, `UPDATE events SET created_by = $2, updated_at = now() WHERE id = $1`, ev.ID, successor.UserID); err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-	case "last_organiser":
-		if req.Close == "end" {
-			updated, err := h.archiveEventTx(ctx, tx, ev.ID, ev.Stage)
-			if err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-			ev.UpdatedAt = updated.UpdatedAt
-			if _, err := tx.ExecContext(ctx, `DELETE FROM event_organiser_invites WHERE event_id = $1`, ev.ID); err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-		} else {
-			if err := h.deleteEventTx(ctx, tx, ev); err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-		}
-	}
-
-	teamDeleted := false
-	if !(leaveCase == "last_organiser" && req.Close == "delete") {
-		// The event-and-account cascade already removed this membership (and
-		// every other) when the last organiser deleted the event. selfLeave
-		// is true here (this is POST .../leave, never Remove person): if this
-		// empties a team deleteTeamIfEmpty keeps, kept_after_leave is set so
-		// judging, results and dashboards keep it exactly as if the leaver
-		// hadn't left (Codex review, SIM-340, P2).
-		teamID, err := db.LeaveMembership(ctx, tx, ev.ID, user.ID, true)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if err := db.RevokeStaleTeamKeys(ctx, tx, ev.ID); err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		// Leaving does not touch votes (build plan section 1): a vote cast
-		// while eligible stands, the leaver's included, the same as the
-		// organiser's Remove person already does. IneligibleVotes sweeps
-		// every ineligible vote in the whole event, not just the leaver's --
-		// calling it here deleted other people's votes too (ship-blocker
-		// B1), so leave must never call it at all.
-		if teamID != "" {
-			var still bool
-			if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_teams WHERE id = $1)`, teamID).Scan(&still); err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-			teamDeleted = !still
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
+	ev, leaveCase, teamDeleted, successor := result.Event, result.Case, result.TeamDeleted, result.Successor
 
 	eventResult := "kept"
 	switch {
