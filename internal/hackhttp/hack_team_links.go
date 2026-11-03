@@ -1,12 +1,11 @@
 package hackhttp
 
 import (
-	"context"
-	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"net/http"
 
+	"github.com/vsriram/simple-host/internal/app/hack/teams"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
@@ -34,8 +33,9 @@ func (h *HackHandler) getTeamLink(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "team_link_not_found", "that link or code doesn't match a team in this event")
 		return
 	}
-	team, err := db.GetEventTeamByCodeOnly(ctx, h.database, code)
-	if errors.Is(err, sql.ErrNoRows) {
+	preview, err := h.teamsSvc().GetTeamLink(ctx, code, caller)
+	var teamErr *teams.Error
+	if errors.As(err, &teamErr) && teamErr.Code == "team_link_not_found" {
 		httpx.WriteError(w, http.StatusNotFound, "team_link_not_found", "that link or code doesn't match a team in this event")
 		return
 	}
@@ -43,44 +43,26 @@ func (h *HackHandler) getTeamLink(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	ev, err := db.GetEventByID(ctx, h.database, team.EventID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if ev.TakenDown() {
-		httpx.WriteError(w, http.StatusNotFound, "team_link_not_found", "that link or code doesn't match a team in this event")
-		return
-	}
-	memberCount, err := db.CountTeamMembers(ctx, h.database, team.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	var deadlinePassed bool
-	if err := h.database.QueryRowContext(ctx, `
-		SELECT COALESCE(`+db.EffectiveDeadlineSQL+` <= clock_timestamp(), false)
-		  FROM event_teams t JOIN events e ON e.id = t.event_id WHERE t.id = $1`, team.ID).Scan(&deadlinePassed); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
+	ev, team, memberCount := preview.Event, preview.Team, preview.MemberCount
 	var reason any
 	switch {
 	case team.Locked():
 		reason = "locked"
 	case memberCount >= ev.TeamSizeMax:
 		reason = "full"
-	case (ev.Stage != "open" && ev.Stage != "building") || deadlinePassed:
+	case (ev.Stage != "open" && ev.Stage != "building") || preview.DeadlinePassed:
 		reason = "teams_closed"
 	}
 	var track any
-	if t, err := db.TeamTrack(ctx, h.database, team.ID); err == nil && t != nil {
-		track = map[string]any{"name": t.Name}
+	if preview.Track != nil {
+		track = map[string]any{"name": preview.Track.Name}
 	}
-	you, err := h.teamLinkYouJSON(ctx, user, ev, team)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
+	var you map[string]any
+	if user != nil {
+		you = map[string]any{"status": preview.YouStatus}
+		if preview.HasOtherTeamName {
+			you["team_name"] = preview.OtherTeamName
+		}
 	}
 	body := map[string]any{
 		"event": map[string]any{
@@ -105,49 +87,4 @@ func (h *HackHandler) getTeamLink(w http.ResponseWriter, r *http.Request) {
 		"you":      you,
 	}
 	httpx.WriteJSON(w, http.StatusOK, body)
-}
-
-// teamLinkYouJSON is nil signed out, else the caller's status relative to
-// this team: not_in_event, pending, rejected, judge, organiser, no_team,
-// on_this_team or on_other_team (+ team_name, the other team's own name,
-// never a member's). A real database error is returned to the caller
-// instead of being folded into "not_in_event": that status means "this
-// account genuinely has no row in this event," and a lookup failure proves
-// no such thing -- silently downgrading the error used to return a
-// misleading 200 (Grok security review, 2026-11-01).
-func (h *HackHandler) teamLinkYouJSON(ctx context.Context, user *db.User, ev db.Event, team db.EventTeam) (map[string]any, error) {
-	if user == nil {
-		return nil, nil
-	}
-	member, err := db.GetEventMember(ctx, h.database, ev.ID, user.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return map[string]any{"status": "not_in_event"}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	switch member.Role {
-	case "organiser":
-		return map[string]any{"status": "organiser"}, nil
-	case "judge":
-		return map[string]any{"status": "judge"}, nil
-	}
-	status, err := db.MemberApprovalStatus(ctx, h.database, ev.ID, user.ID)
-	if err != nil {
-		return nil, err
-	}
-	if status == "pending" || status == "rejected" {
-		return map[string]any{"status": status}, nil
-	}
-	if !member.TeamID.Valid {
-		return map[string]any{"status": "no_team"}, nil
-	}
-	if member.TeamID.String == team.ID {
-		return map[string]any{"status": "on_this_team"}, nil
-	}
-	other, err := db.GetEventTeamByID(ctx, h.database, member.TeamID.String)
-	if err != nil {
-		return map[string]any{"status": "on_other_team"}, nil
-	}
-	return map[string]any{"status": "on_other_team", "team_name": other.Name}, nil
 }

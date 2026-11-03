@@ -7,9 +7,9 @@ import (
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
-	"strconv"
 	"strings"
 
+	"github.com/vsriram/simple-host/internal/app/hack/teams"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
@@ -19,12 +19,7 @@ func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	people, err := db.ListEventPeople(r.Context(), h.database, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	keyed, err := db.EventKeyHolders(r.Context(), h.database, a.event.ID)
+	people, keyed, err := h.teamsSvc().ListPeople(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -71,26 +66,7 @@ func (h *HackHandler) removePerson(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	// Event row first, FOR SHARE, the same lock order leave uses (event FOR
-	// UPDATE, then the member row): RemovePersonFromEvent locks the member
-	// row first, then (for a judge) RecordFormerJudge's insert into
-	// event_former_judges takes a FOR KEY SHARE lock on events via its
-	// foreign key. Without this, a concurrent self-leave by the same person
-	// -- holding events FOR UPDATE and waiting on the member row -- could
-	// cycle with this request waiting on events, a genuine Postgres deadlock
-	// (ship-blocker B3).
-	if _, err := db.GetEventForShare(r.Context(), tx, a.event.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	oldTeam := memberTeamID(r.Context(), tx, a.event.ID, userID)
-	err = db.RemovePersonFromEvent(r.Context(), tx, a.event.ID, userID)
+	err := h.teamsSvc().RemovePerson(r.Context(), a.event.ID, userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
@@ -99,24 +75,7 @@ func (h *HackHandler) removePerson(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusConflict, "cannot_remove_organiser", "an organiser cannot be removed from the event")
 		return
 	}
-	if err == nil && oldTeam != "" {
-		// Emptied teams are gone already; rotate a team that is left.
-		var still bool
-		if qerr := tx.QueryRowContext(r.Context(), `SELECT EXISTS (SELECT 1 FROM event_teams WHERE id = $1)`, oldTeam).Scan(&still); qerr != nil {
-			err = qerr
-		} else if still {
-			err = rotateTeamCode(r.Context(), tx, oldTeam)
-		}
-	}
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := db.RevokeStaleTeamKeys(r.Context(), tx, a.event.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -129,7 +88,7 @@ func (h *HackHandler) listTeams(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	teams, err := db.ListEventTeams(r.Context(), h.database, a.event.ID)
+	teams, err := h.teamsSvc().ListTeams(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -148,7 +107,7 @@ func (h *HackHandler) listTeams(w http.ResponseWriter, r *http.Request) {
 		}
 		teamObjs = append(teamObjs, obj)
 	}
-	none, err := db.ListParticipantsOnNoTeam(r.Context(), h.database, a.event.ID)
+	none, err := h.teamsSvc().ListParticipantsOnNoTeam(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -169,7 +128,7 @@ func (h *HackHandler) listTeams(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) teamOrganiserJSON(ctx context.Context, team db.EventTeam) (map[string]any, error) {
-	people, err := db.ListTeamPeople(ctx, h.database, team.ID)
+	people, err := h.teamsSvc().TeamPeople(ctx, team.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -228,114 +187,31 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	base := deriveTeamSlug(name)
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	team, err := h.teamsSvc().CreateTeam(r.Context(), a.event, a.user.ID, name, note, eventNameReserved)
+	var teamErr *teams.Error
+	switch {
+	case errors.As(err, &teamErr) && teamErr.Code == "submissions_closed":
+		httpx.WriteError(w, http.StatusConflict, "submissions_closed", "the submission deadline has passed, so new teams can't start")
+		return
+	case errors.As(err, &teamErr) && teamErr.Code == "team_name_taken":
+		writeTeamNameTaken(w)
+		return
+	case errors.Is(err, db.ErrHackAlreadyInTeam):
+		httpx.WriteError(w, http.StatusConflict, "already_in_team", "you are already on a team")
+		return
+	case errors.Is(err, db.ErrHackNotParticipant):
+		writeEventNotFound(w)
+		return
+	case err != nil:
+		httpx.WriteInternal(w)
+		return
+	}
+	obj, err := h.teamParticipantJSON(r.Context(), team, a.user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	defer tx.Rollback()
-	// After the event's deadline a new team would be frozen from birth.
-	var closed bool
-	if err := tx.QueryRowContext(r.Context(), `
-		SELECT COALESCE(submission_deadline <= clock_timestamp(), false) FROM events WHERE id = $1 FOR SHARE`, a.event.ID).Scan(&closed); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if closed {
-		httpx.WriteError(w, http.StatusConflict, "submissions_closed", "the submission deadline has passed, so new teams can't start")
-		return
-	}
-	if taken, err := teamNameTaken(r.Context(), tx, a.event.ID, name); err != nil {
-		httpx.WriteInternal(w)
-		return
-	} else if taken {
-		writeTeamNameTaken(w)
-		return
-	}
-
-	var team db.EventTeam
-	for n := 0; n < 50; n++ {
-		slug := teamSlugCandidate(base, n)
-		taken, err := db.TeamSlugExists(r.Context(), tx, a.event.ID, slug)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if taken || eventNameReserved(slug) || sites.ValidateShape(slug) != nil || sites.ValidateReserved(slug) != nil {
-			continue
-		}
-		// A name whose site belonged to an earlier team is never reused: the
-		// new team must not inherit its work, data or visitors.
-		if used, err := db.TeamNameEverUsed(r.Context(), tx, a.event.Slug, a.event.AccountID, slug); err != nil {
-			httpx.WriteInternal(w)
-			return
-		} else if used {
-			continue
-		}
-		var code string
-		var last error
-		for attempt := 0; attempt < 8; attempt++ {
-			code, last = hackevents.RandomCode(hackTeamCodeLen)
-			if last != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-			last = trySavepoint(r.Context(), tx, func() error {
-				var terr error
-				team, terr = db.CreateTeamAndJoin(r.Context(), tx, a.event.ID, a.user.ID, slug, name, code)
-				return terr
-			})
-			if last == nil {
-				break
-			}
-			if errors.Is(last, db.ErrHackAlreadyInTeam) {
-				httpx.WriteError(w, http.StatusConflict, "already_in_team", "you are already on a team")
-				return
-			}
-			if errors.Is(last, db.ErrHackNotParticipant) {
-				writeEventNotFound(w)
-				return
-			}
-			if dbUnique(last) && strings.Contains(last.Error(), "event_teams_name_idx") {
-				writeTeamNameTaken(w)
-				return
-			}
-			if dbUnique(last) && attempt < 7 {
-				continue
-			}
-			if dbUnique(last) {
-				break
-			}
-			httpx.WriteInternal(w)
-			return
-		}
-		if last == nil {
-			// Deprecated 2026-10-31: open is accepted for one release
-			// (req.Open parsed above, never read here) and documented
-			// deprecated in OpenAPI; event_teams.open is no longer written.
-			if _, err := tx.ExecContext(r.Context(), `UPDATE event_teams SET looking_for=$2 WHERE id=$1`, team.ID, note); err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-			if err := db.RecordUsedTeamName(r.Context(), tx, a.event.Slug, slug); err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-			if err := tx.Commit(); err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-			obj, err := h.teamParticipantJSON(r.Context(), team, a.user.ID)
-			if err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-			httpx.WriteJSON(w, http.StatusCreated, obj)
-			return
-		}
-	}
-	httpx.WriteInternal(w)
+	httpx.WriteJSON(w, http.StatusCreated, obj)
 }
 
 func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
@@ -361,62 +237,31 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	// Re-read fresh, inside the transaction: the pre-BEGIN check above only
-	// rejects an obviously-wrong request early, cheaply, before opening a
-	// transaction. lockEventStage locks the event row FOR SHARE first, ahead
-	// of JoinTeamByCode's own member-then-team locks below, keeping this on
-	// the same event -> member -> team order every other hack writer uses
-	// (Grok security review, 2026-11-01).
-	stage, err := lockEventStage(r.Context(), tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if !participantTeamStages(stage) {
+	team, err := h.teamsSvc().JoinTeam(r.Context(), a.event.ID, a.user.ID, code, a.event.TeamSizeMax)
+	var teamErr *teams.Error
+	switch {
+	case errors.As(err, &teamErr) && teamErr.Code == "teams_locked":
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
-	}
-	team, err := db.JoinTeamByCode(r.Context(), tx, a.event.ID, a.user.ID, code, a.event.TeamSizeMax)
-	if errors.Is(err, db.ErrHackTeamNotFound) {
-		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
-		return
-	}
-	if errors.Is(err, db.ErrHackTeamFull) {
-		httpx.WriteError(w, http.StatusConflict, "team_full", "this team is full")
-		return
-	}
-	if errors.Is(err, db.ErrHackTeamLocked) {
-		httpx.WriteError(w, http.StatusConflict, "team_locked", "this team isn't taking new people")
-		return
-	}
-	if errors.Is(err, db.ErrHackAlreadyInTeam) {
-		httpx.WriteError(w, http.StatusConflict, "already_in_team", "you are already on a team")
-		return
-	}
-	if errors.Is(err, db.ErrHackNotParticipant) || errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	// A team past its deadline takes nobody new (they could never publish
-	// or leave).
-	if st, serr := db.TeamWriteStateFor(r.Context(), tx, team.ID, true); serr != nil {
-		httpx.WriteInternal(w)
-		return
-	} else if st.Frozen() {
+	case errors.As(err, &teamErr) && teamErr.Code == "submissions_closed":
 		httpx.WriteError(w, http.StatusConflict, "submissions_closed", "that team's deadline has passed, so it can't take new members")
 		return
-	}
-	if err := tx.Commit(); err != nil {
+	case errors.Is(err, db.ErrHackTeamNotFound):
+		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
+		return
+	case errors.Is(err, db.ErrHackTeamFull):
+		httpx.WriteError(w, http.StatusConflict, "team_full", "this team is full")
+		return
+	case errors.Is(err, db.ErrHackTeamLocked):
+		httpx.WriteError(w, http.StatusConflict, "team_locked", "this team isn't taking new people")
+		return
+	case errors.Is(err, db.ErrHackAlreadyInTeam):
+		httpx.WriteError(w, http.StatusConflict, "already_in_team", "you are already on a team")
+		return
+	case errors.Is(err, db.ErrHackNotParticipant) || errors.Is(err, sql.ErrNoRows):
+		writeEventNotFound(w)
+		return
+	case err != nil:
 		httpx.WriteInternal(w)
 		return
 	}
@@ -440,30 +285,14 @@ func (h *HackHandler) leaveTeam(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	if err := db.LeaveTeam(r.Context(), tx, a.event.ID, a.user.ID); err != nil {
+	if err := h.teamsSvc().LeaveTeam(r.Context(), a.event.ID, a.user.ID); err != nil {
 		if errors.Is(err, db.ErrHackTeamFrozen) {
 			httpx.WriteError(w, http.StatusConflict, "submissions_closed", "your team's deadline has passed, so the team can't change; ask the organiser")
-			return
-		}
-		if errors.Is(err, sql.ErrNoRows) {
+		} else if errors.Is(err, sql.ErrNoRows) {
 			writeEventNotFound(w)
-			return
+		} else {
+			httpx.WriteInternal(w)
 		}
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := db.RevokeStaleTeamKeys(r.Context(), tx, a.event.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
 		return
 	}
 	h.removeOrphanTeamSites(r.Context(), a.event)
@@ -490,14 +319,7 @@ func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	oldTeam := memberTeamID(r.Context(), tx, a.event.ID, req.UserID)
-	team, err := db.MoveParticipantToTeam(r.Context(), tx, a.event.ID, req.UserID, teamSlug, a.event.TeamSizeMax)
+	team, err := h.teamsSvc().MoveMember(r.Context(), a.event.ID, req.UserID, teamSlug, a.event.TeamSizeMax)
 	if errors.Is(err, db.ErrHackTeamNotFound) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
@@ -515,20 +337,6 @@ func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if oldTeam != "" && oldTeam != team.ID {
-		if err := rotateTeamCode(r.Context(), tx, oldTeam); err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-	}
-	if err := db.RevokeStaleTeamKeys(r.Context(), tx, a.event.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -563,7 +371,7 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 			findingError(w, db.ErrHackFindingForbidden)
 			return
 		}
-		team, err := db.GetEventTeamByID(r.Context(), h.database, a.member.TeamID.String)
+		team, err := h.teamsSvc().GetTeam(r.Context(), a.member.TeamID.String)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -575,78 +383,21 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 		teamSlug = team.Slug
 		teamName = team.Name
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
+	err := h.teamsSvc().RemoveTeamMember(r.Context(), a.event.ID, a.user.ID, userID, teamSlug, teamName, participant)
+	switch {
+	case errors.Is(err, db.ErrHackTeamAdminOnly):
+		httpx.WriteError(w, http.StatusForbidden, "team_admin_only", "only the team's admins can do that")
 		return
-	}
-	defer tx.Rollback()
-	if participant {
-		// Removing a teammate no longer needs team finding on (decision 10)
-		// -- only that the caller is this team's admin, checked fresh under
-		// the lock, never trusted from the event view. Lock order: both
-		// member rows (caller, then target), then the team row.
-		if _, err := tx.ExecContext(r.Context(), `SELECT 1 FROM event_members WHERE event_id=$1 AND user_id IN ($2,$3) ORDER BY user_id FOR UPDATE`, a.event.ID, a.user.ID, userID); err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		var teamID string
-		var admin bool
-		if err := tx.QueryRowContext(r.Context(), `SELECT team_id, team_admin FROM event_members WHERE event_id=$1 AND user_id=$2 AND approval_status='approved'`, a.event.ID, a.user.ID).Scan(&teamID, &admin); err != nil {
-			writeEventNotFound(w)
-			return
-		}
-		if !admin {
-			httpx.WriteError(w, http.StatusForbidden, "team_admin_only", "only the team's admins can do that")
-			return
-		}
-		var slug string
-		if err := tx.QueryRowContext(r.Context(), `SELECT slug FROM event_teams WHERE id=$1 FOR UPDATE`, teamID).Scan(&slug); err != nil || slug != teamSlug {
-			writeEventNotFound(w)
-			return
-		}
-		st, err := db.TeamWriteStateFor(r.Context(), tx, teamID, true)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if st.Frozen() {
-			findingError(w, db.ErrHackTeamFrozen)
-			return
-		}
-	}
-	oldTeam := memberTeamID(r.Context(), tx, a.event.ID, userID)
-	err = db.RemoveParticipantFromTeam(r.Context(), tx, a.event.ID, teamSlug, userID)
-	if errors.Is(err, db.ErrHackTeamNotFound) {
+	case errors.Is(err, db.ErrHackTeamFrozen):
+		findingError(w, err)
+		return
+	case errors.Is(err, db.ErrHackTeamNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
-	}
-	if errors.Is(err, sql.ErrNoRows) {
+	case errors.Is(err, sql.ErrNoRows):
 		writeEventNotFound(w)
 		return
-	}
-	if err == nil && participant {
-		_, err = tx.ExecContext(r.Context(), `UPDATE event_members SET team_removal_notice=$3 WHERE event_id=$1 AND user_id=$2`, a.event.ID, userID, "A teammate took you off "+teamName+".")
-	}
-	if err == nil {
-		// The same words as the removal notice, by email too (2026-11-02).
-		var notice string
-		if err = tx.QueryRowContext(r.Context(), `SELECT team_removal_notice FROM event_members WHERE event_id=$1 AND user_id=$2`, a.event.ID, userID).Scan(&notice); err == nil && notice != "" {
-			err = db.NotifyUsers(r.Context(), tx, a.event.ID, db.NoticeTeamRemoved, oldTeam, "", notice, userID)
-		}
-	}
-	if err == nil && oldTeam != "" {
-		err = rotateTeamCode(r.Context(), tx, oldTeam)
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := db.RevokeStaleTeamKeys(r.Context(), tx, a.event.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
+	case err != nil:
 		httpx.WriteInternal(w)
 		return
 	}
@@ -664,91 +415,16 @@ func (h *HackHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
-	team, err := db.GetEventTeamBySlug(r.Context(), h.database, a.event.ID, teamSlug)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
-		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	// Its members' keys go with it, and its site to Recently deleted.
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(r.Context(), `DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE team_id = $1)`, team.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if _, err := tx.ExecContext(r.Context(), `UPDATE event_members SET team_removal_notice=$2 WHERE team_id=$1`, team.ID, team.Name+" was removed by the organiser."); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := db.NotifyTeamMembers(r.Context(), tx, a.event.ID, team.ID, db.NoticeTeamRemoved, team.Name+" was removed by the organiser.", ""); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := db.DeleteEventTeam(r.Context(), tx, team.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+	if err := h.teamsSvc().DeleteTeam(r.Context(), a.event.ID, teamSlug); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
+		} else {
+			httpx.WriteInternal(w)
+		}
 		return
 	}
 	h.removeOrphanTeamSites(r.Context(), a.event)
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func deriveTeamSlug(name string) string {
-	s := strings.ToLower(name)
-	var b strings.Builder
-	dash := false
-	for _, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-			dash = false
-			continue
-		}
-		if !dash && b.Len() > 0 {
-			b.WriteByte('-')
-			dash = true
-		}
-	}
-	out := strings.Trim(b.String(), "-")
-	if len(out) > 30 {
-		out = strings.Trim(out[:30], "-")
-	}
-	if out == "" {
-		out = "group"
-	}
-	return out
-}
-
-func teamSlugCandidate(base string, n int) string {
-	if n == 0 {
-		if len(base) > 30 {
-			return base[:30]
-		}
-		return base
-	}
-	suf := "-" + strconv.Itoa(n+1)
-	keep := 30 - len(suf)
-	if keep < 1 {
-		keep = 1
-	}
-	root := base
-	if len(root) > keep {
-		root = strings.Trim(root[:keep], "-")
-	}
-	if root == "" {
-		root = "g"
-	}
-	return root + suf
 }
 
 // teamParticipantJSON is a team as a participant sees it: names only, never
@@ -756,10 +432,7 @@ func teamSlugCandidate(base string, n int) string {
 // a value the caller already had before its own write), so a rename or a
 // link rotation just committed by this same request shows up.
 func (h *HackHandler) teamParticipantJSON(ctx context.Context, team db.EventTeam, userID string) (map[string]any, error) {
-	if fresh, err := db.GetEventTeamByID(ctx, h.database, team.ID); err == nil {
-		team = fresh
-	}
-	people, err := db.ListTeamPeople(ctx, h.database, team.ID)
+	team, people, lookingFor, err := h.teamsSvc().ParticipantTeam(ctx, team)
 	if err != nil {
 		return nil, err
 	}
@@ -772,51 +445,11 @@ func (h *HackHandler) teamParticipantJSON(ctx context.Context, team db.EventTeam
 		}
 		members = append(members, map[string]any{"display_name": p.DisplayName, "you": you, "admin": p.Admin})
 	}
-	var lookingFor string
-	_ = h.database.QueryRowContext(ctx, `SELECT looking_for FROM event_teams WHERE id = $1`, team.ID).Scan(&lookingFor)
 	return map[string]any{
 		"slug": team.Slug, "name": team.Name, "code": team.Code,
 		"link": h.teamLinkURL(team.Code), "admin": admin, "locked": team.Locked(), "kept": team.KeptAfterLeave,
 		"looking_for": lookingFor, "members": members,
 	}, nil
-}
-
-// rotateTeamCode gives a team a new code, so someone the organiser took off
-// it cannot walk back in with the old one. A team deleted for being empty
-// has nothing to rotate.
-func rotateTeamCode(ctx context.Context, q db.Querier, teamID string) error {
-	for attempt := 0; attempt < 8; attempt++ {
-		code, err := hackevents.RandomCode(hackTeamCodeLen)
-		if err != nil {
-			return err
-		}
-		err = trySavepoint(ctx, q, func() error {
-			_, uerr := q.ExecContext(ctx, `UPDATE event_teams SET code = $2 WHERE id = $1`, teamID, code)
-			return uerr
-		})
-		if err == nil || !dbUnique(err) {
-			return err
-		}
-	}
-	return errors.New("could not find a free team code")
-}
-
-// memberTeamID is the team a person is on before an organiser's change. It
-// locks their row for the rest of the transaction, so a switch of team made
-// at the same moment waits and the team they really leave is the one read.
-func memberTeamID(ctx context.Context, q db.Querier, eventID, userID string) string {
-	var team sql.NullString
-	if err := q.QueryRowContext(ctx, `SELECT team_id FROM event_members WHERE event_id = $1 AND user_id = $2 FOR UPDATE`, eventID, userID).Scan(&team); err != nil || !team.Valid {
-		return ""
-	}
-	return team.String
-}
-
-// teamNameTaken: another team of the event already has this name (any case).
-func teamNameTaken(ctx context.Context, q db.Querier, eventID, name string) (bool, error) {
-	var taken bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_teams WHERE event_id = $1 AND lower(name) = lower($2))`, eventID, name).Scan(&taken)
-	return taken, err
 }
 
 func writeTeamNameTaken(w http.ResponseWriter) {
