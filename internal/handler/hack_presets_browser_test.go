@@ -29,7 +29,7 @@ func TestServeHackPresetsBrowser(t *testing.T) {
 	a.sites.visitorAuthLimiter = newRateLimiter(1000, 0)
 	a.sites.storageIPLimiter = newRateLimiter(100000, 0)
 	RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
-	oauth := NewOAuthHandler(a.database, config.Config{PublicBaseURL: a.srv.URL, ResendAPIKey: "test-mail-sink"})
+	oauth := NewOAuthHandler(a.database, config.Config{PublicBaseURL: a.srv.URL, ResendAPIKey: "test-mail-sink"}, a.sites.ed)
 	oauth.Register(a.mux)
 	org, member := a.newPerson(t, "hfix-org"), a.newPerson(t, "hfix-member")
 	slug := a.makeEvent(t, org)
