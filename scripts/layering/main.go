@@ -22,6 +22,7 @@ type pkg struct {
 	Imports, TestImports, XTestImports           []string
 	GoFiles, CgoFiles, TestGoFiles, XTestGoFiles []string
 	ForTest                                      string
+	Match                                        []string
 }
 type rule struct {
 	from string
@@ -35,9 +36,6 @@ func normalize(p pkg) string {
 	}
 	if i := strings.LastIndex(p.ImportPath, " ["); i >= 0 && strings.HasSuffix(p.ImportPath, ".test]") {
 		return strings.TrimSuffix(p.ImportPath[i+2:], ".test]")
-	}
-	if p.Name == "main" && strings.HasSuffix(p.ImportPath, ".test") {
-		return strings.TrimSuffix(p.ImportPath, ".test")
 	}
 	return p.ImportPath
 }
@@ -185,7 +183,8 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		if p.ForTest != "" || (p.Name == "main" && strings.HasSuffix(p.ImportPath, ".test")) {
+		// Test variants carry ForTest; generated test mains match no pattern.
+		if p.ForTest != "" || len(p.Match) == 0 {
 			continue
 		}
 		from := local(normalize(p))

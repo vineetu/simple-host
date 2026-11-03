@@ -26,7 +26,7 @@ func TestNormalize(t *testing.T) {
 	}{
 		{pkg{ImportPath: "internal/a [internal/a.test]", ForTest: "internal/a"}, "internal/a"},
 		{pkg{ImportPath: "internal/a_test [internal/a.test]"}, "internal/a"},
-		{pkg{ImportPath: "internal/a.test", Name: "main"}, "internal/a"},
+		{pkg{ImportPath: "cmd/review.test", Name: "main", Match: []string{"./..."}}, "cmd/review.test"},
 		{pkg{ImportPath: "internal/a.test", Name: "a"}, "internal/a.test"},
 		{pkg{ImportPath: "internal/a_test"}, "internal/a_test"},
 	} {
