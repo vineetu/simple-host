@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
-	"time"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/hackteams"
 
 	"github.com/vsriram/simple-host/internal/repository/hackevents"
 )
@@ -20,53 +20,17 @@ import (
 // team.
 
 // KeyScopeTeam is a member's key for their team's site.
-const KeyScopeTeam = "team"
+const KeyScopeTeam = hackteams.KeyScopeTeam
 
 // ErrTeamKeyInactive: a team key whose person is no longer a participant on
 // its team (moved, removed, or the team is gone). Wraps sql.ErrNoRows, so
 // callers that treat an unknown key as "not signed in" keep doing so.
-var ErrTeamKeyInactive = fmt.Errorf("team key no longer active: %w", sql.ErrNoRows)
+var ErrTeamKeyInactive = hackteams.ErrTeamKeyInactive
 
 // TeamIdentity is what a team credential acts as.
-type TeamIdentity struct {
-	EventID   string
-	EventSlug string
-	TeamID    string
-	TeamSlug  string // the one site name the credential may act on
-	AccountID string // the event's holding account (the site's owner)
-	MemberID  string // the person whose credential it is
-}
+type TeamIdentity = model.TeamIdentity
 
-// ResolveTeamIdentity checks that memberID is a participant on teamID right
-// now and returns what their team credential acts as. ErrTeamKeyInactive when
-// not.
-func ResolveTeamIdentity(ctx context.Context, q Querier, memberID, teamID string) (TeamIdentity, error) {
-	var t TeamIdentity
-	err := q.QueryRowContext(ctx, `
-		SELECT e.id, e.slug, t.id, t.slug, e.account_id, m.user_id
-		  FROM event_teams t
-		  JOIN events e ON e.id = t.event_id
-		  JOIN event_members m ON m.event_id = e.id AND m.team_id = t.id
-		 WHERE t.id = $1::uuid AND m.user_id = $2::uuid AND m.role = 'participant'
-		   AND m.approval_status = 'approved'`,
-		teamID, memberID).Scan(&t.EventID, &t.EventSlug, &t.TeamID, &t.TeamSlug, &t.AccountID, &t.MemberID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return t, ErrTeamKeyInactive
-	}
-	return t, err
-}
-
-// teamKeyBinding returns the team a stored team key is bound to.
-func teamKeyBinding(ctx context.Context, q Querier, keyHash string) (teamID, memberID string, err error) {
-	err = q.QueryRowContext(ctx, `
-		SELECT b.team_id, b.user_id FROM event_team_keys b JOIN api_keys k ON k.id = b.key_id
-		 WHERE k.key_hash = $1`, keyHash).Scan(&teamID, &memberID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", ErrTeamKeyInactive
-	}
-	return teamID, memberID, err
-}
-
+// TODO(4.3): Host dependency
 // actAsTeam turns an authenticated member into the holding account acting on
 // the team's site: the caller's own identity is kept in Team.MemberID.
 func actAsTeam(ctx context.Context, q *sql.DB, member User, id TeamIdentity) (User, error) {
@@ -94,6 +58,7 @@ func actAsTeam(ctx context.Context, q *sql.DB, member User, id TeamIdentity) (Us
 	return holder, nil
 }
 
+// TODO(4.3): Host dependency
 // TeamScopeOfKey answers the scope gate for a team credential: whether apiKey
 // is one (a stored key of scope team, or an internal credential bound to a
 // team) and, if so, what it acts as right now (live=false when the person is
@@ -125,327 +90,14 @@ func TeamScopeOfKey(ctx context.Context, q Querier, apiKey string) (isTeam, live
 }
 
 // TeamKeyInfo is a member's team key as the member sees it.
-type TeamKeyInfo struct {
-	KeyID      string
-	Last4      string
-	TeamID     string
-	CreatedAt  time.Time
-	LastUsedAt *time.Time
-}
-
-// GetTeamKey returns the person's team key for the event, if any.
-func GetTeamKey(ctx context.Context, q Querier, eventID, userID string) (TeamKeyInfo, error) {
-	var k TeamKeyInfo
-	err := q.QueryRowContext(ctx, `
-		SELECT k.id, COALESCE(k.last4, ''), b.team_id, k.created_at, k.last_used_at
-		  FROM event_team_keys b JOIN api_keys k ON k.id = b.key_id
-		 WHERE b.event_id = $1 AND b.user_id = $2`, eventID, userID).
-		Scan(&k.KeyID, &k.Last4, &k.TeamID, &k.CreatedAt, &k.LastUsedAt)
-	return k, err
-}
-
-// ReplaceTeamKey stores apiKey as the person's one team key for the event
-// (their earlier one, if any, stops working in the same transaction).
-func ReplaceTeamKey(ctx context.Context, tx *sql.Tx, eventID, teamID, userID, apiKey, name string) (TeamKeyInfo, error) {
-	if _, err := RevokeTeamKeys(ctx, tx, eventID, userID); err != nil {
-		return TeamKeyInfo{}, err
-	}
-	var k TeamKeyInfo
-	err := tx.QueryRowContext(ctx, `
-		INSERT INTO api_keys (key_hash, user_id, name, last4, scope)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, COALESCE(last4, ''), created_at`,
-		HashAPIKey(apiKey), userID, name, keyLast4(apiKey), KeyScopeTeam).Scan(&k.KeyID, &k.Last4, &k.CreatedAt)
-	if err != nil {
-		return TeamKeyInfo{}, err
-	}
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO event_team_keys (key_id, event_id, team_id, user_id) VALUES ($1, $2, $3, $4)`,
-		k.KeyID, eventID, teamID, userID); err != nil {
-		return TeamKeyInfo{}, err
-	}
-	k.TeamID = teamID
-	return k, nil
-}
-
-// RevokeTeamKeys deletes the person's team keys for the event ("" userID:
-// everyone's). Returns how many.
-func RevokeTeamKeys(ctx context.Context, q Querier, eventID, userID string) (int64, error) {
-	var res sql.Result
-	var err error
-	if userID == "" {
-		res, err = q.ExecContext(ctx, `
-			DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE event_id = $1)`, eventID)
-	} else {
-		res, err = q.ExecContext(ctx, `
-			DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE event_id = $1 AND user_id = $2)`, eventID, userID)
-	}
-	if err != nil {
-		return 0, err
-	}
-	return res.RowsAffected()
-}
-
-// RevokeStaleTeamKeys deletes the event's team keys whose person is no longer
-// a participant on the key's team (moved, taken off, removed). They already
-// stop working on their own; this keeps the lists honest.
-func RevokeStaleTeamKeys(ctx context.Context, q Querier, eventID string) error {
-	_, err := q.ExecContext(ctx, `
-		DELETE FROM api_keys WHERE id IN (
-			SELECT b.key_id FROM event_team_keys b
-			  LEFT JOIN event_members m ON m.event_id = b.event_id AND m.user_id = b.user_id
-			 WHERE b.event_id = $1 AND (m.user_id IS NULL OR m.role <> 'participant' OR m.team_id IS DISTINCT FROM b.team_id))`, eventID)
-	return err
-}
+type TeamKeyInfo = model.TeamKeyInfo
 
 // EffectiveDeadlineSQL is a team's deadline in SQL over event_teams t and
 // events e: none while the event has none, else the later of the event's and
 // the team's own (an extension never makes a team's deadline earlier).
 const EffectiveDeadlineSQL = hackevents.EffectiveDeadlineSQL
 
-// TeamWriteState is what decides whether a team may change its site or entry
-// now. Read with TeamWriteStateFor.
-type TeamWriteState struct {
-	TeamID          string
-	EventID         string
-	EventSlug       string
-	TeamSlug        string
-	AccountID       string
-	Stage           string
-	EventTakenDown  bool
-	SiteTakenDown   bool
-	Deadline        sql.NullTime // effective: the team's own, else the event's
-	Now             time.Time    // the database clock when this was read
-	PinnedAt        sql.NullTime
-	PinnedVersion   sql.NullInt64
-	HasOverride     bool
-	EventDeadline   sql.NullTime
-	TeamDeadlineSet sql.NullTime
-}
-
-// Frozen: judging has started, the event ended, or the team deadline passed.
-func (s TeamWriteState) Frozen() bool {
-	return s.Stage == "judging" || s.Stage == "results" || s.Stage == "archived" ||
-		(s.Deadline.Valid && !s.Now.Before(s.Deadline.Time))
-}
-
-// WriteRefusal says why the team may not change its site or entry now:
-// "" when it may. Codes: event_taken_down, event_closed (ended),
-// team_site_taken_down, submissions_closed.
-func (s TeamWriteState) WriteRefusal() string {
-	switch {
-	case s.EventTakenDown:
-		return "event_taken_down"
-	case s.Stage == "archived":
-		return "event_closed"
-	case s.SiteTakenDown:
-		return "team_site_taken_down"
-	case s.Frozen():
-		return "submissions_closed"
-	}
-	return ""
-}
-
-// TeamWriteStateFor reads a team's write state. In a transaction with share
-// set, the team row is held FOR SHARE until the transaction ends, so the
-// deadline pin (PinDueTeams, FOR UPDATE) waits for a deploy that was let in
-// before the deadline and then pins what it made live. The time compared is
-// clock_timestamp(), not the transaction's start.
-func TeamWriteStateFor(ctx context.Context, q Querier, teamID string, share bool) (TeamWriteState, error) {
-	lock := ""
-	if share {
-		lock = " FOR SHARE OF t"
-	}
-	return scanTeamWriteState(q.QueryRowContext(ctx, `SELECT `+teamWriteStateCols+`
-		  FROM event_teams t JOIN events e ON e.id = t.event_id
-		 WHERE t.id = $1::uuid`+lock, teamID))
-}
-
-// teamWriteStateCols over event_teams t and events e. A site the platform
-// took down (sites.suspended_at) counts as taken down too.
-const teamWriteStateCols = `t.id, e.id, e.slug, t.slug, e.account_id, e.stage, e.taken_down_at IS NOT NULL,
-	(t.site_taken_down_at IS NOT NULL OR EXISTS (SELECT 1 FROM sites s WHERE s.user_id = e.account_id
-	   AND s.name = t.slug AND s.deleted_at IS NULL AND s.suspended_at IS NOT NULL)),
-	` + EffectiveDeadlineSQL + `,
-	clock_timestamp(), t.pinned_at, t.pinned_version,
-	COALESCE(t.deadline_override > e.submission_deadline, false),
-	e.submission_deadline, t.deadline_override`
-
-func scanTeamWriteState(row interface{ Scan(...any) error }) (TeamWriteState, error) {
-	var s TeamWriteState
-	err := row.Scan(
-		&s.TeamID, &s.EventID, &s.EventSlug, &s.TeamSlug, &s.AccountID, &s.Stage, &s.EventTakenDown,
-		&s.SiteTakenDown, &s.Deadline, &s.Now, &s.PinnedAt, &s.PinnedVersion, &s.HasOverride,
-		&s.EventDeadline, &s.TeamDeadlineSet)
-	return s, err
-}
-
-// TeamWriteStatesForEvent is TeamWriteStateFor for every team of an event, by
-// team id, in one query (the organiser's and judges' lists).
-func TeamWriteStatesForEvent(ctx context.Context, q interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}, eventID string) (map[string]TeamWriteState, error) {
-	rows, err := q.QueryContext(ctx, `SELECT `+teamWriteStateCols+`
-		  FROM event_teams t JOIN events e ON e.id = t.event_id
-		 WHERE e.id = $1::uuid`, eventID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]TeamWriteState{}
-	for rows.Next() {
-		st, err := scanTeamWriteState(rows)
-		if err != nil {
-			return nil, err
-		}
-		out[st.TeamID] = st
-	}
-	return out, rows.Err()
-}
-
-// PinDueTeams pins every team whose deadline has passed and that is not
-// pinned yet: pinned_version is its site's live version at that moment (NULL
-// when it has no live site). eventID "" means every event. Each team is
-// pinned in its own transaction holding the team row FOR UPDATE, so a deploy
-// already let in (holding it FOR SHARE) finishes first.
-func PinDueTeams(ctx context.Context, database *sql.DB, eventID string) error {
-	rows, err := database.QueryContext(ctx, `
-		SELECT t.id FROM event_teams t JOIN events e ON e.id = t.event_id
-		 WHERE t.pinned_at IS NULL
-		   AND (e.stage IN ('judging', 'results', 'archived') OR (CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END <= clock_timestamp()))
-		   AND ($1 = '' OR e.id::text = $1)`, eventID)
-	if err != nil {
-		return err
-	}
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return err
-		}
-		ids = append(ids, id)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	for _, id := range ids {
-		if err := pinTeam(ctx, database, id); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func pinTeam(ctx context.Context, database *sql.DB, teamID string) error {
-	tx, err := database.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	var (
-		due       bool
-		slug      string
-		accountID string
-	)
-	err = tx.QueryRowContext(ctx, `
-		SELECT t.pinned_at IS NULL AND (e.stage IN ('judging', 'results', 'archived') OR COALESCE(CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END <= clock_timestamp(), false)),
-		       t.slug, e.account_id
-		  FROM event_teams t JOIN events e ON e.id = t.event_id
-		 WHERE t.id = $1
-		   FOR UPDATE OF t`, teamID).Scan(&due, &slug, &accountID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if !due {
-		return nil
-	}
-	var v sql.NullInt64
-	err = tx.QueryRowContext(ctx, `
-		SELECT active_version FROM sites WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL`,
-		accountID, slug).Scan(&v)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE event_teams SET pinned_version = $2, pinned_at = clock_timestamp() WHERE id = $1`, teamID, v); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-// UnpinReopened clears the pin of every team of the event whose deadline is
-// no longer passed (the organiser moved it). Call in the transaction that
-// moved it.
-func UnpinReopened(ctx context.Context, q Querier, eventID string) error {
-	_, err := q.ExecContext(ctx, `
-		UPDATE event_teams t SET pinned_version = NULL, pinned_at = NULL
-		  FROM events e
-		 WHERE e.id = t.event_id AND e.id = $1 AND t.pinned_at IS NOT NULL AND e.stage NOT IN ('judging', 'results', 'archived')
-		   AND (CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END IS NULL
-		        OR CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END > clock_timestamp())`, eventID)
-	return err
-}
-
-// PinnedVersions returns the versions pinned for the holding account's team
-// sites, by site name (for keeping them when old versions are pruned).
-func PinnedVersionOfSite(ctx context.Context, q Querier, accountID, siteName string) (int, bool, error) {
-	var v sql.NullInt64
-	err := q.QueryRowContext(ctx, `
-		SELECT t.pinned_version FROM event_teams t JOIN events e ON e.id = t.event_id
-		 WHERE e.account_id = $1 AND t.slug = $2 AND t.pinned_version IS NOT NULL`, accountID, siteName).Scan(&v)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false, nil
-	}
-	if err != nil {
-		return 0, false, err
-	}
-	return int(v.Int64), v.Valid, nil
-}
-
-// HoldingAccountEvent returns the event held by accountID, if it is one.
-func HoldingAccountEvent(ctx context.Context, q Querier, accountID string) (Event, bool, error) {
-	ev, err := GetEventByAccount(ctx, q, accountID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return Event{}, false, nil
-	}
-	return ev, err == nil, err
-}
-
-// TeamNameEverUsed: slug was a team of this event before (event_used_names)
-// or the holding account has or had a site by that name.
-func TeamNameEverUsed(ctx context.Context, q Querier, eventSlug, accountID, slug string) (bool, error) {
-	var used bool
-	err := q.QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM event_used_names WHERE event_slug = $1 AND team_slug = $3)
-		    OR EXISTS (SELECT 1 FROM sites WHERE user_id = $2 AND lower(name) = lower($3))`,
-		eventSlug, accountID, slug).Scan(&used)
-	return used, err
-}
-
-// RecordUsedTeamName keeps the event's name and a new team's name for good.
-func RecordUsedTeamName(ctx context.Context, q Querier, eventSlug, teamSlug string) error {
-	_, err := q.ExecContext(ctx, `
-		INSERT INTO event_used_names (event_slug, team_slug) VALUES ($1, ''), ($1, $2)
-		ON CONFLICT DO NOTHING`, eventSlug, teamSlug)
-	return err
-}
-
-// DeleteEmptyOpenTeams removes teams nobody is on whose deadline has not
-// passed and that hold no pin (a team kept for its submission that the
-// organiser reopened). Their sites follow with the orphan sweep.
-func DeleteEmptyOpenTeams(ctx context.Context, q Querier) error {
-	_, err := q.ExecContext(ctx, `
-		DELETE FROM event_teams t USING events e
-		 WHERE e.id = t.event_id AND `+TeamKeepableSQL+`
-		   AND NOT EXISTS (SELECT 1 FROM event_members m WHERE m.team_id = t.id)`)
-	return err
-}
-
+// TODO(4.3): Host dependency
 // OrphanTeamSites lists live sites of events' holding accounts whose team no
 // longer exists (the team was removed or emptied): the sweep takes them to
 // Recently deleted.
@@ -472,114 +124,4 @@ func OrphanTeamSites(ctx context.Context, q interface {
 		out = append(out, s)
 	}
 	return out, rows.Err()
-}
-
-// EventKeyHolders is the set of people with a team key for the event.
-func EventKeyHolders(ctx context.Context, q interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}, eventID string) (map[string]bool, error) {
-	rows, err := q.QueryContext(ctx, `SELECT user_id FROM event_team_keys WHERE event_id = $1`, eventID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]bool{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out[id] = true
-	}
-	return out, rows.Err()
-}
-
-// MyTeam is one team a person is on, for the connector's team choice.
-type MyTeam struct {
-	TeamID, TeamName, TeamSlug, EventSlug, EventTitle string
-}
-
-// ListMyTeams lists the teams userID is on that can still publish: the event
-// has not ended and is not taken down, the team's deadline has not passed and
-// its site is not taken down.
-func ListMyTeams(ctx context.Context, q interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}, userID string) ([]MyTeam, error) {
-	rows, err := q.QueryContext(ctx, `
-		SELECT t.id, t.name, t.slug, e.slug, e.title
-		  FROM event_members m
-		  JOIN event_teams t ON t.id = m.team_id
-		  JOIN events e ON e.id = m.event_id
-		 WHERE m.user_id = $1 AND m.role = 'participant'
-		   AND e.stage <> 'archived' AND e.taken_down_at IS NULL
-		   AND t.site_taken_down_at IS NULL
-		   AND NOT COALESCE(`+EffectiveDeadlineSQL+` <= clock_timestamp(), false)
-		 ORDER BY e.created_at DESC, t.name`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []MyTeam{}
-	for rows.Next() {
-		var m MyTeam
-		if err := rows.Scan(&m.TeamID, &m.TeamName, &m.TeamSlug, &m.EventSlug, &m.EventTitle); err != nil {
-			return nil, err
-		}
-		out = append(out, m)
-	}
-	return out, rows.Err()
-}
-
-// StoredVersionsOfAccount is every stored (not uploading, not discarded) version of the
-// account's live sites, as "<site id>/<n>".
-func StoredVersionsOfAccount(ctx context.Context, q interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}, accountID string) (map[string]bool, error) {
-	rows, err := q.QueryContext(ctx, `
-		SELECT v.site_id::text || '/' || v.version_number FROM versions v JOIN sites s ON s.id = v.site_id
-		 WHERE s.user_id = $1 AND s.deleted_at IS NULL AND v.status <> 'uploading' AND v.status <> 'discarded'`, accountID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]bool{}
-	for rows.Next() {
-		var k string
-		if err := rows.Scan(&k); err != nil {
-			return nil, err
-		}
-		out[k] = true
-	}
-	return out, rows.Err()
-}
-
-// HackSiteOwnerOnSite reports whether userID counts as the owner of a Simple
-// Hack site for its saved data when signed in on the site itself (storage
-// presets, owner decision 2026-10-10): on a team site, an approved
-// participant on that team while the team may still change its site (the
-// same conditions as TeamWriteState.WriteRefusal: event not taken down or
-// ended, site not taken down, deadline not passed); on an event's custom
-// website, an organiser of that event while the event is not taken down or
-// ended.
-func HackSiteOwnerOnSite(ctx context.Context, q Querier, siteID, userID string) (bool, error) {
-	var ok bool
-	err := q.QueryRowContext(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM sites s
-			  JOIN events e ON e.account_id = s.user_id
-			  JOIN event_teams t ON t.event_id = e.id AND t.slug = s.name
-			  JOIN event_members m ON m.event_id = e.id AND m.team_id = t.id
-			 WHERE s.id = $1::uuid AND s.deleted_at IS NULL AND s.suspended_at IS NULL
-			   AND m.user_id = $2::uuid AND m.role = 'participant' AND m.approval_status = 'approved'
-			   AND e.taken_down_at IS NULL AND e.stage NOT IN ('judging', 'results', 'archived') AND t.site_taken_down_at IS NULL
-			   AND (`+EffectiveDeadlineSQL+` IS NULL OR clock_timestamp() < `+EffectiveDeadlineSQL+`)
-		) OR EXISTS (
-			SELECT 1 FROM sites s
-			  JOIN events e ON e.account_id = s.user_id AND e.id::text = s.name
-			  JOIN event_members m ON m.event_id = e.id
-			 WHERE s.id = $1::uuid AND s.deleted_at IS NULL AND s.suspended_at IS NULL
-			   AND m.user_id = $2::uuid AND m.role = 'organiser'
-			   AND e.taken_down_at IS NULL AND e.stage <> 'archived'
-		)`, siteID, userID).Scan(&ok)
-	return ok, err
 }

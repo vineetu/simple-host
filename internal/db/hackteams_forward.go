@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
 )
 
@@ -45,3 +46,34 @@ var (
 func JoinTeamByCode(ctx context.Context, q Querier, eventID, userID, code string, sizeMax int) (EventTeam, error) {
 	return hackteams.JoinTeamByCode(ctx, q, eventID, userID, code, sizeMax, EnsureTeamAdmin)
 }
+
+type TeamWriteState = model.TeamWriteState
+type MyTeam = model.MyTeam
+
+var ResolveTeamIdentity = hackteams.ResolveTeamIdentity
+var GetTeamKey = hackteams.GetTeamKey
+var RevokeTeamKeys = hackteams.RevokeTeamKeys
+var RevokeStaleTeamKeys = hackteams.RevokeStaleTeamKeys
+var TeamWriteStateFor = hackteams.TeamWriteStateFor
+var TeamWriteStatesForEvent = hackteams.TeamWriteStatesForEvent
+var PinDueTeams = hackteams.PinDueTeams
+var UnpinReopened = hackteams.UnpinReopened
+var PinnedVersionOfSite = hackteams.PinnedVersionOfSite
+var HoldingAccountEvent = hackteams.HoldingAccountEvent
+var TeamNameEverUsed = hackteams.TeamNameEverUsed
+var RecordUsedTeamName = hackteams.RecordUsedTeamName
+var DeleteEmptyOpenTeams = hackteams.DeleteEmptyOpenTeams
+var EventKeyHolders = hackteams.EventKeyHolders
+var ListMyTeams = hackteams.ListMyTeams
+var StoredVersionsOfAccount = hackteams.StoredVersionsOfAccount
+var HackSiteOwnerOnSite = hackteams.HackSiteOwnerOnSite
+
+var EnsureTeamAdmin = hackteams.EnsureTeamAdmin
+var SetTeamAdmin = hackteams.SetTeamAdmin
+var SetTeamLock = hackteams.SetTeamLock
+var NewTeamRequest = hackteams.NewTeamRequest
+var ResolveTeamRequest = hackteams.ResolveTeamRequest
+var PlanFillTeams = hackteams.PlanFillTeams
+
+var teamKeyBinding = hackteams.TeamKeyBinding
+var ReplaceTeamKey = hackteams.ReplaceTeamKey

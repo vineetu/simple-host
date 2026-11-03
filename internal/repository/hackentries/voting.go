@@ -3,17 +3,13 @@ package hackentries
 import (
 	"context"
 	"database/sql"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"time"
 )
 
 // VotingSettings holds an event’s voting configuration.
-type VotingSettings struct {
-	Enabled           bool
-	OpensAt, ClosesAt sql.NullTime
-	Eligibility       string
-	DirectoryListed   bool
-}
+type VotingSettings = model.VotingSettings
 
 // GetVotingSettings loads an event’s voting configuration.
 func GetVotingSettings(ctx context.Context, q sqlkit.Querier, eventID string) (VotingSettings, error) {
@@ -40,10 +36,7 @@ func SetDirectoryListed(ctx context.Context, q sqlkit.Querier, eventID string, l
 }
 
 // VoteOption describes a project and its vote count.
-type VoteOption struct {
-	TeamID, Slug, Name, Title, Tagline string
-	Count                              int
-}
+type VoteOption = model.VoteOption
 
 // VoteOptions uses the same live-site gate as the event gallery.
 func VoteOptions(ctx context.Context, q sqlkit.Querier, eventID, accountID string) ([]VoteOption, error) {
