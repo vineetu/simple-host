@@ -362,7 +362,7 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 // color/apply_url fields it computes from its own config (cleanup 3.2
 // slice 4).
 func (h *HackHandler) getDirectory(w http.ResponseWriter, r *http.Request) {
-	dir, err := h.events.Directory(r.Context(), time.Now())
+	dir, err := h.events.Directory(r.Context(), time.Now)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return

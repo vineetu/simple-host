@@ -55,13 +55,15 @@ type Directory struct {
 // (db.ListDirectoryEvents), grouped into Now/Upcoming/Past by
 // rules/hackevents.DirectoryGroup, with each row's ApplicationsOpen already
 // decided by rules/hackevents.ApplicationsOpenNow. Was hackhttp's
-// getDirectory (hack_voting.go); now is the caller's clock reading, passed
-// in rather than read here.
-func (s *Service) Directory(ctx context.Context, now time.Time) (Directory, error) {
+// getDirectory (hack_voting.go); clock is read once, after the query.
+func (s *Service) Directory(ctx context.Context, clock func() time.Time) (Directory, error) {
 	evs, err := db.ListDirectoryEvents(ctx, s.db)
 	if err != nil {
 		return Directory{}, err
 	}
+	// Read the clock after the query, as the handler always did, so an event
+	// that starts or ends while the query runs is grouped the same way.
+	now := clock()
 	var out Directory
 	for _, ev := range evs {
 		row := Row{
