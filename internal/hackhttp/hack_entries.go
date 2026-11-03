@@ -21,6 +21,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	entries "github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -29,8 +30,6 @@ import (
 // the team site (hosted events, M2; docs/designs/simple-hack-platform.md).
 // A participant reads and writes only their own team's entry. Organisers
 // and judges read every team's entry and screenshots.
-
-var errEntryChanged = errors.New("entry changed")
 
 // hackScreenshotMax is the largest screenshot stored: 2 MiB.
 const hackScreenshotMax = 2 << 20
@@ -168,42 +167,12 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error {
-		if req.UpdatedAt != nil {
-			current, err := db.GetEventEntry(ctx, tx, teamID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
-			stamp := ""
-			if current.Exists {
-				stamp = current.UpdatedAt.UTC().Format(time.RFC3339Nano)
-			}
-			if *req.UpdatedAt != stamp {
-				return errEntryChanged
-			}
-		}
-		wasSubmitted := false
-		if before, err := db.GetEventEntry(ctx, tx, teamID); err == nil {
-			wasSubmitted = before.SubmittedAt.Valid
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return err
-		}
+	teamID, ok := h.entryWrite(w, r, a, entries.WriteRequest{Kind: "text", UpdatedAt: req.UpdatedAt, Fields: fields, Tools: tools, Track: func() *string {
 		if req.Track != nil {
-			if !participantTeamStages(st.Stage) {
-				return &hackWriteRefusalError{status: http.StatusConflict, code: "team_choice_closed", msg: "team choices are closed"}
-			}
-			if _, err := db.SetTeamTrack(ctx, tx, a.event.ID, teamID, trackSlug); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return &hackWriteRefusalError{status: http.StatusNotFound, code: "track_not_found", msg: "track not found"}
-				}
-				return err
-			}
+			return &trackSlug
 		}
-		if err := db.UpsertEventEntryText(ctx, tx, a.event.ID, teamID, a.user.ID, fields, tools); err != nil {
-			return err
-		}
-		return h.keepSubmittedComplete(ctx, tx, a.event, st, teamID, wasSubmitted)
-	})
+		return nil
+	}()})
 	if !ok {
 		return
 	}
@@ -240,35 +209,7 @@ func (h *HackHandler) submitEntry(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error {
-		e, err := db.GetEventEntryForUpdate(ctx, tx, teamID)
-		if errors.Is(err, sql.ErrNoRows) {
-			e = db.EventEntry{TeamID: teamID, EventID: a.event.ID}
-		} else if err != nil {
-			return err
-		}
-		if req.UpdatedAt != nil {
-			stamp := ""
-			if e.Exists {
-				stamp = e.UpdatedAt.UTC().Format(time.RFC3339Nano)
-			}
-			if *req.UpdatedAt != stamp {
-				return errEntryChanged
-			}
-		}
-		if e.SubmittedAt.Valid {
-			return nil // idempotent: already submitted, keep it as it is
-		}
-		check, err := h.evaluateEntryTx(ctx, tx, a.event, st, teamID, e)
-		if err != nil {
-			return err
-		}
-		if !check.Complete {
-			return &entryWouldBeIncompleteError{Missing: check.Missing, Submit: true}
-		}
-		_, err = db.SubmitEventEntry(ctx, tx, teamID, a.user.ID)
-		return err
-	})
+	teamID, ok := h.entryWrite(w, r, a, entries.WriteRequest{Kind: "submit", UpdatedAt: req.UpdatedAt})
 	if !ok {
 		return
 	}
@@ -287,10 +228,7 @@ func (h *HackHandler) unsubmitEntry(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.participantTeam(w, r, a); !ok {
 		return
 	}
-	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error {
-		_, err := db.UnsubmitEventEntry(ctx, tx, teamID)
-		return err
-	})
+	teamID, ok := h.entryWrite(w, r, a, entries.WriteRequest{Kind: "unsubmit"})
 	if !ok {
 		return
 	}
@@ -312,27 +250,15 @@ func (h *HackHandler) setEntryExcluded(w http.ResponseWriter, r *http.Request, e
 	if !ok {
 		return
 	}
-	team, err := db.GetEventTeamBySlug(r.Context(), h.database, a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
-		return
-	}
+	team, err := h.entries.SetExcluded(r.Context(), a.event.ID, a.user.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))), excluded)
 	if err != nil {
-		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if _, err := db.GetEventEntry(r.Context(), h.database, team.ID); errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, http.StatusNotFound, "no_entry", "this team has no entry")
-		return
-	} else if err != nil {
-		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if _, err := db.SetEntryExcluded(r.Context(), h.database, team.ID, a.user.ID, excluded); err != nil {
-		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
+		var domainErr *entries.Error
+		if errors.As(err, &domainErr) {
+			httpx.WriteError(w, http.StatusNotFound, domainErr.Code, domainErr.Message)
+		} else {
+			log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
+			httpx.WriteInternal(w)
+		}
 		return
 	}
 	tl, err := h.loadTeamList(r.Context(), a.event)
@@ -341,7 +267,7 @@ func (h *HackHandler) setEntryExcluded(w http.ResponseWriter, r *http.Request, e
 		httpx.WriteInternal(w)
 		return
 	}
-	e, err := db.GetEventEntry(r.Context(), h.database, team.ID)
+	e, err := h.entries.Entry(r.Context(), team.ID)
 	if err != nil {
 		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -382,16 +308,7 @@ func (h *HackHandler) putEntryScreenshot(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error {
-		before, err := db.GetEventEntry(ctx, tx, teamID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return err
-		}
-		if err := db.UpsertEventEntryScreenshot(ctx, tx, a.event.ID, teamID, a.user.ID, data, mime); err != nil {
-			return err
-		}
-		return h.keepSubmittedComplete(ctx, tx, a.event, st, teamID, before.SubmittedAt.Valid)
-	})
+	teamID, ok := h.entryWrite(w, r, a, entries.WriteRequest{Kind: "screenshot", Data: data, MIME: mime})
 	if !ok {
 		return
 	}
@@ -413,16 +330,7 @@ func (h *HackHandler) deleteEntryScreenshot(w http.ResponseWriter, r *http.Reque
 	if _, ok := h.participantTeam(w, r, a); !ok {
 		return
 	}
-	teamID, ok := h.entryWrite(w, r, a, func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error {
-		before, err := db.GetEventEntry(ctx, tx, teamID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return err
-		}
-		if err := db.UpsertEventEntryScreenshot(ctx, tx, a.event.ID, teamID, a.user.ID, nil, ""); err != nil {
-			return err
-		}
-		return h.keepSubmittedComplete(ctx, tx, a.event, st, teamID, before.SubmittedAt.Valid)
-	})
+	teamID, ok := h.entryWrite(w, r, a, entries.WriteRequest{Kind: "screenshot"})
 	if !ok {
 		return
 	}
@@ -462,7 +370,7 @@ func (h *HackHandler) getTeamScreenshot(w http.ResponseWriter, r *http.Request) 
 	// the same team_not_found a genuinely unknown one would, revealing
 	// nothing about why.
 	if a.member.Role == "judge" {
-		eligible, err := db.JudgeTeamEligible(r.Context(), h.database, a.event.ID, a.user.ID, team.ID)
+		eligible, err := h.entries.JudgeTeamEligible(r.Context(), a.event.ID, a.user.ID, team.ID)
 		if err != nil {
 			log.Printf("hack: team screenshot %s: %v", a.event.Slug, err)
 			httpx.WriteInternal(w)
@@ -499,7 +407,7 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 	sort.Slice(teams, func(i, j int) bool {
 		return strings.ToLower(teams[i].Name) < strings.ToLower(teams[j].Name)
 	})
-	stored, err := db.ListEventEntries(r.Context(), h.database, a.event.ID)
+	stored, err := h.entries.Entries(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: entries %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -569,7 +477,7 @@ func (h *HackHandler) judgeSiteLinkGate(ctx context.Context, a hackAccess) (func
 	if a.admin || a.member.Role == "organiser" {
 		return func(string) bool { return true }, nil
 	}
-	eligible, err := db.EligibleJudgeTeams(ctx, h.database, a.event.ID, a.user.ID)
+	eligible, err := h.entries.EligibleJudgeTeams(ctx, a.event.ID, a.user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -600,85 +508,20 @@ func redactEntrySiteLinks(item map[string]any) {
 	}
 }
 
-// hackWriteRefusalError is a specific, already-worded refusal fn wants
-// entryWrite to send verbatim (status, code, message) instead of the
-// generic errEntryChanged/500 handling -- used for the track write's own
-// rule (team_choice_closed, track_not_found), which sits on top of
-// entryWrite's own WriteRefusal check.
-type hackWriteRefusalError struct {
-	status int
-	code   string
-	msg    string
-}
-
-func (e *hackWriteRefusalError) Error() string { return e.msg }
-
-// entryWouldBeIncompleteError is returned by fn when a save on a submitted
-// entry would make it incomplete (section 4.1): entryWrite rolls back and
-// answers 422 entry_would_be_incomplete, changing nothing.
-type entryWouldBeIncompleteError struct {
-	Missing []string
-	// Submit is true for POST .../entry/submit, which answers
-	// entry_incomplete; a save on a submitted entry answers
-	// entry_would_be_incomplete (section 4.1).
-	Submit bool
-}
-
-func (e *entryWouldBeIncompleteError) Error() string { return "entry would be incomplete" }
-
-// entryWrite runs a change to the caller's entry in one transaction. Inside
-// it the membership is read again FOR SHARE (a move or removal that committed
-// meanwhile wins), and the team row is held FOR UPDATE so a deadline pin waits
-// until this write commits. ok is false after the answer is written.
-func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackAccess, fn func(ctx context.Context, tx *sql.Tx, teamID string, st db.TeamWriteState) error) (string, bool) {
-	ctx := r.Context()
-	tx, err := h.database.BeginTx(ctx, nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return "", false
+// entryWrite maps service refusals to the existing participant responses.
+func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackAccess, req entries.WriteRequest) (string, bool) {
+	req.Event, req.UserID = a.event, a.user.ID
+	id, missing, err := h.entries.Write(r.Context(), req)
+	if err == nil {
+		return id, true
 	}
-	defer tx.Rollback()
-	var teamID sql.NullString
-	err = tx.QueryRowContext(ctx, `
-		SELECT team_id FROM event_members
-		 WHERE event_id = $1 AND user_id = $2 AND role = 'participant'
-		 FOR SHARE`, a.event.ID, a.user.ID).Scan(&teamID)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return "", false
-	}
-	if err != nil {
-		log.Printf("hack: entry write %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return "", false
-	}
-	if !teamID.Valid || teamID.String == "" {
-		httpx.WriteError(w, http.StatusConflict, "no_team", "join or start a team first")
-		return "", false
-	}
-	if _, err = tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE id=$1 FOR UPDATE`, teamID.String); err != nil {
-		httpx.WriteInternal(w)
-		return "", false
-	}
-	st, err := db.TeamWriteStateFor(ctx, tx, teamID.String, true)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, http.StatusConflict, "no_team", "join or start a team first")
-		return "", false
-	}
-	if err != nil {
-		log.Printf("hack: entry write %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return "", false
-	}
-	if code := st.WriteRefusal(); code != "" {
-		status, msg := auth.TeamRefusal(code)
-		httpx.WriteError(w, status, code, msg)
-		return "", false
-	}
-	if err := fn(ctx, tx, teamID.String, st); err != nil {
-		if errors.Is(err, errEntryChanged) {
-			tx.Rollback()
-			view, loadErr := h.ownEntryJSON(ctx, a.event, teamID.String, a.user.ID)
+	var refusal *entries.Error
+	if errors.As(err, &refusal) {
+		switch refusal.Code {
+		case "event_not_found":
+			writeEventNotFound(w)
+		case "entry_changed":
+			view, loadErr := h.ownEntryJSON(r.Context(), a.event, id, a.user.ID)
 			if loadErr != nil {
 				httpx.WriteInternal(w)
 				return "", false
@@ -686,35 +529,21 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 			view["code"] = "entry_changed"
 			view["error"] = "A teammate changed this since you opened it"
 			httpx.WriteJSON(w, 409, view)
-			return "", false
+		case "entry_incomplete", "entry_would_be_incomplete":
+			writeHackErrMissing(w, http.StatusUnprocessableEntity, refusal.Code, "Add these first: "+hackentries.MissingMessage(missing, hackentries.LoadRules(a.event.EntryRules)), missing)
+		case "track_not_found":
+			httpx.WriteError(w, http.StatusNotFound, refusal.Code, refusal.Message)
+		case "no_team", "team_choice_closed":
+			httpx.WriteError(w, http.StatusConflict, refusal.Code, refusal.Message)
+		default:
+			status, msg := auth.TeamRefusal(refusal.Code)
+			httpx.WriteError(w, status, refusal.Code, msg)
 		}
-		var refusal *hackWriteRefusalError
-		if errors.As(err, &refusal) {
-			tx.Rollback()
-			httpx.WriteError(w, refusal.status, refusal.code, refusal.msg)
-			return "", false
-		}
-		var incomplete *entryWouldBeIncompleteError
-		if errors.As(err, &incomplete) {
-			tx.Rollback()
-			code := "entry_would_be_incomplete"
-			if incomplete.Submit {
-				code = "entry_incomplete"
-			}
-			writeHackErrMissing(w, http.StatusUnprocessableEntity, code,
-				"Add these first: "+hackentries.MissingMessage(incomplete.Missing, hackentries.LoadRules(a.event.EntryRules)), incomplete.Missing)
-			return "", false
-		}
-		log.Printf("hack: entry write %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
 		return "", false
 	}
-	if err := tx.Commit(); err != nil {
-		log.Printf("hack: entry write %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return "", false
-	}
-	return teamID.String, true
+	log.Printf("hack: entry write %s: %v", a.event.Slug, err)
+	httpx.WriteInternal(w)
+	return "", false
 }
 
 func (h *HackHandler) writeOwnEntry(w http.ResponseWriter, r *http.Request, ev db.Event, teamID, userID string) {
@@ -733,7 +562,7 @@ func (h *HackHandler) writeOwnEntry(w http.ResponseWriter, r *http.Request, ev d
 // refusal come from the team's write state, read outside the write
 // transaction.
 func (h *HackHandler) ownEntryJSON(ctx context.Context, ev db.Event, teamID, userID string) (map[string]any, error) {
-	e, err := db.GetEventEntry(ctx, h.database, teamID)
+	e, err := h.entries.Entry(ctx, teamID)
 	if errors.Is(err, sql.ErrNoRows) {
 		e = db.EventEntry{}
 	} else if err != nil {
@@ -1106,7 +935,7 @@ func entryImageAllowed(mime string) bool {
 }
 
 func (h *HackHandler) serveTeamScreenshot(w http.ResponseWriter, r *http.Request, teamID string) {
-	data, mime, err := db.GetEventScreenshot(r.Context(), h.database, teamID)
+	data, mime, err := h.entries.Screenshot(r.Context(), teamID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpx.WriteError(w, http.StatusNotFound, "no_screenshot", "this team has no screenshot")
