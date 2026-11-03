@@ -21,7 +21,7 @@ func TestEveryToolDeclaresAWellFormedOutputSchema(t *testing.T) {
 			t.Errorf("%s outputSchema: %v", tool.Name, err)
 		}
 	}
-	for name := range outputSchemas() {
+	for name := range outputSchemasWithLimits(DefaultLimits()) {
 		if !names[name] {
 			t.Errorf("outputSchemas has %q, which is not a tool", name)
 		}
