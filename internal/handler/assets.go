@@ -10,6 +10,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/internal/storage"
 )
 
 // canonicalHackBaseURL is simple-hack.app's own address: the hack ink base
@@ -163,7 +164,47 @@ func (h *SiteHandler) pipeline() *assetPipeline {
 // Pages is h's asset pipeline, exported so moving Hack registrars
 // (cleanup 3.2 slice 2a) can take the narrow hackPages interface instead
 // of *SiteHandler itself, which they used to receive just to call this.
-func (h *SiteHandler) Pages() hackPages { return h.pipeline() }
+// Returns the concrete (unexported) *assetPipeline, not internal/hackhttp's
+// hackPages interface (cleanup 3.2 slice 3: that interface moved there with
+// hack.go, and handler may not import hackhttp): every hackPages method is
+// exported on *assetPipeline, so Go satisfies the interface implicitly at
+// each call site, the same way NewPages already returns *assetPipeline for
+// test fixtures.
+func (h *SiteHandler) Pages() *assetPipeline { return h.pipeline() }
+
+// DiskForTest is h.disk, exported as a test hook (cleanup 3.2 slice 3): the
+// moved hack_delete_test.go and others check file paths on disk directly
+// (storage.DiskStorage is already an exported leaf type; only the field
+// holding it was unexported).
+func (h *SiteHandler) DiskForTest() *storage.DiskStorage { return h.disk }
+
+// SetEmailLimiterForTest, SetVisitorAuthLimiterForTest and
+// SetStorageIPLimiterForTest lift h's own rate limits for a test fixture
+// that sends many requests quickly (an opt-in browser-proof rehearsal, not
+// an automated test). Test hooks (cleanup 3.2 slice 3): the moved
+// hack_presets_browser_test.go assigned emailLimiter/visitorAuthLimiter/
+// storageIPLimiter directly before the move; all three are unexported
+// fields of the handler-local *rateLimiter type, which a cross-package
+// caller can neither name nor build, so each hook takes the same
+// (capacity, perSecond) pair newRateLimiter itself does.
+func (h *SiteHandler) SetEmailLimiterForTest(capacity, perSecond float64) {
+	h.emailLimiter = newRateLimiter(capacity, perSecond)
+}
+
+func (h *SiteHandler) SetVisitorAuthLimiterForTest(capacity, perSecond float64) {
+	h.visitorAuthLimiter = newRateLimiter(capacity, perSecond)
+}
+
+func (h *SiteHandler) SetStorageIPLimiterForTest(capacity, perSecond float64) {
+	h.storageIPLimiter = newRateLimiter(capacity, perSecond)
+}
+
+// SetEditionForTest swaps h's edition after construction. Test hook
+// (cleanup 3.2 slice 3): the moved hack_tls_test.go rebuilds a *SiteHandler
+// as the ordinary Host edition partway through, to check that an
+// unrecognised platform name still falls back to the small-box product's
+// existing allowlist; ed is an unexported field.
+func (h *SiteHandler) SetEditionForTest(ed *edition.Edition) { h.ed = ed }
 
 // staticFS is the embedded tree as this pipeline serves it.
 func (p *assetPipeline) staticFS() baseTextFS {
@@ -207,3 +248,37 @@ func (h *ConnectorHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline
 // HackHandler's ShareAssets moved to hack.go (cleanup 3.2 slice 1c): a
 // method with a *HackHandler receiver must live in the same package as
 // that type, which moves to internal/hackhttp.
+
+// SkillServedText is skillServedText (skillshub.go), exported for hackPages
+// (internal/hackhttp): a test hook (cleanup 3.2 slice 3) for the moved
+// hack_instance_test.go, which checks one skill file's rewritten text
+// without building the whole zip.
+func (p *assetPipeline) SkillServedText(path string, data []byte) []byte {
+	return p.skillServedText(path, data)
+}
+
+// RegisterSkillsHub is registerSkillsHub (skillshub.go), exported for
+// hackPages (internal/hackhttp): a test hook (cleanup 3.2 slice 3) for the
+// moved hack_discovery_test.go and hack_ink_browser_test.go, which
+// registered the standard skills catalog through sh.pipeline() before the
+// move.
+func (p *assetPipeline) RegisterSkillsHub(mux *http.ServeMux, publicBaseURL string) {
+	p.registerSkillsHub(mux, publicBaseURL)
+}
+
+// ServeSkillsZip is ui.go's serveSkillsZip, exported for hackPages
+// (internal/hackhttp): a test hook (cleanup 3.2 slice 3) for the moved
+// hack_get_started_test.go, which served the standard (non-hosted)
+// /skills.zip alias through it before the move.
+func (p *assetPipeline) ServeSkillsZip(w http.ResponseWriter, r *http.Request, hackAssets bool) {
+	serveSkillsZip(p, w, r, hackAssets)
+}
+
+// RebasePagesForTest rebuilds h's asset pipeline for instanceURL, keeping
+// its edition. Test hook (cleanup 3.2 slice 3): the moved
+// hack_ink_browser_test.go rebased a *SiteHandler's pipeline onto its test
+// server's own address by assigning sh.assets directly before the move;
+// that field is unexported, so a cross-package test needs this instead.
+func (h *SiteHandler) RebasePagesForTest(instanceURL string) {
+	h.assets = newAssetPipeline(h.ed, instanceURL)
+}

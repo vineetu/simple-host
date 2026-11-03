@@ -84,7 +84,7 @@ func TestNoNativeDialogs(t *testing.T) {
 // so every page with <!--sh:head--> can call shConfirm.
 func TestEveryChromedPageHasTheInPageDialog(t *testing.T) {
 	var buf bytes.Buffer
-	if err := chromeTemplates.ExecuteTemplate(&buf, "head.html", chromeData{}); err != nil {
+	if err := ChromeTemplates.ExecuteTemplate(&buf, "head.html", ChromeData{}); err != nil {
 		t.Fatal(err)
 	}
 	head := buf.String()

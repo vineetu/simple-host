@@ -483,6 +483,74 @@ func toolResultOf(t *testing.T, r resp) (string, map[string]any, bool) {
 
 const testRedirect = "https://chat.example.com/oauth/callback"
 
+// consentPage, decideConsent, exchangeCode, mcpToolNames and hasTool below
+// moved out of hack_connector_test.go to internal/hackhttp (cleanup 3.2
+// slice 3), where they now have a *teamSiteApp receiver. This package's own
+// TestConnectorHostIgnoresEventManagementMode still needs them, so they get
+// their own *connectorApp copy here (the two types are no longer the same
+// package, so one definition can no longer serve both).
+func (a *connectorApp) consentPage(t *testing.T, q url.Values) (string, string) {
+	t.Helper()
+	page := a.do(t, http.MethodGet, "/oauth/authorize?"+q.Encode(), nil, nil)
+	if page.status != http.StatusOK {
+		t.Fatalf("authorize page: %d %s", page.status, page.body)
+	}
+	m := connectDataRe.FindSubmatch(page.body)
+	if m == nil {
+		t.Fatal("consent page carries no request data")
+	}
+	var data map[string]any
+	if err := json.Unmarshal(m[1], &data); err != nil {
+		t.Fatal(err)
+	}
+	return string(page.body), data["csrf"].(string)
+}
+
+func (a *connectorApp) decideConsent(t *testing.T, q url.Values, csrf, key string, extra map[string]any) resp {
+	t.Helper()
+	body := map[string]any{"query": q.Encode(), "csrf": csrf, "decision": "allow"}
+	for k, v := range extra {
+		body[k] = v
+	}
+	return a.do(t, http.MethodPost, "/oauth/authorize/decision", jsonBody(body), map[string]string{
+		"Content-Type": "application/json", "X-API-Key": key, "Origin": a.srv.URL,
+	})
+}
+
+func (a *connectorApp) exchangeCode(t *testing.T, clientID, redirect, verifier, code, resource string) map[string]any {
+	t.Helper()
+	r := a.form(t, "/oauth/token", url.Values{
+		"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirect},
+		"client_id": {clientID}, "code_verifier": {verifier}, "resource": {resource},
+	}, nil)
+	if r.status != http.StatusOK {
+		t.Fatalf("token: %d %s", r.status, r.body)
+	}
+	return r.json(t)
+}
+
+func mcpToolNames(t *testing.T, r resp) []string {
+	t.Helper()
+	if r.status != http.StatusOK {
+		t.Fatalf("mcp: %d %s", r.status, r.body)
+	}
+	raw, _ := r.json(t)["result"].(map[string]any)["tools"].([]any)
+	names := make([]string, 0, len(raw))
+	for _, item := range raw {
+		names = append(names, item.(map[string]any)["name"].(string))
+	}
+	return names
+}
+
+func hasTool(names []string, want string) bool {
+	for _, name := range names {
+		if name == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestConnectorMetadataAndChallenge(t *testing.T) {
 	a := newConnectorApp(t)
 	r := a.do(t, http.MethodPost, "/mcp", jsonBody(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}), nil)

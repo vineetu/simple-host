@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/x509"
 	"database/sql"
 	"encoding/base32"
 	"encoding/hex"
@@ -47,6 +48,27 @@ type notificationEngine struct {
 // StartNotifications is cancelled) and any emit still storing an event.
 // Tests call it before closing the database; the server does not.
 func (h *SiteHandler) WaitNotifications() { h.notifyEngine().wg.Wait() }
+
+// SetNotifyClientForTest swaps h's webhook-delivery client for a test
+// double trusting roots (a local httptest.TLS server's certificate pool)
+// and allowing loopback addresses, and lifts its per-URL rate limit so a
+// burst of test deliveries never throttles. Test hook (cleanup 3.2 slice
+// 3): the moved hack_notifications_test.go needs the same client swap
+// notify_test.go's notificationFixture does in-package, but notifyClient
+// is unexported, so a cross-package caller cannot build or assign one
+// itself.
+func (h *SiteHandler) SetNotifyClientForTest(roots *x509.CertPool) {
+	h.notifyEngine().client = notifyClient{secrets: &h.passcode, allowLoopback: true, roots: roots}
+	h.notifyEngine().perURL = newRateLimiter(100000, 0)
+}
+
+// PendingNotificationsForTest is len(h.notifyEngine().emitting): how many
+// webhook deliveries are in flight right now. Test hook (cleanup 3.2 slice
+// 3): the moved hack_notifications_test.go polls this waiting for delivery
+// to finish, the same way notify_test.go's own tests do in-package.
+func (h *SiteHandler) PendingNotificationsForTest() int {
+	return len(h.notifyEngine().emitting)
+}
 
 func (h *SiteHandler) notifyEngine() *notificationEngine {
 	h.notifyOnce.Do(func() {
@@ -438,6 +460,15 @@ func (h *SiteHandler) StartNotifications(ctx context.Context) {
 		}()
 	})
 }
+
+// DeliverNotificationForTest is deliverNotification, exported as a test
+// hook (cleanup 3.2 slice 3): the moved hack_notifications_test.go drains
+// the delivery queue directly, the same way notify_test.go's own tests do
+// in-package.
+func (h *SiteHandler) DeliverNotificationForTest(ctx context.Context) bool {
+	return h.deliverNotification(ctx)
+}
+
 func (h *SiteHandler) deliverNotification(ctx context.Context) bool {
 	l := h.limits
 	d, err := db.ClaimNotificationDelivery(ctx, h.database, l.NotifyTimeout+30*time.Second, l.NotifyAttempts, l.NotifyHistoryDays, l.NotifySuspendWindow)

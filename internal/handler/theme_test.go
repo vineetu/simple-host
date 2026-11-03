@@ -27,7 +27,7 @@ const themeScriptNeedle = "window.shTheme={"
 func themeScriptFor(t *testing.T) string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := chromeTemplates.ExecuteTemplate(&buf, "theme.html", chromeData{}); err != nil {
+	if err := ChromeTemplates.ExecuteTemplate(&buf, "theme.html", ChromeData{}); err != nil {
 		t.Fatal(err)
 	}
 	return strings.TrimRight(buf.String(), "\n")
@@ -184,7 +184,7 @@ func TestEveryServedPageCarriesTheOneThemeScript(t *testing.T) {
 			continue
 		}
 		name := strings.TrimPrefix(p, "static/")
-		page, err := newAssetPipeline(edition.ForKind(edition.Host), "").chromePage(name, chromeData{})
+		page, err := newAssetPipeline(edition.ForKind(edition.Host), "").chromePage(name, ChromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}

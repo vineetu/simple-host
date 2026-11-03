@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/internal/hackhttp"
 )
 
 // Text only the hosted service can say (Claude's directory, the published
@@ -73,7 +74,7 @@ func TestSelfHostedHackGetStartedClaude(t *testing.T) {
 	sh := chromeTestHandler(edition.Hack)
 	sh.assets = newAssetPipeline(sh.ed, "https://hack.example")
 	mux := http.NewServeMux()
-	RegisterHackGetStarted(mux, sh.Pages())
+	hackhttp.RegisterHackGetStarted(mux, sh.Pages())
 	r := httptest.NewRecorder()
 	mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/get-started", nil))
 	page := r.Body.String()

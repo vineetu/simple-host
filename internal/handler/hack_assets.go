@@ -49,16 +49,16 @@ func (p *assetPipeline) HackInstanceText(data []byte) []byte {
 	return []byte(strings.NewReplacer("https://simple-hack.app", strings.TrimRight(p.inkBaseURL(), "/"), "simple-hack.app", u.Host).Replace(string(data)))
 }
 
-// hackSkillNames are the five Simple Hack skills bundled in the hosted zip.
+// HackSkillNames are the five Simple Hack skills bundled in the hosted zip.
 // Moved verbatim from hack_get_started.go: skillshub.go's hostedHackSkill
 // (staying) needs it, and BuildHackSkillsZip below (a *assetPipeline
 // method) must live in this package regardless.
-var hackSkillNames = []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}
+var HackSkillNames = []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}
 
 // hostedHackSkill reports whether name is one of the five bundled Hack
 // skills. Moved verbatim from hack_get_started.go: skillshub.go calls it.
 func hostedHackSkill(name string) bool {
-	for _, skill := range hackSkillNames {
+	for _, skill := range HackSkillNames {
 		if name == skill {
 			return true
 		}
@@ -74,7 +74,7 @@ func (p *assetPipeline) BuildHackSkillsZip() ([]byte, error) {
 	z.once.Do(func() {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
-		for _, name := range hackSkillNames {
+		for _, name := range HackSkillNames {
 			root, err := fs.Sub(hacktoolkit.Skills, "skills/"+name)
 			if err != nil {
 				z.err = err

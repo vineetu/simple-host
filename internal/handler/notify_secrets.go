@@ -38,6 +38,14 @@ func (p *passcodeState) openNotification(id, stored string) (string, error) {
 	return plain, nil
 }
 
+// NotificationSecretsForTest is notificationSecrets, exported as a test
+// hook (cleanup 3.2 slice 3): the moved hack_notifications_test.go seals a
+// notification secret directly the way notify_test.go's own tests do
+// in-package.
+func (h *SiteHandler) NotificationSecretsForTest() db.NotificationSecrets {
+	return h.notificationSecrets()
+}
+
 func (h *SiteHandler) notificationSecrets() db.NotificationSecrets {
 	return db.NotificationSecrets{Seal: h.passcode.sealNotification, Open: h.passcode.openNotification}
 }

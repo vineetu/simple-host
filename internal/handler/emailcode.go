@@ -180,7 +180,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 		switch {
 		case errors.Is(lerr, sql.ErrNoRows) && req.Handle != nil:
 			chosen = strings.ToLower(strings.TrimSpace(*req.Handle))
-			v, jerr := judgeHandle(ctx, database, "", chosen)
+			v, jerr := JudgeHandle(ctx, database, "", chosen)
 			if jerr != nil {
 				return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
 			}

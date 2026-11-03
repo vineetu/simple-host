@@ -31,6 +31,13 @@ var offlinePage = themed(`<!doctype html>
 </head><body><h1>This site is offline</h1><p>Its owner has taken it offline for now.</p></body></html>
 `)
 
+// ServeOfflineForTest is serveOffline, exported as a test hook (cleanup 3.2
+// slice 3): the moved hack_ink_browser_test.go (an opt-in Playwright
+// rehearsal fixture) mounts it at a debug path.
+func (h *SiteHandler) ServeOfflineForTest(w http.ResponseWriter, r *http.Request) {
+	h.serveOffline(w, r)
+}
+
 // serveOffline writes the offline page: 503 (a pause, not a removal) and
 // no-store, so switching the site back on takes effect on the next load.
 func (h *SiteHandler) serveOffline(w http.ResponseWriter, r *http.Request) {

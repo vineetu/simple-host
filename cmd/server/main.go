@@ -26,6 +26,7 @@ import (
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/eventdns"
 	"github.com/vsriram/simple-host/internal/geoip"
+	"github.com/vsriram/simple-host/internal/hackhttp"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/imagescan"
 	"github.com/vsriram/simple-host/internal/mcp"
@@ -385,10 +386,14 @@ func main() {
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL, siteHandler)
 	var hackSweep func(context.Context)
-	var hackEvents *handler.HackHandler
+	var hackEvents *hackhttp.HackHandler
 	if hosted {
-		hack := handler.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain, ed)
+		hack := hackhttp.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain, ed)
 		hack.ShareAssets(siteHandler.Pages())
+		hack.SetHandleChecker(func(ctx context.Context, q dbpkg.Querier, name string) (hackhttp.HandleVerdict, error) {
+			v, err := handler.JudgeHandle(ctx, q, "", name)
+			return hackhttp.HandleVerdict{Status: v.Status, Code: v.Code}, err
+		})
 		// handler.SiteLimit() already reflects any MAX_ARCHIVE_MB override
 		// (applied from site.go's init before main runs), so this matches
 		// the per-site default HackHandler.siteLimitFor used to read off
@@ -417,11 +422,12 @@ func main() {
 		handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
 			return hack.NameTaken(ctx, name)
 		})
-		siteHandler.SetHackEventPage(handler.HackEventPage(db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady))
-		siteHandler.SetHackScreenshot(handler.HackScreenshot(db, siteHandler.TeamSitesReady))
-		handler.RegisterHackHome(mux, siteHandler.Pages())
-		handler.RegisterHackPublic(mux, db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady)
-		handler.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
+		siteHandler.SetHackEventPage(hackhttp.HackEventPage(db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady))
+		siteHandler.SetHackScreenshot(hackhttp.HackScreenshot(db, siteHandler.TeamSitesReady))
+		hackhttp.SetEmbeddedStatic(handler.EmbeddedStatic())
+		hackhttp.RegisterHackHome(mux, siteHandler.Pages())
+		hackhttp.RegisterHackPublic(mux, db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady)
+		hackhttp.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
 	}
 
 	// Image matching (SIM-200): uploaded images are checked against known

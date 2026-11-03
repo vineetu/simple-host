@@ -487,7 +487,7 @@ func TestKeysPanelIdleCopyFollowsSetting(t *testing.T) {
 		"0":  "Unused keys keep working until revoked.",
 	} {
 		l := withLimits(t, map[string]string{"KEY_IDLE_EXPIRY_DAYS": v})
-		page, err := chromeTestHandlerFor(edition.ForKindWithLimits(edition.Host, l)).pipeline().chromePage("showcase.html", chromeData{})
+		page, err := chromeTestHandlerFor(edition.ForKindWithLimits(edition.Host, l)).pipeline().chromePage("showcase.html", ChromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}

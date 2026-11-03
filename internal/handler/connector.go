@@ -124,6 +124,17 @@ func (h *ConnectorHandler) pipeline() *assetPipeline {
 	return h.assets
 }
 
+// NewConnectorHandlerForTest builds a minimal *ConnectorHandler for
+// discovery-only tests: just the issuer, whether hosted events are on, and
+// serving through mcpServer directly rather than building its own
+// internally, so a test can compare its discovery documents against that
+// exact *mcp.Server instance. Test hook (cleanup 3.2 slice 3): the moved
+// hack_discovery_test.go built this as a bare composite literal
+// (issuer/mcp/hostedEvents are unexported fields) before the move.
+func NewConnectorHandlerForTest(issuer string, mcpServer *mcp.Server, hostedEvents bool) *ConnectorHandler {
+	return &ConnectorHandler{issuer: issuer, mcp: mcpServer, hostedEvents: hostedEvents}
+}
+
 // NewConnectorHandler builds the connector. upstream is the application mux
 // behind the key scope gate (auth.ScopeGate): MCP tool calls are served into
 // it in process, so a deploy-only key's tools meet the same route table.
@@ -971,6 +982,14 @@ func (h *ConnectorHandler) SetSignInAlerts(a *SignInAlerts) { h.alerts = a }
 // connectedAppName is how a sign-in alert names the app: the name it
 // registered with (self-declared, so the alert quotes it).
 func connectedAppName(name string) string { return cleanClientName(name) }
+
+// ResolveConsentUserForTest is resolveConsentUser, exported as a test hook
+// (cleanup 3.2 slice 3): the moved hack_m2_test.go
+// (TestHackM2ConnectorBoundToTeam) checks that a team key fails consent
+// resolution.
+func (h *ConnectorHandler) ResolveConsentUserForTest(ctx context.Context, key string) (db.User, int, string) {
+	return h.resolveConsentUser(ctx, key)
+}
 
 // resolveConsentUser authenticates the person deciding, by the API key the
 // sign-in on this page (or the dashboard) left in the browser.

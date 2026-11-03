@@ -255,18 +255,18 @@ func DirUsage(dir string) func(ctx context.Context) (int64, error) {
 	}
 }
 
-// hackAccountDeleteBlock says why an account on the hackathon platform cannot
+// HackAccountDeleteBlock says why an account on the hackathon platform cannot
 // be deleted yet ("" when it can). An event's holding account goes only with
 // its event (the admin's Events tab). An organiser of an event still running
 // ends or deletes it first, so no event is left that nobody can manage (an
 // event the platform took down does not hold them). The organiser's name and
 // contact address are blanked on the events that stay.
-func hackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string, holdingAccounts bool) (code, msg string, err error) {
+func HackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string, holdingAccounts bool) (code, msg string, err error) {
 	if !holdingAccounts {
 		return "", "", nil
 	}
 	var running bool
-	holding, err := hackHoldingAccount(ctx, q, userID, holdingAccounts)
+	holding, err := HackHoldingAccount(ctx, q, userID, holdingAccounts)
 	if err != nil {
 		return "", "", err
 	}
@@ -308,8 +308,8 @@ func hackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string, ho
 	return "", "", err
 }
 
-// hackHoldingAccount: userID is an event's holding account (never signs in).
-func hackHoldingAccount(ctx context.Context, q db.Querier, userID string, holdingAccounts bool) (bool, error) {
+// HackHoldingAccount: userID is an event's holding account (never signs in).
+func HackHoldingAccount(ctx context.Context, q db.Querier, userID string, holdingAccounts bool) (bool, error) {
 	if !holdingAccounts {
 		return false, nil
 	}

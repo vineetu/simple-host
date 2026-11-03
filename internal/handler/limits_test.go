@@ -50,11 +50,6 @@ func setConnectorAppLimits(a *connectorApp, l config.Limits) {
 	a.users.limitSet = newLimitSet(l)
 }
 
-// setHackAppLimits is setAppLimits for the hackApp fixture.
-func setHackAppLimits(a *hackApp, l config.Limits) {
-	a.hack.limits = l
-}
-
 // otherValue is a valid, non-default setting for env.
 func otherValue(t *testing.T, env string) string {
 	t.Helper()
@@ -357,7 +352,7 @@ func TestServedTextFollowsLimits(t *testing.T) {
 func TestShowcaseAndMessagePagesFollowLimits(t *testing.T) {
 	l := withLimits(t, changedLimits(t))
 	ed := edition.ForKindWithLimits(edition.Host, l)
-	page, err := chromeTestHandlerFor(ed).pipeline().chromePage("showcase.html", chromeData{})
+	page, err := chromeTestHandlerFor(ed).pipeline().chromePage("showcase.html", ChromeData{})
 	if err != nil {
 		t.Fatal(err)
 	}

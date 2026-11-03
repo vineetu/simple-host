@@ -248,6 +248,14 @@ RateLimit headers; limits still use continuous token-bucket refill.
   pages and skill downloads; `notice_middleware.go` stale-skill notice; `ratelimit.go`,
   `cors.go`; `notify.go`, `notify_client.go`, `notify_routes.go`, `notify_mcp.go` the
   notification outbox, SSRF-guarded delivery workers and REST routes.
+- `internal/hackhttp` — the Simple Hack HTTP API/pages (cleanup 3.2): `HackHandler` and its
+  routes, event and team pages, the hosted-events home. Does not import `internal/handler`
+  (a transitional edge to `db`/`auth`/`email`/`config` remains until step 4.x's repositories and
+  app services land). `internal/httpx` holds shared protocol helpers (`WriteJSON`, rate
+  limiting, signed links) both `handler` and `hackhttp` call; `internal/rules/*` pure
+  decisions (name/handle shape, OAuth grant classification, Hack event codes) with no SQL or
+  HTTP; `internal/model` shared record types (e.g. `TeamSite`) moved out of `handler`/`db` as
+  both sides needed them. See `docs/architecture/target.md` §2 for the full target package map.
 - `internal/mcp` — MCP JSON-RPC server, tool list, output schemas, instructions;
   `events.go`, `events_types.go` MCP Events (`events/list`, `events/subscribe`,
   `events/unsubscribe`) over the same delivery engine as `notify.go`.
@@ -404,11 +412,13 @@ Tables (`db/schema.sql`):
 - **Never hand out a site host without its certificate.** A TLS name mismatch cannot be fixed
   after the handshake, so URLs and redirects use `<site>.<handle>` only once
   `SITE_CERT_DIR/ready/<handle>` exists.
-- **`internal/handler` is the only package that imports other internal packages** (plus `auth`
-  → `db`; test files may import `testdb`). Enforced by `scripts/check-layering.sh`.
+- **`internal/handler` and `internal/hackhttp` are the only packages that import other internal
+  packages** (plus `auth` → `db`; test files may import `testdb`, and each of `handler`/
+  `hackhttp`'s test files may import the other, to build a real fixture across the boundary).
+  Enforced by `scripts/check-layering.sh`.
 - **`openapi.yaml` is the shared API contract;** `openapi.json` is generated from it.
   Each operation carries `x-audience` (`public-host`, `public-hack`, `internal`, `legacy`).
-  `internal/handler/hack_docs.go` filters operations and unused tags/components at the served
+  `internal/handler/hack_assets.go` filters operations and unused tags/components at the served
   `/openapi.json` and `/openapi.yaml` URLs (JSON is valid YAML 1.2). The docs page
   loads that filtered reference. Internal and legacy (older saved-data) operations stay in the source for
   coverage; each product’s `llms.txt` describes its public API.

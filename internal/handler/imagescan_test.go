@@ -450,7 +450,7 @@ func TestImageScanStorageFile(t *testing.T) {
 // 4. An event icon: cleared, and the event taken down.
 func TestImageScanEventIcon(t *testing.T) {
 	isolateQueueTest(t)
-	a := newHackApp(t)
+	a := newBridgeTeamApp(t)
 	disk, err := storage.NewDiskStorage(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -619,7 +619,7 @@ func TestImageScanPrivacyItem(t *testing.T) {
 	t.Cleanup(func() { SetImageScanOn(was) })
 	for _, on := range []bool{true, false} {
 		SetImageScanOn(on)
-		page, err := newAssetPipeline(edition.ForKind(edition.Host), "").chromePage("privacy.html", chromeData{})
+		page, err := newAssetPipeline(edition.ForKind(edition.Host), "").chromePage("privacy.html", ChromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1270,7 +1270,7 @@ func TestImageScanReportSaveFails(t *testing.T) {
 // event's holding account.
 func TestImageScanHackUploader(t *testing.T) {
 	isolateQueueTest(t)
-	a := newTeamSiteApp(t)
+	a := newBridgeTeamApp(t)
 	f := newImageScanFixtureDB(t, a.database, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
 	org, p1 := a.newPerson(t, "org"), a.newPerson(t, "p1")
@@ -1566,7 +1566,7 @@ func TestImageScanReporteeNoHoldingAccount(t *testing.T) {
 // organiser's event-storage upload record the organiser.
 func TestImageScanHackOrganiserUploader(t *testing.T) {
 	isolateQueueTest(t)
-	a := newTeamSiteApp(t)
+	a := newBridgeTeamApp(t)
 	f := newImageScanFixtureDB(t, a.database, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
 	org := a.newPerson(t, "org")
@@ -1613,7 +1613,7 @@ func TestImageScanHackOrganiserUploader(t *testing.T) {
 // and with publish=false, records the member as the writer.
 func TestImageScanHackUploaderExistingSite(t *testing.T) {
 	isolateQueueTest(t)
-	a := newTeamSiteApp(t)
+	a := newBridgeTeamApp(t)
 	f := newImageScanFixtureDB(t, a.database, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
 	org, p1 := a.newPerson(t, "org"), a.newPerson(t, "p1")

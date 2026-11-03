@@ -363,6 +363,11 @@ func (h *SiteHandler) StartHackSweep(ctx context.Context, every time.Duration, a
 	}()
 }
 
+// HackSweepForTest is hackSweep, exported as a test hook (cleanup 3.2 slice
+// 3): the moved hack_m2_test.go runs one sweep on demand
+// (TestHackM2ReviewRound2) instead of waiting on StartHackSweep's ticker.
+func (h *SiteHandler) HackSweepForTest(ctx context.Context) { h.hackSweep(ctx) }
+
 func (h *SiteHandler) hackSweep(ctx context.Context) {
 	if err := db.PinDueTeams(ctx, h.database, ""); err != nil {
 		log.Printf("hack sweep: pin: %v", err)

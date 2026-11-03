@@ -47,7 +47,7 @@ const (
 )
 
 var (
-	chromeTemplates = template.Must(template.ParseFS(staticFiles, "static/partials/*.html"))
+	ChromeTemplates = template.Must(template.ParseFS(staticFiles, "static/partials/*.html"))
 	hackInkVersion  = func() string {
 		b, err := staticFiles.ReadFile("static/hack-ink.css")
 		if err != nil {
@@ -98,9 +98,9 @@ func SigninJSVersion() string {
 	return signinVer
 }
 
-// chromeData is everything the partials vary on. Every field is drawn from a
+// ChromeData is everything the partials vary on. Every field is drawn from a
 // small fixed set, so it is also a safe cache key.
-type chromeData struct {
+type ChromeData struct {
 	// Base prefixes every chrome link. Empty on the main origin; the main
 	// site's absolute URL when the page is served from the content host or a
 	// custom domain, where "/install.html" would resolve to the wrong server.
@@ -167,14 +167,14 @@ var navKeys = map[string]string{
 
 // chromeDataFor derives the chrome for one request. base is "" for pages on
 // the main origin.
-func (p *assetPipeline) chromeDataFor(r *http.Request, base string) chromeData {
+func (p *assetPipeline) chromeDataFor(r *http.Request, base string) ChromeData {
 	current := navKeys[r.URL.Path]
 	host := r.Host
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
 	host = strings.ToLower(host)
-	return chromeData{
+	return ChromeData{
 		Base:          base,
 		Current:       current,
 		HackHome:      current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
@@ -186,14 +186,14 @@ func (p *assetPipeline) chromeDataFor(r *http.Request, base string) chromeData {
 }
 
 // RenderAppShell is static/hack/app.html (body) with its chrome applied: the
-// kit's own presentation (chromeData.Hack=false, since the kit already
+// kit's own presentation (ChromeData.Hack=false, since the kit already
 // carries Simple Hack's own look), and the sign-in script tag only when
 // signin is true (only /signin mounts window.SHSignIn; every other route
 // strips the marker instead of loading it).
 //
 // Exported for hackPages (cleanup 3.2 slice 2a): RegisterHackUI
 // (hack_ui.go), moving to internal/hackhttp, used to do this inline with
-// withChrome/chromeData directly, both unexported handler types/functions.
+// withChrome/ChromeData directly, both unexported handler types/functions.
 func (p *assetPipeline) RenderAppShell(r *http.Request, body []byte, signin bool) ([]byte, error) {
 	if !signin {
 		body = bytes.ReplaceAll(body, []byte(markerSignin), nil)
@@ -206,7 +206,16 @@ func (p *assetPipeline) RenderAppShell(r *http.Request, body []byte, signin bool
 // withChrome replaces each marker in page with its rendered partial. Each
 // marker is replaced once; a page's source is checked by tests to carry each
 // exactly once.
-func withChrome(page []byte, d chromeData) ([]byte, error) {
+// WithChromeForTest applies p's chrome to page the way withChrome(page,
+// p.chromeDataFor(r, base)) does. Test hook (cleanup 3.2 slice 3): the
+// moved hack_eventpage_test.go (TestHackChromeHeader) checks raw
+// chrome-marker substitution directly; ChromeData and withChrome are both
+// unexported, so a cross-package caller cannot build the call itself.
+func (p *assetPipeline) WithChromeForTest(r *http.Request, base string, page []byte) ([]byte, error) {
+	return withChrome(page, p.chromeDataFor(r, base))
+}
+
+func withChrome(page []byte, d ChromeData) ([]byte, error) {
 	if !bytes.Contains(page, []byte("<!--sh:")) {
 		return page, nil
 	}
@@ -222,7 +231,7 @@ func withChrome(page []byte, d chromeData) ([]byte, error) {
 			continue
 		}
 		var buf bytes.Buffer
-		if err := chromeTemplates.ExecuteTemplate(&buf, m.partial, d); err != nil {
+		if err := ChromeTemplates.ExecuteTemplate(&buf, m.partial, d); err != nil {
 			return nil, err
 		}
 		page = bytes.Replace(page, []byte(m.marker), bytes.TrimRight(buf.Bytes(), "\n"), 1)
@@ -282,7 +291,7 @@ func addHackInk(page []byte, base string) []byte {
 // Go-built status pages were themed at package init, before hosted mode is known.
 func (p *assetPipeline) hostedStatusPage(page string) []byte {
 	if p.chromeHack {
-		d := chromeData{Hack: true, Base: p.inkBaseURL(), CSSVersion: siteCSSVersion, SigninVersion: SigninJSVersion()}
+		d := ChromeData{Hack: true, Base: p.inkBaseURL(), CSSVersion: siteCSSVersion, SigninVersion: SigninJSVersion()}
 		if !strings.Contains(page, "<head>") && !strings.Contains(page, "<head ") {
 			page = "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\">" + markerHead + "</head><body>" + page + "</body></html>"
 		} else {
@@ -314,7 +323,7 @@ func (p *assetPipeline) hostedStatusPage(page string) []byte {
 // themed fills the theme marker of a page built in Go that has no other
 // chrome. It runs once, at package init.
 func themed(page string) string {
-	b, err := withChrome([]byte(page), chromeData{})
+	b, err := withChrome([]byte(page), ChromeData{})
 	if err != nil {
 		panic("theme partial: " + err.Error())
 	}
@@ -323,17 +332,17 @@ func themed(page string) string {
 
 type chromeCacheKey struct {
 	name string
-	d    chromeData
+	d    ChromeData
 }
 
 // chromeCache holds assembled static pages. Bounded: a handful of pages times
-// a handful of chromeData values.
+// a handful of ChromeData values.
 var chromeCache sync.Map
 
 // chromePage returns the embedded static/<name> with its chrome filled in and
 // this install's limits in its copy (limitstext.go). The enterprise-* pages
 // describe the other product, whose limits are its own, so they keep theirs.
-func (p *assetPipeline) chromePage(name string, d chromeData) ([]byte, error) {
+func (p *assetPipeline) chromePage(name string, d ChromeData) ([]byte, error) {
 	page, err := chromePageRaw(name, d)
 	if err != nil || strings.HasPrefix(name, "enterprise-") || name == "enterprise.html" {
 		return page, err
@@ -372,7 +381,7 @@ func hostedBlocks(page []byte, hosted bool) []byte {
 	return bytes.ReplaceAll(page, []byte("<!--/sh:"+keep+"-->"), nil)
 }
 
-func chromePageRaw(name string, d chromeData) ([]byte, error) {
+func chromePageRaw(name string, d ChromeData) ([]byte, error) {
 	key := chromeCacheKey{name, d}
 	if v, ok := chromeCache.Load(key); ok {
 		return v.([]byte), nil

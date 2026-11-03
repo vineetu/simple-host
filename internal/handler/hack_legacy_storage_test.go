@@ -22,7 +22,7 @@ func TestHackLegacyStorageGate(t *testing.T) {
 		"/v1/data-notify/stop",
 	}
 	for _, path := range paths {
-		if !hackLegacyStoragePath(path) {
+		if !HackLegacyStoragePath(path) {
 			t.Errorf("legacy path missed: %s", path)
 		}
 	}
@@ -32,7 +32,7 @@ func TestHackLegacyStorageGate(t *testing.T) {
 		"/v1/hack/events/event/website/storage/resources", "/v1/hack/events/event/state",
 		"/v1/admin/sites/id/versions", "/v1/visitor/establish",
 	} {
-		if hackLegacyStoragePath(path) {
+		if HackLegacyStoragePath(path) {
 			t.Errorf("current route blocked: %s", path)
 		}
 	}
@@ -73,7 +73,7 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 		t.Fatal("Hack OpenAPI has no paths")
 	}
 	for path := range spec.Paths {
-		if hackLegacyStoragePath(path) {
+		if HackLegacyStoragePath(path) {
 			t.Errorf("retired Hack path in public OpenAPI: %s", path)
 		}
 	}
@@ -136,7 +136,7 @@ func TestHelpPagesExcludePersonalPresentationOnHack(t *testing.T) {
 	hostAssets := newAssetPipeline(edition.ForKind(edition.Host), "")
 	hackAssets := newAssetPipeline(edition.ForKind(edition.Hack), "")
 	for _, name := range []string{"features.html", "architecture.html"} {
-		host, err := hostAssets.chromePage(name, chromeData{})
+		host, err := hostAssets.chromePage(name, ChromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -147,7 +147,7 @@ func TestHelpPagesExcludePersonalPresentationOnHack(t *testing.T) {
 		if !strings.Contains(string(host), needle) {
 			t.Fatalf("Host %s lost home-page help", name)
 		}
-		hack, err := hackAssets.chromePage(name, chromeData{})
+		hack, err := hackAssets.chromePage(name, ChromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}

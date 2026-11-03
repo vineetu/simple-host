@@ -38,11 +38,11 @@ func handleAddress(handle string) string {
 
 const handleFormatMsg = "Use 1 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen."
 
-// judgeHandle checks the shape, the reserved names and who holds it. userID
+// JudgeHandle checks the shape, the reserved names and who holds it. userID
 // is the asking account ("" for a new one): its own handle and old handles
 // count as its own. A claim still decides under the namespace lock; this is
 // the early, readable refusal.
-func judgeHandle(ctx context.Context, q db.Querier, userID, handle string) (handleVerdict, error) {
+func JudgeHandle(ctx context.Context, q db.Querier, userID, handle string) (handleVerdict, error) {
 	v := handleVerdict{Address: handleAddress(handle)}
 	if !visitorHandleRe.MatchString(handle) || !handleIsLabel(handle) {
 		v.Status, v.Code, v.Error = http.StatusBadRequest, "invalid_handle", handleFormatMsg
@@ -79,7 +79,7 @@ func suggestHandle(ctx context.Context, q db.Querier, email string) string {
 	_, _ = rand.Read(b[:])
 	candidates = append(candidates, base+"-"+hex.EncodeToString(b[:]))
 	for _, c := range candidates {
-		if v, err := judgeHandle(ctx, q, "", c); err == nil && v.Status == 0 {
+		if v, err := JudgeHandle(ctx, q, "", c); err == nil && v.Status == 0 {
 			return c
 		}
 	}
@@ -103,7 +103,7 @@ func (h *UserHandler) handleCheck(w http.ResponseWriter, r *http.Request) {
 			userID, own = u.ID, u.Handle.String
 		}
 	}
-	v, err := judgeHandle(r.Context(), h.database, userID, handle)
+	v, err := JudgeHandle(r.Context(), h.database, userID, handle)
 	if own != "" && handle == own {
 		v = handleVerdict{Address: handleAddress(handle)} // your own address, as it is
 	}

@@ -328,7 +328,7 @@ func (h *SiteHandler) showcaseFeed(w http.ResponseWriter, r *http.Request) {
 // showcasePage assembles the showcase template: the shared chrome, then the
 // handle and the page data. Kept apart from the database work so the served
 // markup can be tested on its own.
-func (p *assetPipeline) showcasePage(d chromeData, data showcaseData) ([]byte, error) {
+func (p *assetPipeline) showcasePage(d ChromeData, data showcaseData) ([]byte, error) {
 	tmpl, err := p.chromePage("showcase.html", d)
 	if err != nil {
 		return nil, err
@@ -571,6 +571,13 @@ func (p *assetPipeline) WriteMessagePage(w http.ResponseWriter, r *http.Request,
 }
 
 var serviceErrorPage = themed(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><!--sh:theme--><title>Temporarily unavailable</title><h1>Temporarily unavailable</h1><p>Please try again in a moment.</p>`)
+
+// RenderServiceErrorForTest is renderServiceError, exported as a test hook
+// (cleanup 3.2 slice 3): the moved hack_ink_browser_test.go (an opt-in
+// Playwright rehearsal fixture) mounts it at a debug path.
+func (h *SiteHandler) RenderServiceErrorForTest(w http.ResponseWriter, r *http.Request) {
+	h.renderServiceError(w, r)
+}
 
 func (h *SiteHandler) renderServiceError(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

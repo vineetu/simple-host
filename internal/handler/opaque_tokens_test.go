@@ -13,6 +13,7 @@ import (
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/internal/hackhttp"
 	"github.com/vsriram/simple-host/internal/mcp"
 )
 
@@ -42,10 +43,10 @@ func assertOpaqueToken(t *testing.T, token string) {
 func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 	key := newExportKey()
 	h := &SiteHandler{exportKey: key, limitSet: newLimitSet(config.DefaultLimits())}
-	hack := &HackHandler{archiveLinkKey: key, limits: config.DefaultLimits()}
+	hack := hackhttp.NewHackHandlerForTest(key, config.DefaultLimits())
 	now := time.Now().Truncate(time.Second)
 	expiry := now.Add(time.Minute)
-	claim := hackArchiveClaim{UserID: opaqueOwner, EventID: opaqueSite, TeamID: opaqueTeam, Slug: "event", Kind: "own-team", Expiry: expiry.Unix()}
+	claim := hackhttp.HackArchiveClaim{UserID: opaqueOwner, EventID: opaqueSite, TeamID: opaqueTeam, Slug: "event", Kind: "own-team", Expiry: expiry.Unix()}
 	storage := storageCall{ownerID: opaqueOwner, siteID: opaqueSite, resourceName: "photos", linkScope: "team:" + opaqueTeam}
 	cases := []struct {
 		name, domain string
@@ -54,7 +55,7 @@ func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 		{"export", exportLinkDomain, func() string { return h.signExportToken(opaqueOwner, opaqueSite, expiry) }},
 		{"preview", previewLinkDomain, func() string { return h.signPreviewToken(opaqueSite, 2, expiry) }},
 		{"file", "site storage file v1", func() string { return h.storageFileToken(storage, "a/photo.png", expiry) }},
-		{"hack", hackArchiveLinkDomain, func() string { return hack.signHackArchiveClaim(claim) }},
+		{"hack", hackhttp.HackArchiveLinkDomain, func() string { return hack.SignHackArchiveClaim(claim) }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -88,7 +89,7 @@ func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 	if site, version, err := h.checkPreviewToken(cases[1].mint(), now); err != nil || site != opaqueSite || version != 2 {
 		t.Fatal("preview binding lost")
 	}
-	if got, ok := hack.checkHackArchiveClaim(cases[3].mint(), now); !ok || got != claim {
+	if got, ok := hack.CheckHackArchiveClaim(cases[3].mint(), now); !ok || got != claim {
 		t.Fatal("archive binding lost")
 	}
 	raw, err := openLink(key, "site storage file v1", cases[2].mint())
@@ -104,7 +105,7 @@ func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 	for _, exp := range []time.Time{now.Add(-time.Second), now.Add(10*time.Minute + time.Minute)} {
 		bad := claim
 		bad.Expiry = exp.Unix()
-		if _, ok := hack.checkHackArchiveClaim(hack.signHackArchiveClaim(bad), now); ok {
+		if _, ok := hack.CheckHackArchiveClaim(hack.SignHackArchiveClaim(bad), now); ok {
 			t.Error("archive expiry accepted")
 		}
 	}

@@ -39,6 +39,13 @@ var takedownPage = themed(`<!doctype html>
 </head><body><h1>This site has been taken down</h1><p>It is no longer available.</p></body></html>
 `)
 
+// ServeTakedownForTest is serveTakedown, exported as a test hook (cleanup
+// 3.2 slice 3): the moved hack_ink_browser_test.go (an opt-in Playwright
+// rehearsal fixture) mounts it at a debug path.
+func (h *SiteHandler) ServeTakedownForTest(w http.ResponseWriter, r *http.Request) {
+	h.serveTakedown(w, r)
+}
+
 // serveTakedown writes the take-down page. 410 so it is not cached as the
 // site's content; no-store so a restore takes effect on the next load.
 func (h *SiteHandler) serveTakedown(w http.ResponseWriter, r *http.Request) {
@@ -300,7 +307,7 @@ func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 			return
 		}
-		if held, herr := hackHoldingAccount(r.Context(), h.database, id, h.ed.Identity().HoldingAccounts); herr != nil {
+		if held, herr := HackHoldingAccount(r.Context(), h.database, id, h.ed.Identity().HoldingAccounts); herr != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		} else if held {

@@ -21,7 +21,7 @@ func hostDiagram(hostedEvents bool, next http.Handler) http.Handler {
 			return
 		}
 		var theme bytes.Buffer
-		_ = chromeTemplates.ExecuteTemplate(&theme, "theme.html", chromeData{})
+		_ = ChromeTemplates.ExecuteTemplate(&theme, "theme.html", ChromeData{})
 		script := strings.ReplaceAll(strings.ReplaceAll(theme.String(), "<script>", "<script><![CDATA["), "</script>", "]]></script>")
 		font := strings.SplitN(hostStatusCSS, "\n", 2)[0]
 		style := `<style><![CDATA[` + font + `

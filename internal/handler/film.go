@@ -10,11 +10,11 @@ import (
 	"time"
 )
 
-// filmTypes are the landing film's files (static/film/) and their types: H.264
+// FilmTypes are the landing film's files (static/film/) and their types: H.264
 // MP4 first, and VP9 WebM for browsers built without H.264. The
 // type is set here rather than read from the system's mime table, which a
 // small container image may not have.
-var filmTypes = map[string]string{
+var FilmTypes = map[string]string{
 	"host-film-390.mp4":         "video/mp4",
 	"host-film-1280.mp4":        "video/mp4",
 	"host-film-390.webm":        "video/webm",
@@ -23,7 +23,7 @@ var filmTypes = map[string]string{
 	"host-film-1280-poster.jpg": "image/jpeg",
 }
 
-var hackFilmTypes = map[string]string{
+var HackFilmTypes = map[string]string{
 	"hack-film-390.mp4":         "video/mp4",
 	"hack-film-1280.mp4":        "video/mp4",
 	"hack-film-390.webm":        "video/webm",
@@ -74,9 +74,9 @@ var enterpriseFilmTypes = map[string]string{
 // ETag lets a cached copy revalidate cheaply.
 func serveFilm(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("file")
-	ctype, ok := filmTypes[name]
+	ctype, ok := FilmTypes[name]
 	if !ok {
-		ctype, ok = hackFilmTypes[name]
+		ctype, ok = HackFilmTypes[name]
 	}
 	if !ok {
 		ctype, ok = hackCompaniesFilmTypes[name]
@@ -105,7 +105,7 @@ func serveFilm(w http.ResponseWriter, r *http.Request) {
 
 // filmETags hashes each film file once, on first use.
 var filmETags = sync.OnceValue(func() map[string]string {
-	tags := make(map[string]string, len(filmTypes)+len(hackFilmTypes)+len(hackCompaniesFilmTypes)+len(artifactFilmTypes)+len(enterpriseFilmTypes))
+	tags := make(map[string]string, len(FilmTypes)+len(HackFilmTypes)+len(hackCompaniesFilmTypes)+len(artifactFilmTypes)+len(enterpriseFilmTypes))
 	for name := range landingFilmTypes() {
 		b, err := embeddedStatic.ReadFile(path.Join("static/film", name))
 		if err != nil {
@@ -118,11 +118,11 @@ var filmETags = sync.OnceValue(func() map[string]string {
 })
 
 func landingFilmTypes() map[string]string {
-	types := make(map[string]string, len(filmTypes)+len(hackFilmTypes)+len(hackCompaniesFilmTypes)+len(artifactFilmTypes)+len(enterpriseFilmTypes))
-	for name, ctype := range filmTypes {
+	types := make(map[string]string, len(FilmTypes)+len(HackFilmTypes)+len(hackCompaniesFilmTypes)+len(artifactFilmTypes)+len(enterpriseFilmTypes))
+	for name, ctype := range FilmTypes {
 		types[name] = ctype
 	}
-	for name, ctype := range hackFilmTypes {
+	for name, ctype := range HackFilmTypes {
 		types[name] = ctype
 	}
 	for name, ctype := range hackCompaniesFilmTypes {

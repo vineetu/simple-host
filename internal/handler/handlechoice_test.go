@@ -51,7 +51,7 @@ func TestSignUpChoosesHandle(t *testing.T) {
 	}{
 		// One refusal here: every verify counts against the address's
 		// sign-in limit (5 at once); the other refusals are the same
-		// judgeHandle, covered by TestHandleCheck.
+		// JudgeHandle, covered by TestHandleCheck.
 		{takenHandle, http.StatusConflict, "handle_taken"},
 	} {
 		r := verify(map[string]any{"email": addr, "code": "424242", "handle": c.handle})

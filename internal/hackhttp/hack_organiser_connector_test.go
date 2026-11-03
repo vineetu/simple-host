@@ -1,0 +1,176 @@
+package hackhttp
+
+import (
+	"encoding/json"
+	"net/http"
+	"reflect"
+	"strings"
+	"testing"
+)
+
+// Real-handler checks: organiser tools use the personal OAuth grant and have
+// the same result and permission refusal as REST, across the event's private
+// administration areas.
+func TestHackOrganiserConnectorParity(t *testing.T) {
+	a := newTeamSiteApp(t)
+	organiser := a.newPerson(t, "mcpoadmin")
+	stranger := a.newPerson(t, "mcpostranger")
+	slug := a.makeEvent(t, organiser)
+	base := "/v1/hack/events/" + slug
+	tokenFor := func(p person) string {
+		t.Helper()
+		reg := a.do(t, http.MethodPost, "/oauth/register", jsonBody(map[string]any{"client_name": "Organiser test", "redirect_uris": []string{testRedirect}, "token_endpoint_auth_method": "none"}), map[string]string{"Content-Type": "application/json"})
+		if reg.status != 201 {
+			t.Fatalf("register: %d", reg.status)
+		}
+		client := reg.json(t)["client_id"].(string)
+		verifier, challenge := newVerifier()
+		q := authorizeQuery(client, testRedirect, challenge)
+		q.Set("resource", a.srv.URL)
+		_, csrf := a.consentPage(t, q)
+		allow := a.decideConsent(t, q, csrf, p.key, nil)
+		if allow.status != 200 {
+			t.Fatalf("consent: %d %s", allow.status, allow.body)
+		}
+		return a.exchangeCode(t, client, testRedirect, verifier, codeFrom(t, allow.json(t)["redirect_to"].(string)), a.srv.URL)["access_token"].(string)
+	}
+	orgToken, strangerToken := tokenFor(organiser), tokenFor(stranger)
+	call := func(token, name string, args map[string]any) (map[string]any, string, bool) {
+		t.Helper()
+		text, out, bad := toolResultOf(t, a.rpc(t, token, "tools/call", map[string]any{"name": name, "arguments": args}))
+		return out, text, bad
+	}
+	// Read parity preserves REST fields except the documented MCP omissions.
+	reads := []struct{ name, path string }{
+		{"hack_get_content", "/content"},
+		{"hack_get_announcements", "/announcements"},
+		{"hack_get_registration", "/registration"},
+		{"hack_get_applications", "/applications"},
+		{"hack_get_tracks", "/tracks"},
+		{"hack_get_voting_settings", "/voting"},
+		{"hack_get_people", "/people"},
+		{"hack_get_teams", "/teams"},
+		{"hack_get_judging_settings", "/judging/settings"},
+		{"hack_get_assignments", "/assignments"},
+		{"hack_get_panels", "/judging/panels"},
+		{"hack_preview_judging_assignments", "/judging/preview"},
+		{"hack_get_conflicts", "/conflicts"},
+		{"hack_get_judging_dashboard", "/judging/dashboard"},
+		{"hack_get_usage", "/usage"},
+	}
+	for _, tc := range reads {
+		t.Run(tc.name, func(t *testing.T) {
+			rest := a.api(t, http.MethodGet, base+tc.path, nil, organiser.key)
+			if rest.status != 200 {
+				t.Fatalf("REST %d %s", rest.status, rest.body)
+			}
+			var restJSON any
+			if err := json.Unmarshal([]byte(rest.body), &restJSON); err != nil {
+				t.Fatal(err)
+			}
+			if tc.name == "hack_get_judging_dashboard" {
+				for _, judge := range restJSON.(map[string]any)["judges"].([]any) {
+					delete(judge.(map[string]any), "judge_id")
+				}
+			}
+			out, text, bad := call(orgToken, tc.name, map[string]any{"slug": slug})
+			if bad || out["status"] != float64(rest.status) || !reflect.DeepEqual(out["response"], restJSON) {
+				t.Fatalf("MCP/REST mismatch: %s", text)
+			}
+		})
+	}
+	// These private routes span event, people, team, judging and export
+	// mutations. A nonmember's connector must get the REST refusal before any
+	// body validation or data disclosure.
+	denied := []struct {
+		name, method, path string
+		args               map[string]any
+	}{
+		{"hack_set_content", "PUT", "/content", map[string]any{"body": map[string]any{}}},
+		{"hack_post_announcement", "POST", "/announcements", map[string]any{"body": map[string]any{}}},
+		{"hack_set_registration", "PUT", "/registration", map[string]any{"body": map[string]any{}}},
+		{"hack_get_applications", "GET", "/applications", nil},
+		{"hack_set_tracks", "PUT", "/tracks", map[string]any{"body": map[string]any{}}},
+		{"hack_set_voting_settings", "PUT", "/voting", map[string]any{"body": map[string]any{}}},
+		{"hack_set_directory_listing", "PATCH", "/directory", map[string]any{"body": map[string]any{"listed": true}}},
+		{"hack_regenerate_code", "POST", "/codes/join", map[string]any{"kind": "join"}},
+		{"hack_get_people", "GET", "/people", nil},
+		{"hack_get_teams", "GET", "/teams", nil},
+		{"hack_create_organiser_invite", "POST", "/organiser-invite", nil},
+		{"hack_get_judging_settings", "GET", "/judging/settings", nil},
+		{"hack_generate_assignments", "POST", "/assignments/generate", nil},
+		{"hack_get_judging_dashboard", "GET", "/judging/dashboard", nil},
+		{"hack_lock_judging", "POST", "/judging/lock", nil},
+		{"hack_publish_results", "POST", "/results/publish", map[string]any{"body": map[string]any{}}},
+		{"hack_export_participants", "GET", "/export/participants.csv", nil},
+		{"hack_export_teams", "GET", "/export/teams.csv", nil},
+		{"hack_export_entries", "GET", "/export/entries.csv", nil},
+		{"hack_get_usage", "GET", "/usage", nil},
+	}
+	for _, tc := range denied {
+		t.Run("deny_"+tc.name, func(t *testing.T) {
+			rest := a.api(t, tc.method, base+tc.path, tc.args["body"], stranger.key)
+			if rest.status < 400 {
+				t.Fatalf("REST unexpectedly allowed: %d", rest.status)
+			}
+			args := map[string]any{"slug": slug}
+			for k, v := range tc.args {
+				args[k] = v
+			}
+			_, text, bad := call(strangerToken, tc.name, args)
+			if !bad || !strings.Contains(text, rest.json(t)["code"].(string)) {
+				t.Fatalf("MCP did not preserve REST refusal: %s", text)
+			}
+		})
+	}
+	participant := a.newPerson(t, "mcp-delete-participant")
+	a.join(t, slug, participant, organiser)
+	// The browser roster retains contact details, but MCP requires an explicit opt-in.
+	a.startTeam(t, slug, "Builders", participant)
+	unassigned := a.newPerson(t, "mcp-unassigned")
+	a.join(t, slug, unassigned, organiser)
+	restTeams := a.api(t, "GET", base+"/teams", nil, organiser.key)
+	if !strings.Contains(string(restTeams.body), participant.email) || !strings.Contains(string(restTeams.body), unassigned.email) {
+		t.Fatal("browser team roster lost member emails")
+	}
+	for _, include := range []bool{false, true} {
+		args := map[string]any{"slug": slug}
+		if include {
+			args["include_emails"] = true
+		}
+		out, text, bad := call(orgToken, "hack_get_teams", args)
+		if bad {
+			t.Fatal(text)
+		}
+		raw, err := json.Marshal(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, email := range []string{participant.email, unassigned.email} {
+			if strings.Contains(string(raw), email) != include || strings.Contains(text, email) != include {
+				t.Fatal("team emails did not follow include_emails")
+			}
+		}
+		response := out["response"].(map[string]any)
+		member := response["teams"].([]any)[0].(map[string]any)["members"].([]any)[0].(map[string]any)
+		if member["user_id"] != a.uid(t, participant) || member["display_name"] != "P" {
+			t.Fatal("team management lost member selectors")
+		}
+	}
+	participantToken := tokenFor(participant)
+	for _, token := range []string{strangerToken, participantToken} {
+		_, text, bad := call(token, "hack_delete_event", map[string]any{"slug": slug, "body": map[string]any{"confirm": slug}})
+		if !bad || !strings.Contains(text, "event_not_found") {
+			t.Fatalf("delete permission bypass: %s", text)
+		}
+	}
+	_, text, bad := call(orgToken, "hack_delete_event", map[string]any{"slug": slug, "body": map[string]any{"confirm": "wrong"}})
+	if !bad || !strings.Contains(text, "delete_only_empty") {
+		t.Fatalf("delete confirmation bypass: %s", text)
+	}
+	out, text, bad := call(orgToken, "hack_delete_event", map[string]any{"slug": slug, "body": map[string]any{"confirm": slug}})
+	if bad || out["status"] != float64(204) {
+		t.Fatalf("confirmed connector deletion: %s", text)
+	}
+
+}

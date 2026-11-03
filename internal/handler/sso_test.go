@@ -517,7 +517,7 @@ func TestSSOProviderAndEmailSignup(t *testing.T) {
 }
 
 func TestSSOHackEventAndTeamHosts(t *testing.T) {
-	a := newTeamSiteApp(t)
+	a := newBridgeTeamApp(t)
 	organiser, member := a.newPerson(t, "ssohackorg"), a.newPerson(t, "ssohackmember")
 	event := a.makeEvent(t, organiser)
 	a.join(t, event, member, organiser)
@@ -525,14 +525,14 @@ func TestSSOHackEventAndTeamHosts(t *testing.T) {
 	markReady(t, a.certDir, event)
 	wantTS(t, "team", a.deployTeam(t, team, a.teamKey(t, event, member), "team"), 201, "")
 	wantTS(t, "event website", a.api(t, "PUT", "/v1/hack/events/"+event+"/website/files?create=1", deployBody("event"), organiser.key), 201, "")
-	o := NewOAuthHandler(a.database, config.Config{PublicBaseURL: a.srv.URL, SiteDomain: tsDomain, ContentHost: "sites." + tsDomain}, a.sites.ed)
+	o := NewOAuthHandler(a.database, config.Config{PublicBaseURL: a.srv.URL, SiteDomain: bridgeTSDomain, ContentHost: "sites." + bridgeTSDomain}, a.sites.ed)
 	o.SetPersonSiteResolver(a.sites.PersonReturnSite)
 	o.SetPasscodeCheck(a.sites.PasscodeLetsIn)
 	a.sites.SetSSOHop(o)
 	o.Register(a.mux)
 	pa := &privateApp{connectorApp: a.connectorApp, sites: a.sites, users: a.users, mux: a.mux}
 	pass := pa.ssoPass(t, member.key)
-	for _, host := range []string{team + "." + event + "." + tsDomain, event + "." + tsDomain} {
+	for _, host := range []string{team + "." + event + "." + bridgeTSDomain, event + "." + bridgeTSDomain} {
 		raw, _ := pa.finishSSO(t, host, pass)
 		id, _ := hex.DecodeString(raw)
 		sess, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)

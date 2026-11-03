@@ -1,0 +1,868 @@
+package hackhttp
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/lib/pq"
+	"github.com/vsriram/simple-host/internal/db"
+)
+
+// Regression tests for the Grok security review of SIM-340 (leave this
+// event). Each test is named after the finding it covers.
+
+// --- finding 1: same-user deadlock minting a team key while leaving -------
+
+// TestHackMakeTeamKeyLocksEventFirst proves makeTeamKey now takes the event
+// row FOR SHARE before the member row FOR UPDATE, the same order leave
+// (event FOR UPDATE, then member) uses. Before the fix, makeTeamKey never
+// touched the event row until ReplaceTeamKey's INSERT into event_team_keys,
+// whose foreign key takes an implicit FOR KEY SHARE on events -- so a
+// concurrent leave by the same person, holding the event row FOR UPDATE and
+// waiting on the same member row, could cycle with it at that point.
+//
+// Forced ordering: hold the event row FOR UPDATE from a third connection
+// (as leave would mid-transaction), start makeTeamKey, and poll
+// pg_stat_activity for it waiting specifically on GetEventForShare's own
+// query (wait_event_type='Lock', matched by query text -- a row-lock wait
+// shows up there, not as a relation-level pg_locks row, and other
+// connections in this shared, busy database can be waiting on something
+// else at the same moment too). The lock is always released and the
+// request always drained before any assertion fires, so a failing run
+// reports cleanly instead of leaving the background request -- and this
+// test -- hanging against a lock nothing will ever release.
+func TestHackMakeTeamKeyLocksEventFirst(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvkdorg")
+	p1 := a.newPerson(t, "lvkdp1")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, _ := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "P1")
+	a.createTeamAndJoin(t, slug, p1, "KeyTeam")
+
+	eventID := a.eventID(t, slug)
+	lockTx, err := a.database.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lockedID string
+	if err := lockTx.QueryRow(`SELECT id FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&lockedID); err != nil {
+		t.Fatal(err)
+	}
+
+	keyDone := make(chan resp, 1)
+	go func() { keyDone <- a.at(t, "POST", "/v1/hack/events/"+slug+"/key", nil, a.key(p1)) }()
+
+	waiting, finishedEarly := false, false
+	deadline := time.Now().Add(2 * time.Second)
+poll:
+	for time.Now().Before(deadline) {
+		select {
+		case <-keyDone:
+			finishedEarly = true
+			break poll
+		default:
+		}
+		var n int
+		if err := a.database.QueryRow(`
+			SELECT count(*) FROM pg_stat_activity
+			 WHERE wait_event_type = 'Lock' AND query ILIKE '%FROM events WHERE id = $1 FOR SHARE%'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			waiting = true
+			break poll
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// Release unconditionally, before any assertion: a Fatal below must not
+	// leave the goroutine's request blocked on a lock this test alone holds.
+	if err := lockTx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	r := <-keyDone
+
+	if finishedEarly {
+		t.Fatalf("makeTeamKey finished (status %d) before ever waiting on the event row's lock -- "+
+			"it must lock the event row before the member row, same order as leave, or two concurrent "+
+			"requests from the same person (leave, and mint/rotate a key) can deadlock", r.status)
+	}
+	if !waiting {
+		t.Fatal("makeTeamKey never showed up waiting on the event row's lock")
+	}
+	if r.status != 201 {
+		t.Fatalf("makeTeamKey after the lock released: %d %s", r.status, r.body)
+	}
+}
+
+// --- finding 2: delete-former-judge-scores skipped takedown and the ----
+// --- caller's current organiser status under its own lock --------------
+
+// TestHackDeleteFormerJudgeScoresRaceTakenDown is a regression test: a
+// takedown that commits while delete-former-judge-scores is waiting on the
+// event lock must stop the delete, not just the pre-transaction loadMember
+// check it used to rely on alone.
+func TestHackDeleteFormerJudgeScoresRaceTakenDown(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvdftd-org")
+	p1 := a.newPerson(t, "lvdftd-p1")
+	judge := a.newPerson(t, "lvdftd-j")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
+	a.joinJudge(t, judgeCode, judge, "Judge")
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	criterion := a.firstCriterionID(t, slug)
+	wantTS(t, "score", a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamID,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 3}}}, a.key(judge)), 200, "")
+	wantTS(t, "judge leaves", a.leave(t, slug, judge, map[string]any{"confirm": slug}), 200, "")
+
+	eventID := a.eventID(t, slug)
+	judgeID := a.userID(t, judge)
+
+	lockTx, err := a.database.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lockedID string
+	if err := lockTx.QueryRow(`SELECT id FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&lockedID); err != nil {
+		t.Fatal(err)
+	}
+
+	deleteDone := make(chan resp, 1)
+	go func() {
+		deleteDone <- a.at(t, "DELETE", "/v1/hack/events/"+slug+"/judging/former-judges/"+judgeID, map[string]any{"confirm": slug}, a.key(org))
+	}()
+	waitBlocked()
+
+	if _, err := lockTx.Exec(`UPDATE events SET taken_down_at = now(), taken_down_reason = $2 WHERE id = $1`, eventID, "spam"); err != nil {
+		t.Fatal(err)
+	}
+	if err := lockTx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	r := <-deleteDone
+	wantHackErr(t, "delete-scores after takedown wins the race", r, 403, "event_taken_down", "this event has been taken down")
+
+	var n int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_scores WHERE event_id=$1 AND judge_id=$2`, eventID, judgeID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n == 0 {
+		t.Fatal("scores must survive a delete that a takedown beat to the lock")
+	}
+}
+
+// TestHackDeleteFormerJudgeScoresRaceOrganiserRemoved is the same shape for
+// the caller losing organiser status: a remove-organiser that commits while
+// delete-former-judge-scores is waiting on the event lock must stop the
+// delete too, not just the pre-transaction loadMember check.
+func TestHackDeleteFormerJudgeScoresRaceOrganiserRemoved(t *testing.T) {
+	a := newHackApp(t)
+	creator := a.newPerson(t, "lvdfro-cr")
+	ousted := a.newPerson(t, "lvdfro-co")
+	p1 := a.newPerson(t, "lvdfro-p1")
+	judge := a.newPerson(t, "lvdfro-j")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, creator, slug, nil), 201, "")
+	base := "/v1/hack/events/" + slug
+	inviteR := a.at(t, "POST", base+"/organiser-invite", nil, a.key(creator))
+	wantTS(t, "invite", inviteR, 201, "")
+	code := inviteR.json(t)["url"].(string)
+	wantTS(t, "accept", a.at(t, "POST", "/v1/hack/organiser/"+code[len(code)-32:], map[string]any{"accept_coc": true, "display_name": "Ousted"}, a.key(ousted)), 200, "")
+	a.openEvent(t, creator, slug)
+	join, judgeCode := a.joinCodes(t, creator, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
+	a.joinJudge(t, judgeCode, judge, "Judge")
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	criterion := a.firstCriterionID(t, slug)
+	wantTS(t, "score", a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamID,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 3}}}, a.key(judge)), 200, "")
+	wantTS(t, "judge leaves", a.leave(t, slug, judge, map[string]any{"confirm": slug}), 200, "")
+
+	eventID := a.eventID(t, slug)
+	judgeID := a.userID(t, judge)
+	oustedID := a.userID(t, ousted)
+
+	lockTx, err := a.database.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lockedID string
+	if err := lockTx.QueryRow(`SELECT id FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&lockedID); err != nil {
+		t.Fatal(err)
+	}
+
+	deleteDone := make(chan resp, 1)
+	go func() {
+		deleteDone <- a.at(t, "DELETE", "/v1/hack/events/"+slug+"/judging/former-judges/"+judgeID, map[string]any{"confirm": slug}, a.key(ousted))
+	}()
+	waitBlocked()
+
+	// What the creator removing "ousted" leaves behind, directly through
+	// lockTx (the main pool would block on the same lock lockTx holds).
+	if _, err := lockTx.Exec(`DELETE FROM event_members WHERE event_id=$1 AND user_id=$2`, eventID, oustedID); err != nil {
+		t.Fatal(err)
+	}
+	if err := lockTx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	r := <-deleteDone
+	wantTS(t, "delete-scores after the caller's own removal wins the race", r, 404, "event_not_found")
+
+	var n int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_scores WHERE event_id=$1 AND judge_id=$2`, eventID, judgeID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n == 0 {
+		t.Fatal("scores must survive a delete issued by someone who stopped being an organiser mid-request")
+	}
+}
+
+// --- finding 3 / ship-blocker B1: leaving must never touch votes ----------
+
+// TestHackLeaveNeverTouchesVotes: leaving is not a vote-eligibility sweep.
+// Before the fix, POST .../leave called IneligibleVotes(..., remove=true),
+// which deletes every ineligible vote in the WHOLE event, not just the
+// leaver's -- so one unrelated participant leaving could delete someone
+// else's vote outright (ship-blocker B1). The fix is to never call it from
+// leave at all: a vote cast while eligible stands, the leaver's own
+// included, exactly as the organiser's own Remove person already leaves
+// votes untouched. Proven under "participants" eligibility, the strictest
+// setting and the one the old code targeted.
+func TestHackLeaveNeverTouchesVotes(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvvoteorg")
+	p1 := a.newPerson(t, "lvvotep1")
+	p2 := a.newPerson(t, "lvvotep2")
+	p3 := a.newPerson(t, "lvvotep3")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, _ := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "P1")
+	a.joinParticipant(t, join, p2, "P2")
+	a.joinParticipant(t, join, p3, "P3")
+	a.createTeamAndJoin(t, slug, p1, "VoterTeam")
+	teamID, _ := a.createTeamAndJoin(t, slug, p2, "VotedForTeam")
+	if _, err := a.database.Exec(`UPDATE events SET voting_eligibility='participants' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	p1Email := db.BaseEmail(a.emailOf(t, p1))
+	p3Email := db.BaseEmail(a.emailOf(t, p3))
+	for _, email := range []string{p1Email, p3Email} {
+		if _, err := a.database.Exec(`INSERT INTO event_votes (event_id, voter_email, team_id) VALUES ((SELECT id FROM events WHERE slug=$1), $2, $3)`,
+			slug, email, teamID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	count := func(email string) int {
+		var n int
+		if err := a.database.QueryRow(`SELECT count(*) FROM event_votes WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND voter_email=$2`, slug, email).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	// p1 leaves: their own vote, cast while eligible, stands -- leaving
+	// never touches votes, regardless of eligibility.
+	wantTS(t, "p1 leaves", a.leave(t, slug, p1, map[string]any{"confirm": slug}), 200, "")
+	if count(p1Email) != 1 {
+		t.Fatal("a leaver's own vote must stand -- leaving never touches votes")
+	}
+	// p3 never joined a team and never leaves; p1's departure must not have
+	// swept p3's vote either (the whole-event sweep ship-blocker B1).
+	if count(p3Email) != 1 {
+		t.Fatal("BUG: an unrelated person's leave deleted someone else's vote")
+	}
+}
+
+// --- finding 4: RemoveCoOrganiser and removePerson skipped the new cleanup
+
+// TestHackRemoveCoOrganiserDeletesScoresAndCleansMail: an organiser who
+// scored, removed by another organiser (not a voluntary leave), must have
+// their scores deleted outright -- TestHackOrganisersCanJudgeAndRemoved
+// OrganiserScoresStopCounting (hack_judging_test.go) already establishes "a
+// removed organiser's scores stop counting" as the intended behaviour here,
+// unlike a voluntary leave's frozen-but-kept scores -- and get the same
+// unsent-mail cleanup a self-leave gets, which the old single-statement
+// DELETE skipped entirely.
+func TestHackRemoveCoOrganiserDeletesScoresAndCleansMail(t *testing.T) {
+	a := newHackApp(t)
+	creator := a.newPerson(t, "lvrco-cr")
+	co := a.newPerson(t, "lvrco-co")
+	p1 := a.newPerson(t, "lvrco-p1")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, creator, slug, nil), 201, "")
+	base := "/v1/hack/events/" + slug
+	inviteR := a.at(t, "POST", base+"/organiser-invite", nil, a.key(creator))
+	wantTS(t, "invite", inviteR, 201, "")
+	code := inviteR.json(t)["url"].(string)
+	wantTS(t, "accept", a.at(t, "POST", "/v1/hack/organiser/"+code[len(code)-32:], map[string]any{"accept_coc": true, "display_name": "Co"}, a.key(co)), 200, "")
+	a.openEvent(t, creator, slug)
+	join, _ := a.joinCodes(t, creator, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	criterion := a.firstCriterionID(t, slug)
+	wantTS(t, "co scores as organiser", a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamID,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 4}}}, a.key(co)), 200, "")
+
+	// A queued, unsent announcement for "co" to clean up, same assertion
+	// shape LeaveMembership's own tests use elsewhere.
+	eventID := a.eventID(t, slug)
+	coID := a.userID(t, co)
+	postAnn := a.at(t, "POST", base+"/announcements", map[string]any{"title": "Hi", "body": "Body", "email_participants": false}, a.key(creator))
+	wantTS(t, "post announcement", postAnn, 201, "")
+	annID := postAnn.json(t)["announcement"].(map[string]any)["id"].(string)
+	if _, err := a.database.Exec(`INSERT INTO event_announcement_deliveries (announcement_id, user_id, recipient) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, annID, coID, a.emailOf(t, co)); err != nil {
+		t.Fatal(err)
+	}
+
+	wantTS(t, "remove co-organiser", a.at(t, "DELETE", base+"/organisers/"+coID, nil, a.key(creator)), 204, "")
+
+	var scoreRows int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_scores WHERE event_id=$1 AND judge_id=$2`, eventID, coID).Scan(&scoreRows); err != nil {
+		t.Fatal(err)
+	}
+	if scoreRows != 0 {
+		t.Fatal("a removed organiser's scores must be deleted outright, stopping them counting")
+	}
+	var formerRows int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_former_judges WHERE event_id=$1 AND user_id=$2`, eventID, coID).Scan(&formerRows); err != nil {
+		t.Fatal(err)
+	}
+	if formerRows != 0 {
+		t.Fatal("a removed organiser gets no former-judge record -- there is nothing left to freeze")
+	}
+	var unsent int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_announcement_deliveries WHERE user_id=$1 AND sent_at IS NULL`, coID).Scan(&unsent); err != nil {
+		t.Fatal(err)
+	}
+	if unsent != 0 {
+		t.Fatal("removing a co-organiser must clean their unsent mail, same as leave")
+	}
+}
+
+// TestHackRemovePersonFreezesJudgeScores: an organiser removing a judge (not
+// the judge leaving voluntarily) must also freeze that judge's scores via
+// the former-judge record.
+func TestHackRemovePersonFreezesJudgeScores(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvrpj-org")
+	p1 := a.newPerson(t, "lvrpj-p1")
+	judge := a.newPerson(t, "lvrpj-j")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
+	a.joinJudge(t, judgeCode, judge, "Judge")
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	criterion := a.firstCriterionID(t, slug)
+	wantTS(t, "score", a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamID,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 2}}}, a.key(judge)), 200, "")
+
+	eventID := a.eventID(t, slug)
+	judgeID := a.userID(t, judge)
+	wantTS(t, "organiser removes judge", a.at(t, "DELETE", "/v1/hack/events/"+slug+"/people/"+judgeID, nil, a.key(org)), 204, "")
+
+	var formerRole string
+	if err := a.database.QueryRow(`SELECT role FROM event_former_judges WHERE event_id=$1 AND user_id=$2`, eventID, judgeID).Scan(&formerRole); err != nil {
+		t.Fatalf("expected a former-judge record for the removed judge's scores: %v", err)
+	}
+	if formerRole != "judge" {
+		t.Fatalf("former-judge role: got %q, want judge", formerRole)
+	}
+}
+
+// --- finding 5: rejoining as a participant kept the score rows ------------
+
+// TestHackParticipantRejoinDeletesFormerScores: a judge who left (scores
+// frozen in a former-judge record) and rejoins as a participant must have
+// their event_scores rows deleted outright, not just the former-judge
+// record -- otherwise a later re-invite as a judge brings the old rows back
+// counting, un-frozen.
+func TestHackParticipantRejoinDeletesFormerScores(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvrejoin-org")
+	p1 := a.newPerson(t, "lvrejoin-p1")
+	judge := a.newPerson(t, "lvrejoin-j")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
+	a.joinJudge(t, judgeCode, judge, "Judge")
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	criterion := a.firstCriterionID(t, slug)
+	wantTS(t, "score", a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamID,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 2}}}, a.key(judge)), 200, "")
+	wantTS(t, "leave", a.leave(t, slug, judge, map[string]any{"confirm": slug}), 200, "")
+
+	eventID := a.eventID(t, slug)
+	judgeID := a.userID(t, judge)
+	var n int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_scores WHERE event_id=$1 AND judge_id=$2`, eventID, judgeID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n == 0 {
+		t.Fatal("scores should still exist right after leaving, frozen by the former-judge record")
+	}
+
+	// Reopen sign-up so the former judge can rejoin as a participant.
+	if _, err := a.database.Exec(`UPDATE events SET stage='open' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	join2, _ := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join2, judge, "Judge")
+
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_former_judges WHERE event_id=$1 AND user_id=$2`, eventID, judgeID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatal("the former-judge record must be cleared on rejoin")
+	}
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_scores WHERE event_id=$1 AND judge_id=$2`, eventID, judgeID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatal("rejoining as a participant must delete the old event_scores rows, not just the former-judge record")
+	}
+}
+
+// --- finding 6: a conflict removed after leaving never came back --------
+
+// TestHackFormerJudgeConflictReversible: counted_team_ids must include
+// every team the judge actually scored, even one they had a live conflict
+// on at the moment they left -- the conflict is the only thing that should
+// exclude it, checked live on every read, so removing the conflict later
+// brings that team's score back into coverage.
+func TestHackFormerJudgeConflictReversible(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvconf-org")
+	p1 := a.newPerson(t, "lvconf-p1")
+	p2 := a.newPerson(t, "lvconf-p2")
+	judge := a.newPerson(t, "lvconf-j")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	a.joinParticipant(t, join, p2, "Quinn")
+	teamX, _ := a.createTeamAndJoin(t, slug, p1, "TeamX")
+	teamY, _ := a.createTeamAndJoin(t, slug, p2, "TeamY")
+	a.giveSubmittedEntry(t, slug, teamX)
+	a.giveSubmittedEntry(t, slug, teamY)
+	a.joinJudge(t, judgeCode, judge, "Judge")
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	criterion := a.firstCriterionID(t, slug)
+	wantTS(t, "score X", a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamX,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 2}}}, a.key(judge)), 200, "")
+	wantTS(t, "score Y", a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamY,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 3}}}, a.key(judge)), 200, "")
+
+	eventID := a.eventID(t, slug)
+	judgeID := a.userID(t, judge)
+	// A conflict declared on X by mistake, in place when the judge leaves.
+	if _, err := a.database.Exec(`INSERT INTO event_conflicts (event_id, judge_id, team_id) VALUES ($1, $2, $3)`, eventID, judgeID, teamX); err != nil {
+		t.Fatal(err)
+	}
+	wantTS(t, "leave", a.leave(t, slug, judge, map[string]any{"confirm": slug}), 200, "")
+
+	var countedIDs []string
+	if err := a.database.QueryRow(`SELECT counted_team_ids FROM event_former_judges WHERE event_id=$1 AND user_id=$2`, eventID, judgeID).Scan(pq.Array(&countedIDs)); err != nil {
+		t.Fatal(err)
+	}
+	has := func(id string) bool {
+		for _, c := range countedIDs {
+			if c == id {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(teamX) || !has(teamY) {
+		t.Fatalf("counted_team_ids must include every scored team regardless of a conflict at leave time: %v", countedIDs)
+	}
+
+	// With the conflict still in place, X must not count (live check).
+	dash := a.at(t, "GET", "/v1/hack/events/"+slug+"/judging/dashboard", nil, a.key(org)).json(t)
+	teamsByID := map[string]map[string]any{}
+	for _, raw := range dash["teams"].([]any) {
+		team := raw.(map[string]any)
+		teamsByID[team["team_id"].(string)] = team
+	}
+	if teamsByID[teamX]["judges_scored"] != float64(0) {
+		t.Fatalf("X should not count while the conflict stands: %v", teamsByID[teamX])
+	}
+	if teamsByID[teamY]["judges_scored"] != float64(1) {
+		t.Fatalf("Y should count: %v", teamsByID[teamY])
+	}
+
+	// Remove the conflict: X must come back, because it was never dropped
+	// from counted_team_ids to begin with.
+	wantTS(t, "remove conflict", a.at(t, "DELETE", "/v1/hack/events/"+slug+"/conflicts/"+teamX+"?judge_user_id="+judgeID, nil, a.key(org)), 204, "")
+	dash2 := a.at(t, "GET", "/v1/hack/events/"+slug+"/judging/dashboard", nil, a.key(org)).json(t)
+	for _, raw := range dash2["teams"].([]any) {
+		team := raw.(map[string]any)
+		if team["team_id"] == teamX {
+			if team["judges_scored"] != float64(1) {
+				t.Fatalf("X should count again once the conflict is gone: %v", team)
+			}
+		}
+	}
+}
+
+// --- ship-blocker B2: leaving must not make a non-counting score count ----
+
+// TestHackLeaveDoesNotResurrectNonCountingScore: a score that did not count
+// at the moment the judge left must not start counting afterwards.
+// RecordFormerJudge used to freeze every team event_scores had a row for,
+// with no eligibility check at all, so a score cast under "open" mode kept
+// counting under a later, narrower mode (with no assignment) even after the
+// scoring judge left (ship-blocker B2). The fix intersects the scored teams
+// with EligibleJudgeTeamsIgnoringConflicts, read at the moment of leaving.
+func TestHackLeaveDoesNotResurrectNonCountingScore(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvresorg")
+	p1 := a.newPerson(t, "lvresp")
+	judge := a.newPerson(t, "lvresj")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "TeamA")
+	a.giveSubmittedEntry(t, slug, teamID)
+	a.joinJudge(t, judgeCode, judge, "Judge")
+	base := "/v1/hack/events/" + slug
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	criterion := a.firstCriterionID(t, slug)
+	// Open mode (the default): the judge is eligible for every team right
+	// now, so this score genuinely counts.
+	wantTS(t, "score", a.at(t, "PUT", base+"/judge/scores/"+teamID,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 2}}}, a.key(judge)), 200, "")
+	// Manual mode with no assignment at all: the judge is no longer
+	// eligible for this team, so the score they already cast stops
+	// counting right now, before they ever leave.
+	wantTS(t, "set manual", a.at(t, "PATCH", base+"/judging/settings", map[string]any{"assignment_mode": "manual"}, a.key(org)), 200, "")
+
+	eventID := a.eventID(t, slug)
+	coverage := func() int {
+		byTeam, _, err := db.ScoreCoverage(context.Background(), a.database, eventID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return byTeam[teamID]
+	}
+	before := coverage()
+	if before != 0 {
+		t.Fatalf("the score must already not be counting under manual mode with no assignment: coverage=%d", before)
+	}
+
+	wantTS(t, "judge leaves", a.leave(t, slug, judge, map[string]any{"confirm": slug}), 200, "")
+
+	if after := coverage(); after != before {
+		t.Fatalf("BUG: leaving changed what counts: %d -> %d", before, after)
+	}
+}
+
+// TestHackLeaveKeepsTotalsAndRanksStable: when two judges score the same
+// teams under the default (open) mode, every team's published total,
+// judges_scored and rank must be identical before and after one of those
+// judges leaves -- the B2 fix (intersecting scored teams against
+// mode-eligible teams) must not disturb a score that was, and remains,
+// genuinely eligible.
+func TestHackLeaveKeepsTotalsAndRanksStable(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvstableorg")
+	p1 := a.newPerson(t, "lvstablep1")
+	p2 := a.newPerson(t, "lvstablep2")
+	judge1 := a.newPerson(t, "lvstablej1")
+	judge2 := a.newPerson(t, "lvstablej2")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	a.joinParticipant(t, join, p2, "Quinn")
+	teamA, _ := a.createTeamAndJoin(t, slug, p1, "TeamA")
+	teamB, _ := a.createTeamAndJoin(t, slug, p2, "TeamB")
+	a.giveSubmittedEntry(t, slug, teamA)
+	a.giveSubmittedEntry(t, slug, teamB)
+	a.joinJudge(t, judgeCode, judge1, "Judge1")
+	a.joinJudge(t, judgeCode, judge2, "Judge2")
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	base := "/v1/hack/events/" + slug
+	criterion := a.firstCriterionID(t, slug)
+	score := func(judge person, teamID string, points int) {
+		wantTS(t, "score", a.at(t, "PUT", base+"/judge/scores/"+teamID,
+			map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": points}}}, a.key(judge)), 200, "")
+	}
+	score(judge1, teamA, 3)
+	score(judge1, teamB, 4)
+	score(judge2, teamA, 5)
+	score(judge2, teamB, 1)
+
+	snapshot := func() map[string]map[string]any {
+		pub := a.at(t, "POST", base+"/results/publish", map[string]any{}, a.key(org))
+		if pub.status != 200 {
+			t.Fatalf("publish: %d %s", pub.status, pub.body)
+		}
+		out := map[string]map[string]any{}
+		for _, raw := range pub.json(t)["results"].([]any) {
+			row := raw.(map[string]any)
+			out[row["team_id"].(string)] = row
+		}
+		return out
+	}
+
+	before := snapshot()
+	wantTS(t, "judge1 leaves", a.leave(t, slug, judge1, map[string]any{"confirm": slug}), 200, "")
+	after := snapshot()
+
+	for _, teamID := range []string{teamA, teamB} {
+		b, af := before[teamID], after[teamID]
+		if b["total"] != af["total"] || b["rank"] != af["rank"] || b["judges_scored"] != af["judges_scored"] {
+			t.Fatalf("team %s changed across the leave: before=%v after=%v", teamID, b, af)
+		}
+	}
+}
+
+// --- ship-blocker B3: Remove person vs self-leave deadlock -----------------
+
+// TestHackRemoveJudgeVsLeaveDeadlock: an organiser's Remove person (DELETE
+// .../people/{id}) racing the same judge's own self-leave must never
+// deadlock. Before the fix, removePerson locked the member row first, then
+// (for a judge) RecordFormerJudge's insert into event_former_judges took a
+// FOR KEY SHARE lock on events via its foreign key -- the opposite of
+// leave's own order (event row FOR UPDATE, then the member row), a genuine
+// lock-order cycle (ship-blocker B3). The fix makes removePerson take the
+// event row FOR SHARE first, the same order leave uses. Forced ordering,
+// same shape as TestHackLeaveTwoOrganisersRaceForcedOrdering: hold the event
+// row FOR UPDATE from a third connection so both real requests queue behind
+// it, release, and require a clean, serialised outcome -- never a Postgres
+// deadlock (which would surface as a 500).
+func TestHackRemoveJudgeVsLeaveDeadlock(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvdlorg")
+	p1 := a.newPerson(t, "lvdlp")
+	judge := a.newPerson(t, "lvdlj")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Team")
+	a.giveSubmittedEntry(t, slug, teamID)
+	a.joinJudge(t, judgeCode, judge, "Judge")
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	criterion := a.firstCriterionID(t, slug)
+	wantTS(t, "score", a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamID,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 2}}}, a.key(judge)), 200, "")
+
+	eventID := a.eventID(t, slug)
+	judgeID := a.userID(t, judge)
+
+	lockTx, err := a.database.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lockedID string
+	if err := lockTx.QueryRow(`SELECT id FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&lockedID); err != nil {
+		t.Fatal(err)
+	}
+
+	leaveDone := make(chan resp, 1)
+	go func() { leaveDone <- a.leave(t, slug, judge, map[string]any{"confirm": slug}) }()
+	waitBlocked()
+	removeDone := make(chan resp, 1)
+	go func() { removeDone <- a.at(t, "DELETE", "/v1/hack/events/"+slug+"/people/"+judgeID, nil, a.key(org)) }()
+	waitBlocked() // both requests now queue behind lockTx's FOR UPDATE.
+
+	if err := lockTx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	leaveR, removeR := <-leaveDone, <-removeDone
+	for _, r := range []resp{leaveR, removeR} {
+		if r.status >= 500 {
+			t.Fatalf("a Postgres deadlock surfaced as a 500: leave=%d %s remove=%d %s", leaveR.status, leaveR.body, removeR.status, removeR.body)
+		}
+	}
+	// Exactly one request actually acts on the still-present membership (200
+	// or 204); the other finds it already gone (404), in whichever order
+	// Postgres happened to serialise the two FOR UPDATE waiters -- both are
+	// valid, so long as neither is a deadlock.
+	ok, notFound := 0, 0
+	for _, r := range []resp{leaveR, removeR} {
+		switch r.status {
+		case 200, 204:
+			ok++
+		case 404:
+			notFound++
+		default:
+			t.Fatalf("unexpected status: leave=%d %s remove=%d %s", leaveR.status, leaveR.body, removeR.status, removeR.body)
+		}
+	}
+	if ok != 1 || notFound != 1 {
+		t.Fatalf("want exactly one success and one not-found, got leave=%d %s remove=%d %s", leaveR.status, leaveR.body, removeR.status, removeR.body)
+	}
+	if a.isMember(t, slug, judgeID) {
+		t.Fatal("the judge must be gone from the event one way or the other")
+	}
+}
+
+// --- finding 7: the leave preview took a write lock on the team row -------
+
+// TestHackLeavePreviewDoesNotLockTeam: GET .../leave must not block behind
+// another transaction's FOR UPDATE on the participant's team row -- that
+// write lock belongs to POST only.
+func TestHackLeavePreviewDoesNotLockTeam(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvprev-org")
+	p1 := a.newPerson(t, "lvprev-p1")
+	p2 := a.newPerson(t, "lvprev-p2")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, _ := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "P1")
+	a.joinParticipant(t, join, p2, "P2")
+	teamID, code := a.createTeamAndJoin(t, slug, p1, "PreviewTeam")
+	_ = code
+
+	lockTx, err := a.database.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lockedID string
+	if err := lockTx.QueryRow(`SELECT id FROM event_teams WHERE id=$1 FOR UPDATE`, teamID).Scan(&lockedID); err != nil {
+		t.Fatal(err)
+	}
+	defer lockTx.Rollback()
+
+	previewDone := make(chan resp, 1)
+	go func() { previewDone <- a.previewLeave(t, slug, p1) }()
+
+	select {
+	case r := <-previewDone:
+		if r.status != 200 {
+			t.Fatalf("preview: %d %s", r.status, r.body)
+		}
+	case <-time.After(1500 * time.Millisecond):
+		t.Fatal("GET .../leave blocked behind another transaction's lock on the team row -- it must use a non-locking read")
+	}
+}
+
+// --- finding 8: no Cache-Control on either leave response -----------------
+
+func TestHackLeaveResponsesAreNoStore(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvcc-org")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+
+	get := a.at(t, "GET", "/v1/hack/events/"+slug+"/leave", nil, a.key(org))
+	if cc := get.header.Get("Cache-Control"); cc != "private, no-store" {
+		t.Fatalf("GET .../leave Cache-Control: got %q", cc)
+	}
+
+	co := a.newPerson(t, "lvcc-co")
+	base := "/v1/hack/events/" + slug
+	inviteR := a.at(t, "POST", base+"/organiser-invite", nil, a.key(org))
+	code := inviteR.json(t)["url"].(string)
+	wantTS(t, "accept", a.at(t, "POST", "/v1/hack/organiser/"+code[len(code)-32:], map[string]any{"accept_coc": true, "display_name": "Co"}, a.key(co)), 200, "")
+
+	post := a.leave(t, slug, co, map[string]any{"confirm": slug})
+	if post.status != 200 {
+		t.Fatalf("leave: %d %s", post.status, post.body)
+	}
+	if cc := post.header.Get("Cache-Control"); cc != "private, no-store" {
+		t.Fatalf("POST .../leave Cache-Control: got %q", cc)
+	}
+}
+
+// --- finding 9: delete-former-judge-scores had no server-side confirm -----
+
+func TestHackDeleteFormerJudgeScoresRequiresConfirm(t *testing.T) {
+	a := newHackApp(t)
+	org := a.newPerson(t, "lvdfc-org")
+	p1 := a.newPerson(t, "lvdfc-p1")
+	judge := a.newPerson(t, "lvdfc-j")
+	slug := uniqueSlug()
+	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
+	a.openEvent(t, org, slug)
+	join, judgeCode := a.joinCodes(t, org, slug)
+	a.joinParticipant(t, join, p1, "Pat")
+	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
+	a.giveSubmittedEntry(t, slug, teamID)
+	a.joinJudge(t, judgeCode, judge, "Judge")
+	if _, err := a.database.Exec(`UPDATE events SET stage='closed' WHERE slug=$1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	criterion := a.firstCriterionID(t, slug)
+	wantTS(t, "score", a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamID,
+		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 2}}}, a.key(judge)), 200, "")
+	wantTS(t, "leave", a.leave(t, slug, judge, map[string]any{"confirm": slug}), 200, "")
+
+	judgeID := a.userID(t, judge)
+	route := "/v1/hack/events/" + slug + "/judging/former-judges/" + judgeID
+	wantHackErr(t, "no confirm field", a.at(t, "DELETE", route, map[string]any{}, a.key(org)), 409, "confirm_required",
+		`to delete this judge's scores, send {"confirm":"`+slug+`"} with this event's address name`)
+	wantHackErr(t, "wrong confirm", a.at(t, "DELETE", route, map[string]any{"confirm": "not-the-slug"}, a.key(org)), 409, "confirm_required",
+		`to delete this judge's scores, send {"confirm":"`+slug+`"} with this event's address name`)
+
+	var n int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_former_judges WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, slug, judgeID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatal("a missing or wrong confirm must not delete anything")
+	}
+
+	wantTS(t, "correct confirm", a.at(t, "DELETE", route, map[string]any{"confirm": slug}, a.key(org)), 204, "")
+}
+
+// --- small helpers ----------------------------------------------------------
+
+func (a *hackApp) emailOf(t *testing.T, p person) string {
+	t.Helper()
+	return p.email
+}

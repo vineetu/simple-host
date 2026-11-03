@@ -2781,6 +2781,15 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"users": out, "user_count": len(byUser), "site_count": len(sites), "signup_groups": signupGroups(present)})
 }
 
+// ReadAndValidateFilesForTest is readAndValidateFiles, exported as a test
+// hook (cleanup 3.2 slice 3): hack_uploads_test.go (hack-prefixed, but this
+// one test exercises this Host-only validation path directly, with no
+// HackHandler involved) moved to internal/hackhttp along with the rest of
+// its file.
+func (h *SiteHandler) ReadAndValidateFilesForTest(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
+	return h.readAndValidateFiles(w, r, siteName)
+}
+
 // readAndValidateFiles reads the archive body, verifies an optional
 // X-Content-Digest header against the SHA-256 of the raw archive bytes,
 // extracts and validates the entries, and returns the files plus the hex

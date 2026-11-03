@@ -41,8 +41,8 @@ func TestParseLegacyStoragePath(t *testing.T) {
 			t.Errorf("%s: %+v, want match=%v skip=%v handle=%q site=%q adminID=%q",
 				c.path, got, c.match, c.skip, c.handle, c.site, c.adminID)
 		}
-		if hackLegacyStoragePath(c.path) != c.match {
-			t.Errorf("hackLegacyStoragePath(%s) = %v, want %v", c.path, !c.match, c.match)
+		if HackLegacyStoragePath(c.path) != c.match {
+			t.Errorf("HackLegacyStoragePath(%s) = %v, want %v", c.path, !c.match, c.match)
 		}
 	}
 }

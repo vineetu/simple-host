@@ -10,7 +10,7 @@ import (
 // Simple Host keeps the existing routes and stored data is never changed here.
 func (h *SiteHandler) HackLegacyStorageGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !h.ed.Storage().LegacyRoutes && hackLegacyStoragePath(r.URL.Path) {
+		if !h.ed.Storage().LegacyRoutes && HackLegacyStoragePath(r.URL.Path) {
 			writeJSON(w, http.StatusGone, errorResponse{
 				Error: "Simple Hack website storage now uses KV, SQLite and files under /v1/sites/{site}/storage",
 				Code:  "legacy_storage_removed",
@@ -21,7 +21,7 @@ func (h *SiteHandler) HackLegacyStorageGate(next http.Handler) http.Handler {
 	})
 }
 
-func hackLegacyStoragePath(path string) bool {
+func HackLegacyStoragePath(path string) bool {
 	return parseLegacyStoragePath(path).match
 }
 

@@ -205,7 +205,7 @@ func TestNotifySiteEventsMCP(t *testing.T) {
 }
 
 func TestNotifySiteEventsHack(t *testing.T) {
-	f := newHackNotifyFixture(t)
+	f := newBridgeHackNotifyFixture(t)
 	a := f.a
 	if got := a.sites.notifyEventNames(); len(got) != 3 {
 		t.Fatalf("Hack event names: %v", got)
