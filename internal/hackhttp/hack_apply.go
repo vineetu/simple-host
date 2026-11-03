@@ -5,11 +5,12 @@ import (
 	"errors"
 	"github.com/vsriram/simple-host/internal/app/hack/members"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"net/http"
 	"strings"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // Applying to a hackathon without a join link (zp-hack-applications.sql,
@@ -37,13 +38,13 @@ const hackUnder18Note = "If you're under 18, a parent or guardian needs to agree
 // handler dependency.
 
 func hackApplyFields() map[string]any {
-	ageRanges := make([]map[string]string, 0, len(hackevents.AgeRangeOrder))
-	for _, v := range hackevents.AgeRangeOrder {
-		ageRanges = append(ageRanges, map[string]string{"value": v, "label": hackevents.AgeRangeLabels[v]})
+	ageRanges := make([]map[string]string, 0, len(events.AgeRangeOrder))
+	for _, v := range events.AgeRangeOrder {
+		ageRanges = append(ageRanges, map[string]string{"value": v, "label": events.AgeRangeLabels[v]})
 	}
-	genders := make([]map[string]string, 0, len(hackevents.GenderOrder))
-	for _, v := range hackevents.GenderOrder {
-		genders = append(genders, map[string]string{"value": v, "label": hackevents.GenderLabels[v]})
+	genders := make([]map[string]string, 0, len(events.GenderOrder))
+	for _, v := range events.GenderOrder {
+		genders = append(genders, map[string]string{"value": v, "label": events.GenderLabels[v]})
 	}
 	return map[string]any{
 		"city":          map[string]any{"max_length": 80},
@@ -86,7 +87,7 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	openNow := hackevents.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown())
+	openNow := events.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown())
 	out := map[string]any{
 		"slug": ev.Slug, "title": ev.Title, "tagline": ev.Tagline,
 		"icon_url": h.iconURL(ev), "color": hackEventAccent(ev),
@@ -97,7 +98,7 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 		"time_zone":         ev.TimeZone,
 		"event_url":         h.EventURL(ev.Slug),
 		"applications_open": openNow,
-		"closed_reason":     hackevents.ApplicationsClosedReason(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage),
+		"closed_reason":     events.ApplicationsClosedReason(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage),
 		"fields":            hackApplyFields(),
 	}
 	// Questions and the organiser's own code of conduct are for people they
@@ -184,7 +185,7 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	member, existingView, err := h.membersSvc().Apply(ctx, ev, user.ID, input, h.limits.EventApplyPendingPerEvent, func(existing db.EventMember) any {
+	member, existingView, err := h.membersSvc().Apply(ctx, ev, user.ID, input, h.limits.EventApplyPendingPerEvent, func(existing model.EventMember) any {
 		return h.eventView(ctx, ev, existing, false)
 	})
 	if err != nil {

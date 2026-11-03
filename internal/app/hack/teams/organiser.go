@@ -1,10 +1,13 @@
 package teams
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
+
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/db"
+
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
@@ -14,7 +17,7 @@ func isUnique(err error) bool { return hackevents.UniqueError(err) }
 
 // rotateTeamCode stops removed members rejoining with the old code. An empty,
 // deleted team has nothing to rotate.
-func rotateTeamCode(ctx context.Context, q db.Querier, teamID string) error {
+func rotateTeamCode(ctx context.Context, q sqlkit.Querier, teamID string) error {
 	for attempt := 0; attempt < 8; attempt++ {
 		code, err := hackevents.RandomCode(teamCodeLength)
 		if err != nil {
@@ -59,7 +62,7 @@ func (s *Service) RemovePerson(ctx context.Context, eventID, userID string) erro
 			return internalError(err)
 		}
 	}
-	if err = db.RevokeStaleTeamKeys(ctx, tx, eventID); err != nil {
+	if err = teamrepo.RevokeStaleTeamKeys(ctx, tx, eventID); err != nil {
 		return internalError(err)
 	}
 	if err = tx.Commit(); err != nil {
@@ -69,14 +72,14 @@ func (s *Service) RemovePerson(ctx context.Context, eventID, userID string) erro
 }
 
 // MoveMember moves a participant and rotates the old team's code atomically.
-func (s *Service) MoveMember(ctx context.Context, eventID, userID, slug string, max int) (db.EventTeam, error) {
+func (s *Service) MoveMember(ctx context.Context, eventID, userID, slug string, max int) (model.EventTeam, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return db.EventTeam{}, internalError(err)
+		return model.EventTeam{}, internalError(err)
 	}
 	defer tx.Rollback()
 	oldTeam := memberTeamID(ctx, tx, eventID, userID)
-	team, err := teamrepo.MoveParticipantToTeam(ctx, tx, eventID, userID, slug, max, db.EnsureTeamAdmin)
+	team, err := teamrepo.MoveParticipantToTeam(ctx, tx, eventID, userID, slug, max, teamrepo.EnsureTeamAdmin)
 	if err != nil {
 		return team, err
 	}
@@ -85,7 +88,7 @@ func (s *Service) MoveMember(ctx context.Context, eventID, userID, slug string, 
 			return team, internalError(err)
 		}
 	}
-	if err = db.RevokeStaleTeamKeys(ctx, tx, eventID); err != nil {
+	if err = teamrepo.RevokeStaleTeamKeys(ctx, tx, eventID); err != nil {
 		return team, internalError(err)
 	}
 	if err = tx.Commit(); err != nil {
@@ -119,7 +122,7 @@ func (s *Service) RemoveTeamMember(ctx context.Context, eventID, actorID, userID
 		if err = teamrepo.LockTeamSlug(ctx, tx, teamID).Scan(&gotSlug); err != nil || gotSlug != slug {
 			return sql.ErrNoRows
 		}
-		st, err := db.TeamWriteStateFor(ctx, tx, teamID, true)
+		st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, true)
 		if err != nil {
 			return internalError(err)
 		}
@@ -128,7 +131,7 @@ func (s *Service) RemoveTeamMember(ctx context.Context, eventID, actorID, userID
 		}
 	}
 	oldTeam := memberTeamID(ctx, tx, eventID, userID)
-	if err = teamrepo.RemoveParticipantFromTeam(ctx, tx, eventID, slug, userID, db.EnsureTeamAdmin); err != nil {
+	if err = teamrepo.RemoveParticipantFromTeam(ctx, tx, eventID, slug, userID, teamrepo.EnsureTeamAdmin); err != nil {
 		return err
 	}
 	if participant {
@@ -138,7 +141,7 @@ func (s *Service) RemoveTeamMember(ctx context.Context, eventID, actorID, userID
 		// Email uses the same words as the removal notice.
 		var notice string
 		if err = teamrepo.ReadMemberRemovalNotice(ctx, tx, eventID, userID).Scan(&notice); err == nil && notice != "" {
-			err = db.NotifyUsers(ctx, tx, eventID, db.NoticeTeamRemoved, oldTeam, "", notice, userID)
+			err = eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeTeamRemoved, oldTeam, "", notice, userID)
 		}
 	}
 	if err == nil && oldTeam != "" {
@@ -147,7 +150,7 @@ func (s *Service) RemoveTeamMember(ctx context.Context, eventID, actorID, userID
 	if err != nil {
 		return internalError(err)
 	}
-	if err = db.RevokeStaleTeamKeys(ctx, tx, eventID); err != nil {
+	if err = teamrepo.RevokeStaleTeamKeys(ctx, tx, eventID); err != nil {
 		return internalError(err)
 	}
 	if err = tx.Commit(); err != nil {
@@ -163,7 +166,7 @@ func (s *Service) teamDeadlinePassed(ctx context.Context, teamID string) (bool, 
 }
 
 // teamNameTaken checks for another team with the same name, ignoring case.
-func teamNameTaken(ctx context.Context, q db.Querier, eventID, name string) (bool, error) {
+func teamNameTaken(ctx context.Context, q sqlkit.Querier, eventID, name string) (bool, error) {
 	var taken bool
 	err := teamrepo.TeamNameExists(ctx, q, eventID, name).Scan(&taken)
 	return taken, err
@@ -171,7 +174,7 @@ func teamNameTaken(ctx context.Context, q db.Querier, eventID, name string) (boo
 
 // trySavepoint permits a retry after a unique violation, which otherwise aborts
 // the whole transaction.
-func trySavepoint(ctx context.Context, q db.Querier, fn func() error) error {
+func trySavepoint(ctx context.Context, q sqlkit.Querier, fn func() error) error {
 	if _, err := teamrepo.StartWorkflowSavepoint(ctx, q); err != nil {
 		return err
 	}
@@ -196,5 +199,5 @@ func memberTeamID(ctx context.Context, q *sql.Tx, eventID, userID string) string
 }
 
 func eventLeaveOperations() eventrepo.LeaveOperations {
-	return eventrepo.LeaveOperations{LockMember: teamrepo.LockMember, LockTeam: teamrepo.LockTeam, DeleteTeamIfEmpty: teamrepo.DeleteTeamIfEmpty, EnsureTeamAdmin: db.EnsureTeamAdmin}
+	return eventrepo.LeaveOperations{LockMember: teamrepo.LockMember, LockTeam: teamrepo.LockTeam, DeleteTeamIfEmpty: teamrepo.DeleteTeamIfEmpty, EnsureTeamAdmin: teamrepo.EnsureTeamAdmin}
 }

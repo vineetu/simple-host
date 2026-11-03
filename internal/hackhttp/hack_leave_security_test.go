@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -581,7 +582,7 @@ func TestHackLeaveDoesNotResurrectNonCountingScore(t *testing.T) {
 
 	eventID := a.eventID(t, slug)
 	coverage := func() int {
-		byTeam, _, err := db.ScoreCoverage(context.Background(), a.database, eventID)
+		byTeam, _, err := entries.New(a.database, nil).ScoreCoverage(context.Background(), eventID)
 		if err != nil {
 			t.Fatal(err)
 		}

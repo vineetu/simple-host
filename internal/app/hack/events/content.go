@@ -1,17 +1,21 @@
 package events
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
+
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/db"
+
 	"github.com/vsriram/simple-host/internal/repository/hackevents"
 	"log"
 )
 
 // PutContent stores the content after locking and checking the event.
-func (s *Service) PutContent(ctx context.Context, id string, c db.EventContent) error {
+func (s *Service) PutContent(ctx context.Context, id string, c model.EventContent) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -24,27 +28,27 @@ func (s *Service) PutContent(ctx context.Context, id string, c db.EventContent) 
 	if stage == "archived" {
 		return &Error{Code: "event_ended", Message: "this event has ended"}
 	}
-	if err = db.PutEventContent(ctx, tx, id, c); err != nil {
+	if err = hackevents.PutEventContent(ctx, tx, id, c); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
 // PostAnnouncement publishes an announcement and queues its mail.
-func (s *Service) PostAnnouncement(ctx context.Context, id, title, body string, email bool, userID string) (db.EventAnnouncement, int64, bool, error) {
+func (s *Service) PostAnnouncement(ctx context.Context, id, title, body string, email bool, userID string) (model.EventAnnouncement, int64, bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return db.EventAnnouncement{}, 0, false, err
+		return model.EventAnnouncement{}, 0, false, err
 	}
 	defer tx.Rollback()
 	stage, err := hackevents.LockContentStage(ctx, tx, id, false)
 	if err != nil {
-		return db.EventAnnouncement{}, 0, false, err
+		return model.EventAnnouncement{}, 0, false, err
 	}
 	if stage == "archived" {
-		return db.EventAnnouncement{}, 0, false, &Error{Code: "event_ended", Message: "this event has ended"}
+		return model.EventAnnouncement{}, 0, false, &Error{Code: "event_ended", Message: "this event has ended"}
 	}
-	item, queued, copied, err := db.CreateEventAnnouncement(ctx, tx, id, title, body, email, userID)
+	item, queued, copied, err := hackevents.CreateEventAnnouncement(ctx, tx, id, title, body, email, userID)
 	if err != nil {
 		return item, queued, copied, err
 	}
@@ -86,22 +90,22 @@ type NoticeSender interface {
 }
 
 // ReadContent reads the stored content document.
-func ReadContent(ctx context.Context, q db.Querier, id string) (db.EventContent, error) {
-	return db.GetEventContent(ctx, q, id)
+func ReadContent(ctx context.Context, q sqlkit.Querier, id string) (model.EventContent, error) {
+	return hackevents.GetEventContent(ctx, q, id)
 }
 
 // ListAnnouncements reads the event announcements.
-func (s *Service) ListAnnouncements(ctx context.Context, id string) ([]db.EventAnnouncement, error) {
-	return db.ListEventAnnouncements(ctx, s.db, id)
+func (s *Service) ListAnnouncements(ctx context.Context, id string) ([]model.EventAnnouncement, error) {
+	return hackevents.ListEventAnnouncements(ctx, s.db, id)
 }
 
 // QueueReceipt queues the first submitted entry receipt.
-func (s *Service) QueueReceipt(ctx context.Context, ev db.Event, teamID, userID string) {
-	e, err := db.GetEventEntry(ctx, s.db, teamID)
+func (s *Service) QueueReceipt(ctx context.Context, ev model.Event, teamID, userID string) {
+	e, err := entryrepo.GetEventEntry(ctx, s.db, teamID)
 	if err != nil || !e.SubmittedAt.Valid {
 		return
 	}
-	if err := db.QueueEntryReceipt(ctx, s.db, ev.ID, teamID, userID); err != nil {
+	if err := hackevents.QueueEntryReceipt(ctx, s.db, ev.ID, teamID, userID); err != nil {
 		log.Printf("hack: queue entry receipt %s: %v", ev.Slug, err)
 	}
 }
@@ -114,7 +118,7 @@ func (s *Service) DeliverContentMail(ctx context.Context, sender NoticeSender, s
 			log.Printf("hack: content mail: %v", err)
 			return
 		}
-		m, err := db.NextEventMail(ctx, tx)
+		m, err := hackevents.NextEventMail(ctx, tx)
 		if errors.Is(err, sql.ErrNoRows) {
 			tx.Rollback()
 			return
@@ -134,7 +138,7 @@ func (s *Service) DeliverContentMail(ctx context.Context, sender NoticeSender, s
 		}
 		if err := sender.SendNotice(m.Recipient, subject, body); err != nil {
 			log.Printf("hack: content mail delivery failed: %v", err)
-			if deferErr := db.DeferEventMail(ctx, tx, m); deferErr != nil {
+			if deferErr := hackevents.DeferEventMail(ctx, tx, m); deferErr != nil {
 				tx.Rollback()
 				log.Printf("hack: content mail defer: %v", deferErr)
 				return
@@ -145,7 +149,7 @@ func (s *Service) DeliverContentMail(ctx context.Context, sender NoticeSender, s
 			}
 			continue
 		}
-		if err := db.MarkEventMailSent(ctx, tx, m); err != nil {
+		if err := hackevents.MarkEventMailSent(ctx, tx, m); err != nil {
 			tx.Rollback()
 			log.Printf("hack: content mail mark: %v", err)
 			return
@@ -155,4 +159,9 @@ func (s *Service) DeliverContentMail(ctx context.Context, sender NoticeSender, s
 			return
 		}
 	}
+}
+
+// CreateEventAnnouncement creates an announcement in the caller’s transaction.
+func CreateEventAnnouncement(ctx context.Context, q *sql.Tx, eventID, title, body string, email bool, userID string) (model.EventAnnouncement, int64, bool, error) {
+	return hackevents.CreateEventAnnouncement(ctx, q, eventID, title, body, email, userID)
 }

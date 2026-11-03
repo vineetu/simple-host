@@ -1,6 +1,10 @@
 package events
 
 import (
+	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+
 	"context"
 	"database/sql"
 	"errors"
@@ -10,8 +14,6 @@ import (
 	"log"
 	"math"
 	"time"
-
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // Entry deadline reminders (entries slice 3, zx-hack-entry-reminders.sql).
@@ -26,7 +28,7 @@ import (
 // QueueEntryReminders claims each due team once per reminder per deadline,
 // then queues its members in the same transaction.
 func (s *Service) QueueEntryReminders(ctx context.Context) {
-	due, err := db.DueEntryReminders(ctx, s.db)
+	due, err := eventrepo.DueEntryReminders(ctx, s.db)
 	if err != nil {
 		log.Printf("hack: entry reminders: %v", err)
 		return
@@ -38,17 +40,17 @@ func (s *Service) QueueEntryReminders(ctx context.Context) {
 	}
 }
 
-func (s *Service) queueEntryReminder(ctx context.Context, r db.EntryReminder) error {
+func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	claimed, err := db.ClaimEntryReminder(ctx, tx, r)
+	claimed, err := eventrepo.ClaimEntryReminder(ctx, tx, r)
 	if err != nil || !claimed {
 		return err
 	}
-	if err := db.NotifyTeamMembers(ctx, tx, r.EventID, r.TeamID, db.NoticeEntryReminder, r.Kind, ""); err != nil {
+	if err := eventrepo.NotifyTeamMembers(ctx, tx, r.EventID, r.TeamID, eventrepo.NoticeEntryReminder, r.Kind, ""); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -56,14 +58,14 @@ func (s *Service) queueEntryReminder(ctx context.Context, r db.EntryReminder) er
 
 // EntryEvaluator evaluates an entry using the existing entry service.
 type EntryEvaluator interface {
-	EvaluateEntryTx(context.Context, *sql.Tx, db.Event, db.TeamWriteState, string, model.EventEntry) (hackentries.Check, error)
+	EvaluateEntryTx(context.Context, *sql.Tx, model.Event, model.TeamWriteState, string, model.EventEntry) (hackentries.Check, error)
 }
 
 // entryReminderLine re-reads the team and its entry and writes the
 // reminder's line. ok=false drops it: the entry was submitted meanwhile, the
 // deadline passed, or the team can no longer change its entry.
-func (s *Service) entryReminderLine(ctx context.Context, tx *sql.Tx, n db.MailNotice, evaluator EntryEvaluator) (string, bool, error) {
-	st, err := db.TeamWriteStateFor(ctx, tx, n.TeamID, false)
+func (s *Service) entryReminderLine(ctx context.Context, tx *sql.Tx, n model.MailNotice, evaluator EntryEvaluator) (string, bool, error) {
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, n.TeamID, false)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
@@ -75,7 +77,7 @@ func (s *Service) entryReminderLine(ctx context.Context, tx *sql.Tx, n db.MailNo
 	}
 	closes := "Entries close for your team " + hackNoticeTime(st.Deadline.Time, n.EventTimeZone) +
 		" (" + ReminderIn(st.Deadline.Time.Sub(st.Now)) + ")."
-	e, err := db.GetEventEntry(ctx, tx, n.TeamID)
+	e, err := entryrepo.GetEventEntry(ctx, tx, n.TeamID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "Your team hasn't started its entry. " + closes + " A team with no entry isn't judged.", true, nil
 	}
@@ -85,7 +87,7 @@ func (s *Service) entryReminderLine(ctx context.Context, tx *sql.Tx, n db.MailNo
 	if e.SubmittedAt.Valid {
 		return "", false, nil
 	}
-	ev, err := db.GetEventByID(ctx, tx, st.EventID)
+	ev, err := eventrepo.GetEventByID(ctx, tx, st.EventID)
 	if err != nil {
 		return "", false, err
 	}

@@ -1,7 +1,8 @@
 package hackhttp
 
 import (
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
+
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
@@ -38,9 +39,9 @@ func (h *HackHandler) putRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Questions        []db.SignupQuestion `json:"questions"`
-		ApprovalRequired bool                `json:"approval_required"`
-		AdmitPending     bool                `json:"admit_pending"`
+		Questions        []model.SignupQuestion `json:"questions"`
+		ApprovalRequired bool                   `json:"approval_required"`
+		AdmitPending     bool                   `json:"admit_pending"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
@@ -112,7 +113,7 @@ func (h *HackHandler) putTracks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Tracks []db.EventTrack `json:"tracks"`
+		Tracks []model.EventTrack `json:"tracks"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return

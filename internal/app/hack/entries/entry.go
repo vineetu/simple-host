@@ -9,13 +9,12 @@ import (
 	"errors"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 )
 
 // SetExcluded changes the organiser's exclusion of an existing team entry.
-func (s *Service) SetExcluded(ctx context.Context, eventID, userID, slug string, excluded bool) (db.EventTeam, error) {
+func (s *Service) SetExcluded(ctx context.Context, eventID, userID, slug string, excluded bool) (model.EventTeam, error) {
 	team, err := teamrepo.GetEventTeamBySlug(ctx, s.db, eventID, slug)
 	if errors.Is(err, sql.ErrNoRows) {
 		return team, &Error{Code: "team_not_found", Message: "team not found"}
@@ -34,7 +33,7 @@ func (s *Service) SetExcluded(ctx context.Context, eventID, userID, slug string,
 
 // WriteRequest describes a participant's entry change.
 type WriteRequest struct {
-	Event        db.Event
+	Event        model.Event
 	UserID, Kind string
 	UpdatedAt    *string
 	Fields       map[string]string
@@ -67,7 +66,7 @@ func (s *Service) Write(ctx context.Context, req WriteRequest) (string, []string
 	if _, err = tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE id=$1 FOR UPDATE`, id); err != nil {
 		return id, nil, err
 	}
-	st, err := db.TeamWriteStateFor(ctx, tx, id, true)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, id, true)
 	if errors.Is(err, sql.ErrNoRows) {
 		return id, nil, &Error{Code: "no_team", Message: "join or start a team first"}
 	}
@@ -159,7 +158,7 @@ func (s *Service) Write(ctx context.Context, req WriteRequest) (string, []string
 	return id, nil, nil
 }
 
-func (s *Service) keepComplete(ctx context.Context, tx *sql.Tx, ev db.Event, st db.TeamWriteState, id string, submitted bool) ([]string, error) {
+func (s *Service) keepComplete(ctx context.Context, tx *sql.Tx, ev model.Event, st model.TeamWriteState, id string, submitted bool) ([]string, error) {
 	if !submitted {
 		return nil, nil
 	}

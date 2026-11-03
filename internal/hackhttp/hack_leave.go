@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"strings"
@@ -33,17 +34,17 @@ func (h *HackHandler) registerLeave(mux *http.ServeMux, wrap func(http.HandlerFu
 // event_not_found like anyone else (build plan 2.1: "Do not use
 // loadMember(..., write=false): it synthesises organiser access for the
 // admin key").
-func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug string) (db.Event, db.EventMember, string, *db.User, bool) {
+func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug string) (model.Event, model.EventMember, string, *db.User, bool) {
 	user := hackNeedUser(w, r)
 	if user == nil {
-		return db.Event{}, db.EventMember{}, "", nil, false
+		return model.Event{}, model.EventMember{}, "", nil, false
 	}
 	slug = strings.ToLower(strings.TrimSpace(slug))
 	ev, err := h.membersSvc().LeaveEvent(r.Context(), slug)
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
-	var member db.EventMember
+	var member model.EventMember
 	var status string
 	if err == nil {
 		member, status, err = h.membersSvc().LookupLeaveSelf(r.Context(), ev.ID, user.ID)
@@ -53,11 +54,11 @@ func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
-		return db.Event{}, db.EventMember{}, "", nil, false
+		return model.Event{}, model.EventMember{}, "", nil, false
 	}
 	if err != nil {
 		httpx.WriteInternal(w)
-		return db.Event{}, db.EventMember{}, "", nil, false
+		return model.Event{}, model.EventMember{}, "", nil, false
 	}
 	return ev, member, status, user, true
 }

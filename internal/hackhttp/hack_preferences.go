@@ -2,6 +2,7 @@ package hackhttp
 
 import (
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"net/http"
 	"strings"
 
@@ -18,7 +19,7 @@ func (h *HackHandler) getHackPreferences(w http.ResponseWriter, r *http.Request)
 	if user == nil {
 		return
 	}
-	p, err := db.GetHackPreferences(r.Context(), h.database, user.ID)
+	p, err := h.eventsSvc().HackPreferences(r.Context(), user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -29,7 +30,7 @@ func (h *HackHandler) getHackPreferences(w http.ResponseWriter, r *http.Request)
 // hackPreferencesJSON adds email_possible: false for a key-only account
 // (a sign-in name that is not an email address), which is never emailed
 // whatever email_updates says.
-func hackPreferencesJSON(user *db.User, p db.HackPreferences) map[string]any {
+func hackPreferencesJSON(user *db.User, p model.HackPreferences) map[string]any {
 	return map[string]any{
 		"theme":                      p.Theme,
 		"organiser_walkthrough_done": p.OrganiserWalkthroughDone,
@@ -53,7 +54,7 @@ func (h *HackHandler) patchHackPreferences(w http.ResponseWriter, r *http.Reques
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	p, err := db.GetHackPreferences(r.Context(), h.database, user.ID)
+	p, err := h.eventsSvc().HackPreferences(r.Context(), user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -74,7 +75,7 @@ func (h *HackHandler) patchHackPreferences(w http.ResponseWriter, r *http.Reques
 	if req.EmailUpdates != nil {
 		p.EmailUpdates = *req.EmailUpdates
 	}
-	if err := db.SetHackPreferences(r.Context(), h.database, user.ID, p); err != nil {
+	if err := h.eventsSvc().SetHackPreferencesLookup(r.Context(), user.ID, p); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}

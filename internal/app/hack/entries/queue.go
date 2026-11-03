@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
@@ -31,7 +30,7 @@ type QueueRow struct {
 }
 
 // JudgeQueue gathers and orders the entries visible to a judge.
-func (s *Service) JudgeQueue(ctx context.Context, ev db.Event, judgeID string, loadTeams func() error) ([]QueueRow, error) {
+func (s *Service) JudgeQueue(ctx context.Context, ev model.Event, judgeID string, loadTeams func() error) ([]QueueRow, error) {
 	teams, err := entryrepo.ListTeamsWithMembers(ctx, s.db, ev.ID)
 	if err != nil {
 		return nil, err
@@ -106,7 +105,7 @@ type Pool struct {
 }
 
 // JudgingPool gathers the prospective pool, consulting site state only when needed.
-func (s *Service) JudgingPool(ctx context.Context, ev db.Event, teams []model.NamedTeam, live func(model.NamedTeam) (bool, error)) (Pool, error) {
+func (s *Service) JudgingPool(ctx context.Context, ev model.Event, teams []model.NamedTeam, live func(model.NamedTeam) (bool, error)) (Pool, error) {
 	pool := Pool{In: map[string]bool{}}
 	entries, err := entryrepo.ListEventEntries(ctx, s.db, ev.ID)
 	if err != nil {

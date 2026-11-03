@@ -5,20 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"html"
 	"io"
 	"net/http"
 	"strings"
 	"unicode"
-
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 func (h *HackHandler) hackIconLimit() int64 {
 	return int64(h.limits.HackEventIconMaxBytes)
 }
 
-func (h *HackHandler) iconURL(ev db.Event) string {
+func (h *HackHandler) iconURL(ev model.Event) string {
 	return h.iconURLSlug(ev.Slug)
 }
 
@@ -34,7 +33,7 @@ func (h *HackHandler) registerEventIcon(mux *http.ServeMux, wrap func(http.Handl
 
 func (h *HackHandler) getEventIcon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	ev, err := db.GetEventBySlug(r.Context(), h.database, strings.ToLower(r.PathValue("slug")))
+	ev, err := h.eventsSvc().EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
@@ -50,7 +49,7 @@ func (h *HackHandler) getEventIcon(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	typ, body, err := db.GetEventIcon(r.Context(), h.database, ev.ID)
+	typ, body, err := h.eventsSvc().EventIcon(r.Context(), ev.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -104,7 +103,7 @@ func (h *HackHandler) putEventIcon(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_icon", "Content-Type must match the image")
 		return
 	}
-	if err := db.SetEventIcon(r.Context(), h.database, a.event.ID, typ, raw); err != nil {
+	if err := h.eventsSvc().SetEventIconLookup(r.Context(), a.event.ID, typ, raw); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -124,7 +123,7 @@ func (h *HackHandler) deleteEventIcon(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusConflict, "event_closed", "this event has ended")
 		return
 	}
-	if err := db.SetEventIcon(r.Context(), h.database, a.event.ID, "", nil); err != nil {
+	if err := h.eventsSvc().SetEventIconLookup(r.Context(), a.event.ID, "", nil); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}

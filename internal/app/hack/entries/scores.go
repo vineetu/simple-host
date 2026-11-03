@@ -1,11 +1,13 @@
 package entries
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 
 	"context"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/db"
+
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 )
@@ -41,7 +43,7 @@ func (s *Service) JudgeScores(ctx context.Context, eventID, judgeID, teamID stri
 }
 
 // PutJudgeScores validates and saves scores while holding the event lock.
-func (s *Service) PutJudgeScores(ctx context.Context, eventID, judgeID, teamID string, inputs []ScoreInput, comment *string, scoringStage func(context.Context, db.Event) bool) ([]entryrepo.JudgeScore, string, bool, error) {
+func (s *Service) PutJudgeScores(ctx context.Context, eventID, judgeID, teamID string, inputs []ScoreInput, comment *string, scoringStage func(context.Context, model.Event) bool) ([]entryrepo.JudgeScore, string, bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, "", false, err

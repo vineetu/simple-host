@@ -4,10 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"net/http"
 	"strings"
-
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // RegisterHackWatch is mounted only by the hosted-events homepage. Takes
@@ -31,12 +30,12 @@ func (h *HackHandler) RegisterDemo(mux *http.ServeMux, slug string) {
 		slug = "demo"
 	}
 	h.demoSlug = slug
-	lookup := func(w http.ResponseWriter, r *http.Request, page bool) (db.Event, bool) {
+	lookup := func(w http.ResponseWriter, r *http.Request, page bool) (model.Event, bool) {
 		w.Header().Set("Cache-Control", "no-store")
-		ev, err := db.GetDemoEvent(r.Context(), h.database, slug)
+		ev, err := h.eventsSvc().DemoEvent(r.Context(), slug)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			httpx.WriteInternal(w)
-			return db.Event{}, false
+			return model.Event{}, false
 		}
 		if err != nil {
 			if page {
@@ -45,7 +44,7 @@ func (h *HackHandler) RegisterDemo(mux *http.ServeMux, slug string) {
 			} else {
 				httpx.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "no demo event"})
 			}
-			return db.Event{}, false
+			return model.Event{}, false
 		}
 		return ev, true
 	}

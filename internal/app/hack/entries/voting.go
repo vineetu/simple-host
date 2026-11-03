@@ -1,10 +1,12 @@
 package entries
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
 	repo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	"regexp"
@@ -12,7 +14,7 @@ import (
 )
 
 // VotingStatus evaluates the voting window.
-func VotingStatus(ev db.Event, v repo.VotingSettings, now time.Time) string {
+func VotingStatus(ev model.Event, v repo.VotingSettings, now time.Time) string {
 	if !v.Enabled || !ev.GalleryOpen || ev.Stage == "draft" || ev.TakenDown() || !v.OpensAt.Valid || !v.ClosesAt.Valid {
 		return "disabled"
 	}
@@ -34,10 +36,10 @@ type VoteRemovalConfirmation struct{ Count int64 }
 func (e *VoteRemovalConfirmation) Error() string { return "Confirm removal of earlier votes." }
 
 // SaveVotingSettings updates voting and removes ineligible votes under the event lock.
-func (s *Service) SaveVotingSettings(ctx context.Context, id string, v repo.VotingSettings, confirm bool) (db.Event, repo.VotingSettings, int64, error) {
+func (s *Service) SaveVotingSettings(ctx context.Context, id string, v repo.VotingSettings, confirm bool) (model.Event, repo.VotingSettings, int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return db.Event{}, v, 0, err
+		return model.Event{}, v, 0, err
 	}
 	defer tx.Rollback()
 	ev, err := eventrepo.GetEventForUpdate(ctx, tx, id)
@@ -151,7 +153,7 @@ type VotingSettingsRead struct {
 }
 
 // ReadVotingSettings composes the organiser's voting settings and counts.
-func (s *Service) ReadVotingSettings(ctx context.Context, ev db.Event, now func() time.Time) (VotingSettingsRead, error) {
+func (s *Service) ReadVotingSettings(ctx context.Context, ev model.Event, now func() time.Time) (VotingSettingsRead, error) {
 	var out VotingSettingsRead
 	v, err := repo.GetVotingSettings(ctx, s.db, ev.ID)
 	if err != nil {
@@ -171,7 +173,7 @@ func (s *Service) ReadVotingSettings(ctx context.Context, ev db.Event, now func(
 
 // VotingEvent loads an event visible on the public voting routes. Loaded is true
 // even for a hidden event, but false for a failed database scan.
-func (s *Service) VotingEvent(ctx context.Context, slug string) (ev db.Event, loaded bool, err error) {
+func (s *Service) VotingEvent(ctx context.Context, slug string) (ev model.Event, loaded bool, err error) {
 	ev, err = eventrepo.GetEventBySlug(ctx, s.db, slug)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ev, false, &Error{Code: "event_not_found", Message: "voting event not found"}
@@ -187,14 +189,14 @@ func (s *Service) VotingEvent(ctx context.Context, slug string) (ev db.Event, lo
 
 // PublicVote is the data shown on the public voting page.
 type PublicVote struct {
-	Event            db.Event
+	Event            model.Event
 	Settings         VotingConfig
 	Status           string
 	Options, Ranking []repo.VoteOption
 }
 
 // ReadPublicVote collects voting options and, when closed, the final ranking.
-func (s *Service) ReadPublicVote(ctx context.Context, ev db.Event, now func() time.Time) (PublicVote, error) {
+func (s *Service) ReadPublicVote(ctx context.Context, ev model.Event, now func() time.Time) (PublicVote, error) {
 	out := PublicVote{Event: ev}
 	var err error
 	out.Settings, err = repo.GetVotingSettings(ctx, s.db, out.Event.ID)
@@ -215,7 +217,7 @@ func (s *Service) ReadPublicVote(ctx context.Context, ev db.Event, now func() ti
 }
 
 // ReadMyVote returns the selection and eligibility for a signed-in visitor.
-func (s *Service) ReadMyVote(ctx context.Context, ev db.Event, username string, admin bool) (db.Event, string, bool, error) {
+func (s *Service) ReadMyVote(ctx context.Context, ev model.Event, username string, admin bool) (model.Event, string, bool, error) {
 	email := db.BaseEmail(username)
 	selected, err := repo.OwnVote(ctx, s.db, ev.ID, email)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {

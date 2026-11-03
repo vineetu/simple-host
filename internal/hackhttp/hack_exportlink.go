@@ -8,8 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // Event archive links follow the site's export-link pattern. Their signature
@@ -60,7 +58,7 @@ func (h *HackHandler) createHackArchiveLink(w http.ResponseWriter, r *http.Reque
 	}
 	// loadMember grants a platform admin read access to any event. An archive
 	// link is private data, so only actual event membership may mint it.
-	if _, err := db.GetEventMember(r.Context(), h.database, a.event.ID, a.user.ID); err != nil {
+	if _, err := h.eventsSvc().EventMember(r.Context(), a.event.ID, a.user.ID); err != nil {
 		writeEventNotFound(w)
 		return
 	}
@@ -92,7 +90,7 @@ func (h *HackHandler) downloadHackArchive(w http.ResponseWriter, r *http.Request
 		invalid()
 		return
 	}
-	ev, err := db.GetEventBySlug(r.Context(), h.database, c.Slug)
+	ev, err := h.eventsSvc().EventBySlug(r.Context(), c.Slug)
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
@@ -100,7 +98,7 @@ func (h *HackHandler) downloadHackArchive(w http.ResponseWriter, r *http.Request
 		invalid()
 		return
 	}
-	m, err := db.GetEventMember(r.Context(), h.database, ev.ID, c.UserID)
+	m, err := h.eventsSvc().EventMember(r.Context(), ev.ID, c.UserID)
 	if err != nil {
 		invalid()
 		return
@@ -116,12 +114,12 @@ func (h *HackHandler) downloadHackArchive(w http.ResponseWriter, r *http.Request
 			invalid()
 			return
 		}
-		status, err := db.MemberApprovalStatus(r.Context(), h.database, ev.ID, c.UserID)
+		status, err := h.membersSvc().MemberApprovalStatusLookup(r.Context(), ev.ID, c.UserID)
 		if err != nil || status != "approved" {
 			invalid()
 			return
 		}
-		team, err := db.GetEventTeamByID(r.Context(), h.database, c.TeamID)
+		team, err := h.teamsSvc().TeamByID(r.Context(), c.TeamID)
 		if err != nil || team.EventID != ev.ID {
 			invalid()
 			return

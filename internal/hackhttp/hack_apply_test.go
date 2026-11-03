@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
+	"github.com/vsriram/simple-host/internal/app/hack/members"
 	"io/fs"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 )
@@ -712,7 +712,7 @@ func TestHackApplyPendingCapConcurrentCrossEvent(t *testing.T) {
 		t.Fatalf("concurrent cross-event applies at the cap: %d won, %d lost (want 1 and 1)", wins, losses)
 	}
 
-	pending, err := db.CountPendingApplications(context.Background(), b.database, b.userID(t, racer))
+	pending, err := members.New(b.database, nil, nil, nil, nil, nil).CountPendingApplications(context.Background(), b.userID(t, racer))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1133,7 +1133,7 @@ func TestHackApplyCountryValidatorCoverage(t *testing.T) {
 	}
 
 	for _, code := range codes {
-		if _, ok := hackevents.Country(code); !ok {
+		if _, ok := events.Country(code); !ok {
 			t.Errorf("server rejects %s, which public-apply.js offers", code)
 		}
 	}
@@ -1148,7 +1148,7 @@ func TestHackApplyCountryValidatorCoverage(t *testing.T) {
 	for _, x := range letters {
 		for _, y := range letters {
 			code := string(x) + string(y)
-			_, ok := hackevents.Country(code)
+			_, ok := events.Country(code)
 			if ok && !offered[code] {
 				t.Errorf("server accepts %s, which public-apply.js does not offer", code)
 			}

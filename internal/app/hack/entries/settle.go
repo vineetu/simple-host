@@ -1,6 +1,8 @@
 package entries
 
 import (
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 
 	"context"
@@ -9,7 +11,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 )
@@ -103,7 +104,7 @@ func (s *Service) SettleTeam(ctx context.Context, teamID string) error {
 // SettleTeamTx is SettleTeam's body, run in a transaction that
 // already holds the team row FOR UPDATE.
 func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, teamID string) error {
-	st, err := db.TeamWriteStateFor(ctx, tx, teamID, false)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, false)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}

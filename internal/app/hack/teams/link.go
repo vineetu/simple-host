@@ -8,14 +8,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // LinkPreview contains the data needed to display a team link.
 type LinkPreview struct {
-	Event            db.Event
-	Team             db.EventTeam
+	Event            model.Event
+	Team             model.EventTeam
 	MemberCount      int
 	DeadlinePassed   bool
 	Track            *model.EventTrack

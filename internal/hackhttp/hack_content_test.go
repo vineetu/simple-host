@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/email"
 )
 
@@ -377,7 +377,7 @@ func TestHackCreateEventAnnouncementNoDuplicateForSameUser(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback()
-	_, queued, organiserCopied, err := db.CreateEventAnnouncement(context.Background(), tx, eventID, "Title", "Body", true, participantID)
+	_, queued, organiserCopied, err := events.CreateEventAnnouncement(context.Background(), tx, eventID, "Title", "Body", true, participantID)
 	if err != nil {
 		t.Fatal(err)
 	}

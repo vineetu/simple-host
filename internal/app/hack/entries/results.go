@@ -5,7 +5,6 @@ import (
 
 	"context"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
@@ -16,7 +15,7 @@ import (
 type TeamResult = hackentries.TeamResult[model.EventTrack]
 
 // ComputeResults loads the inputs and calculates the current results.
-func (s *Service) ComputeResults(ctx context.Context, q sqlkit.Querier, ev db.Event) ([]TeamResult, error) {
+func (s *Service) ComputeResults(ctx context.Context, q sqlkit.Querier, ev model.Event) ([]TeamResult, error) {
 	rubric, err := entryrepo.ListRubric(ctx, q, ev.ID)
 	if err != nil {
 		return nil, err

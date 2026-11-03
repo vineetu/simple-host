@@ -1,11 +1,13 @@
 package events
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/db"
+
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"log"
@@ -27,7 +29,7 @@ func (s *Service) RunEventCleanup(ctx context.Context, now time.Time, keep, warn
 		log.Printf("event-site cleanup: list: %v", err)
 		return
 	}
-	var warn []db.Event
+	var warn []model.Event
 	for _, ev := range events {
 		if !ev.ClosedAt.Valid {
 			continue
@@ -50,7 +52,7 @@ func (s *Service) RunEventCleanup(ctx context.Context, now time.Time, keep, warn
 // removeEventSites moves every team's site to Recently deleted, then stamps
 // sites_removed_at. One team's failure is logged and the rest still move;
 // the stamp follows the pass either way, and nothing else on the event changes.
-func (s *Service) removeEventSites(ctx context.Context, ev db.Event, now time.Time, keepFor time.Duration, trash func(context.Context, string, string) error) {
+func (s *Service) removeEventSites(ctx context.Context, ev model.Event, now time.Time, keepFor time.Duration, trash func(context.Context, string, string) error) {
 	if trash == nil {
 		log.Printf("event-site cleanup: remove %s: team sites are not connected", ev.Slug)
 		return
@@ -90,7 +92,7 @@ func (s *Service) removeEventSites(ctx context.Context, ev db.Event, now time.Ti
 // update takes), the email is sent, and only then is the mark committed. A
 // failed send rolls it back; a crash after the send and before the commit
 // leaves no warning on record, so the next run sends it again.
-func (s *Service) warnEventRemoval(ctx context.Context, send func(string, string, string, string) error, replyTo string, ev db.Event, now, removeAt time.Time, keepFor, warnFor time.Duration) {
+func (s *Service) warnEventRemoval(ctx context.Context, send func(string, string, string, string) error, replyTo string, ev model.Event, now, removeAt time.Time, keepFor, warnFor time.Duration) {
 	if !strings.Contains(ev.ContactEmail, "@") {
 		log.Printf("event-site cleanup: warn %s: no contact email", ev.Slug)
 		return
