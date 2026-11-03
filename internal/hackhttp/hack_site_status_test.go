@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/app/hack/teams"
 )
 
 func selectTeamByID(t *testing.T, a *teamSiteApp, access, teamID string) {
@@ -158,7 +160,7 @@ func TestHackSiteStatusConnection(t *testing.T) {
 
 func TestLatestEventsGrantsByUserEmpty(t *testing.T) {
 	a := newTeamSiteApp(t)
-	out, err := latestEventsGrantsByUser(t.Context(), a.database, nil, "https://example.test/mcp")
+	out, err := teams.New(a.database).LatestGrants(t.Context(), nil, "https://example.test/mcp")
 	if err != nil || len(out) != 0 {
 		t.Fatalf("empty input: %v %v", out, err)
 	}
