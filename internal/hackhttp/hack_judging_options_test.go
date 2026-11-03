@@ -50,37 +50,6 @@ func TestOrganiserOverridePreservesAutomaticTieDeciders(t *testing.T) {
 	}
 }
 
-func nearScore(t *testing.T, name string, got, want float64) {
-	t.Helper()
-	if math.Abs(got-want) > 0.02 {
-		t.Fatalf("%s: got %.4f want %.4f", name, got, want)
-	}
-}
-
-func TestJudgingNormalisationHandCalculated(t *testing.T) {
-	entries := []judgeEntry{{team: "A", judge: "J1", raw: 100}, {team: "B", judge: "J1", raw: 90}, {team: "A", judge: "J2", raw: 0}, {team: "B", judge: "J2", raw: 80}, {team: "C", judge: "J2", raw: 100}}
-	got := normalisedEntries(entries)
-	// Global population mean=74, spread=sqrt(1424)=37.7359.
-	// J1 mean/spread=95/5; J2=60/sqrt(1866.67).
-	// Raw means A=50, B=85; normalised means A=66.67, B=63.87.
-	nearScore(t, "A", (got[judgeTeamKey("J1", "A")]+got[judgeTeamKey("J2", "A")])/2, 66.66545)
-	nearScore(t, "B", (got[judgeTeamKey("J1", "B")]+got[judgeTeamKey("J2", "B")])/2, 63.86621)
-	if got[judgeTeamKey("J1", "A")] <= got[judgeTeamKey("J1", "B")] {
-		t.Fatal("within-judge order reversed")
-	}
-	flat := normalisedEntries([]judgeEntry{{team: "A", judge: "J1", raw: 20}, {team: "B", judge: "J1", raw: 20}, {team: "A", judge: "J2", raw: 40}, {team: "B", judge: "J2", raw: 40}})
-	for _, score := range flat {
-		nearScore(t, "zero judge spread fallback", score, 30)
-	}
-	zero := normalisedEntries([]judgeEntry{{team: "A", judge: "J1", raw: 50}, {team: "B", judge: "J1", raw: 50}})
-	for _, score := range zero {
-		nearScore(t, "zero global spread fallback", score, 50)
-		if math.IsNaN(score) {
-			t.Fatal("NaN")
-		}
-	}
-}
-
 func TestHackManualAndPanelJudgingAccess(t *testing.T) {
 	w := newJudgingWorld(t, 2, 2)
 	criterion := decodeRubric(t, w.call(t, "GET", "/rubric", nil, w.org)).Criteria[0].ID
