@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 	"time"
 )
 
@@ -51,7 +53,7 @@ func TestLegacyStorageCutoffGateSkipsOptionsAndHack(t *testing.T) {
 	h := &SiteHandler{}
 	h.SetLegacyStorageCutoff(legacyCutoffTime())
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	gate := h.LegacyStorageCutoffGate(HackLegacyStorageGate(next))
+	gate := h.LegacyStorageCutoffGate(h.HackLegacyStorageGate(next))
 
 	r := httptest.NewRecorder()
 	gate.ServeHTTP(r, httptest.NewRequest(http.MethodOptions, "/v1/sites/shop/state", nil))
@@ -60,6 +62,7 @@ func TestLegacyStorageCutoffGateSkipsOptionsAndHack(t *testing.T) {
 	}
 
 	SetHackMode(true)
+	h.ed = edition.ForKind(edition.Hack)
 	r = httptest.NewRecorder()
 	gate.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/v1/sites/shop/state", nil))
 	if r.Code != http.StatusGone || !strings.Contains(r.Body.String(), "legacy_storage_removed") {

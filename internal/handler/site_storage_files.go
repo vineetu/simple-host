@@ -141,7 +141,7 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		used := usage.Files
-		if hackMode {
+		if h.ed.Storage().CombinedPool {
 			used = usage.total()
 		}
 		if used-oldBytes+int64(len(body)) > h.storageFilesLimitBytes() {
@@ -480,7 +480,7 @@ func (h *SiteHandler) downloadStorageFile(w http.ResponseWriter, r *http.Request
 			storageError(w, 404, "file_link_invalid", "link invalid")
 			return
 		}
-	} else if hackMode {
+	} else if h.ed.Storage().EventOwners {
 		// Legacy unscoped owner links cannot stand in for a current team or
 		// organiser credential on the hosted event platform.
 		storageError(w, 404, "file_link_invalid", "link invalid")

@@ -469,7 +469,7 @@ func (h *SiteHandler) storageOwnerOnSite(r *http.Request, c storageCall) bool {
 	if c.visitorAI || c.visitorID == "" || c.resource.Access == nil {
 		return false
 	}
-	if !hackMode && c.visitorID != c.ownerID {
+	if !h.ed.Storage().EventOwners && c.visitorID != c.ownerID {
 		return false
 	}
 	if r.Header.Get("X-SH-Framed") != "" || h.previewRefererFor(r, c.siteID) {
@@ -478,7 +478,7 @@ func (h *SiteHandler) storageOwnerOnSite(r *http.Request, c storageCall) bool {
 	if !h.storageOwnHost(r, c.siteID) {
 		return false
 	}
-	if hackMode {
+	if h.ed.Storage().EventOwners {
 		ok, err := db.HackSiteOwnerOnSite(r.Context(), h.database, c.siteID, c.visitorID)
 		return err == nil && ok
 	}
@@ -510,7 +510,7 @@ func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ow
 	if err != nil || !strings.EqualFold(sess.Host, requestHostName(r)) || time.Now().After(sess.ExpiresAt) {
 		return
 	}
-	if hackMode {
+	if h.ed.Storage().EventOwners {
 		papermetrics.HackMember(r.Context(), sess.UserID)
 		if ok, err := db.HackSiteOwnerOnSite(r.Context(), h.database, sess.SiteID, sess.UserID); err != nil || !ok {
 			return
@@ -531,7 +531,7 @@ func (h *SiteHandler) storageOwnHost(r *http.Request, siteID string) bool {
 	}
 	// On Simple Hack the event's host is the holding account's person
 	// host, and it serves the event's custom website.
-	if _, person := h.personHostOwner(r.Context(), host); person && !hackMode {
+	if _, person := h.personHostOwner(r.Context(), host); person && !h.ed.Storage().EventOwners {
 		return false
 	}
 	id, err := h.resolveSiteIDScoped(r, r.PathValue("sitename"))

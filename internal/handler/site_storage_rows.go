@@ -181,7 +181,7 @@ func (h *SiteHandler) prepareStorageMatrixDatabase(ctx context.Context, c storag
 	}
 	size := page.ColumnInt64(0)
 	page.Close()
-	maxPages := (storageSiteLimitBytes() - (h.storageBudgetUsed(usage) - fi.Size())) / size
+	maxPages := (storageSiteLimitBytes(h.ed.Storage().CombinedPool) - (h.storageBudgetUsed(usage) - fi.Size())) / size
 	if maxPages < 1 || fi.Size() > maxPages*size {
 		return existing, sqlite3.FULL
 	}

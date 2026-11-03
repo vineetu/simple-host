@@ -22,6 +22,9 @@ func TestNew(t *testing.T) {
 			t.Errorf("Events %q: got %v %+v %+v", tc.events, e.Kind(), e.Routes(), e.Presentation())
 		}
 	}
+	if ForKind(Host).Storage() != (StoragePolicy{LegacyRoutes: true, FileCaps: true}) || ForKind(Hack).Storage() != (StoragePolicy{EventOwners: true, CombinedPool: true}) {
+		t.Error("storage policy differs by edition")
+	}
 	var nilEd *Edition
 	if nilEd.Kind() != Host || nilEd.Routes().HostedEvents {
 		t.Error("nil Edition must behave as Host")

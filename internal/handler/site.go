@@ -1889,7 +1889,7 @@ func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Req
 	}
 	defer tx.Rollback()
 
-	if fileCapsEnabled() {
+	if h.fileCapsEnabled() {
 		if _, err := tx.ExecContext(r.Context(), "SELECT id FROM users WHERE id = $1 FOR UPDATE", user.ID); err != nil {
 			writeJSON(w, 500, errorResponse{Error: "internal server error"})
 			return

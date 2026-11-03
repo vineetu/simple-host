@@ -35,7 +35,7 @@ type storageVisitor struct {
 }
 
 func (h *SiteHandler) storageVisitors(w http.ResponseWriter, r *http.Request) {
-	if _, event := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); event || hackMode {
+	if _, event := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); event || h.ed.Storage().EventOwners {
 		storageError(w, 404, "not_found", "storage route not found")
 		return
 	}

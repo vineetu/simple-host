@@ -56,7 +56,7 @@ func projectedFileBytes(f storage.FileFootprint, versions []db.Version, floor, a
 // formats, create-or-update and unpublished deploys converge here.
 func (h *SiteHandler) checkFileCaps(w http.ResponseWriter, r *http.Request, user *db.User, site db.Site, files map[string][]byte, next int, publish bool) bool {
 	l := config.Active()
-	if hackMode || (l.MaxSiteTotalMB == 0 && l.MaxAccountMB == 0 && l.MaxSiteTotalOverrides == "" && l.MaxAccountOverrides == "") {
+	if !h.ed.Storage().FileCaps || (l.MaxSiteTotalMB == 0 && l.MaxAccountMB == 0 && l.MaxSiteTotalOverrides == "" && l.MaxAccountOverrides == "") {
 		return true
 	}
 	handles := accountHandles(r.Context(), h.database, user)
@@ -131,12 +131,12 @@ func (h *SiteHandler) accountFileUsage(ctx context.Context, user *db.User) (*acc
 	return &accountFileUsage{used, mb, msg, storageTips}, nil
 }
 
-func fileCapsEnabled() bool {
+func (h *SiteHandler) fileCapsEnabled() bool {
 	l := config.Active()
-	return !hackMode && (l.MaxSiteTotalMB > 0 || l.MaxAccountMB > 0 || l.MaxSiteTotalOverrides != "" || l.MaxAccountOverrides != "")
+	return h.ed.Storage().FileCaps && (l.MaxSiteTotalMB > 0 || l.MaxAccountMB > 0 || l.MaxSiteTotalOverrides != "" || l.MaxAccountOverrides != "")
 }
 func (h *SiteHandler) lockAccountFiles(userID string) func() {
-	if !fileCapsEnabled() {
+	if !h.fileCapsEnabled() {
 		return func() {}
 	}
 	return h.lockSite(userID, "")

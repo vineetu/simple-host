@@ -871,7 +871,7 @@ func (h *SiteHandler) openStorageTableConn(w http.ResponseWriter, r *http.Reques
 		if pageSize <= 0 {
 			return fail()
 		}
-		maxPages := (storageSiteLimitBytes() - (h.storageBudgetUsed(usage) - currentDBBytes)) / pageSize
+		maxPages := (storageSiteLimitBytes(h.ed.Storage().CombinedPool) - (h.storageBudgetUsed(usage) - currentDBBytes)) / pageSize
 		if maxPages < 1 {
 			done()
 			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")

@@ -132,7 +132,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 	paperHackSite(r, ownerID, siteName, nil)
 	c := storageCall{siteID: id, ownerID: ownerID, siteName: siteName}
 	if scope, ok := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); ok {
-		if !hackMode || scope.siteID != id || scope.ownerID != ownerID {
+		if !h.ed.Storage().EventOwners || scope.siteID != id || scope.ownerID != ownerID {
 			storageError(w, 403, "forbidden", "event website scope required")
 			return storageCall{}, false
 		}
@@ -153,14 +153,14 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 			return storageCall{}, false
 		}
 		if ok && u.KeyScope != db.KeyScopeDeploy && (u.ID == ownerID || u.IsAdmin) &&
-			(u.Team == nil || (hackMode && u.Team.AccountID == ownerID && strings.EqualFold(u.Team.TeamSlug, siteName))) &&
-			(u.EventWebsite == nil || (hackMode && u.EventWebsite.EventID == siteName && u.EventWebsite.OrganiserID != "")) {
+			(u.Team == nil || (h.ed.Storage().EventOwners && u.Team.AccountID == ownerID && strings.EqualFold(u.Team.TeamSlug, siteName))) &&
+			(u.EventWebsite == nil || (h.ed.Storage().EventOwners && u.EventWebsite.EventID == siteName && u.EventWebsite.OrganiserID != "")) {
 			c.owner = true
 			c.accountID = u.ID
 			c.uploaderID = siteWriterID(&u)
 			if u.Team != nil {
 				c.linkScope = "team:" + u.Team.TeamID + ":" + u.Team.MemberID
-			} else if hackMode && u.IsAdmin {
+			} else if h.ed.Storage().EventOwners && u.IsAdmin {
 				c.linkScope = "admin"
 			}
 		}
@@ -267,7 +267,7 @@ func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Reques
 	out := []map[string]any{}
 	for _, x := range list {
 		entry := storageResourceJSON(x)
-		if !hackMode {
+		if h.ed.Storage().LegacyRoutes {
 			history, err := db.ListHistory(r.Context(), h.database, c.siteID, db.HistoryStorage, x.Name, 20, 0)
 			if err != nil {
 				storageError(w, 500, "internal_error", "internal server error")
@@ -561,9 +561,9 @@ func storageLimitBytes(raw string, fallback, max int64) int64 {
 
 // Simple Host defaults KV plus SQLite to 10 MB per site; Simple Hack keeps
 // its 1,000,000-byte pool, which also covers files.
-func storageSiteLimitBytes() int64 {
+func storageSiteLimitBytes(combinedPool bool) int64 {
 	fallback := int64(10000000)
-	if hackMode {
+	if combinedPool {
 		fallback = 1000000
 	}
 	return storageLimitBytes(os.Getenv("SITE_STORAGE_MAX_BYTES"), fallback, 10<<30)
@@ -641,7 +641,7 @@ func (h *SiteHandler) getStorageUsage(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
-	limit := storageSiteLimitBytes()
+	limit := storageSiteLimitBytes(h.ed.Storage().CombinedPool)
 	remaining := limit - h.storageBudgetUsed(u)
 	if remaining < 0 {
 		remaining = 0
@@ -834,7 +834,7 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 400, "invalid_value", "invalid JSON value")
 			return
 		}
-		if h.storageBudgetUsed(usage)-old+normalized+int64(len(key)) > storageSiteLimitBytes() {
+		if h.storageBudgetUsed(usage)-old+normalized+int64(len(key)) > storageSiteLimitBytes(h.ed.Storage().CombinedPool) {
 			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
