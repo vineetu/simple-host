@@ -1,15 +1,11 @@
 package hackhttp
 
 import (
-	"database/sql"
-	"errors"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"regexp"
-	"strconv"
-	"strings"
 )
 
 var hackTrackSlug = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$`)
@@ -30,7 +26,7 @@ func (h *HackHandler) getRegistration(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	q, approval, err := db.RegistrationSettings(r.Context(), h.database, a.event.ID)
+	q, approval, err := h.membersSvc().Registration(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -38,31 +34,6 @@ func (h *HackHandler) getRegistration(w http.ResponseWriter, r *http.Request) {
 	// applications_open is read-only here (People -> Sign-up's one-line
 	// summary); it is changed from Settings (PATCH .../events/{slug}).
 	httpx.WriteJSON(w, 200, map[string]any{"questions": q, "approval_required": approval, "applications_open": a.event.ApplicationsOpen})
-}
-func validateSignupQuestions(w http.ResponseWriter, in []db.SignupQuestion) ([]db.SignupQuestion, bool) {
-	if len(in) > 8 {
-		httpx.WriteError(w, 400, "too_many_questions", "up to eight sign-up questions are allowed")
-		return nil, false
-	}
-	out := make([]db.SignupQuestion, 0, len(in))
-	seen := map[string]bool{}
-	for i, q := range in {
-		id := strings.TrimSpace(q.ID)
-		if id == "" {
-			id = "q" + strconv.Itoa(i+1)
-		}
-		if !hackTrackSlug.MatchString(id) || seen[id] {
-			httpx.WriteError(w, 400, "invalid_question_id", "question ids must be unique lowercase names")
-			return nil, false
-		}
-		seen[id] = true
-		prompt, ok := checkHackLine(w, q.Prompt, "question", 1, 160)
-		if !ok {
-			return nil, false
-		}
-		out = append(out, db.SignupQuestion{ID: id, Prompt: prompt, Required: q.Required})
-	}
-	return out, true
 }
 func (h *HackHandler) putRegistration(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.administrationWrite(w, r)
@@ -77,40 +48,13 @@ func (h *HackHandler) putRegistration(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	questions, ok := validateSignupQuestions(w, req.Questions)
-	if !ok {
-		return
-	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	questions, err := h.membersSvc().ValidateQuestions(req.Questions)
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeMemberError(w, err)
 		return
 	}
-	defer tx.Rollback()
-	var stage string
-	if err := tx.QueryRowContext(r.Context(), `SELECT stage FROM events WHERE id=$1 FOR UPDATE`, a.event.ID).Scan(&stage); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if stage == "archived" {
-		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	if err := db.SetRegistrationSettings(r.Context(), tx, a.event.ID, questions, req.ApprovalRequired); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if !req.ApprovalRequired && req.AdmitPending {
-		// Join-link sign-ups only (D5): approval_required and admit_pending
-		// govern the link, never a stranger's application, which always
-		// waits for an organiser's own decision.
-		if _, err := tx.ExecContext(r.Context(), `UPDATE event_members SET approval_status='approved', approval_decided_at=now(), approval_decided_by=$2 WHERE event_id=$1 AND role='participant' AND approval_status='pending' AND joined_via='link'`, a.event.ID, a.user.ID); err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+	if err := h.membersSvc().SetRegistration(r.Context(), a.event.ID, a.user.ID, questions, req.ApprovalRequired, req.AdmitPending); err != nil {
+		writeMemberError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"questions": questions, "approval_required": req.ApprovalRequired})
@@ -120,7 +64,7 @@ func (h *HackHandler) getApplications(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	list, err := db.ListRegistrationApplications(r.Context(), h.database, a.event.ID)
+	list, err := h.membersSvc().Applications(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -143,42 +87,12 @@ func (h *HackHandler) decideApplication(w http.ResponseWriter, r *http.Request) 
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	if req.Decision != "approved" && req.Decision != "rejected" {
-		httpx.WriteError(w, 400, "invalid_decision", "decision must be approved or rejected")
+	if err := h.membersSvc().ValidateDecision(req.Decision); err != nil {
+		writeMemberError(w, err)
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	var stage string
-	if err := tx.QueryRowContext(r.Context(), `SELECT stage FROM events WHERE id=$1 FOR UPDATE`, a.event.ID).Scan(&stage); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if stage == "archived" {
-		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	updated, err := db.DecideRegistration(r.Context(), tx, a.event.ID, id, a.user.ID, req.Decision)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if !updated {
-		httpx.WriteError(w, 409, "application_not_pending", "only pending applications can be decided")
-		return
-	}
-	// The applicant hears the answer, in the app and by email (INTENT
-	// 2026-11-02, superseding "no decision email goes out yet").
-	if err := db.NotifyUsers(r.Context(), tx, a.event.ID, db.NoticeApplicationDecided, "", "", req.Decision, id); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+	if err := h.membersSvc().DecideApplication(r.Context(), a.event.ID, id, a.user.ID, req.Decision); err != nil {
+		writeMemberError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"user_id": id, "status": req.Decision})
@@ -188,42 +102,12 @@ func (h *HackHandler) getTracks(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	tracks, err := db.ListEventTracks(r.Context(), h.database, a.event.ID)
+	tracks, err := h.membersSvc().Tracks(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
 	httpx.WriteJSON(w, 200, tracks)
-}
-func validateTracks(w http.ResponseWriter, in []db.EventTrack) ([]db.EventTrack, bool) {
-	if len(in) > 12 {
-		httpx.WriteError(w, 400, "too_many_tracks", "up to twelve tracks are allowed")
-		return nil, false
-	}
-	out := make([]db.EventTrack, 0, len(in))
-	seen := map[string]bool{}
-	for _, t := range in {
-		slug := strings.TrimSpace(t.Slug)
-		if !hackTrackSlug.MatchString(slug) || seen[slug] {
-			httpx.WriteError(w, 400, "invalid_track_slug", "track "+t.Name+": slug must be a unique lowercase name up to 80 characters")
-			return nil, false
-		}
-		seen[slug] = true
-		name, ok := checkHackLine(w, t.Name, "track_name", 1, 80)
-		if !ok {
-			return nil, false
-		}
-		challenge, ok := checkHackText(w, t.Challenge, "challenge", 0, 3000)
-		if !ok {
-			return nil, false
-		}
-		prize, ok := checkHackText(w, t.Prize, "track_prize", 0, 1000)
-		if !ok {
-			return nil, false
-		}
-		out = append(out, db.EventTrack{Slug: slug, Name: name, Challenge: challenge, Prize: prize})
-	}
-	return out, true
 }
 func (h *HackHandler) putTracks(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.administrationWrite(w, r)
@@ -236,36 +120,14 @@ func (h *HackHandler) putTracks(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	tracks, ok := validateTracks(w, req.Tracks)
-	if !ok {
-		return
-	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	tracks, err := h.membersSvc().ValidateTracks(req.Tracks)
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeMemberError(w, err)
 		return
 	}
-	defer tx.Rollback()
-	var stage string
-	if err = tx.QueryRowContext(r.Context(), `SELECT stage FROM events WHERE id=$1 FOR UPDATE`, a.event.ID).Scan(&stage); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if stage == "archived" {
-		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	if err = db.ReplaceEventTracks(r.Context(), tx, a.event.ID, tracks); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err = tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	out, err := db.ListEventTracks(r.Context(), h.database, a.event.ID)
+	out, err := h.membersSvc().SetTracks(r.Context(), a.event.ID, tracks)
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeMemberError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, out)
@@ -275,8 +137,8 @@ func (h *HackHandler) chooseTrack(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !participantTeamStages(a.event.Stage) {
-		httpx.WriteError(w, 409, "teams_locked", "team choices are closed")
+	if err := h.membersSvc().ValidateTrackStage(a.event.Stage); err != nil {
+		writeMemberError(w, err)
 		return
 	}
 	team, ok := h.participantTeam(w, r, a)
@@ -289,48 +151,14 @@ func (h *HackHandler) chooseTrack(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	slug := strings.TrimSpace(req.Track)
-	if slug != "" && !hackTrackSlug.MatchString(slug) {
-		httpx.WriteError(w, 400, "invalid_track", "choose a listed track")
-		return
-	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	slug, err := h.membersSvc().ValidateTrackChoice(req.Track)
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeMemberError(w, err)
 		return
 	}
-	defer tx.Rollback()
-	if _, err = tx.ExecContext(r.Context(), `SELECT 1 FROM events WHERE id=$1 FOR SHARE`, a.event.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if _, err = tx.ExecContext(r.Context(), `SELECT 1 FROM event_teams WHERE id=$1 FOR UPDATE`, team.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	st, err := db.TeamWriteStateFor(r.Context(), tx, team.ID, true)
+	track, err := h.membersSvc().ChooseTrack(r.Context(), a.event.ID, team.ID, slug)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if st.WriteRefusal() != "" {
-		httpx.WriteError(w, 409, "team_choice_closed", "team choices are closed")
-		return
-	}
-	if _, err = db.SetTeamTrack(r.Context(), tx, a.event.ID, team.ID, slug); errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, 404, "track_not_found", "track not found")
-		return
-	} else if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	track, err := db.TeamTrack(r.Context(), tx, team.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err = tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+		writeMemberError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"track": track})
