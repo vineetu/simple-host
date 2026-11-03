@@ -7,3 +7,5 @@ type Service struct{ db *sql.DB }
 
 // New constructs a team service.
 func New(database *sql.DB) *Service { return &Service{db: database} }
+
+const teamCodeLength = 8

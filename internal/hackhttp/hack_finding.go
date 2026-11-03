@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 
@@ -46,7 +47,7 @@ func (h *HackHandler) findingAccess(w http.ResponseWriter, r *http.Request, writ
 	if !ok {
 		return a, false
 	}
-	if write && !participantTeamStages(a.event.Stage) {
+	if write && !hackteams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, 409, "teams_locked", "teams cannot be changed at this stage")
 		return a, false
 	}
@@ -219,7 +220,7 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !participantTeamStages(a.event.Stage) {
+	if !hackteams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, 409, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}

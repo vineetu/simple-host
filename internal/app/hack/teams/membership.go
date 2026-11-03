@@ -1,9 +1,9 @@
 package teams
 
-// TODO(4.2): move inline SQL to repository/hackteams.
 import (
 	"context"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/rules/hackteams"
 )
 
 // LeaveTeam removes a participant and revokes stale keys atomically.
@@ -31,15 +31,16 @@ func (s *Service) DeleteTeam(ctx context.Context, eventID, slug string) error {
 	if err != nil {
 		return err
 	}
+	// The handler sends the team site to Recently deleted after commit.
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
 	defer tx.Rollback()
-	if _, err = tx.ExecContext(ctx, `DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE team_id = $1)`, team.ID); err != nil {
+	if _, err = tx.ExecContext(ctx, membershipSQL1, team.ID); err != nil {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE event_members SET team_removal_notice=$2 WHERE team_id=$1`, team.ID, team.Name+" was removed by the organiser."); err != nil {
+	if _, err = tx.ExecContext(ctx, membershipSQL2, team.ID, team.Name+" was removed by the organiser."); err != nil {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
 	if err = db.NotifyTeamMembers(ctx, tx, eventID, team.ID, db.NoticeTeamRemoved, team.Name+" was removed by the organiser.", ""); err != nil {
@@ -61,17 +62,20 @@ func (s *Service) JoinTeam(ctx context.Context, eventID, userID, code string, ma
 		return db.EventTeam{}, internalError(err)
 	}
 	defer tx.Rollback()
+	// The handler's pre-BEGIN stage check is a cheap early rejection; recheck
+	// under the event lock, before JoinTeamByCode locks member then team.
 	stage, err := LockEventStage(ctx, tx, eventID)
 	if err != nil {
 		return db.EventTeam{}, internalError(err)
 	}
-	if stage != "open" && stage != "building" {
+	if !hackteams.ParticipantTeamStages(stage) {
 		return db.EventTeam{}, &Error{Code: "teams_locked"}
 	}
 	team, err := db.JoinTeamByCode(ctx, tx, eventID, userID, code, max)
 	if err != nil {
 		return team, err
 	}
+	// A team past its deadline takes nobody new: they could never publish or leave.
 	st, err := db.TeamWriteStateFor(ctx, tx, team.ID, true)
 	if err != nil {
 		return team, internalError(err)
