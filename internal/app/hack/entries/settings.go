@@ -67,7 +67,7 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 		if req.TieCriterionID != nil {
 			tie = *req.TieCriterionID
 		}
-		// TODO(4.1): Move this existing event update into the event repository in step 4.2.
+		// TODO(4.2): Move this existing event update into the event repository in step 4.2.
 		_, err = tx.ExecContext(ctx, `UPDATE events SET score_mode=COALESCE($2::text,score_mode),
 			tie_criterion_id=CASE WHEN $3::boolean THEN NULLIF($4::text,'')::uuid ELSE tie_criterion_id END,
 			public_scores=COALESCE($5::boolean,public_scores), public_ranks=COALESCE($6::boolean,public_ranks), updated_at=now() WHERE id=$1`, ev.ID, scoreMode, req.TieCriterionID != nil, tie, publicScores, publicRanks)

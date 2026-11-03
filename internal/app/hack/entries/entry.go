@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 )
 
@@ -111,7 +112,7 @@ func (s *Service) Write(ctx context.Context, req WriteRequest) (string, []string
 	case "submit":
 		e, er := entryrepo.GetEventEntryForUpdate(ctx, tx, id)
 		if errors.Is(er, sql.ErrNoRows) {
-			e = db.EventEntry{TeamID: id, EventID: req.Event.ID}
+			e = model.EventEntry{TeamID: id, EventID: req.Event.ID}
 		} else if er != nil {
 			return id, nil, er
 		}
@@ -179,12 +180,12 @@ func (s *Service) Screenshot(ctx context.Context, teamID string) ([]byte, string
 }
 
 // Entries lists the stored entries for an event.
-func (s *Service) Entries(ctx context.Context, eventID string) ([]db.EventEntry, error) {
+func (s *Service) Entries(ctx context.Context, eventID string) ([]model.EventEntry, error) {
 	return entryrepo.ListEventEntries(ctx, s.db, eventID)
 }
 
 // Entry reads a team's entry.
-func (s *Service) Entry(ctx context.Context, teamID string) (db.EventEntry, error) {
+func (s *Service) Entry(ctx context.Context, teamID string) (model.EventEntry, error) {
 	return entryrepo.GetEventEntry(ctx, s.db, teamID)
 }
 

@@ -6,7 +6,7 @@ import (
 )
 
 // Judgeable reports whether an entry is eligible for judging. The SQL query
-// implementation is db.EntryJudgeableSQL; settled incomplete entries qualify.
+// implementation is repository/hackentries.EntryJudgeableSQL; settled incomplete entries qualify.
 func Judgeable(e model.EventEntry) bool {
 	return e.Exists && (e.SubmittedAt.Valid || e.SubmitSettledAt.Valid) && !e.ExcludedAt.Valid
 }

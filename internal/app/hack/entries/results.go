@@ -19,7 +19,7 @@ func (s *Service) ComputeResults(ctx context.Context, q sqlkit.Querier, ev db.Ev
 	if err != nil {
 		return nil, err
 	}
-	teams, err := db.ListTeamsWithMembers(ctx, q, ev.ID)
+	teams, err := entryrepo.ListTeamsWithMembers(ctx, q, ev.ID)
 	if err != nil {
 		return nil, err
 	}

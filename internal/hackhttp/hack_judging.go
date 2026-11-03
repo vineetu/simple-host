@@ -859,20 +859,6 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 type teamResult = hackentries.TeamResult[db.EventTrack]
 type rankOverride = hackentries.RankOverride
 
-func trackIDs(rows []teamResult) map[string]string {
-	ids := make(map[string]string)
-	for _, row := range rows {
-		if row.Track != nil {
-			ids[row.TeamID] = row.Track.ID
-		}
-	}
-	return ids
-}
-func markTrackWinners(rows []teamResult) { hackentries.MarkTrackWinners(rows, trackIDs(rows)) }
-func applyRankOverrides(rows []teamResult, overrides []rankOverride) error {
-	return hackentries.ApplyRankOverrides(rows, overrides, trackIDs(rows))
-}
-
 func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
@@ -1209,7 +1195,7 @@ func (h *HackHandler) getMyResults(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	comments, err := db.TeamComments(r.Context(), h.database, a.event.ID, team.ID)
+	comments, err := h.entries.TeamComments(r.Context(), a.event.ID, team.ID)
 	if err != nil {
 		log.Printf("hack: my-results %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)

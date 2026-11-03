@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/db"
-	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
-	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
+	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 )
 
 // EntryRulesImpact is the dry run's counts (section 4.2): how many already-
@@ -56,7 +58,7 @@ func (s *Service) EntryRulesImpact(ctx context.Context, tx *sql.Tx, ev db.Event,
 		return RulesImpact{}, err
 	}
 	hasTracks := len(tracks) > 0
-	byTeam := map[string]db.EventEntry{}
+	byTeam := map[string]model.EventEntry{}
 	for _, e := range entries {
 		byTeam[e.TeamID] = e
 	}
@@ -202,7 +204,7 @@ func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate)
 
 // EvaluateEntryTx is hackentries.Evaluate with every piece read fresh inside tx:
 // the rules, the team's track and the site's live state.
-func (s *Service) EvaluateEntryTx(ctx context.Context, tx *sql.Tx, ev db.Event, st db.TeamWriteState, teamID string, e db.EventEntry) (hackentries.Check, error) {
+func (s *Service) EvaluateEntryTx(ctx context.Context, tx *sql.Tx, ev db.Event, st db.TeamWriteState, teamID string, e model.EventEntry) (hackentries.Check, error) {
 	fields := hackentries.LoadRules(ev.EntryRules)
 	tracks, err := db.ListEventTracks(ctx, tx, ev.ID)
 	if err != nil {
@@ -221,7 +223,7 @@ func (s *Service) EvaluateEntryTx(ctx context.Context, tx *sql.Tx, ev db.Event, 
 // deadline, so the website and the AI apps compute it identically.
 // Progress contains the facts used to render the participant checklist.
 type Progress struct {
-	Entry                           db.EventEntry
+	Entry                           model.EventEntry
 	Filled, Of                      int
 	SummaryMissing, EvidenceMissing []string
 	EvidenceDone                    bool
@@ -232,7 +234,7 @@ type Progress struct {
 func (s *Service) EntryProgress(ctx context.Context, ev db.Event, team db.EventTeam, teammates []string, st db.TeamWriteState) (Progress, error) {
 	e, err := entryrepo.GetEventEntry(ctx, s.db, team.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		e = db.EventEntry{}
+		e = model.EventEntry{}
 	} else if err != nil {
 		return Progress{}, err
 	}

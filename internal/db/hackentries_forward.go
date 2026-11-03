@@ -11,23 +11,14 @@ import (
 // Alias (cleanup 4.1): defined in internal/model.
 type EventEntry = model.EventEntry
 
-// Alias (cleanup 4.1): defined in internal/repository/hackentries.
-type FrozenTeamWithoutEntry = hackentries.FrozenTeamWithoutEntry
-
 // Alias (cleanup 4.1): defined in internal/model.
 type RubricCriterion = model.RubricCriterion
 
 // Alias (cleanup 4.1): defined in internal/model.
 type NamedTeam = model.NamedTeam
 
-// Alias (cleanup 4.1): defined in internal/model.
-type NamedJudge = model.NamedJudge
-
 // Alias (cleanup 4.1): defined in internal/repository/hackentries.
 type EventConflict = hackentries.EventConflict
-
-// Alias (cleanup 4.1): defined in internal/repository/hackentries.
-type ConflictPair = hackentries.ConflictPair
 
 // Alias (cleanup 4.1): defined in internal/model.
 type JudgeAssignment = model.JudgeAssignment
@@ -35,67 +26,28 @@ type JudgeAssignment = model.JudgeAssignment
 // Alias (cleanup 4.1): defined in internal/repository/hackentries.
 type JudgeScore = hackentries.JudgeScore
 
-// Alias (cleanup 4.1): defined in internal/model.
-type RawScoreRow = model.RawScoreRow
-
 // Alias (cleanup 4.1): defined in internal/repository/hackentries.
 type EventResultsRow = hackentries.EventResultsRow
 
 // Alias (cleanup 4.1): defined in internal/repository/hackentries.
 type TrackPanelMember = hackentries.TrackPanelMember
 
-const EntryJudgeableSQL = hackentries.EntryJudgeableSQL
-
 var (
 	GetEventEntry                       = hackentries.GetEventEntry
-	GetEventEntryForUpdate              = hackentries.GetEventEntryForUpdate
 	ListEventEntries                    = hackentries.ListEventEntries
-	UpsertEventEntryText                = hackentries.UpsertEventEntryText
-	UpsertEventEntryScreenshot          = hackentries.UpsertEventEntryScreenshot
 	GetEventScreenshot                  = hackentries.GetEventScreenshot
-	TeamSiteLive                        = hackentries.TeamSiteLive
-	SubmitEventEntry                    = hackentries.SubmitEventEntry
-	UnsubmitEventEntry                  = hackentries.UnsubmitEventEntry
-	SettleEntryComplete                 = hackentries.SettleEntryComplete
-	SettleEntryIncomplete               = hackentries.SettleEntryIncomplete
-	UnsettledFrozenTeamIDs              = hackentries.UnsettledFrozenTeamIDs
-	FrozenTeamsWithoutEntry             = hackentries.FrozenTeamsWithoutEntry
-	StartEmptyEventEntry                = hackentries.StartEmptyEventEntry
 	UnsettleTeamEntry                   = hackentries.UnsettleTeamEntry
 	UnsettleEventDrafts                 = hackentries.UnsettleEventDrafts
-	SetEntryExcluded                    = hackentries.SetEntryExcluded
 	ListRubric                          = hackentries.ListRubric
 	ReplaceRubric                       = hackentries.ReplaceRubric
 	ListEventJudges                     = hackentries.ListEventJudges
 	ListTeamsWithMembers                = hackentries.ListTeamsWithMembers
-	EventTeamInEvent                    = hackentries.EventTeamInEvent
-	EventJudge                          = hackentries.EventJudge
-	ListEventConflicts                  = hackentries.ListEventConflicts
-	GetEventConflict                    = hackentries.GetEventConflict
-	DeclareConflict                     = hackentries.DeclareConflict
-	DeleteConflict                      = hackentries.DeleteConflict
-	ListConflictPairs                   = hackentries.ListConflictPairs
-	ReplaceAssignments                  = hackentries.ReplaceAssignments
 	ScoreCoverage                       = hackentries.ScoreCoverage
-	AssignmentCounts                    = hackentries.AssignmentCounts
-	GetJudgeTeamScores                  = hackentries.GetJudgeTeamScores
-	UpsertJudgeScores                   = hackentries.UpsertJudgeScores
-	CriterionIDsForEvent                = hackentries.CriterionIDsForEvent
 	ListRawScores                       = hackentries.ListRawScores
 	GetEventResults                     = hackentries.GetEventResults
-	UpsertEventResults                  = hackentries.UpsertEventResults
-	SetResultsFullRanking               = hackentries.SetResultsFullRanking
-	TeamComments                        = hackentries.TeamComments
 	ListTrackPanels                     = hackentries.ListTrackPanels
-	ReplaceTrackPanels                  = hackentries.ReplaceTrackPanels
 	ListEventAssignments                = hackentries.ListEventAssignments
-	EligibleJudgeTeams                  = hackentries.EligibleJudgeTeams
 	EligibleJudgeTeamsIgnoringConflicts = hackentries.EligibleJudgeTeamsIgnoringConflicts
-	JudgeTeamEligible                   = hackentries.JudgeTeamEligible
-	EventTrackInEvent                   = hackentries.EventTrackInEvent
-	EventJudgeInEvent                   = hackentries.EventJudgeInEvent
-	EventCriterionInEvent               = hackentries.EventCriterionInEvent
-	TrackForTeam                        = hackentries.TrackForTeam
 )
 
 // UpdateEventEntryRules writes the organiser's entry rules: the preset name,

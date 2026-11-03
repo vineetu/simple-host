@@ -61,9 +61,8 @@ func (s *Service) ReplaceRubric(ctx context.Context, eventID string, items []mod
 		if keep && max >= c.MaxPoints {
 			continue
 		}
-		// TODO(4.1): Move this existing count query into the repository.
-		var count int
-		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM event_scores WHERE event_id=$1 AND criterion_id=$2 AND ($3 OR points > $4)`, eventID, c.ID, !keep, max).Scan(&count); err != nil {
+		count, err := entryrepo.CountRubricScoresForDeletion(ctx, tx, eventID, c.ID, !keep, max)
+		if err != nil {
 			return nil, err
 		}
 		if count > 0 {
