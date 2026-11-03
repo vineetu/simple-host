@@ -3,10 +3,9 @@ package hackhttp
 import (
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 	"io/fs"
-	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -1132,16 +1131,9 @@ func TestHackApplyCountryValidatorCoverage(t *testing.T) {
 	if len(codes) == 0 {
 		t.Skip("public-apply.js has no COUNTRY_CODES list yet")
 	}
-	rec := func(code string) (int, string) {
-		w := newTestResponseRecorder()
-		_, ok := checkHackCountry(w, code)
-		if ok {
-			return 200, ""
-		}
-		return w.status, w.code
-	}
+
 	for _, code := range codes {
-		if status, _ := rec(code); status != 200 {
+		if _, ok := hackevents.Country(code); !ok {
 			t.Errorf("server rejects %s, which public-apply.js offers", code)
 		}
 	}
@@ -1156,8 +1148,8 @@ func TestHackApplyCountryValidatorCoverage(t *testing.T) {
 	for _, x := range letters {
 		for _, y := range letters {
 			code := string(x) + string(y)
-			status, _ := rec(code)
-			if status == 200 && !offered[code] {
+			_, ok := hackevents.Country(code)
+			if ok && !offered[code] {
 				t.Errorf("server accepts %s, which public-apply.js does not offer", code)
 			}
 		}
@@ -1185,27 +1177,3 @@ func extractCountryCodes(js string) []string {
 	}
 	return codes
 }
-
-// testResponseRecorder is a tiny http.ResponseWriter that captures just
-// what checkHackCountry's error path writes, without pulling in net/http/httptest
-// semantics this check does not need.
-type testResponseRecorder struct {
-	header http.Header
-	status int
-	code   string
-}
-
-func newTestResponseRecorder() *testResponseRecorder {
-	return &testResponseRecorder{header: http.Header{}, status: 200}
-}
-func (w *testResponseRecorder) Header() http.Header { return w.header }
-func (w *testResponseRecorder) Write(b []byte) (int, error) {
-	var out map[string]any
-	if json.Unmarshal(b, &out) == nil {
-		if c, ok := out["code"].(string); ok {
-			w.code = c
-		}
-	}
-	return len(b), nil
-}
-func (w *testResponseRecorder) WriteHeader(status int) { w.status = status }

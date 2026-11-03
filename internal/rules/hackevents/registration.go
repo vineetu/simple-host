@@ -12,12 +12,6 @@ import (
 // ValidationError describes a rejected field.
 type ValidationError struct{ Code, Message string }
 
-// Question is a sign-up question.
-type Question struct {
-	ID, Prompt string
-	Required   bool
-}
-
 var trackSlug = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$`)
 
 // TrackSlug reports whether a track or question slug is valid.
@@ -36,6 +30,8 @@ func text(s, field string, min, max int) (string, *ValidationError) {
 	}
 	return s, nil
 }
+
+// line rejects line breaks, collapses runs of spaces and requires visible content.
 func line(s, field string, min, max int) (string, *ValidationError) {
 	if strings.ContainsAny(strings.TrimSpace(s), "\n\r\t\u0085\u2028\u2029") {
 		return "", &ValidationError{"invalid_" + field, field + " must be one line"}
@@ -54,11 +50,11 @@ func Text(s, field string, min, max int) (string, *ValidationError) { return tex
 func Line(s, field string, min, max int) (string, *ValidationError) { return line(s, field, min, max) }
 
 // Questions validates and normalizes sign-up questions.
-func Questions(in []Question) ([]Question, *ValidationError) {
+func Questions(in []model.SignupQuestion) ([]model.SignupQuestion, *ValidationError) {
 	if len(in) > 8 {
 		return nil, &ValidationError{"too_many_questions", "up to eight sign-up questions are allowed"}
 	}
-	out := make([]Question, 0, len(in))
+	out := make([]model.SignupQuestion, 0, len(in))
 	seen := map[string]bool{}
 	for i, q := range in {
 		id := strings.TrimSpace(q.ID)
@@ -73,7 +69,7 @@ func Questions(in []Question) ([]Question, *ValidationError) {
 		if e != nil {
 			return nil, e
 		}
-		out = append(out, Question{id, prompt, q.Required})
+		out = append(out, model.SignupQuestion{ID: id, Prompt: prompt, Required: q.Required})
 	}
 	return out, nil
 }
@@ -107,6 +103,9 @@ func Tracks(in []model.EventTrack) ([]model.EventTrack, *ValidationError) {
 	}
 	return out, nil
 }
+
+// hasBadControls rejects bidi controls that can disguise text, while retaining
+// joiners, direction marks, soft hyphens and emoji tags needed by real text.
 func hasBadControls(s string) bool {
 	for _, r := range s {
 		if r == '\n' || r == '\t' {
@@ -137,4 +136,39 @@ func hasVisible(s string) bool {
 		return true
 	}
 	return false
+}
+
+// SignupAnswers checks lengths, required answers and unknown question IDs.
+func SignupAnswers(questions []model.SignupQuestion, in map[string]string) ([]model.SignupAnswer, *ValidationError) {
+	if len(in) > len(questions) {
+		return nil, &ValidationError{"invalid_answers", "answer only the listed questions"}
+	}
+	answers := make([]model.SignupAnswer, 0, len(questions))
+	allowed := map[string]bool{}
+	for _, q := range questions {
+		allowed[q.ID] = true
+		answer, e := Text(in[q.ID], "answer", 0, 500)
+		if e != nil {
+			return nil, e
+		}
+		if q.Required && answer == "" {
+			return nil, &ValidationError{"answer_required", "answer every required question"}
+		}
+		answers = append(answers, model.SignupAnswer{ID: q.ID, Prompt: q.Prompt, Answer: answer})
+	}
+	for id := range in {
+		if !allowed[id] {
+			return nil, &ValidationError{"invalid_answers", "answer only the listed questions"}
+		}
+	}
+	return answers, nil
+}
+
+// UniqueError reports the existing database uniqueness error convention.
+func UniqueError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "23505") || strings.Contains(strings.ToLower(msg), "unique")
 }

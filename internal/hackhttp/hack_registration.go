@@ -5,10 +5,7 @@ import (
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
-	"regexp"
 )
-
-var hackTrackSlug = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$`)
 
 func (h *HackHandler) registerRegistration(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("GET /v1/hack/events/{slug}/registration", wrap(h.getRegistration))

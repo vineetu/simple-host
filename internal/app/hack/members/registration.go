@@ -8,6 +8,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
+	"github.com/vsriram/simple-host/internal/rules/hackteams"
 )
 
 // Registration returns an event's registration settings.
@@ -43,7 +44,8 @@ func (s *Service) SetRegistration(ctx context.Context, eventID, userID string, q
 		return err
 	}
 	if !approval && admit {
-		// Approval settings govern link sign-ups, not applications.
+		// D5: Approval settings govern link sign-ups, not applications. A stranger's
+		// application always waits for an organiser's decision.
 		if _, err = admitPending(ctx, tx, eventID, userID); err != nil {
 			return err
 		}
@@ -72,6 +74,8 @@ func (s *Service) DecideApplication(ctx context.Context, eventID, userID, actorI
 	if !updated {
 		return &Error{"application_not_pending", "only pending applications can be decided"}
 	}
+	// Decision notices reach the app and email (INTENT 2026-11-02),
+	// superseding the earlier no-email decision.
 	if err = db.NotifyUsers(ctx, tx, eventID, db.NoticeApplicationDecided, "", "", decision, userID); err != nil {
 		return err
 	}
@@ -138,19 +142,11 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string)
 
 // ValidateQuestions validates and normalizes sign-up questions.
 func (s *Service) ValidateQuestions(in []db.SignupQuestion) ([]db.SignupQuestion, error) {
-	q := make([]hackevents.Question, 0, len(in))
-	for _, v := range in {
-		q = append(q, hackevents.Question{ID: v.ID, Prompt: v.Prompt, Required: v.Required})
-	}
-	out, e := hackevents.Questions(q)
+	out, e := hackevents.Questions(in)
 	if e != nil {
 		return nil, &Error{e.Code, e.Message}
 	}
-	result := make([]db.SignupQuestion, 0, len(out))
-	for _, v := range out {
-		result = append(result, db.SignupQuestion{ID: v.ID, Prompt: v.Prompt, Required: v.Required})
-	}
-	return result, nil
+	return out, nil
 }
 
 // ValidateTracks validates and normalizes tracks.
@@ -172,7 +168,7 @@ func (s *Service) ValidateDecision(decision string) error {
 
 // ValidateTrackStage checks whether team choices are open.
 func (s *Service) ValidateTrackStage(stage string) error {
-	if stage != "open" && stage != "building" {
+	if !hackteams.ParticipantTeamStages(stage) {
 		return &Error{"teams_locked", "team choices are closed"}
 	}
 	return nil

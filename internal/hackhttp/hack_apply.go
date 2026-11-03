@@ -69,7 +69,7 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
 	ev, err := h.membersSvc().ApplyEvent(r.Context(), slug)
-	if ev.ID != "" {
+	if err == nil {
 		paperHackEvent(r, ev)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
@@ -135,23 +135,6 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 // (CountryName, JoinedViaLabel) in cleanup 3.2 slice 1c: pure lookups, no
 // handler dependency.
 
-// checkHackCountry validates the optional country code.
-func checkHackCountry(w http.ResponseWriter, s string) (string, bool) {
-	country, ok := hackevents.Country(s)
-	if !ok {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_country", "country must be an ISO 3166-1 alpha-2 code")
-	}
-	return country, ok
-}
-
-func checkHackEnum(w http.ResponseWriter, s, field string, allowed []string) (string, bool) {
-	if hackevents.Enum(s, allowed) {
-		return s, true
-	}
-	httpx.WriteError(w, http.StatusBadRequest, "invalid_"+field, field+" is not a recognised value")
-	return "", false
-}
-
 type postApplyReq struct {
 	AcceptCoC   *bool             `json:"accept_coc"`
 	DisplayName string            `json:"display_name"`
@@ -184,7 +167,7 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
 	ev, err := h.membersSvc().ApplyEvent(r.Context(), slug)
-	if ev.ID != "" {
+	if err == nil {
 		paperHackEvent(r, ev)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
@@ -200,18 +183,18 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wroteExisting := false
-	member, err := h.membersSvc().Apply(r.Context(), ev, user.ID, input, h.limits.EventApplyPendingPerEvent, func(existing db.EventMember) {
-		httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, existing, false))
-		wroteExisting = true
+	ctx := r.Context()
+	member, existingView, err := h.membersSvc().Apply(ctx, ev, user.ID, input, h.limits.EventApplyPendingPerEvent, func(existing db.EventMember) any {
+		return h.eventView(ctx, ev, existing, false)
 	})
 	if err != nil {
 		writeMemberError(w, err)
 		return
 	}
-
-	if wroteExisting {
+	if existingView != nil {
+		httpx.WriteJSON(w, http.StatusOK, existingView)
 		return
 	}
+
 	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, member, false))
 }

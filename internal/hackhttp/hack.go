@@ -16,7 +16,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
@@ -941,14 +940,6 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, h.eventView(ctx, ev, member, true))
 }
 
-func dbUnique(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "23505") || strings.Contains(strings.ToLower(msg), "unique")
-}
-
 func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {
@@ -1785,75 +1776,32 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, member, organiser))
 }
 
-// validateSignupAnswers is the sign-up answer check shared by postCodeJoin
-// (a join link) and postApply (an application without one): each listed
-// question answered within 500 characters, every required one non-empty,
-// and no answer for an unlisted question id.
+// validateSignupAnswers writes the shared sign-up validation error for join links.
 func validateSignupAnswers(w http.ResponseWriter, questions []db.SignupQuestion, in map[string]string) ([]db.SignupAnswer, bool) {
-	value, err := validateSignupAnswersValue(questions, in)
-	if err != nil {
-		writeEventsError(w, err)
+	answers, e := hackevents.SignupAnswers(questions, in)
+	if e != nil {
+		httpx.WriteError(w, 400, e.Code, e.Message)
 		return nil, false
 	}
-	return value, true
+	return answers, true
 }
 
 func checkHackText(w http.ResponseWriter, s, field string, min, max int) (string, bool) {
-	value, err := checkHackTextValue(s, field, min, max)
-	if err != nil {
-		writeEventsError(w, err)
+	value, e := hackevents.Text(s, field, min, max)
+	if e != nil {
+		httpx.WriteError(w, 400, e.Code, e.Message)
 		return "", false
 	}
 	return value, true
 }
 
-// checkHackLine is checkHackText for a one-line field (a title, a name): no
-// line breaks, runs of spaces collapsed (so "A  B" is not a second "A B"),
-// and something visible in it.
 func checkHackLine(w http.ResponseWriter, s, field string, min, max int) (string, bool) {
-	value, err := checkHackLineValue(s, field, min, max)
-	if err != nil {
-		writeEventsError(w, err)
+	value, e := hackevents.Line(s, field, min, max)
+	if e != nil {
+		httpx.WriteError(w, 400, e.Code, e.Message)
 		return "", false
 	}
 	return value, true
-}
-
-// hasBadControls: control characters other than newline and tab, the bidi
-// embedding, override and isolate controls (they make a name read as
-// something else), the zero-width space and the byte-order mark. Joiners,
-// direction marks, soft hyphens and emoji tag sequences stay: real text
-// needs them.
-func hasBadControls(s string) bool {
-	for _, r := range s {
-		if r == '\n' || r == '\t' {
-			continue
-		}
-		if unicode.IsControl(r) {
-			return true
-		}
-		switch {
-		case r >= 0x202A && r <= 0x202E, r >= 0x2066 && r <= 0x2069, r == 0x200B, r == 0xFEFF:
-			return true
-		}
-	}
-	return false
-}
-
-// hasVisible: s has at least one character that shows (not only spaces,
-// marks or blank-looking letters such as the Hangul filler).
-func hasVisible(s string) bool {
-	for _, r := range s {
-		switch r {
-		case 0x3164, 0x115F, 0x1160, 0xFFA0, 0x2800, 0x180E:
-			continue
-		}
-		if unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Mn, r) {
-			continue
-		}
-		return true
-	}
-	return false
 }
 
 func checkContactEmail(w http.ResponseWriter, s string) (string, bool) {
@@ -1979,57 +1927,6 @@ func checkEntryRequiredValue(in []string) ([]string, error) {
 	return entryRequiredList(keysInOrder(want)), nil
 }
 
-func validateSignupAnswersValue(questions []db.SignupQuestion, in map[string]string) ([]db.SignupAnswer, error) {
-	if len(in) > len(questions) {
-		return nil, &events.Error{Code: "invalid_answers", Message: "answer only the listed questions"}
-	}
-	answers := make([]db.SignupAnswer, 0, len(questions))
-	allowed := map[string]bool{}
-	for _, q := range questions {
-		allowed[q.ID] = true
-		answer, validationErr := checkHackTextValue(in[q.ID], "answer", 0, 500)
-		if validationErr != nil {
-			return nil, validationErr
-		}
-		if q.Required && answer == "" {
-			return nil, &events.Error{Code: "answer_required", Message: "answer every required question"}
-		}
-		answers = append(answers, db.SignupAnswer{ID: q.ID, Prompt: q.Prompt, Answer: answer})
-	}
-	for id := range in {
-		if !allowed[id] {
-			return nil, &events.Error{Code: "invalid_answers", Message: "answer only the listed questions"}
-		}
-	}
-	return answers, nil
-}
-
-func checkHackTextValue(s, field string, min, max int) (string, error) {
-	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
-	if hasBadControls(s) {
-		return "", &events.Error{Code: "invalid_" + field, Message: field + " contains characters that are not allowed"}
-	}
-	n := utf8.RuneCountInString(s)
-	if n < min || n > max {
-		if min > 0 && n < min {
-			return "", &events.Error{Code: "invalid_" + field, Message: field + " is required"}
-		}
-		return "", &events.Error{Code: "invalid_" + field, Message: field + " is too long"}
-	}
-	return s, nil
-}
-
-func checkHackLineValue(s, field string, min, max int) (string, error) {
-	if strings.ContainsAny(strings.TrimSpace(s), "\n\r\t\u0085\u2028\u2029") {
-		return "", &events.Error{Code: "invalid_" + field, Message: field + " must be one line"}
-	}
-	s = strings.Join(strings.Fields(s), " ")
-	if min > 0 && !hasVisible(s) {
-		return "", &events.Error{Code: "invalid_" + field, Message: field + " is required"}
-	}
-	return checkHackTextValue(s, field, min, max)
-}
-
 func checkContactEmailValue(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	if s == "" || utf8.RuneCountInString(s) > 254 {
@@ -2092,4 +1989,32 @@ func parseEventTimeValue(s string, loc *time.Location, field string, required bo
 		return sql.NullTime{}, &events.Error{Code: "invalid_" + field, Message: field + " must be RFC 3339, YYYY-MM-DDTHH:MM in the event's time zone, or YYYY-MM-DD"}
 	}
 	return sql.NullTime{Time: t, Valid: true}, nil
+}
+
+// validateSignupAnswersValue is hackevents.SignupAnswers with the error as an
+// events.Error, for validators the events service runs under its lock.
+func validateSignupAnswersValue(questions []db.SignupQuestion, in map[string]string) ([]db.SignupAnswer, error) {
+	answers, e := hackevents.SignupAnswers(questions, in)
+	if e != nil {
+		return nil, &events.Error{Code: e.Code, Message: e.Message}
+	}
+	return answers, nil
+}
+
+// checkHackTextValue is hackevents.Text with the error as an events.Error.
+func checkHackTextValue(s, field string, min, max int) (string, error) {
+	value, e := hackevents.Text(s, field, min, max)
+	if e != nil {
+		return "", &events.Error{Code: e.Code, Message: e.Message}
+	}
+	return value, nil
+}
+
+// checkHackLineValue is hackevents.Line with the error as an events.Error.
+func checkHackLineValue(s, field string, min, max int) (string, error) {
+	value, e := hackevents.Line(s, field, min, max)
+	if e != nil {
+		return "", &events.Error{Code: e.Code, Message: e.Message}
+	}
+	return value, nil
 }

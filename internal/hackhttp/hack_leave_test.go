@@ -2,6 +2,7 @@ package hackhttp
 
 import (
 	"database/sql"
+	"github.com/vsriram/simple-host/internal/app/hack/members"
 	"net/http"
 	"testing"
 	"time"
@@ -839,8 +840,8 @@ func TestHackLeaveStaleFieldsAndConfirm(t *testing.T) {
 	a.joinParticipant(t, join, part, "Part")
 
 	// A co-organiser sending close, or a participant sending successor_user_id.
-	wantHackErr(t, "co sends close", a.leave(t, slug, co, map[string]any{"confirm": slug, "close": "end"}), 409, "leave_state_changed", leaveStateChangedMsg)
-	wantHackErr(t, "participant sends successor", a.leave(t, slug, part, map[string]any{"confirm": slug, "successor_user_id": a.userID(t, co)}), 409, "leave_state_changed", leaveStateChangedMsg)
+	wantHackErr(t, "co sends close", a.leave(t, slug, co, map[string]any{"confirm": slug, "close": "end"}), 409, "leave_state_changed", members.LeaveStateChangedMessage)
+	wantHackErr(t, "participant sends successor", a.leave(t, slug, part, map[string]any{"confirm": slug, "successor_user_id": a.userID(t, co)}), 409, "leave_state_changed", members.LeaveStateChangedMessage)
 
 	// Confirm missing or wrong.
 	wantHackErr(t, "confirm missing", a.leave(t, slug, part, map[string]any{}), 409, "leave_needs_confirm", `to leave, send {"confirm":"<slug>"} with this event's address name`)

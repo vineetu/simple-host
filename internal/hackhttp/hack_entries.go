@@ -8,6 +8,7 @@ import (
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
@@ -162,7 +163,7 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 	var trackSlug string
 	if req.Track != nil {
 		trackSlug = strings.TrimSpace(*req.Track)
-		if trackSlug != "" && !hackTrackSlug.MatchString(trackSlug) {
+		if trackSlug != "" && !hackevents.TrackSlug(trackSlug) {
 			httpx.WriteError(w, http.StatusBadRequest, "invalid_track", "choose a listed track")
 			return
 		}

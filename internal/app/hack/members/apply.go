@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
-	"strings"
 )
 
 // ApplicationInput contains normalized application fields.
@@ -17,10 +16,10 @@ type ApplicationInput struct {
 }
 
 // Apply creates an application under the event and user locks.
-func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input ApplicationInput, capN int, existingView func(db.EventMember)) (db.EventMember, error) {
+func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input ApplicationInput, capN int, existingView func(db.EventMember) any) (memberResult db.EventMember, view any, errResult error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return db.EventMember{}, err
+		return db.EventMember{}, nil, err
 	}
 	defer tx.Rollback()
 
@@ -47,10 +46,10 @@ func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input A
 	var stage string
 	var applicationsOpen, takenDownNow bool
 	if err := lockApplicationEvent(ctx, tx, ev.ID, &stage, &applicationsOpen, &takenDownNow); err != nil {
-		return db.EventMember{}, err
+		return db.EventMember{}, nil, err
 	}
 	if stage == "draft" || takenDownNow {
-		return db.EventMember{}, &Error{"event_not_found", "event not found"}
+		return db.EventMember{}, nil, &Error{"event_not_found", "event not found"}
 	}
 
 	// Security review #12 (rejected/approved/pending caller): an existing
@@ -66,29 +65,28 @@ func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input A
 			// Idempotent: applying again, an approved member re-applying or
 			// a rejected member re-applying all return the same view
 			// unchanged (no re-apply once rejected).
-			existingView(existing)
-			return existing, nil
+			return existing, existingView(existing), nil
 		}
-		return db.EventMember{}, &Error{"already_member", "you already have a different role in this event"}
+		return db.EventMember{}, nil, &Error{"already_member", "you already have a different role in this event"}
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return db.EventMember{}, err
+		return db.EventMember{}, nil, err
 	}
 
 	if stage != "open" && stage != "building" {
-		return db.EventMember{}, &Error{"joining_closed", "joining is closed for this event"}
+		return db.EventMember{}, nil, &Error{"joining_closed", "joining is closed for this event"}
 	}
 	if !applicationsOpen {
-		return db.EventMember{}, &Error{"applications_closed", "this event isn't taking applications right now"}
+		return db.EventMember{}, nil, &Error{"applications_closed", "this event isn't taking applications right now"}
 	}
 
 	questions, _, err := db.RegistrationSettings(ctx, tx, ev.ID)
 	if err != nil {
-		return db.EventMember{}, err
+		return db.EventMember{}, nil, err
 	}
-	answers, err := signupAnswers(questions, input.Answers)
-	if err != nil {
-		return db.EventMember{}, err
+	answers, validationErr := hackevents.SignupAnswers(questions, input.Answers)
+	if validationErr != nil {
+		return db.EventMember{}, nil, &Error{validationErr.Code, validationErr.Message}
 	}
 
 	// Security review #1/#2 (account-wide pending cap race): take a
@@ -98,14 +96,14 @@ func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input A
 	// same stale number and both inserting. Mirrors db.LockUserRow's
 	// existing use for the per-organiser event-creation limit (hack.go:624).
 	if err := db.LockUserRow(ctx, tx, userID); err != nil {
-		return db.EventMember{}, err
+		return db.EventMember{}, nil, err
 	}
 	pending, err := db.CountPendingApplications(ctx, tx, userID)
 	if err != nil {
-		return db.EventMember{}, err
+		return db.EventMember{}, nil, err
 	}
 	if pending >= 20 {
-		return db.EventMember{}, &Error{"too_many_pending", "You have 20 applications waiting. Wait for answers before applying to more."}
+		return db.EventMember{}, nil, &Error{"too_many_pending", "You have 20 applications waiting. Wait for answers before applying to more."}
 	}
 
 	// Security review (Grok 1): a per-event ceiling, so many accounts cannot
@@ -114,75 +112,40 @@ func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input A
 	// (zp-hack-applications.sql).
 	eventPending, err := db.CountPendingApplicationsForEvent(ctx, tx, ev.ID)
 	if err != nil {
-		return db.EventMember{}, err
+		return db.EventMember{}, nil, err
 	}
 	if eventPending >= capN {
-		return db.EventMember{}, &Error{"event_applications_full", fmt.Sprintf("This event already has %d applications waiting for a decision. Try again once some are decided.", capN)}
+		return db.EventMember{}, nil, &Error{"event_applications_full", fmt.Sprintf("This event already has %d applications waiting for a decision. Try again once some are decided.", capN)}
 	}
 
 	profile := db.ApplicantProfile{City: input.City, Country: input.Country, AgeRange: input.AgeRange, Gender: input.Gender}
 	member, err := db.ApplyParticipant(ctx, tx, ev.ID, userID, input.Display, answers, profile)
 	if err != nil {
-		if unique(err) {
+		if hackevents.UniqueError(err) {
 			existing2, err2 := db.GetEventMember(ctx, s.db, ev.ID, userID)
 			if err2 == nil && existing2.Role == "participant" {
-				existingView(existing2)
-				return existing2, nil
+				return existing2, existingView(existing2), nil
 			}
-			return db.EventMember{}, &Error{"already_member", "you already have a different role in this event"}
+			return db.EventMember{}, nil, &Error{"already_member", "you already have a different role in this event"}
 		}
-		return db.EventMember{}, err
+		return db.EventMember{}, nil, err
 	}
 	// Every application waits on the organisers.
 	if err := db.NotifyOrganisers(ctx, tx, ev.ID, db.NoticeApplicationNew, userID); err != nil {
-		return db.EventMember{}, err
+		return db.EventMember{}, nil, err
 	}
 	if err := tx.Commit(); err != nil {
-		return db.EventMember{}, err
+		return db.EventMember{}, nil, err
 	}
-	return member, nil
+	return member, nil, nil
 
 }
-func unique(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "23505") || strings.Contains(strings.ToLower(msg), "unique")
-}
-func signupAnswers(questions []db.SignupQuestion, in map[string]string) ([]db.SignupAnswer, error) {
-	if len(in) > len(questions) {
-		return nil, &Error{"invalid_answers", "answer only the listed questions"}
-	}
-	answers := make([]db.SignupAnswer, 0, len(questions))
-	allowed := map[string]bool{}
-	for _, q := range questions {
-		allowed[q.ID] = true
-		answer, e := hackevents.Text(in[q.ID], "answer", 0, 500)
-		if e != nil {
-			return nil, &Error{e.Code, e.Message}
-		}
-		if q.Required && answer == "" {
-			return nil, &Error{"answer_required", "answer every required question"}
-		}
-		answers = append(answers, db.SignupAnswer{ID: q.ID, Prompt: q.Prompt, Answer: answer})
-	}
-	for id := range in {
-		if !allowed[id] {
-			return nil, &Error{"invalid_answers", "answer only the listed questions"}
-		}
-	}
-	return answers, nil
-}
 
-// ApplyEvent finds a public application event.
+// ApplyEvent finds an event before the public application checks.
 func (s *Service) ApplyEvent(ctx context.Context, slug string) (db.Event, error) {
 	ev, err := db.GetEventBySlug(ctx, s.db, slug)
 	if err != nil {
 		return ev, err
-	}
-	if ev.Stage == "draft" || ev.TakenDown() {
-		return ev, sql.ErrNoRows
 	}
 	return ev, nil
 }

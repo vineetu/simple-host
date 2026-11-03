@@ -61,6 +61,7 @@ hackhttp -> mcp test # removal step 5.4: move cross-transport integration fixtur
 hackhttp -> papermetrics production # removal step 5.4: worker lifecycle and operations
 hackhttp -> rules/auth production # removal step 4.3: site and storage workflows
 hackhttp -> rules/hackevents production # removal step 4.2: events and teams
+hackhttp -> rules/hackteams production # removal step 4.2: participant team-stage checks still run in the team handlers
 hackhttp -> rules/sites production # removal step 4.3: site and storage workflows
 hackhttp -> rules/storage production # removal step 4.3: site and storage workflows
 hackhttp -> tarball production # removal step 4.3: site and storage workflows
