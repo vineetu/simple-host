@@ -6,11 +6,10 @@ import (
 	"errors"
 	entries "github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/hackentries"
+	"github.com/vsriram/simple-host/internal/model"
+
 	"log"
 	"net/http"
-
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // Entry rules, slice 1 of the entries and participant journey package
@@ -34,7 +33,7 @@ func writeHackErrMissing(w http.ResponseWriter, status int, code, msg string, mi
 	httpx.WriteJSON(w, status, map[string]any{"error": msg, "code": code, "missing": missing})
 }
 
-func (h *HackHandler) evaluateEntryTx(ctx context.Context, tx *sql.Tx, ev db.Event, st db.TeamWriteState, teamID string, e db.EventEntry) (hackentries.Check, error) {
+func (h *HackHandler) evaluateEntryTx(ctx context.Context, tx *sql.Tx, ev model.Event, st model.TeamWriteState, teamID string, e model.EventEntry) (entries.Check, error) {
 	return h.entries.EvaluateEntryTx(ctx, tx, ev, st, teamID, e)
 }
 
@@ -42,8 +41,8 @@ func (h *HackHandler) evaluateEntryTx(ctx context.Context, tx *sql.Tx, ev db.Eve
 // exists at all, its live version (nil when it has none), and whether it
 // counts as the "site" rules field -- a live version, not taken down
 // (section 4.1). siteTakenDown already covers both the organiser's
-// take-down and a platform suspension (db.TeamWriteState.SiteTakenDown).
-func (h *HackHandler) entrySiteState(ctx context.Context, ev db.Event, teamSlug string, siteTakenDown bool) (exists bool, liveVersion any, live bool) {
+// take-down and a platform suspension (model.TeamWriteState.SiteTakenDown).
+func (h *HackHandler) entrySiteState(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) (exists bool, liveVersion any, live bool) {
 	if h.sites == nil {
 		return false, nil, false
 	}
@@ -60,19 +59,19 @@ func (h *HackHandler) entrySiteState(ctx context.Context, ev db.Event, teamSlug 
 
 // entrySiteLive is entrySiteState's third return, for callers (the sweep,
 // the rules dry run) that only need whether the site counts as filled.
-func (h *HackHandler) entrySiteLive(ctx context.Context, ev db.Event, teamSlug string, siteTakenDown bool) bool {
+func (h *HackHandler) entrySiteLive(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) bool {
 	_, _, live := h.entrySiteState(ctx, ev, teamSlug, siteTakenDown)
 	return live
 }
 
 // entryRulesView is GET/PUT .../entry-rules's body (section 4.2).
-func entryRulesView(ev db.Event, hasTracks, editable bool) map[string]any {
-	fields := hackentries.LoadRules(ev.EntryRules)
+func entryRulesView(ev model.Event, hasTracks, editable bool) map[string]any {
+	fields := entries.LoadRules(ev.EntryRules)
 	return map[string]any{
 		"preset":      ev.EntryPreset,
 		"fields":      fields,
 		"judge_first": ev.JudgeFirst,
-		"summary":     hackentries.RulesSummary(fields),
+		"summary":     entries.RulesSummary(fields),
 		"has_tracks":  hasTracks,
 		"editable":    editable,
 	}
@@ -83,13 +82,13 @@ func (h *HackHandler) getEntryRules(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	tracks, err := db.ListEventTracks(r.Context(), h.database, a.event.ID)
+	tracks, err := h.eventsSvc().EventTracks(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: entry rules %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, entryRulesView(a.event, len(tracks) > 0, hackentries.RulesEditable(a.event.Stage)))
+	httpx.WriteJSON(w, http.StatusOK, entryRulesView(a.event, len(tracks) > 0, entries.RulesEditable(a.event.Stage)))
 }
 
 func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +105,7 @@ func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	if req.Preset != nil && !hackentries.PresetKnown(*req.Preset) {
+	if req.Preset != nil && !entries.PresetKnown(*req.Preset) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_preset", "preset must be build, code, ideas or custom")
 		return
 	}
@@ -133,13 +132,13 @@ func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
 		for _, t := range result.Impact.Teams {
 			teams = append(teams, map[string]any{"id": t.ID, "name": t.Name, "missing": t.Missing})
 		}
-		httpx.WriteJSON(w, http.StatusOK, map[string]any{"impact": map[string]any{"submitted_missing": result.Impact.SubmittedMissing, "drafts_newly_blocked": result.Impact.DraftsNewlyBlocked, "teams": teams}, "preview": map[string]any{"preset": result.Preset, "fields": result.Fields, "judge_first": result.JudgeFirst, "summary": hackentries.RulesSummary(result.Fields), "has_tracks": result.HasTracks}})
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"impact": map[string]any{"submitted_missing": result.Impact.SubmittedMissing, "drafts_newly_blocked": result.Impact.DraftsNewlyBlocked, "teams": teams}, "preview": map[string]any{"preset": result.Preset, "fields": result.Fields, "judge_first": result.JudgeFirst, "summary": entries.RulesSummary(result.Fields), "has_tracks": result.HasTracks}})
 	} else {
-		httpx.WriteJSON(w, http.StatusOK, entryRulesView(result.Updated, result.HasTracks, hackentries.RulesEditable(result.Updated.Stage)))
+		httpx.WriteJSON(w, http.StatusOK, entryRulesView(result.Updated, result.HasTracks, entries.RulesEditable(result.Updated.Stage)))
 	}
 }
 
-func (h *HackHandler) entryProgressJSON(ctx context.Context, ev db.Event, team db.EventTeam, teammates []string, st db.TeamWriteState) (map[string]any, error) {
+func (h *HackHandler) entryProgressJSON(ctx context.Context, ev model.Event, team model.EventTeam, teammates []string, st model.TeamWriteState) (map[string]any, error) {
 	p, err := h.entries.EntryProgress(ctx, ev, team, teammates, st)
 	if err != nil {
 		return nil, err

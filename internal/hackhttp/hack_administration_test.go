@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/csv"
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
 	"io"
 	"net/http"
 	"net/url"
@@ -109,7 +110,7 @@ func TestHackAdministrationExportsAndUsage(t *testing.T) {
 	// Existing member keys keep working after a display-name change.
 	wantTS(t, "publish after rename", a.deployTeam(t, team1, key1, "alpha latest"), 200, "")
 	// Archives preserve saved state and private collections, within the same team.
-	ev, err := db.GetEventBySlug(context.Background(), a.database, slug)
+	ev, err := hackevents.GetEventBySlug(context.Background(), a.database, slug)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,11 +243,11 @@ func TestHackAdministrationCannotRemoveLastOrganiserConcurrently(t *testing.T) {
 	two := a.newPerson(t, "legacyco")
 	slug := uniqueSlug()
 	wantTS(t, "event", a.createEvent(t, one, slug, nil), 201, "")
-	ev, err := db.GetEventBySlug(context.Background(), a.database, slug)
+	ev, err := hackevents.GetEventBySlug(context.Background(), a.database, slug)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.InsertEventMember(context.Background(), a.database, ev.ID, a.userID(t, two), "organiser", "Second organiser"); err != nil {
+	if _, err := hackevents.InsertEventMember(context.Background(), a.database, ev.ID, a.userID(t, two), "organiser", "Second organiser"); err != nil {
 		t.Fatal(err)
 	}
 	// The creator may be absent on a legacy/imported event. Its remaining

@@ -6,9 +6,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/hackentries"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
+	"github.com/vsriram/simple-host/internal/model"
+
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
@@ -163,7 +164,7 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 	var trackSlug string
 	if req.Track != nil {
 		trackSlug = strings.TrimSpace(*req.Track)
-		if trackSlug != "" && !hackevents.TrackSlug(trackSlug) {
+		if trackSlug != "" && !events.TrackSlug(trackSlug) {
 			httpx.WriteError(w, http.StatusBadRequest, "invalid_track", "choose a listed track")
 			return
 		}
@@ -274,13 +275,13 @@ func (h *HackHandler) setEntryExcluded(w http.ResponseWriter, r *http.Request, e
 		httpx.WriteInternal(w)
 		return
 	}
-	tracks, err := db.ListEventTracks(r.Context(), h.database, a.event.ID)
+	tracks, err := h.eventsSvc().EventTracks(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
 		return
 	}
-	item, err := h.entryListItem(r.Context(), a.event, team, e, hackentries.LoadRules(a.event.EntryRules), len(tracks) > 0, tl)
+	item, err := h.entryListItem(r.Context(), a.event, team, e, entries.LoadRules(a.event.EntryRules), len(tracks) > 0, tl)
 	if err != nil {
 		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -355,7 +356,7 @@ func (h *HackHandler) getTeamScreenshot(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	team, err := db.GetEventTeamBySlug(r.Context(), h.database, a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
+	team, err := h.teamsSvc().TeamBySlugLookup(r.Context(), a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
@@ -399,7 +400,7 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	teams, err := db.ListEventTeams(r.Context(), h.database, a.event.ID)
+	teams, err := h.teamsSvc().EventTeams(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: entries %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -414,13 +415,13 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	byTeam := map[string]db.EventEntry{}
+	byTeam := map[string]model.EventEntry{}
 	for _, e := range stored {
 		byTeam[e.TeamID] = e
 	}
 	required := entryRequiredList(a.event.EntryRequired)
-	fields := hackentries.LoadRules(a.event.EntryRules)
-	tracks, err := db.ListEventTracks(r.Context(), h.database, a.event.ID)
+	fields := entries.LoadRules(a.event.EntryRules)
+	tracks, err := h.eventsSvc().EventTracks(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: entries %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -468,7 +469,7 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 // site preview and pinned links in an entry list item (security review F1,
 // 2026-11-02). Organisers (and the admin key) always may. A judge may only
 // for a team they can score -- the queue's own eligibility
-// (db.EligibleJudgeTeams: entry submitted or settled and not excluded,
+// (entries.EligibleJudgeTeams: entry submitted or settled and not excluded,
 // assigned to them in automatic or manual mode or on their track's panel,
 // no declared conflict) -- and only once that team can no longer change
 // its site: entries are closed for the event (closed, judging, results,
@@ -486,7 +487,7 @@ func (h *HackHandler) judgeSiteLinkGate(ctx context.Context, a hackAccess) (func
 	if submissionsClosedStage(a.event.Stage) || a.event.Stage == "archived" || h.scoringStage(ctx, a.event) {
 		return func(teamID string) bool { return eligible[teamID] }, nil
 	}
-	states, err := db.TeamWriteStatesForEvent(ctx, h.database, a.event.ID)
+	states, err := h.teamsSvc().TeamWriteStatesForEventLookup(ctx, a.event.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -531,7 +532,7 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 			view["error"] = "A teammate changed this since you opened it"
 			httpx.WriteJSON(w, 409, view)
 		case "entry_incomplete", "entry_would_be_incomplete":
-			writeHackErrMissing(w, http.StatusUnprocessableEntity, refusal.Code, "Add these first: "+hackentries.MissingMessage(missing, hackentries.LoadRules(a.event.EntryRules)), missing)
+			writeHackErrMissing(w, http.StatusUnprocessableEntity, refusal.Code, "Add these first: "+entries.MissingMessage(missing, entries.LoadRules(a.event.EntryRules)), missing)
 		case "track_not_found":
 			httpx.WriteError(w, http.StatusNotFound, refusal.Code, refusal.Message)
 		case "no_team", "team_choice_closed":
@@ -547,7 +548,7 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 	return "", false
 }
 
-func (h *HackHandler) writeOwnEntry(w http.ResponseWriter, r *http.Request, ev db.Event, teamID, userID string) {
+func (h *HackHandler) writeOwnEntry(w http.ResponseWriter, r *http.Request, ev model.Event, teamID, userID string) {
 	body, err := h.ownEntryJSON(r.Context(), ev, teamID, userID)
 	if err != nil {
 		log.Printf("hack: entry %s: %v", ev.Slug, err)
@@ -562,33 +563,33 @@ func (h *HackHandler) writeOwnEntry(w http.ResponseWriter, r *http.Request, ev d
 // sentence, completeness, and the Home progress checklist. editable and
 // refusal come from the team's write state, read outside the write
 // transaction.
-func (h *HackHandler) ownEntryJSON(ctx context.Context, ev db.Event, teamID, userID string) (map[string]any, error) {
+func (h *HackHandler) ownEntryJSON(ctx context.Context, ev model.Event, teamID, userID string) (map[string]any, error) {
 	e, err := h.entries.Entry(ctx, teamID)
 	if errors.Is(err, sql.ErrNoRows) {
-		e = db.EventEntry{}
+		e = model.EventEntry{}
 	} else if err != nil {
 		return nil, err
 	}
-	team, err := db.GetEventTeamByID(ctx, h.database, teamID)
+	team, err := h.teamsSvc().TeamByID(ctx, teamID)
 	if err != nil {
 		return nil, err
 	}
-	st, err := db.TeamWriteStateFor(ctx, h.database, teamID, false)
+	st, err := h.teamsSvc().TeamWriteStateForLookup(ctx, teamID, false)
 	if err != nil {
 		return nil, err
 	}
-	tracks, err := db.ListEventTracks(ctx, h.database, ev.ID)
+	tracks, err := h.eventsSvc().EventTracks(ctx, ev.ID)
 	if err != nil {
 		return nil, err
 	}
 	hasTracks := len(tracks) > 0
-	track, err := db.TeamTrack(ctx, h.database, teamID)
+	track, err := h.eventsSvc().TeamTrackLookup(ctx, teamID)
 	if err != nil {
 		return nil, err
 	}
-	fields := hackentries.LoadRules(ev.EntryRules)
+	fields := entries.LoadRules(ev.EntryRules)
 	siteExists, siteLiveVersion, siteLive := h.entrySiteState(ctx, ev, team.Slug, st.SiteTakenDown)
-	check := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
+	check := entries.Evaluate(fields, e, siteLive, hasTracks, track)
 
 	code := st.WriteRefusal()
 	var refusal any
@@ -607,7 +608,7 @@ func (h *HackHandler) ownEntryJSON(ctx context.Context, ev db.Event, teamID, use
 	if track != nil {
 		trackJSON = map[string]any{"id": track.ID, "slug": track.Slug, "name": track.Name}
 	}
-	people, err := db.ListTeamPeople(ctx, h.database, team.ID)
+	people, err := h.teamsSvc().TeamPeople(ctx, team.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -631,7 +632,7 @@ func (h *HackHandler) ownEntryJSON(ctx context.Context, ev db.Event, teamID, use
 		},
 		"status": e.Status(), "submitted_at": rfc3339UTC(e.SubmittedAt), "submitted_by": submittedBy, "submit_auto": e.SubmitAuto,
 		"rules": map[string]any{
-			"preset": ev.EntryPreset, "fields": fields, "judge_first": ev.JudgeFirst, "summary": hackentries.RulesSummary(fields),
+			"preset": ev.EntryPreset, "fields": fields, "judge_first": ev.JudgeFirst, "summary": entries.RulesSummary(fields),
 		},
 		"required": entryRequiredList(ev.EntryRequired),
 		"complete": check.Complete, "missing": check.Missing,
@@ -657,15 +658,15 @@ func nonNilStrings(s []string) []string {
 // (section 4.5): the summary card, status, missing and the video and site
 // evidence, with the embeddable video player (videoEmbed) and whether the
 // judge screen may frame the site (entrySiteView).
-func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.EventTeam, e db.EventEntry, fields map[string]string, hasTracks bool, tl teamList) (map[string]any, error) {
+func (h *HackHandler) entryListItem(ctx context.Context, ev model.Event, team model.EventTeam, e model.EventEntry, fields map[string]string, hasTracks bool, tl teamList) (map[string]any, error) {
 	st := tl.states[team.ID]
 	site := tl.site(team.Slug)
 	siteLive := site != nil && site.ActiveVersion > 0 && !st.SiteTakenDown && !st.EventTakenDown
-	track, err := db.TeamTrack(ctx, h.database, team.ID)
+	track, err := h.eventsSvc().TeamTrackLookup(ctx, team.ID)
 	if err != nil {
 		return nil, err
 	}
-	check := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
+	check := entries.Evaluate(fields, e, siteLive, hasTracks, track)
 	var updated any
 	if e.Exists {
 		updated = e.UpdatedAt.UTC().Format(time.RFC3339Nano)
@@ -742,7 +743,7 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 // not ready, and on a server with no per-site hosts (no preview link);
 // not_frameable_why says which.
 // nil when the team has no site.
-func (h *HackHandler) entrySiteView(ctx context.Context, ev db.Event, team db.EventTeam, tl teamList, pinnedURL any) (any, error) {
+func (h *HackHandler) entrySiteView(ctx context.Context, ev model.Event, team model.EventTeam, tl teamList, pinnedURL any) (any, error) {
 	site := tl.site(team.Slug)
 	if site == nil {
 		return nil, nil
