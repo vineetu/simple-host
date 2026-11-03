@@ -4,38 +4,36 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/app/hack/teams"
-	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 func findingError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, db.ErrHackFindingStage):
+	case errors.Is(err, teams.ErrFindingStage):
 		httpx.WriteError(w, 409, "teams_locked", "teams cannot be changed at this stage")
-	case errors.Is(err, db.ErrHackFindingOff):
+	case errors.Is(err, teams.ErrFindingOff):
 		httpx.WriteError(w, 409, "team_finding_off", "team finding is off")
-	case errors.Is(err, db.ErrHackTeamFull):
+	case errors.Is(err, teams.ErrTeamFull):
 		httpx.WriteError(w, 409, "team_full", "this team is full")
-	case errors.Is(err, db.ErrHackTeamLocked):
+	case errors.Is(err, teams.ErrTeamLocked):
 		httpx.WriteError(w, 409, "team_locked", "this team isn't taking new people")
-	case errors.Is(err, db.ErrHackTeamKept):
+	case errors.Is(err, teams.ErrTeamKept):
 		httpx.WriteError(w, 409, "team_kept", "this team can't take new members")
-	case errors.Is(err, db.ErrHackLastTeamAdmin):
+	case errors.Is(err, teams.ErrLastTeamAdmin):
 		httpx.WriteError(w, 409, "last_team_admin", "make someone else admin first")
-	case errors.Is(err, db.ErrHackTeamAdminOnly):
+	case errors.Is(err, teams.ErrTeamAdminOnly):
 		httpx.WriteError(w, 403, "team_admin_only", "only the team's admins can do that")
-	case errors.Is(err, db.ErrHackAlreadyInTeam):
+	case errors.Is(err, teams.ErrAlreadyInTeam):
 		httpx.WriteError(w, 409, "already_in_team", "you are already on a team")
-	case errors.Is(err, db.ErrHackTeamFrozen):
+	case errors.Is(err, teams.ErrTeamFrozen):
 		httpx.WriteError(w, 409, "submissions_closed", "the team's deadline has passed")
-	case errors.Is(err, db.ErrHackFindingForbidden), errors.Is(err, db.ErrHackNotParticipant):
+	case errors.Is(err, teams.ErrFindingForbidden), errors.Is(err, teams.ErrNotParticipant):
 		httpx.WriteError(w, 403, "team_action_unavailable", "this team action is not available")
-	case errors.Is(err, sql.ErrNoRows), errors.Is(err, db.ErrHackTeamNotFound):
+	case errors.Is(err, sql.ErrNoRows), errors.Is(err, teams.ErrTeamNotFound):
 		writeEventNotFound(w)
 	default:
 		httpx.WriteInternal(w)
@@ -47,12 +45,12 @@ func (h *HackHandler) findingAccess(w http.ResponseWriter, r *http.Request, writ
 	if !ok {
 		return a, false
 	}
-	if write && !hackteams.ParticipantTeamStages(a.event.Stage) {
+	if write && !teams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, 409, "teams_locked", "teams cannot be changed at this stage")
 		return a, false
 	}
 	if !a.event.TeamFinding {
-		findingError(w, db.ErrHackFindingOff)
+		findingError(w, teams.ErrFindingOff)
 		return a, false
 	}
 	return a, true
@@ -112,7 +110,7 @@ func (h *HackHandler) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	note, ok := checkHackLine(w, hackevents.StripInvisible(req.LookingFor), "looking_for", 0, 120)
+	note, ok := checkHackLine(w, events.StripInvisible(req.LookingFor), "looking_for", 0, 120)
 	if !ok {
 		return
 	}
@@ -220,7 +218,7 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !hackteams.ParticipantTeamStages(a.event.Stage) {
+	if !teams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, 409, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}

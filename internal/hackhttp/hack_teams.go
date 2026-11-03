@@ -5,14 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/hackteams"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"strings"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/app/hack/teams"
-	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +71,7 @@ func (h *HackHandler) removePerson(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	if errors.Is(err, db.ErrHackCannotRemoveOrganiser) {
+	if errors.Is(err, teams.ErrCannotRemoveOrganiser) {
 		httpx.WriteError(w, http.StatusConflict, "cannot_remove_organiser", "an organiser cannot be removed from the event")
 		return
 	}
@@ -128,7 +127,7 @@ func (h *HackHandler) listTeams(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *HackHandler) teamOrganiserJSON(ctx context.Context, team db.EventTeam) (map[string]any, error) {
+func (h *HackHandler) teamOrganiserJSON(ctx context.Context, team model.EventTeam) (map[string]any, error) {
 	people, err := h.teamsSvc().TeamPeople(ctx, team.ID)
 	if err != nil {
 		return nil, err
@@ -137,7 +136,7 @@ func (h *HackHandler) teamOrganiserJSON(ctx context.Context, team db.EventTeam) 
 }
 
 // teamOrganiserJSONFrom is teamOrganiserJSON with the members already read.
-func teamOrganiserJSONFrom(team db.EventTeam, people []db.EventPerson, link string) map[string]any {
+func teamOrganiserJSONFrom(team model.EventTeam, people []model.EventPerson, link string) map[string]any {
 	members := make([]map[string]any, 0, len(people))
 	for _, p := range people {
 		members = append(members, map[string]any{
@@ -168,7 +167,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	if h.rateLimited(w, r, a.user.ID) {
 		return
 	}
-	if !hackteams.ParticipantTeamStages(a.event.Stage) {
+	if !teams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
@@ -180,11 +179,11 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	name, ok := checkHackLine(w, hackevents.StripInvisible(req.Name), "team_name", 1, 80)
+	name, ok := checkHackLine(w, events.StripInvisible(req.Name), "team_name", 1, 80)
 	if !ok {
 		return
 	}
-	note, ok := checkHackLine(w, hackevents.StripInvisible(req.LookingFor), "looking_for", 0, 120)
+	note, ok := checkHackLine(w, events.StripInvisible(req.LookingFor), "looking_for", 0, 120)
 	if !ok {
 		return
 	}
@@ -197,10 +196,10 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	case errors.As(err, &teamErr) && teamErr.Code == "team_name_taken":
 		writeTeamNameTaken(w)
 		return
-	case errors.Is(err, db.ErrHackAlreadyInTeam):
+	case errors.Is(err, teams.ErrAlreadyInTeam):
 		httpx.WriteError(w, http.StatusConflict, "already_in_team", "you are already on a team")
 		return
-	case errors.Is(err, db.ErrHackNotParticipant):
+	case errors.Is(err, teams.ErrNotParticipant):
 		writeEventNotFound(w)
 		return
 	case err != nil:
@@ -223,7 +222,7 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 	if h.rateLimited(w, r, a.user.ID) {
 		return
 	}
-	if !hackteams.ParticipantTeamStages(a.event.Stage) {
+	if !teams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
@@ -247,19 +246,19 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 	case errors.As(err, &teamErr) && teamErr.Code == "submissions_closed":
 		httpx.WriteError(w, http.StatusConflict, "submissions_closed", "that team's deadline has passed, so it can't take new members")
 		return
-	case errors.Is(err, db.ErrHackTeamNotFound):
+	case errors.Is(err, teams.ErrTeamNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
-	case errors.Is(err, db.ErrHackTeamFull):
+	case errors.Is(err, teams.ErrTeamFull):
 		httpx.WriteError(w, http.StatusConflict, "team_full", "this team is full")
 		return
-	case errors.Is(err, db.ErrHackTeamLocked):
+	case errors.Is(err, teams.ErrTeamLocked):
 		httpx.WriteError(w, http.StatusConflict, "team_locked", "this team isn't taking new people")
 		return
-	case errors.Is(err, db.ErrHackAlreadyInTeam):
+	case errors.Is(err, teams.ErrAlreadyInTeam):
 		httpx.WriteError(w, http.StatusConflict, "already_in_team", "you are already on a team")
 		return
-	case errors.Is(err, db.ErrHackNotParticipant) || errors.Is(err, sql.ErrNoRows):
+	case errors.Is(err, teams.ErrNotParticipant) || errors.Is(err, sql.ErrNoRows):
 		writeEventNotFound(w)
 		return
 	case err != nil:
@@ -282,12 +281,12 @@ func (h *HackHandler) leaveTeam(w http.ResponseWriter, r *http.Request) {
 	if h.rateLimited(w, r, a.user.ID) {
 		return
 	}
-	if !hackteams.ParticipantTeamStages(a.event.Stage) {
+	if !teams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
 	if err := h.teamsSvc().LeaveTeam(r.Context(), a.event.ID, a.user.ID); err != nil {
-		if errors.Is(err, db.ErrHackTeamFrozen) {
+		if errors.Is(err, teams.ErrTeamFrozen) {
 			httpx.WriteError(w, http.StatusConflict, "submissions_closed", "your team's deadline has passed, so the team can't change; ask the organiser")
 		} else if errors.Is(err, sql.ErrNoRows) {
 			writeEventNotFound(w)
@@ -321,19 +320,19 @@ func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
 	}
 	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
 	team, err := h.teamsSvc().MoveMember(r.Context(), a.event.ID, req.UserID, teamSlug, a.event.TeamSizeMax)
-	if errors.Is(err, db.ErrHackTeamNotFound) {
+	if errors.Is(err, teams.ErrTeamNotFound) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
 	}
-	if errors.Is(err, db.ErrHackTeamFull) {
+	if errors.Is(err, teams.ErrTeamFull) {
 		httpx.WriteError(w, http.StatusConflict, "team_full", "this team is full")
 		return
 	}
-	if errors.Is(err, db.ErrHackTeamKept) {
+	if errors.Is(err, teams.ErrTeamKept) {
 		httpx.WriteError(w, http.StatusConflict, "team_kept", "this team can't take new members")
 		return
 	}
-	if errors.Is(err, db.ErrHackNotParticipant) || errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, teams.ErrNotParticipant) || errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
 	}
@@ -368,8 +367,8 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	participant := a.member.Role == "participant"
 	teamName := ""
 	if participant {
-		if !hackteams.ParticipantTeamStages(a.event.Stage) || !a.member.TeamID.Valid || userID == a.user.ID {
-			findingError(w, db.ErrHackFindingForbidden)
+		if !teams.ParticipantTeamStages(a.event.Stage) || !a.member.TeamID.Valid || userID == a.user.ID {
+			findingError(w, teams.ErrFindingForbidden)
 			return
 		}
 		team, err := h.teamsSvc().GetTeam(r.Context(), a.member.TeamID.String)
@@ -386,13 +385,13 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.teamsSvc().RemoveTeamMember(r.Context(), a.event.ID, a.user.ID, userID, teamSlug, teamName, participant)
 	switch {
-	case errors.Is(err, db.ErrHackTeamAdminOnly):
+	case errors.Is(err, teams.ErrTeamAdminOnly):
 		httpx.WriteError(w, http.StatusForbidden, "team_admin_only", "only the team's admins can do that")
 		return
-	case errors.Is(err, db.ErrHackTeamFrozen):
+	case errors.Is(err, teams.ErrTeamFrozen):
 		findingError(w, err)
 		return
-	case errors.Is(err, db.ErrHackTeamNotFound):
+	case errors.Is(err, teams.ErrTeamNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
 	case errors.Is(err, sql.ErrNoRows):
@@ -432,7 +431,7 @@ func (h *HackHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
 // anyone's email or account id. Re-reads the team row fresh (never trusting
 // a value the caller already had before its own write), so a rename or a
 // link rotation just committed by this same request shows up.
-func (h *HackHandler) teamParticipantJSON(ctx context.Context, team db.EventTeam, userID string) (map[string]any, error) {
+func (h *HackHandler) teamParticipantJSON(ctx context.Context, team model.EventTeam, userID string) (map[string]any, error) {
 	team, people, lookingFor, err := h.teamsSvc().ParticipantTeam(ctx, team)
 	if err != nil {
 		return nil, err

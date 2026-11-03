@@ -3,6 +3,7 @@ package hackhttp
 import (
 	"context"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"log"
 	"net/http"
 	"strings"
@@ -40,7 +41,7 @@ func (h *HackHandler) getTeamSiteStatus(w http.ResponseWriter, r *http.Request) 
 // siteStatusJSON is the Website screen's richer site object: the existing
 // /key fields plus when and how the live version went live, and when the
 // deadline pin was taken.
-func (h *HackHandler) siteStatusJSON(ctx context.Context, ev db.Event, team db.EventTeam) map[string]any {
+func (h *HackHandler) siteStatusJSON(ctx context.Context, ev model.Event, team model.EventTeam) map[string]any {
 	var site *db.Site
 	if h.sites != nil {
 		if info, st, err := h.sites.TeamSiteInfo(ctx, ev.AccountID, team.Slug); err != nil {
@@ -83,7 +84,7 @@ func (h *HackHandler) siteStatusJSON(ctx context.Context, ev db.Event, team db.E
 // team selected (names only -- never their app, client id or grant id;
 // security point 4). A member who left the team is not in people, so their
 // old grant is never counted even if it is still pointed at this team.
-func (h *HackHandler) connectionStatusJSON(ctx context.Context, eventID string, team db.EventTeam, callerID string) (map[string]any, error) {
+func (h *HackHandler) connectionStatusJSON(ctx context.Context, eventID string, team model.EventTeam, callerID string) (map[string]any, error) {
 	status, err := h.teamsSvc().ConnectionStatus(ctx, eventID, team.ID, callerID, h.publicBaseURL+"/mcp")
 	if err != nil {
 		return nil, err
