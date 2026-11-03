@@ -291,17 +291,12 @@ func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 			<-start
 			cc := c
 			cc.visitorID = fmt.Sprintf("writer-%d", i)
-			result, err := s.a.sites.storageKVInsert(context.Background(), cc, "race", json.RawMessage(fmt.Sprint(i)))
+			inserted, err := s.a.sites.storageSvc().InsertKV(context.Background(), cc.siteID, cc.resourceName, "race", json.RawMessage(fmt.Sprint(i)), cc.owner, cc.visitorID)
 			if err != nil {
 				t.Error(err)
 				return
 			}
-			n, err := result.RowsAffected()
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			if n == 1 {
+			if inserted {
 				mu.Lock()
 				wins++
 				winner = cc.visitorID

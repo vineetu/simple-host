@@ -86,14 +86,14 @@ func TestStorageRound2SQLiteConcurrencyPOC(t *testing.T) {
 	// Occupy every slot of this handler's own gate, independent of this
 	// site/identity. s.a.sites is the SiteHandler under test, so this must be
 	// the same gate instance its storage routes acquire from.
-	initRelease, err := s.a.sites.sqlite.acquire(context.Background())
+	initRelease, err := s.a.sites.sqlite.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	initRelease()
 	var releases []func()
-	for i := 0; i < cap(s.a.sites.sqlite.slots); i++ {
-		release, err := s.a.sites.sqlite.acquire(context.Background())
+	for i := 0; i < cap(s.a.sites.sqlite.Slots); i++ {
+		release, err := s.a.sites.sqlite.Acquire(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}

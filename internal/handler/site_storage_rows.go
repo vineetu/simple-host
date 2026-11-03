@@ -8,129 +8,21 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	"github.com/vsriram/simple-host/internal/storage"
 )
 
-func storageQuote(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
-func storageSQLTables(conn *sqlite3.Conn) (map[string]bool, error) {
-	stmt, _, err := conn.Prepare(`SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'`)
-	if err != nil {
-		return nil, err
-	}
-	defer stmt.Close()
-	tables := map[string]bool{}
-	for stmt.Step() {
-		tables[stmt.ColumnText(0)] = true
-	}
-	return tables, stmt.Err()
+func storageQuote(s string) string                              { return storage.Quote(s) }
+func storageSQLTables(c *sqlite3.Conn) (map[string]bool, error) { return storage.SQLTables(c) }
+func storageTableColumns(c *sqlite3.Conn, t string) (map[string]string, error) {
+	return storage.TableColumns(c, t)
 }
-func storageTableColumns(conn *sqlite3.Conn, table string) (map[string]string, error) {
-	tables, err := storageSQLTables(conn)
-	if err != nil || !tables[table] {
-		return nil, fmt.Errorf("unknown table")
-	}
-	stmt, _, err := conn.Prepare("PRAGMA table_info(" + storageQuote(table) + ")")
-	if err != nil {
-		return nil, err
-	}
-	defer stmt.Close()
-	cols := map[string]string{}
-	for stmt.Step() {
-		cols[stmt.ColumnText(1)] = strings.ToUpper(stmt.ColumnText(2))
-	}
-	return cols, stmt.Err()
+func storageEnsureOwnTables(c *sqlite3.Conn, b map[string]bool, n func(string) bool) error {
+	return storage.EnsureOwnTables(c, b, n)
 }
-
-// Owner schema changes are transactional. Add the identity column only to newly
-// created tables, and refuse a change that removes it from an existing table.
-// need picks the tables that must carry it (nil: every table).
-func storageEnsureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(string) bool) error {
-	tables, err := storageSQLTables(conn)
-	if err != nil {
-		return err
-	}
-	for table := range tables {
-		if need != nil && !need(table) {
-			continue
-		}
-		cols, e := storageTableColumns(conn, table)
-		if e != nil {
-			return e
-		}
-		if _, ok := cols["visitor_id"]; !ok && !before[table] {
-			if e = conn.Exec("ALTER TABLE " + storageQuote(table) + " ADD COLUMN visitor_id TEXT"); e != nil {
-				return e
-			}
-			cols["visitor_id"] = "TEXT"
-		}
-		if cols["visitor_id"] != "TEXT" {
-			return fmt.Errorf("visitor_id TEXT required")
-		}
-		if e = conn.Exec("CREATE INDEX IF NOT EXISTS " + storageQuote("sh_visitor_"+table) + " ON " + storageQuote(table) + " (visitor_id)"); e != nil {
-			return e
-		}
-		// IF NOT EXISTS must not accept a same-named index on another column.
-		index, _, e := conn.Prepare("SELECT tbl_name FROM sqlite_schema WHERE type='index' AND name=?")
-		if e != nil {
-			return e
-		}
-		_ = index.BindText(1, "sh_visitor_"+table)
-		correct := index.Step() && index.ColumnText(0) == table
-		index.Close()
-		info, _, e := conn.Prepare("PRAGMA index_info(" + storageQuote("sh_visitor_"+table) + ")")
-		if e != nil {
-			return e
-		}
-		correct = correct && info.Step() && info.ColumnText(2) == "visitor_id"
-		info.Close()
-		if !correct {
-			return fmt.Errorf("visitor_id index required")
-		}
-
-	}
-	return nil
-}
-
-// storageEnsureHoldTables gives each table that holds posts (need) the
-// server-owned approved_at TEXT column: NULL while a post waits for the
-// owner, a time once approved. Rows already in a table when the column is
-// added were public before, so they count as approved.
-func storageEnsureHoldTables(conn *sqlite3.Conn, need func(string) bool) error {
-	tables, err := storageSQLTables(conn)
-	if err != nil {
-		return err
-	}
-	for table := range tables {
-		if !need(table) {
-			continue
-		}
-		cols, e := storageTableColumns(conn, table)
-		if e != nil {
-			return e
-		}
-		if _, ok := cols["approved_at"]; !ok {
-			if e = conn.Exec("ALTER TABLE " + storageQuote(table) + " ADD COLUMN approved_at TEXT"); e != nil {
-				return e
-			}
-			stmt, _, e := conn.Prepare("UPDATE " + storageQuote(table) + " SET approved_at = ?")
-			if e != nil {
-				return e
-			}
-			_ = stmt.BindText(1, time.Now().UTC().Format(time.RFC3339Nano))
-			e = stmt.Exec()
-			stmt.Close()
-			if e != nil {
-				return e
-			}
-			cols["approved_at"] = "TEXT"
-		}
-		if cols["approved_at"] != "TEXT" {
-			return fmt.Errorf("approved_at TEXT required")
-		}
-	}
-	return nil
+func storageEnsureHoldTables(c *sqlite3.Conn, n func(string) bool) error {
+	return storage.EnsureHoldTables(c, n)
 }
 
 // prepareStorageMatrixDatabase readies a database for c.resource's matrix:
@@ -157,7 +49,7 @@ func (h *SiteHandler) prepareStorageMatrixDatabase(ctx context.Context, c storag
 	if err != nil {
 		return existing, err
 	}
-	release, err := h.sqliteGateFor().acquire(ctx)
+	release, err := h.sqliteGateFor().Acquire(ctx)
 	if err != nil {
 		return existing, err
 	}
@@ -270,131 +162,14 @@ func (p *storageRowPage) cursor(row []any, id int64) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-// storageCheckReferences reads the table's declared foreign keys, then
-// checks the added or edited row against each parent: the parent row must
-// exist and be readable by this caller under the parent table's read value
-// (own: the caller added it). It runs inside the write's transaction, so a
-// refused reference leaves no change. Reading the row back also covers
-// foreign-key values supplied by SQLite defaults.
 func storageCheckReferences(conn *sqlite3.Conn, c storageCall, table, rowid string, id int64) (int, error) {
-	stmt, _, err := conn.Prepare("PRAGMA foreign_key_list(" + storageQuote(table) + ")")
-	if err != nil {
-		return 400, err
-	}
-	type reference struct {
-		table    string
-		from, to []string
-	}
-	refs := map[int]*reference{}
-	for stmt.Step() {
-		n := stmt.ColumnInt(0)
-		ref := refs[n]
-		if ref == nil {
-			ref = &reference{table: stmt.ColumnText(2)}
-			refs[n] = ref
-		}
-		ref.from = append(ref.from, stmt.ColumnText(3))
-		ref.to = append(ref.to, stmt.ColumnText(4))
-	}
-	err = stmt.Err()
-	stmt.Close()
-	if err != nil {
-		return 400, err
-	}
-	for _, ref := range refs {
-		parent, err := storageTableColumns(conn, ref.table)
-		if err != nil {
-			return 404, fmt.Errorf("referenced row not found")
-		}
-		filter, ok := c.storageMayRead(c.resource.tableMatrix(ref.table).Read)
-		if !ok || filter != "" && parent["visitor_id"] != "TEXT" {
-			return 404, fmt.Errorf("referenced row not found")
-		}
-		if ref.to[0] == "" {
-			info, _, err := conn.Prepare("PRAGMA table_info(" + storageQuote(ref.table) + ")")
-			if err != nil {
-				return 400, err
-			}
-			primary := map[int]string{}
-			for info.Step() {
-				if pos := info.ColumnInt(5); pos > 0 {
-					primary[pos] = info.ColumnText(1)
-				}
-			}
-			err = info.Err()
-			info.Close()
-			if err != nil {
-				return 400, err
-			}
-			if len(primary) != len(ref.to) {
-				return 400, fmt.Errorf("foreign key must reference a primary key")
-			}
-			for i := range ref.to {
-				ref.to[i] = primary[i+1]
-			}
-		}
-		joins, nulls := []string{}, []string{}
-		for i, from := range ref.from {
-			joins = append(joins, "p."+storageQuote(ref.to[i])+" = c."+storageQuote(from))
-			nulls = append(nulls, "c."+storageQuote(from)+" IS NULL")
-		}
-		if c.resource.holds(ref.table) && !c.ownerOnSite {
-			if parent["approved_at"] != "TEXT" {
-				return 404, fmt.Errorf("referenced row not found")
-			}
-			joins = append(joins, "p.approved_at IS NOT NULL")
-		}
-		writer := "''"
-		if parent["visitor_id"] != "" {
-			writer = "COALESCE(p.visitor_id,'')"
-		}
-		// Optional links are all NULL. Partial composite NULLs are refused.
-		query := "SELECT (" + strings.Join(nulls, " OR ") + "), (" + strings.Join(nulls, " AND ") + "), p." + storageQuote(ref.to[0]) + " IS NOT NULL, " + writer + " FROM " + storageQuote(table) +
-			" c LEFT JOIN " + storageQuote(ref.table) + " p ON " + strings.Join(joins, " AND ") + " WHERE c." + rowid + " = ?"
-		check, _, err := conn.Prepare(query)
-		if err != nil {
-			return 404, err
-		}
-		if err = check.BindInt64(1, id); err != nil {
-			check.Close()
-			return 404, err
-		}
-		found := check.Step()
-		anyNull, allNull, exists := found && check.ColumnBool(0), found && check.ColumnBool(1), found && check.ColumnBool(2)
-		author := check.ColumnText(3)
-		err = check.Err()
-		check.Close()
-		if err != nil {
-			return 404, err
-		}
-		if allNull {
-			continue
-		}
-		if !found || anyNull || !exists || filter != "" && author != filter {
-			return 404, fmt.Errorf("referenced row not found")
-		}
-	}
-	return 0, nil
+	return storage.CheckReferences(conn, table, rowid, id, func(parent string) (string, bool, bool) {
+		filter, ok := c.storageMayRead(c.resource.tableMatrix(parent).Read)
+		return filter, ok, c.resource.holds(parent) && !c.ownerOnSite
+	})
 }
 
 // Test rowid accessibility instead of consulting connection-global insert state.
 func storageRowID(conn *sqlite3.Conn, table string, cols map[string]string) (string, error) {
-	for _, name := range []string{"_rowid_", "rowid", "oid"} {
-		shadowed := false
-		for col := range cols {
-			if strings.EqualFold(col, name) {
-				shadowed = true
-			}
-		}
-		if shadowed {
-			continue
-		}
-		stmt, _, err := conn.Prepare("SELECT " + name + " FROM " + storageQuote(table) + " LIMIT 0")
-		if err != nil {
-			return "", err
-		}
-		stmt.Close()
-		return name, nil
-	}
-	return "", fmt.Errorf("accessible rowid required")
+	return storage.RowID(conn, table, cols)
 }

@@ -25,28 +25,15 @@ func storageFileMaxBytes() int64 {
 	return storageLimitBytes(os.Getenv("SITE_STORAGE_FILE_MAX_BYTES"), 1000000, 10<<30)
 }
 
-func storageObjectPath(p string) bool {
-	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "\\") || strings.ContainsRune(p, 0) || len(p) > 1024 || path.Clean(p) != p || len(strings.Split(p, "/")) > 16 {
-		return false
-	}
-	for _, s := range strings.Split(p, "/") {
-		if s == "" || s == "." || s == ".." || strings.HasPrefix(s, ".") {
-			return false
-		}
-	}
-	return true
-}
+func storageObjectPath(p string) bool { return storage.ValidObjectPath(p) }
 func (h *SiteHandler) storageFilesDir(c storageCall) string {
-	return filepath.Join(h.storageRuntimeDir(c), "files", c.resourceName)
+	return storage.RuntimeFilesDir(h.disk, c.ownerID, c.siteName, c.resourceName)
 }
 func (h *SiteHandler) storageFilePath(c storageCall, p string) string {
 	return storageFileOnDisk(h.disk, c.ownerID, c.siteName, c.resourceName, p)
 }
-
-// storageFileOnDisk is where a files-storage object lives, from the parts
-// the image-scan worker holds (imagescan.go) as well as from a call.
 func storageFileOnDisk(disk *storage.DiskStorage, ownerID, siteName, resourceName, p string) string {
-	return filepath.Join(disk.SiteDir(ownerID, siteName), "runtime", "files", resourceName, filepath.FromSlash(p))
+	return storage.RuntimeFilePath(disk, ownerID, siteName, resourceName, p)
 }
 
 func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
@@ -141,37 +128,27 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 		}
 		used := usage.Files
 		if h.ed.Storage().CombinedPool {
-			used = usage.total()
+			used = usage.Total()
 		}
 		if used-oldBytes+int64(len(body)) > h.storageFilesLimitBytes() {
 			storageError(w, 507, "site_full", "file storage is full; shrink photos to about 1600 px WebP and remove unused files")
 			return
 		}
-		if err = os.MkdirAll(filepath.Dir(dest), 0700); err != nil {
-			storageError(w, 500, "internal_error", "internal server error")
-			return
-		}
-		f, err := os.CreateTemp(filepath.Dir(dest), ".upload-")
+		f, err := storage.StageFile(dest, body)
 		if err != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
-		defer os.Remove(f.Name())
-		if _, err = f.Write(body); err == nil {
-			err = f.Sync()
-		}
-		if e := f.Close(); err == nil {
-			err = e
-		}
+		defer os.Remove(f)
 		if err == nil {
 			// Record identity before publishing. An edit keeps the original
 			// author; an add records who added it.
 			if existed {
 				_, err = h.database.ExecContext(r.Context(), `INSERT INTO site_storage_files(site_id,resource_name,path,writer_id) VALUES($1,$2,$3,'') ON CONFLICT(site_id,resource_name,path) DO NOTHING`, c.siteID, c.resourceName, p)
 				if err == nil {
-					err = os.Rename(f.Name(), dest)
+					err = os.Rename(f, dest)
 				}
-			} else if err = os.Link(f.Name(), dest); errors.Is(err, os.ErrExist) {
+			} else if err = os.Link(f, dest); errors.Is(err, os.ErrExist) {
 				// Create-only publish: a path that appeared meanwhile is not
 				// replaced. Until its row is written an own reader cannot see it.
 				storageError(w, 409, "file_exists", "this path already exists")

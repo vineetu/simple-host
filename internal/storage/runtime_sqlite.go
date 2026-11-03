@@ -1,0 +1,423 @@
+package storage
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	sqlite3 "github.com/ncruces/go-sqlite3"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+// Quote provides the existing runtime storage helper.
+func Quote(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
+
+// SQLTables provides the existing runtime storage helper.
+func SQLTables(conn *sqlite3.Conn) (map[string]bool, error) {
+	stmt, _, err := conn.Prepare(`SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'`)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+	tables := map[string]bool{}
+	for stmt.Step() {
+		tables[stmt.ColumnText(0)] = true
+	}
+	return tables, stmt.Err()
+}
+
+// TableColumns provides the existing runtime storage helper.
+func TableColumns(conn *sqlite3.Conn, table string) (map[string]string, error) {
+	tables, err := SQLTables(conn)
+	if err != nil || !tables[table] {
+		return nil, fmt.Errorf("unknown table")
+	}
+	stmt, _, err := conn.Prepare("PRAGMA table_info(" + Quote(table) + ")")
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+	cols := map[string]string{}
+	for stmt.Step() {
+		cols[stmt.ColumnText(1)] = strings.ToUpper(stmt.ColumnText(2))
+	}
+	return cols, stmt.Err()
+}
+
+// Owner schema changes are transactional. Add the identity column only to newly
+// created tables, and refuse a change that removes it from an existing table.
+// need picks the tables that must carry it (nil: every table).
+// EnsureOwnTables provides the existing runtime storage helper.
+func EnsureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(string) bool) error {
+	tables, err := SQLTables(conn)
+	if err != nil {
+		return err
+	}
+	for table := range tables {
+		if need != nil && !need(table) {
+			continue
+		}
+		cols, e := TableColumns(conn, table)
+		if e != nil {
+			return e
+		}
+		if _, ok := cols["visitor_id"]; !ok && !before[table] {
+			if e = conn.Exec("ALTER TABLE " + Quote(table) + " ADD COLUMN visitor_id TEXT"); e != nil {
+				return e
+			}
+			cols["visitor_id"] = "TEXT"
+		}
+		if cols["visitor_id"] != "TEXT" {
+			return fmt.Errorf("visitor_id TEXT required")
+		}
+		if e = conn.Exec("CREATE INDEX IF NOT EXISTS " + Quote("sh_visitor_"+table) + " ON " + Quote(table) + " (visitor_id)"); e != nil {
+			return e
+		}
+		// IF NOT EXISTS must not accept a same-named index on another column.
+		index, _, e := conn.Prepare("SELECT tbl_name FROM sqlite_schema WHERE type='index' AND name=?")
+		if e != nil {
+			return e
+		}
+		_ = index.BindText(1, "sh_visitor_"+table)
+		correct := index.Step() && index.ColumnText(0) == table
+		index.Close()
+		info, _, e := conn.Prepare("PRAGMA index_info(" + Quote("sh_visitor_"+table) + ")")
+		if e != nil {
+			return e
+		}
+		correct = correct && info.Step() && info.ColumnText(2) == "visitor_id"
+		info.Close()
+		if !correct {
+			return fmt.Errorf("visitor_id index required")
+		}
+
+	}
+	return nil
+}
+
+// EnsureHoldTables gives each table that holds posts (need) the
+// server-owned approved_at TEXT column: NULL while a post waits for the
+// owner, a time once approved. Rows already in a table when the column is
+// added were public before, so they count as approved.
+// EnsureHoldTables provides the existing runtime storage helper.
+func EnsureHoldTables(conn *sqlite3.Conn, need func(string) bool) error {
+	tables, err := SQLTables(conn)
+	if err != nil {
+		return err
+	}
+	for table := range tables {
+		if !need(table) {
+			continue
+		}
+		cols, e := TableColumns(conn, table)
+		if e != nil {
+			return e
+		}
+		if _, ok := cols["approved_at"]; !ok {
+			if e = conn.Exec("ALTER TABLE " + Quote(table) + " ADD COLUMN approved_at TEXT"); e != nil {
+				return e
+			}
+			stmt, _, e := conn.Prepare("UPDATE " + Quote(table) + " SET approved_at = ?")
+			if e != nil {
+				return e
+			}
+			_ = stmt.BindText(1, time.Now().UTC().Format(time.RFC3339Nano))
+			e = stmt.Exec()
+			stmt.Close()
+			if e != nil {
+				return e
+			}
+			cols["approved_at"] = "TEXT"
+		}
+		if cols["approved_at"] != "TEXT" {
+			return fmt.Errorf("approved_at TEXT required")
+		}
+	}
+	return nil
+}
+
+// BindStorageParam provides the existing runtime storage helper.
+func BindStorageParam(stmt *sqlite3.Stmt, i int, raw json.RawMessage) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return err
+	}
+	switch x := v.(type) {
+	case nil:
+		return stmt.BindNull(i)
+	case string:
+		return stmt.BindText(i, x)
+	case bool:
+		return stmt.BindBool(i, x)
+	case json.Number:
+		if n, e := x.Int64(); e == nil {
+			return stmt.BindInt64(i, n)
+		}
+		if f, e := x.Float64(); e == nil {
+			return stmt.BindFloat(i, f)
+		}
+		return fmt.Errorf("invalid number")
+	default:
+		return fmt.Errorf("invalid type")
+	}
+}
+
+// StorageColumn provides the existing runtime storage helper.
+func StorageColumn(stmt *sqlite3.Stmt, i int) any {
+	switch stmt.ColumnType(i) {
+	case sqlite3.NULL:
+		return nil
+	case sqlite3.INTEGER:
+		return stmt.ColumnInt64(i)
+	case sqlite3.FLOAT:
+		return stmt.ColumnFloat(i)
+	case sqlite3.BLOB:
+		return map[string]string{"base64": base64.StdEncoding.EncodeToString(stmt.ColumnBlob(i, nil))}
+	default:
+		return stmt.ColumnText(i)
+	}
+}
+
+// StorageScalar provides the existing runtime storage helper.
+func StorageScalar(raw json.RawMessage) bool {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var value any
+	if dec.Decode(&value) != nil {
+		return false
+	}
+	switch value.(type) {
+	case nil, string, bool, json.Number:
+		return true
+	}
+	return false
+}
+
+// RowID finds an accessible SQLite rowid.
+func RowID(conn *sqlite3.Conn, table string, cols map[string]string) (string, error) {
+	for _, name := range []string{"_rowid_", "rowid", "oid"} {
+		shadowed := false
+		for col := range cols {
+			if strings.EqualFold(col, name) {
+				shadowed = true
+			}
+		}
+		if shadowed {
+			continue
+		}
+		stmt, _, err := conn.Prepare("SELECT " + name + " FROM " + Quote(table) + " LIMIT 0")
+		if err != nil {
+			return "", err
+		}
+		stmt.Close()
+		return name, nil
+	}
+	return "", fmt.Errorf("accessible rowid required")
+}
+
+// CreateIfNotExists reports whether sql is a CREATE ... IF NOT EXISTS statement.
+func CreateIfNotExists(sql string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(sql))
+	return strings.HasPrefix(upper, "CREATE") && strings.Contains(upper, "IF NOT EXISTS")
+}
+
+// CheckReferences reads the table's declared foreign keys, then
+// checks the added or edited row against each parent: the parent row must
+// exist and be readable by this caller under the parent table's read value
+// (own: the caller added it). It runs inside the write's transaction, so a
+// refused reference leaves no change. Reading the row back also covers
+// foreign-key values supplied by SQLite defaults.
+func CheckReferences(conn *sqlite3.Conn, table, rowid string, id int64, access func(string) (string, bool, bool)) (int, error) {
+	stmt, _, err := conn.Prepare("PRAGMA foreign_key_list(" + Quote(table) + ")")
+	if err != nil {
+		return 400, err
+	}
+	type reference struct {
+		table    string
+		from, to []string
+	}
+	refs := map[int]*reference{}
+	for stmt.Step() {
+		n := stmt.ColumnInt(0)
+		ref := refs[n]
+		if ref == nil {
+			ref = &reference{table: stmt.ColumnText(2)}
+			refs[n] = ref
+		}
+		ref.from = append(ref.from, stmt.ColumnText(3))
+		ref.to = append(ref.to, stmt.ColumnText(4))
+	}
+	err = stmt.Err()
+	stmt.Close()
+	if err != nil {
+		return 400, err
+	}
+	for _, ref := range refs {
+		parent, err := TableColumns(conn, ref.table)
+		if err != nil {
+			return 404, fmt.Errorf("referenced row not found")
+		}
+		filter, ok, held := access(ref.table)
+		if !ok || filter != "" && parent["visitor_id"] != "TEXT" {
+			return 404, fmt.Errorf("referenced row not found")
+		}
+		if ref.to[0] == "" {
+			info, _, err := conn.Prepare("PRAGMA table_info(" + Quote(ref.table) + ")")
+			if err != nil {
+				return 400, err
+			}
+			primary := map[int]string{}
+			for info.Step() {
+				if pos := info.ColumnInt(5); pos > 0 {
+					primary[pos] = info.ColumnText(1)
+				}
+			}
+			err = info.Err()
+			info.Close()
+			if err != nil {
+				return 400, err
+			}
+			if len(primary) != len(ref.to) {
+				return 400, fmt.Errorf("foreign key must reference a primary key")
+			}
+			for i := range ref.to {
+				ref.to[i] = primary[i+1]
+			}
+		}
+		joins, nulls := []string{}, []string{}
+		for i, from := range ref.from {
+			joins = append(joins, "p."+Quote(ref.to[i])+" = c."+Quote(from))
+			nulls = append(nulls, "c."+Quote(from)+" IS NULL")
+		}
+		if held {
+			if parent["approved_at"] != "TEXT" {
+				return 404, fmt.Errorf("referenced row not found")
+			}
+			joins = append(joins, "p.approved_at IS NOT NULL")
+		}
+		writer := "''"
+		if parent["visitor_id"] != "" {
+			writer = "COALESCE(p.visitor_id,'')"
+		}
+		// Optional links are all NULL. Partial composite NULLs are refused.
+		query := "SELECT (" + strings.Join(nulls, " OR ") + "), (" + strings.Join(nulls, " AND ") + "), p." + Quote(ref.to[0]) + " IS NOT NULL, " + writer + " FROM " + Quote(table) +
+			" c LEFT JOIN " + Quote(ref.table) + " p ON " + strings.Join(joins, " AND ") + " WHERE c." + rowid + " = ?"
+		check, _, err := conn.Prepare(query)
+		if err != nil {
+			return 404, err
+		}
+		if err = check.BindInt64(1, id); err != nil {
+			check.Close()
+			return 404, err
+		}
+		found := check.Step()
+		anyNull, allNull, exists := found && check.ColumnBool(0), found && check.ColumnBool(1), found && check.ColumnBool(2)
+		author := check.ColumnText(3)
+		err = check.Err()
+		check.Close()
+		if err != nil {
+			return 404, err
+		}
+		if allNull {
+			continue
+		}
+		if !found || anyNull || !exists || filter != "" && author != filter {
+			return 404, fmt.Errorf("referenced row not found")
+		}
+	}
+	return 0, nil
+}
+
+var (
+	ErrUnknownTable  = errors.New("unknown table")
+	ErrTableInternal = errors.New("table internal error")
+	ErrTableFull     = errors.New("table full")
+)
+
+// OpenTableConn opens the database for one table route: read-only
+// for reads, and for writes with the site's allowance as the page cap.
+func OpenTableConn(parent context.Context, dbPath string, write bool, gate *SQLiteGate, timeout time.Duration, maxMemory int64, budget func() (int64, error)) (*sqlite3.Conn, func(), error) {
+	uri := (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String()
+	var remaining int64
+	var currentDBBytes int64
+	if fi, err := os.Stat(dbPath); os.IsNotExist(err) {
+		if write {
+			// No tables yet, so no row to add or change.
+			return nil, nil, ErrUnknownTable
+		}
+		uri = ":memory:"
+	} else if err != nil {
+		return nil, nil, ErrTableInternal
+	} else {
+		currentDBBytes = fi.Size()
+	}
+	if write {
+		var err error
+		if remaining, err = budget(); err != nil {
+			return nil, nil, ErrTableInternal
+		}
+		uri = dbPath
+		if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
+			return nil, nil, ErrTableInternal
+		}
+	}
+	release, err := gate.Acquire(parent)
+	if err != nil {
+		return nil, nil, ErrSQLiteBusy
+	}
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, maxMemory), uri)
+	if err != nil {
+		cancel()
+		release()
+		return nil, nil, ErrTableInternal
+	}
+	done := func() { conn.Close(); cancel(); release() }
+	conn.SetInterrupt(ctx)
+	fail := func() (*sqlite3.Conn, func(), error) {
+		done()
+		return nil, nil, ErrTableInternal
+	}
+	if conn.Exec("PRAGMA foreign_keys=ON") != nil {
+		return fail()
+	}
+	if _, err = conn.Config(sqlite3.DBCONFIG_DEFENSIVE, true); err != nil {
+		return fail()
+	}
+	_ = conn.Limit(sqlite3.LIMIT_SQL_LENGTH, 32768)
+	_ = conn.Limit(sqlite3.LIMIT_LENGTH, 1<<20)
+	if write {
+		if conn.Exec("PRAGMA journal_mode=WAL") != nil {
+			return fail()
+		}
+		page, _, e := conn.Prepare("PRAGMA page_size")
+		if e != nil || !page.Step() {
+			if page != nil {
+				page.Close()
+			}
+			return fail()
+		}
+		pageSize := page.ColumnInt64(0)
+		page.Close()
+		if pageSize <= 0 {
+			return fail()
+		}
+		maxPages := (remaining + currentDBBytes) / pageSize
+		if maxPages < 1 {
+			done()
+			return nil, nil, ErrTableFull
+		}
+		if conn.Exec(fmt.Sprintf("PRAGMA max_page_count=%d", maxPages)) != nil {
+			return fail()
+		}
+	}
+	return conn, done, nil
+}

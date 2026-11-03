@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -10,15 +9,13 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	"github.com/vsriram/simple-host/internal/storage"
 )
 
 // The SQLite table routes. Visitors send an action and values, never SQL;
@@ -787,43 +784,8 @@ func (t *storageTableCall) checkReferences(id int64) bool {
 	return true
 }
 
-// openStorageTableConn opens the database for one table route: read-only
-// for reads, and for writes with the site's allowance as the page cap.
+// openStorageTableConn opens the database for one table route.
 func (h *SiteHandler) openStorageTableConn(w http.ResponseWriter, r *http.Request, c storageCall, write bool) (*sqlite3.Conn, func(), bool) {
-	dbPath := h.storageSQLPath(c)
-	uri := (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String()
-	var usage siteStorageUsage
-	var currentDBBytes int64
-	if fi, err := os.Stat(dbPath); os.IsNotExist(err) {
-		if write {
-			// No tables yet, so no row to add or change.
-			storageError(w, 400, "invalid_rows", "unknown table")
-			return nil, nil, false
-		}
-		uri = ":memory:"
-	} else if err != nil {
-		storageError(w, 500, "internal_error", "internal server error")
-		return nil, nil, false
-	} else {
-		currentDBBytes = fi.Size()
-	}
-	if write {
-		var err error
-		if usage, err = h.measureSiteStorage(r.Context(), c); err != nil {
-			storageError(w, 500, "internal_error", "internal server error")
-			return nil, nil, false
-		}
-		uri = dbPath
-		if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
-			storageError(w, 500, "internal_error", "internal server error")
-			return nil, nil, false
-		}
-	}
-	release, err := h.sqliteGateFor().acquire(r.Context())
-	if err != nil {
-		storageBusy(w)
-		return nil, nil, false
-	}
 	timeout := h.limits.StorageOwnerTimeout
 	if !c.owner {
 		timeout = h.limits.StorageVisitorQueryTimeout
@@ -831,54 +793,21 @@ func (h *SiteHandler) openStorageTableConn(w http.ResponseWriter, r *http.Reques
 			timeout = h.limits.StorageVisitorWriteTimeout
 		}
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), timeout)
-	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, storageSQLiteMaxMemory), uri)
-	if err != nil {
-		cancel()
-		release()
+	conn, done, err := storage.OpenTableConn(r.Context(), h.storageSQLPath(c), write, h.sqliteGateFor(), timeout, storageSQLiteMaxMemory, func() (int64, error) {
+		usage, err := h.measureSiteStorage(r.Context(), c)
+		return storageSiteLimitBytes(h.ed.Storage().CombinedPool) - h.storageBudgetUsed(usage), err
+	})
+	switch err {
+	case nil:
+		return conn, done, true
+	case storage.ErrUnknownTable:
+		storageError(w, 400, "invalid_rows", "unknown table")
+	case storage.ErrTableFull:
+		storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
+	case storage.ErrSQLiteBusy:
+		storageBusy(w)
+	default:
 		storageError(w, 500, "internal_error", "internal server error")
-		return nil, nil, false
 	}
-	done := func() { conn.Close(); cancel(); release() }
-	conn.SetInterrupt(ctx)
-	fail := func() (*sqlite3.Conn, func(), bool) {
-		done()
-		storageError(w, 500, "internal_error", "internal server error")
-		return nil, nil, false
-	}
-	if conn.Exec("PRAGMA foreign_keys=ON") != nil {
-		return fail()
-	}
-	if _, err = conn.Config(sqlite3.DBCONFIG_DEFENSIVE, true); err != nil {
-		return fail()
-	}
-	_ = conn.Limit(sqlite3.LIMIT_SQL_LENGTH, 32768)
-	_ = conn.Limit(sqlite3.LIMIT_LENGTH, 1<<20)
-	if write {
-		if conn.Exec("PRAGMA journal_mode=WAL") != nil {
-			return fail()
-		}
-		page, _, e := conn.Prepare("PRAGMA page_size")
-		if e != nil || !page.Step() {
-			if page != nil {
-				page.Close()
-			}
-			return fail()
-		}
-		pageSize := page.ColumnInt64(0)
-		page.Close()
-		if pageSize <= 0 {
-			return fail()
-		}
-		maxPages := (storageSiteLimitBytes(h.ed.Storage().CombinedPool) - (h.storageBudgetUsed(usage) - currentDBBytes)) / pageSize
-		if maxPages < 1 {
-			done()
-			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
-			return nil, nil, false
-		}
-		if conn.Exec(fmt.Sprintf("PRAGMA max_page_count=%d", maxPages)) != nil {
-			return fail()
-		}
-	}
-	return conn, done, true
+	return nil, nil, false
 }

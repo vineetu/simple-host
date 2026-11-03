@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,12 +11,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	"github.com/vsriram/simple-host/internal/storage"
 )
 
 // Keep the previous 4096-page (256 MiB) per-connection memory ceiling after
@@ -26,57 +24,17 @@ import (
 const storageSQLiteMaxMemory = 4096 * 65536
 
 func (h *SiteHandler) storageRuntimeDir(c storageCall) string {
-	return filepath.Join(h.disk.SiteDir(c.ownerID, c.siteName), "runtime")
+	return storage.RuntimeDir(h.disk, c.ownerID, c.siteName)
 }
 func (h *SiteHandler) storageSQLPath(c storageCall) string {
-	return filepath.Join(h.storageRuntimeDir(c), "sqlite", c.resourceName+".sqlite")
+	return storage.RuntimeSQLitePath(h.disk, c.ownerID, c.siteName, c.resourceName)
 }
 
 // stageStorageRuntime moves bytes out of the live resource name before the
 // PostgreSQL declaration is deleted. The caller restores on DB failure and
 // removes the staging directory only after commit.
-func (h *SiteHandler) stageStorageRuntime(c storageCall) (staged string, restore func(), err error) {
-	if c.resource.Kind == "kv" {
-		return "", func() {}, nil
-	}
-	root := h.storageRuntimeDir(c)
-	if err = os.MkdirAll(root, 0700); err != nil {
-		return "", nil, err
-	}
-	staged, err = os.MkdirTemp(root, ".deleting-")
-	if err != nil {
-		return "", nil, err
-	}
-	type move struct{ from, to string }
-	moved := []move{}
-	restore = func() {
-		for i := len(moved) - 1; i >= 0; i-- {
-			_ = os.Rename(moved[i].to, moved[i].from)
-		}
-		_ = os.RemoveAll(staged)
-	}
-	var paths []string
-	if c.resource.Kind == "sqlite" {
-		p := h.storageSQLPath(c)
-		paths = []string{p, p + "-wal", p + "-shm"}
-	} else {
-		paths = []string{h.storageFilesDir(c)}
-	}
-	for i, p := range paths {
-		if _, e := os.Lstat(p); os.IsNotExist(e) {
-			continue
-		} else if e != nil {
-			restore()
-			return "", nil, e
-		}
-		dst := filepath.Join(staged, fmt.Sprintf("%d", i))
-		if e := os.Rename(p, dst); e != nil {
-			restore()
-			return "", nil, e
-		}
-		moved = append(moved, move{p, dst})
-	}
-	return staged, restore, nil
+func (h *SiteHandler) stageStorageRuntime(c storageCall) (string, func(), error) {
+	return storage.StageRuntime(h.disk, c.ownerID, c.siteName, c.resourceName, c.resource.Kind)
 }
 
 func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +148,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			uri = (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String()
 		}
 	}
-	release, err := h.sqliteGateFor().acquire(r.Context())
+	release, err := h.sqliteGateFor().Acquire(r.Context())
 	if err != nil {
 		storageBusy(w)
 		return
@@ -505,94 +463,16 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 }
 
 func bindStorageParam(stmt *sqlite3.Stmt, i int, raw json.RawMessage) error {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	var v any
-	if err := dec.Decode(&v); err != nil {
-		return err
-	}
-	switch x := v.(type) {
-	case nil:
-		return stmt.BindNull(i)
-	case string:
-		return stmt.BindText(i, x)
-	case bool:
-		return stmt.BindBool(i, x)
-	case json.Number:
-		if n, e := x.Int64(); e == nil {
-			return stmt.BindInt64(i, n)
-		}
-		if f, e := x.Float64(); e == nil {
-			return stmt.BindFloat(i, f)
-		}
-		return fmt.Errorf("invalid number")
-	default:
-		return fmt.Errorf("invalid type")
-	}
+	return storage.BindStorageParam(stmt, i, raw)
 }
-func storageColumn(stmt *sqlite3.Stmt, i int) any {
-	switch stmt.ColumnType(i) {
-	case sqlite3.NULL:
-		return nil
-	case sqlite3.INTEGER:
-		return stmt.ColumnInt64(i)
-	case sqlite3.FLOAT:
-		return stmt.ColumnFloat(i)
-	case sqlite3.BLOB:
-		return map[string]string{"base64": base64.StdEncoding.EncodeToString(stmt.ColumnBlob(i, nil))}
-	default:
-		return stmt.ColumnText(i)
-	}
-}
+func storageColumn(stmt *sqlite3.Stmt, i int) any { return storage.StorageColumn(stmt, i) }
+func storageScalar(raw json.RawMessage) bool      { return storage.StorageScalar(raw) }
 
-func storageScalar(raw json.RawMessage) bool {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	var value any
-	if dec.Decode(&value) != nil {
-		return false
-	}
-	switch value.(type) {
-	case nil, string, bool, json.Number:
-		return true
-	}
-	return false
-}
+var errStorageBusy = storage.ErrSQLiteBusy
 
-var errStorageBusy = errors.New("storage is busy")
+type sqliteGate = storage.SQLiteGate
 
-// sqliteGate is the per-SiteHandler SQLite concurrency gate: a fixed pool of
-// slots sized from this instance's StorageSQLConcurrency limit, acquired
-// around every SQLite statement. Writers acquire the site lock first, then a
-// slot; readers never acquire the site lock. Production builds exactly one
-// SiteHandler (cmd/server/main.go), so one gate per process, sized from that
-// handler's own limits snapshot.
-type sqliteGate struct {
-	slots chan struct{}
-	wait  time.Duration
-}
-
-// newSQLiteGate builds a gate with n slots (0 -> runtime.NumCPU()) and
-// acquireWait as the per-call timeout.
-func newSQLiteGate(n int, acquireWait time.Duration) *sqliteGate {
-	if n == 0 {
-		n = runtime.NumCPU()
-	}
-	return &sqliteGate{slots: make(chan struct{}, n), wait: acquireWait}
-}
-
-// acquire blocks for up to g.wait for a free slot, returning errStorageBusy
-// on timeout exactly as the old package-global gate did.
-func (g *sqliteGate) acquire(ctx context.Context) (func(), error) {
-	wait, cancel := context.WithTimeout(ctx, g.wait)
-	defer cancel()
-	select {
-	case g.slots <- struct{}{}:
-		return func() { <-g.slots }, nil
-	case <-wait.Done():
-		return nil, errStorageBusy
-	}
-}
+func newSQLiteGate(n int, wait time.Duration) *sqliteGate { return storage.NewSQLiteGate(n, wait) }
 
 // sqliteGateFor is h's SQLite concurrency gate. NewSiteHandler builds one
 // from h.limits up front; a bare &SiteHandler{} (some test fixtures) has no
@@ -607,8 +487,4 @@ func (h *SiteHandler) sqliteGateFor() *sqliteGate {
 	return h.sqlite
 }
 
-// createIfNotExists reports whether sql is a CREATE ... IF NOT EXISTS statement.
-func createIfNotExists(sql string) bool {
-	upper := strings.ToUpper(strings.TrimSpace(sql))
-	return strings.HasPrefix(upper, "CREATE") && strings.Contains(upper, "IF NOT EXISTS")
-}
+func createIfNotExists(sql string) bool { return storage.CreateIfNotExists(sql) }
