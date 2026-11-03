@@ -163,7 +163,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 				c.linkScope = "admin"
 			}
 		}
-		paperHackUser(r, &u)
+		hackSitesPaperUser(r, &u)
 		if !c.owner {
 			storageError(w, 403, "forbidden", "owner credential required")
 			return storageCall{}, false

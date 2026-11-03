@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // Team admins (owner 2026-10-31): the creator is admin; admins approve or
@@ -146,7 +147,7 @@ func (h *HackHandler) patchTeam(w http.ResponseWriter, r *http.Request) {
 	var name string
 	if req.Name != nil {
 		var okName bool
-		name, okName = checkHackLine(w, stripInvisible(*req.Name), "team_name", 1, 80)
+		name, okName = checkHackLine(w, hackevents.StripInvisible(*req.Name), "team_name", 1, 80)
 		if !okName {
 			return
 		}
@@ -154,7 +155,7 @@ func (h *HackHandler) patchTeam(w http.ResponseWriter, r *http.Request) {
 	var lookingFor string
 	if req.LookingFor != nil {
 		var okNote bool
-		lookingFor, okNote = checkHackLine(w, stripInvisible(*req.LookingFor), "looking_for", 0, 120)
+		lookingFor, okNote = checkHackLine(w, hackevents.StripInvisible(*req.LookingFor), "looking_for", 0, 120)
 		if !okNote {
 			return
 		}

@@ -42,7 +42,7 @@ func assertOpaqueToken(t *testing.T, token string) {
 func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 	key := newExportKey()
 	h := &SiteHandler{exportKey: key, limitSet: newLimitSet(config.DefaultLimits())}
-	hack := &HackHandler{archiveLinkKey: key, limitSet: newLimitSet(config.DefaultLimits())}
+	hack := &HackHandler{archiveLinkKey: key, limits: config.DefaultLimits()}
 	now := time.Now().Truncate(time.Second)
 	expiry := now.Add(time.Minute)
 	claim := hackArchiveClaim{UserID: opaqueOwner, EventID: opaqueSite, TeamID: opaqueTeam, Slug: "event", Kind: "own-team", Expiry: expiry.Unix()}

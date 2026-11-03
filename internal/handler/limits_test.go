@@ -52,7 +52,7 @@ func setConnectorAppLimits(a *connectorApp, l config.Limits) {
 
 // setHackAppLimits is setAppLimits for the hackApp fixture.
 func setHackAppLimits(a *hackApp, l config.Limits) {
-	a.hack.limitSet = newLimitSet(l)
+	a.hack.limits = l
 }
 
 // otherValue is a valid, non-default setting for env.

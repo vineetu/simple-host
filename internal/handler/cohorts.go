@@ -279,9 +279,9 @@ func (h *SiteHandler) adminSignupsCSV(w http.ResponseWriter, r *http.Request) {
 		}
 		landed := ""
 		if !d.LandedAt.IsZero() {
-			landed = rfc3339Time(d.LandedAt)
+			landed = formatRFC3339(d.LandedAt)
 		}
-		rows = append(rows, []string{a.Email, a.Handle, rfc3339Time(a.CreatedAt), label, a.Method, d.From, d.UTMSource, d.UTMMedium, d.UTMCampaign, d.UTMTerm, d.UTMContent, d.Referrer, landed,
+		rows = append(rows, []string{a.Email, a.Handle, formatRFC3339(a.CreatedAt), label, a.Method, d.From, d.UTMSource, d.UTMMedium, d.UTMCampaign, d.UTMTerm, d.UTMContent, d.Referrer, landed,
 			strings.Join(names, "; "), optTime(a.FirstConnectAt), strconv.Itoa(a.SitesPublished), optTime(a.FirstPublishAt), strconv.FormatInt(a.Visits, 10), optTime(a.LastActiveAt)})
 	}
 	slug := strings.Map(func(c rune) rune {
@@ -309,5 +309,5 @@ func optTime(t *time.Time) string {
 	if t == nil {
 		return ""
 	}
-	return rfc3339Time(*t)
+	return formatRFC3339(*t)
 }

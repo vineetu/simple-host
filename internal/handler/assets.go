@@ -151,5 +151,6 @@ func (h *OAuthHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }
 // ShareAssets makes h render through sh's asset pipeline.
 func (h *ConnectorHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }
 
-// ShareAssets makes h render through sh's asset pipeline.
-func (h *HackHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }
+// HackHandler's ShareAssets moved to hack.go (cleanup 3.2 slice 1c): a
+// method with a *HackHandler receiver must live in the same package as
+// that type, which moves to internal/hackhttp.

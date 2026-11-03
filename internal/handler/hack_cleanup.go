@@ -27,6 +27,14 @@ const (
 // SetMailer is the notice sender for the archive warning. Call once at startup.
 func (h *HackHandler) SetMailer(m email.Sender) { h.mailer = m }
 
+// hackReplySender is handler's replyNoticeSender (idle.go), duplicated here
+// (cleanup 3.2 slice 1c) so this type assertion needs no cross-package
+// reference once HackHandler moves to internal/hackhttp: any email.Sender
+// that also exposes SendNoticeReplyTo satisfies both interfaces identically.
+type hackReplySender interface {
+	SendNoticeReplyTo(toEmail, replyTo, subject, text string) error
+}
+
 // StartEventCleanup runs the sweep shortly after boot and then daily.
 // EVENTS=hosted only: main starts it from the hosted-mode block.
 func (h *HackHandler) StartEventCleanup(ctx context.Context) {
@@ -58,7 +66,7 @@ func (h *HackHandler) StartEventCleanup(ctx context.Context) {
 // not been warned. With no mailer that can send a notice, the pass does
 // nothing (the same gate as the idle-site cleanup).
 func (h *HackHandler) runEventCleanup(ctx context.Context, now time.Time) {
-	mailer, ok := h.mailer.(replyNoticeSender)
+	mailer, ok := h.mailer.(hackReplySender)
 	if !ok {
 		log.Printf("event-site cleanup: no mailer; nothing done")
 		return
@@ -133,7 +141,7 @@ func (h *HackHandler) removeEventSites(ctx context.Context, ev db.Event, now tim
 // update takes), the email is sent, and only then is the mark committed. A
 // failed send rolls it back; a crash after the send and before the commit
 // leaves no warning on record, so the next run sends it again.
-func (h *HackHandler) warnEventRemoval(ctx context.Context, mailer replyNoticeSender, ev db.Event, now, removeAt time.Time, keepFor, warnFor time.Duration) {
+func (h *HackHandler) warnEventRemoval(ctx context.Context, mailer hackReplySender, ev db.Event, now, removeAt time.Time, keepFor, warnFor time.Duration) {
 	if !strings.Contains(ev.ContactEmail, "@") {
 		log.Printf("event-site cleanup: warn %s: no contact email", ev.Slug)
 		return

@@ -20,6 +20,7 @@ import (
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 type hackApp struct {
@@ -1185,7 +1186,7 @@ func TestHackReviewRound3(t *testing.T) {
 func TestHackReviewRound4(t *testing.T) {
 	// Every invisible character goes before team names are compared.
 	for _, name := range []string{"Ra‍ce Two", "Ra⁡ce Two", "Ra️ce Two", "Ra᠋ce Two", "Ra͏ce Two"} {
-		if got := stripInvisible(name); got != "Race Two" {
+		if got := hackevents.StripInvisible(name); got != "Race Two" {
 			t.Errorf("stripInvisible(%q) = %q", name, got)
 		}
 	}

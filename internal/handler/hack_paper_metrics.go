@@ -4,31 +4,17 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/papermetrics"
 )
 
-// These hooks annotate the outer paper collector using resolutions the handler
-// already performed. With collection off they are context lookups only.
-func paperHackEvent(r *http.Request, ev db.Event) {
-	papermetrics.ResolveHackEvent(r.Context(), ev.Slug, ev.Stage, "", ev.ResultsPublishedAt.Time)
-	paperHackUser(r, auth.GetUser(r.Context()))
-}
-
-func paperHackUser(r *http.Request, user *db.User) {
-	if user == nil {
-		return
-	}
-	member := user.ID
-	if user.Team != nil {
-		member = user.Team.MemberID
-	}
-	if user.EventWebsite != nil {
-		member = user.EventWebsite.OrganiserID
-	}
-	papermetrics.HackMember(r.Context(), member)
-}
+// paperHackEvent, paperHackUser, paperHackKnownMember and paperHackStage
+// moved to hack.go, and paperHackTimes to hack_judging.go (cleanup 3.2 slice
+// 1c): free functions with no *SiteHandler dependency, called only from the
+// event API's own moving files. paperHackSite, paperHackDeploy,
+// paperHackTeamState and paperHackWrite below stay: the first two are
+// *SiteHandler methods, and the latter two are called only from the
+// (staying) storage/deploy side.
 
 func (h *SiteHandler) paperHackSite(r *http.Request, account, site string, user *db.User) {
 	if !h.ed.Identity().PaperMetrics {
@@ -58,20 +44,10 @@ func (h *SiteHandler) paperHackDeploy(r *http.Request, user *db.User) {
 	papermetrics.HackDeploy(r.Context())
 }
 
-func paperHackKnownMember(r *http.Request, ev db.Event, member string) {
-	papermetrics.ResolveHackEvent(r.Context(), ev.Slug, ev.Stage, member, ev.ResultsPublishedAt.Time)
-}
-
 func paperHackTeamState(r *http.Request, user *db.User, stage string) {
 	if user != nil && user.Team != nil {
 		papermetrics.ResolveHackEvent(r.Context(), user.Team.EventSlug, stage, user.Team.MemberID)
 	}
 }
-
-func paperHackStage(r *http.Request, ev db.Event) {
-	papermetrics.RecordHackStage(r.Context(), ev.ID, ev.Stage, ev.UpdatedAt)
-}
-
-func paperHackTimes(r *http.Request) { papermetrics.HackPhasesChanged(r.Context()) }
 
 func paperHackWrite(r *http.Request) { papermetrics.HackWriteCommitted(r.Context()) }

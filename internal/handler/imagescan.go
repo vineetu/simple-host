@@ -73,10 +73,15 @@ type ImageScan struct {
 	// saveReport is db.SetImageMatchReport for a filed report; tests make
 	// it fail.
 	saveReport func(context.Context, db.Querier, int64, string, string, string) error
-	// sites and hack are set by the SetImageScan setters: the site lock
-	// and address, and the event take-down markers.
+	// sites is set by SiteHandler's SetImageScan: the site lock and address.
 	sites *SiteHandler
-	hack  *HackHandler
+	// hackTakeDownSync is HackHandler's syncEventMarkers (hack.go),
+	// connected by HackHandler's own SetImageScan (moved there in cleanup
+	// 3.2 slice 1c, since a method with a *HackHandler receiver must live
+	// in that type's package). A func, not a *HackHandler field, so this
+	// file never names HackHandler: it stays in handler while HackHandler
+	// moves to internal/hackhttp.
+	hackTakeDownSync func(ctx context.Context, ev db.Event) bool
 }
 
 const (
@@ -130,11 +135,12 @@ func (h *SiteHandler) SetImageScan(s *ImageScan) {
 	}
 }
 
-// SetImageScan connects the worker to the events side (event take-down markers).
-func (h *HackHandler) SetImageScan(s *ImageScan) {
-	h.imageScan = s
+// SetHackTakeDownSync wires the events-side take-down-marker sync (owned by
+// HackHandler, which calls this from its own SetImageScan in hack.go); nil
+// keeps the hack take-down path a no-op, same as before this was a func.
+func (s *ImageScan) SetHackTakeDownSync(fn func(ctx context.Context, ev db.Event) bool) {
 	if s != nil {
-		s.hack = h
+		s.hackTakeDownSync = fn
 	}
 }
 
@@ -985,7 +991,7 @@ func (s *ImageScan) takeDownEvent(ctx context.Context, ev db.Event) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	if s.hack != nil && !s.hack.syncEventMarkers(ctx, ev) {
+	if s.hackTakeDownSync != nil && !s.hackTakeDownSync(ctx, ev) {
 		return errors.New("team site markers could not all be written")
 	}
 	return nil

@@ -94,7 +94,7 @@ func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request,
 	if r.URL.Path == "/" && h.hackEventPage != nil && h.hackEventPage(w, r, user) {
 		return
 	}
-	if slug, ok := hackScreenshotPath(r.URL.Path); ok && h.hackScreenshot != nil && h.hackScreenshot(w, r, user, slug) {
+	if slug, ok := hackSitesScreenshotPath(r.URL.Path); ok && h.hackScreenshot != nil && h.hackScreenshot(w, r, user, slug) {
 		return
 	}
 	h.renderHackNotFound(w, r)

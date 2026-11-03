@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Tests for the fixes from the 2026-11-02 full production test of Simple
@@ -19,11 +20,11 @@ type liveSiteStub struct {
 	live map[string]bool
 }
 
-func (s liveSiteStub) TeamSiteInfo(_ context.Context, _ string, teamSlug string) (TeamSite, db.Site, error) {
+func (s liveSiteStub) TeamSiteInfo(_ context.Context, _ string, teamSlug string) (model.TeamSite, db.Site, error) {
 	if s.live[teamSlug] {
-		return TeamSite{Exists: true, ActiveVersion: 1}, db.Site{Name: teamSlug, ActiveVersion: 1}, nil
+		return model.TeamSite{Exists: true, ActiveVersion: 1}, db.Site{Name: teamSlug, ActiveVersion: 1}, nil
 	}
-	return TeamSite{}, db.Site{}, nil
+	return model.TeamSite{}, db.Site{}, nil
 }
 
 // publishTeamSite gives the event's holding account a live site named after
