@@ -22,7 +22,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import crypto from 'node:crypto';
-import { Namer, normalizeValue, normalizeText, sha256hex } from './lib.mjs';
+import { Namer, normalizeValue, normalizeText, normalizeSetCookie, sha256hex } from './lib.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -114,15 +114,22 @@ async function stopServer(child) {
 // with no outbound network capability (no RESEND_API_KEY, no OAuth client
 // secrets, no Turnstile, no EVENT_NAME_PEER) and mail off. `hosted` sets
 // EVENTS=hosted for a Hack instance.
-async function bootInstance({ binary, pgAdminURL, schemaSQL, hosted, tag, namer, exact }) {
+async function bootInstance({ binary, pgAdminURL, schemaSQL, hosted, tag, namer, exact, addCleanup }) {
   const dbName = `golden_${tag}_${process.pid}_${crypto.randomBytes(4).toString('hex')}`;
   const adminDBURL = `${pgAdminURL}/postgres?sslmode=disable`;
+  // Registered before the database even exists: dropping a database that
+  // was never created is a harmless no-op (DROP DATABASE IF EXISTS), so
+  // this is safe to run unconditionally if a SIGINT/SIGTERM lands between
+  // here and the CREATE DATABASE below.
+  addCleanup(() => dropDatabaseQuiet(adminDBURL, dbName));
   psql(adminDBURL, `CREATE DATABASE "${dbName}"`);
+  let dataDir;
   try {
     const dbURL = `${pgAdminURL}/${dbName}?sslmode=disable`;
     psqlFile(dbURL, schemaSQL);
 
-    const dataDir = mkdtempSync(path.join(tmpdir(), `golden-${tag}-`));
+    dataDir = mkdtempSync(path.join(tmpdir(), `golden-${tag}-`));
+    addCleanup(() => rmSync(dataDir, { recursive: true, force: true }));
     // Fixed, not random: two runs of the same binary must produce the same
     // bytes, and these never leak into a response body anyway (only
     // server-minted ids/keys/tokens do, which the regex-based normalizers
@@ -157,6 +164,12 @@ async function bootInstance({ binary, pgAdminURL, schemaSQL, hosted, tag, namer,
       };
       if (hosted) env.EVENTS = 'hosted';
       ({ child, log } = spawnServer(binary, env));
+      // Closes over the outer `child`, so if a later attempt replaces it
+      // this still ends up stopping whichever one is current when cleanup
+      // actually runs -- stopServer is a no-op on an already-exited child,
+      // so re-running it for an earlier attempt's (already-stopped) child
+      // is harmless.
+      addCleanup(() => stopServer(child));
       try {
         await waitHealthy(baseURL, child, 30000);
         break;
@@ -175,6 +188,13 @@ async function bootInstance({ binary, pgAdminURL, schemaSQL, hosted, tag, namer,
     // instance boots, so the placeholder index reflects when the value
     // first appears, same as the regex-matched ids/keys/tokens.
     exact.set(baseURL, namer.placeholderFor('base', baseURL));
+    // The hack landing page's illustration also writes the bare host:port
+    // (no "http://") into an inline script as example text ("yourhack.
+    // 127.0.0.1:<port>") -- registered after the full baseURL above so
+    // that is replaced first wherever it appears whole, and this one only
+    // ever catches what that left behind.
+    const bareHostPort = baseURL.replace(/^https?:\/\//, '');
+    exact.set(bareHostPort, namer.placeholderFor('hostport', bareHostPort));
     exact.set(dataDir, namer.placeholderFor('tmpdir', dataDir));
 
     return {
@@ -189,6 +209,10 @@ async function bootInstance({ binary, pgAdminURL, schemaSQL, hosted, tag, namer,
       },
     };
   } catch (err) {
+    // The addCleanup entries above fire on a signal, not on a normal thrown
+    // error -- a synchronous boot failure here needs its own cleanup of
+    // whatever got created before the failure (dataDir may not exist yet).
+    if (dataDir) rmSync(dataDir, { recursive: true, force: true });
     dropDatabaseQuiet(adminDBURL, dbName);
     throw err;
   }
@@ -211,8 +235,19 @@ function registerSecret(exact, namer, category, raw) {
 // verbatim (raw bytes); normalization happens once, at the end, in
 // finalizeCall, so the same code path handles the host's and the hack
 // instance's captures identically.
-function call(instance, calls) {
+//
+// usedNames is shared across both instances (the caller passes the same Set
+// to both seed functions): a name has to be unique across the whole run,
+// since that is what the baseline file's own name-uniqueness assumption
+// (and diff.mjs's duplicate-name check) rely on.
+function call(instance, calls, usedNames) {
   return async function at(name, method, pathAndQuery, opts = {}) {
+    const fullName = `${instance.tag}:${name}`;
+    if (usedNames.has(fullName)) {
+      throw new Error(`golden: duplicate request name ${fullName} -- names must be unique within a run`);
+    }
+    usedNames.add(fullName);
+
     const headers = {};
     if (opts.apiKey) headers['X-API-Key'] = opts.apiKey;
     let payload;
@@ -231,13 +266,17 @@ function call(instance, calls) {
     });
     const rawBody = Buffer.from(await res.arrayBuffer());
     const record = {
-      name: `${instance.tag}:${name}`,
+      name: fullName,
       method,
       path: pathAndQuery,
       status: res.status,
       contentType: res.headers.get('content-type') || '',
       cacheControl: res.headers.get('cache-control') || '',
       location: res.headers.get('location') || '',
+      etag: res.headers.get('etag') || '',
+      // getSetCookie() (Node 19+) returns each Set-Cookie header
+      // separately; a server that sends none answers with [].
+      setCookie: typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [],
       rawBody,
       exact: instance.exact,
     };
@@ -256,41 +295,81 @@ function call(instance, calls) {
   };
 }
 
-function textBody(record, namer) {
-  const text = normalizeText(record.rawBody.toString('utf8'), namer, record.exact);
+function textBody(record, namer, knownTimestamps) {
+  const text = normalizeText(record.rawBody.toString('utf8'), namer, record.exact, knownTimestamps);
   if (Buffer.byteLength(text, 'utf8') <= TEXT_INLINE_LIMIT) return { text };
   return { sha256: sha256hex(text), length: Buffer.byteLength(text, 'utf8') };
 }
 
-// EXTRA_VOLATILE_FIELDS covers volatile values that lib.mjs's generic,
-// key-name-based VOLATILE_KEYS deliberately does not: "message" and
-// "status" are ordinary field names used all over the API for things that
-// are NOT volatile (a version's status, a notification's message), so
-// blanking them everywhere would hide real differences. But GET
-// /v1/admin/usage's "message" is prose generated from the box's actual
-// free disk space ("This server is 80% full, with N GB left") and its
-// "status" is a threshold read off the same live number -- both can flip
-// between two runs with no seeded behaviour change at all, same as the
-// disk_* fields next to them. Scoped to that one request by name, not by
-// field name, so no other endpoint's "message" or "status" is touched.
-const EXTRA_VOLATILE_FIELDS = new Map([['host:admin-usage', ['message', 'status']]]);
+// EXTRA_VOLATILE_FIELDS covers values that are never comparable across two
+// runs of even the *same* binary, because they reflect the shared box (disk
+// headroom, bandwidth counters) or the build (the git commit baked into the
+// binary, expected to differ between the baseline and current-commit
+// binaries on purpose) rather than anything the harness seeded. Scoped to
+// the one request by name, not by field name: "message" and "status" are
+// ordinary field names used all over the API for things that are NOT
+// volatile (a version's status, a notification's message), and "commit" or
+// "network" could just as easily be some other request's real, meaningful
+// field one day. GET /v1/admin/usage is, today, the only request where
+// these particular field names happen to be the volatile, box-reflecting
+// kind (see adminUsage in internal/handler/usage.go) -- if that ever
+// changes, this is where to re-scope it, not a global key-name rule.
+const EXTRA_VOLATILE_FIELDS = new Map([
+  ['host:admin-usage', ['message', 'status', 'commit', 'network', 'disk_bytes', 'disk_free_bytes', 'disk_used_bytes', 'disk_used_pct']],
+]);
 
-function finalizeCall(record, namer) {
+// SORT_ARRAYS_BY re-sorts a named response's named array by a field that is
+// actually stable across runs (a seeded name), before anything else looks
+// at it. GET .../judging/dashboard's "teams"/"judges" arrays come straight
+// off `ORDER BY t.id` / `ORDER BY user_id` (internal/db/hack_judging.go) --
+// a fine, stable order for one run, but those ids are random, so which team
+// or judge sorts first is not the same from one run to the next even though
+// every *other* aspect of the response (including each row's own content)
+// is. Sorting here, by each row's seeded name, is a harness-side fix for a
+// harness-side comparison problem -- the server's own order is untouched.
+const SORT_ARRAYS_BY = new Map([
+  ['hack:judging-dashboard', [['teams', 'team_name'], ['judges', 'judge_name']]],
+]);
+
+// OPAQUE_BINARY_BODIES names requests whose response body is a binary
+// archive that is expected to differ, byte for byte, between any two runs
+// even of the same binary: GET /v1/me/export.zip bundles together values
+// (the account's own API keys, in full) that intentionally never appear
+// anywhere else a normalizer could catch them, inside a zip that also
+// carries each entry's own timestamp. There is no reasonable way to
+// normalize a zip's bytes short of unzipping it, so this request's status
+// and content-type are still captured and compared (the only things a
+// baseline diff can usefully assert about it) and the body is replaced
+// with a note instead of a hash that would never match.
+const OPAQUE_BINARY_BODIES = new Set(['host:export-me-zip-head']);
+
+function finalizeCall(record, namer, knownTimestamps) {
   // The exact-replacement map is shared and mutated throughout the run
   // (registerSecret, plus each instance's own base URL/temp dir); by the
   // time finalization runs, after every call has completed, it holds every
   // run-specific value discovered anywhere, so normalizing the path here
   // -- not just headers and body -- also catches a code or id the path
   // itself carries (POST /v1/hack/join/{code}, PUT .../scores/{team_id}).
-  const normalizedPath = normalizeText(record.path, namer, record.exact);
+  const normalizedPath = normalizeText(record.path, namer, record.exact, knownTimestamps);
 
   const headers = {};
   if (record.contentType) headers['content-type'] = record.contentType;
   if (record.cacheControl) headers['cache-control'] = record.cacheControl;
-  if (record.location) headers.location = normalizeText(record.location, namer, record.exact);
+  if (record.location) headers.location = normalizeText(record.location, namer, record.exact, knownTimestamps);
+  // The ETag's actual value is a content hash that is expected to differ
+  // from the baseline whenever the content behind it legitimately changes
+  // (a film file, a static asset) -- only whether the server sends one at
+  // all is meaningful to a byte-identical-replay comparison.
+  if (record.etag) headers.etag = '<etag>';
+  if (record.setCookie.length) headers['set-cookie'] = normalizeSetCookie(record.setCookie, namer, record.exact, knownTimestamps);
 
   let body;
-  if (record.contentType.includes('json')) {
+  if (OPAQUE_BINARY_BODIES.has(record.name)) {
+    // Not even the length is stable here (each run's zip entries carry
+    // their own timestamp, and the archived content itself includes a
+    // freshly minted API key) -- see OPAQUE_BINARY_BODIES above.
+    body = { note: 'binary body intentionally not compared (see OPAQUE_BINARY_BODIES in run.mjs)' };
+  } else if (record.contentType.includes('json')) {
     const text = record.rawBody.toString('utf8');
     if (text.trim() === '') {
       body = null;
@@ -300,13 +379,18 @@ function finalizeCall(record, namer) {
         for (const field of EXTRA_VOLATILE_FIELDS.get(record.name) || []) {
           if (parsed && typeof parsed === 'object' && field in parsed) parsed[field] = '<volatile>';
         }
-        body = normalizeValue(parsed, namer, record.exact);
+        for (const [arrayKey, sortField] of SORT_ARRAYS_BY.get(record.name) || []) {
+          if (parsed && Array.isArray(parsed[arrayKey])) {
+            parsed[arrayKey] = [...parsed[arrayKey]].sort((a, b) => String(a?.[sortField]).localeCompare(String(b?.[sortField])));
+          }
+        }
+        body = normalizeValue(parsed, namer, record.exact, knownTimestamps);
       } catch {
-        body = textBody(record, namer);
+        body = textBody(record, namer, knownTimestamps);
       }
     }
   } else {
-    body = textBody(record, namer);
+    body = textBody(record, namer, knownTimestamps);
   }
 
   return { name: record.name, method: record.method, path: normalizedPath, status: record.status, headers, body };
@@ -314,8 +398,8 @@ function finalizeCall(record, namer) {
 
 // ---- Host instance: seed + request list -----------------------------------
 
-async function seedAndCallHost(host, calls) {
-  const at = call(host, calls);
+async function seedAndCallHost(host, calls, usedNames) {
+  const at = call(host, calls, usedNames);
 
   await at('healthz', 'GET', '/healthz');
   await at('readyz', 'GET', '/readyz');
@@ -468,6 +552,24 @@ async function seedAndCallHost(host, calls) {
 
 // ---- Hack instance: seed + request list ------------------------------------
 
+// The event's dates are seed input, not server-generated noise: the server
+// (parseEventTime + rfc3339UTC in internal/handler/hack.go) just echoes a
+// bare YYYY-MM-DD back as that day's midnight UTC, formatted RFC3339. main()
+// puts their RFC3339 form into knownSeedTimestamps() so the normalizer in
+// lib.mjs leaves these two exact values as-is instead of folding them into
+// the generic <ts> placeholder along with every value the server actually
+// generated (created_at, deleted_at, ...) -- see lib.mjs normalizeText.
+const SEED_EVENT_STARTS_AT = '2026-10-01';
+const SEED_EVENT_ENDS_AT = '2026-10-03';
+
+function rfc3339UTCMidnight(dateOnly) {
+  return `${dateOnly}T00:00:00Z`;
+}
+
+function knownSeedTimestamps() {
+  return new Set([rfc3339UTCMidnight(SEED_EVENT_STARTS_AT), rfc3339UTCMidnight(SEED_EVENT_ENDS_AT)]);
+}
+
 function hackCreateBody(slug, extra) {
   const body = {
     slug,
@@ -477,15 +579,15 @@ function hackCreateBody(slug, extra) {
     contact_email: 'ada@example.com',
     purpose: 'exercise every stage once',
     expected_participants: 10,
-    starts_at: '2026-10-01',
-    ends_at: '2026-10-03',
+    starts_at: SEED_EVENT_STARTS_AT,
+    ends_at: SEED_EVENT_ENDS_AT,
     time_zone: 'UTC',
   };
   return { ...body, ...extra };
 }
 
-async function seedAndCallHack(hack, calls, namer, exact) {
-  const at = call(hack, calls);
+async function seedAndCallHack(hack, calls, namer, exact, usedNames) {
+  const at = call(hack, calls, usedNames);
 
   await at('healthz', 'GET', '/healthz');
   await at('readyz', 'GET', '/readyz');
@@ -569,15 +671,22 @@ async function seedAndCallHack(hack, calls, namer, exact) {
     body: { name: 'Team Alpha' },
   });
   const teamASlug = teamA.json.slug;
+  // A team's own join code/link (team.json.code) is random per run, like
+  // the event's join/judge codes above, and then echoed back by
+  // teams-list -- registerSecret as soon as it comes back so every later
+  // occurrence normalizes to the same placeholder.
+  registerSecret(exact, namer, 'code', teamA.json.code);
   const teamB = await at('team-b-create', 'POST', `/v1/hack/events/${slug}/teams`, {
     apiKey: participants[1],
     body: { name: 'Team Beta' },
   });
   const teamBSlug = teamB.json.slug;
-  await at('team-c-create', 'POST', `/v1/hack/events/${slug}/teams`, {
+  registerSecret(exact, namer, 'code', teamB.json.code);
+  const teamC = await at('team-c-create', 'POST', `/v1/hack/events/${slug}/teams`, {
     apiKey: participants[2],
     body: { name: 'Team Gamma' },
   });
+  registerSecret(exact, namer, 'code', teamC.json.code);
 
   const teamsList = await at('teams-list', 'GET', `/v1/hack/events/${slug}/teams`, { apiKey: organiser });
   const teamIDBySlug = new Map(teamsList.json.teams.map((t) => [t.slug, t.id]));
@@ -683,6 +792,37 @@ async function seedAndCallHack(hack, calls, namer, exact) {
   void createdEvent; // seeded above; its creation response is already recorded
 }
 
+// ---- crash/signal cleanup ---------------------------------------------------
+//
+// Node does not run a suspended async function's try/finally blocks when the
+// process is killed by a signal -- it just exits. addCleanup registers one
+// resource-teardown step as soon as that resource exists (see bootInstance);
+// runCleanupAndExit runs every one of them, most-recently-created first, then
+// exits non-zero, so SIGINT/SIGTERM during a run still kills the servers,
+// drops the throwaway databases and removes the temp data dirs instead of
+// leaving them behind.
+const cleanupTasks = [];
+function addCleanup(fn) {
+  cleanupTasks.push(fn);
+}
+
+let shuttingDown = false;
+async function runCleanupAndExit(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.error(`golden: received ${signal}, cleaning up...`);
+  for (const fn of cleanupTasks.reverse()) {
+    try {
+      await fn();
+    } catch (err) {
+      console.error(`golden: cleanup error: ${err.message}`);
+    }
+  }
+  process.exit(1);
+}
+process.on('SIGINT', () => runCleanupAndExit('SIGINT'));
+process.on('SIGTERM', () => runCleanupAndExit('SIGTERM'));
+
 // ---- entry point ------------------------------------------------------------
 
 async function main() {
@@ -701,24 +841,28 @@ async function main() {
   // seed functions register hack join/judge/invite codes into it as soon
   // as they come back from the server (registerSecret) -- see finalizeCall.
   const exact = new Map();
+  // Unique across both instances together, not just within one -- see
+  // call()'s duplicate check.
+  const usedNames = new Set();
+  const knownTimestamps = knownSeedTimestamps();
   const calls = [];
   const started = Date.now();
 
-  const host = await bootInstance({ binary, pgAdminURL, schemaSQL, hosted: false, tag: 'host', namer, exact });
+  const host = await bootInstance({ binary, pgAdminURL, schemaSQL, hosted: false, tag: 'host', namer, exact, addCleanup });
   try {
-    await seedAndCallHost(host, calls);
+    await seedAndCallHost(host, calls, usedNames);
   } finally {
     await host.stop();
   }
 
-  const hack = await bootInstance({ binary, pgAdminURL, schemaSQL, hosted: true, tag: 'hack', namer, exact });
+  const hack = await bootInstance({ binary, pgAdminURL, schemaSQL, hosted: true, tag: 'hack', namer, exact, addCleanup });
   try {
-    await seedAndCallHack(hack, calls, namer, exact);
+    await seedAndCallHack(hack, calls, namer, exact, usedNames);
   } finally {
     await hack.stop();
   }
 
-  const out = calls.map((c) => finalizeCall(c, namer));
+  const out = calls.map((c) => finalizeCall(c, namer, knownTimestamps));
   writeFileSync(outPath, JSON.stringify(out, null, 2) + '\n');
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   console.error(`golden: ${out.length} requests captured in ${seconds}s -> ${outPath}`);
