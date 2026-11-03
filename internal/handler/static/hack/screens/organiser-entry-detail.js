@@ -11,7 +11,7 @@ export function title () { return 'Entry' }
 // the full note): `status: "not_submitted"` on an entryListItem (read while
 // building this screen, internal/handler/hack_entries.go) is the Incomplete
 // case -- the deadline sweep settled it without ever submitting it, still
-// judged unless `excluded`. There is no separate "incomplete" field. Exclude
+// judged unless `excluded`. The server supplies the `incomplete` flag. Exclude
 // (any entry, not only an incomplete one, per internal/db/hack_entries.go's
 // own comment) and Include are confirmed landed at exactly
 //   POST /v1/hack/events/{slug}/teams/{team}/entry/exclude {}
@@ -76,7 +76,7 @@ export async function render (ctx) {
     if (e.excluded) {
       return `<div class="entry-status late"><div class="t"><b>Excluded from judging</b><span>You excluded this entry by hand. Judges won’t see it.</span></div><button class="btn" type="button" id="ed-include"${lockReason ? ' disabled' : ''}>Include in judging</button></div>`
     }
-    if (e.status === 'not_submitted') {
+    if (e.incomplete) {
       // Coordinator decision (2026-11-02): the deadline sweep settled this
       // one without ever submitting it -- still judged, flagged, shown
       // verbatim here and on the participant's own Entry and Home.
@@ -100,7 +100,7 @@ export async function render (ctx) {
       title: e.title, team_name: team.name, team_members: names,
       track: e.track, problem: e.problem, tagline: e.tagline, audience: e.audience,
       tools: e.tools, maturity: e.maturity
-    }, { incomplete: e.status === 'not_submitted' && !e.excluded })
+    }, { incomplete: e.incomplete && !e.excluded })
     const wrap = document.createElement('div')
     wrap.append(card)
     const showYourWork = `<section class="card"><h2>Show your work</h2><dl>

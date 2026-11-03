@@ -126,7 +126,7 @@ export async function render (ctx) {
   function statusPill (e) {
     if (e.excluded) return '<span class="pill bad">Excluded</span>'
     if (e.status === 'submitted') return '<span class="pill ok">Submitted</span>'
-    if (e.status === 'not_submitted') return '<span class="pill warn">Incomplete</span>'
+    if (e.incomplete) return '<span class="pill warn">Incomplete</span>'
     if (!hasAnyContent(e)) return '<span class="pill">Not started</span>'
     return '<span class="pill warn">Draft</span>'
   }
@@ -147,7 +147,7 @@ export async function render (ctx) {
     const lock = ui.writeLockReason(ev, event.admin_view)
     let act = ''
     if (e.excluded) act = `<button class="btn sm" type="button" data-include="${esc(e.team.slug)}"${lock ? ' disabled' : ''}>Include</button>`
-    else if (e.status === 'not_submitted') act = `<button class="btn danger sm" type="button" data-exclude="${esc(e.team.slug)}" data-name="${esc(e.team.name)}"${lock ? ' disabled' : ''}>Exclude</button>`
+    else if (e.incomplete) act = `<button class="btn danger sm" type="button" data-exclude="${esc(e.team.slug)}" data-name="${esc(e.team.name)}"${lock ? ' disabled' : ''}>Exclude</button>`
     if (!act) return `<a class="r" href="${esc(detail)}"><span class="main"><b>${esc(e.team.name)}</b><span>${esc(bits.join(' · '))}</span></span>${statusPill(e)}</a>`
     return `<div class="r"><a class="main" href="${esc(detail)}"><b>${esc(e.team.name)}</b><span>${esc(bits.join(' · '))}</span></a>${statusPill(e)}${act}</div>`
   }
@@ -207,7 +207,7 @@ ${showRows}
     const closedStages = ['closed', 'judging', 'results']
     const lockReason = ui.writeLockReason(ev, event.admin_view)
     const archived = ev.stage === 'archived'
-    const rulesLockReason = lockReason || (closedStages.includes(ev.stage) ? "Entries are closed, so these can't change. To reopen, move the event back to Building on Overview." : '')
+    const rulesLockReason = lockReason || (rules.editable === false ? "Entries are closed, so these can't change. To reopen, move the event back to Building on Overview." : '')
     main.innerHTML = `<div class="ph"><div class="t"><h1>Entries</h1><p>Set the deadline, say what teams hand in, and see who's ready.</p></div></div>
 ${lockReason ? `<div class="note warn">${esc(lockReason)}</div>` : ''}
 <div class="stat-row">
