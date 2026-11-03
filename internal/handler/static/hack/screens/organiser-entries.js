@@ -85,7 +85,9 @@ export async function render (ctx) {
   let ev = event.event
   let teams = [], entries = [], counts = {}
   let usage = null
-  let rules = { preset: 'build', fields: {}, judge_first: 'video', summary: '', has_tracks: !!(ev.tracks && ev.tracks.length), editable: true }
+  // The server's entry-rules `editable` decides; the stage fallback only
+  // covers a failed rules fetch, so a closed event never looks editable.
+  let rules = { preset: 'build', fields: {}, judge_first: 'video', summary: '', has_tracks: !!(ev.tracks && ev.tracks.length), editable: !['closed', 'judging', 'results'].includes(ev.stage) }
   // Remembered only for this page visit: which preset card was last chosen,
   // so a config that still matches it can read "Custom (from X)" instead of
   // a bare "Custom" the moment one line is nudged off it. The server has no
