@@ -17,8 +17,8 @@ import (
 // the same serve-time approach as instanceHosts for hostnames.
 //
 // Only phrases whose knob differs from its default are rewritten, so with
-// every knob at its default nothing is (instanceLimits is nil) and the served
-// bytes are exactly the files. TestLimitPhrasesAppearInServedText fails when a
+// every knob at its default nothing is (assetPipeline.limitsText is nil) and
+// the served bytes are exactly the files. TestLimitPhrasesAppearInServedText fails when a
 // phrase no longer occurs in any served file, which is how an edit to the copy
 // that breaks the match is caught. Go code that states a limit (emails, MCP
 // descriptions, error messages) formats it from the settings directly and is
@@ -390,16 +390,6 @@ func (h *limitsRewriter) apply(b []byte) []byte {
 	}
 	return []byte(h.r.Replace(string(b)))
 }
-
-// instanceLimits is a fallback limits rewriter for the one path with no
-// assetPipeline of its own (ui.go's buildPluginZip/copyRewritten, a
-// sync.Once-cached zip). newAssetPipeline keeps it pointed at the last
-// edition built. Nil when every knob is at its default.
-var instanceLimits *limitsRewriter
-
-// assetsRewritten reports whether the text assets (llms.txt, the spec, ...)
-// need a rewriting handler rather than the plain file server.
-func assetsRewritten() bool { return instanceHosts != nil || instanceLimits != nil }
 
 // rewriteServedText applies both serve-time rewrites (hostnames, then limits)
 // to a text asset, with lr as this instance's limits rewriter

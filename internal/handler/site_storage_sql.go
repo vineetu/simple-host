@@ -16,7 +16,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
@@ -191,7 +190,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			uri = (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String()
 		}
 	}
-	release, err := acquireStorageSQLite(r.Context(), h.limits.StorageSQLConcurrency, h.limits.StorageAcquireWait)
+	release, err := h.sqliteGateFor().acquire(r.Context())
 	if err != nil {
 		storageBusy(w)
 		return
@@ -562,32 +561,50 @@ func storageScalar(raw json.RawMessage) bool {
 
 var errStorageBusy = errors.New("storage is busy")
 
-// Shared by every SiteHandler and by owner policy validation. Writers acquire
-// the site lock first, then a SQLite slot; readers never acquire the site lock.
-var storageSQLiteGate struct {
-	once  sync.Once
+// sqliteGate is the per-SiteHandler SQLite concurrency gate: a fixed pool of
+// slots sized from this instance's StorageSQLConcurrency limit, acquired
+// around every SQLite statement. Writers acquire the site lock first, then a
+// slot; readers never acquire the site lock. Production builds exactly one
+// SiteHandler (cmd/server/main.go), so one gate per process, sized from that
+// handler's own limits snapshot.
+type sqliteGate struct {
 	slots chan struct{}
+	wait  time.Duration
 }
 
-// n and acquireWait are the caller's limits snapshot (StorageSQLConcurrency,
-// StorageAcquireWait); the slot pool is sized from whichever caller
-// constructs it first (storageSQLiteGate.once), matching the old global's
-// set-once-at-startup behaviour.
-func acquireStorageSQLite(ctx context.Context, n int, acquireWait time.Duration) (func(), error) {
-	storageSQLiteGate.once.Do(func() {
-		if n == 0 {
-			n = runtime.NumCPU()
-		}
-		storageSQLiteGate.slots = make(chan struct{}, n)
-	})
-	wait, cancel := context.WithTimeout(ctx, acquireWait)
+// newSQLiteGate builds a gate with n slots (0 -> runtime.NumCPU()) and
+// acquireWait as the per-call timeout.
+func newSQLiteGate(n int, acquireWait time.Duration) *sqliteGate {
+	if n == 0 {
+		n = runtime.NumCPU()
+	}
+	return &sqliteGate{slots: make(chan struct{}, n), wait: acquireWait}
+}
+
+// acquire blocks for up to g.wait for a free slot, returning errStorageBusy
+// on timeout exactly as the old package-global gate did.
+func (g *sqliteGate) acquire(ctx context.Context) (func(), error) {
+	wait, cancel := context.WithTimeout(ctx, g.wait)
 	defer cancel()
 	select {
-	case storageSQLiteGate.slots <- struct{}{}:
-		return func() { <-storageSQLiteGate.slots }, nil
+	case g.slots <- struct{}{}:
+		return func() { <-g.slots }, nil
 	case <-wait.Done():
 		return nil, errStorageBusy
 	}
+}
+
+// sqliteGateFor is h's SQLite concurrency gate. NewSiteHandler builds one
+// from h.limits up front; a bare &SiteHandler{} (some test fixtures) has no
+// gate yet, so this builds one lazily from the same limits snapshot rather
+// than requiring every such fixture to call NewSiteHandler.
+func (h *SiteHandler) sqliteGateFor() *sqliteGate {
+	h.sqliteOnce.Do(func() {
+		if h.sqlite == nil {
+			h.sqlite = newSQLiteGate(h.limits.StorageSQLConcurrency, h.limits.StorageAcquireWait)
+		}
+	})
+	return h.sqlite
 }
 
 // createIfNotExists reports whether sql is a CREATE ... IF NOT EXISTS statement.

@@ -30,17 +30,7 @@ var embeddedStatic embed.FS
 // simple-host.app; basetext.go retains the compatibility rewriter.
 var staticFiles = baseTextFS{fsys: embeddedStatic}
 
-var (
-	skillsZipOnce  sync.Once
-	skillsZipBytes []byte
-	skillsZipErr   error
-
-	pluginZipOnce  sync.Once
-	pluginZipBytes []byte
-	pluginZipErr   error
-
-	skillsModTime = time.Now().UTC()
-)
+var skillsModTime = time.Now().UTC()
 
 // PluginVersion reads the version field from the embedded plugin.json
 // once and caches it. Used at boot to construct the notice middleware
@@ -102,12 +92,13 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	})
 	assets := sh.pipeline()
 	sub, _ := fs.Sub(assets.staticFS(), "static")
-	fileServer := hostDiagram(sh.ed.Routes().HostedEvents, http.FileServerFS(handlerOnlyFS{sub, sh.ed.Presentation().HackAssets}))
+	handlerOnly := handlerOnlyFS{sub, sh.ed.Presentation().HackAssets, assets.rewritten()}
+	fileServer := hostDiagram(sh.ed.Routes().HostedEvents, http.FileServerFS(handlerOnly))
 	staticServer := fileServer
 	fileServer = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/")
 		if name != "" {
-			if _, err := fs.Stat(handlerOnlyFS{sub, sh.ed.Presentation().HackAssets}, name); err != nil {
+			if _, err := fs.Stat(handlerOnly, name); err != nil {
 				if sh.ed.Routes().HostedEvents {
 					sh.renderNotFound(w, r, r.URL.Path)
 				} else {
@@ -123,7 +114,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// rewriting. On simple-host.app the file server keeps serving them exactly
 	// as before, down to Last-Modified and Content-Type, so production is
 	// untouched rather than merely equivalent.
-	if assetsRewritten() {
+	if assets.rewritten() {
 		for _, name := range rewrittenAssets {
 			if name == "openapi.yaml" || name == "openapi.json" || sh.ed.Routes().HostedEvents && name == "install.html" {
 				continue
@@ -171,7 +162,9 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 			assets.serveSkillReference(w, r)
 		})
 	}
-	mux.HandleFunc("GET /plugin.zip", func(w http.ResponseWriter, r *http.Request) { servePluginZip(w, r, sh.ed.Presentation().HackAssets) })
+	mux.HandleFunc("GET /plugin.zip", func(w http.ResponseWriter, r *http.Request) {
+		servePluginZip(assets, w, r, sh.ed.Presentation().HackAssets)
+	})
 	mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL, sh.ed.Presentation().HackAssets))
 	mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL, sh.ed.Presentation().HackAssets))
 	// Admin dashboard: all signed-up users + their sites. This shell is public —
@@ -248,7 +241,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// that user's owner app; everything else is the landing page / static files.
 	// Unknown POST endpoints are absent, even though static pages use a GET catch-all.
 	mux.Handle("POST /", http.NotFoundHandler())
-	mux.Handle("GET /", assets.adminUICSP(sh.ownerAppOrStatic(assets.chromeFileServer(handlerOnlyFS{sub, sh.ed.Presentation().HackAssets}, fileServer))))
+	mux.Handle("GET /", assets.adminUICSP(sh.ownerAppOrStatic(assets.chromeFileServer(handlerOnly, fileServer))))
 }
 
 // iconFiles maps the icon addresses every page links to the physical file
@@ -318,6 +311,10 @@ var handlerOnlyPages = map[string]bool{
 type handlerOnlyFS struct {
 	fs.FS
 	hackAssets bool
+	// rewritten is the constructing pipeline's rewritten(): whether this
+	// instance needs assets intercepted and served through a rewriting
+	// handler rather than straight off the embedded FS.
+	rewritten bool
 }
 
 func (f handlerOnlyFS) Open(name string) (fs.File, error) {
@@ -325,7 +322,7 @@ func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 	// instance still serves them straight off the embedded FS. The chrome
 	// partials are fragments for chrome.go, never pages in their own right,
 	// and the landing film's files are served by serveFilm (film.go).
-	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || name == "hack-auth.md" || handlerOnlyPages[name] || (f.hackAssets && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || name == "film" || strings.HasPrefix(name, "film/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
+	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || name == "hack-auth.md" || handlerOnlyPages[name] || (f.hackAssets && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || name == "film" || strings.HasPrefix(name, "film/") || (f.rewritten && slices.Contains(rewrittenAssets, name)) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)
@@ -443,7 +440,7 @@ func serveSkillsZip(assets *assetPipeline, w http.ResponseWriter, r *http.Reques
 		serveHackSkillsZip(assets)(w, r)
 		return
 	}
-	data, err := buildSkillsZip()
+	data, err := assets.buildSkillsZip()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -500,12 +497,12 @@ func (p *assetPipeline) serveSkillMarkdown(skillName string) http.HandlerFunc {
 
 // servePluginZip returns the wrapped plugin layout (.claude-plugin/plugin.json
 // + skills/<name>/SKILL.md), suitable for `claude --plugin-url <url>`.
-func servePluginZip(w http.ResponseWriter, r *http.Request, hackAssets bool) {
+func servePluginZip(assets *assetPipeline, w http.ResponseWriter, r *http.Request, hackAssets bool) {
 	if hackAssets {
 		http.Error(w, "this legacy plugin download was withdrawn", http.StatusGone)
 		return
 	}
-	data, err := buildPluginZip()
+	data, err := assets.buildPluginZip()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -630,14 +627,15 @@ Write-Host 'Restart your agent if it caches the skills directory.'
 }
 
 // buildSkillsZip walks the embedded skills/ tree and emits a flat zip.
-func buildSkillsZip() ([]byte, error) {
-	skillsZipOnce.Do(func() {
+func (p *assetPipeline) buildSkillsZip() ([]byte, error) {
+	z := &p.skillsZip
+	z.once.Do(func() {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
 
 		skillsRoot, err := fs.Sub(plugin.FS, "skills")
 		if err != nil {
-			skillsZipErr = err
+			z.err = err
 			return
 		}
 
@@ -670,23 +668,23 @@ func buildSkillsZip() ([]byte, error) {
 				return err
 			}
 
-			err = copyRewritten(dst, src, controlPlaneSkill(path))
+			err = copyRewritten(dst, src, p.limitsText, controlPlaneSkill(path))
 			return err
 		})
 		if err != nil {
-			skillsZipErr = err
+			z.err = err
 			return
 		}
 
 		if err := zw.Close(); err != nil {
-			skillsZipErr = err
+			z.err = err
 			return
 		}
 
-		skillsZipBytes = buf.Bytes()
+		z.bytes = buf.Bytes()
 	})
 
-	return skillsZipBytes, skillsZipErr
+	return z.bytes, z.err
 }
 
 func (p *assetPipeline) buildSingleSkillZip(skillName string) ([]byte, error) {
@@ -717,7 +715,7 @@ func (p *assetPipeline) buildSingleSkillZip(skillName string) ([]byte, error) {
 			return err
 		}
 
-		err = copyRewritten(dst, src, controlPlaneSkill(skillName+"/"+path))
+		err = copyRewritten(dst, src, p.limitsText, controlPlaneSkill(skillName+"/"+path))
 		return err
 	})
 	if err != nil {
@@ -734,8 +732,9 @@ func (p *assetPipeline) buildSingleSkillZip(skillName string) ([]byte, error) {
 
 // buildPluginZip emits the plugin layout: .claude-plugin/plugin.json and
 // skills/<name>/SKILL.md at the zip root.
-func buildPluginZip() ([]byte, error) {
-	pluginZipOnce.Do(func() {
+func (p *assetPipeline) buildPluginZip() ([]byte, error) {
+	z := &p.pluginZip
+	z.once.Do(func() {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
 
@@ -758,32 +757,32 @@ func buildPluginZip() ([]byte, error) {
 				return err
 			}
 
-			err = copyRewritten(dst, src, controlPlaneSkill(path))
+			err = copyRewritten(dst, src, p.limitsText, controlPlaneSkill(path))
 			return err
 		})
 		if err != nil {
-			pluginZipErr = err
+			z.err = err
 			return
 		}
 
 		if err := zw.Close(); err != nil {
-			pluginZipErr = err
+			z.err = err
 			return
 		}
 
-		pluginZipBytes = buf.Bytes()
+		z.bytes = buf.Bytes()
 	})
 
-	return pluginZipBytes, pluginZipErr
+	return z.bytes, z.err
 }
 
 // copyRewritten writes src into dst with this instance's hostnames and limits
-// substituted.
+// substituted. lr is the instance's limits rewriter (assetPipeline.limitsText).
 //
 // The skills are text, and small: reading one fully is cheaper than the
 // alternative of streaming and rewriting across chunk boundaries, where a
 // hostname split over two reads would silently survive unrewritten.
-func copyRewritten(dst io.Writer, src io.Reader, skipRewrite bool) error {
+func copyRewritten(dst io.Writer, src io.Reader, lr *limitsRewriter, skipRewrite bool) error {
 	data, err := io.ReadAll(src)
 	if err != nil {
 		return err
@@ -804,7 +803,7 @@ func copyRewritten(dst io.Writer, src io.Reader, skipRewrite bool) error {
 		// the public-instance skill, whose claims live under the public
 		// instance's EVENT_TTL_DAYS.
 		if !skipRewrite {
-			data = instanceLimits.apply(instanceHosts.apply(data))
+			data = lr.apply(instanceHosts.apply(data))
 		}
 	}
 	_, err = dst.Write(data)

@@ -182,11 +182,12 @@ func selfHostedClaudeSetup(body []byte) []byte {
 // this instance's own. Nil on simple-host.app, where every substitution is
 // identity.
 //
-// It is a package var because the skills zip builders are package-level
-// singletons with sync.Once caches: whichever request builds a zip first
-// freezes its contents for the process lifetime. So this must be set before the
-// server accepts a request, and SetInstanceHosts is called from main directly
-// after config load rather than as a side effect of registering routes.
+// It is a package var, not an assetPipeline field, because address settings
+// stay instance-wide rather than edition-bound (docs/architecture/target.md
+// §3): every pipeline's rewriting methods and the handlerOnlyFS built from
+// it read the same instanceHosts. It must be set before the server accepts a
+// request, so SetInstanceHosts is called from main directly after config
+// load rather than as a side effect of registering routes.
 var instanceHosts *hostRewriter
 
 // SetInstanceHosts configures host rewriting for served assets. Call once, at

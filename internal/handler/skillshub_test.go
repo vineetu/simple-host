@@ -15,7 +15,7 @@ import (
 func TestSkillsBundleExcludesControlPlaneSkills(t *testing.T) {
 	// The Simple Host bundle excludes the hosted Hack role skills. The
 	// organiser guide remains directly fetchable for existing links.
-	data, err := buildSkillsZip()
+	data, err := newAssetPipeline(edition.ForKind(edition.Host), "").buildSkillsZip()
 	if err != nil {
 		t.Fatal(err)
 	}

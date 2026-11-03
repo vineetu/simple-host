@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"net/http"
 	"path/filepath"
-	"sync"
 
 	hacktoolkit "github.com/vsriram/simple-host/hack-toolkit"
 )
@@ -23,21 +22,16 @@ func hostedHackSkill(name string) bool {
 	return false
 }
 
-var (
-	hackSkillsZipOnce sync.Once
-	hackSkillsZipData []byte
-	hackSkillsZipErr  error
-)
-
 // The hosted bundle has the five Simple Hack skills from the canonical embed.
-func buildHackSkillsZip(assets *assetPipeline) ([]byte, error) {
-	hackSkillsZipOnce.Do(func() {
+func (p *assetPipeline) buildHackSkillsZip() ([]byte, error) {
+	z := &p.hackSkillsZip
+	z.once.Do(func() {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
 		for _, name := range hackSkillNames {
 			root, err := fs.Sub(hacktoolkit.Skills, "skills/"+name)
 			if err != nil {
-				hackSkillsZipErr = err
+				z.err = err
 				break
 			}
 			err = fs.WalkDir(root, ".", func(path string, entry fs.DirEntry, walkErr error) error {
@@ -52,27 +46,27 @@ func buildHackSkillsZip(assets *assetPipeline) ([]byte, error) {
 				if err != nil {
 					return err
 				}
-				_, err = dst.Write(assets.skillServedText(name+"/"+path, data))
+				_, err = dst.Write(p.skillServedText(name+"/"+path, data))
 				return err
 			})
 			if err != nil {
-				hackSkillsZipErr = err
+				z.err = err
 				break
 			}
 		}
-		if err := zw.Close(); hackSkillsZipErr == nil {
-			hackSkillsZipErr = err
+		if err := zw.Close(); z.err == nil {
+			z.err = err
 		}
-		if hackSkillsZipErr == nil {
-			hackSkillsZipData = buf.Bytes()
+		if z.err == nil {
+			z.bytes = buf.Bytes()
 		}
 	})
-	return hackSkillsZipData, hackSkillsZipErr
+	return z.bytes, z.err
 }
 
 func serveHackSkillsZip(assets *assetPipeline) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		data, err := buildHackSkillsZip(assets)
+		data, err := assets.buildHackSkillsZip()
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return

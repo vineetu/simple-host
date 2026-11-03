@@ -819,7 +819,7 @@ func (h *SiteHandler) openStorageTableConn(w http.ResponseWriter, r *http.Reques
 			return nil, nil, false
 		}
 	}
-	release, err := acquireStorageSQLite(r.Context(), h.limits.StorageSQLConcurrency, h.limits.StorageAcquireWait)
+	release, err := h.sqliteGateFor().acquire(r.Context())
 	if err != nil {
 		storageBusy(w)
 		return nil, nil, false

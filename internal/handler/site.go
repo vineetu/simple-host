@@ -71,6 +71,13 @@ type SiteHandler struct {
 	assetsOnce        sync.Once
 	createIdempotency *createIdempotencyStore
 
+	// sqlite is this handler's SQLite concurrency gate (site_storage_sql.go),
+	// sized from h.limits. NewSiteHandler builds it; a bare &SiteHandler{}
+	// (tests) gets one on first use via sqliteGateFor, matching pipeline()'s
+	// lazy-build pattern.
+	sqlite     *sqliteGate
+	sqliteOnce sync.Once
+
 	notifyOnce    sync.Once
 	notifications *notificationEngine
 
@@ -402,6 +409,7 @@ func NewSiteHandler(ed *edition.Edition, hackInstanceURL string, database *sql.D
 		exportKey:              newExportKey(),
 	}
 	h.assets = newAssetPipeline(ed, hackInstanceURL)
+	h.sqlite = newSQLiteGate(lim.StorageSQLConcurrency, lim.StorageAcquireWait)
 	h.passcode.limitSet = newLimitSet(lim)
 	h.createIdempotency = newCreateIdempotencyStore(lim)
 	h.createIdempotency.startCleanup()

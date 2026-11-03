@@ -278,8 +278,8 @@ func TestDefaultLimitsRewriteNothing(t *testing.T) {
 	if rw := newLimitsRewriter(config.DefaultLimits()); rw != nil {
 		t.Fatal("the rewriter should be nil at the defaults")
 	}
-	newAssetPipeline(edition.ForKind(edition.Host), "")
-	if instanceLimits != nil || assetsRewritten() {
+	p := newAssetPipeline(edition.ForKind(edition.Host), "")
+	if p.rewritten() {
 		t.Fatal("defaults switched serve-time rewriting on")
 	}
 }

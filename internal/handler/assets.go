@@ -48,6 +48,20 @@ type assetPipeline struct {
 	// text holds swapped copies of embedded files, by base and name
 	// (baseTextFS.Open).
 	text sync.Map
+
+	// skillsZip, pluginZip and hackSkillsZip are this instance's cached zip
+	// downloads (ui.go, hack_get_started.go), each built once.
+	skillsZip     cachedZip
+	pluginZip     cachedZip
+	hackSkillsZip cachedZip
+}
+
+// cachedZip is a sync.Once-guarded zip build: bytes on success, err on
+// failure, cached either way so a later call does not redo the walk.
+type cachedZip struct {
+	once  sync.Once
+	bytes []byte
+	err   error
 }
 
 // newAssetPipeline builds the pipeline for ed (nil = Host) and its Hack
@@ -68,14 +82,6 @@ func newAssetPipeline(ed *edition.Edition, instanceURL string) *assetPipeline {
 		chromeHack:   ed.Presentation().HackAssets,
 		inkBase:      strings.TrimRight(instanceURL, "/"),
 	}
-	// instanceLimits (limitstext.go) is a package fallback for the one path
-	// with no assetPipeline of its own: the cached Claude plugin zip
-	// (ui.go's buildPluginZip/copyRewritten), built once per process via
-	// sync.Once. Every real process builds exactly one edition's pipeline,
-	// so this assignment is that edition's own snapshot; only a test that
-	// builds both editions in one process could see the second one win here,
-	// and that zip is not edition-dependent content.
-	instanceLimits = p.limitsText
 	assetRegistry.mu.Lock()
 	live := assetRegistry.live[:0]
 	for _, wp := range assetRegistry.live {
@@ -90,6 +96,10 @@ func newAssetPipeline(ed *edition.Edition, instanceURL string) *assetPipeline {
 
 // inkBaseURL is the pipeline's hack instance address.
 func (p *assetPipeline) inkBaseURL() string { return p.inkBase }
+
+// rewritten reports whether the text assets (llms.txt, the spec, ...) need a
+// rewriting handler rather than the plain file server.
+func (p *assetPipeline) rewritten() bool { return instanceHosts != nil || p.limitsText != nil }
 
 // pipeline is h's asset pipeline. NewSiteHandler builds it; a bare
 // &SiteHandler{} (tests) gets one for its edition on first use.

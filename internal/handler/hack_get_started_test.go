@@ -18,11 +18,11 @@ import (
 func TestHackGetStartedSkills(t *testing.T) {
 	sh := &SiteHandler{ed: edition.ForKind(edition.Hack)}
 	assets := sh.pipeline()
-	first, err := buildHackSkillsZip(assets)
+	first, err := assets.buildHackSkillsZip()
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := buildHackSkillsZip(assets)
+	second, err := assets.buildHackSkillsZip()
 	if err != nil || !bytes.Equal(first, second) {
 		t.Fatal("hosted skill ZIP changed between reads")
 	}

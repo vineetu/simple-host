@@ -83,15 +83,17 @@ func TestStorageRound2SQLiteConcurrencyPOC(t *testing.T) {
 	s := newSecurityShop(t)
 	s.resource(t, "db", "sqlite", "anyone", "owner", "full")
 	s.schema(t, "CREATE TABLE t(v)")
-	// Occupy every process-wide slot, independent of this handler/site/identity.
-	initRelease, err := acquireStorageSQLite(context.Background(), s.a.sites.limits.StorageSQLConcurrency, s.a.sites.limits.StorageAcquireWait)
+	// Occupy every slot of this handler's own gate, independent of this
+	// site/identity. s.a.sites is the SiteHandler under test, so this must be
+	// the same gate instance its storage routes acquire from.
+	initRelease, err := s.a.sites.sqlite.acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	initRelease()
 	var releases []func()
-	for i := 0; i < cap(storageSQLiteGate.slots); i++ {
-		release, err := acquireStorageSQLite(context.Background(), s.a.sites.limits.StorageSQLConcurrency, s.a.sites.limits.StorageAcquireWait)
+	for i := 0; i < cap(s.a.sites.sqlite.slots); i++ {
+		release, err := s.a.sites.sqlite.acquire(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -63,7 +63,7 @@ func TestCopyRewrittenLeavesBinaryAlone(t *testing.T) {
 
 	binary := []byte{0x89, 'P', 'N', 'G', 0x00, 0x1a, 0xff, 0xfe}
 	var out bytes.Buffer
-	if err := copyRewritten(&out, bytes.NewReader(binary), false); err != nil {
+	if err := copyRewritten(&out, bytes.NewReader(binary), nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(out.Bytes(), binary) {
@@ -72,7 +72,7 @@ func TestCopyRewrittenLeavesBinaryAlone(t *testing.T) {
 
 	// Text still gets rewritten.
 	out.Reset()
-	if err := copyRewritten(&out, bytes.NewReader([]byte("go to simple-host.app")), false); err != nil {
+	if err := copyRewritten(&out, bytes.NewReader([]byte("go to simple-host.app")), nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if got := out.String(); got != "go to hack.example.com" {
@@ -98,7 +98,7 @@ func TestControlPlaneSkillIsNotRewritten(t *testing.T) {
 	defer SetInstanceHosts("simple-host.app", "", "")
 	var out bytes.Buffer
 	in := []byte("POST https://simple-host.app/v1/events")
-	if err := copyRewritten(&out, bytes.NewReader(in), true); err != nil {
+	if err := copyRewritten(&out, bytes.NewReader(in), nil, true); err != nil {
 		t.Fatal(err)
 	}
 	if out.String() != string(in) {
