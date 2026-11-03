@@ -112,9 +112,9 @@ The following is the final production allowlist. Paths are relative to `internal
 
 Test imports use the production allowance plus the exact package under test, `testdb`, and `geoip/geoiptest`. Integration fixtures in transport `_test.go` files may also import `config`, `repository/**`, `storage`, `sitelocks`, and `email` to construct a real instance. These additions never apply to production files. `testdb` is never a runtime dependency. Existing exceptional test edges must be named individually, not hidden under `internal/**`.
 
-Step 3.3 reads Go's package graph (`go list -deps -test -json`), including `Imports`, `TestImports` and `XTestImports`; it does not grep source. Normalize synthetic test package IDs and check nested packages independently. Check packages in this module, not third-party internals. Any other command under `cmd/` gets its actual, explicit dependency row when the checker lands.
+The layering check reads Go's package graph, including `Imports`, `TestImports` and `XTestImports`, against `scripts/layering/rules.txt`. Normalize synthetic test package IDs and check nested packages independently. Check packages in this module, not third-party internals. Any other command under `cmd/` gets its actual, explicit dependency row when the checker lands.
 
-The final graph cannot pass halfway through the moves. Alongside it, record an exact list of current transitional edges, each with its removal step. Existing `handler -> db`, `auth -> db`, and helper-package SQL are migration debt, not precedents. New edges must match the final table or be reviewed and assigned a removal step. Remove exceptions as each area moves; never allow `handler -> anything`. The deleted Go bundler/generator has no final allowance.
+The final graph cannot pass halfway through the moves. Alongside it, record an exact list of current transitional edges, each with its removal step in `scripts/layering/rules.txt`. Existing `handler -> db`, `auth -> db`, and helper-package SQL are migration debt, not precedents. New edges must match the final table or be reviewed and assigned a removal step. Remove exceptions as each area moves; never allow `handler -> anything`. The deleted Go bundler/generator has no final allowance.
 
 | Existing package | Destination |
 |---|---|

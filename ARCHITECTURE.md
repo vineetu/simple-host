@@ -414,10 +414,9 @@ Tables (`db/schema.sql`):
 - **Never hand out a site host without its certificate.** A TLS name mismatch cannot be fixed
   after the handshake, so URLs and redirects use `<site>.<handle>` only once
   `SITE_CERT_DIR/ready/<handle>` exists.
-- **`internal/handler` and `internal/hackhttp` are the only packages that import other internal
-  packages** (plus `auth` → `db`; test files may import `testdb`, and each of `handler`/
-  `hackhttp`'s test files may import the other, to build a real fixture across the boundary).
-  Enforced by `scripts/check-layering.sh`.
+- **Package imports follow the contract in `docs/architecture/target.md` §2.**
+  `scripts/check-layering.sh` checks the Go import graph against `scripts/layering/rules.txt`;
+  transitional edges carry removal steps.
 - **`openapi.yaml` is the shared API contract;** `openapi.json` is generated from it.
   Each operation carries `x-audience` (`public-host`, `public-hack`, `internal`, `legacy`).
   `internal/handler/hack_assets.go` filters operations and unused tags/components at the served
