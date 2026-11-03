@@ -99,7 +99,7 @@ func (h *HackHandler) getRubric(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	items, err := db.ListRubric(r.Context(), h.database, a.event.ID)
+	items, err := h.entries.Rubric(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: rubric %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -137,85 +137,22 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_rubric", msg)
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: rubric %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if ev.JudgingLockedAt.Valid {
-		httpx.WriteError(w, http.StatusConflict, "scores_locked", "Judging is locked; unlock it first to change the rubric.")
-		return
-	}
-	existing, err := db.ListRubric(r.Context(), tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	known := map[string]bool{}
-	for _, c := range existing {
-		known[c.ID] = true
-	}
-	kept := map[string]int{}
+	ids := make([]string, len(req.Criteria))
 	for i, c := range req.Criteria {
-		if c.ID != "" {
-			if !known[c.ID] {
-				httpx.WriteError(w, 400, "invalid_rubric", "Unknown or repeated criterion.")
-				return
-			}
-			if _, ok := kept[c.ID]; ok {
-				httpx.WriteError(w, 400, "invalid_rubric", "Unknown or repeated criterion.")
-				return
-			}
-			items[i].ID = c.ID
-			kept[c.ID] = items[i].MaxPoints
-		}
+		ids[i] = c.ID
 	}
-	if ev.TieCriterionID.Valid && (ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived") {
-		if _, keep := kept[ev.TieCriterionID.String]; !keep {
-			httpx.WriteError(w, 409, "tie_rule_closed", "the tie criterion was fixed before judging began")
-			return
-		}
-	}
-	warnings := []string{}
-	for _, c := range existing {
-		max, keep := kept[c.ID]
-		if keep && max >= c.MaxPoints {
-			continue
-		}
-		var count int
-		if err := tx.QueryRowContext(r.Context(), `SELECT count(*) FROM event_scores WHERE event_id=$1 AND criterion_id=$2 AND ($3 OR points > $4)`, a.event.ID, c.ID, !keep, max).Scan(&count); err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if count > 0 {
-			warnings = append(warnings, fmt.Sprintf("%d scores for %s will be deleted", count, c.Name))
-		}
-	}
-	if len(warnings) > 0 && !req.ConfirmScoreDeletion {
-		httpx.WriteError(w, 409, "score_deletion_confirmation", strings.Join(warnings, "\n"))
-		return
-	}
-	if err := db.ReplaceRubric(r.Context(), tx, a.event.ID, items); err != nil {
-		log.Printf("hack: rubric %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	saved, err := db.ListRubric(r.Context(), tx, a.event.ID)
+	saved, err := h.entries.ReplaceRubric(r.Context(), a.event.ID, items, ids, req.ConfirmScoreDeletion)
 	if err != nil {
-		log.Printf("hack: rubric %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		log.Printf("hack: rubric %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
+		if e, ok := err.(*entries.Error); ok {
+			status := http.StatusConflict
+			if e.Code == "invalid_rubric" {
+				status = http.StatusBadRequest
+			}
+			httpx.WriteError(w, status, e.Code, e.Message)
+		} else {
+			log.Printf("hack: rubric %s: %v", a.event.Slug, err)
+			httpx.WriteInternal(w)
+		}
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, rubricJSON(saved))
@@ -469,7 +406,7 @@ func (h *HackHandler) listConflicts(w http.ResponseWriter, r *http.Request) {
 	if a.member.Role == "judge" {
 		judgeID = a.user.ID
 	}
-	rows, err := db.ListEventConflicts(r.Context(), h.database, a.event.ID, judgeID)
+	rows, err := h.entries.Conflicts(r.Context(), a.event.ID, judgeID)
 	if err != nil {
 		log.Printf("hack: conflicts %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -516,59 +453,18 @@ func (h *HackHandler) declareConflict(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "judge_not_found", "judge not found")
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	saved, err := h.entries.DeclareConflict(r.Context(), a.event.ID, judgeID, req.TeamID, declaredBy)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if ev.Stage == "archived" {
-		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	if writeIfJudgingLocked(w, ev) {
-		return
-	}
-	if _, err := db.EventTeamInEvent(r.Context(), tx, a.event.ID, req.TeamID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
-			return
+		if e, ok := err.(*entries.Error); ok {
+			status := http.StatusConflict
+			if e.Code == "team_not_found" || e.Code == "judge_not_found" {
+				status = http.StatusNotFound
+			}
+			httpx.WriteError(w, status, e.Code, e.Message)
+		} else {
+			log.Printf("hack: conflicts %s: %v", a.event.Slug, err)
+			httpx.WriteInternal(w)
 		}
-		log.Printf("hack: conflicts %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	judge, err := db.EventJudge(r.Context(), tx, a.event.ID, judgeID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(w, http.StatusNotFound, "judge_not_found", "judge not found")
-			return
-		}
-		log.Printf("hack: conflicts %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	// Store the member's canonical id, not whatever case the body used.
-	judgeID = judge.ID
-	if err := db.DeclareConflict(r.Context(), tx, a.event.ID, judgeID, req.TeamID, declaredBy); err != nil {
-		log.Printf("hack: conflicts %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	saved, err := db.GetEventConflict(r.Context(), tx, a.event.ID, judgeID, req.TeamID)
-	if err != nil {
-		log.Printf("hack: conflicts %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		log.Printf("hack: conflicts %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, conflictJSON(saved))
@@ -597,36 +493,17 @@ func (h *HackHandler) deleteConflict(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "conflict_not_found", "conflict not found")
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if ev.Stage == "archived" {
-		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	if writeIfJudgingLocked(w, ev) {
-		return
-	}
-	gone, err := db.DeleteConflict(r.Context(), tx, a.event.ID, judgeID, teamID)
-	if err != nil {
-		log.Printf("hack: conflicts %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if !gone {
-		httpx.WriteError(w, http.StatusNotFound, "conflict_not_found", "conflict not found")
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+	if err := h.entries.DeleteConflict(r.Context(), a.event.ID, judgeID, teamID); err != nil {
+		if e, ok := err.(*entries.Error); ok {
+			status := http.StatusConflict
+			if e.Code == "conflict_not_found" {
+				status = http.StatusNotFound
+			}
+			httpx.WriteError(w, status, e.Code, e.Message)
+		} else {
+			log.Printf("hack: conflicts %s: %v", a.event.Slug, err)
+			httpx.WriteInternal(w)
+		}
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -957,29 +834,17 @@ func (h *HackHandler) getJudgeScores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamID := r.PathValue("team")
-	if ok2, err := h.judgeMayScore(r.Context(), a, teamID); err != nil {
-		log.Printf("hack: scores %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	} else if !ok2 {
-		httpx.WriteError(w, http.StatusForbidden, "forbidden", "You have a conflict with this team.")
-		return
-	}
-	scores, comment, err := db.GetJudgeTeamScores(r.Context(), h.database, a.event.ID, a.user.ID, teamID)
+	scores, comment, err := h.entries.JudgeScores(r.Context(), a.event.ID, a.user.ID, teamID)
 	if err != nil {
-		log.Printf("hack: scores %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
+		if e, ok := err.(*entries.Error); ok {
+			httpx.WriteError(w, http.StatusForbidden, e.Code, e.Message)
+		} else {
+			log.Printf("hack: scores %s: %v", a.event.Slug, err)
+			httpx.WriteInternal(w)
+		}
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, scoresJSON(scores, comment, nil))
-}
-
-// judgeMayScore checks the current assignment mode and conflicts.
-func (h *HackHandler) judgeMayScore(ctx context.Context, a hackAccess, teamID string) (bool, error) {
-	if _, err := db.EventTeamInEvent(ctx, h.database, a.event.ID, teamID); err != nil {
-		return false, err
-	}
-	return db.JudgeTeamEligible(ctx, h.database, a.event.ID, a.user.ID, teamID)
 }
 
 func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
@@ -996,145 +861,53 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamID := r.PathValue("team")
-	team, err := db.EventTeamInEvent(r.Context(), h.database, a.event.ID, teamID)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
-		return
-	}
-	if err != nil {
-		log.Printf("hack: scores %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	_ = team
-	pairs, err := db.ListConflictPairs(r.Context(), h.database, a.event.ID)
-	if err != nil {
-		log.Printf("hack: scores %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	for _, p := range pairs {
-		if p.JudgeID == a.user.ID && p.TeamID == teamID {
-			httpx.WriteError(w, http.StatusForbidden, "forbidden", "You have a conflict with this team.")
-			return
+	if err := h.entries.CheckScoreConflict(r.Context(), a.event.ID, a.user.ID, teamID); err != nil {
+		if e, ok := err.(*entries.Error); ok {
+			status := http.StatusForbidden
+			if e.Code == "team_not_found" {
+				status = http.StatusNotFound
+			}
+			httpx.WriteError(w, status, e.Code, e.Message)
+		} else {
+			log.Printf("hack: scores %s: %v", a.event.Slug, err)
+			httpx.WriteInternal(w)
 		}
+		return
 	}
 	var req struct {
-		Scores []struct {
-			CriterionID string   `json:"criterion_id"`
-			Points      *float64 `json:"points"`
-		} `json:"scores"`
-		Comment *string `json:"comment"`
+		Scores  []entries.ScoreInput `json:"scores"`
+		Comment *string              `json:"comment"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
 	if req.Comment != nil {
-		cleaned, msg := hackentries.JudgeCommentText(*req.Comment)
-		if msg != "" {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_comment", msg)
+		cleaned, err := h.entries.JudgeComment(*req.Comment)
+		if err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, "invalid_comment", err.Error())
 			return
 		}
 		req.Comment = &cleaned
 	}
-	// Re-check the lock inside the same transaction as the write, with the
-	// event row locked: a lock request racing this one can no longer let a
-	// score land after the lock is taken (the earlier check above is just an
-	// optimistic fast path to avoid the extra round trip in the common case).
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	updated, comment, complete, err := h.entries.PutJudgeScores(r.Context(), a.event.ID, a.user.ID, teamID, req.Scores, req.Comment, h.scoringStage)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: scores %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if writeIfJudgingLocked(w, ev) {
-		return
-	}
-	if !h.scoringStage(r.Context(), ev) {
-		httpx.WriteError(w, 409, "scoring_not_open", "Scoring opens when entries close.")
-		return
-	}
-	// Recheck current membership now that the event row is locked (Codex
-	// review, SIM-340): the initial loadMember check above is optimistic and
-	// runs before this transaction takes the lock, so a leave that commits
-	// while this request was waiting on it must not let the write through.
-	// db.JudgeTeamEligible below also accepts a former judge's frozen teams
-	// (it is shared with the read side), so a departed judge can never write
-	// only if membership is checked here, separately, first.
-	stillMember, err := db.EventJudgeInEvent(r.Context(), tx, a.event.ID, a.user.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if !stillMember {
-		httpx.WriteError(w, http.StatusForbidden, "forbidden", "You are no longer a judge or organiser of this event.")
-		return
-	}
-	crit, err := db.CriterionIDsForEvent(r.Context(), tx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: scores %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	scores := make([]db.JudgeScore, 0, len(req.Scores))
-	for _, s := range req.Scores {
-		maxPts, ok := crit[s.CriterionID]
-		if !ok {
-			httpx.WriteError(w, http.StatusNotFound, "criterion_not_found", "That criterion is not in this event's current rubric.")
-			return
-		}
-		pts, ok := hackentries.WholeInRange(s.Points, 0, maxPts)
-		if !ok {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_points", fmt.Sprintf("Points for %q must be a whole number from 0 to %d.", s.CriterionID, maxPts))
-			return
-		}
-		scores = append(scores, db.JudgeScore{CriterionID: s.CriterionID, Points: pts})
-	}
-	if req.Comment != nil && len(scores) == 0 {
-		existing, _, eerr := db.GetJudgeTeamScores(r.Context(), tx, a.event.ID, a.user.ID, teamID)
-		if eerr != nil {
-			log.Printf("hack: scores %s: %v", a.event.Slug, eerr)
+		if e, ok := err.(*entries.Error); ok {
+			status := http.StatusConflict
+			switch e.Code {
+			case "forbidden":
+				status = http.StatusForbidden
+			case "criterion_not_found":
+				status = http.StatusNotFound
+			case "invalid_points", "invalid_request":
+				status = http.StatusBadRequest
+			}
+			httpx.WriteError(w, status, e.Code, e.Message)
+		} else {
+			log.Printf("hack: scores %s: %v", a.event.Slug, err)
 			httpx.WriteInternal(w)
-			return
 		}
-		if len(existing) == 0 {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_request", "Score at least one criterion before adding a comment.")
-			return
-		}
-	}
-	eligible, err := db.JudgeTeamEligible(r.Context(), tx, a.event.ID, a.user.ID, teamID)
-	if err != nil {
-		httpx.WriteInternal(w)
 		return
 	}
-	if !eligible {
-		httpx.WriteError(w, http.StatusForbidden, "forbidden", "This team is not in your judging queue.")
-		return
-	}
-	updated, comment, err := db.UpsertJudgeScores(r.Context(), tx, a.event.ID, a.user.ID, teamID, scores, req.Comment)
-	if err != nil {
-		log.Printf("hack: scores %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	rubric, err := db.ListRubric(r.Context(), tx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: scores %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		log.Printf("hack: scores %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	complete := len(rubric) > 0 && len(updated) >= len(rubric)
 	httpx.WriteJSON(w, http.StatusOK, scoresJSON(updated, comment, &complete))
 }
 
