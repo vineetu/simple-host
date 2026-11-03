@@ -257,11 +257,19 @@ RateLimit headers; limits still use continuous token-bucket refill.
   HTTP; `internal/model` shared record types (e.g. `TeamSite`) moved out of `handler`/`db` as
   both sides needed them. Hack workflows themselves move into `internal/app/hack/*` behind
   `hackhttp`, one at a time: `app/hack/events` (cleanup 3.2 slice 4) owns the first, the public
-  directory listing. See `docs/architecture/target.md` §2 for the full target package map.
+  directory listing. Entries and judging (cleanup 4.1) are the first full area:
+  `rules/hackentries` (completeness, `Judgeable`, results arithmetic, assignment planning,
+  rubric validation), `app/hack/entries` (`Service`: settling, entry writes, entry rules,
+  judge queue, assignments, scores, conflicts, results, judging settings; owns the
+  transactions, returns typed `entries.Error`s that `hackhttp` maps to HTTP) and
+  `repository/hackentries` (all entry/judging SQL, over `repository/sqlkit.Querier`).
+  `db.EntryJudgeableSQL` and `hackentries.Judgeable` share one case table, so SQL and Go can't
+  drift. `db/hackentries_forward.go` forwards the names event-stage code still calls (step 4.2).
+  See `docs/architecture/target.md` §2 for the full target package map.
 - `internal/mcp` — MCP JSON-RPC server, tool list, output schemas, instructions;
   `events.go`, `events_types.go` MCP Events (`events/list`, `events/subscribe`,
   `events/unsubscribe`) over the same delivery engine as `notify.go`.
-- `internal/db` — SQL, one file per area, `models.go` row types, `schemacheck.go` boot check.
+- `internal/db` — SQL, one file per area (entry/judging SQL now in `repository/hackentries`), `models.go` row types, `schemacheck.go` boot check.
 - `internal/storage/disk.go` — writes deployed site versions: the version trees, the `current`
   symlink and markers. It is not the only writer under a site's directory: runtime data that
   pages save (files storage, SQLite and other storage resources under `<site>/runtime/`) is
