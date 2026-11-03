@@ -6,8 +6,6 @@ import (
 	"errors"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
-
-	"github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
 // Team sites, member keys and the submission deadline (hosted events, M2;
@@ -20,14 +18,11 @@ import (
 // team.
 
 // KeyScopeTeam is a member's key for their team's site.
+// KeyScopeTeam is used by internal/auth.
 const KeyScopeTeam = hackteams.KeyScopeTeam
 
-// ErrTeamKeyInactive: a team key whose person is no longer a participant on
-// its team (moved, removed, or the team is gone). Wraps sql.ErrNoRows, so
-// callers that treat an unknown key as "not signed in" keep doing so.
-var ErrTeamKeyInactive = hackteams.ErrTeamKeyInactive
-
 // TeamIdentity is what a team credential acts as.
+// TeamIdentity is used by internal/auth.
 type TeamIdentity = model.TeamIdentity
 
 // TODO(4.3): Host dependency
@@ -37,7 +32,7 @@ func actAsTeam(ctx context.Context, q *sql.DB, member User, id TeamIdentity) (Us
 	holder, err := GetUserByID(ctx, q, id.AccountID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return User{}, ErrTeamKeyInactive
+			return User{}, hackteams.ErrTeamKeyInactive
 		}
 		return User{}, err
 	}
@@ -74,7 +69,7 @@ func TeamScopeOfKey(ctx context.Context, q Querier, apiKey string) (isTeam, live
 		if err != nil || scope != KeyScopeTeam {
 			return false, false, id, err
 		}
-		teamID, memberID, err = teamKeyBinding(ctx, q, HashAPIKey(apiKey))
+		teamID, memberID, err = hackteams.TeamKeyBinding(ctx, q, HashAPIKey(apiKey))
 		if errors.Is(err, sql.ErrNoRows) {
 			return true, false, id, nil
 		}
@@ -90,12 +85,10 @@ func TeamScopeOfKey(ctx context.Context, q Querier, apiKey string) (isTeam, live
 }
 
 // TeamKeyInfo is a member's team key as the member sees it.
-type TeamKeyInfo = model.TeamKeyInfo
 
 // EffectiveDeadlineSQL is a team's deadline in SQL over event_teams t and
 // events e: none while the event has none, else the later of the event's and
 // the team's own (an extension never makes a team's deadline earlier).
-const EffectiveDeadlineSQL = hackevents.EffectiveDeadlineSQL
 
 // TODO(4.3): Host dependency
 // OrphanTeamSites lists live sites of events' holding accounts whose team no

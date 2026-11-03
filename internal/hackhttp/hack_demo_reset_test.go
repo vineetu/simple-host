@@ -3,6 +3,10 @@ package hackhttp
 import (
 	"context"
 	"fmt"
+	hackmodel "github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/hackentries"
+	hackeventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	hackteamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -31,7 +35,7 @@ func TestHackDemoResetScript(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	previousCreates, err := db.CountEventCreatesSince(context.Background(), a.database, adminID, time.Now().Add(-24*time.Hour))
+	previousCreates, err := hackeventrepo.CountEventCreatesSince(context.Background(), a.database, adminID, time.Now().Add(-24*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +63,7 @@ func TestHackDemoResetScript(t *testing.T) {
 			_, _ = a.database.Exec(`DELETE FROM event_used_names WHERE event_slug=$1`, slug)
 		}
 	})
-	reset := func(wantSlug string) db.Event {
+	reset := func(wantSlug string) hackmodel.Event {
 		t.Helper()
 		out, err := runDemoReset(t, envFile)
 		if strings.Contains(out, a.admin) {
@@ -68,7 +72,7 @@ func TestHackDemoResetScript(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reset: %v: %s", err, out)
 		}
-		ev, err := db.GetEventBySlug(context.Background(), a.database, wantSlug)
+		ev, err := hackeventrepo.GetEventBySlug(context.Background(), a.database, wantSlug)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -88,7 +92,7 @@ func TestHackDemoResetScript(t *testing.T) {
 		if registration["approval_required"] != false || len(registration["questions"].([]any)) != 0 {
 			t.Fatal("registration requires approval or answers")
 		}
-		tracks, err := db.ListEventTracks(context.Background(), a.database, ev.ID)
+		tracks, err := hackeventrepo.ListEventTracks(context.Background(), a.database, ev.ID)
 		if err != nil || len(tracks) != 2 {
 			t.Fatal("missing demo tracks")
 		}
@@ -99,7 +103,7 @@ func TestHackDemoResetScript(t *testing.T) {
 		if !trackNames["Campus life"] || !trackNames["Health"] {
 			t.Fatal("unexpected demo tracks")
 		}
-		rubric, err := db.ListRubric(context.Background(), a.database, ev.ID)
+		rubric, err := hackentries.ListRubric(context.Background(), a.database, ev.ID)
 		if err != nil || len(rubric) != 3 {
 			t.Fatal("missing demo rubric")
 		}
@@ -135,11 +139,11 @@ func TestHackDemoResetScript(t *testing.T) {
 	if r.status != 200 {
 		t.Fatalf("submit while building: %d %s", r.status, r.body)
 	}
-	teams, err := db.ListEventTeams(context.Background(), a.database, old.ID)
+	teams, err := hackteamrepo.ListEventTeams(context.Background(), a.database, old.ID)
 	if err != nil || len(teams) != 1 || teams[0].Slug != teamSlug {
 		t.Fatal("fixture team missing")
 	}
-	rubric, err := db.ListRubric(context.Background(), a.database, old.ID)
+	rubric, err := hackentries.ListRubric(context.Background(), a.database, old.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

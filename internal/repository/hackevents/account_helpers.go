@@ -2,6 +2,7 @@ package hackevents
 
 import (
 	"context"
+	"database/sql"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
@@ -14,7 +15,7 @@ func NewUUID(ctx context.Context, q sqlkit.Querier) (string, error) {
 
 // LockUserRow takes FOR UPDATE on a users row so create limits serialise.
 // TODO(4.2): narrow the locking querier to *sql.Tx when db callers move.
-func LockUserRow(ctx context.Context, q sqlkit.Querier, userID string) error {
+func LockUserRow(ctx context.Context, q *sql.Tx, userID string) error {
 	var one int
 	return q.QueryRowContext(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&one)
 }

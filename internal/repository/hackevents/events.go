@@ -273,7 +273,7 @@ func UpdateEventPatch(ctx context.Context, q sqlkit.Querier, e Event) (Event, er
 
 // GetEventForUpdate reads the event and locks its row until the transaction
 // ends.
-func GetEventForUpdate(ctx context.Context, q sqlkit.Querier, eventID string) (Event, error) {
+func GetEventForUpdate(ctx context.Context, q *sql.Tx, eventID string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE id = $1 FOR UPDATE`, eventID))
 }
 
@@ -285,7 +285,7 @@ func GetEventForUpdate(ctx context.Context, q sqlkit.Querier, eventID string) (E
 // branches used before (Codex review, SIM-340), this returns the row so the
 // caller can revalidate stage/takedown against the state as of the lock,
 // not the pre-lock snapshot a blocked insert would otherwise go on to use.
-func GetEventForShare(ctx context.Context, q sqlkit.Querier, eventID string) (Event, error) {
+func GetEventForShare(ctx context.Context, q *sql.Tx, eventID string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE id = $1 FOR SHARE`, eventID))
 }
 

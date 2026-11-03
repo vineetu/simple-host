@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"database/sql"
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
+	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	"sort"
 	"strings"
 	"time"
@@ -188,13 +190,13 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a AccountForDelete) (ErasedAc
 
 	// Hack event membership (event_members.user_id REFERENCES users(id) ON
 	// DELETE CASCADE) disappears with the account below, same as leaving a
-	// team -- but with no handler in between to run EnsureTeamAdmin. Read
+	// team -- but with no handler in between to run hackteams.EnsureTeamAdmin. Read
 	// which teams this person currently admins before the cascade, so a
 	// successor can be chosen for each once the cascade has actually run
 	// (Codex review, 2026-11-01; this account may hold no event membership
 	// at all, in which case the slice is empty and the loop below is a
 	// no-op).
-	adminTeamIDs, err := AdminTeamIDs(ctx, tx, a.ID)
+	adminTeamIDs, err := hackteams.AdminTeamIDs(ctx, tx, a.ID)
 	if err != nil {
 		return out, err
 	}
@@ -237,7 +239,7 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a AccountForDelete) (ErasedAc
 	// The cascade above already took this person's membership off each team
 	// they admined. Run the same cleanup LeaveMembership runs for a
 	// voluntary last-member leave, in the same order (Grok security review,
-	// 2026-11-01: EnsureTeamAdmin alone is not enough when the erased
+	// 2026-11-01: hackteams.EnsureTeamAdmin alone is not enough when the erased
 	// account was the team's only member -- an empty, unlocked team with a
 	// live code would otherwise survive the account that used to run it).
 	sort.Strings(adminTeamIDs)
@@ -251,7 +253,7 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a AccountForDelete) (ErasedAc
 			}
 			return out, err
 		}
-		if err := deleteTeamIfEmpty(ctx, tx, teamID); err != nil {
+		if err := hackteams.DeleteTeamIfEmpty(ctx, tx, teamID); err != nil {
 			return out, err
 		}
 		var stillExists bool
@@ -271,19 +273,19 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a AccountForDelete) (ErasedAc
 			// same as a voluntary last-member leave past the deadline, and
 			// its code rotated so the dead link that used to work for this
 			// person stops working for anyone else too.
-			if err := markTeamKeptAfterLeave(ctx, tx, teamID); err != nil {
+			if err := hackevents.MarkTeamKeptAfterLeave(ctx, tx, teamID); err != nil {
 				return out, err
 			}
-			if err := rotateTeamCodeTx(ctx, tx, teamID); err != nil {
+			if err := hackteams.RotateTeamCodeTx(ctx, tx, teamID); err != nil {
 				return out, err
 			}
 			continue
 		}
-		// Members remain: give them a successor. EnsureTeamAdmin locks
+		// Members remain: give them a successor. hackteams.EnsureTeamAdmin locks
 		// that team's remaining members (sorted), then the team row, so
 		// running this sequentially here (never concurrently with itself)
 		// carries no extra deadlock risk.
-		if err := EnsureTeamAdmin(ctx, tx, teamID); err != nil {
+		if err := hackteams.EnsureTeamAdmin(ctx, tx, teamID); err != nil {
 			return out, err
 		}
 	}

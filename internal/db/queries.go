@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	"strings"
 	"time"
 
@@ -146,9 +147,9 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string, keyIdle tim
 	if err == nil && user.KeyScope == KeyScopeTeam {
 		// A member's team key: the event's holding account on the team's
 		// site, only while they are on that team (hack_sites.go).
-		teamID, memberID, terr := teamKeyBinding(ctx, db, user.KeyHash)
+		teamID, memberID, terr := hackteams.TeamKeyBinding(ctx, db, user.KeyHash)
 		if terr == nil && memberID != user.ID {
-			terr = ErrTeamKeyInactive
+			terr = hackteams.ErrTeamKeyInactive
 		}
 		if terr != nil {
 			return User{}, terr

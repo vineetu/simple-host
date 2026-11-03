@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
 	"strings"
 	"time"
 
@@ -95,7 +96,7 @@ func SaveNotification(ctx context.Context, database *sql.DB, n Notification, max
 	}
 	defer tx.Rollback()
 	if n.Hack {
-		if err := lockNotificationMember(ctx, tx, n.SiteID, n.OwnerID); err != nil {
+		if err := hackevents.LockNotificationMember(ctx, tx, n.SiteID, n.OwnerID); err != nil {
 			return false, false, ErrNotificationAccess
 		}
 	}

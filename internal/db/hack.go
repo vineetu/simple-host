@@ -44,19 +44,8 @@ func nullStr(s sql.NullString) any {
 // TeamKeepableSQL over event_teams t and events e: a team that may be
 // removed when it empties — its deadline has not passed and nothing is
 // pinned. A team past its deadline keeps its submission for judging.
+// TeamKeepableSQL is used by internal/handler.
 const TeamKeepableSQL = hackevents.TeamKeepableSQL
 
-// Alias (cleanup 4.2): defined in internal/model.
+// Event is used by internal/handler.
 type Event = model.Event
-
-// Alias (cleanup 4.2): defined in internal/model.
-type EventMember = model.EventMember
-
-// Alias (cleanup 4.2): defined in internal/model.
-type EventTeam = model.EventTeam
-
-// Alias (cleanup 4.2): defined in internal/model.
-type AdminEvent = model.AdminEvent
-
-// Alias (cleanup 4.2): defined in internal/model.
-type EventPerson = model.EventPerson

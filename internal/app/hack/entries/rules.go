@@ -1,7 +1,6 @@
 package entries
 
 import (
-	"github.com/vsriram/simple-host/internal/db"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 
@@ -191,8 +190,7 @@ func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate)
 			legacyRequired = append(legacyRequired, f)
 		}
 	}
-	// TODO(4.2): move this db implementation to a Hack repository.
-	updated, err := db.UpdateEventEntryRules(ctx, tx, eventID, preset, rulesJSON, judgeFirst, legacyRequired)
+	updated, err := eventrepo.UpdateEventEntryRules(ctx, tx, eventID, preset, rulesJSON, judgeFirst, legacyRequired)
 	if err != nil {
 		return RulesResult{}, err
 	}

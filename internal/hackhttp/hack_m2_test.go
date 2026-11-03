@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	"hash/crc32"
 	"io"
 	"net/http"
@@ -772,7 +773,7 @@ func TestHackM2DeadlineRace(t *testing.T) {
 			t.Fatalf("deploy %d: %d %s", i, r.status, r.body)
 		}
 	}
-	if err := db.PinDueTeams(context.Background(), a.database, ""); err != nil {
+	if err := hackteams.PinDueTeams(context.Background(), a.database, ""); err != nil {
 		t.Fatal(err)
 	}
 	var pinned sql.NullInt64

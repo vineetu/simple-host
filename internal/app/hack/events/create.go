@@ -213,8 +213,7 @@ func (s *Service) SetStage(ctx context.Context, event model.Event, stage string,
 		// Results screen refused to publish an unlocked event. Moving back
 		// to judging leaves the lock on; the stage picker says so.
 		if stage == "results" && current != "results" {
-			// TODO(4.2): move this db implementation to a Hack repository.
-			if updated, err = db.SetJudgingLock(ctx, tx, event.ID, true, ""); err != nil {
+			if updated, err = eventrepo.SetJudgingLock(ctx, tx, event.ID, true, ""); err != nil {
 				return model.Event{}, "", err
 			}
 		}
@@ -359,8 +358,7 @@ func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(
 				fields[f] = "required"
 			}
 		}
-		// TODO(4.2): move this db implementation to a Hack repository.
-		updated, err = db.UpdateEventEntryRules(ctx, tx, ev.ID, "custom", hackentries.MarshalRules(fields), updated.JudgeFirst, ev.EntryRequired)
+		updated, err = eventrepo.UpdateEventEntryRules(ctx, tx, ev.ID, "custom", hackentries.MarshalRules(fields), updated.JudgeFirst, ev.EntryRequired)
 		if err != nil {
 			return model.Event{}, err
 		}

@@ -2,12 +2,11 @@ package hackhttp
 
 import (
 	"context"
+	hackeventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 func TestHackDeleteBusyEvent(t *testing.T) {
@@ -21,11 +20,11 @@ func TestHackDeleteBusyEvent(t *testing.T) {
 	info := a.api(t, "GET", base, nil, org.key).json(t)["organiser"].(map[string]any)
 	judgeCode, joinCode := info["judge_code"].(string), info["join_code"].(string)
 	wantTS(t, "join judge", a.api(t, "POST", "/v1/hack/judge/"+judgeCode, map[string]any{"accept_coc": true, "display_name": "Judge"}, judge.key), 200, "")
-	ev, err := db.GetEventBySlug(context.Background(), a.database, slug)
+	ev, err := hackeventrepo.GetEventBySlug(context.Background(), a.database, slug)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.InsertEventMember(context.Background(), a.database, ev.ID, a.uid(t, co), "organiser", "Co"); err != nil {
+	if _, err := hackeventrepo.InsertEventMember(context.Background(), a.database, ev.ID, a.uid(t, co), "organiser", "Co"); err != nil {
 		t.Fatal(err)
 	}
 	team, _ := a.startTeam(t, slug, "Delete team", participant)
@@ -146,7 +145,7 @@ func TestHackDeleteJoinedNameWithoutTeams(t *testing.T) {
 			}
 			wantTS(t, "remove person", a.api(t, "DELETE", base+"/people/"+a.uid(t, p), nil, org.key), 204, "")
 			wantTS(t, "old empty deletion", a.api(t, "DELETE", base, nil, org.key), 204, "")
-			taken, err := db.EventSlugTaken(context.Background(), a.database, slug)
+			taken, err := hackeventrepo.EventSlugTaken(context.Background(), a.database, slug)
 			if err != nil || !taken {
 				t.Fatalf("joined name released: %v", err)
 			}

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	hackteamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"io"
 	"net/http"
 	"strings"
@@ -231,7 +232,7 @@ func TestHackStoragePresetsTeamSite(t *testing.T) {
 	if got := asAlice("POST", base+"/sqlite/orders/tables/orders/rows", `{"item":"x"}`); got.status == 200 {
 		t.Fatalf("taken down, visitor add: %d %s", got.status, got.body)
 	}
-	if ok, err := db.HackSiteOwnerOnSite(context.Background(), a.database, sid, a.uid(t, member)); err != nil || ok {
+	if ok, err := hackteamrepo.HackSiteOwnerOnSite(context.Background(), a.database, sid, a.uid(t, member)); err != nil || ok {
 		t.Fatalf("owner on a taken-down site: %v %v", ok, err)
 	}
 }
