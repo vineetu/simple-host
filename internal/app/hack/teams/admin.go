@@ -1,10 +1,10 @@
 package teams
 
-// TODO(4.2): move inline SQL to repository/hackteams.
 import (
 	"context"
 	"database/sql"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/rules/hackteams"
 )
 
 // OrganiserLock sets a team's lock and returns cleared request counts.
@@ -83,7 +83,9 @@ func participantTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (d
 	if err != nil {
 		return team, err
 	}
-	if stage != "open" && stage != "building" {
+	// Recheck under the event lock; the handler's pre-BEGIN check only
+	// rejects obviously invalid requests early.
+	if !hackteams.ParticipantTeamStages(stage) {
 		return team, &Error{Code: "teams_locked"}
 	}
 	if !admin {
@@ -127,7 +129,7 @@ func (s *Service) PatchTeam(ctx context.Context, eventID, userID string, name, n
 		}
 	}
 	if note != nil {
-		if _, err = tx.ExecContext(ctx, `UPDATE event_teams SET looking_for = $2 WHERE id = $1`, team.ID, *note); err != nil {
+		if _, err = tx.ExecContext(ctx, adminSQL1, team.ID, *note); err != nil {
 			return team, internalError(err)
 		}
 	}
@@ -172,7 +174,7 @@ func (s *Service) ParticipantAdmin(ctx context.Context, eventID, userID, target 
 	if err != nil {
 		return err
 	}
-	if stage != "open" && stage != "building" {
+	if !hackteams.ParticipantTeamStages(stage) {
 		return &Error{Code: "teams_locked"}
 	}
 	if !callerAdmin {

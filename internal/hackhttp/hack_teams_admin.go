@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"strings"
@@ -65,7 +66,7 @@ func (h *HackHandler) patchTeam(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !participantTeamStages(a.event.Stage) {
+	if !hackteams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
@@ -121,7 +122,7 @@ func (h *HackHandler) setMyTeamLock(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !participantTeamStages(a.event.Stage) {
+	if !hackteams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
@@ -154,7 +155,7 @@ func (h *HackHandler) setMyTeammateAdmin(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if !participantTeamStages(a.event.Stage) {
+	if !hackteams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
@@ -184,7 +185,7 @@ func (h *HackHandler) newMyTeamLink(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !participantTeamStages(a.event.Stage) {
+	if !hackteams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}

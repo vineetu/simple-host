@@ -1,6 +1,5 @@
 package teams
 
-// TODO(4.2): move inline SQL to repository/hackteams.
 import (
 	"context"
 	"database/sql"
@@ -11,35 +10,22 @@ import (
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
-func memberTeamID(ctx context.Context, q db.Querier, eventID, userID string) string {
-	var team sql.NullString
-	if err := q.QueryRowContext(ctx, `SELECT team_id FROM event_members WHERE event_id = $1 AND user_id = $2 FOR UPDATE`, eventID, userID).Scan(&team); err != nil || !team.Valid {
-		return ""
-	}
-	return team.String
-}
-
 func isUnique(err error) bool {
 	return err != nil && (strings.Contains(err.Error(), "23505") || strings.Contains(strings.ToLower(err.Error()), "unique"))
 }
 
+// rotateTeamCode stops removed members rejoining with the old code. An empty,
+// deleted team has nothing to rotate.
 func rotateTeamCode(ctx context.Context, q db.Querier, teamID string) error {
 	for attempt := 0; attempt < 8; attempt++ {
-		code, err := hackevents.RandomCode(8)
+		code, err := hackevents.RandomCode(teamCodeLength)
 		if err != nil {
 			return err
 		}
-		if _, err = q.ExecContext(ctx, "SAVEPOINT hack_try"); err != nil {
+		err = trySavepoint(ctx, q, func() error {
+			_, err := q.ExecContext(ctx, organiserSQL2, teamID, code)
 			return err
-		}
-		_, err = q.ExecContext(ctx, `UPDATE event_teams SET code = $2 WHERE id = $1`, teamID, code)
-		if err != nil {
-			if _, rollbackErr := q.ExecContext(ctx, "ROLLBACK TO SAVEPOINT hack_try"); rollbackErr != nil {
-				return rollbackErr
-			}
-		} else {
-			_, err = q.ExecContext(ctx, "RELEASE SAVEPOINT hack_try")
-		}
+		})
 		if err == nil || !isUnique(err) {
 			return err
 		}
@@ -54,7 +40,10 @@ func (s *Service) RemovePerson(ctx context.Context, eventID, userID string) erro
 		return internalError(err)
 	}
 	defer tx.Rollback()
-	// Lock the event before the member, matching self-leave's lock order.
+	// Lock the event first, matching self-leave. Removing a judge locks the
+	// member then inserts a former-judge row, whose foreign key takes an event
+	// key-share lock. Self-leave can hold the event update lock while waiting
+	// for that member, causing a deadlock unless this locks the event first.
 	if _, err = db.GetEventForShare(ctx, tx, eventID); err != nil {
 		return internalError(err)
 	}
@@ -63,8 +52,9 @@ func (s *Service) RemovePerson(ctx context.Context, eventID, userID string) erro
 		return err
 	}
 	if oldTeam != "" {
+		// Empty teams are already deleted; rotate only a remaining team.
 		var still bool
-		if err = tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_teams WHERE id = $1)`, oldTeam).Scan(&still); err == nil && still {
+		if err = tx.QueryRowContext(ctx, organiserSQL3, oldTeam).Scan(&still); err == nil && still {
 			err = rotateTeamCode(ctx, tx, oldTeam)
 		}
 		if err != nil {
@@ -114,19 +104,21 @@ func (s *Service) RemoveTeamMember(ctx context.Context, eventID, actorID, userID
 	}
 	defer tx.Rollback()
 	if participant {
-		if _, err = tx.ExecContext(ctx, `SELECT 1 FROM event_members WHERE event_id=$1 AND user_id IN ($2,$3) ORDER BY user_id FOR UPDATE`, eventID, actorID, userID); err != nil {
+		// Removal no longer requires team finding. Recheck admin authority under
+		// locks: both member rows sorted by user ID, then the team row.
+		if _, err = tx.ExecContext(ctx, organiserSQL4, eventID, actorID, userID); err != nil {
 			return internalError(err)
 		}
 		var teamID string
 		var admin bool
-		if err = tx.QueryRowContext(ctx, `SELECT team_id, team_admin FROM event_members WHERE event_id=$1 AND user_id=$2 AND approval_status='approved'`, eventID, actorID).Scan(&teamID, &admin); err != nil {
+		if err = tx.QueryRowContext(ctx, organiserSQL5, eventID, actorID).Scan(&teamID, &admin); err != nil {
 			return sql.ErrNoRows
 		}
 		if !admin {
 			return db.ErrHackTeamAdminOnly
 		}
 		var gotSlug string
-		if err = tx.QueryRowContext(ctx, `SELECT slug FROM event_teams WHERE id=$1 FOR UPDATE`, teamID).Scan(&gotSlug); err != nil || gotSlug != slug {
+		if err = tx.QueryRowContext(ctx, organiserSQL6, teamID).Scan(&gotSlug); err != nil || gotSlug != slug {
 			return sql.ErrNoRows
 		}
 		st, err := db.TeamWriteStateFor(ctx, tx, teamID, true)
@@ -142,11 +134,12 @@ func (s *Service) RemoveTeamMember(ctx context.Context, eventID, actorID, userID
 		return err
 	}
 	if participant {
-		_, err = tx.ExecContext(ctx, `UPDATE event_members SET team_removal_notice=$3 WHERE event_id=$1 AND user_id=$2`, eventID, userID, "A teammate took you off "+teamName+".")
+		_, err = tx.ExecContext(ctx, organiserSQL7, eventID, userID, "A teammate took you off "+teamName+".")
 	}
 	if err == nil {
+		// Email uses the same words as the removal notice.
 		var notice string
-		if err = tx.QueryRowContext(ctx, `SELECT team_removal_notice FROM event_members WHERE event_id=$1 AND user_id=$2`, eventID, userID).Scan(&notice); err == nil && notice != "" {
+		if err = tx.QueryRowContext(ctx, organiserSQL8, eventID, userID).Scan(&notice); err == nil && notice != "" {
 			err = db.NotifyUsers(ctx, tx, eventID, db.NoticeTeamRemoved, oldTeam, "", notice, userID)
 		}
 	}

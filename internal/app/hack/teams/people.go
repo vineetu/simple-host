@@ -48,6 +48,6 @@ func (s *Service) ParticipantTeam(ctx context.Context, team db.EventTeam) (db.Ev
 		return team, nil, "", err
 	}
 	var note string
-	_ = s.db.QueryRowContext(ctx, `SELECT looking_for FROM event_teams WHERE id = $1`, team.ID).Scan(&note)
+	_ = s.db.QueryRowContext(ctx, peopleSQL1, team.ID).Scan(&note)
 	return team, people, note, nil
 }

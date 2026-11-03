@@ -50,6 +50,9 @@ func (s *Service) GetTeamLink(ctx context.Context, code, userID string) (LinkPre
 		track = nil
 	}
 	out = LinkPreview{Event: ev, Team: team, MemberCount: count, DeadlinePassed: deadline, Track: track}
+	// Signed-out callers have no status. Otherwise distinguish not_in_event,
+	// pending, rejected, judge, organiser, no_team, on_this_team and on_other_team.
+	// A lookup failure must not become not_in_event: only a missing row proves it.
 	if userID == "" {
 		return out, nil
 	}

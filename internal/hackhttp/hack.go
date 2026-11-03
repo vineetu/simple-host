@@ -55,7 +55,6 @@ var extraEventReserved = map[string]bool{
 const (
 	hackJoinCodeLen  = 8
 	hackJudgeCodeLen = 12
-	hackTeamCodeLen  = 8
 	hackMaxBody      = 64 << 10
 )
 
@@ -2045,10 +2044,6 @@ func (h *HackHandler) teamLinkHost() string {
 		return u.Host
 	}
 	return ""
-}
-
-func participantTeamStages(stage string) bool {
-	return stage == "open" || stage == "building"
 }
 
 func organiserTeamStages(stage string) bool {

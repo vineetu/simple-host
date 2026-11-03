@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"strings"
@@ -167,7 +168,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	if h.rateLimited(w, r, a.user.ID) {
 		return
 	}
-	if !participantTeamStages(a.event.Stage) {
+	if !hackteams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
@@ -222,7 +223,7 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 	if h.rateLimited(w, r, a.user.ID) {
 		return
 	}
-	if !participantTeamStages(a.event.Stage) {
+	if !hackteams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
@@ -281,7 +282,7 @@ func (h *HackHandler) leaveTeam(w http.ResponseWriter, r *http.Request) {
 	if h.rateLimited(w, r, a.user.ID) {
 		return
 	}
-	if !participantTeamStages(a.event.Stage) {
+	if !hackteams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
@@ -367,7 +368,7 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	participant := a.member.Role == "participant"
 	teamName := ""
 	if participant {
-		if !participantTeamStages(a.event.Stage) || !a.member.TeamID.Valid || userID == a.user.ID {
+		if !hackteams.ParticipantTeamStages(a.event.Stage) || !a.member.TeamID.Valid || userID == a.user.ID {
 			findingError(w, db.ErrHackFindingForbidden)
 			return
 		}
