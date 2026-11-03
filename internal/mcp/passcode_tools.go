@@ -39,7 +39,7 @@ func passcodeTools() []Tool {
 			Description: "Put one passcode on a whole site, or change the one it has: every address of it shows an \"Enter the passcode\" page until a visitor enters the passcode. " +
 				"Changing it replaces the earlier passcode, which is not kept, and every visitor who unlocked the site with the old one must enter the new one. " +
 				passcodeNotLogin + " " +
-				"Ask the person first; never ask for the passcode in chat or repeat one. Leave passcode out to open the passcode screen (apps that show screens), or use generate: true and the reply's link. Send passcode only when you already hold one for the person's own use. " +
+				"Confirm with the person before calling this. Do not ask them to say or type a passcode in chat, and do not repeat one back: leave passcode out to open the passcode screen (apps that show screens), or use generate: true and the reply's link. Send passcode only when you already hold one for the person's own use. " +
 				"The owner's key and this connector keep working on a protected site. " +
 				"To take the passcode off use remove_site_passcode; to make visitors enter it again without changing it use sign_out_site_visitors.",
 			InputSchema: object(map[string]any{
@@ -80,10 +80,9 @@ func passcodeTools() []Tool {
 			},
 		},
 		{
-			Name:  "remove_site_passcode",
-			Title: "Take the passcode off a site",
-			Description: "Take the passcode off a site, so anyone with its address can open it again. Nothing on the site is deleted, and a new passcode can be set later with set_site_passcode. " +
-				"ASK THE PERSON FIRST: the site becomes open to everyone.",
+			Name:        "remove_site_passcode",
+			Title:       "Take the passcode off a site",
+			Description: "ASK THE PERSON FIRST, before calling this: it takes the passcode off a site, so anyone with its address can open it again. Nothing on the site is deleted, and a new passcode can be set later with set_site_passcode.",
 			InputSchema: object(site, "site"),
 			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
