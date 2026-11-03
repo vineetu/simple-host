@@ -2,6 +2,7 @@ package hackentries
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"strings"
@@ -60,7 +61,7 @@ func GetEventEntry(ctx context.Context, q sqlkit.Querier, teamID string) (EventE
 // GetEventEntryForUpdate is GetEventEntry with the row locked FOR UPDATE
 // (the sweep and submit/unsubmit take it after the team row, per the lock
 // order: event, member, team, entry).
-func GetEventEntryForUpdate(ctx context.Context, q sqlkit.Querier, teamID string) (EventEntry, error) {
+func GetEventEntryForUpdate(ctx context.Context, q *sql.Tx, teamID string) (EventEntry, error) {
 	return scanEventEntry(q.QueryRowContext(ctx, entrySelect+` WHERE e.team_id = $1 FOR UPDATE OF e`, teamID))
 }
 

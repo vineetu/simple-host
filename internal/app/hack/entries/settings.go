@@ -48,7 +48,6 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 		}
 	}
 	if req.Mode != nil || req.PerTeam != nil {
-		// TODO(4.1): Move this event update with its event scanner in step 4.2.
 		ev, err = eventrepo.UpdateJudgingSettings(ctx, tx, ev.ID, req.Mode, req.PerTeam)
 		if err != nil {
 			return model.Event{}, err
@@ -86,6 +85,5 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 
 // SetJudgingLock sets or clears the event's judging lock.
 func (s *Service) SetJudgingLock(ctx context.Context, eventID string, locked bool, reason string) (model.Event, error) {
-	// TODO(4.1): Move this event update with its event scanner in step 4.2.
 	return eventrepo.SetJudgingLock(ctx, s.db, eventID, locked, reason)
 }

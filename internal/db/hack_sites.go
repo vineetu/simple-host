@@ -85,16 +85,10 @@ func TeamScopeOfKey(ctx context.Context, q Querier, apiKey string) (isTeam, live
 	return true, err == nil, id, err
 }
 
-// TeamKeyInfo is a member's team key as the member sees it.
-
-// EffectiveDeadlineSQL is a team's deadline in SQL over event_teams t and
-// events e: none while the event has none, else the later of the event's and
-// the team's own (an extension never makes a team's deadline earlier).
-
-// TODO(4.3): Host dependency
 // OrphanTeamSites lists live sites of events' holding accounts whose team no
 // longer exists (the team was removed or emptied): the sweep takes them to
-// Recently deleted.
+// Recently deleted. Hack SQL is kept in db only because it scans Host Site rows;
+// it moves with Site in 4.3.
 func OrphanTeamSites(ctx context.Context, q interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }, accountID string) ([]Site, error) {

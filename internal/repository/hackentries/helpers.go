@@ -7,7 +7,7 @@ import (
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
-// Keep this expression in sync with db.EffectiveDeadlineSQL until event SQL moves.
+// Keep this expression in sync with hackevents.EffectiveDeadlineSQL.
 const effectiveDeadlineSQL = `CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END`
 
 func queryContext(ctx context.Context, q sqlkit.Querier, query string, args ...any) (*sql.Rows, error) {

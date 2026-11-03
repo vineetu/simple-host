@@ -344,7 +344,7 @@ func RestoreEvent(ctx context.Context, q sqlkit.Querier, eventID string) (Event,
 
 // DeleteEventAndAccount deletes the event (cascading members and teams) then
 // the holding account, which frees the handle/slug. One transaction.
-func DeleteEventAndAccount(ctx context.Context, q sqlkit.Querier, ev Event) error {
+func DeleteEventAndAccount(ctx context.Context, q *sql.Tx, ev Event) error {
 	// Lock order: the event row (as PATCH, stage and extension changes
 	// take it), the holding account's sites, then the team rows (as a
 	// deploy takes them), and the members' team keys go with them.

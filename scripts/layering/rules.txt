@@ -40,10 +40,10 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 {handler,hackhttp,auth,mcp} -> config repository/** storage sitelocks email
 mcp -> mcp/apps/bundlegen
 [transitional]
-app/hack/events -> db production # removal step 4.3: Host accounts, sites and keys
-app/hack/teams -> db production # removal step 4.3: Host accounts, sites and keys
-db -> repository/hackevents production # removal step 4.3: Host accounts, sites and keys
-db -> repository/hackteams production # removal step 4.3: Host accounts, sites and keys
+app/hack/events -> db production # removal step 4.3: Host accounts, handles and API key hashing
+app/hack/teams -> db production # removal step 4.3: Host sites and versions, and OrphanTeamSites (scans Host Site rows)
+db -> repository/hackevents production # removal step 4.3: event aliases, account cleanup and notification locks
+db -> repository/hackteams production # removal step 4.3: team aliases, account cleanup and team key checks
 app/hack/entries -> db production # removal step 4.3: Host email helper
 db -> repository/hackentries production # removal step 4.3: Host-dependent compatibility aliases
 db -> repository/sqlkit production # removal step 4.3: db keeps the Querier alias until the last repository moves
@@ -81,7 +81,7 @@ handler -> tarball production # removal step 4.3: site and storage workflows
 handler -> wpimport production # removal step 4.3: site and storage workflows
 handler -> @/simple-host-website production # removal step 5.4: webassets extraction
 hackhttp -> @/hack-toolkit test # removal step 5.4: webassets extraction
-hackhttp -> db test # removal step 4.3: Host accounts, sites and keys
+hackhttp -> db test # removal step 4.3: Host fixtures and Hack compatibility aliases
 hackhttp -> rules/auth test # removal step 4.3: site and storage workflows
 hackhttp -> rules/hackevents test # removal step 5.4: event rule tests
 hackhttp -> rules/hackentries test # removal step 5.4: rubric test fixtures

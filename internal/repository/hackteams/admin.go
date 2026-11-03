@@ -18,7 +18,7 @@ import (
 // member's own concurrent departure or admin change, which locks their
 // member row before waiting on the team row (Codex review, 2026-11-01).
 // A team with no members, or already gone, is a no-op.
-// TODO(4.2): narrow the locking querier to *sql.Tx when db callers move.
+// TODO(4.3): narrow the locking querier to *sql.Tx once the membership callbacks take *sql.Tx.
 func EnsureTeamAdmin(ctx context.Context, q Querier, teamID string) error {
 	var locked int
 	if err := q.QueryRowContext(ctx, `
@@ -76,8 +76,7 @@ func EnsureTeamAdmin(ctx context.Context, q Querier, teamID string) error {
 // actor's row here, then the team row, then this target row, reproduces
 // the same deadlock against the symmetric request with actor and target
 // swapped.
-// TODO(4.2): narrow the locking querier to *sql.Tx when db callers move.
-func SetTeamAdmin(ctx context.Context, q Querier, eventID, teamID, userID string, admin bool) error {
+func SetTeamAdmin(ctx context.Context, q *sql.Tx, eventID, teamID, userID string, admin bool) error {
 	m, err := LockMember(ctx, q, eventID, userID)
 	if err != nil {
 		return err
@@ -124,8 +123,7 @@ func SetTeamAdmin(ctx context.Context, q Querier, eventID, teamID, userID string
 // and invite of the team and reports how many of each kind were cleared;
 // unlocking a team kept after its last member left (locked for good) is
 // refused. actor is recorded as locked_by only when locking.
-// TODO(4.2): narrow the locking querier to *sql.Tx when db callers move.
-func SetTeamLock(ctx context.Context, q Querier, teamID, actor string, locked bool) (requests, invites int, err error) {
+func SetTeamLock(ctx context.Context, q *sql.Tx, teamID, actor string, locked bool) (requests, invites int, err error) {
 	team, err := LockTeam(ctx, q, teamID)
 	if err != nil {
 		return 0, 0, err

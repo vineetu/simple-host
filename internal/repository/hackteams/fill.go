@@ -15,8 +15,7 @@ type FillPerson = model.FillPerson
 type FillSkippedTeam = model.FillSkippedTeam
 
 // NewTeamRequest locks the prospective member before the team, as code joining does.
-// TODO(4.2): narrow the locking querier to *sql.Tx when db callers move.
-func NewTeamRequest(ctx context.Context, q Querier, ev Event, actor, teamSlug, userID, kind string) (string, error) {
+func NewTeamRequest(ctx context.Context, q *sql.Tx, ev Event, actor, teamSlug, userID, kind string) (string, error) {
 	ev, err := FindingEvent(ctx, q, ev)
 	if err != nil {
 		return "", err
@@ -85,8 +84,7 @@ func NewTeamRequest(ctx context.Context, q Querier, ev Event, actor, teamSlug, u
 }
 
 // ResolveTeamRequest joins and clears all other pending offers in the same transaction.
-// TODO(4.2): narrow the locking querier to *sql.Tx when db callers move.
-func ResolveTeamRequest(ctx context.Context, q Querier, ev Event, actor, id, action string) error {
+func ResolveTeamRequest(ctx context.Context, q *sql.Tx, ev Event, actor, id, action string) error {
 	ev, err := FindingEvent(ctx, q, ev)
 	if err != nil {
 		return err

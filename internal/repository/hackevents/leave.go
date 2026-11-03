@@ -289,7 +289,7 @@ func FormerJudgeAssignedCount(ctx context.Context, q sqlkit.Querier, eventID, ju
 // former-judge record. false means there was no such record: either nobody
 // by that id ever left scores behind, or they are a member again (rejoining
 // already deleted the record, via the clear_hack_former_judge trigger).
-func DeleteFormerJudgeScores(ctx context.Context, q sqlkit.Querier, eventID, userID string) (bool, error) {
+func DeleteFormerJudgeScores(ctx context.Context, q *sql.Tx, eventID, userID string) (bool, error) {
 	var id string
 	err := q.QueryRowContext(ctx, `
 		SELECT user_id FROM event_former_judges WHERE event_id = $1 AND user_id = $2 FOR UPDATE`, eventID, userID).Scan(&id)
