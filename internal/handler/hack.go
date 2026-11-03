@@ -17,8 +17,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 )
 
@@ -72,6 +72,7 @@ var hackEntryFields = []string{"title", "tagline", "description", "video_url", "
 
 // HackHandler is the hosted-events API (EVENTS=hosted).
 type HackHandler struct {
+	limitSet
 	demoSlug      string
 	database      *sql.DB
 	publicBaseURL string
@@ -155,18 +156,24 @@ func (h *HackHandler) teamSiteURL(eventSlug, teamSlug string) string {
 
 // NewHackHandler builds the hosted-events API. publicBaseURL is the apex
 // (join/judge/manage links); siteDomain is the event host parent.
-func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string) *HackHandler {
+func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions ...*edition.Edition) *HackHandler {
+	var ed *edition.Edition
+	if len(editions) > 0 {
+		ed = editions[0]
+	}
+	lim := ed.Limits()
 	h := &HackHandler{
+		limitSet:       newLimitSet(lim),
 		database:       database,
 		publicBaseURL:  strings.TrimRight(publicBaseURL, "/"),
 		siteDomain:     strings.Trim(strings.ToLower(siteDomain), "."),
-		codesIP:        newRateLimiterFor(config.Active().RateEventCodesIP),
-		codesUser:      newRateLimiterFor(config.Active().RateEventCodesUser),
-		namesUser:      newRateLimiterFor(config.Active().RateEventNamesUser),
+		codesIP:        newRateLimiterFor(lim.RateEventCodesIP),
+		codesUser:      newRateLimiterFor(lim.RateEventCodesUser),
+		namesUser:      newRateLimiterFor(lim.RateEventNamesUser),
 		entryWrites:    newRateLimiter(30, 0.5),
 		shotWrites:     newRateLimiter(5, 0.1),
-		applyIP:        newRateLimiterFor(config.Active().RateEventApplyIP),
-		applyUser:      newRateLimiterFor(config.Active().RateEventApplyUser),
+		applyIP:        newRateLimiterFor(lim.RateEventApplyIP),
+		applyUser:      newRateLimiterFor(lim.RateEventApplyUser),
 		archiveLinkKey: newExportKey(),
 	}
 	return h
@@ -533,7 +540,7 @@ func (h *HackHandler) slugVerdict(ctx context.Context, slug string) (code, errMs
 }
 
 func (h *HackHandler) instanceFull(ctx context.Context) (bool, error) {
-	budgetGB := config.Active().HackInstanceBudgetGB
+	budgetGB := h.limits.HackInstanceBudgetGB
 	if budgetGB <= 0 {
 		return false, nil
 	}
@@ -661,7 +668,7 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	if n >= config.Active().EventCreatePerDay {
+	if n >= h.limits.EventCreatePerDay {
 		writeHackErr(w, http.StatusTooManyRequests, "too_many_events_today", "you have created too many events today")
 		return
 	}
@@ -670,7 +677,7 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	if active >= config.Active().EventMaxActivePerOrganiser {
+	if active >= h.limits.EventMaxActivePerOrganiser {
 		writeHackErr(w, http.StatusConflict, "too_many_active_events", "you already have as many active events as this instance allows")
 		return
 	}
@@ -728,7 +735,7 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 				TimeZone:             tz,
 				StartsAt:             startsAt,
 				EndsAt:               endsAt,
-				TeamSizeMax:          config.Active().EventTeamSizeDefault,
+				TeamSizeMax:          h.limits.EventTeamSizeDefault,
 				JoinCode:             joinCode,
 				JudgeCode:            judgeCode,
 				// New events start on the AI-build preset (section 2); a Go
@@ -1780,7 +1787,7 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 	// the account is metered, not the venue's shared address.
 	caller := ""
 	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := db.GetUserByAPIKey(r.Context(), h.database, k); err == nil {
+		if u, err := db.GetUserByAPIKey(r.Context(), h.database, k, h.limits.KeyIdleExpiry); err == nil {
 			caller = u.ID
 		}
 	}

@@ -78,6 +78,11 @@ const passcodeMaxLength = 128
 
 // passcodeState is the server key and the brute-force counters.
 type passcodeState struct {
+	// limits is the handler's own snapshot (h.limits), copied in once at
+	// construction (NewSiteHandler) since the rate-limit methods below have
+	// no SiteHandler of their own. Zero in a bare notifyClient{secrets:
+	// &passcodeState{}} test literal, which never calls wrongTry/sweep.
+	limits config.Limits
 	aead   cipher.AEAD // nil: PASSCODE_ENC_KEY unset
 	macKey []byte
 	// refKey derives the connector's per-site visitor references, so they
@@ -141,7 +146,7 @@ func (h *SiteHandler) visitorRefKey() []byte {
 // PasscodesReady reports whether a passcode can be set on this server:
 // SITE_PASSCODES is on, the key is set and sites have addresses of their own.
 func (h *SiteHandler) PasscodesReady() bool {
-	return config.Active().SitePasscodes && h.passcode.aead != nil && !h.SharedOrigin()
+	return h.limits.SitePasscodes && h.passcode.aead != nil && !h.SharedOrigin()
 }
 
 func (p *passcodeState) clock() time.Time {
@@ -204,9 +209,8 @@ func passcodeMatches(try, real string) bool {
 // There are no other rules: any characters, digits only included (owner
 // decision 2026-09-29). Control characters are refused because the gate's
 // one-line box could never send them.
-func normalizePasscode(code string) (string, error) {
+func normalizePasscode(code string, min int) (string, error) {
 	code = strings.TrimSpace(code)
-	min := config.Active().PasscodeMinLength
 	if !utf8.ValidString(code) {
 		return "", errors.New("the passcode is not valid text")
 	}
@@ -227,8 +231,7 @@ func normalizePasscode(code string) (string, error) {
 
 // generatePasscode makes a random passcode of PASSCODE_MIN_LENGTH digits (at
 // least 6).
-func generatePasscode() (string, error) {
-	n := config.Active().PasscodeMinLength
+func generatePasscode(n int) (string, error) {
 	if n < 6 {
 		n = 6
 	}
@@ -871,7 +874,7 @@ func (p *passcodeState) lockedFor(siteID, ipKey string) time.Duration {
 // wrongTry counts a wrong passcode against the address and the site and
 // returns the lockout it started (0 if none).
 func (p *passcodeState) wrongTry(siteID, ipKey string) time.Duration {
-	lim := config.Active()
+	lim := p.limits
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.ipTries == nil {
@@ -941,7 +944,7 @@ func (p *passcodeState) sweepLocked(now time.Time) {
 // sweep drops every bucket that has refilled and is not locked out.
 // Called with p.mu held.
 func (p *passcodeState) sweep(now time.Time) {
-	lim := config.Active()
+	lim := p.limits
 	for _, pair := range []struct {
 		m    map[string]*passcodeBucket
 		rate config.Rate
@@ -1221,7 +1224,7 @@ func (h *SiteHandler) putSitePasscode(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `invalid JSON body (expected {"passcode":"..."} or {"generate":true})`, Code: "invalid_request"})
 		return
 	}
-	if !config.Active().SitePasscodes {
+	if !h.limits.SitePasscodes {
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "site passcodes are not enabled on this server yet", Code: "passcodes_not_enabled"})
 		return
 	}
@@ -1232,12 +1235,12 @@ func (h *SiteHandler) putSitePasscode(w http.ResponseWriter, r *http.Request) {
 	var code string
 	var err error
 	if req.Generate {
-		code, err = generatePasscode()
+		code, err = generatePasscode(h.limits.PasscodeMinLength)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-	} else if code, err = normalizePasscode(*req.Passcode); err != nil {
+	} else if code, err = normalizePasscode(*req.Passcode, h.limits.PasscodeMinLength); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_passcode"})
 		return
 	}

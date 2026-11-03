@@ -15,7 +15,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -92,7 +91,7 @@ func effectiveKeepVersions(siteKeep int) int {
 // Rows go first, then the folders: once the row is gone nothing can serve
 // or roll back to that version. It returns the version numbers removed.
 func (h *SiteHandler) pruneVersions(ctx context.Context, siteID, userID, siteName string, activeVersion, siteKeep int) []int {
-	keep, _, err := accountRetention(ctx, h.database, userID, siteKeep)
+	keep, _, err := accountRetention(ctx, h.database, userID, siteKeep, h.limits)
 	if err != nil {
 		log.Printf("prune versions: %v", err)
 		return nil
@@ -143,7 +142,7 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
-	if !config.Active().CanSetKeepVersions(accountHandles(r.Context(), h.database, user)...) {
+	if !h.limits.CanSetKeepVersions(accountHandles(r.Context(), h.database, user)...) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("Simple Host keeps your %d latest versions", keepVersions), Code: "keep_versions_fixed"})
 		return
 	}
@@ -190,7 +189,7 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	effective, _, err := accountRetention(r.Context(), h.database, user.ID, keep)
+	effective, _, err := accountRetention(r.Context(), h.database, user.ID, keep, h.limits)
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return

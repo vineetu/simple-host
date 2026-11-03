@@ -506,7 +506,7 @@ func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ow
 	if err != nil || len(id) != 32 {
 		return
 	}
-	sess, err := db.GetVisitorSession(r.Context(), h.database, id)
+	sess, err := db.GetVisitorSession(r.Context(), h.database, id, h.limits.KeyIdleExpiry)
 	if err != nil || !strings.EqualFold(sess.Host, requestHostName(r)) || time.Now().After(sess.ExpiresAt) {
 		return
 	}
@@ -614,7 +614,7 @@ func (h *SiteHandler) storageVisitorActive(w http.ResponseWriter, r *http.Reques
 		writeAccountSuspended(w)
 		return false
 	}
-	_ = db.TouchVisitorSession(r.Context(), h.database, c.visitorSession.ID)
+	_ = db.TouchVisitorSession(r.Context(), h.database, c.visitorSession.ID, h.limits.VisitorSessionIdle)
 	c.activeChecked = true
 	return true
 }

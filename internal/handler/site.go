@@ -62,6 +62,9 @@ func init() {
 
 type SiteHandler struct {
 	ed *edition.Edition
+	// limitSet is ed.Limits(), held once so a request does not copy the
+	// whole snapshot on every read (limits.go).
+	limitSet
 	// assets is the static asset and chrome pipeline for ed (assets.go);
 	// read it through pipeline().
 	assets            *assetPipeline
@@ -352,7 +355,7 @@ type versionResponse struct {
 func NewSiteHandler(ed *edition.Edition, database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string, mailer email.Sender, emailLimiter *rateLimiter) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
-	lim := config.Active()
+	lim := ed.Limits()
 	uploadLimiter := newRateLimiterFor(lim.RateUpload)
 	storageIPLimiter := newRateLimiterFor(lim.RateStorageIP)
 	storageVisitorLimiter := newRateLimiterFor(lim.RateStorageVisitor)
@@ -370,6 +373,7 @@ func NewSiteHandler(ed *edition.Edition, database *sql.DB, disk *storage.DiskSto
 
 	h := &SiteHandler{
 		ed:                     ed,
+		limitSet:               newLimitSet(lim),
 		mailer:                 mailer,
 		emailLimiter:           emailLimiter,
 		database:               database,
@@ -396,7 +400,8 @@ func NewSiteHandler(ed *edition.Edition, database *sql.DB, disk *storage.DiskSto
 		exportKey:              newExportKey(),
 	}
 	h.assets = newAssetPipeline(ed)
-	h.createIdempotency = newCreateIdempotencyStore()
+	h.passcode.limits = lim
+	h.createIdempotency = newCreateIdempotencyStore(lim)
 	h.createIdempotency.startCleanup()
 	h.SetSavedData(config.DefaultSavedData())
 	if len(previewAccounts) > 0 {
@@ -412,8 +417,8 @@ func NewSiteHandler(ed *edition.Edition, database *sql.DB, disk *storage.DiskSto
 		log.Printf("preview-site expiry enabled: accounts=%d ttl=%s", len(previewAccounts), previewTTL)
 	}
 	if customDomainIP != "" {
-		h.startDomainChecks(domainCheckInterval())
-		log.Printf("custom-domain verification enabled: every %s, active re-proved after %s", domainCheckInterval(), domainActiveAge)
+		h.startDomainChecks(h.domainCheckInterval())
+		log.Printf("custom-domain verification enabled: every %s, active re-proved after %s", h.domainCheckInterval(), domainActiveAge)
 	}
 	return h
 }
@@ -499,7 +504,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PUT /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)))))
 	// Delete, rename and restore each take per-site locks: rate-limited so a
 	// loop cannot pile up locks or disk moves.
-	siteOpLimiter := newRateLimiterFor(config.Active().RateSiteOps)
+	siteOpLimiter := newRateLimiterFor(h.limits.RateSiteOps)
 	siteOpLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSite)))))
 	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.patchSite)))))
@@ -520,7 +525,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// Download my data / delete my account and all data (account_data.go).
 	// Owner downloads are heavy (a tar of every site): RATE_LIMIT_EXPORT per
 	// address, like the signed export link.
-	exportLimiter := newRateLimiterFor(config.Active().RateExport)
+	exportLimiter := newRateLimiterFor(h.limits.RateExport)
 	exportLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/me/export.zip", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportMe))))
 	// The address before the download became a .zip; serves the same zip.
@@ -562,7 +567,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("POST /v1/sites/{sitename}/versions/{version}/preview-link", authMiddleware(h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createPreviewLink)))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics/geo", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteGeoAnalytics))))
-	analyticsLimiter := newRateLimiterFor(config.Active().RateAnalytics)
+	analyticsLimiter := newRateLimiterFor(h.limits.RateAnalytics)
 	analyticsLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/sites/{sitename}/analytics/top", noticeMiddleware(authMiddleware(rateLimitByIP(analyticsLimiter, http.HandlerFunc(h.getSiteTopAnalytics)))))
 	// Deliberately not /v1/sites/analytics: that would collide with a site
@@ -613,7 +618,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// "Check again": re-verify this site's pending domain now instead of
 	// waiting for the next background pass.
 	mux.Handle("POST /v1/sites/{sitename}/domain/check", noticeMiddleware(authMiddleware(rateLimitByIP(h.domainCheckLimiter, http.HandlerFunc(h.checkDomainNow)))))
-	tlsAskLimiter := newRateLimiterFor(config.Active().RateTLSAsk)
+	tlsAskLimiter := newRateLimiterFor(h.limits.RateTLSAsk)
 	tlsAskLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /internal/tls-ask", rateLimitByIP(tlsAskLimiter, http.HandlerFunc(h.tlsAsk)))
 	mux.HandleFunc("GET /internal/domain-redirect/{handle}/{sitename}", h.domainRedirect)
@@ -642,7 +647,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PUT /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.putSitePasscode)))))
 	mux.Handle("DELETE /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSitePasscode)))))
 	mux.Handle("POST /v1/sites/{sitename}/lock/sign-out-everyone", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.signOutEveryone)))))
-	unlockLimiter := newRateLimiterFor(config.Active().RateVisitor)
+	unlockLimiter := newRateLimiterFor(h.limits.RateVisitor)
 	unlockLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h.passcode.startSweep(5 * time.Minute)
 	mux.Handle("POST /v1/site-unlock", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.unlockSite)))
@@ -792,7 +797,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 
 	// Visitor session cookie is issued here (content host / custom domain),
 	// never on the apex OAuth callback.
-	visitorLimiter := newRateLimiterFor(config.Active().RateVisitor)
+	visitorLimiter := newRateLimiterFor(h.limits.RateVisitor)
 	visitorLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/visitor/establish", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.establishVisitor)))
 	mux.Handle("POST /v1/visitor/logout", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.logoutVisitor)))
@@ -2030,7 +2035,7 @@ func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, site
 }
 
 func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (map[string][]byte, []string, int64, bool, error) {
-	limit, override := siteLimitFor(r.Context(), h.database, auth.GetUser(r.Context()))
+	limit, override := h.siteLimitFor(r.Context(), h.database, auth.GetUser(r.Context()))
 	// The body carries base64 for binary files (4/3 larger) and JSON around
 	// it; the files themselves are held to the limit once decoded.
 	bodyLimit := limit*4/3 + (1 << 20)
@@ -2083,7 +2088,7 @@ func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (m
 			return nil, nil, limit, override, err
 		}
 		if len(raw) > 0 {
-			clean, err := tarball.SanitizeFilePatchWithLimit(raw, extractBudget(limit, override))
+			clean, err := tarball.SanitizeFilePatchWithLimit(raw, extractBudget(limit, override), h.limits.MaxFilesPerSite)
 			if err != nil {
 				if errors.Is(err, tarball.ErrTooLarge) {
 					writeTooLarge(w, limit, err.Error())
@@ -2115,7 +2120,7 @@ func (h *SiteHandler) finishJSONFiles(w http.ResponseWriter, r *http.Request, si
 		}
 	}
 
-	files, err := tarball.SanitizeFilesWithLimit(raw, extractBudget(limit, override))
+	files, err := tarball.SanitizeFilesWithLimit(raw, extractBudget(limit, override), h.limits.MaxFilesPerSite)
 	if err != nil {
 		if errors.Is(err, tarball.ErrTooLarge) {
 			writeTooLarge(w, limit, err.Error())
@@ -2207,7 +2212,7 @@ func (h *SiteHandler) newSiteChecks(w http.ResponseWriter, r *http.Request, user
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return false
 		}
-		if max := maxSitesFor(r.Context(), h.database, user); existing >= max {
+		if max := h.maxSitesFor(r.Context(), h.database, user); existing >= max {
 			writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("site quota reached: this account holds at most %d sites (sites in Recently deleted count until they are removed)", max), Code: "site_quota_reached"})
 			return false
 		}
@@ -2674,7 +2679,7 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		if f, ok := flags[site.ID]; ok {
 			resp.Keep = f.Keep
 			if f.WarnedAt.Valid && !f.Keep {
-				t := f.RemovalAt(idleGrace()).UTC()
+				t := f.RemovalAt(h.idleGrace()).UTC()
 				resp.IdleRemovalAt = &t
 			}
 		}
@@ -2721,7 +2726,7 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 	// Earlier handles, only needed to match MAX_SITES_OVERRIDES and
 	// MAX_ARCHIVE_MB_OVERRIDES.
 	var aliases map[string][]string
-	if l := config.Active(); l.MaxSitesOverrides != "" || l.MaxArchiveOverrides != "" {
+	if l := h.limits; l.MaxSitesOverrides != "" || l.MaxArchiveOverrides != "" {
 		if aliases, err = db.HandleAliasesByUser(r.Context(), h.database); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
@@ -2746,8 +2751,8 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			"is_admin":         u.IsAdmin,
 			"created_at":       u.CreatedAt,
 			"site_count":       len(list),
-			"max_sites":        maxSitesOf(u, aliases[u.ID]),
-			"max_site_mb":      siteLimitMBOf(u, aliases[u.ID]),
+			"max_sites":        h.maxSitesOf(u, aliases[u.ID]),
+			"max_site_mb":      h.siteLimitMBOf(u, aliases[u.ID]),
 			"sites":            list,
 			"suspended":        u.Suspended,
 			"suspended_reason": u.SuspendedReason,
@@ -2771,7 +2776,7 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 // extracts and validates the entries, and returns the files plus the hex
 // digest (recorded on the version row for integrity/audit).
 func (h *SiteHandler) readAndValidateFiles(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
-	limit, override := siteLimitFor(r.Context(), h.database, auth.GetUser(r.Context()))
+	limit, override := h.siteLimitFor(r.Context(), h.database, auth.GetUser(r.Context()))
 	body, err := readLimitedBody(w, r, limit)
 	if err != nil {
 		return nil, "", err
@@ -2791,7 +2796,7 @@ func (h *SiteHandler) readAndValidateFiles(w http.ResponseWriter, r *http.Reques
 	}
 
 	filename := archiveFilename(siteName, body)
-	files, err := tarball.ExtractWithLimit(bytes.NewReader(body), filename, extractBudget(limit, override))
+	files, err := tarball.ExtractWithLimit(bytes.NewReader(body), filename, extractBudget(limit, override), h.limits.MaxFilesPerSite)
 	if err != nil {
 		if errors.Is(err, tarball.ErrTooLarge) {
 			writeTooLarge(w, limit, err.Error())
@@ -2951,7 +2956,7 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		// A binding whose DNS already points here (certificate past
 		// "pending") does not lapse while it waits.
 		if site.DomainBoundAt.Valid && !site.DomainVerifiedAt.Valid && (site.DomainCertStatus == "" || site.DomainCertStatus == "pending") {
-			t := site.DomainBoundAt.Time.Add(db.UnprovenDomainTTL())
+			t := site.DomainBoundAt.Time.Add(h.limits.DomainUnprovenTTL)
 			resp.DomainExpiresAt = &t
 		}
 	}

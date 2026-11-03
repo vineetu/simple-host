@@ -137,12 +137,12 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 			}
 			if err == nil {
 				if p.pres.HackAssets {
-					body = p.hackInstanceText(instanceLimits.apply(body))
+					body = p.hackInstanceText(p.limitsText.apply(body))
 				} else {
 					if name == "llms.txt" && rw != nil {
 						body = selfHostedClaudeSetup(body)
 					}
-					body = instanceLimits.apply(rw.apply(body))
+					body = p.limitsText.apply(rw.apply(body))
 				}
 			}
 			if err == nil && !p.pres.HackAssets && name == "llms.txt" && instanceNote != "" {

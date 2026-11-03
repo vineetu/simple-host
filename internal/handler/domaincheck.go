@@ -136,7 +136,7 @@ func (h *SiteHandler) checkBoundDomains() {
 	if err := db.PruneDomainCertRequests(ctx, h.database); err != nil {
 		log.Printf("domain check: prune certificate requests: %v", err)
 	}
-	released, err := db.ReleaseExpiredDomains(ctx, h.database)
+	released, err := db.ReleaseExpiredDomains(ctx, h.database, h.limits.DomainUnprovenMaxAge, h.limits.DomainUnprovenTTL)
 	if err != nil {
 		log.Printf("domain check: expiry failed: %v", err)
 		return
@@ -229,7 +229,7 @@ func (h *SiteHandler) checkPreviousDomain(ctx context.Context, d db.BoundDomain,
 		log.Printf("domain check %s (earlier address): %v", d.PreviousDomain, err)
 		return
 	}
-	if !since.Valid || time.Since(since.Time) < domainLapseAfter() {
+	if !since.Valid || time.Since(since.Time) < h.domainLapseAfter() {
 		return
 	}
 	info, ok, err := db.GetSiteDomainInfo(ctx, h.database, d.SiteID)
@@ -279,7 +279,7 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, st
 	failing := time.Since(check.FailingSince.Time)
 	// Once the owner was emailed, the date that email gave decides (a later
 	// DOMAIN_LAPSE_HOURS change applies to new warnings only).
-	due := failing >= domainLapseAfter()
+	due := failing >= h.domainLapseAfter()
 	if check.ReleaseAt.Valid {
 		due = !time.Now().Before(check.ReleaseAt.Time)
 	}
@@ -298,7 +298,7 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, st
 			log.Printf("domain %s: failing for %s; released from %s", d.Domain, failing.Round(time.Hour), check.Name)
 			h.emitSiteNotification(d.SiteID, "domain.status_changed", map[string]any{"domain": d.Domain, "status": "released", "previous_status": status, "reason": notifyCut(reason, 1024), "cert": ""}, 0)
 		}
-	case failing >= domainLapseWarnAfter() && !check.Notified:
+	case failing >= h.domainLapseWarnAfter() && !check.Notified:
 		h.emailDomainFailing(ctx, d, check.Name, reason)
 	}
 }
@@ -340,7 +340,7 @@ func (h *SiteHandler) emailDomainFailing(ctx context.Context, d db.BoundDomain, 
 		reason = "it does not answer over HTTPS"
 	}
 	subject := "Your domain " + d.Domain + " has stopped working"
-	releaseIn := domainLapseAfter() - domainLapseWarnAfter()
+	releaseIn := h.domainLapseAfter() - h.domainLapseWarnAfter()
 	releaseAt := time.Now().Add(releaseIn)
 	text := fmt.Sprintf(`Your site %s is connected to https://%s/, and that address has failed every check for %s.
 
@@ -351,7 +351,7 @@ If you moved the domain or let it lapse on purpose, there is nothing to do. Othe
 If it is still failing %s from now, %s is disconnected from the site: the site serves at its own Simple Host address again. Connecting the domain again (by you or whoever holds it then) needs its DNS ownership record (TXT _simple-host.<domain>) once more.
 
 Simple Host
-`, siteName, d.Domain, config.Span(domainLapseWarnAfter()), reason, config.Span(releaseIn), d.Domain)
+`, siteName, d.Domain, config.Span(h.domainLapseWarnAfter()), reason, config.Span(releaseIn), d.Domain)
 	if err := mailer.SendNotice(to, subject, text); err != nil {
 		log.Printf("domain %s: failing notice: %v", d.Domain, err)
 		return

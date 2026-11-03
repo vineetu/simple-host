@@ -338,7 +338,7 @@ func (h *SiteHandler) ownerSiteIDFromKey(r *http.Request, siteName string) (stri
 	if h.adminAPIKey != "" && subtle.ConstantTimeCompare([]byte(apiKey), []byte(h.adminAPIKey)) == 1 {
 		user = &db.User{IsAdmin: true}
 	} else {
-		u, err := db.GetUserByAPIKey(r.Context(), h.database, apiKey)
+		u, err := db.GetUserByAPIKey(r.Context(), h.database, apiKey, h.limits.KeyIdleExpiry)
 		if err != nil {
 			return "", false
 		}

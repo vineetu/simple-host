@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -35,7 +34,7 @@ func (h *SiteHandler) registerNotifications(mux *http.ServeMux, authMiddleware, 
 }
 
 func (h *SiteHandler) notifyLimits() map[string]any {
-	l := config.Active()
+	l := h.limits
 	return map[string]any{"enabled": h.NotificationsReady(), "per_site": l.NotifyMaxPerSite, "per_minute": l.NotifyPerMinute, "per_day": l.NotifyPerDay, "history_days": l.NotifyHistoryDays}
 }
 func notificationView(n db.Notification) map[string]any {
@@ -263,7 +262,7 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		}
 		writeJSON(w, 200, map[string]any{"secret": secret, "previous_valid_until": until})
 	case strings.HasSuffix(r.URL.Path, "/deliveries"):
-		deliveries, err := db.NotificationHistory(ctx, h.database, id, config.Active().NotifyHistoryDays)
+		deliveries, err := db.NotificationHistory(ctx, h.database, id, h.limits.NotifyHistoryDays)
 		if err != nil {
 			notifyError(w, 500, "internal_error")
 			return
@@ -281,7 +280,7 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 			notifyError(w, 503, "busy")
 			return
 		}
-		ctx, cancel := context.WithTimeout(ctx, config.Active().NotifyTimeout)
+		ctx, cancel := context.WithTimeout(ctx, h.limits.NotifyTimeout)
 		defer cancel()
 		client, err := h.notifyChallengeClient(ctx, user.ID, n.URL)
 		if errors.Is(err, notifyFailure("rate_limited")) {
@@ -307,7 +306,7 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 			notifyError(w, 500, "internal_error")
 			return
 		}
-		writeJSON(w, 200, client.send(ctx, n, event.EventID, notifyBody(event, cursor)))
+		writeJSON(w, 200, client.send(ctx, n, event.EventID, notifyBody(event, cursor, h.limits.NotifyBodyMaxBytes)))
 	}
 }
 func (h *SiteHandler) requireNotifications(w http.ResponseWriter) bool {
@@ -361,7 +360,7 @@ func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), config.Active().NotifyTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.limits.NotifyTimeout)
 	defer cancel()
 	if _, err := h.notifyEngine().client.validate(ctx, req.URL); err != nil {
 		code := "invalid_url"
@@ -384,7 +383,7 @@ func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request,
 	}
 	now := time.Now()
 	n := db.Notification{ID: notifyRandom("sub_", 12), SiteID: site.ID, OwnerID: auth.GetUser(r.Context()).ID, Hack: h.ed.Notifications().EventScoped, Source: "owner", URL: req.URL, Events: req.Events, Storage: req.Storage, Secret: req.Secret, Label: req.Label, AuthHeaderName: req.AuthHeader.Name, AuthHeaderValue: req.AuthHeader.Value, VerifiedAt: &now}
-	_, _, err := db.SaveNotification(ctx, h.database, n, config.Active().NotifyMaxPerSite, nil, config.Active().NotifyHistoryDays, h.notificationSecrets())
+	_, _, err := db.SaveNotification(ctx, h.database, n, h.limits.NotifyMaxPerSite, nil, h.limits.NotifyHistoryDays, h.notificationSecrets())
 	if errors.Is(err, db.ErrNotificationAccess) {
 		notifyError(w, 403, "notification_access_ended")
 		return

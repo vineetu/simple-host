@@ -11,7 +11,6 @@ import (
 	"golang.org/x/text/language"
 	"golang.org/x/text/language/display"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -102,7 +101,7 @@ func hackApplyFields() map[string]any {
 func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 	caller := ""
 	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := db.GetUserByAPIKey(r.Context(), h.database, k); err == nil {
+		if u, err := db.GetUserByAPIKey(r.Context(), h.database, k, h.limits.KeyIdleExpiry); err == nil {
 			caller = u.ID
 		}
 	}
@@ -430,7 +429,7 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	if capN := config.Active().EventApplyPendingPerEvent; eventPending >= capN {
+	if capN := h.limits.EventApplyPendingPerEvent; eventPending >= capN {
 		writeHackErr(w, http.StatusConflict, "event_applications_full",
 			fmt.Sprintf("This event already has %d applications waiting for a decision. Try again once some are decided.", capN))
 		return

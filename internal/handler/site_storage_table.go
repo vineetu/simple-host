@@ -19,7 +19,6 @@ import (
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
-	"github.com/vsriram/simple-host/internal/config"
 )
 
 // The SQLite table routes. Visitors send an action and values, never SQL;
@@ -94,7 +93,7 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 				storageError(w, 400, "invalid_rows", "send a JSON object of column values")
 				return
 			}
-			if c.checkedPost && action == "add" && !storagePostLimits(w, body) {
+			if c.checkedPost && action == "add" && !storagePostLimits(w, body, h.limits) {
 				return
 			}
 			dec := json.NewDecoder(bytes.NewReader(body))
@@ -820,16 +819,16 @@ func (h *SiteHandler) openStorageTableConn(w http.ResponseWriter, r *http.Reques
 			return nil, nil, false
 		}
 	}
-	release, err := acquireStorageSQLite(r.Context())
+	release, err := acquireStorageSQLite(r.Context(), h.limits.StorageSQLConcurrency, h.limits.StorageAcquireWait)
 	if err != nil {
 		storageBusy(w)
 		return nil, nil, false
 	}
-	timeout := config.Active().StorageOwnerTimeout
+	timeout := h.limits.StorageOwnerTimeout
 	if !c.owner {
-		timeout = config.Active().StorageVisitorQueryTimeout
+		timeout = h.limits.StorageVisitorQueryTimeout
 		if write {
-			timeout = config.Active().StorageVisitorWriteTimeout
+			timeout = h.limits.StorageVisitorWriteTimeout
 		}
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)

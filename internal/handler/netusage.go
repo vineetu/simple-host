@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/netusage"
 )
 
@@ -44,7 +43,7 @@ func (h *SiteHandler) StartNetworkUsage(ctx context.Context) {
 	if h.netUsage == nil {
 		return
 	}
-	every := config.Active().NetworkSample
+	every := h.limits.NetworkSample
 	iface, err := h.netUsage.Interface()
 	if err != nil {
 		log.Printf("network usage: %v", err)
@@ -73,7 +72,7 @@ type trafficSite struct {
 // networkUsage is the "network" object of GET /v1/admin/usage. Each half is
 // null when it is off or could not be read, and the rest still answers.
 func (h *SiteHandler) networkUsage(ctx context.Context, now time.Time) map[string]any {
-	lim := config.Active()
+	lim := h.limits
 	out := map[string]any{
 		"allowance_gb": lim.NetworkAllowanceGB,
 		"alert_pct":    lim.NetworkAlertPct,

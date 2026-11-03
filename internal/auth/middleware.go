@@ -68,8 +68,9 @@ func GenerateAPIKey() (string, error) {
 
 // Middleware authenticates X-API-Key. adminUserID is the real UUID of the
 // seeded `admin` users row, so the admin identity can own sites (the old
-// synthetic ID:"admin" violated the sites.user_id UUID foreign key).
-func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Handler) http.Handler {
+// synthetic ID:"admin" violated the sites.user_id UUID foreign key). keyIdle
+// is the instance's KEY_IDLE_EXPIRY_DAYS limit (edition.Edition.Limits()).
+func Middleware(adminAPIKey, adminUserID string, database *sql.DB, keyIdle time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.Header.Get("X-API-Key")
@@ -103,7 +104,7 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 				return
 			}
 
-			user, err := db.GetUserByAPIKey(r.Context(), database, apiKey)
+			user, err := db.GetUserByAPIKey(r.Context(), database, apiKey, keyIdle)
 			if err != nil {
 				if errors.Is(err, db.ErrAccountSuspended) {
 					// The key is kept, not deleted, so re-enabling the account
@@ -121,7 +122,7 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 					return
 				}
 				if errors.Is(err, db.ErrKeyExpired) || errors.Is(err, db.ErrKeyExpiredIdle) {
-					msg, code := ExpiredKeyMessage(err, user.KeyExpiresAt)
+					msg, code := ExpiredKeyMessage(err, user.KeyExpiresAt, keyIdle)
 					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: msg, Code: code})
 					return
 				}
@@ -143,7 +144,7 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB) func(http.Han
 // ExpiredKeyMessage is the 401 a stored key that stopped working gets, and its
 // code: key_expired (past the expiry chosen at mint) or key_expired_idle
 // (unused for KEY_IDLE_EXPIRY_DAYS).
-func ExpiredKeyMessage(err error, expiredAt *time.Time) (string, string) {
+func ExpiredKeyMessage(err error, expiredAt *time.Time, keyIdle time.Duration) (string, string) {
 	if errors.Is(err, db.ErrKeyExpired) {
 		msg := "this API key has expired"
 		if expiredAt != nil {
@@ -151,7 +152,7 @@ func ExpiredKeyMessage(err error, expiredAt *time.Time) (string, string) {
 		}
 		return msg + ". Create a new key from the Keys panel on your Simple Host page, or sign in again via POST /v1/auth.", "key_expired"
 	}
-	days := int(db.KeyIdleExpiry().Hours() / 24)
+	days := int(keyIdle.Hours() / 24)
 	return fmt.Sprintf("this API key stopped working because it was not used for %d days. "+
 		"Create a new key from the Keys panel on your Simple Host page, or sign in again via POST /v1/auth.", days), "key_expired_idle"
 }

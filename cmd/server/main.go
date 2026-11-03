@@ -87,8 +87,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
-	// Every operational time and limit, before anything reads one.
-	handler.ApplyLimits(cfg.Limits)
 	if changed := cfg.Limits.Changed(); len(changed) > 0 {
 		log.Printf("limits changed from the defaults: %s", strings.Join(changed, " "))
 	}
@@ -205,7 +203,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("ensure admin user: %v", err)
 	}
-	authMW := auth.Middleware(cfg.AdminAPIKey, adminUserID, db)
+	authMW := auth.Middleware(cfg.AdminAPIKey, adminUserID, db, ed.Limits().KeyIdleExpiry)
 
 	// Stale-skill notice middleware. Compares the X-Skill-Version header
 	// against the bundled plugin.json version and injects a `_notice`
@@ -350,7 +348,7 @@ func main() {
 	// Deploy-only keys are refused everywhere but the deploy routes, in this
 	// one gate (internal/auth/scope.go). The MCP server calls back into the
 	// gated mux, so its tools follow the same table.
-	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(siteHandler.HackLegacyStorageGate(auth.ScopeGate(db, mux, ed.Identity().TeamKeys))), cfg.PublicBaseURL)
+	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(siteHandler.HackLegacyStorageGate(auth.ScopeGate(db, mux, ed.Identity().TeamKeys, ed.Limits().KeyIdleExpiry))), cfg.PublicBaseURL)
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, ed.Routes().HostedEvents, ed)
@@ -383,7 +381,7 @@ func main() {
 	var hackSweep func(context.Context)
 	var hackEvents *handler.HackHandler
 	if hosted {
-		hack := handler.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain)
+		hack := handler.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain, ed)
 		hack.SetMailer(mailer)
 		hackEvents = hack
 		if cfg.EventNamePeer != "" {
@@ -478,7 +476,7 @@ func main() {
 	// least one domain are configured, so a self-hosted instance never tries to
 	// hand out names under a domain it does not control.
 	if cfg.EventDNSToken != "" && len(cfg.EventDomains) > 0 {
-		ev := handler.NewEventDomainHandler(db, eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), cfg.EventDomains)
+		ev := handler.NewEventDomainHandler(db, eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), cfg.EventDomains, ed)
 		if cfg.EventNamePeer != "" && !hosted {
 			// One name list with the hackathon platform (hack_mode.go).
 			ev.SetNamePeer(handler.NamePeerClient(cfg.EventNamePeer))
@@ -509,7 +507,7 @@ func main() {
 		log.Printf("signup geo-block: sign-in and sign-up refused from %s; API keys and site viewing unaffected", strings.Join(cfg.SignupBlockedCountries, ", "))
 	}
 
-	apiMetrics := handler.NewAPIMetrics(db, geo)
+	apiMetrics := handler.NewAPIMetrics(db, geo, ed)
 	// Requests that match no API route are not counted; calls from this box
 	// (loopback, its own public address) are counted apart.
 	apiMetrics.SetRouting(mux, append([]string{cfg.CustomDomainIP}, cfg.CustomDomainIPAlso...)...)

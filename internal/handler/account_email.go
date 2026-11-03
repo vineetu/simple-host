@@ -135,7 +135,7 @@ func (h *UserHandler) requestEmailChange(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if err := db.PutEmailChange(r.Context(), h.database, user.ID, address, hashEmailChangeCode(code), hashEmailChangeCode(oldCode), time.Now().Add(authTokenTTL())); err != nil {
+	if err := db.PutEmailChange(r.Context(), h.database, user.ID, address, hashEmailChangeCode(code), hashEmailChangeCode(oldCode), time.Now().Add(h.authTokenTTL())); err != nil {
 		log.Printf("email change user_id=%s: store: %v", user.ID, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -154,7 +154,7 @@ func (h *UserHandler) requestEmailChange(w http.ResponseWriter, r *http.Request)
 		"message":            "Check " + address + " and " + current + " for a 6-digit code each, then send both to POST /v1/me/email/verify as code (from the new address) and current_code (from the current one).",
 		"email":              address,
 		"current_email":      current,
-		"expires_in_seconds": int(authTokenTTL().Seconds()),
+		"expires_in_seconds": int(h.authTokenTTL().Seconds()),
 	})
 }
 
@@ -169,7 +169,7 @@ Your confirmation code:
 
     `+code+`
 
-It expires in `+config.Span(authTokenTTL())+`. If you didn't ask for this, ignore this email: nothing changes.
+It expires in `+config.Span(h.authTokenTTL())+`. If you didn't ask for this, ignore this email: nothing changes.
 
 Simple Host
 `)
@@ -188,7 +188,7 @@ If that was you, enter this code together with the one sent to the new address:
 
     `+code+`
 
-It expires in `+config.Span(authTokenTTL())+`. If it wasn't you, do not share this code: without it nothing changes. Someone has one of your keys, so sign in and remove the keys you don't recognise, or write to support@simple-host.app.
+It expires in `+config.Span(h.authTokenTTL())+`. If it wasn't you, do not share this code: without it nothing changes. Someone has one of your keys, so sign in and remove the keys you don't recognise, or write to support@simple-host.app.
 
 Simple Host
 `))
@@ -269,7 +269,7 @@ func (h *UserHandler) verifyEmailChange(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	err = db.ApplyEmailChange(ctx, tx, user.ID, oldEmail, change.NewEmail, user.KeyHash, hashEmailChangeCode(undo))
+	err = db.ApplyEmailChange(ctx, tx, user.ID, oldEmail, change.NewEmail, user.KeyHash, hashEmailChangeCode(undo), h.limits.EmailChangeUndoTTL)
 	if err == nil {
 		err = tx.Commit()
 	}
@@ -304,7 +304,7 @@ func (h *UserHandler) emailOldAddress(oldEmail, newEmail, undoToken string) {
 	}
 	text := "Your Simple Host sign-in email was changed to " + maskEmail(newEmail) + `. From now on you sign in with that address.
 
-If this wasn't you, undo it (opens a page with an Undo button; works for ` + config.Span(db.EmailChangeUndoTTL()) + `):
+If this wasn't you, undo it (opens a page with an Undo button; works for ` + config.Span(h.limits.EmailChangeUndoTTL) + `):
 ` + h.undoLink(undoToken) + `
 
 Undoing puts the account back on this address, signs out every key and every sign-in on sites, and removes Google or GitHub sign-ins and connected apps added since the change. Questions: support@simple-host.app.

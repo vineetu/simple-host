@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/geoip"
 )
 
@@ -42,6 +42,7 @@ import (
 // applies to every row and nothing outlives the 30-day IP retention. If the
 // database files are missing, the columns are simply blank.
 type APIMetrics struct {
+	limitSet
 	db  *sql.DB
 	geo *geoip.DB // nil = no geo at all (blank columns)
 
@@ -76,14 +77,19 @@ type ipAgg struct {
 	lastRoute string
 }
 
-func NewAPIMetrics(db *sql.DB, geo *geoip.DB) *APIMetrics {
+func NewAPIMetrics(db *sql.DB, geo *geoip.DB, editions ...*edition.Edition) *APIMetrics {
+	var ed *edition.Edition
+	if len(editions) > 0 {
+		ed = editions[0]
+	}
 	m := &APIMetrics{
-		db:     db,
-		geo:    geo,
-		routes: make(map[routeKey]int64),
-		self:   make(map[routeKey]int64),
-		ips:    make(map[string]*ipAgg),
-		growth: make(map[growthKey]int64),
+		limitSet: newLimitSet(ed.Limits()),
+		db:       db,
+		geo:      geo,
+		routes:   make(map[routeKey]int64),
+		self:     make(map[routeKey]int64),
+		ips:      make(map[string]*ipAgg),
+		growth:   make(map[growthKey]int64),
 	}
 	go m.flushLoop()
 	return m
@@ -231,7 +237,7 @@ func (m *APIMetrics) flushLoop() {
 		log.Printf("api growth backfill: added %d calls from the API traffic tables", n)
 	}
 	cancel()
-	tick := time.NewTicker(config.Active().APIMetricsFlush)
+	tick := time.NewTicker(m.limits.APIMetricsFlush)
 	prune := time.NewTicker(6 * time.Hour)
 	for {
 		select {
@@ -311,11 +317,11 @@ func (m *APIMetrics) pruneOld() {
 		`DELETE FROM api_ip_daily WHERE day < CURRENT_DATE - $1::int`,
 		`DELETE FROM api_self_daily WHERE day < CURRENT_DATE - $1::int`,
 	} {
-		if _, err := m.db.ExecContext(ctx, q, metricsRetentionDays()); err != nil {
+		if _, err := m.db.ExecContext(ctx, q, m.metricsRetentionDays()); err != nil {
 			log.Printf("api metrics prune: %v", err)
 		}
 	}
-	if _, err := m.db.ExecContext(ctx, `DELETE FROM api_growth_daily WHERE day < CURRENT_DATE - $1::int`, config.Active().APIGrowthRetention); err != nil {
+	if _, err := m.db.ExecContext(ctx, `DELETE FROM api_growth_daily WHERE day < CURRENT_DATE - $1::int`, m.limits.APIGrowthRetention); err != nil {
 		log.Printf("api growth prune: %v", err)
 	}
 }
@@ -402,7 +408,7 @@ func (m *APIMetrics) AdminSummary(w http.ResponseWriter, r *http.Request) {
 	// sequential queries are simpler than one clever one.
 	m.flush() // fold in the last ≤20s so "today" looks live
 	ctx := r.Context()
-	out := apiAnalyticsResponse{Retention: metricsRetentionDays()}
+	out := apiAnalyticsResponse{Retention: m.metricsRetentionDays()}
 
 	row := m.db.QueryRowContext(ctx, `
 		SELECT

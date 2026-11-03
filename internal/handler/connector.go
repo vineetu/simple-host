@@ -47,7 +47,6 @@ import (
 	"unicode"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
@@ -71,7 +70,8 @@ const (
 
 // ConnectorHandler serves the OAuth authorization server and /mcp.
 type ConnectorHandler struct {
-	ed           *edition.Edition
+	ed *edition.Edition
+	limitSet
 	hostedEvents bool
 	database     *sql.DB
 	issuer       string // e.g. https://simple-host.app
@@ -129,9 +129,11 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	if apiHost == "" {
 		apiHost = siteDomain
 	}
+	lim := ed.Limits()
 	h := &ConnectorHandler{
 		hostedEvents: hostedEvents,
 		ed:           ed,
+		limitSet:     newLimitSet(lim),
 		database:     database,
 		issuer:       issuer,
 		mcpResource:  issuer + "/mcp",
@@ -140,21 +142,23 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// Registration: a chat app registers once per install, so a handful
 		// an hour per address is plenty. Authorize and token: one person's
 		// sign-in or a client's refresh loop, with room for retries.
-		registerLimiter:     newRateLimiterFor(config.Active().RateOAuthRegister),
-		authorizeLimiter:    newRateLimiterFor(config.Active().RateOAuthAuthorize),
-		tokenLimiter:        newRateLimiterFor(config.Active().RateOAuthToken),
-		uploadLimiter:       newRateLimiterFor(config.Active().RateOAuthToken),
+		registerLimiter:     newRateLimiterFor(lim.RateOAuthRegister),
+		authorizeLimiter:    newRateLimiterFor(lim.RateOAuthAuthorize),
+		tokenLimiter:        newRateLimiterFor(lim.RateOAuthToken),
+		uploadLimiter:       newRateLimiterFor(lim.RateOAuthToken),
 		importStatusLimiter: newRateLimiter(60, 1),
 		now:                 time.Now,
 	}
-	h.imports = newImportManager()
+	h.imports = newImportManager(lim.ImportMaxConcurrent)
 	h.upstream = upstream
 	h.skillVersion = skillVersion
+	mcpSnapshot := mcpLimits(lim)
 	h.mcpConfig = mcp.Config{
+		Limits:             &mcpSnapshot,
 		AnalyticsProjectID: strings.TrimSpace(os.Getenv("AGENTCAT_PROJECT_ID")),
 		AnalyticsEnv:       analyticsEnv(issuer),
 		AnalyticsPepper:    analyticsPepper(adminAPIKey),
-		ImportLinkTTL:      config.Active().ImportLinkTTL,
+		ImportLinkTTL:      lim.ImportLinkTTL,
 		ImportCreated:      h.imports.created,
 		ImportReceiving:    h.imports.receiving,
 		ImportReport:       h.imports.report,
@@ -172,7 +176,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// limit, plus JSON/base64 overhead. The largest any account has
 		// (MAX_ARCHIVE_MB_OVERRIDES), since the account is not known yet; the
 		// deploy route then holds each account to its own.
-		MaxBodyBytes:   largestSiteLimit()*4/3 + (1 << 20),
+		MaxBodyBytes:   h.largestSiteLimit()*4/3 + (1 << 20),
 		SelectHackTeam: h.selectHackTeam,
 		// internal/mcp is a leaf package (check-layering.sh) and may not
 		// import internal/papermetrics directly; this is the same hook it
@@ -232,10 +236,10 @@ func (h *ConnectorHandler) StartSweep(every time.Duration) {
 		time.Sleep(45 * time.Second)
 		for {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			if err := db.SweepOAuth(ctx, h.database); err != nil {
+			if err := db.SweepOAuth(ctx, h.database, h.limits.OAuthUnusedClientAge); err != nil {
 				log.Printf("connector sweep: %v", err)
 			}
-			if n, err := db.PurgeExpiredAPIKeys(ctx, h.database); err != nil {
+			if n, err := db.PurgeExpiredAPIKeys(ctx, h.database, h.limits.KeyIdleExpiry); err != nil {
 				log.Printf("api key sweep: %v", err)
 			} else if n > 0 {
 				log.Printf("api key sweep: removed %d keys expired over 30 days", n)
@@ -1030,7 +1034,7 @@ func (h *ConnectorHandler) resolveConsentUser(ctx context.Context, key string) (
 	if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) == 1 {
 		return db.User{}, http.StatusForbidden, "The instance admin key cannot connect apps. Sign in with a personal account."
 	}
-	user, err := db.GetUserByAPIKey(ctx, h.database, key)
+	user, err := db.GetUserByAPIKey(ctx, h.database, key, h.limits.KeyIdleExpiry)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return db.User{}, http.StatusUnauthorized, "sign in again"
@@ -1398,12 +1402,12 @@ func (h *ConnectorHandler) issueTokens(w http.ResponseWriter, r *http.Request, t
 	access := randomToken(prefixAccess, 32)
 	refresh := randomToken(prefixRefresh, 32)
 	now := h.now()
-	if err := db.InsertOAuthToken(r.Context(), tx, hashSecret(access), grantID, "access", now.Add(oauthAccessTTL())); err != nil {
+	if err := db.InsertOAuthToken(r.Context(), tx, hashSecret(access), grantID, "access", now.Add(h.oauthAccessTTL())); err != nil {
 		log.Printf("connector: insert access token: %v", err)
 		oauthError(w, http.StatusInternalServerError, "server_error", "")
 		return
 	}
-	if err := db.InsertOAuthToken(r.Context(), tx, hashSecret(refresh), grantID, "refresh", now.Add(oauthRefreshTTL())); err != nil {
+	if err := db.InsertOAuthToken(r.Context(), tx, hashSecret(refresh), grantID, "refresh", now.Add(h.oauthRefreshTTL())); err != nil {
 		log.Printf("connector: insert refresh token: %v", err)
 		oauthError(w, http.StatusInternalServerError, "server_error", "")
 		return
@@ -1417,7 +1421,7 @@ func (h *ConnectorHandler) issueTokens(w http.ResponseWriter, r *http.Request, t
 	writeJSON(w, http.StatusOK, map[string]any{
 		"access_token":  access,
 		"token_type":    "Bearer",
-		"expires_in":    int(oauthAccessTTL() / time.Second),
+		"expires_in":    int(h.oauthAccessTTL() / time.Second),
 		"refresh_token": refresh,
 		"scope":         scope,
 	})
@@ -1695,7 +1699,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		// personal key is the same identity as an events grant, so it sees
 		// the event tools; a team key keeps the website tools.
 		if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {
-			if u, err := db.GetUserByAPIKey(r.Context(), h.database, key); err != nil {
+			if u, err := db.GetUserByAPIKey(r.Context(), h.database, key, h.limits.KeyIdleExpiry); err != nil {
 				if errors.Is(err, db.ErrAccountSuspended) {
 					writeAccountSuspended(w)
 					return
@@ -1703,7 +1707,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 				if errors.Is(err, db.ErrKeyExpired) || errors.Is(err, db.ErrKeyExpiredIdle) {
 					// Say why, with no OAuth challenge: the caller holds a key
 					// and needs a new one, not a sign-in flow.
-					msg, code := auth.ExpiredKeyMessage(err, u.KeyExpiresAt)
+					msg, code := auth.ExpiredKeyMessage(err, u.KeyExpiresAt, h.limits.KeyIdleExpiry)
 					w.Header().Set("Cache-Control", "no-store")
 					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: msg, Code: code})
 					return
@@ -1725,7 +1729,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		apiKey = key
 		mintUpload = func(ctx context.Context, _ bool) (string, func(), error) {
 			if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {
-				if _, err := db.GetUserByAPIKey(ctx, h.database, key); err != nil {
+				if _, err := db.GetUserByAPIKey(ctx, h.database, key, h.limits.KeyIdleExpiry); err != nil {
 					return "", nil, err
 				}
 			}

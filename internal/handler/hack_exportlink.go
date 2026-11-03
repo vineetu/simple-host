@@ -15,7 +15,7 @@ import (
 const hackArchiveLinkDomain = "simple-hack event archive v1"
 
 // The shared EXPORT_LINK_TTL_MINUTES knob also controls event archive links.
-func hackArchiveLinkTTL() time.Duration { return exportLinkTTL() }
+func (h *HackHandler) hackArchiveLinkTTL() time.Duration { return h.exportLinkTTL() }
 
 type hackArchiveClaim struct {
 	UserID  string `json:"u"`
@@ -38,7 +38,7 @@ func (h *HackHandler) checkHackArchiveClaim(token string, now time.Time) (hackAr
 		return c, false
 	}
 	left := time.Unix(c.Expiry, 0).Sub(now)
-	if left <= 0 || left > hackArchiveLinkTTL() || !uuidShape.MatchString(c.UserID) || !uuidShape.MatchString(c.EventID) ||
+	if left <= 0 || left > h.hackArchiveLinkTTL() || !uuidShape.MatchString(c.UserID) || !uuidShape.MatchString(c.EventID) ||
 		(c.Kind != "projects" && c.Kind != "own-team") || (c.Kind == "own-team") != (c.TeamID != "") ||
 		(c.TeamID != "" && !uuidShape.MatchString(c.TeamID)) || c.Slug == "" {
 		return c, false
@@ -63,7 +63,7 @@ func (h *HackHandler) createHackArchiveLink(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	claim := hackArchiveClaim{UserID: a.user.ID, EventID: a.event.ID, Slug: a.event.Slug, Kind: kind,
-		Expiry: time.Now().Add(hackArchiveLinkTTL()).Truncate(time.Second).Unix()}
+		Expiry: time.Now().Add(h.hackArchiveLinkTTL()).Truncate(time.Second).Unix()}
 	if kind == "own-team" {
 		team, ok := h.participantTeam(w, r, a)
 		if !ok {
@@ -75,7 +75,7 @@ func (h *HackHandler) createHackArchiveLink(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{
 		"url":        h.publicBaseURL + "/v1/hack/archive?token=" + url.QueryEscape(h.signHackArchiveClaim(claim)),
 		"expires_at": time.Unix(claim.Expiry, 0).UTC().Format(time.RFC3339),
-		"expires_in": int(hackArchiveLinkTTL().Seconds()),
+		"expires_in": int(h.hackArchiveLinkTTL().Seconds()),
 	})
 }
 

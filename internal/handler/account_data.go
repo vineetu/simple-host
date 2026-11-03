@@ -339,7 +339,7 @@ func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 	for _, d := range deleted {
 		prefix := root + "/recently-deleted/" + d.Name
 		info, _ := json.MarshalIndent(map[string]any{
-			"site": d.Name, "deleted_at": d.DeletedAt.UTC(), "removed_for_good_at": d.PurgeAt().UTC(),
+			"site": d.Name, "deleted_at": d.DeletedAt.UTC(), "removed_for_good_at": d.PurgeAt(h.limits.DeletedRetention).UTC(),
 		}, "", "  ")
 		if err := putBytes(put, prefix+"/deleted.json", info); err != nil {
 			return

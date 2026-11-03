@@ -56,10 +56,10 @@ type keyView struct {
 	Current bool   `json:"current"`
 }
 
-func newKeyView(k db.APIKey, now time.Time, current bool) keyView {
+func newKeyView(k db.APIKey, now time.Time, current bool, keyIdle time.Duration) keyView {
 	return keyView{
 		ID: k.ID, Name: k.Name, Last4: k.Last4, Scope: k.Scope, CreatedAt: k.CreatedAt, LastUsedAt: k.LastUsedAt,
-		ExpiresAt: k.ExpiresAt, IdleExpiresAt: k.IdleExpiresAt(), Expired: k.Expired(now), Current: current,
+		ExpiresAt: k.ExpiresAt, IdleExpiresAt: k.IdleExpiresAt(keyIdle), Expired: k.Expired(now, keyIdle), Current: current,
 	}
 }
 
@@ -121,7 +121,7 @@ func (h *UserHandler) listKeys(w http.ResponseWriter, r *http.Request) {
 	out := make([]keyView, 0, len(keys))
 	now := time.Now()
 	for _, k := range keys {
-		out = append(out, newKeyView(k, now, user.KeyHash != "" && k.Hash == user.KeyHash))
+		out = append(out, newKeyView(k, now, user.KeyHash != "" && k.Hash == user.KeyHash, h.limits.KeyIdleExpiry))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"keys": out})
 }
@@ -176,14 +176,14 @@ func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	k, err := db.CreateAPIKey(r.Context(), h.database, user.ID, user.KeyHash, plain, name, scope, expiresAt)
+	k, err := db.CreateAPIKey(r.Context(), h.database, user.ID, user.KeyHash, plain, name, scope, expiresAt, h.limits.MaxKeysPerAccount, h.limits.KeyIdleExpiry)
 	if errors.Is(err, sql.ErrNoRows) {
 		// The key this request came with was revoked or rotated away meanwhile.
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: auth.InvalidKeyMessage(), Code: "invalid_api_key"})
 		return
 	}
 	if errors.Is(err, db.ErrKeyLimit) {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("this account already holds %d keys; revoke ones you no longer use first", db.MaxAccountKeys()), Code: "key_limit"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("this account already holds %d keys; revoke ones you no longer use first", h.limits.MaxKeysPerAccount), Code: "key_limit"})
 		return
 	}
 	if err != nil {
@@ -191,7 +191,7 @@ func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	v := newKeyView(k, time.Now(), false)
+	v := newKeyView(k, time.Now(), false, h.limits.KeyIdleExpiry)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id": v.ID, "name": v.Name, "last4": v.Last4, "scope": v.Scope, "created_at": v.CreatedAt, "last_used_at": nil,
 		"expires_at": v.ExpiresAt, "idle_expires_at": v.IdleExpiresAt,

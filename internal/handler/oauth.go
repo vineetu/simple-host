@@ -55,6 +55,7 @@ func writeOAuthHTMLBlocked(w http.ResponseWriter) {
 
 type OAuthHandler struct {
 	ed *edition.Edition
+	limitSet
 	// personSite resolves a return_to on a person host to its site
 	// (SiteHandler.PersonReturnSite); nil when person hosts are not wired.
 	personSite func(ctx context.Context, host, path string) (string, bool)
@@ -115,12 +116,14 @@ func NewOAuthHandler(database *sql.DB, cfg config.Config, editions ...*edition.E
 			InsecureAllowed:     cfg.OIDCInsecureAllowed,
 		})
 	}
-	ipLimiter := newRateLimiterFor(config.Active().RateVisitorOAuth)
+	lim := ed.Limits()
+	ipLimiter := newRateLimiterFor(lim.RateVisitorOAuth)
 	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	ssoKeyLimiter := newRateLimiterFor(config.Active().RateVisitorOAuth)
+	ssoKeyLimiter := newRateLimiterFor(lim.RateVisitorOAuth)
 	ssoKeyLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h := &OAuthHandler{
 		ed:            ed,
+		limitSet:      newLimitSet(lim),
 		database:      database,
 		cfg:           cfg,
 		providers:     providers,
@@ -480,7 +483,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		}
 		// The one-time token is bound to the nonce of the tab that started
 		// this sign-in (cn in its return_to), so only that tab can redeem it.
-		if err := db.CreateAuthToken(r.Context(), tx, user.Username, code, linkToken, time.Now().Add(authTokenTTL()), "dashboard", sql.NullString{}, returnToNonceHash(st.ReturnTo)); err != nil {
+		if err := db.CreateAuthToken(r.Context(), tx, user.Username, code, linkToken, time.Now().Add(h.authTokenTTL()), "dashboard", sql.NullString{}, returnToNonceHash(st.ReturnTo)); err != nil {
 			log.Printf("oauth: owner auth token: %v", err)
 			writeOAuthHTMLError(w, http.StatusBadGateway)
 			return

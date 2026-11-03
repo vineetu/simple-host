@@ -323,7 +323,7 @@ func (p *assetPipeline) chromePage(name string, d chromeData) ([]byte, error) {
 	if p.pres.HackAssets {
 		page = hackPersonalPresentationHTML(name, page)
 	}
-	return hostedBlocks(p.hackInstanceText(instanceLimits.apply(page)), p.hostedOwner() != ""), nil
+	return hostedBlocks(p.hackInstanceText(p.limitsText.apply(page)), p.hostedOwner() != ""), nil
 }
 
 // hostedBlocks keeps the text that is true for this server. A page marks

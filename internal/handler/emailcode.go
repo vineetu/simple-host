@@ -55,7 +55,7 @@ func writeEmailCodeError(w http.ResponseWriter, status int, body errorResponse) 
 // refusal is simpler and sufficient). geoBlock's zero value (the default,
 // feature off) never looks anything up, so this is a no-op for every caller
 // until the knob is set.
-func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, limiter *rateLimiter, address, linkBase string, purpose string, siteID, nonceHash sql.NullString, ip string, geoBlock signupGeoBlock) (string, int, int, errorResponse) {
+func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, limiter *rateLimiter, address, linkBase string, purpose string, siteID, nonceHash sql.NullString, ip string, geoBlock signupGeoBlock, authTTL time.Duration) (string, int, int, errorResponse) {
 	if !emailSignInEnabled {
 		return "", 0, http.StatusForbidden, errEmailSignInOff
 	}
@@ -87,7 +87,7 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 		return "", 0, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
 	}
 
-	expiresAt := time.Now().Add(authTokenTTL())
+	expiresAt := time.Now().Add(authTTL)
 	if purpose != "dashboard" {
 		nonceHash = sql.NullString{}
 	}
@@ -107,12 +107,12 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 		return "", 0, http.StatusInternalServerError, signInSendFailed()
 	}
 
-	return address, int(authTokenTTL().Seconds()), 0, errorResponse{}
+	return address, int(authTTL.Seconds()), 0, errorResponse{}
 }
 
 // verifyEmailCode shares token verification and lazy account creation. Only the
 // dashboard caller accepts a magic-link token in req.
-func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter, req verifyRequest, purpose string, siteID sql.NullString, randomHandles bool) (db.User, bool, int, errorResponse) {
+func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter, req verifyRequest, purpose string, siteID sql.NullString, randomHandles bool, authTTL time.Duration) (db.User, bool, int, errorResponse) {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.Code = strings.ReplaceAll(strings.TrimSpace(req.Code), "-", "")
 	req.Token = strings.TrimSpace(req.Token)
@@ -133,7 +133,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.User{}, false, http.StatusUnauthorized, signInCodeExpired()
+		return db.User{}, false, http.StatusUnauthorized, signInCodeExpired(authTTL)
 	}
 	if err != nil {
 		log.Printf("auth: lookup token: %v", err)
@@ -213,7 +213,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 		log.Printf("auth: ClaimAuthToken: %v", err)
 		return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
 	} else if !ok {
-		return db.User{}, false, http.StatusUnauthorized, signInCodeExpired()
+		return db.User{}, false, http.StatusUnauthorized, signInCodeExpired(authTTL)
 	}
 	user, err := db.GetUserByUsername(ctx, tx, tok.Email)
 	if cerr := tx.Commit(); err == nil || errors.Is(err, sql.ErrNoRows) {

@@ -101,6 +101,9 @@ func callerFrom(ctx context.Context) (Caller, bool) {
 
 // Config wires the server to the application.
 type Config struct {
+	// Limits is the snapshot used for tool descriptions and results.
+	Limits *Limits
+
 	// VisitorTool runs with a fresh, site-bound visitor pass, never APIKey.
 	VisitorTool func(*http.Request, Caller, string, map[string]any) (map[string]any, error)
 	// VisitorRefs shares the site handler export key for MCP-only attribution.
@@ -207,7 +210,14 @@ func NewServer(cfg Config) *Server {
 	}
 	supportContact = cfg.SupportContact
 	instanceRewrite = cfg.Rewrite
-	tools := Tools()
+	if cfg.Limits == nil {
+		l := DefaultLimits()
+		cfg.Limits = &l
+	} else {
+		l := *cfg.Limits
+		cfg.Limits = &l
+	}
+	tools := toolsWithLimits(*cfg.Limits)
 	if cfg.Events != nil {
 		tools = append(tools, notificationTools()...)
 	}
@@ -274,7 +284,7 @@ func NewServer(cfg Config) *Server {
 		case "set_visibility":
 			tool.Description = "Choose whether the team website appears on its account's public listing. Unlisted also keeps it out of search engines unless it has its own domain or name, and is still reachable by anyone with its address; it does not make the site or any storage resource private."
 		case "delete_site":
-			tool.Description = "DESTRUCTIVE: take this team's website offline with its published versions and storage. It stays in Recently deleted for " + span(lim().DeletedRetention) + " and can be restored during that time. Only call this after the person has confirmed in this conversation that they want this team's website deleted. Pass the site name twice: as `site` and as `confirm_name`."
+			tool.Description = "DESTRUCTIVE: take this team's website offline with its published versions and storage. It stays in Recently deleted for " + span(cfg.Limits.DeletedRetention) + " and can be restored during that time. Only call this after the person has confirmed in this conversation that they want this team's website deleted. Pass the site name twice: as `site` and as `confirm_name`."
 		case "restore_site":
 			tool.Description = "Restore this team's website from Recently deleted, including its files, versions and storage, while the retention period lasts."
 		case "set_site_offline":

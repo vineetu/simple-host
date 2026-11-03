@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
@@ -17,11 +16,13 @@ import (
 // at startup with a message naming the variable. Unset means today's value, so
 // an install that sets none of them behaves exactly as before.
 //
-// The rest of the program reads the values through Active(), which
-// handler.ApplyLimits sets once before serving (and hands the leaf packages
-// their share). Code that states one of these values to a person (an
-// email, a page, an MCP tool description) formats it from here, so changing a
-// knob changes the words too.
+// main loads one Limits value (config.Load) and passes it into
+// edition.New(cfg); every handler, and the leaf packages that enforce or
+// state a share of it (db, mcp, tarball), reads its own copy from the
+// edition it was built with (ed.Limits()) rather than a shared global. Code
+// that states one of these values to a person (an email, a page, an MCP tool
+// description) formats it from that same copy, so changing a knob changes
+// the words too.
 type Limits struct {
 	NotifyMaxPerSite            int
 	NotifyPerMinute             int
@@ -1043,8 +1044,6 @@ func (l Limits) Changed() []string {
 	return out
 }
 
-var active atomic.Pointer[Limits]
-
 func init() {
 	knobDocs["NOTIFY_MAX_PER_SITE"] = knobDoc{"data", "Notification subscriptions allowed per site.", false, true}
 	knobDocs["NOTIFY_PER_MINUTE"] = knobDoc{"data", "Visitor events accepted per site per minute.", false, true}
@@ -1062,17 +1061,7 @@ func init() {
 	knobDocs["NOTIFY_DEFAULT_TTL_HOURS"] = knobDoc{"data", "Default lifetime of an MCP event subscription, in hours.", false, true}
 	knobDocs["NOTIFY_SUSPEND_WINDOW_HOURS"] = knobDoc{"data", "Rolling window for the suspension failure percentage, in hours.", false, true}
 	knobDocs["NOTIFY_SUSPEND_DAYS"] = knobDoc{"data", "Days of continuous failures before a subscription is suspended.", false, true}
-	l := DefaultLimits()
-	active.Store(&l)
 }
-
-// Active returns the limits in force. Before SetActive it is the defaults, so
-// tests and tools that never load config see today's behaviour.
-func Active() *Limits { return active.Load() }
-
-// SetActive installs l as the limits in force. handler.ApplyLimits calls it,
-// once before serving and in tests that try a changed knob.
-func SetActive(l Limits) { active.Store(&l) }
 
 // limitsFromEnv is Load's hook, split out so the test can call LoadLimits with
 // a fake environment instead.

@@ -13,8 +13,8 @@ import (
 // outside config.Limits (the version-retention package var). Computed fresh
 // on every request, straight from this install's own settings, the same
 // source every other page or email draws its numbers from.
-func pricingNumbers(hostedEvents bool) map[string]string {
-	accountMB := config.Active().MaxAccountMB
+func pricingNumbers(hostedEvents bool, l config.Limits) map[string]string {
+	accountMB := l.MaxAccountMB
 	account := "no account-wide cap by default"
 	switch {
 	case accountMB == 1024:
@@ -22,7 +22,7 @@ func pricingNumbers(hostedEvents bool) map[string]string {
 	case accountMB > 0:
 		account = "up to " + limitNum(accountMB) + " MB"
 	}
-	siteTotalMB := config.Active().MaxSiteTotalMB
+	siteTotalMB := l.MaxSiteTotalMB
 	siteTotal := "no per-site cap by default"
 	if siteTotalMB > 0 {
 		siteTotal = "up to " + limitNum(siteTotalMB) + " MB"
@@ -37,8 +37,8 @@ func pricingNumbers(hostedEvents bool) map[string]string {
 		"__KEEP_VERSIONS__":       limitNum(KeepVersions()),
 		"__SITE_TOTAL_MB__":       siteTotal,
 		"__ACCOUNT_MB__":          account,
-		"__VIEWERS_MAX__":         limitNum(config.Active().SiteViewersMax),
-		"__NOTIFY_MAX__":          limitNum(config.Active().NotifyMaxPerSite),
+		"__VIEWERS_MAX__":         limitNum(l.SiteViewersMax),
+		"__NOTIFY_MAX__":          limitNum(l.NotifyMaxPerSite),
 		"__STORAGE_DB_BYTES__":    limitCommas(int(storageSiteLimitBytes(hostedEvents))),
 		"__STORAGE_FILES_BYTES__": limitCommas(int(filesBytes)),
 		"__STORAGE_FILE_BYTES__":  limitCommas(int(storageFileMaxBytes())),
@@ -46,8 +46,8 @@ func pricingNumbers(hostedEvents bool) map[string]string {
 	}
 }
 
-func applyPricingNumbers(body []byte, hostedEvents bool) []byte {
-	for token, value := range pricingNumbers(hostedEvents) {
+func applyPricingNumbers(body []byte, hostedEvents bool, l config.Limits) []byte {
+	for token, value := range pricingNumbers(hostedEvents, l) {
 		body = bytes.ReplaceAll(body, []byte(token), []byte(value))
 	}
 	return body

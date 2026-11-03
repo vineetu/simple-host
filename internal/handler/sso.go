@@ -58,16 +58,18 @@ func setSSOCookie(w http.ResponseWriter, r *http.Request, value string, maxAge i
 	http.SetCookie(w, &http.Cookie{Name: ssoCookieName(r), Value: value, Path: "/", MaxAge: maxAge, HttpOnly: true, Secure: requestIsHTTPS(r), SameSite: http.SameSiteLaxMode})
 }
 
-// Issuance runs only through /v1/sso/session, after account sign-in on the apex.
-func issueSSOPass(w http.ResponseWriter, r *http.Request, database *sql.DB, keyHash string) error {
+// Issuance runs only through /v1/sso/session, after account sign-in on the
+// apex. ttl and idle are the visitor session limits (limitSet.
+// visitorSessionTTL/visitorSessionIdle) of the handler issuing the pass.
+func issueSSOPass(w http.ResponseWriter, r *http.Request, database *sql.DB, keyHash string, ttl, idle, keyIdle time.Duration) error {
 	raw, err := randomHex(32)
 	if err != nil {
 		return err
 	}
-	if err = db.ReplaceSSOPass(r.Context(), database, db.HashAPIKey(raw), keyHash, db.HashAPIKey(ssoCookie(r)), visitorSessionTTL(), visitorSessionIdle()); err != nil {
+	if err = db.ReplaceSSOPass(r.Context(), database, db.HashAPIKey(raw), keyHash, db.HashAPIKey(ssoCookie(r)), ttl, idle, keyIdle); err != nil {
 		return err
 	}
-	setSSOCookie(w, r, raw, visitorCookieMaxAge())
+	setSSOCookie(w, r, raw, int(ttl/time.Second))
 	return nil
 }
 func (h *OAuthHandler) registerSSO(mux *http.ServeMux) {
@@ -134,15 +136,15 @@ func (h *OAuthHandler) bootstrapSSO(w http.ResponseWriter, r *http.Request) {
 		tooManyRequests(w)
 		return
 	}
-	if p, err := db.GetSSOPass(r.Context(), h.database, db.HashAPIKey(ssoCookie(r))); err == nil && p.ParentKeyHash == keyHash {
-		if err := db.TouchSSOPass(r.Context(), h.database, p.Hash, visitorSessionIdle()); err != nil {
+	if p, err := db.GetSSOPass(r.Context(), h.database, db.HashAPIKey(ssoCookie(r)), h.limits.KeyIdleExpiry); err == nil && p.ParentKeyHash == keyHash {
+		if err := db.TouchSSOPass(r.Context(), h.database, p.Hash, h.visitorSessionIdle()); err != nil {
 			writeOAuthHTMLError(w, 500)
 			return
 		}
 		w.WriteHeader(204)
 		return
 	}
-	if err := issueSSOPass(w, r, h.database, keyHash); err != nil {
+	if err := issueSSOPass(w, r, h.database, keyHash, h.visitorSessionTTL(), h.visitorSessionIdle(), h.limits.KeyIdleExpiry); err != nil {
 		http.Error(w, "Sign in first.", 401)
 		return
 	}
@@ -214,7 +216,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 	}
 	// An OAuth callback carries a browser-bound account token. Redeem that on
 	// the apex before using any existing pass, including when switching people.
-	p, err := db.GetSSOPass(r.Context(), h.database, db.HashAPIKey(ssoCookie(r)))
+	p, err := db.GetSSOPass(r.Context(), h.database, db.HashAPIKey(ssoCookie(r)), h.limits.KeyIdleExpiry)
 	if err != nil || r.URL.Query().Get("token") != "" {
 		if r.Method == "POST" {
 			logSignInFail(r, "sso_consent", "no_pass", state)
@@ -276,7 +278,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(w, 400)
 		return
 	}
-	if _, err = db.GetSSOPass(r.Context(), tx, p.Hash); err != nil {
+	if _, err = db.GetSSOPass(r.Context(), tx, p.Hash, h.limits.KeyIdleExpiry); err != nil {
 		logSignInFail(r, "sso_hop", "pass_gone", state)
 		writeOAuthHTMLError(w, 401)
 		return
@@ -314,7 +316,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 		err = db.InsertEstablishToken(r.Context(), tx, once, id, hop.Host, hop.ReturnTo, sql.NullString{String: hop.NonceHash, Valid: true}, now.Add(time.Minute))
 	}
 	if err == nil {
-		err = db.TouchSSOPass(r.Context(), tx, p.Hash, visitorSessionIdle())
+		err = db.TouchSSOPass(r.Context(), tx, p.Hash, h.visitorSessionIdle())
 	}
 	if err == nil {
 		err = tx.Commit()
@@ -422,7 +424,7 @@ func (h *SiteHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next st
 	var sess db.VisitorSession
 	id, err := hex.DecodeString(strictVisitorCookie(r))
 	if err == nil && len(id) == 32 {
-		s, err := db.GetVisitorSession(r.Context(), h.database, id)
+		s, err := db.GetVisitorSession(r.Context(), h.database, id, h.limits.KeyIdleExpiry)
 		if err != nil && err != sql.ErrNoRows {
 			return "", err
 		}

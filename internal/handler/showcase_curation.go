@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -45,7 +44,7 @@ func (h *SiteHandler) showcaseBio(w http.ResponseWriter, r *http.Request) {
 	if u == nil {
 		return
 	}
-	max := config.Active().ShowcaseBioMaxLength
+	max := h.limits.ShowcaseBioMaxLength
 	if r.Method == http.MethodPut {
 		var body struct {
 			Bio *string `json:"bio"`

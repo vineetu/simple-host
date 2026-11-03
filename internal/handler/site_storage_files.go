@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/storage"
 	"golang.org/x/text/unicode/norm"
@@ -136,7 +135,7 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
-		if !existed && usage.FileObjects[c.resourceName] >= config.Active().StorageFileObjects {
+		if !existed && usage.FileObjects[c.resourceName] >= h.limits.StorageFileObjects {
 			storageError(w, 507, "bucket_full", "file bucket has too many objects; remove unused files")
 			return
 		}

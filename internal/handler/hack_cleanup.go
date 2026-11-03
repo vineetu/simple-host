@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
 )
@@ -31,8 +30,8 @@ func (h *HackHandler) SetMailer(m email.Sender) { h.mailer = m }
 // StartEventCleanup runs the sweep shortly after boot and then daily.
 // EVENTS=hosted only: main starts it from the hosted-mode block.
 func (h *HackHandler) StartEventCleanup(ctx context.Context) {
-	keep := config.Active().EventSitesKeep
-	warn := config.Active().EventRemovalWarn
+	keep := h.limits.EventSitesKeep
+	warn := h.limits.EventRemovalWarn
 	log.Printf("event-site cleanup: on (team sites removed %d days after an event archives, one warning %d days before, then daily)", int(keep.Hours()/24), int(warn.Hours()/24))
 	go func() {
 		select {
@@ -64,8 +63,8 @@ func (h *HackHandler) runEventCleanup(ctx context.Context, now time.Time) {
 		log.Printf("event-site cleanup: no mailer; nothing done")
 		return
 	}
-	keep := config.Active().EventSitesKeep
-	warnFor := config.Active().EventRemovalWarn
+	keep := h.limits.EventSitesKeep
+	warnFor := h.limits.EventRemovalWarn
 	events, err := db.ListEventsForSiteCleanup(ctx, h.database)
 	if err != nil {
 		log.Printf("event-site cleanup: list: %v", err)
@@ -161,7 +160,7 @@ If you need more time, write to support@simple-host.app.
 
 Simple Hack
 `, ev.Title, removeOn)
-	if err := mailer.SendNoticeReplyTo(ev.ContactEmail, idleReplyTo(), subject, text); err != nil {
+	if err := mailer.SendNoticeReplyTo(ev.ContactEmail, h.idleReplyTo(), subject, text); err != nil {
 		log.Printf("event-site cleanup: warn %s: %v", ev.Slug, err)
 		return
 	}

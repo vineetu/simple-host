@@ -225,7 +225,7 @@ func (h *SiteHandler) familyResponseFor(ctx context.Context, f db.AddressFamily,
 		resp.ReleaseAt = timePtr(f.ReleaseAt)
 	}
 	if !f.VerifiedAt.Valid {
-		t := f.BoundAt.Add(config.Active().FamilyUnprovenTTL)
+		t := f.BoundAt.Add(h.limits.FamilyUnprovenTTL)
 		resp.ExpiresAt = &t
 	}
 	resp.DNS = &dnsRecord{Type: "CNAME", Host: "*." + f.Suffix, Value: h.cnameTarget}
@@ -238,7 +238,7 @@ func (h *SiteHandler) familyResponseFor(ctx context.Context, f db.AddressFamily,
 	if sites, err := db.ListSitesByUser(ctx, h.database, f.UserID); err == nil {
 		for _, s := range sites {
 			label, ok := strings.CutPrefix(s.Name, f.SitePrefix)
-			if !ok || !familyLabelOK(f, label) {
+			if !ok || !familyLabelOK(f, label, h.limits) {
 				continue
 			}
 			if resp.ExampleURL == "" {
@@ -347,7 +347,7 @@ func (h *SiteHandler) createFamilyFor(w http.ResponseWriter, r *http.Request, us
 		canonical = *req.Canonical
 	}
 	b := db.FamilyBind{UserID: userID, Suffix: suffix, SitePrefix: prefix, Rank: rank, Canonical: canonical,
-		CertMode: "wildcard", Max: config.Active().FamiliesPerAccount}
+		CertMode: "wildcard", Max: h.limits.FamiliesPerAccount}
 	if admin {
 		name := strings.ToLower(strings.TrimSpace(req.CertName))
 		if name != "" && !certNameRE.MatchString(name) {
@@ -368,7 +368,7 @@ func (h *SiteHandler) createFamilyFor(w http.ResponseWriter, r *http.Request, us
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "*." + suffix + " (or a name under it) is connected to another account", Code: "domain_taken"})
 		return
 	case errors.Is(err, db.ErrFamilyCap):
-		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("an account may connect %d address families on this server", config.Active().FamiliesPerAccount), Code: "address_family_limit"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("an account may connect %d address families on this server", h.limits.FamiliesPerAccount), Code: "address_family_limit"})
 		return
 	}
 	if err != nil {
@@ -552,9 +552,9 @@ func (h *SiteHandler) releaseFamily(ctx context.Context, f db.AddressFamily) err
 
 // familyRequestBody is requests/<suffix>: the token, the link target, the
 // certificate mode and lineage, the site prefix and the reserved labels.
-func familyRequestBody(f db.AddressFamily) string {
+func familyRequestBody(f db.AddressFamily, l config.Limits) string {
 	return f.Token + "\n" + filepath.Join("..", "by-id", f.UserID) + "\n" + f.CertMode + "\n" + f.CertName + "\n" +
-		f.SitePrefix + "\n" + strings.Join(config.Active().ReservedFamilyLabels(), " ") + "\n"
+		f.SitePrefix + "\n" + strings.Join(l.ReservedFamilyLabels(), " ") + "\n"
 }
 
 // syncFamilyRequest keeps requests/<suffix> in step with a verified family
@@ -569,7 +569,7 @@ func (h *SiteHandler) syncFamilyRequest(f db.AddressFamily) {
 		return
 	}
 	p := filepath.Join(h.familyCertDir, "requests", f.Suffix)
-	body := familyRequestBody(f)
+	body := familyRequestBody(f, h.limits)
 	if cur, err := os.ReadFile(p); err == nil && string(cur) == body {
 		return
 	}
@@ -602,7 +602,7 @@ func (h *SiteHandler) checkFamilies(ctx context.Context) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, domainPassTimeout)
 	defer cancel()
-	expired, err := db.ReleaseExpiredFamilies(ctx, h.database, config.Active().FamilyUnprovenTTL)
+	expired, err := db.ReleaseExpiredFamilies(ctx, h.database, h.limits.FamilyUnprovenTTL)
 	if err != nil {
 		log.Printf("address families: expiry: %v", err)
 	}
@@ -610,7 +610,7 @@ func (h *SiteHandler) checkFamilies(ctx context.Context) {
 		h.removeFamilyRequest(f.Suffix)
 		log.Printf("address family *.%s: never proved; dropped", f.Suffix)
 	}
-	due, err := db.ListFamiliesToCheck(ctx, h.database, config.Active().FamilyActiveRecheck)
+	due, err := db.ListFamiliesToCheck(ctx, h.database, h.limits.FamilyActiveRecheck)
 	if err != nil {
 		log.Printf("address families: list: %v", err)
 		return
@@ -674,7 +674,7 @@ func (h *SiteHandler) probeFamily(ctx context.Context, f db.AddressFamily, ours 
 	}
 	for _, s := range sites {
 		label, ok := strings.CutPrefix(s.Name, f.SitePrefix)
-		if !ok || !familyLabelOK(f, label) {
+		if !ok || !familyLabelOK(f, label, h.limits) {
 			continue
 		}
 		host := label + "." + f.Suffix
@@ -759,7 +759,7 @@ func (h *SiteHandler) checkFamily(ctx context.Context, f db.AddressFamily, ours 
 	if ok || !check.FailingSince.Valid {
 		return
 	}
-	lim := config.Active()
+	lim := h.limits
 	failing := time.Since(check.FailingSince.Time)
 	due := failing >= lim.FamilyLapseAfter
 	if check.ReleaseAt.Valid {
@@ -964,7 +964,7 @@ func (h *SiteHandler) adminCheckFamily(w http.ResponseWriter, r *http.Request) {
 func (h *SiteHandler) registerFamilyRoutes(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
 	checkIP := h.familyCheckLimiter
 	if checkIP == nil {
-		checkIP = newRateLimiterFor(config.Active().RateFamilyCheck)
+		checkIP = newRateLimiterFor(h.limits.RateFamilyCheck)
 	}
 	mux.Handle("POST /v1/me/address-families", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createFamily))))
 	mux.Handle("GET /v1/me/address-families", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listFamilies))))

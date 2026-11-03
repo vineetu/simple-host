@@ -14,6 +14,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/eventdns"
 )
 
@@ -34,6 +35,7 @@ const recordTTL = 120
 // EventDomainHandler hands an organiser two hostnames under a domain we own,
 // pointing at their own server, so they never touch a registrar.
 type EventDomainHandler struct {
+	limitSet
 	db      *sql.DB
 	dns     eventdns.Provider
 	probe   *eventdns.LiveProbe
@@ -57,7 +59,11 @@ func (h *EventDomainHandler) NameClaimed(ctx context.Context, zone, name string)
 	return ok, err
 }
 
-func NewEventDomainHandler(database *sql.DB, dns eventdns.Provider, domains []string) *EventDomainHandler {
+func NewEventDomainHandler(database *sql.DB, dns eventdns.Provider, domains []string, editions ...*edition.Edition) *EventDomainHandler {
+	var ed *edition.Edition
+	if len(editions) > 0 {
+		ed = editions[0]
+	}
 	// Burst of 10, refilling one a minute.
 	//
 	// The limiter runs before validation on purpose, so a rejected request still
@@ -65,7 +71,7 @@ func NewEventDomainHandler(database *sql.DB, dns eventdns.Provider, domains []st
 	// means typos count too, which is why the burst is not tight: four mistyped
 	// addresses followed by a real attempt must not lock an organiser out. The
 	// hard ceiling on abuse is maxClaimsPerAccount, not this.
-	return &EventDomainHandler{db: database, dns: dns, domains: domains,
+	return &EventDomainHandler{limitSet: newLimitSet(ed.Limits()), db: database, dns: dns, domains: domains,
 		probe:   eventdns.NewLiveProbe(),
 		limiter: newRateLimiter(10, 1.0/60.0)}
 }
@@ -224,9 +230,9 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 	var held int
 	if err := h.db.QueryRowContext(r.Context(),
 		`SELECT count(*) FROM event_domains WHERE user_id=$1 AND NOT (name=$2 AND domain=$3)`,
-		user.ID, req.Name, req.Domain).Scan(&held); err == nil && held >= maxClaimsPerAccount() {
+		user.ID, req.Name, req.Domain).Scan(&held); err == nil && held >= h.maxClaimsPerAccount() {
 		writeJSON(w, http.StatusConflict, errorResponse{
-			Error: fmt.Sprintf("an account may hold %d event names at once; release one first", maxClaimsPerAccount())})
+			Error: fmt.Sprintf("an account may hold %d event names at once; release one first", h.maxClaimsPerAccount())})
 		return
 	}
 
@@ -243,7 +249,7 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 		  SET ip = EXCLUDED.ip, expires_at = EXCLUDED.expires_at
 		  WHERE event_domains.user_id = EXCLUDED.user_id
 		RETURNING user_id, record_ids, (xmax = 0)`,
-		req.Name, req.Domain, user.ID, req.IP, fmt.Sprintf("%d hours", int(eventTTL().Hours())),
+		req.Name, req.Domain, user.ID, req.IP, fmt.Sprintf("%d hours", int(h.eventTTL().Hours())),
 	).Scan(&ownerID, pq.Array(&existingIDs), &wasNew)
 	if errors.Is(err, sql.ErrNoRows) {
 		// The conflict clause refused: the row exists and belongs to somebody else.
@@ -311,7 +317,7 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 		"host":         host,
 		"content_host": content,
 		"ip":           req.IP,
-		"expires_at":   time.Now().Add(eventTTL()).UTC().Format(time.RFC3339),
+		"expires_at":   time.Now().Add(h.eventTTL()).UTC().Format(time.RFC3339),
 	})
 }
 

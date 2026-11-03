@@ -17,8 +17,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
-
-	"github.com/vsriram/simple-host/internal/config"
+	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 )
@@ -192,17 +191,17 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			uri = (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String()
 		}
 	}
-	release, err := acquireStorageSQLite(r.Context())
+	release, err := acquireStorageSQLite(r.Context(), h.limits.StorageSQLConcurrency, h.limits.StorageAcquireWait)
 	if err != nil {
 		storageBusy(w)
 		return
 	}
 	defer release()
-	timeout := config.Active().StorageOwnerTimeout
+	timeout := h.limits.StorageOwnerTimeout
 	if !c.owner {
-		timeout = config.Active().StorageVisitorQueryTimeout
+		timeout = h.limits.StorageVisitorQueryTimeout
 		if mode != "query" {
-			timeout = config.Active().StorageVisitorWriteTimeout
+			timeout = h.limits.StorageVisitorWriteTimeout
 		}
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
@@ -570,15 +569,18 @@ var storageSQLiteGate struct {
 	slots chan struct{}
 }
 
-func acquireStorageSQLite(ctx context.Context) (func(), error) {
+// n and acquireWait are the caller's limits snapshot (StorageSQLConcurrency,
+// StorageAcquireWait); the slot pool is sized from whichever caller
+// constructs it first (storageSQLiteGate.once), matching the old global's
+// set-once-at-startup behaviour.
+func acquireStorageSQLite(ctx context.Context, n int, acquireWait time.Duration) (func(), error) {
 	storageSQLiteGate.once.Do(func() {
-		n := config.Active().StorageSQLConcurrency
 		if n == 0 {
 			n = runtime.NumCPU()
 		}
 		storageSQLiteGate.slots = make(chan struct{}, n)
 	})
-	wait, cancel := context.WithTimeout(ctx, config.Active().StorageAcquireWait)
+	wait, cancel := context.WithTimeout(ctx, acquireWait)
 	defer cancel()
 	select {
 	case storageSQLiteGate.slots <- struct{}{}:

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -135,7 +136,7 @@ func sitePathName(r *http.Request) (string, bool) {
 // longer change its site (the deadline, an ended or taken-down event, a site
 // the organiser took down; deploys check again under a lock, site.go), and
 // refuses a team key whose person is no longer on the team.
-func ScopeGate(database *sql.DB, mux *http.ServeMux, teamKeys bool) http.Handler {
+func ScopeGate(database *sql.DB, mux *http.ServeMux, teamKeys bool, keyIdle time.Duration) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("X-API-Key")
 		if key == "" {
@@ -159,7 +160,7 @@ func ScopeGate(database *sql.DB, mux *http.ServeMux, teamKeys bool) http.Handler
 			mux.ServeHTTP(w, r)
 			return
 		}
-		scope, err := db.APIKeyScope(r.Context(), database, key)
+		scope, err := db.APIKeyScope(r.Context(), database, key, keyIdle)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("scope gate: %v", err)
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

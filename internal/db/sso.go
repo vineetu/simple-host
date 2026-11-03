@@ -20,15 +20,17 @@ const liveSSOParent = `k.scope = 'full' AND u.suspended_at IS NULL
 const liveSSOPass = `p.expires_at > now() AND p.idle_expires_at > now() AND ` + liveSSOParent
 
 // ReplaceSSOPass serializes issuance on the parent key, retaining at most one
-// pass per key. Replacing a browser's previous pass retires that key's family.
-func ReplaceSSOPass(ctx context.Context, database *sql.DB, hash, keyHash, oldHash string, ttl, idle time.Duration) error {
+// pass per key. Replacing a browser's previous pass retires that key's
+// family. keyIdle (KEY_IDLE_EXPIRY_DAYS) decides whether the parent key is
+// still live; ttl and idle are the pass's own visitor-session-like limits.
+func ReplaceSSOPass(ctx context.Context, database *sql.DB, hash, keyHash, oldHash string, ttl, idle, keyIdle time.Duration) error {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	var id string
-	if err = tx.QueryRowContext(ctx, `SELECT k.key_hash FROM api_keys k JOIN users u ON u.id=k.user_id WHERE k.key_hash=$1 AND `+liveSSOParent+` FOR UPDATE OF k`, keyHash, idleExpirySeconds()).Scan(&id); err != nil {
+	if err = tx.QueryRowContext(ctx, `SELECT k.key_hash FROM api_keys k JOIN users u ON u.id=k.user_id WHERE k.key_hash=$1 AND `+liveSSOParent+` FOR UPDATE OF k`, keyHash, keyIdle.Seconds()).Scan(&id); err != nil {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM api_keys WHERE key_hash IN (SELECT parent_key_hash FROM sso_passes WHERE id_hash=$1) AND key_hash<>$2`, oldHash, keyHash); err != nil {
@@ -39,14 +41,17 @@ func ReplaceSSOPass(ctx context.Context, database *sql.DB, hash, keyHash, oldHas
 	}
 	if err = tx.QueryRowContext(ctx, `INSERT INTO sso_passes(id_hash,user_id,parent_key_hash,expires_at,idle_expires_at)
  SELECT $3,k.user_id,k.key_hash,LEAST(now()+make_interval(secs=>$4),k.expires_at), LEAST(now()+make_interval(secs=>$5),k.expires_at)
- FROM api_keys k JOIN users u ON u.id=k.user_id WHERE k.key_hash=$1 AND `+liveSSOParent+` RETURNING id_hash`, keyHash, idleExpirySeconds(), hash, ttl.Seconds(), idle.Seconds()).Scan(&id); err != nil {
+ FROM api_keys k JOIN users u ON u.id=k.user_id WHERE k.key_hash=$1 AND `+liveSSOParent+` RETURNING id_hash`, keyHash, keyIdle.Seconds(), hash, ttl.Seconds(), idle.Seconds()).Scan(&id); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
-func GetSSOPass(ctx context.Context, q Querier, hash string) (SSOPass, error) {
+
+// GetSSOPass loads a pass, live only while its parent key is (keyIdle,
+// KEY_IDLE_EXPIRY_DAYS).
+func GetSSOPass(ctx context.Context, q Querier, hash string, keyIdle time.Duration) (SSOPass, error) {
 	var p SSOPass
-	err := q.QueryRowContext(ctx, `SELECT p.id_hash,p.user_id::text,p.parent_key_hash FROM sso_passes p JOIN api_keys k ON k.key_hash=p.parent_key_hash JOIN users u ON u.id=p.user_id WHERE p.id_hash=$1 AND `+liveSSOPass, hash, idleExpirySeconds()).Scan(&p.Hash, &p.UserID, &p.ParentKeyHash)
+	err := q.QueryRowContext(ctx, `SELECT p.id_hash,p.user_id::text,p.parent_key_hash FROM sso_passes p JOIN api_keys k ON k.key_hash=p.parent_key_hash JOIN users u ON u.id=p.user_id WHERE p.id_hash=$1 AND `+liveSSOPass, hash, keyIdle.Seconds()).Scan(&p.Hash, &p.UserID, &p.ParentKeyHash)
 	return p, err
 }
 func TouchSSOPass(ctx context.Context, q Querier, hash string, idle time.Duration) error {

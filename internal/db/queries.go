@@ -67,7 +67,7 @@ func AddAPIKey(ctx context.Context, q Querier, userID, apiKey, name string) erro
 
 // GetUserByAPIKey resolves a presented key: a stored key by its hash, or an
 // in-process internal credential (see IssueInternalKey).
-func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, error) {
+func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string, keyIdle time.Duration) (User, error) {
 	if strings.HasPrefix(apiKey, internalKeyPrefix) {
 		c, ok := lookupInternalCred(apiKey)
 		if !ok || c.visitor != nil {
@@ -128,7 +128,7 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string) (User, erro
 		user.KeyExpiresAt = expiresAt
 		// An expired key is kept (the owner sees it in the Keys panel as
 		// expired and can revoke it) but never authenticates.
-		switch keyExpired(now, expiresAt, idleFrom, lastUsed) {
+		switch keyExpired(now, expiresAt, idleFrom, lastUsed, keyIdle) {
 		case KeyExpiredFixed:
 			return user, ErrKeyExpired
 		case KeyExpiredIdle:

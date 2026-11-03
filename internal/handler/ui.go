@@ -344,7 +344,7 @@ func (p *assetPipeline) serveStaticPage(name string) http.Handler {
 			body = p.hackInstanceText(hackDocsHTML(body))
 		}
 		if name == "pricing.html" {
-			body = applyPricingNumbers(body, p.hostedEvents)
+			body = applyPricingNumbers(body, p.hostedEvents, p.limits)
 		}
 		if p.pres.HackAssets && name == "hack-get-started.html" && p.inkBaseURL() != canonicalHackBaseURL {
 			// GitHub skills name the hosted service. Install the local ZIP instead.
@@ -486,7 +486,7 @@ func (p *assetPipeline) serveSkillMarkdown(skillName string) http.HandlerFunc {
 		// except a control-plane skill, whose endpoints and limits are the
 		// public instance's (see copyRewritten).
 		if !controlPlaneSkill(skillName + "/SKILL.md") {
-			data = rewriteServedText(data)
+			data = rewriteServedText(data, p.limitsText)
 		}
 
 		filename := skillName + "-SKILL.md"

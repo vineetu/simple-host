@@ -43,10 +43,6 @@ var (
 	ErrKeyExpiredIdle = fmt.Errorf("api key expired after going unused: %w", sql.ErrNoRows)
 )
 
-// KeyIdleExpiry is how long a key may go unused before it stops working
-// (KEY_IDLE_EXPIRY_DAYS); 0 means never.
-func KeyIdleExpiry() time.Duration { return lim().KeyIdleExpiry }
-
 // APIKey is one row of api_keys as its owner sees it. The key itself is never
 // stored; Last4 is only for recognising it. Name and Last4 are empty for keys
 // issued before keys had names.
@@ -63,35 +59,36 @@ type APIKey struct {
 }
 
 // IdleExpiresAt is when the key stops working if it is not used before then,
-// or nil when idle expiry is off (KEY_IDLE_EXPIRY_DAYS=0).
-func (k APIKey) IdleExpiresAt() *time.Time {
-	return idleExpiresAt(k.IdleFrom, k.LastUsedAt)
+// or nil when idle expiry is off (keyIdle <= 0). keyIdle is the caller's
+// instance limit (KEY_IDLE_EXPIRY_DAYS).
+func (k APIKey) IdleExpiresAt(keyIdle time.Duration) *time.Time {
+	return idleExpiresAt(k.IdleFrom, k.LastUsedAt, keyIdle)
 }
 
-func idleExpiresAt(idleFrom time.Time, lastUsed *time.Time) *time.Time {
-	d := KeyIdleExpiry()
-	if d <= 0 {
+func idleExpiresAt(idleFrom time.Time, lastUsed *time.Time, keyIdle time.Duration) *time.Time {
+	if keyIdle <= 0 {
 		return nil
 	}
 	from := idleFrom
 	if lastUsed != nil && lastUsed.After(from) {
 		from = *lastUsed
 	}
-	t := from.Add(d)
+	t := from.Add(keyIdle)
 	return &t
 }
 
 // Expired says whether the key has stopped working at now, and why:
-// KeyExpiredFixed, KeyExpiredIdle, or "" while it works.
-func (k APIKey) Expired(now time.Time) string {
-	return keyExpired(now, k.ExpiresAt, k.IdleFrom, k.LastUsedAt)
+// KeyExpiredFixed, KeyExpiredIdle, or "" while it works. keyIdle is the
+// caller's instance limit (KEY_IDLE_EXPIRY_DAYS).
+func (k APIKey) Expired(now time.Time, keyIdle time.Duration) string {
+	return keyExpired(now, k.ExpiresAt, k.IdleFrom, k.LastUsedAt, keyIdle)
 }
 
-func keyExpired(now time.Time, expiresAt *time.Time, idleFrom time.Time, lastUsed *time.Time) string {
+func keyExpired(now time.Time, expiresAt *time.Time, idleFrom time.Time, lastUsed *time.Time, keyIdle time.Duration) string {
 	if expiresAt != nil && !now.Before(*expiresAt) {
 		return KeyExpiredFixed
 	}
-	if t := idleExpiresAt(idleFrom, lastUsed); t != nil && !now.Before(*t) {
+	if t := idleExpiresAt(idleFrom, lastUsed, keyIdle); t != nil && !now.Before(*t) {
 		return KeyExpiredIdle
 	}
 	return ""
@@ -141,11 +138,8 @@ func ListAPIKeys(ctx context.Context, q *sql.DB, userID string) ([]APIKey, error
 	return out, rows.Err()
 }
 
-// MaxAccountKeys caps how many keys one account may mint from the Keys panel
-// (POST /v1/me/keys; MAX_KEYS_PER_ACCOUNT). Sign-in keys are not refused by it.
-func MaxAccountKeys() int { return lim().MaxAccountKeys }
-
-// ErrKeyLimit: the account already holds MaxAccountKeys keys.
+// ErrKeyLimit: the account already holds maxAccountKeys (MAX_KEYS_PER_ACCOUNT)
+// keys. Sign-in keys are not refused by it.
 var ErrKeyLimit = errors.New("account key limit reached")
 
 // CreateAPIKey stores a new key under name, with scope (KeyScopeFull or
@@ -154,8 +148,9 @@ var ErrKeyLimit = errors.New("account key limit reached")
 // a key revoked or rotated away mid-request cannot mint a successor
 // (sql.ErrNoRows). The users row is locked first, the same lock rotate and the
 // admin reissue take, so a concurrent "revoke everything" cannot miss the new
-// key. ErrKeyLimit when the account already holds MaxAccountKeys keys.
-func CreateAPIKey(ctx context.Context, db *sql.DB, userID, callerKeyHash, apiKey, name, scope string, expiresAt *time.Time) (APIKey, error) {
+// key. ErrKeyLimit when the account already holds maxAccountKeys keys; keyIdle
+// is KEY_IDLE_EXPIRY_DAYS, used to decide which of those are still live.
+func CreateAPIKey(ctx context.Context, db *sql.DB, userID, callerKeyHash, apiKey, name, scope string, expiresAt *time.Time, maxAccountKeys int, keyIdle time.Duration) (APIKey, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return APIKey{}, err
@@ -172,10 +167,10 @@ func CreateAPIKey(ctx context.Context, db *sql.DB, userID, callerKeyHash, apiKey
 	}
 	// Keys that have stopped working do not count: an account minting
 	// short-lived CI keys must not fill the cap with dead ones.
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM api_keys WHERE user_id = $1 AND `+liveKeySQL, userID, idleExpirySeconds()).Scan(&n); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM api_keys WHERE user_id = $1 AND `+liveKeySQL, userID, keyIdle.Seconds()).Scan(&n); err != nil {
 		return APIKey{}, err
 	}
-	if n >= MaxAccountKeys() {
+	if n >= maxAccountKeys {
 		return APIKey{}, ErrKeyLimit
 	}
 	if scope == "" {
@@ -276,20 +271,19 @@ func ReplaceAPIKeys(ctx context.Context, q Querier, userID, newKey, name string)
 const liveKeySQL = `(expires_at IS NULL OR expires_at > now())
 	AND ($2::float8 <= 0 OR GREATEST(idle_from, COALESCE(last_used_at, idle_from)) + make_interval(secs => $2::float8) > now())`
 
-func idleExpirySeconds() float64 { return KeyIdleExpiry().Seconds() }
-
 // expiredKeyKeep is how long a key that stopped working stays in the Keys
 // panel (shown as expired) before PurgeExpiredAPIKeys removes it.
 const expiredKeyKeep = 30 * 24 * time.Hour
 
 // PurgeExpiredAPIKeys deletes keys that stopped working more than 30 days ago,
-// by fixed expiry or by going unused, and reports how many.
-func PurgeExpiredAPIKeys(ctx context.Context, q Querier) (int64, error) {
+// by fixed expiry or by going unused (keyIdle, KEY_IDLE_EXPIRY_DAYS), and
+// reports how many.
+func PurgeExpiredAPIKeys(ctx context.Context, q Querier, keyIdle time.Duration) (int64, error) {
 	res, err := q.ExecContext(ctx, `
 		DELETE FROM api_keys
 		 WHERE (expires_at IS NOT NULL AND expires_at < now() - make_interval(secs => $1))
 		    OR ($2::float8 > 0 AND GREATEST(idle_from, COALESCE(last_used_at, idle_from)) + make_interval(secs => $2::float8) < now() - make_interval(secs => $1))`,
-		expiredKeyKeep.Seconds(), idleExpirySeconds())
+		expiredKeyKeep.Seconds(), keyIdle.Seconds())
 	if err != nil {
 		return 0, err
 	}
@@ -300,7 +294,7 @@ func PurgeExpiredAPIKeys(ctx context.Context, q Querier) (int64, error) {
 // sql.ErrNoRows for a key that is not stored (unknown, the env admin key, an
 // internal credential) or has expired: an expired key is passed on so the key
 // middleware can say it expired rather than that it is deploy-only.
-func APIKeyScope(ctx context.Context, q Querier, apiKey string) (string, error) {
+func APIKeyScope(ctx context.Context, q Querier, apiKey string, keyIdle time.Duration) (string, error) {
 	var (
 		scope     string
 		expiresAt *time.Time
@@ -314,7 +308,7 @@ func APIKeyScope(ctx context.Context, q Querier, apiKey string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	if keyExpired(now, expiresAt, idleFrom, lastUsed) != "" {
+	if keyExpired(now, expiresAt, idleFrom, lastUsed, keyIdle) != "" {
 		return "", sql.ErrNoRows
 	}
 	return scope, nil

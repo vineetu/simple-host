@@ -75,7 +75,7 @@ func (h *SiteHandler) requestVisitorEmail(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
-	address, expires, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, req.Email, "", "visitor", sql.NullString{String: siteID, Valid: true}, sql.NullString{}, clientIP(r), h.geoBlock)
+	address, expires, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, req.Email, "", "visitor", sql.NullString{String: siteID, Valid: true}, sql.NullString{}, clientIP(r), h.geoBlock, h.authTokenTTL())
 	if status != 0 {
 		writeEmailCodeError(w, status, body)
 		return
@@ -104,7 +104,7 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
-	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: req.Email, Code: req.Code}, "visitor", sql.NullString{String: siteID, Valid: true}, h.ed.Identity().RandomHandles)
+	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: req.Email, Code: req.Code}, "visitor", sql.NullString{String: siteID, Valid: true}, h.ed.Identity().RandomHandles, h.authTokenTTL())
 	if status != 0 {
 		if status == http.StatusUnauthorized {
 			writeJSON(w, status, signInUnauthorized(body))
@@ -130,7 +130,7 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	now := time.Now()
-	expires, idle := now.Add(visitorSessionTTL()), now.Add(visitorSessionIdle())
+	expires, idle := now.Add(h.visitorSessionTTL()), now.Add(h.visitorSessionIdle())
 	first, err := db.InsertVisitorSession(r.Context(), h.database, id, user.ID, siteID, requestHostName(r), expires, idle)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -140,7 +140,7 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 		h.emitSiteNotification(siteID, "visitor.signed_up", map[string]any{"visitor": user.ID}, 0)
 	}
 	h.noteOwnerVisitorSignIn(r, siteID, user.ID)
-	setVisitorSessionCookie(w, r, hex.EncodeToString(id), visitorCookieMaxAge())
+	setVisitorSessionCookie(w, r, hex.EncodeToString(id), h.visitorCookieMaxAge())
 	w.Header().Set("Cache-Control", "private, no-store")
 	writeJSON(w, http.StatusOK, h.visitorSignedInResponse(r, idle, user.Username, "email"))
 }

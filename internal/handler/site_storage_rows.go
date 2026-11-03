@@ -157,7 +157,7 @@ func (h *SiteHandler) prepareStorageMatrixDatabase(ctx context.Context, c storag
 	if err != nil {
 		return existing, err
 	}
-	release, err := acquireStorageSQLite(ctx)
+	release, err := acquireStorageSQLite(ctx, h.limits.StorageSQLConcurrency, h.limits.StorageAcquireWait)
 	if err != nil {
 		return existing, err
 	}

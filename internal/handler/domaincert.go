@@ -80,7 +80,7 @@ func (h *SiteHandler) domainCertProgress(ctx context.Context, d db.BoundDomain) 
 		return "failed", why
 	}
 	if !asked {
-		return "failed", fmt.Sprintf("this account has asked for %d new domain certificates in the last day; this one is asked for automatically once that day is over", db.DomainCertDailyCap())
+		return "failed", fmt.Sprintf("this account has asked for %d new domain certificates in the last day; this one is asked for automatically once that day is over", h.limits.DomainCertsDaily)
 	}
 	return "issuing", ""
 }
@@ -117,7 +117,7 @@ func (h *SiteHandler) requestDomainCert(ctx context.Context, d db.BoundDomain) b
 	case err == nil:
 		// Out of date (the site was renamed): rewrite, not a new request.
 	case errors.Is(err, os.ErrNotExist):
-		ok, err := db.AllowDomainCertRequest(ctx, h.database, d.UserID, d.Domain)
+		ok, err := db.AllowDomainCertRequest(ctx, h.database, d.UserID, d.Domain, h.limits.DomainCertsDaily)
 		if err != nil {
 			log.Printf("domain certs: cap check %s: %v", d.Domain, err)
 			return false

@@ -22,9 +22,6 @@ import (
 var (
 	maxTotalUncompressedSize int64 = ceilingBytes
 	maxFileSize              int64 = 100 * 1024 * 1024
-	// maxEntryCount caps the number of files in an archive (defends against
-	// many-tiny-files inode exhaustion, which the byte caps do not catch).
-	maxEntryCount = entryCeiling
 )
 
 const (
@@ -36,36 +33,23 @@ const (
 	blockSize = 4096
 	// maxEntriesCeiling is the most files an archive may ever hold: the
 	// pipeline (in-memory entry map, inodes per version) was sized against it.
+	// A caller's own ceiling (MAX_FILES_PER_SITE) above this is held to it,
+	// like SetSiteLimit above ceilingBytes.
 	maxEntriesCeiling = 50_000
 )
 
-// entryCeiling is the file-count cap (MAX_FILES_PER_SITE, default 50,000);
 // siteBudget is the byte budget SetSiteLimit was last given (0: never), from
-// which a smaller count may be derived.
-var (
-	entryCeiling       = maxEntriesCeiling
-	siteBudget   int64 = 0
-)
+// which a smaller entry count may be derived alongside a caller's own
+// ceiling.
+var siteBudget int64 = 0
 
-// SetMaxEntries sets the most files one archive may hold (MAX_FILES_PER_SITE).
-// When a per-site byte budget is in force the smaller of the two applies. Call
-// once at startup, before serving. It only lowers: above maxEntriesCeiling is
-// refused, like SetSiteLimit above ceilingBytes.
-func SetMaxEntries(n int) {
-	if n < 1 || n > maxEntriesCeiling {
-		return
+// entriesFor is the file-count cap for a byte budget (0: none in force) and
+// the caller's own ceiling (MAX_FILES_PER_SITE), held to maxEntriesCeiling.
+func entriesFor(budget int64, ceiling int) int {
+	n := ceiling
+	if n <= 0 || n > maxEntriesCeiling {
+		n = maxEntriesCeiling
 	}
-	entryCeiling = n
-	deriveEntryCount()
-}
-
-func deriveEntryCount() {
-	maxEntryCount = entriesFor(siteBudget)
-}
-
-// entriesFor is the file-count cap for a byte budget (0: none in force).
-func entriesFor(budget int64) int {
-	n := entryCeiling
 	if budget <= 0 {
 		return n
 	}
@@ -89,25 +73,32 @@ type caps struct {
 	entries     int
 }
 
-func current() caps { return caps{maxTotalUncompressedSize, maxFileSize, maxEntryCount} }
+// current is the instance's own caps (no per-site override), with ceiling
+// the caller's MAX_FILES_PER_SITE.
+func current(ceiling int) caps {
+	return caps{maxTotalUncompressedSize, maxFileSize, entriesFor(siteBudget, ceiling)}
+}
 
 // capsFor is the caps for a per-site budget in bytes, derived exactly as
 // SetSiteLimit derives the instance's: the budget bounds the total and any one
-// file, and the file count follows it. A budget of 0 or less is the instance's
-// caps; one above the ceiling is held to the ceiling.
-func capsFor(budget int64) caps {
+// file, and the file count follows it (and the caller's own ceiling,
+// MAX_FILES_PER_SITE). A budget of 0 or less is the instance's caps; one
+// above the ceiling is held to the ceiling.
+func capsFor(budget int64, ceiling int) caps {
 	if budget <= 0 {
-		return current()
+		return current(ceiling)
 	}
 	if budget > ceilingBytes {
 		budget = ceilingBytes
 	}
-	return caps{budget, budget, entriesFor(budget)}
+	return caps{budget, budget, entriesFor(budget, ceiling)}
 }
 
-// FileLimits returns the same effective caps used by extraction and sanitization.
-func FileLimits(budget int64) (total, file int64, entries int) {
-	c := capsFor(budget)
+// FileLimits returns the same effective caps used by extraction and
+// sanitization, for a per-site budget (0: none) and the caller's own
+// MAX_FILES_PER_SITE ceiling.
+func FileLimits(budget int64, ceiling int) (total, file int64, entries int) {
+	c := capsFor(budget, ceiling)
 	return c.total, c.file, c.entries
 }
 
@@ -136,9 +127,9 @@ func SetSiteLimit(bytes int64) {
 	maxTotalUncompressedSize = bytes
 	maxFileSize = bytes
 
-	// Entry count follows the byte budget.
+	// Entry count follows the byte budget (entriesFor, computed fresh on
+	// every call rather than cached).
 	siteBudget = bytes
-	deriveEntryCount()
 }
 
 const (
@@ -147,16 +138,20 @@ const (
 	MaxPathLen = 1024
 )
 
-// Extract unpacks an archive under the instance's caps.
+// Extract unpacks an archive under the instance's caps, at the built-in
+// entry-count ceiling (maxEntriesCeiling). Every production caller goes
+// through ExtractWithLimit instead, which takes the instance's own
+// MAX_FILES_PER_SITE; this form is for tests only.
 func Extract(r io.Reader, filename string) (map[string][]byte, error) {
-	return extract(r, filename, current())
+	return extract(r, filename, current(maxEntriesCeiling))
 }
 
 // ExtractWithLimit unpacks an archive under a per-site budget in bytes (one
-// account's size limit) instead of the instance's: the total, any one file
-// and the file count are derived from it as SetSiteLimit derives them.
-func ExtractWithLimit(r io.Reader, filename string, budget int64) (map[string][]byte, error) {
-	return extract(r, filename, capsFor(budget))
+// account's size limit) instead of the instance's, and ceiling (the
+// instance's MAX_FILES_PER_SITE): the total, any one file and the file count
+// are derived from them as SetSiteLimit derives the instance's.
+func ExtractWithLimit(r io.Reader, filename string, budget int64, ceiling int) (map[string][]byte, error) {
+	return extract(r, filename, capsFor(budget, ceiling))
 }
 
 func extract(r io.Reader, filename string, c caps) (map[string][]byte, error) {
@@ -384,17 +379,14 @@ func SiteLimitIs(bytes int64) bool {
 	return maxTotalUncompressedSize == bytes && maxFileSize == bytes
 }
 
-// MaxEntries reports the file-count cap currently in force.
-func MaxEntries() int { return maxEntryCount }
-
 // SnapshotLimits captures the current caps and returns a function that puts
 // them back. The caps are package globals, so a test in another package that
 // exercises the wiring into SetSiteLimit would otherwise leave them moved for
 // every test that runs after it — an order-dependent failure, which is the
 // worst kind to debug.
 func SnapshotLimits() func() {
-	total, file, entries, ceiling, budget := maxTotalUncompressedSize, maxFileSize, maxEntryCount, entryCeiling, siteBudget
+	total, file, budget := maxTotalUncompressedSize, maxFileSize, siteBudget
 	return func() {
-		maxTotalUncompressedSize, maxFileSize, maxEntryCount, entryCeiling, siteBudget = total, file, entries, ceiling, budget
+		maxTotalUncompressedSize, maxFileSize, siteBudget = total, file, budget
 	}
 }
