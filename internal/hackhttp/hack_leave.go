@@ -39,9 +39,14 @@ func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug
 		return db.Event{}, db.EventMember{}, "", nil, false
 	}
 	slug = strings.ToLower(strings.TrimSpace(slug))
-	ev, member, status, err := h.membersSvc().LookupLeaveSelf(r.Context(), slug, user.ID)
-	if ev.ID != "" {
+	ev, err := h.membersSvc().LeaveEvent(r.Context(), slug)
+	if err == nil {
 		paperHackEvent(r, ev)
+	}
+	var member db.EventMember
+	var status string
+	if err == nil {
+		member, status, err = h.membersSvc().LookupLeaveSelf(r.Context(), ev.ID, user.ID)
 	}
 	if err == nil {
 		paperHackKnownMember(r, ev, user.ID)
@@ -56,8 +61,6 @@ func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug
 	}
 	return ev, member, status, user, true
 }
-
-const leaveStateChangedMsg = "something changed since you checked: read the leave preview again"
 
 // previewLeaveEvent is GET .../leave: read-only, every case, never errors
 // for a member beyond 404 (build plan 2.1).
@@ -221,9 +224,10 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
-	ev0, err := h.membersSvc().LookupLeaveMember(r.Context(), slug, user.ID)
-	if ev0.ID != "" {
+	ev0, err := h.membersSvc().LeaveEvent(r.Context(), slug)
+	if err == nil {
 		paperHackEvent(r, ev0)
+		err = h.membersSvc().LookupLeaveMember(r.Context(), ev0.ID, user.ID)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
@@ -240,25 +244,15 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 		writeMemberError(w, err)
 		return
 	}
-	ev, leaveCase, teamDeleted, successor := result.Event, result.Case, result.TeamDeleted, result.Successor
+	leaveCase, teamDeleted, successor := result.Case, result.TeamDeleted, result.Successor
 
 	eventResult := "kept"
 	switch {
 	case leaveCase == "last_organiser" && req.Close == "end":
 		eventResult = "ended"
-		ev.Stage = "archived"
-		paperHackStage(r, ev)
-		paperHackTimes(r)
-		h.pinDue(ctx, ev.ID)
-		// setStage calls requestEventCert after archiving too, but that call
-		// is a no-op for an archived event: requestEventCert only asks for a
-		// certificate while the stage is open, building or closed. Ending
-		// here does not need its own call for the same reason (Nit 2).
+
 	case leaveCase == "last_organiser" && req.Close == "delete":
 		eventResult = "deleted"
-		h.removeEventFiles(ev)
-	case leaveCase == "participant":
-		h.removeOrphanTeamSites(ctx, ev)
 	}
 
 	out := map[string]any{"left": true, "case": leaveCase, "team_deleted": teamDeleted, "event": eventResult}

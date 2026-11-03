@@ -7,6 +7,7 @@ import (
 )
 
 // ApplicationsClosedReason reports why applications are closed, or nil when open.
+// Callers must filter drafts and taken-down events before calling it.
 func ApplicationsClosedReason(open, listed bool, stage string) any {
 	if !open {
 		return "applications_off"

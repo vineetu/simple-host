@@ -1,13 +1,21 @@
 package hackhttp
 
 import (
+	"context"
 	"github.com/vsriram/simple-host/internal/app/hack/members"
+	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/papermetrics"
 	"net/http"
 )
 
 func (h *HackHandler) membersSvc() *members.Service {
-	return members.New(h.database, h.archiveEventTx, h.deleteEventTx)
+	return members.New(h.database, h.archiveEventTx, h.deleteEventTx, func(ctx context.Context, ev db.Event) {
+		papermetrics.RecordHackStage(ctx, ev.ID, ev.Stage, ev.UpdatedAt)
+		papermetrics.HackPhasesChanged(ctx)
+		h.pinDue(ctx, ev.ID)
+		// requestEventCert is a no-op for archived events, as in setStage.
+	}, h.removeEventFiles, h.removeOrphanTeamSites)
 }
 
 func writeMemberError(w http.ResponseWriter, err error) {

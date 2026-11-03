@@ -16,6 +16,9 @@ type LeaveResult struct {
 	Successor   db.OtherOrganiser
 }
 
+// LeaveStateChangedMessage is returned when a leave preview is stale.
+const LeaveStateChangedMessage = "something changed since you checked: read the leave preview again"
+
 // Leave removes a membership while serializing against event changes.
 func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, successorID, closeAction string) (result LeaveResult, err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -56,11 +59,11 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 	switch leaveCase {
 	case "participant", "applicant", "judge", "co_organiser":
 		if successorID != "" || closeAction != "" {
-			return result, &Error{"leave_state_changed", "something changed since you checked: read the leave preview again"}
+			return result, &Error{"leave_state_changed", LeaveStateChangedMessage}
 		}
 	case "creator":
 		if closeAction != "" {
-			return result, &Error{"leave_state_changed", "something changed since you checked: read the leave preview again"}
+			return result, &Error{"leave_state_changed", LeaveStateChangedMessage}
 		}
 		if successorID == "" {
 			return result, &Error{"successor_required", "you created this event, so hand it to another organiser first: send successor_user_id"}
@@ -78,7 +81,7 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 		}
 	case "last_organiser":
 		if successorID != "" {
-			return result, &Error{"leave_state_changed", "something changed since you checked: read the leave preview again"}
+			return result, &Error{"leave_state_changed", LeaveStateChangedMessage}
 		}
 		if closeAction == "" {
 			return result, &Error{"last_organiser", `you are the only organiser, so leaving closes the event: send close "end" or "delete"`}
@@ -164,28 +167,33 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 		return result, err
 	}
 
+	switch {
+	case leaveCase == "last_organiser" && closeAction == "end":
+		ev.Stage = "archived"
+		s.afterEnd(ctx, ev)
+	case leaveCase == "last_organiser" && closeAction == "delete":
+		s.removeEventFiles(ev)
+	case leaveCase == "participant":
+		s.removeOrphanTeamSites(ctx, ev)
+	}
 	result.Event, result.Case, result.TeamDeleted, result.Successor = ev, leaveCase, teamDeleted, successor
 	return result, nil
 }
 
-// LookupLeaveSelf finds the event and the caller's membership for a preview.
-func (s *Service) LookupLeaveSelf(ctx context.Context, slug, userID string) (ev db.Event, member db.EventMember, status string, err error) {
-	ev, err = db.GetEventBySlug(ctx, s.db, slug)
-	if err != nil {
-		return
-	}
-	member, status, err = db.LeaveSelf(ctx, s.db, ev.ID, userID, false)
-	return
+// LeaveEvent finds the event before looking up membership.
+func (s *Service) LeaveEvent(ctx context.Context, slug string) (db.Event, error) {
+	return db.GetEventBySlug(ctx, s.db, slug)
 }
 
-// LookupLeaveMember finds the event and caller before a leave transaction.
-func (s *Service) LookupLeaveMember(ctx context.Context, slug, userID string) (ev db.Event, err error) {
-	ev, err = db.GetEventBySlug(ctx, s.db, slug)
-	if err != nil {
-		return
-	}
-	_, err = db.GetEventMember(ctx, s.db, ev.ID, userID)
-	return
+// LookupLeaveSelf finds the caller's membership for a preview.
+func (s *Service) LookupLeaveSelf(ctx context.Context, eventID, userID string) (db.EventMember, string, error) {
+	return db.LeaveSelf(ctx, s.db, eventID, userID, false)
+}
+
+// LookupLeaveMember finds the caller before a leave transaction.
+func (s *Service) LookupLeaveMember(ctx context.Context, eventID, userID string) error {
+	_, err := db.GetEventMember(ctx, s.db, eventID, userID)
+	return err
 }
 
 // LeavePreview holds the facts needed to describe a leave.

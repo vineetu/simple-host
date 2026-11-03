@@ -175,7 +175,7 @@ func (h *HackHandler) renameTeam(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	if dbUnique(err) {
+	if hackevents.UniqueError(err) {
 		httpx.WriteError(w, 409, "team_name_taken", "another team has that name")
 		return
 	}
