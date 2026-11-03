@@ -23,7 +23,7 @@ func (s *Service) CreateTeam(ctx context.Context, event db.Event, userID, name, 
 	defer tx.Rollback()
 	// After the event deadline a new team would be frozen from birth.
 	var closed bool
-	if err = teamrepo.RunCreateSQL2(ctx, tx, event.ID).Scan(&closed); err != nil {
+	if err = teamrepo.LockEventDeadlinePassed(ctx, tx, event.ID).Scan(&closed); err != nil {
 		return db.EventTeam{}, internalError(err)
 	}
 	if closed {
@@ -85,7 +85,7 @@ func (s *Service) CreateTeam(ctx context.Context, event db.Event, userID, name, 
 		if last == nil {
 			// Deprecated 2026-10-31: open is accepted for one release but ignored;
 			// event_teams.open is no longer written.
-			if _, err = teamrepo.RunCreateSQL3(ctx, tx, team.ID, note); err != nil {
+			if _, err = teamrepo.SetCreatedTeamLookingFor(ctx, tx, team.ID, note); err != nil {
 				return team, internalError(err)
 			}
 			if err = db.RecordUsedTeamName(ctx, tx, event.Slug, slug); err != nil {

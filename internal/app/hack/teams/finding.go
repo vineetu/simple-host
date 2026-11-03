@@ -22,7 +22,7 @@ func (s *Service) SetTeamFinding(ctx context.Context, eventID, userID, note stri
 		// Membership is rechecked while locked, before editing the team.
 		var team string
 		var admin bool
-		err = teamrepo.RunFindingSQL1(ctx, tx, eventID, userID).Scan(&team, &admin)
+		err = teamrepo.LockFindingMembership(ctx, tx, eventID, userID).Scan(&team, &admin)
 		if err == nil && !admin {
 			err = teamrepo.ErrHackTeamAdminOnly
 		}
@@ -31,7 +31,7 @@ func (s *Service) SetTeamFinding(ctx context.Context, eventID, userID, note stri
 		// same column and deserves the same guard, not a looser one just
 		// because it predates PatchTeam.
 		if err == nil {
-			_, err = teamrepo.RunFindingSQL2(ctx, tx, team)
+			_, err = teamrepo.LockFindingTeam(ctx, tx, team)
 		}
 		if err == nil {
 			if st, serr := db.TeamWriteStateFor(ctx, tx, team, false); serr != nil {
@@ -41,7 +41,7 @@ func (s *Service) SetTeamFinding(ctx context.Context, eventID, userID, note stri
 			}
 		}
 		if err == nil {
-			_, err = teamrepo.RunFindingSQL3(ctx, tx, team, note)
+			_, err = teamrepo.SetFindingNote(ctx, tx, team, note)
 		}
 	}
 	if err != nil {
@@ -62,7 +62,7 @@ func (s *Service) SetLooking(ctx context.Context, eventID, userID string, lookin
 	defer tx.Rollback()
 	if err = teamrepo.LockFindingEvent(ctx, tx, eventID); err == nil {
 		var res sql.Result
-		res, err = teamrepo.RunFindingSQL4(ctx, tx, eventID, userID, looking, intro)
+		res, err = teamrepo.SetMemberLooking(ctx, tx, eventID, userID, looking, intro)
 		if err == nil {
 			n, _ := res.RowsAffected()
 			if n == 0 {
@@ -112,7 +112,7 @@ func (s *Service) ResolveTeamRequest(ctx context.Context, event db.Event, actorI
 	var answered struct{ teamID, userID, kind string }
 	if err = teamrepo.LockFindingEvent(ctx, tx, event.ID); err == nil {
 		// Read before it is resolved: resolving deletes the row.
-		err = teamrepo.RunFindingSQL5(ctx, tx,
+		err = teamrepo.ReadTeamRequest(ctx, tx,
 			event.ID, id).Scan(&answered.teamID, &answered.userID, &answered.kind)
 		if err == nil {
 			err = db.ResolveTeamRequest(ctx, tx, event, actorID, id, action)
@@ -146,13 +146,13 @@ func noticeTeamRequest(ctx context.Context, tx *sql.Tx, eventID, teamSlug, userI
 		return nil
 	}
 	var teamID, requestID string
-	if err := teamrepo.RunFindingSQL6(ctx, tx, eventID, teamSlug).Scan(&teamID); err != nil {
+	if err := teamrepo.TeamIDBySlug(ctx, tx, eventID, teamSlug).Scan(&teamID); err != nil {
 		return err
 	}
 	if state == "joined" {
 		return db.NotifyUsers(ctx, tx, eventID, db.NoticeRequestAnswered, teamID, "", "accepted", userID)
 	}
-	if err := teamrepo.RunFindingSQL7(ctx, tx, teamID, userID).Scan(&requestID); err != nil {
+	if err := teamrepo.TeamRequestID(ctx, tx, teamID, userID).Scan(&requestID); err != nil {
 		return err
 	}
 	if kind == "request" {
@@ -188,10 +188,10 @@ func (s *Service) FillTeams(ctx context.Context, eventID, userID string, request
 	if size < 1 || size > ev.TeamSizeMax {
 		return nil, nil, 0, &Error{Code: "invalid_team_size"}
 	}
-	if _, err = teamrepo.RunFindingSQL8(ctx, tx, ev.ID); err != nil {
+	if _, err = teamrepo.LockEventMembersForFill(ctx, tx, ev.ID); err != nil {
 		return nil, nil, 0, internalError(err)
 	}
-	if _, err = teamrepo.RunFindingSQL9(ctx, tx, ev.ID); err != nil {
+	if _, err = teamrepo.LockEventTeamsForFill(ctx, tx, ev.ID); err != nil {
 		return nil, nil, 0, internalError(err)
 	}
 	plan, skipped, err := db.PlanFillTeams(ctx, tx, ev, size)

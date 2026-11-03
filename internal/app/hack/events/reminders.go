@@ -14,7 +14,17 @@ import (
 	"github.com/vsriram/simple-host/internal/db"
 )
 
-// QueueEntryReminders claims due reminders and queues notices for each team.
+// Entry deadline reminders (entries slice 3, zx-hack-entry-reminders.sql).
+// 24 hours and 1 hour before a team's effective deadline, every current
+// member of a team whose entry is not submitted gets one email. They ride
+// the notices queue (kind entry_reminder), so the Account switch "Email me
+// when something waits on me", the no-email rule for key-only accounts and
+// the per-kind batching all apply as they do to every other notice. The
+// text is written at send time from the entry as it is then, with the
+// missing lines named by the one rules engine (hackentries.Evaluate).
+
+// QueueEntryReminders claims each due team once per reminder per deadline,
+// then queues its members in the same transaction.
 func (s *Service) QueueEntryReminders(ctx context.Context) {
 	due, err := db.DueEntryReminders(ctx, s.db)
 	if err != nil {

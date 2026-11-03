@@ -39,10 +39,10 @@ func (s *Service) DeleteTeam(ctx context.Context, eventID, slug string) error {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
 	defer tx.Rollback()
-	if _, err = teamrepo.RunMembershipSQL1(ctx, tx, team.ID); err != nil {
+	if _, err = teamrepo.DeleteTeamAPIKeys(ctx, tx, team.ID); err != nil {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
-	if _, err = teamrepo.RunMembershipSQL2(ctx, tx, team.ID, team.Name+" was removed by the organiser."); err != nil {
+	if _, err = teamrepo.SetTeamRemovalNotices(ctx, tx, team.ID, team.Name+" was removed by the organiser."); err != nil {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
 	if err = db.NotifyTeamMembers(ctx, tx, eventID, team.ID, db.NoticeTeamRemoved, team.Name+" was removed by the organiser.", ""); err != nil {

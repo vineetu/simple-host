@@ -22,7 +22,7 @@ import (
 // never was -- loadMember's read holds no lock at all).
 func LockEventStage(ctx context.Context, tx *sql.Tx, eventID string) (string, error) {
 	var stage string
-	err := teamrepo.RunLocksSQL1(ctx, tx, eventID).Scan(&stage)
+	err := teamrepo.LockEventStageShared(ctx, tx, eventID).Scan(&stage)
 	return stage, err
 }
 
@@ -37,14 +37,14 @@ func LockCallerTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (te
 		return db.EventTeam{}, false, stage, err
 	}
 	var teamID sql.NullString
-	if err = teamrepo.RunLocksSQL2(ctx, tx,
+	if err = teamrepo.LockApprovedMemberTeam(ctx, tx,
 		eventID, userID).Scan(&teamID, &admin); err != nil {
 		return db.EventTeam{}, false, stage, err
 	}
 	if !teamID.Valid {
 		return db.EventTeam{}, false, stage, sql.ErrNoRows
 	}
-	if _, err = teamrepo.RunLocksSQL3(ctx, tx, teamID.String); err != nil {
+	if _, err = teamrepo.LockCallerTeamRow(ctx, tx, teamID.String); err != nil {
 		return db.EventTeam{}, false, stage, err
 	}
 	team, err = teamrepo.GetEventTeamByID(ctx, tx, teamID.String)
@@ -72,21 +72,21 @@ func LockCallerAndTargetTeam(ctx context.Context, tx *sql.Tx, eventID, callerID,
 	ids := []string{callerID, targetID}
 	sort.Strings(ids)
 	if ids[0] == ids[1] {
-		if _, err = teamrepo.RunLocksSQL4(ctx, tx, eventID, ids[0]); err != nil {
+		if _, err = teamrepo.LockSingleMemberRow(ctx, tx, eventID, ids[0]); err != nil {
 			return "", false, stage, err
 		}
-	} else if _, err = teamrepo.RunLocksSQL5(ctx, tx, eventID, ids[0], ids[1]); err != nil {
+	} else if _, err = teamrepo.LockTwoMemberRows(ctx, tx, eventID, ids[0], ids[1]); err != nil {
 		return "", false, stage, err
 	}
 	var team sql.NullString
-	if err = teamrepo.RunLocksSQL6(ctx, tx,
+	if err = teamrepo.ReadApprovedMemberTeam(ctx, tx,
 		eventID, callerID).Scan(&team, &callerAdmin); err != nil {
 		return "", false, stage, err
 	}
 	if !team.Valid {
 		return "", false, stage, sql.ErrNoRows
 	}
-	if _, err = teamrepo.RunLocksSQL7(ctx, tx, team.String); err != nil {
+	if _, err = teamrepo.LockTargetTeamRow(ctx, tx, team.String); err != nil {
 		return "", false, stage, err
 	}
 	return team.String, callerAdmin, stage, nil

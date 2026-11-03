@@ -51,6 +51,6 @@ func (s *Service) ParticipantTeam(ctx context.Context, team db.EventTeam) (db.Ev
 		return team, nil, "", err
 	}
 	var note string
-	_ = teamrepo.RunPeopleSQL1(ctx, s.db, team.ID).Scan(&note)
+	_ = teamrepo.ReadTeamLookingFor(ctx, s.db, team.ID).Scan(&note)
 	return team, people, note, nil
 }

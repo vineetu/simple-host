@@ -72,5 +72,3 @@ var (
 	FormerJudgeAssignedCount = hackevents.FormerJudgeAssignedCount
 	DeleteFormerJudgeScores  = hackevents.DeleteFormerJudgeScores
 )
-
-var UserEmail = hackevents.UserEmail
