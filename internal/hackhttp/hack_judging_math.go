@@ -3,9 +3,9 @@ package hackhttp
 import (
 	"context"
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
-func computeResultsWithOptions(ctx context.Context, q db.Querier, ev db.Event) ([]teamResult, error) {
+func computeResultsWithOptions(ctx context.Context, q entries.Querier, ev model.Event) ([]teamResult, error) {
 	return entries.New(nil, nil).ComputeResults(ctx, q, ev)
 }

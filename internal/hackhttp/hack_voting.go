@@ -3,6 +3,7 @@ package hackhttp
 import (
 	"database/sql"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"net/http"
 	"strings"
 	"time"
@@ -13,7 +14,7 @@ import (
 )
 
 // votingStatus keeps the existing handler callers on the shared voting rule.
-func votingStatus(ev db.Event, s db.VotingSettings, now time.Time) string {
+func votingStatus(ev model.Event, s model.VotingSettings, now time.Time) string {
 	return entries.VotingStatus(ev, entries.VotingSettingsValue(s.Enabled, s.OpensAt, s.ClosesAt, s.Eligibility), now)
 }
 

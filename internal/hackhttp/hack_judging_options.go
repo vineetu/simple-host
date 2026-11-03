@@ -4,9 +4,8 @@ import (
 	"database/sql"
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"net/http"
-
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 func nullableString(v sql.NullString) any {
@@ -61,7 +60,7 @@ func (h *HackHandler) getManualAssignments(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	rows, err := db.ListEventAssignments(r.Context(), h.database, a.event.ID)
+	rows, err := h.entries.EventAssignments(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -75,7 +74,7 @@ func (h *HackHandler) putManualAssignments(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var req struct {
-		Assignments []db.JudgeAssignment `json:"assignments"`
+		Assignments []model.JudgeAssignment `json:"assignments"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
@@ -97,7 +96,7 @@ func (h *HackHandler) getTrackPanels(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := db.ListTrackPanels(r.Context(), h.database, a.event.ID)
+	rows, err := h.entries.TrackPanels(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -111,7 +110,7 @@ func (h *HackHandler) putTrackPanels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Panels []db.TrackPanelMember `json:"panels"`
+		Panels []entries.TrackPanelMember `json:"panels"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return

@@ -7,9 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/app/hack/entries"
+	entryapp "github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/hackentries"
+	"github.com/vsriram/simple-host/internal/model"
+
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"log"
 	"net/http"
@@ -64,7 +65,7 @@ func (h *HackHandler) registerJudging(mux *http.ServeMux, wrap func(http.Handler
 // time it is (re)computed, with no further write to "scores" ever
 // happening — defeating the point of locking in the first place. Returns
 // true (having already written the response) when locked.
-func writeIfJudgingLocked(w http.ResponseWriter, ev db.Event) bool {
+func writeIfJudgingLocked(w http.ResponseWriter, ev model.Event) bool {
 	if ev.JudgingLockedAt.Valid {
 		httpx.WriteError(w, http.StatusConflict, "scores_locked", "Judging is locked; unlock it first.")
 		return true
@@ -72,7 +73,7 @@ func writeIfJudgingLocked(w http.ResponseWriter, ev db.Event) bool {
 	return false
 }
 
-func rubricJSON(items []db.RubricCriterion) map[string]any {
+func rubricJSON(items []model.RubricCriterion) map[string]any {
 	out := make([]map[string]any, 0, len(items))
 	for _, c := range items {
 		out = append(out, map[string]any{
@@ -132,7 +133,7 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	items, msg := hackentries.ValidateRubric(req.Criteria)
+	items, msg := entryapp.ValidateRubric(req.Criteria)
 	if msg != "" {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_rubric", msg)
 		return
@@ -143,7 +144,7 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := h.entries.ReplaceRubric(r.Context(), a.event.ID, items, ids, req.ConfirmScoreDeletion)
 	if err != nil {
-		if e, ok := err.(*entries.Error); ok {
+		if e, ok := err.(*entryapp.Error); ok {
 			status := http.StatusConflict
 			if e.Code == "invalid_rubric" {
 				status = http.StatusBadRequest
@@ -158,7 +159,7 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, rubricJSON(saved))
 }
 
-func judgingSettingsJSON(ev db.Event) map[string]any {
+func judgingSettingsJSON(ev model.Event) map[string]any {
 	return map[string]any{
 		"assignment_mode":  ev.JudgeAssignmentMode,
 		"judges_per_team":  ev.JudgesPerTeam,
@@ -203,7 +204,7 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 	}
 	var perTeam *int
 	if req.JudgesPerTeam != nil {
-		n, ok := hackentries.WholeInRange(req.JudgesPerTeam, 1, 20)
+		n, ok := entryapp.WholeInRange(req.JudgesPerTeam, 1, 20)
 		if !ok {
 			httpx.WriteError(w, http.StatusBadRequest, "invalid_request", "judges_per_team must be a whole number from 1 to 20.")
 			return
@@ -218,9 +219,9 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 		httpx.WriteError(w, 400, "invalid_tie_criterion", "use a criterion in this event")
 		return
 	}
-	ev, err := h.entries.UpdateJudgingSettings(r.Context(), a.event.ID, entries.JudgingSettings{Mode: mode, PerTeam: perTeam, ScoreMode: req.ScoreMode, TieCriterionID: req.TieCriterionID, PublicScores: req.PublicScores, PublicRanks: req.PublicRanks})
+	ev, err := h.entries.UpdateJudgingSettings(r.Context(), a.event.ID, entryapp.JudgingSettings{Mode: mode, PerTeam: perTeam, ScoreMode: req.ScoreMode, TieCriterionID: req.TieCriterionID, PublicScores: req.PublicScores, PublicRanks: req.PublicRanks})
 	if err != nil {
-		if e, ok := err.(*entries.Error); ok {
+		if e, ok := err.(*entryapp.Error); ok {
 			status := http.StatusConflict
 			if e.Code == "criterion_not_found" {
 				status = http.StatusNotFound
@@ -243,10 +244,10 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 // team with neither has no entry and stays out; an excluded entry stays out.
 // Automatic assignment, the Judging progress and Overview's Start judging
 // confirm all use this, so none of them counts a team the queue never shows.
-func (h *HackHandler) judgingPoolFor(ctx context.Context, ev db.Event, teams []db.NamedTeam) (entries.Pool, error) {
+func (h *HackHandler) judgingPoolFor(ctx context.Context, ev model.Event, teams []model.NamedTeam) (entryapp.Pool, error) {
 	var tl teamList
 	loaded := false
-	return h.entries.JudgingPool(ctx, ev, teams, func(t db.NamedTeam) (bool, error) {
+	return h.entries.JudgingPool(ctx, ev, teams, func(t model.NamedTeam) (bool, error) {
 		if !loaded {
 			var err error
 			tl, err = h.loadTeamList(ctx, ev)
@@ -276,7 +277,7 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 	}
 	// Read before the transaction: judgingPoolFor reads team sites and may
 	// pin due teams in transactions of its own.
-	allTeams, err := db.ListTeamsWithMembers(r.Context(), h.database, a.event.ID)
+	allTeams, err := h.entries.TeamsWithMembers(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -290,14 +291,14 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 	}
 	planned, under, err := h.entries.GenerateAssignments(r.Context(), a.event.ID, req.IncludeOrganisers, pool.In)
 	if err != nil {
-		if e, ok := err.(*entries.Error); ok {
+		if e, ok := err.(*entryapp.Error); ok {
 			status := http.StatusConflict
 			if e.Code == "too_few_judges" || e.Code == "too_few_teams" {
 				status = http.StatusBadRequest
 			}
 			httpx.WriteError(w, status, e.Code, e.Message)
 		} else {
-			if _, ok := err.(*entries.BeginAssignmentsError); !ok {
+			if _, ok := err.(*entryapp.BeginAssignmentsError); !ok {
 				log.Printf("hack: assignments %s: %v", a.event.Slug, err)
 			}
 			httpx.WriteInternal(w)
@@ -307,7 +308,7 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 	httpx.WriteJSON(w, http.StatusOK, assignmentJSON(planned, under))
 }
 
-func assignmentJSON(rows []db.JudgeAssignment, under []string) map[string]any {
+func assignmentJSON(rows []model.JudgeAssignment, under []string) map[string]any {
 	out := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, map[string]any{
@@ -323,7 +324,7 @@ func assignmentJSON(rows []db.JudgeAssignment, under []string) map[string]any {
 	return map[string]any{"assignments": out, "teams_under_target": under}
 }
 
-func conflictJSON(c db.EventConflict) map[string]any {
+func conflictJSON(c entryapp.EventConflict) map[string]any {
 	return map[string]any{
 		"judge_id":    c.JudgeID,
 		"judge_name":  c.JudgeName,
@@ -396,7 +397,7 @@ func (h *HackHandler) declareConflict(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := h.entries.DeclareConflict(r.Context(), a.event.ID, judgeID, req.TeamID, declaredBy)
 	if err != nil {
-		if e, ok := err.(*entries.Error); ok {
+		if e, ok := err.(*entryapp.Error); ok {
 			status := http.StatusConflict
 			if e.Code == "team_not_found" || e.Code == "judge_not_found" {
 				status = http.StatusNotFound
@@ -435,7 +436,7 @@ func (h *HackHandler) deleteConflict(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.entries.DeleteConflict(r.Context(), a.event.ID, judgeID, teamID); err != nil {
-		if e, ok := err.(*entries.Error); ok {
+		if e, ok := err.(*entryapp.Error); ok {
 			status := http.StatusConflict
 			if e.Code == "conflict_not_found" {
 				status = http.StatusNotFound
@@ -456,7 +457,7 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	allTeams, err := db.ListTeamsWithMembers(ctx, h.database, a.event.ID)
+	allTeams, err := h.entries.TeamsWithMembers(ctx, a.event.ID)
 	if err != nil {
 		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -471,13 +472,13 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	teams := make([]db.NamedTeam, 0, len(allTeams))
+	teams := make([]model.NamedTeam, 0, len(allTeams))
 	for _, t := range allTeams {
 		if pool.In[t.ID] {
 			teams = append(teams, t)
 		}
 	}
-	judges, err := db.ListEventJudges(ctx, h.database, a.event.ID)
+	judges, err := h.entries.EventJudges(ctx, a.event.ID)
 	if err != nil {
 		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -528,7 +529,7 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 			"assigned_count": assigned[judge.ID],
 		})
 	}
-	former, err := db.ListFormerJudges(ctx, h.database, a.event.ID)
+	former, err := h.entries.FormerJudges(ctx, a.event.ID)
 	if err != nil {
 		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -536,7 +537,7 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	formerRows := make([]map[string]any, 0, len(former))
 	for _, f := range former {
-		assignedCount, err := db.FormerJudgeAssignedCount(ctx, h.database, a.event.ID, f.UserID)
+		assignedCount, err := h.entries.FormerJudgeAssignedCountLookup(ctx, a.event.ID, f.UserID)
 		if err != nil {
 			log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
 			httpx.WriteInternal(w)
@@ -594,7 +595,7 @@ func (h *HackHandler) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Req
 	}
 	err := h.entries.DeleteFormerJudgeScores(r.Context(), a.event.ID, a.user.ID, userID, a.event.Slug)
 	if err != nil {
-		if e, ok := err.(*entries.Error); ok {
+		if e, ok := err.(*entryapp.Error); ok {
 			switch e.Code {
 			case "event_not_found":
 				writeEventNotFound(w)
@@ -615,7 +616,7 @@ func (h *HackHandler) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Req
 
 // --- M3 pass 2: scoring, lock/unlock, publish, results, exports ----------
 
-func judgingLockJSON(ev db.Event, locked bool) map[string]any {
+func judgingLockJSON(ev model.Event, locked bool) map[string]any {
 	out := map[string]any{"locked": locked}
 	if locked && ev.JudgingLockedAt.Valid {
 		out["locked_at"] = rfc3339Time(ev.JudgingLockedAt.Time)
@@ -681,7 +682,7 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		if e, ok := err.(*entries.QueueTeamError); ok {
+		if e, ok := err.(*entryapp.QueueTeamError); ok {
 			log.Printf("hack: queue %s/%s: %v", a.event.Slug, e.TeamID, e.Err)
 		} else {
 			log.Printf("hack: queue %s: %v", a.event.Slug, err)
@@ -689,8 +690,8 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	fields := hackentries.LoadRules(a.event.EntryRules)
-	tracks, err := db.ListEventTracks(ctx, h.database, a.event.ID)
+	fields := entryapp.LoadRules(a.event.EntryRules)
+	tracks, err := h.eventsSvc().EventTracks(ctx, a.event.ID)
 	if err != nil {
 		log.Printf("hack: queue %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -706,7 +707,7 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 	out := make([]map[string]any, 0, len(queue))
 	for _, row := range queue {
 		team := row.Team
-		item, ierr := h.entryListItem(ctx, a.event, db.EventTeam{ID: team.ID, Name: team.Name, Slug: team.Slug}, row.Entry, fields, hasTracks, tl)
+		item, ierr := h.entryListItem(ctx, a.event, model.EventTeam{ID: team.ID, Name: team.Name, Slug: team.Slug}, row.Entry, fields, hasTracks, tl)
 		if ierr != nil {
 			log.Printf("hack: queue %s/%s: %v", a.event.Slug, team.ID, ierr)
 			httpx.WriteInternal(w)
@@ -723,7 +724,7 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"queue": out, "judge_first": a.event.JudgeFirst, "assignment_mode": a.event.JudgeAssignmentMode})
 }
 
-func scoresJSON(scores []db.JudgeScore, comment string, complete *bool) map[string]any {
+func scoresJSON(scores []entryapp.JudgeScore, comment string, complete *bool) map[string]any {
 	out := make([]map[string]any, 0, len(scores))
 	for _, s := range scores {
 		out = append(out, map[string]any{"criterion_id": s.CriterionID, "points": s.Points})
@@ -747,7 +748,7 @@ func (h *HackHandler) getJudgeScores(w http.ResponseWriter, r *http.Request) {
 	teamID := r.PathValue("team")
 	scores, comment, err := h.entries.JudgeScores(r.Context(), a.event.ID, a.user.ID, teamID)
 	if err != nil {
-		if e, ok := err.(*entries.Error); ok {
+		if e, ok := err.(*entryapp.Error); ok {
 			httpx.WriteError(w, http.StatusForbidden, e.Code, e.Message)
 		} else {
 			log.Printf("hack: scores %s: %v", a.event.Slug, err)
@@ -773,7 +774,7 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 	}
 	teamID := r.PathValue("team")
 	if err := h.entries.CheckScoreConflict(r.Context(), a.event.ID, a.user.ID, teamID); err != nil {
-		if e, ok := err.(*entries.Error); ok {
+		if e, ok := err.(*entryapp.Error); ok {
 			status := http.StatusForbidden
 			if e.Code == "team_not_found" {
 				status = http.StatusNotFound
@@ -786,8 +787,8 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Scores  []entries.ScoreInput `json:"scores"`
-		Comment *string              `json:"comment"`
+		Scores  []entryapp.ScoreInput `json:"scores"`
+		Comment *string               `json:"comment"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
@@ -802,7 +803,7 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, comment, complete, err := h.entries.PutJudgeScores(r.Context(), a.event.ID, a.user.ID, teamID, req.Scores, req.Comment, h.scoringStage)
 	if err != nil {
-		if e, ok := err.(*entries.Error); ok {
+		if e, ok := err.(*entryapp.Error); ok {
 			status := http.StatusConflict
 			switch e.Code {
 			case "forbidden":
@@ -822,8 +823,8 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, scoresJSON(updated, comment, &complete))
 }
 
-type teamResult = hackentries.TeamResult[db.EventTrack]
-type rankOverride = hackentries.RankOverride
+type teamResult = entryapp.TeamResult
+type rankOverride = entryapp.RankOverride
 
 func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
@@ -845,7 +846,7 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 	}
 	var snapshot []map[string]any
 	cardsFailed := false
-	full, phase, err := h.entries.PublishResults(r.Context(), a.event.ID, a.user.ID, overrides, func(q db.Querier, results []teamResult) ([]byte, error) {
+	full, phase, err := h.entries.PublishResults(r.Context(), a.event.ID, a.user.ID, overrides, func(q entryapp.Querier, results []teamResult) ([]byte, error) {
 		cards, err := h.resultsEntryCards(r.Context(), q, a.event, results)
 		if err != nil {
 			cardsFailed = true
@@ -855,7 +856,7 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 		return json.Marshal(snapshot)
 	}, func() { paperHackTimes(r) })
 	if err != nil {
-		if e, ok := err.(*entries.Error); ok {
+		if e, ok := err.(*entryapp.Error); ok {
 			httpx.WriteError(w, http.StatusBadRequest, e.Code, e.Message)
 			return
 		}
@@ -925,7 +926,7 @@ func resultsSnapshotJSON(results []teamResult, cards map[string]map[string]any) 
 // "excluded entries get no card" falls out for free -- EntryJudgeableSQL
 // already kept them out of every judge's eligible set, so they carry no
 // score and computeResultsWithOptions never ranks them.
-func (h *HackHandler) resultsEntryCards(ctx context.Context, q db.Querier, ev db.Event, results []teamResult) (map[string]map[string]any, error) {
+func (h *HackHandler) resultsEntryCards(ctx context.Context, q entryapp.Querier, ev model.Event, results []teamResult) (map[string]map[string]any, error) {
 	ranked := false
 	for _, res := range results {
 		if res.Rank != nil {
@@ -936,7 +937,7 @@ func (h *HackHandler) resultsEntryCards(ctx context.Context, q db.Querier, ev db
 	if !ranked {
 		return nil, nil
 	}
-	teams, err := db.ListTeamsWithMembers(ctx, q, ev.ID)
+	teams, err := h.entries.TeamsWithMembersInTx(ctx, q, ev.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -944,11 +945,11 @@ func (h *HackHandler) resultsEntryCards(ctx context.Context, q db.Querier, ev db
 	for _, t := range teams {
 		slugByID[t.ID] = t.Slug
 	}
-	entries, err := db.ListEventEntries(ctx, q, ev.ID)
+	entries, err := h.entries.EventEntriesInTx(ctx, q, ev.ID)
 	if err != nil {
 		return nil, err
 	}
-	entryByTeam := make(map[string]db.EventEntry, len(entries))
+	entryByTeam := make(map[string]model.EventEntry, len(entries))
 	for _, e := range entries {
 		entryByTeam[e.TeamID] = e
 	}
@@ -956,7 +957,7 @@ func (h *HackHandler) resultsEntryCards(ctx context.Context, q db.Querier, ev db
 	if err != nil {
 		return nil, err
 	}
-	fields := hackentries.LoadRules(ev.EntryRules)
+	fields := entryapp.LoadRules(ev.EntryRules)
 	codeOff := fields["code_url"] == "off"
 	out := make(map[string]map[string]any, len(results))
 	for _, res := range results {
@@ -1022,7 +1023,7 @@ func (h *HackHandler) patchResults(w http.ResponseWriter, r *http.Request) {
 
 func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
-	ev, err := db.GetEventBySlug(r.Context(), h.database, slug)
+	ev, err := h.eventsSvc().EventBySlug(r.Context(), slug)
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
@@ -1066,7 +1067,7 @@ func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 				httpx.WriteJSON(w, http.StatusOK, map[string]any{"results": rows, "full_ranking": res.FullRanking})
 				return
 			}
-			if m, merr := db.GetEventMember(r.Context(), h.database, ev.ID, u.ID); merr == nil && m.Role == "organiser" {
+			if m, merr := h.eventsSvc().EventMember(r.Context(), ev.ID, u.ID); merr == nil && m.Role == "organiser" {
 				httpx.WriteJSON(w, http.StatusOK, map[string]any{"results": rows, "full_ranking": res.FullRanking})
 				return
 			}
@@ -1226,7 +1227,7 @@ func (h *HackHandler) exportScoresCSV(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := db.ListRawScores(r.Context(), h.database, a.event.ID)
+	rows, err := h.entries.RawScores(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: export scores %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -1383,14 +1384,14 @@ func jsonFloat(v any) float64 {
 // scoringStage reports whether judges may score in the event's stage:
 // from entries closed onward, or while building on the standing demo
 // (including its weekly replacement slug) so visitors can try judging.
-func (h *HackHandler) scoringStage(ctx context.Context, ev db.Event) bool {
+func (h *HackHandler) scoringStage(ctx context.Context, ev model.Event) bool {
 	if ev.Stage == "closed" || ev.Stage == "judging" {
 		return true
 	}
 	if h.demoSlug == "" || (ev.Slug != h.demoSlug && !strings.HasPrefix(ev.Slug, h.demoSlug+"-")) {
 		return false
 	}
-	demo, err := db.GetDemoEvent(ctx, h.database, h.demoSlug)
+	demo, err := h.eventsSvc().DemoEvent(ctx, h.demoSlug)
 	return err == nil && demo.ID == ev.ID
 }
 
@@ -1398,12 +1399,12 @@ func (h *HackHandler) scoringStage(ctx context.Context, ev db.Event) bool {
 // is live right now (the gallery's own query), so the public result routes
 // (/results, /public) drop a card's site link once a site is taken down or
 // goes offline after publish, without a republish -- as the event page does.
-func (h *HackHandler) liveResultSites(ctx context.Context, ev db.Event) map[string]string {
+func (h *HackHandler) liveResultSites(ctx context.Context, ev model.Event) map[string]string {
 	out := map[string]string{}
 	if h.sites == nil {
 		return out
 	}
-	cards, err := db.ListGalleryCards(ctx, h.database, ev.ID, ev.AccountID)
+	cards, err := h.eventsSvc().GalleryCards(ctx, ev.ID, ev.AccountID)
 	if err != nil {
 		log.Printf("hack: result sites %s: %v", ev.Slug, err)
 		return out

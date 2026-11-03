@@ -6,16 +6,16 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	entryapp "github.com/vsriram/simple-host/internal/app/hack/entries"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/hackentries"
+	"github.com/vsriram/simple-host/internal/model"
+
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 func (h *HackHandler) registerAdministration(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
@@ -151,17 +151,17 @@ func (h *HackHandler) renameTeam(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	name, ok := checkHackLine(w, hackevents.StripInvisible(req.Name), "team_name", 1, 80)
+	name, ok := checkHackLine(w, events.StripInvisible(req.Name), "team_name", 1, 80)
 	if !ok {
 		return
 	}
 	slug := r.PathValue("team")
-	err := db.RenameEventTeam(r.Context(), h.database, a.event.ID, slug, name)
+	err := h.teamsSvc().RenameEventTeamLookup(r.Context(), a.event.ID, slug, name)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
 	}
-	if hackevents.UniqueError(err) {
+	if events.UniqueError(err) {
 		httpx.WriteError(w, 409, "team_name_taken", "another team has that name")
 		return
 	}
@@ -181,7 +181,7 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 	kind := filepath.Base(r.URL.Path)
 	switch kind {
 	case "participants.csv":
-		people, err := db.ListEventPeople(r.Context(), h.database, a.event.ID)
+		people, err := h.eventsSvc().EventPeople(r.Context(), a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -196,17 +196,17 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 				}
 				rows = append(rows, []string{
 					p.DisplayName, p.Email, p.TeamName.String, p.TeamSlug.String, rfc3339Time(p.JoinedAt), accepted,
-					p.City, hackevents.CountryName(p.Country), hackevents.AgeRangeLabels[p.AgeRange], hackevents.GenderLabels[p.Gender], hackevents.JoinedViaLabel(p.JoinedVia),
+					p.City, events.CountryName(p.Country), events.AgeRangeLabels[p.AgeRange], events.GenderLabels[p.Gender], events.JoinedViaLabel(p.JoinedVia),
 				})
 			}
 		}
 	case "teams.csv":
-		teams, err := db.ListEventTeams(r.Context(), h.database, a.event.ID)
+		teams, err := h.teamsSvc().EventTeams(r.Context(), a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
 		}
-		people, err := db.ListEventPeople(r.Context(), h.database, a.event.ID)
+		people, err := h.eventsSvc().EventPeople(r.Context(), a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -222,22 +222,22 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 			rows = append(rows, []string{t.Name, t.Slug, strconv.Itoa(counts[t.ID]), h.teamSiteURL(a.event.Slug, t.Slug), rfc3339Time(t.CreatedAt)})
 		}
 	case "entries.csv":
-		entries, err := db.ListEventEntries(r.Context(), h.database, a.event.ID)
+		entries, err := h.entries.EventEntries(r.Context(), a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
 		}
-		teams, err := db.ListEventTeams(r.Context(), h.database, a.event.ID)
+		teams, err := h.teamsSvc().EventTeams(r.Context(), a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
 		}
-		byID := map[string]db.EventTeam{}
+		byID := map[string]model.EventTeam{}
 		for _, t := range teams {
 			byID[t.ID] = t
 		}
-		fields := hackentries.LoadRules(a.event.EntryRules)
-		tracks, err := db.ListEventTracks(r.Context(), h.database, a.event.ID)
+		fields := entryapp.LoadRules(a.event.EntryRules)
+		tracks, err := h.eventsSvc().EventTracks(r.Context(), a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -249,13 +249,13 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 			"status", "submitted_at", "submit_auto", "problem", "audience", "track", "tools", "maturity", "missing", "excluded"})
 		for _, e := range entries {
 			t := byID[e.TeamID]
-			track, err := db.TeamTrack(r.Context(), h.database, e.TeamID)
+			track, err := h.eventsSvc().TeamTrackLookup(r.Context(), e.TeamID)
 			if err != nil {
 				httpx.WriteInternal(w)
 				return
 			}
 			siteLive := h.entrySiteLive(r.Context(), a.event, t.Slug, t.SiteTakenDownAt.Valid)
-			check := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
+			check := entryapp.Evaluate(fields, e, siteLive, hasTracks, track)
 			trackName := ""
 			if track != nil {
 				trackName = track.Name
@@ -287,8 +287,8 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 }
 
 type hackAdministrationSites interface {
-	ExportEventProjects(http.ResponseWriter, *http.Request, db.Event, string)
-	EventFileBytes(context.Context, db.Event) (int64, error)
+	ExportEventProjects(http.ResponseWriter, *http.Request, model.Event, string)
+	EventFileBytes(context.Context, model.Event) (int64, error)
 }
 
 func (h *HackHandler) exportProjects(w http.ResponseWriter, r *http.Request) {
@@ -324,7 +324,7 @@ func (h *HackHandler) eventUsage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	u, err := db.EventStorage(r.Context(), h.database, a.event)
+	u, err := h.eventsSvc().EventStorageLookup(r.Context(), a.event)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return

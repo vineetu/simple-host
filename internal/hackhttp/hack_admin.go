@@ -4,13 +4,13 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"net/http"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // hackAccountAdmin is handler's accountAdmin (accounts.go), duplicated here
@@ -170,23 +170,23 @@ func (h *HackHandler) adminDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *HackHandler) adminLoadEvent(w http.ResponseWriter, r *http.Request) (db.Event, bool) {
+func (h *HackHandler) adminLoadEvent(w http.ResponseWriter, r *http.Request) (model.Event, bool) {
 	ev, err := h.events.AdminEvent(r.Context(), r.PathValue("slug"))
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "not found"})
-		return db.Event{}, false
+		return model.Event{}, false
 	}
 	if err != nil {
 		httpx.WriteInternal(w)
-		return db.Event{}, false
+		return model.Event{}, false
 	}
 	return ev, true
 }
 
-func (h *HackHandler) adminEventJSON(ev db.Event) map[string]any {
+func (h *HackHandler) adminEventJSON(ev model.Event) map[string]any {
 	return map[string]any{
 		"slug":              ev.Slug,
 		"title":             ev.Title,
