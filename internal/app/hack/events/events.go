@@ -1,15 +1,3 @@
-// Package events owns Hack's events workflow, moved out of internal/hackhttp
-// one endpoint at a time (docs/architecture/target.md §2, §10 row 3.2). This
-// slice (cleanup 3.2 slice 4) moves the first one: the public
-// GET /v1/hack/directory listing. More of the events/members/teams workflow
-// lands here in cleanup step 4.2.
-//
-// Its SQL stays in internal/db for now (db.ListDirectoryEvents): this
-// package may import internal/db as a TRANSITIONAL edge until
-// internal/repository/hackevents exists in step 4.x. That edge is not a
-// precedent for other app packages — see 3.2-common.md and target.md §2's
-// final import table, which has app/hack/events reaching a repository
-// instead.
 package events
 
 import (

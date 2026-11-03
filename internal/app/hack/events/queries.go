@@ -5,16 +5,17 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
+
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
-	"time"
 )
 
 // SetStage changes the event stage and settles entries within the transaction.
 func (s *Service) SetStage(ctx context.Context, event db.Event, stage string, settle func(context.Context, *sql.Tx, string) error) (db.Event, string, error) {
 	if event.Stage == "archived" && stage != "archived" {
-		return db.Event{}, "", &Error{409, "event_closed", "an ended event cannot be reopened"}
+		return db.Event{}, "", &Error{"event_closed", "an ended event cannot be reopened"}
 	}
 	if stage == "archived" && event.Stage != "archived" {
 		// An event nobody joined is deleted, not ended: ending one would keep
@@ -24,7 +25,7 @@ func (s *Service) SetStage(ctx context.Context, event db.Event, stage string, se
 			return db.Event{}, "", err
 		}
 		if participants == 0 {
-			return db.Event{}, "", &Error{409, "archive_needs_participants", "nobody has joined, so delete the event instead"}
+			return db.Event{}, "", &Error{"archive_needs_participants", "nobody has joined, so delete the event instead"}
 		}
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -37,7 +38,7 @@ func (s *Service) SetStage(ctx context.Context, event db.Event, stage string, se
 		return db.Event{}, "", err
 	}
 	if current == "archived" && stage != "archived" {
-		return db.Event{}, "", &Error{409, "event_closed", "an ended event cannot be reopened"}
+		return db.Event{}, "", &Error{"event_closed", "an ended event cannot be reopened"}
 	}
 	// Every team row too: a deploy let in holds its team FOR SHARE and
 	// finishes before the deadline moves.
@@ -124,20 +125,20 @@ func (s *Service) DeleteEvent(ctx context.Context, event db.Event, userID string
 		FROM events e JOIN event_members m ON m.event_id=e.id
 		WHERE e.id=$1 AND m.user_id=$2 FOR UPDATE OF e FOR SHARE OF m`, event.ID, userID).Scan(&stage, &role, &takenDown)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && role != "organiser") {
-		return sql.ErrNoRows
+		return &Error{"event_not_found", "event not found"}
 	}
 	if err != nil {
 		return err
 	}
 	if takenDown {
-		return &Error{403, "event_taken_down", "this event has been taken down"}
+		return &Error{"event_taken_down", "this event has been taken down"}
 	}
 	participants, _, judges, err := db.CountEventMembers(ctx, tx, event.ID)
 	if err != nil {
 		return err
 	}
 	if (confirm != nil && *confirm != event.Slug) || (confirm == nil && (stage == "archived" || participants+judges > 0)) {
-		return &Error{409, "delete_only_empty", "to permanently delete this event, send {\"confirm\":\"" + event.Slug + "\"} with the matching event address name"}
+		return &Error{"delete_only_empty", "to permanently delete this event, send {\"confirm\":\"" + event.Slug + "\"} with the matching event address name"}
 	}
 	if err := s.DeleteEventTx(ctx, tx, event, trash); err != nil {
 		return err
@@ -148,7 +149,10 @@ func (s *Service) DeleteEvent(ctx context.Context, event db.Event, userID string
 	return nil
 }
 
-// ArchiveEventTx archives an event in the caller's transaction.
+// ArchiveEventTx locks teams and closes the deadline unless it already passed or
+// submissions were closed, then archives, unpins and settles entries. The caller
+// holds the event row FOR UPDATE, has checked that a participant exists, and
+// supplies the current stage read under that lock.
 func (s *Service) ArchiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string, settle func(context.Context, *sql.Tx, string) error) (db.Event, error) {
 	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, eventID); err != nil {
 		return db.Event{}, err
@@ -174,7 +178,9 @@ func (s *Service) ArchiveEventTx(ctx context.Context, tx *sql.Tx, eventID, curre
 	return updated, nil
 }
 
-// DeleteEventTx deletes an event in the caller's transaction.
+// DeleteEventTx trashes team sites, then deletes the event and its holding
+// account, including recently deleted sites; there is no event undo. The caller
+// holds the event row and has checked confirmation against the slug.
 func (s *Service) DeleteEventTx(ctx context.Context, tx *sql.Tx, ev db.Event, trash func(context.Context, string, string) error) error {
 	if trash != nil {
 		teams, err := db.ListEventTeams(ctx, tx, ev.ID)
@@ -190,29 +196,26 @@ func (s *Service) DeleteEventTx(ctx context.Context, tx *sql.Tx, ev db.Event, tr
 	return db.DeleteEventAndAccount(ctx, tx, ev)
 }
 
-// ErrValidation indicates that the input validator rejected the request.
-var ErrValidation = errors.New("invalid input")
-var entryFields = []string{"title", "tagline", "description", "video_url", "code_url", "screenshot"}
-
 // PatchEvent applies validated settings while holding the event lock.
-func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(*db.Event) (bool, bool, bool)) (db.Event, error) {
+func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(*db.Event) (bool, bool, error)) (db.Event, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return db.Event{}, err
 	}
 	defer tx.Rollback()
+	// Re-read under the lock: the event loaded before the transaction may be stale.
 	ev, err := db.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		return db.Event{}, err
 	}
-	deadlineChanged, entryRequiredChanged, ok := validate(&ev)
-	if !ok {
-		return db.Event{}, ErrValidation
+	deadlineChanged, entryRequiredChanged, validationErr := validate(&ev)
+	if validationErr != nil {
+		return db.Event{}, validationErr
 	}
 	stage := ev.Stage
 	if deadlineChanged {
 		if stage == "archived" {
-			return db.Event{}, &Error{409, "event_closed", "an ended event cannot be changed"}
+			return db.Event{}, &Error{"event_closed", "an ended event cannot be changed"}
 		}
 		// Submissions closed means the deadline has passed; reopening them
 		// is moving the event back to Building, or one team's extension.
@@ -221,7 +224,7 @@ func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(
 			return db.Event{}, err
 		}
 		if hackevents.SubmissionsClosedStage(stage) && (!ev.SubmissionDeadline.Valid || ev.SubmissionDeadline.Time.After(dbNow)) {
-			return db.Event{}, &Error{409, "submissions_closed_stage", "submissions are closed: move the event back to Building to set a new deadline, or give single teams more time"}
+			return db.Event{}, &Error{"submissions_closed_stage", "submissions are closed: move the event back to Building to set a new deadline, or give single teams more time"}
 		}
 	}
 	updated, err := db.UpdateEventPatch(ctx, tx, ev)
@@ -241,7 +244,7 @@ func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(
 		for _, f := range ev.EntryRequired {
 			want[f] = true
 		}
-		for _, f := range entryFields {
+		for _, f := range hackevents.EntryFields {
 			if want[f] {
 				fields[f] = "required"
 			}
@@ -272,6 +275,8 @@ func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(
 	return updated, nil
 }
 
+// savepoint rolls back a failed attempt so a unique violation does not abort
+// the transaction and prevent a retry.
 func savepoint(ctx context.Context, q db.Querier, fn func() error) error {
 	if _, err := q.ExecContext(ctx, "SAVEPOINT hack_try"); err != nil {
 		return err

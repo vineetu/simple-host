@@ -32,14 +32,14 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 		return db.Event{}, db.EventMember{}, err
 	}
 	if n >= perDay {
-		return db.Event{}, db.EventMember{}, &Error{429, "too_many_events_today", "you have created too many events today"}
+		return db.Event{}, db.EventMember{}, &Error{"too_many_events_today", "you have created too many events today"}
 	}
 	active, err := db.CountActiveEventsByOrganiser(ctx, tx, userID)
 	if err != nil {
 		return db.Event{}, db.EventMember{}, err
 	}
 	if active >= maxActive {
-		return db.Event{}, db.EventMember{}, &Error{409, "too_many_active_events", "you already have as many active events as this instance allows"}
+		return db.Event{}, db.EventMember{}, &Error{"too_many_active_events", "you already have as many active events as this instance allows"}
 	}
 
 	eventID, err := db.NewUUID(ctx, tx)
@@ -55,7 +55,7 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 		return db.Event{}, db.EventMember{}, err
 	}
 	if !claimed {
-		return db.Event{}, db.EventMember{}, &Error{409, "name_taken", "that name is already in use"}
+		return db.Event{}, db.EventMember{}, &Error{"name_taken", "that name is already in use"}
 	}
 	if err := db.MarkEventAccount(ctx, tx, holding.ID); err != nil {
 		return db.Event{}, db.EventMember{}, err
@@ -93,7 +93,7 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 				JudgeCode:            judgeCode,
 				// New events start on the AI-build preset (section 2); a Go
 				// table, not a DB default, so the preset's field list lives
-				// in one place (hack_entry_rules.go).
+				// in one place (rules/hackentries).
 				EntryPreset: "build",
 				EntryRules:  hackentries.MarshalRules(hackentries.ExpandPreset("build")),
 			})
@@ -106,7 +106,7 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 			continue
 		}
 		if unique(err) {
-			return db.Event{}, db.EventMember{}, &Error{409, "name_taken", "that name is already in use"}
+			return db.Event{}, db.EventMember{}, &Error{"name_taken", "that name is already in use"}
 		}
 		return db.Event{}, db.EventMember{}, err
 	}
