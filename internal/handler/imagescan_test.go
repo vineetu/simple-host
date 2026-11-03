@@ -469,6 +469,7 @@ func TestImageScanEventIcon(t *testing.T) {
 		}()
 	}
 	a.hack.SetImageScan(s)
+	s.SetHackTakeDownSync(a.hack.SyncEventMarkers) // as main wires it
 	ada := a.newPerson(t, "ada")
 	slug := uniqueSlug()
 	if r := a.createEvent(t, ada, slug, nil); r.status != http.StatusCreated {
