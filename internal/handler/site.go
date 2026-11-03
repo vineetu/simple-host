@@ -588,7 +588,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// CORS middleware (these paths do not end in /state).
 	mux.Handle("POST /v1/sites/{sitename}/files", authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createSiteFiles))))))
 	mux.Handle("PUT /v1/sites/{sitename}/files", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSiteFiles)))))
-	mux.Handle("POST /v1/sites/{sitename}/photos", photosHostOnly(h.ed.Storage().Photos, authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(http.HandlerFunc(h.addPhotos))))))
+	photos := h.ed.Storage().Photos
+	mux.Handle("POST /v1/sites/{sitename}/photos", photosHostOnly(photos, authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(http.HandlerFunc(h.addPhotos))))))
 
 	// State routes are deliberately NOT wrapped — they serve browser pages
 	// that parse the JSON state object directly. Adding _notice would
