@@ -218,78 +218,17 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 		httpx.WriteError(w, 400, "invalid_tie_criterion", "use a criterion in this event")
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	ev, err := h.entries.UpdateJudgingSettings(r.Context(), a.event.ID, entries.JudgingSettings{Mode: mode, PerTeam: perTeam, ScoreMode: req.ScoreMode, TieCriterionID: req.TieCriterionID, PublicScores: req.PublicScores, PublicRanks: req.PublicRanks})
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if ev.Stage == "archived" {
-		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	if (mode != nil || perTeam != nil) && writeIfJudgingLocked(w, ev) {
-		return
-	}
-	if req.TieCriterionID != nil {
-		if ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived" {
-			httpx.WriteError(w, 409, "tie_rule_closed", "choose the tie criterion before judging begins")
-			return
-		}
-		if *req.TieCriterionID != "" {
-			valid, err := db.EventCriterionInEvent(r.Context(), tx, ev.ID, *req.TieCriterionID)
-			if err != nil {
-				httpx.WriteInternal(w)
-				return
+		if e, ok := err.(*entries.Error); ok {
+			status := http.StatusConflict
+			if e.Code == "criterion_not_found" {
+				status = http.StatusNotFound
 			}
-			if !valid {
-				httpx.WriteError(w, 404, "criterion_not_found", "criterion not in this event")
-				return
-			}
-		}
-	}
-	if mode != nil || perTeam != nil {
-		ev, err = db.UpdateJudgingSettings(r.Context(), tx, ev.ID, mode, perTeam)
-		if err != nil {
+			httpx.WriteError(w, status, e.Code, e.Message)
+		} else {
 			httpx.WriteInternal(w)
-			return
 		}
-	}
-	var scoreMode, publicScores, publicRanks any
-	if req.ScoreMode != nil {
-		scoreMode = *req.ScoreMode
-	}
-	if req.PublicScores != nil {
-		publicScores = *req.PublicScores
-	}
-	if req.PublicRanks != nil {
-		publicRanks = *req.PublicRanks
-	}
-	if req.ScoreMode != nil || req.TieCriterionID != nil || req.PublicScores != nil || req.PublicRanks != nil {
-		var tie any
-		if req.TieCriterionID != nil {
-			tie = *req.TieCriterionID
-		}
-		_, err = tx.ExecContext(r.Context(), `UPDATE events SET score_mode=COALESCE($2::text,score_mode),
-			tie_criterion_id=CASE WHEN $3::boolean THEN NULLIF($4::text,'')::uuid ELSE tie_criterion_id END,
-			public_scores=COALESCE($5::boolean,public_scores), public_ranks=COALESCE($6::boolean,public_ranks), updated_at=now() WHERE id=$1`, ev.ID, scoreMode, req.TieCriterionID != nil, tie, publicScores, publicRanks)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-	}
-	ev, err = db.GetEventForUpdate(r.Context(), tx, ev.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, judgingSettingsJSON(ev))
@@ -544,7 +483,7 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	scoredTeams, scoredJudges, err := db.ScoreCoverage(ctx, h.database, a.event.ID)
+	scoredTeams, scoredJudges, err := h.entries.ScoreCoverage(ctx, a.event.ID)
 	if err != nil {
 		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -725,7 +664,7 @@ func (h *HackHandler) lockJudging(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ev, err := db.SetJudgingLock(r.Context(), h.database, a.event.ID, true, "")
+	ev, err := h.entries.SetJudgingLock(r.Context(), a.event.ID, true, "")
 	if err != nil {
 		log.Printf("hack: judging lock %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -749,7 +688,7 @@ func (h *HackHandler) unlockJudging(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ev, err := db.SetJudgingLock(r.Context(), h.database, a.event.ID, false, reason)
+	ev, err := h.entries.SetJudgingLock(r.Context(), a.event.ID, false, reason)
 	if err != nil {
 		log.Printf("hack: judging unlock %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -948,58 +887,31 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
+	overrides := make([]rankOverride, len(req.RankOverrides))
+	for i, ov := range req.RankOverrides {
+		overrides[i] = rankOverride{TeamID: ov.TeamID, Rank: ov.Rank}
 	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	results, err := computeResultsWithOptions(r.Context(), tx, ev)
-	if err != nil {
-		log.Printf("hack: publish %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if len(req.RankOverrides) > 0 {
-		overrides := make([]rankOverride, len(req.RankOverrides))
-		for i, ov := range req.RankOverrides {
-			overrides[i] = rankOverride{TeamID: ov.TeamID, Rank: ov.Rank}
+	var snapshot []map[string]any
+	cardsFailed := false
+	full, phase, err := h.entries.PublishResults(r.Context(), a.event.ID, a.user.ID, overrides, func(q db.Querier, results []teamResult) ([]byte, error) {
+		cards, err := h.resultsEntryCards(r.Context(), q, a.event, results)
+		if err != nil {
+			cardsFailed = true
+			return nil, err
 		}
-		if err := applyRankOverrides(results, overrides); err != nil {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_rank_override", err.Error())
+		snapshot = resultsSnapshotJSON(results, cards)
+		return json.Marshal(snapshot)
+	}, func() { paperHackTimes(r) })
+	if err != nil {
+		if e, ok := err.(*entries.Error); ok {
+			httpx.WriteError(w, http.StatusBadRequest, e.Code, e.Message)
 			return
 		}
-	}
-	cards, err := h.resultsEntryCards(r.Context(), tx, a.event, results)
-	if err != nil {
-		log.Printf("hack: publish %s: cards: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	snapshot := resultsSnapshotJSON(results, cards)
-	body, err := json.Marshal(snapshot)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := db.UpsertEventResults(r.Context(), tx, a.event.ID, a.user.ID, body); err != nil {
-		log.Printf("hack: publish %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	paperHackTimes(r)
-	full, err := db.GetEventResults(r.Context(), h.database, a.event.ID)
-	if err != nil {
-		log.Printf("hack: publish %s: %v", a.event.Slug, err)
+		if cardsFailed {
+			log.Printf("hack: publish %s: cards: %v", a.event.Slug, err)
+		} else if phase == "compute" || phase == "write" || phase == "read" {
+			log.Printf("hack: publish %s: %v", a.event.Slug, err)
+		}
 		httpx.WriteInternal(w)
 		return
 	}
@@ -1143,7 +1055,7 @@ func (h *HackHandler) patchResults(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_request", "full_ranking is required")
 		return
 	}
-	ok2, err := db.SetResultsFullRanking(r.Context(), h.database, a.event.ID, *req.FullRanking)
+	res, ok2, err := h.entries.SetFullRanking(r.Context(), a.event.ID, *req.FullRanking)
 	if err != nil {
 		log.Printf("hack: results %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -1151,12 +1063,6 @@ func (h *HackHandler) patchResults(w http.ResponseWriter, r *http.Request) {
 	}
 	if !ok2 {
 		httpx.WriteError(w, http.StatusNotFound, "no_results_yet", "Publish results first.")
-		return
-	}
-	res, err := db.GetEventResults(r.Context(), h.database, a.event.ID)
-	if err != nil {
-		log.Printf("hack: results %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"full_ranking": res.FullRanking, "results": json.RawMessage(res.Snapshot)})
@@ -1183,7 +1089,7 @@ func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	res, err := db.GetEventResults(r.Context(), h.database, ev.ID)
+	res, err := h.entries.GetResults(r.Context(), ev.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -1281,7 +1187,7 @@ func (h *HackHandler) getMyResults(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	res, err := db.GetEventResults(r.Context(), h.database, a.event.ID)
+	res, err := h.entries.GetResults(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: my-results %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -1422,7 +1328,7 @@ func (h *HackHandler) exportResultsCSV(w http.ResponseWriter, r *http.Request) {
 		JudgesScored    int
 	}
 	var rows []row
-	published, perr := db.GetEventResults(r.Context(), h.database, a.event.ID)
+	published, perr := h.entries.GetResults(r.Context(), a.event.ID)
 	if perr != nil {
 		log.Printf("hack: export results %s: %v", a.event.Slug, perr)
 		httpx.WriteInternal(w)
