@@ -22,25 +22,14 @@ func (k Kind) String() string {
 	return "host"
 }
 
-// RoutePolicy describes edition-specific routes.
-type RoutePolicy struct {
-	// HostedEvents enables hosted event routes.
-	HostedEvents bool
-}
-
-// PresentationPolicy describes edition-specific presentation.
-type PresentationPolicy struct {
-	// ProductName is the public product name.
-	ProductName string
-	// HackAssets selects Simple Hack presentation and skills.
-	HackAssets bool
-}
-
 // Edition holds immutable instance policy.
 type Edition struct {
-	kind         Kind
-	routes       RoutePolicy
-	presentation PresentationPolicy
+	kind          Kind
+	routes        RoutePolicy
+	presentation  PresentationPolicy
+	identity      IdentityPolicy
+	storage       StoragePolicy
+	notifications NotificationPolicy
 }
 
 // New derives instance policy from configuration.
@@ -51,18 +40,17 @@ func New(cfg config.Config) *Edition {
 	return ForKind(Host)
 }
 
-// ForKind constructs policy for the given edition.
+// ForKind constructs policy for the given edition. Each policy is built in
+// its own file (routes.go, presentation.go, identity.go, storage.go,
+// notifications.go).
 func ForKind(k Kind) *Edition {
-	if k == Hack {
-		return &Edition{
-			kind:         Hack,
-			routes:       RoutePolicy{HostedEvents: true},
-			presentation: PresentationPolicy{ProductName: "Simple Hack", HackAssets: true},
-		}
-	}
 	return &Edition{
-		kind:         Host,
-		presentation: PresentationPolicy{ProductName: "Simple Host"},
+		kind:          k,
+		routes:        routesFor(k),
+		presentation:  presentationFor(k),
+		identity:      identityFor(k),
+		storage:       storageFor(k),
+		notifications: notificationsFor(k),
 	}
 }
 
@@ -85,3 +73,12 @@ func (e *Edition) Routes() RoutePolicy { return e.or().routes }
 
 // Presentation returns the presentation policy.
 func (e *Edition) Presentation() PresentationPolicy { return e.or().presentation }
+
+// Identity returns the account and credential policy.
+func (e *Edition) Identity() IdentityPolicy { return e.or().identity }
+
+// Storage returns the site and storage policy.
+func (e *Edition) Storage() StoragePolicy { return e.or().storage }
+
+// Notifications returns the notification policy.
+func (e *Edition) Notifications() NotificationPolicy { return e.or().notifications }
