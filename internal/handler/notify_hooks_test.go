@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // siteEventLog is a subscription to every site event (SIM-356) on the shop,
@@ -350,6 +351,7 @@ func TestNotifyHooksHackModeSilent(t *testing.T) {
 	l.deployShop(t, "<h1>v2</h1>")
 	l.one(t, "site.deployed")
 	hackMode = true
+	l.s.a.sites.ed = edition.ForKind(edition.Hack)
 	t.Cleanup(func() { hackMode = false })
 	l.activate(t, 1)
 	l.none(t, "rollback in hack mode")
@@ -357,6 +359,7 @@ func TestNotifyHooksHackModeSilent(t *testing.T) {
 		t.Fatalf("emit queued in hack mode: %d", n)
 	}
 	hackMode = false
+	l.s.a.sites.ed = edition.ForKind(edition.Host)
 	l.activate(t, 2)
 	if data := l.one(t, "site.deployed"); data["version"] != float64(2) || data["previous_version"] != float64(1) {
 		t.Fatalf("after hack mode: %v", data)

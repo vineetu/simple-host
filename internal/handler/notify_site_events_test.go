@@ -40,7 +40,7 @@ func siteEventDeliveries(x *notificationReceiver, name string) []map[string]any 
 
 func TestNotifySiteEventsRESTAndDelivery(t *testing.T) {
 	s, x := notificationFixture(t)
-	all := notifyEventNames()
+	all := s.a.sites.notifyEventNames()
 	if len(all) != 7 {
 		t.Fatalf("event names: %v", all)
 	}
@@ -208,7 +208,7 @@ func TestNotifySiteEventsMCP(t *testing.T) {
 func TestNotifySiteEventsHack(t *testing.T) {
 	f := newHackNotifyFixture(t)
 	a := f.a
-	if got := notifyEventNames(); len(got) != 3 {
+	if got := a.sites.notifyEventNames(); len(got) != 3 {
 		t.Fatalf("Hack event names: %v", got)
 	}
 	body := f.body()

@@ -87,7 +87,7 @@ func (b notificationBackend) site(ctx context.Context, c mcp.Caller, name, stora
 		return db.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 	}
 	var site db.Site
-	if hackMode {
+	if b.h.ed.Notifications().EventScoped {
 		if c.Mode != mcp.CallerModeEvents {
 			return site, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 		}
@@ -130,7 +130,7 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 	if err != nil {
 		return out, err
 	}
-	if hackMode {
+	if b.h.ed.Notifications().EventScoped {
 		old, e := db.GetNotification(ctx, b.h.database, notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs))
 		if e != nil && !errors.Is(e, sql.ErrNoRows) {
 			return out, e
@@ -143,7 +143,7 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 			return out, notifyMCPError(mcp.EventCodeForbidden, "reason", "notification_access_ended")
 		}
 	}
-	if !validNotifyEvents([]string{req.Name}) {
+	if !b.h.validNotifyEvents([]string{req.Name}) {
 		return out, notifyMCPError(mcp.EventCodeNotFound, "kind", "event")
 	}
 	if _, err = notifySecretKey(req.Secret); err != nil {
@@ -168,7 +168,7 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		return out, notifyMCPError(code, "reason", notifyCategory(err))
 	}
 	now := time.Now()
-	n := db.Notification{ID: notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs), SiteID: site.ID, OwnerID: c.Owner, Hack: hackMode, Source: "mcp", URL: req.URL, Events: []string{req.Name}, Storage: req.Storage, ArgsCanonical: req.CanonicalArgs, Secret: req.Secret, AppName: c.AppName, VerifiedAt: &now}
+	n := db.Notification{ID: notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs), SiteID: site.ID, OwnerID: c.Owner, Hack: b.h.ed.Notifications().EventScoped, Source: "mcp", URL: req.URL, Events: []string{req.Name}, Storage: req.Storage, ArgsCanonical: req.CanonicalArgs, Secret: req.Secret, AppName: c.AppName, VerifiedAt: &now}
 	if c.OAuthGrantID != "" {
 		n.GrantID = &c.OAuthGrantID
 	}
@@ -244,7 +244,7 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		}
 		n.VerifiedAt = &verifiedAt
 	}
-	if hackMode {
+	if b.h.ed.Notifications().EventScoped {
 		current, e := b.site(ctx, c, req.Site, req.Storage, req.Event)
 		if e != nil {
 			return out, e

@@ -425,7 +425,7 @@ func TestEventsTTLAndCanonicalArguments(t *testing.T) {
 				params["ttlMs"] = tc.ttl
 			}
 			raw, _ := json.Marshal(params)
-			req, err := parseEventParams(raw, true)
+			req, err := parseEventParams(raw, true, false)
 			if err != nil || req.TTLSet != tc.present || !reflect.DeepEqual(req.TTL, tc.want) {
 				t.Error("TTL presence or value was not preserved")
 			}
@@ -435,7 +435,7 @@ func TestEventsTTLAndCanonicalArguments(t *testing.T) {
 		params := eventTestParams()
 		params["delivery"].(map[string]any)["secret"] = "whsec_" + base64.StdEncoding.EncodeToString(make([]byte, size))
 		raw, _ := json.Marshal(params)
-		if _, err := parseEventParams(raw, true); err != nil {
+		if _, err := parseEventParams(raw, true, false); err != nil {
 			t.Errorf("valid %d-byte secret rejected", size)
 		}
 	}
@@ -443,7 +443,7 @@ func TestEventsTTLAndCanonicalArguments(t *testing.T) {
 		params := eventTestParams()
 		params["arguments"] = json.RawMessage(arguments)
 		raw, _ := json.Marshal(params)
-		req, err := parseEventParams(raw, true)
+		req, err := parseEventParams(raw, true, false)
 		if err != nil || req.CanonicalArgs != `{"site":"bakery","storage":"orders"}` {
 			t.Error("arguments were not canonicalized")
 		}
@@ -452,7 +452,7 @@ func TestEventsTTLAndCanonicalArguments(t *testing.T) {
 		params := eventTestParams()
 		params["cursor"] = cursor
 		raw, _ := json.Marshal(params)
-		if _, err := parseEventParams(raw, true); err != nil {
+		if _, err := parseEventParams(raw, true, false); err != nil {
 			t.Error("valid cursor rejected")
 		}
 	}
@@ -554,7 +554,7 @@ func TestEventsValidation(t *testing.T) {
 		}
 	}
 	for _, raw := range []string{"", "null", "[]", `"params"`, "{"} {
-		if _, err := parseEventParams(json.RawMessage(raw), true); err == nil {
+		if _, err := parseEventParams(json.RawMessage(raw), true, false); err == nil {
 			t.Error("malformed params accepted")
 		}
 	}
