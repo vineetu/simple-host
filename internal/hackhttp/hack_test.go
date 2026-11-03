@@ -19,13 +19,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // person and resp (cleanup 3.2 slice 3): duplicated from
@@ -1366,7 +1366,7 @@ func TestHackReviewRound3(t *testing.T) {
 func TestHackReviewRound4(t *testing.T) {
 	// Every invisible character goes before team names are compared.
 	for _, name := range []string{"Ra‍ce Two", "Ra⁡ce Two", "Ra️ce Two", "Ra᠋ce Two", "Ra͏ce Two"} {
-		if got := hackevents.StripInvisible(name); got != "Race Two" {
+		if got := events.StripInvisible(name); got != "Race Two" {
 			t.Errorf("stripInvisible(%q) = %q", name, got)
 		}
 	}

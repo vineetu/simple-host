@@ -3,7 +3,7 @@ package hackhttp
 import (
 	"bytes"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 	"html/template"
@@ -1387,7 +1387,7 @@ func TestHackResultsFromSnapshotOverallWithRanksHidden(t *testing.T) {
 		{"rank":2,"team_id":"b","team_name":"Beta","track_winner":true,"track":{"name":"Education"},"total":8},
 		{"rank":3,"team_id":"c","team_name":"Gamma","total":7}
 	]`)
-	v := hackResultsFromSnapshot(db.EventResultsRow{Published: true, Snapshot: snap}, false, false)
+	v := hackResultsFromSnapshot(entries.EventResultsRow{Published: true, Snapshot: snap}, false, false)
 	if v == nil || len(v.Rows) != 2 {
 		t.Fatalf("winners-only rows: %+v", v)
 	}
@@ -1438,7 +1438,7 @@ func TestHackScoreTextDropsTrailingZero(t *testing.T) {
 // hundredth apart must not collapse into the same JSON score string either.
 func TestHackResultsFromSnapshotScoreFormatting(t *testing.T) {
 	snap := []byte(`[{"rank":1,"team_id":"a","team_name":"Alpha","total":100},{"rank":2,"team_id":"b","team_name":"Beta","total":42.5},{"rank":3,"team_id":"c","team_name":"Gamma","total":81.25}]`)
-	v := hackResultsFromSnapshot(db.EventResultsRow{Published: true, FullRanking: true, Snapshot: snap}, true, true)
+	v := hackResultsFromSnapshot(entries.EventResultsRow{Published: true, FullRanking: true, Snapshot: snap}, true, true)
 	if v == nil || len(v.Rows) != 3 {
 		t.Fatalf("rows: %+v", v)
 	}
@@ -1460,7 +1460,7 @@ func TestHackResultsFromSnapshotScoreFormatting(t *testing.T) {
 // away 81.25's real second decimal.
 func TestBuildHackResultsBlockTrimsScoreForDisplay(t *testing.T) {
 	snap := []byte(`[{"rank":1,"team_id":"a","team_name":"Alpha","total":100},{"rank":2,"team_id":"b","team_name":"Beta","total":42.5},{"rank":3,"team_id":"c","team_name":"Gamma","total":81.25}]`)
-	v := hackResultsFromSnapshot(db.EventResultsRow{Published: true, FullRanking: true, Snapshot: snap}, true, true)
+	v := hackResultsFromSnapshot(entries.EventResultsRow{Published: true, FullRanking: true, Snapshot: snap}, true, true)
 	if v == nil || len(v.Rows) != 3 {
 		t.Fatalf("rows: %+v", v)
 	}

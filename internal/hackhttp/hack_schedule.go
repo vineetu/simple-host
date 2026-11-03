@@ -2,11 +2,11 @@ package hackhttp
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
+	"github.com/vsriram/simple-host/internal/model"
 	"sort"
 	"time"
-
-	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // A schedule that acts (owner, 2026-11-02). The event's real times -- start
@@ -53,15 +53,15 @@ type hackFixedRow struct {
 // when the caller does not need the voting row (the next-step cue). Team is
 // the caller's own team state, for a participant on a team.
 type hackFixedInputs struct {
-	Event     db.Event
-	Voting    *db.VotingSettings
-	Results   db.EventResultsRow
-	Team      *db.TeamWriteState
+	Event     model.Event
+	Voting    *model.VotingSettings
+	Results   entries.EventResultsRow
+	Team      *model.TeamWriteState
 	Organiser bool
 	Now       time.Time
 }
 
-func hackEventLoc(ev db.Event) *time.Location {
+func hackEventLoc(ev model.Event) *time.Location {
 	loc, err := time.LoadLocation(ev.TimeZone)
 	if err != nil || ev.TimeZone == "" {
 		return time.UTC
@@ -90,7 +90,7 @@ func hackFixedSchedule(in hackFixedInputs) []hackFixedRow {
 	}
 	if ev.StartsAt.Valid {
 		r := hackFixedRow{Key: "event_start", Title: "Event starts", StartAt: stamp(ev.StartsAt.Time), SetIn: "basics"}
-		r.AllDay = hackevents.Midnight(ev.StartsAt.Time, loc)
+		r.AllDay = events.Midnight(ev.StartsAt.Time, loc)
 		if !r.AllDay {
 			r.Prompt = "building"
 		}
@@ -98,7 +98,7 @@ func hackFixedSchedule(in hackFixedInputs) []hackFixedRow {
 	}
 	if ev.EndsAt.Valid {
 		r := hackFixedRow{Key: "event_end", Title: "Event ends", StartAt: stamp(ev.EndsAt.Time), SetIn: "basics"}
-		r.AllDay = hackevents.Midnight(ev.EndsAt.Time, loc)
+		r.AllDay = events.Midnight(ev.EndsAt.Time, loc)
 		// With no entry deadline, the event's end is when entries are
 		// meant to close.
 		if !r.AllDay && !ev.SubmissionDeadline.Valid {
@@ -254,7 +254,7 @@ func hackScheduleCue(step map[string]any, free []hackScheduleItem, fixed []hackF
 
 // scheduleCue loads what the organiser's cue needs. Errors leave it out:
 // the next step itself never depends on the schedule.
-func (h *HackHandler) scheduleCue(ctx context.Context, ev db.Event, step map[string]any) map[string]any {
+func (h *HackHandler) scheduleCue(ctx context.Context, ev model.Event, step map[string]any) map[string]any {
 	content, err := readHackContent(ctx, h.database, ev.ID)
 	if err != nil {
 		return nil
@@ -266,18 +266,18 @@ func (h *HackHandler) scheduleCue(ctx context.Context, ev db.Event, step map[str
 
 // fixedScheduleFor is the fixed rows for one reader: the organiser (with
 // prompts), a participant (with their team's own deadline) or the public.
-func (h *HackHandler) fixedScheduleFor(ctx context.Context, ev db.Event, member *db.EventMember, organiser bool) ([]hackFixedRow, error) {
+func (h *HackHandler) fixedScheduleFor(ctx context.Context, ev model.Event, member *model.EventMember, organiser bool) ([]hackFixedRow, error) {
 	in := hackFixedInputs{Event: ev, Organiser: organiser, Now: time.Now()}
-	voting, err := db.GetVotingSettings(ctx, h.database, ev.ID)
+	voting, err := h.entries.VotingSettings(ctx, ev.ID)
 	if err != nil {
 		return nil, err
 	}
 	in.Voting = &voting
-	if in.Results, err = db.GetEventResults(ctx, h.database, ev.ID); err != nil {
+	if in.Results, err = h.entries.EventResults(ctx, ev.ID); err != nil {
 		return nil, err
 	}
 	if member != nil && member.Role == "participant" && member.TeamID.Valid {
-		if st, err := db.TeamWriteStateFor(ctx, h.database, member.TeamID.String, false); err == nil {
+		if st, err := h.teamsSvc().TeamWriteStateForLookup(ctx, member.TeamID.String, false); err == nil {
 			in.Team = &st
 		}
 	}

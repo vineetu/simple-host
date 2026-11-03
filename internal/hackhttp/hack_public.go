@@ -3,6 +3,7 @@ package hackhttp
 import (
 	"database/sql"
 	"errors"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"net/http"
 	"strings"
@@ -19,7 +20,7 @@ func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
 	render := HackEventPage(database, appURL, teamSiteURL, ready, pages)
 	screenshot := HackScreenshot(database, ready)
 	load := func(w http.ResponseWriter, r *http.Request) (db.User, bool) {
-		ev, err := db.GetEventBySlug(r.Context(), database, strings.ToLower(r.PathValue("slug")))
+		ev, err := events.New(database).EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
 		if err == nil {
 			paperHackEvent(r, ev)
 		}

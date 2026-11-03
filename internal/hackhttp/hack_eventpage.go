@@ -6,6 +6,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -15,9 +17,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	db "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/httpx"
 )
 
 // hackEventPage is the public event page at <event>.simple-hack.app/. The
@@ -114,19 +113,19 @@ type hackResultsRow struct {
 // taken down after publish drops its link without a republish; the public
 // JSON routes do the same through liveResultSites (hack_judging.go).
 type hackResultCard struct {
-	Title         string         `json:"title"`
-	Tagline       string         `json:"tagline"`
-	Problem       string         `json:"problem"`
-	Audience      string         `json:"audience"`
-	Tools         []string       `json:"tools"`
-	Maturity      string         `json:"maturity"`
-	Track         *db.EventTrack `json:"track"`
-	VideoURL      string         `json:"video_url"`
-	VideoHost     string         `json:"video_host"`
-	CodeURL       string         `json:"code_url"`
-	CodeHost      string         `json:"code_host"`
-	SiteURL       string         `json:"site_url"`
-	HasScreenshot bool           `json:"has_screenshot"`
+	Title         string            `json:"title"`
+	Tagline       string            `json:"tagline"`
+	Problem       string            `json:"problem"`
+	Audience      string            `json:"audience"`
+	Tools         []string          `json:"tools"`
+	Maturity      string            `json:"maturity"`
+	Track         *model.EventTrack `json:"track"`
+	VideoURL      string            `json:"video_url"`
+	VideoHost     string            `json:"video_host"`
+	CodeURL       string            `json:"code_url"`
+	CodeHost      string            `json:"code_host"`
+	SiteURL       string            `json:"site_url"`
+	HasScreenshot bool              `json:"has_screenshot"`
 }
 
 // hackMaturityLabel is the plain word for what works today, kept in step by

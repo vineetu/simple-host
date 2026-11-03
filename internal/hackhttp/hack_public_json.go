@@ -3,13 +3,11 @@ package hackhttp
 import (
 	"database/sql"
 	"errors"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // PublicEventJSON is a credentialless, read-only feed for an event's custom
@@ -27,7 +25,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET only")
 		return
 	}
-	ev, err := db.GetEventBySlug(r.Context(), h.database, strings.ToLower(r.PathValue("slug")))
+	ev, err := h.eventsSvc().EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
@@ -56,18 +54,18 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		"vote_status": "disabled", "tracks": []any{}, "announcements": []any{},
 		"sponsors": []any{}, "faq": []any{}, "schedule": []any{}, "fixed_schedule": []any{},
 	}
-	if open := hackevents.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()); open {
+	if open := events.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()); open {
 		out["applications_open"], out["apply_url"] = true, strings.TrimRight(h.publicBaseURL, "/")+"/e/"+ev.Slug+"/apply"
 	} else {
 		out["applications_open"] = false
 	}
-	if n, t, _, err := db.CountEventMembers(r.Context(), h.database, ev.ID); err == nil {
+	if n, t, _, err := h.eventsSvc().CountEventMembersLookup(r.Context(), ev.ID); err == nil {
 		out["participants"], out["teams"] = n, t
 	} else {
 		httpx.WriteInternal(w)
 		return
 	}
-	tracks, err := db.ListEventTracks(r.Context(), h.database, ev.ID)
+	tracks, err := h.eventsSvc().EventTracks(r.Context(), ev.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -99,7 +97,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out["fixed_schedule"] = fixed
-	announcements, err := db.ListEventAnnouncements(r.Context(), h.database, ev.ID)
+	announcements, err := h.eventsSvc().EventAnnouncements(r.Context(), ev.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -110,7 +108,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	out["announcements"] = aa
 	if h.sites != nil && hackGalleryPublic(ev, h.sites.TeamSitesReady) {
-		cards, err := db.ListGalleryCards(r.Context(), h.database, ev.ID, ev.AccountID)
+		cards, err := h.eventsSvc().GalleryCards(r.Context(), ev.ID, ev.AccountID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -125,7 +123,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		}
 		out["gallery"] = gg
 	}
-	res, err := db.GetEventResults(r.Context(), h.database, ev.ID)
+	res, err := h.entries.EventResults(r.Context(), ev.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -153,7 +151,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 			out["full_ranking"] = view.FullRanking
 		}
 	}
-	voting, err := db.GetVotingSettings(r.Context(), h.database, ev.ID)
+	voting, err := h.entries.VotingSettings(r.Context(), ev.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -161,7 +159,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 	status := votingStatus(ev, voting, time.Now())
 	out["vote_status"] = status
 	if status == "closed" {
-		ranking, err := db.VoteFinalRanking(r.Context(), h.database, ev.ID, ev.AccountID)
+		ranking, err := h.entries.VoteFinalRankingLookup(r.Context(), ev.ID, ev.AccountID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return

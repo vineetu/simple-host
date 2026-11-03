@@ -3,14 +3,14 @@ package hackhttp
 import (
 	"context"
 	"github.com/vsriram/simple-host/internal/app/hack/members"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
 	"net/http"
 )
 
 func (h *HackHandler) membersSvc() *members.Service {
-	return members.New(h.database, h.archiveEventTx, h.deleteEventTx, func(ctx context.Context, ev db.Event) {
+	return members.New(h.database, h.archiveEventTx, h.deleteEventTx, func(ctx context.Context, ev model.Event) {
 		papermetrics.RecordHackStage(ctx, ev.ID, ev.Stage, ev.UpdatedAt)
 		papermetrics.HackPhasesChanged(ctx)
 		h.pinDue(ctx, ev.ID)

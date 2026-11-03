@@ -8,6 +8,7 @@ import (
 	"errors"
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"log"
 	"net/http"
 	"net/url"
@@ -16,8 +17,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	db "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // hackGallerySlug is one label: lowercase letters, digits and hyphens, not
@@ -58,7 +59,7 @@ func hackGalleryImageType(s string) bool {
 // hackGalleryPublic: the event page may list projects, and the event host may
 // serve their screenshots. ready is false until the event's team addresses
 // have a certificate (and asking reports that, the same as a deploy).
-func hackGalleryPublic(ev db.Event, ready func(string) bool) bool {
+func hackGalleryPublic(ev model.Event, ready func(string) bool) bool {
 	return ev.GalleryOpen && ev.Stage != "draft" && !ev.TakenDown() && ready != nil && ready(ev.Slug)
 }
 
@@ -69,7 +70,7 @@ func hackGalleryPublic(ev db.Event, ready func(string) bool) bool {
 // by the caller and passed in explicitly (cleanup 3.2 slice 4).
 func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, teamSlug string) string, ready func(eventSlug string) bool, pages *HackEventPages) func(w http.ResponseWriter, r *http.Request, user db.User) bool {
 	return func(w http.ResponseWriter, r *http.Request, user db.User) bool {
-		ev, err := db.GetEventByAccount(r.Context(), database, user.ID)
+		ev, err := events.New(database).EventByAccount(r.Context(), user.ID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return false
 		}
@@ -78,7 +79,7 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			http.Error(w, "Something went wrong. Try again in a minute.", http.StatusInternalServerError)
 			return true
 		}
-		participants, teams, _, err := db.CountEventMembers(r.Context(), database, ev.ID)
+		participants, teams, _, err := events.New(database).CountEventMembersLookup(r.Context(), ev.ID)
 		if err != nil {
 			log.Printf("event page %s: counts: %v", ev.Slug, err)
 		}
@@ -90,12 +91,12 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			AppURL:    appURL,
 			TakenDown: ev.TakenDown(), TakenDownReason: ev.TakenDownReason,
 		}
-		if hackevents.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()) {
+		if events.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()) {
 			p.ApplyURL = strings.TrimRight(appURL, "/") + "/e/" + ev.Slug + "/apply"
 		}
 		p.Color = hackEventAccent(ev)
 		p.IconURL = strings.TrimRight(appURL, "/") + "/v1/hack/events/" + ev.Slug + "/icon"
-		if tracks, terr := db.ListEventTracks(r.Context(), database, ev.ID); terr == nil {
+		if tracks, terr := events.New(database).EventTracks(r.Context(), ev.ID); terr == nil {
 			for _, track := range tracks {
 				p.Tracks = append(p.Tracks, hackTrackView{Name: track.Name, Challenge: track.Challenge, Prize: track.Prize})
 			}
@@ -116,7 +117,7 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 		} else {
 			p.Content = content
 		}
-		if announcements, aerr := db.ListEventAnnouncements(r.Context(), database, ev.ID); aerr != nil {
+		if announcements, aerr := events.New(database).EventAnnouncements(r.Context(), ev.ID); aerr != nil {
 			log.Printf("event page %s: announcements: %v", ev.Slug, aerr)
 		} else {
 			for _, announcement := range announcements {
@@ -127,16 +128,16 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			}
 		}
 		fixedIn := hackFixedInputs{Event: ev, Now: time.Now()}
-		if voting, verr := db.GetVotingSettings(r.Context(), database, ev.ID); verr == nil {
+		if voting, verr := entries.New(database, nil).VotingSettings(r.Context(), ev.ID); verr == nil {
 			p.VoteStatus = votingStatus(ev, voting, time.Now())
 			fixedIn.Voting = &voting
 		}
-		if res, rerr := db.GetEventResults(r.Context(), database, ev.ID); rerr == nil {
+		if res, rerr := entries.New(database, nil).EventResults(r.Context(), ev.ID); rerr == nil {
 			fixedIn.Results = res
 		}
 		p.Fixed = hackFixedSchedule(fixedIn)
 		if hackGalleryPublic(ev, ready) {
-			cards, gerr := db.ListGalleryCards(r.Context(), database, ev.ID, ev.AccountID)
+			cards, gerr := events.New(database).GalleryCards(r.Context(), ev.ID, ev.AccountID)
 			if gerr != nil {
 				log.Printf("event page %s: gallery: %v", ev.Slug, gerr)
 			} else {
@@ -149,13 +150,13 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			}
 		}
 		if !ev.TakenDown() {
-			if res, rerr := db.GetEventResults(r.Context(), database, ev.ID); rerr != nil {
+			if res, rerr := entries.New(database, nil).EventResults(r.Context(), ev.ID); rerr != nil {
 				log.Printf("event page %s: results: %v", ev.Slug, rerr)
 			} else if res.Published {
 				p.Results = hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks)
 				if p.Results != nil {
 					galleryPublic := hackGalleryPublic(ev, ready)
-					cards, err := db.ListGalleryCards(r.Context(), database, ev.ID, ev.AccountID)
+					cards, err := events.New(database).GalleryCards(r.Context(), ev.ID, ev.AccountID)
 					if err != nil {
 						log.Printf("event page %s: result sites: %v", ev.Slug, err)
 					}
@@ -203,7 +204,7 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 // winners-only shows every team at rank 1 (there can be more than one if the
 // organiser never resolved a top-of-the-board tie); a full ranking shows
 // every ranked team. Public score and rank visibility are applied here.
-func hackResultsFromSnapshot(res db.EventResultsRow, publicScores, publicRanks bool) *hackResultsView {
+func hackResultsFromSnapshot(res entries.EventResultsRow, publicScores, publicRanks bool) *hackResultsView {
 	var rows []map[string]any
 	if err := json.Unmarshal(res.Snapshot, &rows); err != nil {
 		log.Printf("event page: results snapshot: %v", err)
@@ -267,7 +268,7 @@ func hackResultsFromSnapshot(res db.EventResultsRow, publicScores, publicRanks b
 	return v
 }
 
-func hackGalleryCards(eventSlug string, cards []db.GalleryCard, teamSiteURL func(string, string) string) []hackGalleryCard {
+func hackGalleryCards(eventSlug string, cards []model.GalleryCard, teamSiteURL func(string, string) string) []hackGalleryCard {
 	var out []hackGalleryCard
 	for _, c := range cards {
 		link := hackGalleryLink(teamSiteURL, eventSlug, c.Slug)
@@ -326,7 +327,7 @@ func HackScreenshot(database *sql.DB, ready func(string) bool) func(w http.Respo
 			http.Error(w, "Too many requests. Try again in a minute.", http.StatusTooManyRequests)
 			return true
 		}
-		ev, err := db.GetEventByAccount(r.Context(), database, user.ID)
+		ev, err := events.New(database).EventByAccount(r.Context(), user.ID)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("event screenshot %s: %v", user.ID, err)
@@ -336,7 +337,7 @@ func HackScreenshot(database *sql.DB, ready func(string) bool) func(w http.Respo
 		if !hackGalleryPublic(ev, ready) {
 			return false
 		}
-		data, ctype, err := db.GalleryScreenshot(r.Context(), database, ev.ID, ev.AccountID, team)
+		data, ctype, err := events.New(database).GalleryScreenshotLookup(r.Context(), ev.ID, ev.AccountID, team)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("event screenshot %s/%s: %v", ev.Slug, team, err)

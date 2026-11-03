@@ -1,6 +1,6 @@
 package hackhttp
 
-import "github.com/vsriram/simple-host/internal/db"
+import "github.com/vsriram/simple-host/internal/model"
 
 // The film's crayon box, with two ballpoint inks. Stored choices are palette names.
 var hackCrayons = []struct{ Name, Color string }{
@@ -34,7 +34,7 @@ func hackColorValid(choice string) bool {
 	return false
 }
 
-func hackEventAccent(ev db.Event) string { return hackEventColor(ev.Slug, ev.AccentColor) }
+func hackEventAccent(ev model.Event) string { return hackEventColor(ev.Slug, ev.AccentColor) }
 
 // hackEventInk is the ink colour that reads on a raw --ev background: every
 // crayon is dark enough to need the kit's dark ink except teal and indigo,

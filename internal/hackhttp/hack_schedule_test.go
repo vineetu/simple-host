@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 func nt(t time.Time) sql.NullTime { return sql.NullTime{Time: t, Valid: true} }
@@ -26,13 +27,13 @@ func fixedKeys(rows []hackFixedRow) []string {
 // participant with an extension sees their own deadline instead.
 func TestHackFixedScheduleRows(t *testing.T) {
 	now := time.Date(2027, 3, 13, 12, 0, 0, 0, time.UTC)
-	ev := db.Event{TimeZone: "Europe/London", Stage: "building", GalleryOpen: true,
+	ev := model.Event{TimeZone: "Europe/London", Stage: "building", GalleryOpen: true,
 		StartsAt:           nt(time.Date(2027, 3, 12, 9, 0, 0, 0, time.UTC)),
 		EndsAt:             nt(time.Date(2027, 3, 14, 0, 0, 0, 0, time.UTC)), // midnight London: date only
 		SubmissionDeadline: nt(time.Date(2027, 3, 14, 17, 0, 0, 0, time.UTC)),
 	}
-	voting := db.VotingSettings{Enabled: true, OpensAt: nt(time.Date(2027, 3, 14, 18, 0, 0, 0, time.UTC)), ClosesAt: nt(time.Date(2027, 3, 14, 20, 0, 0, 0, time.UTC))}
-	results := db.EventResultsRow{Published: true, PublishedAt: nt(time.Date(2027, 3, 15, 10, 0, 0, 0, time.UTC))}
+	voting := model.VotingSettings{Enabled: true, OpensAt: nt(time.Date(2027, 3, 14, 18, 0, 0, 0, time.UTC)), ClosesAt: nt(time.Date(2027, 3, 14, 20, 0, 0, 0, time.UTC))}
+	results := entries.EventResultsRow{Published: true, PublishedAt: nt(time.Date(2027, 3, 15, 10, 0, 0, 0, time.UTC))}
 	rows := hackFixedSchedule(hackFixedInputs{Event: ev, Voting: &voting, Results: results, Organiser: true, Now: now})
 	if got := strings.Join(fixedKeys(rows), ","); got != "event_start,entry_deadline,voting,event_end,results_published" {
 		t.Fatalf("rows/order = %s", got)
@@ -70,7 +71,7 @@ func TestHackFixedScheduleRows(t *testing.T) {
 		t.Errorf("public JSON names prompt: %s", b)
 	}
 
-	team := db.TeamWriteState{HasOverride: true, Deadline: nt(time.Date(2027, 3, 14, 19, 0, 0, 0, time.UTC))}
+	team := model.TeamWriteState{HasOverride: true, Deadline: nt(time.Date(2027, 3, 14, 19, 0, 0, 0, time.UTC))}
 	mine := hackFixedSchedule(hackFixedInputs{Event: ev, Team: &team, Now: now})
 	if got := strings.Join(fixedKeys(mine), ","); got != "event_start,team_deadline,event_end" {
 		t.Fatalf("participant rows = %s", got)
@@ -89,7 +90,7 @@ func TestHackFixedScheduleRows(t *testing.T) {
 		}
 	}
 	// Voting off, or with the gallery closed, adds no row.
-	off := db.VotingSettings{}
+	off := model.VotingSettings{}
 	ev3 := ev
 	ev3.GalleryOpen = false
 	for _, in := range []hackFixedInputs{{Event: ev, Voting: &off, Now: now}, {Event: ev3, Voting: &voting, Now: now}} {

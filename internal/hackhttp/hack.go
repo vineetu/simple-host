@@ -27,7 +27,6 @@ import (
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // HackDefaultCoC is the default code of conduct shown when an organiser has
@@ -274,7 +273,7 @@ type hackImageScanner interface {
 
 // syncEventMarkers puts the event's team sites down or back with the event;
 // false (after logging) when a marker could not be written.
-func (h *HackHandler) syncEventMarkers(ctx context.Context, ev db.Event) bool {
+func (h *HackHandler) syncEventMarkers(ctx context.Context, ev model.Event) bool {
 	if h.sites == nil {
 		return true
 	}
@@ -286,7 +285,7 @@ func (h *HackHandler) syncEventMarkers(ctx context.Context, ev db.Event) bool {
 }
 
 // removeEventFiles deletes a deleted event's team site files.
-func (h *HackHandler) removeEventFiles(ev db.Event) {
+func (h *HackHandler) removeEventFiles(ev model.Event) {
 	if h.sites == nil {
 		return
 	}
@@ -318,7 +317,7 @@ func (h *HackHandler) SetImageScan(s hackImageScanner) { h.imageScan = s }
 // SyncEventMarkers is syncEventMarkers, exported so main can wire it into
 // the image-scan worker's take-down path (ImageScan.SetHackTakeDownSync)
 // without this package needing to know *ImageScan's type.
-func (h *HackHandler) SyncEventMarkers(ctx context.Context, ev db.Event) bool {
+func (h *HackHandler) SyncEventMarkers(ctx context.Context, ev model.Event) bool {
 	return h.syncEventMarkers(ctx, ev)
 }
 
@@ -339,7 +338,7 @@ func (h *HackHandler) teamSiteURL(eventSlug, teamSlug string) string {
 // handler already performed. With collection off they are context lookups
 // only. Moved from hack_paper_metrics.go (cleanup 3.2 slice 1c): free
 // functions with no *SiteHandler dependency, used only by the event API.
-func paperHackEvent(r *http.Request, ev db.Event) {
+func paperHackEvent(r *http.Request, ev model.Event) {
 	papermetrics.ResolveHackEvent(r.Context(), ev.Slug, ev.Stage, "", ev.ResultsPublishedAt.Time)
 	paperHackUser(r, auth.GetUser(r.Context()))
 }
@@ -358,11 +357,11 @@ func paperHackUser(r *http.Request, user *db.User) {
 	papermetrics.HackMember(r.Context(), member)
 }
 
-func paperHackKnownMember(r *http.Request, ev db.Event, member string) {
+func paperHackKnownMember(r *http.Request, ev model.Event, member string) {
 	papermetrics.ResolveHackEvent(r.Context(), ev.Slug, ev.Stage, member, ev.ResultsPublishedAt.Time)
 }
 
-func paperHackStage(r *http.Request, ev db.Event) {
+func paperHackStage(r *http.Request, ev model.Event) {
 	papermetrics.RecordHackStage(r.Context(), ev.ID, ev.Stage, ev.UpdatedAt)
 }
 
@@ -574,7 +573,7 @@ func (h *HackHandler) NameTaken(ctx context.Context, name string) (bool, error) 
 		}
 		return true, nil
 	}
-	taken, err := db.EventSlugTaken(ctx, h.database, name)
+	taken, err := h.eventsSvc().EventSlugTakenLookup(ctx, name)
 	return taken, err
 }
 
@@ -669,8 +668,8 @@ func writeEventNotFound(w http.ResponseWriter) {
 }
 
 type hackAccess struct {
-	event  db.Event
-	member db.EventMember
+	event  model.Event
+	member model.EventMember
 	user   *db.User
 	admin  bool
 }
@@ -687,7 +686,7 @@ func (h *HackHandler) loadMember(w http.ResponseWriter, r *http.Request, slug st
 		return z, false
 	}
 	slug = strings.ToLower(strings.TrimSpace(slug))
-	ev, err := db.GetEventBySlug(r.Context(), h.database, slug)
+	ev, err := h.eventsSvc().EventBySlug(r.Context(), slug)
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
@@ -699,13 +698,13 @@ func (h *HackHandler) loadMember(w http.ResponseWriter, r *http.Request, slug st
 		httpx.WriteInternal(w)
 		return z, false
 	}
-	m, err := db.GetEventMember(r.Context(), h.database, ev.ID, user.ID)
+	m, err := h.eventsSvc().EventMember(r.Context(), ev.ID, user.ID)
 	if err == nil {
 		paperHackKnownMember(r, ev, user.ID)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		if user.IsAdmin && !write {
-			z = hackAccess{event: ev, member: db.EventMember{EventID: ev.ID, UserID: user.ID, Role: "organiser"}, user: user, admin: true}
+			z = hackAccess{event: ev, member: model.EventMember{EventID: ev.ID, UserID: user.ID, Role: "organiser"}, user: user, admin: true}
 			return z, true
 		}
 		writeEventNotFound(w)
@@ -716,7 +715,7 @@ func (h *HackHandler) loadMember(w http.ResponseWriter, r *http.Request, slug st
 		return z, false
 	}
 	if m.Role == "participant" && (write || len(roles) > 0) {
-		status, err := db.MemberApprovalStatus(r.Context(), h.database, ev.ID, user.ID)
+		status, err := h.membersSvc().MemberApprovalStatusLookup(r.Context(), ev.ID, user.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return z, false
@@ -801,7 +800,7 @@ func (h *HackHandler) slugVerdict(ctx context.Context, slug string) (code, errMs
 			return "name_taken", "that name is already in use", nil
 		}
 	}
-	taken, err := db.EventSlugTaken(ctx, h.database, slug)
+	taken, err := h.eventsSvc().EventSlugTakenLookup(ctx, slug)
 	if err != nil {
 		return "", "", err
 	}
@@ -945,7 +944,7 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	events, roles, err := db.ListEventsForUser(r.Context(), h.database, user.ID)
+	events, roles, err := h.eventsSvc().EventsForUser(r.Context(), user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -967,7 +966,7 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 			"time_zone":  ev.TimeZone,
 		}
 		if roles[i] == "participant" {
-			if status, err := db.MemberApprovalStatus(r.Context(), h.database, ev.ID, user.ID); err == nil {
+			if status, err := h.membersSvc().MemberApprovalStatusLookup(r.Context(), ev.ID, user.ID); err == nil {
 				item["approval_status"] = status
 			}
 		}
@@ -991,11 +990,11 @@ func (h *HackHandler) getEvent(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, view)
 }
 
-func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.EventMember, organiser bool) map[string]any {
+func (h *HackHandler) eventView(ctx context.Context, ev model.Event, member model.EventMember, organiser bool) map[string]any {
 	// The code of conduct is the default text plus the organiser's own.
 	cocText := ev.CocText
-	tracks, _ := db.ListEventTracks(ctx, h.database, ev.ID)
-	resultState, _ := db.GetEventResults(ctx, h.database, ev.ID)
+	tracks, _ := h.eventsSvc().EventTracks(ctx, ev.ID)
+	resultState, _ := h.entries.EventResults(ctx, ev.ID)
 	body := map[string]any{
 		"event": map[string]any{
 			"slug":              ev.Slug,
@@ -1041,14 +1040,14 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 	}
 	// Newest first, for the participant's client-side unread badge on
 	// Announcements (audit 2026-11-02): no read state is kept on the server.
-	if times, err := db.ListAnnouncementTimes(ctx, h.database, ev.ID); err == nil {
+	if times, err := h.eventsSvc().AnnouncementTimes(ctx, ev.ID); err == nil {
 		body["event"].(map[string]any)["announcement_times"] = times
 	}
 	if organiser {
-		participants, teams, _, _ := db.CountEventMembers(ctx, h.database, ev.ID)
-		judges, _ := db.CountEligibleJudges(ctx, h.database, ev.ID)
-		onNone, _ := db.CountOnNoTeam(ctx, h.database, ev.ID)
-		emailable, _ := db.CountEmailableParticipants(ctx, h.database, ev.ID)
+		participants, teams, _, _ := h.eventsSvc().CountEventMembersLookup(ctx, ev.ID)
+		judges, _ := h.eventsSvc().CountEligibleJudgesLookup(ctx, ev.ID)
+		onNone, _ := h.eventsSvc().CountOnNoTeamLookup(ctx, ev.ID)
+		emailable, _ := h.eventsSvc().CountEmailableParticipantsLookup(ctx, ev.ID)
 		exp := any(nil)
 		if ev.ExpectedParticipants.Valid {
 			exp = ev.ExpectedParticipants.Int64
@@ -1079,7 +1078,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 		body["next_step"] = step
 	}
 	if member.Role == "participant" {
-		if status, err := db.MemberApprovalStatus(ctx, h.database, ev.ID, member.UserID); err == nil {
+		if status, err := h.membersSvc().MemberApprovalStatusLookup(ctx, ev.ID, member.UserID); err == nil {
 			body["me"].(map[string]any)["approval_status"] = status
 		}
 		// progress (section 4.3): the Home checklist, only once the person
@@ -1097,16 +1096,16 @@ func (h *HackHandler) eventView(ctx context.Context, ev db.Event, member db.Even
 
 // memberProgressJSON is eventView's "progress" for a team's participant:
 // entryProgressJSON with the team and teammates loaded.
-func (h *HackHandler) memberProgressJSON(ctx context.Context, ev db.Event, member db.EventMember) (map[string]any, error) {
-	team, err := db.GetEventTeamByID(ctx, h.database, member.TeamID.String)
+func (h *HackHandler) memberProgressJSON(ctx context.Context, ev model.Event, member model.EventMember) (map[string]any, error) {
+	team, err := h.teamsSvc().TeamByID(ctx, member.TeamID.String)
 	if err != nil {
 		return nil, err
 	}
-	st, err := db.TeamWriteStateFor(ctx, h.database, team.ID, false)
+	st, err := h.teamsSvc().TeamWriteStateForLookup(ctx, team.ID, false)
 	if err != nil {
 		return nil, err
 	}
-	people, err := db.ListTeamPeople(ctx, h.database, team.ID)
+	people, err := h.teamsSvc().TeamPeople(ctx, team.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -1127,7 +1126,7 @@ func (h *HackHandler) memberProgressJSON(ctx context.Context, ev db.Event, membe
 // still shows, disabled, pointing to Settings -> Delete. eventView adds cue
 // (hackScheduleCue): the schedule row that lines up with this move once its
 // time has come, or nil.
-func nextStepJSON(ev db.Event, results db.EventResultsRow, participants int) map[string]any {
+func nextStepJSON(ev model.Event, results entries.EventResultsRow, participants int) map[string]any {
 	step := func(stage, label string, deadlinePassed bool, blocked any) map[string]any {
 		return map[string]any{"kind": "stage", "stage": stage, "label": label, "deadline_passed": deadlinePassed, "blocked": blocked}
 	}
@@ -1157,7 +1156,7 @@ func nextStepJSON(ev db.Event, results db.EventResultsRow, participants int) map
 	}
 }
 
-func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMember) map[string]any {
+func (h *HackHandler) meView(ctx context.Context, ev model.Event, member model.EventMember) map[string]any {
 	me := map[string]any{
 		// user_id: the signed-in person's own ID, same value the people
 		// list already shows for everyone else on this event -- so
@@ -1173,7 +1172,7 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 	}
 	if member.Role == "participant" {
 		me["team_key"] = nil
-		if k, err := db.GetTeamKey(ctx, h.database, ev.ID, member.UserID); err == nil {
+		if k, err := h.teamsSvc().TeamKey(ctx, ev.ID, member.UserID); err == nil {
 			me["team_key"] = map[string]any{
 				"last4":        k.Last4,
 				"created_at":   rfc3339Time(k.CreatedAt),
@@ -1190,11 +1189,11 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 		}
 		return me
 	}
-	team, err := db.GetEventTeamByID(ctx, h.database, member.TeamID.String)
+	team, err := h.teamsSvc().TeamByID(ctx, member.TeamID.String)
 	if err != nil {
 		return me
 	}
-	people, err := db.ListTeamPeople(ctx, h.database, team.ID)
+	people, err := h.teamsSvc().TeamPeople(ctx, team.ID)
 	if err != nil {
 		return me
 	}
@@ -1255,7 +1254,7 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 		_ = h.teamsSvc().PendingRequests(ctx, team.ID, &pending)
 		t["pending_requests"] = pending
 	}
-	if track, err := db.TeamTrack(ctx, h.database, team.ID); err == nil {
+	if track, err := h.eventsSvc().TeamTrackLookup(ctx, team.ID); err == nil {
 		t["track"] = track
 	}
 	h.teamDeadlineJSON(ctx, team, t)
@@ -1298,7 +1297,7 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deadlineChanged, entryRequiredChanged := false, false
-	updated, err := h.eventsSvc().PatchEvent(r.Context(), a.event.ID, func(ev *db.Event) (bool, bool, error) {
+	updated, err := h.eventsSvc().PatchEvent(r.Context(), a.event.ID, func(ev *model.Event) (bool, bool, error) {
 		if req.AccentColor != nil {
 			if !hackColorValid(*req.AccentColor) {
 				return false, false, &events.Error{Code: "invalid_accent_color", Message: "choose a crayon colour or an empty string for automatic"}
@@ -1494,7 +1493,7 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 // submissionsClosedStage: stages after submissions close.
-func submissionsClosedStage(stage string) bool { return hackevents.SubmissionsClosedStage(stage) }
+func submissionsClosedStage(stage string) bool { return events.SubmissionsClosedStage(stage) }
 
 // checkEntryRequired validates the organiser's required entry fields and
 // returns them in the canonical order.
@@ -1509,7 +1508,7 @@ func checkEntryRequired(w http.ResponseWriter, in []string) ([]string, bool) {
 
 func keysInOrder(set map[string]bool) []string {
 	out := []string{}
-	for _, k := range hackevents.EntryFields {
+	for _, k := range events.EntryFields {
 		if set[k] {
 			out = append(out, k)
 		}
@@ -1572,7 +1571,7 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 // event row FOR UPDATE and has checked there is at least one participant
 // (archive_needs_participants is each caller's own 409). current is the
 // event's stage right now, under that same lock.
-func (h *HackHandler) archiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string) (db.Event, error) {
+func (h *HackHandler) archiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string) (model.Event, error) {
 	return h.eventsSvc().ArchiveEventTx(ctx, tx, eventID, current, h.entries.SettleEventTx)
 }
 
@@ -1639,7 +1638,7 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 // holding account. Extracted from deleteEvent so POST .../leave's
 // last_organiser "delete" case (hack_leave.go) shares it exactly. The caller
 // already holds the event row, and has checked confirm matches the slug.
-func (h *HackHandler) deleteEventTx(ctx context.Context, tx *sql.Tx, ev db.Event) error {
+func (h *HackHandler) deleteEventTx(ctx context.Context, tx *sql.Tx, ev model.Event) error {
 	var trash func(context.Context, string, string) error
 	if h.sites != nil {
 		trash = h.sites.TrashTeamSite
@@ -1667,17 +1666,17 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 	if h.rateLimited(w, r, caller) {
 		return
 	}
-	code := hackevents.NormalizeCode(r.PathValue("code"))
+	code := events.NormalizeCode(r.PathValue("code"))
 	if code == "" {
 		httpx.WriteError(w, http.StatusNotFound, "invalid_code", "invalid code")
 		return
 	}
-	var ev db.Event
+	var ev model.Event
 	var err error
 	if judge {
-		ev, err = db.GetEventByJudgeCode(r.Context(), h.database, code)
+		ev, err = h.eventsSvc().EventByJudgeCode(r.Context(), code)
 	} else {
-		ev, err = db.GetEventByJoinCode(r.Context(), h.database, code)
+		ev, err = h.eventsSvc().EventByJoinCode(r.Context(), code)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, http.StatusNotFound, "invalid_code", "invalid code")
@@ -1699,10 +1698,10 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 	}
 	// The code of conduct is the default text plus the organiser's own.
 	cocText := ev.CocText
-	questions := []db.SignupQuestion{}
+	questions := []model.SignupQuestion{}
 	approvalRequired := false
 	if !judge {
-		questions, approvalRequired, err = db.RegistrationSettings(r.Context(), h.database, ev.ID)
+		questions, approvalRequired, err = h.membersSvc().RegistrationSettingsLookup(r.Context(), ev.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -1761,7 +1760,7 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 	if !ok {
 		return
 	}
-	code := hackevents.NormalizeCode(r.PathValue("code"))
+	code := events.NormalizeCode(r.PathValue("code"))
 	if code == "" {
 		httpx.WriteError(w, http.StatusNotFound, "invalid_code", "invalid code")
 		return
@@ -1775,7 +1774,7 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 }
 
 func checkHackText(w http.ResponseWriter, s, field string, min, max int) (string, bool) {
-	value, e := hackevents.Text(s, field, min, max)
+	value, e := events.Text(s, field, min, max)
 	if e != nil {
 		httpx.WriteError(w, 400, e.Code, e.Message)
 		return "", false
@@ -1784,7 +1783,7 @@ func checkHackText(w http.ResponseWriter, s, field string, min, max int) (string
 }
 
 func checkHackLine(w http.ResponseWriter, s, field string, min, max int) (string, bool) {
-	value, e := hackevents.Line(s, field, min, max)
+	value, e := events.Line(s, field, min, max)
 	if e != nil {
 		httpx.WriteError(w, 400, e.Code, e.Message)
 		return "", false
@@ -1865,7 +1864,7 @@ func (h *HackHandler) teamCodeFromInput(s string) string {
 			s = trimmed
 		}
 	}
-	return hackevents.NormalizeCode(s)
+	return events.NormalizeCode(s)
 }
 
 // teamLinkHost is the host team links are served from.
@@ -1885,13 +1884,13 @@ func checkEntryRequiredValue(in []string) ([]string, error) {
 	for _, f := range in {
 		f = strings.TrimSpace(f)
 		known := false
-		for _, k := range hackevents.EntryFields {
+		for _, k := range events.EntryFields {
 			if f == k {
 				known = true
 			}
 		}
 		if !known {
-			return nil, &events.Error{Code: "invalid_entry_field", Message: "entry_required takes any of: " + strings.Join(hackevents.EntryFields, ", ")}
+			return nil, &events.Error{Code: "invalid_entry_field", Message: "entry_required takes any of: " + strings.Join(events.EntryFields, ", ")}
 		}
 		want[f] = true
 	}
@@ -1962,28 +1961,28 @@ func parseEventTimeValue(s string, loc *time.Location, field string, required bo
 	return sql.NullTime{Time: t, Valid: true}, nil
 }
 
-// validateSignupAnswersValue is hackevents.SignupAnswers with the error as an
+// validateSignupAnswersValue is events.SignupAnswers with the error as an
 // events.Error, for validators the events service runs under its lock.
-func validateSignupAnswersValue(questions []db.SignupQuestion, in map[string]string) ([]db.SignupAnswer, error) {
-	answers, e := hackevents.SignupAnswers(questions, in)
+func validateSignupAnswersValue(questions []model.SignupQuestion, in map[string]string) ([]model.SignupAnswer, error) {
+	answers, e := events.SignupAnswers(questions, in)
 	if e != nil {
 		return nil, &events.Error{Code: e.Code, Message: e.Message}
 	}
 	return answers, nil
 }
 
-// checkHackTextValue is hackevents.Text with the error as an events.Error.
+// checkHackTextValue is events.Text with the error as an events.Error.
 func checkHackTextValue(s, field string, min, max int) (string, error) {
-	value, e := hackevents.Text(s, field, min, max)
+	value, e := events.Text(s, field, min, max)
 	if e != nil {
 		return "", &events.Error{Code: e.Code, Message: e.Message}
 	}
 	return value, nil
 }
 
-// checkHackLineValue is hackevents.Line with the error as an events.Error.
+// checkHackLineValue is events.Line with the error as an events.Error.
 func checkHackLineValue(s, field string, min, max int) (string, error) {
-	value, e := hackevents.Line(s, field, min, max)
+	value, e := events.Line(s, field, min, max)
 	if e != nil {
 		return "", &events.Error{Code: e.Code, Message: e.Message}
 	}
