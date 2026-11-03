@@ -7,17 +7,17 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func hackHomeTestMux(t *testing.T, base string) *http.ServeMux {
 	t.Helper()
-	mode, chrome, previousBase := hackMode, hackChrome, hackInkBaseURL
-	SetHackMode(true)
-	SetHackChrome(true)
-	SetHackInstanceURL(base)
-	t.Cleanup(func() { SetHackMode(mode); SetHackChrome(chrome); SetHackInstanceURL(previousBase) })
-	mux := chromeTestMux(t)
-	RegisterHackHome(mux)
+	sh := chromeTestHandler(edition.Hack)
+	sh.assets = newAssetPipeline(sh.ed, base)
+	mux := http.NewServeMux()
+	RegisterUIRoutes(mux, base, sh)
+	RegisterHackHome(mux, sh)
 	return mux
 }
 

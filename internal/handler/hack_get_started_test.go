@@ -16,14 +16,13 @@ import (
 )
 
 func TestHackGetStartedSkills(t *testing.T) {
-	previousMode := hackMode
-	hackMode = true
-	defer func() { hackMode = previousMode }()
-	first, err := buildHackSkillsZip()
+	sh := &SiteHandler{ed: edition.ForKind(edition.Hack)}
+	assets := sh.pipeline()
+	first, err := buildHackSkillsZip(assets)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := buildHackSkillsZip()
+	second, err := buildHackSkillsZip(assets)
 	if err != nil || !bytes.Equal(first, second) {
 		t.Fatal("hosted skill ZIP changed between reads")
 	}
@@ -52,7 +51,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !bytes.Equal(data, skillServedText(f.Name, want)) {
+			if !bytes.Equal(data, assets.skillServedText(f.Name, want)) {
 				t.Fatalf("%s differs from served canonical source", f.Name)
 			}
 		}
@@ -66,9 +65,9 @@ func TestHackGetStartedSkills(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	RegisterHackGetStarted(mux)
-	newAssetPipeline(edition.ForKind(edition.Hack)).registerSkillsHub(mux, "https://simple-hack.app")
-	mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) { serveSkillsZip(w, r, true) })
+	RegisterHackGetStarted(mux, sh)
+	assets.registerSkillsHub(mux, "https://simple-hack.app")
+	mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) { serveSkillsZip(assets, w, r, true) })
 	get := func(path string) *httptest.ResponseRecorder {
 		t.Helper()
 		r := httptest.NewRecorder()
@@ -115,14 +114,9 @@ func TestHackGetStartedSkills(t *testing.T) {
 }
 
 func TestHackGetStartedOnboarding(t *testing.T) {
-	previousMode := hackMode
-	hackMode = true
-	defer func() { hackMode = previousMode }()
-	previousChrome := hackChrome
-	SetHackChrome(true)
-	t.Cleanup(func() { SetHackChrome(previousChrome) })
+	sh := &SiteHandler{ed: edition.ForKind(edition.Hack)}
 	mux := http.NewServeMux()
-	RegisterHackGetStarted(mux)
+	RegisterHackGetStarted(mux, sh)
 	r := httptest.NewRecorder()
 	mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/get-started", nil))
 	page := r.Body.String()

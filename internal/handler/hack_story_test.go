@@ -8,17 +8,15 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestHostedHackStoryHome(t *testing.T) {
-	previousBase := hackInkBaseURL
-	SetHackInstanceURL("https://hack.example.org")
-	t.Cleanup(func() { SetHackInstanceURL(previousBase) })
-	previous := hackChrome
-	SetHackChrome(true)
-	t.Cleanup(func() { SetHackChrome(previous) })
+	sh := chromeTestHandler(edition.Hack)
+	sh.assets = newAssetPipeline(sh.ed, "https://hack.example.org")
 	mux := http.NewServeMux()
-	RegisterHackHome(mux)
+	RegisterHackHome(mux, sh)
 	rec := get(t, mux, "simple-hack.app", "/")
 	if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("home status/cache %d %s", rec.Code, rec.Header().Get("Cache-Control"))
@@ -51,7 +49,7 @@ func TestHostedHackStoryHome(t *testing.T) {
 }
 
 func TestHostFilmAssets(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	for name, ctype := range filmTypes {
 		rec := get(t, mux, "simple-host.app", "/film/"+name+"?v=20261010")
 		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != ctype || rec.Body.Len() < 10000 || rec.Header().Get("Cache-Control") != "public, max-age=604800" || rec.Header().Get("ETag") == "" {
@@ -78,7 +76,7 @@ func TestHostFilmAssets(t *testing.T) {
 }
 
 func TestHackFilmNarrationAsset(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	rec := get(t, mux, "simple-hack.app", "/hack-film-narration.mp3?v=202610100223")
 	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "audio/mpeg" || rec.Body.Len() == 0 {
 		t.Fatalf("narration status/type/size: %d %q %d", rec.Code, rec.Header().Get("Content-Type"), rec.Body.Len())
@@ -93,10 +91,7 @@ func TestHackFilmNarrationAsset(t *testing.T) {
 }
 
 func TestHostPresentationSeparateFromHackStory(t *testing.T) {
-	previous := hackChrome
-	SetHackChrome(false)
-	t.Cleanup(func() { SetHackChrome(previous) })
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	for _, path := range []string{"/", "/dashboard"} {
 		rec := get(t, mux, "simple-host.app", path)
 		if rec.Code != 200 {
@@ -145,10 +140,7 @@ func TestHackEventColourSurfaces(t *testing.T) {
 
 // Filename routes receive the same nonce and caching policy as clean app routes.
 func TestHostedHackHTMLCache(t *testing.T) {
-	previous := hackChrome
-	SetHackChrome(true)
-	t.Cleanup(func() { SetHackChrome(previous) })
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Hack)
 	for _, path := range []string{"/privacy.html", "/terms.html", "/features"} {
 		rec := get(t, mux, "simple-host.app", path)
 		if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" {
@@ -156,8 +148,8 @@ func TestHostedHackHTMLCache(t *testing.T) {
 		}
 		assertStrictScriptCSP(t, path, rec)
 	}
-	SetHackChrome(false)
-	rec := get(t, mux, "simple-host.app", "/privacy.html")
+	hostMux := chromeTestMux(t, edition.Host)
+	rec := get(t, hostMux, "simple-host.app", "/privacy.html")
 	if rec.Header().Get("Cache-Control") != "" {
 		t.Error("Simple Host filename caching changed")
 	}
@@ -167,7 +159,7 @@ func TestHostedHackHTMLCache(t *testing.T) {
 // nonce-checking sign-in shell without exposing credentials in page markup.
 func TestHackStorySignInReturn(t *testing.T) {
 	mux := http.NewServeMux()
-	RegisterHackHome(mux)
+	RegisterHackHome(mux, chromeTestHandler(edition.Hack))
 	for _, query := range []string{"token=one-time&cn=browser-hash", "cn=browser-hash", "token=one-time&next=%2Fevents"} {
 		rec := get(t, mux, "simple-hack.app", "/?"+query)
 		if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/signin?"+query || rec.Header().Get("Cache-Control") != "no-store" {
@@ -180,10 +172,7 @@ func TestHackStorySignInReturn(t *testing.T) {
 }
 
 func TestHostFilmAndLegacyDashboardReturn(t *testing.T) {
-	previous := hackChrome
-	SetHackChrome(false)
-	t.Cleanup(func() { SetHackChrome(previous) })
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	rec := get(t, mux, "simple-host.app", "/")
 	body := rec.Body.String()
 	if rec.Code != 200 || !strings.Contains(body, `<video id="film" playsinline preload="none" disablepictureinpicture></video>`) {
@@ -219,10 +208,7 @@ func TestHostFilmAndLegacyDashboardReturn(t *testing.T) {
 // chapter and the "everything you make with AI" chapter a chapter tap or
 // the end card's "Next" button can switch to, in place, without a reload.
 func TestHomeTwoFilmChapters(t *testing.T) {
-	previous := hackChrome
-	SetHackChrome(false)
-	t.Cleanup(func() { SetHackChrome(previous) })
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	rec := get(t, mux, "simple-host.app", "/")
 	body := rec.Body.String()
 	if rec.Code != 200 {

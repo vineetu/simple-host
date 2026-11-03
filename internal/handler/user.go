@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lib/pq"
@@ -63,6 +64,22 @@ type UserHandler struct {
 	// geoBlock gates email-code sign-in and sign-up by the request's country
 	// (SIGNUP_BLOCKED_COUNTRIES). Zero value: off. See signupgeo.go.
 	geoBlock signupGeoBlock
+
+	// assets is the asset/chrome pipeline for ed and publicBaseURL (the
+	// message pages in account_email.go); read it through pipeline().
+	assets     *assetPipeline
+	assetsOnce sync.Once
+}
+
+// pipeline is h's asset pipeline. A bare &UserHandler{} (tests) gets one for
+// its (possibly nil, so Host) edition on first use.
+func (h *UserHandler) pipeline() *assetPipeline {
+	h.assetsOnce.Do(func() {
+		if h.assets == nil {
+			h.assets = newAssetPipeline(h.ed, h.publicBaseURL)
+		}
+	})
+	return h.assets
 }
 
 // SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database

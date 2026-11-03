@@ -20,8 +20,7 @@ import (
 
 // withEmailSignIn flips the package-level EMAIL_SIGNIN switch for the
 // duration of a test and restores it afterward, so tests never leak state
-// into one another (the switch is a single process-wide var, the same
-// pattern hackMode uses).
+// into one another (the switch is a single process-wide var).
 func withEmailSignIn(t *testing.T, on bool) {
 	t.Helper()
 	previous := emailSignInEnabled

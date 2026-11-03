@@ -535,8 +535,6 @@ func TestStoragePresetsKVAndFilesOwnership(t *testing.T) {
 // Simple Hack uses presets too (owner decision 2026-10-10, replacing D2).
 func TestStoragePresetsSimpleHackUsesPresets(t *testing.T) {
 	s := newPresetSite(t)
-	hackMode = true
-	t.Cleanup(func() { hackMode = false })
 	r := s.must(t, "PUT", "/resources/team", map[string]string{"kind": "sqlite", "read": "anyone", "write": "signed-in", "write_mode": "add"}, s.key, 201).json(t)
 	if r["preset"] != "wall" && r["preset"] != "custom" {
 		t.Fatalf("hack answer: %v", r)

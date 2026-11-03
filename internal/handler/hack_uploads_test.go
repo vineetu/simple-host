@@ -71,9 +71,6 @@ func TestHackWebsiteZipUploads(t *testing.T) {
 }
 
 func TestHackArchiveValidationReasons(t *testing.T) {
-	old := hackMode
-	SetHackMode(true)
-	t.Cleanup(func() { SetHackMode(old) })
 	h := &SiteHandler{ed: edition.ForKind(edition.Hack)}
 	for _, tc := range []struct{ name, message string }{
 		{"nested/index.html", "no index.html at the root"},

@@ -104,17 +104,17 @@ func homepageMarkdown(page []byte) ([]byte, error) {
 	return []byte(strings.Join(lines, "\n") + "\n"), nil
 }
 
-func homepageMarkdownHandler(publicBaseURL string, hackAssets bool) http.HandlerFunc {
-	return landingMarkdownHandler("host-story.html", "Simple Host", "Describe a website. It goes online.", publicBaseURL, hackAssets)
+func homepageMarkdownHandler(assets *assetPipeline, publicBaseURL string, hackAssets bool) http.HandlerFunc {
+	return landingMarkdownHandler(assets, "host-story.html", "Simple Host", "Describe a website. It goes online.", publicBaseURL, hackAssets)
 }
 
-func landingMarkdownHandler(file, title, description, publicBaseURL string, hackAssets bool) http.HandlerFunc {
+func landingMarkdownHandler(assets *assetPipeline, file, title, description, publicBaseURL string, hackAssets bool) http.HandlerFunc {
 	page, err := staticFiles.ReadFile("static/" + file)
 	if err != nil {
 		panic(err)
 	}
 	if hackAssets {
-		page = hackInstanceText(page)
+		page = assets.hackInstanceText(page)
 	}
 	body, err := homepageMarkdown(page)
 	if err != nil {
@@ -129,7 +129,7 @@ func landingMarkdownHandler(file, title, description, publicBaseURL string, hack
 }
 
 // Both discovery files name the configured server, like the served API spec.
-func discoveryDocument(hackAssets bool, name, contentType, publicBaseURL string) http.HandlerFunc {
+func discoveryDocument(assets *assetPipeline, hackAssets bool, name, contentType, publicBaseURL string) http.HandlerFunc {
 	source := name
 	if hackAssets {
 		source = "hack-" + name
@@ -139,7 +139,7 @@ func discoveryDocument(hackAssets bool, name, contentType, publicBaseURL string)
 		panic(err)
 	}
 	if hackAssets {
-		body = hackInstanceText(body)
+		body = assets.hackInstanceText(body)
 	} else {
 		body = bytes.ReplaceAll(body, []byte("https://simple-host.app"), []byte(strings.TrimRight(publicBaseURL, "/")))
 	}

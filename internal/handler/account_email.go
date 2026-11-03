@@ -323,13 +323,13 @@ Simple Host
 func (h *UserHandler) undoEmailChange(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	if fragmentLinkGET(w, r, "", "/v1/me/email/undo") {
+	if fragmentLinkGET(h.pipeline(), w, r, "", "/v1/me/email/undo") {
 		return
 	}
 	tok := linkToken(w, r)
 	home := strings.TrimRight(h.publicBaseURL, "/") + "/"
 	gone := func() {
-		writeMessagePage(w, r, "", http.StatusNotFound, "This link has already been used or has expired",
+		writeMessagePage(h.pipeline(), w, r, "", http.StatusNotFound, "This link has already been used or has expired",
 			supportText("If your sign-in email was changed without you, write to support@simple-host.app."), home, "Go to Simple Host", "")
 	}
 	if len(tok) != 48 {
@@ -347,7 +347,7 @@ func (h *UserHandler) undoEmailChange(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		writeMessagePage(w, r, "", http.StatusOK, "Undo the sign-in email change?",
+		writeMessagePage(h.pipeline(), w, r, "", http.StatusOK, "Undo the sign-in email change?",
 			"The account goes back to signing in with "+html.EscapeString(u.OldEmail)+". Every key and every sign-in on sites is signed out, and Google or GitHub sign-ins and connected apps added since the change are removed.",
 			"", "", confirmForm("/v1/me/email/undo", map[string]string{"t": tok}, "Undo the change"))
 		return
@@ -358,7 +358,7 @@ func (h *UserHandler) undoEmailChange(w http.ResponseWriter, r *http.Request) {
 		gone()
 		return
 	case errors.Is(err, db.ErrUndoAddressTaken):
-		writeMessagePage(w, r, "", http.StatusConflict, "That address is used by another account now",
+		writeMessagePage(h.pipeline(), w, r, "", http.StatusConflict, "That address is used by another account now",
 			supportText("Write to support@simple-host.app and we will sort it out."), home, "Go to Simple Host", "")
 		return
 	case err != nil:
@@ -367,7 +367,7 @@ func (h *UserHandler) undoEmailChange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("email change user_id=%s: undone from the old address", u.UserID)
-	writeMessagePage(w, r, "", http.StatusOK, "Done: you sign in with "+html.EscapeString(u.OldEmail)+" again",
+	writeMessagePage(h.pipeline(), w, r, "", http.StatusOK, "Done: you sign in with "+html.EscapeString(u.OldEmail)+" again",
 		"Every key was signed out. Sign in with this address to get back in, then check your sites and connected apps.", home, "Sign in", "")
 }
 

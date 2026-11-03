@@ -11,8 +11,6 @@ import (
 )
 
 func TestHackLegacyStorageGate(t *testing.T) {
-	old := HackMode()
-	t.Cleanup(func() { SetHackMode(old) })
 	paths := []string{
 		"/v1/sites/team/state", "/v1/sites/team/state/history/1",
 		"/v1/sites/team/collections/entries/items/1", "/v1/sites/team/data/name/kind",
@@ -41,7 +39,6 @@ func TestHackLegacyStorageGate(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	h := &SiteHandler{ed: edition.ForKind(edition.Hack)}
 	gate := h.HackLegacyStorageGate(next)
-	SetHackMode(true)
 	for _, path := range paths {
 		r := httptest.NewRecorder()
 		gate.ServeHTTP(r, httptest.NewRequest(http.MethodGet, path, nil))
@@ -49,7 +46,6 @@ func TestHackLegacyStorageGate(t *testing.T) {
 			t.Errorf("Hack %s: %d %s", path, r.Code, r.Body.String())
 		}
 	}
-	SetHackMode(false)
 	h.ed = edition.ForKind(edition.Host)
 	r := httptest.NewRecorder()
 	gate.ServeHTTP(r, httptest.NewRequest(http.MethodGet, paths[0], nil))
@@ -92,11 +88,9 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 	if !strings.Contains(string(filtered), "/storage/resources") {
 		t.Fatal("current storage missing from Hack OpenAPI")
 	}
-	old := HackMode()
-	t.Cleanup(func() { SetHackMode(old) })
-	SetHackMode(true)
+	hackAssets := newAssetPipeline(edition.ForKind(edition.Hack), "")
 	w := httptest.NewRecorder()
-	serveStaticPage("docs.html").ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/docs.html", nil))
+	hackAssets.serveStaticPage("docs.html").ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/docs.html", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("Hack docs: %d", w.Code)
 	}
@@ -139,11 +133,10 @@ func TestHackAuthJSHasOnlyCurrentStorage(t *testing.T) {
 }
 
 func TestHelpPagesExcludePersonalPresentationOnHack(t *testing.T) {
-	old := HackMode()
-	t.Cleanup(func() { SetHackMode(old) })
+	hostAssets := newAssetPipeline(edition.ForKind(edition.Host), "")
+	hackAssets := newAssetPipeline(edition.ForKind(edition.Hack), "")
 	for _, name := range []string{"features.html", "architecture.html"} {
-		SetHackMode(false)
-		host, err := chromePage(name, chromeData{})
+		host, err := hostAssets.chromePage(name, chromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -154,8 +147,7 @@ func TestHelpPagesExcludePersonalPresentationOnHack(t *testing.T) {
 		if !strings.Contains(string(host), needle) {
 			t.Fatalf("Host %s lost home-page help", name)
 		}
-		SetHackMode(true)
-		hack, err := chromePage(name, chromeData{})
+		hack, err := hackAssets.chromePage(name, chromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}

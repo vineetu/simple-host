@@ -14,9 +14,9 @@ import (
 // a 404 because only /skills/… accepted the /SKILL.md suffix.
 func TestSkillPathsWorkUnderBothPrefixes(t *testing.T) {
 	mux := http.NewServeMux()
-	hostAssets := newAssetPipeline(edition.ForKind(edition.Host))
+	hostAssets := newAssetPipeline(edition.ForKind(edition.Host), "")
 	hostAssets.registerSkillsHub(mux, "https://simple-host.app")
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.Host))
 
 	get := func(path string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()

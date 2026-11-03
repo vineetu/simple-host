@@ -43,6 +43,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -107,6 +108,22 @@ type ConnectorHandler struct {
 	now func() time.Time
 	// hackTeams gates hosted hackathon grants and tools (EVENTS=hosted).
 	hackTeams bool
+
+	// assets is the asset/chrome pipeline for ed and issuer (the consent
+	// screen and import page); read it through pipeline().
+	assets     *assetPipeline
+	assetsOnce sync.Once
+}
+
+// pipeline is h's asset pipeline. A bare &ConnectorHandler{} (tests) gets one
+// for its (possibly nil, so Host) edition on first use.
+func (h *ConnectorHandler) pipeline() *assetPipeline {
+	h.assetsOnce.Do(func() {
+		if h.assets == nil {
+			h.assets = newAssetPipeline(h.ed, h.issuer)
+		}
+	})
+	return h.assets
 }
 
 // NewConnectorHandler builds the connector. upstream is the application mux
@@ -272,7 +289,7 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 		mux.HandleFunc(m+" /mcp", h.serveMCP)
 	}
 
-	mux.Handle("GET /import/{token}", h.importOrigin(adminUICSP(http.HandlerFunc(h.importPage))))
+	mux.Handle("GET /import/{token}", h.importOrigin(h.pipeline().adminUICSP(http.HandlerFunc(h.importPage))))
 	mux.Handle("POST /v1/imports/{token}", h.importOrigin(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.receiveImport))))
 	mux.Handle("GET /v1/imports/status/{import_id}", h.importOrigin(rateLimitByIP(h.importStatusLimiter, http.HandlerFunc(h.importStatus))))
 
@@ -941,7 +958,7 @@ func (h *ConnectorHandler) authorize(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ConnectorHandler) renderConsent(w http.ResponseWriter, r *http.Request, status int, data map[string]any) {
-	page, err := chromePage("connect.html", chromeDataFor(r, ""))
+	page, err := h.pipeline().chromePage("connect.html", h.pipeline().chromeDataFor(r, ""))
 	if err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return

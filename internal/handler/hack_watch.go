@@ -10,9 +10,10 @@ import (
 )
 
 // RegisterHackWatch is mounted only by the hosted-events homepage.
-func RegisterHackWatch(mux *http.ServeMux) {
-	page := serveStaticPage("hack-watch.html")
-	mux.Handle("GET /watch", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func RegisterHackWatch(mux *http.ServeMux, sh *SiteHandler) {
+	assets := sh.pipeline()
+	page := assets.serveStaticPage("hack-watch.html")
+	mux.Handle("GET /watch", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		page.ServeHTTP(w, r)
 	})))
@@ -36,7 +37,7 @@ func (h *HackHandler) RegisterDemo(mux *http.ServeMux, slug string) {
 		}
 		if err != nil {
 			if page {
-				writeMessagePage(w, r, "", http.StatusNotFound, "No demo event",
+				writeMessagePage(h.pipeline(), w, r, "", http.StatusNotFound, "No demo event",
 					"Ask your organizer for the event's link", "/watch", "Watch how it works", "")
 			} else {
 				writeJSON(w, http.StatusNotFound, map[string]string{"error": "no demo event"})
@@ -53,12 +54,13 @@ func (h *HackHandler) RegisterDemo(mux *http.ServeMux, slug string) {
 			})
 		}
 	})
-	mux.Handle("GET /demo/join", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	assets := h.pipeline()
+	mux.Handle("GET /demo/join", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if ev, ok := lookup(w, r, true); ok {
 			http.Redirect(w, r, h.joinURL(ev.JoinCode), http.StatusFound)
 		}
 	})))
-	mux.Handle("GET /demo/judge", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /demo/judge", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if ev, ok := lookup(w, r, true); ok {
 			http.Redirect(w, r, h.judgeURL(ev.JudgeCode), http.StatusFound)
 		}

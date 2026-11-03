@@ -89,7 +89,7 @@ func TestSigninJSVersionHashesServedBytes(t *testing.T) {
 	}
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Host = "simple-host.app"
-	d := chromeDataFor(req, "")
+	d := newAssetPipeline(edition.ForKind(edition.Host), "").chromeDataFor(req, "")
 	if d.SigninVersion != want {
 		t.Fatalf("chrome SigninVersion=%q want %q", d.SigninVersion, want)
 	}
@@ -122,12 +122,7 @@ func TestServedSigninAndAuthJSParse(t *testing.T) {
 }
 
 func TestHackModeAuthJSStillHasCard(t *testing.T) {
-	previous := hackMode
-	hackMode = true
-	t.Cleanup(func() {
-		hackMode = previous
-	})
-	got, err := newAssetPipeline(edition.ForKind(edition.Hack)).staticFS().ReadFile("static/auth.js")
+	got, err := newAssetPipeline(edition.ForKind(edition.Hack), "").staticFS().ReadFile("static/auth.js")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,11 +10,12 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/buildinfo"
+	"github.com/vsriram/simple-host/internal/edition"
 	"golang.org/x/net/html"
 )
 
 func TestHomepageDiscovery(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	var markdown string
 	for _, accept := range []string{"text/markdown", "text/html", "", "text/html;q=0.5, text/markdown", "text/markdown;q=0, text/html", "text/markdown;q=0.5, text/html"} {
 		req := httptest.NewRequest(http.MethodGet, "https://simple-host.app/", nil)
@@ -69,7 +70,7 @@ func TestHomepageDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryDocuments(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	rec := get(t, mux, "simple-host.app", "/.well-known/ard.json")
 	var ard struct {
 		SpecVersion string `json:"specVersion"`

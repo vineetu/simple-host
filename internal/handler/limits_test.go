@@ -264,7 +264,7 @@ func TestDefaultLimitsRewriteNothing(t *testing.T) {
 func TestServedTextFollowsLimits(t *testing.T) {
 	withLimits(t, changedLimits(t))
 	mux := http.NewServeMux()
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.Host))
 
 	for _, c := range []struct {
 		path      string
@@ -331,7 +331,7 @@ func TestServedTextFollowsLimits(t *testing.T) {
 // the settings too.
 func TestShowcaseAndMessagePagesFollowLimits(t *testing.T) {
 	withLimits(t, changedLimits(t))
-	page, err := chromePage("showcase.html", chromeData{})
+	page, err := newAssetPipeline(edition.ForKind(edition.Host), "").chromePage("showcase.html", chromeData{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +340,7 @@ func TestShowcaseAndMessagePagesFollowLimits(t *testing.T) {
 			t.Errorf("showcase: missing %q", w)
 		}
 	}
-	h := chromeTestHandler()
+	h := chromeTestHandler(edition.Host)
 	rec := httptest.NewRecorder()
 	h.renderPreviewExpired(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	if !strings.Contains(rec.Body.String(), "Preview links work for 2 hours.") {
@@ -428,8 +428,8 @@ func TestSkillRoutesFollowArchiveLimit(t *testing.T) {
 	t.Cleanup(func() { SetSiteLimit(old); ApplyLimits(config.DefaultLimits()) })
 	ApplyLimits(config.DefaultLimits())
 	mux := http.NewServeMux()
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
-	newAssetPipeline(edition.ForKind(edition.Host)).registerSkillsHub(mux, "https://simple-host.app")
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.Host))
+	newAssetPipeline(edition.ForKind(edition.Host), "").registerSkillsHub(mux, "https://simple-host.app")
 	for _, c := range []struct{ path, want string }{
 		{"/v1/skills/website-deploy", "**Archive limit** is 300 MB."},
 		{"/v1/skills/website-deploy/SKILL.md", "**Archive limit** is 300 MB."},

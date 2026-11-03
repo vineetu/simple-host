@@ -30,7 +30,7 @@ func TestSelfHostedGetStartedAndLLMS(t *testing.T) {
 	defer SetInstanceHosts("simple-host.app", "", "")
 	for _, name := range []string{"install.html", "llms.txt"} {
 		rec := httptest.NewRecorder()
-		newAssetPipeline(edition.ForKind(edition.Host)).serveRewrittenAsset(name, instanceHosts, time.Time{}).ServeHTTP(rec, httptest.NewRequest("GET", "https://box.example/"+name, nil))
+		newAssetPipeline(edition.ForKind(edition.Host), "").serveRewrittenAsset(name, instanceHosts, time.Time{}).ServeHTTP(rec, httptest.NewRequest("GET", "https://box.example/"+name, nil))
 		body := rec.Body.String()
 		if rec.Code != 200 {
 			t.Fatalf("%s: %d", name, rec.Code)
@@ -70,16 +70,10 @@ func TestSitemapNamesThisServer(t *testing.T) {
 // A self-hosted Simple Hack names its own connector for Claude, never the
 // hosted listing.
 func TestSelfHostedHackGetStartedClaude(t *testing.T) {
-	previousMode := hackMode
-	hackMode = true
-	defer func() { hackMode = previousMode }()
-	previousChrome := hackChrome
-	SetHackChrome(true)
-	t.Cleanup(func() { SetHackChrome(previousChrome) })
-	SetHackInstanceURL("https://hack.example")
-	t.Cleanup(func() { SetHackInstanceURL("https://simple-hack.app") })
+	sh := chromeTestHandler(edition.Hack)
+	sh.assets = newAssetPipeline(sh.ed, "https://hack.example")
 	mux := http.NewServeMux()
-	RegisterHackGetStarted(mux)
+	RegisterHackGetStarted(mux, sh)
 	r := httptest.NewRecorder()
 	mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/get-started", nil))
 	page := r.Body.String()

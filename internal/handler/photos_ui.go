@@ -8,8 +8,10 @@ import (
 	"strings"
 )
 
-func registerPhotosUI(mux *http.ServeMux, publicBaseURL string, photos bool) {
-	mux.Handle("GET /photos", photosHostOnly(photos, accountAuthOnly(publicBaseURL, adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func registerPhotosUI(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
+	assets := sh.pipeline()
+	photos := sh.ed.Storage().Photos
+	mux.Handle("GET /photos", photosHostOnly(photos, accountAuthOnly(publicBaseURL, assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Bitmap previews need blob URLs. Only the decoder worker compiles Wasm.
 		policy := w.Header().Get("Content-Security-Policy")
 		policy = strings.Replace(policy, "img-src 'self' data:", "img-src 'self' data: blob:", 1)
@@ -17,7 +19,7 @@ func registerPhotosUI(mux *http.ServeMux, publicBaseURL string, photos bool) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Robots-Tag", "noindex")
-		page, err := chromePage("photos.html", chromeDataFor(r, ""))
+		page, err := assets.chromePage("photos.html", assets.chromeDataFor(r, ""))
 		if err != nil {
 			http.NotFound(w, r)
 			return

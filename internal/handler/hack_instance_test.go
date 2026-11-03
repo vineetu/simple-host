@@ -9,16 +9,14 @@ import (
 	"testing"
 
 	hacktoolkit "github.com/vsriram/simple-host/hack-toolkit"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestFullHackInstancePresentation(t *testing.T) {
-	prevMode, prevChrome, prevBase := hackMode, hackChrome, hackInkBaseURL
-	SetHackMode(true)
-	SetHackChrome(true)
-	SetHackInstanceURL("http://localhost:18480")
-	t.Cleanup(func() { SetHackMode(prevMode); SetHackChrome(prevChrome); SetHackInstanceURL(prevBase) })
+	sh := chromeTestHandler(edition.Hack)
+	sh.assets = newAssetPipeline(sh.ed, "http://localhost:18480")
 	mux := http.NewServeMux()
-	RegisterHackHome(mux)
+	RegisterHackHome(mux, sh)
 	for _, path := range []string{"/", "/get-started"} {
 		rec := get(t, mux, "localhost:18480", path)
 		body := rec.Body.String()
@@ -34,7 +32,7 @@ func TestFullHackInstancePresentation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		body := string(skillServedText(name+"/SKILL.md", raw))
+		body := string(sh.pipeline().skillServedText(name+"/SKILL.md", raw))
 		if strings.Contains(body, "simple-hack.app") || !strings.Contains(body, "localhost:18480") {
 			t.Fatalf("skill %s points elsewhere", name)
 		}
@@ -61,8 +59,8 @@ func TestFullHackInstancePresentation(t *testing.T) {
 			t.Fatalf("instance plugin file %s points to hosted service", f.Name)
 		}
 	}
-	SetHackMode(false)
-	if string(hackInstanceText([]byte("https://simple-hack.app"))) != "https://simple-hack.app" {
+	hostAssets := newAssetPipeline(edition.ForKind(edition.Host), "")
+	if string(hostAssets.hackInstanceText([]byte("https://simple-hack.app"))) != "https://simple-hack.app" {
 		t.Fatal("Host text changed")
 	}
 }

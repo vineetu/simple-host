@@ -3,14 +3,14 @@ package handler
 import (
 	"strings"
 	"sync"
-	"sync/atomic"
 	"weak"
 
 	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // canonicalHackBaseURL is simple-hack.app's own address: the hack ink base
-// every Hack instance starts from (SetHackInstanceURL moves it).
+// every Hack instance starts from unless it is given its own (the
+// instanceURL constructor argument to newAssetPipeline).
 const canonicalHackBaseURL = "https://simple-hack.app"
 
 // assetPipeline is everything the static asset and chrome pipeline reads that
@@ -18,6 +18,8 @@ const canonicalHackBaseURL = "https://simple-hack.app"
 // serves, the hack chrome, the hack instance's own address, and the cache of
 // swapped embedded files. A SiteHandler owns one (h.assets), built from its
 // Edition in NewSiteHandler; the pipeline's methods read only these fields.
+// Every field below is set once, in newAssetPipeline, and never changed: the
+// pipeline is immutable after construction.
 //
 // The base-swap settings (baseTextTo, authJSBases, instanceIsHostedService,
 // the host rewriter) stay package settings: they describe the instance's
@@ -28,29 +30,35 @@ type assetPipeline struct {
 	pres edition.PresentationPolicy
 	// hostedEvents is the edition's Routes().HostedEvents (pricing numbers).
 	hostedEvents bool
-	// chromeHack renders the simple-hack.app header, footer and ink (the
-	// SetHackChrome setting). Atomic: a setter may run while requests read.
-	chromeHack atomic.Bool
-	// inkBase is this Hack instance's public address (SetHackInstanceURL),
-	// canonicalHackBaseURL on simple-hack.app itself. Read via inkBaseURL.
-	inkBase atomic.Pointer[string]
+	// chromeHack renders the simple-hack.app header, footer and ink: always
+	// pres.HackAssets, kept as its own field because that is the question
+	// this pipeline's callers ask.
+	chromeHack bool
+	// inkBase is this Hack instance's public address (the instanceURL
+	// constructor argument), canonicalHackBaseURL by default. Read via
+	// inkBaseURL. Meaningless when !chromeHack.
+	inkBase string
 	// text holds swapped copies of embedded files, by base and name
 	// (baseTextFS.Open).
 	text sync.Map
 }
 
-// newAssetPipeline builds the pipeline for ed (nil = Host), taking the hack
-// chrome and instance address from the startup setters, and registers it so
-// later setter calls and base-text changes reach it.
-func newAssetPipeline(ed *edition.Edition) *assetPipeline {
+// newAssetPipeline builds the pipeline for ed (nil = Host) and its Hack
+// instance address ("" = canonicalHackBaseURL, the default every Hack
+// instance starts from unless it is self-hosted under its own domain), and
+// registers it so the base-text setters, which have no handler in reach,
+// still reach its swapped-file cache.
+func newAssetPipeline(ed *edition.Edition, instanceURL string) *assetPipeline {
+	if instanceURL == "" {
+		instanceURL = canonicalHackBaseURL
+	}
 	p := &assetPipeline{
 		pres:         ed.Presentation(),
 		hostedEvents: ed.Routes().HostedEvents,
+		chromeHack:   ed.Presentation().HackAssets,
+		inkBase:      strings.TrimRight(instanceURL, "/"),
 	}
 	assetRegistry.mu.Lock()
-	// The transitional startup settings (hack_mode.go) are the defaults.
-	p.chromeHack.Store(hackChrome)
-	p.setInkBase(hackInkBaseURL)
 	live := assetRegistry.live[:0]
 	for _, wp := range assetRegistry.live {
 		if wp.Value() != nil {
@@ -63,21 +71,14 @@ func newAssetPipeline(ed *edition.Edition) *assetPipeline {
 }
 
 // inkBaseURL is the pipeline's hack instance address.
-func (p *assetPipeline) inkBaseURL() string {
-	if s := p.inkBase.Load(); s != nil {
-		return *s
-	}
-	return ""
-}
-
-func (p *assetPipeline) setInkBase(base string) { p.inkBase.Store(&base) }
+func (p *assetPipeline) inkBaseURL() string { return p.inkBase }
 
 // pipeline is h's asset pipeline. NewSiteHandler builds it; a bare
 // &SiteHandler{} (tests) gets one for its edition on first use.
 func (h *SiteHandler) pipeline() *assetPipeline {
 	h.assetsOnce.Do(func() {
 		if h.assets == nil {
-			h.assets = newAssetPipeline(h.ed)
+			h.assets = newAssetPipeline(h.ed, "")
 		}
 	})
 	return h.assets
@@ -88,52 +89,39 @@ func (p *assetPipeline) staticFS() baseTextFS {
 	return baseTextFS{fsys: embeddedStatic, p: p}
 }
 
-// assetRegistry tracks every live pipeline, weakly, so the package-level
-// startup setters (SetHackChrome, SetHackInstanceURL) and the base-text
-// setters (setBaseText, SetSiteBaseText), which have no handler in reach,
-// still reach each instance's pipeline: the setters update its fields and
-// clear its swapped-file cache, as they did the package globals before.
+// assetRegistry tracks every live pipeline, weakly, so the base-text setters
+// (setBaseText, SetSiteBaseText), which have no handler in reach, can still
+// clear every instance's swapped-file cache.
 var assetRegistry struct {
 	mu   sync.Mutex
 	live []weak.Pointer[assetPipeline]
 }
 
-// eachAssetPipeline calls fn for every live pipeline, holding the registry lock.
-func eachAssetPipeline(fn func(*assetPipeline)) {
+// clearAssetText drops every live pipeline's swapped-file cache.
+func clearAssetText() {
 	assetRegistry.mu.Lock()
 	defer assetRegistry.mu.Unlock()
-	eachAssetPipelineLocked(fn)
-}
-
-// eachAssetPipelineLocked is eachAssetPipeline for a caller holding the lock.
-func eachAssetPipelineLocked(fn func(*assetPipeline)) {
 	for _, wp := range assetRegistry.live {
 		if p := wp.Value(); p != nil {
-			fn(p)
+			p.text.Clear()
 		}
 	}
 }
 
-// clearAssetText drops every pipeline's swapped-file cache.
-func clearAssetText() {
-	eachAssetPipeline(func(p *assetPipeline) { p.text.Clear() })
-}
+// The handlers below render pages too. main hands each the SiteHandler's
+// pipeline once, before serving, so every page of an instance uses the same
+// edition and Hack instance address: the one captured before a setup-saved
+// domain replaces PublicBaseURL, as the startup setters did. A handler that
+// was never given one (tests) builds its own from its edition.
 
-// SetHackChrome turns on simple-hack.app chrome. The integrator calls it
-// once at startup when EVENTS=hosted.
-func SetHackChrome(on bool) {
-	assetRegistry.mu.Lock()
-	defer assetRegistry.mu.Unlock()
-	hackChrome = on
-	eachAssetPipelineLocked(func(p *assetPipeline) { p.chromeHack.Store(on) })
-}
+// ShareAssets makes h render through sh's asset pipeline.
+func (h *UserHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }
 
-// SetHackInstanceURL is called once at startup, before routes or ZIP caches.
-func SetHackInstanceURL(base string) {
-	base = strings.TrimRight(base, "/")
-	assetRegistry.mu.Lock()
-	hackInkBaseURL = base
-	eachAssetPipelineLocked(func(p *assetPipeline) { p.setInkBase(base) })
-	assetRegistry.mu.Unlock()
-	chromeCache.Clear()
-}
+// ShareAssets makes h render through sh's asset pipeline.
+func (h *OAuthHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }
+
+// ShareAssets makes h render through sh's asset pipeline.
+func (h *ConnectorHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }
+
+// ShareAssets makes h render through sh's asset pipeline.
+func (h *HackHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }

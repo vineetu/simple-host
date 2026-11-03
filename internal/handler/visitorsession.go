@@ -170,7 +170,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 	}
 	fail := func(status int, reason string) {
 		logSignInFail(r, "establish", reason, once)
-		writeSignInFailed(w, status, reason, retry)
+		h.writeSignInFailed(w, status, reason, retry)
 	}
 	if !signInNavigationAllowed(r) {
 		fail(403, "not_navigation")
@@ -301,7 +301,7 @@ var signInFailedPage = themed(`<!doctype html><html><head><meta charset="utf-8">
 
 // writeSignInFailed is the establish failure page: what happened, and a Try
 // again link that restarts sign-in for this site in this browser.
-func writeSignInFailed(w http.ResponseWriter, status int, reason, retry string) {
+func (h *SiteHandler) writeSignInFailed(w http.ResponseWriter, status int, reason, retry string) {
 	action := `<p class="fine">Close this tab and open the site again.</p>`
 	if retry != "" {
 		action = `<a class="primary" href="` + html.EscapeString(retry) + `">Try again</a><p class="fine">Try again signs you in to this site in this browser.</p>`
@@ -310,7 +310,7 @@ func writeSignInFailed(w http.ResponseWriter, status int, reason, retry string) 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	_, _ = w.Write(hostedStatusPage(page))
+	_, _ = w.Write(h.pipeline().hostedStatusPage(page))
 }
 
 // logoutVisitor handles POST /v1/visitor/logout: delete this session and clear

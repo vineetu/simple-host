@@ -17,15 +17,12 @@ import (
 func TestHackPublicDiscovery(t *testing.T) {
 	for _, base := range []string{"https://simple-hack.app", "https://hack.company.example", "http://localhost:18480"} {
 		t.Run(base, func(t *testing.T) {
-			mode, chrome, previousBase := hackMode, hackChrome, hackInkBaseURL
-			SetHackMode(true)
-			SetHackChrome(true)
-			SetHackInstanceURL(base)
-			t.Cleanup(func() { SetHackMode(mode); SetHackChrome(chrome); SetHackInstanceURL(previousBase) })
+			sh := chromeTestHandler(edition.Hack)
+			sh.assets = newAssetPipeline(sh.ed, base)
 			mux := http.NewServeMux()
-			RegisterUIRoutes(mux, base, chromeTestHandler())
-			RegisterHackHome(mux)
-			newAssetPipeline(edition.ForKind(edition.Hack)).registerSkillsHub(mux, base)
+			RegisterUIRoutes(mux, base, sh)
+			RegisterHackHome(mux, sh)
+			sh.pipeline().registerSkillsHub(mux, base)
 			host := strings.SplitN(base, "://", 2)[1]
 			server := mcp.NewServer(mcp.Config{APIHost: host})
 			connector := &ConnectorHandler{issuer: base, mcp: server, hostedEvents: true}

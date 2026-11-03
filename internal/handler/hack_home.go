@@ -6,17 +6,19 @@ import "net/http"
 // integrator calls this when EVENTS=hosted in place of the Simple Host
 // homepage. The canonical instance uses the video page; self-hosted installs
 // keep the drawn film so it can show their own address.
-func RegisterHackHome(mux *http.ServeMux) {
-	story := serveStaticPage("hack-story.html")
-	home := serveStaticPage("hack-home.html")
+func RegisterHackHome(mux *http.ServeMux, sh *SiteHandler) {
+	assets := sh.pipeline()
+	story := assets.serveStaticPage("hack-story.html")
+	home := assets.serveStaticPage("hack-home.html")
+	canonical := assets.inkBaseURL() == canonicalHackBaseURL
 	page := "hack-story.html"
-	if hackInkBaseURL == "https://simple-hack.app" {
+	if canonical {
 		page = "hack-home.html"
 	}
-	markdown := landingMarkdownHandler(page, "Simple Hack", "Create events, join teams, and judge entries.", hackInkBaseURL, true)
+	markdown := landingMarkdownHandler(assets, page, "Simple Hack", "Create events, join teams, and judge entries.", assets.inkBaseURL(), true)
 	mux.HandleFunc("GET /index.md", markdown)
 	mux.HandleFunc("GET /llms.md", markdown)
-	mux.Handle("GET /{$}", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /{$}", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Vary", "Accept")
 		w.Header().Set("Link", homepageLinks)
 		// Existing email and Google returns are consumed by the sign-in shell,
@@ -30,14 +32,14 @@ func RegisterHackHome(mux *http.ServeMux) {
 			markdown(w, r)
 			return
 		}
-		if hackInkBaseURL == "https://simple-hack.app" {
+		if canonical {
 			home.ServeHTTP(w, r)
 		} else {
 			story.ServeHTTP(w, r)
 		}
 	})))
-	mux.Handle("GET /directory", adminUICSP(serveStaticPage("hack-directory.html")))
-	RegisterHackWatch(mux)
-	RegisterHackGetStarted(mux)
-	RegisterHackCompanies(mux)
+	mux.Handle("GET /directory", assets.adminUICSP(assets.serveStaticPage("hack-directory.html")))
+	RegisterHackWatch(mux, sh)
+	RegisterHackGetStarted(mux, sh)
+	RegisterHackCompanies(mux, sh)
 }

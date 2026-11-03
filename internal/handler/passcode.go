@@ -325,12 +325,12 @@ func (h *SiteHandler) siteGate(w http.ResponseWriter, r *http.Request, userID, s
 	// A site the operator has taken down answers the take-down page on
 	// every path, whichever address reached it (suspend.go).
 	if h.disk.IsSuspended(userID, siteName) {
-		serveTakedown(w, r)
+		h.serveTakedown(w, r)
 		return true
 	}
 	// Taken offline by its owner (offline.go): the same on every address.
 	if h.disk.IsOffline(userID, siteName) {
-		serveOffline(w, r)
+		h.serveOffline(w, r)
 		return true
 	}
 	if !h.disk.HasPasscodeMarker(userID, siteName) {
@@ -375,7 +375,7 @@ func (h *SiteHandler) siteGate(w http.ResponseWriter, r *http.Request, userID, s
 	if row.Enc == nil || h.unlocked(r, row.SiteID, row.Generation) && !crossSiteSubresource(r) {
 		return false
 	}
-	servePasscodeGate(w, r, gateNext(r), "", 0)
+	h.servePasscodeGate(w, r, gateNext(r), "", 0)
 	return true
 }
 
@@ -406,10 +406,10 @@ func (h *SiteHandler) passcodeElsewhere(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	if row.NamedViewers {
-		serveViewerPage(w, r, viewerPageSignIn, "", "", "")
+		h.serveViewerPage(w, r, viewerPageSignIn, "", "", "")
 		return
 	}
-	servePasscodeGate(w, r, "", "", 0)
+	h.servePasscodeGate(w, r, "", "", 0)
 }
 
 // gateNext is where the gate sends the visitor back to after the passcode:
@@ -567,7 +567,7 @@ var hostPasscodeGateCSP = func() string {
 // request that is not a page (a script, an image, a fetch) gets a short
 // plain 401. /robots.txt answers "Disallow: /" with 200, so crawlers stop
 // asking.
-func servePasscodeGate(w http.ResponseWriter, r *http.Request, next, msg string, retryAfter time.Duration) {
+func (h *SiteHandler) servePasscodeGate(w http.ResponseWriter, r *http.Request, next, msg string, retryAfter time.Duration) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 	w.Header().Set("Referrer-Policy", "same-origin")
@@ -599,22 +599,22 @@ func servePasscodeGate(w http.ResponseWriter, r *http.Request, next, msg string,
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", passcodeGateCSP)
-	if !hackChrome {
+	if !h.pipeline().chromeHack {
 		w.Header().Set("Content-Security-Policy", hostPasscodeGateCSP)
 	}
 	w.WriteHeader(status)
 	if r.Method == http.MethodHead {
 		return
 	}
-	_, _ = w.Write([]byte(passcodeGateHTML(requestHostName(r), next, msg)))
+	_, _ = w.Write([]byte(h.passcodeGateHTML(requestHostName(r), next, msg)))
 }
 
-func passcodeGateHTML(host, next, msg string) string {
+func (h *SiteHandler) passcodeGateHTML(host, next, msg string) string {
 	var b strings.Builder
-	if hackChrome {
+	if h.pipeline().chromeHack {
 		b.WriteString(passcodeGateHead)
 	} else {
-		b.Write(hostedStatusPage(passcodeGateHead))
+		b.Write(h.pipeline().hostedStatusPage(passcodeGateHead))
 	}
 	b.WriteString(`<body><main class="gate">`)
 	b.WriteString(`<p class="eyebrow">` + html.EscapeString(host) + `</p>`)
@@ -682,7 +682,7 @@ func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request
 			h.renderServiceError(w, r)
 			return
 		}
-		servePasscodeGate(w, r, "", "", 0)
+		h.servePasscodeGate(w, r, "", "", 0)
 		return
 	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -816,11 +816,11 @@ func (h *SiteHandler) unlockSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if wait > 0 {
-		servePasscodeGate(w, r, next, "Too many tries. Try again in "+config.Span(roundUpMinute(wait))+".", wait)
+		h.servePasscodeGate(w, r, next, "Too many tries. Try again in "+config.Span(roundUpMinute(wait))+".", wait)
 		return
 	}
 	if !matched {
-		servePasscodeGate(w, r, next, "That passcode isn’t right. Check it and try again.", 0)
+		h.servePasscodeGate(w, r, next, "That passcode isn’t right. Check it and try again.", 0)
 		return
 	}
 	h.setUnlockCookie(w, r, row.SiteID, row.Generation)

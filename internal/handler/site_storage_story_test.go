@@ -250,10 +250,7 @@ func TestStorageStorySeparateAllowances(t *testing.T) {
 	if a.sites.storageFilesLimitBytes() != 10000000 {
 		t.Fatal("file default")
 	}
-	old := hackMode
-	hackMode = true
 	a.sites.ed = edition.ForKind(edition.Hack)
-	defer func() { hackMode = old }()
 	if a.sites.storageFilesLimitBytes() != 16384 || a.sites.storageBudgetUsed(siteStorageUsage{KV: 1, SQLite: 2, Files: 3}) != 6 {
 		t.Fatal("Hack allowance changed")
 	}

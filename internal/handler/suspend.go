@@ -42,20 +42,20 @@ var takedownPage = themed(`<!doctype html>
 
 // serveTakedown writes the take-down page. 410 so it is not cached as the
 // site's content; no-store so a restore takes effect on the next load.
-func serveTakedown(w http.ResponseWriter, r *http.Request) {
+func (h *SiteHandler) serveTakedown(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "noindex")
 	w.WriteHeader(http.StatusGone)
 	if r.Method != http.MethodHead {
-		_, _ = w.Write(hostedStatusPage(takedownPage))
+		_, _ = w.Write(h.pipeline().hostedStatusPage(takedownPage))
 	}
 }
 
 // suspendedPage answers /internal/suspended, where nginx and Caddy send a
 // request for a site whose folder carries the marker.
 func (h *SiteHandler) suspendedPage(w http.ResponseWriter, r *http.Request) {
-	serveTakedown(w, r)
+	h.serveTakedown(w, r)
 }
 
 func writeSiteSuspended(w http.ResponseWriter, reason string) {

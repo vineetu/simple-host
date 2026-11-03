@@ -43,12 +43,9 @@ func TestSkillsBundleExcludesControlPlaneSkills(t *testing.T) {
 }
 
 func TestHostSkillsHideHostedMemberGuides(t *testing.T) {
-	previousMode := hackMode
-	hackMode = false
-	defer func() { hackMode = previousMode }()
 	mux := http.NewServeMux()
-	newAssetPipeline(edition.ForKind(edition.Host)).registerSkillsHub(mux, "https://simple-host.app")
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
+	newAssetPipeline(edition.ForKind(edition.Host), "").registerSkillsHub(mux, "https://simple-host.app")
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.Host))
 	get := func(path string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))

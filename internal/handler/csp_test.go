@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 var (
@@ -54,7 +56,7 @@ func assertStrictScriptCSP(t *testing.T, label string, rec *httptest.ResponseRec
 }
 
 func TestApexPagesStrictScriptCSP(t *testing.T) {
-	mux := chromeTestMux(t)
+	mux := chromeTestMux(t, edition.Host)
 	for _, path := range []string{
 		"/", "/install.html", "/docs.html", "/architecture.html", "/privacy.html",
 		"/features.html", "/enterprise.html", "/hackathons.html",
@@ -79,17 +81,18 @@ func TestApexPagesStrictScriptCSP(t *testing.T) {
 
 	// The showcase and the 404, rendered by handlers rather than the file
 	// server, behind the same middleware as on the apex.
-	h := chromeTestHandler()
+	h := chromeTestHandler(edition.Host)
+	assets := h.pipeline()
 	data := showcaseData{Handle: "jane", SitesBaseURL: "https://sites.simple-host.app", MainURL: "https://simple-host.app", Sites: []showcaseSite{}}
-	sc := adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		page, err := globalAssets().showcasePage(chromeDataFor(r, ""), data)
+	sc := assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page, err := assets.showcasePage(assets.chromeDataFor(r, ""), data)
 		if err != nil {
 			t.Fatal(err)
 		}
 		w.Write(stampNonce(r, page))
 	}))
 	assertStrictScriptCSP(t, "showcase", get(t, sc, "simple-host.app", "/jane"))
-	nf := adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.renderNotFound(w, r, "/nothing-here.html") }))
+	nf := assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.renderNotFound(w, r, "/nothing-here.html") }))
 	assertStrictScriptCSP(t, "notfound", get(t, nf, "simple-host.app", "/nothing-here.html"))
 }
 

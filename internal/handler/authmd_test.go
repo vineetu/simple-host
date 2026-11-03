@@ -5,11 +5,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestAuthMarkdown(t *testing.T) {
 	mux := http.NewServeMux()
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.Host))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/auth.md", nil))
 	if rec.Code != http.StatusOK {
@@ -26,10 +28,8 @@ func TestAuthMarkdown(t *testing.T) {
 }
 
 func TestAuthMarkdownConfiguration(t *testing.T) {
-	previousMode, previousBase, previousEmail, previousFacts := hackMode, hackInkBaseURL, emailSignInEnabled, instanceFacts
+	previousEmail, previousFacts := emailSignInEnabled, instanceFacts
 	t.Cleanup(func() {
-		SetHackMode(previousMode)
-		SetHackInstanceURL(previousBase)
 		SetEmailSignIn(previousEmail)
 		instanceFacts = previousFacts
 	})
@@ -48,12 +48,16 @@ func TestAuthMarkdownConfiguration(t *testing.T) {
 		{"Hack no sign-in", "http://localhost:18480", true, false, nil, []string{"Browser sign-in is unavailable", "Email-code sign-in is unavailable"}, []string{"an emailed code or Google"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			SetHackMode(tc.hack)
-			SetHackInstanceURL(tc.base)
 			SetEmailSignIn(tc.email)
 			instanceFacts = InstanceFacts{SignInProviders: tc.providers, OIDCLabel: "Acme SSO"}
+			kind := edition.Host
+			if tc.hack {
+				kind = edition.Hack
+			}
+			sh := chromeTestHandler(kind)
+			sh.assets = newAssetPipeline(sh.ed, tc.base)
 			mux := http.NewServeMux()
-			RegisterUIRoutes(mux, tc.base, chromeTestHandler())
+			RegisterUIRoutes(mux, tc.base, sh)
 			rec := get(t, mux, "", "/auth.md")
 			if rec.Code != 200 || rec.Header().Get("Content-Type") != "text/markdown; charset=utf-8" {
 				t.Fatalf("auth: %d %v", rec.Code, rec.Header())

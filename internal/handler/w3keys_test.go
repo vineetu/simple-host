@@ -13,6 +13,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // A deploy-only key creates, updates, rolls back and lists sites and makes
@@ -469,7 +470,7 @@ func TestKeysPanelIdleCopyFollowsSetting(t *testing.T) {
 		"0":  "Unused keys keep working until revoked.",
 	} {
 		withLimits(t, map[string]string{"KEY_IDLE_EXPIRY_DAYS": v})
-		page, err := chromePage("showcase.html", chromeData{})
+		page, err := newAssetPipeline(edition.ForKind(edition.Host), "").chromePage("showcase.html", chromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -139,13 +139,16 @@ func main() {
 	// registered, because the dashboard, the chrome and the host dispatch read it.
 	ed := edition.New(cfg)
 	hosted := ed.Routes().HostedEvents
+	// hackInstanceURL is this Hack instance's own public address (the asset
+	// pipeline's inkBaseURL, assets.go): captured here, before setup mode
+	// below may rewrite cfg.PublicBaseURL to a saved domain, so construction
+	// always sees the originally configured address.
+	var hackInstanceURL string
 	if hosted {
 		if err := dbpkg.VerifyHackSchema(context.Background(), db); err != nil {
 			log.Fatalf("schema check (EVENTS=hosted): %v", err)
 		}
-		handler.SetHackMode(true)
-		handler.SetHackInstanceURL(cfg.PublicBaseURL)
-		handler.SetHackChrome(true)
+		hackInstanceURL = cfg.PublicBaseURL
 		log.Printf("hosted events: on (the hackathon platform at %s)", cfg.PublicBaseURL)
 	}
 
@@ -164,7 +167,7 @@ func main() {
 		cfg.SiteBaseDomain = savedDomain
 		log.Printf("configured by setup: %s / %s", savedDomain, savedContent)
 	} else if !cfg.SiteDomainSet {
-		setup := handler.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword, cfg.DataDir)
+		setup := handler.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword, cfg.DataDir, ed, hackInstanceURL)
 		setup.Register(mux)
 		log.Printf("SETUP MODE: no hostname configured; serving the setup page on %s", net.JoinHostPort(cfg.BindAddr, cfg.Port))
 		srv := &http.Server{Addr: net.JoinHostPort(cfg.BindAddr, cfg.Port), Handler: mux}
@@ -270,7 +273,8 @@ func main() {
 	handler.RegisterHealthRoutes(mux, db)
 	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL, ed)
 	userHandler.Register(mux, authMW, noticeMW)
-	siteHandler := handler.NewSiteHandler(ed, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
+	siteHandler := handler.NewSiteHandler(ed, hackInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
+	userHandler.ShareAssets(siteHandler)
 	userHandler.SetFileUsage(siteHandler)
 	siteHandler.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
@@ -339,6 +343,7 @@ func main() {
 	// Take-down markers on disk follow the database (suspend.go).
 	siteHandler.SyncSuspendMarkers(context.Background())
 	oauthHandler := handler.NewOAuthHandler(db, cfg, ed)
+	oauthHandler.ShareAssets(siteHandler)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
 	oauthHandler.SetPasscodeCheck(siteHandler.PasscodeLetsIn)
 	siteHandler.SetSSOHop(oauthHandler)
@@ -354,6 +359,7 @@ func main() {
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, ed.Routes().HostedEvents, ed)
+	connector.ShareAssets(siteHandler)
 	connector.SetVisitorReferences(siteHandler)
 	connector.SetVisitorTools(siteHandler, oauthHandler)
 	connector.SetPreviewBases(siteHandler.ServedBases())
@@ -384,6 +390,7 @@ func main() {
 	var hackEvents *handler.HackHandler
 	if hosted {
 		hack := handler.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain)
+		hack.ShareAssets(siteHandler)
 		hack.SetMailer(mailer)
 		hackEvents = hack
 		if cfg.EventNamePeer != "" {
@@ -409,9 +416,9 @@ func main() {
 		})
 		siteHandler.SetHackEventPage(handler.HackEventPage(db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady))
 		siteHandler.SetHackScreenshot(handler.HackScreenshot(db, siteHandler.TeamSitesReady))
-		handler.RegisterHackHome(mux)
+		handler.RegisterHackHome(mux, siteHandler)
 		handler.RegisterHackPublic(mux, db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady)
-		handler.RegisterHackUI(mux, siteHandler.TeamSitesFrameBase())
+		handler.RegisterHackUI(mux, siteHandler, siteHandler.TeamSitesFrameBase())
 	}
 
 	// Image matching (SIM-200): uploaded images are checked against known

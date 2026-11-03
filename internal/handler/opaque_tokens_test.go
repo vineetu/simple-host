@@ -118,9 +118,6 @@ func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 }
 
 func TestMCPNotificationVisitorReferences(t *testing.T) {
-	previous := hackMode
-	hackMode = false
-	t.Cleanup(func() { hackMode = previous })
 	h := &SiteHandler{exportKey: newExportKey()}
 	refs := mcp.NewVisitorReferences(h.exportKey)
 	expected, _ := refs.Encode(opaqueSite, opaqueOwner)
@@ -162,7 +159,6 @@ func TestMCPNotificationVisitorReferences(t *testing.T) {
 			}
 		}
 	}
-	hackMode = true
 	h.ed = edition.ForKind(edition.Hack)
 	raw, _ := json.Marshal(map[string]any{"visitor": opaqueOwner})
 	body := h.notificationBody(db.Notification{Source: "mcp", SiteID: opaqueSite}, db.NotificationDelivery{Data: raw}, 1)

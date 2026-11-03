@@ -760,10 +760,7 @@ func TestNotifyRESTOwnershipValidationAndHack(t *testing.T) {
 		}
 	}
 	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"record.added"}, "storage": "missing"}, 404)
-	old := hackMode
-	SetHackMode(true)
 	s.a.sites.ed = edition.ForKind(edition.Hack)
-	t.Cleanup(func() { SetHackMode(old) })
 	notificationRequest(t, s, "GET", "", nil, 404)
 	if s.a.sites.EventsBackend() == nil {
 		t.Fatal("Hack backend missing")

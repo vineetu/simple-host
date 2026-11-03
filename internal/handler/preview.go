@@ -255,7 +255,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 		return
 	}
 	if h.disk.IsSuspended(site.UserID, site.Name) {
-		serveTakedown(w, r)
+		h.serveTakedown(w, r)
 		return
 	}
 	kept, err := db.VersionKept(r.Context(), h.database, site.ID, n)

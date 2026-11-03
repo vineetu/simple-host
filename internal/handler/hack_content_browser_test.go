@@ -13,7 +13,6 @@ func TestServeHackContentForBrowser(t *testing.T) {
 	if addr == "" {
 		t.Skip("HACK_CONTENT_SERVE_ADDR unset")
 	}
-	SetHackChrome(true)
 	p := testHackEvent()
 	p.AppURL = "http://" + addr
 	p.TimeZone = "America/New_York"

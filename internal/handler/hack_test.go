@@ -1089,8 +1089,6 @@ func TestHackReviewRound2(t *testing.T) {
 
 	// An organiser of a running event cannot delete the account; after the
 	// event ends they can, and their name and address leave the event.
-	hackMode = true
-	t.Cleanup(func() { hackMode = false })
 	orgID := a.userID(t, org)
 	if code, _, err := hackAccountDeleteBlock(context.Background(), a.database, orgID, true); err != nil || code != "organises_events" {
 		t.Fatalf("running event: %q %v", code, err)
@@ -1155,8 +1153,6 @@ func TestHackReviewRound3(t *testing.T) {
 		}
 	}
 
-	hackMode = true
-	t.Cleanup(func() { hackMode = false })
 	ctx := context.Background()
 	var holding string
 	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&holding); err != nil {
@@ -1200,8 +1196,6 @@ func TestHackReviewRound4(t *testing.T) {
 	}
 	t.Cleanup(func() { a.cleanupEvent(slug) })
 	a.openEvent(t, org, slug)
-	hackMode = true
-	t.Cleanup(func() { hackMode = false })
 	ctx := context.Background()
 	var holding string
 	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&holding); err != nil {

@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // TestHackUINext (cleanup step 2.2: the classic app is gone) checks that the
@@ -13,11 +15,10 @@ import (
 // no cookie is ever set, and that the static assets it depends on are still
 // reachable.
 func TestHackUINext(t *testing.T) {
-	previous := hackChrome
-	SetHackChrome(true)
-	t.Cleanup(func() { SetHackChrome(previous) })
-	mux := chromeTestMux(t) // Includes the existing embedded file server.
-	RegisterHackUI(mux, "")
+	sh := chromeTestHandler(edition.Hack)
+	mux := http.NewServeMux()
+	RegisterUIRoutes(mux, "https://simple-host.app", sh) // Includes the existing embedded file server.
+	RegisterHackUI(mux, sh, "")
 	for _, tc := range []struct{ name, path, cookie string }{
 		{"default", "/events", ""},
 		{"old classic cookie", "/events", "sh_hack_ui=classic"},

@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestPublicAPIAudiences(t *testing.T) {
@@ -86,11 +88,10 @@ func TestPublicAPIAudiences(t *testing.T) {
 }
 
 func TestHostServesPublicSpec(t *testing.T) {
-	SetHackMode(false)
 	SetInstanceHosts("simple-host.app", "", "")
 	defer SetInstanceHosts("simple-host.app", "", "")
 	mux := http.NewServeMux()
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.Host))
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, httptest.NewRequest("GET", "/hack-llms.txt", nil))
 	if recorder.Code != http.StatusNotFound {
