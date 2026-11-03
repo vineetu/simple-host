@@ -20,6 +20,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/oauth"
 
@@ -53,6 +54,7 @@ func writeOAuthHTMLBlocked(w http.ResponseWriter) {
 }
 
 type OAuthHandler struct {
+	ed *edition.Edition
 	// personSite resolves a return_to on a person host to its site
 	// (SiteHandler.PersonReturnSite); nil when person hosts are not wired.
 	personSite func(ctx context.Context, host, path string) (string, bool)
@@ -91,7 +93,11 @@ func (h *OAuthHandler) SetSignupGeoBlock(geo *geoip.DB, countries []string) {
 	h.geoBlock = newSignupGeoBlock(geo, countries)
 }
 
-func NewOAuthHandler(database *sql.DB, cfg config.Config) *OAuthHandler {
+func NewOAuthHandler(database *sql.DB, cfg config.Config, editions ...*edition.Edition) *OAuthHandler {
+	var ed *edition.Edition
+	if len(editions) > 0 {
+		ed = editions[0]
+	}
 	providers := make(map[string]oauth.Provider, 3)
 	if cfg.GoogleOAuthEnabled() {
 		providers["google"] = oauth.NewGoogle(cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.OAuthRedirectURI("google"))
@@ -114,6 +120,7 @@ func NewOAuthHandler(database *sql.DB, cfg config.Config) *OAuthHandler {
 	ssoKeyLimiter := newRateLimiterFor(config.Active().RateVisitorOAuth)
 	ssoKeyLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h := &OAuthHandler{
+		ed:            ed,
 		database:      database,
 		cfg:           cfg,
 		providers:     providers,
@@ -457,7 +464,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 
 	if st.Purpose == "owner" {
 		if created || !user.Handle.Valid {
-			assignHandle(r.Context(), tx, user.ID, user.Username)
+			assignHandle(r.Context(), tx, user.ID, user.Username, h.ed.Identity().RandomHandles)
 		}
 		linkToken, err := generateLinkToken(24)
 		if err != nil {

@@ -1039,7 +1039,7 @@ func (h *SiteHandler) resolveSiteIDBare(r *http.Request, siteName string) (strin
 		if key := r.Header.Get("X-API-Key"); key != "" {
 			if u, ok, kerr := h.resolveWriterKey(r.Context(), key); kerr == nil && ok && u.ID != "" {
 				if s, serr := db.GetSiteByUser(r.Context(), h.database, u.ID, siteName); serr == nil {
-					paperHackSite(r, s.UserID, s.Name, &u)
+					h.paperHackSite(r, s.UserID, s.Name, &u)
 					return s.ID, true, nil
 				}
 			}
@@ -1076,7 +1076,7 @@ func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (str
 				return "", sql.ErrNoRows
 			}
 		}
-		paperHackSite(r, site.UserID, site.Name, auth.GetUser(r.Context()))
+		h.paperHackSite(r, site.UserID, site.Name, auth.GetUser(r.Context()))
 		return site.ID, nil
 	}
 	// On a family address (<label>.<family>) the host names the site too:
@@ -1656,13 +1656,13 @@ func (h *SiteHandler) commitCreateLocked(w http.ResponseWriter, r *http.Request,
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return false
 	}
-	if !hackNoPersonalSites(w, user) {
+	if !h.hackNoPersonalSites(w, user) {
 		return false
 	}
 	// A guest-created users row has a NULL handle until owner-intent. First
 	// deploy is owner-intent: assign before building the path-model site URL.
 	if !user.Handle.Valid || user.Handle.String == "" {
-		assignHandle(r.Context(), h.database, user.ID, handleSeed(user, h.siteDomain))
+		assignHandle(r.Context(), h.database, user.ID, handleSeed(user, h.siteDomain), h.ed.Identity().RandomHandles)
 		if refetched, err := db.GetUserByUsername(r.Context(), h.database, user.Username); err == nil {
 			*user = refetched
 		}
@@ -1795,7 +1795,7 @@ func (h *SiteHandler) commitCreateLocked(w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	paperHackDeploy(r, user)
+	h.paperHackDeploy(r, user)
 	h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), siteName, versionNumber, files)
 	writeJSON(w, http.StatusCreated, h.siteResponseFor(user, site))
 	return false
@@ -1996,7 +1996,7 @@ func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Req
 	// The version is live: tell the owner's subscribers.
 	h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": versionNumber, "previous_version": liveBefore, "via": "deploy"}, 0)
 	site.ActiveVersion = versionNumber
-	paperHackDeploy(r, user)
+	h.paperHackDeploy(r, user)
 	h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), siteName, versionNumber, files)
 	respond(h.siteResponseFor(user, site))
 }
@@ -2189,7 +2189,7 @@ func (h *SiteHandler) newSiteChecks(w http.ResponseWriter, r *http.Request, user
 	if !h.publishOnCreate(w, r) {
 		return false
 	}
-	if !hackNoPersonalSites(w, user) {
+	if !h.hackNoPersonalSites(w, user) {
 		return false
 	}
 	// A team's site is one per team: the holding account has no site cap.

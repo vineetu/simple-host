@@ -306,7 +306,7 @@ func newConnectorApp(t *testing.T) *connectorApp {
 	app.sites = sites
 	t.Cleanup(sites.WaitNotifications)
 	sites.Register(mux, authMW, noticeMW)
-	gated := auth.ScopeGate(database, mux)
+	gated := auth.ScopeGate(database, mux, false)
 	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated, false)
 	conn.Register(mux, authMW)
 	app.conn = conn

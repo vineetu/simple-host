@@ -268,7 +268,7 @@ func main() {
 	}
 
 	handler.RegisterHealthRoutes(mux, db)
-	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL)
+	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL, ed)
 	userHandler.Register(mux, authMW, noticeMW)
 	siteHandler := handler.NewSiteHandler(ed, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	userHandler.SetFileUsage(siteHandler)
@@ -338,7 +338,7 @@ func main() {
 	})
 	// Take-down markers on disk follow the database (suspend.go).
 	siteHandler.SyncSuspendMarkers(context.Background())
-	oauthHandler := handler.NewOAuthHandler(db, cfg)
+	oauthHandler := handler.NewOAuthHandler(db, cfg, ed)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
 	oauthHandler.SetPasscodeCheck(siteHandler.PasscodeLetsIn)
 	siteHandler.SetSSOHop(oauthHandler)
@@ -350,10 +350,10 @@ func main() {
 	// Deploy-only keys are refused everywhere but the deploy routes, in this
 	// one gate (internal/auth/scope.go). The MCP server calls back into the
 	// gated mux, so its tools follow the same table.
-	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(handler.HackLegacyStorageGate(auth.ScopeGate(db, mux))), cfg.PublicBaseURL)
+	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(handler.HackLegacyStorageGate(auth.ScopeGate(db, mux, ed.Identity().TeamKeys))), cfg.PublicBaseURL)
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
-	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, ed.Routes().HostedEvents)
+	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, ed.Routes().HostedEvents, ed)
 	connector.SetVisitorReferences(siteHandler)
 	connector.SetVisitorTools(siteHandler, oauthHandler)
 	connector.SetPreviewBases(siteHandler.ServedBases())
@@ -396,7 +396,6 @@ func main() {
 		// teams at their deadline, removes sites of removed teams and asks
 		// for open events' certificates.
 		hack.SetSites(siteHandler)
-		auth.SetTeamKeys(true)
 		connector.SetHackTeams(true)
 		hackSweep = func(ctx context.Context) {
 			hack.RequestOpenEventCerts(ctx)

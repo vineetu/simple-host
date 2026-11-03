@@ -291,7 +291,7 @@ func TestReservedNewNames(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE users SET handle = NULL WHERE id = $1`, uid); err != nil {
 		t.Fatal(err)
 	}
-	assignHandle(context.Background(), a.database, uid, "support@example.com")
+	assignHandle(context.Background(), a.database, uid, "support@example.com", false)
 	var h string
 	if err := a.database.QueryRow(`SELECT handle FROM users WHERE id = $1`, uid).Scan(&h); err != nil || h == "support" || !strings.HasPrefix(h, "support-") {
 		t.Fatalf("assigned handle %q %v", h, err)

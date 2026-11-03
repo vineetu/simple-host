@@ -246,7 +246,7 @@ func (h *ConnectorHandler) reviewerAccount(ctx context.Context, email string) (d
 		return db.User{}, errors.New("the reviewer account is an admin account; refusing")
 	}
 	if !user.Handle.Valid {
-		assignHandle(ctx, h.database, user.ID, email)
+		assignHandle(ctx, h.database, user.ID, email, h.ed.Identity().RandomHandles)
 		if fresh, ferr := db.GetUserByUsername(ctx, h.database, email); ferr == nil {
 			user = fresh
 		}

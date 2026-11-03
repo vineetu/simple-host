@@ -19,6 +19,7 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/geoip"
 )
@@ -30,6 +31,7 @@ const (
 )
 
 type UserHandler struct {
+	ed            *edition.Edition
 	database      *sql.DB
 	mailer        email.Sender
 	publicBaseURL string
@@ -159,7 +161,11 @@ type errorResponse struct {
 	Storage string `json:"storage,omitempty"`
 }
 
-func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string) *UserHandler {
+func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string, editions ...*edition.Edition) *UserHandler {
+	var ed *edition.Edition
+	if len(editions) > 0 {
+		ed = editions[0]
+	}
 	// ~12 req/min/IP (burst 20) across both auth routes; ~1.2/min/email
 	// (burst 5). Generous for a human signing in, tight against automation.
 	ipLimiter := newRateLimiterFor(config.Active().RateSigninIP)
@@ -169,6 +175,7 @@ func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string)
 	checkLimiter := newRateLimiterFor(config.Active().RateHandleCheck)
 	checkLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	return &UserHandler{
+		ed:            ed,
 		checkLimiter:  checkLimiter,
 		database:      database,
 		mailer:        mailer,
@@ -310,7 +317,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, req, "dashboard", sql.NullString{})
+	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, req, "dashboard", sql.NullString{}, h.ed.Identity().RandomHandles)
 	if status != 0 {
 		if status == http.StatusUnauthorized {
 			writeJSON(w, status, signInUnauthorized(body))
@@ -422,7 +429,7 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		n := maxSitesFor(r.Context(), h.database, user)
 		resp.MaxSites = &n
 	}
-	if h.fileUsage != nil && !hackMode {
+	if h.fileUsage != nil && h.ed.Identity().PersonalSites {
 		resp.FileUsage, err = h.fileUsage(r.Context(), user)
 		if err != nil {
 			writeJSON(w, 500, errorResponse{Error: "could not measure account files"})
@@ -438,7 +445,7 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 	}
 	// A Simple Hack account has no personal sites (no_personal_sites), so it
 	// has no own site address to wait for.
-	if h.addressState != nil && user.Handle.String != "" && !hackMode {
+	if h.addressState != nil && user.Handle.String != "" && h.ed.Identity().PersonalSites {
 		resp.Address = h.addressState(user.Handle.String)
 	}
 	home, hasHome, err := db.HomeSite(r.Context(), h.database, user.ID)
@@ -446,7 +453,7 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	}
-	if hasHome && !hackMode {
+	if hasHome && h.ed.Identity().PersonalSites {
 		resp.HomeSite = &home.Name
 	}
 	writeJSON(w, http.StatusOK, resp)

@@ -169,7 +169,7 @@ func (h *SiteHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 500, errorResponse{Error: "internal server error"})
 			return
 		}
-		assignHandle(r.Context(), tx, id, name)
+		assignHandle(r.Context(), tx, id, name, h.ed.Identity().RandomHandles)
 		user, err := db.GetUserByID(r.Context(), tx, id)
 		if err != nil || !user.Handle.Valid {
 			writeJSON(w, 500, errorResponse{Error: "could not assign account handle"})
@@ -224,7 +224,7 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 			Error: "this account still holds event hostnames; release them first so their DNS records are removed", Code: "event_hostnames"})
 		return
 	}
-	if code, _, err := hackAccountDeleteBlock(r.Context(), tx, acct.ID); err != nil {
+	if code, _, err := hackAccountDeleteBlock(r.Context(), tx, acct.ID, h.ed.Identity().HoldingAccounts); err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	} else if code != "" {
@@ -278,7 +278,7 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	}
-	if held, herr := hackHoldingAccount(r.Context(), tx, id); herr != nil {
+	if held, herr := hackHoldingAccount(r.Context(), tx, id, h.ed.Identity().HoldingAccounts); herr != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
 	} else if held {
@@ -326,7 +326,7 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, errorResponse{Error: "invalid request body"})
 		return
 	}
-	if hackMode && req.Handle != nil && *req.Handle != user.Handle.String {
+	if h.ed.Identity().RandomHandles && req.Handle != nil && *req.Handle != user.Handle.String {
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "Simple Hack accounts have no address to change", Code: "handle_fixed"})
 		return
 	}

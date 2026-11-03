@@ -107,8 +107,8 @@ func handleSeed(user *db.User, siteDomain string) string {
 // assignHandle claims a free URL-safe handle for userID derived from email.
 // Failures are logged but never fatal — a missing handle must not break sign-in.
 // Owner-intent only: email-code verify, dashboard OAuth, or first deploy.
-func assignHandle(ctx context.Context, q db.Querier, userID, email string) {
-	if hackMode {
+func assignHandle(ctx context.Context, q db.Querier, userID, email string, randomHandles bool) {
+	if randomHandles {
 		// Nobody's handle is an address on the hackathon platform, and an
 		// email-derived one could squat an event's name (hack_mode.go).
 		for i := 0; i < 5; i++ {

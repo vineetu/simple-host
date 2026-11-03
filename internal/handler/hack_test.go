@@ -18,6 +18,7 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 )
 
@@ -53,7 +54,7 @@ func newHackApp(t *testing.T) *hackApp {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(srv.Close)
 	authMW := auth.Middleware(adminKey, adminID, database)
-	users := NewUserHandler(database, email.NewResendSender("", "test@example.com"), srv.URL)
+	users := NewUserHandler(database, email.NewResendSender("", "test@example.com"), srv.URL, edition.ForKind(edition.Hack))
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	h := NewHackHandler(database, srv.URL, "simple-hack.test")
 	h.Register(mux, authMW)
@@ -1091,14 +1092,14 @@ func TestHackReviewRound2(t *testing.T) {
 	hackMode = true
 	t.Cleanup(func() { hackMode = false })
 	orgID := a.userID(t, org)
-	if code, _, err := hackAccountDeleteBlock(context.Background(), a.database, orgID); err != nil || code != "organises_events" {
+	if code, _, err := hackAccountDeleteBlock(context.Background(), a.database, orgID, true); err != nil || code != "organises_events" {
 		t.Fatalf("running event: %q %v", code, err)
 	}
 	var holding string
 	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&holding); err != nil {
 		t.Fatal(err)
 	}
-	if code, _, err := hackAccountDeleteBlock(context.Background(), a.database, holding); err != nil || code != "event_account" {
+	if code, _, err := hackAccountDeleteBlock(context.Background(), a.database, holding, true); err != nil || code != "event_account" {
 		t.Fatalf("holding account: %q %v", code, err)
 	}
 	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "archived"}, a.key(org)); r.status != 200 {
@@ -1108,7 +1109,7 @@ func TestHackReviewRound2(t *testing.T) {
 	if r := a.at(t, "DELETE", "/v1/hack/events/"+slug+"/people/"+a.userID(t, p2), nil, a.key(org)); r.status != 409 || r.json(t)["code"] != "event_closed" {
 		t.Fatalf("remove after end: %d %s", r.status, r.body)
 	}
-	if code, _, err := hackAccountDeleteBlock(context.Background(), a.database, orgID); err != nil || code != "" {
+	if code, _, err := hackAccountDeleteBlock(context.Background(), a.database, orgID, true); err != nil || code != "" {
 		t.Fatalf("ended event: %q %v", code, err)
 	}
 	var name, contact string
@@ -1161,14 +1162,14 @@ func TestHackReviewRound3(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&holding); err != nil {
 		t.Fatal(err)
 	}
-	if held, err := hackHoldingAccount(ctx, a.database, holding); err != nil || !held {
+	if held, err := hackHoldingAccount(ctx, a.database, holding, true); err != nil || !held {
 		t.Fatalf("holding account not recognised: %v %v", held, err)
 	}
-	if held, err := hackHoldingAccount(ctx, a.database, a.userID(t, org)); err != nil || held {
+	if held, err := hackHoldingAccount(ctx, a.database, a.userID(t, org), true); err != nil || held {
 		t.Fatalf("organiser taken for a holding account: %v %v", held, err)
 	}
 	// A person alone on a team takes the team with them.
-	if code, _, err := hackAccountDeleteBlock(ctx, a.database, a.userID(t, p1)); err != nil || code != "" {
+	if code, _, err := hackAccountDeleteBlock(ctx, a.database, a.userID(t, p1), true); err != nil || code != "" {
 		t.Fatalf("participant delete: %q %v", code, err)
 	}
 	var n int
@@ -1179,7 +1180,7 @@ func TestHackReviewRound3(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET taken_down_at = now() WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	if code, _, err := hackAccountDeleteBlock(ctx, a.database, a.userID(t, org)); err != nil || code != "" {
+	if code, _, err := hackAccountDeleteBlock(ctx, a.database, a.userID(t, org), true); err != nil || code != "" {
 		t.Fatalf("taken-down organiser: %q %v", code, err)
 	}
 }
@@ -1206,7 +1207,7 @@ func TestHackReviewRound4(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&holding); err != nil {
 		t.Fatal(err)
 	}
-	if held, err := hackHoldingAccount(ctx, a.database, strings.ToUpper(holding)); err != nil || !held {
+	if held, err := hackHoldingAccount(ctx, a.database, strings.ToUpper(holding), true); err != nil || !held {
 		t.Fatalf("upper-case holding id: %v %v", held, err)
 	}
 	// An organiser leaving with a taken-down event ends it, so a later
@@ -1214,7 +1215,7 @@ func TestHackReviewRound4(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET taken_down_at = now() WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	if code, _, err := hackAccountDeleteBlock(ctx, a.database, a.userID(t, org)); err != nil || code != "" {
+	if code, _, err := hackAccountDeleteBlock(ctx, a.database, a.userID(t, org), true); err != nil || code != "" {
 		t.Fatalf("delete: %q %v", code, err)
 	}
 	var stage string

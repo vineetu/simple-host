@@ -460,7 +460,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 		serveViewerPage(w, r, viewerPageCode, next, sent, "")
 		return
 	}
-	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: address, Code: code}, "visitor", siteID)
+	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: address, Code: code}, "visitor", siteID, h.ed.Identity().RandomHandles)
 	if status != 0 {
 		norm := strings.ToLower(strings.TrimSpace(address))
 		msg := body.Error

@@ -246,7 +246,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			h.renderSiteHostNotFound(w, r, user.Handle.String)
 			return
 		}
-		paperHackSite(r, site.UserID, site.Name, auth.GetUser(r.Context()))
+		h.paperHackSite(r, site.UserID, site.Name, auth.GetUser(r.Context()))
 		escaped := r.URL.EscapedPath()
 		if escaped == "" {
 			escaped = "/"

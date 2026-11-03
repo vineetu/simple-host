@@ -71,9 +71,8 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	}
 	oldMode, oldDomain := HackMode(), db.PlatformDomain()
 	SetHackMode(true)
-	auth.SetTeamKeys(true)
 	db.SetPlatformDomain(tsDomain)
-	t.Cleanup(func() { SetHackMode(oldMode); auth.SetTeamKeys(false); db.SetPlatformDomain(oldDomain) })
+	t.Cleanup(func() { SetHackMode(oldMode); db.SetPlatformDomain(oldDomain) })
 
 	adminKey, _ := auth.GenerateAPIKey()
 	adminID, err := db.EnsureAdminUser(context.Background(), database)
@@ -89,7 +88,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	if mailer == nil {
 		mailer = email.NewResendSender("", "test@example.com")
 	}
-	users := NewUserHandler(database, mailer, a.srv.URL)
+	users := NewUserHandler(database, mailer, a.srv.URL, edition.ForKind(edition.Hack))
 	a.users = users
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.sites = NewSiteHandler(edition.ForKind(edition.Hack), database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
@@ -102,8 +101,8 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.hack.Register(mux, authMW)
 	a.sites.SetHackEventPage(HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady))
 	a.sites.SetHackScreenshot(HackScreenshot(database, a.sites.TeamSitesReady))
-	gated := a.sites.LegacyStorageCutoffGate(HackLegacyStorageGate(auth.ScopeGate(database, mux)))
-	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true)
+	gated := a.sites.LegacyStorageCutoffGate(HackLegacyStorageGate(auth.ScopeGate(database, mux, true)))
+	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, a.sites.ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetHackTeams(true)
 	a.conn.SetSignInAlerts(users.SignInAlerts())
