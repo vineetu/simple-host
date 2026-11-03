@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/hack/teams"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
@@ -80,30 +81,10 @@ type teamList struct {
 
 func (h *HackHandler) loadTeamList(ctx context.Context, ev db.Event) (teamList, error) {
 	h.pinDue(ctx, ev.ID)
-	tl := teamList{sites: map[string]db.Site{}, versions: map[string]bool{}, members: map[string][]db.EventPerson{}, ready: h.teamSitesReady(ev.Slug)}
-	people, err := db.ListEventPeople(ctx, h.database, ev.ID)
-	if err != nil {
-		return tl, err
-	}
-	for _, p := range people {
-		if p.TeamID.Valid {
-			tl.members[p.TeamID.String] = append(tl.members[p.TeamID.String], p)
-		}
-	}
-	if tl.states, err = db.TeamWriteStatesForEvent(ctx, h.database, ev.ID); err != nil {
-		return tl, err
-	}
-	sites, err := db.ListSitesByUser(ctx, h.database, ev.AccountID)
-	if err != nil {
-		return tl, err
-	}
-	if tl.versions, err = db.StoredVersionsOfAccount(ctx, h.database, ev.AccountID); err != nil {
-		return tl, err
-	}
-	for _, s := range sites {
-		tl.sites[s.Name] = s
-	}
-	return tl, nil
+	ready := h.teamSitesReady(ev.Slug)
+	data, err := h.teamsSvc().LoadTeamList(ctx, ev)
+	return teamList{states: data.States, members: data.Members, versions: data.Versions, sites: data.Sites, ready: ready}, err
+
 }
 
 func (tl teamList) site(name string) *db.Site {
@@ -119,7 +100,7 @@ func (h *HackHandler) teamDeadlineJSON(ctx context.Context, team db.EventTeam, o
 	obj["frozen"] = false
 	obj["extended"] = false
 	obj["pinned_version"] = nil
-	st, err := db.TeamWriteStateFor(ctx, h.database, team.ID, false)
+	st, err := h.teamsSvc().WriteState(ctx, team.ID)
 	if err != nil {
 		return
 	}
@@ -143,7 +124,7 @@ func (h *HackHandler) participantTeam(w http.ResponseWriter, r *http.Request, a 
 		httpx.WriteError(w, http.StatusConflict, "no_team", "join or start a team first")
 		return db.EventTeam{}, false
 	}
-	team, err := db.GetEventTeamByID(r.Context(), h.database, a.member.TeamID.String)
+	team, err := h.teamsSvc().GetTeam(r.Context(), a.member.TeamID.String)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, http.StatusConflict, "no_team", "join or start a team first")
 		return db.EventTeam{}, false
@@ -165,7 +146,7 @@ func (h *HackHandler) keyJSON(ctx context.Context, a hackAccess) map[string]any 
 		"upload_limit_bytes": h.websiteUploadLimit(ctx, a.event),
 		"upload_limits":      h.websiteUploadLimits(ctx, a.event),
 	}
-	if k, err := db.GetTeamKey(ctx, h.database, a.event.ID, a.user.ID); err == nil {
+	if k, err := h.teamsSvc().Key(ctx, a.event.ID, a.user.ID); err == nil {
 		out["key"] = map[string]any{
 			"last4":        k.Last4,
 			"created_at":   rfc3339Time(k.CreatedAt),
@@ -173,7 +154,7 @@ func (h *HackHandler) keyJSON(ctx context.Context, a hackAccess) map[string]any 
 		}
 	}
 	if a.member.TeamID.Valid {
-		if team, err := db.GetEventTeamByID(ctx, h.database, a.member.TeamID.String); err == nil {
+		if team, err := h.teamsSvc().GetTeam(ctx, a.member.TeamID.String); err == nil {
 			out["team"] = map[string]any{"slug": team.Slug, "name": team.Name}
 			out["site"] = h.teamSiteJSON(ctx, a.event, team)
 		}
@@ -216,60 +197,23 @@ func (h *HackHandler) makeTeamKey(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	team, k, err := h.teamsSvc().MintTeamKey(r.Context(), a.event, a.user.ID, key)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	// Event row first, FOR SHARE, same lock order as every other hack
-	// writer (Grok security review, SIM-340): leave takes the event row FOR
-	// UPDATE then wants this same member row, so minting a key with the
-	// member row locked first -- and ReplaceTeamKey's insert then taking FOR
-	// KEY SHARE on events -- is a same-user lock-order cycle one tab's leave
-	// can hit against another tab's key mint.
-	if _, err := db.GetEventForShare(r.Context(), tx, a.event.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	// Read the membership again under a lock: a move or removal that
-	// finished meanwhile must not leave a key bound to the old team.
-	var teamID sql.NullString
-	err = tx.QueryRowContext(r.Context(), `
-		SELECT team_id FROM event_members WHERE event_id = $1 AND user_id = $2 AND role = 'participant' FOR UPDATE`,
-		a.event.ID, a.user.ID).Scan(&teamID)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if !teamID.Valid {
-		httpx.WriteError(w, http.StatusConflict, "no_team", "join or start a team first")
-		return
-	}
-	team, err := db.GetEventTeamByID(r.Context(), tx, teamID.String)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	// A key is made only while it could publish.
-	if st, err := db.TeamWriteStateFor(r.Context(), tx, team.ID, false); err != nil {
-		httpx.WriteInternal(w)
-		return
-	} else if code := st.WriteRefusal(); code != "" {
-		status, msg := auth.TeamRefusal(code)
-		httpx.WriteError(w, status, code, msg)
-		return
-	}
-	k, err := db.ReplaceTeamKey(r.Context(), tx, a.event.ID, team.ID, a.user.ID, key, "team "+team.Slug+" · "+a.event.Slug)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
+		var e *teams.Error
+		if errors.As(err, &e) {
+			switch e.Code {
+			case "event_not_found":
+				writeEventNotFound(w)
+				return
+			case "no_team":
+				httpx.WriteError(w, http.StatusConflict, "no_team", "join or start a team first")
+				return
+			default:
+				status, msg := auth.TeamRefusal(e.Code)
+				httpx.WriteError(w, status, e.Code, msg)
+				return
+			}
+		}
 		httpx.WriteInternal(w)
 		return
 	}
@@ -290,7 +234,7 @@ func (h *HackHandler) deleteTeamKey(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, err := db.RevokeTeamKeys(r.Context(), h.database, a.event.ID, a.user.ID); err != nil {
+	if err := h.teamsSvc().RevokeKey(r.Context(), a.event.ID, a.user.ID); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -308,15 +252,11 @@ func (h *HackHandler) revokePersonKey(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	if _, err := db.GetEventMember(r.Context(), h.database, a.event.ID, userID); err != nil {
+	if err := h.teamsSvc().RevokePersonKey(r.Context(), a.event.ID, userID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeEventNotFound(w)
 			return
 		}
-		httpx.WriteInternal(w)
-		return
-	}
-	if _, err := db.RevokeTeamKeys(r.Context(), h.database, a.event.ID, userID); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -333,7 +273,7 @@ func (h *HackHandler) organiserTeam(w http.ResponseWriter, r *http.Request) (hac
 		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
 		return a, db.EventTeam{}, false
 	}
-	team, err := db.GetEventTeamBySlug(r.Context(), h.database, a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
+	team, err := h.teamsSvc().TeamBySlug(r.Context(), a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return a, db.EventTeam{}, false
@@ -352,7 +292,7 @@ func (h *HackHandler) teamOrganiserFull(ctx context.Context, ev db.Event, team d
 	if err != nil {
 		return nil, err
 	}
-	if fresh, err := db.GetEventTeamByID(ctx, h.database, team.ID); err == nil {
+	if fresh, err := h.teamsSvc().GetTeam(ctx, team.ID); err == nil {
 		team = fresh
 	}
 	return h.teamOrganiserFrom(ctx, ev, team, tl)
@@ -361,7 +301,7 @@ func (h *HackHandler) teamOrganiserFull(ctx context.Context, ev db.Event, team d
 // teamOrganiserFrom is the organiser's view of one team from a teamList.
 func (h *HackHandler) teamOrganiserFrom(ctx context.Context, ev db.Event, team db.EventTeam, tl teamList) (map[string]any, error) {
 	obj := teamOrganiserJSONFrom(team, tl.members[team.ID], h.teamLinkURL(team.Code))
-	track, err := db.TeamTrack(ctx, h.database, team.ID)
+	track, err := h.teamsSvc().Track(ctx, team.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -409,63 +349,24 @@ func (h *HackHandler) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
 		}
 		t = parsed
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	err := h.teamsSvc().SetDeadline(r.Context(), a.event.ID, team, t)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	var eventDeadline sql.NullTime
-	if err := tx.QueryRowContext(r.Context(), `SELECT submission_deadline FROM events WHERE id = $1 FOR UPDATE`, a.event.ID).Scan(&eventDeadline); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if t.Valid && !eventDeadline.Valid {
-		httpx.WriteError(w, http.StatusConflict, "no_event_deadline", "set the event's submission deadline first; a team's own deadline extends it")
-		return
-	}
-	if t.Valid && !t.Time.After(eventDeadline.Time) {
-		httpx.WriteError(w, http.StatusBadRequest, "deadline_not_later", "a team's own deadline must be after the event's deadline")
-		return
-	}
-	// FOR UPDATE on the team row: a deploy let in holds it FOR SHARE.
-	if err := tx.QueryRowContext(r.Context(), `SELECT deadline_override FROM event_teams WHERE id = $1 FOR UPDATE`, team.ID).Scan(&team.DeadlineOverride); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if _, err := tx.ExecContext(r.Context(), `UPDATE event_teams SET deadline_override = $2 WHERE id = $1`, team.ID, nullTimeArg(t)); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := noticeDeadlineChange(r.Context(), tx, a.event.ID, team, t); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := db.UnpinReopened(r.Context(), tx, a.event.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if t.Valid {
-		// Section 7, "Unsettle": granting or extending a team's deadline
-		// reopens its draft if the sweep had already settled it incomplete.
-		if err := db.UnsettleTeamEntry(r.Context(), tx, team.ID); err != nil {
-			httpx.WriteInternal(w)
-			return
+		var e *teams.Error
+		if errors.As(err, &e) {
+			switch e.Code {
+			case "no_event_deadline":
+				httpx.WriteError(w, http.StatusConflict, "no_event_deadline", "set the event's submission deadline first; a team's own deadline extends it")
+				return
+			case "deadline_not_later":
+				httpx.WriteError(w, http.StatusBadRequest, "deadline_not_later", "a team's own deadline must be after the event's deadline")
+				return
+			}
 		}
-	}
-	if err := tx.Commit(); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
 	h.pinDue(r.Context(), a.event.ID)
 	h.writeTeamFull(w, r, a.event, team)
-}
-
-func nullTimeArg(t sql.NullTime) any {
-	if !t.Valid {
-		return nil
-	}
-	return t.Time
 }
 
 func (h *HackHandler) writeTeamFull(w http.ResponseWriter, r *http.Request, ev db.Event, team db.EventTeam) {
@@ -496,12 +397,11 @@ func (h *HackHandler) takeDownTeamSite(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	if err := h.sites.SetTeamSiteTakenDown(r.Context(), a.event.AccountID, team.ID, team.Slug, true, reason); err != nil {
+	if err := h.teamsSvc().SetSiteTakenDown(r.Context(), h.sites, a.event, team, true, reason); err != nil {
 		log.Printf("hack: take down %s/%s: %v", a.event.Slug, team.Slug, err)
 		httpx.WriteInternal(w)
 		return
 	}
-	h.noticeSiteChange(r.Context(), a.event.ID, team.ID, true, reason)
 	h.writeTeamFull(w, r, a.event, team)
 }
 
@@ -514,7 +414,7 @@ func (h *HackHandler) restoreTeamSite(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	err := h.sites.SetTeamSiteTakenDown(r.Context(), a.event.AccountID, team.ID, team.Slug, false, "")
+	err := h.teamsSvc().SetSiteTakenDown(r.Context(), h.sites, a.event, team, false, "")
 	if errors.Is(err, model.ErrNotOrganiserTakedown) {
 		httpx.WriteError(w, http.StatusConflict, "platform_takedown", "Simple Hack took this site down; only the platform can put it back")
 		return
@@ -523,9 +423,6 @@ func (h *HackHandler) restoreTeamSite(w http.ResponseWriter, r *http.Request) {
 		log.Printf("hack: restore %s/%s: %v", a.event.Slug, team.Slug, err)
 		httpx.WriteInternal(w)
 		return
-	}
-	if team.SiteTakenDownAt.Valid {
-		h.noticeSiteChange(r.Context(), a.event.ID, team.ID, false, "")
 	}
 	h.writeTeamFull(w, r, a.event, team)
 }
@@ -536,7 +433,7 @@ func (h *HackHandler) myTeams(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	teams, err := db.ListMyTeams(r.Context(), h.database, user.ID)
+	teams, err := h.teamsSvc().MyTeams(r.Context(), user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -554,10 +451,8 @@ func (h *HackHandler) myTeams(w http.ResponseWriter, r *http.Request) {
 	}
 	// Teams the person is on that cannot publish now (deadline passed, site
 	// taken down), so the consent page can say why instead of "join one".
-	var blocked int
-	if err := h.database.QueryRowContext(r.Context(), `
-		SELECT count(*) FROM event_members m JOIN events e ON e.id = m.event_id
-		 WHERE m.user_id = $1 AND m.role = 'participant' AND m.team_id IS NOT NULL`, user.ID).Scan(&blocked); err != nil {
+	blocked, err := h.teamsSvc().ParticipantTeamCount(r.Context(), user.ID)
+	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -569,7 +464,7 @@ func (h *HackHandler) myTeams(w http.ResponseWriter, r *http.Request) {
 
 // pinDue pins the event's teams whose deadline has passed.
 func (h *HackHandler) pinDue(ctx context.Context, eventID string) {
-	if err := db.PinDueTeams(ctx, h.database, eventID); err != nil {
+	if err := h.teamsSvc().PinDue(ctx, eventID); err != nil {
 		log.Printf("hack: pin %s: %v", eventID, err)
 	}
 }
@@ -580,7 +475,7 @@ func (h *HackHandler) removeOrphanTeamSites(ctx context.Context, ev db.Event) {
 	if h.sites == nil {
 		return
 	}
-	orphans, err := db.OrphanTeamSites(ctx, h.database, ev.AccountID)
+	orphans, err := h.teamsSvc().OrphanSites(ctx, ev.AccountID)
 	if err != nil {
 		log.Printf("hack: orphan sites: %v", err)
 		return
@@ -610,18 +505,10 @@ func (h *HackHandler) RequestOpenEventCerts(ctx context.Context) {
 	if h.sites == nil {
 		return
 	}
-	rows, err := h.database.QueryContext(ctx, `SELECT slug FROM events WHERE stage IN ('open','building','closed') AND taken_down_at IS NULL`)
-	if err != nil {
+	if err := h.teamsSvc().OpenEventSlugs(ctx, h.sites.RequestSiteCert); err != nil {
 		log.Printf("hack: open events: %v", err)
-		return
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var slug string
-		if rows.Scan(&slug) == nil {
-			h.sites.RequestSiteCert(slug)
-		}
-	}
+
 }
 
 // pinnedLink is the deadline version's preview link from a teamList: none
@@ -658,63 +545,4 @@ func (h *HackHandler) putTeamSiteArchive(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	sites.PublishTeamArchive(w, r, *a.user, team.ID)
-}
-
-// noticeSiteChange tells the team their site was taken down, with the
-// organiser's reason, or put back. It runs after the site handler's own
-// transaction has committed (that one is the site's, not the event's), so a
-// failure here is logged and the change itself stands. A restore reaches only
-// members who could have known it was down: anyone whose take-down notice
-// was never seen nor emailed (a restore within the first minute) hears
-// nothing at all.
-func (h *HackHandler) noticeSiteChange(ctx context.Context, eventID, teamID string, down bool, reason string) {
-	tx, err := h.database.BeginTx(ctx, nil)
-	if err != nil {
-		log.Printf("hack: site notice: %v", err)
-		return
-	}
-	defer tx.Rollback()
-	family := []string{db.NoticeSiteTakenDown, db.NoticeSiteRestored}
-	if down {
-		if err = db.SupersedeTeamNotices(ctx, tx, teamID, "", family...); err == nil {
-			err = db.NotifyTeamMembers(ctx, tx, eventID, teamID, db.NoticeSiteTakenDown, reason, "")
-		}
-	} else {
-		var knew []string
-		if knew, err = db.TeamMembersWhoKnew(ctx, tx, eventID, teamID, "", db.NoticeSiteTakenDown); err == nil {
-			if err = db.SupersedeTeamNotices(ctx, tx, teamID, "", family...); err == nil {
-				err = db.NotifyUsers(ctx, tx, eventID, db.NoticeSiteRestored, teamID, "", "", knew...)
-			}
-		}
-	}
-	if err == nil {
-		err = tx.Commit()
-	}
-	if err != nil {
-		log.Printf("hack: site notice: %v", err)
-	}
-}
-
-// noticeDeadlineChange tells the team about a new, moved or removed
-// extension, in the organiser's transaction. Taking an extension away only
-// reaches members who could have known they had it.
-func noticeDeadlineChange(ctx context.Context, tx *sql.Tx, eventID string, team db.EventTeam, t sql.NullTime) error {
-	before := team.DeadlineOverride
-	if before.Valid == t.Valid && (!t.Valid || before.Time.Equal(t.Time)) {
-		return nil
-	}
-	if t.Valid {
-		if err := db.SupersedeTeamNotices(ctx, tx, team.ID, "", db.NoticeDeadlineChanged); err != nil {
-			return err
-		}
-		return db.NotifyTeamMembers(ctx, tx, eventID, team.ID, db.NoticeDeadlineChanged, "extended", "")
-	}
-	knew, err := db.TeamMembersWhoKnew(ctx, tx, eventID, team.ID, "", db.NoticeDeadlineChanged)
-	if err != nil {
-		return err
-	}
-	if err := db.SupersedeTeamNotices(ctx, tx, team.ID, "", db.NoticeDeadlineChanged); err != nil {
-		return err
-	}
-	return db.NotifyUsers(ctx, tx, eventID, db.NoticeDeadlineChanged, team.ID, "", "cleared", knew...)
 }

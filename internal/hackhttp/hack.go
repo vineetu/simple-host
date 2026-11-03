@@ -1184,7 +1184,7 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 	if member.Role != "participant" || !member.TeamID.Valid {
 		if member.Role == "participant" {
 			var notice string
-			if err := h.database.QueryRowContext(ctx, `SELECT team_removal_notice FROM event_members WHERE event_id=$1 AND user_id=$2`, ev.ID, member.UserID).Scan(&notice); err == nil {
+			if err := h.teamsSvc().TeamRemovalNotice(ctx, ev.ID, member.UserID, &notice); err == nil {
 				me["team_removal_notice"] = notice
 			}
 		}
@@ -1217,7 +1217,7 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 		})
 	}
 	var lookingFor string
-	_ = h.database.QueryRowContext(ctx, `SELECT looking_for FROM event_teams WHERE id = $1`, team.ID).Scan(&lookingFor)
+	_ = h.teamsSvc().LookingFor(ctx, team.ID, &lookingFor)
 	t := map[string]any{
 		"slug":        team.Slug,
 		"name":        team.Name,
@@ -1246,15 +1246,13 @@ func (h *HackHandler) meView(ctx context.Context, ev db.Event, member db.EventMe
 	// Grok security review, 2026-11-01).
 	if youAdmin && admins == 1 {
 		var successor string
-		if err := h.database.QueryRowContext(ctx, `
-			SELECT display_name FROM event_members WHERE team_id = $1 AND user_id <> $2
-			 ORDER BY team_joined_at NULLS LAST, user_id LIMIT 1`, team.ID, member.UserID).Scan(&successor); err == nil {
+		if err := h.teamsSvc().AdminSuccessor(ctx, team.ID, member.UserID, &successor); err == nil {
 			t["admin_successor"] = successor
 		}
 	}
 	if youAdmin {
 		var pending int
-		_ = h.database.QueryRowContext(ctx, `SELECT COUNT(*) FROM event_team_requests WHERE team_id = $1 AND kind = 'request'`, team.ID).Scan(&pending)
+		_ = h.teamsSvc().PendingRequests(ctx, team.ID, &pending)
 		t["pending_requests"] = pending
 	}
 	if track, err := db.TeamTrack(ctx, h.database, team.ID); err == nil {
@@ -1890,23 +1888,6 @@ func (h *HackHandler) teamLinkHost() string {
 
 func organiserTeamStages(stage string) bool {
 	return stage != "archived"
-}
-
-// trySavepoint runs fn inside a savepoint of tx, rolling back to it when fn
-// fails: a unique violation aborts the whole transaction otherwise, and a
-// retry after it could only fail.
-func trySavepoint(ctx context.Context, q db.Querier, fn func() error) error {
-	if _, err := q.ExecContext(ctx, "SAVEPOINT hack_try"); err != nil {
-		return err
-	}
-	if err := fn(); err != nil {
-		if _, rerr := q.ExecContext(ctx, "ROLLBACK TO SAVEPOINT hack_try"); rerr != nil {
-			return rerr
-		}
-		return err
-	}
-	_, err := q.ExecContext(ctx, "RELEASE SAVEPOINT hack_try")
-	return err
 }
 
 func checkEntryRequiredValue(in []string) ([]string, error) {
