@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 
@@ -108,7 +109,7 @@ func (h *HackHandler) putManualAssignments(w http.ResponseWriter, r *http.Reques
 			httpx.WriteError(w, 400, "invalid_assignment", "use event judge and team ids")
 			return
 		}
-		key := judgeTeamKey(row.JudgeID, row.TeamID)
+		key := hackentries.JudgeTeamKey(row.JudgeID, row.TeamID)
 		if seen[key] {
 			httpx.WriteError(w, 400, "duplicate_assignment", "each judge and team pair appears once")
 			return
@@ -137,7 +138,7 @@ func (h *HackHandler) putManualAssignments(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	for _, p := range conflicts {
-		if seen[judgeTeamKey(p.JudgeID, p.TeamID)] {
+		if seen[hackentries.JudgeTeamKey(p.JudgeID, p.TeamID)] {
 			httpx.WriteError(w, 409, "judge_conflict", "a conflicted judge cannot be assigned to that team")
 			return
 		}
