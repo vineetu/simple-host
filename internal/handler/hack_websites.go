@@ -191,7 +191,7 @@ func (h *HackHandler) putEventWebsite(w http.ResponseWriter, r *http.Request, fi
 func (h *HackHandler) websiteUploadLimit(ctx context.Context, ev db.Event) int64 {
 	holder, err := db.GetUserByID(ctx, h.database, ev.AccountID)
 	if err != nil {
-		return maxSiteArchiveSize
+		return h.siteArchiveDefault
 	}
 	limit, _ := h.siteLimitFor(ctx, h.database, &holder)
 	return limit

@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
@@ -218,11 +218,11 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	name, ok := checkHackLine(w, stripInvisible(req.Name), "team_name", 1, 80)
+	name, ok := checkHackLine(w, hackevents.StripInvisible(req.Name), "team_name", 1, 80)
 	if !ok {
 		return
 	}
-	note, ok := checkHackLine(w, stripInvisible(req.LookingFor), "looking_for", 0, 120)
+	note, ok := checkHackLine(w, hackevents.StripInvisible(req.LookingFor), "looking_for", 0, 120)
 	if !ok {
 		return
 	}
@@ -274,7 +274,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 		var code string
 		var last error
 		for attempt := 0; attempt < 8; attempt++ {
-			code, last = randomHackCode(hackTeamCodeLen)
+			code, last = hackevents.RandomCode(hackTeamCodeLen)
 			if last != nil {
 				writeInternal(w)
 				return
@@ -784,7 +784,7 @@ func (h *HackHandler) teamParticipantJSON(ctx context.Context, team db.EventTeam
 // has nothing to rotate.
 func rotateTeamCode(ctx context.Context, q db.Querier, teamID string) error {
 	for attempt := 0; attempt < 8; attempt++ {
-		code, err := randomHackCode(hackTeamCodeLen)
+		code, err := hackevents.RandomCode(hackTeamCodeLen)
 		if err != nil {
 			return err
 		}
@@ -821,20 +821,5 @@ func writeTeamNameTaken(w http.ResponseWriter) {
 	writeHackErr(w, http.StatusConflict, "team_name_taken", "another team already has that name")
 }
 
-// stripInvisible drops every character that is not seen (format
-// characters, variation selectors, fillers), so two team names that look the
-// same are the same name. An emoji sequence may lose its joiners: a
-// team name is a label, not a place for composed emoji.
-func stripInvisible(s string) string {
-	return strings.Map(func(r rune) rune {
-		switch {
-		case unicode.Is(unicode.Cf, r),
-			r >= 0xFE00 && r <= 0xFE0F, r >= 0xE0100 && r <= 0xE01EF,
-			r >= 0x180B && r <= 0x180F, r == 0x034F, r == 0x17B4, r == 0x17B5,
-			r == 0x2065, r >= 0xFFF0 && r <= 0xFFF8, r >= 0x1D173 && r <= 0x1D17A, r >= 0xE0000 && r <= 0xE0FFF,
-			r == 0x115F, r == 0x1160, r == 0x3164, r == 0xFFA0:
-			return -1
-		}
-		return r
-	}, s)
-}
+// stripInvisible moved to internal/rules/hackevents.StripInvisible in
+// cleanup 3.2 slice 1c: pure text normalization, no handler dependency.

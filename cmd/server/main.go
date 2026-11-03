@@ -389,6 +389,11 @@ func main() {
 	if hosted {
 		hack := handler.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain, ed)
 		hack.ShareAssets(siteHandler)
+		// handler.SiteLimit() already reflects any MAX_ARCHIVE_MB override
+		// (applied from site.go's init before main runs), so this matches
+		// the per-site default HackHandler.siteLimitFor used to read off
+		// handler's shared limitSet (cleanup 3.2 slice 1c).
+		hack.SetSiteArchiveDefault(handler.SiteLimit())
 		hack.SetMailer(mailer)
 		hackEvents = hack
 		if cfg.EventNamePeer != "" {
@@ -464,6 +469,10 @@ func main() {
 		siteHandler.SetImageScan(imageScan)
 		if hackEvents != nil {
 			hackEvents.SetImageScan(imageScan)
+			// The reverse edge (take-down markers on a match): HackHandler's
+			// SetImageScan only takes the narrow enqueue interface (cleanup
+			// 3.2 slice 1c), so this wires the other direction directly.
+			imageScan.SetHackTakeDownSync(hackEvents.SyncEventMarkers)
 		}
 		handler.SetImageScanOn(true)
 		reports := "reports from the admin page"

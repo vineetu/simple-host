@@ -18,9 +18,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/papermetrics"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // HackDefaultCoC is the default code of conduct shown when an organiser has
@@ -45,7 +49,6 @@ var extraEventReserved = map[string]bool{
 }
 
 const (
-	hackCodeAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"
 	hackJoinCodeLen  = 8
 	hackJudgeCodeLen = 12
 	hackTeamCodeLen  = 8
@@ -73,20 +76,32 @@ var hackEntryFields = []string{"title", "tagline", "description", "video_url", "
 
 // HackHandler is the hosted-events API (EVENTS=hosted).
 type HackHandler struct {
-	limitSet
-	demoSlug      string
-	database      *sql.DB
-	publicBaseURL string
-	siteDomain    string
-	codesIP       *rateLimiter // join, judge and team codes, per network address
-	codesUser     *rateLimiter // the same, per account
-	namesUser     *rateLimiter // event address checks, per account
-	entryWrites   *rateLimiter // entry and screenshot writes, per account
-	shotWrites    *rateLimiter // screenshot uploads, per account (2 MB each)
-	applyIP       *rateLimiter // applications without a join link, per network address
-	applyUser     *rateLimiter // the same, per account
-	namePeer      func(ctx context.Context, name string) (bool, error)
-	usageFn       func(ctx context.Context) (int64, error)
+	// limits is this instance's edition.Limits() snapshot. A plain field,
+	// not handler's shared limitSet embedding (cleanup 3.2 slice 1c: that
+	// type's methods are unexported in another package once this type
+	// moves to internal/hackhttp), so the three values this package reads
+	// (siteLimitFor, exportLinkTTL, idleReplyTo below) are HackHandler's
+	// own methods over the same config.Limits fields.
+	limits config.Limits
+	// siteArchiveDefault is the instance's default per-site size cap when
+	// an account has no MAX_ARCHIVE_MB_OVERRIDES entry: handler.SiteLimit()
+	// at construction (SetSiteArchiveDefault, wired from main). Falls back
+	// to the same 100 MB default handler.site.go starts with when never set
+	// (tests that build a bare &HackHandler{}).
+	siteArchiveDefault int64
+	demoSlug           string
+	database           *sql.DB
+	publicBaseURL      string
+	siteDomain         string
+	codesIP            *rateLimiter // join, judge and team codes, per network address
+	codesUser          *rateLimiter // the same, per account
+	namesUser          *rateLimiter // event address checks, per account
+	entryWrites        *rateLimiter // entry and screenshot writes, per account
+	shotWrites         *rateLimiter // screenshot uploads, per account (2 MB each)
+	applyIP            *rateLimiter // applications without a join link, per network address
+	applyUser          *rateLimiter // the same, per account
+	namePeer           func(ctx context.Context, name string) (bool, error)
+	usageFn            func(ctx context.Context) (int64, error)
 	// sites reaches the team sites (the SiteHandler; hack_sites.go). nil in
 	// tests that do not need it: team addresses then count as not ready.
 	sites hackSiteHooks
@@ -98,8 +113,14 @@ type HackHandler struct {
 	// hack_notices.go).
 	noticeTiming *noticeMailPolicy
 	// imageScan checks event icons and entry screenshots (imagescan.go);
-	// nil until PHOTODNA_API_KEY is set.
-	imageScan *ImageScan
+	// nil (the zero value: SetImageScan was never called) until
+	// PHOTODNA_API_KEY is set. A narrow interface, not *ImageScan directly
+	// (cleanup 3.2 slice 1c): hackhttp must never import handler, even
+	// though ImageScan is exported. Callers must check h.imageScan != nil
+	// themselves (hack_icons.go, hack_entries.go) — a nil hackImageScanner
+	// is a true nil interface, unlike the old nil-receiver-safe *ImageScan,
+	// so calling a method on it directly would panic.
+	imageScan hackImageScanner
 	// assets is the asset/chrome pipeline for RegisterDemo's pages
 	// (hack_watch.go); read it through pipeline(). HackHandler only exists
 	// when EVENTS=hosted, so its edition is always Hack.
@@ -108,6 +129,17 @@ type HackHandler struct {
 }
 
 // pipeline is h's asset pipeline, for the Hack edition at publicBaseURL.
+//
+// TODO(3.2): assetPipeline (assets.go) is unexported and stays in handler
+// this slice (assets.go is owned by the parallel slice-1a worker, and the
+// type's methods are used too widely here — hack.go, hack_watch.go,
+// hack_home.go, hack_ui.go, hack_get_started.go, hack_companies.go,
+// hack_eventpage.go (staticFiles), hack_instance.go — to narrow to one or
+// two methods without exporting assetPipeline itself). Per
+// docs/architecture/target.md §2, its proposed home is internal/webassets
+// (both handler and hackhttp may import it); once it lands there this
+// method, and every hack-owned caller of sh.pipeline()/h.pipeline(), needs
+// no interface at all. Left as a manifest item, not solved this slice.
 func (h *HackHandler) pipeline() *assetPipeline {
 	h.assetsOnce.Do(func() {
 		if h.assets == nil {
@@ -121,7 +153,7 @@ func (h *HackHandler) pipeline() *assetPipeline {
 type hackSiteHooks interface {
 	TeamSitesReady(eventSlug string) bool
 	TeamSiteURL(eventSlug, teamSlug string) string
-	TeamSiteInfo(ctx context.Context, accountID, teamSlug string) (TeamSite, db.Site, error)
+	TeamSiteInfo(ctx context.Context, accountID, teamSlug string) (model.TeamSite, db.Site, error)
 	TeamPreviewLink(ctx context.Context, accountID, eventSlug, teamSlug string, n int) (string, time.Time, bool)
 	TeamPreviewLinkFor(site db.Site, eventSlug string, n int) (string, bool)
 	SetTeamSiteTakenDown(ctx context.Context, accountID, teamID, teamSlug string, on bool, reason string) error
@@ -129,6 +161,16 @@ type hackSiteHooks interface {
 	RequestSiteCert(handle string)
 	RemoveAccountFiles(userID, handle string) error
 	SyncAccountMarkers(ctx context.Context, accountID string) error
+}
+
+// hackImageScanner is what moving Hack code needs of the image-scan worker
+// (imagescan.go, staying in handler): enqueueing an event icon or entry
+// screenshot for matching. A narrow interface, not *ImageScan directly
+// (cleanup 3.2 slice 1c), satisfied by *ImageScan's existing exported
+// methods, both already nil-receiver-safe.
+type hackImageScanner interface {
+	EnqueueEventIcon(eventID, userID string, raw []byte)
+	EnqueueEntryScreenshot(eventID, teamID, userID string, raw []byte)
 }
 
 // syncEventMarkers puts the event's team sites down or back with the event;
@@ -157,6 +199,28 @@ func (h *HackHandler) removeEventFiles(ev db.Event) {
 // SetSites connects the team sites (hack_sites.go).
 func (h *HackHandler) SetSites(s hackSiteHooks) { h.sites = s }
 
+// ShareAssets makes h render through sh's asset pipeline, instead of
+// building its own from edition.ForKind(edition.Hack) on first use
+// (pipeline() above). Moved from assets.go (cleanup 3.2 slice 1c): same
+// assetPipeline deferral applies here (see pipeline()'s TODO).
+func (h *HackHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }
+
+// SetImageScan connects the worker to the events side (event icon and entry
+// screenshot enqueueing). Moved from imagescan.go (cleanup 3.2 slice 1c): a
+// method with a *HackHandler receiver must live in that type's package.
+// Only hackImageScanner's two methods, so this takes the interface, not
+// *ImageScan: main wires the take-down-marker sync the other way, with
+// SyncEventMarkers below and ImageScan.SetHackTakeDownSync (imagescan.go),
+// since that needs *ImageScan's own (unexported-to-hackhttp) method.
+func (h *HackHandler) SetImageScan(s hackImageScanner) { h.imageScan = s }
+
+// SyncEventMarkers is syncEventMarkers, exported so main can wire it into
+// the image-scan worker's take-down path (ImageScan.SetHackTakeDownSync)
+// without this package needing to know *ImageScan's type.
+func (h *HackHandler) SyncEventMarkers(ctx context.Context, ev db.Event) bool {
+	return h.syncEventMarkers(ctx, ev)
+}
+
 // teamSitesReady: the event's team addresses have their certificate.
 func (h *HackHandler) teamSitesReady(eventSlug string) bool {
 	return h.sites != nil && h.sites.TeamSitesReady(eventSlug)
@@ -170,6 +234,37 @@ func (h *HackHandler) teamSiteURL(eventSlug, teamSlug string) string {
 	return "https://" + teamSlug + "." + eventSlug + "." + h.siteDomain + "/"
 }
 
+// These hooks annotate the outer paper collector using resolutions the
+// handler already performed. With collection off they are context lookups
+// only. Moved from hack_paper_metrics.go (cleanup 3.2 slice 1c): free
+// functions with no *SiteHandler dependency, used only by the event API.
+func paperHackEvent(r *http.Request, ev db.Event) {
+	papermetrics.ResolveHackEvent(r.Context(), ev.Slug, ev.Stage, "", ev.ResultsPublishedAt.Time)
+	paperHackUser(r, auth.GetUser(r.Context()))
+}
+
+func paperHackUser(r *http.Request, user *db.User) {
+	if user == nil {
+		return
+	}
+	member := user.ID
+	if user.Team != nil {
+		member = user.Team.MemberID
+	}
+	if user.EventWebsite != nil {
+		member = user.EventWebsite.OrganiserID
+	}
+	papermetrics.HackMember(r.Context(), member)
+}
+
+func paperHackKnownMember(r *http.Request, ev db.Event, member string) {
+	papermetrics.ResolveHackEvent(r.Context(), ev.Slug, ev.Stage, member, ev.ResultsPublishedAt.Time)
+}
+
+func paperHackStage(r *http.Request, ev db.Event) {
+	papermetrics.RecordHackStage(r.Context(), ev.ID, ev.Stage, ev.UpdatedAt)
+}
+
 // NewHackHandler builds the hosted-events API. publicBaseURL is the apex
 // (join/judge/manage links); siteDomain is the event host parent.
 func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions ...*edition.Edition) *HackHandler {
@@ -179,21 +274,81 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 	}
 	lim := ed.Limits()
 	h := &HackHandler{
-		limitSet:       newLimitSet(lim),
-		database:       database,
-		publicBaseURL:  strings.TrimRight(publicBaseURL, "/"),
-		siteDomain:     strings.Trim(strings.ToLower(siteDomain), "."),
-		codesIP:        newRateLimiterFor(lim.RateEventCodesIP),
-		codesUser:      newRateLimiterFor(lim.RateEventCodesUser),
-		namesUser:      newRateLimiterFor(lim.RateEventNamesUser),
-		entryWrites:    newRateLimiter(30, 0.5),
-		shotWrites:     newRateLimiter(5, 0.1),
-		applyIP:        newRateLimiterFor(lim.RateEventApplyIP),
-		applyUser:      newRateLimiterFor(lim.RateEventApplyUser),
-		archiveLinkKey: newExportKey(),
+		limits:             lim,
+		siteArchiveDefault: defaultSiteArchiveSize,
+		database:           database,
+		publicBaseURL:      strings.TrimRight(publicBaseURL, "/"),
+		siteDomain:         strings.Trim(strings.ToLower(siteDomain), "."),
+		codesIP:            newRateLimiterFor(lim.RateEventCodesIP),
+		codesUser:          newRateLimiterFor(lim.RateEventCodesUser),
+		namesUser:          newRateLimiterFor(lim.RateEventNamesUser),
+		entryWrites:        newRateLimiter(30, 0.5),
+		shotWrites:         newRateLimiter(5, 0.1),
+		applyIP:            newRateLimiterFor(lim.RateEventApplyIP),
+		applyUser:          newRateLimiterFor(lim.RateEventApplyUser),
+		archiveLinkKey:     newHackArchiveKey(),
 	}
 	return h
 }
+
+// defaultSiteArchiveSize matches handler's own starting maxSiteArchiveSize
+// (site.go) before any MAX_ARCHIVE_MB env override; SetSiteArchiveDefault
+// overrides it with the instance's real value.
+const defaultSiteArchiveSize int64 = 100 << 20
+
+// SetSiteArchiveDefault records the instance's default per-site size cap
+// (handler.SiteLimit(), wired once from main after SetSiteLimit has applied
+// any MAX_ARCHIVE_MB env override) for siteLimitFor below.
+func (h *HackHandler) SetSiteArchiveDefault(bytes int64) {
+	if bytes > 0 {
+		h.siteArchiveDefault = bytes
+	}
+}
+
+// newHackArchiveKey is handler's newExportKey (exportlink.go), duplicated
+// here so HackHandler's own package needs no cross-package call once it
+// moves: 32 random bytes, panics only if the system has no randomness.
+func newHackArchiveKey() []byte {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		panic("hack archive links: no randomness: " + err.Error())
+	}
+	return key
+}
+
+// siteLimitFor is the largest site this account may deploy, in bytes: its
+// MAX_ARCHIVE_MB_OVERRIDES entry (matched against its current handle and
+// then its earlier ones), else siteArchiveDefault. Mirrors handler's own
+// limitSet.siteLimitFor (limits.go) so the values read stay identical;
+// duplicated here (not shared) because that method is unexported in
+// another package once this type moves to internal/hackhttp.
+func (h *HackHandler) siteLimitFor(ctx context.Context, database *sql.DB, user *db.User) (limit int64, override bool) {
+	if h.limits.MaxArchiveOverrides == "" || user == nil {
+		return h.siteArchiveDefault, false
+	}
+	if mb, ok := h.limits.ArchiveOverrideMB(hackAccountHandles(ctx, database, user)...); ok {
+		return int64(mb) << 20, true
+	}
+	return h.siteArchiveDefault, false
+}
+
+// hackAccountHandles is handler's own accountHandles (limits.go), duplicated
+// for the same reason as newHackArchiveKey above.
+func hackAccountHandles(ctx context.Context, database *sql.DB, user *db.User) []string {
+	handles := []string{user.Handle.String}
+	if aliases, err := db.ListHandleAliases(ctx, database, user.ID); err == nil {
+		handles = append(handles, aliases...)
+	}
+	return handles
+}
+
+// exportLinkTTL is the shared EXPORT_LINK_TTL_MINUTES knob, which also
+// controls event archive links (hack_exportlink.go).
+func (h *HackHandler) exportLinkTTL() time.Duration { return h.limits.ExportLinkTTL }
+
+// idleReplyTo is the Reply-To address on the one archive-removal warning
+// (hack_cleanup.go).
+func (h *HackHandler) idleReplyTo() string { return h.limits.IdleReplyTo }
 
 // StartCleanup evicts idle rate-limit buckets; call once from the server.
 func (h *HackHandler) StartCleanup() {
@@ -724,12 +879,12 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 
 	var ev db.Event
 	for attempt := 0; attempt < 8; attempt++ {
-		joinCode, err := randomHackCode(hackJoinCodeLen)
+		joinCode, err := hackevents.RandomCode(hackJoinCodeLen)
 		if err != nil {
 			writeInternal(w)
 			return
 		}
-		judgeCode, err := randomHackCode(hackJudgeCodeLen)
+		judgeCode, err := hackevents.RandomCode(hackJudgeCodeLen)
 		if err != nil {
 			writeInternal(w)
 			return
@@ -1685,7 +1840,7 @@ func (h *HackHandler) regenCode(w http.ResponseWriter, r *http.Request) {
 	var updated db.Event
 	var err error
 	for attempt := 0; attempt < 8; attempt++ {
-		code, genErr := randomHackCode(n)
+		code, genErr := hackevents.RandomCode(n)
 		if genErr != nil {
 			writeInternal(w)
 			return
@@ -1810,7 +1965,7 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 	if h.rateLimited(w, r, caller) {
 		return
 	}
-	code := normalizeHackCode(r.PathValue("code"))
+	code := hackevents.NormalizeCode(r.PathValue("code"))
 	if code == "" {
 		writeHackErr(w, http.StatusNotFound, "invalid_code", "invalid code")
 		return
@@ -1904,7 +2059,7 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 	if !ok {
 		return
 	}
-	code := normalizeHackCode(r.PathValue("code"))
+	code := hackevents.NormalizeCode(r.PathValue("code"))
 	if code == "" {
 		writeHackErr(w, http.StatusNotFound, "invalid_code", "invalid code")
 		return
@@ -2234,37 +2389,9 @@ func rfc3339Time(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
-func randomHackCode(n int) (string, error) {
-	alpha := hackCodeAlphabet
-	b := make([]byte, n)
-	max := 256 - (256 % len(alpha))
-	for i := 0; i < n; i++ {
-		var buf [1]byte
-		for {
-			if _, err := rand.Read(buf[:]); err != nil {
-				return "", err
-			}
-			if int(buf[0]) < max {
-				b[i] = alpha[int(buf[0])%len(alpha)]
-				break
-			}
-		}
-	}
-	return string(b), nil
-}
-
-func normalizeHackCode(s string) string {
-	s = strings.ToLower(s)
-	var b strings.Builder
-	b.Grow(len(s))
-	for _, r := range s {
-		if r == ' ' || r == '-' {
-			continue
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
-}
+// randomHackCode and normalizeHackCode moved to
+// internal/rules/hackevents (RandomCode, NormalizeCode) in cleanup 3.2
+// slice 1c: pure Hack code generation/matching, no handler dependency.
 
 // teamCodeFromInput accepts either a bare team code or a pasted team link
 // (https://<hack host>/team/<code>): when s parses as a URL on this host,
@@ -2297,7 +2424,7 @@ func (h *HackHandler) teamCodeFromInput(s string) string {
 			s = trimmed
 		}
 	}
-	return normalizeHackCode(s)
+	return hackevents.NormalizeCode(s)
 }
 
 // teamLinkHost is the host team links are served from.

@@ -11,6 +11,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Team sites on the hackathon platform (EVENTS=hosted, M2;
@@ -47,7 +48,7 @@ func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx 
 	if h.ed.Identity().TeamKeys && user.EventWebsite != nil {
 		id := user.EventWebsite
 		if siteName != id.EventID || user.ID == "" {
-			writeEventNotFound(w)
+			hackSitesEventNotFound(w)
 			return false
 		}
 		var role, stage string
@@ -57,7 +58,7 @@ func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx 
 			WHERE e.id = $1 AND e.slug = $2 AND e.account_id = $3 AND m.user_id = $4
 			FOR SHARE OF e, m`, id.EventID, id.EventSlug, user.ID, id.OrganiserID).Scan(&role, &stage, &takenDown)
 		if err != nil || role != "organiser" {
-			writeEventNotFound(w)
+			hackSitesEventNotFound(w)
 			return false
 		}
 		if takenDown {
@@ -79,7 +80,7 @@ func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx 
 	}
 	var memberID string
 	if err := tx.QueryRowContext(r.Context(), `SELECT user_id FROM event_members WHERE user_id = $1 AND team_id = $2 AND role = 'participant' AND approval_status = 'approved' FOR SHARE`, user.Team.MemberID, user.Team.TeamID).Scan(&memberID); err != nil {
-		writeEventNotFound(w)
+		hackSitesEventNotFound(w)
 		return false
 	}
 	h.paperHackSite(r, user.Team.AccountID, siteName, user)
@@ -139,7 +140,7 @@ func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request
 	}
 	holder, err := db.GetUserByID(r.Context(), h.database, ev.AccountID)
 	if err != nil || holder.Suspended {
-		writeEventNotFound(w)
+		hackSitesEventNotFound(w)
 		return
 	}
 	holder.EventWebsite = &db.EventWebsiteIdentity{EventID: ev.ID, EventSlug: ev.Slug, OrganiserID: organiserID}
@@ -152,13 +153,14 @@ func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// TeamSite is a team site's state as the events API shows it.
-type TeamSite struct {
-	Exists        bool
-	ActiveVersion int
-	UpdatedAt     time.Time
-	Suspended     bool
-}
+// TeamSite is a team site's state as the events API shows it. Moved to
+// model.TeamSite (cleanup 3.2 slice 1c) so the future internal/hackhttp
+// package can read it without importing handler; this alias keeps every
+// staying caller unchanged.
+//
+// Transitional (cleanup 3.2): callers move to model.TeamSite directly in
+// a later slice.
+type TeamSite = model.TeamSite
 
 // TeamSiteInfo reads the team's site of the holding account, if any.
 func (h *SiteHandler) TeamSiteInfo(ctx context.Context, accountID, teamSlug string) (TeamSite, db.Site, error) {
@@ -195,8 +197,12 @@ func (h *SiteHandler) TeamPreviewLink(ctx context.Context, accountID, eventSlug,
 // the platform admin's.
 const hackOrganiserTakedownPrefix = "Taken down by the event organiser"
 
-// ErrNotOrganiserTakedown: the site is down by the platform admin's hand.
-var ErrNotOrganiserTakedown = errors.New("taken down by the platform")
+// ErrNotOrganiserTakedown moved to model.ErrNotOrganiserTakedown (cleanup
+// 3.2 slice 1c); alias kept so this file's own callers are unchanged.
+//
+// Transitional (cleanup 3.2): callers move to model.ErrNotOrganiserTakedown
+// directly in a later slice.
+var ErrNotOrganiserTakedown = model.ErrNotOrganiserTakedown
 
 // TeamPreviewLinkFor mints a preview address for version n of a team site
 // already read (the caller checked the version exists). No database work.
@@ -415,12 +421,12 @@ func (h *SiteHandler) hackTLSHostExists(ctx context.Context, host string) bool {
 func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request, member db.User, teamID string) {
 	id, err := db.ResolveTeamIdentity(r.Context(), h.database, member.ID, teamID)
 	if err != nil {
-		writeEventNotFound(w)
+		hackSitesEventNotFound(w)
 		return
 	}
 	holder, err := db.GetUserByID(r.Context(), h.database, id.AccountID)
 	if err != nil || holder.Suspended {
-		writeEventNotFound(w)
+		hackSitesEventNotFound(w)
 		return
 	}
 	holder.IsAdmin = false

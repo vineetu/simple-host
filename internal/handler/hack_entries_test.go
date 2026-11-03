@@ -15,6 +15,7 @@ import (
 	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Entries (M2): a participant's own entry and screenshot, and the organiser
@@ -722,8 +723,8 @@ func (entrySiteStub) TeamSitesReady(string) bool { return true }
 func (entrySiteStub) TeamSiteURL(eventSlug, teamSlug string) string {
 	return "https://" + teamSlug + "." + eventSlug + ".simple-hack.test/"
 }
-func (entrySiteStub) TeamSiteInfo(context.Context, string, string) (TeamSite, db.Site, error) {
-	return TeamSite{}, db.Site{}, nil
+func (entrySiteStub) TeamSiteInfo(context.Context, string, string) (model.TeamSite, db.Site, error) {
+	return model.TeamSite{}, db.Site{}, nil
 }
 func (entrySiteStub) TeamPreviewLink(_ context.Context, _, eventSlug, teamSlug string, n int) (string, time.Time, bool) {
 	return "https://preview.example/" + eventSlug + "/" + teamSlug + "/v" + strconv.Itoa(n), time.Time{}, true

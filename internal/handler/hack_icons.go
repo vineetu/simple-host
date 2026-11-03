@@ -108,7 +108,9 @@ func (h *HackHandler) putEventIcon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.event.IconMediaType = typ
-	h.imageScan.EnqueueEventIcon(a.event.ID, a.user.ID, raw)
+	if h.imageScan != nil {
+		h.imageScan.EnqueueEventIcon(a.event.ID, a.user.ID, raw)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"icon_url": h.iconURL(a.event), "content_type": typ, "bytes": len(raw)})
 }
 

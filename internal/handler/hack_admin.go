@@ -7,11 +7,30 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
+// hackAccountAdmin is handler's accountAdmin (accounts.go), duplicated here
+// (cleanup 3.2 slice 1c) so the platform-admin endpoints below need no
+// cross-package reference once HackHandler moves to internal/hackhttp.
+// Same 401/404 shape (a signed-in non-admin should not learn the admin
+// endpoint exists).
+func hackAccountAdmin(w http.ResponseWriter, r *http.Request) bool {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return false
+	}
+	if !user.IsAdmin {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
+		return false
+	}
+	return true
+}
+
 func (h *HackHandler) adminListEvents(w http.ResponseWriter, r *http.Request) {
-	if !accountAdmin(w, r) {
+	if !hackAccountAdmin(w, r) {
 		return
 	}
 	rows, err := db.ListAdminEvents(r.Context(), h.database)
@@ -57,7 +76,7 @@ func (h *HackHandler) adminListEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) adminTakeDown(w http.ResponseWriter, r *http.Request) {
-	if !accountAdmin(w, r) {
+	if !hackAccountAdmin(w, r) {
 		return
 	}
 	var req struct {
@@ -106,7 +125,7 @@ func (h *HackHandler) adminTakeDown(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) adminKeepSites(w http.ResponseWriter, r *http.Request) {
-	if !accountAdmin(w, r) {
+	if !hackAccountAdmin(w, r) {
 		return
 	}
 	var req struct {
@@ -129,7 +148,7 @@ func (h *HackHandler) adminKeepSites(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) adminRestore(w http.ResponseWriter, r *http.Request) {
-	if !accountAdmin(w, r) {
+	if !hackAccountAdmin(w, r) {
 		return
 	}
 	ev, ok := h.adminLoadEvent(w, r)
@@ -163,7 +182,7 @@ func (h *HackHandler) adminRestore(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) adminDelete(w http.ResponseWriter, r *http.Request) {
-	if !accountAdmin(w, r) {
+	if !hackAccountAdmin(w, r) {
 		return
 	}
 	ev, ok := h.adminLoadEvent(w, r)

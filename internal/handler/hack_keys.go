@@ -12,6 +12,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Team sites, member keys, per-team deadlines and the organiser's team-site
@@ -512,7 +513,7 @@ func (h *HackHandler) restoreTeamSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.sites.SetTeamSiteTakenDown(r.Context(), a.event.AccountID, team.ID, team.Slug, false, "")
-	if errors.Is(err, ErrNotOrganiserTakedown) {
+	if errors.Is(err, model.ErrNotOrganiserTakedown) {
 		writeHackErr(w, http.StatusConflict, "platform_takedown", "Simple Hack took this site down; only the platform can put it back")
 		return
 	}

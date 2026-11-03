@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 func findingError(w http.ResponseWriter, err error) {
@@ -228,7 +229,7 @@ func (h *HackHandler) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	note, ok := checkHackLine(w, stripInvisible(req.LookingFor), "looking_for", 0, 120)
+	note, ok := checkHackLine(w, hackevents.StripInvisible(req.LookingFor), "looking_for", 0, 120)
 	if !ok {
 		return
 	}
@@ -492,7 +493,7 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 	if req.Apply {
 		for _, p := range plan {
 			if p.New {
-				code, e := randomHackCode(hackTeamCodeLen)
+				code, e := hackevents.RandomCode(hackTeamCodeLen)
 				if e != nil {
 					writeInternal(w)
 					return

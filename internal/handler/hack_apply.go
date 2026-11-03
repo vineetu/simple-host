@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"golang.org/x/text/language"
-	"golang.org/x/text/language/display"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // Applying to a hackathon without a join link (zp-hack-applications.sql,
@@ -21,26 +21,10 @@ import (
 // its own rules (the organiser's switch, and an application is always
 // pending — D1).
 
-// hackAgeRangeOrder and hackGenderOrder are the fixed product choices GET
-// .../apply's "fields" lists, in display order; "" (not shared) is always
-// accepted too and is not listed.
-var (
-	hackAgeRangeOrder  = []string{"under_18", "18_24", "25_34", "35_plus"}
-	hackAgeRangeLabels = map[string]string{
-		"under_18": "Under 18",
-		"18_24":    "18-24",
-		"25_34":    "25-34",
-		"35_plus":  "35+",
-	}
-	hackGenderOrder  = []string{"woman", "man", "non_binary", "another", "prefer_not_to_say"}
-	hackGenderLabels = map[string]string{
-		"woman":             "Woman or girl",
-		"man":               "Man or boy",
-		"non_binary":        "Non-binary",
-		"another":           "Another gender",
-		"prefer_not_to_say": "Prefer not to say",
-	}
-)
+// hackAgeRangeOrder/hackAgeRangeLabels and hackGenderOrder/hackGenderLabels
+// moved to internal/rules/hackevents (AgeRangeOrder/AgeRangeLabels,
+// GenderOrder/GenderLabels) in cleanup 3.2 slice 1c: fixed product choices,
+// no handler dependency.
 
 // hackUnder18Note is plain prose for non-browser consumers of GET .../apply;
 // the public-apply.js form itself never renders this string -- it builds
@@ -78,13 +62,13 @@ func hackApplicationsClosedReason(ev db.Event) any {
 }
 
 func hackApplyFields() map[string]any {
-	ageRanges := make([]map[string]string, 0, len(hackAgeRangeOrder))
-	for _, v := range hackAgeRangeOrder {
-		ageRanges = append(ageRanges, map[string]string{"value": v, "label": hackAgeRangeLabels[v]})
+	ageRanges := make([]map[string]string, 0, len(hackevents.AgeRangeOrder))
+	for _, v := range hackevents.AgeRangeOrder {
+		ageRanges = append(ageRanges, map[string]string{"value": v, "label": hackevents.AgeRangeLabels[v]})
 	}
-	genders := make([]map[string]string, 0, len(hackGenderOrder))
-	for _, v := range hackGenderOrder {
-		genders = append(genders, map[string]string{"value": v, "label": hackGenderLabels[v]})
+	genders := make([]map[string]string, 0, len(hackevents.GenderOrder))
+	for _, v := range hackevents.GenderOrder {
+		genders = append(genders, map[string]string{"value": v, "label": hackevents.GenderLabels[v]})
 	}
 	return map[string]any{
 		"city":          map[string]any{"max_length": 80},
@@ -176,26 +160,9 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// hackCountryName is the participants CSV's country cell: the English
-// region name for a stored ISO 3166-1 alpha-2 code, blank when blank.
-func hackCountryName(code string) string {
-	if code == "" {
-		return ""
-	}
-	region, err := language.ParseRegion(code)
-	if err != nil {
-		return ""
-	}
-	return display.English.Regions().Name(region)
-}
-
-// hackJoinedViaLabel is the participants CSV's joined_via cell.
-func hackJoinedViaLabel(joinedVia string) string {
-	if joinedVia == "application" {
-		return "application"
-	}
-	return "join link"
-}
+// hackCountryName and hackJoinedViaLabel moved to internal/rules/hackevents
+// (CountryName, JoinedViaLabel) in cleanup 3.2 slice 1c: pure lookups, no
+// handler dependency.
 
 // hackCountryCodeShape is two ASCII letters: the only shape ParseRegion is
 // asked to validate (it also accepts 3-letter and numeric UN M49 codes,
@@ -293,11 +260,11 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ageRange, ok := checkHackEnum(w, req.AgeRange, "age_range", hackAgeRangeOrder)
+	ageRange, ok := checkHackEnum(w, req.AgeRange, "age_range", hackevents.AgeRangeOrder)
 	if !ok {
 		return
 	}
-	gender, ok := checkHackEnum(w, req.Gender, "gender", hackGenderOrder)
+	gender, ok := checkHackEnum(w, req.Gender, "gender", hackevents.GenderOrder)
 	if !ok {
 		return
 	}
