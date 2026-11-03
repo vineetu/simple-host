@@ -381,9 +381,7 @@ func TestMCPTextFollowsLimits(t *testing.T) {
 		t.Fatal("default MCP text lost its wording")
 	}
 	l := withLimits(t, changedLimits(t))
-	mcpLim := mcpLimits(l)
-	server := mcp.NewServer(mcp.Config{Limits: &mcpLim})
-	b, _ := json.Marshal(server.ListedTools())
+	b, _ := json.Marshal(mcp.ToolsWithLimits(mcpLimits(l)))
 	tools := string(b)
 	for _, w := range []string{
 		"Recently deleted for 30 days", "deleted within the last 30 days", // delete_site, list_deleted_sites

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
@@ -40,8 +41,8 @@ func assertOpaqueToken(t *testing.T, token string) {
 
 func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 	key := newExportKey()
-	h := &SiteHandler{exportKey: key}
-	hack := &HackHandler{archiveLinkKey: key}
+	h := &SiteHandler{exportKey: key, limitSet: newLimitSet(config.DefaultLimits())}
+	hack := &HackHandler{archiveLinkKey: key, limitSet: newLimitSet(config.DefaultLimits())}
 	now := time.Now().Truncate(time.Second)
 	expiry := now.Add(time.Minute)
 	claim := hackArchiveClaim{UserID: opaqueOwner, EventID: opaqueSite, TeamID: opaqueTeam, Slug: "event", Kind: "own-team", Expiry: expiry.Unix()}
@@ -121,7 +122,7 @@ func TestMCPNotificationVisitorReferences(t *testing.T) {
 	previous := hackMode
 	hackMode = false
 	t.Cleanup(func() { hackMode = previous })
-	h := &SiteHandler{exportKey: newExportKey()}
+	h := &SiteHandler{exportKey: newExportKey(), limitSet: newLimitSet(config.DefaultLimits())}
 	refs := mcp.NewVisitorReferences(h.exportKey)
 	expected, _ := refs.Encode(opaqueSite, opaqueOwner)
 	for _, name := range []string{"record.added", "record.changed", "file.uploaded"} {
