@@ -45,7 +45,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -57,7 +56,6 @@ import (
 const (
 	oauthCodeTTL         = 60 * time.Second
 	oauthConsentTTL      = 30 * time.Minute
-	oauthScope           = "sites"
 	oauthMaxRedirectURIs = 10
 
 	// Prefixes make a leaked token recognisable to secret scanners and to a
@@ -480,26 +478,6 @@ func redirectTarget(raw string) string {
 		return u.Scheme + "://" + u.Host
 	}
 	return u.Scheme + ":"
-}
-
-// cleanClientName makes a self-declared app name safe and short enough to
-// show. It is only ever inserted as text, never as markup.
-func cleanClientName(s string) string {
-	var b strings.Builder
-	for _, r := range strings.TrimSpace(s) {
-		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
-			continue
-		}
-		b.WriteRune(r)
-	}
-	out := strings.Join(strings.Fields(b.String()), " ")
-	if r := []rune(out); len(r) > 60 {
-		out = string(r[:60])
-	}
-	if out == "" {
-		out = "An app"
-	}
-	return out
 }
 
 func validPKCEValue(s string) bool {
@@ -986,54 +964,6 @@ func (h *ConnectorHandler) renderConsent(w http.ResponseWriter, r *http.Request,
 
 // SetHackTeams turns on hosted hackathon grants (EVENTS=hosted).
 func (h *ConnectorHandler) SetHackTeams(on bool) { h.hackTeams = on }
-
-// hackTeamScopePrefix marks a grant bound to one team's site. The scope is
-// "sites" plus "team:<team id>". Only this server writes it.
-const hackTeamScopePrefix = "team:"
-
-// hackEventsScope marks a grant that acts as the person for event management.
-// It is not implied by a missing team, so an old or malformed grant fails
-// closed instead of becoming an unrestricted key. The word matches
-// mcp.CallerModeEvents.
-const hackEventsScope = "events"
-
-// scopeTeam returns the team a grant scope binds to ("" for none).
-func scopeTeam(scope string) string {
-	for _, f := range strings.Fields(scope) {
-		if t, ok := strings.CutPrefix(f, hackTeamScopePrefix); ok {
-			return t
-		}
-	}
-	return ""
-}
-
-func scopeHas(scope, want string) bool {
-	for _, f := range strings.Fields(scope) {
-		if f == want {
-			return true
-		}
-	}
-	return false
-}
-
-// hackGrantKind classifies a hosted grant. ok is false when the scope names
-// both a team and event management, or neither: an old "sites" grant, or
-// anything else that is not exactly one of the two choices.
-func hackGrantKind(scope string) (teamID string, events bool, ok bool) {
-	// The server issues exactly sites plus one valid identity marker. Do not
-	// turn malformed team grants into personal event-management grants.
-	if len(strings.Fields(scope)) != 2 || !scopeHas(scope, oauthScope) {
-		return "", false, false
-	}
-	if scopeHas(scope, hackEventsScope) {
-		return "", true, true
-	}
-	teamID = scopeTeam(scope)
-	if !uuidShape.MatchString(teamID) {
-		return "", false, false
-	}
-	return teamID, false, true
-}
 
 // SetSignInAlerts shares the sign-in alert sender (UserHandler.SignInAlerts).
 func (h *ConnectorHandler) SetSignInAlerts(a *SignInAlerts) { h.alerts = a }
