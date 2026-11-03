@@ -20,6 +20,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
@@ -144,7 +145,8 @@ type HackHandler struct {
 	// (getDirectory, hack_voting.go). Built in NewHackHandler from the
 	// same *sql.DB; nil on a bare &HackHandler{} (NewHackHandlerForTest),
 	// which never serves the directory route.
-	events *events.Service
+	events  *events.Service
+	entries *entries.Service
 }
 
 // HandleVerdict is the outcome handlecheck.go's judgeHandle reaches for one
@@ -405,6 +407,7 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 		archiveLinkKey:     newHackArchiveKey(),
 		events:             events.New(database),
 	}
+	h.entries = entries.New(h.database, h.entrySiteLive)
 	return h
 }
 
@@ -1863,7 +1866,7 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		// move that freezes submissions, so judging never has to wait a
 		// minute for the sweep to catch up.
 		if submissionsClosedStage(stage) {
-			if err := h.settleEntriesTx(r.Context(), tx, a.event.ID); err != nil {
+			if err := h.entries.SettleEventTx(r.Context(), tx, a.event.ID); err != nil {
 				httpx.WriteInternal(w)
 				return
 			}
@@ -1924,7 +1927,7 @@ func (h *HackHandler) archiveEventTx(ctx context.Context, tx *sql.Tx, eventID, c
 		return db.Event{}, err
 	}
 	// Section 7: an event ending always freezes every remaining draft.
-	if err := h.settleEntriesTx(ctx, tx, eventID); err != nil {
+	if err := h.entries.SettleEventTx(ctx, tx, eventID); err != nil {
 		return db.Event{}, err
 	}
 	return updated, nil
