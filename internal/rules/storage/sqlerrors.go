@@ -1,17 +1,16 @@
 package storage
 
 import (
-	"errors"
 	"fmt"
-	sqlite3 "github.com/ncruces/go-sqlite3"
 	"regexp"
 	"strings"
 )
 
-// SQLPathPattern provides the storage s q l path pattern.
+// SQLPathPattern matches absolute paths and database file names; SQLite's
+// compile messages never need them, and the server's layout stays private.
 var SQLPathPattern = regexp.MustCompile(`(?:/[A-Za-z0-9._-]+){2,}/?|[A-Za-z0-9._-]+\.sqlite(?:-wal|-shm)?\b`)
 
-// SQLLooksLikeSchema provides the storage s q l looks like schema.
+// SQLLooksLikeSchema reports whether a statement starts with a schema keyword.
 func SQLLooksLikeSchema(sql string) bool {
 	word := strings.ToUpper(strings.TrimSpace(sql))
 	for _, kw := range []string{"CREATE", "ALTER", "DROP"} {
@@ -22,7 +21,8 @@ func SQLLooksLikeSchema(sql string) bool {
 	return false
 }
 
-// SQLSecondStatement provides the storage s q l second statement.
+// SQLSecondStatement reports the start of a second statement in what Prepare
+// left over, ignoring blank space, stray semicolons and comments.
 func SQLSecondStatement(tail string) string {
 	rest := tail
 	for {
@@ -45,7 +45,7 @@ func SQLSecondStatement(tail string) string {
 	}
 }
 
-// Plural provides the storage plural.
+// Plural returns the suffix for a count.
 func Plural(n int) string {
 	if n == 1 {
 		return ""
@@ -53,7 +53,7 @@ func Plural(n int) string {
 	return "s"
 }
 
-// SQLClip provides the storage s q l clip.
+// SQLClip collapses whitespace and limits text to n runes.
 func SQLClip(s string, n int) string {
 	s = strings.Join(strings.Fields(s), " ")
 	if r := []rune(s); len(r) > n {
@@ -62,14 +62,12 @@ func SQLClip(s string, n int) string {
 	return s
 }
 
-// SQLiteText provides the storage s q lite text.
-func SQLiteText(err error) string {
-	msg := err.Error()
-	var se *sqlite3.Error
-	if errors.As(err, &se) {
-		for _, prefix := range []string{se.ExtendedCode().Error() + ": ", se.Code().Error() + ": "} {
-			msg = strings.TrimPrefix(msg, prefix)
-		}
+// SQLiteText removes driver prefixes and file paths from a SQLite message.
+// The caller supplies the extended and base SQLite code prefixes in that order;
+// the generic sqlite3 prefix is removed after them.
+func SQLiteText(msg string, prefixes ...string) string {
+	for _, prefix := range prefixes {
+		msg = strings.TrimPrefix(msg, prefix)
 	}
 	msg = strings.TrimPrefix(msg, "sqlite3: ")
 	msg = SQLPathPattern.ReplaceAllString(msg, "[path]")

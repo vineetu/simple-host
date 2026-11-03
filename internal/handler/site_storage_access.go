@@ -57,13 +57,9 @@ func (m storageAccessMatrix) value(a string) string   { return rules.AccessMatri
 func (m storageAccessMatrix) check() (string, string) { return rules.AccessMatrix(m).Check() }
 func (m storageAccessMatrix) usesOwn() bool           { return rules.AccessMatrix(m).UsesOwn() }
 func (m storageAccessMatrix) recordsAuthor() bool     { return rules.AccessMatrix(m).RecordsAuthor() }
-func storageNarrower(a, b string) string              { return rules.Narrower(a, b) }
 func storageTranslateOld(r, w, mode string) (storageAccessMatrix, string, string) {
 	m, c, h := rules.TranslateOld(r, w, mode)
 	return storageAccessMatrix(m), c, h
-}
-func storageLegacyMatrix(r, w, mode string) storageAccessMatrix {
-	return storageAccessMatrix(rules.LegacyMatrix(r, w, mode))
 }
 func storageOldFields(m storageAccessMatrix) (string, string, string, bool) {
 	return rules.OldFields(rules.AccessMatrix(m))
@@ -137,10 +133,13 @@ func (x storageResource) rulesResource() rules.Resource {
 		m := rules.AccessMatrix(*x.Access)
 		r.Access = &m
 	}
-	if x.Tables != nil {
-		r.Tables = make(map[string]rules.TableRule, len(x.Tables))
+	r.TableLookup = func(n string) (rules.TableRule, bool) {
+		t, ok := x.Tables[n]
+		return rules.TableRule{Matrix: rules.AccessMatrix(t.Matrix), PresetBase: t.PresetBase}, ok
+	}
+	r.TableRange = func(visit func(string, rules.TableRule)) {
 		for n, t := range x.Tables {
-			r.Tables[n] = rules.TableRule{Matrix: rules.AccessMatrix(t.Matrix), PresetBase: t.PresetBase}
+			visit(n, rules.TableRule{Matrix: rules.AccessMatrix(t.Matrix), PresetBase: t.PresetBase})
 		}
 	}
 	return r

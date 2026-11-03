@@ -12,15 +12,15 @@ const (
 	WhoOwn      = "own"
 	WhoSignedIn = "signed-in"
 	WhoAnyone   = "anyone"
-	// checked: anyone who passes the spam Check (turnstile.go); add only.
+	// checked: anyone who passes the spam check (turnstile.go); add only.
 	WhoChecked = "checked"
 )
 
-// Narrowest first. Each Value includes the ones narrower than it, except
+// Narrowest first. Each value includes the ones narrower than it, except
 // nobody (which no page request passes).
 var whoRank = map[string]int{WhoNobody: 0, WhoOwner: 1, WhoOwn: 2, WhoSignedIn: 3, WhoChecked: 4, WhoAnyone: 4}
 
-// AccessMatrix provides the storage access matrix.
+// AccessMatrix assigns a policy to each storage action.
 type AccessMatrix struct {
 	Read   string `json:"read"`
 	Add    string `json:"add"`
@@ -28,15 +28,14 @@ type AccessMatrix struct {
 	Delete string `json:"delete"`
 }
 
-// Preset provides the storage preset.
+// Preset names an access matrix.
 type Preset struct {
 	ID     string
 	Matrix AccessMatrix
 }
 
-// The presets, exactly as designed. private is the default. comments
-// (2026-10-14) is offered only where the spam Check is on.
-// Presets provides the storage presets.
+// Presets are the presets, exactly as designed. private is the default. comments
+// (2026-10-14) is offered only where the spam check is on.
 var Presets = []Preset{
 	{"public", AccessMatrix{"anyone", "owner", "owner", "owner"}},
 	{"inbox", AccessMatrix{"owner", "anyone", "owner", "owner"}},
@@ -48,7 +47,7 @@ var Presets = []Preset{
 	{"private", AccessMatrix{"owner", "owner", "owner", "owner"}},
 }
 
-// PresetMatrix provides the storage preset matrix.
+// PresetMatrix looks up a preset by name.
 func PresetMatrix(id string) (AccessMatrix, bool) {
 	for _, p := range Presets {
 		if p.ID == id {
@@ -58,7 +57,7 @@ func PresetMatrix(id string) (AccessMatrix, bool) {
 	return AccessMatrix{}, false
 }
 
-// PresetName is the preset a Matrix is, or "custom".
+// PresetName is the preset a matrix is, or "custom".
 func PresetName(m AccessMatrix) string {
 	for _, p := range Presets {
 		if p.Matrix == m {
@@ -68,7 +67,7 @@ func PresetName(m AccessMatrix) string {
 	return "custom"
 }
 
-// Value provides the storage value.
+// Value returns the policy for an action.
 func (m AccessMatrix) Value(action string) string {
 	switch action {
 	case "read":
@@ -85,7 +84,6 @@ func (m AccessMatrix) Value(action string) string {
 
 // Check applies rules R1 to R4. It returns "" or the refused rule's code and
 // a plain hint.
-// Check provides the storage check.
 func (m AccessMatrix) Check() (string, string) {
 	for _, v := range []string{m.Read, m.Add, m.Edit, m.Delete} {
 		if _, ok := whoRank[v]; !ok {
@@ -93,7 +91,7 @@ func (m AccessMatrix) Check() (string, string) {
 		}
 	}
 	if m.Read == WhoChecked || m.Edit == WhoChecked || m.Delete == WhoChecked {
-		return "checked_add_only", "checked (anyone who passes the spam Check) applies to add only; read takes anyone, and edit and delete stay with you"
+		return "checked_add_only", "checked (anyone who passes the spam check) applies to add only; read takes anyone, and edit and delete stay with you"
 	}
 	if m.Edit == WhoAnyone || m.Delete == WhoAnyone {
 		return "anonymous_change", "R1: edit and delete are never anyone; someone not signed in could overwrite or wipe everything. Use the inbox preset (anyone adds, only you change) or wall (signed-in people add and delete their own)"
@@ -110,19 +108,18 @@ func (m AccessMatrix) Check() (string, string) {
 	return "", ""
 }
 
-// UsesOwn provides the storage uses own.
+// UsesOwn reports whether any action refers to its author.
 func (m AccessMatrix) UsesOwn() bool {
 	return m.Read == WhoOwn || m.Edit == WhoOwn || m.Delete == WhoOwn
 }
 
 // RecordsAuthor: entries need the server-owned visitor_id, because own
 // applies or because visitors add (so the owner sees who sent what).
-// RecordsAuthor provides the storage records author.
 func (m AccessMatrix) RecordsAuthor() bool {
 	return m.UsesOwn() || m.Add == WhoSignedIn || m.Add == WhoAnyone || m.Add == WhoChecked
 }
 
-// Narrower provides the storage narrower.
+// Narrower returns the more restrictive of two policies.
 func Narrower(a, b string) string {
 	if whoRank[a] < whoRank[b] {
 		return a
@@ -131,8 +128,7 @@ func Narrower(a, b string) string {
 }
 
 // TranslateOld turns the older read/write/write_mode fields into a
-// Matrix, as designed (Compatibility). write anyone with full is refused.
-// TranslateOld provides the storage translate old.
+// matrix, as designed (Compatibility). write anyone with full is refused.
 func TranslateOld(read, write, mode string) (AccessMatrix, string, string) {
 	if read == "" {
 		read = WhoOwner
@@ -170,7 +166,6 @@ func TranslateOld(read, write, mode string) (AccessMatrix, string, string) {
 // LegacyMatrix is how a resource saved before presets behaves until
 // the owner saves a policy on it: exactly the old rules, unchecked (a
 // write-anyone full resource stays open).
-// LegacyMatrix provides the storage legacy matrix.
 func LegacyMatrix(read, write, mode string) AccessMatrix {
 	if mode == "add" {
 		m := AccessMatrix{read, write, WhoOwner, WhoOwner}
@@ -185,9 +180,8 @@ func LegacyMatrix(read, write, mode string) AccessMatrix {
 	return AccessMatrix{read, write, write, write}
 }
 
-// OldFields expresses a Matrix in the older fields when it can, so an
+// OldFields expresses a matrix in the older fields when it can, so an
 // older skill reading the answer is not confused.
-// OldFields provides the storage old fields.
 func OldFields(m AccessMatrix) (read, write, mode string, ok bool) {
 	read = m.Read
 	if read == WhoNobody {
@@ -202,7 +196,7 @@ func OldFields(m AccessMatrix) (read, write, mode string, ok bool) {
 	return read, "", "", false
 }
 
-// TableRule is one SQLite table's own Matrix.
+// TableRule is one SQLite table's own matrix.
 type TableRule struct {
 	Matrix     AccessMatrix
 	PresetBase string
@@ -217,7 +211,7 @@ type AccessRequest struct {
 	Delete string `json:"delete"`
 }
 
-// Matrix provides the storage matrix.
+// Matrix resolves the preset and overrides, returning any refusal code and hint.
 func (q AccessRequest) Matrix() (AccessMatrix, string, string, string) {
 	base := q.Preset
 	if base == "" {
@@ -225,7 +219,7 @@ func (q AccessRequest) Matrix() (AccessMatrix, string, string, string) {
 	}
 	if base == "custom" {
 		if q.Read == "" || q.Add == "" || q.Edit == "" || q.Delete == "" {
-			return AccessMatrix{}, "", "invalid_preset", "a custom Matrix sets all four of read, add, edit, and delete"
+			return AccessMatrix{}, "", "invalid_preset", "a custom matrix sets all four of read, add, edit, and delete"
 		}
 		base = ""
 	}
@@ -261,10 +255,12 @@ type Resource struct {
 	Name, Kind, Read, Write, SitePasscode, WriteMode, PresetBase string
 	Access                                                       *AccessMatrix
 	Tables                                                       map[string]TableRule
+	TableLookup                                                  func(string) (TableRule, bool)
+	TableRange                                                   func(func(string, TableRule))
 	ApproveFirst                                                 bool
 }
 
-// Matrix is the resource's own Matrix (the SQLite database default).
+// Matrix is the resource's own matrix (the SQLite database default).
 func (x Resource) Matrix() AccessMatrix {
 	if x.Access != nil {
 		return *x.Access
@@ -275,7 +271,6 @@ func (x Resource) Matrix() AccessMatrix {
 // Legacy: saved before presets with rules the new model refuses (write
 // anyone with full), or a full-mode SQLite database that pages still query
 // with SQL. Either keeps working until the owner saves a policy on it.
-// Legacy provides the storage legacy.
 func (x Resource) Legacy() bool {
 	if x.Access != nil {
 		return false
@@ -285,29 +280,45 @@ func (x Resource) Legacy() bool {
 
 // LegacyVisitorSQL: pages may still send SQL to /query and /execute. Only a
 // full-mode SQLite database saved before presets with visitor read or
-// write; never on a resource with a Matrix.
-// LegacyVisitorSQL provides the storage legacy visitor s q l.
+// write; never on a resource with a matrix.
 func (x Resource) LegacyVisitorSQL() bool {
 	return x.Access == nil && x.Kind == "sqlite" && x.WriteMode == "full" && x.Read != WhoOwn && (x.Read != WhoOwner || x.Write != WhoOwner)
 }
 
-// TableMatrix is the Matrix for one table: its own entry, or the database
+// TableMatrix is the matrix for one table: its own entry, or the database
 // default.
-// TableMatrix provides the storage table matrix.
 func (x Resource) TableMatrix(table string) AccessMatrix {
 	if x.Access != nil {
 		// SQLite names are case-insensitive; rules are stored lower-case.
-		if rule, ok := x.Tables[strings.ToLower(table)]; ok {
+		rule, ok := x.tableLookup(strings.ToLower(table))
+		if ok {
 			return rule.Matrix
 		}
 	}
 	return x.Matrix()
 }
 
+func (x Resource) tableLookup(name string) (TableRule, bool) {
+	if x.TableLookup != nil {
+		return x.TableLookup(name)
+	}
+	r, ok := x.Tables[name]
+	return r, ok
+}
+
+func (x Resource) tableRange(visit func(string, TableRule)) {
+	if x.TableRange != nil {
+		x.TableRange(visit)
+		return
+	}
+	for n, r := range x.Tables {
+		visit(n, r)
+	}
+}
+
 // OwnTables picks the tables that need visitor_id: nil (every table) on a
-// Legacy read-own database, else those whose Matrix uses own or lets
+// legacy read-own database, else those whose matrix uses own or lets
 // visitors add.
-// OwnTables provides the storage own tables.
 func (x Resource) OwnTables() func(string) bool {
 	if x.Access == nil {
 		return nil
@@ -316,7 +327,6 @@ func (x Resource) OwnTables() func(string) bool {
 }
 
 // HasChecked: some add on this resource is checked (the comments preset).
-// HasChecked provides the storage has checked.
 func (x Resource) HasChecked() bool {
 	if x.Access == nil {
 		return false
@@ -324,17 +334,17 @@ func (x Resource) HasChecked() bool {
 	if x.Access.Add == WhoChecked {
 		return true
 	}
-	for _, t := range x.Tables {
+	checked := false
+	x.tableRange(func(_ string, t TableRule) {
 		if t.Matrix.Add == WhoChecked {
-			return true
+			checked = true
 		}
-	}
-	return false
+	})
+	return checked
 }
 
 // Holds: posts added to this table through the spam check wait for the
 // owner's approval (approve_first; the approved_at column).
-// Holds provides the storage holds.
 func (x Resource) Holds(table string) bool {
 	return x.ApproveFirst && x.Kind == "sqlite" && x.Access != nil && x.TableMatrix(table).Add == WhoChecked
 }
@@ -348,12 +358,10 @@ func (x Resource) Fingerprint() string {
 		parts = append(parts, "-")
 	}
 	names := make([]string, 0, len(x.Tables))
-	for n := range x.Tables {
-		names = append(names, n)
-	}
+	x.tableRange(func(n string, _ TableRule) { names = append(names, n) })
 	sort.Strings(names)
 	for _, n := range names {
-		r := x.Tables[n]
+		r, _ := x.tableLookup(n)
 		parts = append(parts, n, r.Matrix.Read, r.Matrix.Add, r.Matrix.Edit, r.Matrix.Delete, r.PresetBase)
 	}
 	return strings.Join(parts, "\x00")

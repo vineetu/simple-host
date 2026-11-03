@@ -104,8 +104,6 @@ func sqlRouteMismatch(mode, sql string, readOnly, didWrite, didSchema, noopCreat
 
 func sqlLooksLikeSchema(sql string) bool { return rules.SQLLooksLikeSchema(sql) }
 
-// sqlSecondStatement reports the start of a second statement in what Prepare
-// left over, ignoring blank space, stray semicolons and comments.
 func sqlSecondStatement(tail string) string { return rules.SQLSecondStatement(tail) }
 
 func sqlMultipleStatements(second string) *sqlRefusal {
@@ -116,17 +114,15 @@ func sqlParamCount(placeholders, params int) *sqlRefusal {
 	return sqlRefuse(400, "sql_param_count", rules.SQLParamCount(placeholders, params))
 }
 
-func plural(n int) string { return rules.Plural(n) }
-
 func sqlClip(s string, n int) string { return rules.SQLClip(s, n) }
 
-// sqliteText is SQLite's own message without the driver's prefix, with
-// anything that looks like a file path removed.
-func sqliteText(err error) string { return rules.SQLiteText(err) }
-
-// sqlPathPattern matches absolute paths and database file names; SQLite's
-// compile messages never need them, and the server's layout stays private.
-var sqlPathPattern = rules.SQLPathPattern
+func sqliteText(err error) string {
+	var se *sqlite3.Error
+	if errors.As(err, &se) {
+		return rules.SQLiteText(err.Error(), se.ExtendedCode().Error()+": ", se.Code().Error()+": ")
+	}
+	return rules.SQLiteText(err.Error())
+}
 
 var (
 	sqlNoTableRe  = rules.SQLNoTableRE
