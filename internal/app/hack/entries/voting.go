@@ -11,16 +11,6 @@ import (
 	"time"
 )
 
-// VotingSettings reads the event's voting configuration.
-func (s *Service) VotingSettings(ctx context.Context, id string) (repo.VotingSettings, error) {
-	return repo.GetVotingSettings(ctx, s.db, id)
-}
-
-// IneligibleVotes counts votes that the eligibility rule would remove.
-func (s *Service) IneligibleVotes(ctx context.Context, id, eligibility string) (int64, error) {
-	return repo.IneligibleVotes(ctx, s.db, id, eligibility, false)
-}
-
 // VotingStatus evaluates the voting window.
 func VotingStatus(ev db.Event, v repo.VotingSettings, now time.Time) string {
 	if !v.Enabled || !ev.GalleryOpen || ev.Stage == "draft" || ev.TakenDown() || !v.OpensAt.Valid || !v.ClosesAt.Valid {
@@ -93,26 +83,6 @@ func (s *Service) SetDirectoryListed(ctx context.Context, id string, listed bool
 	return repo.SetDirectoryListed(ctx, s.db, id, listed)
 }
 
-// VoteOptions lists eligible projects.
-func (s *Service) VoteOptions(ctx context.Context, id, account string) ([]repo.VoteOption, error) {
-	return repo.VoteOptions(ctx, s.db, id, account)
-}
-
-// VoteFinalRanking returns final vote totals.
-func (s *Service) VoteFinalRanking(ctx context.Context, id, account string) ([]repo.VoteOption, error) {
-	return repo.VoteFinalRanking(ctx, s.db, id, account)
-}
-
-// OwnVote returns the selected team.
-func (s *Service) OwnVote(ctx context.Context, id, email string) (string, error) {
-	return repo.OwnVote(ctx, s.db, id, email)
-}
-
-// VoterEligible checks the event's voter rule.
-func (s *Service) VoterEligible(ctx context.Context, id, eligibility, email string) (bool, error) {
-	return repo.VoterEligible(ctx, s.db, id, eligibility, email)
-}
-
 // CastVote records a vote under the event lock.
 func (s *Service) CastVote(ctx context.Context, id, account, email, team string) (bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -129,18 +99,18 @@ func (s *Service) CastVote(ctx context.Context, id, account, email, team string)
 		return false, err
 	}
 	if !v.Enabled || !v.GalleryOpen || !v.Opens.Valid || !v.Closes.Valid || now.Before(v.Opens.Time) || !now.Before(v.Closes.Time) || v.Stage == "draft" || v.Stage == "archived" || v.TakenDown.Valid {
-		return false, repo.ErrVoteClosed
+		return false, &Error{Code: "voting_closed", Message: "voting is not open"}
 	}
 	allowed, err := repo.VoterEligible(ctx, tx, id, v.Eligibility, email)
 	if err != nil {
 		return false, err
 	}
 	if !allowed {
-		return false, repo.ErrVoteIneligible
+		return false, &Error{Code: "vote_ineligible", Message: "this account is not eligible to vote"}
 	}
 	teamID, err := repo.VoteTeamID(ctx, tx, id, account, team)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, repo.ErrVoteTeamNotFound
+		return false, &Error{Code: "team_not_found", Message: "choose a live team project"}
 	}
 	if err != nil {
 		return false, err
@@ -150,11 +120,11 @@ func (s *Service) CastVote(ctx context.Context, id, account, email, team string)
 		return false, err
 	}
 	if own {
-		return false, repo.ErrVoteOwnTeam
+		return false, &Error{Code: "own_team_vote", Message: "you cannot vote for your own team"}
 	}
 	created, err := repo.SaveVote(ctx, tx, id, email, teamID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, repo.ErrVoteDuplicate
+		return false, &Error{Code: "duplicate_vote", Message: "you already voted for this team; choose another to change your vote"}
 	}
 	if err != nil {
 		return false, err
@@ -172,15 +142,6 @@ func VotingSettingsValue(enabled bool, opens, closes sql.NullTime, eligibility s
 
 // VotingConfig is the stored voting configuration.
 type VotingConfig = repo.VotingSettings
-
-// Vote errors preserve the existing voting refusals.
-var (
-	ErrVoteClosed       = repo.ErrVoteClosed
-	ErrVoteIneligible   = repo.ErrVoteIneligible
-	ErrVoteOwnTeam      = repo.ErrVoteOwnTeam
-	ErrVoteTeamNotFound = repo.ErrVoteTeamNotFound
-	ErrVoteDuplicate    = repo.ErrVoteDuplicate
-)
 
 // VotingSettingsRead contains the configuration and removal counts for an organiser.
 type VotingSettingsRead struct {
@@ -208,22 +169,20 @@ func (s *Service) ReadVotingSettings(ctx context.Context, ev db.Event, now func(
 	return out, nil
 }
 
-// ErrVotingEventNotFound indicates a missing or unavailable voting event.
-var ErrVotingEventNotFound = errors.New("voting event not found")
-
-// VotingEvent loads an event visible on the public voting routes.
-func (s *Service) VotingEvent(ctx context.Context, slug string) (db.Event, error) {
-	ev, err := eventrepo.GetEventBySlug(ctx, s.db, slug)
+// VotingEvent loads an event visible on the public voting routes. Loaded is true
+// even for a hidden event, but false for a failed database scan.
+func (s *Service) VotingEvent(ctx context.Context, slug string) (ev db.Event, loaded bool, err error) {
+	ev, err = eventrepo.GetEventBySlug(ctx, s.db, slug)
 	if errors.Is(err, sql.ErrNoRows) {
-		return ev, ErrVotingEventNotFound
+		return ev, false, &Error{Code: "event_not_found", Message: "voting event not found"}
 	}
 	if err != nil {
-		return ev, err
+		return ev, false, err
 	}
 	if ev.Stage == "draft" || ev.TakenDown() {
-		return ev, ErrVotingEventNotFound
+		return ev, true, &Error{Code: "event_not_found", Message: "voting event not found"}
 	}
-	return ev, nil
+	return ev, true, nil
 }
 
 // PublicVote is the data shown on the public voting page.
@@ -298,7 +257,12 @@ func CanCastVote(username string, admin bool) bool { return !admin && username !
 var votingTeamSlug = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
 // ValidVoteTeam checks the team address supplied on the voting page.
-func ValidVoteTeam(team string) bool { return len(team) <= 30 && votingTeamSlug.MatchString(team) }
+func ValidVoteTeam(team string) bool { return ValidVotingLabel(team, 30) }
+
+// ValidVotingLabel checks an event or team address label.
+func ValidVotingLabel(label string, max int) bool {
+	return len(label) <= max && votingTeamSlug.MatchString(label)
+}
 
 // CanChangeDirectory reports whether the organiser can change the directory flag.
 func CanChangeDirectory(admin, joined bool) bool { return !admin || joined }

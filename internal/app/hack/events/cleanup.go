@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// runEventCleanup is one pass: remove team sites whose keep window has
+// RunEventCleanup is one pass: remove team sites whose keep window has
 // ended, then warn organisers whose warning date has arrived and who have
 // not been warned. With no mailer that can send a notice, the pass does
 // nothing (the same gate as the idle-site cleanup).

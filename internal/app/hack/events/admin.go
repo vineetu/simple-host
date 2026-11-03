@@ -33,7 +33,7 @@ func (s *Service) AdminModerate(ctx context.Context, ev db.Event, reason string,
 	if err != nil {
 		return db.Event{}, err
 	}
-	if err = eventrepo.SetUserSuspended(ctx, tx, ev.AccountID, reason); err != nil {
+	if err = db.SetUserSuspended(ctx, tx, ev.AccountID, reason); err != nil {
 		return db.Event{}, err
 	}
 	if err = tx.Commit(); err != nil {

@@ -6,11 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"log"
 	"net/http"
 	"net/url"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,13 +20,11 @@ import (
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
-// hackGallerySlugRe is one label: lowercase letters, digits and hyphens, not
+// hackGallerySlug is one label: lowercase letters, digits and hyphens, not
 // starting or ending with a hyphen. A team slug is at most 30 characters; an
 // event slug used inside a team-site URL is at most one DNS label.
-var hackGallerySlugRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
-
 func hackGallerySlug(s string) bool {
-	return len(s) <= 30 && hackGallerySlugRe.MatchString(s)
+	return entries.ValidVotingLabel(s, 30)
 }
 
 // hackScreenshotPath is the team slug of /screenshots/<slug> when the path is
@@ -45,7 +43,7 @@ func hackScreenshotPath(p string) (string, bool) {
 }
 
 func hackEventLabel(s string) bool {
-	return len(s) <= 63 && hackGallerySlugRe.MatchString(s)
+	return entries.ValidVotingLabel(s, 63)
 }
 
 func hackGalleryImageType(s string) bool {

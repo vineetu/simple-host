@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"github.com/vsriram/simple-host/internal/repository/hackentries"
 
 	"github.com/lib/pq"
 )
@@ -19,15 +20,8 @@ type GalleryCard struct {
 	HasScreenshot                  bool
 }
 
-// galleryLiveFrom is the teams of event $1 on holding account $2 that belong
-// on the public gallery. A caller adds `AND t.slug = $3` for one team.
-const galleryLiveFrom = `
-  FROM event_teams t
-  JOIN sites s ON s.user_id = $2 AND s.name = t.slug
-              AND s.deleted_at IS NULL AND s.suspended_at IS NULL
-  JOIN users u ON u.id = s.user_id AND u.suspended_at IS NULL
-  LEFT JOIN event_entries e ON e.team_id = t.id
- WHERE t.event_id = $1 AND t.site_taken_down_at IS NULL`
+// galleryLiveFrom is shared with voting.
+const galleryLiveFrom = hackentries.GalleryLiveFrom
 
 // galleryHasShot is an entry screenshot the gallery can show: bytes of one
 // of the three types an entry stores (hack2-team-sites.sql).

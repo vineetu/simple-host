@@ -2,7 +2,6 @@ package hackhttp
 
 import (
 	"database/sql"
-	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"net/http"
 	"strings"
@@ -129,11 +128,11 @@ func (h *HackHandler) patchDirectoryListed(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *HackHandler) getVote(w http.ResponseWriter, r *http.Request) {
-	ev, err := h.entries.VotingEvent(r.Context(), r.PathValue("slug"))
-	if ev.ID != "" {
+	ev, loaded, err := h.entries.VotingEvent(r.Context(), r.PathValue("slug"))
+	if loaded {
 		paperHackEvent(r, ev)
 	}
-	if errors.Is(err, entries.ErrVotingEventNotFound) {
+	if e, ok := err.(*entries.Error); ok && e.Code == "event_not_found" {
 		writeEventNotFound(w)
 		return
 	}
@@ -182,11 +181,11 @@ func (h *HackHandler) getMyVote(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	ev, err := h.entries.VotingEvent(r.Context(), r.PathValue("slug"))
-	if ev.ID != "" {
+	ev, loaded, err := h.entries.VotingEvent(r.Context(), r.PathValue("slug"))
+	if loaded {
 		paperHackEvent(r, ev)
 	}
-	if errors.Is(err, entries.ErrVotingEventNotFound) {
+	if e, ok := err.(*entries.Error); ok && e.Code == "event_not_found" {
 		writeEventNotFound(w)
 		return
 	}
@@ -221,11 +220,11 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, 400, "invalid_team", "choose a team from the voting page")
 		return
 	}
-	ev, err := h.entries.VotingEvent(r.Context(), r.PathValue("slug"))
-	if ev.ID != "" {
+	ev, loaded, err := h.entries.VotingEvent(r.Context(), r.PathValue("slug"))
+	if loaded {
 		paperHackEvent(r, ev)
 	}
-	if errors.Is(err, entries.ErrVotingEventNotFound) {
+	if e, ok := err.(*entries.Error); ok && e.Code == "event_not_found" {
 		writeEventNotFound(w)
 		return
 	}
@@ -234,25 +233,25 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	created, err := h.entries.CastVote(r.Context(), ev.ID, ev.AccountID, db.BaseEmail(user.Username), req.Team)
-	switch err {
-	case nil:
-	case entries.ErrVoteClosed:
-		httpx.WriteError(w, 409, "voting_closed", "voting is not open")
-		return
-	case entries.ErrVoteIneligible:
-		httpx.WriteError(w, 403, "vote_ineligible", "this account is not eligible to vote")
-		return
-	case entries.ErrVoteOwnTeam:
-		httpx.WriteError(w, 409, "own_team_vote", "you cannot vote for your own team")
-		return
-	case entries.ErrVoteTeamNotFound:
-		httpx.WriteError(w, 404, "team_not_found", "choose a live team project")
-		return
-	case entries.ErrVoteDuplicate:
-		httpx.WriteError(w, 409, "duplicate_vote", "you already voted for this team; choose another to change your vote")
-		return
-	default:
-		httpx.WriteInternal(w)
+	if err != nil {
+		if e, ok := err.(*entries.Error); ok {
+			status := 0
+			switch e.Code {
+			case "voting_closed", "own_team_vote", "duplicate_vote":
+				status = 409
+			case "vote_ineligible":
+				status = 403
+			case "team_not_found":
+				status = 404
+			}
+			if status == 0 {
+				httpx.WriteInternal(w)
+			} else {
+				httpx.WriteError(w, status, e.Code, e.Message)
+			}
+		} else {
+			httpx.WriteInternal(w)
+		}
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"team": req.Team, "changed": !created})

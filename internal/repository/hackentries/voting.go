@@ -3,19 +3,11 @@ package hackentries
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"time"
 )
 
-var (
-	ErrVoteClosed       = errors.New("voting is not open")
-	ErrVoteIneligible   = errors.New("voter is not eligible")
-	ErrVoteOwnTeam      = errors.New("cannot vote for own team")
-	ErrVoteTeamNotFound = errors.New("team is not eligible")
-	ErrVoteDuplicate    = errors.New("vote already exists for this team")
-)
-
+// VotingSettings holds an event’s voting configuration.
 type VotingSettings struct {
 	Enabled           bool
 	OpensAt, ClosesAt sql.NullTime
@@ -23,6 +15,7 @@ type VotingSettings struct {
 	DirectoryListed   bool
 }
 
+// GetVotingSettings loads an event’s voting configuration.
 func GetVotingSettings(ctx context.Context, q sqlkit.Querier, eventID string) (VotingSettings, error) {
 	var s VotingSettings
 	err := q.QueryRowContext(ctx, `SELECT voting_enabled, voting_opens_at, voting_closes_at,
@@ -31,6 +24,7 @@ func GetVotingSettings(ctx context.Context, q sqlkit.Querier, eventID string) (V
 	return s, err
 }
 
+// SaveVotingSettings updates an event’s voting configuration.
 func SaveVotingSettings(ctx context.Context, q sqlkit.Querier, eventID string, s VotingSettings) error {
 	_, err := q.ExecContext(ctx, `UPDATE events SET voting_enabled = $2, voting_opens_at = $3,
 		voting_closes_at = $4, voting_eligibility = $5, directory_listed = $6,
@@ -39,11 +33,13 @@ func SaveVotingSettings(ctx context.Context, q sqlkit.Querier, eventID string, s
 	return err
 }
 
+// SetDirectoryListed updates an event’s directory flag.
 func SetDirectoryListed(ctx context.Context, q sqlkit.Querier, eventID string, listed bool) error {
 	_, err := q.ExecContext(ctx, `UPDATE events SET directory_listed = $2, updated_at = now() WHERE id = $1`, eventID, listed)
 	return err
 }
 
+// VoteOption describes a project and its vote count.
 type VoteOption struct {
 	TeamID, Slug, Name, Title, Tagline string
 	Count                              int
@@ -53,7 +49,7 @@ type VoteOption struct {
 func VoteOptions(ctx context.Context, q sqlkit.Querier, eventID, accountID string) ([]VoteOption, error) {
 	rows, err := queryContext(ctx, q, `SELECT t.id, t.slug, t.name,
 		COALESCE(e.title, ''), COALESCE(e.tagline, ''), 0
-		`+galleryLiveFrom+` ORDER BY lower(COALESCE(NULLIF(e.title, ''), t.name)), t.slug`, eventID, accountID)
+		`+GalleryLiveFrom+` ORDER BY lower(COALESCE(NULLIF(e.title, ''), t.name)), t.slug`, eventID, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +91,7 @@ func VoteFinalRanking(ctx context.Context, q sqlkit.Querier, eventID, accountID 
 	return out, rows.Err()
 }
 
+// OwnVote returns the team selected by a voter.
 func OwnVote(ctx context.Context, q sqlkit.Querier, eventID, canonicalEmail string) (string, error) {
 	var slug string
 	err := q.QueryRowContext(ctx, `SELECT t.slug FROM event_votes v
@@ -152,7 +149,7 @@ func VoteClock(ctx context.Context, q sqlkit.Querier) (time.Time, error) {
 // VoteTeamID finds a live project by slug.
 func VoteTeamID(ctx context.Context, q sqlkit.Querier, eventID, accountID, teamSlug string) (string, error) {
 	var teamID string
-	err := q.QueryRowContext(ctx, `SELECT t.id `+galleryLiveFrom+` AND t.slug = $3`, eventID, accountID, teamSlug).Scan(&teamID)
+	err := q.QueryRowContext(ctx, `SELECT t.id `+GalleryLiveFrom+` AND t.slug = $3`, eventID, accountID, teamSlug).Scan(&teamID)
 	return teamID, err
 }
 
@@ -202,7 +199,8 @@ func IneligibleVotes(ctx context.Context, q sqlkit.Querier, eventID, eligibility
 	return count, err
 }
 
-const galleryLiveFrom = `
+// GalleryLiveFrom selects the live projects shared by the gallery and voting.
+const GalleryLiveFrom = `
   FROM event_teams t
   JOIN sites s ON s.user_id = $2 AND s.name = t.slug
               AND s.deleted_at IS NULL AND s.suspended_at IS NULL
@@ -221,8 +219,8 @@ func nullTime(t sql.NullTime) any {
 }
 
 // OrganiserRoleForShare locks and reads the caller's event role.
-func OrganiserRoleForShare(ctx context.Context, q sqlkit.Querier, eventID, userID string) (string, error) {
+func OrganiserRoleForShare(ctx context.Context, tx *sql.Tx, eventID, userID string) (string, error) {
 	var role string
-	err := q.QueryRowContext(ctx, `SELECT role FROM event_members WHERE event_id = $1 AND user_id = $2 FOR SHARE`, eventID, userID).Scan(&role)
+	err := tx.QueryRowContext(ctx, `SELECT role FROM event_members WHERE event_id = $1 AND user_id = $2 FOR SHARE`, eventID, userID).Scan(&role)
 	return role, err
 }

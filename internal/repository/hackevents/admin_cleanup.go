@@ -46,8 +46,8 @@ func durationSeconds(d time.Duration) int64 {
 // and now is in the warning window (at or after warnAt, before removeAt).
 // sql.ErrNoRows when it no longer qualifies. The caller sends the email
 // before committing, so the stamp is on record only once the email was accepted.
-func MarkEventRemovalWarned(ctx context.Context, q sqlkit.Querier, eventID string, now time.Time, keepFor, warnFor time.Duration) error {
-	res, err := q.ExecContext(ctx, `
+func MarkEventRemovalWarned(ctx context.Context, tx *sql.Tx, eventID string, now time.Time, keepFor, warnFor time.Duration) error {
+	res, err := tx.ExecContext(ctx, `
 		UPDATE events
 		   SET removal_warned_at = $2
 		 WHERE id = $1
@@ -67,8 +67,8 @@ func MarkEventRemovalWarned(ctx context.Context, q sqlkit.Querier, eventID strin
 // still qualifies: archived, sites not kept, not yet removed, and closed_at
 // plus keepFor is at or before now. sql.ErrNoRows when it no longer qualifies.
 // It changes nothing else on the row.
-func MarkEventSitesRemoved(ctx context.Context, q sqlkit.Querier, eventID string, now time.Time, keepFor time.Duration) error {
-	res, err := q.ExecContext(ctx, `
+func MarkEventSitesRemoved(ctx context.Context, tx *sql.Tx, eventID string, now time.Time, keepFor time.Duration) error {
+	res, err := tx.ExecContext(ctx, `
 		UPDATE events
 		   SET sites_removed_at = $2
 		 WHERE id = $1
@@ -100,34 +100,6 @@ func cleanupOneRow(res sql.Result, err error) error {
 	}
 	if n == 0 {
 		return sql.ErrNoRows
-	}
-	return nil
-}
-
-// SetUserSuspended suspends an account (reason non-empty) or re-enables it
-// (reason empty). Keys and connector grants are kept; the checks that read
-// users.suspended_at refuse them while it is set. Suspending also ends every
-// site sign-in of the account (EndVisitorSessions): nothing re-enables them.
-func SetUserSuspended(ctx context.Context, q sqlkit.Querier, userID, reason string) error {
-	var res sql.Result
-	var err error
-	if reason != "" {
-		res, err = q.ExecContext(ctx,
-			`UPDATE users SET suspended_at = COALESCE(suspended_at, now()), suspended_reason = $2 WHERE id::text = $1`,
-			userID, reason)
-	} else {
-		res, err = q.ExecContext(ctx,
-			`UPDATE users SET suspended_at = NULL, suspended_reason = NULL WHERE id::text = $1`, userID)
-	}
-	if err != nil {
-		return err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return sql.ErrNoRows
-	}
-	if reason != "" {
-		_, err = q.ExecContext(ctx, `DELETE FROM visitor_sessions WHERE user_id = $1`, userID)
-		return err
 	}
 	return nil
 }
