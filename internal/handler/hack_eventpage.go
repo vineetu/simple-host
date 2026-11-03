@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
@@ -166,7 +167,26 @@ type hackGalleryCard struct {
 	TeamID string
 }
 
-var hackEventTmpl = template.Must(template.New("hack-event.html").ParseFS(staticFiles, "static/hack-event.html"))
+var (
+	hackEventTmplOnce sync.Once
+	hackEventTmplV    *template.Template
+	hackEventTmplErr  error
+)
+
+// hackEventTemplate parses hack-event.html once, lazily, from
+// EmbeddedStatic() (assets.go's exported accessor over ui.go's staticFiles,
+// cleanup 3.2 slice 2a: moving code must not name staticFiles directly).
+// Lazy rather than a package-level var like the original (which parsed
+// eagerly from staticFiles at package init) only because a thin accessor
+// function, unlike a bare var, cannot be read from another file's
+// var-initializer without an explicit ordering guarantee; behaviour at the
+// first real call is identical either way.
+func hackEventTemplate() (*template.Template, error) {
+	hackEventTmplOnce.Do(func() {
+		hackEventTmplV, hackEventTmplErr = template.New("hack-event.html").ParseFS(EmbeddedStatic(), "static/hack-event.html")
+	})
+	return hackEventTmplV, hackEventTmplErr
+}
 
 // hackCTA is one button or text link: Strong renders it as the kit's
 // "primary" button; otherwise it is a plain or quiet action.
@@ -358,8 +378,13 @@ func writeHackEventNotFound(w http.ResponseWriter, r *http.Request, appURL strin
 
 	app := strings.TrimRight(appURL, "/")
 	v := hackEventView{NotFound: true, Title: "Event not found", AppURL: app}
+	tmpl, err := hackEventTemplate()
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 	var buf bytes.Buffer
-	if err := hackEventTmpl.ExecuteTemplate(&buf, "hack-event.html", v); err != nil {
+	if err := tmpl.ExecuteTemplate(&buf, "hack-event.html", v); err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -548,16 +573,24 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 		v.Chips = append(v.Chips, hackChip{ID: key, Label: hackSectionChipLabel[key]})
 	}
 
+	tmpl, err := hackEventTemplate()
+	if err != nil {
+		return nil, err
+	}
 	var buf bytes.Buffer
-	if err := hackEventTmpl.ExecuteTemplate(&buf, "hack-event.html", v); err != nil {
+	if err := tmpl.ExecuteTemplate(&buf, "hack-event.html", v); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
 }
 
 func hackRenderSection(key string, v *hackEventView) (template.HTML, error) {
+	tmpl, err := hackEventTemplate()
+	if err != nil {
+		return "", err
+	}
 	var buf bytes.Buffer
-	if err := hackEventTmpl.ExecuteTemplate(&buf, "sec-"+key, v); err != nil {
+	if err := tmpl.ExecuteTemplate(&buf, "sec-"+key, v); err != nil {
 		return "", err
 	}
 	return template.HTML(buf.String()), nil

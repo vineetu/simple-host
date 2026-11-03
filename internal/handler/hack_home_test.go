@@ -17,7 +17,7 @@ func hackHomeTestMux(t *testing.T, base string) *http.ServeMux {
 	sh.assets = newAssetPipeline(sh.ed, base)
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, base, sh)
-	RegisterHackHome(mux, sh)
+	RegisterHackHome(mux, sh.Pages())
 	return mux
 }
 

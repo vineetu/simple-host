@@ -9,11 +9,13 @@ import (
 	"github.com/vsriram/simple-host/internal/db"
 )
 
-// RegisterHackWatch is mounted only by the hosted-events homepage.
-func RegisterHackWatch(mux *http.ServeMux, sh *SiteHandler) {
-	assets := sh.pipeline()
-	page := assets.serveStaticPage("hack-watch.html")
-	mux.Handle("GET /watch", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// RegisterHackWatch is mounted only by the hosted-events homepage. Takes
+// the hackPages interface, not *SiteHandler (cleanup 3.2 slice 2a): this
+// only ever called sh.pipeline().
+func RegisterHackWatch(mux *http.ServeMux, pages hackPages) {
+	assets := pages
+	page := assets.ServeStaticPage("hack-watch.html")
+	mux.Handle("GET /watch", assets.AdminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		page.ServeHTTP(w, r)
 	})))
@@ -37,7 +39,7 @@ func (h *HackHandler) RegisterDemo(mux *http.ServeMux, slug string) {
 		}
 		if err != nil {
 			if page {
-				writeMessagePage(h.pipeline(), w, r, "", http.StatusNotFound, "No demo event",
+				h.pipeline().WriteMessagePage(w, r, "", http.StatusNotFound, "No demo event",
 					"Ask your organizer for the event's link", "/watch", "Watch how it works", "")
 			} else {
 				writeJSON(w, http.StatusNotFound, map[string]string{"error": "no demo event"})
@@ -55,12 +57,12 @@ func (h *HackHandler) RegisterDemo(mux *http.ServeMux, slug string) {
 		}
 	})
 	assets := h.pipeline()
-	mux.Handle("GET /demo/join", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /demo/join", assets.AdminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if ev, ok := lookup(w, r, true); ok {
 			http.Redirect(w, r, h.joinURL(ev.JoinCode), http.StatusFound)
 		}
 	})))
-	mux.Handle("GET /demo/judge", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /demo/judge", assets.AdminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if ev, ok := lookup(w, r, true); ok {
 			http.Redirect(w, r, h.judgeURL(ev.JudgeCode), http.StatusFound)
 		}

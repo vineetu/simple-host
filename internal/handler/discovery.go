@@ -10,7 +10,9 @@ import (
 	"golang.org/x/net/html"
 )
 
-const homepageLinks = `</sitemap.xml>; rel="sitemap", </index.md>; rel="alternate"; type="text/markdown", </.well-known/api-catalog>; rel="api-catalog", </openapi.json>; rel="service-desc"`
+// HomepageLinks is the homepage's Link header value. Exported (cleanup 3.2
+// slice 2a): hack_home.go, moving to internal/hackhttp, sets it too.
+const HomepageLinks = `</sitemap.xml>; rel="sitemap", </index.md>; rel="alternate"; type="text/markdown", </.well-known/api-catalog>; rel="api-catalog", </openapi.json>; rel="service-desc"`
 
 // acceptsMarkdown moved to internal/httpx (httpx.AcceptsMarkdown); see the
 // alias in internal/handler/httpx_forward.go.
@@ -80,16 +82,22 @@ func homepageMarkdown(page []byte) ([]byte, error) {
 }
 
 func homepageMarkdownHandler(assets *assetPipeline, publicBaseURL string, hackAssets bool) http.HandlerFunc {
-	return landingMarkdownHandler(assets, "host-story.html", "Simple Host", "Describe a website. It goes online.", publicBaseURL, hackAssets)
+	return assets.LandingMarkdownHandler("host-story.html", "Simple Host", "Describe a website. It goes online.", publicBaseURL, hackAssets)
 }
 
-func landingMarkdownHandler(assets *assetPipeline, file, title, description, publicBaseURL string, hackAssets bool) http.HandlerFunc {
+// LandingMarkdownHandler serves one landing page's copy as markdown.
+//
+// Exported, a method rather than a free function taking *assetPipeline
+// (cleanup 3.2 slice 2a): hack_home.go, moving to internal/hackhttp, reaches
+// it through the hackPages interface (hack.go), whose methods must be
+// exported and must not name assetPipeline itself.
+func (p *assetPipeline) LandingMarkdownHandler(file, title, description, publicBaseURL string, hackAssets bool) http.HandlerFunc {
 	page, err := staticFiles.ReadFile("static/" + file)
 	if err != nil {
 		panic(err)
 	}
 	if hackAssets {
-		page = assets.hackInstanceText(page)
+		page = p.HackInstanceText(page)
 	}
 	body, err := homepageMarkdown(page)
 	if err != nil {
@@ -114,7 +122,7 @@ func discoveryDocument(assets *assetPipeline, hackAssets bool, name, contentType
 		panic(err)
 	}
 	if hackAssets {
-		body = assets.hackInstanceText(body)
+		body = assets.HackInstanceText(body)
 	} else {
 		body = bytes.ReplaceAll(body, []byte("https://simple-host.app"), []byte(strings.TrimRight(publicBaseURL, "/")))
 	}

@@ -17,7 +17,7 @@ func (h *SiteHandler) serveAuthMarkdown(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if h.ed.Presentation().HackAssets {
-		body = h.pipeline().hackInstanceText(bytes.ReplaceAll(body, []byte("{sign_in}"), []byte(authSignInMethods())))
+		body = h.pipeline().HackInstanceText(bytes.ReplaceAll(body, []byte("{sign_in}"), []byte(authSignInMethods())))
 	} else if !emailSignInEnabled {
 		body = hostAuthWithoutEmail(body)
 	}

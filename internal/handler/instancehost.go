@@ -137,7 +137,7 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 			}
 			if err == nil {
 				if p.pres.HackAssets {
-					body = p.hackInstanceText(p.limitsText.apply(body))
+					body = p.HackInstanceText(p.limitsText.apply(body))
 				} else {
 					if name == "llms.txt" && rw != nil {
 						body = selfHostedClaudeSetup(body)

@@ -185,6 +185,24 @@ func (p *assetPipeline) chromeDataFor(r *http.Request, base string) chromeData {
 	}
 }
 
+// RenderAppShell is static/hack/app.html (body) with its chrome applied: the
+// kit's own presentation (chromeData.Hack=false, since the kit already
+// carries Simple Hack's own look), and the sign-in script tag only when
+// signin is true (only /signin mounts window.SHSignIn; every other route
+// strips the marker instead of loading it).
+//
+// Exported for hackPages (cleanup 3.2 slice 2a): RegisterHackUI
+// (hack_ui.go), moving to internal/hackhttp, used to do this inline with
+// withChrome/chromeData directly, both unexported handler types/functions.
+func (p *assetPipeline) RenderAppShell(r *http.Request, body []byte, signin bool) ([]byte, error) {
+	if !signin {
+		body = bytes.ReplaceAll(body, []byte(markerSignin), nil)
+	}
+	data := p.chromeDataFor(r, "")
+	data.Hack = false
+	return withChrome(body, data)
+}
+
 // withChrome replaces each marker in page with its rendered partial. Each
 // marker is replaced once; a page's source is checked by tests to carry each
 // exactly once.
@@ -277,7 +295,7 @@ func (p *assetPipeline) hostedStatusPage(page string) []byte {
 		page = strings.Replace(page, "</body>", "</main>"+markerFooter+"</body>", 1)
 		out, err := withChrome([]byte(page), d)
 		if err == nil {
-			return p.hackInstanceText(out)
+			return p.HackInstanceText(out)
 		}
 		return addHackInk([]byte(page), p.inkBaseURL())
 	}
@@ -323,7 +341,7 @@ func (p *assetPipeline) chromePage(name string, d chromeData) ([]byte, error) {
 	if p.pres.HackAssets {
 		page = hackPersonalPresentationHTML(name, page)
 	}
-	return hostedBlocks(p.hackInstanceText(p.limitsText.apply(page)), p.hostedOwner() != ""), nil
+	return hostedBlocks(p.HackInstanceText(p.limitsText.apply(page)), p.hostedOwner() != ""), nil
 }
 
 // hostedBlocks keeps the text that is true for this server. A page marks

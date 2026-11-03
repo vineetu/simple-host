@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"io/fs"
+	"net/http"
 	"strings"
 	"sync"
+	"time"
 	"weak"
 
 	"github.com/vsriram/simple-host/internal/config"
@@ -97,6 +100,51 @@ func newAssetPipeline(ed *edition.Edition, instanceURL string) *assetPipeline {
 // inkBaseURL is the pipeline's hack instance address.
 func (p *assetPipeline) inkBaseURL() string { return p.inkBase }
 
+// InkBaseURL is inkBaseURL, exported for the hackPages interface (hack.go):
+// moving Hack code reaches the pipeline only through that interface, whose
+// methods must be exported (cleanup 3.2 slice 2a).
+func (p *assetPipeline) InkBaseURL() string { return p.inkBaseURL() }
+
+// IsCanonicalInstance reports whether this is simple-hack.app itself, not a
+// self-hosted or otherwise addressed instance. Exported for hackPages.
+func (p *assetPipeline) IsCanonicalInstance() bool { return p.inkBaseURL() == canonicalHackBaseURL }
+
+// StaticFS is the embedded static/ tree as this pipeline serves it
+// (staticFS, below), exported for hackPages: moving code parses its own
+// templates/pages from it instead of naming ui.go's staticFiles directly.
+func (p *assetPipeline) StaticFS() fs.FS { return p.staticFS() }
+
+// EmbeddedStatic is ui.go's staticFiles (the embedded tree, product-
+// neutral), exported for moving code (cleanup 3.2 slice 2a) that has no
+// pipeline in reach at the point it needs it, e.g. hack_eventpage.go's
+// package-level hack-event.html template parse.
+func EmbeddedStatic() fs.FS { return staticFiles }
+
+// SkillsModTime is skillsModTime (ui.go), exported for hackPages: the one
+// Last-Modified every skills/plugin download serves (set once at process
+// start).
+func (p *assetPipeline) SkillsModTime() time.Time { return skillsModTime }
+
+// ServeStaticPage is serveStaticPage (ui.go), exported for hackPages.
+func (p *assetPipeline) ServeStaticPage(name string) http.Handler { return p.serveStaticPage(name) }
+
+// AdminUICSP is adminUICSP (ui.go), exported for hackPages.
+func (p *assetPipeline) AdminUICSP(next http.Handler) http.Handler { return p.adminUICSP(next) }
+
+// UICSP is uiCSP (ui.go), exported for hackPages.
+func (p *assetPipeline) UICSP(next http.Handler, frameSrc string) http.Handler {
+	return p.uiCSP(next, frameSrc)
+}
+
+// NewPages builds a pipeline for ed (nil = Host) and its Hack instance
+// address ("" = canonicalHackBaseURL), exported for moving Hack code
+// (cleanup 3.2 slice 2a) that has no SiteHandler.Pages() to call: the
+// pipeline()/self-construct fallback a bare &HackHandler{} (most tests)
+// falls back to when ShareAssets was never called.
+func NewPages(ed *edition.Edition, instanceURL string) *assetPipeline {
+	return newAssetPipeline(ed, instanceURL)
+}
+
 // rewritten reports whether the text assets (llms.txt, the spec, ...) need a
 // rewriting handler rather than the plain file server.
 func (p *assetPipeline) rewritten() bool { return instanceHosts != nil || p.limitsText != nil }
@@ -111,6 +159,11 @@ func (h *SiteHandler) pipeline() *assetPipeline {
 	})
 	return h.assets
 }
+
+// Pages is h's asset pipeline, exported so moving Hack registrars
+// (cleanup 3.2 slice 2a) can take the narrow hackPages interface instead
+// of *SiteHandler itself, which they used to receive just to call this.
+func (h *SiteHandler) Pages() hackPages { return h.pipeline() }
 
 // staticFS is the embedded tree as this pipeline serves it.
 func (p *assetPipeline) staticFS() baseTextFS {

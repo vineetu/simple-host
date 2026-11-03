@@ -458,7 +458,7 @@ func (h *SiteHandler) renderNotFoundPage(w http.ResponseWriter, r *http.Request,
 // layout) with any status. message and subtext are inserted as given: escape
 // anything that did not come from this code.
 func (h *SiteHandler) renderMessagePage(w http.ResponseWriter, r *http.Request, status int, message, subtext, backURL, backLabel string) {
-	writeMessagePage(h.pipeline(), w, r, h.chromeBase(r), status, message, subtext, backURL, backLabel, "")
+	h.pipeline().WriteMessagePage(w, r, h.chromeBase(r), status, message, subtext, backURL, backLabel, "")
 }
 
 // confirmForm is a one-button POST form for a confirmation page: action is
@@ -516,17 +516,22 @@ func fragmentLinkGET(assets *assetPipeline, w http.ResponseWriter, r *http.Reque
 		`<script` + attr + `>(function(){var m=/[#&]t=([^&]+)/.exec(location.hash||"");var f=document.getElementById("sh-link");` +
 		`if(!m){f.hidden=true;return;}f.elements.t.value=decodeURIComponent(m[1]);` +
 		`try{history.replaceState(null,"",location.pathname);}catch(e){}f.submit();})();</script>`
-	writeMessagePage(assets, w, r, base, http.StatusOK, "Opening your link…",
+	assets.WriteMessagePage(w, r, base, http.StatusOK, "Opening your link…",
 		"If nothing happens, press Continue. If there is no button, open the link from the email again.", "", "", form)
 	return true
 }
 
-// writeMessagePage writes the one-message page. A non-empty form (from
+// WriteMessagePage writes the one-message page. A non-empty form (from
 // confirmForm) takes the place of the way-back link: emailed links open such
 // a page on GET and act only when the person presses its button, so a mail
 // scanner that follows every link changes nothing.
-func writeMessagePage(assets *assetPipeline, w http.ResponseWriter, r *http.Request, base string, status int, message, subtext, backURL, backLabel, form string) {
-	tmpl, err := assets.chromePage("notfound.html", assets.chromeDataFor(r, base))
+//
+// Exported (cleanup 3.2): a method, not a free function taking *assetPipeline,
+// so it can sit in the hackPages interface moving Hack code (hack_watch.go)
+// reaches the pipeline through, since assetPipeline itself stays unexported
+// and in this package. See hack.go's hackPages doc.
+func (p *assetPipeline) WriteMessagePage(w http.ResponseWriter, r *http.Request, base string, status int, message, subtext, backURL, backLabel, form string) {
+	tmpl, err := p.chromePage("notfound.html", p.chromeDataFor(r, base))
 	if err != nil {
 		// Last-resort inline page so a miss never falls through to nginx's default.
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -536,9 +541,9 @@ func writeMessagePage(assets *assetPipeline, w http.ResponseWriter, r *http.Requ
 			tail = form
 		}
 		fallback := []byte(`<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>simple-host</title><h1>` + message + `</h1><p>` + subtext + `</p>` + tail)
-		if !assets.chromeHack {
+		if !p.chromeHack {
 			page := themed(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><!--sh:theme--><title>simple-host</title></head><body><h1>` + message + `</h1><p>` + subtext + `</p>` + tail + `</body></html>`)
-			fallback = stampNonce(r, assets.hostedStatusPage(page))
+			fallback = stampNonce(r, p.hostedStatusPage(page))
 		}
 		_, _ = w.Write(fallback)
 		return

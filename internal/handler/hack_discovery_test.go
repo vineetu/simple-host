@@ -21,7 +21,7 @@ func TestHackPublicDiscovery(t *testing.T) {
 			sh.assets = newAssetPipeline(sh.ed, base)
 			mux := http.NewServeMux()
 			RegisterUIRoutes(mux, base, sh)
-			RegisterHackHome(mux, sh)
+			RegisterHackHome(mux, sh.Pages())
 			sh.pipeline().registerSkillsHub(mux, base)
 			host := strings.SplitN(base, "://", 2)[1]
 			server := mcp.NewServer(mcp.Config{APIHost: host})
@@ -123,7 +123,7 @@ func TestHackPublicDiscovery(t *testing.T) {
 				req.Header.Set("Accept", accept)
 				rec := httptest.NewRecorder()
 				mux.ServeHTTP(rec, req)
-				if rec.Code != 200 || rec.Header().Get("Vary") != "Accept" || rec.Header().Get("Link") != homepageLinks {
+				if rec.Code != 200 || rec.Header().Get("Vary") != "Accept" || rec.Header().Get("Link") != HomepageLinks {
 					t.Fatalf("landing: %d %v", rec.Code, rec.Header())
 				}
 				if acceptsMarkdown(req) {

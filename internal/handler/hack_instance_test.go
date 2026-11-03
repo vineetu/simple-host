@@ -16,7 +16,7 @@ func TestFullHackInstancePresentation(t *testing.T) {
 	sh := chromeTestHandler(edition.Hack)
 	sh.assets = newAssetPipeline(sh.ed, "http://localhost:18480")
 	mux := http.NewServeMux()
-	RegisterHackHome(mux, sh)
+	RegisterHackHome(mux, sh.Pages())
 	for _, path := range []string{"/", "/get-started"} {
 		rec := get(t, mux, "localhost:18480", path)
 		body := rec.Body.String()
@@ -60,7 +60,7 @@ func TestFullHackInstancePresentation(t *testing.T) {
 		}
 	}
 	hostAssets := newAssetPipeline(edition.ForKind(edition.Host), "")
-	if string(hostAssets.hackInstanceText([]byte("https://simple-hack.app"))) != "https://simple-hack.app" {
+	if string(hostAssets.HackInstanceText([]byte("https://simple-hack.app"))) != "https://simple-hack.app" {
 		t.Fatal("Host text changed")
 	}
 }

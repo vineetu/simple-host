@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/mail"
@@ -124,26 +125,65 @@ type HackHandler struct {
 	// assets is the asset/chrome pipeline for RegisterDemo's pages
 	// (hack_watch.go); read it through pipeline(). HackHandler only exists
 	// when EVENTS=hosted, so its edition is always Hack.
-	assets     *assetPipeline
+	assets     hackPages
 	assetsOnce sync.Once
 }
 
+// hackPages is what moving Hack code needs of the site's asset/chrome
+// pipeline (assetPipeline, assets.go — stays in internal/handler this slice;
+// its proposed eventual home is internal/webassets per
+// docs/architecture/target.md §2, at which point this interface, and every
+// hack-owned caller of sh.pipeline()/h.pipeline(), needs no interface at
+// all). Every method here is exported on *assetPipeline for exactly this
+// interface (cleanup 3.2 slice 2a); each is either a thin rename of an
+// existing method with few other callers, or a new small method bundling a
+// few of the pipeline's existing unexported ones (RenderAppShell,
+// IsCanonicalInstance) so this interface's signatures stay to stdlib types,
+// never assetPipeline or chromeData (both unexported, handler-only).
+// Implemented by *assetPipeline (assets.go and friends).
+type hackPages interface {
+	// InkBaseURL is this Hack instance's public address.
+	InkBaseURL() string
+	// IsCanonicalInstance reports whether this is simple-hack.app itself,
+	// not a self-hosted or otherwise addressed instance.
+	IsCanonicalInstance() bool
+	// StaticFS is the embedded static/ tree (ui.go's staticFiles), for
+	// moving code that parses its own templates/pages from it.
+	StaticFS() fs.FS
+	// SkillsModTime is the one Last-Modified every skills/plugin download
+	// serves (ui.go's skillsModTime, set once at process start).
+	SkillsModTime() time.Time
+	// ServeStaticPage serves one embedded static/<name> with its chrome.
+	ServeStaticPage(name string) http.Handler
+	// AdminUICSP is the standard admin-app Content-Security-Policy wrapper.
+	AdminUICSP(next http.Handler) http.Handler
+	// UICSP is AdminUICSP with an extended frame-src.
+	UICSP(next http.Handler, frameSrc string) http.Handler
+	// HackInstanceText rewrites simple-hack.app's own address to this
+	// instance's, in served Hack text.
+	HackInstanceText(data []byte) []byte
+	// BuildHackSkillsZip is the cached hack-skills.zip body.
+	BuildHackSkillsZip() ([]byte, error)
+	// ServeHackSkillsZip serves BuildHackSkillsZip at /hack-skills.zip.
+	ServeHackSkillsZip() http.HandlerFunc
+	// RewriteHackPluginZip rewrites a downloaded plugin zip's text assets
+	// (.md/.yaml/.json) for this instance.
+	RewriteHackPluginZip(data []byte) ([]byte, error)
+	// RenderAppShell is static/hack/app.html with its chrome applied: the
+	// kit's own presentation, not the product chrome, and the sign-in
+	// script tag only when signin is true.
+	RenderAppShell(r *http.Request, body []byte, signin bool) ([]byte, error)
+	// LandingMarkdownHandler serves one landing page's copy as markdown.
+	LandingMarkdownHandler(file, title, description, publicBaseURL string, hackAssets bool) http.HandlerFunc
+	// WriteMessagePage writes the one-message page (showcase.go).
+	WriteMessagePage(w http.ResponseWriter, r *http.Request, base string, status int, message, subtext, backURL, backLabel, form string)
+}
+
 // pipeline is h's asset pipeline, for the Hack edition at publicBaseURL.
-//
-// TODO(3.2): assetPipeline (assets.go) is unexported and stays in handler
-// this slice (assets.go is owned by the parallel slice-1a worker, and the
-// type's methods are used too widely here — hack.go, hack_watch.go,
-// hack_home.go, hack_ui.go, hack_get_started.go, hack_companies.go,
-// hack_eventpage.go (staticFiles), hack_instance.go — to narrow to one or
-// two methods without exporting assetPipeline itself). Per
-// docs/architecture/target.md §2, its proposed home is internal/webassets
-// (both handler and hackhttp may import it); once it lands there this
-// method, and every hack-owned caller of sh.pipeline()/h.pipeline(), needs
-// no interface at all. Left as a manifest item, not solved this slice.
-func (h *HackHandler) pipeline() *assetPipeline {
+func (h *HackHandler) pipeline() hackPages {
 	h.assetsOnce.Do(func() {
 		if h.assets == nil {
-			h.assets = newAssetPipeline(edition.ForKind(edition.Hack), h.publicBaseURL)
+			h.assets = NewPages(edition.ForKind(edition.Hack), h.publicBaseURL)
 		}
 	})
 	return h.assets
@@ -199,11 +239,13 @@ func (h *HackHandler) removeEventFiles(ev db.Event) {
 // SetSites connects the team sites (hack_sites.go).
 func (h *HackHandler) SetSites(s hackSiteHooks) { h.sites = s }
 
-// ShareAssets makes h render through sh's asset pipeline, instead of
-// building its own from edition.ForKind(edition.Hack) on first use
-// (pipeline() above). Moved from assets.go (cleanup 3.2 slice 1c): same
-// assetPipeline deferral applies here (see pipeline()'s TODO).
-func (h *HackHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }
+// ShareAssets makes h render through pages, the same asset pipeline the
+// site side uses (SiteHandler.Pages()), instead of building its own from
+// edition.ForKind(edition.Hack) on first use (pipeline() above). Moved from
+// assets.go (cleanup 3.2 slice 1c); takes the hackPages interface, not
+// *SiteHandler (cleanup 3.2 slice 2a: the only thing this ever did with sh
+// was call sh.pipeline()).
+func (h *HackHandler) ShareAssets(pages hackPages) { h.assets = pages }
 
 // SetImageScan connects the worker to the events side (event icon and entry
 // screenshot enqueueing). Moved from imagescan.go (cleanup 3.2 slice 1c): a

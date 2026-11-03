@@ -16,7 +16,7 @@ func TestHostedHackStoryHome(t *testing.T) {
 	sh := chromeTestHandler(edition.Hack)
 	sh.assets = newAssetPipeline(sh.ed, "https://hack.example.org")
 	mux := http.NewServeMux()
-	RegisterHackHome(mux, sh)
+	RegisterHackHome(mux, sh.Pages())
 	rec := get(t, mux, "simple-hack.app", "/")
 	if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("home status/cache %d %s", rec.Code, rec.Header().Get("Cache-Control"))
@@ -159,7 +159,7 @@ func TestHostedHackHTMLCache(t *testing.T) {
 // nonce-checking sign-in shell without exposing credentials in page markup.
 func TestHackStorySignInReturn(t *testing.T) {
 	mux := http.NewServeMux()
-	RegisterHackHome(mux, chromeTestHandler(edition.Hack))
+	RegisterHackHome(mux, chromeTestHandler(edition.Hack).Pages())
 	for _, query := range []string{"token=one-time&cn=browser-hash", "cn=browser-hash", "token=one-time&next=%2Fevents"} {
 		rec := get(t, mux, "simple-hack.app", "/?"+query)
 		if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/signin?"+query || rec.Header().Get("Cache-Control") != "no-store" {

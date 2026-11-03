@@ -223,7 +223,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		mux.Handle("GET /dashboard", assets.adminUICSP(assets.serveStaticPage("index.html")))
 		mux.Handle("GET /{$}", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Vary", "Accept")
-			w.Header().Set("Link", homepageLinks)
+			w.Header().Set("Link", HomepageLinks)
 			q := r.URL.Query()
 			if q.Has("token") || q.Has("cn") || q.Has("new") || q.Has("job") {
 				w.Header().Set("Cache-Control", "no-store")
@@ -340,7 +340,7 @@ func (p *assetPipeline) serveStaticPage(name string) http.Handler {
 			return
 		}
 		if p.pres.HackAssets && name == "docs.html" {
-			body = p.hackInstanceText(hackDocsHTML(body))
+			body = p.HackInstanceText(hackDocsHTML(body))
 		}
 		if name == "pricing.html" {
 			body = applyPricingNumbers(body, p.hostedEvents, p.limits)
@@ -429,7 +429,7 @@ func serveSkillsVersion(w http.ResponseWriter, r *http.Request, hackAssets bool)
 // extraction directly into ~/.claude/skills or ~/.agents/skills.
 func serveSkillsZip(assets *assetPipeline, w http.ResponseWriter, r *http.Request, hackAssets bool) {
 	if hackAssets {
-		serveHackSkillsZip(assets)(w, r)
+		assets.ServeHackSkillsZip()(w, r)
 		return
 	}
 	data, err := assets.buildSkillsZip()

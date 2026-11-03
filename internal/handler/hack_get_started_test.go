@@ -18,11 +18,11 @@ import (
 func TestHackGetStartedSkills(t *testing.T) {
 	sh := &SiteHandler{ed: edition.ForKind(edition.Hack)}
 	assets := sh.pipeline()
-	first, err := assets.buildHackSkillsZip()
+	first, err := assets.BuildHackSkillsZip()
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := assets.buildHackSkillsZip()
+	second, err := assets.BuildHackSkillsZip()
 	if err != nil || !bytes.Equal(first, second) {
 		t.Fatal("hosted skill ZIP changed between reads")
 	}
@@ -65,7 +65,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	RegisterHackGetStarted(mux, sh)
+	RegisterHackGetStarted(mux, sh.Pages())
 	assets.registerSkillsHub(mux, "https://simple-hack.app")
 	mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) { serveSkillsZip(assets, w, r, true) })
 	get := func(path string) *httptest.ResponseRecorder {
@@ -116,7 +116,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 func TestHackGetStartedOnboarding(t *testing.T) {
 	sh := &SiteHandler{ed: edition.ForKind(edition.Hack)}
 	mux := http.NewServeMux()
-	RegisterHackGetStarted(mux, sh)
+	RegisterHackGetStarted(mux, sh.Pages())
 	r := httptest.NewRecorder()
 	mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/get-started", nil))
 	page := r.Body.String()

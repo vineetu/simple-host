@@ -214,7 +214,7 @@ func (p *assetPipeline) serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 // the public instance's (see copyRewritten). path is relative to skills/.
 func (p *assetPipeline) skillServedText(path string, data []byte) []byte {
 	if p.pres.HackAssets {
-		return p.hackInstanceText(p.limitsText.apply(data))
+		return p.HackInstanceText(p.limitsText.apply(data))
 	}
 	if controlPlaneSkill(path) {
 		return data

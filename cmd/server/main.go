@@ -388,7 +388,7 @@ func main() {
 	var hackEvents *handler.HackHandler
 	if hosted {
 		hack := handler.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain, ed)
-		hack.ShareAssets(siteHandler)
+		hack.ShareAssets(siteHandler.Pages())
 		// handler.SiteLimit() already reflects any MAX_ARCHIVE_MB override
 		// (applied from site.go's init before main runs), so this matches
 		// the per-site default HackHandler.siteLimitFor used to read off
@@ -419,9 +419,9 @@ func main() {
 		})
 		siteHandler.SetHackEventPage(handler.HackEventPage(db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady))
 		siteHandler.SetHackScreenshot(handler.HackScreenshot(db, siteHandler.TeamSitesReady))
-		handler.RegisterHackHome(mux, siteHandler)
+		handler.RegisterHackHome(mux, siteHandler.Pages())
 		handler.RegisterHackPublic(mux, db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady)
-		handler.RegisterHackUI(mux, siteHandler, siteHandler.TeamSitesFrameBase())
+		handler.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
 	}
 
 	// Image matching (SIM-200): uploaded images are checked against known

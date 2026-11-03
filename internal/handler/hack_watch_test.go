@@ -16,7 +16,7 @@ func TestHackWatchPage(t *testing.T) {
 	sh.assets = newAssetPipeline(sh.ed, "https://simple-hack.app")
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, "https://simple-host.app", sh)
-	RegisterHackHome(mux, sh)
+	RegisterHackHome(mux, sh.Pages())
 	rec := get(t, mux, "simple-hack.app", "/watch")
 	body := rec.Body.String()
 	if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-store" {
@@ -46,7 +46,7 @@ func TestHackWatchPage(t *testing.T) {
 	sh2.assets = newAssetPipeline(sh2.ed, "https://hack.college.test")
 	mux2 := http.NewServeMux()
 	RegisterUIRoutes(mux2, "https://simple-host.app", sh2)
-	RegisterHackHome(mux2, sh2)
+	RegisterHackHome(mux2, sh2.Pages())
 	rewritten := get(t, mux2, "hack.college.test", "/watch").Body.String()
 	for _, want := range []string{"https://hack.college.test/mcp", "campushack.hack.college.test", "team.campushack.hack.college.test"} {
 		if !strings.Contains(rewritten, want) {

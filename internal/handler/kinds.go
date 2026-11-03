@@ -1590,7 +1590,7 @@ func (h *SiteHandler) notifyStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if linkConfirming(r) {
-		writeMessagePage(h.pipeline(), w, r, h.chromeBase(r), http.StatusOK, "Stop emails about "+html.EscapeString(name)+"?",
+		h.pipeline().WriteMessagePage(w, r, h.chromeBase(r), http.StatusOK, "Stop emails about "+html.EscapeString(name)+"?",
 			"You will not be emailed about new entries in "+html.EscapeString(name)+" any more. You can turn it back on from your sites page.",
 			"", "", confirmForm("/v1/data-notify/stop", map[string]string{"t": tok}, "Stop these emails"))
 		return
