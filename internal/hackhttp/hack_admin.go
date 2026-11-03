@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -34,7 +35,7 @@ func (h *HackHandler) adminListEvents(w http.ResponseWriter, r *http.Request) {
 	if !hackAccountAdmin(w, r) {
 		return
 	}
-	rows, err := db.ListAdminEvents(r.Context(), h.database)
+	rows, err := h.events.AdminListEvents(r.Context())
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -99,27 +100,13 @@ func (h *HackHandler) adminTakeDown(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	updated, err := h.events.AdminModerate(r.Context(), ev, reason, false, h.syncEventMarkers)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	updated, err := db.TakeDownEvent(r.Context(), tx, ev.ID, reason)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := db.SetUserSuspended(r.Context(), tx, ev.AccountID, reason); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if !h.syncEventMarkers(r.Context(), ev) {
-		httpx.WriteError(w, http.StatusInternalServerError, "markers_failed", "saved, but the event's team sites could not all be updated; retry")
+		if e, ok := err.(*events.Error); ok && e.Code == "markers_failed" {
+			httpx.WriteError(w, http.StatusInternalServerError, e.Code, e.Message)
+		} else {
+			httpx.WriteInternal(w)
+		}
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, h.adminEventJSON(updated))
@@ -140,7 +127,7 @@ func (h *HackHandler) adminKeepSites(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	updated, err := db.SetEventKeepSites(r.Context(), h.database, ev.ID, *req.Keep)
+	updated, err := h.events.AdminKeepSites(r.Context(), ev.ID, *req.Keep)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -156,27 +143,13 @@ func (h *HackHandler) adminRestore(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	updated, err := h.events.AdminModerate(r.Context(), ev, "", true, h.syncEventMarkers)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	updated, err := db.RestoreEvent(r.Context(), tx, ev.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := db.SetUserSuspended(r.Context(), tx, ev.AccountID, ""); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if !h.syncEventMarkers(r.Context(), ev) {
-		httpx.WriteError(w, http.StatusInternalServerError, "markers_failed", "saved, but the event's team sites could not all be updated; retry")
+		if e, ok := err.(*events.Error); ok && e.Code == "markers_failed" {
+			httpx.WriteError(w, http.StatusInternalServerError, e.Code, e.Message)
+		} else {
+			httpx.WriteInternal(w)
+		}
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, h.adminEventJSON(updated))
@@ -190,27 +163,15 @@ func (h *HackHandler) adminDelete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
+	if err := h.events.AdminDelete(r.Context(), ev, h.removeEventFiles); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	defer tx.Rollback()
-	if err := db.DeleteEventAndAccount(r.Context(), tx, ev); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	h.removeEventFiles(ev)
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *HackHandler) adminLoadEvent(w http.ResponseWriter, r *http.Request) (db.Event, bool) {
-	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
-	ev, err := db.GetEventBySlug(r.Context(), h.database, slug)
+	ev, err := h.events.AdminEvent(r.Context(), r.PathValue("slug"))
 	if err == nil {
 		paperHackEvent(r, ev)
 	}

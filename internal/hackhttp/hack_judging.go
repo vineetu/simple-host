@@ -39,9 +39,9 @@ func (h *HackHandler) registerJudging(mux *http.ServeMux, wrap func(http.Handler
 	mux.Handle("POST /v1/hack/events/{slug}/assignments/generate", wrap(h.generateAssignments))
 	mux.Handle("GET /v1/hack/events/{slug}/conflicts", wrap(h.listConflicts))
 	mux.Handle("POST /v1/hack/events/{slug}/conflicts", wrap(h.declareConflict))
-	mux.Handle("DELETE /v1/hack/events/{slug}/conflicts/{team_id}", wrap(h.deleteConflict))
+	mux.Handle(http.MethodDelete+" /v1/hack/events/{slug}/conflicts/{team_id}", wrap(h.deleteConflict))
 	mux.Handle("GET /v1/hack/events/{slug}/judging/dashboard", wrap(h.judgingDashboard))
-	mux.Handle("DELETE /v1/hack/events/{slug}/judging/former-judges/{user_id}", wrap(h.deleteFormerJudgeScores))
+	mux.Handle(http.MethodDelete+" /v1/hack/events/{slug}/judging/former-judges/{user_id}", wrap(h.deleteFormerJudgeScores))
 	mux.Handle("POST /v1/hack/events/{slug}/judging/lock", wrap(h.lockJudging))
 	mux.Handle("POST /v1/hack/events/{slug}/judging/unlock", wrap(h.unlockJudging))
 	mux.Handle("GET /v1/hack/events/{slug}/judge/queue", wrap(h.judgeQueue))
@@ -564,7 +564,7 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// deleteFormerJudgeScores is DELETE .../judging/former-judges/{user_id}
+// deleteFormerJudgeScores handles removal at .../judging/former-judges/{user_id}
 // (SIM-340): an organiser dropping a departed judge's scores so they stop
 // counting. Published results change only on the next publish (the snapshot
 // already taken is untouched).
@@ -592,55 +592,21 @@ func (h *HackHandler) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Req
 		httpx.WriteError(w, http.StatusConflict, "confirm_required", `to delete this judge's scores, send {"confirm":"`+a.event.Slug+`"} with this event's address name`)
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	err := h.entries.DeleteFormerJudgeScores(r.Context(), a.event.ID, a.user.ID, userID, a.event.Slug)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if ev.TakenDown() {
-		httpx.WriteError(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
-		return
-	}
-	if ev.Stage == "archived" {
-		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	if writeIfJudgingLocked(w, ev) {
-		return
-	}
-	// Re-check the caller is still an organiser now that the event is
-	// locked (Grok security review, SIM-340): loadMember's check above runs
-	// before this transaction, so a concurrent remove-organiser that
-	// commits while this request waits on the event lock must not still
-	// let the delete through.
-	var role string
-	if err := tx.QueryRowContext(r.Context(), `SELECT role FROM event_members WHERE event_id = $1 AND user_id = $2 FOR SHARE`, a.event.ID, a.user.ID).Scan(&role); errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return
-	} else if err != nil {
-		httpx.WriteInternal(w)
-		return
-	} else if role != "organiser" {
-		writeEventNotFound(w)
-		return
-	}
-	found, err := db.DeleteFormerJudgeScores(r.Context(), tx, a.event.ID, userID)
-	if err != nil {
-		log.Printf("hack: delete former judge scores %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if !found {
-		httpx.WriteError(w, http.StatusNotFound, "former_judge_not_found", "former judge not found")
-		return
-	}
-	if err := tx.Commit(); err != nil {
+		if e, ok := err.(*entries.Error); ok {
+			switch e.Code {
+			case "event_not_found":
+				writeEventNotFound(w)
+			case "event_taken_down":
+				httpx.WriteError(w, http.StatusForbidden, e.Code, e.Message)
+			case "former_judge_not_found":
+				httpx.WriteError(w, http.StatusNotFound, e.Code, e.Message)
+			default:
+				httpx.WriteError(w, http.StatusConflict, e.Code, e.Message)
+			}
+			return
+		}
 		httpx.WriteInternal(w)
 		return
 	}

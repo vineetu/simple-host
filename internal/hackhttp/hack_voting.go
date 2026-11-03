@@ -8,30 +8,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
+// votingStatus keeps the existing handler callers on the shared voting rule.
 func votingStatus(ev db.Event, s db.VotingSettings, now time.Time) string {
-	if !s.Enabled || !ev.GalleryOpen || ev.Stage == "draft" || ev.TakenDown() {
-		return "disabled"
-	}
-	if !s.OpensAt.Valid || !s.ClosesAt.Valid {
-		return "disabled"
-	}
-	if !now.Before(s.ClosesAt.Time) {
-		return "closed"
-	}
-	if ev.Stage == "archived" {
-		return "disabled"
-	}
-	if now.Before(s.OpensAt.Time) {
-		return "upcoming"
-	}
-	return "open"
+	return entries.VotingStatus(ev, entries.VotingSettingsValue(s.Enabled, s.OpensAt, s.ClosesAt, s.Eligibility), now)
 }
 
-func votingSettingsJSON(s db.VotingSettings) map[string]any {
+func votingSettingsJSON(s entries.VotingConfig) map[string]any {
 	return map[string]any{
 		"enabled": s.Enabled, "opens_at": rfc3339UTC(s.OpensAt),
 		"closes_at": rfc3339UTC(s.ClosesAt), "eligibility": s.Eligibility,
@@ -44,23 +31,14 @@ func (h *HackHandler) getVotingSettings(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	s, err := db.GetVotingSettings(r.Context(), h.database, a.event.ID)
+	result, err := h.entries.ReadVotingSettings(r.Context(), a.event, time.Now)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	out := votingSettingsJSON(s)
-	out["status"] = votingStatus(a.event, s, time.Now())
-	counts := map[string]int64{}
-	for _, eligibility := range []string{"all_signed_in", "event_members", "participants"} {
-		count, err := db.IneligibleVotes(r.Context(), h.database, a.event.ID, eligibility, false)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		counts[eligibility] = count
-	}
-	out["votes_to_remove"] = counts
+	out := votingSettingsJSON(result.Settings)
+	out["status"] = result.Status
+	out["votes_to_remove"] = result.Counts
 	httpx.WriteJSON(w, 200, out)
 }
 
@@ -79,8 +57,9 @@ func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	if req.Eligibility != "all_signed_in" && req.Eligibility != "event_members" && req.Eligibility != "participants" {
-		httpx.WriteError(w, 400, "invalid_voting_eligibility", "choose all_signed_in, event_members or participants")
+	if err := entries.ValidateVotingEligibility(req.Eligibility); err != nil {
+		e := err.(*entries.Error)
+		httpx.WriteError(w, 400, e.Code, e.Message)
 		return
 	}
 	loc, err := time.LoadLocation(a.event.TimeZone)
@@ -100,62 +79,25 @@ func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	if req.Enabled && (!opens.Valid || !closes.Valid || !closes.Time.After(opens.Time)) {
-		httpx.WriteError(w, 400, "invalid_voting_window", "opening and closing times are required, with closing after opening")
+	if err := entries.ValidateVotingWindow(entries.VotingSettingsValue(req.Enabled, opens, closes, req.Eligibility)); err != nil {
+		e := err.(*entries.Error)
+		httpx.WriteError(w, 400, e.Code, e.Message)
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	ev, s, removed, err := h.entries.SaveVotingSettings(r.Context(), a.event.ID, entries.VotingSettingsValue(req.Enabled, opens, closes, req.Eligibility), req.ConfirmVoteRemoval)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if ev.Stage == "archived" {
-		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	s, err := db.GetVotingSettings(r.Context(), tx, ev.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if req.Enabled && !ev.GalleryOpen {
-		httpx.WriteError(w, 409, "gallery_closed", "open the project gallery before opening voting")
-		return
-	}
-	var removed int64
-	if s.Eligibility != req.Eligibility {
-		count, err := db.IneligibleVotes(r.Context(), tx, ev.ID, req.Eligibility, false)
-		if err != nil {
+		switch e := err.(type) {
+		case *entries.VoteRemovalConfirmation:
+			httpx.WriteJSON(w, 409, map[string]any{"code": "vote_removal_confirmation", "error": "Confirm removal of earlier votes.", "votes_to_remove": e.Count})
+		case *entries.Error:
+			httpx.WriteError(w, 409, e.Code, e.Message)
+		default:
 			httpx.WriteInternal(w)
-			return
 		}
-		if count > 0 && !req.ConfirmVoteRemoval {
-			httpx.WriteJSON(w, 409, map[string]any{"code": "vote_removal_confirmation", "error": "Confirm removal of earlier votes.", "votes_to_remove": count})
-			return
-		}
-		removed, err = db.IneligibleVotes(r.Context(), tx, ev.ID, req.Eligibility, true)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-	}
-	s.Enabled, s.OpensAt, s.ClosesAt, s.Eligibility = req.Enabled, opens, closes, req.Eligibility
-	if err = db.SaveVotingSettings(r.Context(), tx, ev.ID, s); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err = tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
 		return
 	}
 	out := votingSettingsJSON(s)
-	out["status"] = votingStatus(ev, s, time.Now())
+	out["status"] = entries.VotingStatus(ev, s, time.Now())
 	out["votes_removed"] = removed
 	httpx.WriteJSON(w, 200, out)
 }
@@ -165,7 +107,7 @@ func (h *HackHandler) patchDirectoryListed(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if a.admin && a.member.JoinedAt.IsZero() {
+	if !entries.CanChangeDirectory(a.admin, !a.member.JoinedAt.IsZero()) {
 		writeEventNotFound(w)
 		return
 	}
@@ -179,7 +121,7 @@ func (h *HackHandler) patchDirectoryListed(w http.ResponseWriter, r *http.Reques
 		httpx.WriteError(w, 400, "invalid_directory_listed", "listed must be true or false")
 		return
 	}
-	if err := db.SetDirectoryListed(r.Context(), h.database, a.event.ID, *req.Listed); err != nil {
+	if err := h.entries.SetDirectoryListed(r.Context(), a.event.ID, *req.Listed); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -187,11 +129,11 @@ func (h *HackHandler) patchDirectoryListed(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *HackHandler) getVote(w http.ResponseWriter, r *http.Request) {
-	ev, err := db.GetEventBySlug(r.Context(), h.database, r.PathValue("slug"))
-	if err == nil {
+	ev, err := h.entries.VotingEvent(r.Context(), r.PathValue("slug"))
+	if ev.ID != "" {
 		paperHackEvent(r, ev)
 	}
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, entries.ErrVotingEventNotFound) {
 		writeEventNotFound(w)
 		return
 	}
@@ -199,16 +141,12 @@ func (h *HackHandler) getVote(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	if ev.Stage == "draft" || ev.TakenDown() {
-		writeEventNotFound(w)
-		return
-	}
-	s, err := db.GetVotingSettings(r.Context(), h.database, ev.ID)
+	result, err := h.entries.ReadPublicVote(r.Context(), ev, time.Now)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	status := votingStatus(ev, s, time.Now())
+	s, status := result.Settings, result.Status
 	out := map[string]any{"event": ev.Slug, "title": ev.Title, "status": status,
 		"opens_at": rfc3339UTC(s.OpensAt), "closes_at": rfc3339UTC(s.ClosesAt),
 		// time_zone lets the public vote page show the window in the
@@ -216,11 +154,7 @@ func (h *HackHandler) getVote(w http.ResponseWriter, r *http.Request) {
 		// SIM-346 S5).
 		"time_zone": ev.TimeZone, "eligibility": s.Eligibility, "options": []any{}, "ranking": []any{}}
 	if status != "disabled" {
-		options, err := db.VoteOptions(r.Context(), h.database, ev.ID, ev.AccountID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
+		options := result.Options
 		items := make([]map[string]any, 0, len(options))
 		for _, v := range options {
 			title := v.Title
@@ -232,11 +166,7 @@ func (h *HackHandler) getVote(w http.ResponseWriter, r *http.Request) {
 		}
 		out["options"] = items
 		if status == "closed" {
-			final, err := db.VoteFinalRanking(r.Context(), h.database, ev.ID, ev.AccountID)
-			if err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
+			final := result.Ranking
 			ranking := make([]map[string]any, 0, len(final))
 			for _, v := range final {
 				ranking = append(ranking, map[string]any{"team": v.Slug, "team_name": v.Name, "votes": v.Count})
@@ -252,11 +182,11 @@ func (h *HackHandler) getMyVote(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	ev, err := db.GetEventBySlug(r.Context(), h.database, r.PathValue("slug"))
-	if err == nil {
+	ev, err := h.entries.VotingEvent(r.Context(), r.PathValue("slug"))
+	if ev.ID != "" {
 		paperHackEvent(r, ev)
 	}
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, entries.ErrVotingEventNotFound) {
 		writeEventNotFound(w)
 		return
 	}
@@ -264,33 +194,10 @@ func (h *HackHandler) getMyVote(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	if ev.Stage == "draft" || ev.TakenDown() {
-		writeEventNotFound(w)
-		return
-	}
-	selected, err := db.OwnVote(r.Context(), h.database, ev.ID, db.BaseEmail(user.Username))
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	_, selected, eligible, err := h.entries.ReadMyVote(r.Context(), ev, user.Username, user.IsAdmin)
+	if err != nil {
 		httpx.WriteInternal(w)
 		return
-	}
-	// Confusing #4 (retest 3): the public vote page had no way to know
-	// ahead of pressing Vote whether this signed-in visitor actually
-	// qualifies under the event's eligibility setting -- it found out only
-	// from the PUT /vote 403. my-vote is already authenticated, so it's
-	// the natural place to answer that up front, the same rule putVote
-	// itself enforces (an admin inspection account can never vote either).
-	eligible := !user.IsAdmin && user.Username != ""
-	if eligible {
-		s, err := db.GetVotingSettings(r.Context(), h.database, ev.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		eligible, err = db.VoterEligible(r.Context(), h.database, ev.ID, s.Eligibility, db.BaseEmail(user.Username))
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"team": selected, "eligible": eligible})
 }
@@ -300,7 +207,7 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	if user.IsAdmin || user.Username == "" {
+	if !entries.CanCastVote(user.Username, user.IsAdmin) {
 		httpx.WriteError(w, 403, "vote_ineligible", "sign in with a personal account to vote")
 		return
 	}
@@ -310,15 +217,15 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	if !hackGallerySlug(req.Team) {
+	if !entries.ValidVoteTeam(req.Team) {
 		httpx.WriteError(w, 400, "invalid_team", "choose a team from the voting page")
 		return
 	}
-	ev, err := db.GetEventBySlug(r.Context(), h.database, r.PathValue("slug"))
-	if err == nil {
+	ev, err := h.entries.VotingEvent(r.Context(), r.PathValue("slug"))
+	if ev.ID != "" {
 		paperHackEvent(r, ev)
 	}
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, entries.ErrVotingEventNotFound) {
 		writeEventNotFound(w)
 		return
 	}
@@ -326,26 +233,22 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	if ev.Stage == "draft" || ev.TakenDown() {
-		writeEventNotFound(w)
-		return
-	}
-	created, err := db.CastVote(r.Context(), h.database, ev.ID, ev.AccountID, db.BaseEmail(user.Username), req.Team)
+	created, err := h.entries.CastVote(r.Context(), ev.ID, ev.AccountID, db.BaseEmail(user.Username), req.Team)
 	switch err {
 	case nil:
-	case db.ErrVoteClosed:
+	case entries.ErrVoteClosed:
 		httpx.WriteError(w, 409, "voting_closed", "voting is not open")
 		return
-	case db.ErrVoteIneligible:
+	case entries.ErrVoteIneligible:
 		httpx.WriteError(w, 403, "vote_ineligible", "this account is not eligible to vote")
 		return
-	case db.ErrVoteOwnTeam:
+	case entries.ErrVoteOwnTeam:
 		httpx.WriteError(w, 409, "own_team_vote", "you cannot vote for your own team")
 		return
-	case db.ErrVoteTeamNotFound:
+	case entries.ErrVoteTeamNotFound:
 		httpx.WriteError(w, 404, "team_not_found", "choose a live team project")
 		return
-	case db.ErrVoteDuplicate:
+	case entries.ErrVoteDuplicate:
 		httpx.WriteError(w, 409, "duplicate_vote", "you already voted for this team; choose another to change your vote")
 		return
 	default:
