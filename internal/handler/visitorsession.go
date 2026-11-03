@@ -669,7 +669,7 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 				// strict same-origin session, the owner's account, one of
 				// the site's own hosts. On Simple Hack: a team member or an
 				// organiser while the site may change (db.HackSiteOwnerOnSite).
-				if h.ed.Identity().TeamKeys {
+				if h.ed.Storage().EventOwners {
 					if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == sess.UserID && h.storageOwnHost(r, siteID) {
 						owner, oerr := db.HackSiteOwnerOnSite(r.Context(), h.database, siteID, sess.UserID)
 						resp.SiteOwner = oerr == nil && owner
