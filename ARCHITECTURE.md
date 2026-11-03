@@ -255,7 +255,9 @@ RateLimit headers; limits still use continuous token-bucket refill.
   limiting, signed links) both `handler` and `hackhttp` call; `internal/rules/*` pure
   decisions (name/handle shape, OAuth grant classification, Hack event codes) with no SQL or
   HTTP; `internal/model` shared record types (e.g. `TeamSite`) moved out of `handler`/`db` as
-  both sides needed them. See `docs/architecture/target.md` §2 for the full target package map.
+  both sides needed them. Hack workflows themselves move into `internal/app/hack/*` behind
+  `hackhttp`, one at a time: `app/hack/events` (cleanup 3.2 slice 4) owns the first, the public
+  directory listing. See `docs/architecture/target.md` §2 for the full target package map.
 - `internal/mcp` — MCP JSON-RPC server, tool list, output schemas, instructions;
   `events.go`, `events_types.go` MCP Events (`events/list`, `events/subscribe`,
   `events/unsubscribe`) over the same delivery engine as `notify.go`.

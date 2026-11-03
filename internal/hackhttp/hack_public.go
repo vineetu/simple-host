@@ -12,9 +12,11 @@ import (
 
 // RegisterHackPublic serves the trusted, stable built-in event page on the
 // apex, whether or not an organiser has published a custom event website.
+// pages is the hack-event.html template cache (HackEventPages), built once
+// by the caller and passed in explicitly (cleanup 3.2 slice 4).
 func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
-	teamSiteURL func(string, string) string, ready func(string) bool) {
-	render := HackEventPage(database, appURL, teamSiteURL, ready)
+	teamSiteURL func(string, string) string, ready func(string) bool, pages *HackEventPages) {
+	render := HackEventPage(database, appURL, teamSiteURL, ready, pages)
 	screenshot := HackScreenshot(database, ready)
 	load := func(w http.ResponseWriter, r *http.Request) (db.User, bool) {
 		ev, err := db.GetEventBySlug(r.Context(), database, strings.ToLower(r.PathValue("slug")))
@@ -22,7 +24,7 @@ func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
 			paperHackEvent(r, ev)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
-			writeHackEventNotFound(w, r, appURL)
+			writeHackEventNotFound(w, r, appURL, pages)
 			return db.User{}, false
 		}
 		if err != nil {

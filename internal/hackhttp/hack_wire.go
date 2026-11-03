@@ -17,6 +17,7 @@ import (
 	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // hackGallerySlugRe is one label: lowercase letters, digits and hyphens, not
@@ -66,7 +67,9 @@ func hackGalleryPublic(ev db.Event, ready func(string) bool) bool {
 // HackEventPage is the SiteHandler hook that renders <event>.<SITE_DOMAIN>/
 // (hack_mode.go): user is the host's account; false when it holds no event.
 // teamSiteURL and ready are SiteHandler.TeamSiteURL and TeamSitesReady.
-func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, teamSlug string) string, ready func(eventSlug string) bool) func(w http.ResponseWriter, r *http.Request, user db.User) bool {
+// pages is the hack-event.html template cache (HackEventPages), built once
+// by the caller and passed in explicitly (cleanup 3.2 slice 4).
+func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, teamSlug string) string, ready func(eventSlug string) bool, pages *HackEventPages) func(w http.ResponseWriter, r *http.Request, user db.User) bool {
 	return func(w http.ResponseWriter, r *http.Request, user db.User) bool {
 		ev, err := db.GetEventByAccount(r.Context(), database, user.ID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -89,7 +92,7 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			AppURL:    appURL,
 			TakenDown: ev.TakenDown(), TakenDownReason: ev.TakenDownReason,
 		}
-		if hackApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()) {
+		if hackevents.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()) {
 			p.ApplyURL = strings.TrimRight(appURL, "/") + "/e/" + ev.Slug + "/apply"
 		}
 		p.Color = hackEventAccent(ev)
@@ -193,7 +196,7 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 				}
 			}
 		}
-		renderHackEventPage(w, r, p)
+		renderHackEventPage(w, r, p, pages)
 		return true
 	}
 }

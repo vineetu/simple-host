@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // A schedule that acts (owner, 2026-11-02). The event's real times -- start
@@ -68,27 +69,10 @@ func hackEventLoc(ev db.Event) *time.Location {
 	return loc
 }
 
-// hackEventOver is the instant an event's end has passed. Basics saves the
-// end as a date only, stored as that day's midnight in the event's zone; a
-// date-only end means the whole of that day, so it is over at the next
-// midnight (full-test fix, 2026-11-02). An end with a time of day is over at
-// that time.
-func hackEventOver(end time.Time, zone string) time.Time {
-	loc, err := time.LoadLocation(zone)
-	if err != nil || zone == "" {
-		loc = time.UTC
-	}
-	if hackMidnight(end, loc) {
-		l := end.In(loc)
-		return time.Date(l.Year(), l.Month(), l.Day()+1, 0, 0, 0, 0, loc)
-	}
-	return end
-}
-
-func hackMidnight(t time.Time, loc *time.Location) bool {
-	l := t.In(loc)
-	return l.Hour() == 0 && l.Minute() == 0 && l.Second() == 0
-}
+// hackEventOver and hackMidnight moved to internal/rules/hackevents
+// (EventOver, Midnight) in cleanup 3.2 slice 4: pure, no DB/HTTP/clock, and
+// EventOver is also the directory's past-group decision now in
+// internal/app/hack/events.
 
 // hackFixedSchedule builds the fixed rows, sorted by time. Prompts are only
 // filled in for organisers.
@@ -106,7 +90,7 @@ func hackFixedSchedule(in hackFixedInputs) []hackFixedRow {
 	}
 	if ev.StartsAt.Valid {
 		r := hackFixedRow{Key: "event_start", Title: "Event starts", StartAt: stamp(ev.StartsAt.Time), SetIn: "basics"}
-		r.AllDay = hackMidnight(ev.StartsAt.Time, loc)
+		r.AllDay = hackevents.Midnight(ev.StartsAt.Time, loc)
 		if !r.AllDay {
 			r.Prompt = "building"
 		}
@@ -114,7 +98,7 @@ func hackFixedSchedule(in hackFixedInputs) []hackFixedRow {
 	}
 	if ev.EndsAt.Valid {
 		r := hackFixedRow{Key: "event_end", Title: "Event ends", StartAt: stamp(ev.EndsAt.Time), SetIn: "basics"}
-		r.AllDay = hackMidnight(ev.EndsAt.Time, loc)
+		r.AllDay = hackevents.Midnight(ev.EndsAt.Time, loc)
 		// With no entry deadline, the event's end is when entries are
 		// meant to close.
 		if !r.AllDay && !ev.SubmissionDeadline.Valid {

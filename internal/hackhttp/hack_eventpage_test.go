@@ -43,7 +43,7 @@ func renderHackEvent(t *testing.T, p hackEventPage) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	renderHackEventPage(rec, req, p)
+	renderHackEventPage(rec, req, p, testHackPages)
 	return rec
 }
 
@@ -1505,7 +1505,7 @@ func TestHackEventPageFooterSaysMadeWith(t *testing.T) {
 func TestHackEventPageNotFoundIsFriendly(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/e/missing", nil)
-	writeHackEventNotFound(rec, req, "https://simple-hack.app")
+	writeHackEventNotFound(rec, req, "https://simple-hack.app", testHackPages)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status %d", rec.Code)
 	}

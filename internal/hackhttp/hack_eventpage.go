@@ -169,41 +169,42 @@ type hackGalleryCard struct {
 	TeamID string
 }
 
-var (
-	hackEventTmplOnce sync.Once
-	hackEventTmplV    *template.Template
-	hackEventTmplErr  error
-)
+// HackEventPages owns the parsed hack-event.html template that the public
+// event page, HackEventPage's SiteHandler hook and their shared not-found
+// response all render from. Build one with NewHackEventPages and pass it to
+// HackEventPage and RegisterHackPublic; it parses lazily, once, on first
+// use (its template method), same as the package-level sync.Once this
+// replaces (cleanup 3.2 slice 4: hackhttp may not import handler, so this
+// is an explicit value built from the caller's fs.FS instead of a global
+// embeddedStaticFS set through SetEmbeddedStatic — same narrow-value
+// pattern as SetHackEventPage/SetHackScreenshot, now a constructor
+// argument instead of a setter). main.go builds one from
+// handler.EmbeddedStatic(); test fixtures (hack_test.go, hack_m2_test.go,
+// main_test.go) build one the same way, from their test-only handler
+// import.
+type HackEventPages struct {
+	fsys fs.FS
+	once sync.Once
+	tmpl *template.Template
+	err  error
+}
 
-// embeddedStaticFS is this instance's embedded static/ tree (ui.go's
-// staticFiles in internal/handler, reached there through assets.go's
-// exported EmbeddedStatic() accessor). hackhttp may not import handler
-// (cleanup 3.2 slice 3), so cmd/server/main.go injects it once
-// (SetEmbeddedStatic), the same narrow-value pattern as SetHackEventPage/
-// SetHackScreenshot; test fixtures (hack_test.go, hack_m2_test.go) inject
-// the same value through their test-only handler import.
-var embeddedStaticFS fs.FS
+// NewHackEventPages builds a template cache for hack-event.html, read from
+// fsys (ui.go's staticFiles in internal/handler, reached through assets.go's
+// exported EmbeddedStatic()) on first use.
+func NewHackEventPages(fsys fs.FS) *HackEventPages {
+	return &HackEventPages{fsys: fsys}
+}
 
-// SetEmbeddedStatic injects the embedded static/ tree hackEventTemplate
-// parses hack-event.html from. See embeddedStaticFS.
-func SetEmbeddedStatic(fsys fs.FS) { embeddedStaticFS = fsys }
-
-// hackEventTemplate parses hack-event.html once, lazily, from
-// embeddedStaticFS (set by SetEmbeddedStatic above; cleanup 3.2 slice 2a
-// originally reached this through assets.go's exported EmbeddedStatic()
-// accessor over ui.go's staticFiles, back when this file and that accessor
-// were still one package — slice 3's real move needed the injected value
-// instead, since hackhttp may not import handler).
-// Lazy rather than a package-level var like the original (which parsed
-// eagerly from staticFiles at package init) only because a thin accessor
-// function, unlike a bare var, cannot be read from another file's
-// var-initializer without an explicit ordering guarantee; behaviour at the
-// first real call is identical either way.
-func hackEventTemplate() (*template.Template, error) {
-	hackEventTmplOnce.Do(func() {
-		hackEventTmplV, hackEventTmplErr = template.New("hack-event.html").ParseFS(embeddedStaticFS, "static/hack-event.html")
+// template parses hack-event.html once, lazily, from p.fsys. Lazy rather
+// than parsing eagerly in NewHackEventPages only because the original
+// (package-level sync.Once) was lazy too; behaviour at the first real call
+// is identical either way.
+func (p *HackEventPages) template() (*template.Template, error) {
+	p.once.Do(func() {
+		p.tmpl, p.err = template.New("hack-event.html").ParseFS(p.fsys, "static/hack-event.html")
 	})
-	return hackEventTmplV, hackEventTmplErr
+	return p.tmpl, p.err
 }
 
 // hackCTA is one button or text link: Strong renders it as the kit's
@@ -339,7 +340,7 @@ type hackEventView struct {
 type hackAnnouncementLine struct{ Title, Body, When string }
 
 // renderHackEventPage writes the whole response (status 200, or 410 when TakenDown).
-func renderHackEventPage(w http.ResponseWriter, r *http.Request, p hackEventPage) {
+func renderHackEventPage(w http.ResponseWriter, r *http.Request, p hackEventPage, pages *HackEventPages) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -348,7 +349,7 @@ func renderHackEventPage(w http.ResponseWriter, r *http.Request, p hackEventPage
 	nonce := base64.StdEncoding.EncodeToString(b[:])
 	r = r.WithContext(context.WithValue(r.Context(), httpx.NonceKey{}, nonce))
 
-	page, err := assembleHackEventPage(p)
+	page, err := assembleHackEventPage(p, pages)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -385,7 +386,7 @@ func hackEventPageCSP(app, nonce string) string {
 // instead of generic site chrome (Grok SIM-346 S15: "a deleted event shows
 // a participant only a bare 'event not found'"). hack_public.go's load()
 // calls this instead of writeMessagePage for that one case.
-func writeHackEventNotFound(w http.ResponseWriter, r *http.Request, appURL string) {
+func writeHackEventNotFound(w http.ResponseWriter, r *http.Request, appURL string, pages *HackEventPages) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -396,7 +397,7 @@ func writeHackEventNotFound(w http.ResponseWriter, r *http.Request, appURL strin
 
 	app := strings.TrimRight(appURL, "/")
 	v := hackEventView{NotFound: true, Title: "Event not found", AppURL: app}
-	tmpl, err := hackEventTemplate()
+	tmpl, err := pages.template()
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -439,7 +440,7 @@ var hackSectionChipLabel = map[string]string{
 	"sites": "Team sites",
 }
 
-func assembleHackEventPage(p hackEventPage) ([]byte, error) {
+func assembleHackEventPage(p hackEventPage, pages *HackEventPages) ([]byte, error) {
 	app := strings.TrimRight(p.AppURL, "/")
 	color := strings.TrimSpace(p.Color)
 	if color == "" {
@@ -583,7 +584,7 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 		if !present[key] {
 			continue
 		}
-		html, err := hackRenderSection(key, &v)
+		html, err := hackRenderSection(key, &v, pages)
 		if err != nil {
 			return nil, err
 		}
@@ -591,7 +592,7 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 		v.Chips = append(v.Chips, hackChip{ID: key, Label: hackSectionChipLabel[key]})
 	}
 
-	tmpl, err := hackEventTemplate()
+	tmpl, err := pages.template()
 	if err != nil {
 		return nil, err
 	}
@@ -602,8 +603,8 @@ func assembleHackEventPage(p hackEventPage) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func hackRenderSection(key string, v *hackEventView) (template.HTML, error) {
-	tmpl, err := hackEventTemplate()
+func hackRenderSection(key string, v *hackEventView, pages *HackEventPages) (template.HTML, error) {
+	tmpl, err := pages.template()
 	if err != nil {
 		return "", err
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // PublicEventJSON is a credentialless, read-only feed for an event's custom
@@ -55,7 +56,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		"vote_status": "disabled", "tracks": []any{}, "announcements": []any{},
 		"sponsors": []any{}, "faq": []any{}, "schedule": []any{}, "fixed_schedule": []any{},
 	}
-	if open := hackApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()); open {
+	if open := hackevents.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()); open {
 		out["applications_open"], out["apply_url"] = true, strings.TrimRight(h.publicBaseURL, "/")+"/e/"+ev.Slug+"/apply"
 	} else {
 		out["applications_open"] = false

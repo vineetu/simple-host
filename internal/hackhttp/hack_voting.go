@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -354,32 +355,42 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, map[string]any{"team": req.Team, "changed": !created})
 }
 
+// getDirectory serves the public directory groups. The grouping and the
+// applications_open rule now live in internal/app/hack/events (Directory)
+// and the rules it calls; this handler keeps transport: it calls the
+// service, then builds the exact same JSON, including the url/icon_url/
+// color/apply_url fields it computes from its own config (cleanup 3.2
+// slice 4).
 func (h *HackHandler) getDirectory(w http.ResponseWriter, r *http.Request) {
-	events, err := db.ListDirectoryEvents(r.Context(), h.database)
+	dir, err := h.events.Directory(r.Context(), time.Now())
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	now := time.Now()
-	groups := map[string][]map[string]any{"now": {}, "upcoming": {}, "past": {}}
-	for _, ev := range events {
-		group := "now"
-		if ev.Stage == "archived" || (ev.EndsAt.Valid && !now.Before(hackEventOver(ev.EndsAt.Time, ev.TimeZone))) {
-			group = "past"
-		} else if ev.StartsAt.Valid && now.Before(ev.StartsAt.Time) {
-			group = "upcoming"
-		}
+	groups := map[string][]map[string]any{
+		"now":      hackDirectoryRows(h, dir.Now),
+		"upcoming": hackDirectoryRows(h, dir.Upcoming),
+		"past":     hackDirectoryRows(h, dir.Past),
+	}
+	httpx.WriteJSON(w, 200, groups)
+}
+
+// hackDirectoryRows builds getDirectory's JSON rows for one group: the
+// service's typed Row plus the url/icon_url/color/apply_url fields only the
+// transport can compute.
+func hackDirectoryRows(h *HackHandler, rows []events.Row) []map[string]any {
+	out := []map[string]any{}
+	for _, ev := range rows {
 		row := map[string]any{
 			"slug": ev.Slug, "title": ev.Title, "tagline": ev.Tagline, "stage": ev.Stage,
 			"time_zone": ev.TimeZone, "starts_at": rfc3339UTC(ev.StartsAt), "ends_at": rfc3339UTC(ev.EndsAt),
 			"url": h.EventURL(ev.Slug), "icon_url": h.iconURLSlug(ev.Slug), "color": hackEventColor(ev.Slug, ev.AccentColor),
 		}
-		open := hackApplicationsOpenNow(ev.ApplicationsOpen, true, ev.Stage, ev.TakenDownAt.Valid)
-		row["applications_open"] = open
-		if open {
+		row["applications_open"] = ev.ApplicationsOpen
+		if ev.ApplicationsOpen {
 			row["apply_url"] = strings.TrimRight(h.publicBaseURL, "/") + "/e/" + ev.Slug + "/apply"
 		}
-		groups[group] = append(groups[group], row)
+		out = append(out, row)
 	}
-	httpx.WriteJSON(w, 200, groups)
+	return out
 }

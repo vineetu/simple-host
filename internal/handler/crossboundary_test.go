@@ -113,7 +113,7 @@ func newBridgeTeamApp(t *testing.T) *bridgeTeamApp {
 	a.hack.ShareAssets(a.sites.Pages())
 	a.hack.SetSites(a.sites)
 	a.hack.Register(mux, authMW)
-	a.sites.SetHackEventPage(hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady))
+	a.sites.SetHackEventPage(hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, hackhttp.NewHackEventPages(EmbeddedStatic())))
 	a.sites.SetHackScreenshot(hackhttp.HackScreenshot(database, a.sites.TeamSitesReady))
 	gated := a.sites.LegacyStorageCutoffGate(a.sites.HackLegacyStorageGate(auth.ScopeGate(database, mux, true, 180*24*time.Hour)))
 	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, bridgeTSDomain, "sites."+bridgeTSDomain, "1.0.0", gated, true, ed)

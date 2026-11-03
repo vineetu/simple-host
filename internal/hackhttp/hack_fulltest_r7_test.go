@@ -8,6 +8,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // Tests for the fixes from the 2026-11-02 full production test of Simple
@@ -182,19 +183,19 @@ func TestHackAutoAssignmentSkipsTeamsWithoutEntry(t *testing.T) {
 func TestHackEventOverDateOnlyEnd(t *testing.T) {
 	jkt, _ := time.LoadLocation("Asia/Jakarta")
 	midnight := time.Date(2026, 11, 4, 0, 0, 0, 0, jkt)
-	if got, want := hackEventOver(midnight, "Asia/Jakarta"), time.Date(2026, 11, 5, 0, 0, 0, 0, jkt); !got.Equal(want) {
+	if got, want := hackevents.EventOver(midnight, "Asia/Jakarta"), time.Date(2026, 11, 5, 0, 0, 0, 0, jkt); !got.Equal(want) {
 		t.Fatalf("date-only end over at %v, want %v", got, want)
 	}
 	timed := time.Date(2026, 11, 4, 17, 30, 0, 0, jkt)
-	if got := hackEventOver(timed, "Asia/Jakarta"); !got.Equal(timed) {
+	if got := hackevents.EventOver(timed, "Asia/Jakarta"); !got.Equal(timed) {
 		t.Fatalf("timed end over at %v, want %v", got, timed)
 	}
 	// Midnight in UTC is 7 am in Jakarta: not a date-only end there.
 	utcMidnight := time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC)
-	if got := hackEventOver(utcMidnight, "Asia/Jakarta"); !got.Equal(utcMidnight) {
+	if got := hackevents.EventOver(utcMidnight, "Asia/Jakarta"); !got.Equal(utcMidnight) {
 		t.Fatalf("UTC midnight in Jakarta: %v", got)
 	}
-	if got := hackEventOver(utcMidnight, ""); !got.Equal(utcMidnight.AddDate(0, 0, 1)) {
+	if got := hackevents.EventOver(utcMidnight, ""); !got.Equal(utcMidnight.AddDate(0, 0, 1)) {
 		t.Fatalf("no zone: %v", got)
 	}
 

@@ -29,7 +29,7 @@ func TestServeHackContentForBrowser(t *testing.T) {
 	p.Announcements = []hackAnnouncementView{{Title: "Welcome", Body: "Build something kind.", CreatedAt: time.Now()}}
 	p.Deadline = time.Now().Add(25 * time.Hour)
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { renderHackEventPage(w, r, p) })
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { renderHackEventPage(w, r, p, testHackPages) })
 	mux.HandleFunc("/site.css", func(w http.ResponseWriter, r *http.Request) {
 		css, err := fs.ReadFile(handler.EmbeddedStatic(), "static/site.css")
 		if err != nil {

@@ -5,11 +5,16 @@
 #   internal/auth may import internal/db. internal/hackhttp is transitional
 #   (step 3.2): it may import the leaf packages Hack HTTP already uses
 #   (httpx, rules/*, model, edition, auth, db, email, config, buildinfo,
-#   papermetrics, tarball), but never internal/handler, except in its own
-#   _test.go files, which build a real *handler.SiteHandler for their
-#   fixtures (and symmetrically, internal/handler's _test.go files may
-#   import internal/hackhttp to build a real *hackhttp.HackHandler) —
-#   docs/architecture/target.md §2. Everything else is a leaf. Test files
+#   papermetrics, tarball) plus internal/app/** (app services for its
+#   workflows, starting with app/hack/events in slice 4), but never
+#   internal/handler, except in its own _test.go files, which build a real
+#   *handler.SiteHandler for their fixtures (and symmetrically,
+#   internal/handler's _test.go files may import internal/hackhttp to build
+#   a real *hackhttp.HackHandler) — docs/architecture/target.md §2.
+#   internal/app (every app/** package, this checker's granularity is one
+#   level deep) may import model, edition, rules/* and, transitionally
+#   until step 4.x's repositories land, db — app/hack/events's own package
+#   doc names its one such edge. Everything else is a leaf. Test files
 #   (*_test.go) may also import internal/testdb.
 #
 # A document saying so would rot. This fails the build instead.
@@ -23,13 +28,15 @@ fail=0
 # Packages allowed to depend on other internal packages, and on what.
 #   handler  -> anything
 #   auth     -> db
-#   hackhttp -> its transitional leaf set (non-test); + handler (test only)
+#   app      -> model/edition/rules, + db transitionally (step 4.x removes it)
+#   hackhttp -> its transitional leaf set (non-test) + app/**; + handler (test only)
 allowed_for() {
   case "$1" in
     handler) echo "ANY" ;;
     auth)    echo "db" ;;
     edition) echo "config" ;;
-    hackhttp) echo "httpx rules model edition auth db email config buildinfo papermetrics tarball" ;;
+    app)      echo "model edition rules db" ;;
+    hackhttp) echo "httpx rules model edition auth db email config buildinfo papermetrics tarball app" ;;
     *)       echo "" ;;
   esac
 }

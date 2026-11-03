@@ -8,12 +8,16 @@ import (
 	"github.com/vsriram/simple-host/internal/testdb"
 )
 
-// init sets the embedded static/ tree hack_eventpage.go's package-level
-// template parse needs (SetEmbeddedStatic; see hack_eventpage.go's
-// embeddedStaticFS). cmd/server/main.go does the same for production; a
-// test binary never runs main, so it needs its own, test-only handler
-// import (cleanup 3.2 slice 3).
-func init() { SetEmbeddedStatic(handler.EmbeddedStatic()) }
+// testHackPages is the hack-event.html template cache every test fixture in
+// this package shares (HackEventPage, RegisterHackPublic, and the tests
+// that call renderHackEventPage/writeHackEventNotFound directly), built
+// from the same embedded static/ tree main.go uses in production
+// (handler.EmbeddedStatic()). cmd/server/main.go builds its own
+// hackhttp.NewHackEventPages the same way; a test binary never runs main,
+// so this package needs its own, test-only handler import (cleanup 3.2
+// slice 3; the value itself replaces the old package-level
+// SetEmbeddedStatic in slice 4).
+var testHackPages = NewHackEventPages(handler.EmbeddedStatic())
 
 // TestMain runs this package's tests in a disposable per-process database
 // when TESTDB_ISOLATE=1 (see internal/testdb). Duplicated from

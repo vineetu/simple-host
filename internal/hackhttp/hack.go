@@ -19,6 +19,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
@@ -137,6 +138,12 @@ type HackHandler struct {
 	// "no handle conflicts" (tests that never wire it, e.g. the no-app
 	// registrar-only fixtures, never reach a name check).
 	handleChecker func(ctx context.Context, q db.Querier, handle string) (HandleVerdict, error)
+	// events is the Hack events service (internal/app/hack/events,
+	// cleanup 3.2 slice 4): today just the public directory listing
+	// (getDirectory, hack_voting.go). Built in NewHackHandler from the
+	// same *sql.DB; nil on a bare &HackHandler{} (NewHackHandlerForTest),
+	// which never serves the directory route.
+	events *events.Service
 }
 
 // HandleVerdict is the outcome handlecheck.go's judgeHandle reaches for one
@@ -395,6 +402,7 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 		applyIP:            httpx.NewRateLimiter(float64(lim.RateEventApplyIP.Burst), lim.RateEventApplyIP.PerSecond()),
 		applyUser:          httpx.NewRateLimiter(float64(lim.RateEventApplyUser.Burst), lim.RateEventApplyUser.PerSecond()),
 		archiveLinkKey:     newHackArchiveKey(),
+		events:             events.New(database),
 	}
 	return h
 }

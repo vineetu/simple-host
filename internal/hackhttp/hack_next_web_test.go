@@ -10,7 +10,7 @@ import (
 
 func TestHackEventWebsiteAndPublicRead(t *testing.T) {
 	a := newTeamSiteApp(t)
-	RegisterHackPublic(a.mux, a.database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady)
+	RegisterHackPublic(a.mux, a.database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages)
 	org, outsider := a.newPerson(t, "website-org"), a.newPerson(t, "website-outsider")
 	slug := a.makeEvent(t, org)
 	host := slug + "." + tsDomain

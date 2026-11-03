@@ -422,11 +422,11 @@ func main() {
 		handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
 			return hack.NameTaken(ctx, name)
 		})
-		siteHandler.SetHackEventPage(hackhttp.HackEventPage(db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady))
+		hackPages := hackhttp.NewHackEventPages(handler.EmbeddedStatic())
+		siteHandler.SetHackEventPage(hackhttp.HackEventPage(db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages))
 		siteHandler.SetHackScreenshot(hackhttp.HackScreenshot(db, siteHandler.TeamSitesReady))
-		hackhttp.SetEmbeddedStatic(handler.EmbeddedStatic())
 		hackhttp.RegisterHackHome(mux, siteHandler.Pages())
-		hackhttp.RegisterHackPublic(mux, db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady)
+		hackhttp.RegisterHackPublic(mux, db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages)
 		hackhttp.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
 	}
 

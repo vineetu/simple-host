@@ -35,16 +35,9 @@ import (
 // mistake).
 const hackUnder18Note = "If you're under 18, a parent or guardian needs to agree to Simple Hack's Terms for you."
 
-// hackApplicationsOpenNow is the applications_open rule shared by GET/POST
-// .../apply, the directory and the public event JSON: the organiser's
-// switch, the right stage, and not taken down (a draft or taken-down event
-// never reaches this: callers 404 first).
-func hackApplicationsOpenNow(applicationsOpen, listed bool, stage string, takenDown bool) bool {
-	if takenDown || !applicationsOpen || !listed {
-		return false
-	}
-	return stage == "open" || stage == "building"
-}
+// hackApplicationsOpenNow moved to internal/rules/hackevents
+// (ApplicationsOpenNow) in cleanup 3.2 slice 4: fixed product decision, no
+// handler dependency.
 
 // hackApplicationsClosedReason is GET .../apply's closed_reason: nil when
 // open, else "applications_off" or "signup_over". "not_open" never applies:
@@ -112,7 +105,7 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	openNow := hackApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown())
+	openNow := hackevents.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown())
 	out := map[string]any{
 		"slug": ev.Slug, "title": ev.Title, "tagline": ev.Tagline,
 		"icon_url": h.iconURL(ev), "color": hackEventAccent(ev),

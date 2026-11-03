@@ -52,10 +52,6 @@ func newRateLimiter(capacity, perSecond float64) *rateLimiter {
 
 func (rl *rateLimiter) allow(key string) bool { return rl.RateLimiter.Allow(key) }
 
-func (rl *rateLimiter) allowState(key string) (allowed bool, tokens, next float64) {
-	return rl.RateLimiter.AllowState(key)
-}
-
 func (rl *rateLimiter) allowHTTP(w http.ResponseWriter, key string) bool {
 	return rl.RateLimiter.AllowHTTP(w, key)
 }

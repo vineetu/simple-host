@@ -12,7 +12,7 @@ import (
 
 func TestHackDeleteBusyEvent(t *testing.T) {
 	a := newTeamSiteApp(t)
-	RegisterHackPublic(a.mux, a.database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady)
+	RegisterHackPublic(a.mux, a.database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages)
 	org, co, participant, judge, outsider := a.newPerson(t, "del-org"), a.newPerson(t, "del-co"), a.newPerson(t, "del-part"), a.newPerson(t, "del-judge"), a.newPerson(t, "del-outside")
 	slug := a.makeEvent(t, org)
 	base := "/v1/hack/events/" + slug

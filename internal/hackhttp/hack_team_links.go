@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // getTeamLink is the public GET /v1/hack/team-links/{code}: a team link or
@@ -91,7 +92,7 @@ func (h *HackHandler) getTeamLink(w http.ResponseWriter, r *http.Request) {
 			// alone isn't enough, since an unlisted or closed-stage event
 			// never actually takes an application either (Codex review,
 			// 2026-11-01; was the raw ApplicationsOpen column).
-			"applications_open": hackApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()),
+			"applications_open": hackevents.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()),
 		},
 		"team": map[string]any{
 			"name":          team.Name,
