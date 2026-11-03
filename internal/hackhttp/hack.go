@@ -75,9 +75,6 @@ var hackStagesOffered = map[string]bool{
 // hackStagesOfferedList is hackStagesOffered in stage order, for the pages.
 var hackStagesOfferedList = []string{"draft", "open", "building", "closed", "judging", "results", "archived"}
 
-// hackEntryFields are the entry fields an organiser can require, in order.
-var hackEntryFields = []string{"title", "tagline", "description", "video_url", "code_url", "screenshot"}
-
 // HackHandler is the hosted-events API (EVENTS=hosted).
 type HackHandler struct {
 	// limits is this instance's edition.Limits() snapshot. A plain field,
@@ -1313,53 +1310,52 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deadlineChanged, entryRequiredChanged := false, false
-	updated, err := h.eventsSvc().PatchEvent(r.Context(), a.event.ID, func(ev *db.Event) (bool, bool, bool) {
+	updated, err := h.eventsSvc().PatchEvent(r.Context(), a.event.ID, func(ev *db.Event) (bool, bool, error) {
 		if req.AccentColor != nil {
 			if !hackColorValid(*req.AccentColor) {
-				httpx.WriteError(w, http.StatusBadRequest, "invalid_accent_color", "choose a crayon colour or an empty string for automatic")
-				return false, false, false
+				return false, false, &events.Error{Code: "invalid_accent_color", Message: "choose a crayon colour or an empty string for automatic"}
 			}
 			ev.AccentColor = *req.AccentColor
 		}
 		if req.Title != nil {
-			s, ok := checkHackLine(w, *req.Title, "title", 1, 120)
-			if !ok {
-				return false, false, false
+			s, validationErr := checkHackLineValue(*req.Title, "title", 1, 120)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.Title = s
 		}
 		if req.Tagline != nil {
-			s, ok := checkHackLine(w, *req.Tagline, "tagline", 0, 160)
-			if !ok {
-				return false, false, false
+			s, validationErr := checkHackLineValue(*req.Tagline, "tagline", 0, 160)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.Tagline = s
 		}
 		if req.About != nil {
-			s, ok := checkHackText(w, *req.About, "about", 0, 10000)
-			if !ok {
-				return false, false, false
+			s, validationErr := checkHackTextValue(*req.About, "about", 0, 10000)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.About = s
 		}
 		if req.Rules != nil {
-			s, ok := checkHackText(w, *req.Rules, "rules", 0, 10000)
-			if !ok {
-				return false, false, false
+			s, validationErr := checkHackTextValue(*req.Rules, "rules", 0, 10000)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.Rules = s
 		}
 		if req.Prizes != nil {
-			s, ok := checkHackText(w, *req.Prizes, "prizes", 0, 5000)
-			if !ok {
-				return false, false, false
+			s, validationErr := checkHackTextValue(*req.Prizes, "prizes", 0, 5000)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.Prizes = s
 		}
 		if req.CocText != nil {
-			s, ok := checkHackText(w, *req.CocText, "coc_text", 0, 10000)
-			if !ok {
-				return false, false, false
+			s, validationErr := checkHackTextValue(*req.CocText, "coc_text", 0, 10000)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.CocText = s
 		}
@@ -1370,15 +1366,14 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 			if tz == "" {
 				tz = "UTC"
 			}
-			if _, ok := checkTimeZone(w, tz); !ok {
-				return false, false, false
+			if _, validationErr := checkTimeZoneValue(tz); validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.TimeZone = tz
 		}
 		loc, err := time.LoadLocation(ev.TimeZone)
 		if err != nil {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_time_zone", "time_zone is not a valid IANA name")
-			return false, false, false
+			return false, false, &events.Error{Code: "invalid_time_zone", Message: "time_zone is not a valid IANA name"}
 		}
 		// A new zone without new dates keeps the same calendar dates: each
 		// stored instant is moved to the same wall-clock time in the new zone.
@@ -1400,9 +1395,9 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if req.StartsAt != nil {
-			t, ok := parseEventTime(w, *req.StartsAt, loc, "starts_at", true)
-			if !ok {
-				return false, false, false
+			t, validationErr := parseEventTimeValue(*req.StartsAt, loc, "starts_at", true)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.StartsAt = t
 		}
@@ -1410,66 +1405,62 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 			if strings.TrimSpace(*req.EndsAt) == "" {
 				ev.EndsAt = sql.NullTime{}
 			} else {
-				t, ok := parseEventTime(w, *req.EndsAt, loc, "ends_at", true)
-				if !ok {
-					return false, false, false
+				t, validationErr := parseEventTimeValue(*req.EndsAt, loc, "ends_at", true)
+				if validationErr != nil {
+					return false, false, validationErr
 				}
 				ev.EndsAt = t
 			}
 		}
 		if ev.EndsAt.Valid && ev.StartsAt.Valid && ev.EndsAt.Time.Before(ev.StartsAt.Time) {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_ends_at", "ends_at must not be before starts_at")
-			return false, false, false
+			return false, false, &events.Error{Code: "invalid_ends_at", Message: "ends_at must not be before starts_at"}
 		}
 		if req.TeamFinding != nil {
 			ev.TeamFinding = *req.TeamFinding
 		}
 		if req.ApplicationsOpen != nil {
 			if ev.Stage == "archived" {
-				httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
-				return false, false, false
+				return false, false, &events.Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 			}
 			ev.ApplicationsOpen = *req.ApplicationsOpen
 		}
 		if req.TeamSizeMax != nil {
 			if *req.TeamSizeMax < 1 || *req.TeamSizeMax > 50 {
-				httpx.WriteError(w, http.StatusBadRequest, "invalid_team_size", "team_size_max must be between 1 and 50")
-				return false, false, false
+				return false, false, &events.Error{Code: "invalid_team_size", Message: "team_size_max must be between 1 and 50"}
 			}
 			ev.TeamSizeMax = *req.TeamSizeMax
 		}
 		if req.OrganiserName != nil {
-			s, ok := checkHackLine(w, *req.OrganiserName, "organiser_name", 1, 100)
-			if !ok {
-				return false, false, false
+			s, validationErr := checkHackLineValue(*req.OrganiserName, "organiser_name", 1, 100)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.OrganiserName = s
 		}
 		if req.Organisation != nil {
-			s, ok := checkHackLine(w, *req.Organisation, "organisation", 0, 120)
-			if !ok {
-				return false, false, false
+			s, validationErr := checkHackLineValue(*req.Organisation, "organisation", 0, 120)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.Organisation = s
 		}
 		if req.ContactEmail != nil {
-			s, ok := checkContactEmail(w, *req.ContactEmail)
-			if !ok {
-				return false, false, false
+			s, validationErr := checkContactEmailValue(*req.ContactEmail)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.ContactEmail = s
 		}
 		if req.Purpose != nil {
-			s, ok := checkHackText(w, *req.Purpose, "purpose", 1, 1000)
-			if !ok {
-				return false, false, false
+			s, validationErr := checkHackTextValue(*req.Purpose, "purpose", 1, 1000)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.Purpose = s
 		}
 		if req.ExpectedParticipants != nil {
 			if *req.ExpectedParticipants < 1 || *req.ExpectedParticipants > 100000 {
-				httpx.WriteError(w, http.StatusBadRequest, "invalid_expected_participants", "expected_participants must be between 1 and 100000")
-				return false, false, false
+				return false, false, &events.Error{Code: "invalid_expected_participants", Message: "expected_participants must be between 1 and 100000"}
 			}
 			ev.ExpectedParticipants = sql.NullInt64{Int64: int64(*req.ExpectedParticipants), Valid: true}
 		}
@@ -1482,9 +1473,9 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 			if strings.TrimSpace(*req.SubmissionDeadline) == "" {
 				ev.SubmissionDeadline = sql.NullTime{}
 			} else {
-				t, ok := parseEventTime(w, *req.SubmissionDeadline, loc, "submission_deadline", true)
-				if !ok {
-					return false, false, false
+				t, validationErr := parseEventTimeValue(*req.SubmissionDeadline, loc, "submission_deadline", true)
+				if validationErr != nil {
+					return false, false, validationErr
 				}
 				ev.SubmissionDeadline = t
 			}
@@ -1492,9 +1483,9 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		}
 		entryRequiredChanged = false
 		if req.EntryRequired != nil {
-			fields, ok := checkEntryRequired(w, *req.EntryRequired)
-			if !ok {
-				return false, false, false
+			fields, validationErr := checkEntryRequiredValue(*req.EntryRequired)
+			if validationErr != nil {
+				return false, false, validationErr
 			}
 			ev.EntryRequired = fields
 			entryRequiredChanged = true
@@ -1502,12 +1493,10 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		if req.GalleryOpen != nil {
 			ev.GalleryOpen = *req.GalleryOpen
 		}
-		return deadlineChanged, entryRequiredChanged, true
+		return deadlineChanged, entryRequiredChanged, nil
 	})
 	if err != nil {
-		if !errors.Is(err, events.ErrValidation) {
-			writeEventsError(w, err)
-		}
+		writeEventsError(w, err)
 		return
 	}
 	if deadlineChanged {
@@ -1522,27 +1511,17 @@ func submissionsClosedStage(stage string) bool { return hackevents.SubmissionsCl
 // checkEntryRequired validates the organiser's required entry fields and
 // returns them in the canonical order.
 func checkEntryRequired(w http.ResponseWriter, in []string) ([]string, bool) {
-	want := map[string]bool{}
-	for _, f := range in {
-		f = strings.TrimSpace(f)
-		known := false
-		for _, k := range hackEntryFields {
-			if f == k {
-				known = true
-			}
-		}
-		if !known {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_entry_field", "entry_required takes any of: "+strings.Join(hackEntryFields, ", "))
-			return nil, false
-		}
-		want[f] = true
+	value, err := checkEntryRequiredValue(in)
+	if err != nil {
+		writeEventsError(w, err)
+		return nil, false
 	}
-	return entryRequiredList(keysInOrder(want)), true
+	return value, true
 }
 
 func keysInOrder(set map[string]bool) []string {
 	out := []string{}
-	for _, k := range hackEntryFields {
+	for _, k := range hackevents.EntryFields {
 		if set[k] {
 			out = append(out, k)
 		}
@@ -1658,10 +1637,7 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 	if h.sites != nil {
 		trash = h.sites.TrashTeamSite
 	}
-	if err := h.eventsSvc().DeleteEvent(r.Context(), a.event, a.user.ID, req.Confirm, trash); errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return
-	} else if err != nil {
+	if err := h.eventsSvc().DeleteEvent(r.Context(), a.event, a.user.ID, req.Confirm, trash); err != nil {
 		writeEventsError(w, err)
 		return
 	}
@@ -1802,13 +1778,9 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 		httpx.WriteError(w, http.StatusNotFound, "invalid_code", "invalid code")
 		return
 	}
-	ev, member, organiser, err := h.eventsSvc().JoinByCode(r.Context(), code, user.ID, display, judge, req.Answers, func(questions []db.SignupQuestion, input map[string]string) ([]db.SignupAnswer, bool) {
-		return validateSignupAnswers(w, questions, input)
-	})
+	ev, member, organiser, err := h.eventsSvc().JoinByCode(r.Context(), code, user.ID, display, judge, req.Answers, validateSignupAnswersValue)
 	if err != nil {
-		if !errors.Is(err, events.ErrValidation) {
-			writeEventsError(w, err)
-		}
+		writeEventsError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, member, organiser))
@@ -1819,65 +1791,33 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 // question answered within 500 characters, every required one non-empty,
 // and no answer for an unlisted question id.
 func validateSignupAnswers(w http.ResponseWriter, questions []db.SignupQuestion, in map[string]string) ([]db.SignupAnswer, bool) {
-	if len(in) > len(questions) {
-		httpx.WriteError(w, 400, "invalid_answers", "answer only the listed questions")
+	value, err := validateSignupAnswersValue(questions, in)
+	if err != nil {
+		writeEventsError(w, err)
 		return nil, false
 	}
-	answers := make([]db.SignupAnswer, 0, len(questions))
-	allowed := map[string]bool{}
-	for _, q := range questions {
-		allowed[q.ID] = true
-		answer, valid := checkHackText(w, in[q.ID], "answer", 0, 500)
-		if !valid {
-			return nil, false
-		}
-		if q.Required && answer == "" {
-			httpx.WriteError(w, 400, "answer_required", "answer every required question")
-			return nil, false
-		}
-		answers = append(answers, db.SignupAnswer{ID: q.ID, Prompt: q.Prompt, Answer: answer})
-	}
-	for id := range in {
-		if !allowed[id] {
-			httpx.WriteError(w, 400, "invalid_answers", "answer only the listed questions")
-			return nil, false
-		}
-	}
-	return answers, true
+	return value, true
 }
 
 func checkHackText(w http.ResponseWriter, s, field string, min, max int) (string, bool) {
-	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
-	if hasBadControls(s) {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_"+field, field+" contains characters that are not allowed")
+	value, err := checkHackTextValue(s, field, min, max)
+	if err != nil {
+		writeEventsError(w, err)
 		return "", false
 	}
-	n := utf8.RuneCountInString(s)
-	if n < min || n > max {
-		if min > 0 && n < min {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_"+field, field+" is required")
-			return "", false
-		}
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_"+field, field+" is too long")
-		return "", false
-	}
-	return s, true
+	return value, true
 }
 
 // checkHackLine is checkHackText for a one-line field (a title, a name): no
 // line breaks, runs of spaces collapsed (so "A  B" is not a second "A B"),
 // and something visible in it.
 func checkHackLine(w http.ResponseWriter, s, field string, min, max int) (string, bool) {
-	if strings.ContainsAny(strings.TrimSpace(s), "\n\r\t\u0085\u2028\u2029") {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_"+field, field+" must be one line")
+	value, err := checkHackLineValue(s, field, min, max)
+	if err != nil {
+		writeEventsError(w, err)
 		return "", false
 	}
-	s = strings.Join(strings.Fields(s), " ")
-	if min > 0 && !hasVisible(s) {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_"+field, field+" is required")
-		return "", false
-	}
-	return checkHackText(w, s, field, min, max)
+	return value, true
 }
 
 // hasBadControls: control characters other than newline and tab, the bidi
@@ -1918,76 +1858,30 @@ func hasVisible(s string) bool {
 }
 
 func checkContactEmail(w http.ResponseWriter, s string) (string, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" || utf8.RuneCountInString(s) > 254 {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_contact_email", "contact_email must be a valid email address")
+	value, err := checkContactEmailValue(s)
+	if err != nil {
+		writeEventsError(w, err)
 		return "", false
 	}
-	addr, err := mail.ParseAddress(s)
-	if err != nil || addr.Name != "" || !strings.EqualFold(addr.Address, s) {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_contact_email", "contact_email must be a valid email address")
-		return "", false
-	}
-	if utf8.RuneCountInString(addr.Address) > 254 {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_contact_email", "contact_email must be a valid email address")
-		return "", false
-	}
-	return addr.Address, true
+	return value, true
 }
 
 func checkTimeZone(w http.ResponseWriter, tz string) (*time.Location, bool) {
-	if tz == "Local" {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_time_zone", "time_zone is not a valid IANA name")
-		return nil, false
-	}
-	loc, err := time.LoadLocation(tz)
+	value, err := checkTimeZoneValue(tz)
 	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_time_zone", "time_zone is not a valid IANA name")
+		writeEventsError(w, err)
 		return nil, false
 	}
-	return loc, true
+	return value, true
 }
 
 func parseEventTime(w http.ResponseWriter, s string, loc *time.Location, field string, required bool) (sql.NullTime, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		if required {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_"+field, field+" is required")
-			return sql.NullTime{}, false
-		}
-		return sql.NullTime{}, true
-	}
-	if len(s) == 10 && s[4] == '-' && s[7] == '-' {
-		t, err := time.ParseInLocation("2006-01-02", s, loc)
-		if err != nil {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_"+field, field+" must be RFC 3339 or YYYY-MM-DD")
-			return sql.NullTime{}, false
-		}
-		return sql.NullTime{Time: t, Valid: true}, true
-	}
-	// A wall-clock time in the event's zone, as a datetime-local field sends it.
-	for _, layout := range []string{"2006-01-02T15:04", "2006-01-02T15:04:05"} {
-		if len(s) == len(layout) {
-			if t, err := time.ParseInLocation(layout, s, loc); err == nil {
-				// A wall-clock time the clocks skip (a daylight-saving gap)
-				// does not exist in that zone: say so rather than move it.
-				if t.In(loc).Format(layout) != s {
-					httpx.WriteError(w, http.StatusBadRequest, "invalid_"+field, field+" is a time the clocks skip in "+loc.String()+"; pick another")
-					return sql.NullTime{}, false
-				}
-				return sql.NullTime{Time: t, Valid: true}, true
-			}
-		}
-	}
-	t, err := time.Parse(time.RFC3339, s)
+	value, err := parseEventTimeValue(s, loc, field, required)
 	if err != nil {
-		t, err = time.Parse(time.RFC3339Nano, s)
-	}
-	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_"+field, field+" must be RFC 3339, YYYY-MM-DDTHH:MM in the event's time zone, or YYYY-MM-DD")
+		writeEventsError(w, err)
 		return sql.NullTime{}, false
 	}
-	return sql.NullTime{Time: t, Valid: true}, true
+	return value, true
 }
 
 func rfc3339UTC(t sql.NullTime) any {
@@ -2070,4 +1964,137 @@ func trySavepoint(ctx context.Context, q db.Querier, fn func() error) error {
 	}
 	_, err := q.ExecContext(ctx, "RELEASE SAVEPOINT hack_try")
 	return err
+}
+
+func checkEntryRequiredValue(in []string) ([]string, error) {
+	want := map[string]bool{}
+	for _, f := range in {
+		f = strings.TrimSpace(f)
+		known := false
+		for _, k := range hackevents.EntryFields {
+			if f == k {
+				known = true
+			}
+		}
+		if !known {
+			return nil, &events.Error{Code: "invalid_entry_field", Message: "entry_required takes any of: " + strings.Join(hackevents.EntryFields, ", ")}
+		}
+		want[f] = true
+	}
+	return entryRequiredList(keysInOrder(want)), nil
+}
+
+func validateSignupAnswersValue(questions []db.SignupQuestion, in map[string]string) ([]db.SignupAnswer, error) {
+	if len(in) > len(questions) {
+		return nil, &events.Error{Code: "invalid_answers", Message: "answer only the listed questions"}
+	}
+	answers := make([]db.SignupAnswer, 0, len(questions))
+	allowed := map[string]bool{}
+	for _, q := range questions {
+		allowed[q.ID] = true
+		answer, validationErr := checkHackTextValue(in[q.ID], "answer", 0, 500)
+		if validationErr != nil {
+			return nil, validationErr
+		}
+		if q.Required && answer == "" {
+			return nil, &events.Error{Code: "answer_required", Message: "answer every required question"}
+		}
+		answers = append(answers, db.SignupAnswer{ID: q.ID, Prompt: q.Prompt, Answer: answer})
+	}
+	for id := range in {
+		if !allowed[id] {
+			return nil, &events.Error{Code: "invalid_answers", Message: "answer only the listed questions"}
+		}
+	}
+	return answers, nil
+}
+
+func checkHackTextValue(s, field string, min, max int) (string, error) {
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
+	if hasBadControls(s) {
+		return "", &events.Error{Code: "invalid_" + field, Message: field + " contains characters that are not allowed"}
+	}
+	n := utf8.RuneCountInString(s)
+	if n < min || n > max {
+		if min > 0 && n < min {
+			return "", &events.Error{Code: "invalid_" + field, Message: field + " is required"}
+		}
+		return "", &events.Error{Code: "invalid_" + field, Message: field + " is too long"}
+	}
+	return s, nil
+}
+
+func checkHackLineValue(s, field string, min, max int) (string, error) {
+	if strings.ContainsAny(strings.TrimSpace(s), "\n\r\t\u0085\u2028\u2029") {
+		return "", &events.Error{Code: "invalid_" + field, Message: field + " must be one line"}
+	}
+	s = strings.Join(strings.Fields(s), " ")
+	if min > 0 && !hasVisible(s) {
+		return "", &events.Error{Code: "invalid_" + field, Message: field + " is required"}
+	}
+	return checkHackTextValue(s, field, min, max)
+}
+
+func checkContactEmailValue(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" || utf8.RuneCountInString(s) > 254 {
+		return "", &events.Error{Code: "invalid_contact_email", Message: "contact_email must be a valid email address"}
+	}
+	addr, err := mail.ParseAddress(s)
+	if err != nil || addr.Name != "" || !strings.EqualFold(addr.Address, s) {
+		return "", &events.Error{Code: "invalid_contact_email", Message: "contact_email must be a valid email address"}
+	}
+	if utf8.RuneCountInString(addr.Address) > 254 {
+		return "", &events.Error{Code: "invalid_contact_email", Message: "contact_email must be a valid email address"}
+	}
+	return addr.Address, nil
+}
+
+func checkTimeZoneValue(tz string) (*time.Location, error) {
+	if tz == "Local" {
+		return nil, &events.Error{Code: "invalid_time_zone", Message: "time_zone is not a valid IANA name"}
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return nil, &events.Error{Code: "invalid_time_zone", Message: "time_zone is not a valid IANA name"}
+	}
+	return loc, nil
+}
+
+func parseEventTimeValue(s string, loc *time.Location, field string, required bool) (sql.NullTime, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		if required {
+			return sql.NullTime{}, &events.Error{Code: "invalid_" + field, Message: field + " is required"}
+		}
+		return sql.NullTime{}, nil
+	}
+	if len(s) == 10 && s[4] == '-' && s[7] == '-' {
+		t, err := time.ParseInLocation("2006-01-02", s, loc)
+		if err != nil {
+			return sql.NullTime{}, &events.Error{Code: "invalid_" + field, Message: field + " must be RFC 3339 or YYYY-MM-DD"}
+		}
+		return sql.NullTime{Time: t, Valid: true}, nil
+	}
+	// A wall-clock time in the event's zone, as a datetime-local field sends it.
+	for _, layout := range []string{"2006-01-02T15:04", "2006-01-02T15:04:05"} {
+		if len(s) == len(layout) {
+			if t, err := time.ParseInLocation(layout, s, loc); err == nil {
+				// A wall-clock time the clocks skip (a daylight-saving gap)
+				// does not exist in that zone: say so rather than move it.
+				if t.In(loc).Format(layout) != s {
+					return sql.NullTime{}, &events.Error{Code: "invalid_" + field, Message: field + " is a time the clocks skip in " + loc.String() + "; pick another"}
+				}
+				return sql.NullTime{Time: t, Valid: true}, nil
+			}
+		}
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		t, err = time.Parse(time.RFC3339Nano, s)
+	}
+	if err != nil {
+		return sql.NullTime{}, &events.Error{Code: "invalid_" + field, Message: field + " must be RFC 3339, YYYY-MM-DDTHH:MM in the event's time zone, or YYYY-MM-DD"}
+	}
+	return sql.NullTime{Time: t, Valid: true}, nil
 }

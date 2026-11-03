@@ -9,7 +9,7 @@ import (
 )
 
 // JoinByCode joins an event as participant or judge.
-func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, judge bool, input map[string]string, validate func([]db.SignupQuestion, map[string]string) ([]db.SignupAnswer, bool)) (db.Event, db.EventMember, bool, error) {
+func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, judge bool, input map[string]string, validate func([]db.SignupQuestion, map[string]string) ([]db.SignupAnswer, error)) (db.Event, db.EventMember, bool, error) {
 	var ev db.Event
 	var err error
 	if judge {
@@ -18,29 +18,29 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 		ev, err = db.GetEventByJoinCode(ctx, s.db, code)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
-		return ev, db.EventMember{}, false, &Error{404, "invalid_code", "invalid code"}
+		return ev, db.EventMember{}, false, &Error{"invalid_code", "invalid code"}
 	}
 	if err != nil {
 		return ev, db.EventMember{}, false, err
 	}
 	if ev.TakenDown() {
-		return ev, db.EventMember{}, false, &Error{403, "event_taken_down", "this event has been taken down"}
+		return ev, db.EventMember{}, false, &Error{"event_taken_down", "this event has been taken down"}
 	}
 	role := "participant"
 	if judge {
 		role = "judge"
 		if ev.Stage == "results" || ev.Stage == "archived" {
-			return ev, db.EventMember{}, false, &Error{409, "judging_closed", "judging is closed for this event"}
+			return ev, db.EventMember{}, false, &Error{"judging_closed", "judging is closed for this event"}
 		}
 	} else if ev.Stage != "open" && ev.Stage != "building" {
-		return ev, db.EventMember{}, false, &Error{409, "joining_closed", "joining is closed for this event"}
+		return ev, db.EventMember{}, false, &Error{"joining_closed", "joining is closed for this event"}
 	}
 	existing, err := db.GetEventMember(ctx, s.db, ev.ID, userID)
 	if err == nil {
 		if existing.Role == role {
 			return ev, existing, existing.Role == "organiser", nil
 		}
-		return ev, db.EventMember{}, false, &Error{409, "already_member", "you already have a different role in this event"}
+		return ev, db.EventMember{}, false, &Error{"already_member", "you already have a different role in this event"}
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return ev, db.EventMember{}, false, err
@@ -58,7 +58,7 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 		defer tx.Rollback()
 		locked, txerr := db.GetEventForShare(ctx, tx, ev.ID)
 		if errors.Is(txerr, sql.ErrNoRows) {
-			return ev, db.EventMember{}, false, &Error{404, "invalid_code", "invalid code"}
+			return ev, db.EventMember{}, false, &Error{"invalid_code", "invalid code"}
 		}
 		if txerr != nil {
 			return ev, db.EventMember{}, false, txerr
@@ -68,10 +68,10 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 		// organiser's "end" or "delete" was waiting on this same row and
 		// committed while this request queued behind it.
 		if locked.TakenDown() {
-			return ev, db.EventMember{}, false, &Error{403, "event_taken_down", "this event has been taken down"}
+			return ev, db.EventMember{}, false, &Error{"event_taken_down", "this event has been taken down"}
 		}
 		if locked.Stage == "results" || locked.Stage == "archived" {
-			return ev, db.EventMember{}, false, &Error{409, "judging_closed", "judging is closed for this event"}
+			return ev, db.EventMember{}, false, &Error{"judging_closed", "judging is closed for this event"}
 		}
 		member, err = db.InsertEventMember(ctx, tx, ev.ID, userID, role, display)
 		if err == nil {
@@ -85,24 +85,24 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 		defer tx.Rollback()
 		locked, txerr := db.GetEventForShare(ctx, tx, ev.ID)
 		if errors.Is(txerr, sql.ErrNoRows) {
-			return ev, db.EventMember{}, false, &Error{404, "invalid_code", "invalid code"}
+			return ev, db.EventMember{}, false, &Error{"invalid_code", "invalid code"}
 		}
 		if txerr != nil {
 			return ev, db.EventMember{}, false, txerr
 		}
 		if locked.TakenDown() {
-			return ev, db.EventMember{}, false, &Error{403, "event_taken_down", "this event has been taken down"}
+			return ev, db.EventMember{}, false, &Error{"event_taken_down", "this event has been taken down"}
 		}
 		if locked.Stage != "open" && locked.Stage != "building" {
-			return ev, db.EventMember{}, false, &Error{409, "joining_closed", "joining is closed for this event"}
+			return ev, db.EventMember{}, false, &Error{"joining_closed", "joining is closed for this event"}
 		}
 		questions, required, qerr := db.RegistrationSettings(ctx, tx, ev.ID)
 		if qerr != nil {
 			return ev, db.EventMember{}, false, qerr
 		}
-		answers, ok := validate(questions, input)
-		if !ok {
-			return ev, db.EventMember{}, false, ErrValidation
+		answers, validationErr := validate(questions, input)
+		if validationErr != nil {
+			return ev, db.EventMember{}, false, validationErr
 		}
 		member, err = db.JoinParticipantRegistration(ctx, tx, ev.ID, userID, display, answers, required)
 		if err == nil && required {
@@ -119,7 +119,7 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 			if err2 == nil && existing.Role == role {
 				return ev, existing, false, nil
 			}
-			return ev, db.EventMember{}, false, &Error{409, "already_member", "you already have a different role in this event"}
+			return ev, db.EventMember{}, false, &Error{"already_member", "you already have a different role in this event"}
 		}
 		return ev, db.EventMember{}, false, err
 	}

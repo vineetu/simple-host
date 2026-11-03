@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
@@ -118,12 +117,7 @@ func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Reque
 	}
 	ev, member, err := h.eventsSvc().AcceptOrganiserInvite(r.Context(), r.PathValue("code"), user.ID, name)
 	if err != nil {
-		var workflowErr *events.Error
-		if errors.As(err, &workflowErr) {
-			httpx.WriteError(w, workflowErr.Status, workflowErr.Code, workflowErr.Message)
-		} else {
-			httpx.WriteInternal(w)
-		}
+		writeEventsError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, h.eventView(r.Context(), ev, member, true))
@@ -139,16 +133,8 @@ func (h *HackHandler) removeOrganiser(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	if err := h.eventsSvc().RemoveOrganiser(r.Context(), a.event, a.user.ID, id); errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return
-	} else if err != nil {
-		var workflowErr *events.Error
-		if errors.As(err, &workflowErr) {
-			httpx.WriteError(w, workflowErr.Status, workflowErr.Code, workflowErr.Message)
-		} else {
-			httpx.WriteInternal(w)
-		}
+	if err := h.eventsSvc().RemoveOrganiser(r.Context(), a.event, a.user.ID, id); err != nil {
+		writeEventsError(w, err)
 		return
 	}
 	w.WriteHeader(204)

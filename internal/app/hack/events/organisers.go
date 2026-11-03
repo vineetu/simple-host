@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
@@ -35,7 +34,7 @@ func (s *Service) OrganiserInvite(ctx context.Context, code string) (db.Event, e
 func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name string) (db.Event, db.EventMember, error) {
 	var ev db.Event
 	var member db.EventMember
-	invalid := func() error { return &Error{404, "invalid_code", "invalid or expired invitation"} }
+	invalid := func() error { return &Error{"invalid_code", "invalid or expired invitation"} }
 	hash := db.HashAPIKey(hackevents.NormalizeCode(code))
 	// Find the event before locking, then lock the event before the invite
 	// and inviter's member row, matching leave's lock order (SIM-340 2.4).
@@ -66,19 +65,19 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 		return ev, member, err
 	}
 	if ev.TakenDown() {
-		return ev, member, &Error{403, "event_taken_down", "this event has been taken down"}
+		return ev, member, &Error{"event_taken_down", "this event has been taken down"}
 	}
 	if ev.Stage == "archived" {
-		return ev, member, &Error{409, "event_closed", "an ended event cannot be changed"}
+		return ev, member, &Error{"event_closed", "an ended event cannot be changed"}
 	}
 	if _, err = db.GetEventMember(ctx, tx, ev.ID, userID); err == nil {
-		return ev, member, &Error{409, "already_member", "you already belong to this event; roles cannot be changed through an invitation"}
+		return ev, member, &Error{"already_member", "you already belong to this event; roles cannot be changed through an invitation"}
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return ev, member, err
 	}
 	member, err = db.InsertEventMember(ctx, tx, ev.ID, userID, "organiser", name)
-	if err != nil && (strings.Contains(err.Error(), "23505") || strings.Contains(strings.ToLower(err.Error()), "unique")) {
-		return ev, member, &Error{409, "already_member", "you already belong to this event"}
+	if unique(err) {
+		return ev, member, &Error{"already_member", "you already belong to this event"}
 	}
 	if err != nil {
 		return ev, member, err
@@ -95,14 +94,16 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 // RemoveOrganiser removes a co-organiser in a transaction.
 func (s *Service) RemoveOrganiser(ctx context.Context, event db.Event, actorID, userID string) error {
 	if event.CreatedBy.Valid && userID == event.CreatedBy.String {
-		return &Error{409, "primary_organiser", "the event creator cannot be removed"}
+		return &Error{"primary_organiser", "the event creator cannot be removed"}
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if err = db.RemoveCoOrganiser(ctx, tx, event.ID, actorID, userID); err != nil {
+	if err = db.RemoveCoOrganiser(ctx, tx, event.ID, actorID, userID); errors.Is(err, sql.ErrNoRows) {
+		return &Error{"event_not_found", "event not found"}
+	} else if err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -125,7 +126,7 @@ func (s *Service) RegenerateCode(ctx context.Context, eventID, kind string, leng
 		if err == nil {
 			break
 		}
-		if (strings.Contains(err.Error(), "23505") || strings.Contains(strings.ToLower(err.Error()), "unique")) && attempt < 7 {
+		if unique(err) && attempt < 7 {
 			continue
 		}
 		return updated, err
