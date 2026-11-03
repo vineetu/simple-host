@@ -150,7 +150,7 @@ func (s *Service) SetStage(ctx context.Context, event db.Event, stage string, se
 	}
 	defer tx.Rollback()
 	var current string
-	if err := eventrepo.RunStageWorkflowSQL1(ctx, tx, event.ID).Scan(&current); err != nil {
+	if err := eventrepo.LockWorkflowStage(ctx, tx, event.ID).Scan(&current); err != nil {
 		return db.Event{}, "", err
 	}
 	if current == "archived" && stage != "archived" {
@@ -158,7 +158,7 @@ func (s *Service) SetStage(ctx context.Context, event db.Event, stage string, se
 	}
 	// Every team row too: a deploy let in holds its team FOR SHARE and
 	// finishes before the deadline moves.
-	if _, err := eventrepo.RunStageWorkflowSQL2(ctx, tx, event.ID); err != nil {
+	if _, err := eventrepo.LockEventTeams(ctx, tx, event.ID); err != nil {
 		return db.Event{}, "", err
 	}
 	var updated db.Event
@@ -172,13 +172,13 @@ func (s *Service) SetStage(ctx context.Context, event db.Event, stage string, se
 		case hackevents.SubmissionsClosedStage(stage) && !hackevents.SubmissionsClosedStage(current) && current != "archived":
 			// Submissions close now: the deadline becomes now unless it
 			// already passed. Teams given more time keep it.
-			_, err = eventrepo.RunStageWorkflowSQL3(ctx, tx, event.ID)
+			_, err = eventrepo.CloseSubmissionDeadline(ctx, tx, event.ID)
 		case (stage == "open" || stage == "building") && current != "open" && current != "building":
 			// Back to open or building from any other stage (closed, or draft
 			// after closed): a passed deadline (and passed extensions) go, so
 			// teams can publish again until the organiser sets a new one.
-			if _, err = eventrepo.RunStageWorkflowSQL4(ctx, tx, event.ID); err == nil {
-				_, err = eventrepo.RunStageWorkflowSQL5(ctx, tx, event.ID)
+			if _, err = eventrepo.ClearPassedSubmissionDeadline(ctx, tx, event.ID); err == nil {
+				_, err = eventrepo.ClearPassedTeamDeadlines(ctx, tx, event.ID)
 			}
 			if err == nil {
 				// Section 7, "Unsettle": back to building reopens every
@@ -231,7 +231,7 @@ func (s *Service) DeleteEvent(ctx context.Context, event db.Event, userID string
 	// Hold the event against joins and recheck current organiser membership.
 	var stage, role string
 	var takenDown bool
-	err = eventrepo.RunStageWorkflowSQL6(ctx, tx, event.ID, userID).Scan(&stage, &role, &takenDown)
+	err = eventrepo.LockStageAndMemberRole(ctx, tx, event.ID, userID).Scan(&stage, &role, &takenDown)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && role != "organiser") {
 		return &Error{"event_not_found", "event not found"}
 	}
@@ -262,11 +262,11 @@ func (s *Service) DeleteEvent(ctx context.Context, event db.Event, userID string
 // holds the event row FOR UPDATE, has checked that a participant exists, and
 // supplies the current stage read under that lock.
 func (s *Service) ArchiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string, settle func(context.Context, *sql.Tx, string) error) (db.Event, error) {
-	if _, err := eventrepo.RunStageWorkflowSQL2(ctx, tx, eventID); err != nil {
+	if _, err := eventrepo.LockEventTeams(ctx, tx, eventID); err != nil {
 		return db.Event{}, err
 	}
 	if !hackevents.SubmissionsClosedStage(current) {
-		if _, err := eventrepo.RunStageWorkflowSQL7(ctx, tx, eventID); err != nil {
+		if _, err := eventrepo.CloseDeadlineForStage(ctx, tx, eventID); err != nil {
 			return db.Event{}, err
 		}
 	}
@@ -326,7 +326,7 @@ func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(
 		// Submissions closed means the deadline has passed; reopening them
 		// is moving the event back to Building, or one team's extension.
 		var dbNow time.Time
-		if err := eventrepo.RunStageWorkflowSQL8(ctx, tx).Scan(&dbNow); err != nil {
+		if err := eventrepo.DatabaseNow(ctx, tx).Scan(&dbNow); err != nil {
 			return db.Event{}, err
 		}
 		if hackevents.SubmissionsClosedStage(stage) && (!ev.SubmissionDeadline.Valid || ev.SubmissionDeadline.Time.After(dbNow)) {
@@ -363,7 +363,7 @@ func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(
 	if deadlineChanged {
 		// Lock every team row: a deploy let in before the old deadline
 		// holds its team FOR SHARE and finishes first.
-		if _, err := eventrepo.RunStageWorkflowSQL2(ctx, tx, ev.ID); err != nil {
+		if _, err := eventrepo.LockEventTeams(ctx, tx, ev.ID); err != nil {
 			return db.Event{}, err
 		}
 		if err := db.UnpinReopened(ctx, tx, ev.ID); err != nil {
@@ -384,16 +384,16 @@ func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(
 // savepoint rolls back a failed attempt so a unique violation does not abort
 // the transaction and prevent a retry.
 func savepoint(ctx context.Context, q db.Querier, fn func() error) error {
-	if _, err := eventrepo.RunSavepointSQL(ctx, q); err != nil {
+	if _, err := eventrepo.StartWorkflowSavepoint(ctx, q); err != nil {
 		return err
 	}
 	if err := fn(); err != nil {
-		if _, rerr := eventrepo.RunRollbackSavepointSQL(ctx, q); rerr != nil {
+		if _, rerr := eventrepo.RollbackWorkflowSavepoint(ctx, q); rerr != nil {
 			return rerr
 		}
 		return err
 	}
-	_, err := eventrepo.RunReleaseSavepointSQL(ctx, q)
+	_, err := eventrepo.ReleaseWorkflowSavepoint(ctx, q)
 	return err
 }
 

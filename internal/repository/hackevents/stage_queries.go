@@ -7,94 +7,93 @@ import (
 )
 
 const (
-	// StageWorkflowSQL1 is an event workflow query.
-	StageWorkflowSQL1 = `SELECT stage FROM events WHERE id = $1 FOR UPDATE`
-	// StageWorkflowSQL2 is an event workflow query.
-	StageWorkflowSQL2 = `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`
-	// StageWorkflowSQL3 is an event workflow query.
-	StageWorkflowSQL3 = `
+	stageWorkflowSQL1 = `SELECT stage FROM events WHERE id = $1 FOR UPDATE`
+
+	stageWorkflowSQL2 = `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`
+
+	stageWorkflowSQL3 = `
 				UPDATE events SET submission_deadline = clock_timestamp()
 				 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`
-	// StageWorkflowSQL4 is an event workflow query.
-	StageWorkflowSQL4 = `
+
+	stageWorkflowSQL4 = `
 				UPDATE events SET submission_deadline = NULL
 				 WHERE id = $1 AND submission_deadline <= clock_timestamp()`
-	// StageWorkflowSQL5 is an event workflow query.
-	StageWorkflowSQL5 = `
+
+	stageWorkflowSQL5 = `
 					UPDATE event_teams SET deadline_override = NULL
 					 WHERE event_id = $1 AND deadline_override <= clock_timestamp()`
-	// StageWorkflowSQL6 is an event workflow query.
-	StageWorkflowSQL6 = `SELECT e.stage, m.role, e.taken_down_at IS NOT NULL
+
+	stageWorkflowSQL6 = `SELECT e.stage, m.role, e.taken_down_at IS NOT NULL
 		FROM events e JOIN event_members m ON m.event_id=e.id
 		WHERE e.id=$1 AND m.user_id=$2 FOR UPDATE OF e FOR SHARE OF m`
-	// StageWorkflowSQL7 is an event workflow query.
-	StageWorkflowSQL7 = `
+
+	stageWorkflowSQL7 = `
 			UPDATE events SET submission_deadline = clock_timestamp()
 			 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`
-	// StageWorkflowSQL8 is an event workflow query.
-	StageWorkflowSQL8 = `SELECT clock_timestamp()`
+
+	stageWorkflowSQL8 = `SELECT clock_timestamp()`
 )
 
-// SavepointSQL starts a retryable operation.
-const SavepointSQL = "SAVEPOINT hack_try"
+// savepointSQL starts a retryable operation.
+const savepointSQL = "SAVEPOINT hack_try"
 
-// RollbackSavepointSQL rolls back a failed attempt.
-const RollbackSavepointSQL = "ROLLBACK TO SAVEPOINT hack_try"
+// rollbackSavepointSQL rolls back a failed attempt.
+const rollbackSavepointSQL = "ROLLBACK TO SAVEPOINT hack_try"
 
-// ReleaseSavepointSQL finishes a successful attempt.
-const ReleaseSavepointSQL = "RELEASE SAVEPOINT hack_try"
+// releaseSavepointSQL finishes a successful attempt.
+const releaseSavepointSQL = "RELEASE SAVEPOINT hack_try"
 
-// RunStageWorkflowSQL1 executes the corresponding workflow query.
-func RunStageWorkflowSQL1(ctx context.Context, q sqlkit.Querier, args ...any) *sql.Row {
-	return q.QueryRowContext(ctx, StageWorkflowSQL1, args...)
+// LockWorkflowStage locks the event and reads its stage.
+func LockWorkflowStage(ctx context.Context, q *sql.Tx, eventID string) *sql.Row {
+	return q.QueryRowContext(ctx, stageWorkflowSQL1, eventID)
 }
 
-// RunStageWorkflowSQL2 executes the corresponding workflow query.
-func RunStageWorkflowSQL2(ctx context.Context, q sqlkit.Querier, args ...any) (sql.Result, error) {
-	return q.ExecContext(ctx, StageWorkflowSQL2, args...)
+// LockEventTeams locks the event’s team rows.
+func LockEventTeams(ctx context.Context, q *sql.Tx, eventID string) (sql.Result, error) {
+	return q.ExecContext(ctx, stageWorkflowSQL2, eventID)
 }
 
-// RunStageWorkflowSQL3 executes the corresponding workflow query.
-func RunStageWorkflowSQL3(ctx context.Context, q sqlkit.Querier, args ...any) (sql.Result, error) {
-	return q.ExecContext(ctx, StageWorkflowSQL3, args...)
+// CloseSubmissionDeadline moves a future or missing submission deadline to now.
+func CloseSubmissionDeadline(ctx context.Context, q sqlkit.Querier, eventID string) (sql.Result, error) {
+	return q.ExecContext(ctx, stageWorkflowSQL3, eventID)
 }
 
-// RunStageWorkflowSQL4 executes the corresponding workflow query.
-func RunStageWorkflowSQL4(ctx context.Context, q sqlkit.Querier, args ...any) (sql.Result, error) {
-	return q.ExecContext(ctx, StageWorkflowSQL4, args...)
+// ClearPassedSubmissionDeadline clears a submission deadline that has passed.
+func ClearPassedSubmissionDeadline(ctx context.Context, q sqlkit.Querier, eventID string) (sql.Result, error) {
+	return q.ExecContext(ctx, stageWorkflowSQL4, eventID)
 }
 
-// RunStageWorkflowSQL5 executes the corresponding workflow query.
-func RunStageWorkflowSQL5(ctx context.Context, q sqlkit.Querier, args ...any) (sql.Result, error) {
-	return q.ExecContext(ctx, StageWorkflowSQL5, args...)
+// ClearPassedTeamDeadlines clears team deadline overrides that have passed.
+func ClearPassedTeamDeadlines(ctx context.Context, q sqlkit.Querier, eventID string) (sql.Result, error) {
+	return q.ExecContext(ctx, stageWorkflowSQL5, eventID)
 }
 
-// RunStageWorkflowSQL6 executes the corresponding workflow query.
-func RunStageWorkflowSQL6(ctx context.Context, q sqlkit.Querier, args ...any) *sql.Row {
-	return q.QueryRowContext(ctx, StageWorkflowSQL6, args...)
+// LockStageAndMemberRole locks the event and shares the member lock while reading stage, role and takedown state.
+func LockStageAndMemberRole(ctx context.Context, q *sql.Tx, eventID, userID string) *sql.Row {
+	return q.QueryRowContext(ctx, stageWorkflowSQL6, eventID, userID)
 }
 
-// RunStageWorkflowSQL7 executes the corresponding workflow query.
-func RunStageWorkflowSQL7(ctx context.Context, q sqlkit.Querier, args ...any) (sql.Result, error) {
-	return q.ExecContext(ctx, StageWorkflowSQL7, args...)
+// CloseDeadlineForStage moves a future or missing submission deadline to now during a stage move.
+func CloseDeadlineForStage(ctx context.Context, q sqlkit.Querier, eventID string) (sql.Result, error) {
+	return q.ExecContext(ctx, stageWorkflowSQL7, eventID)
 }
 
-// RunStageWorkflowSQL8 executes the corresponding workflow query.
-func RunStageWorkflowSQL8(ctx context.Context, q sqlkit.Querier, args ...any) *sql.Row {
-	return q.QueryRowContext(ctx, StageWorkflowSQL8, args...)
+// DatabaseNow reads the database clock.
+func DatabaseNow(ctx context.Context, q sqlkit.Querier) *sql.Row {
+	return q.QueryRowContext(ctx, stageWorkflowSQL8)
 }
 
-// RunSavepointSQL executes the corresponding workflow query.
-func RunSavepointSQL(ctx context.Context, q sqlkit.Querier, args ...any) (sql.Result, error) {
-	return q.ExecContext(ctx, SavepointSQL, args...)
+// StartWorkflowSavepoint starts the workflow retry savepoint.
+func StartWorkflowSavepoint(ctx context.Context, q sqlkit.Querier) (sql.Result, error) {
+	return q.ExecContext(ctx, savepointSQL)
 }
 
-// RunRollbackSavepointSQL executes the corresponding workflow query.
-func RunRollbackSavepointSQL(ctx context.Context, q sqlkit.Querier, args ...any) (sql.Result, error) {
-	return q.ExecContext(ctx, RollbackSavepointSQL, args...)
+// RollbackWorkflowSavepoint rolls back the workflow retry savepoint.
+func RollbackWorkflowSavepoint(ctx context.Context, q sqlkit.Querier) (sql.Result, error) {
+	return q.ExecContext(ctx, rollbackSavepointSQL)
 }
 
-// RunReleaseSavepointSQL executes the corresponding workflow query.
-func RunReleaseSavepointSQL(ctx context.Context, q sqlkit.Querier, args ...any) (sql.Result, error) {
-	return q.ExecContext(ctx, ReleaseSavepointSQL, args...)
+// ReleaseWorkflowSavepoint releases the workflow retry savepoint.
+func ReleaseWorkflowSavepoint(ctx context.Context, q sqlkit.Querier) (sql.Result, error) {
+	return q.ExecContext(ctx, releaseSavepointSQL)
 }

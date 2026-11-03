@@ -43,7 +43,7 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 	// Frozen teams cannot accept newcomers and must not advertise as open.
 	// All unlocked teams are askable, including former code-only teams.
 	if !member.TeamID.Valid || member.Role == "organiser" {
-		rows, err := teamrepo.RunOpenSQL1(ctx, s.db, eventID)
+		rows, err := teamrepo.ListFindingTeams(ctx, s.db, eventID)
 		if err != nil {
 			return out, err
 		}
@@ -68,7 +68,7 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 		if err != nil {
 			return out, err
 		}
-		rows, err = teamrepo.RunOpenSQL2(ctx, s.db, eventID)
+		rows, err = teamrepo.ListFindingTeamMembers(ctx, s.db, eventID)
 		if err != nil {
 			return out, err
 		}
@@ -89,7 +89,7 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 		}
 	}
 	if member.TeamID.Valid || member.Role == "organiser" {
-		rows, err := teamrepo.RunOpenSQL3(ctx, s.db, eventID)
+		rows, err := teamrepo.ListLookingParticipants(ctx, s.db, eventID)
 		if err != nil {
 			return out, err
 		}
@@ -107,7 +107,7 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 			return out, err
 		}
 	}
-	rows, err := teamrepo.RunOpenSQL4(ctx, s.db, eventID, userID, member.TeamID, member.Role == "organiser")
+	rows, err := teamrepo.ListVisibleTeamRequests(ctx, s.db, eventID, userID, member.TeamID, member.Role == "organiser")
 	if err != nil {
 		return out, err
 	}
@@ -124,12 +124,12 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 	if err != nil {
 		return out, err
 	}
-	if err = teamrepo.RunOpenSQL5(ctx, s.db, eventID, userID).Scan(&out.Looking, &out.Intro); err != nil {
+	if err = teamrepo.ReadMemberLooking(ctx, s.db, eventID, userID).Scan(&out.Looking, &out.Intro); err != nil {
 		return out, err
 	}
 	if member.TeamID.Valid {
 		var t FindingTeamState
-		if err = teamrepo.RunOpenSQL6(ctx, s.db, member.TeamID, eventID, userID).Scan(&t.Locked, &t.LookingFor, &t.Admin); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if err = teamrepo.ReadFindingTeamState(ctx, s.db, member.TeamID, eventID, userID).Scan(&t.Locked, &t.LookingFor, &t.Admin); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return out, err
 		}
 		out.Team = &t

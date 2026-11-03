@@ -132,7 +132,7 @@ func (s *Service) PatchTeam(ctx context.Context, eventID, userID string, name, n
 		}
 	}
 	if note != nil {
-		if _, err = teamrepo.RunAdminSQL1(ctx, tx, team.ID, *note); err != nil {
+		if _, err = teamrepo.SetTeamLookingFor(ctx, tx, team.ID, *note); err != nil {
 			return team, internalError(err)
 		}
 	}

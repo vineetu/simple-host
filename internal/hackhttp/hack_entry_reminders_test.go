@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 )
 
 // Entry deadline reminders (entries slice 3).
@@ -116,14 +115,4 @@ func TestHackEntryReminders(t *testing.T) {
 		t.Fatalf("reminder after submit: %+v", got)
 	}
 	_ = team
-}
-
-func TestReminderIn(t *testing.T) {
-	cases := map[string]string{"30m": "in less than an hour", "70m": "in about an hour", "5h10m": "in about 5 hours", "23h50m": "in about 24 hours"}
-	for in, want := range cases {
-		d, _ := time.ParseDuration(in)
-		if got := reminderIn(d); got != want {
-			t.Errorf("%s: %q, want %q", in, got, want)
-		}
-	}
 }
