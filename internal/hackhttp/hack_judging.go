@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/sites"
@@ -366,52 +367,22 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 // team with neither has no entry and stays out; an excluded entry stays out.
 // Automatic assignment, the Judging progress and Overview's Start judging
 // confirm all use this, so none of them counts a team the queue never shows.
-type judgingPool struct {
-	in       map[string]bool
-	judged   int
-	noEntry  int
-	excluded int
-}
-
-func (h *HackHandler) judgingPoolFor(ctx context.Context, ev db.Event, teams []db.NamedTeam) (judgingPool, error) {
-	pool := judgingPool{in: map[string]bool{}}
-	entries, err := db.ListEventEntries(ctx, h.database, ev.ID)
-	if err != nil {
-		return pool, err
-	}
-	byTeam := map[string]db.EventEntry{}
-	for _, e := range entries {
-		byTeam[e.TeamID] = e
-	}
+func (h *HackHandler) judgingPoolFor(ctx context.Context, ev db.Event, teams []db.NamedTeam) (entries.Pool, error) {
 	var tl teamList
 	loaded := false
-	for _, t := range teams {
-		e, ok := byTeam[t.ID]
-		switch {
-		case ok && e.ExcludedAt.Valid:
-			pool.excluded++
-			continue
-		case ok:
-			pool.in[t.ID] = true
-			pool.judged++
-			continue
-		}
+	return h.entries.JudgingPool(ctx, ev, teams, func(t db.NamedTeam) (bool, error) {
 		if !loaded {
-			if tl, err = h.loadTeamList(ctx, ev); err != nil {
-				return pool, err
+			var err error
+			tl, err = h.loadTeamList(ctx, ev)
+			if err != nil {
+				return false, err
 			}
 			loaded = true
 		}
 		st := tl.states[t.ID]
 		site := tl.site(t.Slug)
-		if site != nil && site.ActiveVersion > 0 && !site.Suspended() && !st.SiteTakenDown && !st.EventTakenDown {
-			pool.in[t.ID] = true
-			pool.judged++
-		} else {
-			pool.noEntry++
-		}
-	}
-	return pool, nil
+		return site != nil && site.ActiveVersion > 0 && !site.Suspended() && !st.SiteTakenDown && !st.EventTakenDown, nil
+	})
 }
 
 func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request) {
@@ -441,92 +412,18 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 		httpx.WriteInternal(w)
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	planned, under, err := h.entries.GenerateAssignments(r.Context(), a.event.ID, req.IncludeOrganisers, pool.In)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if ev.Stage == "archived" {
-		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	if writeIfJudgingLocked(w, ev) {
-		return
-	}
-	// 409, not 400: the route exists, the event is just not in that mode.
-	// The code stays invalid_request, the same name as the other bad-input refusals.
-	if ev.JudgeAssignmentMode != "automatic" {
-		httpx.WriteError(w, http.StatusConflict, "invalid_request", "Switch to automatic assignment first.")
-		return
-	}
-	judges, err := db.ListEventJudges(r.Context(), tx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if !req.IncludeOrganisers {
-		only := []db.NamedJudge{}
-		for _, j := range judges {
-			if j.Role == "judge" {
-				only = append(only, j)
+		if e, ok := err.(*entries.Error); ok {
+			status := http.StatusConflict
+			if e.Code == "too_few_judges" || e.Code == "too_few_teams" {
+				status = http.StatusBadRequest
 			}
+			httpx.WriteError(w, status, e.Code, e.Message)
+		} else {
+			log.Printf("hack: assignments %s: %v", a.event.Slug, err)
+			httpx.WriteInternal(w)
 		}
-		judges = only
-	}
-	teams, err := db.ListTeamsWithMembers(r.Context(), tx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if len(judges) == 0 {
-		httpx.WriteError(w, http.StatusBadRequest, "too_few_judges", "Invite at least one judge first.")
-		return
-	}
-	// Only teams that will be judged get judges: a team with no entry would
-	// take a judge's slot and never show in anyone's queue.
-	judgedTeams := make([]db.NamedTeam, 0, len(teams))
-	for _, t := range teams {
-		if pool.in[t.ID] {
-			judgedTeams = append(judgedTeams, t)
-		}
-	}
-	if len(teams) == 0 {
-		httpx.WriteError(w, http.StatusBadRequest, "too_few_teams", "No teams to assign yet.")
-		return
-	}
-	if len(judgedTeams) == 0 {
-		httpx.WriteError(w, http.StatusBadRequest, "too_few_teams", "No team has an entry to judge yet.")
-		return
-	}
-	teams = judgedTeams
-	pairs, err := db.ListConflictPairs(r.Context(), tx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	conflicted := map[string]bool{}
-	for _, p := range pairs {
-		conflicted[hackentries.JudgeTeamKey(p.JudgeID, p.TeamID)] = true
-	}
-	planned, under := hackentries.PlanAssignments(teams, judges, conflicted, ev.JudgesPerTeam)
-	if err := db.ReplaceAssignments(r.Context(), tx, a.event.ID, planned); err != nil {
-		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, assignmentJSON(planned, under))
@@ -747,6 +644,7 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
+	// TODO(4.1): This prospective pool includes unsettled entries and live sites; the queue requires judgeable entries.
 	// Progress lists only the teams that will be judged (judgingPoolFor),
 	// the same set the queue and automatic assignment use.
 	pool, err := h.judgingPoolFor(ctx, a.event, allTeams)
@@ -757,7 +655,7 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	teams := make([]db.NamedTeam, 0, len(allTeams))
 	for _, t := range allTeams {
-		if pool.in[t.ID] {
+		if pool.In[t.ID] {
 			teams = append(teams, t)
 		}
 	}
@@ -781,19 +679,11 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 	if a.event.JudgeAssignmentMode == "open" {
 		target = 2
 	}
-	assigned := map[string]int{}
-	eligibleByTeam := map[string]int{}
-	for _, judge := range judges {
-		eligible, err := db.EligibleJudgeTeams(ctx, h.database, a.event.ID, judge.ID)
-		if err != nil {
-			log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
-			httpx.WriteInternal(w)
-			return
-		}
-		assigned[judge.ID] = len(eligible)
-		for teamID := range eligible {
-			eligibleByTeam[teamID]++
-		}
+	assigned, eligibleByTeam, err := h.entries.EligibilityCounts(ctx, a.event.ID, judges)
+	if err != nil {
+		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
+		httpx.WriteInternal(w)
+		return
 	}
 	teamRows := make([]map[string]any, 0, len(teams))
 	for _, team := range teams {
@@ -852,7 +742,7 @@ func (h *HackHandler) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 		// What Start judging will do, for Overview's confirm: teams that
 		// will be judged, teams with no entry (left out), and entries an
 		// organiser excluded by hand.
-		"entries": map[string]any{"judged": pool.judged, "no_entry": pool.noEntry, "excluded": pool.excluded},
+		"entries": map[string]any{"judged": pool.Judged, "no_entry": pool.NoEntry, "excluded": pool.Excluded},
 	})
 }
 
@@ -1000,81 +890,17 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	teams, err := db.ListTeamsWithMembers(ctx, h.database, a.event.ID)
+	var tl teamList
+	queue, err := h.entries.JudgeQueue(ctx, a.event, a.user.ID, func() error {
+		var err error
+		tl, err = h.loadTeamList(ctx, a.event)
+		return err
+	})
 	if err != nil {
 		log.Printf("hack: queue %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
 		return
 	}
-	pairs, err := db.ListConflictPairs(ctx, h.database, a.event.ID)
-	if err != nil {
-		log.Printf("hack: queue %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	conflicted := map[string]bool{}
-	for _, p := range pairs {
-		if p.JudgeID == a.user.ID {
-			conflicted[p.TeamID] = true
-		}
-	}
-	eligible := teams
-	// Compute global coverage (how many distinct judges scored each team) once,
-	// before filtering to this judge's own eligible set, so ordering reflects
-	// true coverage, not just what this judge can see.
-	byTeam, _, err := db.ScoreCoverage(ctx, h.database, a.event.ID)
-	if err != nil {
-		log.Printf("hack: queue %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	if a.event.JudgeAssignmentMode != "open" {
-		assignedTeamIDs, aerr := db.EligibleJudgeTeams(ctx, h.database, a.event.ID, a.user.ID)
-		if aerr != nil {
-			log.Printf("hack: queue %s: %v", a.event.Slug, aerr)
-			httpx.WriteInternal(w)
-			return
-		}
-		filtered := make([]db.NamedTeam, 0, len(assignedTeamIDs))
-		for _, t := range teams {
-			if assignedTeamIDs[t.ID] {
-				filtered = append(filtered, t)
-			}
-		}
-		eligible = filtered
-	}
-	rubric, err := db.ListRubric(ctx, h.database, a.event.ID)
-	if err != nil {
-		log.Printf("hack: queue %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	tl, err := h.loadTeamList(ctx, a.event)
-	if err != nil {
-		log.Printf("hack: queue %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	stored, err := db.ListEventEntries(ctx, h.database, a.event.ID)
-	if err != nil {
-		log.Printf("hack: queue %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	byTeamEntry := map[string]db.EventEntry{}
-	for _, e := range stored {
-		byTeamEntry[e.TeamID] = e
-	}
-	// Section 4.5: unsettled, never-started or hand-excluded entries never
-	// reach the queue, whatever the assignment mode (db.EligibleJudgeTeams'
-	// own EntryJudgeableSQL only fires on the non-open-mode branch above).
-	judgeable := make([]db.NamedTeam, 0, len(eligible))
-	for _, t := range eligible {
-		if hackentries.Judgeable(byTeamEntry[t.ID]) {
-			judgeable = append(judgeable, t)
-		}
-	}
-	eligible = judgeable
 	fields := hackentries.LoadRules(a.event.EntryRules)
 	tracks, err := db.ListEventTracks(ctx, h.database, a.event.ID)
 	if err != nil {
@@ -1089,17 +915,10 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	type row struct {
-		item  map[string]any
-		count int
-		name  string
-	}
-	rows := make([]row, 0, len(eligible))
-	for _, team := range eligible {
-		if conflicted[team.ID] {
-			continue
-		}
-		item, ierr := h.entryListItem(ctx, a.event, db.EventTeam{ID: team.ID, Name: team.Name, Slug: team.Slug}, byTeamEntry[team.ID], fields, hasTracks, tl)
+	out := make([]map[string]any, 0, len(queue))
+	for _, row := range queue {
+		team := row.Team
+		item, ierr := h.entryListItem(ctx, a.event, db.EventTeam{ID: team.ID, Name: team.Name, Slug: team.Slug}, row.Entry, fields, hasTracks, tl)
 		if ierr != nil {
 			log.Printf("hack: queue %s/%s: %v", a.event.Slug, team.ID, ierr)
 			httpx.WriteInternal(w)
@@ -1109,65 +928,11 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		if !mayLink(team.ID) {
 			redactEntrySiteLinks(item)
 		}
-		done, derr := judgeDoneForTeam(ctx, h.database, a.event.ID, a.user.ID, team.ID, len(rubric))
-		if derr != nil {
-			log.Printf("hack: queue %s/%s: %v", a.event.Slug, team.ID, derr)
-			httpx.WriteInternal(w)
-			return
-		}
-		item["done"] = done
-		count := byTeam[team.ID]
-		item["scores_count"] = count
-		rows = append(rows, row{item: item, count: count, name: team.Name})
-	}
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].count != rows[j].count {
-			return rows[i].count < rows[j].count
-		}
-		return strings.ToLower(rows[i].name) < strings.ToLower(rows[j].name)
-	})
-	out := make([]map[string]any, 0, len(rows))
-	for _, rw := range rows {
-		out = append(out, rw.item)
+		item["done"] = row.Done
+		item["scores_count"] = row.ScoresCount
+		out = append(out, item)
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"queue": out, "judge_first": a.event.JudgeFirst, "assignment_mode": a.event.JudgeAssignmentMode})
-}
-
-// assignedTeamsFor is the set of team ids a judge is assigned in automatic
-// mode.
-func assignedTeamsFor(ctx context.Context, database *sql.DB, eventID, judgeID string) (map[string]bool, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT team_id FROM event_assignments WHERE event_id = $1 AND judge_id = $2`, eventID, judgeID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]bool{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out[id] = true
-	}
-	return out, rows.Err()
-}
-
-// judgeDoneForTeam: true when this judge has a score row for every current
-// rubric criterion of this team. Zero criteria means nothing can be "done"
-// yet (there is nothing to score), so it is false, not vacuously true.
-func judgeDoneForTeam(ctx context.Context, database *sql.DB, eventID, judgeID, teamID string, criteriaCount int) (bool, error) {
-	if criteriaCount == 0 {
-		return false, nil
-	}
-	var n int
-	err := database.QueryRowContext(ctx, `
-		SELECT COUNT(DISTINCT criterion_id) FROM event_scores
-		 WHERE event_id = $1 AND judge_id = $2 AND team_id = $3`, eventID, judgeID, teamID).Scan(&n)
-	if err != nil {
-		return false, err
-	}
-	return n >= criteriaCount, nil
 }
 
 func scoresJSON(scores []db.JudgeScore, comment string, complete *bool) map[string]any {

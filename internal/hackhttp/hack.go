@@ -20,6 +20,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
@@ -144,7 +145,8 @@ type HackHandler struct {
 	// (getDirectory, hack_voting.go). Built in NewHackHandler from the
 	// same *sql.DB; nil on a bare &HackHandler{} (NewHackHandlerForTest),
 	// which never serves the directory route.
-	events *events.Service
+	events  *events.Service
+	entries *entries.Service
 }
 
 // HandleVerdict is the outcome handlecheck.go's judgeHandle reaches for one
@@ -405,6 +407,7 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 		archiveLinkKey:     newHackArchiveKey(),
 		events:             events.New(database),
 	}
+	h.entries = entries.New(h.database, h.entrySiteLive)
 	return h
 }
 
