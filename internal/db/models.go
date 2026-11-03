@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"github.com/vsriram/simple-host/internal/model"
 	"time"
 )
 
@@ -43,110 +44,6 @@ type EventWebsiteIdentity struct {
 	OrganiserID string
 }
 
-type SiteSummary struct {
-	Title, Description, Headings, Text string
-}
-
-type Site struct {
-	ID            string
-	UserID        string
-	Name          string
-	ActiveVersion int
-	SiteURL       string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	CustomDomain  sql.NullString
-	DomainStatus  sql.NullString
-	Visibility    string // showcase visibility: 'public' | 'unlisted' (default 'public')
-
-	// OwnerUsername is populated only by ListAllSites (admin view).
-	OwnerUsername string
-	// OwnerHandle is the owner's handle ("" if none), populated by the
-	// queries that answer the API so a site's address is computed on read.
-	OwnerHandle string
-
-	// Filled only by the site-list queries (ListSitesByUser, ListAllSites),
-	// so the owner's site list can show a pending domain's problem, its DNS
-	// record and expiry, and when the site was last deployed.
-	DomainLastError  sql.NullString
-	DomainBoundAt    sql.NullTime
-	DomainVerifiedAt sql.NullTime
-	LastDeployedAt   sql.NullTime
-
-	// Filled only by the site-list queries (ListSitesByUser, ListAllSites),
-	// so the owner can find sites by their content.
-	SummaryTitle       string
-	SummaryDescription string
-	SummaryHeadings    string
-	SummaryText        string
-	// PreviousDomain is the earlier address a site keeps serving at while a
-	// new domain is pending; DomainCertStatus is pending | issuing | live |
-	// failed ("" = not known yet).
-	PreviousDomain   string
-	DomainCertStatus string
-	// DomainToken is the site's custom-domain ownership token (the value of
-	// the TXT record _simple-host.<domain>).
-	DomainToken string
-
-	// Operator take-down. SiteSuspended is this site's own flag; OwnerSuspended
-	// is its owner's account being suspended, which takes every site of theirs
-	// down too. Populated by GetSiteByUser, ListSitesByUser and ListAllSites.
-	SiteSuspended        bool
-	SiteSuspendedReason  string
-	OwnerSuspended       bool
-	OwnerSuspendedReason string
-
-	// Offline: its owner has taken it offline (every address shows "This
-	// site is offline", visitor saves are refused, nothing is deleted).
-	// Populated by GetSiteByUser, ListSitesByUser, ListAllSites and GetSiteByID.
-	Offline bool
-
-	// Deleted: the site is in Recently deleted. Only GetSiteByID sees such
-	// rows; every other lookup skips them.
-	Deleted bool
-
-	// KeepVersions is how many deploys of this site are kept: 0 = the
-	// instance setting (KEEP_VERSIONS), N >= 1 = the newest N plus always the
-	// live one (sites.keep_versions). Populated by GetSiteByUser,
-	// ListSitesByUser, ListAllSites and GetSiteByID.
-	KeepVersions int
-
-	// Passcode: the site has a passcode (sites.passcode_enc is set), so every
-	// address asks for it before showing anything (handler/passcode.go).
-	// Populated by GetSiteByUser, ListSitesByUser, ListAllSites and GetSiteByID.
-	Passcode bool
-
-	// NamedViewers: only the owner and the site's named viewers can open it
-	// (sites.access = 'specific'; handler/viewers.go). Populated wherever
-	// Passcode is.
-	NamedViewers bool
-}
-
-// Suspended reports whether the site is taken down, by itself or through its
-// owner's account.
-func (s Site) Suspended() bool { return s.SiteSuspended || s.OwnerSuspended }
-
-// SuspendedReason is the reason shown to the owner: the site's own, else the
-// account's.
-func (s Site) SuspendedReason() string {
-	if s.SiteSuspended {
-		return s.SiteSuspendedReason
-	}
-	if s.OwnerSuspended {
-		return s.OwnerSuspendedReason
-	}
-	return ""
-}
-
-type Version struct {
-	ID            string
-	SiteID        string
-	VersionNumber int
-	DiskPath      string
-	Status        string
-	ArchiveSHA256 string
-	// Author is who made the version, as given by ?author= on the deploy
-	// (trimmed, at most 80 runes); "" when the deploy did not say.
-	Author    string
-	CreatedAt time.Time
-}
+type SiteSummary = model.SiteSummary
+type Site = model.Site
+type Version = model.Version
