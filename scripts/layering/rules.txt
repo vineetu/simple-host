@@ -9,17 +9,20 @@ auth -> app/accounts httpx edition model rules/auth
 mcp -> app/** edition model httpx buildinfo brain webassets workers
 httpx -> app/errors model edition
 app/{accounts,sites,storage,legacy,notifications,operations} -> app/errors model edition workers repository/sqlkit
-app/hack/{events,entries} -> app/errors model edition workers repository/sqlkit
+app/hack/{events,teams,members,entries} -> app/errors model edition workers repository/sqlkit
 app/accounts -> repository/{accounts,sites,hackevents} rules/{auth,hackevents} oauth email geoip
 app/sites -> app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball wpimport eventdns capacity
 app/storage -> app/{accounts,notifications} repository/{storage,sites} rules/{storage,auth} storage sitelocks
 app/legacy -> app/{accounts,storage,notifications} repository/{legacy,sites} rules/{storage,auth} sitelocks
-app/hack/events -> app/{accounts,sites,storage,notifications} app/hack/entries repository/{hackevents,accounts,sites} rules/{hackevents,auth} storage capacity
+app/hack/events -> app/{accounts,sites,storage,notifications} app/hack/entries repository/{hackevents,hackteams,accounts,sites} rules/{hackevents,hackentries,auth} storage capacity
+app/hack/{teams,members} -> app/{accounts,sites,storage,notifications} app/hack/{events,entries} repository/{hackevents,hackteams,accounts,sites} rules/{hackevents,hackteams,sites,auth}
 app/hack/entries -> app/{accounts,sites,storage,notifications} repository/{hackentries,hackevents,sites} rules/{hackentries,hackevents} storage
 app/notifications -> app/accounts repository/{notifications,accounts,hackevents,hackentries,legacy} email rules/{hackevents,hackentries}
 app/operations -> app/{accounts,sites,storage} repository/{operations,accounts,sites,hackevents,hackentries,legacy} storage analytics netusage papermetrics geoip imagescan email capacity buildinfo
-repository/{accounts,sites,storage,legacy,hackevents,hackentries,notifications,operations} -> repository/sqlkit model rules/{auth,sites,storage,hackevents,hackentries}
-rules/{auth,sites,storage,hackevents,hackentries} -> model
+repository/{accounts,sites,storage,legacy,hackevents,hackteams,hackentries,notifications,operations} -> repository/sqlkit model rules/{auth,sites,storage,hackevents,hackteams,hackentries}
+repository/hackteams -> repository/hackevents
+repository/hackevents -> repository/hackentries
+rules/{auth,sites,storage,hackevents,hackteams,hackentries} -> model
 edition -> config
 storage -> model
 {analytics,netusage,papermetrics} -> model workers
@@ -38,6 +41,10 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 mcp -> mcp/apps/bundlegen
 [transitional]
 app/hack/events -> db production # removal step 4.2: events and teams
+app/hack/teams -> db production # removal step 4.2: team workflows still call db forwarders until callers are repointed
+app/hack/members -> db production # removal step 4.2: member workflows still call db forwarders until callers are repointed
+db -> repository/hackevents production # removal step 4.2: transitional event, member and registration forwarders
+db -> repository/hackteams production # removal step 4.2: transitional team forwarders
 app/hack/entries -> db production # removal step 4.2: events and teams (entry/judging SQL goes through repository/hackentries)
 app/hack/entries -> rules/sites production # removal step 4.2: UUID validation moves to a shared rule
 db -> repository/hackentries production # removal step 4.2: last db forwarders serve event stage transitions, event/public/schedule pages and exports

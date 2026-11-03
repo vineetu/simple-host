@@ -40,16 +40,18 @@ internal/
     sites/                   deploys, versions, addresses, visibility, deletion, imports
     storage/                 KV, SQLite and runtime-file workflows
     legacy/                  the single Host saved-data compatibility adapter
-    hack/events/             events, membership, teams, applications, event content
+    hack/events/             events, organisers, stage transitions, event content
+    hack/teams/              teams, team admin and links, team finding
+    hack/members/            leaving, registration, applications and tracks
     hack/entries/            entries, settling, judging, voting and results
     notifications/           webhooks, MCP Events and mail delivery
     operations/              admin reporting, analytics, usage and image-scan orchestration
   repository/
     sqlkit/                  Querier and transaction-opening primitive
-    accounts/ sites/ storage/ legacy/ hackevents/ hackentries/ notifications/ operations/
+    accounts/ sites/ storage/ legacy/ hackevents/ hackteams/ hackentries/ notifications/ operations/
   model/                     shared records and value types, without SQL or transport
   rules/
-    auth/ sites/ storage/ hackevents/ hackentries/
+    auth/ sites/ storage/ hackevents/ hackteams/ hackentries/
   edition/                   immutable product policy and instance limits
   config/                    environment parsing, defaults and settings catalog
   workers/                   lifecycle/status types, not a scheduler or queue framework
@@ -61,7 +63,7 @@ internal/
   testdb/ geoip/geoiptest/     test fixtures only
 ```
 
-Packages appear only when the first code moves into them. Do not commit empty skeletons or placeholder interfaces ahead of the step that needs them. Repositories are area packages, not one package per table. `model` receives existing shared records as they move out of `db`; do not create a second permanent set of identical structs. Transport DTOs and application request/result types stay with their consumers. Pure rule inputs can be smaller values than stored records.
+Packages appear only when the first code moves into them. Do not commit empty skeletons or placeholder interfaces ahead of the step that needs them. Repositories are area packages, not one package per table. (Step 4.2 split Hack events into three app packages, events, teams and members, and two repositories, hackevents and hackteams, because one package would have held about 4,000 lines; hackteams may read hackevents, and hackevents may reuse hackentries' eligibility SQL.) `model` receives existing shared records as they move out of `db`; do not create a second permanent set of identical structs. Transport DTOs and application request/result types stay with their consumers. Pure rule inputs can be smaller values than stored records.
 
 | Package or group | Responsibility; forbidden work |
 |---|---|
