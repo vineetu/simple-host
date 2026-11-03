@@ -12,6 +12,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // Apply to a hackathon without a join link (zp-hack-applications.sql, owner
@@ -621,13 +622,12 @@ func TestHackApplyLimits(t *testing.T) {
 	// The pending cap (20) is a business rule independent of the rate
 	// limiter: raise both knobs generously on a fresh app so the cap, not
 	// the limiter or the per-organiser event cap, is what trips.
-	b := newHackApp(t)
 	l := config.DefaultLimits()
 	l.RateEventApplyUser.Burst = 100
 	l.RateEventApplyIP.Burst = 100
 	l.EventMaxActivePerOrganiser = 25
 	l.EventCreatePerDay = 25
-	setHackAppLimits(b, l)
+	b := newHackApp(t, edition.ForKindWithLimits(edition.Hack, l))
 	capOrg := b.newPerson(t, "allimcaporg")
 	capPerson := b.newPerson(t, "allimcapperson")
 	var slugs []string
@@ -659,13 +659,12 @@ func TestHackApplyLimits(t *testing.T) {
 // events rows and so cannot serialise on those alone -- still cannot both
 // read 19 and both insert, landing at 21. Exactly one of the two must win.
 func TestHackApplyPendingCapConcurrentCrossEvent(t *testing.T) {
-	b := newHackApp(t)
 	l := config.DefaultLimits()
 	l.RateEventApplyUser.Burst = 100
 	l.RateEventApplyIP.Burst = 100
 	l.EventMaxActivePerOrganiser = 25
 	l.EventCreatePerDay = 25
-	setHackAppLimits(b, l)
+	b := newHackApp(t, edition.ForKindWithLimits(edition.Hack, l))
 	org := b.newPerson(t, "apccorg")
 	racer := b.newPerson(t, "apccracer")
 	var slugs []string
@@ -727,10 +726,9 @@ func TestHackApplyPendingCapConcurrentCrossEvent(t *testing.T) {
 // time (nowhere near their own per-account burst), still share one network
 // address's bucket and can be capped by it.
 func TestHackApplyIPLimitIndependentOfAccounts(t *testing.T) {
-	a := newHackApp(t)
 	l := config.DefaultLimits()
 	l.RateEventApplyIP.Burst = 3
-	setHackAppLimits(a, l)
+	a := newHackApp(t, edition.ForKindWithLimits(edition.Hack, l))
 	org := a.newPerson(t, "aiplorg")
 	slug := uniqueSlug()
 	a.createEvent(t, org, slug, nil)

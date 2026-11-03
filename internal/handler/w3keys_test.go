@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -162,7 +163,22 @@ func TestKeyExpiry(t *testing.T) {
 	}
 	fixed, fixedID := mint("thirty days", map[string]any{"expires_in_days": 30})
 	idle, idleID := mint("forgotten", map[string]any{})
-	me := func(k string) resp { return a.do(t, http.MethodGet, "/v1/me", nil, map[string]string{"X-API-Key": k}) }
+	adminID, err := db.EnsureAdminUser(context.Background(), a.database)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Built fresh per call (not through a.do/a.mux's one middleware instance,
+	// fixed at construction) so it picks up a.users' current limits snapshot,
+	// including the KEY_IDLE_EXPIRY_DAYS=0 override applied below.
+	me := func(k string) resp {
+		mux2 := http.NewServeMux()
+		a.users.Register(mux2, auth.Middleware(a.admin, adminID, a.database, a.users.limits.KeyIdleExpiry), NoticeMiddleware("1.0.0"))
+		req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
+		req.Header.Set("X-API-Key", k)
+		rec := httptest.NewRecorder()
+		mux2.ServeHTTP(rec, req)
+		return resp{rec.Code, rec.Header(), rec.Body.Bytes()}
+	}
 	if me(fixed).status != http.StatusOK || me(idle).status != http.StatusOK {
 		t.Fatal("fresh keys should work")
 	}

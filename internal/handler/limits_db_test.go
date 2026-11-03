@@ -202,15 +202,15 @@ func TestIdleCleanupFollowsSettings(t *testing.T) {
 		t.Fatalf("warning after 40 idle days: %q (all: %d)", warn, len(m.sent))
 	}
 	// The warning's date is kept: a shorter IDLE_GRACE_DAYS set after it
-	// does not bring the removal forward. a.sites holds its own snapshot
-	// from construction, so this withLimits call (left here to document the
-	// scenario) cannot reach it either; the removal below runs against the
-	// stored idle_remove_at, not a re-read of IDLE_GRACE_DAYS.
+	// does not bring the removal forward. The removal below still runs
+	// against the stored idle_remove_at (10 days out), but the message text
+	// recomputes "total days silent" from the current snapshot, so a.sites
+	// does need the new grace value for the final assertion.
 	var removeAt time.Time
 	if err := a.database.QueryRowContext(ctx, `SELECT idle_remove_at FROM sites WHERE id = $1`, id).Scan(&removeAt); err != nil || !near(removeAt, time.Now().Add(10*24*time.Hour)) {
 		t.Fatalf("stored removal date %v (%v), want 10 days out", removeAt, err)
 	}
-	_ = withLimits(t, map[string]string{"IDLE_AFTER_DAYS": "40", "IDLE_GRACE_DAYS": "1", "DELETED_RETENTION_DAYS": "20", "IDLE_REPLY_TO": "help@example.org"})
+	setAppLimits(a, withLimits(t, map[string]string{"IDLE_AFTER_DAYS": "40", "IDLE_GRACE_DAYS": "1", "DELETED_RETENTION_DAYS": "20", "IDLE_REPLY_TO": "help@example.org"}))
 	exec(`UPDATE sites SET idle_warned_at = now() - interval '2 days' WHERE id = $1`, id)
 	a.sites.runIdleCleanup(ctx, time.Now())
 	if got := m.last(site); got != warn {

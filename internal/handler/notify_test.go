@@ -1576,7 +1576,7 @@ func TestNotifyURLRateAcrossSitesAndSubscriptions(t *testing.T) {
 	limited := saveWorkerNotification(t, s, otherSite, otherID, x.server.URL)
 	saveWorkerNotification(t, s, otherSite, otherID, x.server.URL+"/different")
 	engine := s.a.sites.notifyEngine()
-	engine.perURL = (&SiteHandler{}).notifyEngine().perURL
+	engine.perURL = (&SiteHandler{limitSet: newLimitSet(l)}).notifyEngine().perURL
 	now := time.Now()
 	engine.perURL.now = func() time.Time { return now }
 	emitWorkerNotification(t, s, s.sid)

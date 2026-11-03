@@ -30,8 +30,14 @@ type hackApp struct {
 	hack     *HackHandler
 }
 
-func newHackApp(t *testing.T) *hackApp {
+func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	t.Helper()
+	var ed *edition.Edition
+	if len(eds) > 0 {
+		ed = eds[0]
+	} else {
+		ed = edition.ForKind(edition.Hack)
+	}
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		t.Skip("DB_DSN unset")
@@ -53,10 +59,10 @@ func newHackApp(t *testing.T) *hackApp {
 	var root http.Handler
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(srv.Close)
-	authMW := auth.Middleware(adminKey, adminID, database, config.DefaultLimits().KeyIdleExpiry)
-	users := NewUserHandler(database, email.NewResendSender("", "test@example.com"), srv.URL, edition.ForKind(edition.Hack))
+	authMW := auth.Middleware(adminKey, adminID, database, ed.Limits().KeyIdleExpiry)
+	users := NewUserHandler(database, email.NewResendSender("", "test@example.com"), srv.URL, ed)
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
-	h := NewHackHandler(database, srv.URL, "simple-hack.test")
+	h := NewHackHandler(database, srv.URL, "simple-hack.test", ed)
 	h.Register(mux, authMW)
 	root = mux
 	return &hackApp{database: database, admin: adminKey, mux: mux, srv: srv, hack: h}

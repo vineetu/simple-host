@@ -178,7 +178,7 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 	}
 
 	// ---- sign-in return_to on a person host ---------------------------------------------
-	oa := &OAuthHandler{database: a.database, personSite: a.sites.PersonReturnSite}
+	oa := &OAuthHandler{database: a.database, limitSet: a.sites.limitSet, personSite: a.sites.PersonReturnSite}
 	oa.cfg.PublicBaseURL = "https://simple-host.test"
 	oa.cfg.SiteDomain = pcSiteDomain
 	oa.cfg.ContentHost = pcContentHost
