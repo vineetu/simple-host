@@ -2872,15 +2872,6 @@ func writeTooLarge(w http.ResponseWriter, limit int64, detail string) {
 	})
 }
 
-// extractBudget is the byte budget the unpacked files are held to: the
-// account's own limit when it has an override, else 0, the instance's caps.
-func extractBudget(limit int64, override bool) int64 {
-	if override {
-		return limit
-	}
-	return 0
-}
-
 func archiveFilename(siteName string, body []byte) string {
 	if len(body) >= 4 && bytes.Equal(body[:4], []byte("PK\x03\x04")) {
 		return siteName + ".zip"
