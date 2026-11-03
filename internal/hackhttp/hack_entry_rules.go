@@ -3,9 +3,9 @@ package hackhttp
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"log"
 	"net/http"
 	"strings"
@@ -26,304 +26,6 @@ import (
 // screen, with a confirm. This replaces the build plan's "an incomplete
 // draft is not submitted and is not judged" rule for this slice.
 
-// entryRuleFields are every field the rules engine understands, in canonical
-// order. missing ids, the CSV "missing" cell and the organiser's rule rows
-// all follow this order.
-var entryRuleFields = []string{
-	"title", "problem", "tagline", "audience", "track", "tools", "maturity",
-	"description", "video_url", "site", "code_url", "screenshot",
-}
-
-// entryOneOfFields are the only fields a rules JSON may mark "one_of".
-var entryOneOfFields = map[string]bool{"video_url": true, "site": true, "code_url": true, "screenshot": true}
-
-var entryRuleModeOK = map[string]bool{"required": true, "optional": true, "off": true, "one_of": true}
-
-// EntryRules is events.entry_rules, version 1.
-type EntryRules struct {
-	V      int               `json:"v"`
-	Fields map[string]string `json:"fields"`
-}
-
-// entryPresets is the Go table PUT .../entry-rules {preset} expands, and
-// what a newly created event starts on ("build"). The atlas
-// (docs/ux-atlas/spec.json, organiser-entries, "What do the presets set?")
-// is the spec:
-//   - AI build: everything on the card Required, Video and Website One of,
-//     Code Off, Screenshot Optional, video first.
-//   - Coding: the card Required except Who it's for, Code link Required,
-//     Video and Website One of, Screenshot Optional, website first.
-//   - Ideas and design: Problem, Solution, Who it's for and Track Required,
-//     Tools and Works today Optional, Video, Website and Screenshot One of,
-//     Code Off, video first.
-//
-// Description is Optional in all three. Title is always Required, and
-// Track is ignored when the event has no tracks.
-var entryPresets = map[string]map[string]string{
-	"build": {
-		"title": "required", "problem": "required", "tagline": "required",
-		"audience": "required", "track": "required", "tools": "required", "maturity": "required",
-		"description": "optional", "video_url": "one_of", "site": "one_of", "code_url": "off", "screenshot": "optional",
-	},
-	"code": {
-		"title": "required", "problem": "required", "tagline": "required",
-		"audience": "optional", "track": "required", "tools": "required", "maturity": "required",
-		"description": "optional", "video_url": "one_of", "site": "one_of", "code_url": "required", "screenshot": "optional",
-	},
-	"ideas": {
-		"title": "required", "problem": "required", "tagline": "required",
-		"audience": "required", "track": "required", "tools": "optional", "maturity": "optional",
-		"description": "optional", "video_url": "one_of", "site": "one_of", "code_url": "off", "screenshot": "one_of",
-	},
-}
-
-// entryPresetJudgeFirst is which evidence judges see first for each preset,
-// applied when an organiser picks the preset without naming judge_first.
-var entryPresetJudgeFirst = map[string]string{"build": "video", "code": "site", "ideas": "video"}
-
-// entryPresetOrder is the presets an organiser can pick, in display order.
-var entryPresetOrder = []string{"build", "code", "ideas"}
-
-func entryPresetKnown(preset string) bool {
-	_, ok := entryPresets[preset]
-	return ok || preset == "custom"
-}
-
-// expandEntryPreset is entryPresets[preset] normalised to every field, title
-// forced required. An unknown preset (including "custom") is every field
-// optional, title required -- the caller then applies its own fields on top.
-func expandEntryPreset(preset string) map[string]string {
-	return normaliseEntryRules(entryPresets[preset])
-}
-
-// normaliseEntryRules fills every field (a missing key means "optional"),
-// drops an unknown field or an unknown mode, drops "one_of" on a field that
-// may not carry it, and forces title to "required". entry_rules JSON is
-// validated server-side and never stored as the client sent it (section
-// 9.6): this is the one function that enforces that.
-func normaliseEntryRules(fields map[string]string) map[string]string {
-	out := make(map[string]string, len(entryRuleFields))
-	for _, f := range entryRuleFields {
-		mode := "optional"
-		if fields != nil {
-			if m, ok := fields[f]; ok && entryRuleModeOK[m] && (m != "one_of" || entryOneOfFields[f]) {
-				mode = m
-			}
-		}
-		out[f] = mode
-	}
-	out["title"] = "required"
-	return out
-}
-
-// marshalEntryRules is the normalised fields as entry_rules JSON (version 1).
-func marshalEntryRules(fields map[string]string) []byte {
-	raw, err := json.Marshal(EntryRules{V: 1, Fields: normaliseEntryRules(fields)})
-	if err != nil {
-		// Fields are plain strings; this cannot fail in practice.
-		return []byte(`{"v":1,"fields":{}}`)
-	}
-	return raw
-}
-
-// loadEntryRules parses an event's stored entry_rules, defaulting to every
-// field optional (title required) on a blank value -- a fresh row before a
-// migration backfill runs, or on an instance that predates this release.
-func loadEntryRules(raw []byte) map[string]string {
-	var r EntryRules
-	if len(raw) > 0 {
-		_ = json.Unmarshal(raw, &r)
-	}
-	return normaliseEntryRules(r.Fields)
-}
-
-// entryOneOfGroup is the fields marked "one_of", in canonical order. Exactly
-// one such group can exist (every field in entryOneOfFields marked one_of
-// together makes the group); this just reads it back.
-func entryOneOfGroup(fields map[string]string) []string {
-	var out []string
-	for _, f := range entryRuleFields {
-		if entryOneOfFields[f] && fields[f] == "one_of" {
-			out = append(out, f)
-		}
-	}
-	return out
-}
-
-// EntryCheck is whether an entry is complete, and canonically-ordered reasons
-// why not: field ids, plus "one_of" for an unmet one-of group, at the end.
-type EntryCheck struct {
-	Complete bool
-	Missing  []string
-}
-
-// entryFieldPresent is whether one field of the entry/team counts as filled,
-// for completeness. site comes from siteLive (the team's actual site state),
-// never from the entry row (section 4.1: "the website evidence comes from
-// sites, never from the entry row"). track comes from teamTrack, the team's
-// chosen track, not anything stored on the entry.
-func entryFieldPresent(field string, e db.EventEntry, siteLive bool, teamTrack *db.EventTrack) bool {
-	switch field {
-	case "title":
-		return e.Title != ""
-	case "problem":
-		return e.Problem != ""
-	case "tagline":
-		return e.Tagline != ""
-	case "audience":
-		return e.Audience != ""
-	case "track":
-		return teamTrack != nil
-	case "tools":
-		return len(e.Tools) > 0
-	case "maturity":
-		return e.Maturity != ""
-	case "description":
-		return e.Description != ""
-	case "video_url":
-		return e.VideoURL != ""
-	case "site":
-		return siteLive
-	case "code_url":
-		return e.CodeURL != ""
-	case "screenshot":
-		return e.HasScreenshot
-	default:
-		return false
-	}
-}
-
-// evaluateEntry is the only place that answers "is this entry complete"
-// (section 3): entryCompleteness, queueReceipt, the CSV, listEntries, the
-// judge queue, the Home progress and the settle sweep all go through this.
-// hasTracks false ignores the "track" field even when the rules ask for it
-// ("with no tracks in the event, track is ignored").
-func evaluateEntry(fields map[string]string, e db.EventEntry, siteLive, hasTracks bool, teamTrack *db.EventTrack) EntryCheck {
-	missing := []string{} // never null in JSON
-	for _, f := range entryRuleFields {
-		if f == "track" && !hasTracks {
-			continue
-		}
-		if fields[f] == "required" && !entryFieldPresent(f, e, siteLive, teamTrack) {
-			missing = append(missing, f)
-		}
-	}
-	if group := entryOneOfGroup(fields); len(group) > 0 {
-		met := false
-		for _, f := range group {
-			if entryFieldPresent(f, e, siteLive, teamTrack) {
-				met = true
-				break
-			}
-		}
-		if !met {
-			missing = append(missing, "one_of")
-		}
-	}
-	return EntryCheck{Complete: len(missing) == 0, Missing: missing}
-}
-
-// entryOneOfWord is how a one-of field reads in the rules sentence.
-// codeNamed is true once code_url is already named as required, which reads
-// "your website" there instead of "a published website" alone.
-func entryOneOfWord(field string, codeNamed bool) string {
-	switch field {
-	case "video_url":
-		return "a video"
-	case "site":
-		if codeNamed {
-			return "your website"
-		}
-		return "a published website"
-	case "code_url":
-		return "your code"
-	case "screenshot":
-		return "a screenshot"
-	default:
-		return field
-	}
-}
-
-// entryRulesSummary is the one sentence naming what "show your work" needs
-// ("a video or a published website", or "your code link, and a video or
-// your website"), built server-side so the website and the AI apps word it
-// identically (section 3). It only describes the show-your-work fields
-// (code_url and the one-of group); the summary-card fields (problem,
-// audience, track, tools, maturity) are not part of it.
-func entryRulesSummary(fields map[string]string) string {
-	var parts []string
-	codeNamed := fields["code_url"] == "required"
-	if codeNamed {
-		parts = append(parts, "your code link")
-	}
-	if group := entryOneOfGroup(fields); len(group) > 0 {
-		words := make([]string, 0, len(group))
-		for _, f := range group {
-			words = append(words, entryOneOfWord(f, codeNamed))
-		}
-		parts = append(parts, strings.Join(words, " or "))
-	}
-	switch len(parts) {
-	case 0:
-		return ""
-	case 1:
-		return parts[0]
-	default:
-		return strings.Join(parts[:len(parts)-1], ", ") + ", and " + parts[len(parts)-1]
-	}
-}
-
-// entrySummaryFields are the summary-card lines progress.steps["summary"]
-// counts: problem, tagline, audience, track, tools, maturity, plus title
-// when it is empty (section 4.3).
-var entrySummaryFields = []string{"title", "problem", "tagline", "audience", "track", "tools", "maturity"}
-
-// entryFieldWords names a field in plain words, for the "missing" list a
-// client renders and for progress.steps["summary"].missing. one_of itself
-// is reworded per-event by entryMissingMessage (the actual group members),
-// this is only the generic fallback.
-var entryFieldWords = map[string]string{
-	"title": "a title", "problem": "the problem it solves", "tagline": "the one-line solution",
-	"audience": "who it's for", "track": "a track", "tools": "the tools used",
-	"maturity": "how far along it is", "description": "a description",
-	"video_url": "a video", "site": "a published website", "code_url": "your code link",
-	"screenshot": "a screenshot", "one_of": "a video or a published website",
-}
-
-// entryMissingMessage renders a missing list (field ids, plus "one_of") as
-// one plain-English clause: "who it's for, and a video or a published
-// website". "one_of" names the event's own one-of group.
-func entryMissingMessage(missing []string, fields map[string]string) string {
-	words := make([]string, 0, len(missing))
-	for _, m := range missing {
-		if m == "one_of" {
-			if group := entryOneOfGroup(fields); len(group) > 0 {
-				parts := make([]string, 0, len(group))
-				for _, f := range group {
-					parts = append(parts, entryOneOfWord(f, false))
-				}
-				words = append(words, strings.Join(parts, " or "))
-				continue
-			}
-		}
-		if w, ok := entryFieldWords[m]; ok {
-			words = append(words, w)
-		} else {
-			words = append(words, m)
-		}
-	}
-	switch len(words) {
-	case 0:
-		return ""
-	case 1:
-		return words[0]
-	case 2:
-		return words[0] + " and " + words[1]
-	default:
-		return strings.Join(words[:len(words)-1], ", ") + ", and " + words[len(words)-1]
-	}
-}
-
 // writeHackErrMissing is writeHackErr with a "missing" array attached, for
 // the entry refusals a client maps to field errors (section 4.1).
 func writeHackErrMissing(w http.ResponseWriter, status int, code, msg string, missing []string) {
@@ -333,20 +35,20 @@ func writeHackErrMissing(w http.ResponseWriter, status int, code, msg string, mi
 	httpx.WriteJSON(w, status, map[string]any{"error": msg, "code": code, "missing": missing})
 }
 
-// evaluateEntryTx is evaluateEntry with every piece read fresh inside tx:
+// evaluateEntryTx is hackentries.Evaluate with every piece read fresh inside tx:
 // the rules, the team's track and the site's live state.
-func (h *HackHandler) evaluateEntryTx(ctx context.Context, tx *sql.Tx, ev db.Event, st db.TeamWriteState, teamID string, e db.EventEntry) (EntryCheck, error) {
-	fields := loadEntryRules(ev.EntryRules)
+func (h *HackHandler) evaluateEntryTx(ctx context.Context, tx *sql.Tx, ev db.Event, st db.TeamWriteState, teamID string, e db.EventEntry) (hackentries.Check, error) {
+	fields := hackentries.LoadRules(ev.EntryRules)
 	tracks, err := db.ListEventTracks(ctx, tx, ev.ID)
 	if err != nil {
-		return EntryCheck{}, err
+		return hackentries.Check{}, err
 	}
 	track, err := db.TeamTrack(ctx, tx, teamID)
 	if err != nil {
-		return EntryCheck{}, err
+		return hackentries.Check{}, err
 	}
 	siteLive := h.entrySiteLive(ctx, ev, st.TeamSlug, st.SiteTakenDown)
-	return evaluateEntry(fields, e, siteLive, len(tracks) > 0, track), nil
+	return hackentries.Evaluate(fields, e, siteLive, len(tracks) > 0, track), nil
 }
 
 // keepSubmittedComplete re-checks a previously-submitted entry after a
@@ -399,12 +101,12 @@ func (h *HackHandler) entrySiteLive(ctx context.Context, ev db.Event, teamSlug s
 
 // entryRulesView is GET/PUT .../entry-rules's body (section 4.2).
 func entryRulesView(ev db.Event, hasTracks, editable bool) map[string]any {
-	fields := loadEntryRules(ev.EntryRules)
+	fields := hackentries.LoadRules(ev.EntryRules)
 	return map[string]any{
 		"preset":      ev.EntryPreset,
 		"fields":      fields,
 		"judge_first": ev.JudgeFirst,
-		"summary":     entryRulesSummary(fields),
+		"summary":     hackentries.RulesSummary(fields),
 		"has_tracks":  hasTracks,
 		"editable":    editable,
 	}
@@ -421,14 +123,7 @@ func (h *HackHandler) getEntryRules(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, entryRulesView(a.event, len(tracks) > 0, entryRulesEditable(a.event.Stage)))
-}
-
-// entryRulesEditable: rules may change from draft through building. From
-// closed onwards they are read-only (409 entry_rules_closed), since judging
-// has to see a fixed definition of complete.
-func entryRulesEditable(stage string) bool {
-	return stage == "draft" || stage == "open" || stage == "building"
+	httpx.WriteJSON(w, http.StatusOK, entryRulesView(a.event, len(tracks) > 0, hackentries.RulesEditable(a.event.Stage)))
 }
 
 func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
@@ -445,7 +140,7 @@ func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	if req.Preset != nil && !entryPresetKnown(*req.Preset) {
+	if req.Preset != nil && !hackentries.PresetKnown(*req.Preset) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_preset", "preset must be build, code, ideas or custom")
 		return
 	}
@@ -464,47 +159,47 @@ func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	if !entryRulesEditable(ev.Stage) {
+	if !hackentries.RulesEditable(ev.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "entry_rules_closed", "entry rules are fixed once entries close")
 		return
 	}
 	preset := ev.EntryPreset
-	fields := loadEntryRules(ev.EntryRules)
+	fields := hackentries.LoadRules(ev.EntryRules)
 	if req.Preset != nil {
 		preset = *req.Preset
-		fields = expandEntryPreset(preset)
+		fields = hackentries.ExpandPreset(preset)
 	}
 	if req.Fields != nil {
 		for k, v := range req.Fields {
 			known := false
-			for _, f := range entryRuleFields {
+			for _, f := range hackentries.RuleFields {
 				if f == k {
 					known = true
 					break
 				}
 			}
 			if !known {
-				httpx.WriteError(w, http.StatusBadRequest, "invalid_entry_field", "fields keys must be one of: "+strings.Join(entryRuleFields, ", "))
+				httpx.WriteError(w, http.StatusBadRequest, "invalid_entry_field", "fields keys must be one of: "+strings.Join(hackentries.RuleFields, ", "))
 				return
 			}
-			if !entryRuleModeOK[v] || (v == "one_of" && !entryOneOfFields[k]) {
-				httpx.WriteError(w, http.StatusBadRequest, "invalid_entry_field_mode", k+" must be required, optional or off"+modeSuffix(k))
+			if !hackentries.RuleModeOK[v] || (v == "one_of" && !hackentries.OneOfFields[k]) {
+				httpx.WriteError(w, http.StatusBadRequest, "invalid_entry_field_mode", k+" must be required, optional or off"+hackentries.ModeSuffix(k))
 				return
 			}
 			fields[k] = v
 		}
-		fields = normaliseEntryRules(fields)
+		fields = hackentries.NormaliseRules(fields)
 		// A field sent that differs from the preset's own table demotes the
 		// stored preset to custom (section 4.2): the saved rules are no
 		// longer exactly that preset's table.
-		if preset != "custom" && !fieldsEqual(fields, expandEntryPreset(preset)) {
+		if preset != "custom" && !hackentries.FieldsEqual(fields, hackentries.ExpandPreset(preset)) {
 			preset = "custom"
 		}
 	}
-	fields = normaliseEntryRules(fields)
+	fields = hackentries.NormaliseRules(fields)
 	judgeFirst := ev.JudgeFirst
 	if req.Preset != nil {
-		if jf, ok := entryPresetJudgeFirst[*req.Preset]; ok {
+		if jf, ok := hackentries.PresetJudgeFirst[*req.Preset]; ok {
 			judgeFirst = jf
 		}
 	}
@@ -523,11 +218,11 @@ func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"impact": impact, "preview": map[string]any{
-			"preset": preset, "fields": fields, "judge_first": judgeFirst, "summary": entryRulesSummary(fields), "has_tracks": len(tracks) > 0,
+			"preset": preset, "fields": fields, "judge_first": judgeFirst, "summary": hackentries.RulesSummary(fields), "has_tracks": len(tracks) > 0,
 		}})
 		return
 	}
-	rulesJSON := marshalEntryRules(fields)
+	rulesJSON := hackentries.MarshalRules(fields)
 	legacyRequired := []string{}
 	for _, f := range hackEntryFields {
 		if fields[f] == "required" {
@@ -547,26 +242,7 @@ func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tracks, _ := db.ListEventTracks(r.Context(), h.database, updated.ID)
-	httpx.WriteJSON(w, http.StatusOK, entryRulesView(updated, len(tracks) > 0, entryRulesEditable(updated.Stage)))
-}
-
-func modeSuffix(field string) string {
-	if entryOneOfFields[field] {
-		return " or one_of"
-	}
-	return ""
-}
-
-func fieldsEqual(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if b[k] != v {
-			return false
-		}
-	}
-	return true
+	httpx.WriteJSON(w, http.StatusOK, entryRulesView(updated, len(tracks) > 0, hackentries.RulesEditable(updated.Stage)))
 }
 
 // entryRulesImpact is the dry run's counts (section 4.2): how many already-
@@ -578,7 +254,7 @@ func fieldsEqual(a, b map[string]string) bool {
 // way is not counted again, so loosening or re-saving unchanged rules
 // reports no impact.
 func (h *HackHandler) entryRulesImpact(ctx context.Context, tx *sql.Tx, ev db.Event, fields map[string]string) (map[string]any, error) {
-	current := loadEntryRules(ev.EntryRules)
+	current := hackentries.LoadRules(ev.EntryRules)
 	teams, err := db.ListEventTeams(ctx, tx, ev.ID)
 	if err != nil {
 		return nil, err
@@ -612,11 +288,11 @@ func (h *HackHandler) entryRulesImpact(ctx context.Context, tx *sql.Tx, ev db.Ev
 			return nil, err
 		}
 		siteLive := h.entrySiteLive(ctx, ev, team.Slug, team.SiteTakenDownAt.Valid)
-		check := evaluateEntry(fields, e, siteLive, hasTracks, track)
+		check := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
 		if check.Complete {
 			continue
 		}
-		before := evaluateEntry(current, e, siteLive, hasTracks, track)
+		before := hackentries.Evaluate(current, e, siteLive, hasTracks, track)
 		was := map[string]bool{}
 		for _, m := range before.Missing {
 			was[m] = true
@@ -659,7 +335,7 @@ func (h *HackHandler) entryProgressJSON(ctx context.Context, ev db.Event, team d
 	} else if err != nil {
 		return nil, err
 	}
-	fields := loadEntryRules(ev.EntryRules)
+	fields := hackentries.LoadRules(ev.EntryRules)
 	tracks, err := db.ListEventTracks(ctx, h.database, ev.ID)
 	if err != nil {
 		return nil, err
@@ -672,7 +348,7 @@ func (h *HackHandler) entryProgressJSON(ctx context.Context, ev db.Event, team d
 	siteLive := h.entrySiteLive(ctx, ev, team.Slug, st.SiteTakenDown)
 
 	filled, of, summaryMissing := 0, 0, []string{}
-	for _, f := range entrySummaryFields {
+	for _, f := range hackentries.SummaryFields {
 		if f == "track" && !hasTracks {
 			continue
 		}
@@ -683,13 +359,13 @@ func (h *HackHandler) entryProgressJSON(ctx context.Context, ev db.Event, team d
 		// used to count only while empty, so "1 of 7 filled" became "6 of
 		// 6" once it was typed, and Home and Entry disagreed mid-edit.
 		of++
-		if entryFieldPresent(f, e, siteLive, track) {
+		if hackentries.FieldPresent(f, e, siteLive, track) {
 			filled++
 		} else {
 			summaryMissing = append(summaryMissing, f)
 		}
 	}
-	evidenceCheck := evaluateEntry(fields, e, siteLive, hasTracks, track)
+	evidenceCheck := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
 	evidenceMissing := []string{}
 	for _, m := range evidenceCheck.Missing {
 		if m == "one_of" || m == "code_url" {
@@ -700,12 +376,12 @@ func (h *HackHandler) entryProgressJSON(ctx context.Context, ev db.Event, team d
 
 	teamLine := "On " + team.Name
 	if len(teammates) > 0 {
-		teamLine += " with " + joinNames(teammates)
+		teamLine += " with " + hackentries.JoinNames(teammates)
 	}
 	steps := []map[string]any{
 		{"id": "team", "done": true, "detail": teamLine},
 		{"id": "summary", "done": filled >= of, "filled": filled, "of": of, "missing": summaryMissing},
-		{"id": "evidence", "done": evidenceDone, "summary": entryRulesSummary(fields), "missing": evidenceMissing},
+		{"id": "evidence", "done": evidenceDone, "summary": hackentries.RulesSummary(fields), "missing": evidenceMissing},
 		{"id": "submit", "done": e.Status() == "submitted", "status": e.Status(), "submitted_at": rfc3339UTC(e.SubmittedAt), "auto": e.SubmitAuto},
 	}
 	next := "submit"
@@ -726,17 +402,6 @@ func (h *HackHandler) entryProgressJSON(ctx context.Context, ev db.Event, team d
 		"deadline": rfc3339UTC(st.Deadline), "deadline_is_extension": st.HasOverride, "event_deadline": rfc3339UTC(st.EventDeadline),
 		"server_now": rfc3339Time(now),
 	}, nil
-}
-
-func joinNames(names []string) string {
-	switch len(names) {
-	case 0:
-		return ""
-	case 1:
-		return names[0]
-	default:
-		return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
-	}
 }
 
 // --- The deadline sweep (section 7) --------------------------------------
@@ -857,7 +522,7 @@ func (h *HackHandler) settleOneEntryIn(ctx context.Context, tx *sql.Tx, teamID s
 	if err != nil {
 		return err
 	}
-	fields := loadEntryRules(ev.EntryRules)
+	fields := hackentries.LoadRules(ev.EntryRules)
 	tracks, err := db.ListEventTracks(ctx, tx, ev.ID)
 	if err != nil {
 		return err
@@ -867,7 +532,7 @@ func (h *HackHandler) settleOneEntryIn(ctx context.Context, tx *sql.Tx, teamID s
 		return err
 	}
 	siteLive := h.entrySiteLive(ctx, ev, st.TeamSlug, st.SiteTakenDown)
-	check := evaluateEntry(fields, e, siteLive, len(tracks) > 0, track)
+	check := hackentries.Evaluate(fields, e, siteLive, len(tracks) > 0, track)
 	if check.Complete {
 		deadline := time.Now()
 		if st.Deadline.Valid {

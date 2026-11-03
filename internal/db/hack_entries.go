@@ -2,69 +2,16 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
-// EventEntry is one team's entry (event_entries). Exists is false when the
-// team has not written one yet: the text is empty and there is no screenshot.
-// UpdatedByName and SubmittedByName are the writer's display name in this
-// event, or "" when they are no longer a member — never an email or an
-// account id.
-//
-// zv-hack-entry-summary.sql: the summary card (Problem, Audience, Tools,
-// Maturity) and the submit state. SubmittedAt/SubmitAuto/SubmitSettledAt are
-// the owner's deadline decision (coordinator decision 2026-11-02, INTENT.md):
-// a complete draft auto-submits at the deadline; an incomplete one settles
-// as "not submitted" but stays judged unless an organiser excludes it by
-// hand (ExcludedAt/ExcludedBy). SubmitSettledAt is non-nil exactly when the
-// deadline sweep has decided this entry one way or the other; it is cleared
-// by an extension, a stage move back to building, or the event deadline
-// moving later, so the sweep reconsiders it.
-type EventEntry struct {
-	TeamID          string
-	EventID         string
-	Title           string
-	Tagline         string
-	Description     string
-	VideoURL        string
-	CodeURL         string
-	Problem         string
-	Audience        string
-	Tools           []string
-	Maturity        string
-	HasScreenshot   bool
-	ScreenshotType  string
-	UpdatedAt       time.Time
-	UpdatedByName   string
-	SubmittedAt     sql.NullTime
-	SubmittedByName string
-	SubmitAuto      bool
-	SubmitSettledAt sql.NullTime
-	ExcludedAt      sql.NullTime
-	ExcludedByName  string
-	Exists          bool
-}
-
-// Status is the participant-facing entry status (section 4.1): "draft"
-// before anything is decided, "submitted" once complete and submitted
-// (by the team or the deadline sweep), "not_submitted" once the sweep has
-// settled it incomplete. Excluded is orthogonal (an organiser's hand
-// decision on top of either status).
-func (e EventEntry) Status() string {
-	switch {
-	case e.SubmittedAt.Valid:
-		return "submitted"
-	case e.SubmitSettledAt.Valid:
-		return "not_submitted"
-	default:
-		return "draft"
-	}
-}
+// Alias (cleanup 4.1): defined in internal/model.
+type EventEntry = model.EventEntry
 
 // entryTextColumns are the plain-text fields of an entry, in the order a
 // partial update writes them. tools (an array) and the screenshot bytes are
@@ -208,7 +155,7 @@ func TeamSiteLive(ctx context.Context, q Querier, accountID, name string) (bool,
 	return live, err
 }
 
-// EntryJudgeableSQL, over event_teams t, is true when a team's entry has
+// EntryJudgeableSQL implements rules/hackentries.Judgeable over event_teams t and is true when a team's entry has
 // been decided one way (submitted, or settled as "not submitted") and an
 // organiser has not excluded it by hand. A team with no entry row is never
 // judgeable. Coordinator decision 2026-11-02 (INTENT.md, owner may

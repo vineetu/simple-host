@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
@@ -352,7 +353,7 @@ func (h *HackHandler) setEntryExcluded(w http.ResponseWriter, r *http.Request, e
 		httpx.WriteInternal(w)
 		return
 	}
-	item, err := h.entryListItem(r.Context(), a.event, team, e, loadEntryRules(a.event.EntryRules), len(tracks) > 0, tl)
+	item, err := h.entryListItem(r.Context(), a.event, team, e, hackentries.LoadRules(a.event.EntryRules), len(tracks) > 0, tl)
 	if err != nil {
 		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -509,7 +510,7 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 		byTeam[e.TeamID] = e
 	}
 	required := entryRequiredList(a.event.EntryRequired)
-	fields := loadEntryRules(a.event.EntryRules)
+	fields := hackentries.LoadRules(a.event.EntryRules)
 	tracks, err := db.ListEventTracks(r.Context(), h.database, a.event.ID)
 	if err != nil {
 		log.Printf("hack: entries %s: %v", a.event.Slug, err)
@@ -701,7 +702,7 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 				code = "entry_incomplete"
 			}
 			writeHackErrMissing(w, http.StatusUnprocessableEntity, code,
-				"Add these first: "+entryMissingMessage(incomplete.Missing, loadEntryRules(a.event.EntryRules)), incomplete.Missing)
+				"Add these first: "+hackentries.MissingMessage(incomplete.Missing, hackentries.LoadRules(a.event.EntryRules)), incomplete.Missing)
 			return "", false
 		}
 		log.Printf("hack: entry write %s: %v", a.event.Slug, err)
@@ -755,9 +756,9 @@ func (h *HackHandler) ownEntryJSON(ctx context.Context, ev db.Event, teamID, use
 	if err != nil {
 		return nil, err
 	}
-	fields := loadEntryRules(ev.EntryRules)
+	fields := hackentries.LoadRules(ev.EntryRules)
 	siteExists, siteLiveVersion, siteLive := h.entrySiteState(ctx, ev, team.Slug, st.SiteTakenDown)
-	check := evaluateEntry(fields, e, siteLive, hasTracks, track)
+	check := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
 
 	code := st.WriteRefusal()
 	var refusal any
@@ -800,7 +801,7 @@ func (h *HackHandler) ownEntryJSON(ctx context.Context, ev db.Event, teamID, use
 		},
 		"status": e.Status(), "submitted_at": rfc3339UTC(e.SubmittedAt), "submitted_by": submittedBy, "submit_auto": e.SubmitAuto,
 		"rules": map[string]any{
-			"preset": ev.EntryPreset, "fields": fields, "judge_first": ev.JudgeFirst, "summary": entryRulesSummary(fields),
+			"preset": ev.EntryPreset, "fields": fields, "judge_first": ev.JudgeFirst, "summary": hackentries.RulesSummary(fields),
 		},
 		"required": entryRequiredList(ev.EntryRequired),
 		"complete": check.Complete, "missing": check.Missing,
@@ -834,7 +835,7 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev db.Event, team db.Ev
 	if err != nil {
 		return nil, err
 	}
-	check := evaluateEntry(fields, e, siteLive, hasTracks, track)
+	check := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
 	var updated any
 	if e.Exists {
 		updated = e.UpdatedAt.UTC().Format(time.RFC3339Nano)

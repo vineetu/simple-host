@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"github.com/lib/pq"
+	"github.com/vsriram/simple-host/internal/model"
 	"time"
 )
 
@@ -18,13 +19,9 @@ type SignupAnswer struct {
 	Prompt string `json:"prompt"`
 	Answer string `json:"answer"`
 }
-type EventTrack struct {
-	ID        string `json:"id"`
-	Slug      string `json:"slug"`
-	Name      string `json:"name"`
-	Challenge string `json:"challenge"`
-	Prize     string `json:"prize"`
-}
+
+// Alias (cleanup 4.1): defined in internal/model.
+type EventTrack = model.EventTrack
 type RegistrationApplication struct {
 	UserID      string         `json:"user_id"`
 	Email       string         `json:"email"`

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"path/filepath"
@@ -331,7 +332,7 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 		for _, t := range teams {
 			byID[t.ID] = t
 		}
-		fields := loadEntryRules(a.event.EntryRules)
+		fields := hackentries.LoadRules(a.event.EntryRules)
 		tracks, err := db.ListEventTracks(r.Context(), h.database, a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
@@ -350,7 +351,7 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 				return
 			}
 			siteLive := h.entrySiteLive(r.Context(), a.event, t.Slug, t.SiteTakenDownAt.Valid)
-			check := evaluateEntry(fields, e, siteLive, hasTracks, track)
+			check := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
 			trackName := ""
 			if track != nil {
 				trackName = track.Name

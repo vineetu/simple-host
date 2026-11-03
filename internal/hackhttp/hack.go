@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"io"
 	"io/fs"
@@ -1025,7 +1026,7 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 				// table, not a DB default, so the preset's field list lives
 				// in one place (hack_entry_rules.go).
 				EntryPreset: "build",
-				EntryRules:  marshalEntryRules(expandEntryPreset("build")),
+				EntryRules:  hackentries.MarshalRules(hackentries.ExpandPreset("build")),
 			})
 			return ierr
 		})
@@ -1666,7 +1667,7 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 	// the listed fields, leaves every other field's mode as it is, and
 	// demotes the stored preset to custom -- kept for one release.
 	if entryRequiredChanged {
-		fields := loadEntryRules(updated.EntryRules)
+		fields := hackentries.LoadRules(updated.EntryRules)
 		want := map[string]bool{}
 		for _, f := range ev.EntryRequired {
 			want[f] = true
@@ -1676,7 +1677,7 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 				fields[f] = "required"
 			}
 		}
-		updated, err = db.UpdateEventEntryRules(r.Context(), tx, ev.ID, "custom", marshalEntryRules(fields), updated.JudgeFirst, ev.EntryRequired)
+		updated, err = db.UpdateEventEntryRules(r.Context(), tx, ev.ID, "custom", hackentries.MarshalRules(fields), updated.JudgeFirst, ev.EntryRequired)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return

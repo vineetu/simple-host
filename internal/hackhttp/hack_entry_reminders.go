@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"log"
 	"math"
 	"time"
@@ -19,7 +20,7 @@ import (
 // when something waits on me", the no-email rule for key-only accounts and
 // the per-kind batching all apply as they do to every other notice. The
 // text is written at send time from the entry as it is then, with the
-// missing lines named by the one rules engine (evaluateEntry).
+// missing lines named by the one rules engine (hackentries.Evaluate).
 
 // queueEntryReminders runs on the content-mail ticker, before the notice
 // sweep. Each due team is claimed once per reminder per deadline, then its
@@ -92,7 +93,7 @@ func (h *HackHandler) entryReminderLine(ctx context.Context, tx *sql.Tx, n db.Ma
 			" Submit it now, or it is submitted for you at the deadline.", true, nil
 	}
 	return "Your team's entry isn't submitted yet. " + closes + " Still missing: " +
-		oneLine(entryMissingMessage(check.Missing, loadEntryRules(ev.EntryRules))) +
+		oneLine(hackentries.MissingMessage(check.Missing, hackentries.LoadRules(ev.EntryRules))) +
 		". If it isn't complete by then, it is still judged, marked incomplete.", true, nil
 }
 

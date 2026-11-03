@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"log"
 	"math"
@@ -1251,12 +1252,12 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 	// own EntryJudgeableSQL only fires on the non-open-mode branch above).
 	judgeable := make([]db.NamedTeam, 0, len(eligible))
 	for _, t := range eligible {
-		if entryJudgeable(byTeamEntry[t.ID]) {
+		if hackentries.Judgeable(byTeamEntry[t.ID]) {
 			judgeable = append(judgeable, t)
 		}
 	}
 	eligible = judgeable
-	fields := loadEntryRules(a.event.EntryRules)
+	fields := hackentries.LoadRules(a.event.EntryRules)
 	tracks, err := db.ListEventTracks(ctx, h.database, a.event.ID)
 	if err != nil {
 		log.Printf("hack: queue %s: %v", a.event.Slug, err)
@@ -1312,14 +1313,6 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		out = append(out, rw.item)
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"queue": out, "judge_first": a.event.JudgeFirst, "assignment_mode": a.event.JudgeAssignmentMode})
-}
-
-// entryJudgeable mirrors db.EntryJudgeableSQL in Go, for the queue's
-// open-assignment-mode path (EligibleJudgeTeams' own version of this only
-// runs on the non-open branch above). A team with no entry row at all is
-// never judgeable.
-func entryJudgeable(e db.EventEntry) bool {
-	return e.Exists && (e.SubmittedAt.Valid || e.SubmitSettledAt.Valid) && !e.ExcludedAt.Valid
 }
 
 // assignedTeamsFor is the set of team ids a judge is assigned in automatic
@@ -1817,7 +1810,7 @@ func (h *HackHandler) resultsEntryCards(ctx context.Context, q db.Querier, ev db
 	if err != nil {
 		return nil, err
 	}
-	fields := loadEntryRules(ev.EntryRules)
+	fields := hackentries.LoadRules(ev.EntryRules)
 	codeOff := fields["code_url"] == "off"
 	out := make(map[string]map[string]any, len(results))
 	for _, res := range results {
