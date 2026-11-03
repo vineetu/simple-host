@@ -13,6 +13,8 @@ import (
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
 	plugin "github.com/vsriram/simple-host/simple-host-website"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // withLimits applies the env settings in m for the rest of the test and puts
@@ -427,7 +429,7 @@ func TestSkillRoutesFollowArchiveLimit(t *testing.T) {
 	ApplyLimits(config.DefaultLimits())
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
-	RegisterSkillsHub(mux, "https://simple-host.app", false)
+	newAssetPipeline(edition.ForKind(edition.Host)).registerSkillsHub(mux, "https://simple-host.app")
 	for _, c := range []struct{ path, want string }{
 		{"/v1/skills/website-deploy", "**Archive limit** is 300 MB."},
 		{"/v1/skills/website-deploy/SKILL.md", "**Archive limit** is 300 MB."},

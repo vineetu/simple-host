@@ -98,17 +98,6 @@ func SigninJSVersion() string {
 	return signinVer
 }
 
-// hackChrome is set once at startup when this process is simple-hack.app
-// (EVENTS=hosted). Pages then render the hack header and footer.
-var hackChrome bool
-var hackInkBaseURL = "https://simple-hack.app"
-
-// SetHackChrome turns on simple-hack.app chrome. The integrator calls it
-// once at startup when EVENTS=hosted.
-func SetHackChrome(on bool) {
-	hackChrome = on
-}
-
 // chromeData is everything the partials vary on. Every field is drawn from a
 // small fixed set, so it is also a safe cache key.
 type chromeData struct {
@@ -123,8 +112,9 @@ type chromeData struct {
 	// There "Home" would be a link back to this same page and "For hackathons"
 	// a second one, so Home points at the main product and the duplicate goes.
 	HackHome bool
-	// Hack is the simple-hack.app chrome. Set at startup via SetHackChrome
-	// when EVENTS=hosted; false leaves the header and footer as they are.
+	// Hack is the simple-hack.app chrome (the pipeline's chromeHack, set at
+	// startup via SetHackChrome when EVENTS=hosted); false leaves the header
+	// and footer as they are.
 	Hack       bool
 	CSSVersion string
 	// SigninVersion busts caches on /signin.js, the same way CSSVersion does
@@ -138,14 +128,14 @@ type chromeData struct {
 }
 
 // hostedOwner names the hosted service this process is, or "".
-func hostedOwner() string {
-	if hackChrome {
-		if hackInkBaseURL == "https://simple-hack.app" {
+func (p *assetPipeline) hostedOwner() string {
+	if p.chromeHack {
+		if p.inkBase == canonicalHackBaseURL {
 			return "Simple Hack"
 		}
 		return ""
 	}
-	if !hackMode && instanceIsHostedService {
+	if !p.pres.HackAssets && instanceIsHostedService {
 		return "Simple Host"
 	}
 	return ""
@@ -177,7 +167,7 @@ var navKeys = map[string]string{
 
 // chromeDataFor derives the chrome for one request. base is "" for pages on
 // the main origin.
-func chromeDataFor(r *http.Request, base string) chromeData {
+func (p *assetPipeline) chromeDataFor(r *http.Request, base string) chromeData {
 	current := navKeys[r.URL.Path]
 	host := r.Host
 	if h, _, err := net.SplitHostPort(host); err == nil {
@@ -188,10 +178,10 @@ func chromeDataFor(r *http.Request, base string) chromeData {
 		Base:          base,
 		Current:       current,
 		HackHome:      current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
-		Hack:          hackChrome,
+		Hack:          p.chromeHack,
 		CSSVersion:    siteCSSVersion,
 		SigninVersion: SigninJSVersion(),
-		Owner:         hostedOwner(),
+		Owner:         p.hostedOwner(),
 	}
 }
 
@@ -272,9 +262,9 @@ func addHackInk(page []byte, base string) []byte {
 }
 
 // Go-built status pages were themed at package init, before hosted mode is known.
-func hostedStatusPage(page string) []byte {
-	if hackChrome {
-		d := chromeData{Hack: true, Base: hackInkBaseURL, CSSVersion: siteCSSVersion, SigninVersion: SigninJSVersion()}
+func (p *assetPipeline) hostedStatusPage(page string) []byte {
+	if p.chromeHack {
+		d := chromeData{Hack: true, Base: p.inkBase, CSSVersion: siteCSSVersion, SigninVersion: SigninJSVersion()}
 		if !strings.Contains(page, "<head>") && !strings.Contains(page, "<head ") {
 			page = "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\">" + markerHead + "</head><body>" + page + "</body></html>"
 		} else {
@@ -287,9 +277,9 @@ func hostedStatusPage(page string) []byte {
 		page = strings.Replace(page, "</body>", "</main>"+markerFooter+"</body>", 1)
 		out, err := withChrome([]byte(page), d)
 		if err == nil {
-			return hackInstanceText(out)
+			return p.hackInstanceText(out)
 		}
-		return addHackInk([]byte(page), hackInkBaseURL)
+		return addHackInk([]byte(page), p.inkBase)
 	}
 	if strings.Contains(page, "</head>") && !strings.Contains(page, `name="viewport"`) {
 		page = strings.Replace(page, "</head>", `<meta name="viewport" content="width=device-width,initial-scale=1"></head>`, 1)
@@ -325,15 +315,15 @@ var chromeCache sync.Map
 // chromePage returns the embedded static/<name> with its chrome filled in and
 // this install's limits in its copy (limitstext.go). The enterprise-* pages
 // describe the other product, whose limits are its own, so they keep theirs.
-func chromePage(name string, d chromeData) ([]byte, error) {
+func (p *assetPipeline) chromePage(name string, d chromeData) ([]byte, error) {
 	page, err := chromePageRaw(name, d)
 	if err != nil || strings.HasPrefix(name, "enterprise-") || name == "enterprise.html" {
 		return page, err
 	}
-	if hackMode {
+	if p.pres.HackAssets {
 		page = hackPersonalPresentationHTML(name, page)
 	}
-	return hostedBlocks(hackInstanceText(instanceLimits.apply(page)), hostedOwner() != ""), nil
+	return hostedBlocks(p.hackInstanceText(instanceLimits.apply(page)), p.hostedOwner() != ""), nil
 }
 
 // hostedBlocks keeps the text that is true for this server. A page marks
@@ -395,7 +385,7 @@ func chromePageRaw(name string, d chromeData) ([]byte, error) {
 // otherwise hand out raw, and passes everything else — assets, 404s, the
 // /index.html → / redirect — to next. fsys is the file server's own view, so
 // a page hidden from it stays hidden here.
-func chromeFileServer(fsys fs.FS, next http.Handler) http.Handler {
+func (p *assetPipeline) chromeFileServer(fsys fs.FS, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/")
 		switch {
@@ -411,13 +401,13 @@ func chromeFileServer(fsys fs.FS, next http.Handler) http.Handler {
 			return
 		}
 		f.Close()
-		body, err := chromePage(name, chromeDataFor(r, ""))
+		body, err := p.chromePage(name, p.chromeDataFor(r, ""))
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if hackChrome {
+		if p.chromeHack {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		// A zero modtime, as the embedded FS reports, so no Last-Modified —

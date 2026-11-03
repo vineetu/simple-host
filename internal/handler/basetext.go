@@ -23,8 +23,6 @@ var (
 	baseTextMu sync.RWMutex
 	// baseTextTo is what canonicalBaseDomain is served as ("" = as written).
 	baseTextTo = canonicalSiteDomain
-	// baseTextCache holds swapped copies of embedded files, by name.
-	baseTextCache sync.Map
 	// authJSBases are the served bases while the base moves (nil otherwise):
 	// auth.js then treats a one-label host under any of them as a person
 	// host (authJSPatch).
@@ -58,7 +56,7 @@ func SetSiteBaseText(bases []string) {
 		authJSBases = nil
 	}
 	baseTextMu.Unlock()
-	baseTextCache.Clear()
+	clearAssetText()
 }
 
 func isAuthJS(name string) bool {
@@ -87,15 +85,16 @@ func servedSigninJS() []byte {
 
 // transformStatic is what an embedded file is served as: the base swap, the
 // sign-in message table in signin.js, the sign-in card spliced into auth.js,
-// and for auth.js the moving-base patch (and hackAuthJS in hack mode).
-func transformStatic(name string, b []byte) []byte {
+// and for auth.js the moving-base patch (and hackAuthJS for Hack assets). A
+// nil pipeline is the product-neutral view: no hackAuthJS.
+func (p *assetPipeline) transformStatic(name string, b []byte) []byte {
 	b = baseText(b)
 	if isSigninJS(name) {
 		return injectSigninMessages(b)
 	}
 	if isAuthJS(name) {
 		b = bytes.Replace(b, []byte(markerSigninCard), servedSigninJS(), 1)
-		if hackMode {
+		if p != nil && p.pres.HackAssets {
 			b = hackAuthJS(b)
 		}
 		baseTextMu.RLock()
@@ -145,10 +144,10 @@ func hackAuthJS(b []byte) []byte {
 }
 
 // staticUnchanged: files are served exactly as embedded.
-func staticUnchanged() bool {
+func (p *assetPipeline) staticUnchanged() bool {
 	baseTextMu.RLock()
 	defer baseTextMu.RUnlock()
-	return baseTextTo == "" && authJSBases == nil && !hackMode
+	return baseTextTo == "" && authJSBases == nil && (p == nil || !p.pres.HackAssets)
 }
 
 // setBaseText picks what the embedded text says for people's addresses:
@@ -162,7 +161,7 @@ func setBaseText(siteDomain, handoutBase string) {
 	baseTextMu.Lock()
 	baseTextTo = to
 	baseTextMu.Unlock()
-	baseTextCache.Clear()
+	clearAssetText()
 	chromeCache.Clear()
 }
 
@@ -195,11 +194,17 @@ func baseTextString(s string) string {
 // the embedded ones themselves (same FileInfo, same zero ModTime), so the file
 // server's headers are unchanged; a swapped file keeps its FileInfo but for
 // its size.
+//
+// p is the pipeline the tree is served for (assetPipeline.staticFS): its
+// presentation picks auth.js's form and its cache holds the swapped files.
+// The package's staticFiles has none: it is the product-neutral view, read by
+// code that never reads auth.js, and swaps without caching.
 type baseTextFS struct {
 	fsys interface {
 		fs.ReadFileFS
 		fs.ReadDirFS
 	}
+	p *assetPipeline
 }
 
 func (f baseTextFS) ReadFile(name string) ([]byte, error) {
@@ -207,7 +212,7 @@ func (f baseTextFS) ReadFile(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return transformStatic(name, b), nil
+	return f.p.transformStatic(name, b), nil
 }
 
 func (f baseTextFS) ReadDir(name string) ([]fs.DirEntry, error) {
@@ -221,35 +226,46 @@ func (f baseTextFS) Open(name string) (fs.File, error) {
 	}
 	// auth.js and signin.js always go through transformStatic, even on the
 	// canonical host where every other file is served byte-for-byte.
-	if staticUnchanged() && !isAuthJS(name) && !isSigninJS(name) {
+	if f.p.staticUnchanged() && !isAuthJS(name) && !isSigninJS(name) {
 		return file, nil
 	}
 	st, err := file.Stat()
 	if err != nil || st.IsDir() {
 		return file, nil
 	}
-	key := currentBaseTextTo() + "\x00" + name
-	if hackMode {
-		key += "\x00hack"
-	}
-	body, ok := baseTextCache.Load(key)
-	if !ok {
-		raw, err := f.fsys.ReadFile(name)
-		if err != nil {
-			return file, nil
-		}
-		swapped := transformStatic(name, raw)
-		if len(swapped) == len(raw) && bytes.Equal(swapped, raw) {
-			swapped = nil // nothing to swap: serve the embedded file
-		}
-		body, _ = baseTextCache.LoadOrStore(key, swapped)
-	}
-	b := body.([]byte)
-	if b == nil {
+	b, err := f.swapped(name)
+	if err != nil || b == nil {
 		return file, nil
 	}
 	_ = file.Close()
 	return &baseTextFile{Reader: bytes.NewReader(b), info: sizedInfo{FileInfo: st, size: int64(len(b))}}, nil
+}
+
+// swapped is name as served, or nil when that is the embedded file itself.
+// The pipeline caches it; the neutral view recomputes it.
+func (f baseTextFS) swapped(name string) ([]byte, error) {
+	key := currentBaseTextTo() + "\x00" + name
+	if f.p != nil {
+		if f.p.pres.HackAssets {
+			key += "\x00hack"
+		}
+		if body, ok := f.p.text.Load(key); ok {
+			return body.([]byte), nil
+		}
+	}
+	raw, err := f.fsys.ReadFile(name)
+	if err != nil {
+		return nil, err
+	}
+	swapped := f.p.transformStatic(name, raw)
+	if len(swapped) == len(raw) && bytes.Equal(swapped, raw) {
+		swapped = nil // nothing to swap: serve the embedded file
+	}
+	if f.p == nil {
+		return swapped, nil
+	}
+	body, _ := f.p.text.LoadOrStore(key, swapped)
+	return body.([]byte), nil
 }
 
 // baseTextFile is a swapped file: seekable, like an embedded one.

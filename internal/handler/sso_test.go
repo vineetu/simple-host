@@ -811,7 +811,7 @@ func TestSSOSessionRetainsOnePassPerKey(t *testing.T) {
 }
 
 func TestSSOSkillReleaseNotifiesPreviousVersion(t *testing.T) {
-	version, err := PluginVersion()
+	version, err := PluginVersion(false)
 	if err != nil {
 		t.Fatal(err)
 	}

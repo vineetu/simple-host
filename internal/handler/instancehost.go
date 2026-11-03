@@ -103,14 +103,14 @@ var assetContentTypes = map[string]string{
 
 // serveRewrittenAsset serves one embedded asset with the instance's own
 // hostnames (rw, which may be nil) and limits substituted in.
-func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.Handler {
+func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body []byte
 		var err error
 		if strings.HasSuffix(name, ".html") {
 			// A page gets the shared chrome first, so the rewrite covers it
 			// too; chromePage has already put this install's limits in.
-			body, err = chromePage(name, chromeDataFor(r, ""))
+			body, err = p.chromePage(name, p.chromeDataFor(r, ""))
 			if err == nil {
 				body = rw.apply(body)
 			}
@@ -119,7 +119,7 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 			if name == "openapi.yaml" || name == "openapi.json" {
 				sourceName = "openapi.json"
 			}
-			if hackMode {
+			if p.pres.HackAssets {
 				switch name {
 				case "llms.txt":
 					sourceName = "hack-llms.txt"
@@ -127,17 +127,17 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 					sourceName = "openapi.json"
 				}
 			}
-			body, err = staticFiles.ReadFile("static/" + sourceName)
+			body, err = p.staticFS().ReadFile("static/" + sourceName)
 			if err == nil && (name == "openapi.yaml" || name == "openapi.json") {
 				audience := "public-host"
-				if hackMode {
+				if p.pres.HackAssets {
 					audience = "public-hack"
 				}
 				body, err = publicOpenAPISpec(body, audience)
 			}
 			if err == nil {
-				if hackMode {
-					body = hackInstanceText(instanceLimits.apply(body))
+				if p.pres.HackAssets {
+					body = p.hackInstanceText(instanceLimits.apply(body))
 				} else {
 					if name == "llms.txt" && rw != nil {
 						body = selfHostedClaudeSetup(body)
@@ -145,7 +145,7 @@ func serveRewrittenAsset(name string, rw *hostRewriter, modTime time.Time) http.
 					body = instanceLimits.apply(rw.apply(body))
 				}
 			}
-			if err == nil && !hackMode && name == "llms.txt" && instanceNote != "" {
+			if err == nil && !p.pres.HackAssets && name == "llms.txt" && instanceNote != "" {
 				body = append([]byte(instanceNote), body...)
 			}
 		}

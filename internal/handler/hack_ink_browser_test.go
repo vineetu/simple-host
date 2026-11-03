@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // Opt-in isolated full app and mail sink for the Playwright presentation rehearsal.
@@ -27,7 +29,7 @@ func TestServeHackInkBrowser(t *testing.T) {
 	a.sites.mailer = mb
 	a.hack.SetMailer(mb)
 	RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
-	RegisterSkillsHub(a.mux, a.srv.URL, true)
+	newAssetPipeline(edition.ForKind(edition.Hack)).registerSkillsHub(a.mux, a.srv.URL)
 	RegisterHackHome(a.mux)
 	RegisterHackUI(a.mux, "")
 	RegisterHackPublic(a.mux, a.database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady)

@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestServedSigninJSContainsMessageTable(t *testing.T) {
@@ -122,12 +124,10 @@ func TestServedSigninAndAuthJSParse(t *testing.T) {
 func TestHackModeAuthJSStillHasCard(t *testing.T) {
 	previous := hackMode
 	hackMode = true
-	baseTextCache.Clear()
 	t.Cleanup(func() {
 		hackMode = previous
-		baseTextCache.Clear()
 	})
-	got, err := staticFiles.ReadFile("static/auth.js")
+	got, err := newAssetPipeline(edition.ForKind(edition.Hack)).staticFS().ReadFile("static/auth.js")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // Text only the hosted service can say (Claude's directory, the published
@@ -28,7 +30,7 @@ func TestSelfHostedGetStartedAndLLMS(t *testing.T) {
 	defer SetInstanceHosts("simple-host.app", "", "")
 	for _, name := range []string{"install.html", "llms.txt"} {
 		rec := httptest.NewRecorder()
-		serveRewrittenAsset(name, instanceHosts, time.Time{}).ServeHTTP(rec, httptest.NewRequest("GET", "https://box.example/"+name, nil))
+		newAssetPipeline(edition.ForKind(edition.Host)).serveRewrittenAsset(name, instanceHosts, time.Time{}).ServeHTTP(rec, httptest.NewRequest("GET", "https://box.example/"+name, nil))
 		body := rec.Body.String()
 		if rec.Code != 200 {
 			t.Fatalf("%s: %d", name, rec.Code)

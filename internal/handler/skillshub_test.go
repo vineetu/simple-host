@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestSkillsBundleExcludesControlPlaneSkills(t *testing.T) {
@@ -45,7 +47,7 @@ func TestHostSkillsHideHostedMemberGuides(t *testing.T) {
 	hackMode = false
 	defer func() { hackMode = previousMode }()
 	mux := http.NewServeMux()
-	RegisterSkillsHub(mux, "https://simple-host.app", false)
+	newAssetPipeline(edition.ForKind(edition.Host)).registerSkillsHub(mux, "https://simple-host.app")
 	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
 	get := func(path string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()

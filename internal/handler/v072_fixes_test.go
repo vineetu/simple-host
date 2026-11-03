@@ -15,6 +15,8 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // v0.7.2 correctness fixes (final/hosted-correctness.md). Needs DB_DSN.
@@ -676,7 +678,7 @@ func TestInstanceNoteAndContact(t *testing.T) {
 	auth.SetSupportContact("whoever runs this server", false)
 	SetInstanceNote(InstanceFacts{SiteDomain: "ev.test", ContentHost: "sites.ev.test", SharedOrigin: true, Contact: auth.SupportContact})
 	rec := httptest.NewRecorder()
-	serveRewrittenAsset("llms.txt", instanceHosts, time.Now()).ServeHTTP(rec, httptest.NewRequest("GET", "/llms.txt", nil))
+	newAssetPipeline(edition.ForKind(edition.Host)).serveRewrittenAsset("llms.txt", instanceHosts, time.Now()).ServeHTTP(rec, httptest.NewRequest("GET", "/llms.txt", nil))
 	body := rec.Body.String()
 	for _, want := range []string{"THIS SERVER (ev.test)", "shares that one browser origin", "Never call SH.requireSignIn()",
 		"visitor_sign_in_unavailable", "preview_unavailable", "sends no email", "ask whoever runs this server",

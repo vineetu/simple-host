@@ -10,6 +10,8 @@ import (
 
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/mcp"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestHackPublicDiscovery(t *testing.T) {
@@ -23,7 +25,7 @@ func TestHackPublicDiscovery(t *testing.T) {
 			mux := http.NewServeMux()
 			RegisterUIRoutes(mux, base, chromeTestHandler())
 			RegisterHackHome(mux)
-			RegisterSkillsHub(mux, base, true)
+			newAssetPipeline(edition.ForKind(edition.Hack)).registerSkillsHub(mux, base)
 			host := strings.SplitN(base, "://", 2)[1]
 			server := mcp.NewServer(mcp.Config{APIHost: host})
 			connector := &ConnectorHandler{issuer: base, mcp: server, hostedEvents: true}

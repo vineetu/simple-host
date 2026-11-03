@@ -228,7 +228,7 @@ func main() {
 		auth.SetSupportContact(contact, cfg.ResendAPIKey != "")
 	}
 
-	pluginVersion, err := handler.PluginVersion()
+	pluginVersion, err := handler.PluginVersion(ed.Presentation().HackAssets)
 	if err != nil {
 		log.Fatalf("read plugin.json version: %v", err)
 	}
@@ -379,7 +379,7 @@ func main() {
 		connector.EnableBrain(mux, authMW, filepath.Join(dir, "bundle.json"))
 	}
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
-	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL, ed.Presentation().HackAssets)
+	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL, siteHandler)
 	var hackSweep func(context.Context)
 	var hackEvents *handler.HackHandler
 	if hosted {
