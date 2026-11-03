@@ -346,7 +346,7 @@ func (p *assetPipeline) serveStaticPage(name string) http.Handler {
 		if name == "pricing.html" {
 			body = applyPricingNumbers(body, p.hostedEvents)
 		}
-		if p.pres.HackAssets && name == "hack-get-started.html" && p.inkBase != canonicalHackBaseURL {
+		if p.pres.HackAssets && name == "hack-get-started.html" && p.inkBaseURL() != canonicalHackBaseURL {
 			// GitHub skills name the hosted service. Install the local ZIP instead.
 			start := bytes.Index(body, []byte("<li>Install the five Simple Hack skills"))
 			if start >= 0 {
@@ -362,7 +362,7 @@ func (p *assetPipeline) serveStaticPage(name string) http.Handler {
 			body = bytes.ReplaceAll(body, []byte("Yes. Running an event, joining, judging and hosting team sites are free."), []byte("Simple Hack is free software. Server, domain and email costs are your provider’s bill."))
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if p.chromeHack {
+		if p.chromeHack.Load() {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		w.Write(stampNonce(r, body))
@@ -398,7 +398,7 @@ func (p *assetPipeline) uiCSP(next http.Handler, frameSrc string) http.Handler {
 		}
 		nonce := base64.StdEncoding.EncodeToString(b[:])
 		policy := policyFmt
-		if p.chromeHack {
+		if p.chromeHack.Load() {
 			policy = strings.ReplaceAll(policy, " https://fonts.googleapis.com", "")
 			policy = strings.ReplaceAll(policy, " https://fonts.gstatic.com", "")
 		}

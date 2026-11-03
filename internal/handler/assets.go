@@ -3,6 +3,7 @@ package handler
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 	"weak"
 
 	"github.com/vsriram/simple-host/internal/edition"
@@ -28,11 +29,11 @@ type assetPipeline struct {
 	// hostedEvents is the edition's Routes().HostedEvents (pricing numbers).
 	hostedEvents bool
 	// chromeHack renders the simple-hack.app header, footer and ink (the
-	// SetHackChrome setting).
-	chromeHack bool
+	// SetHackChrome setting). Atomic: a setter may run while requests read.
+	chromeHack atomic.Bool
 	// inkBase is this Hack instance's public address (SetHackInstanceURL),
-	// canonicalHackBaseURL on simple-hack.app itself.
-	inkBase string
+	// canonicalHackBaseURL on simple-hack.app itself. Read via inkBaseURL.
+	inkBase atomic.Pointer[string]
 	// text holds swapped copies of embedded files, by base and name
 	// (baseTextFS.Open).
 	text sync.Map
@@ -48,7 +49,8 @@ func newAssetPipeline(ed *edition.Edition) *assetPipeline {
 	}
 	assetRegistry.mu.Lock()
 	// The transitional startup settings (hack_mode.go) are the defaults.
-	p.chromeHack, p.inkBase = hackChrome, hackInkBaseURL
+	p.chromeHack.Store(hackChrome)
+	p.setInkBase(hackInkBaseURL)
 	live := assetRegistry.live[:0]
 	for _, wp := range assetRegistry.live {
 		if wp.Value() != nil {
@@ -59,6 +61,16 @@ func newAssetPipeline(ed *edition.Edition) *assetPipeline {
 	assetRegistry.mu.Unlock()
 	return p
 }
+
+// inkBaseURL is the pipeline's hack instance address.
+func (p *assetPipeline) inkBaseURL() string {
+	if s := p.inkBase.Load(); s != nil {
+		return *s
+	}
+	return ""
+}
+
+func (p *assetPipeline) setInkBase(base string) { p.inkBase.Store(&base) }
 
 // pipeline is h's asset pipeline. NewSiteHandler builds it; a bare
 // &SiteHandler{} (tests) gets one for its edition on first use.
@@ -90,6 +102,11 @@ var assetRegistry struct {
 func eachAssetPipeline(fn func(*assetPipeline)) {
 	assetRegistry.mu.Lock()
 	defer assetRegistry.mu.Unlock()
+	eachAssetPipelineLocked(fn)
+}
+
+// eachAssetPipelineLocked is eachAssetPipeline for a caller holding the lock.
+func eachAssetPipelineLocked(fn func(*assetPipeline)) {
 	for _, wp := range assetRegistry.live {
 		if p := wp.Value(); p != nil {
 			fn(p)
@@ -106,9 +123,9 @@ func clearAssetText() {
 // once at startup when EVENTS=hosted.
 func SetHackChrome(on bool) {
 	assetRegistry.mu.Lock()
+	defer assetRegistry.mu.Unlock()
 	hackChrome = on
-	assetRegistry.mu.Unlock()
-	eachAssetPipeline(func(p *assetPipeline) { p.chromeHack = on })
+	eachAssetPipelineLocked(func(p *assetPipeline) { p.chromeHack.Store(on) })
 }
 
 // SetHackInstanceURL is called once at startup, before routes or ZIP caches.
@@ -116,7 +133,7 @@ func SetHackInstanceURL(base string) {
 	base = strings.TrimRight(base, "/")
 	assetRegistry.mu.Lock()
 	hackInkBaseURL = base
+	eachAssetPipelineLocked(func(p *assetPipeline) { p.setInkBase(base) })
 	assetRegistry.mu.Unlock()
-	eachAssetPipeline(func(p *assetPipeline) { p.inkBase = base })
 	chromeCache.Clear()
 }

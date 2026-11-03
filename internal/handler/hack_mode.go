@@ -62,7 +62,12 @@ func globalAssets() *assetPipeline {
 		k = edition.Hack
 	}
 	ed := edition.ForKind(k)
-	return &assetPipeline{pres: ed.Presentation(), hostedEvents: ed.Routes().HostedEvents, chromeHack: hackChrome, inkBase: hackInkBaseURL}
+	p := &assetPipeline{pres: ed.Presentation(), hostedEvents: ed.Routes().HostedEvents}
+	assetRegistry.mu.Lock()
+	p.chromeHack.Store(hackChrome)
+	p.setInkBase(hackInkBaseURL)
+	assetRegistry.mu.Unlock()
+	return p
 }
 
 // The free forms below serve the callers that have no handler in reach yet

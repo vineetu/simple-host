@@ -199,7 +199,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		return
 	}
 
-	page, err := showcasePage(h.pipeline().chromeDataFor(r, h.chromeBase(r)), data)
+	page, err := h.pipeline().showcasePage(h.pipeline().chromeDataFor(r, h.chromeBase(r)), data)
 	if err != nil {
 		h.renderServiceError(w, r)
 		return
@@ -328,8 +328,8 @@ func (h *SiteHandler) showcaseFeed(w http.ResponseWriter, r *http.Request) {
 // showcasePage assembles the showcase template: the shared chrome, then the
 // handle and the page data. Kept apart from the database work so the served
 // markup can be tested on its own.
-func showcasePage(d chromeData, data showcaseData) ([]byte, error) {
-	tmpl, err := chromePage("showcase.html", d)
+func (p *assetPipeline) showcasePage(d chromeData, data showcaseData) ([]byte, error) {
+	tmpl, err := p.chromePage("showcase.html", d)
 	if err != nil {
 		return nil, err
 	}

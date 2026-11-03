@@ -82,7 +82,7 @@ func TestApexPagesStrictScriptCSP(t *testing.T) {
 	h := chromeTestHandler()
 	data := showcaseData{Handle: "jane", SitesBaseURL: "https://sites.simple-host.app", MainURL: "https://simple-host.app", Sites: []showcaseSite{}}
 	sc := adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		page, err := showcasePage(chromeDataFor(r, ""), data)
+		page, err := globalAssets().showcasePage(chromeDataFor(r, ""), data)
 		if err != nil {
 			t.Fatal(err)
 		}

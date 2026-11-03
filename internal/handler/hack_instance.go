@@ -9,12 +9,12 @@ import (
 // and event addresses. Simple Host's hosted-product and control-plane links
 // keep their existing meaning.
 func (p *assetPipeline) hackInstanceText(data []byte) []byte {
-	if !p.pres.HackAssets || p.inkBase == canonicalHackBaseURL {
+	if !p.pres.HackAssets || p.inkBaseURL() == canonicalHackBaseURL {
 		return data
 	}
-	u, err := url.Parse(p.inkBase)
+	u, err := url.Parse(p.inkBaseURL())
 	if err != nil || u.Host == "" {
 		return data
 	}
-	return []byte(strings.NewReplacer("https://simple-hack.app", strings.TrimRight(p.inkBase, "/"), "simple-hack.app", u.Host).Replace(string(data)))
+	return []byte(strings.NewReplacer("https://simple-hack.app", strings.TrimRight(p.inkBaseURL(), "/"), "simple-hack.app", u.Host).Replace(string(data)))
 }

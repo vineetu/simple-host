@@ -129,8 +129,8 @@ type chromeData struct {
 
 // hostedOwner names the hosted service this process is, or "".
 func (p *assetPipeline) hostedOwner() string {
-	if p.chromeHack {
-		if p.inkBase == canonicalHackBaseURL {
+	if p.chromeHack.Load() {
+		if p.inkBaseURL() == canonicalHackBaseURL {
 			return "Simple Hack"
 		}
 		return ""
@@ -178,7 +178,7 @@ func (p *assetPipeline) chromeDataFor(r *http.Request, base string) chromeData {
 		Base:          base,
 		Current:       current,
 		HackHome:      current == "hackathons" && strings.HasPrefix(host, "simple-hack."),
-		Hack:          p.chromeHack,
+		Hack:          p.chromeHack.Load(),
 		CSSVersion:    siteCSSVersion,
 		SigninVersion: SigninJSVersion(),
 		Owner:         p.hostedOwner(),
@@ -263,8 +263,8 @@ func addHackInk(page []byte, base string) []byte {
 
 // Go-built status pages were themed at package init, before hosted mode is known.
 func (p *assetPipeline) hostedStatusPage(page string) []byte {
-	if p.chromeHack {
-		d := chromeData{Hack: true, Base: p.inkBase, CSSVersion: siteCSSVersion, SigninVersion: SigninJSVersion()}
+	if p.chromeHack.Load() {
+		d := chromeData{Hack: true, Base: p.inkBaseURL(), CSSVersion: siteCSSVersion, SigninVersion: SigninJSVersion()}
 		if !strings.Contains(page, "<head>") && !strings.Contains(page, "<head ") {
 			page = "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\">" + markerHead + "</head><body>" + page + "</body></html>"
 		} else {
@@ -279,7 +279,7 @@ func (p *assetPipeline) hostedStatusPage(page string) []byte {
 		if err == nil {
 			return p.hackInstanceText(out)
 		}
-		return addHackInk([]byte(page), p.inkBase)
+		return addHackInk([]byte(page), p.inkBaseURL())
 	}
 	if strings.Contains(page, "</head>") && !strings.Contains(page, `name="viewport"`) {
 		page = strings.Replace(page, "</head>", `<meta name="viewport" content="width=device-width,initial-scale=1"></head>`, 1)
@@ -407,7 +407,7 @@ func (p *assetPipeline) chromeFileServer(fsys fs.FS, next http.Handler) http.Han
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if p.chromeHack {
+		if p.chromeHack.Load() {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		// A zero modtime, as the embedded FS reports, so no Last-Modified —
