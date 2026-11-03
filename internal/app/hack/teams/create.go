@@ -1,6 +1,8 @@
 package teams
 
 import (
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+
 	"context"
 	"database/sql"
 	"errors"
@@ -21,7 +23,7 @@ func (s *Service) CreateTeam(ctx context.Context, event db.Event, userID, name, 
 	defer tx.Rollback()
 	// After the event deadline a new team would be frozen from birth.
 	var closed bool
-	if err = tx.QueryRowContext(ctx, createSQL2, event.ID).Scan(&closed); err != nil {
+	if err = teamrepo.RunCreateSQL2(ctx, tx, event.ID).Scan(&closed); err != nil {
 		return db.EventTeam{}, internalError(err)
 	}
 	if closed {
@@ -37,7 +39,7 @@ func (s *Service) CreateTeam(ctx context.Context, event db.Event, userID, name, 
 	var team db.EventTeam
 	for n := 0; n < 50; n++ {
 		slug := hackteams.TeamSlugCandidate(base, n)
-		taken, err := db.TeamSlugExists(ctx, tx, event.ID, slug)
+		taken, err := teamrepo.TeamSlugExists(ctx, tx, event.ID, slug)
 		if err != nil {
 			return team, internalError(err)
 		}
@@ -60,13 +62,13 @@ func (s *Service) CreateTeam(ctx context.Context, event db.Event, userID, name, 
 			}
 			last = trySavepoint(ctx, tx, func() error {
 				var terr error
-				team, terr = db.CreateTeamAndJoin(ctx, tx, event.ID, userID, slug, name, code)
+				team, terr = teamrepo.CreateTeamAndJoin(ctx, tx, event.ID, userID, slug, name, code)
 				return terr
 			})
 			if last == nil {
 				break
 			}
-			if errors.Is(last, db.ErrHackAlreadyInTeam) || errors.Is(last, db.ErrHackNotParticipant) {
+			if errors.Is(last, teamrepo.ErrHackAlreadyInTeam) || errors.Is(last, teamrepo.ErrHackNotParticipant) {
 				return team, last
 			}
 			if isUnique(last) && strings.Contains(last.Error(), "event_teams_name_idx") {
@@ -83,7 +85,7 @@ func (s *Service) CreateTeam(ctx context.Context, event db.Event, userID, name, 
 		if last == nil {
 			// Deprecated 2026-10-31: open is accepted for one release but ignored;
 			// event_teams.open is no longer written.
-			if _, err = tx.ExecContext(ctx, createSQL3, team.ID, note); err != nil {
+			if _, err = teamrepo.RunCreateSQL3(ctx, tx, team.ID, note); err != nil {
 				return team, internalError(err)
 			}
 			if err = db.RecordUsedTeamName(ctx, tx, event.Slug, slug); err != nil {

@@ -1,6 +1,8 @@
 package entries
 
 import (
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+
 	"context"
 	"database/sql"
 	"errors"
@@ -31,7 +33,7 @@ func (s *Service) GenerateAssignments(ctx context.Context, eventID string, inclu
 		return nil, nil, &BeginAssignmentsError{Err: err}
 	}
 	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(ctx, tx, eventID)
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -204,7 +206,7 @@ func (s *Service) optionsTx(ctx context.Context, eventID string) (*sql.Tx, db.Ev
 	if err != nil {
 		return nil, db.Event{}, err
 	}
-	ev, err := db.GetEventForUpdate(ctx, tx, eventID)
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		tx.Rollback()
 		return nil, db.Event{}, err

@@ -1,6 +1,9 @@
 package entries
 
 import (
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+
 	"context"
 	"database/sql"
 	"errors"
@@ -45,7 +48,7 @@ type RulesResult struct {
 
 func (s *Service) EntryRulesImpact(ctx context.Context, tx *sql.Tx, ev db.Event, fields map[string]string) (RulesImpact, error) {
 	current := hackentries.LoadRules(ev.EntryRules)
-	teams, err := db.ListEventTeams(ctx, tx, ev.ID)
+	teams, err := teamrepo.ListEventTeams(ctx, tx, ev.ID)
 	if err != nil {
 		return RulesImpact{}, err
 	}
@@ -53,7 +56,7 @@ func (s *Service) EntryRulesImpact(ctx context.Context, tx *sql.Tx, ev db.Event,
 	if err != nil {
 		return RulesImpact{}, err
 	}
-	tracks, err := db.ListEventTracks(ctx, tx, ev.ID)
+	tracks, err := eventrepo.ListEventTracks(ctx, tx, ev.ID)
 	if err != nil {
 		return RulesImpact{}, err
 	}
@@ -69,7 +72,7 @@ func (s *Service) EntryRulesImpact(ctx context.Context, tx *sql.Tx, ev db.Event,
 		if !ok {
 			continue
 		}
-		track, err := db.TeamTrack(ctx, tx, team.ID)
+		track, err := eventrepo.TeamTrack(ctx, tx, team.ID)
 		if err != nil {
 			return RulesImpact{}, err
 		}
@@ -122,7 +125,7 @@ func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate)
 		return RulesResult{}, err
 	}
 	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(ctx, tx, eventID)
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		return RulesResult{}, err
 	}
@@ -175,7 +178,7 @@ func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate)
 		if err != nil {
 			return RulesResult{}, err
 		}
-		tracks, err := db.ListEventTracks(ctx, tx, eventID)
+		tracks, err := eventrepo.ListEventTracks(ctx, tx, eventID)
 		if err != nil {
 			return RulesResult{}, err
 		}
@@ -198,7 +201,7 @@ func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate)
 	if err := tx.Commit(); err != nil {
 		return RulesResult{}, err
 	}
-	tracks, _ := db.ListEventTracks(ctx, s.db, updated.ID)
+	tracks, _ := eventrepo.ListEventTracks(ctx, s.db, updated.ID)
 	return RulesResult{Updated: updated, HasTracks: len(tracks) > 0}, nil
 }
 
@@ -206,11 +209,11 @@ func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate)
 // the rules, the team's track and the site's live state.
 func (s *Service) EvaluateEntryTx(ctx context.Context, tx *sql.Tx, ev db.Event, st db.TeamWriteState, teamID string, e model.EventEntry) (hackentries.Check, error) {
 	fields := hackentries.LoadRules(ev.EntryRules)
-	tracks, err := db.ListEventTracks(ctx, tx, ev.ID)
+	tracks, err := eventrepo.ListEventTracks(ctx, tx, ev.ID)
 	if err != nil {
 		return hackentries.Check{}, err
 	}
-	track, err := db.TeamTrack(ctx, tx, teamID)
+	track, err := eventrepo.TeamTrack(ctx, tx, teamID)
 	if err != nil {
 		return hackentries.Check{}, err
 	}
@@ -239,12 +242,12 @@ func (s *Service) EntryProgress(ctx context.Context, ev db.Event, team db.EventT
 		return Progress{}, err
 	}
 	fields := hackentries.LoadRules(ev.EntryRules)
-	tracks, err := db.ListEventTracks(ctx, s.db, ev.ID)
+	tracks, err := eventrepo.ListEventTracks(ctx, s.db, ev.ID)
 	if err != nil {
 		return Progress{}, err
 	}
 	hasTracks := len(tracks) > 0
-	track, err := db.TeamTrack(ctx, s.db, team.ID)
+	track, err := eventrepo.TeamTrack(ctx, s.db, team.ID)
 	if err != nil {
 		return Progress{}, err
 	}

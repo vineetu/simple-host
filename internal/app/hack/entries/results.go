@@ -1,6 +1,8 @@
 package entries
 
 import (
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+
 	"context"
 
 	"github.com/vsriram/simple-host/internal/db"
@@ -63,7 +65,7 @@ func (s *Service) PublishResults(ctx context.Context, eventID, userID string, ov
 		return entryrepo.EventResultsRow{}, "begin", err
 	}
 	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(ctx, tx, eventID)
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		return entryrepo.EventResultsRow{}, "lock", err
 	}

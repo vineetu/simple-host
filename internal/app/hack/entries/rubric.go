@@ -1,13 +1,13 @@
 package entries
 
 import (
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+
 	"context"
 	"fmt"
-	"strings"
-
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	"strings"
 )
 
 // Rubric returns the event's criteria.
@@ -22,7 +22,7 @@ func (s *Service) ReplaceRubric(ctx context.Context, eventID string, items []mod
 		return nil, err
 	}
 	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(ctx, tx, eventID)
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		return nil, err
 	}

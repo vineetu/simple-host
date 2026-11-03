@@ -4,15 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
-
 	"github.com/vsriram/simple-host/internal/db"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
-func isUnique(err error) bool {
-	return err != nil && (strings.Contains(err.Error(), "23505") || strings.Contains(strings.ToLower(err.Error()), "unique"))
-}
+func isUnique(err error) bool { return hackevents.UniqueError(err) }
 
 // rotateTeamCode stops removed members rejoining with the old code. An empty,
 // deleted team has nothing to rotate.
@@ -23,7 +21,7 @@ func rotateTeamCode(ctx context.Context, q db.Querier, teamID string) error {
 			return err
 		}
 		err = trySavepoint(ctx, q, func() error {
-			_, err := q.ExecContext(ctx, organiserSQL2, teamID, code)
+			_, err := teamrepo.RunOrganiserSQL2(ctx, q, teamID, code)
 			return err
 		})
 		if err == nil || !isUnique(err) {
@@ -44,17 +42,17 @@ func (s *Service) RemovePerson(ctx context.Context, eventID, userID string) erro
 	// member then inserts a former-judge row, whose foreign key takes an event
 	// key-share lock. Self-leave can hold the event update lock while waiting
 	// for that member, causing a deadlock unless this locks the event first.
-	if _, err = db.GetEventForShare(ctx, tx, eventID); err != nil {
+	if _, err = eventrepo.GetEventForShare(ctx, tx, eventID); err != nil {
 		return internalError(err)
 	}
 	oldTeam := memberTeamID(ctx, tx, eventID, userID)
-	if err = db.RemovePersonFromEvent(ctx, tx, eventID, userID); err != nil {
+	if err = eventrepo.RemovePersonFromEvent(ctx, tx, eventID, userID, eventLeaveOperations()); err != nil {
 		return err
 	}
 	if oldTeam != "" {
 		// Empty teams are already deleted; rotate only a remaining team.
 		var still bool
-		if err = tx.QueryRowContext(ctx, organiserSQL3, oldTeam).Scan(&still); err == nil && still {
+		if err = teamrepo.RunOrganiserSQL3(ctx, tx, oldTeam).Scan(&still); err == nil && still {
 			err = rotateTeamCode(ctx, tx, oldTeam)
 		}
 		if err != nil {
@@ -78,7 +76,7 @@ func (s *Service) MoveMember(ctx context.Context, eventID, userID, slug string, 
 	}
 	defer tx.Rollback()
 	oldTeam := memberTeamID(ctx, tx, eventID, userID)
-	team, err := db.MoveParticipantToTeam(ctx, tx, eventID, userID, slug, max)
+	team, err := teamrepo.MoveParticipantToTeam(ctx, tx, eventID, userID, slug, max, db.EnsureTeamAdmin)
 	if err != nil {
 		return team, err
 	}
@@ -106,19 +104,19 @@ func (s *Service) RemoveTeamMember(ctx context.Context, eventID, actorID, userID
 	if participant {
 		// Removal no longer requires team finding. Recheck admin authority under
 		// locks: both member rows sorted by user ID, then the team row.
-		if _, err = tx.ExecContext(ctx, organiserSQL4, eventID, actorID, userID); err != nil {
+		if _, err = teamrepo.RunOrganiserSQL4(ctx, tx, eventID, actorID, userID); err != nil {
 			return internalError(err)
 		}
 		var teamID string
 		var admin bool
-		if err = tx.QueryRowContext(ctx, organiserSQL5, eventID, actorID).Scan(&teamID, &admin); err != nil {
+		if err = teamrepo.RunOrganiserSQL5(ctx, tx, eventID, actorID).Scan(&teamID, &admin); err != nil {
 			return sql.ErrNoRows
 		}
 		if !admin {
-			return db.ErrHackTeamAdminOnly
+			return teamrepo.ErrHackTeamAdminOnly
 		}
 		var gotSlug string
-		if err = tx.QueryRowContext(ctx, organiserSQL6, teamID).Scan(&gotSlug); err != nil || gotSlug != slug {
+		if err = teamrepo.RunOrganiserSQL6(ctx, tx, teamID).Scan(&gotSlug); err != nil || gotSlug != slug {
 			return sql.ErrNoRows
 		}
 		st, err := db.TeamWriteStateFor(ctx, tx, teamID, true)
@@ -126,20 +124,20 @@ func (s *Service) RemoveTeamMember(ctx context.Context, eventID, actorID, userID
 			return internalError(err)
 		}
 		if st.Frozen() {
-			return db.ErrHackTeamFrozen
+			return teamrepo.ErrHackTeamFrozen
 		}
 	}
 	oldTeam := memberTeamID(ctx, tx, eventID, userID)
-	if err = db.RemoveParticipantFromTeam(ctx, tx, eventID, slug, userID); err != nil {
+	if err = teamrepo.RemoveParticipantFromTeam(ctx, tx, eventID, slug, userID, db.EnsureTeamAdmin); err != nil {
 		return err
 	}
 	if participant {
-		_, err = tx.ExecContext(ctx, organiserSQL7, eventID, userID, "A teammate took you off "+teamName+".")
+		_, err = teamrepo.RunOrganiserSQL7(ctx, tx, eventID, userID, "A teammate took you off "+teamName+".")
 	}
 	if err == nil {
 		// Email uses the same words as the removal notice.
 		var notice string
-		if err = tx.QueryRowContext(ctx, organiserSQL8, eventID, userID).Scan(&notice); err == nil && notice != "" {
+		if err = teamrepo.RunOrganiserSQL8(ctx, tx, eventID, userID).Scan(&notice); err == nil && notice != "" {
 			err = db.NotifyUsers(ctx, tx, eventID, db.NoticeTeamRemoved, oldTeam, "", notice, userID)
 		}
 	}
@@ -156,4 +154,47 @@ func (s *Service) RemoveTeamMember(ctx context.Context, eventID, actorID, userID
 		return internalError(err)
 	}
 	return nil
+}
+
+func (s *Service) teamDeadlinePassed(ctx context.Context, teamID string) (bool, error) {
+	var passed bool
+	err := teamrepo.RunTeamDeadlinePassedSQL(ctx, s.db, teamID).Scan(&passed)
+	return passed, err
+}
+
+// teamNameTaken checks for another team with the same name, ignoring case.
+func teamNameTaken(ctx context.Context, q db.Querier, eventID, name string) (bool, error) {
+	var taken bool
+	err := teamrepo.RunCreateSQL1(ctx, q, eventID, name).Scan(&taken)
+	return taken, err
+}
+
+// trySavepoint permits a retry after a unique violation, which otherwise aborts
+// the whole transaction.
+func trySavepoint(ctx context.Context, q db.Querier, fn func() error) error {
+	if _, err := teamrepo.RunSavepointSQL(ctx, q); err != nil {
+		return err
+	}
+	if err := fn(); err != nil {
+		if _, rerr := teamrepo.RunRollbackSavepointSQL(ctx, q); rerr != nil {
+			return rerr
+		}
+		return err
+	}
+	_, err := teamrepo.RunReleaseSavepointSQL(ctx, q)
+	return err
+}
+
+// memberTeamID locks the old membership so a concurrent move waits and the
+// team actually left is the one read.
+func memberTeamID(ctx context.Context, q db.Querier, eventID, userID string) string {
+	var team sql.NullString
+	if err := teamrepo.RunOrganiserSQL1(ctx, q, eventID, userID).Scan(&team); err != nil || !team.Valid {
+		return ""
+	}
+	return team.String
+}
+
+func eventLeaveOperations() eventrepo.LeaveOperations {
+	return eventrepo.LeaveOperations{LockMember: teamrepo.LockMember, LockTeam: teamrepo.LockTeam, DeleteTeamIfEmpty: teamrepo.DeleteTeamIfEmpty, EnsureTeamAdmin: db.EnsureTeamAdmin}
 }

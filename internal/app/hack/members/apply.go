@@ -1,6 +1,9 @@
 package members
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+
 	"context"
 	"database/sql"
 	"errors"
@@ -45,7 +48,7 @@ func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input A
 	// shared resource, the user row, and can't deadlock.
 	var stage string
 	var applicationsOpen, takenDownNow bool
-	if err := lockApplicationEvent(ctx, tx, ev.ID, &stage, &applicationsOpen, &takenDownNow); err != nil {
+	if err := eventrepo.LockApplicationEvent(ctx, tx, ev.ID, &stage, &applicationsOpen, &takenDownNow); err != nil {
 		return db.EventMember{}, nil, err
 	}
 	if stage == "draft" || takenDownNow {
@@ -59,7 +62,7 @@ func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input A
 	// retry-able error for someone who already applied. This runs before the
 	// joining_closed/applications_closed checks below, which only matter for
 	// someone who is not yet a member.
-	existing, err := db.GetEventMember(ctx, tx, ev.ID, userID)
+	existing, err := eventrepo.GetEventMember(ctx, tx, ev.ID, userID)
 	if err == nil {
 		if existing.Role == "participant" {
 			// Idempotent: applying again, an approved member re-applying or
@@ -80,7 +83,7 @@ func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input A
 		return db.EventMember{}, nil, &Error{"applications_closed", "this event isn't taking applications right now"}
 	}
 
-	questions, _, err := db.RegistrationSettings(ctx, tx, ev.ID)
+	questions, _, err := eventrepo.RegistrationSettings(ctx, tx, ev.ID)
 	if err != nil {
 		return db.EventMember{}, nil, err
 	}
@@ -98,7 +101,7 @@ func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input A
 	if err := db.LockUserRow(ctx, tx, userID); err != nil {
 		return db.EventMember{}, nil, err
 	}
-	pending, err := db.CountPendingApplications(ctx, tx, userID)
+	pending, err := eventrepo.CountPendingApplications(ctx, tx, userID)
 	if err != nil {
 		return db.EventMember{}, nil, err
 	}
@@ -110,7 +113,7 @@ func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input A
 	// flood one event's queue. Counted under the same events-row FOR SHARE
 	// lock as the rest of the gate, against the event-scoped partial index
 	// (zp-hack-applications.sql).
-	eventPending, err := db.CountPendingApplicationsForEvent(ctx, tx, ev.ID)
+	eventPending, err := eventrepo.CountPendingApplicationsForEvent(ctx, tx, ev.ID)
 	if err != nil {
 		return db.EventMember{}, nil, err
 	}
@@ -118,11 +121,11 @@ func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input A
 		return db.EventMember{}, nil, &Error{"event_applications_full", fmt.Sprintf("This event already has %d applications waiting for a decision. Try again once some are decided.", capN)}
 	}
 
-	profile := db.ApplicantProfile{City: input.City, Country: input.Country, AgeRange: input.AgeRange, Gender: input.Gender}
-	member, err := db.ApplyParticipant(ctx, tx, ev.ID, userID, input.Display, answers, profile)
+	profile := model.ApplicantProfile{City: input.City, Country: input.Country, AgeRange: input.AgeRange, Gender: input.Gender}
+	member, err := eventrepo.ApplyParticipant(ctx, tx, ev.ID, userID, input.Display, answers, profile)
 	if err != nil {
 		if hackevents.UniqueError(err) {
-			existing2, err2 := db.GetEventMember(ctx, s.db, ev.ID, userID)
+			existing2, err2 := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
 			if err2 == nil && existing2.Role == "participant" {
 				return existing2, existingView(existing2), nil
 			}
@@ -143,7 +146,7 @@ func (s *Service) Apply(ctx context.Context, ev db.Event, userID string, input A
 
 // ApplyEvent finds an event before the public application checks.
 func (s *Service) ApplyEvent(ctx context.Context, slug string) (db.Event, error) {
-	ev, err := db.GetEventBySlug(ctx, s.db, slug)
+	ev, err := eventrepo.GetEventBySlug(ctx, s.db, slug)
 	if err != nil {
 		return ev, err
 	}
@@ -151,16 +154,16 @@ func (s *Service) ApplyEvent(ctx context.Context, slug string) (db.Event, error)
 }
 
 // ApplyDetails loads private questions and membership when applicable.
-func (s *Service) ApplyDetails(ctx context.Context, ev db.Event, caller string, open bool) ([]db.SignupQuestion, *db.MemberStatus, error) {
-	var q []db.SignupQuestion
+func (s *Service) ApplyDetails(ctx context.Context, ev db.Event, caller string, open bool) ([]model.SignupQuestion, *model.MemberStatus, error) {
+	var q []model.SignupQuestion
 	var err error
 	if open {
-		q, _, err = db.RegistrationSettings(ctx, s.db, ev.ID)
+		q, _, err = eventrepo.RegistrationSettings(ctx, s.db, ev.ID)
 		if err != nil {
 			return nil, nil, err
 		}
 	}
-	status, err := db.GetMemberStatus(ctx, s.db, ev.ID, caller)
+	status, err := eventrepo.GetMemberStatus(ctx, s.db, ev.ID, caller)
 	if errors.Is(err, sql.ErrNoRows) {
 		return q, nil, nil
 	}

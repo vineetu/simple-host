@@ -1,6 +1,8 @@
 package entries
 
 import (
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+
 	"context"
 	"fmt"
 	"github.com/vsriram/simple-host/internal/db"
@@ -45,7 +47,7 @@ func (s *Service) PutJudgeScores(ctx context.Context, eventID, judgeID, teamID s
 		return nil, "", false, err
 	}
 	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(ctx, tx, eventID)
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		return nil, "", false, err
 	}

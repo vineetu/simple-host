@@ -1,6 +1,8 @@
 package entries
 
 import (
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+
 	"context"
 	"database/sql"
 	"errors"
@@ -65,7 +67,7 @@ func (s *Service) startSiteOnlyEntries(ctx context.Context, tx *sql.Tx, eventID 
 	if err != nil || len(teams) == 0 {
 		return err
 	}
-	ev, err := db.GetEventByID(ctx, tx, eventID)
+	ev, err := eventrepo.GetEventByID(ctx, tx, eventID)
 	if err != nil {
 		return err
 	}
@@ -121,16 +123,16 @@ func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, teamID string) e
 	if e.SubmittedAt.Valid || e.SubmitSettledAt.Valid {
 		return nil // already decided
 	}
-	ev, err := db.GetEventByID(ctx, tx, st.EventID)
+	ev, err := eventrepo.GetEventByID(ctx, tx, st.EventID)
 	if err != nil {
 		return err
 	}
 	fields := hackentries.LoadRules(ev.EntryRules)
-	tracks, err := db.ListEventTracks(ctx, tx, ev.ID)
+	tracks, err := eventrepo.ListEventTracks(ctx, tx, ev.ID)
 	if err != nil {
 		return err
 	}
-	track, err := db.TeamTrack(ctx, tx, teamID)
+	track, err := eventrepo.TeamTrack(ctx, tx, teamID)
 	if err != nil {
 		return err
 	}

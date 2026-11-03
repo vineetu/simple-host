@@ -1,6 +1,9 @@
 package entries
 
 import (
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+
 	"context"
 	"database/sql"
 	"errors"
@@ -13,7 +16,7 @@ import (
 
 // SetExcluded changes the organiser's exclusion of an existing team entry.
 func (s *Service) SetExcluded(ctx context.Context, eventID, userID, slug string, excluded bool) (db.EventTeam, error) {
-	team, err := db.GetEventTeamBySlug(ctx, s.db, eventID, slug)
+	team, err := teamrepo.GetEventTeamBySlug(ctx, s.db, eventID, slug)
 	if errors.Is(err, sql.ErrNoRows) {
 		return team, &Error{Code: "team_not_found", Message: "team not found"}
 	}
@@ -98,7 +101,7 @@ func (s *Service) Write(ctx context.Context, req WriteRequest) (string, []string
 			if st.Stage != "open" && st.Stage != "building" {
 				return id, nil, &Error{Code: "team_choice_closed", Message: "team choices are closed"}
 			}
-			if _, e = db.SetTeamTrack(ctx, tx, req.Event.ID, id, *req.Track); e != nil {
+			if _, e = eventrepo.SetTeamTrack(ctx, tx, req.Event.ID, id, *req.Track); e != nil {
 				if errors.Is(e, sql.ErrNoRows) {
 					return id, nil, &Error{Code: "track_not_found", Message: "track not found"}
 				}

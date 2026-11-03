@@ -1,6 +1,9 @@
 package teams
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+
 	"context"
 	"database/sql"
 	"errors"
@@ -11,7 +14,7 @@ import (
 type OpenTeam struct {
 	Slug, Name, LookingFor string
 	Members                []string
-	Track                  *db.EventTrack
+	Track                  *model.EventTrack
 }
 
 // SoloPerson is an opted-in participant without a team.
@@ -40,7 +43,7 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 	// Frozen teams cannot accept newcomers and must not advertise as open.
 	// All unlocked teams are askable, including former code-only teams.
 	if !member.TeamID.Valid || member.Role == "organiser" {
-		rows, err := s.db.QueryContext(ctx, openSQL1, eventID)
+		rows, err := teamrepo.RunOpenSQL1(ctx, s.db, eventID)
 		if err != nil {
 			return out, err
 		}
@@ -48,7 +51,7 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 		for rows.Next() {
 			var id string
 			var t OpenTeam
-			var track db.EventTrack
+			var track model.EventTrack
 			if err = rows.Scan(&id, &t.Slug, &t.Name, &t.LookingFor, &track.ID, &track.Slug, &track.Name, &track.Challenge, &track.Prize); err != nil {
 				rows.Close()
 				return out, err
@@ -65,7 +68,7 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 		if err != nil {
 			return out, err
 		}
-		rows, err = s.db.QueryContext(ctx, openSQL2, eventID)
+		rows, err = teamrepo.RunOpenSQL2(ctx, s.db, eventID)
 		if err != nil {
 			return out, err
 		}
@@ -86,7 +89,7 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 		}
 	}
 	if member.TeamID.Valid || member.Role == "organiser" {
-		rows, err := s.db.QueryContext(ctx, openSQL3, eventID)
+		rows, err := teamrepo.RunOpenSQL3(ctx, s.db, eventID)
 		if err != nil {
 			return out, err
 		}
@@ -104,7 +107,7 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 			return out, err
 		}
 	}
-	rows, err := s.db.QueryContext(ctx, openSQL4, eventID, userID, member.TeamID, member.Role == "organiser")
+	rows, err := teamrepo.RunOpenSQL4(ctx, s.db, eventID, userID, member.TeamID, member.Role == "organiser")
 	if err != nil {
 		return out, err
 	}
@@ -121,12 +124,12 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 	if err != nil {
 		return out, err
 	}
-	if err = s.db.QueryRowContext(ctx, openSQL5, eventID, userID).Scan(&out.Looking, &out.Intro); err != nil {
+	if err = teamrepo.RunOpenSQL5(ctx, s.db, eventID, userID).Scan(&out.Looking, &out.Intro); err != nil {
 		return out, err
 	}
 	if member.TeamID.Valid {
 		var t FindingTeamState
-		if err = s.db.QueryRowContext(ctx, openSQL6, member.TeamID, eventID, userID).Scan(&t.Locked, &t.LookingFor, &t.Admin); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if err = teamrepo.RunOpenSQL6(ctx, s.db, member.TeamID, eventID, userID).Scan(&t.Locked, &t.LookingFor, &t.Admin); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return out, err
 		}
 		out.Team = &t

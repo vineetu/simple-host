@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
 // Team sites, member keys and the submission deadline (hosted events, M2;
@@ -199,7 +201,7 @@ func RevokeStaleTeamKeys(ctx context.Context, q Querier, eventID string) error {
 // EffectiveDeadlineSQL is a team's deadline in SQL over event_teams t and
 // events e: none while the event has none, else the later of the event's and
 // the team's own (an extension never makes a team's deadline earlier).
-const EffectiveDeadlineSQL = `CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END`
+const EffectiveDeadlineSQL = hackevents.EffectiveDeadlineSQL
 
 // TeamWriteState is what decides whether a team may change its site or entry
 // now. Read with TeamWriteStateFor.

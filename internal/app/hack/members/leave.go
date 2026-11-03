@@ -5,6 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
@@ -13,7 +17,7 @@ type LeaveResult struct {
 	Event       db.Event
 	Case        string
 	TeamDeleted bool
-	Successor   db.OtherOrganiser
+	Successor   model.OtherOrganiser
 }
 
 // LeaveStateChangedMessage is returned when a leave preview is stale.
@@ -27,11 +31,11 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 	}
 	defer tx.Rollback()
 
-	ev, err := db.GetEventForUpdate(ctx, tx, ev0.ID)
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, ev0.ID)
 	if err != nil {
 		return result, err
 	}
-	member, approvalStatus, err := db.LeaveSelf(ctx, tx, ev.ID, userID, true)
+	member, approvalStatus, err := eventrepo.LeaveSelf(ctx, tx, ev.ID, userID, true)
 	if errors.Is(err, sql.ErrNoRows) {
 		return result, &Error{"event_not_found", "event not found"}
 	}
@@ -48,14 +52,14 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 		return result, &Error{"leave_needs_confirm", `to leave, send {"confirm":"<slug>"} with this event's address name`}
 	}
 
-	otherOrganisers, err := db.OtherEventOrganisers(ctx, tx, ev.ID, userID)
+	otherOrganisers, err := eventrepo.OtherEventOrganisers(ctx, tx, ev.ID, userID)
 	if err != nil {
 		return result, err
 	}
 	isCreator := ev.CreatedBy.Valid && ev.CreatedBy.String == userID
 	leaveCase := hackevents.LeaveCaseFor(member.Role, approvalStatus, isCreator, len(otherOrganisers))
 
-	var successor db.OtherOrganiser
+	var successor model.OtherOrganiser
 	switch leaveCase {
 	case "participant", "applicant", "judge", "co_organiser":
 		if successorID != "" || closeAction != "" {
@@ -87,7 +91,7 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 			return result, &Error{"last_organiser", `you are the only organiser, so leaving closes the event: send close "end" or "delete"`}
 		}
 		if closeAction == "end" {
-			participants, _, _, err := db.CountEventMembers(ctx, tx, ev.ID)
+			participants, _, _, err := eventrepo.CountEventMembers(ctx, tx, ev.ID)
 			if err != nil {
 				return result, err
 			}
@@ -100,20 +104,20 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 	// Owner decision 2026-10-31: leaving no longer refuses past the team's
 	// deadline (or once the event is closed, judging or results). The team
 	// row still gets locked, in the usual event/member/team order, inside
-	// LeaveMembership below -- db.LeaveMembership -> deleteTeamIfEmpty keeps
+	// LeaveMembership below -- eventrepo.LeaveMembership -> deleteTeamIfEmpty keeps
 	// a frozen team even once this leave empties it (TeamKeepableSQL is
 	// false once frozen), so the team, its entry, its site and its scores
 	// are never touched here.
 
 	if member.Role == "judge" || member.Role == "organiser" {
-		if err := db.RecordFormerJudge(ctx, tx, ev.ID, userID, member.Role, member.DisplayName); err != nil {
+		if err := eventrepo.RecordFormerJudge(ctx, tx, ev.ID, userID, member.Role, member.DisplayName); err != nil {
 			return result, err
 		}
 	}
 
 	switch leaveCase {
 	case "creator":
-		if _, err := handover(ctx, tx, ev.ID, successor.UserID); err != nil {
+		if _, err := eventrepo.Handover(ctx, tx, ev.ID, successor.UserID); err != nil {
 			return result, err
 		}
 	case "last_organiser":
@@ -123,7 +127,7 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 				return result, err
 			}
 			ev.UpdatedAt = updated.UpdatedAt
-			if _, err := deleteInvites(ctx, tx, ev.ID); err != nil {
+			if _, err := eventrepo.DeleteInvites(ctx, tx, ev.ID); err != nil {
 				return result, err
 			}
 		} else {
@@ -141,7 +145,7 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 		// empties a team deleteTeamIfEmpty keeps, kept_after_leave is set so
 		// judging, results and dashboards keep it exactly as if the leaver
 		// hadn't left (Codex review, SIM-340, P2).
-		teamID, err := db.LeaveMembership(ctx, tx, ev.ID, userID, true)
+		teamID, err := eventrepo.LeaveMembership(ctx, tx, ev.ID, userID, true, eventLeaveOperations())
 		if err != nil {
 			return result, err
 		}
@@ -156,7 +160,7 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 		// B1), so leave must never call it at all.
 		if teamID != "" {
 			var still bool
-			if err := teamExists(ctx, tx, teamID, &still); err != nil {
+			if err := eventrepo.TeamExists(ctx, tx, teamID, &still); err != nil {
 				return result, err
 			}
 			teamDeleted = !still
@@ -182,23 +186,23 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 
 // LeaveEvent finds the event before looking up membership.
 func (s *Service) LeaveEvent(ctx context.Context, slug string) (db.Event, error) {
-	return db.GetEventBySlug(ctx, s.db, slug)
+	return eventrepo.GetEventBySlug(ctx, s.db, slug)
 }
 
 // LookupLeaveSelf finds the caller's membership for a preview.
 func (s *Service) LookupLeaveSelf(ctx context.Context, eventID, userID string) (db.EventMember, string, error) {
-	return db.LeaveSelf(ctx, s.db, eventID, userID, false)
+	return eventrepo.LeaveSelf(ctx, s.db, eventID, userID, false)
 }
 
 // LookupLeaveMember finds the caller before a leave transaction.
 func (s *Service) LookupLeaveMember(ctx context.Context, eventID, userID string) error {
-	_, err := db.GetEventMember(ctx, s.db, eventID, userID)
+	_, err := eventrepo.GetEventMember(ctx, s.db, eventID, userID)
 	return err
 }
 
 // LeavePreview holds the facts needed to describe a leave.
 type LeavePreview struct {
-	Organisers   []db.OtherOrganiser
+	Organisers   []model.OtherOrganiser
 	Case         string
 	Team         db.EventTeam
 	People       []db.EventPerson
@@ -209,21 +213,21 @@ type LeavePreview struct {
 
 // PreviewLeave loads the facts for a leave preview in their original order.
 func (s *Service) PreviewLeave(ctx context.Context, ev db.Event, member db.EventMember, status, userID string) (p LeavePreview, err error) {
-	p.Organisers, err = db.OtherEventOrganisers(ctx, s.db, ev.ID, userID)
+	p.Organisers, err = eventrepo.OtherEventOrganisers(ctx, s.db, ev.ID, userID)
 	if err != nil {
 		return
 	}
 	p.Case = hackevents.LeaveCaseFor(member.Role, status, ev.CreatedBy.Valid && ev.CreatedBy.String == userID, len(p.Organisers))
 	if p.Case == "participant" && member.TeamID.Valid {
-		p.Team, err = db.GetEventTeamByID(ctx, s.db, member.TeamID.String)
+		p.Team, err = teamrepo.GetEventTeamByID(ctx, s.db, member.TeamID.String)
 		if err != nil {
 			return
 		}
-		p.People, err = db.ListTeamPeople(ctx, s.db, p.Team.ID)
+		p.People, err = teamrepo.ListTeamPeople(ctx, s.db, p.Team.ID)
 		if err != nil {
 			return
 		}
-		p.Kept, err = db.TeamKeptIfEmptied(ctx, s.db, p.Team.ID)
+		p.Kept, err = eventrepo.TeamKeptIfEmptied(ctx, s.db, p.Team.ID)
 		if err != nil {
 			return
 		}
@@ -231,14 +235,18 @@ func (s *Service) PreviewLeave(ctx context.Context, ev db.Event, member db.Event
 	switch p.Case {
 	case "judge", "co_organiser", "creator", "last_organiser":
 		var scores map[string]int
-		_, scores, err = db.ScoreCoverage(ctx, s.db, ev.ID)
+		_, scores, err = entryrepo.ScoreCoverage(ctx, s.db, ev.ID)
 		if err != nil {
 			return
 		}
 		p.ScoredTeams = scores[userID]
 	}
 	if p.Case == "last_organiser" {
-		p.Participants, _, _, err = db.CountEventMembers(ctx, s.db, ev.ID)
+		p.Participants, _, _, err = eventrepo.CountEventMembers(ctx, s.db, ev.ID)
 	}
 	return
+}
+
+func eventLeaveOperations() eventrepo.LeaveOperations {
+	return eventrepo.LeaveOperations{LockMember: teamrepo.LockMember, LockTeam: teamrepo.LockTeam, DeleteTeamIfEmpty: teamrepo.DeleteTeamIfEmpty, EnsureTeamAdmin: db.EnsureTeamAdmin}
 }

@@ -1,6 +1,8 @@
 package entries
 
 import (
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+
 	"context"
 	"github.com/vsriram/simple-host/internal/db"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
@@ -21,7 +23,7 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 		return db.Event{}, err
 	}
 	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(ctx, tx, eventID)
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		return db.Event{}, err
 	}
@@ -75,7 +77,7 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 			return db.Event{}, err
 		}
 	}
-	ev, err = db.GetEventForUpdate(ctx, tx, ev.ID)
+	ev, err = eventrepo.GetEventForUpdate(ctx, tx, ev.ID)
 	if err != nil {
 		return db.Event{}, err
 	}

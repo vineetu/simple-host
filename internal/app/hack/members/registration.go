@@ -1,6 +1,9 @@
 package members
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+
 	"context"
 	"database/sql"
 	"errors"
@@ -12,41 +15,41 @@ import (
 )
 
 // Registration returns an event's registration settings.
-func (s *Service) Registration(ctx context.Context, eventID string) ([]db.SignupQuestion, bool, error) {
-	return db.RegistrationSettings(ctx, s.db, eventID)
+func (s *Service) Registration(ctx context.Context, eventID string) ([]model.SignupQuestion, bool, error) {
+	return eventrepo.RegistrationSettings(ctx, s.db, eventID)
 }
 
 // Applications lists registration applications.
-func (s *Service) Applications(ctx context.Context, eventID string) ([]db.RegistrationApplication, error) {
-	return db.ListRegistrationApplications(ctx, s.db, eventID)
+func (s *Service) Applications(ctx context.Context, eventID string) ([]model.RegistrationApplication, error) {
+	return eventrepo.ListRegistrationApplications(ctx, s.db, eventID)
 }
 
 // Tracks lists event tracks.
-func (s *Service) Tracks(ctx context.Context, eventID string) ([]db.EventTrack, error) {
-	return db.ListEventTracks(ctx, s.db, eventID)
+func (s *Service) Tracks(ctx context.Context, eventID string) ([]model.EventTrack, error) {
+	return eventrepo.ListEventTracks(ctx, s.db, eventID)
 }
 
 // SetRegistration changes settings and optionally admits pending link sign-ups.
-func (s *Service) SetRegistration(ctx context.Context, eventID, userID string, questions []db.SignupQuestion, approval, admit bool) error {
+func (s *Service) SetRegistration(ctx context.Context, eventID, userID string, questions []model.SignupQuestion, approval, admit bool) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	var stage string
-	if err = lockStage(ctx, tx, eventID, &stage); err != nil {
+	if err = eventrepo.LockStage(ctx, tx, eventID, &stage); err != nil {
 		return err
 	}
 	if stage == "archived" {
 		return &Error{"event_closed", "an ended event cannot be changed"}
 	}
-	if err = db.SetRegistrationSettings(ctx, tx, eventID, questions, approval); err != nil {
+	if err = eventrepo.SetRegistrationSettings(ctx, tx, eventID, questions, approval); err != nil {
 		return err
 	}
 	if !approval && admit {
 		// D5: Approval settings govern link sign-ups, not applications. A stranger's
 		// application always waits for an organiser's decision.
-		if _, err = admitPending(ctx, tx, eventID, userID); err != nil {
+		if _, err = eventrepo.AdmitPending(ctx, tx, eventID, userID); err != nil {
 			return err
 		}
 	}
@@ -61,13 +64,13 @@ func (s *Service) DecideApplication(ctx context.Context, eventID, userID, actorI
 	}
 	defer tx.Rollback()
 	var stage string
-	if err = lockStage(ctx, tx, eventID, &stage); err != nil {
+	if err = eventrepo.LockStage(ctx, tx, eventID, &stage); err != nil {
 		return err
 	}
 	if stage == "archived" {
 		return &Error{"event_closed", "an ended event cannot be changed"}
 	}
-	updated, err := db.DecideRegistration(ctx, tx, eventID, userID, actorID, decision)
+	updated, err := eventrepo.DecideRegistration(ctx, tx, eventID, userID, actorID, decision)
 	if err != nil {
 		return err
 	}
@@ -83,39 +86,39 @@ func (s *Service) DecideApplication(ctx context.Context, eventID, userID, actorI
 }
 
 // SetTracks replaces an event's tracks.
-func (s *Service) SetTracks(ctx context.Context, eventID string, tracks []db.EventTrack) ([]db.EventTrack, error) {
+func (s *Service) SetTracks(ctx context.Context, eventID string, tracks []model.EventTrack) ([]model.EventTrack, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 	var stage string
-	if err = lockStage(ctx, tx, eventID, &stage); err != nil {
+	if err = eventrepo.LockStage(ctx, tx, eventID, &stage); err != nil {
 		return nil, err
 	}
 	if stage == "archived" {
 		return nil, &Error{"event_closed", "an ended event cannot be changed"}
 	}
-	if err = db.ReplaceEventTracks(ctx, tx, eventID, tracks); err != nil {
+	if err = eventrepo.ReplaceEventTracks(ctx, tx, eventID, tracks); err != nil {
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return db.ListEventTracks(ctx, s.db, eventID)
+	return eventrepo.ListEventTracks(ctx, s.db, eventID)
 }
 
 // ChooseTrack updates a team's selected track.
-func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string) (*db.EventTrack, error) {
+func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string) (*model.EventTrack, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
-	if _, err = lockEventShared(ctx, tx, eventID); err != nil {
+	if _, err = eventrepo.LockEventShared(ctx, tx, eventID); err != nil {
 		return nil, err
 	}
-	if _, err = lockTeam(ctx, tx, teamID); err != nil {
+	if _, err = eventrepo.LockTeam(ctx, tx, teamID); err != nil {
 		return nil, err
 	}
 	st, err := db.TeamWriteStateFor(ctx, tx, teamID, true)
@@ -125,12 +128,12 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string)
 	if st.WriteRefusal() != "" {
 		return nil, &Error{"team_choice_closed", "team choices are closed"}
 	}
-	if _, err = db.SetTeamTrack(ctx, tx, eventID, teamID, slug); errors.Is(err, sql.ErrNoRows) {
+	if _, err = eventrepo.SetTeamTrack(ctx, tx, eventID, teamID, slug); errors.Is(err, sql.ErrNoRows) {
 		return nil, &Error{"track_not_found", "track not found"}
 	} else if err != nil {
 		return nil, err
 	}
-	track, err := db.TeamTrack(ctx, tx, teamID)
+	track, err := eventrepo.TeamTrack(ctx, tx, teamID)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +144,7 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string)
 }
 
 // ValidateQuestions validates and normalizes sign-up questions.
-func (s *Service) ValidateQuestions(in []db.SignupQuestion) ([]db.SignupQuestion, error) {
+func (s *Service) ValidateQuestions(in []model.SignupQuestion) ([]model.SignupQuestion, error) {
 	out, e := hackevents.Questions(in)
 	if e != nil {
 		return nil, &Error{e.Code, e.Message}
@@ -150,7 +153,7 @@ func (s *Service) ValidateQuestions(in []db.SignupQuestion) ([]db.SignupQuestion
 }
 
 // ValidateTracks validates and normalizes tracks.
-func (s *Service) ValidateTracks(in []db.EventTrack) ([]db.EventTrack, error) {
+func (s *Service) ValidateTracks(in []model.EventTrack) ([]model.EventTrack, error) {
 	out, e := hackevents.Tracks(in)
 	if e != nil {
 		return nil, &Error{e.Code, e.Message}

@@ -54,7 +54,7 @@ var teamForUpdate = `
 	  FROM event_teams WHERE id = $1 FOR UPDATE`
 
 // teamCodeAlphabet and teamCodeLen mirror the alphabet in
-// internal/rules/hackevents/codes.go and team length in internal/hackhttp/hack.go.
+// internal/rules/hackevents/codes.go and team length in internal/app/hack/teams/service.go (teamCodeLength).
 // Account erasure's rotation keeps these constants here.
 const (
 	teamCodeAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"

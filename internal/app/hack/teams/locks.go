@@ -1,6 +1,8 @@
 package teams
 
 import (
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+
 	"context"
 	"database/sql"
 	"github.com/vsriram/simple-host/internal/db"
@@ -20,7 +22,7 @@ import (
 // never was -- loadMember's read holds no lock at all).
 func LockEventStage(ctx context.Context, tx *sql.Tx, eventID string) (string, error) {
 	var stage string
-	err := tx.QueryRowContext(ctx, locksSQL1, eventID).Scan(&stage)
+	err := teamrepo.RunLocksSQL1(ctx, tx, eventID).Scan(&stage)
 	return stage, err
 }
 
@@ -35,17 +37,17 @@ func LockCallerTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (te
 		return db.EventTeam{}, false, stage, err
 	}
 	var teamID sql.NullString
-	if err = tx.QueryRowContext(ctx, locksSQL2,
+	if err = teamrepo.RunLocksSQL2(ctx, tx,
 		eventID, userID).Scan(&teamID, &admin); err != nil {
 		return db.EventTeam{}, false, stage, err
 	}
 	if !teamID.Valid {
 		return db.EventTeam{}, false, stage, sql.ErrNoRows
 	}
-	if _, err = tx.ExecContext(ctx, locksSQL3, teamID.String); err != nil {
+	if _, err = teamrepo.RunLocksSQL3(ctx, tx, teamID.String); err != nil {
 		return db.EventTeam{}, false, stage, err
 	}
-	team, err = db.GetEventTeamByID(ctx, tx, teamID.String)
+	team, err = teamrepo.GetEventTeamByID(ctx, tx, teamID.String)
 	return team, admin, stage, err
 }
 
@@ -70,21 +72,21 @@ func LockCallerAndTargetTeam(ctx context.Context, tx *sql.Tx, eventID, callerID,
 	ids := []string{callerID, targetID}
 	sort.Strings(ids)
 	if ids[0] == ids[1] {
-		if _, err = tx.ExecContext(ctx, locksSQL4, eventID, ids[0]); err != nil {
+		if _, err = teamrepo.RunLocksSQL4(ctx, tx, eventID, ids[0]); err != nil {
 			return "", false, stage, err
 		}
-	} else if _, err = tx.ExecContext(ctx, locksSQL5, eventID, ids[0], ids[1]); err != nil {
+	} else if _, err = teamrepo.RunLocksSQL5(ctx, tx, eventID, ids[0], ids[1]); err != nil {
 		return "", false, stage, err
 	}
 	var team sql.NullString
-	if err = tx.QueryRowContext(ctx, locksSQL6,
+	if err = teamrepo.RunLocksSQL6(ctx, tx,
 		eventID, callerID).Scan(&team, &callerAdmin); err != nil {
 		return "", false, stage, err
 	}
 	if !team.Valid {
 		return "", false, stage, sql.ErrNoRows
 	}
-	if _, err = tx.ExecContext(ctx, locksSQL7, team.String); err != nil {
+	if _, err = teamrepo.RunLocksSQL7(ctx, tx, team.String); err != nil {
 		return "", false, stage, err
 	}
 	return team.String, callerAdmin, stage, nil

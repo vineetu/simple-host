@@ -1,6 +1,9 @@
 package teams
 
 import (
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+
 	"context"
 	"database/sql"
 	"github.com/vsriram/simple-host/internal/db"
@@ -14,7 +17,7 @@ func (s *Service) OrganiserLock(ctx context.Context, eventID, slug, actor string
 		return 0, 0, internalError(err)
 	}
 	defer tx.Rollback()
-	team, err := db.GetEventTeamBySlug(ctx, tx, eventID, slug)
+	team, err := teamrepo.GetEventTeamBySlug(ctx, tx, eventID, slug)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -38,7 +41,7 @@ func (s *Service) OrganiserAdmin(ctx context.Context, eventID, slug, userID stri
 		return internalError(err)
 	}
 	defer tx.Rollback()
-	team, err := db.GetEventTeamBySlug(ctx, tx, eventID, slug)
+	team, err := teamrepo.GetEventTeamBySlug(ctx, tx, eventID, slug)
 	if err != nil {
 		return err
 	}
@@ -61,14 +64,14 @@ func (s *Service) OrganiserLink(ctx context.Context, eventID, slug string) (db.E
 		return db.EventTeam{}, internalError(err)
 	}
 	defer tx.Rollback()
-	team, err := db.GetEventTeamBySlug(ctx, tx, eventID, slug)
+	team, err := teamrepo.GetEventTeamBySlug(ctx, tx, eventID, slug)
 	if err != nil {
 		return team, err
 	}
 	if err = rotateTeamCode(ctx, tx, team.ID); err != nil {
 		return team, internalError(err)
 	}
-	fresh, err := db.GetEventTeamByID(ctx, tx, team.ID)
+	fresh, err := teamrepo.GetEventTeamByID(ctx, tx, team.ID)
 	if err != nil {
 		return team, internalError(err)
 	}
@@ -89,7 +92,7 @@ func participantTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (d
 		return team, &Error{Code: "teams_locked"}
 	}
 	if !admin {
-		return team, db.ErrHackTeamAdminOnly
+		return team, teamrepo.ErrHackTeamAdminOnly
 	}
 	return team, nil
 }
@@ -121,7 +124,7 @@ func (s *Service) PatchTeam(ctx context.Context, eventID, userID string, name, n
 		}
 	}
 	if name != nil {
-		if err = db.RenameEventTeam(ctx, tx, eventID, team.Slug, *name); err != nil {
+		if err = eventrepo.RenameEventTeam(ctx, tx, eventID, team.Slug, *name); err != nil {
 			if isUnique(err) {
 				return team, &Error{Code: "team_name_taken"}
 			}
@@ -129,7 +132,7 @@ func (s *Service) PatchTeam(ctx context.Context, eventID, userID string, name, n
 		}
 	}
 	if note != nil {
-		if _, err = tx.ExecContext(ctx, adminSQL1, team.ID, *note); err != nil {
+		if _, err = teamrepo.RunAdminSQL1(ctx, tx, team.ID, *note); err != nil {
 			return team, internalError(err)
 		}
 	}
@@ -178,7 +181,7 @@ func (s *Service) ParticipantAdmin(ctx context.Context, eventID, userID, target 
 		return &Error{Code: "teams_locked"}
 	}
 	if !callerAdmin {
-		return db.ErrHackTeamAdminOnly
+		return teamrepo.ErrHackTeamAdminOnly
 	}
 	if err = checkFrozen(ctx, tx, teamID); err != nil {
 		return err
@@ -209,7 +212,7 @@ func (s *Service) ParticipantLink(ctx context.Context, eventID, userID string) (
 	if err = rotateTeamCode(ctx, tx, team.ID); err != nil {
 		return team, internalError(err)
 	}
-	fresh, err := db.GetEventTeamByID(ctx, tx, team.ID)
+	fresh, err := teamrepo.GetEventTeamByID(ctx, tx, team.ID)
 	if err != nil {
 		return team, internalError(err)
 	}

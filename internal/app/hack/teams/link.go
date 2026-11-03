@@ -1,6 +1,10 @@
 package teams
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+
 	"context"
 	"database/sql"
 	"errors"
@@ -14,7 +18,7 @@ type LinkPreview struct {
 	Team             db.EventTeam
 	MemberCount      int
 	DeadlinePassed   bool
-	Track            *db.EventTrack
+	Track            *model.EventTrack
 	YouStatus        string
 	OtherTeamName    string
 	HasOtherTeamName bool
@@ -23,21 +27,21 @@ type LinkPreview struct {
 // GetTeamLink reads a team link and the caller's relationship to the team.
 func (s *Service) GetTeamLink(ctx context.Context, code, userID string) (LinkPreview, error) {
 	var out LinkPreview
-	team, err := db.GetEventTeamByCodeOnly(ctx, s.db, code)
+	team, err := teamrepo.GetEventTeamByCodeOnly(ctx, s.db, code)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, &Error{Code: "team_link_not_found"}
 	}
 	if err != nil {
 		return out, err
 	}
-	ev, err := db.GetEventByID(ctx, s.db, team.EventID)
+	ev, err := eventrepo.GetEventByID(ctx, s.db, team.EventID)
 	if err != nil {
 		return out, err
 	}
 	if ev.TakenDown() {
 		return out, &Error{Code: "team_link_not_found"}
 	}
-	count, err := db.CountTeamMembers(ctx, s.db, team.ID)
+	count, err := teamrepo.CountTeamMembers(ctx, s.db, team.ID)
 	if err != nil {
 		return out, err
 	}
@@ -45,7 +49,7 @@ func (s *Service) GetTeamLink(ctx context.Context, code, userID string) (LinkPre
 	if err != nil {
 		return out, err
 	}
-	track, trackErr := db.TeamTrack(ctx, s.db, team.ID)
+	track, trackErr := eventrepo.TeamTrack(ctx, s.db, team.ID)
 	if trackErr != nil {
 		track = nil
 	}
@@ -56,7 +60,7 @@ func (s *Service) GetTeamLink(ctx context.Context, code, userID string) (LinkPre
 	if userID == "" {
 		return out, nil
 	}
-	member, err := db.GetEventMember(ctx, s.db, ev.ID, userID)
+	member, err := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		out.YouStatus = "not_in_event"
 		return out, nil
@@ -69,7 +73,7 @@ func (s *Service) GetTeamLink(ctx context.Context, code, userID string) (LinkPre
 		out.YouStatus = member.Role
 		return out, nil
 	}
-	status, err := db.MemberApprovalStatus(ctx, s.db, ev.ID, userID)
+	status, err := eventrepo.MemberApprovalStatus(ctx, s.db, ev.ID, userID)
 	if err != nil {
 		return out, err
 	}
@@ -86,7 +90,7 @@ func (s *Service) GetTeamLink(ctx context.Context, code, userID string) (LinkPre
 		return out, nil
 	}
 	out.YouStatus = "on_other_team"
-	other, err := db.GetEventTeamByID(ctx, s.db, member.TeamID.String)
+	other, err := teamrepo.GetEventTeamByID(ctx, s.db, member.TeamID.String)
 	if err == nil {
 		out.OtherTeamName = other.Name
 		out.HasOtherTeamName = true

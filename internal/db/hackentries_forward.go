@@ -33,21 +33,20 @@ type EventResultsRow = hackentries.EventResultsRow
 type TrackPanelMember = hackentries.TrackPanelMember
 
 var (
-	GetEventEntry                       = hackentries.GetEventEntry
-	ListEventEntries                    = hackentries.ListEventEntries
-	GetEventScreenshot                  = hackentries.GetEventScreenshot
-	UnsettleTeamEntry                   = hackentries.UnsettleTeamEntry
-	UnsettleEventDrafts                 = hackentries.UnsettleEventDrafts
-	ListRubric                          = hackentries.ListRubric
-	ReplaceRubric                       = hackentries.ReplaceRubric
-	ListEventJudges                     = hackentries.ListEventJudges
-	ListTeamsWithMembers                = hackentries.ListTeamsWithMembers
-	ScoreCoverage                       = hackentries.ScoreCoverage
-	ListRawScores                       = hackentries.ListRawScores
-	GetEventResults                     = hackentries.GetEventResults
-	ListTrackPanels                     = hackentries.ListTrackPanels
-	ListEventAssignments                = hackentries.ListEventAssignments
-	EligibleJudgeTeamsIgnoringConflicts = hackentries.EligibleJudgeTeamsIgnoringConflicts
+	GetEventEntry      = hackentries.GetEventEntry
+	ListEventEntries   = hackentries.ListEventEntries
+	GetEventScreenshot = hackentries.GetEventScreenshot
+	UnsettleTeamEntry  = hackentries.UnsettleTeamEntry
+
+	ListRubric = hackentries.ListRubric
+
+	ListEventJudges      = hackentries.ListEventJudges
+	ListTeamsWithMembers = hackentries.ListTeamsWithMembers
+	ScoreCoverage        = hackentries.ScoreCoverage
+	ListRawScores        = hackentries.ListRawScores
+	GetEventResults      = hackentries.GetEventResults
+	ListTrackPanels      = hackentries.ListTrackPanels
+	ListEventAssignments = hackentries.ListEventAssignments
 )
 
 // UpdateEventEntryRules writes the organiser's entry rules: the preset name,

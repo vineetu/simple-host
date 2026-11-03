@@ -1,6 +1,9 @@
 package events
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+
 	"context"
 	"database/sql"
 	"errors"
@@ -9,13 +12,13 @@ import (
 )
 
 // JoinByCode joins an event as participant or judge.
-func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, judge bool, input map[string]string, validate func([]db.SignupQuestion, map[string]string) ([]db.SignupAnswer, error)) (db.Event, db.EventMember, bool, error) {
+func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, judge bool, input map[string]string, validate func([]model.SignupQuestion, map[string]string) ([]model.SignupAnswer, error)) (db.Event, db.EventMember, bool, error) {
 	var ev db.Event
 	var err error
 	if judge {
-		ev, err = db.GetEventByJudgeCode(ctx, s.db, code)
+		ev, err = eventrepo.GetEventByJudgeCode(ctx, s.db, code)
 	} else {
-		ev, err = db.GetEventByJoinCode(ctx, s.db, code)
+		ev, err = eventrepo.GetEventByJoinCode(ctx, s.db, code)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return ev, db.EventMember{}, false, &Error{"invalid_code", "invalid code"}
@@ -35,7 +38,7 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 	} else if ev.Stage != "open" && ev.Stage != "building" {
 		return ev, db.EventMember{}, false, &Error{"joining_closed", "joining is closed for this event"}
 	}
-	existing, err := db.GetEventMember(ctx, s.db, ev.ID, userID)
+	existing, err := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
 	if err == nil {
 		if existing.Role == role {
 			return ev, existing, existing.Role == "organiser", nil
@@ -56,7 +59,7 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 			return ev, db.EventMember{}, false, txerr
 		}
 		defer tx.Rollback()
-		locked, txerr := db.GetEventForShare(ctx, tx, ev.ID)
+		locked, txerr := eventrepo.GetEventForShare(ctx, tx, ev.ID)
 		if errors.Is(txerr, sql.ErrNoRows) {
 			return ev, db.EventMember{}, false, &Error{"invalid_code", "invalid code"}
 		}
@@ -73,7 +76,7 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 		if locked.Stage == "results" || locked.Stage == "archived" {
 			return ev, db.EventMember{}, false, &Error{"judging_closed", "judging is closed for this event"}
 		}
-		member, err = db.InsertEventMember(ctx, tx, ev.ID, userID, role, display)
+		member, err = eventrepo.InsertEventMember(ctx, tx, ev.ID, userID, role, display)
 		if err == nil {
 			err = tx.Commit()
 		}
@@ -83,7 +86,7 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 			return ev, db.EventMember{}, false, txerr
 		}
 		defer tx.Rollback()
-		locked, txerr := db.GetEventForShare(ctx, tx, ev.ID)
+		locked, txerr := eventrepo.GetEventForShare(ctx, tx, ev.ID)
 		if errors.Is(txerr, sql.ErrNoRows) {
 			return ev, db.EventMember{}, false, &Error{"invalid_code", "invalid code"}
 		}
@@ -96,7 +99,7 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 		if locked.Stage != "open" && locked.Stage != "building" {
 			return ev, db.EventMember{}, false, &Error{"joining_closed", "joining is closed for this event"}
 		}
-		questions, required, qerr := db.RegistrationSettings(ctx, tx, ev.ID)
+		questions, required, qerr := eventrepo.RegistrationSettings(ctx, tx, ev.ID)
 		if qerr != nil {
 			return ev, db.EventMember{}, false, qerr
 		}
@@ -104,7 +107,7 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 		if validationErr != nil {
 			return ev, db.EventMember{}, false, validationErr
 		}
-		member, err = db.JoinParticipantRegistration(ctx, tx, ev.ID, userID, display, answers, required)
+		member, err = eventrepo.JoinParticipantRegistration(ctx, tx, ev.ID, userID, display, answers, required)
 		if err == nil && required {
 			// A sign-up that waits for approval waits on the organisers.
 			err = db.NotifyOrganisers(ctx, tx, ev.ID, db.NoticeApplicationNew, userID)
@@ -115,7 +118,7 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 	}
 	if err != nil {
 		if unique(err) {
-			existing, err2 := db.GetEventMember(ctx, s.db, ev.ID, userID)
+			existing, err2 := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
 			if err2 == nil && existing.Role == role {
 				return ev, existing, false, nil
 			}
