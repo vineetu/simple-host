@@ -4,11 +4,10 @@ import (
 	"context"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"time"
-
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // Notify people when something waits on them (2026-11-02, audit item 7).
@@ -105,7 +104,7 @@ func (h *HackHandler) deliverNoticeMail(ctx context.Context) {
 	h.eventsSvc().DeliverNoticeMail(ctx, sender, pol.delay, pol.window, h.publicBaseURL, h.entries)
 }
 
-func (h *HackHandler) needsYou(ctx context.Context, ev db.Event, m db.EventMember) []map[string]any {
+func (h *HackHandler) needsYou(ctx context.Context, ev model.Event, m model.EventMember) []map[string]any {
 	return needsYouView(h.eventsSvc().NeedsYou(ctx, ev, m))
 }
 

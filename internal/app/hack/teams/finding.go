@@ -1,12 +1,14 @@
 package teams
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/internal/db"
+
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 	"github.com/vsriram/simple-host/internal/rules/hackteams"
 )
@@ -34,7 +36,7 @@ func (s *Service) SetTeamFinding(ctx context.Context, eventID, userID, note stri
 			_, err = teamrepo.LockFindingTeam(ctx, tx, team)
 		}
 		if err == nil {
-			if st, serr := db.TeamWriteStateFor(ctx, tx, team, false); serr != nil {
+			if st, serr := teamrepo.TeamWriteStateFor(ctx, tx, team, false); serr != nil {
 				err = serr
 			} else if st.Frozen() {
 				err = teamrepo.ErrHackTeamFrozen
@@ -80,7 +82,7 @@ func (s *Service) SetLooking(ctx context.Context, eventID, userID string, lookin
 }
 
 // CreateTeamRequest performs the team finding workflow in one transaction.
-func (s *Service) CreateTeamRequest(ctx context.Context, event db.Event, actorID, team, userID, kind string) (string, error) {
+func (s *Service) CreateTeamRequest(ctx context.Context, event model.Event, actorID, team, userID, kind string) (string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return "", internalError(err)
@@ -88,7 +90,7 @@ func (s *Service) CreateTeamRequest(ctx context.Context, event db.Event, actorID
 	defer tx.Rollback()
 	state := ""
 	if err = teamrepo.LockFindingEvent(ctx, tx, event.ID); err == nil {
-		state, err = db.NewTeamRequest(ctx, tx, event, actorID, team, userID, kind)
+		state, err = teamrepo.NewTeamRequest(ctx, tx, event, actorID, team, userID, kind)
 	}
 	if err == nil {
 		err = noticeTeamRequest(ctx, tx, event.ID, team, userID, kind, state)
@@ -103,7 +105,7 @@ func (s *Service) CreateTeamRequest(ctx context.Context, event db.Event, actorID
 }
 
 // ResolveTeamRequest performs the team finding workflow in one transaction.
-func (s *Service) ResolveTeamRequest(ctx context.Context, event db.Event, actorID, id, action string) error {
+func (s *Service) ResolveTeamRequest(ctx context.Context, event model.Event, actorID, id, action string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return internalError(err)
@@ -115,7 +117,7 @@ func (s *Service) ResolveTeamRequest(ctx context.Context, event db.Event, actorI
 		err = teamrepo.ReadTeamRequest(ctx, tx,
 			event.ID, id).Scan(&answered.teamID, &answered.userID, &answered.kind)
 		if err == nil {
-			err = db.ResolveTeamRequest(ctx, tx, event, actorID, id, action)
+			err = teamrepo.ResolveTeamRequest(ctx, tx, event, actorID, id, action)
 		}
 	}
 	// A team's admin answered someone's request to join: tell that person.
@@ -125,7 +127,7 @@ func (s *Service) ResolveTeamRequest(ctx context.Context, event db.Event, actorI
 		if action == "accept" {
 			detail = "accepted"
 		}
-		err = db.NotifyUsers(ctx, tx, event.ID, db.NoticeRequestAnswered, answered.teamID, "", detail, answered.userID)
+		err = eventrepo.NotifyUsers(ctx, tx, event.ID, eventrepo.NoticeRequestAnswered, answered.teamID, "", detail, answered.userID)
 	}
 	if err != nil {
 		return err
@@ -150,19 +152,19 @@ func noticeTeamRequest(ctx context.Context, tx *sql.Tx, eventID, teamSlug, userI
 		return err
 	}
 	if state == "joined" {
-		return db.NotifyUsers(ctx, tx, eventID, db.NoticeRequestAnswered, teamID, "", "accepted", userID)
+		return eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeRequestAnswered, teamID, "", "accepted", userID)
 	}
 	if err := teamrepo.TeamRequestID(ctx, tx, teamID, userID).Scan(&requestID); err != nil {
 		return err
 	}
 	if kind == "request" {
-		return db.NotifyTeamAdmins(ctx, tx, eventID, teamID, db.NoticeJoinRequest, requestID, "")
+		return eventrepo.NotifyTeamAdmins(ctx, tx, eventID, teamID, eventrepo.NoticeJoinRequest, requestID, "")
 	}
-	return db.NotifyUsers(ctx, tx, eventID, db.NoticeInvite, teamID, requestID, "", userID)
+	return eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeInvite, teamID, requestID, "", userID)
 }
 
 // FillTeams plans or applies the organiser's team placements under the same locks.
-func (s *Service) FillTeams(ctx context.Context, eventID, userID string, requestedSize *int, apply bool) ([]db.FillPlacement, []db.FillSkippedTeam, int, error) {
+func (s *Service) FillTeams(ctx context.Context, eventID, userID string, requestedSize *int, apply bool) ([]model.FillPlacement, []model.FillSkippedTeam, int, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, nil, 0, internalError(err)
@@ -194,7 +196,7 @@ func (s *Service) FillTeams(ctx context.Context, eventID, userID string, request
 	if _, err = teamrepo.LockEventTeamsForFill(ctx, tx, ev.ID); err != nil {
 		return nil, nil, 0, internalError(err)
 	}
-	plan, skipped, err := db.PlanFillTeams(ctx, tx, ev, size)
+	plan, skipped, err := teamrepo.PlanFillTeams(ctx, tx, ev, size)
 	if err != nil {
 		return nil, nil, 0, internalError(err)
 	}
@@ -209,13 +211,13 @@ func (s *Service) FillTeams(ctx context.Context, eventID, userID string, request
 					return nil, nil, 0, internalError(err)
 				}
 				// event_teams.open is no longer written (deprecated 2026-10-31).
-				if err = db.RecordUsedTeamName(ctx, tx, ev.Slug, p.Team); err != nil {
+				if err = teamrepo.RecordUsedTeamName(ctx, tx, ev.Slug, p.Team); err != nil {
 					return nil, nil, 0, internalError(err)
 				}
 			}
 			for _, m := range p.Members {
 				// MoveParticipantToTeam ensures the first person placed is an admin.
-				if _, err = teamrepo.MoveParticipantToTeam(ctx, tx, ev.ID, m.UserID, p.Team, ev.TeamSizeMax, db.EnsureTeamAdmin); err != nil {
+				if _, err = teamrepo.MoveParticipantToTeam(ctx, tx, ev.ID, m.UserID, p.Team, ev.TeamSizeMax, teamrepo.EnsureTeamAdmin); err != nil {
 					return nil, nil, 0, err
 				}
 			}

@@ -2,17 +2,17 @@ package hackhttp
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 type hackSponsor struct {
@@ -71,7 +71,7 @@ func (h *HackHandler) registerContent(mux *http.ServeMux, wrap func(http.Handler
 	mux.Handle("POST /v1/hack/events/{slug}/announcements", wrap(h.postAnnouncement))
 }
 
-func readHackContent(ctx context.Context, q db.Querier, eventID string) (hackContent, error) {
+func readHackContent(ctx context.Context, q *sql.DB, eventID string) (hackContent, error) {
 	raw, err := events.ReadContent(ctx, q, eventID)
 	c := hackContent{Sponsors: []hackSponsor{}, FAQ: []hackFAQ{}, Schedule: []hackScheduleItem{}}
 	if err != nil {
@@ -210,7 +210,7 @@ func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {
 	sponsors, _ := json.Marshal(c.Sponsors)
 	faq, _ := json.Marshal(c.FAQ)
 	schedule, _ := json.Marshal(c.Schedule)
-	if err := h.eventsSvc().PutContent(r.Context(), a.event.ID, db.EventContent{Sponsors: sponsors, FAQ: faq, Schedule: schedule}); err != nil {
+	if err := h.eventsSvc().PutContent(r.Context(), a.event.ID, model.EventContent{Sponsors: sponsors, FAQ: faq, Schedule: schedule}); err != nil {
 		writeContentError(w, err)
 		return
 	}
@@ -283,7 +283,7 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 // second submit, never sends another one (the receipt table's primary key
 // (event_id, team_id) caps it at one per team -- section 4.1: "moves from
 // 'first time complete' to 'submitted'").
-func (h *HackHandler) queueReceipt(ctx context.Context, ev db.Event, teamID, userID string) {
+func (h *HackHandler) queueReceipt(ctx context.Context, ev model.Event, teamID, userID string) {
 	h.eventsSvc().QueueReceipt(ctx, ev, teamID, userID)
 }
 

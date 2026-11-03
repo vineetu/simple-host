@@ -1,11 +1,13 @@
 package teams
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/internal/db"
+
 	"sort"
 )
 
@@ -31,21 +33,21 @@ func LockEventStage(ctx context.Context, tx *sql.Tx, eventID string) (string, er
 // sql.ErrNoRows when the caller is on no team. stage is always returned
 // (even on a later error) so the caller can re-check hackteams.ParticipantTeamStages
 // with a value that is guaranteed current, not the one read before BEGIN.
-func LockCallerTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (team db.EventTeam, admin bool, stage string, err error) {
+func LockCallerTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (team model.EventTeam, admin bool, stage string, err error) {
 	stage, err = LockEventStage(ctx, tx, eventID)
 	if err != nil {
-		return db.EventTeam{}, false, stage, err
+		return model.EventTeam{}, false, stage, err
 	}
 	var teamID sql.NullString
 	if err = teamrepo.LockApprovedMemberTeam(ctx, tx,
 		eventID, userID).Scan(&teamID, &admin); err != nil {
-		return db.EventTeam{}, false, stage, err
+		return model.EventTeam{}, false, stage, err
 	}
 	if !teamID.Valid {
-		return db.EventTeam{}, false, stage, sql.ErrNoRows
+		return model.EventTeam{}, false, stage, sql.ErrNoRows
 	}
 	if _, err = teamrepo.LockCallerTeamRow(ctx, tx, teamID.String); err != nil {
-		return db.EventTeam{}, false, stage, err
+		return model.EventTeam{}, false, stage, err
 	}
 	team, err = teamrepo.GetEventTeamByID(ctx, tx, teamID.String)
 	return team, admin, stage, err

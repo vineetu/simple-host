@@ -1,11 +1,12 @@
 package events
 
 import (
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+
 	"context"
 	"database/sql"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
@@ -38,12 +39,12 @@ type Directory struct {
 }
 
 // Directory lists every directory-listed, non-draft, non-taken-down event
-// (db.ListDirectoryEvents), grouped into Now/Upcoming/Past by
+// (eventrepo.ListDirectoryEvents), grouped into Now/Upcoming/Past by
 // rules/hackevents.DirectoryGroup, with each row's ApplicationsOpen already
 // decided by rules/hackevents.ApplicationsOpenNow. Was hackhttp's
 // getDirectory (hack_voting.go); clock is read once, after the query.
 func (s *Service) Directory(ctx context.Context, clock func() time.Time) (Directory, error) {
-	evs, err := db.ListDirectoryEvents(ctx, s.db)
+	evs, err := eventrepo.ListDirectoryEvents(ctx, s.db)
 	if err != nil {
 		return Directory{}, err
 	}

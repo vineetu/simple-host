@@ -1,6 +1,8 @@
 package members
 
 import (
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+
 	model "github.com/vsriram/simple-host/internal/model"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 
@@ -9,7 +11,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 	"github.com/vsriram/simple-host/internal/rules/hackteams"
 )
@@ -79,7 +80,7 @@ func (s *Service) DecideApplication(ctx context.Context, eventID, userID, actorI
 	}
 	// Decision notices reach the app and email (INTENT 2026-11-02),
 	// superseding the earlier no-email decision.
-	if err = db.NotifyUsers(ctx, tx, eventID, db.NoticeApplicationDecided, "", "", decision, userID); err != nil {
+	if err = eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeApplicationDecided, "", "", decision, userID); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -121,7 +122,7 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string)
 	if _, err = eventrepo.LockTeam(ctx, tx, teamID); err != nil {
 		return nil, err
 	}
-	st, err := db.TeamWriteStateFor(ctx, tx, teamID, true)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, true)
 	if err != nil {
 		return nil, err
 	}

@@ -3,7 +3,7 @@ package teams
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/internal/db"
+
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	rulesauth "github.com/vsriram/simple-host/internal/rules/auth"
 	"time"
@@ -77,7 +77,7 @@ type ConnectionStatus struct {
 // ConnectionStatus reads the caller's connection and current teammates.
 func (s *Service) ConnectionStatus(ctx context.Context, eventID, teamID, callerID, resource string) (ConnectionStatus, error) {
 	out := ConnectionStatus{State: "none", Teammates: []string{}}
-	people, err := db.ListTeamPeople(ctx, s.db, teamID)
+	people, err := hackteams.ListTeamPeople(ctx, s.db, teamID)
 	if err != nil {
 		return out, err
 	}
@@ -117,7 +117,7 @@ func (s *Service) ConnectionStatus(ctx context.Context, eventID, teamID, callerI
 		}
 	}
 	if out.State == "none" {
-		if k, err := db.GetTeamKey(ctx, s.db, eventID, callerID); err == nil && k.TeamID == teamID && k.LastUsedAt != nil && time.Since(*k.LastUsedAt) <= hackKeyMaxAge {
+		if k, err := hackteams.GetTeamKey(ctx, s.db, eventID, callerID); err == nil && k.TeamID == teamID && k.LastUsedAt != nil && time.Since(*k.LastUsedAt) <= hackKeyMaxAge {
 			out.State = "key"
 			out.LastUsedAt = k.LastUsedAt
 		}

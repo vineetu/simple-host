@@ -1,12 +1,14 @@
 package teams
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/internal/db"
+
 	"github.com/vsriram/simple-host/internal/rules/hackteams"
 )
 
@@ -21,7 +23,7 @@ func (s *Service) OrganiserLock(ctx context.Context, eventID, slug, actor string
 	if err != nil {
 		return 0, 0, err
 	}
-	requests, invites, err := db.SetTeamLock(ctx, tx, team.ID, actor, locked)
+	requests, invites, err := teamrepo.SetTeamLock(ctx, tx, team.ID, actor, locked)
 	if err == sql.ErrNoRows {
 		return 0, 0, &Error{Code: "member_not_found"}
 	}
@@ -45,7 +47,7 @@ func (s *Service) OrganiserAdmin(ctx context.Context, eventID, slug, userID stri
 	if err != nil {
 		return err
 	}
-	if err = db.SetTeamAdmin(ctx, tx, eventID, team.ID, userID, admin); err != nil {
+	if err = teamrepo.SetTeamAdmin(ctx, tx, eventID, team.ID, userID, admin); err != nil {
 		if err == sql.ErrNoRows {
 			return &Error{Code: "member_not_found"}
 		}
@@ -58,10 +60,10 @@ func (s *Service) OrganiserAdmin(ctx context.Context, eventID, slug, userID stri
 }
 
 // OrganiserLink rotates a team's link.
-func (s *Service) OrganiserLink(ctx context.Context, eventID, slug string) (db.EventTeam, error) {
+func (s *Service) OrganiserLink(ctx context.Context, eventID, slug string) (model.EventTeam, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return db.EventTeam{}, internalError(err)
+		return model.EventTeam{}, internalError(err)
 	}
 	defer tx.Rollback()
 	team, err := teamrepo.GetEventTeamBySlug(ctx, tx, eventID, slug)
@@ -81,7 +83,7 @@ func (s *Service) OrganiserLink(ctx context.Context, eventID, slug string) (db.E
 	return fresh, nil
 }
 
-func participantTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (db.EventTeam, error) {
+func participantTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (model.EventTeam, error) {
 	team, admin, stage, err := LockCallerTeam(ctx, tx, eventID, userID)
 	if err != nil {
 		return team, err
@@ -97,7 +99,7 @@ func participantTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (d
 	return team, nil
 }
 func checkFrozen(ctx context.Context, tx *sql.Tx, teamID string) error {
-	st, err := db.TeamWriteStateFor(ctx, tx, teamID, false)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, false)
 	if err != nil {
 		return internalError(err)
 	}
@@ -108,10 +110,10 @@ func checkFrozen(ctx context.Context, tx *sql.Tx, teamID string) error {
 }
 
 // PatchTeam changes the caller's team name or finding note.
-func (s *Service) PatchTeam(ctx context.Context, eventID, userID string, name, note *string) (db.EventTeam, error) {
+func (s *Service) PatchTeam(ctx context.Context, eventID, userID string, name, note *string) (model.EventTeam, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return db.EventTeam{}, internalError(err)
+		return model.EventTeam{}, internalError(err)
 	}
 	defer tx.Rollback()
 	team, err := participantTeam(ctx, tx, eventID, userID)
@@ -156,7 +158,7 @@ func (s *Service) ParticipantLock(ctx context.Context, eventID, userID string, l
 	if err = checkFrozen(ctx, tx, team.ID); err != nil {
 		return 0, 0, err
 	}
-	requests, invites, err := db.SetTeamLock(ctx, tx, team.ID, userID, locked)
+	requests, invites, err := teamrepo.SetTeamLock(ctx, tx, team.ID, userID, locked)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -186,7 +188,7 @@ func (s *Service) ParticipantAdmin(ctx context.Context, eventID, userID, target 
 	if err = checkFrozen(ctx, tx, teamID); err != nil {
 		return err
 	}
-	if err = db.SetTeamAdmin(ctx, tx, eventID, teamID, target, admin); err != nil {
+	if err = teamrepo.SetTeamAdmin(ctx, tx, eventID, teamID, target, admin); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {
@@ -196,10 +198,10 @@ func (s *Service) ParticipantAdmin(ctx context.Context, eventID, userID, target 
 }
 
 // ParticipantLink rotates the caller's team link.
-func (s *Service) ParticipantLink(ctx context.Context, eventID, userID string) (db.EventTeam, error) {
+func (s *Service) ParticipantLink(ctx context.Context, eventID, userID string) (model.EventTeam, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return db.EventTeam{}, internalError(err)
+		return model.EventTeam{}, internalError(err)
 	}
 	defer tx.Rollback()
 	team, err := participantTeam(ctx, tx, eventID, userID)

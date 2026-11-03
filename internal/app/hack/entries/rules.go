@@ -1,6 +1,7 @@
 package entries
 
 import (
+	"github.com/vsriram/simple-host/internal/db"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 
@@ -10,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
@@ -43,10 +43,10 @@ type RulesResult struct {
 	Fields     map[string]string
 	JudgeFirst string
 	HasTracks  bool
-	Updated    db.Event
+	Updated    model.Event
 }
 
-func (s *Service) EntryRulesImpact(ctx context.Context, tx *sql.Tx, ev db.Event, fields map[string]string) (RulesImpact, error) {
+func (s *Service) EntryRulesImpact(ctx context.Context, tx *sql.Tx, ev model.Event, fields map[string]string) (RulesImpact, error) {
 	current := hackentries.LoadRules(ev.EntryRules)
 	teams, err := teamrepo.ListEventTeams(ctx, tx, ev.ID)
 	if err != nil {
@@ -191,6 +191,7 @@ func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate)
 			legacyRequired = append(legacyRequired, f)
 		}
 	}
+	// TODO(4.2): move this db implementation to a Hack repository.
 	updated, err := db.UpdateEventEntryRules(ctx, tx, eventID, preset, rulesJSON, judgeFirst, legacyRequired)
 	if err != nil {
 		return RulesResult{}, err
@@ -207,7 +208,7 @@ func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate)
 
 // EvaluateEntryTx is hackentries.Evaluate with every piece read fresh inside tx:
 // the rules, the team's track and the site's live state.
-func (s *Service) EvaluateEntryTx(ctx context.Context, tx *sql.Tx, ev db.Event, st db.TeamWriteState, teamID string, e model.EventEntry) (hackentries.Check, error) {
+func (s *Service) EvaluateEntryTx(ctx context.Context, tx *sql.Tx, ev model.Event, st model.TeamWriteState, teamID string, e model.EventEntry) (hackentries.Check, error) {
 	fields := hackentries.LoadRules(ev.EntryRules)
 	tracks, err := eventrepo.ListEventTracks(ctx, tx, ev.ID)
 	if err != nil {
@@ -234,7 +235,7 @@ type Progress struct {
 	Now                             time.Time
 }
 
-func (s *Service) EntryProgress(ctx context.Context, ev db.Event, team db.EventTeam, teammates []string, st db.TeamWriteState) (Progress, error) {
+func (s *Service) EntryProgress(ctx context.Context, ev model.Event, team model.EventTeam, teammates []string, st model.TeamWriteState) (Progress, error) {
 	e, err := entryrepo.GetEventEntry(ctx, s.db, team.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		e = model.EventEntry{}

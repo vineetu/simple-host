@@ -1,6 +1,8 @@
 package events
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 
 	"context"
@@ -8,7 +10,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
@@ -28,14 +30,14 @@ func (s *Service) RevokeOrganiserInvite(ctx context.Context, eventID string) err
 }
 
 // OrganiserInvite finds an invitation's event.
-func (s *Service) OrganiserInvite(ctx context.Context, code string) (db.Event, error) {
+func (s *Service) OrganiserInvite(ctx context.Context, code string) (model.Event, error) {
 	return eventrepo.OrganiserInviteEvent(ctx, s.db, db.HashAPIKey(hackevents.NormalizeCode(code)), false)
 }
 
 // AcceptOrganiserInvite accepts an invitation, locking the event before the invite and member.
-func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name string) (db.Event, db.EventMember, error) {
-	var ev db.Event
-	var member db.EventMember
+func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name string) (model.Event, model.EventMember, error) {
+	var ev model.Event
+	var member model.EventMember
 	invalid := func() error { return &Error{"invalid_code", "invalid or expired invitation"} }
 	hash := db.HashAPIKey(hackevents.NormalizeCode(code))
 	// Find the event before locking, then lock the event before the invite
@@ -94,7 +96,7 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 }
 
 // RemoveOrganiser removes a co-organiser in a transaction.
-func (s *Service) RemoveOrganiser(ctx context.Context, event db.Event, actorID, userID string) error {
+func (s *Service) RemoveOrganiser(ctx context.Context, event model.Event, actorID, userID string) error {
 	if event.CreatedBy.Valid && userID == event.CreatedBy.String {
 		return &Error{"primary_organiser", "the event creator cannot be removed"}
 	}
@@ -112,8 +114,8 @@ func (s *Service) RemoveOrganiser(ctx context.Context, event db.Event, actorID, 
 }
 
 // RegenerateCode replaces the event's join or judge code, retrying collisions.
-func (s *Service) RegenerateCode(ctx context.Context, eventID, kind string, length int) (db.Event, error) {
-	var updated db.Event
+func (s *Service) RegenerateCode(ctx context.Context, eventID, kind string, length int) (model.Event, error) {
+	var updated model.Event
 	var err error
 	for attempt := 0; attempt < 8; attempt++ {
 		code, genErr := hackevents.RandomCode(length)

@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/db"
+
 	model "github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
@@ -14,7 +14,7 @@ import (
 
 // LeaveResult describes the committed membership change.
 type LeaveResult struct {
-	Event       db.Event
+	Event       model.Event
 	Case        string
 	TeamDeleted bool
 	Successor   model.OtherOrganiser
@@ -24,7 +24,7 @@ type LeaveResult struct {
 const LeaveStateChangedMessage = "something changed since you checked: read the leave preview again"
 
 // Leave removes a membership while serializing against event changes.
-func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, successorID, closeAction string) (result LeaveResult, err error) {
+func (s *Service) Leave(ctx context.Context, ev0 model.Event, userID, confirm, successorID, closeAction string) (result LeaveResult, err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return result, err
@@ -149,7 +149,7 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 		if err != nil {
 			return result, err
 		}
-		if err := db.RevokeStaleTeamKeys(ctx, tx, ev.ID); err != nil {
+		if err := teamrepo.RevokeStaleTeamKeys(ctx, tx, ev.ID); err != nil {
 			return result, err
 		}
 		// Leaving does not touch votes (build plan section 1): a vote cast
@@ -185,12 +185,12 @@ func (s *Service) Leave(ctx context.Context, ev0 db.Event, userID, confirm, succ
 }
 
 // LeaveEvent finds the event before looking up membership.
-func (s *Service) LeaveEvent(ctx context.Context, slug string) (db.Event, error) {
+func (s *Service) LeaveEvent(ctx context.Context, slug string) (model.Event, error) {
 	return eventrepo.GetEventBySlug(ctx, s.db, slug)
 }
 
 // LookupLeaveSelf finds the caller's membership for a preview.
-func (s *Service) LookupLeaveSelf(ctx context.Context, eventID, userID string) (db.EventMember, string, error) {
+func (s *Service) LookupLeaveSelf(ctx context.Context, eventID, userID string) (model.EventMember, string, error) {
 	return eventrepo.LeaveSelf(ctx, s.db, eventID, userID, false)
 }
 
@@ -204,15 +204,15 @@ func (s *Service) LookupLeaveMember(ctx context.Context, eventID, userID string)
 type LeavePreview struct {
 	Organisers   []model.OtherOrganiser
 	Case         string
-	Team         db.EventTeam
-	People       []db.EventPerson
+	Team         model.EventTeam
+	People       []model.EventPerson
 	Kept         bool
 	ScoredTeams  int
 	Participants int
 }
 
 // PreviewLeave loads the facts for a leave preview in their original order.
-func (s *Service) PreviewLeave(ctx context.Context, ev db.Event, member db.EventMember, status, userID string) (p LeavePreview, err error) {
+func (s *Service) PreviewLeave(ctx context.Context, ev model.Event, member model.EventMember, status, userID string) (p LeavePreview, err error) {
 	p.Organisers, err = eventrepo.OtherEventOrganisers(ctx, s.db, ev.ID, userID)
 	if err != nil {
 		return
@@ -248,5 +248,5 @@ func (s *Service) PreviewLeave(ctx context.Context, ev db.Event, member db.Event
 }
 
 func eventLeaveOperations() eventrepo.LeaveOperations {
-	return eventrepo.LeaveOperations{LockMember: teamrepo.LockMember, LockTeam: teamrepo.LockTeam, DeleteTeamIfEmpty: teamrepo.DeleteTeamIfEmpty, EnsureTeamAdmin: db.EnsureTeamAdmin}
+	return eventrepo.LeaveOperations{LockMember: teamrepo.LockMember, LockTeam: teamrepo.LockTeam, DeleteTeamIfEmpty: teamrepo.DeleteTeamIfEmpty, EnsureTeamAdmin: teamrepo.EnsureTeamAdmin}
 }

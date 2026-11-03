@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // OpenTeam is a team shown in the finding directory.
@@ -30,15 +29,15 @@ type FindingTeamState struct {
 type FindingDirectory struct {
 	Teams   []OpenTeam
 	Solo    []SoloPerson
-	Pending []db.TeamRequest
+	Pending []model.TeamRequest
 	Looking bool
 	Intro   string
 	Team    *FindingTeamState
 }
 
 // ListOpenTeams reads the finding directory visible to a member.
-func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, member db.EventMember) (FindingDirectory, error) {
-	out := FindingDirectory{Teams: []OpenTeam{}, Solo: []SoloPerson{}, Pending: []db.TeamRequest{}}
+func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, member model.EventMember) (FindingDirectory, error) {
+	out := FindingDirectory{Teams: []OpenTeam{}, Solo: []SoloPerson{}, Pending: []model.TeamRequest{}}
 	// Solo participants see rosters; team members see opted-in solo people.
 	// Frozen teams cannot accept newcomers and must not advertise as open.
 	// All unlocked teams are askable, including former code-only teams.
@@ -112,7 +111,7 @@ func (s *Service) ListOpenTeams(ctx context.Context, eventID, userID string, mem
 		return out, err
 	}
 	for rows.Next() {
-		var p db.TeamRequest
+		var p model.TeamRequest
 		if err = rows.Scan(&p.ID, &p.TeamID, &p.Team, &p.TeamName, &p.UserID, &p.DisplayName, &p.Kind, &p.CreatedAt); err != nil {
 			rows.Close()
 			return out, err

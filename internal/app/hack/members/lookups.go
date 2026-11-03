@@ -1,16 +1,23 @@
 package members
 
 import (
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+
 	"context"
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // MemberApprovalStatusLookup forwards the MemberApprovalStatus lookup.
 func (s *Service) MemberApprovalStatusLookup(ctx context.Context, eventID string, userID string) (string, error) {
-	return db.MemberApprovalStatus(ctx, s.db, eventID, userID)
+	return eventrepo.MemberApprovalStatus(ctx, s.db, eventID, userID)
 }
 
 // RegistrationSettingsLookup forwards the RegistrationSettings lookup.
-func (s *Service) RegistrationSettingsLookup(ctx context.Context, eventID string) ([]db.SignupQuestion, bool, error) {
-	return db.RegistrationSettings(ctx, s.db, eventID)
+func (s *Service) RegistrationSettingsLookup(ctx context.Context, eventID string) ([]model.SignupQuestion, bool, error) {
+	return eventrepo.RegistrationSettings(ctx, s.db, eventID)
+}
+
+// CountPendingApplications reads the number of pending applications for a user.
+func (s *Service) CountPendingApplications(ctx context.Context, userID string) (int, error) {
+	return eventrepo.CountPendingApplications(ctx, s.db, userID)
 }

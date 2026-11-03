@@ -6,11 +6,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/db"
+
 	"github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
-	"github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // Error describes a rejected judging workflow.
@@ -113,7 +112,7 @@ func (s *Service) PutManualAssignments(ctx context.Context, eventID string, item
 	}
 	seen := map[string]bool{}
 	for _, row := range items {
-		if !sites.UUIDShape.MatchString(row.JudgeID) || !sites.UUIDShape.MatchString(row.TeamID) {
+		if !model.ValidUUID(row.JudgeID) || !model.ValidUUID(row.TeamID) {
 			return nil, &Error{Code: "invalid_assignment", Message: "use event judge and team ids"}
 		}
 		key := hackentries.JudgeTeamKey(row.JudgeID, row.TeamID)
@@ -165,7 +164,7 @@ func (s *Service) PutTrackPanels(ctx context.Context, eventID string, items []en
 	defer tx.Rollback()
 	seen := map[string]bool{}
 	for _, p := range items {
-		if !sites.UUIDShape.MatchString(p.TrackID) || !sites.UUIDShape.MatchString(p.JudgeID) {
+		if !model.ValidUUID(p.TrackID) || !model.ValidUUID(p.JudgeID) {
 			return nil, &Error{Code: "invalid_panel", Message: "use event track and judge ids"}
 		}
 		key := p.TrackID + "\x00" + p.JudgeID
@@ -201,23 +200,23 @@ func (s *Service) PutTrackPanels(ctx context.Context, eventID string, items []en
 	return rows, nil
 }
 
-func (s *Service) optionsTx(ctx context.Context, eventID string) (*sql.Tx, db.Event, error) {
+func (s *Service) optionsTx(ctx context.Context, eventID string) (*sql.Tx, model.Event, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, db.Event{}, err
+		return nil, model.Event{}, err
 	}
 	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		tx.Rollback()
-		return nil, db.Event{}, err
+		return nil, model.Event{}, err
 	}
 	if ev.Stage == "archived" {
 		tx.Rollback()
-		return nil, db.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
+		return nil, model.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if ev.JudgingLockedAt.Valid {
 		tx.Rollback()
-		return nil, db.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
+		return nil, model.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked; unlock it first."}
 	}
 	return tx, ev, nil
 }
