@@ -315,17 +315,6 @@ var chromeCache sync.Map
 // chromePage returns the embedded static/<name> with its chrome filled in and
 // this install's limits in its copy (limitstext.go). The enterprise-* pages
 // describe the other product, whose limits are its own, so they keep theirs.
-//
-// TODO(3.1): p.limitsText is nil (no rewrite) on a pipeline built by
-// hack_mode.go's globalAssets(), which constructs an assetPipeline literal
-// directly rather than through newAssetPipeline (assets.go) and so never
-// sets it or p.limits. That free-function path (chromePage,
-// hackInstanceText, skillServedText in hack_mode.go) serves pages with no
-// SiteHandler in reach (RegisterHack*, the OAuth/connector handlers, the
-// Go-built status pages); at every knob's default this is unobservable
-// (newLimitsRewriter(defaults) is nil too), but an operator who changes a
-// stated limit would not see it reflected on those specific pages until
-// slice 6a removes globalAssets() and routes them through a real edition.
 func (p *assetPipeline) chromePage(name string, d chromeData) ([]byte, error) {
 	page, err := chromePageRaw(name, d)
 	if err != nil || strings.HasPrefix(name, "enterprise-") || name == "enterprise.html" {
