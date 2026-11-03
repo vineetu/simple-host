@@ -7,7 +7,7 @@ import (
 )
 
 // LockKeyMembership reads the participant's team under a member lock.
-func LockKeyMembership(ctx context.Context, q sqlkit.Querier, eventID, userID string) (sql.NullString, error) {
+func LockKeyMembership(ctx context.Context, q *sql.Tx, eventID, userID string) (sql.NullString, error) {
 	var teamID sql.NullString
 	err := q.QueryRowContext(ctx, `
 		SELECT team_id FROM event_members WHERE event_id = $1 AND user_id = $2 AND role = 'participant' FOR UPDATE`, eventID, userID).Scan(&teamID)
@@ -15,14 +15,14 @@ func LockKeyMembership(ctx context.Context, q sqlkit.Querier, eventID, userID st
 }
 
 // LockEventDeadline locks and reads the event deadline.
-func LockEventDeadline(ctx context.Context, q sqlkit.Querier, eventID string) (sql.NullTime, error) {
+func LockEventDeadline(ctx context.Context, q *sql.Tx, eventID string) (sql.NullTime, error) {
 	var t sql.NullTime
 	err := q.QueryRowContext(ctx, `SELECT submission_deadline FROM events WHERE id = $1 FOR UPDATE`, eventID).Scan(&t)
 	return t, err
 }
 
 // LockTeamDeadline locks and reads the team's override.
-func LockTeamDeadline(ctx context.Context, q sqlkit.Querier, teamID string) (sql.NullTime, error) {
+func LockTeamDeadline(ctx context.Context, q *sql.Tx, teamID string) (sql.NullTime, error) {
 	var t sql.NullTime
 	err := q.QueryRowContext(ctx, `SELECT deadline_override FROM event_teams WHERE id = $1 FOR UPDATE`, teamID).Scan(&t)
 	return t, err

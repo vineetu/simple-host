@@ -1774,16 +1774,6 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, member, organiser))
 }
 
-// validateSignupAnswers writes the shared sign-up validation error for join links.
-func validateSignupAnswers(w http.ResponseWriter, questions []db.SignupQuestion, in map[string]string) ([]db.SignupAnswer, bool) {
-	answers, e := hackevents.SignupAnswers(questions, in)
-	if e != nil {
-		httpx.WriteError(w, 400, e.Code, e.Message)
-		return nil, false
-	}
-	return answers, true
-}
-
 func checkHackText(w http.ResponseWriter, s, field string, min, max int) (string, bool) {
 	value, e := hackevents.Text(s, field, min, max)
 	if e != nil {

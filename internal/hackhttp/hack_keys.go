@@ -349,7 +349,7 @@ func (h *HackHandler) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
 		}
 		t = parsed
 	}
-	err := h.teamsSvc().SetDeadline(r.Context(), a.event.ID, team, t)
+	team, err := h.teamsSvc().SetDeadline(r.Context(), a.event.ID, team, t)
 	if err != nil {
 		var e *teams.Error
 		if errors.As(err, &e) {
@@ -451,13 +451,10 @@ func (h *HackHandler) myTeams(w http.ResponseWriter, r *http.Request) {
 	}
 	// Teams the person is on that cannot publish now (deadline passed, site
 	// taken down), so the consent page can say why instead of "join one".
-	blocked, err := h.teamsSvc().ParticipantTeamCount(r.Context(), user.ID)
+	blocked, err := h.teamsSvc().BlockedTeamCount(r.Context(), user.ID, len(out))
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
-	}
-	if blocked -= len(out); blocked < 0 {
-		blocked = 0
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"teams": out, "blocked": blocked})
 }
@@ -472,30 +469,20 @@ func (h *HackHandler) pinDue(ctx context.Context, eventID string) {
 // removeOrphanTeamSites moves the event's sites whose team is gone to
 // Recently deleted (the hourly sweep catches anything missed here).
 func (h *HackHandler) removeOrphanTeamSites(ctx context.Context, ev db.Event) {
-	if h.sites == nil {
-		return
+	var trash func(context.Context, string, string) error
+	if h.sites != nil {
+		trash = h.sites.TrashTeamSite
 	}
-	orphans, err := h.teamsSvc().OrphanSites(ctx, ev.AccountID)
-	if err != nil {
-		log.Printf("hack: orphan sites: %v", err)
-		return
-	}
-	for _, s := range orphans {
-		if err := h.sites.TrashTeamSite(ctx, s.UserID, s.Name); err != nil {
-			log.Printf("hack: remove site %s/%s: %v", ev.Slug, s.Name, err)
-		}
-	}
+	h.teamsSvc().RemoveOrphanTeamSites(ctx, ev, trash)
 }
 
 // requestEventCert asks for *.<event>.<SITE_DOMAIN> once the event opens.
 func (h *HackHandler) requestEventCert(ev db.Event) {
-	if h.sites == nil || ev.TakenDown() {
-		return
+	var request func(string)
+	if h.sites != nil {
+		request = h.sites.RequestSiteCert
 	}
-	switch ev.Stage {
-	case "open", "building", "closed":
-		h.sites.RequestSiteCert(ev.Slug)
-	}
+	h.teamsSvc().RequestEventCert(ev, request)
 }
 
 // RequestOpenEventCerts asks for the certificate of every event that is

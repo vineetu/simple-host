@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+// hackKeyMaxAge is how long a team key's own last use still counts as
+// "using a key" on the Website screen, matching the build plan's 30 days.
+const hackKeyMaxAge = 30 * 24 * time.Hour
+
 // ConnGrant is one person's latest personal connector connection for the
 // Simple Hack MCP resource (scope "sites events"; a legacy team-bound grant,
 // scope "sites team:<uuid>", carries no selected_team_id and is not
@@ -113,7 +117,7 @@ func (s *Service) ConnectionStatus(ctx context.Context, eventID, teamID, callerI
 		}
 	}
 	if out.State == "none" {
-		if k, err := db.GetTeamKey(ctx, s.db, eventID, callerID); err == nil && k.TeamID == teamID && k.LastUsedAt != nil && time.Since(*k.LastUsedAt) <= 30*24*time.Hour {
+		if k, err := db.GetTeamKey(ctx, s.db, eventID, callerID); err == nil && k.TeamID == teamID && k.LastUsedAt != nil && time.Since(*k.LastUsedAt) <= hackKeyMaxAge {
 			out.State = "key"
 			out.LastUsedAt = k.LastUsedAt
 		}

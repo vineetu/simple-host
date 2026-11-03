@@ -54,46 +54,67 @@ func (s *Service) MintTeamKey(ctx context.Context, event db.Event, userID, key s
 }
 
 // SetDeadline changes the override and queues notices in the same transaction.
-func (s *Service) SetDeadline(ctx context.Context, eventID string, team db.EventTeam, t sql.NullTime) error {
+func (s *Service) SetDeadline(ctx context.Context, eventID string, team db.EventTeam, t sql.NullTime) (db.EventTeam, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return team, err
 	}
 	defer tx.Rollback()
 	eventDeadline, err := hackteams.LockEventDeadline(ctx, tx, eventID)
 	if err != nil {
-		return err
+		return team, err
 	}
 	if t.Valid && !eventDeadline.Valid {
-		return &Error{Code: "no_event_deadline"}
+		return team, &Error{Code: "no_event_deadline"}
 	}
 	if t.Valid && !t.Time.After(eventDeadline.Time) {
-		return &Error{Code: "deadline_not_later"}
+		return team, &Error{Code: "deadline_not_later"}
 	}
+	// FOR UPDATE on the team row: a deploy let in holds it FOR SHARE.
 	team.DeadlineOverride, err = hackteams.LockTeamDeadline(ctx, tx, team.ID)
 	if err != nil {
-		return err
+		return team, err
 	}
 	if err = hackteams.SetTeamDeadline(ctx, tx, team.ID, t); err != nil {
-		return err
+		return team, err
 	}
 	if err = noticeDeadlineChange(ctx, tx, eventID, team, t); err != nil {
-		return err
+		return team, err
 	}
 	if err = db.UnpinReopened(ctx, tx, eventID); err != nil {
-		return err
+		return team, err
 	}
 	if t.Valid {
+		// Section 7, "Unsettle": granting or extending a team's deadline
+		// reopens its draft if the sweep had already settled it incomplete.
 		if err = db.UnsettleTeamEntry(ctx, tx, team.ID); err != nil {
-			return err
+			return team, err
 		}
 	}
-	return tx.Commit()
+	return team, tx.Commit()
 }
 
-// ParticipantTeamCount counts memberships for the connector's blocked count.
-func (s *Service) ParticipantTeamCount(ctx context.Context, userID string) (int, error) {
-	return hackteams.ParticipantTeamCount(ctx, s.db, userID)
+// BlockedTeamCount counts teams that cannot publish for the connector.
+func (s *Service) BlockedTeamCount(ctx context.Context, userID string, publishable int) (int, error) {
+	blocked, err := hackteams.ParticipantTeamCount(ctx, s.db, userID)
+	if err != nil {
+		return 0, err
+	}
+	if blocked -= publishable; blocked < 0 {
+		blocked = 0
+	}
+	return blocked, nil
+}
+
+// RequestEventCert requests a certificate when the event is eligible.
+func (s *Service) RequestEventCert(ev db.Event, request func(string)) {
+	if request == nil || ev.TakenDown() {
+		return
+	}
+	switch ev.Stage {
+	case "open", "building", "closed":
+		request(ev.Slug)
+	}
 }
 
 // OpenEventSlugs reads event slugs eligible for certificate requests.
@@ -112,7 +133,7 @@ func (s *Service) OpenEventSlugs(ctx context.Context, request func(string)) erro
 	return nil
 }
 
-// noticeSiteChange tells the team their site was taken down, with the
+// NoticeSiteChange tells the team their site was taken down, with the
 // organiser's reason, or put back. It runs after the site handler's own
 // transaction has committed (that one is the site's, not the event's), so a
 // failure here is logged and the change itself stands. A restore reaches only
@@ -251,9 +272,21 @@ func (s *Service) PinDue(ctx context.Context, eventID string) error {
 	return db.PinDueTeams(ctx, s.db, eventID)
 }
 
-// OrphanSites reads sites whose teams have gone.
-func (s *Service) OrphanSites(ctx context.Context, accountID string) ([]db.Site, error) {
-	return db.OrphanTeamSites(ctx, s.db, accountID)
+// RemoveOrphanTeamSites moves sites whose teams have gone to Recently deleted.
+func (s *Service) RemoveOrphanTeamSites(ctx context.Context, ev db.Event, trash func(context.Context, string, string) error) {
+	if trash == nil {
+		return
+	}
+	orphans, err := db.OrphanTeamSites(ctx, s.db, ev.AccountID)
+	if err != nil {
+		log.Printf("hack: orphan sites: %v", err)
+		return
+	}
+	for _, site := range orphans {
+		if err := trash(ctx, site.UserID, site.Name); err != nil {
+			log.Printf("hack: remove site %s/%s: %v", ev.Slug, site.Name, err)
+		}
+	}
 }
 
 // ActiveSiteVersion reads the active version.
