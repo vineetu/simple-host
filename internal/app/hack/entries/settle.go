@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
+	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 )
 
@@ -20,7 +21,7 @@ func (s *Service) SettleDue(ctx context.Context) { s.SettleEvent(ctx, "") }
 
 // SettleEvent runs the deadline sweep for an event (or all events if empty).
 func (s *Service) SettleEvent(ctx context.Context, eventID string) {
-	ids, err := db.UnsettledFrozenTeamIDs(ctx, s.db, eventID)
+	ids, err := entryrepo.UnsettledFrozenTeamIDs(ctx, s.db, eventID)
 	if err != nil {
 		log.Printf("hack: settle sweep: %v", err)
 		return
@@ -45,7 +46,7 @@ func (s *Service) SettleEventTx(ctx context.Context, tx *sql.Tx, eventID string)
 	if err := s.startSiteOnlyEntries(ctx, tx, eventID); err != nil {
 		return err
 	}
-	ids, err := db.UnsettledFrozenTeamIDs(ctx, tx, eventID)
+	ids, err := entryrepo.UnsettledFrozenTeamIDs(ctx, tx, eventID)
 	if err != nil {
 		return err
 	}
@@ -60,7 +61,7 @@ func (s *Service) SettleEventTx(ctx context.Context, tx *sql.Tx, eventID string)
 // startSiteOnlyEntries starts an empty entry row for each frozen team of the
 // event that has no entry but a live team site (SettleEventTx's first step).
 func (s *Service) startSiteOnlyEntries(ctx context.Context, tx *sql.Tx, eventID string) error {
-	teams, err := db.FrozenTeamsWithoutEntry(ctx, tx, eventID)
+	teams, err := entryrepo.FrozenTeamsWithoutEntry(ctx, tx, eventID)
 	if err != nil || len(teams) == 0 {
 		return err
 	}
@@ -72,7 +73,7 @@ func (s *Service) startSiteOnlyEntries(ctx context.Context, tx *sql.Tx, eventID 
 		if !s.siteLive(ctx, ev, t.Slug, t.SiteTakenDown) {
 			continue
 		}
-		if err := db.StartEmptyEventEntry(ctx, tx, eventID, t.TeamID); err != nil {
+		if err := entryrepo.StartEmptyEventEntry(ctx, tx, eventID, t.TeamID); err != nil {
 			return err
 		}
 	}
@@ -110,7 +111,7 @@ func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, teamID string) e
 	if !st.Frozen() {
 		return nil // raced with an extension since the candidate list was read
 	}
-	e, err := db.GetEventEntryForUpdate(ctx, tx, teamID)
+	e, err := entryrepo.GetEventEntryForUpdate(ctx, tx, teamID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil // no entry row: "Not started", nothing to settle
 	}
@@ -140,7 +141,7 @@ func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, teamID string) e
 		if st.Deadline.Valid {
 			deadline = st.Deadline.Time
 		}
-		return db.SettleEntryComplete(ctx, tx, teamID, deadline)
+		return entryrepo.SettleEntryComplete(ctx, tx, teamID, deadline)
 	}
-	return db.SettleEntryIncomplete(ctx, tx, teamID)
+	return entryrepo.SettleEntryIncomplete(ctx, tx, teamID)
 }

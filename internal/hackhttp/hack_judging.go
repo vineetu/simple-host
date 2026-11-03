@@ -421,7 +421,9 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 			}
 			httpx.WriteError(w, status, e.Code, e.Message)
 		} else {
-			log.Printf("hack: assignments %s: %v", a.event.Slug, err)
+			if _, ok := err.(*entries.BeginAssignmentsError); !ok {
+				log.Printf("hack: assignments %s: %v", a.event.Slug, err)
+			}
 			httpx.WriteInternal(w)
 		}
 		return
@@ -897,7 +899,11 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		log.Printf("hack: queue %s: %v", a.event.Slug, err)
+		if e, ok := err.(*entries.QueueTeamError); ok {
+			log.Printf("hack: queue %s/%s: %v", a.event.Slug, e.TeamID, e.Err)
+		} else {
+			log.Printf("hack: queue %s: %v", a.event.Slug, err)
+		}
 		httpx.WriteInternal(w)
 		return
 	}

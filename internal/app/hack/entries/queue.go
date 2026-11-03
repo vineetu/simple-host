@@ -6,24 +6,37 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
+	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 )
 
+// QueueTeamError identifies the team whose completion query failed.
+type QueueTeamError struct {
+	TeamID string
+	Err    error
+}
+
+func (e *QueueTeamError) Error() string { return e.Err.Error() }
+
+// Unwrap returns the completion query error.
+func (e *QueueTeamError) Unwrap() error { return e.Err }
+
 // QueueRow holds the values needed to render one judge queue entry.
 type QueueRow struct {
-	Team        db.NamedTeam
-	Entry       db.EventEntry
+	Team        model.NamedTeam
+	Entry       model.EventEntry
 	Done        bool
 	ScoresCount int
 }
 
 // JudgeQueue gathers and orders the entries visible to a judge.
 func (s *Service) JudgeQueue(ctx context.Context, ev db.Event, judgeID string, loadTeams func() error) ([]QueueRow, error) {
-	teams, err := db.ListTeamsWithMembers(ctx, s.db, ev.ID)
+	teams, err := entryrepo.ListTeamsWithMembers(ctx, s.db, ev.ID)
 	if err != nil {
 		return nil, err
 	}
-	pairs, err := db.ListConflictPairs(ctx, s.db, ev.ID)
+	pairs, err := entryrepo.ListConflictPairs(ctx, s.db, ev.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -33,16 +46,16 @@ func (s *Service) JudgeQueue(ctx context.Context, ev db.Event, judgeID string, l
 			conflicted[p.TeamID] = true
 		}
 	}
-	coverage, _, err := db.ScoreCoverage(ctx, s.db, ev.ID)
+	coverage, _, err := entryrepo.ScoreCoverage(ctx, s.db, ev.ID)
 	if err != nil {
 		return nil, err
 	}
 	if ev.JudgeAssignmentMode != "open" {
-		assigned, err := db.EligibleJudgeTeams(ctx, s.db, ev.ID, judgeID)
+		assigned, err := entryrepo.EligibleJudgeTeams(ctx, s.db, ev.ID, judgeID)
 		if err != nil {
 			return nil, err
 		}
-		filtered := make([]db.NamedTeam, 0, len(assigned))
+		filtered := make([]model.NamedTeam, 0, len(assigned))
 		for _, t := range teams {
 			if assigned[t.ID] {
 				filtered = append(filtered, t)
@@ -50,18 +63,18 @@ func (s *Service) JudgeQueue(ctx context.Context, ev db.Event, judgeID string, l
 		}
 		teams = filtered
 	}
-	rubric, err := db.ListRubric(ctx, s.db, ev.ID)
+	rubric, err := entryrepo.ListRubric(ctx, s.db, ev.ID)
 	if err != nil {
 		return nil, err
 	}
 	if err := loadTeams(); err != nil {
 		return nil, err
 	}
-	stored, err := db.ListEventEntries(ctx, s.db, ev.ID)
+	stored, err := entryrepo.ListEventEntries(ctx, s.db, ev.ID)
 	if err != nil {
 		return nil, err
 	}
-	byTeam := map[string]db.EventEntry{}
+	byTeam := map[string]model.EventEntry{}
 	for _, e := range stored {
 		byTeam[e.TeamID] = e
 	}
@@ -71,15 +84,9 @@ func (s *Service) JudgeQueue(ctx context.Context, ev db.Event, judgeID string, l
 		if !hackentries.Judgeable(entry) || conflicted[team.ID] {
 			continue
 		}
-		done := false
-		if len(rubric) > 0 {
-			var n int
-			err := s.db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT criterion_id) FROM event_scores
-    WHERE event_id = $1 AND judge_id = $2 AND team_id = $3`, ev.ID, judgeID, team.ID).Scan(&n)
-			if err != nil {
-				return nil, err
-			}
-			done = n >= len(rubric)
+		done, err := entryrepo.JudgeDoneForTeam(ctx, s.db, ev.ID, judgeID, team.ID, len(rubric))
+		if err != nil {
+			return nil, &QueueTeamError{TeamID: team.ID, Err: err}
 		}
 		out = append(out, QueueRow{Team: team, Entry: entry, Done: done, ScoresCount: coverage[team.ID]})
 	}
@@ -99,13 +106,13 @@ type Pool struct {
 }
 
 // JudgingPool gathers the prospective pool, consulting site state only when needed.
-func (s *Service) JudgingPool(ctx context.Context, ev db.Event, teams []db.NamedTeam, live func(db.NamedTeam) (bool, error)) (Pool, error) {
+func (s *Service) JudgingPool(ctx context.Context, ev db.Event, teams []model.NamedTeam, live func(model.NamedTeam) (bool, error)) (Pool, error) {
 	pool := Pool{In: map[string]bool{}}
-	entries, err := db.ListEventEntries(ctx, s.db, ev.ID)
+	entries, err := entryrepo.ListEventEntries(ctx, s.db, ev.ID)
 	if err != nil {
 		return pool, err
 	}
-	byTeam := map[string]db.EventEntry{}
+	byTeam := map[string]model.EventEntry{}
 	for _, e := range entries {
 		byTeam[e.TeamID] = e
 	}
@@ -135,11 +142,11 @@ func (s *Service) JudgingPool(ctx context.Context, ev db.Event, teams []db.Named
 }
 
 // EligibilityCounts returns eligible team counts per judge and judge counts per team.
-func (s *Service) EligibilityCounts(ctx context.Context, eventID string, judges []db.NamedJudge) (map[string]int, map[string]int, error) {
+func (s *Service) EligibilityCounts(ctx context.Context, eventID string, judges []model.NamedJudge) (map[string]int, map[string]int, error) {
 	assigned := map[string]int{}
 	byTeam := map[string]int{}
 	for _, judge := range judges {
-		eligible, err := db.EligibleJudgeTeams(ctx, s.db, eventID, judge.ID)
+		eligible, err := entryrepo.EligibleJudgeTeams(ctx, s.db, eventID, judge.ID)
 		if err != nil {
 			return nil, nil, err
 		}
