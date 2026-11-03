@@ -104,7 +104,7 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
-	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: req.Email, Code: req.Code}, "visitor", sql.NullString{String: siteID, Valid: true})
+	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: req.Email, Code: req.Code}, "visitor", sql.NullString{String: siteID, Valid: true}, h.ed.Identity().RandomHandles)
 	if status != 0 {
 		if status == http.StatusUnauthorized {
 			writeJSON(w, status, signInUnauthorized(body))

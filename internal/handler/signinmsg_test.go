@@ -152,7 +152,7 @@ func TestVerifyEmailCodeReasons(t *testing.T) {
 
 	t.Run("wrong code reports tries_left", func(t *testing.T) {
 		addr := put(t, "wrong", "123456", 0)
-		_, _, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Email: addr, Code: "000000"}, "dashboard", sql.NullString{})
+		_, _, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Email: addr, Code: "000000"}, "dashboard", sql.NullString{}, false)
 		if status != http.StatusUnauthorized || body.Reason != signInReasonWrong {
 			t.Fatalf("status=%d reason=%q body=%+v", status, body.Reason, body)
 		}
@@ -170,7 +170,7 @@ func TestVerifyEmailCodeReasons(t *testing.T) {
 
 	t.Run("second wrong is 1 try left", func(t *testing.T) {
 		addr := put(t, "second", "123456", 1)
-		_, _, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Email: addr, Code: "000000"}, "dashboard", sql.NullString{})
+		_, _, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Email: addr, Code: "000000"}, "dashboard", sql.NullString{}, false)
 		if status != http.StatusUnauthorized || body.Reason != signInReasonWrong || body.TriesLeft == nil || *body.TriesLeft != 1 {
 			t.Fatalf("status=%d reason=%q tries=%v body=%+v", status, body.Reason, body.TriesLeft, body)
 		}
@@ -181,7 +181,7 @@ func TestVerifyEmailCodeReasons(t *testing.T) {
 
 	t.Run("last try is used up", func(t *testing.T) {
 		addr := put(t, "last", "123456", 2)
-		_, _, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Email: addr, Code: "000000"}, "dashboard", sql.NullString{})
+		_, _, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Email: addr, Code: "000000"}, "dashboard", sql.NullString{}, false)
 		if status != http.StatusUnauthorized || body.Reason != signInReasonUsedUp {
 			t.Fatalf("status=%d reason=%q body=%+v", status, body.Reason, body)
 		}
@@ -195,7 +195,7 @@ func TestVerifyEmailCodeReasons(t *testing.T) {
 
 	t.Run("already at cap is used up even with the right code", func(t *testing.T) {
 		addr := put(t, "cap", "123456", 3)
-		_, _, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Email: addr, Code: "123456"}, "dashboard", sql.NullString{})
+		_, _, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Email: addr, Code: "123456"}, "dashboard", sql.NullString{}, false)
 		if status != http.StatusUnauthorized || body.Reason != signInReasonUsedUp {
 			t.Fatalf("status=%d reason=%q body=%+v", status, body.Reason, body)
 		}
@@ -203,7 +203,7 @@ func TestVerifyEmailCodeReasons(t *testing.T) {
 
 	t.Run("no live token is expired", func(t *testing.T) {
 		addr := "signin-none-" + stamp + "@example.com"
-		_, _, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Email: addr, Code: "123456"}, "dashboard", sql.NullString{})
+		_, _, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Email: addr, Code: "123456"}, "dashboard", sql.NullString{}, false)
 		if status != http.StatusUnauthorized || body.Reason != signInReasonExpired {
 			t.Fatalf("status=%d reason=%q body=%+v", status, body.Reason, body)
 		}

@@ -532,7 +532,7 @@ func TestSSOHackEventAndTeamHosts(t *testing.T) {
 	markReady(t, a.certDir, event)
 	wantTS(t, "team", a.deployTeam(t, team, a.teamKey(t, event, member), "team"), 201, "")
 	wantTS(t, "event website", a.api(t, "PUT", "/v1/hack/events/"+event+"/website/files?create=1", deployBody("event"), organiser.key), 201, "")
-	o := NewOAuthHandler(a.database, config.Config{PublicBaseURL: a.srv.URL, SiteDomain: tsDomain, ContentHost: "sites." + tsDomain})
+	o := NewOAuthHandler(a.database, config.Config{PublicBaseURL: a.srv.URL, SiteDomain: tsDomain, ContentHost: "sites." + tsDomain}, a.sites.ed)
 	o.SetPersonSiteResolver(a.sites.PersonReturnSite)
 	o.SetPasscodeCheck(a.sites.PasscodeLetsIn)
 	a.sites.SetSSOHop(o)

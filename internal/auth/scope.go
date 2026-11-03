@@ -106,12 +106,6 @@ func TeamKeyAllows(pattern string) bool { return deployRoutes[pattern] || teamRo
 const TeamOnlyMessage = "this is a team key: it publishes and looks after your team's site only. " +
 	"Use your own sign-in on the event platform for anything else."
 
-var teamKeys bool
-
-// SetTeamKeys turns on team keys (EVENTS=hosted). Off, the gate never looks
-// for them, so other instances pay nothing for them.
-func SetTeamKeys(on bool) { teamKeys = on }
-
 // sitePathName is the {sitename} segment of a /v1/sites/{sitename}... path,
 // unescaped as the mux matches it.
 func sitePathName(r *http.Request) (string, bool) {
@@ -135,13 +129,13 @@ func sitePathName(r *http.Request) (string, bool) {
 // Unknown, expired, admin and internal keys pass through untouched; whatever
 // the route does with them is unchanged.
 //
-// On a hosted-events instance (SetTeamKeys) it also holds team keys to
+// When teamKeys is enabled it also holds team keys to
 // teamRoutes and deployRoutes on their own team's site (403 team_key_scope,
 // 403 team_site_only), refuses them every change once the team may no
 // longer change its site (the deadline, an ended or taken-down event, a site
 // the organiser took down; deploys check again under a lock, site.go), and
 // refuses a team key whose person is no longer on the team.
-func ScopeGate(database *sql.DB, mux *http.ServeMux) http.Handler {
+func ScopeGate(database *sql.DB, mux *http.ServeMux, teamKeys bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("X-API-Key")
 		if key == "" {

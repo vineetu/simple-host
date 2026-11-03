@@ -49,6 +49,7 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/papermetrics"
 )
@@ -70,6 +71,7 @@ const (
 
 // ConnectorHandler serves the OAuth authorization server and /mcp.
 type ConnectorHandler struct {
+	ed           *edition.Edition
 	hostedEvents bool
 	database     *sql.DB
 	issuer       string // e.g. https://simple-host.app
@@ -110,7 +112,11 @@ type ConnectorHandler struct {
 // NewConnectorHandler builds the connector. upstream is the application mux
 // behind the key scope gate (auth.ScopeGate): MCP tool calls are served into
 // it in process, so a deploy-only key's tools meet the same route table.
-func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomain, contentHost, skillVersion string, upstream http.Handler, hostedEvents bool) *ConnectorHandler {
+func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomain, contentHost, skillVersion string, upstream http.Handler, hostedEvents bool, editions ...*edition.Edition) *ConnectorHandler {
+	var ed *edition.Edition
+	if len(editions) > 0 {
+		ed = editions[0]
+	}
 	issuer := strings.TrimRight(publicBaseURL, "/")
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
@@ -125,6 +131,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	}
 	h := &ConnectorHandler{
 		hostedEvents: hostedEvents,
+		ed:           ed,
 		database:     database,
 		issuer:       issuer,
 		mcpResource:  issuer + "/mcp",

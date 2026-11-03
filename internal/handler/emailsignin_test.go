@@ -53,7 +53,7 @@ func TestIssueEmailCodeOff(t *testing.T) {
 func TestVerifyEmailCodeOff_EmailShapeRefused(t *testing.T) {
 	withEmailSignIn(t, false)
 	limiter := newRateLimiter(1000, 1000)
-	_, _, status, body := verifyEmailCode(context.Background(), nil, limiter, verifyRequest{Email: "person@example.com", Code: "123456"}, "dashboard", sql.NullString{})
+	_, _, status, body := verifyEmailCode(context.Background(), nil, limiter, verifyRequest{Email: "person@example.com", Code: "123456"}, "dashboard", sql.NullString{}, false)
 	if status != http.StatusForbidden || body.Code != "email_signin_off" {
 		t.Fatalf("got status=%d code=%q, want 403 email_signin_off", status, body.Code)
 	}
@@ -92,7 +92,7 @@ func TestVerifyEmailCodeOff_TokenShapeStillWorks(t *testing.T) {
 	t.Cleanup(func() { _, _ = database.ExecContext(ctx, `DELETE FROM users WHERE username = $1`, address) })
 
 	limiter := newRateLimiter(1000, 1000)
-	user, created, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Token: linkToken, Nonce: nonce}, "dashboard", sql.NullString{})
+	user, created, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Token: linkToken, Nonce: nonce}, "dashboard", sql.NullString{}, false)
 	if status != 0 {
 		t.Fatalf("token redemption refused while EMAIL_SIGNIN=off: status=%d body=%+v", status, body)
 	}

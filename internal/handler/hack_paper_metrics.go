@@ -30,8 +30,8 @@ func paperHackUser(r *http.Request, user *db.User) {
 	papermetrics.HackMember(r.Context(), member)
 }
 
-func paperHackSite(r *http.Request, account, site string, user *db.User) {
-	if !hackMode {
+func (h *SiteHandler) paperHackSite(r *http.Request, account, site string, user *db.User) {
+	if !h.ed.Identity().PaperMetrics {
 		return
 	}
 	member := ""
@@ -51,8 +51,8 @@ func paperHackSite(r *http.Request, account, site string, user *db.User) {
 	papermetrics.ResolveHackSite(r.Context(), account, site, member, write)
 }
 
-func paperHackDeploy(r *http.Request, user *db.User) {
-	if !hackMode || user == nil || user.Team == nil {
+func (h *SiteHandler) paperHackDeploy(r *http.Request, user *db.User) {
+	if !h.ed.Identity().PaperMetrics || user == nil || user.Team == nil {
 		return
 	}
 	papermetrics.HackDeploy(r.Context())

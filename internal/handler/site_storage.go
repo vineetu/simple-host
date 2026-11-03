@@ -129,7 +129,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 	if h.refuseSuspendedSiteID(w, r, id) {
 		return storageCall{}, false
 	}
-	paperHackSite(r, ownerID, siteName, nil)
+	h.paperHackSite(r, ownerID, siteName, nil)
 	c := storageCall{siteID: id, ownerID: ownerID, siteName: siteName}
 	if scope, ok := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); ok {
 		if !hackMode || scope.siteID != id || scope.ownerID != ownerID {

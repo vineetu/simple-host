@@ -27,8 +27,8 @@ import (
 
 // hackNoPersonalSites refuses a new site on the hackathon platform unless the
 // caller is a team credential (or the admin); false after writing the answer.
-func hackNoPersonalSites(w http.ResponseWriter, user *db.User) bool {
-	if !hackMode || user.IsAdmin || user.Team != nil || user.EventWebsite != nil {
+func (h *SiteHandler) hackNoPersonalSites(w http.ResponseWriter, user *db.User) bool {
+	if h.ed.Identity().PersonalSites || user.IsAdmin || user.Team != nil || user.EventWebsite != nil {
 		return true
 	}
 	writeJSON(w, http.StatusForbidden, errorResponse{
@@ -44,7 +44,7 @@ func hackNoPersonalSites(w http.ResponseWriter, user *db.User) bool {
 // SHARE until the transaction ends. false after writing the answer. Anyone
 // else passes.
 func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx *sql.Tx, user *db.User, siteName string) bool {
-	if hackMode && user.EventWebsite != nil {
+	if h.ed.Identity().TeamKeys && user.EventWebsite != nil {
 		id := user.EventWebsite
 		if siteName != id.EventID || user.ID == "" {
 			writeEventNotFound(w)
@@ -70,7 +70,7 @@ func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx 
 		}
 		return true
 	}
-	if !hackMode || user.Team == nil {
+	if !h.ed.Identity().TeamKeys || user.Team == nil {
 		return true
 	}
 	if !strings.EqualFold(siteName, user.Team.TeamSlug) {
@@ -82,7 +82,7 @@ func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx 
 		writeEventNotFound(w)
 		return false
 	}
-	paperHackSite(r, user.Team.AccountID, siteName, user)
+	h.paperHackSite(r, user.Team.AccountID, siteName, user)
 	st, err := db.TeamWriteStateFor(r.Context(), tx, user.Team.TeamID, true)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -315,7 +315,7 @@ func (h *SiteHandler) SyncAccountMarkers(ctx context.Context, accountID string) 
 // hackPinnedFloor lowers a prune threshold so a team's deadline version is
 // kept whatever the retention.
 func (h *SiteHandler) hackPinnedFloor(ctx context.Context, userID, siteName string, keepFrom int) int {
-	if !hackMode {
+	if !h.ed.Identity().TeamKeys {
 		return keepFrom
 	}
 	v, ok, err := db.PinnedVersionOfSite(ctx, h.database, userID, siteName)
@@ -332,7 +332,7 @@ func (h *SiteHandler) hackPinnedFloor(ctx context.Context, userID, siteName stri
 // StartHackSweep pins teams whose deadline has passed and moves sites whose
 // team is gone to Recently deleted, now and then every interval.
 func (h *SiteHandler) StartHackSweep(ctx context.Context, every time.Duration, alsoFn func(context.Context)) {
-	if !hackMode {
+	if !h.ed.Identity().TeamKeys {
 		return
 	}
 	go func() {

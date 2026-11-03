@@ -112,7 +112,7 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 
 // verifyEmailCode shares token verification and lazy account creation. Only the
 // dashboard caller accepts a magic-link token in req.
-func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter, req verifyRequest, purpose string, siteID sql.NullString) (db.User, bool, int, errorResponse) {
+func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter, req verifyRequest, purpose string, siteID sql.NullString, randomHandles bool) (db.User, bool, int, errorResponse) {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.Code = strings.ReplaceAll(strings.TrimSpace(req.Code), "-", "")
 	req.Token = strings.TrimSpace(req.Token)
@@ -175,7 +175,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 	// The code is right. A new account's address: chosen now, before
 	// anything is created or the code is spent, so a refusal can be retried.
 	var chosen string
-	if purpose == "dashboard" && !hackMode && (req.Handle != nil || req.ChooseHandle) {
+	if purpose == "dashboard" && !randomHandles && (req.Handle != nil || req.ChooseHandle) {
 		_, lerr := db.GetUserByUsername(ctx, database, tok.Email)
 		switch {
 		case errors.Is(lerr, sql.ErrNoRows) && req.Handle != nil:
@@ -267,7 +267,7 @@ func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter
 		}
 		if !claimed {
 			// Not asked, or taken in the moment since the check: the old rule.
-			assignHandle(ctx, database, user.ID, tok.Email)
+			assignHandle(ctx, database, user.ID, tok.Email, randomHandles)
 		}
 		if refetched, rerr := db.GetUserByUsername(ctx, database, tok.Email); rerr == nil {
 			user = refetched

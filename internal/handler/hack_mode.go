@@ -272,12 +272,12 @@ func DirUsage(dir string) func(ctx context.Context) (int64, error) {
 // ends or deletes it first, so no event is left that nobody can manage (an
 // event the platform took down does not hold them). The organiser's name and
 // contact address are blanked on the events that stay.
-func hackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string) (code, msg string, err error) {
-	if !hackMode {
+func hackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string, holdingAccounts bool) (code, msg string, err error) {
+	if !holdingAccounts {
 		return "", "", nil
 	}
 	var running bool
-	holding, err := hackHoldingAccount(ctx, q, userID)
+	holding, err := hackHoldingAccount(ctx, q, userID, holdingAccounts)
 	if err != nil {
 		return "", "", err
 	}
@@ -320,8 +320,8 @@ func hackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string) (c
 }
 
 // hackHoldingAccount: userID is an event's holding account (never signs in).
-func hackHoldingAccount(ctx context.Context, q db.Querier, userID string) (bool, error) {
-	if !hackMode {
+func hackHoldingAccount(ctx context.Context, q db.Querier, userID string, holdingAccounts bool) (bool, error) {
+	if !holdingAccounts {
 		return false, nil
 	}
 	var held bool

@@ -301,7 +301,7 @@ func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 			return
 		}
-		if held, herr := hackHoldingAccount(r.Context(), h.database, id); herr != nil {
+		if held, herr := hackHoldingAccount(r.Context(), h.database, id, h.ed.Identity().HoldingAccounts); herr != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		} else if held {
