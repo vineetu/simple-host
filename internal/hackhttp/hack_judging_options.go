@@ -2,10 +2,8 @@ package hackhttp
 
 import (
 	"database/sql"
-	"errors"
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/hackentries"
-	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 
 	"github.com/vsriram/simple-host/internal/db"
@@ -42,28 +40,20 @@ func (h *HackHandler) previewJudging(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, map[string]any{"results": resultsSnapshotJSON(rows, nil), "deciding_mode": a.event.ScoreMode})
 }
 
-func judgingOptionsTx(w http.ResponseWriter, r *http.Request, h *HackHandler, eventID string) (*sql.Tx, db.Event, bool) {
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
+func writeJudgingWorkflowError(w http.ResponseWriter, err error) {
+	e, ok := err.(*entries.Error)
+	if !ok {
 		httpx.WriteInternal(w)
-		return nil, db.Event{}, false
+		return
 	}
-	ev, err := db.GetEventForUpdate(r.Context(), tx, eventID)
-	if err != nil {
-		tx.Rollback()
-		httpx.WriteInternal(w)
-		return nil, db.Event{}, false
+	status := 400
+	switch e.Code {
+	case "event_closed", "scores_locked", "invalid_assignment_mode", "judge_conflict":
+		status = 409
+	case "judge_not_found", "team_not_found", "track_not_found":
+		status = 404
 	}
-	if ev.Stage == "archived" {
-		tx.Rollback()
-		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
-		return nil, db.Event{}, false
-	}
-	if writeIfJudgingLocked(w, ev) {
-		tx.Rollback()
-		return nil, db.Event{}, false
-	}
-	return tx, ev, true
+	httpx.WriteError(w, status, e.Code, e.Message)
 }
 
 func (h *HackHandler) getManualAssignments(w http.ResponseWriter, r *http.Request) {
@@ -94,66 +84,9 @@ func (h *HackHandler) putManualAssignments(w http.ResponseWriter, r *http.Reques
 		httpx.WriteError(w, 400, "too_many_assignments", "up to 500 assignments are allowed")
 		return
 	}
-	tx, ev, ok := judgingOptionsTx(w, r, h, a.event.ID)
-	if !ok {
-		return
-	}
-	defer tx.Rollback()
-	if ev.JudgeAssignmentMode != "manual" {
-		httpx.WriteError(w, 409, "invalid_assignment_mode", "switch to manual assignment first")
-		return
-	}
-	seen := map[string]bool{}
-	for _, row := range req.Assignments {
-		if !sites.UUIDShape.MatchString(row.JudgeID) || !sites.UUIDShape.MatchString(row.TeamID) {
-			httpx.WriteError(w, 400, "invalid_assignment", "use event judge and team ids")
-			return
-		}
-		key := hackentries.JudgeTeamKey(row.JudgeID, row.TeamID)
-		if seen[key] {
-			httpx.WriteError(w, 400, "duplicate_assignment", "each judge and team pair appears once")
-			return
-		}
-		seen[key] = true
-		judge, err := db.EventJudgeInEvent(r.Context(), tx, ev.ID, row.JudgeID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if !judge {
-			httpx.WriteError(w, 404, "judge_not_found", "judge not found in this event")
-			return
-		}
-		if _, err := db.EventTeamInEvent(r.Context(), tx, ev.ID, row.TeamID); errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteError(w, 404, "team_not_found", "team not found in this event")
-			return
-		} else if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-	}
-	conflicts, err := db.ListConflictPairs(r.Context(), tx, ev.ID)
+	rows, err := h.entries.PutManualAssignments(r.Context(), a.event.ID, req.Assignments)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	for _, p := range conflicts {
-		if seen[hackentries.JudgeTeamKey(p.JudgeID, p.TeamID)] {
-			httpx.WriteError(w, 409, "judge_conflict", "a conflicted judge cannot be assigned to that team")
-			return
-		}
-	}
-	if err := db.ReplaceAssignments(r.Context(), tx, ev.ID, req.Assignments); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	rows, err := db.ListEventAssignments(r.Context(), h.database, ev.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
+		writeJudgingWorkflowError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"assignments": rows})
@@ -187,53 +120,9 @@ func (h *HackHandler) putTrackPanels(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, 400, "too_many_panel_members", "up to 240 track panel memberships are allowed")
 		return
 	}
-	tx, ev, ok := judgingOptionsTx(w, r, h, a.event.ID)
-	if !ok {
-		return
-	}
-	defer tx.Rollback()
-	seen := map[string]bool{}
-	for _, p := range req.Panels {
-		if !sites.UUIDShape.MatchString(p.TrackID) || !sites.UUIDShape.MatchString(p.JudgeID) {
-			httpx.WriteError(w, 400, "invalid_panel", "use event track and judge ids")
-			return
-		}
-		key := p.TrackID + "\x00" + p.JudgeID
-		if seen[key] {
-			httpx.WriteError(w, 400, "duplicate_panel_member", "each judge appears once per track")
-			return
-		}
-		seen[key] = true
-		track, err := db.EventTrackInEvent(r.Context(), tx, ev.ID, p.TrackID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if !track {
-			httpx.WriteError(w, 404, "track_not_found", "track not found in this event")
-			return
-		}
-		judge, err := db.EventJudgeInEvent(r.Context(), tx, ev.ID, p.JudgeID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if !judge {
-			httpx.WriteError(w, 404, "judge_not_found", "judge not found in this event")
-			return
-		}
-	}
-	if err := db.ReplaceTrackPanels(r.Context(), tx, ev.ID, req.Panels); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	rows, err := db.ListTrackPanels(r.Context(), h.database, ev.ID)
+	rows, err := h.entries.PutTrackPanels(r.Context(), a.event.ID, req.Panels)
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeJudgingWorkflowError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"panels": rows})
