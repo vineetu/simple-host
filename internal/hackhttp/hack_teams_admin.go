@@ -4,14 +4,12 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"strings"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/app/hack/teams"
-	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // Team admins (owner 2026-10-31): the creator is admin; admins approve or
@@ -25,13 +23,13 @@ import (
 // codes; anything else is internal or event_not_found as usual.
 func writeTeamAdminErr(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, db.ErrHackTeamAdminOnly):
+	case errors.Is(err, teams.ErrTeamAdminOnly):
 		httpx.WriteError(w, http.StatusForbidden, "team_admin_only", "only the team's admins can do that")
-	case errors.Is(err, db.ErrHackLastTeamAdmin):
+	case errors.Is(err, teams.ErrLastTeamAdmin):
 		httpx.WriteError(w, http.StatusConflict, "last_team_admin", "make someone else admin first")
-	case errors.Is(err, db.ErrHackTeamKept):
+	case errors.Is(err, teams.ErrTeamKept):
 		httpx.WriteError(w, http.StatusConflict, "team_kept", "this team can't take new members")
-	case errors.Is(err, db.ErrHackTeamLocked):
+	case errors.Is(err, teams.ErrTeamLocked):
 		httpx.WriteError(w, http.StatusConflict, "team_locked", "this team isn't taking new people")
 	case errors.Is(err, sql.ErrNoRows):
 		writeEventNotFound(w)
@@ -66,7 +64,7 @@ func (h *HackHandler) patchTeam(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !hackteams.ParticipantTeamStages(a.event.Stage) {
+	if !teams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
@@ -80,7 +78,7 @@ func (h *HackHandler) patchTeam(w http.ResponseWriter, r *http.Request) {
 	var name string
 	if req.Name != nil {
 		var okName bool
-		name, okName = checkHackLine(w, hackevents.StripInvisible(*req.Name), "team_name", 1, 80)
+		name, okName = checkHackLine(w, events.StripInvisible(*req.Name), "team_name", 1, 80)
 		if !okName {
 			return
 		}
@@ -88,7 +86,7 @@ func (h *HackHandler) patchTeam(w http.ResponseWriter, r *http.Request) {
 	var lookingFor string
 	if req.LookingFor != nil {
 		var okNote bool
-		lookingFor, okNote = checkHackLine(w, hackevents.StripInvisible(*req.LookingFor), "looking_for", 0, 120)
+		lookingFor, okNote = checkHackLine(w, events.StripInvisible(*req.LookingFor), "looking_for", 0, 120)
 		if !okNote {
 			return
 		}
@@ -122,7 +120,7 @@ func (h *HackHandler) setMyTeamLock(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !hackteams.ParticipantTeamStages(a.event.Stage) {
+	if !teams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
@@ -155,7 +153,7 @@ func (h *HackHandler) setMyTeammateAdmin(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if !hackteams.ParticipantTeamStages(a.event.Stage) {
+	if !teams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
@@ -185,7 +183,7 @@ func (h *HackHandler) newMyTeamLink(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !hackteams.ParticipantTeamStages(a.event.Stage) {
+	if !teams.ParticipantTeamStages(a.event.Stage) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}

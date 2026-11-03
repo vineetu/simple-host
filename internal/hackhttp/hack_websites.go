@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	rulesstorage "github.com/vsriram/simple-host/internal/rules/storage"
 	"io"
 	"net/http"
@@ -17,11 +18,11 @@ import (
 )
 
 type eventWebsitePublisher interface {
-	PublishEventWebsite(http.ResponseWriter, *http.Request, db.Event, string, bool)
+	PublishEventWebsite(http.ResponseWriter, *http.Request, model.Event, string, bool)
 }
 
 type eventWebsiteStorage interface {
-	ServeEventWebsiteStorage(http.ResponseWriter, *http.Request, db.Event, string)
+	ServeEventWebsiteStorage(http.ResponseWriter, *http.Request, model.Event, string)
 }
 
 func (h *HackHandler) registerEventWebsite(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
@@ -60,7 +61,7 @@ func (h *HackHandler) eventWebsiteStorage(w http.ResponseWriter, r *http.Request
 	storage.ServeEventWebsiteStorage(w, r, a.event, a.user.ID)
 }
 
-func (h *HackHandler) eventWebsiteState(ctx context.Context, ev db.Event) (map[string]any, error) {
+func (h *HackHandler) eventWebsiteState(ctx context.Context, ev model.Event) (map[string]any, error) {
 	site, err := db.GetSiteByUser(ctx, h.database, ev.AccountID, ev.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": false, "upload_limit_bytes": h.websiteUploadLimit(ctx, ev), "upload_limits": h.websiteUploadLimits(ctx, ev), "versions": []any{},
@@ -126,7 +127,7 @@ func (h *HackHandler) patchEventWebsite(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	ev, err := db.SetEventWebsiteMode(r.Context(), h.database, a.event.ID, a.user.ID, req.Mode)
+	ev, err := h.eventsSvc().SetEventWebsiteModeLookup(r.Context(), a.event.ID, a.user.ID, req.Mode)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeEventNotFound(w)
@@ -172,7 +173,7 @@ func (h *HackHandler) putEventWebsite(w http.ResponseWriter, r *http.Request, fi
 	res := rec.Result()
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusOK || res.StatusCode == http.StatusCreated {
-		if _, err := db.SetEventWebsiteMode(r.Context(), h.database, a.event.ID, a.user.ID, "custom"); err != nil {
+		if _, err := h.eventsSvc().SetEventWebsiteModeLookup(r.Context(), a.event.ID, a.user.ID, "custom"); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				writeEventNotFound(w)
 				return
@@ -190,7 +191,7 @@ func (h *HackHandler) putEventWebsite(w http.ResponseWriter, r *http.Request, fi
 	_, _ = io.Copy(w, res.Body)
 }
 
-func (h *HackHandler) websiteUploadLimit(ctx context.Context, ev db.Event) int64 {
+func (h *HackHandler) websiteUploadLimit(ctx context.Context, ev model.Event) int64 {
 	holder, err := db.GetUserByID(ctx, h.database, ev.AccountID)
 	if err != nil {
 		return h.siteArchiveDefault
@@ -199,7 +200,7 @@ func (h *HackHandler) websiteUploadLimit(ctx context.Context, ev db.Event) int64
 	return limit
 }
 
-func (h *HackHandler) websiteUploadLimits(ctx context.Context, ev db.Event) string {
+func (h *HackHandler) websiteUploadLimits(ctx context.Context, ev model.Event) string {
 	holder, err := db.GetUserByID(ctx, h.database, ev.AccountID)
 	if err != nil {
 		return "Upload limits are unavailable."
