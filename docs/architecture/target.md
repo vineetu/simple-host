@@ -114,7 +114,7 @@ Test imports use the production allowance plus the exact package under test, `te
 
 The layering check reads Go's package graph, including `Imports`, `TestImports` and `XTestImports`, against `scripts/layering/rules.txt`. Normalize synthetic test package IDs and check nested packages independently. Check packages in this module, not third-party internals. Any other command under `cmd/` gets its actual, explicit dependency row when the checker lands.
 
-The final graph cannot pass halfway through the moves. Alongside it, record an exact list of current transitional edges, each with its removal step in `scripts/layering/rules.txt`. Existing `handler -> db`, `auth -> db`, and helper-package SQL are migration debt, not precedents. New edges must match the final table or be reviewed and assigned a removal step. Remove exceptions as each area moves; never allow `handler -> anything`. The deleted Go bundler/generator has no final allowance.
+The final graph cannot pass halfway through the moves. Alongside it, record an exact list of current transitional edges, each with its removal step in `scripts/layering/rules.txt`. Existing `handler -> db`, `auth -> db`, and helper-package SQL are migration debt, not precedents. New edges must match the final table or be reviewed and assigned a removal step. Remove exceptions as each area moves; never allow `handler -> anything`. The old regex bundler is gone; the 2.3 esbuild generator is the only generator allowance (`mcp/apps/gentool -> mcp/apps/bundlegen` and `mcp` tests -> `mcp/apps/bundlegen` for the bundle freshness test).
 
 | Existing package | Destination |
 |---|---|

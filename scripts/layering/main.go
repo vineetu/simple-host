@@ -4,9 +4,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"go/parser"
+	"go/token"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -15,9 +18,10 @@ const module = "github.com/vsriram/simple-host/"
 const rulesFile = "scripts/layering/rules.txt"
 
 type pkg struct {
-	ImportPath                         string
-	Imports, TestImports, XTestImports []string
-	ForTest                            string
+	ImportPath, Name, Dir                        string
+	Imports, TestImports, XTestImports           []string
+	GoFiles, CgoFiles, TestGoFiles, XTestGoFiles []string
+	ForTest                                      string
 }
 type rule struct {
 	from string
@@ -25,15 +29,23 @@ type rule struct {
 }
 type edge struct{ from, to, kind string }
 
-func normalize(s string) string {
-	if i := strings.Index(s, " ["); i >= 0 {
-		s = s[:i]
+func normalize(p pkg) string {
+	if p.ForTest != "" {
+		return p.ForTest
 	}
-	s = strings.TrimSuffix(s, ".test")
-	return strings.TrimSuffix(s, "_test")
+	if i := strings.LastIndex(p.ImportPath, " ["); i >= 0 && strings.HasSuffix(p.ImportPath, ".test]") {
+		return strings.TrimSuffix(p.ImportPath[i+2:], ".test]")
+	}
+	if p.Name == "main" && strings.HasSuffix(p.ImportPath, ".test") {
+		return strings.TrimSuffix(p.ImportPath, ".test")
+	}
+	return p.ImportPath
 }
 func local(s string) string {
-	s = normalize(s)
+	s = normalize(pkg{ImportPath: s})
+	if s == strings.TrimSuffix(module, "/") {
+		return "@/"
+	}
 	if !strings.HasPrefix(s, module) {
 		return ""
 	}
@@ -86,12 +98,19 @@ func match(pattern, path string) bool {
 }
 func allowed(rs []rule, from, to string) bool {
 	for _, r := range rs {
-		if match(r.from, from) {
-			for _, p := range r.to {
-				if match(p, to) {
-					return true
-				}
+		if !match(r.from, from) {
+			continue
+		}
+		included, excluded := false, false
+		for _, p := range r.to {
+			if strings.HasPrefix(p, "!") {
+				excluded = excluded || match(strings.TrimPrefix(p, "!"), to)
+			} else {
+				included = included || match(p, to)
 			}
+		}
+		if included && !excluded {
+			return true
 		}
 	}
 	return false
@@ -148,7 +167,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("go", "list", "-e", "-test", "-json", "./...")
+	cmd := exec.Command("go", "list", "-test", "-json", "./...")
 	cmd.Stderr = os.Stderr
 	data, err := cmd.Output()
 	if err != nil {
@@ -166,14 +185,21 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		if p.ForTest != "" || strings.HasSuffix(p.ImportPath, ".test") {
+		if p.ForTest != "" || (p.Name == "main" && strings.HasSuffix(p.ImportPath, ".test")) {
 			continue
 		}
-		from := local(p.ImportPath)
+		from := local(normalize(p))
 		if from == "" {
 			continue
 		}
 		packages[from] = true
+		for _, files := range [][]string{p.GoFiles, p.CgoFiles, p.TestGoFiles, p.XTestGoFiles} {
+			for _, file := range files {
+				if _, err := parser.ParseFile(token.NewFileSet(), filepath.Join(p.Dir, file), nil, parser.AllErrors); err != nil {
+					return err
+				}
+			}
+		}
 		for _, group := range []struct {
 			kind    string
 			imports []string
@@ -189,11 +215,8 @@ func run() error {
 	var issues []string
 	for e := range edges {
 		ok := allowed(rules["final"], e.from, e.to)
-		if e.from == "@/cmd/server" && (e.to == "testdb" || e.to == "geoip/geoiptest") {
-			ok = false
-		}
 		if e.kind == "test" {
-			ok = ok || allowed(rules["test"], e.from, e.to) || trans[edge{e.from, e.to, "production"}]
+			ok = ok || allowed(rules["test"], e.from, e.to)
 		}
 		if !ok && !trans[e] {
 			issues = append(issues, fmt.Sprintf("%s imports %s (%s) — not in %s; see docs/architecture/target.md §2", display(e.from), display(e.to), e.kind, rulesFile))

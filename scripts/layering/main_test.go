@@ -20,14 +20,33 @@ func TestMatch(t *testing.T) {
 	}
 }
 func TestNormalize(t *testing.T) {
-	for _, tc := range []struct{ in, want string }{
-		{"internal/a [internal/a.test]", "internal/a"},
-		{"internal/a_test [internal/a.test]", "internal/a"},
-		{"internal/a.test", "internal/a"},
-		{"internal/a/b", "internal/a/b"},
+	for _, tc := range []struct {
+		in   pkg
+		want string
+	}{
+		{pkg{ImportPath: "internal/a [internal/a.test]", ForTest: "internal/a"}, "internal/a"},
+		{pkg{ImportPath: "internal/a_test [internal/a.test]"}, "internal/a"},
+		{pkg{ImportPath: "internal/a.test", Name: "main"}, "internal/a"},
+		{pkg{ImportPath: "internal/a.test", Name: "a"}, "internal/a.test"},
+		{pkg{ImportPath: "internal/a_test"}, "internal/a_test"},
 	} {
 		if got := normalize(tc.in); got != tc.want {
-			t.Errorf("normalize(%q) = %q", tc.in, got)
+			t.Errorf("normalize(%+v) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestExclusions(t *testing.T) {
+	rs := []rule{{"@/cmd/server", []string{"/**", "!testdb", "!geoip/geoiptest", "@/db"}}}
+	for _, tc := range []struct {
+		to   string
+		want bool
+	}{{"handler", true}, {"testdb", false}, {"geoip/geoiptest", false}, {"@/db", true}} {
+		if got := allowed(rs, "@/cmd/server", tc.to); got != tc.want {
+			t.Errorf("allowed(%q) = %v", tc.to, got)
+		}
+	}
+	if got := local("github.com/vsriram/simple-host"); got != "@/" {
+		t.Errorf("module root = %q", got)
 	}
 }
