@@ -107,3 +107,21 @@ func clearAssetText() {
 		}
 	}
 }
+
+// The handlers below render pages too. main hands each the SiteHandler's
+// pipeline once, before serving, so every page of an instance uses the same
+// edition and Hack instance address: the one captured before a setup-saved
+// domain replaces PublicBaseURL, as the startup setters did. A handler that
+// was never given one (tests) builds its own from its edition.
+
+// ShareAssets makes h render through sh's asset pipeline.
+func (h *UserHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }
+
+// ShareAssets makes h render through sh's asset pipeline.
+func (h *OAuthHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }
+
+// ShareAssets makes h render through sh's asset pipeline.
+func (h *ConnectorHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }
+
+// ShareAssets makes h render through sh's asset pipeline.
+func (h *HackHandler) ShareAssets(sh *SiteHandler) { h.assets = sh.pipeline() }

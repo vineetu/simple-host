@@ -274,6 +274,7 @@ func main() {
 	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL, ed)
 	userHandler.Register(mux, authMW, noticeMW)
 	siteHandler := handler.NewSiteHandler(ed, hackInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
+	userHandler.ShareAssets(siteHandler)
 	userHandler.SetFileUsage(siteHandler)
 	siteHandler.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
@@ -342,6 +343,7 @@ func main() {
 	// Take-down markers on disk follow the database (suspend.go).
 	siteHandler.SyncSuspendMarkers(context.Background())
 	oauthHandler := handler.NewOAuthHandler(db, cfg, ed)
+	oauthHandler.ShareAssets(siteHandler)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
 	oauthHandler.SetPasscodeCheck(siteHandler.PasscodeLetsIn)
 	siteHandler.SetSSOHop(oauthHandler)
@@ -357,6 +359,7 @@ func main() {
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, ed.Routes().HostedEvents, ed)
+	connector.ShareAssets(siteHandler)
 	connector.SetVisitorReferences(siteHandler)
 	connector.SetVisitorTools(siteHandler, oauthHandler)
 	connector.SetPreviewBases(siteHandler.ServedBases())
@@ -387,6 +390,7 @@ func main() {
 	var hackEvents *handler.HackHandler
 	if hosted {
 		hack := handler.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain)
+		hack.ShareAssets(siteHandler)
 		hack.SetMailer(mailer)
 		hackEvents = hack
 		if cfg.EventNamePeer != "" {
