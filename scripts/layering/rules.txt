@@ -38,6 +38,8 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 mcp -> mcp/apps/bundlegen
 [transitional]
 app/hack/events -> db production # removal step 4.2: events and teams
+db -> model production # removal step 4.3: db keeps type aliases until the last repository moves
+hackhttp -> rules/hackentries production # removal step 4.1: hackhttp calls app/hack/entries instead
 auth -> db production # removal step 5.4: accounts repository
 hackhttp -> @/hack-toolkit production # removal step 5.4: webassets extraction
 hackhttp -> config production # removal step 5.4: final transport boundary
@@ -76,6 +78,8 @@ hackhttp -> @/hack-toolkit test # removal step 5.4: webassets extraction
 hackhttp -> db test # removal step 4.2: events and teams
 hackhttp -> rules/auth test # removal step 4.3: site and storage workflows
 hackhttp -> rules/hackevents test # removal step 4.2: events and teams
+hackhttp -> rules/hackentries test # removal step 4.1: hackhttp calls app/hack/entries instead
+db -> rules/hackentries test # removal step 4.1: judgeable contract test moves to repository/hackentries
 handler -> analytics test # removal step 5.4: worker lifecycle and operations
 handler -> brain test # removal step 5.4: final transport boundary
 handler -> capacity test # removal step 4.3: site and storage workflows
