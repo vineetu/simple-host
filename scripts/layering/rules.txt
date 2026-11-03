@@ -14,9 +14,9 @@ app/accounts -> repository/{accounts,sites,hackevents} rules/{auth,hackevents} o
 app/sites -> app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball wpimport eventdns capacity
 app/storage -> app/{accounts,notifications} repository/{storage,sites} rules/{storage,auth} storage sitelocks
 app/legacy -> app/{accounts,storage,notifications} repository/{legacy,sites} rules/{storage,auth} sitelocks
-app/hack/events -> app/{accounts,sites,storage,notifications} app/hack/entries repository/{hackevents,hackteams,accounts,sites} rules/{hackevents,hackentries,auth} storage capacity
-app/hack/{teams,members} -> app/{accounts,sites,storage,notifications} app/hack/{events,entries} repository/{hackevents,hackteams,accounts,sites} rules/{hackevents,hackteams,sites,auth}
-app/hack/entries -> app/{accounts,sites,storage,notifications} repository/{hackentries,hackevents,sites} rules/{hackentries,hackevents} storage
+app/hack/events -> app/{accounts,sites,storage,notifications} app/hack/entries repository/{hackevents,hackteams,hackentries,accounts,sites} rules/{hackevents,hackentries,auth} storage capacity
+app/hack/{teams,members} -> app/{accounts,sites,storage,notifications} app/hack/{events,entries} repository/{hackevents,hackteams,hackentries,accounts,sites} rules/{hackevents,hackteams,sites,auth}
+app/hack/entries -> app/{accounts,sites,storage,notifications} repository/{hackentries,hackevents,hackteams,sites} rules/{hackentries,hackevents} storage
 app/notifications -> app/accounts repository/{notifications,accounts,hackevents,hackentries,legacy} email rules/{hackevents,hackentries}
 app/operations -> app/{accounts,sites,storage} repository/{operations,accounts,sites,hackevents,hackentries,legacy} storage analytics netusage papermetrics geoip imagescan email capacity buildinfo
 repository/{accounts,sites,storage,legacy,hackevents,hackteams,hackentries,notifications,operations} -> repository/sqlkit model rules/{auth,sites,storage,hackevents,hackteams,hackentries}
@@ -59,7 +59,6 @@ hackhttp -> email production # removal step 5.4: final transport boundary
 hackhttp -> handler test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 hackhttp -> mcp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 hackhttp -> papermetrics production # removal step 5.4: worker lifecycle and operations
-hackhttp -> rules/auth production # removal step 4.3: site and storage workflows
 hackhttp -> rules/hackevents production # removal step 4.2: events and teams
 hackhttp -> rules/hackteams production # removal step 4.2: participant team-stage checks still run in the team handlers
 hackhttp -> rules/sites production # removal step 4.3: site and storage workflows
