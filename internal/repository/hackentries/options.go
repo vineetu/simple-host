@@ -1,16 +1,20 @@
-package db
+package hackentries
 
 import (
 	"context"
 	"database/sql"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
+// TrackPanelMember provides the corresponding track or judging data.
 type TrackPanelMember struct {
 	TrackID string `json:"track_id"`
 	JudgeID string `json:"judge_id"`
 }
 
-func ListTrackPanels(ctx context.Context, q Querier, eventID string) ([]TrackPanelMember, error) {
+// ListTrackPanels provides the corresponding track or judging data.
+func ListTrackPanels(ctx context.Context, q sqlkit.Querier, eventID string) ([]TrackPanelMember, error) {
 	rows, err := queryContext(ctx, q, `SELECT track_id,judge_id FROM event_track_panels WHERE event_id=$1 ORDER BY track_id,judge_id`, eventID)
 	if err != nil {
 		return nil, err
@@ -27,7 +31,8 @@ func ListTrackPanels(ctx context.Context, q Querier, eventID string) ([]TrackPan
 	return out, rows.Err()
 }
 
-func ReplaceTrackPanels(ctx context.Context, q Querier, eventID string, panels []TrackPanelMember) error {
+// ReplaceTrackPanels provides the corresponding track or judging data.
+func ReplaceTrackPanels(ctx context.Context, q sqlkit.Querier, eventID string, panels []TrackPanelMember) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM event_track_panels WHERE event_id=$1`, eventID); err != nil {
 		return err
 	}
@@ -39,7 +44,8 @@ func ReplaceTrackPanels(ctx context.Context, q Querier, eventID string, panels [
 	return nil
 }
 
-func ListEventAssignments(ctx context.Context, q Querier, eventID string) ([]JudgeAssignment, error) {
+// ListEventAssignments provides the corresponding track or judging data.
+func ListEventAssignments(ctx context.Context, q sqlkit.Querier, eventID string) ([]JudgeAssignment, error) {
 	rows, err := queryContext(ctx, q, `SELECT a.judge_id,j.display_name,a.team_id,t.name
 		FROM event_assignments a JOIN event_members j ON j.event_id=a.event_id AND j.user_id=a.judge_id AND j.role IN ('judge', 'organiser')
 		JOIN event_teams t ON t.event_id=a.event_id AND t.id=a.team_id
@@ -68,7 +74,7 @@ func ListEventAssignments(ctx context.Context, q Querier, eventID string) ([]Jud
 // and minus any team that no longer exists (section 3: Leave this event,
 // SIM-340). Score writes and the judge queue never reach this path for a
 // former judge -- they go through loadMember first, which they cannot pass.
-func EligibleJudgeTeams(ctx context.Context, q Querier, eventID, judgeID string) (map[string]bool, error) {
+func EligibleJudgeTeams(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (map[string]bool, error) {
 	isMember, err := EventJudgeInEvent(ctx, q, eventID, judgeID)
 	if err != nil {
 		return nil, err
@@ -128,7 +134,7 @@ func EligibleJudgeTeams(ctx context.Context, q Querier, eventID, judgeID string)
 // never coming back (Grok finding 6). Freezing anything other than "today's
 // mode-eligible teams, scored" would make a non-counting score start
 // counting (or vice versa) the moment the judge leaves.
-func EligibleJudgeTeamsIgnoringConflicts(ctx context.Context, q Querier, eventID, judgeID string) (map[string]bool, error) {
+func EligibleJudgeTeamsIgnoringConflicts(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (map[string]bool, error) {
 	isMember, err := EventJudgeInEvent(ctx, q, eventID, judgeID)
 	if err != nil {
 		return nil, err
@@ -157,30 +163,38 @@ func EligibleJudgeTeamsIgnoringConflicts(ctx context.Context, q Querier, eventID
 	return out, rows.Err()
 }
 
-func JudgeTeamEligible(ctx context.Context, q Querier, eventID, judgeID, teamID string) (bool, error) {
+// JudgeTeamEligible provides the corresponding track or judging data.
+func JudgeTeamEligible(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID string) (bool, error) {
 	eligible, err := EligibleJudgeTeams(ctx, q, eventID, judgeID)
 	return eligible[teamID], err
 }
 
-func EventTrackInEvent(ctx context.Context, q Querier, eventID, trackID string) (bool, error) {
+// EventTrackInEvent provides the corresponding track or judging data.
+func EventTrackInEvent(ctx context.Context, q sqlkit.Querier, eventID, trackID string) (bool, error) {
 	var ok bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_tracks WHERE event_id=$1 AND id=$2)`, eventID, trackID).Scan(&ok)
 	return ok, err
 }
 
-func EventJudgeInEvent(ctx context.Context, q Querier, eventID, judgeID string) (bool, error) {
+// EventJudgeInEvent provides the corresponding track or judging data.
+func EventJudgeInEvent(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (bool, error) {
 	var ok bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_members WHERE event_id=$1 AND user_id=$2 AND role IN ('judge', 'organiser'))`, eventID, judgeID).Scan(&ok)
 	return ok, err
 }
 
-func EventCriterionInEvent(ctx context.Context, q Querier, eventID, criterionID string) (bool, error) {
+// EventCriterionInEvent provides the corresponding track or judging data.
+func EventCriterionInEvent(ctx context.Context, q sqlkit.Querier, eventID, criterionID string) (bool, error) {
 	var ok bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM rubric_criteria WHERE event_id=$1 AND id=$2)`, eventID, criterionID).Scan(&ok)
 	return ok, err
 }
 
-func TrackForTeam(ctx context.Context, q Querier, eventID, teamID string) (*EventTrack, error) {
+// EventTrack provides the corresponding track or judging data.
+type EventTrack = model.EventTrack
+
+// TrackForTeam provides the corresponding track or judging data.
+func TrackForTeam(ctx context.Context, q sqlkit.Querier, eventID, teamID string) (*EventTrack, error) {
 	var t EventTrack
 	err := q.QueryRowContext(ctx, `SELECT x.id,x.slug,x.name,x.challenge,x.prize FROM event_teams m JOIN event_tracks x ON x.id=m.track_id AND x.event_id=m.event_id WHERE m.event_id=$1 AND m.id=$2`, eventID, teamID).Scan(&t.ID, &t.Slug, &t.Name, &t.Challenge, &t.Prize)
 	if err == sql.ErrNoRows {

@@ -1,7 +1,8 @@
-package db
+package hackentries
 
 import (
 	"database/sql"
+	_ "github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"os"
 	"testing"
