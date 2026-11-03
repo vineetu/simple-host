@@ -2,17 +2,16 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/hex"
-	"fmt"
 	"net/http"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/papermetrics"
+	repo "github.com/vsriram/simple-host/internal/repository/storage"
+	rules "github.com/vsriram/simple-host/internal/rules/storage"
 )
 
 // Storage access presets (owner decision 2026-10-10; INTENT.md and
@@ -27,237 +26,54 @@ import (
 // storageOwnerOnSite.
 
 const (
-	storageWhoNobody   = "nobody"
-	storageWhoOwner    = "owner"
-	storageWhoOwn      = "own"
-	storageWhoSignedIn = "signed-in"
-	storageWhoAnyone   = "anyone"
-	// checked: anyone who passes the spam check (turnstile.go); add only.
-	storageWhoChecked = "checked"
+	storageWhoNobody   = rules.WhoNobody
+	storageWhoOwner    = rules.WhoOwner
+	storageWhoOwn      = rules.WhoOwn
+	storageWhoSignedIn = rules.WhoSignedIn
+	storageWhoAnyone   = rules.WhoAnyone
+	storageWhoChecked  = rules.WhoChecked
 )
 
-// Narrowest first. Each value includes the ones narrower than it, except
-// nobody (which no page request passes).
-var storageWhoRank = map[string]int{storageWhoNobody: 0, storageWhoOwner: 1, storageWhoOwn: 2, storageWhoSignedIn: 3, storageWhoChecked: 4, storageWhoAnyone: 4}
-
-type storageAccessMatrix struct {
-	Read   string `json:"read"`
-	Add    string `json:"add"`
-	Edit   string `json:"edit"`
-	Delete string `json:"delete"`
-}
-
+type storageAccessMatrix rules.AccessMatrix
 type storagePreset struct {
 	ID     string
 	Matrix storageAccessMatrix
 }
 
-// The presets, exactly as designed. private is the default. comments
-// (2026-10-14) is offered only where the spam check is on.
-var storagePresets = []storagePreset{
-	{"public", storageAccessMatrix{"anyone", "owner", "owner", "owner"}},
-	{"inbox", storageAccessMatrix{"owner", "anyone", "owner", "owner"}},
-	{"wall", storageAccessMatrix{"anyone", "signed-in", "owner", "own"}},
-	{"comments", storageAccessMatrix{"anyone", "checked", "owner", "owner"}},
-	{"records", storageAccessMatrix{"own", "signed-in", "owner", "owner"}},
-	{"personal", storageAccessMatrix{"own", "signed-in", "own", "own"}},
-	{"board", storageAccessMatrix{"signed-in", "signed-in", "signed-in", "owner"}},
-	{"private", storageAccessMatrix{"owner", "owner", "owner", "owner"}},
-}
+var storagePresets = func() []storagePreset {
+	out := make([]storagePreset, 0, len(rules.Presets))
+	for _, p := range rules.Presets {
+		out = append(out, storagePreset{p.ID, storageAccessMatrix(p.Matrix)})
+	}
+	return out
+}()
 
 func storagePresetMatrix(id string) (storageAccessMatrix, bool) {
-	for _, p := range storagePresets {
-		if p.ID == id {
-			return p.Matrix, true
-		}
-	}
-	return storageAccessMatrix{}, false
+	m, ok := rules.PresetMatrix(id)
+	return storageAccessMatrix(m), ok
+}
+func storagePresetName(m storageAccessMatrix) string  { return rules.PresetName(rules.AccessMatrix(m)) }
+func (m storageAccessMatrix) value(a string) string   { return rules.AccessMatrix(m).Value(a) }
+func (m storageAccessMatrix) check() (string, string) { return rules.AccessMatrix(m).Check() }
+func (m storageAccessMatrix) usesOwn() bool           { return rules.AccessMatrix(m).UsesOwn() }
+func (m storageAccessMatrix) recordsAuthor() bool     { return rules.AccessMatrix(m).RecordsAuthor() }
+func storageTranslateOld(r, w, mode string) (storageAccessMatrix, string, string) {
+	m, c, h := rules.TranslateOld(r, w, mode)
+	return storageAccessMatrix(m), c, h
+}
+func storageOldFields(m storageAccessMatrix) (string, string, string, bool) {
+	return rules.OldFields(rules.AccessMatrix(m))
 }
 
-// storagePresetName is the preset a matrix is, or "custom".
-func storagePresetName(m storageAccessMatrix) string {
-	for _, p := range storagePresets {
-		if p.Matrix == m {
-			return p.ID
-		}
-	}
-	return "custom"
-}
-
-func (m storageAccessMatrix) value(action string) string {
-	switch action {
-	case "read":
-		return m.Read
-	case "add":
-		return m.Add
-	case "edit":
-		return m.Edit
-	case "delete":
-		return m.Delete
-	}
-	return storageWhoNobody
-}
-
-// check applies rules R1 to R4. It returns "" or the refused rule's code and
-// a plain hint.
-func (m storageAccessMatrix) check() (string, string) {
-	for _, v := range []string{m.Read, m.Add, m.Edit, m.Delete} {
-		if _, ok := storageWhoRank[v]; !ok {
-			return "invalid_value", "each action takes nobody, owner, own, signed-in, or anyone (add also takes checked)"
-		}
-	}
-	if m.Read == storageWhoChecked || m.Edit == storageWhoChecked || m.Delete == storageWhoChecked {
-		return "checked_add_only", "checked (anyone who passes the spam check) applies to add only; read takes anyone, and edit and delete stay with you"
-	}
-	if m.Edit == storageWhoAnyone || m.Delete == storageWhoAnyone {
-		return "anonymous_change", "R1: edit and delete are never anyone; someone not signed in could overwrite or wipe everything. Use the inbox preset (anyone adds, only you change) or wall (signed-in people add and delete their own)"
-	}
-	if m.Add == storageWhoOwn {
-		return "add_own", "R2: add is never own, because nothing is owned before it exists; use signed-in, and the server records who added each entry"
-	}
-	if (m.Add == storageWhoAnyone || m.Add == storageWhoChecked) && (m.Read == storageWhoOwn || m.Edit == storageWhoOwn || m.Delete == storageWhoOwn) {
-		return "own_needs_sign_in", "R3: an entry added by someone not signed in has no author, so own could never apply to it; set add to signed-in"
-	}
-	if storageWhoRank[m.Edit] > storageWhoRank[m.Read] || storageWhoRank[m.Delete] > storageWhoRank[m.Read] {
-		return "change_wider_than_read", "R4: edit and delete cannot be wider than read; nobody may change what they cannot see"
-	}
-	return "", ""
-}
-
-func (m storageAccessMatrix) usesOwn() bool {
-	return m.Read == storageWhoOwn || m.Edit == storageWhoOwn || m.Delete == storageWhoOwn
-}
-
-// recordsAuthor: entries need the server-owned visitor_id, because own
-// applies or because visitors add (so the owner sees who sent what).
-func (m storageAccessMatrix) recordsAuthor() bool {
-	return m.usesOwn() || m.Add == storageWhoSignedIn || m.Add == storageWhoAnyone || m.Add == storageWhoChecked
-}
-
-func storageNarrower(a, b string) string {
-	if storageWhoRank[a] < storageWhoRank[b] {
-		return a
-	}
-	return b
-}
-
-// storageTranslateOld turns the older read/write/write_mode fields into a
-// matrix, as designed (Compatibility). write anyone with full is refused.
-func storageTranslateOld(read, write, mode string) (storageAccessMatrix, string, string) {
-	if read == "" {
-		read = storageWhoOwner
-	}
-	if write == "" {
-		write = storageWhoOwner
-	}
-	if mode == "" {
-		mode = "full"
-	}
-	if read != "anyone" && read != "signed-in" && read != "owner" && read != "own" || !validStoragePolicy(write) || mode != "full" && mode != "add" {
-		return storageAccessMatrix{}, "invalid_value", "read takes anyone, signed-in, own, or owner; write takes anyone, signed-in, or owner; write_mode takes full or add"
-	}
-	var m storageAccessMatrix
-	switch {
-	case mode == "add":
-		m = storageAccessMatrix{read, write, storageWhoOwner, storageWhoOwner}
-		if read == storageWhoOwn && write == storageWhoAnyone {
-			m.Add = storageWhoSignedIn
-		}
-	case write == storageWhoAnyone:
-		return m, "anonymous_change", "write anyone with write_mode full let anyone overwrite or delete everything and is no longer offered; use the inbox preset (anyone adds, only you change) or wall (signed-in people add and delete their own)"
-	case write == storageWhoSignedIn:
-		x := storageNarrower(storageWhoSignedIn, read)
-		m = storageAccessMatrix{read, storageWhoSignedIn, x, x}
-	default:
-		m = storageAccessMatrix{read, storageWhoOwner, storageWhoOwner, storageWhoOwner}
-	}
-	if code, hint := m.check(); code != "" {
-		return m, code, hint
-	}
-	return m, "", ""
-}
-
-// storageLegacyMatrix is how a resource saved before presets behaves until
-// the owner saves a policy on it: exactly the old rules, unchecked (a
-// write-anyone full resource stays open).
-func storageLegacyMatrix(read, write, mode string) storageAccessMatrix {
-	if mode == "add" {
-		m := storageAccessMatrix{read, write, storageWhoOwner, storageWhoOwner}
-		if read == storageWhoOwn && write == storageWhoAnyone {
-			m.Add = storageWhoSignedIn
-		}
-		return m
-	}
-	if read == storageWhoOwn {
-		return storageAccessMatrix{read, storageWhoOwner, storageWhoOwner, storageWhoOwner}
-	}
-	return storageAccessMatrix{read, write, write, write}
-}
-
-// storageOldFields expresses a matrix in the older fields when it can, so an
-// older skill reading the answer is not confused.
-func storageOldFields(m storageAccessMatrix) (read, write, mode string, ok bool) {
-	read = m.Read
-	if read == storageWhoNobody {
-		read = storageWhoOwner
-	}
-	switch {
-	case m.Add == m.Edit && m.Edit == m.Delete && validStoragePolicy(m.Add):
-		return read, m.Add, "full", true
-	case m.Edit == storageWhoOwner && m.Delete == storageWhoOwner && validStoragePolicy(m.Add):
-		return read, m.Add, "add", true
-	}
-	return read, "", "", false
-}
-
-// storageTableRule is one SQLite table's own matrix.
 type storageTableRule struct {
 	Matrix     storageAccessMatrix
 	PresetBase string
 }
-
-// storageAccessRequest is a preset plus single-action overrides.
-type storageAccessRequest struct {
-	Preset string `json:"preset"`
-	Read   string `json:"read"`
-	Add    string `json:"add"`
-	Edit   string `json:"edit"`
-	Delete string `json:"delete"`
-}
+type storageAccessRequest rules.AccessRequest
 
 func (q storageAccessRequest) matrix() (storageAccessMatrix, string, string, string) {
-	base := q.Preset
-	if base == "" {
-		base = "private"
-	}
-	if base == "custom" {
-		if q.Read == "" || q.Add == "" || q.Edit == "" || q.Delete == "" {
-			return storageAccessMatrix{}, "", "invalid_preset", "a custom matrix sets all four of read, add, edit, and delete"
-		}
-		base = ""
-	}
-	m := storageAccessMatrix{}
-	if base != "" {
-		var ok bool
-		if m, ok = storagePresetMatrix(base); !ok {
-			return m, "", "invalid_preset", "preset takes public, inbox, wall, comments, records, personal, board, or private"
-		}
-	}
-	for _, o := range []struct {
-		v   string
-		dst *string
-	}{{q.Read, &m.Read}, {q.Add, &m.Add}, {q.Edit, &m.Edit}, {q.Delete, &m.Delete}} {
-		if o.v != "" {
-			*o.dst = o.v
-		}
-	}
-	if code, hint := m.check(); code != "" {
-		return m, "", code, hint
-	}
-	if q.Preset == "" && q.Read == "" && q.Add == "" && q.Edit == "" && q.Delete == "" {
-		base = "private"
-	}
-	return m, base, "", ""
+	m, b, c, h := rules.AccessRequest(q).Matrix()
+	return storageAccessMatrix(m), b, c, h
 }
 
 var storageTableNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
@@ -311,137 +127,70 @@ func storageResourceJSON(x storageResource) map[string]any {
 	return out
 }
 
-// matrix is the resource's own matrix (the SQLite database default).
+func (x storageResource) rulesResource() rules.Resource {
+	r := rules.Resource{Name: x.Name, Kind: x.Kind, Read: x.Read, Write: x.Write, SitePasscode: x.SitePasscode, WriteMode: x.WriteMode, PresetBase: x.PresetBase, ApproveFirst: x.ApproveFirst}
+	if x.Access != nil {
+		m := rules.AccessMatrix(*x.Access)
+		r.Access = &m
+	}
+	r.TableLookup = func(n string) (rules.TableRule, bool) {
+		t, ok := x.Tables[n]
+		return rules.TableRule{Matrix: rules.AccessMatrix(t.Matrix), PresetBase: t.PresetBase}, ok
+	}
+	r.TableRange = func(visit func(string, rules.TableRule)) {
+		for n, t := range x.Tables {
+			visit(n, rules.TableRule{Matrix: rules.AccessMatrix(t.Matrix), PresetBase: t.PresetBase})
+		}
+	}
+	return r
+}
 func (x storageResource) matrix() storageAccessMatrix {
-	if x.Access != nil {
-		return *x.Access
+	return storageAccessMatrix(x.rulesResource().Matrix())
+}
+func (x storageResource) legacy() bool           { return x.rulesResource().Legacy() }
+func (x storageResource) legacyVisitorSQL() bool { return x.rulesResource().LegacyVisitorSQL() }
+func (x storageResource) tableMatrix(t string) storageAccessMatrix {
+	return storageAccessMatrix(x.rulesResource().TableMatrix(t))
+}
+func (x storageResource) ownTables() func(string) bool { return x.rulesResource().OwnTables() }
+func (x storageResource) hasChecked() bool             { return x.rulesResource().HasChecked() }
+func (x storageResource) holds(t string) bool          { return x.rulesResource().Holds(t) }
+func (x storageResource) fingerprint() string          { return x.rulesResource().Fingerprint() }
+
+const storageResourceColumns = repo.ResourceColumns
+
+func fromRulesResource(r rules.Resource) storageResource {
+	x := storageResource{Name: r.Name, Kind: r.Kind, Read: r.Read, Write: r.Write, SitePasscode: r.SitePasscode, WriteMode: r.WriteMode, PresetBase: r.PresetBase, ApproveFirst: r.ApproveFirst}
+	if r.Access != nil {
+		m := storageAccessMatrix(*r.Access)
+		x.Access = &m
 	}
-	return storageLegacyMatrix(x.Read, x.Write, x.WriteMode)
-}
-
-// legacy: saved before presets with rules the new model refuses (write
-// anyone with full), or a full-mode SQLite database that pages still query
-// with SQL. Either keeps working until the owner saves a policy on it.
-func (x storageResource) legacy() bool {
-	if x.Access != nil {
-		return false
-	}
-	return x.WriteMode == "full" && x.Write == storageWhoAnyone || x.legacyVisitorSQL()
-}
-
-// legacyVisitorSQL: pages may still send SQL to /query and /execute. Only a
-// full-mode SQLite database saved before presets with visitor read or
-// write; never on a resource with a matrix.
-func (x storageResource) legacyVisitorSQL() bool {
-	return x.Access == nil && x.Kind == "sqlite" && x.WriteMode == "full" && x.Read != storageWhoOwn && (x.Read != storageWhoOwner || x.Write != storageWhoOwner)
-}
-
-// tableMatrix is the matrix for one table: its own entry, or the database
-// default.
-func (x storageResource) tableMatrix(table string) storageAccessMatrix {
-	if x.Access != nil {
-		// SQLite names are case-insensitive; rules are stored lower-case.
-		if rule, ok := x.Tables[strings.ToLower(table)]; ok {
-			return rule.Matrix
+	if r.Tables != nil {
+		x.Tables = make(map[string]storageTableRule, len(r.Tables))
+		for n, t := range r.Tables {
+			x.Tables[n] = storageTableRule{Matrix: storageAccessMatrix(t.Matrix), PresetBase: t.PresetBase}
 		}
 	}
-	return x.matrix()
+	return x
 }
-
-// ownTables picks the tables that need visitor_id: nil (every table) on a
-// legacy read-own database, else those whose matrix uses own or lets
-// visitors add.
-func (x storageResource) ownTables() func(string) bool {
-	if x.Access == nil {
-		return nil
-	}
-	return func(table string) bool { return x.tableMatrix(table).recordsAuthor() }
-}
-
-// hasChecked: some add on this resource is checked (the comments preset).
-func (x storageResource) hasChecked() bool {
-	if x.Access == nil {
-		return false
-	}
-	if x.Access.Add == storageWhoChecked {
-		return true
-	}
-	for _, t := range x.Tables {
-		if t.Matrix.Add == storageWhoChecked {
-			return true
-		}
-	}
-	return false
-}
-
-// holds: posts added to this table through the spam check wait for the
-// owner's approval (approve_first; the approved_at column).
-func (x storageResource) holds(table string) bool {
-	return x.ApproveFirst && x.Kind == "sqlite" && x.Access != nil && x.tableMatrix(table).Add == storageWhoChecked
-}
-
-// fingerprint compares two loads of the same resource (storageWriteLock).
-func (x storageResource) fingerprint() string {
-	parts := []string{x.Name, x.Kind, x.Read, x.Write, x.SitePasscode, x.WriteMode, x.PresetBase, fmt.Sprint(x.ApproveFirst)}
-	if x.Access != nil {
-		parts = append(parts, x.Access.Read, x.Access.Add, x.Access.Edit, x.Access.Delete)
-	} else {
-		parts = append(parts, "-")
-	}
-	names := make([]string, 0, len(x.Tables))
-	for n := range x.Tables {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	for _, n := range names {
-		r := x.Tables[n]
-		parts = append(parts, n, r.Matrix.Read, r.Matrix.Add, r.Matrix.Edit, r.Matrix.Delete, r.PresetBase)
-	}
-	return strings.Join(parts, "\x00")
-}
-
-const storageResourceColumns = `name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first`
-
 func scanStorageResource(scan func(...any) error) (storageResource, error) {
-	var x storageResource
-	var r, a, e, d sql.NullString
-	if err := scan(&x.Name, &x.Kind, &x.Read, &x.Write, &x.SitePasscode, &x.WriteMode, &r, &a, &e, &d, &x.PresetBase, &x.ApproveFirst); err != nil {
-		return x, err
-	}
-	if r.Valid && a.Valid && e.Valid && d.Valid {
-		x.Access = &storageAccessMatrix{r.String, a.String, e.String, d.String}
-	}
-	return x, nil
+	r, e := repo.ScanResource(scan)
+	return fromRulesResource(r), e
 }
-
-// loadStorageResource reads one resource and, for SQLite, its table rules.
 func (h *SiteHandler) loadStorageResource(ctx context.Context, siteID, name string) (storageResource, error) {
-	x, err := scanStorageResource(h.database.QueryRowContext(ctx, `SELECT `+storageResourceColumns+` FROM site_storage_resources WHERE site_id=$1 AND name=$2`, siteID, name).Scan)
-	if err != nil {
-		return x, err
-	}
-	if x.Kind == "sqlite" && x.Access != nil {
-		x.Tables, err = h.loadStorageTables(ctx, siteID, name)
-	}
-	return x, err
+	r, e := repo.LoadResource(ctx, h.database, siteID, name)
+	return fromRulesResource(r), e
 }
-
 func (h *SiteHandler) loadStorageTables(ctx context.Context, siteID, name string) (map[string]storageTableRule, error) {
-	rows, err := h.database.QueryContext(ctx, `SELECT table_name,acc_read,acc_add,acc_edit,acc_delete,preset_base FROM site_storage_tables WHERE site_id=$1 AND resource_name=$2`, siteID, name)
-	if err != nil {
-		return nil, err
+	t, e := repo.LoadTables(ctx, h.database, siteID, name)
+	if t == nil {
+		return nil, e
 	}
-	defer rows.Close()
-	out := map[string]storageTableRule{}
-	for rows.Next() {
-		var n string
-		var t storageTableRule
-		if err := rows.Scan(&n, &t.Matrix.Read, &t.Matrix.Add, &t.Matrix.Edit, &t.Matrix.Delete, &t.PresetBase); err != nil {
-			return nil, err
-		}
-		out[n] = t
+	out := make(map[string]storageTableRule, len(t))
+	for n, v := range t {
+		out[n] = storageTableRule{Matrix: storageAccessMatrix(v.Matrix), PresetBase: v.PresetBase}
 	}
-	return out, rows.Err()
+	return out, e
 }
 
 // storageOwnerOnSite reports whether a visitor session is the site's owner
