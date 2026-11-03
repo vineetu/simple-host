@@ -29,7 +29,7 @@ func pricingNumbers(hostedEvents bool) map[string]string {
 	}
 	// Files bucket per site: the same branch as (*SiteHandler).storageFilesLimitBytes,
 	// which falls back to the KV+SQLite pool in Hack mode rather than its own env var.
-	filesBytes := storageSiteLimitBytes()
+	filesBytes := storageSiteLimitBytes(hostedEvents)
 	if !hostedEvents {
 		filesBytes = storageLimitBytes(os.Getenv("SITE_STORAGE_FILES_MAX_BYTES"), 10000000, 10<<30)
 	}
@@ -39,7 +39,7 @@ func pricingNumbers(hostedEvents bool) map[string]string {
 		"__ACCOUNT_MB__":          account,
 		"__VIEWERS_MAX__":         limitNum(config.Active().SiteViewersMax),
 		"__NOTIFY_MAX__":          limitNum(config.Active().NotifyMaxPerSite),
-		"__STORAGE_DB_BYTES__":    limitCommas(int(storageSiteLimitBytes())),
+		"__STORAGE_DB_BYTES__":    limitCommas(int(storageSiteLimitBytes(hostedEvents))),
 		"__STORAGE_FILES_BYTES__": limitCommas(int(filesBytes)),
 		"__STORAGE_FILE_BYTES__":  limitCommas(int(storageFileMaxBytes())),
 		"__PHOTO_BYTES__":         limitCommas(photoLimit("PHOTO_MAX_BYTES", 1000000)),

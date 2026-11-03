@@ -13,18 +13,33 @@ type StoragePolicy struct {
 	EventVersionRetention bool
 	// Photos enables the photo tools.
 	Photos bool
+
+	// Storage.
+	// LegacyRoutes exposes the older saved-data APIs.
+	LegacyRoutes bool
+	// EventOwners interprets owners through event and team membership.
+	EventOwners bool
+	// CombinedPool combines data and file storage allowances.
+	CombinedPool bool
+	// FileCaps applies per-site and account deployment caps.
+	FileCaps bool
 }
 
 func storageFor(k Kind) StoragePolicy {
 	p := StoragePolicy{}
-	// Sites.
-	p.Photos = true
 	if k == Hack {
+		// Sites.
 		p.EventSites = true
 		p.StrictArchives = true
 		p.JudgePreviewFrames = true
 		p.EventVersionRetention = true
-		p.Photos = false
+		// Storage.
+		p.EventOwners = true
+		p.CombinedPool = true
+	} else {
+		p.Photos = true
+		p.LegacyRoutes = true
+		p.FileCaps = true
 	}
 	return p
 }

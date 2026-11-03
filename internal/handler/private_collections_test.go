@@ -92,7 +92,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string) *pr
 	users.SetFileUsage(a.sites)
 	users.SetPublicPage(a.sites.PersonPageURL)
 	users.SetAddressState(a.sites.AddressState)
-	gated := a.sites.LegacyStorageCutoffGate(HackLegacyStorageGate(mux))
+	gated := a.sites.LegacyStorageCutoffGate(a.sites.HackLegacyStorageGate(mux))
 	a.conn = NewConnectorHandler(database, base, adminKey, pcSiteDomain, pcContentHost, "1.0.0", gated, false)
 	a.conn.Register(mux, authMW)
 	a.conn.SetSignInAlerts(users.SignInAlerts())

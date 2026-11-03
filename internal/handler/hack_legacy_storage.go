@@ -8,9 +8,9 @@ import (
 // HackLegacyStorageGate removes the old saved-data API from hosted Simple Hack.
 // It wraps both public requests and the in-process REST calls made by MCP.
 // Simple Host keeps the existing routes and stored data is never changed here.
-func HackLegacyStorageGate(next http.Handler) http.Handler {
+func (h *SiteHandler) HackLegacyStorageGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if hackMode && hackLegacyStoragePath(r.URL.Path) {
+		if !h.ed.Storage().LegacyRoutes && hackLegacyStoragePath(r.URL.Path) {
 			writeJSON(w, http.StatusGone, errorResponse{
 				Error: "Simple Hack website storage now uses KV, SQLite and files under /v1/sites/{site}/storage",
 				Code:  "legacy_storage_removed",

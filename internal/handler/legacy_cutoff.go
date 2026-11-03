@@ -18,7 +18,7 @@ const legacyStorageClosedCode = "legacy_storage_closed"
 // handler answers as today.
 func (h *SiteHandler) LegacyStorageCutoffGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if h.legacyStorageCutoff.IsZero() || hackMode || r.Method == http.MethodOptions {
+		if h.legacyStorageCutoff.IsZero() || !h.ed.Storage().LegacyRoutes || r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
 			return
 		}

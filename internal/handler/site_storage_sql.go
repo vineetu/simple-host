@@ -165,7 +165,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		} else {
 			newDB = true
 		}
-		if currentDBBytes == 0 && h.storageBudgetUsed(usage)+8192 > storageSiteLimitBytes() {
+		if currentDBBytes == 0 && h.storageBudgetUsed(usage)+8192 > storageSiteLimitBytes(h.ed.Storage().CombinedPool) {
 			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
@@ -245,7 +245,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
-		maxPages := (storageSiteLimitBytes() - (h.storageBudgetUsed(usage) - currentDBBytes)) / pageSize
+		maxPages := (storageSiteLimitBytes(h.ed.Storage().CombinedPool) - (h.storageBudgetUsed(usage) - currentDBBytes)) / pageSize
 		if maxPages < 1 {
 			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return

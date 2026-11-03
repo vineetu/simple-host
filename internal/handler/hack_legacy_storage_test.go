@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestHackLegacyStorageGate(t *testing.T) {
@@ -37,7 +39,8 @@ func TestHackLegacyStorageGate(t *testing.T) {
 		}
 	}
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	gate := HackLegacyStorageGate(next)
+	h := &SiteHandler{ed: edition.ForKind(edition.Hack)}
+	gate := h.HackLegacyStorageGate(next)
 	SetHackMode(true)
 	for _, path := range paths {
 		r := httptest.NewRecorder()
@@ -47,6 +50,7 @@ func TestHackLegacyStorageGate(t *testing.T) {
 		}
 	}
 	SetHackMode(false)
+	h.ed = edition.ForKind(edition.Host)
 	r := httptest.NewRecorder()
 	gate.ServeHTTP(r, httptest.NewRequest(http.MethodGet, paths[0], nil))
 	if r.Code != http.StatusNoContent {
