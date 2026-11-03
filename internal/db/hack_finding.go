@@ -5,49 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
+	"github.com/vsriram/simple-host/internal/model"
 )
-
-var ErrHackFindingStage = errors.New("teams cannot be changed at this stage")
-
-var ErrHackFindingOff = errors.New("team finding is off")
-var ErrHackFindingForbidden = errors.New("this team action is not available")
-
-// LockFindingEvent serializes finding changes with the organiser's settings.
-func LockFindingEvent(ctx context.Context, q Querier, eventID string) error {
-	var enabled bool
-	var stage string
-	if err := q.QueryRowContext(ctx, `SELECT team_finding,stage FROM events WHERE id=$1 FOR SHARE`, eventID).Scan(&enabled, &stage); err != nil {
-		return err
-	}
-	if !enabled {
-		return ErrHackFindingOff
-	}
-	if stage != "open" && stage != "building" {
-		return ErrHackFindingStage
-	}
-	return nil
-}
-
-// Read settings under the same event lock used by all finding writes.
-func findingEvent(ctx context.Context, q Querier, ev Event) (Event, error) {
-	if err := LockFindingEvent(ctx, q, ev.ID); err != nil {
-		return ev, err
-	}
-	err := q.QueryRowContext(ctx, "SELECT team_size_max FROM events WHERE id=$1", ev.ID).Scan(&ev.TeamSizeMax)
-	return ev, err
-}
-
-type TeamRequest struct {
-	ID          string    `json:"id"`
-	TeamID      string    `json:"team_id"`
-	Team        string    `json:"team"`
-	TeamName    string    `json:"team_name"`
-	UserID      string    `json:"user_id"`
-	DisplayName string    `json:"display_name"`
-	Kind        string    `json:"kind"`
-	CreatedAt   time.Time `json:"created_at"`
-}
 
 // NewTeamRequest locks the prospective member before the team, as code joining does.
 func NewTeamRequest(ctx context.Context, q Querier, ev Event, actor, teamSlug, userID, kind string) (string, error) {
@@ -180,29 +139,6 @@ func ResolveTeamRequest(ctx context.Context, q Querier, ev Event, actor, id, act
 	return err
 }
 
-type FillPlacement struct {
-	Team    string       `json:"team"`
-	Name    string       `json:"name"`
-	New     bool         `json:"new"`
-	Members []FillPerson `json:"members"`
-}
-type FillPerson struct {
-	UserID      string `json:"user_id"`
-	DisplayName string `json:"display_name"`
-}
-
-// FillSkippedTeam is a team with room the planner deliberately passed over.
-// Reported back so the preview can explain the skip ("Beta Builders isn't
-// taking new people, so it was skipped.") instead of silently starting a
-// new one-person team while that team still has room. Teams skipped because
-// they're already at the target size need no explanation, so those aren't
-// reported here.
-type FillSkippedTeam struct {
-	Team   string `json:"team"`
-	Name   string `json:"name"`
-	Reason string `json:"reason"` // currently always "locked"
-}
-
 // PlanFillTeams uses approved solo participants, oldest first: teams with
 // room are topped up to size (not the event's team_size_max, so a Fill with
 // a plain cap of 20 doesn't make one 20-person team of strangers), new
@@ -301,3 +237,15 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event, size int) ([]FillPl
 	}
 	return plan, skipped, nil
 }
+
+// Alias (cleanup 4.2): defined in internal/model.
+type TeamRequest = model.TeamRequest
+
+// Alias (cleanup 4.2): defined in internal/model.
+type FillPlacement = model.FillPlacement
+
+// Alias (cleanup 4.2): defined in internal/model.
+type FillPerson = model.FillPerson
+
+// Alias (cleanup 4.2): defined in internal/model.
+type FillSkippedTeam = model.FillSkippedTeam

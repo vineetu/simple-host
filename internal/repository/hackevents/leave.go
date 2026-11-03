@@ -1,13 +1,33 @@
-package db
+package hackevents
 
 import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
-
 	"github.com/lib/pq"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/hackentries"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
+
+// OtherOrganiser aliases the shared model record.
+type OtherOrganiser = model.OtherOrganiser
+
+// FormerJudge aliases the shared model record.
+type FormerJudge = model.FormerJudge
+
+// LeaveOperations connects membership cleanup to the transitional team operations.
+type LeaveOperations struct {
+	LockMember        func(context.Context, sqlkit.Querier, string, string) (model.EventMember, error)
+	LockTeam          func(context.Context, sqlkit.Querier, string) (model.EventTeam, error)
+	DeleteTeamIfEmpty func(context.Context, sqlkit.Querier, string) error
+	EnsureTeamAdmin   func(context.Context, sqlkit.Querier, string) error
+}
+
+const effectiveDeadlineSQL = `CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END`
+
+// TeamKeepableSQL is the predicate for deleting an empty team.
+const TeamKeepableSQL = `t.pinned_at IS NULL AND (` + effectiveDeadlineSQL + ` IS NULL OR ` + effectiveDeadlineSQL + ` > clock_timestamp())`
 
 // LeaveSelf loads one membership row plus its approval status, for
 // GET/POST .../leave (hack_leave.go): every field the case logic there
@@ -16,7 +36,7 @@ import (
 // are not refused here. lock=true takes FOR UPDATE, as POST .../leave does
 // right after locking the event row (event, then member, then team is the
 // lock order every hack writer uses).
-func LeaveSelf(ctx context.Context, q Querier, eventID, userID string, lock bool) (EventMember, string, error) {
+func LeaveSelf(ctx context.Context, q sqlkit.Querier, eventID, userID string, lock bool) (EventMember, string, error) {
 	query := `SELECT event_id, user_id, role, display_name, team_id, coc_accepted_at, joined_at, approval_status
 	            FROM event_members WHERE event_id = $1 AND user_id = $2`
 	if lock {
@@ -29,19 +49,12 @@ func LeaveSelf(ctx context.Context, q Querier, eventID, userID string, lock bool
 	return m, status, err
 }
 
-// OtherOrganiser is one organiser of an event, besides whoever asked, as
-// GET/POST .../leave shows them: successors (creator case) and
-// organisers_staying (co_organiser case).
-type OtherOrganiser struct {
-	UserID, DisplayName, Email string
-}
-
 // OtherEventOrganisers is every organiser of the event except userID,
 // ordered by display name. Unlocked: POST .../leave reads it after the
 // event row is already locked, which is enough to serialise against another
 // organiser's concurrent leave (section 1, build plan: "the server takes
 // the event row FOR UPDATE, then works out the case").
-func OtherEventOrganisers(ctx context.Context, q Querier, eventID, userID string) ([]OtherOrganiser, error) {
+func OtherEventOrganisers(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]OtherOrganiser, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, m.display_name, u.username FROM event_members m
 		  JOIN users u ON u.id = m.user_id
@@ -75,7 +88,7 @@ func OtherEventOrganisers(ctx context.Context, q Querier, eventID, userID string
 // under the write path's real check). Using stage or the raw deadline here
 // instead of TeamKeepableSQL itself is exactly the bug that let the
 // preview and the write disagree.
-func TeamKeptIfEmptied(ctx context.Context, q Querier, teamID string) (bool, error) {
+func TeamKeptIfEmptied(ctx context.Context, q sqlkit.Querier, teamID string) (bool, error) {
 	var kept bool
 	err := q.QueryRowContext(ctx, `
 		SELECT NOT (`+TeamKeepableSQL+`)
@@ -104,13 +117,13 @@ func TeamKeptIfEmptied(ctx context.Context, q Querier, teamID string) (bool, err
 // and dashboards exactly as it always was; only a team THIS feature kept
 // reappears there. Changing that for Remove person too is a separate owner
 // decision, not implied by widening self-leave.
-func LeaveMembership(ctx context.Context, q Querier, eventID, userID string, selfLeave bool) (string, error) {
-	m, err := lockMember(ctx, q, eventID, userID)
+func LeaveMembership(ctx context.Context, q sqlkit.Querier, eventID, userID string, selfLeave bool, ops LeaveOperations) (string, error) {
+	m, err := ops.LockMember(ctx, q, eventID, userID)
 	if err != nil {
 		return "", err
 	}
 	if m.TeamID.Valid {
-		if _, err := lockTeam(ctx, q, m.TeamID.String); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if _, err := ops.LockTeam(ctx, q, m.TeamID.String); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return "", err
 		}
 	}
@@ -143,15 +156,15 @@ func LeaveMembership(ctx context.Context, q Querier, eventID, userID string, sel
 		return "", nil
 	}
 	team := m.TeamID.String
-	if err := deleteTeamIfEmpty(ctx, q, team); err != nil {
+	if err := ops.DeleteTeamIfEmpty(ctx, q, team); err != nil {
 		return "", err
 	}
 	if selfLeave {
-		if err := markTeamKeptAfterLeave(ctx, q, team); err != nil {
+		if err := MarkTeamKeptAfterLeave(ctx, q, team); err != nil {
 			return "", err
 		}
 	}
-	if err := EnsureTeamAdmin(ctx, q, team); err != nil {
+	if err := ops.EnsureTeamAdmin(ctx, q, team); err != nil {
 		return "", err
 	}
 	return team, nil
@@ -162,7 +175,8 @@ func LeaveMembership(ctx context.Context, q Querier, eventID, userID string, sel
 // row still exists (it wasn't keepable, so deleteTeamIfEmpty's DELETE did not
 // match it) and has no members. A no-op, not an error, when the team was
 // deleted instead (0 rows match) or still has someone on it.
-func markTeamKeptAfterLeave(ctx context.Context, q Querier, teamID string) error {
+// MarkTeamKeptAfterLeave marks a retained empty team.
+func MarkTeamKeptAfterLeave(ctx context.Context, q sqlkit.Querier, teamID string) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_teams SET kept_after_leave = true, locked_at = COALESCE(locked_at, clock_timestamp())
 		 WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM event_members WHERE team_id = $1)`, teamID)
@@ -192,8 +206,8 @@ func markTeamKeptAfterLeave(ctx context.Context, q Querier, teamID string) error
 // it, every team the leaver ever scored froze in regardless of whether it
 // was ever eligible, so a score that never counted (wrong mode, never
 // assigned, no panel) started counting the moment they left.
-func RecordFormerJudge(ctx context.Context, q Querier, eventID, userID, role, displayName string) error {
-	eligible, err := EligibleJudgeTeamsIgnoringConflicts(ctx, q, eventID, userID)
+func RecordFormerJudge(ctx context.Context, q sqlkit.Querier, eventID, userID, role, displayName string) error {
+	eligible, err := hackentries.EligibleJudgeTeamsIgnoringConflicts(ctx, q, eventID, userID)
 	if err != nil {
 		return err
 	}
@@ -228,14 +242,8 @@ func RecordFormerJudge(ctx context.Context, q Querier, eventID, userID, role, di
 	return err
 }
 
-// FormerJudge is one event_former_judges row, for the judging dashboard.
-type FormerJudge struct {
-	UserID, DisplayName, Role string
-	LeftAt                    time.Time
-}
-
 // ListFormerJudges is every former judge of the event, oldest departure first.
-func ListFormerJudges(ctx context.Context, q Querier, eventID string) ([]FormerJudge, error) {
+func ListFormerJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]FormerJudge, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT user_id, display_name, role, left_at FROM event_former_judges
 		 WHERE event_id = $1 ORDER BY left_at ASC`, eventID)
@@ -263,7 +271,7 @@ func ListFormerJudges(ctx context.Context, q Querier, eventID string) ([]FormerJ
 // exactly (Codex review, SIM-340, P2 follow-on): otherwise a scored team a
 // leave kept empty shows 1 counted team but 0 assigned on the dashboard,
 // since this count dropped it while ListTeamsWithMembers kept it.
-func FormerJudgeAssignedCount(ctx context.Context, q Querier, eventID, judgeID string) (int, error) {
+func FormerJudgeAssignedCount(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM event_teams t JOIN events e ON e.id = t.event_id
@@ -280,7 +288,7 @@ func FormerJudgeAssignedCount(ctx context.Context, q Querier, eventID, judgeID s
 // former-judge record. false means there was no such record: either nobody
 // by that id ever left scores behind, or they are a member again (rejoining
 // already deleted the record, via the clear_hack_former_judge trigger).
-func DeleteFormerJudgeScores(ctx context.Context, q Querier, eventID, userID string) (bool, error) {
+func DeleteFormerJudgeScores(ctx context.Context, q sqlkit.Querier, eventID, userID string) (bool, error) {
 	var id string
 	err := q.QueryRowContext(ctx, `
 		SELECT user_id FROM event_former_judges WHERE event_id = $1 AND user_id = $2 FOR UPDATE`, eventID, userID).Scan(&id)
@@ -297,4 +305,82 @@ func DeleteFormerJudgeScores(ctx context.Context, q Querier, eventID, userID str
 		return false, err
 	}
 	return true, nil
+}
+
+// RemoveCoOrganiser drops an organiser (Grok security review, SIM-340):
+// their own event_scores rows deleted outright -- TestHackOrganisersCanJudge
+// AndRemovedOrganiserScoresStopCounting already establishes "a removed
+// organiser's scores stop counting" as the intended behaviour, unlike a
+// voluntary leave's frozen-but-kept scores, so removal deletes rather than
+// freezes -- plus LeaveMembership's shared cleanup (name reservation,
+// pending team requests, unsent announcement/entry mail, the member row).
+// Previously a single atomic DELETE that skipped the mail cleanup only.
+func RemoveCoOrganiser(ctx context.Context, q *sql.Tx, eventID, actorID, userID string, ops LeaveOperations) error {
+	// Serialise removals so a legacy event without its creator cannot lose
+	// both remaining organisers through concurrent requests.
+	var createdBy sql.NullString
+	if err := q.QueryRowContext(ctx, `SELECT created_by FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&createdBy); err != nil {
+		return err
+	}
+	var role string
+	err := q.QueryRowContext(ctx, `SELECT role FROM event_members WHERE event_id=$1 AND user_id=$2 FOR UPDATE`, eventID, userID).Scan(&role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return sql.ErrNoRows
+	}
+	if err != nil {
+		return err
+	}
+	if role != "organiser" || (createdBy.Valid && createdBy.String == userID) {
+		return sql.ErrNoRows
+	}
+	var actorIsOrganiser, anotherOrganiser bool
+	if err := q.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM event_members WHERE event_id=$1 AND user_id=$2 AND role='organiser'),
+		       EXISTS (SELECT 1 FROM event_members WHERE event_id=$1 AND role='organiser' AND user_id<>$3)`,
+		eventID, actorID, userID).Scan(&actorIsOrganiser, &anotherOrganiser); err != nil {
+		return err
+	}
+	if !actorIsOrganiser || !anotherOrganiser {
+		return sql.ErrNoRows
+	}
+	if _, err := q.ExecContext(ctx, `DELETE FROM event_scores WHERE event_id=$1 AND judge_id=$2`, eventID, userID); err != nil {
+		return err
+	}
+	_, err = LeaveMembership(ctx, q, eventID, userID, false, ops)
+	return err
+}
+
+// ErrHackCannotRemoveOrganiser prevents removal through the participant path.
+var ErrHackCannotRemoveOrganiser = errors.New("cannot remove organiser")
+
+// RemovePersonFromEvent deletes a participant or judge. Organisers cannot be removed.
+// A team left with nobody is deleted. The shared cleanup (name reservation,
+// pending team requests, unsent mail, the member row, an emptied team) is
+// LeaveMembership, which POST .../leave also calls. A removed judge who
+// scored gets the same former-judge freeze a voluntary leave would (Grok
+// security review, SIM-340): otherwise their scores kept counting under no
+// rule at all once the member row was gone, and came back un-frozen if they
+// were ever given the judge link again.
+func RemovePersonFromEvent(ctx context.Context, q sqlkit.Querier, eventID, userID string, ops LeaveOperations) error {
+	m, err := ops.LockMember(ctx, q, eventID, userID)
+	if err != nil {
+		return err
+	}
+	if m.Role == "organiser" {
+		return ErrHackCannotRemoveOrganiser
+	}
+	if m.Role == "judge" {
+		if err := RecordFormerJudge(ctx, q, eventID, userID, m.Role, m.DisplayName); err != nil {
+			return err
+		}
+	}
+	_, err = LeaveMembership(ctx, q, eventID, userID, false, ops)
+	return err
+}
+
+// UserEmail is users.username for a person (the address they signed in with).
+func UserEmail(ctx context.Context, q sqlkit.Querier, userID string) (string, error) {
+	var email string
+	err := q.QueryRowContext(ctx, `SELECT username FROM users WHERE id = $1`, userID).Scan(&email)
+	return email, err
 }
