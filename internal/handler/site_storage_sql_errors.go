@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	rules "github.com/vsriram/simple-host/internal/rules/storage"
 )
 
 // sqlRefusal is a storage SQL error an agent can act on: what happened and
@@ -102,90 +102,40 @@ func sqlRouteMismatch(mode, sql string, readOnly, didWrite, didSchema, noopCreat
 	return nil
 }
 
-func sqlLooksLikeSchema(sql string) bool {
-	word := strings.ToUpper(strings.TrimSpace(sql))
-	for _, kw := range []string{"CREATE", "ALTER", "DROP"} {
-		if strings.HasPrefix(word, kw) {
-			return true
-		}
-	}
-	return false
-}
+func sqlLooksLikeSchema(sql string) bool { return rules.SQLLooksLikeSchema(sql) }
 
 // sqlSecondStatement reports the start of a second statement in what Prepare
 // left over, ignoring blank space, stray semicolons and comments.
-func sqlSecondStatement(tail string) string {
-	rest := tail
-	for {
-		rest = strings.TrimLeft(rest, " \t\r\n;")
-		switch {
-		case strings.HasPrefix(rest, "--"):
-			if i := strings.IndexByte(rest, '\n'); i >= 0 {
-				rest = rest[i+1:]
-				continue
-			}
-			return ""
-		case strings.HasPrefix(rest, "/*"):
-			if i := strings.Index(rest[2:], "*/"); i >= 0 {
-				rest = rest[i+4:]
-				continue
-			}
-			return ""
-		}
-		return rest
-	}
-}
+func sqlSecondStatement(tail string) string { return rules.SQLSecondStatement(tail) }
 
 func sqlMultipleStatements(second string) *sqlRefusal {
-	return sqlRefuse(400, "sql_multiple_statements", fmt.Sprintf("this call holds more than one statement (the second starts %q): run each statement as its own call, one after another", sqlClip(second, 40)))
+	return sqlRefuse(400, "sql_multiple_statements", rules.SQLMultipleStatements(second))
 }
 
 func sqlParamCount(placeholders, params int) *sqlRefusal {
-	return sqlRefuse(400, "sql_param_count", fmt.Sprintf("the statement has %d placeholder%s but %d param%s were sent: send exactly one value in params for each ? (in order)", placeholders, plural(placeholders), params, plural(params)))
+	return sqlRefuse(400, "sql_param_count", rules.SQLParamCount(placeholders, params))
 }
 
-func plural(n int) string {
-	if n == 1 {
-		return ""
-	}
-	return "s"
-}
+func plural(n int) string { return rules.Plural(n) }
 
-func sqlClip(s string, n int) string {
-	s = strings.Join(strings.Fields(s), " ")
-	if r := []rune(s); len(r) > n {
-		return string(r[:n]) + "..."
-	}
-	return s
-}
+func sqlClip(s string, n int) string { return rules.SQLClip(s, n) }
 
 // sqliteText is SQLite's own message without the driver's prefix, with
 // anything that looks like a file path removed.
-func sqliteText(err error) string {
-	msg := err.Error()
-	var se *sqlite3.Error
-	if errors.As(err, &se) {
-		for _, prefix := range []string{se.ExtendedCode().Error() + ": ", se.Code().Error() + ": "} {
-			msg = strings.TrimPrefix(msg, prefix)
-		}
-	}
-	msg = strings.TrimPrefix(msg, "sqlite3: ")
-	msg = sqlPathPattern.ReplaceAllString(msg, "[path]")
-	return sqlClip(msg, 300)
-}
+func sqliteText(err error) string { return rules.SQLiteText(err) }
 
 // sqlPathPattern matches absolute paths and database file names; SQLite's
 // compile messages never need them, and the server's layout stays private.
-var sqlPathPattern = regexp.MustCompile(`(?:/[A-Za-z0-9._-]+){2,}/?|[A-Za-z0-9._-]+\.sqlite(?:-wal|-shm)?\b`)
+var sqlPathPattern = rules.SQLPathPattern
 
 var (
-	sqlNoTableRe  = regexp.MustCompile(`^no such table: (?:main\.)?(.+)$`)
-	sqlNoColumnRe = regexp.MustCompile(`^no such column: (.+)$`)
-	sqlNoNamedRe  = regexp.MustCompile(`^table (.+) has no column named (.+)$`)
-	sqlNearRe     = regexp.MustCompile(`^near "(.*)": syntax error$`)
-	sqlUniqueRe   = regexp.MustCompile(`^UNIQUE constraint failed: (.+)$`)
-	sqlNotNullRe  = regexp.MustCompile(`^NOT NULL constraint failed: (.+)$`)
-	sqlCheckRe    = regexp.MustCompile(`^CHECK constraint failed: (.+)$`)
+	sqlNoTableRe  = rules.SQLNoTableRE
+	sqlNoColumnRe = rules.SQLNoColumnRE
+	sqlNoNamedRe  = rules.SQLNoNamedRE
+	sqlNearRe     = rules.SQLNearRE
+	sqlUniqueRe   = rules.SQLUniqueRE
+	sqlNotNullRe  = rules.SQLNotNullRE
+	sqlCheckRe    = rules.SQLCheckRE
 )
 
 // sqlFailure turns a SQLite error (compiling or running the statement) into
@@ -347,17 +297,7 @@ func sqlColumnNames(conn *sqlite3.Conn, table string) []string {
 // sqlTablesIn names the database's tables that the statement mentions, at
 // most three, so a missing column can be shown next to the real ones.
 func sqlTablesIn(conn *sqlite3.Conn, sql string) []string {
-	words := map[string]bool{}
-	for _, w := range regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`).FindAllString(sql, -1) {
-		words[strings.ToLower(w)] = true
-	}
-	var out []string
-	for _, t := range sqlTableNames(conn) {
-		if words[strings.ToLower(t)] && len(out) < 3 {
-			out = append(out, t)
-		}
-	}
-	return out
+	return rules.SQLTablesIn(sqlTableNames(conn), sql)
 }
 
 func sqlForeignKeys(conn *sqlite3.Conn, table string) []string {

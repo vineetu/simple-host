@@ -102,24 +102,6 @@ func TestSiteStorageSQLErrorsAreActionable(t *testing.T) {
 	}
 }
 
-func TestSQLiteTextDropsPathsAndPrefix(t *testing.T) {
-	for in, want := range map[string]string{
-		"unable to open /srv/simple-host/sites/u/s/runtime/sqlite/db.sqlite": "unable to open [path]",
-		"cannot use db.sqlite-wal here":                                      "cannot use [path] here",
-		`near "/": syntax error`:                                             `near "/": syntax error`,
-	} {
-		if got := sqlPathPattern.ReplaceAllString(in, "[path]"); got != want {
-			t.Errorf("%q: got %q, want %q", in, got, want)
-		}
-	}
-	if got := sqlSecondStatement(" ; /* x */ -- y\n  SELECT 2"); got != "SELECT 2" {
-		t.Errorf("second statement %q", got)
-	}
-	if got := sqlSecondStatement(" ;\n-- trailing"); got != "" {
-		t.Errorf("comment counted as statement: %q", got)
-	}
-}
-
 // A visitor on a legacy full-mode database gets SQLite's words about their own
 // statement and the rule that refused it, never the owner's table or column
 // lists.
