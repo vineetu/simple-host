@@ -275,7 +275,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 				return
 			}
 		}
-		if !h.siteHostLiveOn(user.Handle.String, site.Name, base) && hackMode {
+		if !h.siteHostLiveOn(user.Handle.String, site.Name, base) && h.ed.Storage().EventSites {
 			// The hackathon platform serves no person-path address to fall
 			// back to (hack_sites.go).
 			h.renderHackNotFound(w, r)

@@ -269,7 +269,7 @@ func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http
 	mux.Handle("POST /v1/imports/{token}", h.importOrigin(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.receiveImport))))
 	mux.Handle("GET /v1/imports/status/{import_id}", h.importOrigin(rateLimitByIP(h.importStatusLimiter, http.HandlerFunc(h.importStatus))))
 
-	photoLinks := photosHostOnly(accountAuthOnly(h.issuer, rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServePhotoLink))))
+	photoLinks := photosHostOnly(!h.hostedEvents, accountAuthOnly(h.issuer, rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServePhotoLink))))
 	mux.Handle("GET /v1/photo-links", photoLinks)
 	mux.Handle("POST /v1/photo-links", photoLinks)
 	mux.Handle("PUT /v1/uploads/{token}", rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.mcp.ServeUpload)))

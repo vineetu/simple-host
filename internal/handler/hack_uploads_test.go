@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestHackWebsiteZipUploads(t *testing.T) {
@@ -72,7 +74,7 @@ func TestHackArchiveValidationReasons(t *testing.T) {
 	old := hackMode
 	SetHackMode(true)
 	t.Cleanup(func() { SetHackMode(old) })
-	h := &SiteHandler{}
+	h := &SiteHandler{ed: edition.ForKind(edition.Hack)}
 	for _, tc := range []struct{ name, message string }{
 		{"nested/index.html", "no index.html at the root"},
 		{"index.html", ""},

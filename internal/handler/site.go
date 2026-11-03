@@ -583,7 +583,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// CORS middleware (these paths do not end in /state).
 	mux.Handle("POST /v1/sites/{sitename}/files", authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createSiteFiles))))))
 	mux.Handle("PUT /v1/sites/{sitename}/files", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSiteFiles)))))
-	mux.Handle("POST /v1/sites/{sitename}/photos", photosHostOnly(authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(http.HandlerFunc(h.addPhotos))))))
+	mux.Handle("POST /v1/sites/{sitename}/photos", photosHostOnly(h.ed.Storage().Photos, authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(http.HandlerFunc(h.addPhotos))))))
 
 	// State routes are deliberately NOT wrapped — they serve browser pages
 	// that parse the JSON state object directly. Adding _notice would
@@ -1032,7 +1032,7 @@ func (h *SiteHandler) resolveSiteIDBare(r *http.Request, siteName string) (strin
 	if !errors.Is(err, errBareSiteName) {
 		return id, false, err
 	}
-	if hackMode {
+	if h.ed.Storage().EventSites {
 		// On the hackathon platform every event has teams with the same
 		// names: a bare name means the caller's own site (a team key's), or
 		// nothing, never whichever event's site is oldest.
@@ -1104,7 +1104,7 @@ func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (str
 		return m.Site.ID, nil
 	}
 	owner, onPerson := h.personHostOwner(r.Context(), host)
-	if onPerson && !hackMode {
+	if onPerson && !h.ed.Storage().EventSites {
 		home, has, err := db.HomeSite(r.Context(), h.database, owner.ID)
 		if err != nil {
 			return "", err
@@ -1137,7 +1137,7 @@ func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (str
 		return s.ID, nil
 	}
 	if onPerson {
-		if hackMode {
+		if h.ed.Storage().EventSites {
 			ev, err := db.GetEventByAccount(r.Context(), h.database, owner.ID)
 			if err != nil || ev.Slug != siteName || ev.WebsiteMode != "custom" || ev.TakenDown() {
 				return "", sql.ErrNoRows
@@ -1241,7 +1241,7 @@ func (h *SiteHandler) originIsPersonHostID(ctx context.Context, siteID, host str
 		}
 	}
 	handle, _, name, err := db.GetSiteOwner(ctx, h.database, siteID)
-	if err != nil || !h.personAddressFor(handle, name) || (!hackMode && h.siteHostCanonicalOn(handle, name, h.hostBase(host))) {
+	if err != nil || !h.personAddressFor(handle, name) || (!h.ed.Storage().EventSites && h.siteHostCanonicalOn(handle, name, h.hostBase(host))) {
 		return false
 	}
 	// Its person host under any base that serves it.
@@ -2792,14 +2792,14 @@ func (h *SiteHandler) readAndValidateFiles(w http.ResponseWriter, r *http.Reques
 			return nil, "", err
 		}
 		message := "invalid site archive"
-		if hackMode {
+		if h.ed.Storage().StrictArchives {
 			message += ": " + err.Error()
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: message, Code: "invalid_archive"})
 		return nil, "", err
 	}
 
-	if hackMode {
+	if h.ed.Storage().StrictArchives {
 		if _, ok := files["index.html"]; !ok {
 			err := errors.New("no index.html at the root of the archive")
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "missing_index"})

@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-func registerPhotosUI(mux *http.ServeMux, publicBaseURL string) {
-	mux.Handle("GET /photos", photosHostOnly(accountAuthOnly(publicBaseURL, adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func registerPhotosUI(mux *http.ServeMux, publicBaseURL string, photos bool) {
+	mux.Handle("GET /photos", photosHostOnly(photos, accountAuthOnly(publicBaseURL, adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Bitmap previews need blob URLs. Only the decoder worker compiles Wasm.
 		policy := w.Header().Get("Content-Security-Policy")
 		policy = strings.Replace(policy, "img-src 'self' data:", "img-src 'self' data: blob:", 1)
@@ -27,7 +27,7 @@ func registerPhotosUI(mux *http.ServeMux, publicBaseURL string) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(stampNonce(r, page))
 	})))))
-	mux.Handle("GET /photo-codecs/v3/{file}", photosHostOnly(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /photo-codecs/v3/{file}", photosHostOnly(photos, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		file := r.PathValue("file")
 		asset := file
 		if file == "wasm.js" {

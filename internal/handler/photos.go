@@ -48,9 +48,9 @@ func photoLimit(key string, fallback int) int {
 	return n
 }
 
-func photosHostOnly(next http.Handler) http.Handler {
+func photosHostOnly(enabled bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if hackMode {
+		if !enabled {
 			if isAPIPath(r.URL.Path) {
 				writeJSON(w, http.StatusNotFound, errorResponse{Error: "photos are not offered here", Code: "not_offered"})
 			} else {

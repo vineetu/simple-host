@@ -103,7 +103,7 @@ func (h *SiteHandler) pruneVersions(ctx context.Context, siteID, userID, siteNam
 		return nil
 	}
 	keepFrom := retainedFloor(versions, keep)
-	if hackMode {
+	if h.ed.Storage().EventVersionRetention {
 		// Preserve event retention, including its existing deadline pin behavior.
 		keepFrom, _ = pruneThreshold(activeVersion, effectiveKeepVersions(siteKeep))
 	}

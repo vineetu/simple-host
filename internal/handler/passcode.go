@@ -726,7 +726,7 @@ func (h *SiteHandler) passcodeSiteForHost(ctx context.Context, host, next string
 		return site.UserID, site.Name, true, nil
 	}
 	if owner, onPerson := h.personHostOwner(ctx, host); onPerson {
-		if !hackMode {
+		if !h.ed.Storage().EventSites {
 			home, has, err := db.HomeSite(ctx, h.database, owner.ID)
 			if err != nil {
 				return "", "", false, err

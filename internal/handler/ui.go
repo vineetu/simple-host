@@ -79,7 +79,7 @@ var (
 )
 
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
-	registerPhotosUI(mux, publicBaseURL)
+	registerPhotosUI(mux, publicBaseURL, sh.ed.Storage().Photos)
 	mux.HandleFunc("GET /auth.md", sh.serveAuthMarkdown)
 	// The connector's page recipes (get_page_recipe), for agents that read
 	// llms.txt without the connector: the same text, with a placeholder site.

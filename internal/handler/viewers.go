@@ -580,7 +580,7 @@ func (h *SiteHandler) getSiteAccess(w http.ResponseWriter, r *http.Request) {
 // here, as the 409 to write; "" when they can.
 func (h *SiteHandler) namedViewersRefusal(site db.Site, row db.SitePasscodeRow) (code, msg string) {
 	switch {
-	case hackMode:
+	case h.ed.Storage().EventSites:
 		return "named_viewers_unavailable", "named viewers are not available on Simple Hack; event and team sites have their own access rules"
 	case h.noVisitorSignIn:
 		return "sign_in_unavailable", "named viewers sign in with an emailed code or Google, and this server has neither set up"

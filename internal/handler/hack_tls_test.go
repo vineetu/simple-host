@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestHackOnDemandTLSNames(t *testing.T) {
@@ -44,5 +46,6 @@ func TestHackOnDemandTLSNames(t *testing.T) {
 	ask(slug+"."+tsDomain, http.StatusOK)
 	// The ordinary small-box product retains its existing platform allowlist.
 	SetHackMode(false)
+	a.sites.ed = edition.ForKind(edition.Host)
 	ask("ordinary-platform-name."+tsDomain, http.StatusOK)
 }

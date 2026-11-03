@@ -277,7 +277,7 @@ func TestPhotosPage(t *testing.T) {
 	defer func() { hackMode = old }()
 	for _, path := range []string{"/photos", "/v1/sites/home/photos"} {
 		rec := httptest.NewRecorder()
-		photosHostOnly(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Fatal("Hack route reached") })).ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
+		photosHostOnly(false, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Fatal("Hack route reached") })).ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
 		if rec.Code != 404 {
 			t.Fatalf("Hack: %d", rec.Code)
 		}

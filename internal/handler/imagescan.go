@@ -49,6 +49,8 @@ type ImageScanConfig struct {
 	ReportEmail string
 	// AutoReport files the report as soon as a match is recorded.
 	AutoReport bool
+	// ProductName is the edition name used in alerts and reports.
+	ProductName string
 	// PublicBaseURL is where the admin page lives (the alert links to it).
 	PublicBaseURL string
 }
@@ -1060,6 +1062,13 @@ func writeNewFile(p string, b []byte) error {
 	return werr
 }
 
+func (s *ImageScan) productName() string {
+	if s.cfg.ProductName != "" {
+		return s.cfg.ProductName
+	}
+	return "Simple Host"
+}
+
 // sendAlert emails the alert address what happened, step by step. Never the
 // image, never a path or link to it.
 func (s *ImageScan) sendAlert(m db.ImageMatch, steps []imageStep, reportFiled bool) error {
@@ -1072,10 +1081,7 @@ func (s *ImageScan) sendAlert(m db.ImageMatch, steps []imageStep, reportFiled bo
 	}
 	where := matchWhere(m)
 	address := m.Address
-	subject := fmt.Sprintf("Simple Host: image match on %s (#%d)", where, m.ID)
-	if hackMode {
-		subject = fmt.Sprintf("Simple Hack: image match on %s (#%d)", where, m.ID)
-	}
+	subject := fmt.Sprintf("%s: image match on %s (#%d)", s.productName(), where, m.ID)
 	var b strings.Builder
 	fmt.Fprintf(&b, "An uploaded image matched a known abuse hash set.\n\n")
 	fmt.Fprintf(&b, "Match: #%d\nKind: %s\nWhere: %s", m.ID, m.Kind, where)
@@ -1232,10 +1238,7 @@ func (s *ImageScan) fileReport(ctx context.Context, id int64) (string, time.Time
 	if err != nil {
 		return failed(err)
 	}
-	platform := "Simple Host"
-	if hackMode {
-		platform = "Simple Hack"
-	}
+	platform := s.productName()
 	in := imagescan.Report{
 		OrgName: s.cfg.ReportOrg, ReporterName: s.cfg.ReportName, ReporterEmail: s.cfg.ReportEmail,
 		IncidentTime: m.DetectedAt, ReporteeName: m.Uploader,

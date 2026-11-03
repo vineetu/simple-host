@@ -437,6 +437,7 @@ func main() {
 			contact = ""
 		}
 		scanCfg := handler.ImageScanConfig{
+			ProductName: ed.Presentation().ProductName,
 			EvidenceDir: cfg.ImageScanEvidenceDir, AlertEmail: cfg.ImageScanAlertEmail,
 			ReportOrg: cfg.ImageScanReportOrg, ReportName: cfg.ImageScanReportName, ReportEmail: cfg.ImageScanReportEmail,
 			AutoReport: cfg.PhotoDNAAutoReport, PublicBaseURL: cfg.PublicBaseURL,

@@ -84,7 +84,7 @@ func (h *SiteHandler) previewBase(site db.Site) (string, bool) {
 		return "", false
 	case h.siteHostLive(handle, site.Name):
 		return "https://" + h.siteHostFor(handle, site.Name) + "/" + previewPathSegment + "/", true
-	case hackMode:
+	case h.ed.Storage().EventSites:
 		// Person-path addresses are never served on the hackathon platform:
 		// a team's work lives on its own origin only.
 		return "", false
@@ -269,7 +269,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 		return
 	}
 	h.ownerFrameGuard(w, r, site.UserID)
-	if hackMode && !strings.Contains(strings.Join(w.Header().Values("Content-Security-Policy"), ";"), "frame-ancestors") {
+	if h.ed.Storage().JudgePreviewFrames && !strings.Contains(strings.Join(w.Header().Values("Content-Security-Policy"), ";"), "frame-ancestors") {
 		// The judge's scoring screen on the app origin frames the submitted
 		// version of a team site (hackAppCSP, entryListItem's frameable).
 		// Only that origin, never any other site: a CSP frame-ancestors
