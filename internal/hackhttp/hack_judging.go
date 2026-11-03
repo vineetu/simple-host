@@ -19,7 +19,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/papermetrics"
-	"github.com/vsriram/simple-host/internal/rules/hackentries"
 )
 
 // paperHackTimes moved from hack_paper_metrics.go (cleanup 3.2 slice 1c):
