@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
@@ -50,12 +51,7 @@ func (h *HackHandler) createOrganiserInvite(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	code, err := hackevents.RandomCode(32)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	expires, err := db.SetOrganiserInvite(r.Context(), h.database, a.event.ID, a.user.ID, db.HashAPIKey(code))
+	code, expires, err := h.eventsSvc().CreateOrganiserInvite(r.Context(), a.event.ID, a.user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -69,7 +65,7 @@ func (h *HackHandler) revokeOrganiserInvite(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if err := db.DeleteOrganiserInvite(r.Context(), h.database, a.event.ID); err != nil {
+	if err := h.eventsSvc().RevokeOrganiserInvite(r.Context(), a.event.ID); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -80,7 +76,7 @@ func (h *HackHandler) getOrganiserInvite(w http.ResponseWriter, r *http.Request)
 	if h.rateLimited(w, r, "") {
 		return
 	}
-	ev, err := db.OrganiserInviteEvent(r.Context(), h.database, db.HashAPIKey(hackevents.NormalizeCode(r.PathValue("code"))), false)
+	ev, err := h.eventsSvc().OrganiserInvite(r.Context(), r.PathValue("code"))
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, 404, "invalid_code", "invalid or expired invitation")
 		return
@@ -120,83 +116,14 @@ func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	hash := db.HashAPIKey(hackevents.NormalizeCode(r.PathValue("code")))
-	// Find which event the invite names before taking any lock (lock-order
-	// fix, SIM-340 2.4): leaving an event holds the event row FOR UPDATE
-	// before the leaver's own member row, so taking the event row first here
-	// too, ahead of the invite and inviter-member rows, avoids a lock-order
-	// cycle when the leaver is the invite's inviter.
-	unlocked, err := db.OrganiserInviteEvent(r.Context(), h.database, hash, false)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, 404, "invalid_code", "invalid or expired invitation")
-		return
-	}
+	ev, member, err := h.eventsSvc().AcceptOrganiserInvite(r.Context(), r.PathValue("code"), user.ID, name)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, unlocked.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		// The last organiser's concurrent "delete" won the race (Codex
-		// review, SIM-340): the event is gone, same as any other invalid
-		// invitation.
-		httpx.WriteError(w, 404, "invalid_code", "invalid or expired invitation")
-		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	// Re-locks the invite and the inviter's member row now that the event row
-	// is held; re-checks the invite still exists and has not expired. Ahead
-	// of the takedown/archived checks below (Codex review, SIM-340): the
-	// last organiser's concurrent "end" deletes every outstanding invite as
-	// part of the same transaction that archives the event, so a losing
-	// acceptance must see the more specific "invalid_code" instead of
-	// "event_closed".
-	if _, err = db.OrganiserInviteEvent(r.Context(), tx, hash, true); errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, 404, "invalid_code", "invalid or expired invitation")
-		return
-	} else if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if ev.TakenDown() {
-		httpx.WriteError(w, 403, "event_taken_down", "this event has been taken down")
-		return
-	}
-	if ev.Stage == "archived" {
-		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	if _, err = db.GetEventMember(r.Context(), tx, ev.ID, user.ID); err == nil {
-		httpx.WriteError(w, 409, "already_member", "you already belong to this event; roles cannot be changed through an invitation")
-		return
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteInternal(w)
-		return
-	}
-	member, err := db.InsertEventMember(r.Context(), tx, ev.ID, user.ID, "organiser", name)
-	if dbUnique(err) {
-		httpx.WriteError(w, 409, "already_member", "you already belong to this event")
-		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err = db.DeleteOrganiserInvite(r.Context(), tx, ev.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err = tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+		var workflowErr *events.Error
+		if errors.As(err, &workflowErr) {
+			httpx.WriteError(w, workflowErr.Status, workflowErr.Code, workflowErr.Message)
+		} else {
+			httpx.WriteInternal(w)
+		}
 		return
 	}
 	httpx.WriteJSON(w, 200, h.eventView(r.Context(), ev, member, true))
@@ -212,25 +139,16 @@ func (h *HackHandler) removeOrganiser(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	if a.event.CreatedBy.Valid && id == a.event.CreatedBy.String {
-		httpx.WriteError(w, 409, "primary_organiser", "the event creator cannot be removed")
-		return
-	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	if err := db.RemoveCoOrganiser(r.Context(), tx, a.event.ID, a.user.ID, id); errors.Is(err, sql.ErrNoRows) {
+	if err := h.eventsSvc().RemoveOrganiser(r.Context(), a.event, a.user.ID, id); errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
 	} else if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+		var workflowErr *events.Error
+		if errors.As(err, &workflowErr) {
+			httpx.WriteError(w, workflowErr.Status, workflowErr.Code, workflowErr.Message)
+		} else {
+			httpx.WriteInternal(w)
+		}
 		return
 	}
 	w.WriteHeader(204)

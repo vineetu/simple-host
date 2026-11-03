@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"io"
 	"io/fs"
@@ -938,131 +937,9 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	tx, err := h.database.BeginTx(ctx, nil)
+	ev, member, err := h.eventsSvc().CreateEvent(ctx, user.ID, slug, title, organiserName, organisation, contact, purpose, tz, *req.ExpectedParticipants, startsAt, endsAt, h.limits.EventCreatePerDay, h.limits.EventMaxActivePerOrganiser, h.limits.EventTeamSizeDefault, hackJoinCodeLen, hackJudgeCodeLen)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-
-	if err := db.LockUserRow(ctx, tx, user.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	since := time.Now().Add(-24 * time.Hour)
-	n, err := db.CountEventCreatesSince(ctx, tx, user.ID, since)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if n >= h.limits.EventCreatePerDay {
-		httpx.WriteError(w, http.StatusTooManyRequests, "too_many_events_today", "you have created too many events today")
-		return
-	}
-	active, err := db.CountActiveEventsByOrganiser(ctx, tx, user.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if active >= h.limits.EventMaxActivePerOrganiser {
-		httpx.WriteError(w, http.StatusConflict, "too_many_active_events", "you already have as many active events as this instance allows")
-		return
-	}
-
-	eventID, err := db.NewUUID(ctx, tx)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	holding, err := db.CreateUser(ctx, tx, "event+"+eventID+"@events.invalid", "", false)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	claimed, err := db.ClaimHandle(ctx, tx, holding.ID, slug)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if !claimed {
-		httpx.WriteError(w, http.StatusConflict, "name_taken", "that name is already in use")
-		return
-	}
-	if err := db.MarkEventAccount(ctx, tx, holding.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-
-	var ev db.Event
-	for attempt := 0; attempt < 8; attempt++ {
-		joinCode, err := hackevents.RandomCode(hackJoinCodeLen)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		judgeCode, err := hackevents.RandomCode(hackJudgeCodeLen)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		err = trySavepoint(ctx, tx, func() error {
-			var ierr error
-			ev, ierr = db.InsertEvent(ctx, tx, db.Event{
-				ID:                   eventID,
-				Slug:                 slug,
-				AccountID:            holding.ID,
-				CreatedBy:            sql.NullString{String: user.ID, Valid: true},
-				Title:                title,
-				Stage:                "draft",
-				OrganiserName:        organiserName,
-				Organisation:         organisation,
-				ContactEmail:         contact,
-				Purpose:              purpose,
-				ExpectedParticipants: sql.NullInt64{Int64: int64(*req.ExpectedParticipants), Valid: true},
-				TimeZone:             tz,
-				StartsAt:             startsAt,
-				EndsAt:               endsAt,
-				TeamSizeMax:          h.limits.EventTeamSizeDefault,
-				JoinCode:             joinCode,
-				JudgeCode:            judgeCode,
-				// New events start on the AI-build preset (section 2); a Go
-				// table, not a DB default, so the preset's field list lives
-				// in one place (hack_entry_rules.go).
-				EntryPreset: "build",
-				EntryRules:  hackentries.MarshalRules(hackentries.ExpandPreset("build")),
-			})
-			return ierr
-		})
-		if err == nil {
-			break
-		}
-		if dbUnique(err) && attempt < 7 {
-			continue
-		}
-		if dbUnique(err) {
-			httpx.WriteError(w, http.StatusConflict, "name_taken", "that name is already in use")
-			return
-		}
-		httpx.WriteInternal(w)
-		return
-	}
-	// Starter rubric, only for this new row. Nothing else writes one onto an
-	// event that does not already have it.
-	if err := db.ReplaceRubric(ctx, tx, ev.ID, hackentries.DefaultEventRubric()); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if _, err := db.InsertEventMember(ctx, tx, ev.ID, user.ID, "organiser", organiserName); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	member, err := db.GetEventMember(ctx, h.database, ev.ID, user.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
+		writeEventsError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, h.eventView(ctx, ev, member, true))
@@ -1435,289 +1312,212 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	// The event row is locked and read again: the patch applies to what is
-	// there now, never to a copy read before a concurrent stage change (a
-	// stale deadline written back would reopen or refreeze submissions).
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if req.AccentColor != nil {
-		if !hackColorValid(*req.AccentColor) {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_accent_color", "choose a crayon colour or an empty string for automatic")
-			return
-		}
-		ev.AccentColor = *req.AccentColor
-	}
-	if req.Title != nil {
-		s, ok := checkHackLine(w, *req.Title, "title", 1, 120)
-		if !ok {
-			return
-		}
-		ev.Title = s
-	}
-	if req.Tagline != nil {
-		s, ok := checkHackLine(w, *req.Tagline, "tagline", 0, 160)
-		if !ok {
-			return
-		}
-		ev.Tagline = s
-	}
-	if req.About != nil {
-		s, ok := checkHackText(w, *req.About, "about", 0, 10000)
-		if !ok {
-			return
-		}
-		ev.About = s
-	}
-	if req.Rules != nil {
-		s, ok := checkHackText(w, *req.Rules, "rules", 0, 10000)
-		if !ok {
-			return
-		}
-		ev.Rules = s
-	}
-	if req.Prizes != nil {
-		s, ok := checkHackText(w, *req.Prizes, "prizes", 0, 5000)
-		if !ok {
-			return
-		}
-		ev.Prizes = s
-	}
-	if req.CocText != nil {
-		s, ok := checkHackText(w, *req.CocText, "coc_text", 0, 10000)
-		if !ok {
-			return
-		}
-		ev.CocText = s
-	}
-	tz := ev.TimeZone
-	oldZone := ev.TimeZone
-	if req.TimeZone != nil {
-		tz = strings.TrimSpace(*req.TimeZone)
-		if tz == "" {
-			tz = "UTC"
-		}
-		if _, ok := checkTimeZone(w, tz); !ok {
-			return
-		}
-		ev.TimeZone = tz
-	}
-	loc, err := time.LoadLocation(ev.TimeZone)
-	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_time_zone", "time_zone is not a valid IANA name")
-		return
-	}
-	// A new zone without new dates keeps the same calendar dates: each
-	// stored instant is moved to the same wall-clock time in the new zone.
-	if ev.TimeZone != oldZone {
-		if old, oerr := time.LoadLocation(oldZone); oerr == nil {
-			reanchor := func(t sql.NullTime) sql.NullTime {
-				if !t.Valid {
-					return t
-				}
-				o := t.Time.In(old)
-				return sql.NullTime{Time: time.Date(o.Year(), o.Month(), o.Day(), o.Hour(), o.Minute(), o.Second(), 0, loc), Valid: true}
+	deadlineChanged, entryRequiredChanged := false, false
+	updated, err := h.eventsSvc().PatchEvent(r.Context(), a.event.ID, func(ev *db.Event) (bool, bool, bool) {
+		if req.AccentColor != nil {
+			if !hackColorValid(*req.AccentColor) {
+				httpx.WriteError(w, http.StatusBadRequest, "invalid_accent_color", "choose a crayon colour or an empty string for automatic")
+				return false, false, false
 			}
-			if req.StartsAt == nil {
-				ev.StartsAt = reanchor(ev.StartsAt)
-			}
-			if req.EndsAt == nil {
-				ev.EndsAt = reanchor(ev.EndsAt)
-			}
+			ev.AccentColor = *req.AccentColor
 		}
-	}
-	if req.StartsAt != nil {
-		t, ok := parseEventTime(w, *req.StartsAt, loc, "starts_at", true)
-		if !ok {
-			return
-		}
-		ev.StartsAt = t
-	}
-	if req.EndsAt != nil {
-		if strings.TrimSpace(*req.EndsAt) == "" {
-			ev.EndsAt = sql.NullTime{}
-		} else {
-			t, ok := parseEventTime(w, *req.EndsAt, loc, "ends_at", true)
+		if req.Title != nil {
+			s, ok := checkHackLine(w, *req.Title, "title", 1, 120)
 			if !ok {
-				return
+				return false, false, false
 			}
-			ev.EndsAt = t
+			ev.Title = s
 		}
-	}
-	if ev.EndsAt.Valid && ev.StartsAt.Valid && ev.EndsAt.Time.Before(ev.StartsAt.Time) {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_ends_at", "ends_at must not be before starts_at")
-		return
-	}
-	if req.TeamFinding != nil {
-		ev.TeamFinding = *req.TeamFinding
-	}
-	if req.ApplicationsOpen != nil {
-		if ev.Stage == "archived" {
-			httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
-			return
-		}
-		ev.ApplicationsOpen = *req.ApplicationsOpen
-	}
-	if req.TeamSizeMax != nil {
-		if *req.TeamSizeMax < 1 || *req.TeamSizeMax > 50 {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_team_size", "team_size_max must be between 1 and 50")
-			return
-		}
-		ev.TeamSizeMax = *req.TeamSizeMax
-	}
-	if req.OrganiserName != nil {
-		s, ok := checkHackLine(w, *req.OrganiserName, "organiser_name", 1, 100)
-		if !ok {
-			return
-		}
-		ev.OrganiserName = s
-	}
-	if req.Organisation != nil {
-		s, ok := checkHackLine(w, *req.Organisation, "organisation", 0, 120)
-		if !ok {
-			return
-		}
-		ev.Organisation = s
-	}
-	if req.ContactEmail != nil {
-		s, ok := checkContactEmail(w, *req.ContactEmail)
-		if !ok {
-			return
-		}
-		ev.ContactEmail = s
-	}
-	if req.Purpose != nil {
-		s, ok := checkHackText(w, *req.Purpose, "purpose", 1, 1000)
-		if !ok {
-			return
-		}
-		ev.Purpose = s
-	}
-	if req.ExpectedParticipants != nil {
-		if *req.ExpectedParticipants < 1 || *req.ExpectedParticipants > 100000 {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_expected_participants", "expected_participants must be between 1 and 100000")
-			return
-		}
-		ev.ExpectedParticipants = sql.NullInt64{Int64: int64(*req.ExpectedParticipants), Valid: true}
-	}
-	// M2: the submission deadline, the entry's required fields, the gallery.
-	deadlineChanged := false
-	// The deadline is an instant: a new zone never moves it (dates of the
-	// event move to keep their calendar day; a deadline that passed must
-	// stay passed).
-	if req.SubmissionDeadline != nil {
-		if strings.TrimSpace(*req.SubmissionDeadline) == "" {
-			ev.SubmissionDeadline = sql.NullTime{}
-		} else {
-			t, ok := parseEventTime(w, *req.SubmissionDeadline, loc, "submission_deadline", true)
+		if req.Tagline != nil {
+			s, ok := checkHackLine(w, *req.Tagline, "tagline", 0, 160)
 			if !ok {
-				return
+				return false, false, false
 			}
-			ev.SubmissionDeadline = t
+			ev.Tagline = s
 		}
-		deadlineChanged = true
-	}
-	entryRequiredChanged := false
-	if req.EntryRequired != nil {
-		fields, ok := checkEntryRequired(w, *req.EntryRequired)
-		if !ok {
-			return
-		}
-		ev.EntryRequired = fields
-		entryRequiredChanged = true
-	}
-	if req.GalleryOpen != nil {
-		ev.GalleryOpen = *req.GalleryOpen
-	}
-	stage := ev.Stage
-	if deadlineChanged {
-		if stage == "archived" {
-			httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
-			return
-		}
-		// Submissions closed means the deadline has passed; reopening them
-		// is moving the event back to Building, or one team's extension.
-		var dbNow time.Time
-		if err := tx.QueryRowContext(r.Context(), `SELECT clock_timestamp()`).Scan(&dbNow); err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if submissionsClosedStage(stage) && (!ev.SubmissionDeadline.Valid || ev.SubmissionDeadline.Time.After(dbNow)) {
-			httpx.WriteError(w, http.StatusConflict, "submissions_closed_stage",
-				"submissions are closed: move the event back to Building to set a new deadline, or give single teams more time")
-			return
-		}
-	}
-	updated, err := db.UpdateEventPatch(r.Context(), tx, ev)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	updated, err = db.UpdateEventEntrySettings(r.Context(), tx, ev.ID, ev.SubmissionDeadline, ev.EntryRequired, ev.GalleryOpen)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	// Deprecated entry_required alias (section 4.2): maps to "required" for
-	// the listed fields, leaves every other field's mode as it is, and
-	// demotes the stored preset to custom -- kept for one release.
-	if entryRequiredChanged {
-		fields := hackentries.LoadRules(updated.EntryRules)
-		want := map[string]bool{}
-		for _, f := range ev.EntryRequired {
-			want[f] = true
-		}
-		for _, f := range hackEntryFields {
-			if want[f] {
-				fields[f] = "required"
+		if req.About != nil {
+			s, ok := checkHackText(w, *req.About, "about", 0, 10000)
+			if !ok {
+				return false, false, false
 			}
+			ev.About = s
 		}
-		updated, err = db.UpdateEventEntryRules(r.Context(), tx, ev.ID, "custom", hackentries.MarshalRules(fields), updated.JudgeFirst, ev.EntryRequired)
+		if req.Rules != nil {
+			s, ok := checkHackText(w, *req.Rules, "rules", 0, 10000)
+			if !ok {
+				return false, false, false
+			}
+			ev.Rules = s
+		}
+		if req.Prizes != nil {
+			s, ok := checkHackText(w, *req.Prizes, "prizes", 0, 5000)
+			if !ok {
+				return false, false, false
+			}
+			ev.Prizes = s
+		}
+		if req.CocText != nil {
+			s, ok := checkHackText(w, *req.CocText, "coc_text", 0, 10000)
+			if !ok {
+				return false, false, false
+			}
+			ev.CocText = s
+		}
+		tz := ev.TimeZone
+		oldZone := ev.TimeZone
+		if req.TimeZone != nil {
+			tz = strings.TrimSpace(*req.TimeZone)
+			if tz == "" {
+				tz = "UTC"
+			}
+			if _, ok := checkTimeZone(w, tz); !ok {
+				return false, false, false
+			}
+			ev.TimeZone = tz
+		}
+		loc, err := time.LoadLocation(ev.TimeZone)
 		if err != nil {
-			httpx.WriteInternal(w)
-			return
+			httpx.WriteError(w, http.StatusBadRequest, "invalid_time_zone", "time_zone is not a valid IANA name")
+			return false, false, false
 		}
-	}
-	if deadlineChanged {
-		// Lock every team row: a deploy let in before the old deadline
-		// holds its team FOR SHARE and finishes first.
-		if _, err := tx.ExecContext(r.Context(), `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, ev.ID); err != nil {
-			httpx.WriteInternal(w)
-			return
+		// A new zone without new dates keeps the same calendar dates: each
+		// stored instant is moved to the same wall-clock time in the new zone.
+		if ev.TimeZone != oldZone {
+			if old, oerr := time.LoadLocation(oldZone); oerr == nil {
+				reanchor := func(t sql.NullTime) sql.NullTime {
+					if !t.Valid {
+						return t
+					}
+					o := t.Time.In(old)
+					return sql.NullTime{Time: time.Date(o.Year(), o.Month(), o.Day(), o.Hour(), o.Minute(), o.Second(), 0, loc), Valid: true}
+				}
+				if req.StartsAt == nil {
+					ev.StartsAt = reanchor(ev.StartsAt)
+				}
+				if req.EndsAt == nil {
+					ev.EndsAt = reanchor(ev.EndsAt)
+				}
+			}
 		}
-		if err := db.UnpinReopened(r.Context(), tx, ev.ID); err != nil {
-			httpx.WriteInternal(w)
-			return
+		if req.StartsAt != nil {
+			t, ok := parseEventTime(w, *req.StartsAt, loc, "starts_at", true)
+			if !ok {
+				return false, false, false
+			}
+			ev.StartsAt = t
 		}
-		// A deadline pushed later reopens drafts the sweep had already
-		// settled as not submitted (section 7, "Unsettle").
-		if err := db.UnsettleEventDrafts(r.Context(), tx, ev.ID); err != nil {
-			httpx.WriteInternal(w)
-			return
+		if req.EndsAt != nil {
+			if strings.TrimSpace(*req.EndsAt) == "" {
+				ev.EndsAt = sql.NullTime{}
+			} else {
+				t, ok := parseEventTime(w, *req.EndsAt, loc, "ends_at", true)
+				if !ok {
+					return false, false, false
+				}
+				ev.EndsAt = t
+			}
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+		if ev.EndsAt.Valid && ev.StartsAt.Valid && ev.EndsAt.Time.Before(ev.StartsAt.Time) {
+			httpx.WriteError(w, http.StatusBadRequest, "invalid_ends_at", "ends_at must not be before starts_at")
+			return false, false, false
+		}
+		if req.TeamFinding != nil {
+			ev.TeamFinding = *req.TeamFinding
+		}
+		if req.ApplicationsOpen != nil {
+			if ev.Stage == "archived" {
+				httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
+				return false, false, false
+			}
+			ev.ApplicationsOpen = *req.ApplicationsOpen
+		}
+		if req.TeamSizeMax != nil {
+			if *req.TeamSizeMax < 1 || *req.TeamSizeMax > 50 {
+				httpx.WriteError(w, http.StatusBadRequest, "invalid_team_size", "team_size_max must be between 1 and 50")
+				return false, false, false
+			}
+			ev.TeamSizeMax = *req.TeamSizeMax
+		}
+		if req.OrganiserName != nil {
+			s, ok := checkHackLine(w, *req.OrganiserName, "organiser_name", 1, 100)
+			if !ok {
+				return false, false, false
+			}
+			ev.OrganiserName = s
+		}
+		if req.Organisation != nil {
+			s, ok := checkHackLine(w, *req.Organisation, "organisation", 0, 120)
+			if !ok {
+				return false, false, false
+			}
+			ev.Organisation = s
+		}
+		if req.ContactEmail != nil {
+			s, ok := checkContactEmail(w, *req.ContactEmail)
+			if !ok {
+				return false, false, false
+			}
+			ev.ContactEmail = s
+		}
+		if req.Purpose != nil {
+			s, ok := checkHackText(w, *req.Purpose, "purpose", 1, 1000)
+			if !ok {
+				return false, false, false
+			}
+			ev.Purpose = s
+		}
+		if req.ExpectedParticipants != nil {
+			if *req.ExpectedParticipants < 1 || *req.ExpectedParticipants > 100000 {
+				httpx.WriteError(w, http.StatusBadRequest, "invalid_expected_participants", "expected_participants must be between 1 and 100000")
+				return false, false, false
+			}
+			ev.ExpectedParticipants = sql.NullInt64{Int64: int64(*req.ExpectedParticipants), Valid: true}
+		}
+		// M2: the submission deadline, the entry's required fields, the gallery.
+		deadlineChanged = false
+		// The deadline is an instant: a new zone never moves it (dates of the
+		// event move to keep their calendar day; a deadline that passed must
+		// stay passed).
+		if req.SubmissionDeadline != nil {
+			if strings.TrimSpace(*req.SubmissionDeadline) == "" {
+				ev.SubmissionDeadline = sql.NullTime{}
+			} else {
+				t, ok := parseEventTime(w, *req.SubmissionDeadline, loc, "submission_deadline", true)
+				if !ok {
+					return false, false, false
+				}
+				ev.SubmissionDeadline = t
+			}
+			deadlineChanged = true
+		}
+		entryRequiredChanged = false
+		if req.EntryRequired != nil {
+			fields, ok := checkEntryRequired(w, *req.EntryRequired)
+			if !ok {
+				return false, false, false
+			}
+			ev.EntryRequired = fields
+			entryRequiredChanged = true
+		}
+		if req.GalleryOpen != nil {
+			ev.GalleryOpen = *req.GalleryOpen
+		}
+		return deadlineChanged, entryRequiredChanged, true
+	})
+	if err != nil {
+		if !errors.Is(err, events.ErrValidation) {
+			writeEventsError(w, err)
+		}
 		return
 	}
 	if deadlineChanged {
-		h.pinDue(r.Context(), ev.ID)
+		h.pinDue(r.Context(), a.event.ID)
 	}
 	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), updated, a.member, true))
 }
 
 // submissionsClosedStage: stages after submissions close.
-func submissionsClosedStage(stage string) bool {
-	return stage == "closed" || stage == "judging" || stage == "results"
-}
+func submissionsClosedStage(stage string) bool { return hackevents.SubmissionsClosedStage(stage) }
 
 // checkEntryRequired validates the organiser's required entry fields and
 // returns them in the canonical order.
@@ -1779,112 +1579,9 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusConflict, "stage_not_available", "that stage is not available yet")
 		return
 	}
-	if a.event.Stage == "archived" && stage != "archived" {
-		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be reopened")
-		return
-	}
-	if stage == "archived" && a.event.Stage != "archived" {
-		// An event nobody joined is deleted, not ended: ending one would keep
-		// its name and page for good without it ever running.
-		participants, _, _, err := db.CountEventMembers(r.Context(), h.database, a.event.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if participants == 0 {
-			httpx.WriteError(w, http.StatusConflict, "archive_needs_participants", "nobody has joined, so delete the event instead")
-			return
-		}
-	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	updated, current, err := h.eventsSvc().SetStage(r.Context(), a.event, stage, h.entries.SettleEventTx)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	var current string
-	if err := tx.QueryRowContext(r.Context(), `SELECT stage FROM events WHERE id = $1 FOR UPDATE`, a.event.ID).Scan(&current); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if current == "archived" && stage != "archived" {
-		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be reopened")
-		return
-	}
-	// Every team row too: a deploy let in holds its team FOR SHARE and
-	// finishes before the deadline moves.
-	if _, err := tx.ExecContext(r.Context(), `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, a.event.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	var updated db.Event
-	if stage == "archived" {
-		updated, err = h.archiveEventTx(r.Context(), tx, a.event.ID, current)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-	} else {
-		switch {
-		case submissionsClosedStage(stage) && !submissionsClosedStage(current) && current != "archived":
-			// Submissions close now: the deadline becomes now unless it
-			// already passed. Teams given more time keep it.
-			_, err = tx.ExecContext(r.Context(), `
-				UPDATE events SET submission_deadline = clock_timestamp()
-				 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`, a.event.ID)
-		case (stage == "open" || stage == "building") && current != "open" && current != "building":
-			// Back to open or building from any other stage (closed, or draft
-			// after closed): a passed deadline (and passed extensions) go, so
-			// teams can publish again until the organiser sets a new one.
-			if _, err = tx.ExecContext(r.Context(), `
-				UPDATE events SET submission_deadline = NULL
-				 WHERE id = $1 AND submission_deadline <= clock_timestamp()`, a.event.ID); err == nil {
-				_, err = tx.ExecContext(r.Context(), `
-					UPDATE event_teams SET deadline_override = NULL
-					 WHERE event_id = $1 AND deadline_override <= clock_timestamp()`, a.event.ID)
-			}
-			if err == nil {
-				// Section 7, "Unsettle": back to building reopens every
-				// unsubmitted draft the sweep had already settled.
-				err = db.UnsettleEventDrafts(r.Context(), tx, a.event.ID)
-			}
-		}
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		updated, err = db.SetEventStage(r.Context(), tx, a.event.ID, stage)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if err := db.UnpinReopened(r.Context(), tx, a.event.ID); err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		// Section 7: settle every due entry in the same transaction as a
-		// move that freezes submissions, so judging never has to wait a
-		// minute for the sweep to catch up.
-		if submissionsClosedStage(stage) {
-			if err := h.entries.SettleEventTx(r.Context(), tx, a.event.ID); err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-		}
-		// Moving to results locks judging in the same transaction, when it
-		// is not locked already: Results already stops scoring
-		// (scoringStage), and locking here removes the dead end where the
-		// Results screen refused to publish an unlocked event. Moving back
-		// to judging leaves the lock on; the stage picker says so.
-		if stage == "results" && current != "results" {
-			if updated, err = db.SetJudgingLock(r.Context(), tx, a.event.ID, true, ""); err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+		writeEventsError(w, err)
 		return
 	}
 	if current != updated.Stage {
@@ -1909,28 +1606,7 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 // (archive_needs_participants is each caller's own 409). current is the
 // event's stage right now, under that same lock.
 func (h *HackHandler) archiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string) (db.Event, error) {
-	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, eventID); err != nil {
-		return db.Event{}, err
-	}
-	if !submissionsClosedStage(current) {
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE events SET submission_deadline = clock_timestamp()
-			 WHERE id = $1 AND (submission_deadline IS NULL OR submission_deadline > clock_timestamp())`, eventID); err != nil {
-			return db.Event{}, err
-		}
-	}
-	updated, err := db.SetEventStage(ctx, tx, eventID, "archived")
-	if err != nil {
-		return db.Event{}, err
-	}
-	if err := db.UnpinReopened(ctx, tx, eventID); err != nil {
-		return db.Event{}, err
-	}
-	// Section 7: an event ending always freezes every remaining draft.
-	if err := h.entries.SettleEventTx(ctx, tx, eventID); err != nil {
-		return db.Event{}, err
-	}
-	return updated, nil
+	return h.eventsSvc().ArchiveEventTx(ctx, tx, eventID, current, h.entries.SettleEventTx)
 }
 
 func (h *HackHandler) regenCode(w http.ResponseWriter, r *http.Request) {
@@ -1953,25 +1629,8 @@ func (h *HackHandler) regenCode(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_request", "kind must be join or judge")
 		return
 	}
-	var updated db.Event
-	var err error
-	for attempt := 0; attempt < 8; attempt++ {
-		code, genErr := hackevents.RandomCode(n)
-		if genErr != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if kind == "join" {
-			updated, err = db.SetEventJoinCode(r.Context(), h.database, a.event.ID, code)
-		} else {
-			updated, err = db.SetEventJudgeCode(r.Context(), h.database, a.event.ID, code)
-		}
-		if err == nil {
-			break
-		}
-		if dbUnique(err) && attempt < 7 {
-			continue
-		}
+	updated, err := h.eventsSvc().RegenerateCode(r.Context(), a.event.ID, kind, n)
+	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -1995,45 +1654,15 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
+	var trash func(context.Context, string, string) error
+	if h.sites != nil {
+		trash = h.sites.TrashTeamSite
 	}
-	defer tx.Rollback()
-	// Hold the event against joins and recheck current organiser membership.
-	var stage, role string
-	var takenDown bool
-	err = tx.QueryRowContext(r.Context(), `SELECT e.stage, m.role, e.taken_down_at IS NOT NULL
-		FROM events e JOIN event_members m ON m.event_id=e.id
-		WHERE e.id=$1 AND m.user_id=$2 FOR UPDATE OF e FOR SHARE OF m`, a.event.ID, a.user.ID).Scan(&stage, &role, &takenDown)
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && role != "organiser") {
+	if err := h.eventsSvc().DeleteEvent(r.Context(), a.event, a.user.ID, req.Confirm, trash); errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if takenDown {
-		httpx.WriteError(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
-		return
-	}
-	participants, _, judges, err := db.CountEventMembers(r.Context(), tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if (req.Confirm != nil && *req.Confirm != a.event.Slug) || (req.Confirm == nil && (stage == "archived" || participants+judges > 0)) {
-		httpx.WriteError(w, http.StatusConflict, "delete_only_empty", "to permanently delete this event, send {\"confirm\":\""+a.event.Slug+"\"} with the matching event address name")
-		return
-	}
-	if err := h.deleteEventTx(r.Context(), tx, a.event); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+	} else if err != nil {
+		writeEventsError(w, err)
 		return
 	}
 	h.removeEventFiles(a.event)
@@ -2047,18 +1676,11 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 // last_organiser "delete" case (hack_leave.go) shares it exactly. The caller
 // already holds the event row, and has checked confirm matches the slug.
 func (h *HackHandler) deleteEventTx(ctx context.Context, tx *sql.Tx, ev db.Event) error {
+	var trash func(context.Context, string, string) error
 	if h.sites != nil {
-		teams, err := db.ListEventTeams(ctx, tx, ev.ID)
-		if err != nil {
-			return err
-		}
-		for _, team := range teams {
-			if err := h.sites.TrashTeamSite(ctx, ev.AccountID, team.Slug); err != nil {
-				return err
-			}
-		}
+		trash = h.sites.TrashTeamSite
 	}
-	return db.DeleteEventAndAccount(ctx, tx, ev)
+	return h.eventsSvc().DeleteEventTx(ctx, tx, ev, trash)
 }
 
 func (h *HackHandler) getJoin(w http.ResponseWriter, r *http.Request) {
@@ -2180,142 +1802,16 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 		httpx.WriteError(w, http.StatusNotFound, "invalid_code", "invalid code")
 		return
 	}
-	var ev db.Event
-	var err error
-	if judge {
-		ev, err = db.GetEventByJudgeCode(r.Context(), h.database, code)
-	} else {
-		ev, err = db.GetEventByJoinCode(r.Context(), h.database, code)
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, http.StatusNotFound, "invalid_code", "invalid code")
-		return
-	}
+	ev, member, organiser, err := h.eventsSvc().JoinByCode(r.Context(), code, user.ID, display, judge, req.Answers, func(questions []db.SignupQuestion, input map[string]string) ([]db.SignupAnswer, bool) {
+		return validateSignupAnswers(w, questions, input)
+	})
 	if err != nil {
-		httpx.WriteInternal(w)
+		if !errors.Is(err, events.ErrValidation) {
+			writeEventsError(w, err)
+		}
 		return
 	}
-	if ev.TakenDown() {
-		httpx.WriteError(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
-		return
-	}
-	role := "participant"
-	if judge {
-		role = "judge"
-		if ev.Stage == "results" || ev.Stage == "archived" {
-			httpx.WriteError(w, http.StatusConflict, "judging_closed", "judging is closed for this event")
-			return
-		}
-	} else if ev.Stage != "open" && ev.Stage != "building" {
-		httpx.WriteError(w, http.StatusConflict, "joining_closed", "joining is closed for this event")
-		return
-	}
-	existing, err := db.GetEventMember(r.Context(), h.database, ev.ID, user.ID)
-	if err == nil {
-		if existing.Role == role {
-			httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, existing, existing.Role == "organiser"))
-			return
-		}
-		httpx.WriteError(w, http.StatusConflict, "already_member", "you already have a different role in this event")
-		return
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteInternal(w)
-		return
-	}
-	var member db.EventMember
-	if judge {
-		// Lock-order fix (SIM-340 2.4): a leave holds the event row FOR
-		// UPDATE before the leaver's member row, so joining must take the
-		// event row first too (FOR SHARE, as the participant branch below
-		// does), never insert the member row with the event row unlocked.
-		tx, txerr := h.database.BeginTx(r.Context(), nil)
-		if txerr != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		defer tx.Rollback()
-		locked, txerr := db.GetEventForShare(r.Context(), tx, ev.ID)
-		if errors.Is(txerr, sql.ErrNoRows) {
-			httpx.WriteError(w, http.StatusNotFound, "invalid_code", "invalid code")
-			return
-		}
-		if txerr != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		// Revalidate against the state as of the lock (Codex review,
-		// SIM-340): the pre-lock ev above could be stale if a last
-		// organiser's "end" or "delete" was waiting on this same row and
-		// committed while this request queued behind it.
-		if locked.TakenDown() {
-			httpx.WriteError(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
-			return
-		}
-		if locked.Stage == "results" || locked.Stage == "archived" {
-			httpx.WriteError(w, http.StatusConflict, "judging_closed", "judging is closed for this event")
-			return
-		}
-		member, err = db.InsertEventMember(r.Context(), tx, ev.ID, user.ID, role, display)
-		if err == nil {
-			err = tx.Commit()
-		}
-	} else {
-		tx, txerr := h.database.BeginTx(r.Context(), nil)
-		if txerr != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		defer tx.Rollback()
-		locked, txerr := db.GetEventForShare(r.Context(), tx, ev.ID)
-		if errors.Is(txerr, sql.ErrNoRows) {
-			httpx.WriteError(w, http.StatusNotFound, "invalid_code", "invalid code")
-			return
-		}
-		if txerr != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if locked.TakenDown() {
-			httpx.WriteError(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
-			return
-		}
-		if locked.Stage != "open" && locked.Stage != "building" {
-			httpx.WriteError(w, http.StatusConflict, "joining_closed", "joining is closed for this event")
-			return
-		}
-		questions, required, qerr := db.RegistrationSettings(r.Context(), tx, ev.ID)
-		if qerr != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		answers, ok := validateSignupAnswers(w, questions, req.Answers)
-		if !ok {
-			return
-		}
-		member, err = db.JoinParticipantRegistration(r.Context(), tx, ev.ID, user.ID, display, answers, required)
-		if err == nil && required {
-			// A sign-up that waits for approval waits on the organisers.
-			err = db.NotifyOrganisers(r.Context(), tx, ev.ID, db.NoticeApplicationNew, user.ID)
-		}
-		if err == nil {
-			err = tx.Commit()
-		}
-	}
-	if err != nil {
-		if dbUnique(err) {
-			existing, err2 := db.GetEventMember(r.Context(), h.database, ev.ID, user.ID)
-			if err2 == nil && existing.Role == role {
-				httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, existing, false))
-				return
-			}
-			httpx.WriteError(w, http.StatusConflict, "already_member", "you already have a different role in this event")
-			return
-		}
-		httpx.WriteInternal(w)
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, member, false))
+	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, member, organiser))
 }
 
 // validateSignupAnswers is the sign-up answer check shared by postCodeJoin
