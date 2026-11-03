@@ -3,28 +3,21 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // RubricCriterion is one row of rubric_criteria, in position order.
-type RubricCriterion struct {
-	ID          string
-	Position    int
-	Name        string
-	Description string
-	Weight      int
-	MaxPoints   int
-}
+// Alias (cleanup 4.1): defined in internal/model.
+type RubricCriterion = model.RubricCriterion
 
 // NamedTeam is a team id, display name and URL slug. Assignment skips teams with no members.
-type NamedTeam struct {
-	ID, Name, Slug string
-}
+// Alias (cleanup 4.1): defined in internal/model.
+type NamedTeam = model.NamedTeam
 
 // NamedJudge is a judge's user id and the display name they joined with.
-type NamedJudge struct {
-	ID, Name string
-	Role     string
-}
+// Alias (cleanup 4.1): defined in internal/model.
+type NamedJudge = model.NamedJudge
 
 // EventConflict is one declared judge/team conflict, with names filled in.
 // HadScore (Codex review of Grok retest 3, Cosmetic #4): whether the judge
@@ -45,12 +38,8 @@ type ConflictPair struct {
 }
 
 // JudgeAssignment is one judge assigned to one team.
-type JudgeAssignment struct {
-	JudgeID   string `json:"judge_id"`
-	JudgeName string `json:"judge_name"`
-	TeamID    string `json:"team_id"`
-	TeamName  string `json:"team_name"`
-}
+// Alias (cleanup 4.1): defined in internal/model.
+type JudgeAssignment = model.JudgeAssignment
 
 // ListRubric returns the event's criteria in position order.
 func ListRubric(ctx context.Context, q Querier, eventID string) ([]RubricCriterion, error) {
@@ -503,14 +492,8 @@ func CriterionIDsForEvent(ctx context.Context, q Querier, eventID string) (map[s
 
 // RawScoreRow is one row of event_scores joined with names, for the judge
 // queue's "scores_count" and for the CSV export.
-type RawScoreRow struct {
-	JudgeID, JudgeName         string
-	TeamID, TeamName           string
-	CriterionID, CriterionName string
-	CriterionPosition          int
-	Points, MaxPoints          int
-	Comment                    string
-}
+// Alias (cleanup 4.1): defined in internal/model.
+type RawScoreRow = model.RawScoreRow
 
 // ListRawScores is every score row of the event with names resolved, for the
 // scores CSV and for computing results in Go.

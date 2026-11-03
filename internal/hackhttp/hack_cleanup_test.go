@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"net/http"
 	"strings"
 	"sync"
@@ -50,7 +51,7 @@ func TestHackStarterRubric(t *testing.T) {
 
 func wantStarterRubric(t *testing.T, v rubricView) {
 	t.Helper()
-	want := defaultEventRubric()
+	want := hackentries.DefaultEventRubric()
 	if len(v.Criteria) != len(want) {
 		t.Fatalf("criteria: %+v", v.Criteria)
 	}

@@ -10,16 +10,15 @@ import (
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"log"
-	"math"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/papermetrics"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 )
 
 // paperHackTimes moved from hack_paper_metrics.go (cleanup 3.2 slice 1c):
@@ -70,18 +69,6 @@ func writeIfJudgingLocked(w http.ResponseWriter, ev db.Event) bool {
 		return true
 	}
 	return false
-}
-
-// defaultEventRubric is what a brand-new event starts with. createEvent is
-// the only caller: an event that already exists is never given these rows
-// later, and the organiser replaces them with PUT .../rubric.
-func defaultEventRubric() []db.RubricCriterion {
-	return []db.RubricCriterion{
-		{Name: "Idea", Description: "How original or useful is it?", Weight: 25, MaxPoints: 5},
-		{Name: "Execution", Description: "How well does it work?", Weight: 25, MaxPoints: 5},
-		{Name: "Design", Description: "How good is the user experience?", Weight: 25, MaxPoints: 5},
-		{Name: "Demo", Description: "How clearly was it presented?", Weight: 25, MaxPoints: 5},
-	}
 }
 
 func rubricJSON(items []db.RubricCriterion) map[string]any {
@@ -144,7 +131,7 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	items, msg := validateRubric(req.Criteria)
+	items, msg := hackentries.ValidateRubric(req.Criteria)
 	if msg != "" {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_rubric", msg)
 		return
@@ -233,110 +220,6 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, rubricJSON(saved))
 }
 
-// validateRubric applies the same line and text rules as checkHackLine and
-// checkHackText. Every refusal is one invalid_rubric message.
-func validateRubric(in []struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Weight      *float64 `json:"weight"`
-	MaxPoints   *float64 `json:"max_points"`
-}) ([]db.RubricCriterion, string) {
-	if len(in) < 1 || len(in) > 10 {
-		return nil, "Give between 1 and 10 criteria."
-	}
-	out := make([]db.RubricCriterion, 0, len(in))
-	sum := 0
-	for _, c := range in {
-		name, ok := rubricName(c.Name)
-		if !ok {
-			return nil, "Give each criterion a name of up to 80 characters."
-		}
-		desc, msg := rubricDescription(c.Description)
-		if msg != "" {
-			return nil, msg
-		}
-		weight, ok := wholeInRange(c.Weight, 0, 100)
-		if !ok {
-			return nil, "Each weight must be a whole number from 0 to 100."
-		}
-		points, ok := wholeInRange(c.MaxPoints, 1, 10)
-		if !ok {
-			return nil, "Each criterion's points must be a whole number from 1 to 10."
-		}
-		sum += weight
-		out = append(out, db.RubricCriterion{
-			Name: name, Description: desc, Weight: weight, MaxPoints: points,
-		})
-	}
-	if sum != 100 {
-		return nil, "Weights must add up to 100."
-	}
-	return out, ""
-}
-
-// rubricName is checkHackLine for a required criterion name (1–80 runes,
-// one line, collapsed spaces, something visible) without writing a response.
-func rubricName(s string) (string, bool) {
-	if strings.ContainsAny(strings.TrimSpace(s), "\n\r\t\u0085\u2028\u2029") {
-		return "", false
-	}
-	s = strings.Join(strings.Fields(s), " ")
-	if !hasVisible(s) {
-		return "", false
-	}
-	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
-	if hasBadControls(s) {
-		return "", false
-	}
-	n := utf8.RuneCountInString(s)
-	if n < 1 || n > 80 {
-		return "", false
-	}
-	return s, true
-}
-
-// rubricDescription is checkHackText for an optional description (0–300
-// runes; newlines and tabs stay, other controls do not).
-func rubricDescription(s string) (string, string) {
-	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
-	if hasBadControls(s) {
-		return "", "A description contains characters that are not allowed."
-	}
-	if utf8.RuneCountInString(s) > 300 {
-		return "", "Keep each description to 300 characters."
-	}
-	return s, ""
-}
-
-// judgeCommentText cleans and validates a judge's comment on a team: same
-// control-character rule as a rubric description (a comment can be empty,
-// unlike a description's cousin fields, and also lands in a CSV export, so
-// stripping stray formatting here matters for csvSafe's leading-character
-// check to actually see the real first character rather than whatever an
-// embedded control sequence put there).
-func judgeCommentText(s string) (string, string) {
-	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
-	if hasBadControls(s) {
-		return "", "A comment contains characters that are not allowed."
-	}
-	if utf8.RuneCountInString(s) > 1000 {
-		return "", "Keep a comment to 1000 characters."
-	}
-	return s, ""
-}
-
-// wholeInRange reports n when it is a finite whole number in [min, max].
-func wholeInRange(n *float64, min, max int) (int, bool) {
-	if n == nil || math.IsNaN(*n) || math.IsInf(*n, 0) || *n != math.Trunc(*n) {
-		return 0, false
-	}
-	if *n < float64(min) || *n > float64(max) {
-		return 0, false
-	}
-	return int(*n), true
-}
-
 func judgingSettingsJSON(ev db.Event) map[string]any {
 	return map[string]any{
 		"assignment_mode":  ev.JudgeAssignmentMode,
@@ -382,7 +265,7 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 	}
 	var perTeam *int
 	if req.JudgesPerTeam != nil {
-		n, ok := wholeInRange(req.JudgesPerTeam, 1, 20)
+		n, ok := hackentries.WholeInRange(req.JudgesPerTeam, 1, 20)
 		if !ok {
 			httpx.WriteError(w, http.StatusBadRequest, "invalid_request", "judges_per_team must be a whole number from 1 to 20.")
 			return
@@ -633,9 +516,9 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 	}
 	conflicted := map[string]bool{}
 	for _, p := range pairs {
-		conflicted[judgeTeamKey(p.JudgeID, p.TeamID)] = true
+		conflicted[hackentries.JudgeTeamKey(p.JudgeID, p.TeamID)] = true
 	}
-	planned, under := planJudgeAssignments(teams, judges, conflicted, ev.JudgesPerTeam)
+	planned, under := hackentries.PlanAssignments(teams, judges, conflicted, ev.JudgesPerTeam)
 	if err := db.ReplaceAssignments(r.Context(), tx, a.event.ID, planned); err != nil {
 		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -647,70 +530,6 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, assignmentJSON(planned, under))
-}
-
-func judgeTeamKey(judgeID, teamID string) string {
-	return judgeID + "\x00" + teamID
-}
-
-// planJudgeAssignments spreads judges across teams. Each team gets up to
-// perTeam judges, fewer only when fewer judges are free of a conflict with
-// that team — that shortage is reported, not refused. Eligible judges are
-// taken least-loaded first, and id breaks ties, which is the fair share: a
-// judge who already has as many teams as another eligible judge is skipped
-// until the loads even out. The same input always yields the same plan.
-// Teams and judges are sorted by id here, so the caller need not.
-func planJudgeAssignments(teams []db.NamedTeam, judges []db.NamedJudge, conflicted map[string]bool, perTeam int) ([]db.JudgeAssignment, []string) {
-	teams = append([]db.NamedTeam(nil), teams...)
-	judges = append([]db.NamedJudge(nil), judges...)
-	sort.Slice(teams, func(i, j int) bool { return teams[i].ID < teams[j].ID })
-	sort.Slice(judges, func(i, j int) bool { return judges[i].ID < judges[j].ID })
-	if perTeam < 0 {
-		perTeam = 0
-	}
-	load := make([]int, len(judges))
-	assignments := make([]db.JudgeAssignment, 0)
-	under := make([]string, 0)
-	for _, team := range teams {
-		eligible := make([]int, 0, len(judges))
-		for i, judge := range judges {
-			if conflicted[judgeTeamKey(judge.ID, team.ID)] {
-				continue
-			}
-			eligible = append(eligible, i)
-		}
-		sort.Slice(eligible, func(a, b int) bool {
-			ia, ib := eligible[a], eligible[b]
-			if load[ia] != load[ib] {
-				return load[ia] < load[ib]
-			}
-			return judges[ia].ID < judges[ib].ID
-		})
-		n := perTeam
-		if n > len(eligible) {
-			n = len(eligible)
-		}
-		if n < perTeam {
-			under = append(under, team.ID)
-		}
-		for k := 0; k < n; k++ {
-			i := eligible[k]
-			load[i]++
-			assignments = append(assignments, db.JudgeAssignment{
-				JudgeID:   judges[i].ID,
-				JudgeName: judges[i].Name,
-				TeamID:    team.ID,
-				TeamName:  team.Name,
-			})
-		}
-	}
-	sort.Slice(assignments, func(i, j int) bool {
-		if assignments[i].TeamID != assignments[j].TeamID {
-			return assignments[i].TeamID < assignments[j].TeamID
-		}
-		return assignments[i].JudgeID < assignments[j].JudgeID
-	})
-	return assignments, under
 }
 
 func assignmentJSON(rows []db.JudgeAssignment, under []string) map[string]any {
@@ -1454,7 +1273,7 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Comment != nil {
-		cleaned, msg := judgeCommentText(*req.Comment)
+		cleaned, msg := hackentries.JudgeCommentText(*req.Comment)
 		if msg != "" {
 			httpx.WriteError(w, http.StatusBadRequest, "invalid_comment", msg)
 			return
@@ -1513,7 +1332,7 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusNotFound, "criterion_not_found", "That criterion is not in this event's current rubric.")
 			return
 		}
-		pts, ok := wholeInRange(s.Points, 0, maxPts)
+		pts, ok := hackentries.WholeInRange(s.Points, 0, maxPts)
 		if !ok {
 			httpx.WriteError(w, http.StatusBadRequest, "invalid_points", fmt.Sprintf("Points for %q must be a whole number from 0 to %d.", s.CriterionID, maxPts))
 			return
@@ -1562,101 +1381,21 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, scoresJSON(updated, comment, &complete))
 }
 
-// teamResult is one team's computed standing.
-type teamResult struct {
-	TeamID          string
-	TeamName        string
-	Total           *float64
-	RawTotal        *float64
-	NormalisedTotal *float64
-	ScoreMode       string
-	Track           *db.EventTrack
-	TrackRank       *int
-	TrackWinner     bool
-	TieDecider      string
-	criterionMean   float64
-	majorityWins    int
-	judgeScores     map[string]float64
-	Rank            *int
-	Tied            bool
-	JudgesScored    int
-}
+type teamResult = hackentries.TeamResult[db.EventTrack]
+type rankOverride = hackentries.RankOverride
 
-// rankOverride is one team's chosen final place within its own tied group.
-type rankOverride struct {
-	TeamID string
-	Rank   int
+func trackIDs(rows []teamResult) map[string]string {
+	ids := make(map[string]string)
+	for _, row := range rows {
+		if row.Track != nil {
+			ids[row.TeamID] = row.Track.ID
+		}
+	}
+	return ids
 }
-
-// applyRankOverrides orders complete unresolved tie groups by the organiser's
-// chosen places, then rebuilds dense ranks. Untouched groups remain tied.
-func applyRankOverrides(results []teamResult, overrides []rankOverride) error {
-	groups := map[int][]int{}
-	byID := map[string]int{}
-	for i := range results {
-		byID[results[i].TeamID] = i
-		if results[i].Tied && results[i].Rank != nil {
-			groups[*results[i].Rank] = append(groups[*results[i].Rank], i)
-		}
-	}
-	assigned := map[string]int{}
-	touched := map[int]bool{}
-	for _, ov := range overrides {
-		i, ok := byID[ov.TeamID]
-		if !ok || !results[i].Tied || results[i].Rank == nil {
-			return fmt.Errorf("%s is not part of a tie.", ov.TeamID)
-		}
-		if _, duplicate := assigned[ov.TeamID]; duplicate {
-			return fmt.Errorf("name each tied team once")
-		}
-		assigned[ov.TeamID] = ov.Rank
-		touched[*results[i].Rank] = true
-	}
-	oldGroup := map[string]int{}
-	for rank, ids := range groups {
-		for _, i := range ids {
-			oldGroup[results[i].TeamID] = rank
-		}
-		if !touched[rank] {
-			continue
-		}
-		seen := map[int]bool{}
-		for _, i := range ids {
-			order, ok := assigned[results[i].TeamID]
-			if !ok {
-				return fmt.Errorf("give every tied team in a group a rank, or none of them")
-			}
-			if seen[order] {
-				return fmt.Errorf("tied teams need different ranks from each other")
-			}
-			seen[order] = true
-		}
-		start, end := ids[0], ids[len(ids)-1]+1
-		sort.SliceStable(results[start:end], func(i, j int) bool { return assigned[results[start+i].TeamID] < assigned[results[start+j].TeamID] })
-	}
-	rank := 0
-	for i := range results {
-		if results[i].Total == nil {
-			results[i].Rank = nil
-			results[i].Tied = false
-			continue
-		}
-		rank++
-		r := rank
-		results[i].Rank = &r
-		results[i].Tied = false
-		if i > 0 && oldGroup[results[i].TeamID] != 0 && oldGroup[results[i].TeamID] == oldGroup[results[i-1].TeamID] && !touched[oldGroup[results[i].TeamID]] {
-			results[i].Rank = results[i-1].Rank
-			results[i].Tied = true
-			results[i-1].Tied = true
-			rank--
-		}
-		if touched[oldGroup[results[i].TeamID]] {
-			results[i].TieDecider = "organiser"
-		}
-	}
-	markTrackWinners(results)
-	return nil
+func markTrackWinners(rows []teamResult) { hackentries.MarkTrackWinners(rows, trackIDs(rows)) }
+func applyRankOverrides(rows []teamResult, overrides []rankOverride) error {
+	return hackentries.ApplyRankOverrides(rows, overrides, trackIDs(rows))
 }
 
 func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"io"
 	"io/fs"
@@ -1044,7 +1045,7 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	// Starter rubric, only for this new row. Nothing else writes one onto an
 	// event that does not already have it.
-	if err := db.ReplaceRubric(ctx, tx, ev.ID, defaultEventRubric()); err != nil {
+	if err := db.ReplaceRubric(ctx, tx, ev.ID, hackentries.DefaultEventRubric()); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
