@@ -3,9 +3,7 @@ package handler
 import (
 	"bytes"
 	"fmt"
-	"mime"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,31 +12,8 @@ import (
 
 const homepageLinks = `</sitemap.xml>; rel="sitemap", </index.md>; rel="alternate"; type="text/markdown", </.well-known/api-catalog>; rel="api-catalog", </openapi.json>; rel="service-desc"`
 
-// Only explicit markdown and HTML preferences matter here. Equal preferences
-// favor markdown; a browser's usual HTML/wildcard Accept still gets HTML.
-func acceptsMarkdown(r *http.Request) bool {
-	var markdown, htmlQuality float64
-	for _, value := range strings.Split(strings.Join(r.Header.Values("Accept"), ","), ",") {
-		media, params, err := mime.ParseMediaType(strings.TrimSpace(value))
-		if err != nil {
-			continue
-		}
-		quality := 1.0
-		if q, ok := params["q"]; ok {
-			quality, err = strconv.ParseFloat(q, 64)
-			if err != nil || quality < 0 || quality > 1 {
-				continue
-			}
-		}
-		switch media {
-		case "text/markdown":
-			markdown = max(markdown, quality)
-		case "text/html":
-			htmlQuality = max(htmlQuality, quality)
-		}
-	}
-	return markdown > 0 && markdown >= htmlQuality
-}
+// acceptsMarkdown moved to internal/httpx (httpx.AcceptsMarkdown); see the
+// alias in internal/handler/httpx_forward.go.
 
 // homepageMarkdown reads only the landing's marked copy, excluding the film
 // player, scripts, and dashboard. The HTML remains the single source of copy.

@@ -37,11 +37,7 @@ func TestServeSSOBrowser(t *testing.T) {
 	o.cfg.ResendAPIKey = "fixture-mail"
 	// Registered middleware holds the limiter pointer; adjust it in place.
 	for _, limiter := range []*rateLimiter{a.users.ipLimiter, a.users.emailLimiter, a.sites.emailLimiter, a.sites.visitorAuthLimiter, o.ipLimiter} {
-		limiter.mu.Lock()
-		limiter.capacity = 10000
-		limiter.rate = 0
-		limiter.buckets = map[string]*tokenBucket{}
-		limiter.mu.Unlock()
+		limiter.Reset(10000, 0)
 	}
 	o.providers = nil
 	a.sites.SetSSOHop(o)

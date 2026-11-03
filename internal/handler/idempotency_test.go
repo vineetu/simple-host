@@ -155,7 +155,7 @@ func TestCreateIdempotencyStorageSiteScope(t *testing.T) {
 func TestCreateIdempotencyRateLimitHeadersStayCurrent(t *testing.T) {
 	store := newCreateIdempotencyStore(config.DefaultLimits())
 	limiter := newRateLimiter(2, 0.5)
-	limiter.now = func() time.Time { return time.Unix(0, 0) }
+	limiter.Now = func() time.Time { return time.Unix(0, 0) }
 	calls := 0
 	h := rateLimitByIP(limiter, store.wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++

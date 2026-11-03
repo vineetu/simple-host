@@ -406,19 +406,11 @@ func (p *assetPipeline) uiCSP(next http.Handler, frameSrc string) http.Handler {
 	})
 }
 
-type cspNonceKey struct{}
-
-// stampNonce gives the page's bare scripts and JSON-LD blocks the request's CSP
-// nonce. Data spliced into a page (json.Marshal escapes '<') cannot contain
-// either literal tag. Without adminUICSP's nonce, page is returned as is.
-func stampNonce(r *http.Request, page []byte) []byte {
-	nonce, _ := r.Context().Value(cspNonceKey{}).(string)
-	if nonce == "" {
-		return page
-	}
-	page = bytes.ReplaceAll(page, []byte("<script>"), []byte(`<script nonce="`+nonce+`">`))
-	return bytes.ReplaceAll(page, []byte(`<script type="application/ld+json">`), []byte(`<script type="application/ld+json" nonce="`+nonce+`">`))
-}
+// cspNonceKey and stampNonce moved to internal/httpx (httpx.NonceKey,
+// httpx.StampNonce); see the aliases in internal/handler/httpx_forward.go.
+// cspNonceKey keeps the exact same type identity (a type alias, not a
+// redefinition) so adminUICSP's context.WithValue below and httpx.StampNonce
+// agree on the same key.
 
 // serveSkillsVersion returns {"version":"X"} from the embedded plugin.json.
 // Used by the MCP client for explicit version checks; the inline notice

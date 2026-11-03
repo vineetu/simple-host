@@ -12,7 +12,7 @@ import (
 func TestRateLimiterBurstThenRefill(t *testing.T) {
 	now := time.Unix(0, 0)
 	rl := newRateLimiter(3, 1) // burst 3, 1 token/sec
-	rl.now = func() time.Time { return now }
+	rl.Now = func() time.Time { return now }
 
 	// First 3 calls allowed (burst), 4th denied.
 	for i := 0; i < 3; i++ {
@@ -37,7 +37,7 @@ func TestRateLimiterBurstThenRefill(t *testing.T) {
 func TestRateLimiterKeysAreIndependent(t *testing.T) {
 	now := time.Unix(0, 0)
 	rl := newRateLimiter(1, 0)
-	rl.now = func() time.Time { return now }
+	rl.Now = func() time.Time { return now }
 
 	if !rl.allow("a") || !rl.allow("b") {
 		t.Fatal("distinct keys must not share a bucket")
@@ -121,7 +121,7 @@ func TestClientIPTrustedProxies(t *testing.T) {
 func TestRateLimitHeaders(t *testing.T) {
 	now := time.Unix(0, 0)
 	rl := newRateLimiter(2, 0.4) // one token every 2.5 seconds
-	rl.now = func() time.Time { return now }
+	rl.Now = func() time.Time { return now }
 	calls := 0
 	h := rateLimitByIP(rl, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++

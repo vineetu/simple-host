@@ -2,9 +2,7 @@ package handler
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -85,29 +83,6 @@ func (h *SiteHandler) refusePersonal(w http.ResponseWriter, r *http.Request, sit
 		return true
 	}
 	return false
-}
-
-// writeJSONETag answers v with a weak ETag of its bytes, and 304 when the
-// request's If-None-Match already names it (pages poll a board or a record
-// cheaply with it).
-func writeJSONETag(w http.ResponseWriter, r *http.Request, v any) {
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(v); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	sum := sha256.Sum256(buf.Bytes())
-	etag := `W/"` + hex.EncodeToString(sum[:12]) + `"`
-	w.Header().Set("ETag", etag)
-	for _, t := range strings.Split(r.Header.Get("If-None-Match"), ",") {
-		if t = strings.TrimSpace(t); t == etag || t == "*" || "W/"+t == etag {
-			w.WriteHeader(http.StatusNotModified)
-			return
-		}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(buf.Bytes())
 }
 
 func personalBody(name string, it db.CollectionItem, found bool) map[string]any {

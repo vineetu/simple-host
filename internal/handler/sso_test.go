@@ -431,18 +431,11 @@ func TestSSOStartGatesAndCookieIsolation(t *testing.T) {
 		t.Fatal("deploy key bootstrapped SSO")
 	}
 	a.database.Exec(`UPDATE api_keys SET scope='full' WHERE key_hash=$1`, db.HashAPIKey(owner.key))
-	o.ipLimiter.mu.Lock()
-	o.ipLimiter.capacity = 0
-	o.ipLimiter.rate = 0
-	o.ipLimiter.buckets = map[string]*tokenBucket{}
-	o.ipLimiter.mu.Unlock()
+	o.ipLimiter.Reset(0, 0)
 	if r := a.at(t, "GET", host, start, nil, nil); r.status != 429 {
 		t.Fatalf("IP limiter: %d", r.status)
 	}
-	o.ipLimiter.mu.Lock()
-	o.ipLimiter.capacity = 10000
-	o.ipLimiter.buckets = map[string]*tokenBucket{}
-	o.ipLimiter.mu.Unlock()
+	o.ipLimiter.Reset(10000, 0)
 
 	// DNS proof is mandatory for a custom host, even with a stored binding.
 	a.database.Exec(`UPDATE sites SET custom_domain='unproved.example.test',domain_verified_at=now() WHERE id=$1`, site)
@@ -756,10 +749,10 @@ func TestSSOSessionIssuanceLimits(t *testing.T) {
 		t.Run(by, func(t *testing.T) {
 			a, _, o := newSSOApp(t)
 			one, two := a.newPerson(t, "limitone"), a.newPerson(t, "limittwo")
-			o.ipLimiter.capacity = 1
-			o.ipLimiter.rate = 0
-			o.ssoKeyLimiter.capacity = 1
-			o.ssoKeyLimiter.rate = 0
+			o.ipLimiter.Capacity = 1
+			o.ipLimiter.Rate = 0
+			o.ssoKeyLimiter.Capacity = 1
+			o.ssoKeyLimiter.Rate = 0
 			request := func(key, ip string) resp {
 				return a.at(t, "POST", a.appHost(), "/v1/sso/session", nil, map[string]string{"X-API-Key": key, "X-Forwarded-For": ip, "Origin": "https://" + a.appHost()})
 			}
@@ -917,8 +910,8 @@ func TestSSOPublicRoutesRateLimited(t *testing.T) {
 	for _, route := range []struct{ method, path string }{{"GET", "/v1/sso/hop"}, {"POST", "/v1/sso/consent"}, {"GET", "/v1/sso/signed-out"}, {"POST", "/v1/sso/signed-out"}} {
 		t.Run(route.method+route.path, func(t *testing.T) {
 			a, _, o := newSSOApp(t)
-			o.ipLimiter.capacity = 1
-			o.ipLimiter.rate = 0
+			o.ipLimiter.Capacity = 1
+			o.ipLimiter.Rate = 0
 			headers := map[string]string{"Origin": "https://" + a.appHost(), "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"}
 			if r := a.at(t, route.method, a.appHost(), route.path, nil, headers); r.status == 429 {
 				t.Fatal("first request limited")

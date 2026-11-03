@@ -118,8 +118,8 @@ func TestHopHEADPrefetchMintsNothing(t *testing.T) {
 // allowance an honest sign-in needs.
 func TestHopStartSubresourcesDoNotDrainLimit(t *testing.T) {
 	e := newReviewEnv(t, false)
-	e.o.ipLimiter.capacity = 20
-	e.o.ipLimiter.rate = 0.2
+	e.o.ipLimiter.Capacity = 20
+	e.o.ipLimiter.Rate = 0.2
 	for i := 0; i < 30; i++ {
 		e.a.at(t, "GET", e.host, "/v1/sso/start?return_to="+url.QueryEscape("https://"+e.host+"/"), nil, map[string]string{"Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors", "Sec-Fetch-Site": "cross-site"})
 	}

@@ -315,7 +315,7 @@ func TestImportStatusLimiterAndRetryAfter(t *testing.T) {
 	h, root, c := newImportTest(t)
 	_, id := mintImportTest(t, h, c)
 	now := time.Now()
-	h.importStatusLimiter.now = func() time.Time { return now }
+	h.importStatusLimiter.Now = func() time.Time { return now }
 	for i := 0; i < 60; i++ {
 		if w := importGET(root, "/v1/imports/status/"+id); w.Code != 200 {
 			t.Fatal(i, w.Code)

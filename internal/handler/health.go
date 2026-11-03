@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"time"
 )
@@ -33,23 +32,4 @@ func readyz(db *sql.DB) http.HandlerFunc {
 
 		writeJSON(w, http.StatusOK, healthResponse{Status: "ok"})
 	}
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	// Older refusals omitted a code when the status had only one meaning.
-	// Keep specific route codes, and fill these existing common codes only.
-	if response, ok := v.(errorResponse); ok && response.Code == "" {
-		switch status {
-		case http.StatusUnauthorized:
-			response.Code = "sign_in_required"
-		case http.StatusTooManyRequests:
-			response.Code = "rate_limited"
-		case http.StatusRequestEntityTooLarge:
-			response.Code = "item_too_large"
-		}
-		v = response
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
 }

@@ -91,12 +91,6 @@ func validateHandle(handle string) error {
 // (labelReservedForNew, reservedNewSiteNames).
 var errReservedName = errors.New("this name is reserved; pick another")
 
-// handleIsLabel: the handle is usable as a DNS label, since it is also the
-// account's address (<handle>.<SITE_DOMAIN>).
-func handleIsLabel(handle string) bool {
-	return handle != "" && handle[0] != '-' && handle[len(handle)-1] != '-' && !strings.HasPrefix(handle, "xn--")
-}
-
 func normalizeDisplayName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if utf8.RuneCountInString(name) > 100 {

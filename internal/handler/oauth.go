@@ -32,11 +32,11 @@ const oauthStateTTL = 10 * time.Minute
 
 var oauthHTMLFailed = themed(`<!DOCTYPE html><html><head><meta charset="utf-8"><!--sh:theme--><title>Sign-in failed</title></head><body><p>Sign-in failed. Close this tab and try again from the site.</p></body></html>`)
 
-// visitorHandleRe / visitorSitenameRe are the path-model segments allowed in
-// return_to (SPEC §2.1). Sitename is the nginx content-host charset, not the
-// slightly stricter create-site DNS-label regex.
+// visitorHandleRe moved to internal/rules/sites (sites.VisitorHandle); see
+// the lowercase alias in internal/handler/sites_forward.go. visitorSitenameRe
+// is the path-model segment allowed in return_to (SPEC §2.1): the nginx
+// content-host charset, not the slightly stricter create-site DNS-label regex.
 var (
-	visitorHandleRe   = regexp.MustCompile(`^[a-z0-9-]{1,39}$`)
 	visitorSitenameRe = regexp.MustCompile(`^[a-z0-9-]{1,63}$`)
 
 	errOAuthEmailRefused = errors.New("oauth email refused")

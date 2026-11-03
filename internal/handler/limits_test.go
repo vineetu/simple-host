@@ -407,11 +407,11 @@ func TestMCPTextFollowsLimits(t *testing.T) {
 func TestRateLimitsFollowSettings(t *testing.T) {
 	l := withLimits(t, map[string]string{"RATE_LIMIT_SIGNIN_IP": "2,1h", "RATE_LIMIT_SIGNIN_EMAIL": "9,20s"})
 	h := NewUserHandler(nil, nil, "https://simple-host.app", edition.ForKindWithLimits(edition.Host, l))
-	if h.ipLimiter.capacity != 2 || h.ipLimiter.rate != 1.0/3600 {
-		t.Errorf("sign-in IP limiter: burst %v, %v/s", h.ipLimiter.capacity, h.ipLimiter.rate)
+	if h.ipLimiter.Capacity != 2 || h.ipLimiter.Rate != 1.0/3600 {
+		t.Errorf("sign-in IP limiter: burst %v, %v/s", h.ipLimiter.Capacity, h.ipLimiter.Rate)
 	}
-	if h.emailLimiter.capacity != 9 || h.emailLimiter.rate != 1.0/20 {
-		t.Errorf("sign-in email limiter: burst %v, %v/s", h.emailLimiter.capacity, h.emailLimiter.rate)
+	if h.emailLimiter.Capacity != 9 || h.emailLimiter.Rate != 1.0/20 {
+		t.Errorf("sign-in email limiter: burst %v, %v/s", h.emailLimiter.Capacity, h.emailLimiter.Rate)
 	}
 	if !h.ipLimiter.allow("a") || !h.ipLimiter.allow("a") || h.ipLimiter.allow("a") {
 		t.Error("a burst of 2 should allow two and refuse the third")

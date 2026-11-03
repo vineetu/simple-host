@@ -391,16 +391,12 @@ func hackNeedUser(w http.ResponseWriter, r *http.Request) *db.User {
 	return user
 }
 
-func writeHackErr(w http.ResponseWriter, status int, code, msg string) {
-	writeJSON(w, status, errorResponse{Error: msg, Code: code})
-}
+// writeHackErr and writeInternal moved to internal/httpx (httpx.WriteError,
+// httpx.WriteInternal); see internal/handler/httpx_forward.go. (cleanup 3.2,
+// slice 1a)
 
 func writeEventNotFound(w http.ResponseWriter) {
 	writeHackErr(w, http.StatusNotFound, "event_not_found", "event not found")
-}
-
-func writeInternal(w http.ResponseWriter) {
-	writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 }
 
 type hackAccess struct {

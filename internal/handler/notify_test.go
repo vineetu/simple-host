@@ -1575,7 +1575,7 @@ func TestNotifyURLRateAcrossSitesAndSubscriptions(t *testing.T) {
 	engine := s.a.sites.notifyEngine()
 	engine.perURL = (&SiteHandler{limitSet: newLimitSet(l)}).notifyEngine().perURL
 	now := time.Now()
-	engine.perURL.now = func() time.Time { return now }
+	engine.perURL.Now = func() time.Time { return now }
 	emitWorkerNotification(t, s, s.sid)
 	drainNotifications(t, s)
 	if len(x.snapshot()) != 1 {
@@ -1605,7 +1605,7 @@ func TestNotifyURLRateAcrossSitesAndSubscriptions(t *testing.T) {
 	}
 	now = now.Add(2 * time.Hour)
 	engine.perURL.evictIdle(time.Hour)
-	if len(engine.perURL.buckets) != 0 {
+	if engine.perURL.BucketCount() != 0 {
 		t.Fatal("idle URL buckets were not cleaned up")
 	}
 }
@@ -1646,7 +1646,7 @@ func TestNotifyURLMinuteBudget(t *testing.T) {
 	l := notificationSettings(t, func(l *config.Limits) { l.NotifyPerURLPerMinute = 120 })
 	engine := (&SiteHandler{limitSet: newLimitSet(l)}).notifyEngine()
 	now := time.Now()
-	engine.perURL.now = func() time.Time { return now }
+	engine.perURL.Now = func() time.Time { return now }
 	for minute := 0; minute < 2; minute++ {
 		attempts := 0
 		for tick := 0; tick < 240; tick++ {

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -27,8 +26,8 @@ import (
 
 const maxSuspendReason = 300
 
-// uuidShape guards the id path values before they reach a uuid column.
-var uuidShape = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+// uuidShape moved to internal/rules/sites (sites.UUIDShape); see the
+// lowercase alias in internal/handler/sites_forward.go.
 
 // takedownPage is what every address of a suspended site answers. Plain on
 // purpose: it is served on the site's own origins (custom domains included),

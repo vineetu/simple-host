@@ -156,28 +156,6 @@ type authResponse struct {
 	Handle   string `json:"handle,omitempty"`
 }
 
-type errorResponse struct {
-	Error string `json:"error"`
-	// Code is a stable snake_case name for the failure, set where one error
-	// status has more than one meaning (the MCP tools key their hints on it).
-	Code string `json:"code,omitempty"`
-	// Reason is a sign-in card key (code_wrong, code_used_up, code_expired,
-	// link_other_browser) on 401 invalid_code answers.
-	Reason string `json:"reason,omitempty"`
-	// TriesLeft is remaining guesses on a code_wrong answer.
-	TriesLeft *int `json:"tries_left,omitempty"`
-	// SuggestedHandle and Address come with code choose_handle (a new
-	// account's sign-in asked to choose its address first).
-	SuggestedHandle string `json:"suggested_handle,omitempty"`
-	Address         string `json:"address,omitempty"`
-	// Hint says how to fix the request, in plain words, where there is a
-	// concrete next step (e.g. a site that does not exist: how to create it,
-	// or where to list the sites there are).
-	Hint string `json:"hint,omitempty"`
-	// Storage is the storage-resources path on code legacy_storage_closed.
-	Storage string `json:"storage,omitempty"`
-}
-
 func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string, editions ...*edition.Edition) *UserHandler {
 	var ed *edition.Edition
 	if len(editions) > 0 {
