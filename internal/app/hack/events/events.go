@@ -21,16 +21,14 @@ import (
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
-// Service owns the Hack events workflows this slice moves: today, just the
-// public directory listing (Directory below).
+// Service owns Hack event and organiser workflows.
 type Service struct {
-	db db.Querier
+	db *sql.DB
 }
 
-// New builds a Service over q (typically *sql.DB; any db.Querier, including
-// a *sql.Tx, works for a future caller that already holds one open).
-func New(q db.Querier) *Service {
-	return &Service{db: q}
+// New builds a Service over database.
+func New(database *sql.DB) *Service {
+	return &Service{db: database}
 }
 
 // Row is one event as the directory shows it: the raw fields hackhttp needs
