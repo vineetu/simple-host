@@ -4,12 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	entries "github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"log"
 	"net/http"
-	"strings"
-	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -35,41 +34,8 @@ func writeHackErrMissing(w http.ResponseWriter, status int, code, msg string, mi
 	httpx.WriteJSON(w, status, map[string]any{"error": msg, "code": code, "missing": missing})
 }
 
-// evaluateEntryTx is hackentries.Evaluate with every piece read fresh inside tx:
-// the rules, the team's track and the site's live state.
 func (h *HackHandler) evaluateEntryTx(ctx context.Context, tx *sql.Tx, ev db.Event, st db.TeamWriteState, teamID string, e db.EventEntry) (hackentries.Check, error) {
-	fields := hackentries.LoadRules(ev.EntryRules)
-	tracks, err := db.ListEventTracks(ctx, tx, ev.ID)
-	if err != nil {
-		return hackentries.Check{}, err
-	}
-	track, err := db.TeamTrack(ctx, tx, teamID)
-	if err != nil {
-		return hackentries.Check{}, err
-	}
-	siteLive := h.entrySiteLive(ctx, ev, st.TeamSlug, st.SiteTakenDown)
-	return hackentries.Evaluate(fields, e, siteLive, len(tracks) > 0, track), nil
-}
-
-// keepSubmittedComplete re-checks a previously-submitted entry after a
-// write (section 4.1: "a save on a submitted entry is evaluated after the
-// change"). A no-op when the entry was not submitted before this write.
-func (h *HackHandler) keepSubmittedComplete(ctx context.Context, tx *sql.Tx, ev db.Event, st db.TeamWriteState, teamID string, wasSubmitted bool) error {
-	if !wasSubmitted {
-		return nil
-	}
-	after, err := db.GetEventEntry(ctx, tx, teamID)
-	if err != nil {
-		return err
-	}
-	check, err := h.evaluateEntryTx(ctx, tx, ev, st, teamID, after)
-	if err != nil {
-		return err
-	}
-	if !check.Complete {
-		return &entryWouldBeIncompleteError{Missing: check.Missing}
-	}
-	return nil
+	return h.entries.EvaluateEntryTx(ctx, tx, ev, st, teamID, e)
 }
 
 // entrySiteState reads the team's site once for the entry view: whether it
@@ -148,260 +114,44 @@ func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_judge_first", "judge_first must be video or site")
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	result, err := h.entries.PutRules(r.Context(), a.event.ID, entries.RulesUpdate{Preset: req.Preset, Fields: req.Fields, JudgeFirst: req.JudgeFirst, DryRun: req.DryRun})
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	ev, err := db.GetEventForUpdate(r.Context(), tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if !hackentries.RulesEditable(ev.Stage) {
-		httpx.WriteError(w, http.StatusConflict, "entry_rules_closed", "entry rules are fixed once entries close")
-		return
-	}
-	preset := ev.EntryPreset
-	fields := hackentries.LoadRules(ev.EntryRules)
-	if req.Preset != nil {
-		preset = *req.Preset
-		fields = hackentries.ExpandPreset(preset)
-	}
-	if req.Fields != nil {
-		for k, v := range req.Fields {
-			known := false
-			for _, f := range hackentries.RuleFields {
-				if f == k {
-					known = true
-					break
-				}
+		var domainErr *entries.Error
+		if errors.As(err, &domainErr) {
+			status := http.StatusBadRequest
+			if domainErr.Code == "entry_rules_closed" {
+				status = http.StatusConflict
 			}
-			if !known {
-				httpx.WriteError(w, http.StatusBadRequest, "invalid_entry_field", "fields keys must be one of: "+strings.Join(hackentries.RuleFields, ", "))
-				return
-			}
-			if !hackentries.RuleModeOK[v] || (v == "one_of" && !hackentries.OneOfFields[k]) {
-				httpx.WriteError(w, http.StatusBadRequest, "invalid_entry_field_mode", k+" must be required, optional or off"+hackentries.ModeSuffix(k))
-				return
-			}
-			fields[k] = v
+			httpx.WriteError(w, status, domainErr.Code, domainErr.Message)
+		} else {
+			httpx.WriteInternal(w)
 		}
-		fields = hackentries.NormaliseRules(fields)
-		// A field sent that differs from the preset's own table demotes the
-		// stored preset to custom (section 4.2): the saved rules are no
-		// longer exactly that preset's table.
-		if preset != "custom" && !hackentries.FieldsEqual(fields, hackentries.ExpandPreset(preset)) {
-			preset = "custom"
-		}
-	}
-	fields = hackentries.NormaliseRules(fields)
-	judgeFirst := ev.JudgeFirst
-	if req.Preset != nil {
-		if jf, ok := hackentries.PresetJudgeFirst[*req.Preset]; ok {
-			judgeFirst = jf
-		}
-	}
-	if req.JudgeFirst != nil {
-		judgeFirst = *req.JudgeFirst
+		return
 	}
 	if req.DryRun {
-		impact, err := h.entryRulesImpact(r.Context(), tx, ev, fields)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
+		teams := make([]map[string]any, 0, len(result.Impact.Teams))
+		for _, t := range result.Impact.Teams {
+			teams = append(teams, map[string]any{"id": t.ID, "name": t.Name, "missing": t.Missing})
 		}
-		tracks, err := db.ListEventTracks(r.Context(), tx, a.event.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		httpx.WriteJSON(w, http.StatusOK, map[string]any{"impact": impact, "preview": map[string]any{
-			"preset": preset, "fields": fields, "judge_first": judgeFirst, "summary": hackentries.RulesSummary(fields), "has_tracks": len(tracks) > 0,
-		}})
-		return
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"impact": map[string]any{"submitted_missing": result.Impact.SubmittedMissing, "drafts_newly_blocked": result.Impact.DraftsNewlyBlocked, "teams": teams}, "preview": map[string]any{"preset": result.Preset, "fields": result.Fields, "judge_first": result.JudgeFirst, "summary": hackentries.RulesSummary(result.Fields), "has_tracks": result.HasTracks}})
+	} else {
+		httpx.WriteJSON(w, http.StatusOK, entryRulesView(result.Updated, result.HasTracks, hackentries.RulesEditable(result.Updated.Stage)))
 	}
-	rulesJSON := hackentries.MarshalRules(fields)
-	legacyRequired := []string{}
-	for _, f := range hackEntryFields {
-		if fields[f] == "required" {
-			legacyRequired = append(legacyRequired, f)
-		}
-	}
-	updated, err := db.UpdateEventEntryRules(r.Context(), tx, a.event.ID, preset, rulesJSON, judgeFirst, legacyRequired)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	// Tightening never un-submits (section 12): nothing here touches
-	// submitted_at. A team newly short of the tightened rules just shows
-	// "Incomplete" if it later unsubmits and the deadline passes again.
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	tracks, _ := db.ListEventTracks(r.Context(), h.database, updated.ID)
-	httpx.WriteJSON(w, http.StatusOK, entryRulesView(updated, len(tracks) > 0, hackentries.RulesEditable(updated.Stage)))
 }
 
-// entryRulesImpact is the dry run's counts (section 4.2): how many already-
-// submitted entries would newly read as missing something under the
-// proposed fields (they stay submitted regardless -- this is
-// informational), and how many drafts would newly need more before they can
-// submit. "Newly" means the proposed rules ask for a line the current rules
-// don't: an entry already short of the current rules in exactly the same
-// way is not counted again, so loosening or re-saving unchanged rules
-// reports no impact.
-func (h *HackHandler) entryRulesImpact(ctx context.Context, tx *sql.Tx, ev db.Event, fields map[string]string) (map[string]any, error) {
-	current := hackentries.LoadRules(ev.EntryRules)
-	teams, err := db.ListEventTeams(ctx, tx, ev.ID)
-	if err != nil {
-		return nil, err
-	}
-	entries, err := db.ListEventEntries(ctx, tx, ev.ID)
-	if err != nil {
-		return nil, err
-	}
-	tracks, err := db.ListEventTracks(ctx, tx, ev.ID)
-	if err != nil {
-		return nil, err
-	}
-	hasTracks := len(tracks) > 0
-	byTeam := map[string]db.EventEntry{}
-	for _, e := range entries {
-		byTeam[e.TeamID] = e
-	}
-	submittedMissing, draftsNewlyBlocked := 0, 0
-	type impactTeam struct {
-		ID, Name string
-		Missing  []string
-	}
-	var affected []impactTeam
-	for _, team := range teams {
-		e, ok := byTeam[team.ID]
-		if !ok {
-			continue
-		}
-		track, err := db.TeamTrack(ctx, tx, team.ID)
-		if err != nil {
-			return nil, err
-		}
-		siteLive := h.entrySiteLive(ctx, ev, team.Slug, team.SiteTakenDownAt.Valid)
-		check := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
-		if check.Complete {
-			continue
-		}
-		before := hackentries.Evaluate(current, e, siteLive, hasTracks, track)
-		was := map[string]bool{}
-		for _, m := range before.Missing {
-			was[m] = true
-		}
-		newly := false
-		for _, m := range check.Missing {
-			if !was[m] {
-				newly = true
-				break
-			}
-		}
-		// A draft counts only when these rules newly block it: it could be
-		// submitted under the current rules and no longer can. A draft that
-		// was already incomplete is not newly blocked, even if it now misses
-		// one more line.
-		if !newly || (!e.SubmittedAt.Valid && !before.Complete) {
-			continue
-		}
-		if e.SubmittedAt.Valid {
-			submittedMissing++
-		} else {
-			draftsNewlyBlocked++
-		}
-		affected = append(affected, impactTeam{ID: team.ID, Name: team.Name, Missing: check.Missing})
-	}
-	out := make([]map[string]any, 0, len(affected))
-	for _, t := range affected {
-		out = append(out, map[string]any{"id": t.ID, "name": t.Name, "missing": t.Missing})
-	}
-	return map[string]any{"submitted_missing": submittedMissing, "drafts_newly_blocked": draftsNewlyBlocked, "teams": out}, nil
-}
-
-// entryProgressJSON is the participant Home checklist (section 4.3): four
-// steps (team, summary, evidence, submit), the next one to do, and the
-// deadline, so the website and the AI apps compute it identically.
 func (h *HackHandler) entryProgressJSON(ctx context.Context, ev db.Event, team db.EventTeam, teammates []string, st db.TeamWriteState) (map[string]any, error) {
-	e, err := db.GetEventEntry(ctx, h.database, team.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		e = db.EventEntry{}
-	} else if err != nil {
-		return nil, err
-	}
-	fields := hackentries.LoadRules(ev.EntryRules)
-	tracks, err := db.ListEventTracks(ctx, h.database, ev.ID)
+	p, err := h.entries.EntryProgress(ctx, ev, team, teammates, st)
 	if err != nil {
 		return nil, err
 	}
-	hasTracks := len(tracks) > 0
-	track, err := db.TeamTrack(ctx, h.database, team.ID)
-	if err != nil {
-		return nil, err
-	}
-	siteLive := h.entrySiteLive(ctx, ev, team.Slug, st.SiteTakenDown)
-
-	filled, of, summaryMissing := 0, 0, []string{}
-	for _, f := range hackentries.SummaryFields {
-		if f == "track" && !hasTracks {
-			continue
-		}
-		if fields[f] == "off" {
-			continue
-		}
-		// The project name always counts (full-test fix, 2026-11-02): it
-		// used to count only while empty, so "1 of 7 filled" became "6 of
-		// 6" once it was typed, and Home and Entry disagreed mid-edit.
-		of++
-		if hackentries.FieldPresent(f, e, siteLive, track) {
-			filled++
-		} else {
-			summaryMissing = append(summaryMissing, f)
-		}
-	}
-	evidenceCheck := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
-	evidenceMissing := []string{}
-	for _, m := range evidenceCheck.Missing {
-		if m == "one_of" || m == "code_url" {
-			evidenceMissing = append(evidenceMissing, m)
-		}
-	}
-	evidenceDone := len(evidenceMissing) == 0
-
-	teamLine := "On " + team.Name
-	if len(teammates) > 0 {
-		teamLine += " with " + hackentries.JoinNames(teammates)
-	}
+	e := p.Entry
 	steps := []map[string]any{
-		{"id": "team", "done": true, "detail": teamLine},
-		{"id": "summary", "done": filled >= of, "filled": filled, "of": of, "missing": summaryMissing},
-		{"id": "evidence", "done": evidenceDone, "summary": hackentries.RulesSummary(fields), "missing": evidenceMissing},
+		{"id": "team", "done": true, "detail": p.TeamLine},
+		{"id": "summary", "done": p.Filled >= p.Of, "filled": p.Filled, "of": p.Of, "missing": p.SummaryMissing},
+		{"id": "evidence", "done": p.EvidenceDone, "summary": p.Summary, "missing": p.EvidenceMissing},
 		{"id": "submit", "done": e.Status() == "submitted", "status": e.Status(), "submitted_at": rfc3339UTC(e.SubmittedAt), "auto": e.SubmitAuto},
 	}
-	next := "submit"
-	switch {
-	case filled < of:
-		next = "summary"
-	case !evidenceDone:
-		next = "evidence"
-	case e.Status() != "submitted":
-		next = "submit"
-	default:
-		next = ""
-	}
-	var now time.Time
-	_ = h.database.QueryRowContext(ctx, `SELECT clock_timestamp()`).Scan(&now)
-	return map[string]any{
-		"steps": steps, "next": next,
-		"deadline": rfc3339UTC(st.Deadline), "deadline_is_extension": st.HasOverride, "event_deadline": rfc3339UTC(st.EventDeadline),
-		"server_now": rfc3339Time(now),
-	}, nil
+	return map[string]any{"steps": steps, "next": p.Next, "deadline": rfc3339UTC(st.Deadline), "deadline_is_extension": st.HasOverride, "event_deadline": rfc3339UTC(st.EventDeadline), "server_now": rfc3339Time(p.Now)}, nil
 }
 
 // SettleDueEntries runs the deadline sweep for every event.
