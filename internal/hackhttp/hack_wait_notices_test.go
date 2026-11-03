@@ -56,7 +56,7 @@ func mailTo(sink *contentMailSink, addr string) []struct{ to, subject, body stri
 // sweepNow runs the notice sweep with no first delay (the 15-minute window
 // stays), as if the minute had already passed.
 func sweepNow(a *teamSiteApp) {
-	a.hack.noticeTiming = &noticeMailPolicy{delay: 0, window: noticeMailWindow}
+	a.hack.noticeTiming = &noticeMailPolicy{delay: 0, window: 15 * time.Minute}
 	a.hack.deliverNoticeMail(context.Background())
 }
 
@@ -92,7 +92,7 @@ func TestHackWaitNoticesTeamRequests(t *testing.T) {
 		t.Fatal("another team's admin sees Alpha's request")
 	}
 	// Not before the first minute has passed.
-	a.hack.noticeTiming = &noticeMailPolicy{delay: time.Hour, window: noticeMailWindow}
+	a.hack.noticeTiming = &noticeMailPolicy{delay: time.Hour, window: 15 * time.Minute}
 	a.hack.deliverNoticeMail(context.Background())
 	if got := mailTo(sink, admin.email); len(got) != 0 {
 		t.Fatalf("emailed before the delay: %+v", got)
