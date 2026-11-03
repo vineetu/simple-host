@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
 // ErrStateVersionConflict is returned by UpdateSiteStateCAS when the caller's
@@ -363,11 +365,8 @@ func isUniqueViolation(err error) bool {
 	return strings.Contains(msg, "23505") || strings.Contains(strings.ToLower(msg), "unique")
 }
 
-// Querier abstracts *sql.DB and *sql.Tx for transaction-safe queries.
-type Querier interface {
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}
+// Alias (cleanup 4.1): defined in internal/repository/sqlkit.
+type Querier = sqlkit.Querier
 
 // CreateSite inserts a new site. expiresAt is nil for permanent sites, or a
 // timestamp for ephemeral "preview" sites that the background sweep deletes.

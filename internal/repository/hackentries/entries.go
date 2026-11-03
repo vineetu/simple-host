@@ -1,8 +1,9 @@
-package db
+package hackentries
 
 import (
 	"context"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"strings"
 	"time"
 
@@ -52,19 +53,19 @@ func scanEventEntry(row entryScanner) (EventEntry, error) {
 }
 
 // GetEventEntry loads the team's entry. sql.ErrNoRows when it has none.
-func GetEventEntry(ctx context.Context, q Querier, teamID string) (EventEntry, error) {
+func GetEventEntry(ctx context.Context, q sqlkit.Querier, teamID string) (EventEntry, error) {
 	return scanEventEntry(q.QueryRowContext(ctx, entrySelect+` WHERE e.team_id = $1`, teamID))
 }
 
 // GetEventEntryForUpdate is GetEventEntry with the row locked FOR UPDATE
 // (the sweep and submit/unsubmit take it after the team row, per the lock
 // order: event, member, team, entry).
-func GetEventEntryForUpdate(ctx context.Context, q Querier, teamID string) (EventEntry, error) {
+func GetEventEntryForUpdate(ctx context.Context, q sqlkit.Querier, teamID string) (EventEntry, error) {
 	return scanEventEntry(q.QueryRowContext(ctx, entrySelect+` WHERE e.team_id = $1 FOR UPDATE OF e`, teamID))
 }
 
 // ListEventEntries loads every entry written for the event.
-func ListEventEntries(ctx context.Context, q Querier, eventID string) ([]EventEntry, error) {
+func ListEventEntries(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventEntry, error) {
 	rows, err := queryContext(ctx, q, entrySelect+` WHERE e.event_id = $1`, eventID)
 	if err != nil {
 		return nil, err
@@ -85,7 +86,7 @@ func ListEventEntries(ctx context.Context, q Querier, eventID string) ([]EventEn
 // present in fields (column names from entryTextColumns) and, when tools is
 // not nil, the tools array. Omitted fields stay as stored. updated_at and
 // updated_by always move to this write.
-func UpsertEventEntryText(ctx context.Context, q Querier, eventID, teamID, userID string, fields map[string]string, tools *[]string) error {
+func UpsertEventEntryText(ctx context.Context, q sqlkit.Querier, eventID, teamID, userID string, fields map[string]string, tools *[]string) error {
 	allowed := map[string]bool{}
 	for _, col := range entryTextColumns {
 		allowed[col] = true
@@ -123,7 +124,7 @@ func UpsertEventEntryText(ctx context.Context, q Querier, eventID, teamID, userI
 
 // UpsertEventEntryScreenshot stores the team's screenshot (data nil and mime
 // "" clear it) and stamps the write. Other text fields are left as they are.
-func UpsertEventEntryScreenshot(ctx context.Context, q Querier, eventID, teamID, userID string, data []byte, mime string) error {
+func UpsertEventEntryScreenshot(ctx context.Context, q sqlkit.Querier, eventID, teamID, userID string, data []byte, mime string) error {
 	_, err := q.ExecContext(ctx, `
 		INSERT INTO event_entries (team_id, event_id, screenshot, screenshot_type, updated_at, updated_by)
 		VALUES ($1, $2, $3, $4, now(), $5)
@@ -138,7 +139,7 @@ func UpsertEventEntryScreenshot(ctx context.Context, q Querier, eventID, teamID,
 
 // GetEventScreenshot reads the team's stored image. sql.ErrNoRows when the
 // team has no entry or the screenshot is empty.
-func GetEventScreenshot(ctx context.Context, q Querier, teamID string) ([]byte, string, error) {
+func GetEventScreenshot(ctx context.Context, q sqlkit.Querier, teamID string) ([]byte, string, error) {
 	var data []byte
 	var mime string
 	err := q.QueryRowContext(ctx, `
@@ -149,13 +150,13 @@ func GetEventScreenshot(ctx context.Context, q Querier, teamID string) ([]byte, 
 
 // TeamSiteLive reports whether the holding account has a live site of that
 // name (a row in Recently deleted does not count).
-func TeamSiteLive(ctx context.Context, q Querier, accountID, name string) (bool, error) {
+func TeamSiteLive(ctx context.Context, q sqlkit.Querier, accountID, name string) (bool, error) {
 	var live bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM sites WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL)`, accountID, name).Scan(&live)
 	return live, err
 }
 
-// EntryJudgeableSQL implements rules/hackentries.Judgeable over event_teams t and is true when a team's entry has
+// EntryJudgeableSQL implements rules/hackentries.Judgeable over event_teams t; TestEntryJudgeableSQL checks the contract. It is true when a team's entry has
 // been decided one way (submitted, or settled as "not submitted") and an
 // organiser has not excluded it by hand. A team with no entry row is never
 // judgeable. Coordinator decision 2026-11-02 (INTENT.md, owner may
@@ -172,7 +173,7 @@ const EntryJudgeableSQL = `EXISTS (
 // call keeps the first submitted_at, submitted_by and submit_auto (section
 // 4.1, "submitting twice"). The caller evaluates completeness first; this
 // just writes the decision.
-func SubmitEventEntry(ctx context.Context, q Querier, teamID, userID string) (EventEntry, error) {
+func SubmitEventEntry(ctx context.Context, q sqlkit.Querier, teamID, userID string) (EventEntry, error) {
 	if _, err := q.ExecContext(ctx, `
 		UPDATE event_entries SET
 			submitted_by = COALESCE(submitted_by, $2),
@@ -189,7 +190,7 @@ func SubmitEventEntry(ctx context.Context, q Querier, teamID, userID string) (Ev
 // submit_auto and submit_settled_at all clear, so the sweep reconsiders it if
 // the deadline has in fact passed (it is only reachable before the deadline;
 // entryWrite's WriteRefusal already guards that).
-func UnsubmitEventEntry(ctx context.Context, q Querier, teamID string) (EventEntry, error) {
+func UnsubmitEventEntry(ctx context.Context, q sqlkit.Querier, teamID string) (EventEntry, error) {
 	if _, err := q.ExecContext(ctx, `
 		UPDATE event_entries SET submitted_at = NULL, submitted_by = NULL, submit_auto = false, submit_settled_at = NULL
 		 WHERE team_id = $1`, teamID); err != nil {
@@ -201,7 +202,7 @@ func UnsubmitEventEntry(ctx context.Context, q Querier, teamID string) (EventEnt
 // SettleEntryComplete is the deadline sweep's decision for a complete draft:
 // auto-submitted at the earlier of now and the deadline (a sweep that runs
 // late must not credit a team with extra time), submit_auto true.
-func SettleEntryComplete(ctx context.Context, q Querier, teamID string, deadline time.Time) error {
+func SettleEntryComplete(ctx context.Context, q sqlkit.Querier, teamID string, deadline time.Time) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_entries SET submitted_at = LEAST(now(), $2), submit_auto = true, submit_settled_at = now()
 		 WHERE team_id = $1 AND submitted_at IS NULL`, teamID, deadline)
@@ -214,7 +215,7 @@ func SettleEntryComplete(ctx context.Context, q Querier, teamID string, deadline
 // Incomplete flag, rather than dropped -- unlike the build plan's original
 // "not judged" rule. An organiser excludes it by hand (SetEntryExcluded) if
 // they choose to.
-func SettleEntryIncomplete(ctx context.Context, q Querier, teamID string) error {
+func SettleEntryIncomplete(ctx context.Context, q sqlkit.Querier, teamID string) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_entries SET submit_settled_at = now()
 		 WHERE team_id = $1 AND submitted_at IS NULL AND submit_settled_at IS NULL`, teamID)
@@ -226,14 +227,14 @@ func SettleEntryIncomplete(ctx context.Context, q Querier, teamID string) error 
 // frozen: the team's effective deadline has passed, or the event stage is
 // judging, results or archived. A team with no entry row is never listed --
 // it has nothing to settle and reads as "Not started".
-func UnsettledFrozenTeamIDs(ctx context.Context, q Querier, eventID string) ([]string, error) {
+func UnsettledFrozenTeamIDs(ctx context.Context, q sqlkit.Querier, eventID string) ([]string, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT en.team_id FROM event_entries en
 		  JOIN event_teams t ON t.id = en.team_id
 		  JOIN events e ON e.id = t.event_id
 		 WHERE en.submitted_at IS NULL AND en.submit_settled_at IS NULL
 		   AND (e.stage IN ('judging', 'results', 'archived')
-		        OR (`+EffectiveDeadlineSQL+` IS NOT NULL AND `+EffectiveDeadlineSQL+` <= clock_timestamp()))
+		        OR (`+effectiveDeadlineSQL+` IS NOT NULL AND `+effectiveDeadlineSQL+` <= clock_timestamp()))
 		   AND ($1 = '' OR e.id::text = $1)`, eventID)
 	if err != nil {
 		return nil, err
@@ -264,7 +265,7 @@ type FrozenTeamWithoutEntry struct {
 // whose team site is live, so a team that published its site but never
 // opened the entry form is still judged, flagged Incomplete (full-test fix,
 // 2026-11-02): the site is part of the entry. A team with neither stays out.
-func FrozenTeamsWithoutEntry(ctx context.Context, q Querier, eventID string) ([]FrozenTeamWithoutEntry, error) {
+func FrozenTeamsWithoutEntry(ctx context.Context, q sqlkit.Querier, eventID string) ([]FrozenTeamWithoutEntry, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT t.id, t.slug, t.site_taken_down_at IS NOT NULL FROM event_teams t
 		  JOIN events e ON e.id = t.event_id
@@ -272,7 +273,7 @@ func FrozenTeamsWithoutEntry(ctx context.Context, q Querier, eventID string) ([]
 		   AND NOT EXISTS (SELECT 1 FROM event_entries en WHERE en.team_id = t.id)
 		   AND (EXISTS (SELECT 1 FROM event_members m WHERE m.team_id = t.id) OR t.kept_after_leave)
 		   AND (e.stage IN ('judging', 'results', 'archived')
-		        OR (`+EffectiveDeadlineSQL+` IS NOT NULL AND `+EffectiveDeadlineSQL+` <= clock_timestamp()))
+		        OR (`+effectiveDeadlineSQL+` IS NOT NULL AND `+effectiveDeadlineSQL+` <= clock_timestamp()))
 		 ORDER BY t.id`, eventID)
 	if err != nil {
 		return nil, err
@@ -291,7 +292,7 @@ func FrozenTeamsWithoutEntry(ctx context.Context, q Querier, eventID string) ([]
 
 // StartEmptyEventEntry inserts an empty entry row for the team, leaving any
 // existing row alone. updated_by stays NULL: nobody on the team wrote it.
-func StartEmptyEventEntry(ctx context.Context, q Querier, eventID, teamID string) error {
+func StartEmptyEventEntry(ctx context.Context, q sqlkit.Querier, eventID, teamID string) error {
 	_, err := q.ExecContext(ctx, `
 		INSERT INTO event_entries (team_id, event_id, updated_at)
 		VALUES ($1, $2, now())
@@ -303,7 +304,7 @@ func StartEmptyEventEntry(ctx context.Context, q Querier, eventID, teamID string
 // (an extension, section 7 "Unsettle"): the sweep reconsiders it against the
 // new deadline. A submitted entry is untouched -- tightening or loosening the
 // clock never un-submits.
-func UnsettleTeamEntry(ctx context.Context, q Querier, teamID string) error {
+func UnsettleTeamEntry(ctx context.Context, q sqlkit.Querier, teamID string) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_entries SET submit_settled_at = NULL
 		 WHERE team_id = $1 AND submitted_at IS NULL`, teamID)
@@ -313,7 +314,7 @@ func UnsettleTeamEntry(ctx context.Context, q Querier, teamID string) error {
 // UnsettleEventDrafts is UnsettleTeamEntry for every unsubmitted draft of the
 // event: the stage moving back to building, or the event deadline moving
 // later (section 7).
-func UnsettleEventDrafts(ctx context.Context, q Querier, eventID string) error {
+func UnsettleEventDrafts(ctx context.Context, q sqlkit.Querier, eventID string) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_entries SET submit_settled_at = NULL
 		 WHERE event_id = $1 AND submitted_at IS NULL`, eventID)
@@ -324,7 +325,7 @@ func UnsettleEventDrafts(ctx context.Context, q Querier, eventID string) error {
 // entry from judging (coordinator decision 2026-11-02, INTENT.md). Allowed
 // on any entry, not only an incomplete one -- an organiser call, not gated
 // on status.
-func SetEntryExcluded(ctx context.Context, q Querier, teamID, userID string, excluded bool) (EventEntry, error) {
+func SetEntryExcluded(ctx context.Context, q sqlkit.Querier, teamID, userID string, excluded bool) (EventEntry, error) {
 	var err error
 	if excluded {
 		_, err = q.ExecContext(ctx, `
@@ -337,18 +338,4 @@ func SetEntryExcluded(ctx context.Context, q Querier, teamID, userID string, exc
 		return EventEntry{}, err
 	}
 	return GetEventEntry(ctx, q, teamID)
-}
-
-// UpdateEventEntryRules writes the organiser's entry rules: the preset name,
-// the expanded+validated rules JSON (never the client's raw JSON -- the
-// handler normalises it first) and which evidence judges see first. It also
-// writes entry_required for the deprecated alias, kept in sync with the
-// rules' required fields among hackEntryFields for one release.
-func UpdateEventEntryRules(ctx context.Context, q Querier, eventID, preset string, rulesJSON []byte, judgeFirst string, legacyRequired []string) (Event, error) {
-	if legacyRequired == nil {
-		legacyRequired = []string{}
-	}
-	return scanEvent(q.QueryRowContext(ctx, `
-		UPDATE events SET entry_preset = $2, entry_rules = $3, judge_first = $4, entry_required = $5, updated_at = now()
-		 WHERE id = $1 RETURNING `+eventColumns, eventID, preset, rulesJSON, judgeFirst, pq.Array(legacyRequired)))
 }
