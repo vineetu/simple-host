@@ -19,7 +19,6 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -814,7 +813,7 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 409, "key_exists", "this key already exists")
 			return
 		}
-		if c.checkedPost && !storagePostLimits(w, v.Value) {
+		if c.checkedPost && !storagePostLimits(w, v.Value, h.limits) {
 			return
 		}
 		usage, e := h.measureSiteStorage(r.Context(), c)
@@ -960,7 +959,7 @@ func escapeStorageLike(s string) string {
 // Bodies are consumed before this bounded write/quota critical section. Reads
 // never use the deploy mutex. Recheck policy after waiting for a concurrent PUT.
 func (h *SiteHandler) storageWriteLock(w http.ResponseWriter, r *http.Request, c storageCall, recheck bool) (func(), bool) {
-	ctx, cancel := context.WithTimeout(r.Context(), config.Active().StorageWriteLockWait)
+	ctx, cancel := context.WithTimeout(r.Context(), h.limits.StorageWriteLockWait)
 	defer cancel()
 	mu, _ := h.uploadLocks.LoadOrStore(c.ownerID+"/"+c.siteName, &sync.Mutex{})
 	m := mu.(*sync.Mutex)
@@ -982,9 +981,9 @@ func (h *SiteHandler) storageWriteLock(w http.ResponseWriter, r *http.Request, c
 			return nil, false
 		}
 	}
-	timeout := config.Active().StorageVisitorWriteTimeout
+	timeout := h.limits.StorageVisitorWriteTimeout
 	if c.owner {
-		timeout = config.Active().StorageOwnerTimeout
+		timeout = h.limits.StorageOwnerTimeout
 	}
 	writeCtx, writeCancel := context.WithTimeout(r.Context(), timeout)
 	*r = *r.WithContext(writeCtx)

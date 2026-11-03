@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
 	"golang.org/x/net/html"
@@ -591,7 +590,7 @@ func (h *SiteHandler) visitorWrite(r *http.Request, siteID, userID, app, tool st
 			return nil, fmt.Errorf("action must be edit or delete")
 		}
 	}
-	cap := config.Active().VisitorAIWritesPerDay
+	cap := h.limits.VisitorAIWritesPerDay
 	var count int64
 	err := h.database.QueryRowContext(r.Context(), `INSERT INTO visitor_ai_daily(user_id,site_id,day,writes) VALUES($1,$2,(now() AT TIME ZONE 'UTC')::date,1) ON CONFLICT(user_id,site_id,day) DO UPDATE SET writes=visitor_ai_daily.writes+1 WHERE visitor_ai_daily.writes<$3 RETURNING writes`, userID, siteID, cap).Scan(&count)
 	if err == sql.ErrNoRows {

@@ -33,7 +33,7 @@ func TestDomainResponseDeadline(t *testing.T) {
 				CertStatus: tc.cert,
 				BoundAt:    sql.NullTime{Time: bound, Valid: true},
 				VerifiedAt: sql.NullTime{Time: bound, Valid: tc.verified},
-			})
+			}, 24*time.Hour, 7*24*time.Hour)
 			data, err := json.Marshal(resp)
 			if err != nil {
 				t.Fatal(err)

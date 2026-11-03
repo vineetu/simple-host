@@ -30,8 +30,14 @@ type hackApp struct {
 	hack     *HackHandler
 }
 
-func newHackApp(t *testing.T) *hackApp {
+func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	t.Helper()
+	var ed *edition.Edition
+	if len(eds) > 0 {
+		ed = eds[0]
+	} else {
+		ed = edition.ForKind(edition.Hack)
+	}
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		t.Skip("DB_DSN unset")
@@ -53,10 +59,10 @@ func newHackApp(t *testing.T) *hackApp {
 	var root http.Handler
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(srv.Close)
-	authMW := auth.Middleware(adminKey, adminID, database)
-	users := NewUserHandler(database, email.NewResendSender("", "test@example.com"), srv.URL, edition.ForKind(edition.Hack))
+	authMW := auth.Middleware(adminKey, adminID, database, ed.Limits().KeyIdleExpiry)
+	users := NewUserHandler(database, email.NewResendSender("", "test@example.com"), srv.URL, ed)
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
-	h := NewHackHandler(database, srv.URL, "simple-hack.test")
+	h := NewHackHandler(database, srv.URL, "simple-hack.test", ed)
 	h.Register(mux, authMW)
 	root = mux
 	return &hackApp{database: database, admin: adminKey, mux: mux, srv: srv, hack: h}
@@ -341,13 +347,11 @@ func TestHackCreateNameTakenHandlePeerBudgetLimits(t *testing.T) {
 	a.hack.SetNamePeer(nil)
 
 	a.hack.SetInstanceUsage(func(ctx context.Context) (int64, error) { return 9 * 1024 * 1024 * 1024, nil })
-	old := *config.Active()
-	l := old
+	l := config.DefaultLimits()
 	l.HackInstanceBudgetGB = 10
 	l.EventCreatePerDay = 1
 	l.EventMaxActivePerOrganiser = 1
-	config.SetActive(l)
-	t.Cleanup(func() { config.SetActive(old) })
+	setHackAppLimits(a, l)
 	r = a.at(t, "POST", "/v1/hack/events", a.createBody(uniqueSlug(), nil), a.key(org))
 	if r.status != http.StatusInsufficientStorage || r.json(t)["code"] != "instance_full" {
 		t.Fatalf("budget: %d %s", r.status, r.body)
@@ -373,10 +377,9 @@ func TestHackCreateNameTakenHandlePeerBudgetLimits(t *testing.T) {
 	}
 
 	org2 := a.newPerson(t, "act")
-	l2 := *config.Active()
-	l2.EventCreatePerDay = 10
-	l2.EventMaxActivePerOrganiser = 1
-	config.SetActive(l2)
+	l.EventCreatePerDay = 10
+	l.EventMaxActivePerOrganiser = 1
+	setHackAppLimits(a, l)
 	s1 := uniqueSlug()
 	if r := a.createEvent(t, org2, s1, nil); r.status != http.StatusCreated {
 		t.Fatalf("active first: %d %s", r.status, r.body)
@@ -739,12 +742,10 @@ func TestHackConcurrentLastSlot(t *testing.T) {
 
 func TestHackAdmin(t *testing.T) {
 	a := newHackApp(t)
-	old := *config.Active()
-	l := old
+	l := config.DefaultLimits()
 	l.EventCreatePerDay = 20
 	l.EventMaxActivePerOrganiser = 20
-	config.SetActive(l)
-	t.Cleanup(func() { config.SetActive(old) })
+	setHackAppLimits(a, l)
 	org := a.newPerson(t, "ad")
 	part := a.newPerson(t, "ap")
 	slug := uniqueSlug()

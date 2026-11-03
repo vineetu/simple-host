@@ -14,7 +14,7 @@ import (
 )
 
 func (h *SiteHandler) keepSiteFiles(r *http.Request, siteName string, files map[string][]byte, remove []string, budget int64) error {
-	totalLimit, fileLimit, entryLimit := tarball.FileLimits(budget)
+	totalLimit, fileLimit, entryLimit := tarball.FileLimits(budget, h.limits.MaxFilesPerSite)
 	removed, err := normalizeFilePatch(files, remove)
 	if err != nil {
 		return err

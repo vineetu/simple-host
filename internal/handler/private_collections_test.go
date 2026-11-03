@@ -39,17 +39,27 @@ type privateApp struct {
 	mux   *http.ServeMux
 }
 
-func newPrivateApp(t *testing.T) *privateApp {
+func newPrivateApp(t *testing.T, eds ...*edition.Edition) *privateApp {
 	t.Helper()
-	return newPrivateAppMailer(t, email.NewResendSender("", "test@example.com"))
+	return newPrivateAppMailer(t, email.NewResendSender("", "test@example.com"), eds...)
 }
 
 // newPrivateAppMailer is newPrivateApp with the given mailer.
-func newPrivateAppMailer(t *testing.T, mailer email.Sender) *privateApp {
-	return newPrivateAppMailerBase(t, mailer, "")
+func newPrivateAppMailer(t *testing.T, mailer email.Sender, eds ...*edition.Edition) *privateApp {
+	return newPrivateAppMailerBase(t, mailer, "", eds...)
 }
-func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string) *privateApp {
+
+// newPrivateAppMailerBase builds the app at edition.ForKind(Host), unless an
+// override edition (e.g. edition.ForKindWithLimits for a changed-knob test)
+// is passed.
+func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds ...*edition.Edition) *privateApp {
 	t.Helper()
+	var ed *edition.Edition
+	if len(eds) > 0 {
+		ed = eds[0]
+	} else {
+		ed = edition.ForKind(edition.Host)
+	}
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		t.Skip("DB_DSN unset")
@@ -76,24 +86,24 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string) *pr
 	}
 	mux := http.NewServeMux()
 	a := &privateApp{connectorApp: &connectorApp{database: database, admin: adminKey}, mux: mux}
-	authMW := auth.Middleware(adminKey, adminID, database)
+	authMW := auth.Middleware(adminKey, adminID, database, ed.Limits().KeyIdleExpiry)
 	var root http.Handler
 	a.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(a.srv.Close)
 	if base == "" {
 		base = a.srv.URL
 	}
-	users := NewUserHandler(database, mailer, base)
+	users := NewUserHandler(database, mailer, base, ed)
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.users = users
-	a.sites = NewSiteHandler(edition.ForKind(edition.Host), "", database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	a.sites = NewSiteHandler(ed, "", database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.sites.WaitNotifications)
 	users.SetFileUsage(a.sites)
 	users.SetPublicPage(a.sites.PersonPageURL)
 	users.SetAddressState(a.sites.AddressState)
 	gated := a.sites.LegacyStorageCutoffGate(a.sites.HackLegacyStorageGate(mux))
-	a.conn = NewConnectorHandler(database, base, adminKey, pcSiteDomain, pcContentHost, "1.0.0", gated, false)
+	a.conn = NewConnectorHandler(database, base, adminKey, pcSiteDomain, pcContentHost, "1.0.0", gated, false, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetSignInAlerts(users.SignInAlerts())
 	app := SecurityHeaders(CORS(a.conn.BearerAuth(gated)))

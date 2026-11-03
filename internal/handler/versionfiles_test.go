@@ -191,7 +191,7 @@ func TestVersionFilesRequestValidation(t *testing.T) {
 			r.SetPathValue("version", c.version)
 			r.Header.Set("X-API-Key", "test-key")
 			w := httptest.NewRecorder()
-			auth.Middleware("test-key", "owner", nil)(handler).ServeHTTP(w, r)
+			auth.Middleware("test-key", "owner", nil, 180*24*time.Hour)(handler).ServeHTTP(w, r)
 			if w.Code != 400 {
 				t.Fatalf("%+v: %d", c, w.Code)
 			}

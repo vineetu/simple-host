@@ -100,7 +100,7 @@ func TestViewersOwnerAPI(t *testing.T) {
 		t.Fatalf("passcode on a named-viewers site: %d %s", r.status, r.body)
 	}
 	// The cap.
-	withPasscodeLimits(t, func(l *config.Limits) { l.SiteViewersMax = 3 })
+	withPasscodeLimits(t, func(l *config.Limits) { l.SiteViewersMax = 3 }, &p.sites.limitSet)
 	if r := p.grant(t, "a@example.com", "b@example.com"); r.status != http.StatusConflict || r.json(t)["code"] != "too_many_viewers" {
 		t.Fatalf("cap: %d %s", r.status, r.body)
 	}

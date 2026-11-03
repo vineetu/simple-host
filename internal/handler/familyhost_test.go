@@ -473,11 +473,11 @@ func TestFamilyBindRules(t *testing.T) {
 		t.Errorf("again: %d %s", r.status, r.body)
 	}
 	func() {
-		old := *config.Active()
-		l := old
+		old := a.sites.limitSet
+		l := old.limits
 		l.FamiliesPerAccount = 1
-		config.SetActive(l)
-		defer config.SetActive(old)
+		a.sites.limitSet = newLimitSet(l)
+		defer func() { a.sites.limitSet = old }()
 		if r := post(map[string]any{"suffix": "*.other.test"}); r.status != http.StatusConflict || r.json(t)["code"] != "address_family_limit" {
 			t.Errorf("cap: %d %s", r.status, r.body)
 		}
@@ -615,7 +615,7 @@ func TestFamilyPasscode(t *testing.T) {
 	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true })
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &a.sites.limitSet)
 	olive := a.newPerson(t, "olive")
 	a.deploy(t, olive, "meera")
 	_, oh := a.userID(t, olive)
@@ -769,11 +769,11 @@ func TestFamilyIdleExempt(t *testing.T) {
 		t.Fatalf("idle dry run: %d %s", r.status, r.body)
 	}
 	func() {
-		old := *config.Active()
-		l := old
+		old := a.sites.limitSet
+		l := old.limits
 		l.IdleExemptFamilySites = false
-		config.SetActive(l)
-		defer config.SetActive(old)
+		a.sites.limitSet = newLimitSet(l)
+		defer func() { a.sites.limitSet = old }()
 		a.sites.SetIdleExempt(nil, "")
 		r := a.at(t, "GET", pcSiteDomain, "/v1/admin/idle-sites", nil, map[string]string{"X-API-Key": a.admin})
 		if !strings.Contains(string(r.body), `"site":"voucher-meera"`) {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 )
 
 const createIdempotencyTTL = 24 * time.Hour
@@ -38,14 +39,16 @@ type createIdempotencyResponse struct {
 // Only response bytes and request hashes are retained. Like the rate limiter,
 // this store is local to the single server process and is lost on restart.
 type createIdempotencyStore struct {
+	limitSet
 	mu            sync.Mutex
 	entries       map[createIdempotencyKey]*createIdempotencyResponse
 	accountCounts map[string]int
 	now           func() time.Time
 }
 
-func newCreateIdempotencyStore() *createIdempotencyStore {
+func newCreateIdempotencyStore(l config.Limits) *createIdempotencyStore {
 	return &createIdempotencyStore{
+		limitSet:      newLimitSet(l),
 		entries:       make(map[createIdempotencyKey]*createIdempotencyResponse),
 		accountCounts: make(map[string]int),
 		now:           time.Now,
@@ -118,7 +121,7 @@ func (s *createIdempotencyStore) wrapAccount(account, siteID string, next http.H
 		}
 		defer os.Remove(body.Name())
 		defer body.Close()
-		limit := largestSiteLimit()*4/3 + (1 << 20)
+		limit := s.largestSiteLimit()*4/3 + (1 << 20)
 		if photoCap := int64(photoCountLimit*(photoLimit("PHOTO_MAX_BYTES", 1000000)+4096) + 4096); photoCap > limit {
 			limit = photoCap
 		}

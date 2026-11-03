@@ -19,7 +19,7 @@ func (h *HackHandler) getTeamLink(w http.ResponseWriter, r *http.Request) {
 	var user *db.User
 	caller := ""
 	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := db.GetUserByAPIKey(ctx, h.database, k); err == nil {
+		if u, err := db.GetUserByAPIKey(ctx, h.database, k, h.limits.KeyIdleExpiry); err == nil {
 			user = &u
 			caller = u.ID
 		}

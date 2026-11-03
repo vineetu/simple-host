@@ -122,18 +122,21 @@ func (x *notificationReceiver) setStatus(status int) {
 	defer x.mu.Unlock()
 	x.status = status
 }
-func notificationSettings(t *testing.T, change func(*config.Limits)) {
+
+// notificationSettings loads config.Limits with change applied, for the
+// caller to build a fixture from (e.g. notificationFixture(t, ..., l)): each
+// handler holds its own snapshot now, so there is no global left to apply
+// it to after the fact.
+func notificationSettings(t *testing.T, change func(*config.Limits)) config.Limits {
 	t.Helper()
-	old := *config.Active()
-	l := old
+	l := config.DefaultLimits()
 	change(&l)
-	config.SetActive(l)
-	t.Cleanup(func() { config.SetActive(old) })
+	return l
 }
-func notificationFixture(t *testing.T) (presetSite, *notificationReceiver) {
+func notificationFixture(t *testing.T, eds ...*edition.Edition) (presetSite, *notificationReceiver) {
 	t.Helper()
 	isolateQueueTest(t)
-	s := newPresetSite(t)
+	s := newPresetSite(t, eds...)
 	t.Cleanup(s.a.sites.WaitNotifications)
 	x := newNotificationReceiver(t)
 	if err := s.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
@@ -364,8 +367,8 @@ func TestNotifyVisitorRoutes(t *testing.T) {
 }
 
 func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
-	notificationSettings(t, func(l *config.Limits) { l.NotifySuspendAttempts = 3 })
-	s, x := notificationFixture(t)
+	l := notificationSettings(t, func(l *config.Limits) { l.NotifySuspendAttempts = 3 })
+	s, x := notificationFixture(t, edition.ForKindWithLimits(edition.Host, l))
 	id := subscribeNotification(t, s, x)
 	mail := &mailbox{}
 	s.a.sites.mailer = mail
@@ -415,8 +418,8 @@ func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
 }
 
 func TestNotifyCapsTruncationRotationAndControls(t *testing.T) {
-	notificationSettings(t, func(l *config.Limits) { l.NotifyMaxPerSite = 1; l.NotifyPerMinute = 2 })
-	s, x := notificationFixture(t)
+	l := notificationSettings(t, func(l *config.Limits) { l.NotifyMaxPerSite = 1; l.NotifyPerMinute = 2 })
+	s, x := notificationFixture(t, edition.ForKindWithLimits(edition.Host, l))
 	id := subscribeNotification(t, s, x)
 	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"record.added"}}, 409)
 	s.must(t, "PUT", "/resources/kv", map[string]string{"kind": "kv", "preset": "personal"}, s.key, 201)
@@ -677,8 +680,8 @@ func TestNotifyUnavailableHeldAndEventAccounts(t *testing.T) {
 }
 
 func TestNotifyWindowAndContinuousFailure(t *testing.T) {
-	notificationSettings(t, func(l *config.Limits) { l.NotifySuspendAttempts = 3 })
-	s, x := notificationFixture(t)
+	l := notificationSettings(t, func(l *config.Limits) { l.NotifySuspendAttempts = 3 })
+	s, x := notificationFixture(t, edition.ForKindWithLimits(edition.Host, l))
 	id := subscribeNotification(t, s, x)
 	ctx := context.Background()
 	x.setStatus(500)
@@ -706,8 +709,8 @@ func TestNotifyWindowAndContinuousFailure(t *testing.T) {
 }
 
 func TestNotifyDailyCapAndNoSubscribers(t *testing.T) {
-	notificationSettings(t, func(l *config.Limits) { l.NotifyPerDay = 1 })
-	s, x := notificationFixture(t)
+	l := notificationSettings(t, func(l *config.Limits) { l.NotifyPerDay = 1 })
+	s, x := notificationFixture(t, edition.ForKindWithLimits(edition.Host, l))
 	s.must(t, "PUT", "/resources/kv", map[string]string{"kind": "kv", "preset": "personal"}, s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "PUT", "/kv/kv/keys/no-subscriber", `{"value":1}`, s.callers["alice"], 200)
@@ -819,7 +822,7 @@ func TestNotifyMCPRotationTTLAndChallengeLimit(t *testing.T) {
 }
 
 func TestNotifyClientTimeoutAndResponseLimit(t *testing.T) {
-	notificationSettings(t, func(l *config.Limits) { l.NotifyTimeout = 30 * time.Millisecond })
+	l := notificationSettings(t, func(l *config.Limits) { l.NotifyTimeout = 30 * time.Millisecond })
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/slow" {
 			time.Sleep(100 * time.Millisecond)
@@ -829,7 +832,7 @@ func TestNotifyClientTimeoutAndResponseLimit(t *testing.T) {
 	defer srv.Close()
 	roots := x509.NewCertPool()
 	roots.AddCert(srv.Certificate())
-	c := notifyClient{allowLoopback: true, roots: roots}
+	c := notifyClient{allowLoopback: true, roots: roots, timeout: l.NotifyTimeout}
 	n := db.Notification{Secret: notifyTestSecret, URL: srv.URL}
 	result := c.send(context.Background(), n, "msg_verification_size", []byte(`{}`))
 	if !result.Delivered || len(result.body) != 4096 {
@@ -843,8 +846,8 @@ func TestNotifyClientTimeoutAndResponseLimit(t *testing.T) {
 }
 
 func TestNotifyRefusedAddressAndPermanentHTTPDoNotRetry(t *testing.T) {
-	notificationSettings(t, func(l *config.Limits) { l.NotifySuspendAttempts = 1 })
-	s, x := notificationFixture(t)
+	l := notificationSettings(t, func(l *config.Limits) { l.NotifySuspendAttempts = 1 })
+	s, x := notificationFixture(t, edition.ForKindWithLimits(edition.Host, l))
 	id := subscribeNotification(t, s, x)
 	ctx := context.Background()
 	emit := func() {
@@ -876,8 +879,8 @@ func TestNotifyRefusedAddressAndPermanentHTTPDoNotRetry(t *testing.T) {
 }
 
 func TestNotifyConcurrentSubscriptionCapAndFilters(t *testing.T) {
-	notificationSettings(t, func(l *config.Limits) { l.NotifyMaxPerSite = 1 })
-	s, x := notificationFixture(t)
+	l := notificationSettings(t, func(l *config.Limits) { l.NotifyMaxPerSite = 1 })
+	s, x := notificationFixture(t, edition.ForKindWithLimits(edition.Host, l))
 	ctx := context.Background()
 	errs := make(chan error, 2)
 	for i := 0; i < 2; i++ {
@@ -926,10 +929,9 @@ func TestNotifySpecialAddressesAndExactPayloads(t *testing.T) {
 	if notifyFields(json.RawMessage("not JSON"))["value"] != "not JSON" {
 		t.Fatal("undecodable value was discarded")
 	}
-	notificationSettings(t, func(l *config.Limits) { l.NotifyBodyMaxBytes = 4096 })
 	for _, key := range []string{"path", "key"} {
 		data := map[string]any{"v": 1, "site": "shop", key: strings.Repeat("é\n", 5000), "fields": map[string]any{"n": json.Number("9007199254740993")}}
-		body := notifyBody(db.NotificationDelivery{EventID: "evt_test", Name: "record.added", Data: storageJSON(data)}, 1)
+		body := notifyBody(db.NotificationDelivery{EventID: "evt_test", Name: "record.added", Data: storageJSON(data)}, 1, 4096)
 		var payload struct {
 			Data map[string]any `json:"data"`
 		}
@@ -1246,12 +1248,12 @@ func TestNotifyConnectorDeployScope(t *testing.T) {
 	}
 	a.conn.SetEventsBackend(a.sites.EventsBackend())
 	p := a.newPerson(t, "notify-deploy")
-	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key)
+	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key, 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	key := notifyRandom("test_", 24)
-	if _, err = db.CreateAPIKey(context.Background(), a.database, u.ID, db.HashAPIKey(p.key), key, "deploy", db.KeyScopeDeploy, nil); err != nil {
+	if _, err = db.CreateAPIKey(context.Background(), a.database, u.ID, db.HashAPIKey(p.key), key, "deploy", db.KeyScopeDeploy, nil, 50, 180*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	headers := map[string]string{"X-API-Key": key, "Content-Type": "application/json"}
@@ -1283,8 +1285,8 @@ func notificationGrant(t *testing.T, s presetSite, name string) string {
 }
 
 func TestNotifyMCPAPIKeyTTL(t *testing.T) {
-	notificationSettings(t, func(l *config.Limits) { l.NotifyDefaultTTL = time.Hour })
-	s, x := notificationFixture(t)
+	l := notificationSettings(t, func(l *config.Limits) { l.NotifyDefaultTTL = time.Hour })
+	s, x := notificationFixture(t, edition.ForKindWithLimits(edition.Host, l))
 	backend := s.a.sites.EventsBackend()
 	grant := notificationGrant(t, s, "ttl")
 	short, long := 10*time.Minute, 2*time.Hour
@@ -1485,8 +1487,8 @@ func checkDeferredNotification(t *testing.T, s presetSite, id string, attempts, 
 }
 
 func TestNotifyOwnerConcurrency(t *testing.T) {
-	notificationSettings(t, func(l *config.Limits) { l.NotifyOwnerConcurrency = 2 })
-	s, x := notificationFixture(t)
+	l := notificationSettings(t, func(l *config.Limits) { l.NotifyOwnerConcurrency = 2 })
+	s, x := notificationFixture(t, edition.ForKindWithLimits(edition.Host, l))
 	s.a.deploy(t, s.owner, "second")
 	second := s.a.siteID(t, s.owner, "second")
 	other := s.a.newPerson(t, "other-owner")
@@ -1560,8 +1562,8 @@ func TestNotifyOwnerConcurrency(t *testing.T) {
 }
 
 func TestNotifyURLRateAcrossSitesAndSubscriptions(t *testing.T) {
-	notificationSettings(t, func(l *config.Limits) { l.NotifyPerURLPerMinute = 2 })
-	s, x := notificationFixture(t)
+	l := notificationSettings(t, func(l *config.Limits) { l.NotifyPerURLPerMinute = 2 })
+	s, x := notificationFixture(t, edition.ForKindWithLimits(edition.Host, l))
 	other := s.a.newPerson(t, "url-owner")
 	s.a.deploy(t, other, "other")
 	otherSite := s.a.siteID(t, other, "other")
@@ -1571,7 +1573,7 @@ func TestNotifyURLRateAcrossSitesAndSubscriptions(t *testing.T) {
 	limited := saveWorkerNotification(t, s, otherSite, otherID, x.server.URL)
 	saveWorkerNotification(t, s, otherSite, otherID, x.server.URL+"/different")
 	engine := s.a.sites.notifyEngine()
-	engine.perURL = (&SiteHandler{}).notifyEngine().perURL
+	engine.perURL = (&SiteHandler{limitSet: newLimitSet(l)}).notifyEngine().perURL
 	now := time.Now()
 	engine.perURL.now = func() time.Time { return now }
 	emitWorkerNotification(t, s, s.sid)
@@ -1641,8 +1643,8 @@ func TestNotifyDeferredClaimLease(t *testing.T) {
 }
 
 func TestNotifyURLMinuteBudget(t *testing.T) {
-	notificationSettings(t, func(l *config.Limits) { l.NotifyPerURLPerMinute = 120 })
-	engine := (&SiteHandler{}).notifyEngine()
+	l := notificationSettings(t, func(l *config.Limits) { l.NotifyPerURLPerMinute = 120 })
+	engine := (&SiteHandler{limitSet: newLimitSet(l)}).notifyEngine()
 	now := time.Now()
 	engine.perURL.now = func() time.Time { return now }
 	for minute := 0; minute < 2; minute++ {

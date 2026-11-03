@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -95,7 +96,7 @@ func TestDashboardSignOutEndsCookieFamily(t *testing.T) {
 		t.Fatalf("sign-out: %d %s", r.status, r.body)
 	}
 	id, _ := hex.DecodeString(sessA)
-	if _, err := db.GetVisitorSession(context.Background(), e.a.database, id); err == nil {
+	if _, err := db.GetVisitorSession(context.Background(), e.a.database, id, 180*24*time.Hour); err == nil {
 		t.Fatal("site session from the browser's pass survived dashboard sign-out")
 	}
 	if me := e.a.at(t, "GET", e.a.appHost(), "/v1/me", nil, map[string]string{"X-API-Key": e.viewer.key}); me.status != 401 {

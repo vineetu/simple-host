@@ -225,7 +225,7 @@ func (h *SiteHandler) domainResponseFor(info db.SiteDomainInfo) domainResponse {
 		t := info.FailingSince.Time
 		resp.FailingSince = &t
 	}
-	setDomainTimes(&resp, info)
+	setDomainTimes(&resp, info, h.limits.DomainUnprovenTTL, h.limits.DomainUnprovenMaxAge)
 	return resp
 }
 
@@ -405,16 +405,16 @@ func (h *SiteHandler) getDomain(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, h.domainResponseFor(info))
 }
 
-func setDomainTimes(resp *domainResponse, info db.SiteDomainInfo) {
+func setDomainTimes(resp *domainResponse, info db.SiteDomainInfo, ttl, maxAge time.Duration) {
 	if info.BoundAt.Valid {
 		t := info.BoundAt.Time
 		resp.BoundAt = &t
 		if !info.VerifiedAt.Valid {
 			// DNS not pointed here: 24 hours. Pointed here but never proven
-			// (the certificate keeps failing): db.UnprovenDomainMaxAge().
-			expires := t.Add(db.UnprovenDomainTTL())
+			// (the certificate keeps failing): maxAge.
+			expires := t.Add(ttl)
 			if info.CertStatus != "" && info.CertStatus != "pending" {
-				expires = t.Add(db.UnprovenDomainMaxAge())
+				expires = t.Add(maxAge)
 			}
 			resp.ExpiresAt = &expires
 		}

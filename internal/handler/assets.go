@@ -5,6 +5,7 @@ import (
 	"sync"
 	"weak"
 
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/edition"
 )
 
@@ -30,6 +31,12 @@ type assetPipeline struct {
 	pres edition.PresentationPolicy
 	// hostedEvents is the edition's Routes().HostedEvents (pricing numbers).
 	hostedEvents bool
+	// limits is the edition's Limits() (limits.go's pricingNumbers); limitsText
+	// is the same snapshot as a served-text rewriter (limitstext.go). Both
+	// come from the one ed.Limits() call in newAssetPipeline, so formatting
+	// never drifts from enforcement.
+	limits     config.Limits
+	limitsText *limitsRewriter
 	// chromeHack renders the simple-hack.app header, footer and ink: always
 	// pres.HackAssets, kept as its own field because that is the question
 	// this pipeline's callers ask.
@@ -52,12 +59,23 @@ func newAssetPipeline(ed *edition.Edition, instanceURL string) *assetPipeline {
 	if instanceURL == "" {
 		instanceURL = canonicalHackBaseURL
 	}
+	lim := ed.Limits()
 	p := &assetPipeline{
 		pres:         ed.Presentation(),
 		hostedEvents: ed.Routes().HostedEvents,
+		limits:       lim,
+		limitsText:   newLimitsRewriter(lim),
 		chromeHack:   ed.Presentation().HackAssets,
 		inkBase:      strings.TrimRight(instanceURL, "/"),
 	}
+	// instanceLimits (limitstext.go) is a package fallback for the one path
+	// with no assetPipeline of its own: the cached Claude plugin zip
+	// (ui.go's buildPluginZip/copyRewritten), built once per process via
+	// sync.Once. Every real process builds exactly one edition's pipeline,
+	// so this assignment is that edition's own snapshot; only a test that
+	// builds both editions in one process could see the second one win here,
+	// and that zip is not edition-dependent content.
+	instanceLimits = p.limitsText
 	assetRegistry.mu.Lock()
 	live := assetRegistry.live[:0]
 	for _, wp := range assetRegistry.live {

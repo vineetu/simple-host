@@ -44,6 +44,7 @@ func (a *privateApp) withOAuth(t *testing.T) *OAuthHandler {
 	t.Helper()
 	oh := &OAuthHandler{
 		database:      a.database,
+		limitSet:      a.sites.limitSet,
 		cfg:           config.Config{PublicBaseURL: "https://" + pcSiteDomain, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain},
 		providers:     map[string]oauth.Provider{"google": fakeProvider{}},
 		ipLimiter:     newRateLimiter(10000, 10000),

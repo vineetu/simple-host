@@ -18,7 +18,6 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
@@ -32,7 +31,8 @@ const (
 )
 
 type UserHandler struct {
-	ed            *edition.Edition
+	ed *edition.Edition
+	limitSet
 	database      *sql.DB
 	mailer        email.Sender
 	publicBaseURL string
@@ -183,16 +183,18 @@ func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string,
 	if len(editions) > 0 {
 		ed = editions[0]
 	}
+	lim := ed.Limits()
 	// ~12 req/min/IP (burst 20) across both auth routes; ~1.2/min/email
 	// (burst 5). Generous for a human signing in, tight against automation.
-	ipLimiter := newRateLimiterFor(config.Active().RateSigninIP)
-	emailLimiter := newRateLimiterFor(config.Active().RateSigninEmail)
+	ipLimiter := newRateLimiterFor(lim.RateSigninIP)
+	emailLimiter := newRateLimiterFor(lim.RateSigninEmail)
 	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	emailLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	checkLimiter := newRateLimiterFor(config.Active().RateHandleCheck)
+	checkLimiter := newRateLimiterFor(lim.RateHandleCheck)
 	checkLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	return &UserHandler{
 		ed:            ed,
+		limitSet:      newLimitSet(lim),
 		checkLimiter:  checkLimiter,
 		database:      database,
 		mailer:        mailer,
@@ -288,7 +290,7 @@ func (h *UserHandler) requestSignIn(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "nonce_hash must be base64url SHA-256 (43 characters)"})
 		return
 	}
-	email, expires, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, req.Email, h.publicBaseURL, "dashboard", sql.NullString{}, nonceHash, clientIP(r), h.geoBlock)
+	email, expires, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, req.Email, h.publicBaseURL, "dashboard", sql.NullString{}, nonceHash, clientIP(r), h.geoBlock, h.authTokenTTL())
 	if status != 0 {
 		writeEmailCodeError(w, status, body)
 		return
@@ -334,7 +336,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, req, "dashboard", sql.NullString{}, h.ed.Identity().RandomHandles)
+	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, req, "dashboard", sql.NullString{}, h.ed.Identity().RandomHandles, h.authTokenTTL())
 	if status != 0 {
 		if status == http.StatusUnauthorized {
 			writeJSON(w, status, signInUnauthorized(body))
@@ -409,7 +411,7 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 	if user.Team != nil {
 		// A team credential (hosted events): who it acts for and the one
 		// site it publishes, never the event's internal account.
-		limit, _ := siteLimitFor(r.Context(), h.database, user)
+		limit, _ := h.siteLimitFor(r.Context(), h.database, user)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"id":          user.Team.MemberID,
 			"is_admin":    false,
@@ -443,7 +445,7 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		SignInAlerts: &alertsOn,
 	}
 	if !user.IsAdmin {
-		n := maxSitesFor(r.Context(), h.database, user)
+		n := h.maxSitesFor(r.Context(), h.database, user)
 		resp.MaxSites = &n
 	}
 	if h.fileUsage != nil && h.ed.Identity().PersonalSites {
@@ -453,9 +455,9 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	resp.CanSetKeepVersions = config.Active().CanSetKeepVersions(accountHandles(r.Context(), h.database, user)...)
-	resp.KeepVersions = config.Active().KeepVersionsFor(keepVersions, accountHandles(r.Context(), h.database, user)...)
-	limit, _ := siteLimitFor(r.Context(), h.database, user)
+	resp.CanSetKeepVersions = h.limits.CanSetKeepVersions(accountHandles(r.Context(), h.database, user)...)
+	resp.KeepVersions = h.limits.KeepVersionsFor(keepVersions, accountHandles(r.Context(), h.database, user)...)
+	limit, _ := h.siteLimitFor(r.Context(), h.database, user)
 	resp.MaxSiteMB = statedSiteMB(limit)
 	if h.publicPage != nil && user.Handle.String != "" {
 		resp.PublicPage = h.publicPage(user.Handle.String)

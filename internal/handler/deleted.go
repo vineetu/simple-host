@@ -29,15 +29,15 @@ type deletedSiteResponse struct {
 	CustomDomain string    `json:"custom_domain,omitempty"`
 }
 
-func toDeletedSiteResponse(d db.DeletedSite) deletedSiteResponse {
-	return deletedSiteResponse{Name: d.Name, DeletedAt: d.DeletedAt.UTC(), PurgeAt: d.PurgeAt().UTC(), CustomDomain: d.CustomDomain.String}
+func toDeletedSiteResponse(d db.DeletedSite, retention time.Duration) deletedSiteResponse {
+	return deletedSiteResponse{Name: d.Name, DeletedAt: d.DeletedAt.UTC(), PurgeAt: d.PurgeAt(retention).UTC(), CustomDomain: d.CustomDomain.String}
 }
 
 // deletedNameMessage is the answer when a name is held by a site in Recently
 // deleted: the owner can restore it, or wait until it is gone.
-func deletedNameMessage(d db.DeletedSite) string {
+func deletedNameMessage(d db.DeletedSite, retention time.Duration) string {
 	return "you deleted a site named " + d.Name + " recently; it is in Recently deleted until " +
-		d.PurgeAt().UTC().Format("2 Jan 2006") + ". Restore it, or pick another name"
+		d.PurgeAt(retention).UTC().Format("2 Jan 2006") + ". Restore it, or pick another name"
 }
 
 // deletedNameConflict reports whether the account's name is held by a site in
@@ -47,7 +47,7 @@ func (h *SiteHandler) deletedNameConflict(ctx context.Context, userID, name stri
 	if err != nil {
 		return "", false
 	}
-	return deletedNameMessage(d), true
+	return deletedNameMessage(d, h.limits.DeletedRetention), true
 }
 
 // deleteSite moves a site to Recently deleted: marked in the database, and its
@@ -112,7 +112,7 @@ func (h *SiteHandler) trashSite(ctx context.Context, site db.Site, also func(tx 
 		return err
 	}
 	defer tx.Rollback()
-	if err := db.MarkSiteDeleted(ctx, tx, site.ID); err != nil {
+	if err := db.MarkSiteDeleted(ctx, tx, site.ID, h.limits.DeletedRetention); err != nil {
 		return err
 	}
 	if also != nil {
@@ -147,9 +147,9 @@ func (h *SiteHandler) listDeletedSites(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]deletedSiteResponse, 0, len(list))
 	for _, d := range list {
-		out = append(out, toDeletedSiteResponse(d))
+		out = append(out, toDeletedSiteResponse(d, h.limits.DeletedRetention))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"sites": out, "retention_days": int(db.DeletedSiteRetention() / (24 * time.Hour))})
+	writeJSON(w, http.StatusOK, map[string]any{"sites": out, "retention_days": int(h.limits.DeletedRetention / (24 * time.Hour))})
 }
 
 // restoreSite: POST /v1/sites/{sitename}/restore. The site comes back under
@@ -291,14 +291,14 @@ func (h *SiteHandler) restoreTrashedSite(ctx context.Context, d db.DeletedSite, 
 // purgeDeletedSites removes sites whose restore window has passed: the row
 // (versions, data and claimed names cascade) first, then the files.
 func (h *SiteHandler) purgeDeletedSites(ctx context.Context) {
-	list, err := db.ListPurgeableSites(ctx, h.database)
+	list, err := db.ListPurgeableSites(ctx, h.database, h.limits.DeletedRetention)
 	if err != nil {
 		log.Printf("deleted-site purge: list: %v", err)
 		return
 	}
 	for _, d := range list {
 		unlock := h.lockSite(d.UserID, d.Name)
-		domains, err := db.PurgeDeletedSite(ctx, h.database, d.ID)
+		domains, err := db.PurgeDeletedSite(ctx, h.database, d.ID, h.limits.DeletedRetention)
 		unlock()
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {

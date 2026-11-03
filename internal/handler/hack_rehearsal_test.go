@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -42,7 +41,7 @@ func TestHackArchiveCleanupRealSites(t *testing.T) {
 	wantTS(t, "archived deploy refused", a.deployTeam(t, team, key, "Too late"), http.StatusConflict, "event_closed")
 	mail := &replyMailer{}
 	a.hack.SetMailer(mail)
-	keep, warn := config.Active().EventSitesKeep, config.Active().EventRemovalWarn
+	keep, warn := a.hack.limits.EventSitesKeep, a.hack.limits.EventRemovalWarn
 	a.hack.runEventCleanup(context.Background(), closed.Add(keep-warn+time.Second))
 	if len(mail.messages()) != 1 {
 		t.Fatalf("warning count: %d", len(mail.messages()))

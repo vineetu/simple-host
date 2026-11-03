@@ -73,7 +73,7 @@ func newBrainApp(t *testing.T) *connectorApp {
 	if err != nil {
 		t.Fatal(err)
 	}
-	authMW := auth.Middleware(a.admin, adminID, a.database)
+	authMW := auth.Middleware(a.admin, adminID, a.database, 180*24*time.Hour)
 	a.conn.EnableBrain(a.mux, authMW, brainFixture(t))
 	return a
 }

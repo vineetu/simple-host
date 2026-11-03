@@ -18,12 +18,14 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
 )
 
 type notificationEngine struct {
+	// ownerConcurrency is NotifyOwnerConcurrency from the limits snapshot the
+	// handler was built with (acquireOwner has no SiteHandler of its own).
+	ownerConcurrency       int
 	client                 notifyClient
 	minute, day, challenge *rateLimiter
 	perURL                 *rateLimiter
@@ -48,16 +50,16 @@ func (h *SiteHandler) WaitNotifications() { h.notifyEngine().wg.Wait() }
 
 func (h *SiteHandler) notifyEngine() *notificationEngine {
 	h.notifyOnce.Do(func() {
-		l := config.Active()
+		l := h.limits
 		// A one-attempt URL burst keeps the first minute within the configured rate.
-		h.notifications = &notificationEngine{client: notifyClient{secrets: &h.passcode}, minute: newRateLimiter(float64(l.NotifyPerMinute), float64(l.NotifyPerMinute)/60), day: newRateLimiter(float64(l.NotifyPerDay), float64(l.NotifyPerDay)/86400), challenge: newRateLimiter(10, 10.0/60), wake: make(chan struct{}, l.NotifyWorkers), emitting: make(chan struct{}, 64), verifying: make(chan struct{}, 10), rest: newRateLimiter(60, 1), perURL: newRateLimiter(1, float64(l.NotifyPerURLPerMinute)/60), owners: make(map[string]int)}
+		h.notifications = &notificationEngine{ownerConcurrency: l.NotifyOwnerConcurrency, client: notifyClient{secrets: &h.passcode, timeout: l.NotifyTimeout}, minute: newRateLimiter(float64(l.NotifyPerMinute), float64(l.NotifyPerMinute)/60), day: newRateLimiter(float64(l.NotifyPerDay), float64(l.NotifyPerDay)/86400), challenge: newRateLimiter(10, 10.0/60), wake: make(chan struct{}, l.NotifyWorkers), emitting: make(chan struct{}, 64), verifying: make(chan struct{}, 10), rest: newRateLimiter(60, 1), perURL: newRateLimiter(1, float64(l.NotifyPerURLPerMinute)/60), owners: make(map[string]int)}
 	})
 	return h.notifications
 }
 func (e *notificationEngine) acquireOwner(owner string) bool {
 	e.ownersMu.Lock()
 	defer e.ownersMu.Unlock()
-	if e.owners[owner] >= config.Active().NotifyOwnerConcurrency {
+	if e.owners[owner] >= e.ownerConcurrency {
 		return false
 	}
 	e.owners[owner]++
@@ -156,9 +158,9 @@ func (h *SiteHandler) storeNotification(c storageCall, name string, data map[str
 	if value, ok := data["fields"].(json.RawMessage); ok {
 		data["fields"] = notifyFields(value)
 	}
-	notifyTruncate(data)
+	notifyTruncate(data, h.limits.NotifyFieldMaxBytes)
 	raw, err := json.Marshal(data)
-	if len(raw) > config.Active().NotifyBodyMaxBytes {
+	if len(raw) > h.limits.NotifyBodyMaxBytes {
 		delete(data, "fields")
 		data["truncated"] = []string{"fields"}
 		raw, err = json.Marshal(data)
@@ -240,7 +242,7 @@ func (h *SiteHandler) storeSiteNotification(siteID, name string, data map[string
 	if err != nil {
 		return
 	}
-	if len(raw) > config.Active().NotifyBodyMaxBytes {
+	if len(raw) > h.limits.NotifyBodyMaxBytes {
 		log.Printf("notifications: site %s %s event too large, dropped=%d", siteID, name, e.dropped.Add(1))
 		return
 	}
@@ -270,7 +272,7 @@ func notifyCut(s string, max int) string {
 	}
 	return s[:n]
 }
-func notifyTruncate(data map[string]any) {
+func notifyTruncate(data map[string]any, fieldMax int) {
 	fields, ok := data["fields"].(map[string]any)
 	if !ok {
 		return
@@ -280,8 +282,8 @@ func notifyTruncate(data map[string]any) {
 	cut = func(value any, path string) any {
 		switch v := value.(type) {
 		case string:
-			if len(v) > config.Active().NotifyFieldMaxBytes {
-				n := config.Active().NotifyFieldMaxBytes
+			if len(v) > fieldMax {
+				n := fieldMax
 				for n > 0 && !utf8.ValidString(v[:n]) {
 					n--
 				}
@@ -363,19 +365,19 @@ func (h *SiteHandler) notificationBody(n db.Notification, d db.NotificationDeliv
 		}
 		d.Data, _ = json.Marshal(data)
 	}
-	return notifyBody(d, cursor)
+	return notifyBody(d, cursor, h.limits.NotifyBodyMaxBytes)
 }
 
-func notifyBody(d db.NotificationDelivery, cursor int64) []byte {
+func notifyBody(d db.NotificationDelivery, cursor int64, bodyMax int) []byte {
 	body := map[string]any{"eventId": d.EventID, "name": d.Name, "timestamp": d.CreatedAt.UTC().Format(time.RFC3339), "cursor": fmt.Sprintf("c_%d", cursor), "data": d.Data}
 	raw, _ := json.Marshal(body)
-	if len(raw) > config.Active().NotifyBodyMaxBytes {
+	if len(raw) > bodyMax {
 		data := notifyFields(d.Data)
 		delete(data, "fields")
 		data["truncated"] = []string{"fields"}
 		body["data"] = data
 		raw, _ = json.Marshal(body)
-		if len(raw) > config.Active().NotifyBodyMaxBytes {
+		if len(raw) > bodyMax {
 			truncated := []string{"fields"}
 			for _, key := range []string{"path", "key"} {
 				if value, ok := data[key].(string); ok && len(value) > 256 {
@@ -397,7 +399,7 @@ func (h *SiteHandler) StartNotifications(ctx context.Context) {
 	e := h.notifyEngine()
 	e.start.Do(func() {
 		h.sweepNotifications(ctx)
-		for i := 0; i < config.Active().NotifyWorkers; i++ {
+		for i := 0; i < h.limits.NotifyWorkers; i++ {
 			e.wg.Add(1)
 			go func() {
 				defer e.wg.Done()
@@ -437,7 +439,7 @@ func (h *SiteHandler) StartNotifications(ctx context.Context) {
 	})
 }
 func (h *SiteHandler) deliverNotification(ctx context.Context) bool {
-	l := config.Active()
+	l := h.limits
 	d, err := db.ClaimNotificationDelivery(ctx, h.database, l.NotifyTimeout+30*time.Second, l.NotifyAttempts, l.NotifyHistoryDays, l.NotifySuspendWindow)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false
@@ -451,7 +453,7 @@ func (h *SiteHandler) deliverNotification(ctx context.Context) bool {
 	return h.processNotification(ctx, d)
 }
 func (h *SiteHandler) processNotification(ctx context.Context, d db.NotificationDelivery) bool {
-	l := config.Active()
+	l := h.limits
 	ctx, cancel := context.WithDeadline(ctx, d.LeaseUntil)
 	defer cancel()
 	n, err := db.GetNotification(ctx, h.database, d.SubscriptionID)
@@ -547,7 +549,7 @@ func (h *SiteHandler) notifySuspension(ctx context.Context, n db.Notification) {
 }
 
 func (h *SiteHandler) sweepNotifications(ctx context.Context) {
-	if err := db.SweepNotifications(ctx, h.database, config.Active().NotifyHistoryDays); err != nil {
+	if err := db.SweepNotifications(ctx, h.database, h.limits.NotifyHistoryDays); err != nil {
 		log.Print("notifications: history sweep failed")
 	}
 	rows, err := h.database.QueryContext(ctx, `SELECT id FROM site_notifications WHERE state='suspended' AND suspend_emailed_at IS NULL`)

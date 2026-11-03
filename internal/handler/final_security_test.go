@@ -82,7 +82,7 @@ func TestLeversEndSiteSignIns(t *testing.T) {
 		t.Fatal(err)
 	}
 	moved := "moved-" + p.email
-	if err := db.ApplyEmailChange(ctx, tx, uid, p.email, moved, db.HashAPIKey(newKey), "undo-hash-"+uid); err != nil {
+	if err := db.ApplyEmailChange(ctx, tx, uid, p.email, moved, db.HashAPIKey(newKey), "undo-hash-"+uid, 7*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.Commit(); err != nil {

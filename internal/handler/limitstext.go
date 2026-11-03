@@ -391,8 +391,10 @@ func (h *limitsRewriter) apply(b []byte) []byte {
 	return []byte(h.r.Replace(string(b)))
 }
 
-// instanceLimits is this install's limits rewriter, set by ApplyLimits before
-// serving. Nil when every knob is at its default.
+// instanceLimits is a fallback limits rewriter for the one path with no
+// assetPipeline of its own (ui.go's buildPluginZip/copyRewritten, a
+// sync.Once-cached zip). newAssetPipeline keeps it pointed at the last
+// edition built. Nil when every knob is at its default.
 var instanceLimits *limitsRewriter
 
 // assetsRewritten reports whether the text assets (llms.txt, the spec, ...)
@@ -400,7 +402,8 @@ var instanceLimits *limitsRewriter
 func assetsRewritten() bool { return instanceHosts != nil || instanceLimits != nil }
 
 // rewriteServedText applies both serve-time rewrites (hostnames, then limits)
-// to a text asset.
-func rewriteServedText(b []byte) []byte {
-	return instanceLimits.apply(instanceHosts.apply(b))
+// to a text asset, with lr as this instance's limits rewriter
+// (assetPipeline.limitsText).
+func rewriteServedText(b []byte, lr *limitsRewriter) []byte {
+	return lr.apply(instanceHosts.apply(b))
 }

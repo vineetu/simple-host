@@ -470,21 +470,13 @@ func BindCustomDomain(ctx context.Context, database *sql.DB, siteID, domain stri
 	return released, replaced, nil
 }
 
-// UnprovenDomainMaxAge is how long a binding whose DNS points here may stay
-// unproven (its certificate keeps failing, or HTTPS never answers) before it
-// is released like any other unproven binding (DOMAIN_UNPROVEN_MAX_DAYS).
-func UnprovenDomainMaxAge() time.Duration { return lim().UnprovenDomainMaxAge }
-
-// UnprovenDomainTTL is how long a new binding may stay unproven while its DNS
-// does not point here (DOMAIN_UNPROVEN_HOURS).
-func UnprovenDomainTTL() time.Duration { return lim().UnprovenDomainTTL }
-
-// ReleaseExpiredDomains clears bindings that were never proven within
-// UnprovenDomainTTL, unless DNS already points here (the certificate status is past
-// "pending": it is being issued, is live, or failed and will be retried); those
-// get UnprovenDomainMaxAge. A site that still had an earlier proven address
-// gets it back; it is returned as the released row's PreviousDomain.
-func ReleaseExpiredDomains(ctx context.Context, database *sql.DB) ([]SiteDomainInfo, error) {
+// ReleaseExpiredDomains clears bindings that were never proven within ttl
+// (DOMAIN_UNPROVEN_HOURS), unless DNS already points here (the certificate
+// status is past "pending": it is being issued, is live, or failed and will
+// be retried); those get maxAge (DOMAIN_UNPROVEN_MAX_DAYS) instead. A site
+// that still had an earlier proven address gets it back; it is returned as
+// the released row's PreviousDomain.
+func ReleaseExpiredDomains(ctx context.Context, database *sql.DB, maxAge, ttl time.Duration) ([]SiteDomainInfo, error) {
 	rows, err := database.QueryContext(ctx, `
 		WITH expired AS (
 		SELECT id, user_id, name, custom_domain FROM sites
@@ -495,7 +487,7 @@ func ReleaseExpiredDomains(ctx context.Context, database *sql.DB) ([]SiteDomainI
 		)
 		UPDATE sites s SET `+restorePreviousSet+`
 		FROM expired e WHERE s.id = e.id
-		RETURNING e.id, e.user_id, e.name, e.custom_domain, COALESCE(s.custom_domain, '')`, int64(UnprovenDomainMaxAge().Seconds()), int64(UnprovenDomainTTL().Seconds()))
+		RETURNING e.id, e.user_id, e.name, e.custom_domain, COALESCE(s.custom_domain, '')`, int64(maxAge.Seconds()), int64(ttl.Seconds()))
 	if err != nil {
 		return nil, err
 	}
@@ -665,15 +657,12 @@ func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host 
 	return released, tx.Commit()
 }
 
-// DomainCertDailyCap is how many new custom-domain certificates one account
-// may ask for in a rolling day (DOMAIN_CERTS_PER_ACCOUNT_DAILY).
-func DomainCertDailyCap() int { return lim().DomainCertDailyCap }
-
 // AllowDomainCertRequest records that userID asks for a certificate for
-// domain, unless that would be more than DomainCertDailyCap different domains
-// in the last 24 hours. Asking again for a domain already asked for within
-// the day is always allowed and not counted twice.
-func AllowDomainCertRequest(ctx context.Context, database *sql.DB, userID, domain string) (bool, error) {
+// domain, unless that would be more than dailyCap
+// (DOMAIN_CERTS_PER_ACCOUNT_DAILY) different domains in the last 24 hours.
+// Asking again for a domain already asked for within the day is always
+// allowed and not counted twice.
+func AllowDomainCertRequest(ctx context.Context, database *sql.DB, userID, domain string, dailyCap int) (bool, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
@@ -692,7 +681,7 @@ func AllowDomainCertRequest(ctx context.Context, database *sql.DB, userID, domai
 	if again {
 		return true, nil
 	}
-	if n >= DomainCertDailyCap() {
+	if n >= dailyCap {
 		return false, nil
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO domain_cert_requests (user_id, domain) VALUES ($1, $2)`, userID, domain); err != nil {

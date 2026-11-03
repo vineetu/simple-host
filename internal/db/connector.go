@@ -323,8 +323,9 @@ func ListOAuthConnections(ctx context.Context, database *sql.DB, userID string) 
 
 // SweepOAuth removes what can no longer be used: expired codes (kept a day so
 // a replay is still recognised as one), expired tokens, grants with no token
-// left, and registrations that never led to a connection.
-func SweepOAuth(ctx context.Context, database *sql.DB) error {
+// left, and registrations that never led to a connection (older than
+// unusedClientAge, OAUTH_UNUSED_CLIENT_DAYS).
+func SweepOAuth(ctx context.Context, database *sql.DB, unusedClientAge time.Duration) error {
 	for _, stmt := range []string{
 		`DELETE FROM oauth_codes WHERE expires_at < now() - interval '1 day'`,
 		`DELETE FROM oauth_tokens WHERE expires_at < now() - interval '1 day'`,
@@ -338,7 +339,7 @@ func SweepOAuth(ctx context.Context, database *sql.DB) error {
 	} {
 		var args []any
 		if strings.Contains(stmt, "$1") {
-			args = append(args, int64(lim().OAuthUnusedClientAge.Seconds()))
+			args = append(args, int64(unusedClientAge.Seconds()))
 		}
 		if _, err := database.ExecContext(ctx, stmt, args...); err != nil {
 			return err

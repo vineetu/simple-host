@@ -194,25 +194,27 @@ func ActivateVisitorSession(ctx context.Context, q Querier, id []byte, ttl, idle
 	return first, err
 }
 
-// GetVisitorSession loads a session by raw id.
-func GetVisitorSession(ctx context.Context, q Querier, id []byte) (VisitorSession, error) {
+// GetVisitorSession loads a session by raw id. When the session has a
+// parent SSO pass, it answers only while that pass's parent key is still
+// live (keyIdle, KEY_IDLE_EXPIRY_DAYS).
+func GetVisitorSession(ctx context.Context, q Querier, id []byte, keyIdle time.Duration) (VisitorSession, error) {
 	const query = `
 		SELECT v.id, v.user_id::text, v.site_id::text, v.host, v.created_at, v.last_seen_at, v.expires_at, v.idle_expires_at, v.sso_pass_hash
  FROM visitor_sessions v WHERE v.id = $1 AND (v.sso_pass_hash IS NULL OR EXISTS (
  SELECT 1 FROM sso_passes p JOIN api_keys k ON k.key_hash=p.parent_key_hash JOIN users u ON u.id=p.user_id
  WHERE p.id_hash=v.sso_pass_hash AND ` + liveSSOPass + `))`
 	var s VisitorSession
-	err := q.QueryRowContext(ctx, query, id, idleExpirySeconds()).Scan(
+	err := q.QueryRowContext(ctx, query, id, keyIdle.Seconds()).Scan(
 		&s.ID, &s.UserID, &s.SiteID, &s.Host,
 		&s.CreatedAt, &s.LastSeenAt, &s.ExpiresAt, &s.IdleExpiresAt, &s.SSOPassHash,
 	)
 	return s, err
 }
 
-// TouchVisitorSession slides idle_expires_at to min(now + the idle expiry
-// (VISITOR_SESSION_IDLE_DAYS), expires_at), and refreshes a live parent pass
-// within its own absolute expiry. An already idle family is never revived.
-func TouchVisitorSession(ctx context.Context, q Querier, id []byte) error {
+// TouchVisitorSession slides idle_expires_at to min(now + idle, expires_at)
+// (idle: VISITOR_SESSION_IDLE_DAYS), and refreshes a live parent pass within
+// its own absolute expiry. An already idle family is never revived.
+func TouchVisitorSession(ctx context.Context, q Querier, id []byte, idle time.Duration) error {
 	_, err := q.ExecContext(ctx, `
 		WITH touched AS (UPDATE visitor_sessions
 		SET last_seen_at = now(),
@@ -221,7 +223,7 @@ func TouchVisitorSession(ctx context.Context, q Querier, id []byte) error {
 		  AND expires_at > now()
 		  AND idle_expires_at > now() RETURNING sso_pass_hash)
 		UPDATE sso_passes SET idle_expires_at=LEAST(expires_at, now()+($2 * interval '1 second'))
-		WHERE id_hash IN (SELECT sso_pass_hash FROM touched) AND idle_expires_at>now() AND expires_at>now()`, id, int64(lim().VisitorSessionIdle.Seconds()))
+		WHERE id_hash IN (SELECT sso_pass_hash FROM touched) AND idle_expires_at>now() AND expires_at>now()`, id, int64(idle.Seconds()))
 	return err
 }
 

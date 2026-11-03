@@ -30,20 +30,26 @@ type Edition struct {
 	identity      IdentityPolicy
 	storage       StoragePolicy
 	notifications NotificationPolicy
+	limits        config.Limits
 }
 
 // New derives instance policy from configuration.
 func New(cfg config.Config) *Edition {
 	if cfg.Events == "hosted" {
-		return ForKind(Hack)
+		return ForKindWithLimits(Hack, cfg.Limits)
 	}
-	return ForKind(Host)
+	return ForKindWithLimits(Host, cfg.Limits)
 }
 
 // ForKind constructs policy for the given edition. Each policy is built in
 // its own file (routes.go, presentation.go, identity.go, storage.go,
 // notifications.go).
 func ForKind(k Kind) *Edition {
+	return ForKindWithLimits(k, config.DefaultLimits())
+}
+
+// ForKindWithLimits constructs an edition with the supplied instance limits.
+func ForKindWithLimits(k Kind, limits config.Limits) *Edition {
 	return &Edition{
 		kind:          k,
 		routes:        routesFor(k),
@@ -51,8 +57,12 @@ func ForKind(k Kind) *Edition {
 		identity:      identityFor(k),
 		storage:       storageFor(k),
 		notifications: notificationsFor(k),
+		limits:        limits,
 	}
 }
+
+// Limits returns the instance's operational limits as a value copy.
+func (e *Edition) Limits() config.Limits { return e.or().limits }
 
 // host answers for a nil Edition (a bare &SiteHandler{} in a test), so it
 // behaves as Simple Host, as the old global's zero value did.

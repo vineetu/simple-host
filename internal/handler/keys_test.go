@@ -100,7 +100,7 @@ func TestKeysListCreateRevokeSignOut(t *testing.T) {
 	}
 
 	// A connected app (internal credential) cannot mint, revoke or sign out.
-	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key)
+	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key, 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,13 +217,13 @@ func TestAdminReissuesKey(t *testing.T) {
 	}
 }
 
-// An account mints at most db.MaxAccountKeys() keys from the Keys panel; the
+// An account mints at most 50 keys from the Keys panel; the
 // next one is 409 key_limit, and revoking one makes room again.
 func TestCreateKeyLimit(t *testing.T) {
 	a := newConnectorApp(t)
 	p := a.newPerson(t, "many-keys")
 	h := map[string]string{"X-API-Key": p.key, "Content-Type": "application/json"}
-	for i := len(keysOf(t, a, p.key)); i < db.MaxAccountKeys(); i++ {
+	for i := len(keysOf(t, a, p.key)); i < 50; i++ {
 		if r := a.do(t, http.MethodPost, "/v1/me/keys", jsonBody(map[string]string{"name": "k"}), h); r.status != http.StatusCreated {
 			t.Fatalf("key %d: %d %s", i, r.status, r.body)
 		}
@@ -233,7 +233,7 @@ func TestCreateKeyLimit(t *testing.T) {
 		t.Fatalf("over the limit: %d %s", r.status, r.body)
 	}
 	ks := keysOf(t, a, p.key)
-	if len(ks) != db.MaxAccountKeys() {
+	if len(ks) != 50 {
 		t.Fatalf("keys held: %d", len(ks))
 	}
 	id, _ := ks[0]["id"].(string)
@@ -251,7 +251,7 @@ func TestCreateKeyRacesRevoke(t *testing.T) {
 	a := newConnectorApp(t)
 	p := a.newPerson(t, "mint-race")
 	ctx := context.Background()
-	u, err := db.GetUserByAPIKey(ctx, a.database, p.key)
+	u, err := db.GetUserByAPIKey(ctx, a.database, p.key, 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func TestCreateKeyRacesRevoke(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		plain, _ := auth.GenerateAPIKey()
-		_, err := db.CreateAPIKey(ctx, a.database, u.ID, u.KeyHash, plain, "racer", "", nil)
+		_, err := db.CreateAPIKey(ctx, a.database, u.ID, u.KeyHash, plain, "racer", "", nil, 50, 180*24*time.Hour)
 		done <- err
 	}()
 	select {
@@ -297,12 +297,12 @@ func TestCreateKeyRacesRevoke(t *testing.T) {
 func TestRotateWithKeyRevokedMidRequest(t *testing.T) {
 	a := newConnectorApp(t)
 	p := a.newPerson(t, "rotate-race")
-	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key)
+	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key, 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	users := NewUserHandler(a.database, nil, a.srv.URL)
-	h := auth.Middleware("", "", a.database)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.Middleware("", "", a.database, 180*24*time.Hour)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := a.database.Exec(`DELETE FROM api_keys WHERE key_hash = $1`, u.KeyHash); err != nil {
 			t.Fatal(err)
 		}

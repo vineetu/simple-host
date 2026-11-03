@@ -68,7 +68,7 @@ func TestConnectorPhotoGrant(t *testing.T) {
 				exec(`DELETE FROM users WHERE id=$1`, grant.UserID)
 			case "different_user":
 				other := a.newPerson(t, "photo-grant-other")
-				u, err := db.GetUserByAPIKey(context.Background(), a.database, other.key)
+				u, err := db.GetUserByAPIKey(context.Background(), a.database, other.key, 180*24*time.Hour)
 				if err != nil {
 					t.Fatal(err)
 				}

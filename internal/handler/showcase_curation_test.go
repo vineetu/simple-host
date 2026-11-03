@@ -68,7 +68,7 @@ func TestShowcasePinOrderAndBio(t *testing.T) {
 	if r := a.at(t, "PUT", pcSiteDomain, "/v1/me/bio", map[string]any{"bio": bio}, key); r.status != 200 || r.json(t)["bio"] != bio {
 		t.Fatalf("bio: %d", r.status)
 	}
-	if r := a.at(t, "GET", pcSiteDomain, "/v1/me/bio", nil, key); r.json(t)["max_length"] != float64(config.Active().ShowcaseBioMaxLength) {
+	if r := a.at(t, "GET", pcSiteDomain, "/v1/me/bio", nil, key); r.json(t)["max_length"] != float64(a.sites.limits.ShowcaseBioMaxLength) {
 		t.Fatal("bio limit not reported")
 	}
 	data := a.at(t, "GET", pcSiteDomain, "/v1/u/"+handle+"/showcase.json", nil, nil).json(t)
@@ -140,11 +140,9 @@ func TestShowcasePinOrderAndBio(t *testing.T) {
 			t.Fatalf("unauthorized %s: %d", path, r.status)
 		}
 	}
-	old := *config.Active()
-	l := old
+	l := config.DefaultLimits()
 	l.ShowcaseBioMaxLength = 3
-	config.SetActive(l)
-	t.Cleanup(func() { config.SetActive(old) })
+	a.sites.limitSet = newLimitSet(l)
 	if r := a.at(t, "PUT", pcSiteDomain, "/v1/me/bio", map[string]any{"bio": "🌴🌴🌴"}, key); r.status != 200 {
 		t.Fatal("unicode length rejected")
 	}

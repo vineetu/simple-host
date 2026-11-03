@@ -99,7 +99,7 @@ func (h *UserHandler) handleCheck(w http.ResponseWriter, r *http.Request) {
 	handle := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("handle")))
 	userID, own := "", ""
 	if key := r.Header.Get("X-API-Key"); key != "" {
-		if u, err := db.GetUserByAPIKey(r.Context(), h.database, key); err == nil {
+		if u, err := db.GetUserByAPIKey(r.Context(), h.database, key, h.limits.KeyIdleExpiry); err == nil {
 			userID, own = u.ID, u.Handle.String
 		}
 	}

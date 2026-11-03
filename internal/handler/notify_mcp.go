@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
 )
@@ -158,7 +157,7 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		}
 		cursor = &seq
 	}
-	ctx, cancel := context.WithTimeout(ctx, config.Active().NotifyTimeout)
+	ctx, cancel := context.WithTimeout(ctx, b.h.limits.NotifyTimeout)
 	defer cancel()
 	if _, err = b.h.notifyEngine().client.validate(ctx, req.URL); err != nil {
 		code := mcp.EventCodeCallbackEndpoint
@@ -172,7 +171,7 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 	if c.OAuthGrantID != "" {
 		n.GrantID = &c.OAuthGrantID
 	}
-	ttl := config.Active().NotifyDefaultTTL
+	ttl := b.h.limits.NotifyDefaultTTL
 	if req.TTLSet {
 		if req.TTL == nil {
 			ttl = 0
@@ -183,8 +182,8 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 			}
 		}
 	}
-	if c.OAuthGrantID == "" && (ttl == 0 || ttl > config.Active().NotifyDefaultTTL) {
-		ttl = config.Active().NotifyDefaultTTL
+	if c.OAuthGrantID == "" && (ttl == 0 || ttl > b.h.limits.NotifyDefaultTTL) {
+		ttl = b.h.limits.NotifyDefaultTTL
 	}
 	if ttl != 0 {
 		expiry := now.Add(ttl)
@@ -253,12 +252,12 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 			return out, notifyMCPError(mcp.EventCodeForbidden, "reason", "site_changed")
 		}
 	}
-	refreshed, truncated, err := db.SaveNotification(ctx, b.h.database, n, config.Active().NotifyMaxPerSite, cursor, config.Active().NotifyHistoryDays, b.h.notificationSecrets())
+	refreshed, truncated, err := db.SaveNotification(ctx, b.h.database, n, b.h.limits.NotifyMaxPerSite, cursor, b.h.limits.NotifyHistoryDays, b.h.notificationSecrets())
 	if errors.Is(err, db.ErrNotificationAccess) {
 		return out, notifyMCPError(mcp.EventCodeForbidden, "reason", "notification_access_ended")
 	}
 	if errors.Is(err, db.ErrNotificationCap) {
-		return out, &mcp.EventError{Code: mcp.EventCodeResourceExhausted, Message: "too many subscriptions", Data: map[string]any{"limit": "subscriptions", "max": config.Active().NotifyMaxPerSite}}
+		return out, &mcp.EventError{Code: mcp.EventCodeResourceExhausted, Message: "too many subscriptions", Data: map[string]any{"limit": "subscriptions", "max": b.h.limits.NotifyMaxPerSite}}
 	}
 	if err != nil {
 		return out, err

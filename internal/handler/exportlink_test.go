@@ -11,22 +11,24 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/config"
 )
 
 func TestExportTokenRefusesWhatItShould(t *testing.T) {
-	h := &SiteHandler{exportKey: newExportKey()}
+	h := &SiteHandler{exportKey: newExportKey(), limitSet: newLimitSet(config.DefaultLimits())}
 	now := time.Now()
-	good := h.signExportToken("user-1", "site-1", now.Add(exportLinkTTL()))
+	good := h.signExportToken("user-1", "site-1", now.Add(h.exportLinkTTL()))
 	if u, s, err := h.checkExportToken(good, now); err != nil || u != "user-1" || s != "site-1" {
 		t.Fatalf("good token refused: %v %q %q", err, u, s)
 	}
 	raw, _ := base64.RawURLEncoding.DecodeString(good)
 	raw[len(raw)/2] ^= 1
 	swapped := base64.RawURLEncoding.EncodeToString(raw)
-	other := &SiteHandler{exportKey: newExportKey()}
+	other := &SiteHandler{exportKey: newExportKey(), limitSet: newLimitSet(config.DefaultLimits())}
 	for name, tok := range map[string]string{
 		"expired":           h.signExportToken("user-1", "site-1", now.Add(-time.Second)),
-		"expires too late":  h.signExportToken("user-1", "site-1", now.Add(exportLinkTTL()+time.Minute)),
+		"expires too late":  h.signExportToken("user-1", "site-1", now.Add(h.exportLinkTTL()+time.Minute)),
 		"other site":        swapped,
 		"flipped signature": good + "." + strings.Repeat("A", 32),
 		"another key":       other.signExportToken("user-1", "site-1", now.Add(time.Minute)),

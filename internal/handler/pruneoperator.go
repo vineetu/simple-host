@@ -13,9 +13,9 @@ import (
 
 // PruneFixedAccounts is the hosted one-time cleanup. It deliberately visits
 // only non-deleted sites outside KEEP_VERSIONS_SELF_SET, and uses the same
-// rows-first, folders-second path as deploys.
-func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk *storage.DiskStorage, apply bool, out io.Writer) error {
-	l := config.Active()
+// rows-first, folders-second path as deploys. l is the instance's limits
+// snapshot (config.LoadLimits), since this runs outside any server edition.
+func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk *storage.DiskStorage, l config.Limits, apply bool, out io.Writer) error {
 	if l.KeepVersionsSelfSet == "" || keepVersions <= 0 {
 		return fmt.Errorf("cleanup requires KEEP_VERSIONS_SELF_SET and a positive KEEP_VERSIONS")
 	}
@@ -23,7 +23,7 @@ func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk *storage.Dis
 	if err != nil {
 		return err
 	}
-	h := &SiteHandler{database: database, disk: disk}
+	h := &SiteHandler{limitSet: newLimitSet(l), database: database, disk: disk}
 	var freed int64
 	fmt.Fprintln(out, "account\tsite\tversions removed\tMB freed")
 	for _, site := range sites {

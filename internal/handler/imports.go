@@ -19,7 +19,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/wpimport"
 )
@@ -41,8 +40,7 @@ type importManager struct {
 	running, slots chan struct{}
 }
 
-func newImportManager() *importManager {
-	n := config.Active().ImportMaxConcurrent
+func newImportManager(n int) *importManager {
 	return &importManager{records: map[string]*importRecord{}, running: make(chan struct{}, n), slots: make(chan struct{}, n+5)}
 }
 func (m *importManager) sweepLocked() {
@@ -164,7 +162,7 @@ func (h *ConnectorHandler) importPage(w http.ResponseWriter, r *http.Request) {
 		Valid          bool
 		Site, ThemeURL string
 		MaxUploadMB    int
-	}{ok, link.Site, link.ThemeURL, config.Active().ImportMaxUploadMB}
+	}{ok, link.Site, link.ThemeURL, h.limits.ImportMaxUploadMB}
 	raw, err := staticFiles.ReadFile("static/import.html")
 	if err != nil {
 		http.Error(w, "could not open import page", 500)
@@ -248,7 +246,7 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 	}()
 
 	// A stalled browser must release its admission slot and reservation.
-	lim := *config.Active()
+	lim := h.limits
 	bodyLimit := int64(lim.ImportMaxUploadMB) << 20
 	rc := http.NewResponseController(w)
 	_ = rc.SetReadDeadline(time.Now().Add(bodyReadTimeout(bodyLimit)))

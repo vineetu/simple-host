@@ -197,7 +197,7 @@ func TestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
 	if !strings.Contains(got["note"].(string), "Use the owner tools") {
 		t.Fatal("no owner guidance")
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.VisitorAIWritesPerDay = 2 })
+	withPasscodeLimits(t, func(l *config.Limits) { l.VisitorAIWritesPerDay = 2 }, &f.a.sites.limitSet)
 	if _, err := f.a.database.Exec(`DELETE FROM visitor_ai_daily WHERE site_id=$1`, f.sid); err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestVisitorMCPPasscodeAndBrowserLockout(t *testing.T) {
 		l.SitePasscodes = true
 		l.RatePasscodeSite = config.Rate{Burst: 3, Every: time.Hour}
 		l.RatePasscodeIP = config.Rate{Burst: 20, Every: time.Hour}
-	})
+	}, &f.a.sites.limitSet, &f.a.sites.passcode.limitSet)
 	r := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, f.key)
 	if r.status != 200 {
 		t.Fatalf("lock: %s", r.body)
@@ -303,7 +303,7 @@ func TestVisitorPassCannotCrossSitesOrBecomeOwner(t *testing.T) {
 
 func TestVisitorMCPConcurrentCap(t *testing.T) {
 	f := newVisitorFixture(t)
-	withPasscodeLimits(t, func(l *config.Limits) { l.VisitorAIWritesPerDay = 3 })
+	withPasscodeLimits(t, func(l *config.Limits) { l.VisitorAIWritesPerDay = 3 }, &f.a.sites.limitSet)
 	f.must(t, "PUT", "/resources/wall", map[string]any{"kind": "kv", "preset": "wall"}, f.key, 201)
 	var wg sync.WaitGroup
 	var mu sync.Mutex

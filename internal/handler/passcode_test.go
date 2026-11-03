@@ -21,19 +21,31 @@ import (
 
 const testPasscodeKey = "q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80=" // 32 bytes, tests only
 
-// withLimits runs the rest of the test with l applied, then puts the
-// previous limits back.
-func withPasscodeLimits(t *testing.T, change func(l *config.Limits)) {
+// withPasscodeLimits changes config.Limits for the rest of the test on every
+// handler's own snapshot (targets, each a pointer to a *SiteHandler's
+// embedded limitSet field, e.g. &a.sites.limitSet), seeded from the first
+// target's current values, and restores each afterwards. There is no global
+// left to mutate, so every target that matters to the test must be named.
+func withPasscodeLimits(t *testing.T, change func(l *config.Limits), targets ...*limitSet) {
 	t.Helper()
-	old := *config.Active()
-	l := old
+	if len(targets) == 0 {
+		t.Fatal("withPasscodeLimits: no target handler given")
+	}
+	l := targets[0].limits
 	change(&l)
-	config.SetActive(l)
-	t.Cleanup(func() { config.SetActive(old) })
+	olds := make([]limitSet, len(targets))
+	for i, tgt := range targets {
+		olds[i] = *tgt
+		*tgt = newLimitSet(l)
+	}
+	t.Cleanup(func() {
+		for i, tgt := range targets {
+			*tgt = olds[i]
+		}
+	})
 }
 
 func TestNormalizePasscode(t *testing.T) {
-	withPasscodeLimits(t, func(l *config.Limits) { l.PasscodeMinLength = 6 })
 	for in, want := range map[string]string{
 		"123456":                 "123456",
 		"  123456  ":             "123456",
@@ -46,7 +58,7 @@ func TestNormalizePasscode(t *testing.T) {
 		strings.Repeat("x", 128): strings.Repeat("x", 128),
 		strings.Repeat("x", 129): "",
 	} {
-		got, err := normalizePasscode(in)
+		got, err := normalizePasscode(in, 6)
 		if want == "" {
 			if err == nil {
 				t.Errorf("%q: accepted as %q", in, got)
@@ -57,13 +69,11 @@ func TestNormalizePasscode(t *testing.T) {
 			t.Errorf("%q: got %q, %v; want %q", in, got, err, want)
 		}
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.PasscodeMinLength = 10 })
-	if _, err := normalizePasscode("123456789"); err == nil {
+	if _, err := normalizePasscode("123456789", 10); err == nil {
 		t.Fatal("PASSCODE_MIN_LENGTH=10 accepted 9 characters")
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.PasscodeMinLength = 6 })
 	for i := 0; i < 20; i++ {
-		g, err := generatePasscode()
+		g, err := generatePasscode(6)
 		if err != nil || !regexp.MustCompile(`^[0-9]{6}$`).MatchString(g) {
 			t.Fatalf("generated %q, %v", g, err)
 		}
@@ -267,7 +277,7 @@ func newPasscodeApp(t *testing.T) *passcodeApp {
 	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 })
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 }, &a.sites.limitSet)
 	p := &passcodeApp{privateApp: a, olive: a.newPerson(t, "olive"), canary: passcodeCanary}
 	_, p.handle = a.userID(t, p.olive)
 	markReady(t, dir, p.handle)
@@ -323,14 +333,14 @@ func TestPasscodeOwnerAPI(t *testing.T) {
 	p := newPasscodeApp(t)
 
 	// Off: refused with a clear 409, nothing changes.
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = false })
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = false }, &p.sites.limitSet)
 	if r := p.lock(t, "123456"); r.status != http.StatusConflict || r.json(t)["code"] != "passcodes_not_enabled" {
 		t.Fatalf("off: %d %s", r.status, r.body)
 	}
 	if _, err := os.Stat(filepath.Join(p.pageDir, "passcode")); err == nil {
 		t.Fatal("off: marker written")
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true })
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &p.sites.limitSet)
 
 	if r := p.lock(t, "12345"); r.status != http.StatusBadRequest || r.json(t)["code"] != "invalid_passcode" {
 		t.Fatalf("short: %d %s", r.status, r.body)
@@ -422,7 +432,7 @@ func TestPasscodeOwnerAPI(t *testing.T) {
 func TestPasscodeNeedsOwnAddress(t *testing.T) {
 	a := newPersonApp(t, "off")
 	_ = a.sites.SetPasscodeKey(testPasscodeKey)
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true })
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &a.sites.limitSet)
 	olive := a.newPerson(t, "olive")
 	a.deploy(t, olive, "shop")
 	r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, map[string]string{"X-API-Key": olive.key})
@@ -741,7 +751,7 @@ func TestPasscodeBruteForce(t *testing.T) {
 		l.RatePasscodeSite = config.Rate{Burst: 5, Every: time.Hour}
 		l.PasscodeLockout = 15 * time.Minute
 		l.PasscodeSiteLockout = 15 * time.Minute
-	})
+	}, &p.sites.passcode.limitSet)
 	ip := func(n string) map[string]string { return map[string]string{"X-Forwarded-For": "203.0.113." + n} }
 	for i := 0; i < 2; i++ {
 		if r := p.unlock(t, p.host, "wrong", "/", ip("1")); r.status != 401 {
@@ -828,7 +838,7 @@ func TestPasscodeMarkerLifecycle(t *testing.T) {
 func TestPasscodeContentHostServeMode(t *testing.T) {
 	a := newPersonApp(t, "serve")
 	_ = a.sites.SetPasscodeKey(testPasscodeKey)
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 })
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 }, &a.sites.limitSet)
 	olive := a.newPerson(t, "olive")
 	if r := a.at(t, "POST", pcSiteDomain, "/v1/sites/trip/files", map[string]any{"files": map[string]string{"index.html": passcodeCanary, "a.js": passcodeCanary}}, map[string]string{"X-API-Key": olive.key}); r.status != http.StatusCreated {
 		t.Fatal(r.status)

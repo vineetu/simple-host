@@ -20,7 +20,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/analytics"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/geoip"
 )
 
@@ -167,8 +167,12 @@ func flushGrowth(ctx context.Context, q interface {
 
 // NewAPIGrowthBackfiller is an APIMetrics for the one-off backfill command:
 // it counts nothing live and starts no flush loop.
-func NewAPIGrowthBackfiller(db *sql.DB, geo *geoip.DB) *APIMetrics {
-	return &APIMetrics{db: db, geo: geo, routes: map[routeKey]int64{}, self: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
+func NewAPIGrowthBackfiller(db *sql.DB, geo *geoip.DB, editions ...*edition.Edition) *APIMetrics {
+	var ed *edition.Edition
+	if len(editions) > 0 {
+		ed = editions[0]
+	}
+	return &APIMetrics{limitSet: newLimitSet(ed.Limits()), db: db, geo: geo, routes: map[routeKey]int64{}, self: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
 }
 
 // BackfillGrowth fills api_growth_daily from the API traffic tables for every
@@ -553,7 +557,7 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 		Range: rng, Days: days,
 		From: win.dates[0], To: win.dates[len(win.dates)-1],
 		Dates: win.dates, GroupOrder: growthGroups,
-		Retention:   config.Active().APIGrowthRetention,
+		Retention:   m.limits.APIGrowthRetention,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		API:         growthSeries{Daily: make([]int64, days), Groups: map[string][]int64{}},
 		Users:       growthSeries{Daily: make([]int64, days)},

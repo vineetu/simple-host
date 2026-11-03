@@ -21,7 +21,7 @@ func TestStorageCapsDeployPaths(t *testing.T) {
 	before := keepVersions
 	keepVersions = 4
 	t.Cleanup(func() { keepVersions = before })
-	withLimits(t, map[string]string{"MAX_SITE_TOTAL_MB": "2", "SITE_TOTAL_CAP_FROM": "2026-01-01T00:00:00Z", "MAX_ACCOUNT_MB": "10", "KEEP_VERSIONS_SELF_SET": "chhotabreak"})
+	setAppLimits(a, withLimits(t, map[string]string{"MAX_SITE_TOTAL_MB": "2", "SITE_TOTAL_CAP_FROM": "2026-01-01T00:00:00Z", "MAX_ACCOUNT_MB": "10", "KEEP_VERSIONS_SELF_SET": "chhotabreak"}))
 	// 1.1 MB expands to 2.2 MB with the live copy, despite compressing well.
 	payload := strings.Repeat("x", 1100<<10)
 	for _, tc := range []struct{ method, path, format string }{
@@ -87,7 +87,7 @@ func TestStorageCapsRetentionAndGrandfathering(t *testing.T) {
 	before := keepVersions
 	keepVersions = 4
 	t.Cleanup(func() { keepVersions = before })
-	withLimits(t, map[string]string{"MAX_SITE_TOTAL_MB": "2", "SITE_TOTAL_CAP_FROM": "2026-01-01T00:00:00Z", "MAX_ACCOUNT_MB": "10", "KEEP_VERSIONS_SELF_SET": "allowed", "KEEP_VERSIONS_OVERRIDES": "allowed:10"})
+	setAppLimits(a, withLimits(t, map[string]string{"MAX_SITE_TOTAL_MB": "2", "SITE_TOTAL_CAP_FROM": "2026-01-01T00:00:00Z", "MAX_ACCOUNT_MB": "10", "KEEP_VERSIONS_SELF_SET": "allowed", "KEEP_VERSIONS_OVERRIDES": "allowed:10"}))
 	headers := map[string]string{"X-API-Key": p.key}
 	// Five copies (4 retained + current) at 400 KB stay under 2 MB forever.
 	body := map[string]any{"files": map[string]string{"index.html": strings.Repeat("x", 400<<10)}}
@@ -138,7 +138,7 @@ func TestStorageCapsRetentionAndGrandfathering(t *testing.T) {
 	if _, err := a.database.Exec(`INSERT INTO handle_aliases (handle,user_id) VALUES ('allowed',$1)`, uid); err != nil {
 		t.Fatal(err)
 	}
-	withLimits(t, map[string]string{"MAX_SITE_TOTAL_MB": "1", "SITE_TOTAL_CAP_FROM": "2026-01-01T00:00:00Z", "MAX_ACCOUNT_MB": "1", "KEEP_VERSIONS_SELF_SET": "allowed", "KEEP_VERSIONS_OVERRIDES": "allowed:10", "MAX_SITE_TOTAL_OVERRIDES": "allowed:20", "MAX_ACCOUNT_MB_OVERRIDES": "allowed:30"})
+	setAppLimits(a, withLimits(t, map[string]string{"MAX_SITE_TOTAL_MB": "1", "SITE_TOTAL_CAP_FROM": "2026-01-01T00:00:00Z", "MAX_ACCOUNT_MB": "1", "KEEP_VERSIONS_SELF_SET": "allowed", "KEEP_VERSIONS_OVERRIDES": "allowed:10", "MAX_SITE_TOTAL_OVERRIDES": "allowed:20", "MAX_ACCOUNT_MB_OVERRIDES": "allowed:30"}))
 	r = a.at(t, "PUT", "simple-host.test", "/v1/sites/roll/keep-versions", map[string]int{"keep_versions": 0}, headers)
 	if r.status != 200 || r.json(t)["effective_keep_versions"] != float64(10) {
 		t.Fatalf("alias retention %s/%s: %d %s", hd, uid, r.status, r.body)
@@ -163,7 +163,7 @@ func TestAccountFileCapAndUsage(t *testing.T) {
 	before := keepVersions
 	keepVersions = 1
 	t.Cleanup(func() { keepVersions = before })
-	withLimits(t, map[string]string{"MAX_ACCOUNT_MB": "1"})
+	setAppLimits(a, withLimits(t, map[string]string{"MAX_ACCOUNT_MB": "1"}))
 	headers := map[string]string{"X-API-Key": p.key}
 	body := map[string]any{"files": map[string]string{"index.html": strings.Repeat("x", 300<<10)}}
 	r := a.at(t, "POST", "simple-host.test", "/v1/sites/first/files", body, headers)
@@ -258,12 +258,13 @@ func TestPruneFixedAccountsProtectsLiveAndDeleted(t *testing.T) {
 		t.Fatal(err)
 	}
 	keepVersions = 4
-	withLimits(t, map[string]string{"KEEP_VERSIONS_SELF_SET": exHD + "-old"})
+	l := withLimits(t, map[string]string{"KEEP_VERSIONS_SELF_SET": exHD + "-old"})
+	setAppLimits(a, l)
 	if _, err := a.database.Exec(`UPDATE sites SET keep_versions=100 WHERE user_id=$1 AND name='history'`, uid); err != nil {
 		t.Fatal(err)
 	}
 	var dry bytes.Buffer
-	if err := PruneFixedAccounts(context.Background(), a.database, a.sites.disk, false, &dry); err != nil {
+	if err := PruneFixedAccounts(context.Background(), a.database, a.sites.disk, l, false, &dry); err != nil {
 		t.Fatal(err)
 	}
 	site, _ := db.GetSiteByUser(context.Background(), a.database, uid, "history")
@@ -272,7 +273,7 @@ func TestPruneFixedAccountsProtectsLiveAndDeleted(t *testing.T) {
 		t.Fatal("dry run removed rows")
 	}
 	var applied bytes.Buffer
-	if err := PruneFixedAccounts(context.Background(), a.database, a.sites.disk, true, &applied); err != nil {
+	if err := PruneFixedAccounts(context.Background(), a.database, a.sites.disk, l, true, &applied); err != nil {
 		t.Fatal(err)
 	}
 	site, _ = db.GetSiteByUser(context.Background(), a.database, uid, "history")
@@ -304,7 +305,7 @@ func TestPruneFixedAccountsProtectsLiveAndDeleted(t *testing.T) {
 func TestAccountCapSerializesDifferentSites(t *testing.T) {
 	a := newPersonApp(t, "serve")
 	p := a.newPerson(t, "concurrentcap")
-	withLimits(t, map[string]string{"MAX_ACCOUNT_MB": "1"})
+	setAppLimits(a, withLimits(t, map[string]string{"MAX_ACCOUNT_MB": "1"}))
 	start := make(chan struct{})
 	results := make(chan resp, 2)
 	for _, name := range []string{"one", "two"} {

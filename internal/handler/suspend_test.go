@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // Operator take-down of a site and suspension of a person, end to end over
@@ -261,8 +263,8 @@ func TestAdminExportAll(t *testing.T) {
 // Wrong keys typed at /admin are rate limited per address, so the sign-in
 // form's "Too many tries" answer is real.
 func TestAdminUsersWrongKeysRateLimited(t *testing.T) {
-	withLimits(t, map[string]string{"RATE_LIMIT_SITE_OPS": "3,1m"})
-	a := newPersonApp(t, "serve")
+	l := withLimits(t, map[string]string{"RATE_LIMIT_SITE_OPS": "3,1m"})
+	a := newPersonApp(t, "serve", edition.ForKindWithLimits(edition.Host, l))
 	bad := map[string]string{"X-API-Key": "sh_admin_" + strings.Repeat("0", 48)}
 	for i := 0; i < 3; i++ {
 		if r := a.at(t, "GET", "simple-host.test", "/v1/admin/users", nil, bad); r.status != http.StatusUnauthorized {

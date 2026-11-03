@@ -10,12 +10,11 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
-func hackIconLimit() int64 {
-	return int64(config.Active().HackEventIconMaxBytes)
+func (h *HackHandler) hackIconLimit() int64 {
+	return int64(h.limits.HackEventIconMaxBytes)
 }
 
 func (h *HackHandler) iconURL(ev db.Event) string {
@@ -84,7 +83,7 @@ func (h *HackHandler) putEventIcon(w http.ResponseWriter, r *http.Request) {
 		writeHackErr(w, http.StatusConflict, "event_closed", "this event has ended")
 		return
 	}
-	max := hackIconLimit()
+	max := h.hackIconLimit()
 	raw, err := io.ReadAll(io.LimitReader(r.Body, max+1))
 	if err != nil {
 		writeHackErr(w, http.StatusBadRequest, "invalid_icon", "could not read the image")

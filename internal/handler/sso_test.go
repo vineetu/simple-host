@@ -155,7 +155,7 @@ func TestSSOHopConsentAndRevocation(t *testing.T) {
 	}
 	for _, raw := range []string{first, second, third} {
 		id, _ := hex.DecodeString(raw)
-		s, err := db.GetVisitorSession(context.Background(), a.database, id)
+		s, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
 		if err != nil || s.SSOPassHash.String != db.HashAPIKey(pass) {
 			t.Fatalf("parent: %v", err)
 		}
@@ -172,7 +172,7 @@ func TestSSOHopConsentAndRevocation(t *testing.T) {
 	}
 	for _, raw := range []string{first, second, third} {
 		id, _ := hex.DecodeString(raw)
-		if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
+		if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 			t.Fatal("sibling session survived")
 		}
 	}
@@ -270,10 +270,10 @@ func TestSSONamedViewerAutoHopAndParentExpiry(t *testing.T) {
 		if _, err := a.database.Exec(q, uid); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass)); err != sql.ErrNoRows {
+		if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass), 180*24*time.Hour); err != sql.ErrNoRows {
 			t.Fatal("expired/suspended pass accepted")
 		}
-		if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
+		if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 			t.Fatal("expired/suspended parent accepted on site")
 		}
 		a.database.Exec(`UPDATE sso_passes SET idle_expires_at=now()+interval '1 day' WHERE user_id=$1`, uid)
@@ -284,7 +284,7 @@ func TestSSONamedViewerAutoHopAndParentExpiry(t *testing.T) {
 	if r.status != 204 {
 		t.Fatalf("dashboard logout: %d", r.status)
 	}
-	if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
+	if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 		t.Fatal("dashboard logout left a site session")
 	}
 }
@@ -327,7 +327,7 @@ func TestSSOCookieBoundary(t *testing.T) {
 	}
 	called := false
 	w := httptest.NewRecorder()
-	auth.Middleware("admin", "id", nil)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })).ServeHTTP(w, r)
+	auth.Middleware("admin", "id", nil, 180*24*time.Hour)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })).ServeHTTP(w, r)
 	if called || w.Code != 401 {
 		t.Fatal("middleware accepted SSO cookie")
 	}
@@ -481,7 +481,7 @@ func TestSSOProviderAndEmailSignup(t *testing.T) {
 		t.Fatalf("provider verify: %d %s", r.status, r.body)
 	}
 	pass := a.ssoPass(t, r.json(t)["api_key"].(string))
-	p, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass))
+	p, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass), 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -542,7 +542,7 @@ func TestSSOHackEventAndTeamHosts(t *testing.T) {
 	for _, host := range []string{team + "." + event + "." + tsDomain, event + "." + tsDomain} {
 		raw, _ := pa.finishSSO(t, host, pass)
 		id, _ := hex.DecodeString(raw)
-		sess, err := db.GetVisitorSession(context.Background(), a.database, id)
+		sess, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
 		if err != nil || sess.Host != host {
 			t.Fatalf("Hack site pass: %v", err)
 		}
@@ -623,7 +623,7 @@ func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {
 				t.Fatalf("replace: %d", r.status)
 			}
 			nextPass := responseCookie(t, r, ssoCookieHost)
-			if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass)); err != sql.ErrNoRows {
+			if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass), 180*24*time.Hour); err != sql.ErrNoRows {
 				t.Fatal("old pass survived")
 			}
 			var pendingCount int
@@ -632,7 +632,7 @@ func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {
 			}
 
 			id, _ := hex.DecodeString(oldSession)
-			if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
+			if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 				t.Fatalf("old family survived: %v", err)
 			}
 			if r := a.at(t, "GET", a.appHost(), "/v1/me", nil, map[string]string{"X-API-Key": viewer.key}); r.status != 401 {
@@ -644,7 +644,7 @@ func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {
 				t.Fatalf("logout: %d", r.status)
 			}
 			id, _ = hex.DecodeString(newSession)
-			if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
+			if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 				t.Fatal("new family survived logout")
 			}
 		})
@@ -710,7 +710,7 @@ func TestSSOSignoutWithoutLiveLocalSession(t *testing.T) {
 			}
 			if mode != "swept parent" {
 				sid, _ := hex.DecodeString(sibling)
-				if _, err := db.GetVisitorSession(context.Background(), a.database, sid); err != nil {
+				if _, err := db.GetVisitorSession(context.Background(), a.database, sid, 180*24*time.Hour); err != nil {
 					t.Fatal("GET revoked another browser's family")
 				}
 			}
@@ -736,7 +736,7 @@ func TestSSOSignoutWithoutLiveLocalSession(t *testing.T) {
 				t.Fatal("confirmation replayed")
 			}
 			id, _ = hex.DecodeString(sibling)
-			if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
+			if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 				t.Fatal("sibling survived")
 			}
 			if mode != "swept parent" {
@@ -791,7 +791,7 @@ func TestSSOSessionRetainsOnePassPerKey(t *testing.T) {
 		go func() {
 			raw, err := randomHex(32)
 			if err == nil {
-				err = db.ReplaceSSOPass(context.Background(), a.database, db.HashAPIKey(raw), db.HashAPIKey(p.key), "", visitorSessionTTL(), visitorSessionIdle())
+				err = db.ReplaceSSOPass(context.Background(), a.database, db.HashAPIKey(raw), db.HashAPIKey(p.key), "", a.sites.visitorSessionTTL(), a.sites.visitorSessionIdle(), a.sites.limits.KeyIdleExpiry)
 			}
 			errs <- err
 		}()
@@ -805,7 +805,7 @@ func TestSSOSessionRetainsOnePassPerKey(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT count(*) FROM sso_passes WHERE parent_key_hash=$1`, db.HashAPIKey(p.key)).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("retained %d passes: %v", n, err)
 	}
-	if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass)); err != sql.ErrNoRows {
+	if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass), 180*24*time.Hour); err != sql.ErrNoRows {
 		t.Fatal("replaced pass survived")
 	}
 }
@@ -873,7 +873,7 @@ func TestSSOActivityRefreshesParentIdle(t *testing.T) {
 			if !idle.Equal(absolute) || idle.Before(time.Now().Add(4*24*time.Hour)) {
 				t.Fatal("idle was not extended to the absolute cap")
 			}
-			if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != nil {
+			if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != nil {
 				t.Fatal("active family expired", err)
 			}
 		})
@@ -881,10 +881,10 @@ func TestSSOActivityRefreshesParentIdle(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sso_passes SET idle_expires_at=now()-interval '1 second' WHERE id_hash=$1`, hash); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.TouchVisitorSession(context.Background(), a.database, id); err != nil {
+	if err := db.TouchVisitorSession(context.Background(), a.database, id, 14*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.GetVisitorSession(context.Background(), a.database, id); err != sql.ErrNoRows {
+	if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 		t.Fatal("truly idle family revived")
 	}
 	if r := a.at(t, "GET", host, "/", nil, map[string]string{"Cookie": visitorCookieHost + "=" + raw}); r.status != 302 {

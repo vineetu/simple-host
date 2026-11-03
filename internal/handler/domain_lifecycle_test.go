@@ -225,7 +225,7 @@ func TestPendingDomainGivesBackTheEarlierAddress(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sites SET domain_bound_at = now() - interval '25 hours' WHERE id = $1`, blogID); err != nil {
 		t.Fatal(err)
 	}
-	released, err := db.ReleaseExpiredDomains(ctx, a.database)
+	released, err := db.ReleaseExpiredDomains(ctx, a.database, 7*24*time.Hour, 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +240,7 @@ func TestPendingDomainGivesBackTheEarlierAddress(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sites SET domain_cert_status = 'pending' WHERE id = $1`, shopID); err != nil {
 		t.Fatal(err)
 	}
-	released, err = db.ReleaseExpiredDomains(ctx, a.database)
+	released, err = db.ReleaseExpiredDomains(ctx, a.database, 7*24*time.Hour, 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}

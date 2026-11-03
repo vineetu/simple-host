@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 type bodyDeadlineRecorder struct {
@@ -36,8 +37,7 @@ func checkBodyDeadline(t *testing.T, w *bodyDeadlineRecorder, start time.Time, w
 }
 
 func TestImportReceivingBodyAllowanceDeadline(t *testing.T) {
-	old := *config.Active()
-	t.Cleanup(func() { config.SetActive(old) })
+	old := config.DefaultLimits()
 	for _, tc := range []struct {
 		mb   int
 		want time.Duration
@@ -50,8 +50,7 @@ func TestImportReceivingBodyAllowanceDeadline(t *testing.T) {
 		t.Run(fmt.Sprint(tc.mb), func(t *testing.T) {
 			l := old
 			l.ImportMaxUploadMB = tc.mb
-			config.SetActive(l)
-			h, root, caller := newImportTest(t)
+			h, root, caller := newImportTest(t, edition.ForKindWithLimits(edition.Host, l))
 			token, _ := mintImportTest(t, h, caller)
 			// Malformed multipart stops before conversion, after deadline setup.
 			r := httptest.NewRequest("POST", "/v1/imports/"+token, strings.NewReader("bad body"))
@@ -72,13 +71,12 @@ func TestImportReceivingBodyAllowanceDeadline(t *testing.T) {
 func TestKeepJSONBodyAllowanceDeadline(t *testing.T) {
 	a, user := keepReviewSite(t)
 	user.Handle.String, user.Handle.Valid = "deadline-owner", true
-	old := *config.Active()
-	t.Cleanup(func() { config.SetActive(old) })
+	old := config.DefaultLimits()
 	for _, mb := range []int{1, 500} {
 		t.Run(fmt.Sprint(mb), func(t *testing.T) {
 			l := old
 			l.MaxArchiveOverrides = fmt.Sprintf("deadline-owner:%d", mb)
-			config.SetActive(l)
+			a.sites.limitSet = newLimitSet(l)
 			bodyLimit := (int64(mb)<<20)*4/3 + (1 << 20)
 			want := max(15*time.Minute, time.Duration(bodyLimit)*time.Second/250000+10*time.Minute)
 			w := &bodyDeadlineRecorder{ResponseRecorder: httptest.NewRecorder()}

@@ -7,7 +7,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/capacity"
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/tarball"
 )
 
@@ -163,7 +162,7 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 		"site_limit_mb":   SiteLimit() >> 20,
 		// MAX_ARCHIVE_MB_OVERRIDES: handle -> MB, for the accounts that
 		// have their own; null when none do.
-		"site_limit_overrides": config.Active().ArchiveOverrides(),
+		"site_limit_overrides": h.limits.ArchiveOverrides(),
 		// Settings and build in force, so "which release is this box on" and
 		// "how many deploys does it keep" are answered without a shell.
 		"keep_versions": KeepVersions(),

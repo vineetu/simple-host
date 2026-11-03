@@ -16,7 +16,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -72,7 +71,7 @@ func (h *SiteHandler) viewerSession(r *http.Request, siteID string) (db.VisitorS
 	if err != nil || len(id) != 32 {
 		return db.VisitorSession{}, false
 	}
-	sess, err := db.GetVisitorSession(r.Context(), h.database, id)
+	sess, err := db.GetVisitorSession(r.Context(), h.database, id, h.limits.KeyIdleExpiry)
 	if err != nil || !h.sessionValidFor(r, sess, siteID) {
 		return db.VisitorSession{}, false
 	}
@@ -135,7 +134,7 @@ func (h *SiteHandler) viewerGate(w http.ResponseWriter, r *http.Request, row db.
 		return true
 	}
 	if dest := r.Header.Get("Sec-Fetch-Dest"); dest == "" || dest == "document" {
-		_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID)
+		_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID, h.limits.VisitorSessionIdle)
 	}
 	return false
 }
@@ -448,7 +447,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 			h.serveViewerPage(w, r, viewerPageSignIn, next, "", signInMessages["email_unavailable"])
 			return
 		}
-		sent, _, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, address, "", "visitor", siteID, sql.NullString{}, clientIP(r), h.geoBlock)
+		sent, _, status, body := issueEmailCode(r.Context(), h.database, h.mailer, h.emailLimiter, address, "", "visitor", siteID, sql.NullString{}, clientIP(r), h.geoBlock, h.authTokenTTL())
 		if status != 0 {
 			msg := body.Error
 			if msg == "" {
@@ -460,7 +459,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 		h.serveViewerPage(w, r, viewerPageCode, next, sent, "")
 		return
 	}
-	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: address, Code: code}, "visitor", siteID, h.ed.Identity().RandomHandles)
+	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, verifyRequest{Email: address, Code: code}, "visitor", siteID, h.ed.Identity().RandomHandles, h.authTokenTTL())
 	if status != 0 {
 		norm := strings.ToLower(strings.TrimSpace(address))
 		msg := body.Error
@@ -479,7 +478,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now()
-	first, err := db.InsertVisitorSession(r.Context(), h.database, id, user.ID, row.SiteID, requestHostName(r), now.Add(visitorSessionTTL()), now.Add(visitorSessionIdle()))
+	first, err := db.InsertVisitorSession(r.Context(), h.database, id, user.ID, row.SiteID, requestHostName(r), now.Add(h.visitorSessionTTL()), now.Add(h.visitorSessionIdle()))
 	if err != nil {
 		h.renderServiceError(w, r)
 		return
@@ -487,7 +486,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 	if first {
 		h.emitSiteNotification(row.SiteID, "visitor.signed_up", map[string]any{"visitor": user.ID}, 0)
 	}
-	setVisitorSessionCookie(w, r, hex.EncodeToString(id), visitorCookieMaxAge())
+	setVisitorSessionCookie(w, r, hex.EncodeToString(id), h.visitorCookieMaxAge())
 	log.Printf("viewers_sign_in site_id=%s user_id=%s", row.SiteID, user.ID)
 	h.noteOwnerVisitorSignIn(r, row.SiteID, user.ID)
 	w.Header().Set("Cache-Control", "no-store")
@@ -550,7 +549,7 @@ func (h *SiteHandler) siteAccessState(r *http.Request, site db.Site) (siteAccess
 	if row.NamedViewers {
 		access = accessSpecific
 	}
-	return siteAccessResponse{Site: site.Name, Access: access, Viewers: viewers, ViewerLimit: config.Active().SiteViewersMax, PasscodeProtected: row.Enc != nil}, nil
+	return siteAccessResponse{Site: site.Name, Access: access, Viewers: viewers, ViewerLimit: h.limits.SiteViewersMax, PasscodeProtected: row.Enc != nil}, nil
 }
 
 func (h *SiteHandler) writeSiteAccess(w http.ResponseWriter, r *http.Request, site db.Site, resp siteAccessResponse) {
@@ -679,7 +678,7 @@ func (h *SiteHandler) addSiteViewers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `invalid JSON body (expected {"emails":["person@example.com"]})`, Code: "invalid_request"})
 		return
 	}
-	limit := config.Active().SiteViewersMax
+	limit := h.limits.SiteViewersMax
 	var emails []string
 	seen := map[string]bool{}
 	for _, raw := range req.Emails {

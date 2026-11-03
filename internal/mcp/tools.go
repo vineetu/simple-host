@@ -651,7 +651,7 @@ func (c *call) findSite(name string) (restSite, error) {
 // domain, whether it is live, the one DNS record to add, and why it is not live
 // yet. Binding times and the name of any site a pending binding was taken over
 // from are the server's bookkeeping and stay out.
-func domainSummary(site string, body []byte) map[string]any {
+func domainSummary(site string, body []byte, limits Limits) map[string]any {
 	var d struct {
 		Domain         *string `json:"domain"`
 		Status         *string `json:"status"`
@@ -722,7 +722,7 @@ func domainSummary(site string, body []byte) map[string]any {
 		out["url"] = "https://" + *d.Domain + "/"
 	}
 	if d.Status != nil && *d.Status == "pending" {
-		out["note"] = "Add both DNS records at the domain's registrar within " + span(lim().DomainUnprovenTTL) + ": dns_record points the domain here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place afterwards. Until both are seen, the binding is provisional. Then the certificate is issued automatically and the domain goes live within minutes."
+		out["note"] = "Add both DNS records at the domain's registrar within " + span(limits.DomainUnprovenTTL) + ": dns_record points the domain here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place afterwards. Until both are seen, the binding is provisional. Then the certificate is issued automatically and the domain goes live within minutes."
 		if _, ok := out["partner"]; ok {
 			out["note"] = out["note"].(string) + " Also add partner.dns_record so " + d.PartnerDomain + " forwards to " + *d.Domain + " (the one ownership record covers both)."
 		}
@@ -743,7 +743,7 @@ func familyDomain(d string) (string, bool) {
 }
 
 // familySummary is what a person needs about an address family.
-func familySummary(body []byte) map[string]any {
+func familySummary(body []byte, limits Limits) map[string]any {
 	var f struct {
 		Family     string `json:"family"`
 		Suffix     string `json:"suffix"`
@@ -790,7 +790,7 @@ func familySummary(body []byte) map[string]any {
 		out["url"] = f.ExampleURL
 	}
 	if f.Status == "pending" {
-		out["note"] = "Add both DNS records at the domain's registrar within " + span(lim().FamilyUnprovenTTL) + ": dns_record (the wildcard) points every name under " + f.Suffix + " here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place. Then every site X of the account answers at X." + f.Suffix + " once its certificate is live."
+		out["note"] = "Add both DNS records at the domain's registrar within " + span(limits.FamilyUnprovenTTL) + ": dns_record (the wildcard) points every name under " + f.Suffix + " here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place. Then every site X of the account answers at X." + f.Suffix + " once its certificate is live."
 	}
 	return out
 }
@@ -947,8 +947,17 @@ const siteDesc = "The site's name as it appears in its address, e.g. `birthday-r
 // call cannot flood the conversation.
 const maxFileText = 200 << 10
 
-// Tools is the callable surface, in the order a first-time agent needs it.
-func Tools() []Tool {
+// Tools is the callable surface, in the order a first-time agent needs it,
+// stated at the defaults; NewServer builds the instance's own copy from
+// ToolsWithLimits(cfg's snapshot).
+func Tools() []Tool { return toolsWithLimits(DefaultLimits()) }
+
+// ToolsWithLimits is Tools stated with l instead of the defaults, for a
+// caller (a test) that wants the full surface's wording at a changed knob
+// without building a whole Server.
+func ToolsWithLimits(l Limits) []Tool { return toolsWithLimits(l) }
+
+func toolsWithLimits(limits Limits) []Tool {
 	tools := []Tool{
 		{
 			Name:        "who_am_i",
@@ -1170,7 +1179,7 @@ func Tools() []Tool {
 			Description: "Replace the live files of an EXISTING site with a new version, at its public address. By default the files you send are the complete new version. To change one or two pages of a big site, send just those files with keep_other_files: true. remove_files lists paths to drop, only when keeping other files. " +
 				"For a small change (hours, a price, a line of text), send edits instead: each {path, find, replace} replaces text that occurs exactly once in the live file; if a find is missing or repeated, nothing is published. " +
 				"`index.html` is required unless keeping other files; use relative links only. The previous version is kept and can be made live again with rollback_site. Fails if there is no site of that name (use create_site). " +
-				deployFormTip + deploySizeTips + " With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(lim().PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy. `author` names who made the version in list_versions.",
+				deployFormTip + deploySizeTips + " With `publish: false` the new version is only stored, not made live: visitors keep seeing the current one, and the answer carries a preview link (anyone with it can open it, for " + span(limits.PreviewLinkTTL) + ") to look at it first; make it live with rollback_site when the person is happy. `author` names who made the version in list_versions.",
 			InputSchema: object(map[string]any{
 				"site":             str(siteDesc),
 				"files":            filesSchema(),
@@ -1336,7 +1345,7 @@ func Tools() []Tool {
 			Name:  "preview_version",
 			Title: "Preview a version before it is live",
 			Description: "Make a preview link for one of a site's kept versions (from list_versions): the person opens it in their browser to see that version exactly as visitors would, before making it live with rollback_site. " +
-				"The link works for anyone who has it, for " + span(lim().PreviewLinkTTL) + " and only for that version; pages opened from it cannot save anything, and search engines do not index it. Give it to the person to click; do not post it anywhere public.",
+				"The link works for anyone who has it, for " + span(limits.PreviewLinkTTL) + " and only for that version; pages opened from it cannot save anything, and search engines do not index it. Give it to the person to click; do not post it anywhere public.",
 			InputSchema: object(map[string]any{
 				"site":    str(siteDesc),
 				"version": map[string]any{"type": "integer", "description": "The version number to preview, from list_versions."},
@@ -1416,7 +1425,7 @@ func Tools() []Tool {
 		{
 			Name:  "delete_site",
 			Title: "Delete a site",
-			Description: "DESTRUCTIVE: takes the site offline at once, with every version and all of its saved data (storage resources included). It stays in Recently deleted for " + span(lim().DeletedRetention) + ", where restore_site brings it back exactly as it was; after that it is gone for good. Its name stays taken until then. " +
+			Description: "DESTRUCTIVE: takes the site offline at once, with every version and all of its saved data (storage resources included). It stays in Recently deleted for " + span(limits.DeletedRetention) + ", where restore_site brings it back exactly as it was; after that it is gone for good. Its name stays taken until then. " +
 				"Only call this after the person has explicitly confirmed, in this conversation, that they want this specific site deleted. Pass the site name twice: as `site` and as `confirm_name`.",
 			InputSchema: object(map[string]any{
 				"site":         str(siteDesc),
@@ -1440,13 +1449,13 @@ func Tools() []Tool {
 				if !res.ok() {
 					return output{}, restError("delete_site", res)
 				}
-				return output{Text: "Deleted " + name + ". It is offline now and stays in Recently deleted for " + span(lim().DeletedRetention) + "; restore_site brings it back with all its versions and data.", Structured: map[string]any{"deleted": name, "restorable_days": int(lim().DeletedRetention / (24 * time.Hour))}}, nil
+				return output{Text: "Deleted " + name + ". It is offline now and stays in Recently deleted for " + span(limits.DeletedRetention) + "; restore_site brings it back with all its versions and data.", Structured: map[string]any{"deleted": name, "restorable_days": int(limits.DeletedRetention / (24 * time.Hour))}}, nil
 			},
 		},
 		{
 			Name:        "list_deleted_sites",
 			Title:       "List recently deleted sites",
-			Description: "List the account's sites in Recently deleted: each was deleted within the last " + span(lim().DeletedRetention) + " and can be brought back with restore_site until its purge_at time, when it is removed for good.",
+			Description: "List the account's sites in Recently deleted: each was deleted within the last " + span(limits.DeletedRetention) + " and can be brought back with restore_site until its purge_at time, when it is removed for good.",
 			InputSchema: noArgs(),
 			Annotations: readOnly(),
 			run: func(c *call, _ map[string]any) (output, error) {
@@ -1671,7 +1680,7 @@ func Tools() []Tool {
 		{
 			Name:  "keep_site",
 			Title: "Keep a site up for good",
-			Description: "Mark a site Keep (or clear the mark). Simple Host emails the owner about a site nobody has visited or updated for " + span(lim().IdleAfter) + " and moves it to Recently deleted " + span(lim().IdleGrace) + " later unless it is kept; a site marked Keep is never flagged. " +
+			Description: "Mark a site Keep (or clear the mark). Simple Host emails the owner about a site nobody has visited or updated for " + span(limits.IdleAfter) + " and moves it to Recently deleted " + span(limits.IdleGrace) + " later unless it is kept; a site marked Keep is never flagged. " +
 				"Sites with their own domain or claimed name are never flagged either.",
 			InputSchema: object(map[string]any{
 				"site": str(siteDesc),
@@ -1699,7 +1708,7 @@ func Tools() []Tool {
 				}
 				text := name + " is marked Keep: it stays up even if nobody visits it."
 				if !keep {
-					text = name + " is no longer marked Keep: if nobody visits or updates it for " + span(lim().IdleAfter) + ", its owner is emailed before anything happens."
+					text = name + " is no longer marked Keep: if nobody visits or updates it for " + span(limits.IdleAfter) + ", its owner is emailed before anything happens."
 				}
 				return output{Text: text, Structured: map[string]any{"site": name, "keep": keep}}, nil
 			},
@@ -1729,7 +1738,7 @@ func Tools() []Tool {
 					if !res.ok() {
 						return output{}, restError("connect_domain", res)
 					}
-					out := familySummary(res.body)
+					out := familySummary(res.body, limits)
 					return output{Text: jsonText(out), Structured: out}, nil
 				}
 				name, err := siteArg(args)
@@ -1741,7 +1750,7 @@ func Tools() []Tool {
 				if !res.ok() {
 					return output{}, restError("connect_domain", res)
 				}
-				out := domainSummary(name, res.body)
+				out := domainSummary(name, res.body, limits)
 				return output{Text: jsonText(out), Structured: out}, nil
 			},
 		},
@@ -1762,7 +1771,7 @@ func Tools() []Tool {
 						if !res.ok() {
 							return output{}, restError("domain_status", res)
 						}
-						out := familySummary(res.body)
+						out := familySummary(res.body, limits)
 						return output{Text: jsonText(out), Structured: out}, nil
 					}
 				}
@@ -1774,7 +1783,7 @@ func Tools() []Tool {
 				if !res.ok() {
 					return output{}, restError("domain_status", res)
 				}
-				out := domainSummary(name, res.body)
+				out := domainSummary(name, res.body, limits)
 				return output{Text: jsonText(out), Structured: out}, nil
 			},
 		},
@@ -1901,7 +1910,7 @@ func Tools() []Tool {
 			Name:  "export_site",
 			Title: "Download a copy of a site",
 			Description: "Make a download link for a copy of one of the person's sites: a .tar.gz holding its live files and its saved data " +
-				"(storage resources with their KV values, SQLite databases, and files, plus any older state and collections). The link works for " + span(lim().ExportLinkTTL) + " and only for that site; " +
+				"(storage resources with their KV values, SQLite databases, and files, plus any older state and collections). The link works for " + span(limits.ExportLinkTTL) + " and only for that site; " +
 				"give it to the person to click, and make a new one if it has expired. Do not post it anywhere public: until it expires, anyone with it can download the copy.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			// Computes a signed download URL without creating an export job.
@@ -1941,7 +1950,7 @@ func Tools() []Tool {
 	recipe := pageRecipeTool()
 	recipe.Description += " After building a records form, offer notifications through MCP Events if the app supports them, or the dashboard Notifications panel."
 	tools = append(tools, recipe)
-	schemas := outputSchemas()
+	schemas := outputSchemasWithLimits(limits)
 	for i := range tools {
 		if schema, ok := schemas[tools[i].Name]; ok {
 			tools[i].OutputSchema = schema
@@ -2333,7 +2342,7 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 		text := fmt.Sprintf("Stored %s version %d without making it live; visitors still see version %d at %s.", name, stored.Version, site.ActiveVersion, site.liveURL())
 		if stored.PreviewURL != "" {
 			out["preview_url"] = stored.PreviewURL
-			text += " Preview it (the link works for anyone who has it, for " + span(lim().PreviewLinkTTL) + "): " + stored.PreviewURL
+			text += " Preview it (the link works for anyone who has it, for " + span(c.server.cfg.Limits.PreviewLinkTTL) + "): " + stored.PreviewURL
 		}
 		text += fmt.Sprintf("\nWhen the person is happy, rollback_site with version %d makes it live.", stored.Version)
 		return output{Text: text + warnText, Structured: out}, nil

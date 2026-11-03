@@ -16,19 +16,20 @@ import "fmt"
 //
 // It enforces the same per-file, total-size, and entry-count caps as extraction.
 func SanitizeFiles(in map[string][]byte) (map[string][]byte, error) {
-	return sanitize(in, current(), false)
+	return sanitize(in, current(maxEntriesCeiling), false)
 }
 
 // SanitizeFilesWithLimit is SanitizeFiles under a per-site budget in bytes
-// (one account's size limit), as ExtractWithLimit is to Extract.
-func SanitizeFilesWithLimit(in map[string][]byte, budget int64) (map[string][]byte, error) {
-	return sanitize(in, capsFor(budget), false)
+// (one account's size limit) and the instance's own MAX_FILES_PER_SITE
+// ceiling, as ExtractWithLimit is to Extract.
+func SanitizeFilesWithLimit(in map[string][]byte, budget int64, ceiling int) (map[string][]byte, error) {
+	return sanitize(in, capsFor(budget, ceiling), false)
 }
 
 // SanitizeFilePatchWithLimit applies the same guards to a partial update,
 // allowing an empty result because retained live files can supply its contents.
-func SanitizeFilePatchWithLimit(in map[string][]byte, budget int64) (map[string][]byte, error) {
-	return sanitize(in, capsFor(budget), true)
+func SanitizeFilePatchWithLimit(in map[string][]byte, budget int64, ceiling int) (map[string][]byte, error) {
+	return sanitize(in, capsFor(budget, ceiling), true)
 }
 
 func sanitize(in map[string][]byte, c caps, allowEmpty bool) (map[string][]byte, error) {

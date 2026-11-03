@@ -425,7 +425,7 @@ func (h *SiteHandler) visitorOnSite(w http.ResponseWriter, r *http.Request, site
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
 		return sess, false
 	}
-	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID)
+	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID, h.limits.VisitorSessionIdle)
 	return sess, true
 }
 

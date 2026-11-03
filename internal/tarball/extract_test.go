@@ -145,7 +145,7 @@ func TestExtractRejectsOversizeFile(t *testing.T) {
 }
 
 func TestExtractRejectsTooManyEntries(t *testing.T) {
-	entries := make([]tarEntry, maxEntryCount+1)
+	entries := make([]tarEntry, entriesFor(siteBudget, maxEntriesCeiling)+1)
 	for i := range entries {
 		entries[i] = tarEntry{name: "f" + itoa(i) + ".txt", content: []byte("x")}
 	}
@@ -192,8 +192,8 @@ func TestSetSiteLimitMovesEveryCapTogether(t *testing.T) {
 	}
 	// One block per file, so the byte budget also bounds what the site costs on
 	// disk. 4 MB / 4 KB = 1024 files.
-	if maxEntryCount != 1024 {
-		t.Errorf("maxEntryCount = %d, want 1024", maxEntryCount)
+	if n := entriesFor(siteBudget, maxEntriesCeiling); n != 1024 {
+		t.Errorf("entriesFor(siteBudget, ceiling) = %d, want 1024", n)
 	}
 
 	// Setting it twice must land on the second value in every cap. Lowering-only
@@ -219,13 +219,13 @@ func TestEntryCountNeverExceedsTheCeiling(t *testing.T) {
 	restoreLimits(t)
 	// 500 MB / 4 KB is 128,000, well over the inode guard. The guard wins.
 	SetSiteLimit(500 << 20)
-	if maxEntryCount != entryCeiling {
-		t.Errorf("maxEntryCount = %d, want the %d ceiling", maxEntryCount, entryCeiling)
+	if n := entriesFor(siteBudget, maxEntriesCeiling); n != maxEntriesCeiling {
+		t.Errorf("entriesFor(siteBudget, ceiling) = %d, want the %d ceiling", n, maxEntriesCeiling)
 	}
 	// And a cap smaller than one block still admits one file rather than none.
 	SetSiteLimit(1024)
-	if maxEntryCount != 1 {
-		t.Errorf("maxEntryCount = %d, want 1", maxEntryCount)
+	if n := entriesFor(siteBudget, maxEntriesCeiling); n != 1 {
+		t.Errorf("entriesFor(siteBudget, ceiling) = %d, want 1", n)
 	}
 }
 
@@ -241,27 +241,24 @@ func TestSiteLimitIsActuallyEnforcedOnExtraction(t *testing.T) {
 
 // MAX_FILES_PER_SITE lowers the ceiling but never raises it past 50,000; a
 // per-site byte budget still lowers it, in either order of setting.
-func TestSetMaxEntries(t *testing.T) {
+// MAX_FILES_PER_SITE (the caller's ceiling argument) lowers the entry cap but
+// never raises it past maxEntriesCeiling; a per-site byte budget still lowers
+// it, in either order of setting. This used to be SetMaxEntries/MaxEntries
+// (a global setter); the ceiling is now a per-call argument instead.
+func TestMaxFilesPerSiteCeiling(t *testing.T) {
 	restoreLimits(t)
-	SetMaxEntries(120_000) // refused: above the built-in ceiling
-	if MaxEntries() != 50_000 {
-		t.Errorf("SetMaxEntries(120000): MaxEntries() = %d, want 50000", MaxEntries())
+	if n := entriesFor(0, 120_000); n != 50_000 { // refused: above the built-in ceiling
+		t.Errorf("entriesFor(0, 120000) = %d, want 50000", n)
 	}
-	SetMaxEntries(40_000)
-	if MaxEntries() != 40_000 {
-		t.Errorf("MaxEntries() = %d, want 40000", MaxEntries())
+	if n := entriesFor(0, 40_000); n != 40_000 {
+		t.Errorf("entriesFor(0, 40000) = %d, want 40000", n)
 	}
 	SetSiteLimit(100 << 20) // 25,600 blocks
-	if MaxEntries() != 25_600 {
-		t.Errorf("after a 100 MB budget MaxEntries() = %d, want 25600", MaxEntries())
+	if n := entriesFor(siteBudget, 40_000); n != 25_600 {
+		t.Errorf("a 100 MB budget with a 40000 ceiling = %d, want 25600", n)
 	}
-	SetMaxEntries(1_000)
-	if MaxEntries() != 1_000 {
-		t.Errorf("a lower ceiling after the budget: MaxEntries() = %d, want 1000", MaxEntries())
-	}
-	SetMaxEntries(0) // ignored
-	if MaxEntries() != 1_000 {
-		t.Errorf("SetMaxEntries(0) changed the cap to %d", MaxEntries())
+	if n := entriesFor(siteBudget, 1_000); n != 1_000 {
+		t.Errorf("a lower ceiling after the budget = %d, want 1000", n)
 	}
 }
 
@@ -279,16 +276,16 @@ func TestPerCallLimit(t *testing.T) {
 	if _, err := Extract(bytes.NewReader(archive), "s.tar.gz"); !errors.Is(err, ErrTooLarge) {
 		t.Fatalf("instance cap 1 MB: err = %v, want ErrTooLarge", err)
 	}
-	if got, err := ExtractWithLimit(bytes.NewReader(archive), "s.tar.gz", 3<<20); err != nil || len(got["big.bin"]) != 2<<20 {
+	if got, err := ExtractWithLimit(bytes.NewReader(archive), "s.tar.gz", 3<<20, maxEntriesCeiling); err != nil || len(got["big.bin"]) != 2<<20 {
 		t.Fatalf("budget 3 MB: err = %v", err)
 	}
-	if _, err := ExtractWithLimit(bytes.NewReader(archive), "s.tar.gz", 1<<20); !errors.Is(err, ErrTooLarge) {
+	if _, err := ExtractWithLimit(bytes.NewReader(archive), "s.tar.gz", 1<<20, maxEntriesCeiling); !errors.Is(err, ErrTooLarge) {
 		t.Fatalf("budget 1 MB: err = %v, want ErrTooLarge", err)
 	}
-	if _, err := SanitizeFilesWithLimit(files, 3<<20); err != nil {
+	if _, err := SanitizeFilesWithLimit(files, 3<<20, maxEntriesCeiling); err != nil {
 		t.Fatalf("sanitize 3 MB: %v", err)
 	}
-	if _, err := SanitizeFilesWithLimit(files, 1<<20); !errors.Is(err, ErrTooLarge) || !strings.Contains(err.Error(), "exceeds 1MB limit") {
+	if _, err := SanitizeFilesWithLimit(files, 1<<20, maxEntriesCeiling); !errors.Is(err, ErrTooLarge) || !strings.Contains(err.Error(), "exceeds 1MB limit") {
 		t.Fatalf("sanitize 1 MB: err = %v", err)
 	}
 	if _, err := SanitizeFiles(files); !errors.Is(err, ErrTooLarge) {
@@ -300,17 +297,17 @@ func TestPerCallLimit(t *testing.T) {
 	}
 	// Derived like SetSiteLimit: the file count follows the budget, and a
 	// budget above the ceiling is held to it.
-	if c := capsFor(40 * blockSize); c.entries != 40 || c.total != 40*blockSize {
+	if c := capsFor(40*blockSize, maxEntriesCeiling); c.entries != 40 || c.total != 40*blockSize {
 		t.Fatalf("capsFor(40 blocks) = %+v", c)
 	}
-	if c := capsFor(ceilingBytes * 2); c.total != ceilingBytes {
+	if c := capsFor(ceilingBytes*2, maxEntriesCeiling); c.total != ceilingBytes {
 		t.Fatalf("capsFor above the ceiling = %+v", c)
 	}
-	if c := capsFor(0); c != current() {
+	if c := capsFor(0, maxEntriesCeiling); c != current(maxEntriesCeiling) {
 		t.Fatalf("capsFor(0) = %+v, want the instance caps", c)
 	}
 	// Not a size refusal: an unsafe path is not ErrTooLarge.
-	if _, err := SanitizeFilesWithLimit(map[string][]byte{"../x": nil}, 3<<20); err == nil || errors.Is(err, ErrTooLarge) {
+	if _, err := SanitizeFilesWithLimit(map[string][]byte{"../x": nil}, 3<<20, maxEntriesCeiling); err == nil || errors.Is(err, ErrTooLarge) {
 		t.Fatalf("unsafe path: err = %v", err)
 	}
 }

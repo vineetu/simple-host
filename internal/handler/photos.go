@@ -183,7 +183,7 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 	defer unlockAccount()
 	unlockSite := h.lockSite(user.ID, name)
 	defer unlockSite()
-	limit, override := siteLimitFor(r.Context(), h.database, user)
+	limit, override := h.siteLimitFor(r.Context(), h.database, user)
 	// Load under the deploy locks so simultaneous deploys cannot lose files.
 	files, digest, err := h.finishJSONFiles(w, r, name, map[string][]byte{}, nil, limit, override, true)
 	if err != nil {

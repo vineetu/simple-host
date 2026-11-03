@@ -1,15 +1,16 @@
 package db
 
 import (
-	"sync/atomic"
 	"time"
 )
 
 // Limits are the operational times and caps the queries in this package
-// enforce. They come from internal/config (docs/configuration.md), which
-// parses and checks the env vars; handler.ApplyLimits installs them at
-// startup. The zero state is today's values, so a caller that never sets them
-// (a test, a tool) sees the long-standing behaviour.
+// enforce, documented here in one place though each function now takes the
+// few it needs as explicit parameters (from the caller's own
+// edition.Edition.Limits()) rather than reading a package global. They come
+// from internal/config (docs/configuration.md), which parses and checks the
+// env vars. DefaultLimits is the long-standing behaviour, checked against
+// config.DefaultLimits by internal/handler's tests.
 type Limits struct {
 	MaxAccountKeys       int           // MAX_KEYS_PER_ACCOUNT
 	KeyIdleExpiry        time.Duration // KEY_IDLE_EXPIRY_DAYS (0 = never)
@@ -37,12 +38,3 @@ func DefaultLimits() Limits {
 		OAuthUnusedClientAge: 30 * 24 * time.Hour,
 	}
 }
-
-var limits atomic.Pointer[Limits]
-
-func init() { SetLimits(DefaultLimits()) }
-
-// SetLimits installs l. Call at startup, before serving.
-func SetLimits(l Limits) { limits.Store(&l) }
-
-func lim() *Limits { return limits.Load() }

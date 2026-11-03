@@ -3,14 +3,13 @@ package mcp
 import (
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
 // Limits are the operational times the tool descriptions, instructions and
-// results state. They come from internal/config (docs/configuration.md);
-// handler.ApplyLimits installs them at startup. The zero state is today's
-// values.
+// results state. They come from internal/config (docs/configuration.md), via
+// Config.Limits (internal/handler builds it from edition.Edition.Limits()).
+// The zero state is today's values.
 type Limits struct {
 	DeletedRetention     time.Duration // DELETED_RETENTION_DAYS
 	PreviewLinkTTL       time.Duration // PREVIEW_LINK_TTL_MINUTES
@@ -41,15 +40,6 @@ func DefaultLimits() Limits {
 		FamilyUnprovenTTL:    24 * time.Hour,
 	}
 }
-
-var limits atomic.Pointer[Limits]
-
-func init() { SetLimits(DefaultLimits()) }
-
-// SetLimits installs l. Call at startup, before serving.
-func SetLimits(l Limits) { limits.Store(&l) }
-
-func lim() *Limits { return limits.Load() }
 
 // span words a duration the way config.Span does ("7 days", "one hour"); this
 // package may not import internal/config (scripts/check-layering.sh), and a

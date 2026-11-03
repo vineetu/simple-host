@@ -76,7 +76,7 @@ func (h *SiteHandler) checkExportToken(token string, now time.Time) (userID, sit
 		return "", "", errExportLink
 	}
 	left := time.Unix(exp, 0).Sub(now)
-	if left <= 0 || left > exportLinkTTL() {
+	if left <= 0 || left > h.exportLinkTTL() {
 		return "", "", errExportLink
 	}
 	return parts[0], parts[1], nil
@@ -100,14 +100,14 @@ func (h *SiteHandler) createExportLink(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	expires := time.Now().Add(exportLinkTTL()).Truncate(time.Second)
+	expires := time.Now().Add(h.exportLinkTTL()).Truncate(time.Second)
 	link := h.exportLinkBase() + "/v1/export?token=" + url.QueryEscape(h.signExportToken(site.UserID, site.ID, expires))
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"site":       site.Name,
 		"url":        link,
 		"expires_at": expires.UTC().Format(time.RFC3339),
-		"expires_in": int(exportLinkTTL().Seconds()),
+		"expires_in": int(h.exportLinkTTL().Seconds()),
 	})
 }
 

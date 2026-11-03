@@ -148,7 +148,7 @@ func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
 
 func TestSiteStorageInheritsPasscodeAndExplicitOff(t *testing.T) {
 	p := newPasscodeApp(t)
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true })
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &p.sites.limitSet)
 	base := "/v1/sites/trip/storage"
 	for _, x := range []struct{ name, mode string }{{"locked", "inherit"}, {"open", "off"}} {
 		r := p.at(t, "PUT", pcSiteDomain, base+"/resources/"+x.name, map[string]string{"kind": "kv", "preset": "public", "add": "anyone", "site_passcode": x.mode}, p.okey)

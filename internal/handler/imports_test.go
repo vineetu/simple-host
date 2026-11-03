@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/wpimport"
 )
@@ -43,11 +44,11 @@ func importTool(t *testing.T, h *ConnectorHandler, caller mcp.Caller, name strin
 	}
 	return rpc.Result.Structured, rpc.Result.IsError, w.Body.String()
 }
-func newImportTest(t *testing.T) (*ConnectorHandler, http.Handler, mcp.Caller) {
+func newImportTest(t *testing.T, eds ...*edition.Edition) (*ConnectorHandler, http.Handler, mcp.Caller) {
 	t.Helper()
 	h := NewConnectorHandler(nil, "https://simple-host.test", "", "simple-host.test", "sites.simple-host.test", "1", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 201, map[string]any{"site_url": "https://blog.person.simple-host.test/", "active_version": 1})
-	}), false)
+	}), false, eds...)
 	mux := http.NewServeMux()
 	h.Register(mux, func(h http.Handler) http.Handler { return h })
 	return h, CORS(mux), mcp.Caller{APIKey: "test-key", Owner: "owner", MintUpload: func(context.Context, bool) (string, func(), error) { return "fresh", func() {}, nil }}
@@ -203,12 +204,9 @@ func TestImportSignedOutExpiryAndCap(t *testing.T) {
 	if !failed {
 		t.Fatal("21st link accepted")
 	}
-	limits := *config.Active()
-	old := limits
+	limits := config.DefaultLimits()
 	limits.ImportLinkTTL = time.Nanosecond
-	config.SetActive(limits)
-	t.Cleanup(func() { config.SetActive(old) })
-	h, root, c = newImportTest(t)
+	h, root, c = newImportTest(t, edition.ForKindWithLimits(edition.Host, limits))
 	token, _ = mintImportTest(t, h, c)
 	if importGET(root, "/import/"+token).Code != 404 || importPOST(t, root, token, testWXR).Code != 404 {
 		t.Fatal("expired link accepted")
@@ -374,12 +372,9 @@ func TestImportCleanupAndDeployRefusal(t *testing.T) {
 // An export over the XML cap gets its own reason, not the upload advice
 // (review of the 2026-10-15 matrix fixes).
 func TestImportXMLCapMessage(t *testing.T) {
-	old := *config.Active()
-	limits := old
+	limits := config.DefaultLimits()
 	limits.ImportMaxUploadMB, limits.ImportMaxUnpackedMB, limits.ImportMaxXMLMB = 4, 8, 1
-	config.SetActive(limits)
-	t.Cleanup(func() { config.SetActive(old) })
-	h, root, c := newImportTest(t)
+	h, root, c := newImportTest(t, edition.ForKindWithLimits(edition.Host, limits))
 	token, _ := mintImportTest(t, h, c)
 	big := strings.Replace(testWXR, "</channel>", "<!--"+strings.Repeat("x", 2<<20)+"--></channel>", 1)
 	w := importPOST(t, root, token, big)
@@ -389,12 +384,9 @@ func TestImportXMLCapMessage(t *testing.T) {
 	}
 }
 func TestImportReceivingCapsReleaseReservation(t *testing.T) {
-	old := *config.Active()
-	limits := old
+	limits := config.DefaultLimits()
 	limits.ImportMaxUploadMB = 1
-	config.SetActive(limits)
-	t.Cleanup(func() { config.SetActive(old) })
-	h, root, c := newImportTest(t)
+	h, root, c := newImportTest(t, edition.ForKindWithLimits(edition.Host, limits))
 	token, _ := mintImportTest(t, h, c)
 	tooLarge := importPOST(t, root, token, testWXR+strings.Repeat("x", 1<<20))
 	checkAPIError(t, tooLarge, 413, "item_too_large")
@@ -425,7 +417,7 @@ func TestImportReceivingCapsReleaseReservation(t *testing.T) {
 	}
 }
 func TestImportRecordCapAndFeatures(t *testing.T) {
-	m := newImportManager()
+	m := newImportManager(5)
 	for i := 0; i < 21; i++ {
 		id := fmt.Sprint(i)
 		if err := m.created(mcp.ImportLink{ID: id, Owner: "owner", Site: "blog"}); err != nil {

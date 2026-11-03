@@ -73,7 +73,7 @@ func TestResolveUserMatching(t *testing.T) {
 	if linked.ID != existing.ID {
 		t.Fatalf("linked %+v, want existing id", linked)
 	}
-	if u, err := db.GetUserByAPIKey(ctx, database, key); err != nil || u.ID != existing.ID {
+	if u, err := db.GetUserByAPIKey(ctx, database, key, 180*24*time.Hour); err != nil || u.ID != existing.ID {
 		t.Fatalf("existing key after link: %v %+v", err, u)
 	}
 

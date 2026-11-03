@@ -275,7 +275,7 @@ func TestImportReceivingAdmissionAndDeadline(t *testing.T) {
 func TestImportRecordsPreserveLiveLinksAndEvictFinished(t *testing.T) {
 	for _, state := range []string{"waiting", "receiving", "converting", "publishing", "queued"} {
 		t.Run(state, func(t *testing.T) {
-			m := newImportManager()
+			m := newImportManager(5)
 			now := time.Now()
 			expires := now.Add(-time.Hour)
 			started := now
@@ -297,7 +297,7 @@ func TestImportRecordsPreserveLiveLinksAndEvictFinished(t *testing.T) {
 	}
 }
 func TestImportRecordsSweepExpiredUnused(t *testing.T) {
-	m := newImportManager()
+	m := newImportManager(5)
 	past := time.Now().Add(-time.Hour)
 	for _, state := range []string{"waiting", "receiving", "converting", "publishing"} {
 		started := time.Time{}

@@ -48,10 +48,6 @@ func CountEmailChangeAttempt(ctx context.Context, q Querier, userID string) erro
 	return err
 }
 
-// EmailChangeUndoTTL is how long the undo link in the old address's notice
-// works (EMAIL_CHANGE_UNDO_DAYS).
-func EmailChangeUndoTTL() time.Duration { return lim().EmailChangeUndoTTL }
-
 // ApplyEmailChange moves the account to newEmail inside tx and:
 //   - drops the pending change;
 //   - retires every unused emailed code and link for the old address (one
@@ -69,7 +65,7 @@ func EmailChangeUndoTTL() time.Duration { return lim().EmailChangeUndoTTL }
 //
 // The caller has checked that no other account holds newEmail; a race still
 // ends in a unique violation on users.username.
-func ApplyEmailChange(ctx context.Context, tx *sql.Tx, userID, oldEmail, newEmail, keepKeyHash, undoHash string) error {
+func ApplyEmailChange(ctx context.Context, tx *sql.Tx, userID, oldEmail, newEmail, keepKeyHash, undoHash string, undoTTL time.Duration) error {
 	steps := []struct {
 		q    string
 		args []any
@@ -80,7 +76,7 @@ func ApplyEmailChange(ctx context.Context, tx *sql.Tx, userID, oldEmail, newEmai
 		{`DELETE FROM api_keys WHERE user_id = $1 AND key_hash <> $2`, []any{userID, keepKeyHash}},
 		{`DELETE FROM visitor_sessions WHERE user_id = $1`, []any{userID}},
 		{`INSERT INTO email_change_undos (token_hash, user_id, old_email, new_email, expires_at)
-		  VALUES ($1, $2, $3, $4, now() + ($5 * interval '1 second'))`, []any{undoHash, userID, oldEmail, newEmail, int64(EmailChangeUndoTTL().Seconds())}},
+		  VALUES ($1, $2, $3, $4, now() + ($5 * interval '1 second'))`, []any{undoHash, userID, oldEmail, newEmail, int64(undoTTL.Seconds())}},
 	}
 	for _, st := range steps {
 		if _, err := tx.ExecContext(ctx, st.q, st.args...); err != nil {

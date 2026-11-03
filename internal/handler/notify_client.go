@@ -19,7 +19,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -28,10 +27,27 @@ type notifyFailure string
 func (e notifyFailure) Error() string { return string(e) }
 
 type notifyClient struct {
-	secrets       *passcodeState
-	resolver      func(context.Context, string) ([]net.IPAddr, error)
+	secrets  *passcodeState
+	resolver func(context.Context, string) ([]net.IPAddr, error)
+	// timeout is NotifyTimeout from the limits snapshot of the handler that
+	// built this client (notifyEngine); zero in a test literal that never
+	// calls send falls back to notifyDefaultTimeout.
+	timeout       time.Duration
 	allowLoopback bool
 	roots         *x509.CertPool
+}
+
+// notifyDefaultTimeout is config.DefaultLimits().NotifyTimeout, inlined so a
+// zero-value notifyClient (built directly in a test, not through
+// notifyEngine) behaves as it always has rather than firing with no
+// deadline at all.
+const notifyDefaultTimeout = 5000 * time.Millisecond
+
+func (c *notifyClient) notifyTimeout() time.Duration {
+	if c.timeout > 0 {
+		return c.timeout
+	}
+	return notifyDefaultTimeout
 }
 
 func notifySecretKey(secret string) ([]byte, error) {
@@ -165,7 +181,7 @@ type notifyResult struct {
 }
 
 func (c *notifyClient) send(ctx context.Context, n db.Notification, id string, body []byte) notifyResult {
-	ctx, cancel := context.WithTimeout(ctx, config.Active().NotifyTimeout)
+	ctx, cancel := context.WithTimeout(ctx, c.notifyTimeout())
 	defer cancel()
 	if _, err := c.validate(ctx, n.URL); err != nil {
 		return notifyResult{Result: notifyCategory(err)}
@@ -218,7 +234,7 @@ func (c *notifyClient) send(ctx context.Context, n db.Notification, id string, b
 	}
 	transport := &http.Transport{Proxy: nil, DialContext: c.dial, TLSClientConfig: &tls.Config{RootCAs: c.roots, MinVersion: tls.VersionTLS12}, DisableKeepAlives: true}
 	defer transport.CloseIdleConnections()
-	client := http.Client{Transport: transport, Timeout: config.Active().NotifyTimeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := http.Client{Transport: transport, Timeout: c.notifyTimeout(), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	res, err := client.Do(req)
 	if err != nil {
 		return notifyResult{Result: notifyCategory(err)}

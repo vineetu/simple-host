@@ -124,7 +124,7 @@ func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (db.V
 	if err != nil || len(id) != 32 {
 		return db.VisitorSession{}, false
 	}
-	sess, err := db.GetVisitorSession(r.Context(), h.database, id)
+	sess, err := db.GetVisitorSession(r.Context(), h.database, id, h.limits.KeyIdleExpiry)
 	if err != nil || !h.sessionValidFor(r, sess, siteID) {
 		return db.VisitorSession{}, false
 	}
@@ -231,7 +231,7 @@ func (h *SiteHandler) ownerBrowserRead(w http.ResponseWriter, r *http.Request, s
 		writePrivateNotFound(w)
 		return false
 	}
-	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID)
+	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID, h.limits.VisitorSessionIdle)
 	return true
 }
 
@@ -339,7 +339,7 @@ func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, site
 	if !ok {
 		return
 	}
-	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID)
+	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID, h.limits.VisitorSessionIdle)
 	h.watchItemSize(r.Context(), siteID, len(body))
 	h.idemSave(r, claim, http.StatusCreated, "", item.ID)
 	writeJSON(w, http.StatusCreated, item)

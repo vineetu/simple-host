@@ -232,7 +232,7 @@ func TestPhotosQuota(t *testing.T) {
 			if r.status != 201 {
 				t.Fatalf("setup: %d", r.status)
 			}
-			withLimits(t, map[string]string{setting: "1", "SITE_TOTAL_CAP_FROM": "2000-01-01T00:00:00Z"})
+			setAppLimits(a, withLimits(t, map[string]string{setting: "1", "SITE_TOTAL_CAP_FROM": "2000-01-01T00:00:00Z"}))
 			photo := photoJPEG(t, 8, 6)
 			body, ct := photoMultipart(t, []string{"front.jpg"}, [][]byte{photo})
 			r = a.at(t, "POST", "simple-host.test", "/v1/sites/home/photos", body, map[string]string{"X-API-Key": p.key, "Content-Type": ct})

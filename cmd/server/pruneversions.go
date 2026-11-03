@@ -23,7 +23,6 @@ func runPruneVersions(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	handler.ApplyLimits(limits)
 	database, err := sql.Open("postgres", os.Getenv("DB_DSN"))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "could not open database")
@@ -40,7 +39,7 @@ func runPruneVersions(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	if err = handler.PruneFixedAccounts(context.Background(), database, disk, *apply, os.Stdout); err != nil {
+	if err = handler.PruneFixedAccounts(context.Background(), database, disk, limits, *apply, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}

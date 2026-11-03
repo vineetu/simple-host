@@ -213,7 +213,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 
 	// A revoked or expired parent, an offline site, or a passcode set while
 	// the browser was on the apex must not yield a usable session.
-	sess, err := db.GetVisitorSession(r.Context(), h.database, tok.SessionID)
+	sess, err := db.GetVisitorSession(r.Context(), h.database, tok.SessionID, h.limits.KeyIdleExpiry)
 	if err != nil || !h.sessionValidFor(r, sess, sess.SiteID) {
 		fail(400, "session_invalid")
 		return
@@ -252,7 +252,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	first, err := db.ActivateVisitorSession(r.Context(), h.database, tok.SessionID, visitorSessionTTL(), visitorSessionIdle())
+	first, err := db.ActivateVisitorSession(r.Context(), h.database, tok.SessionID, h.visitorSessionTTL(), h.visitorSessionIdle())
 	if err != nil {
 		fail(400, "activate")
 		return
@@ -262,7 +262,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 		h.emitSiteNotification(sess.SiteID, "visitor.signed_up", map[string]any{"visitor": sess.UserID}, 0)
 	}
 	h.noteOwnerVisitorSignIn(r, sess.SiteID, sess.UserID)
-	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), visitorCookieMaxAge())
+	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), h.visitorCookieMaxAge())
 	setVisitorNonceCookie(w, r, "", -1)
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, tok.ReturnTo, http.StatusFound)
@@ -496,7 +496,7 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 
 	if raw := h.sessionCookieFor(r); raw != "" && !onContentHost {
 		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
-			sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id)
+			sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id, h.limits.KeyIdleExpiry)
 			if sessErr == nil {
 				if h.sessionValidFor(r, sess, siteID) {
 					// A suspended person's sign-ins stop working too.
@@ -509,7 +509,7 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 						return anon, false
 					}
 					if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
-						_ = db.TouchVisitorSession(r.Context(), h.database, id)
+						_ = db.TouchVisitorSession(r.Context(), h.database, id, h.limits.VisitorSessionIdle)
 						if sess.UserID == ownerID {
 							return db.Actor{ID: sess.UserID, Kind: actorOwner}, true
 						}
@@ -568,7 +568,7 @@ func (h *SiteHandler) resolveWriterKey(ctx context.Context, key string) (db.User
 	if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) == 1 {
 		return db.User{ID: h.adminUserID, Username: "admin", IsAdmin: true}, true, nil
 	}
-	u, err := db.GetUserByAPIKey(ctx, h.database, key)
+	u, err := db.GetUserByAPIKey(ctx, h.database, key, h.limits.KeyIdleExpiry)
 	if err != nil {
 		// A suspended account's key is refused like an unknown one.
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, db.ErrAccountSuspended) {
@@ -641,7 +641,7 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if id, decErr := hex.DecodeString(h.sessionCookieFor(r)); decErr == nil && len(id) == 32 {
-		sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id)
+		sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id, h.limits.KeyIdleExpiry)
 		if sessErr == nil {
 			if h.sessionValidFor(r, sess, siteID) {
 				expires := sess.ExpiresAt

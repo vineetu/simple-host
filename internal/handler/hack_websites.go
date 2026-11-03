@@ -193,7 +193,7 @@ func (h *HackHandler) websiteUploadLimit(ctx context.Context, ev db.Event) int64
 	if err != nil {
 		return maxSiteArchiveSize
 	}
-	limit, _ := siteLimitFor(ctx, h.database, &holder)
+	limit, _ := h.siteLimitFor(ctx, h.database, &holder)
 	return limit
 }
 
@@ -202,7 +202,7 @@ func (h *HackHandler) websiteUploadLimits(ctx context.Context, ev db.Event) stri
 	if err != nil {
 		return "Upload limits are unavailable."
 	}
-	limit, override := siteLimitFor(ctx, h.database, &holder)
-	total, file, entries := tarball.FileLimits(extractBudget(limit, override))
+	limit, override := h.siteLimitFor(ctx, h.database, &holder)
+	total, file, entries := tarball.FileLimits(extractBudget(limit, override), h.limits.MaxFilesPerSite)
 	return fmt.Sprintf("Zip up to %d MB. Unpacked, up to %d MB in total, %d MB per file and %d files.", limit>>20, total>>20, file>>20, entries)
 }

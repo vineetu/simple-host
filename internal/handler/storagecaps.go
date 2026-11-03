@@ -14,13 +14,12 @@ import (
 
 const storageTips = "Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need."
 
-func accountRetention(ctx context.Context, database *sql.DB, userID string, siteKeep int) (keep int, canSet bool, err error) {
+func accountRetention(ctx context.Context, database *sql.DB, userID string, siteKeep int, l config.Limits) (keep int, canSet bool, err error) {
 	u, err := db.GetUserByID(ctx, database, userID)
 	if err != nil {
 		return 0, false, err
 	}
 	handles := accountHandles(ctx, database, &u)
-	l := config.Active()
 	canSet = l.CanSetKeepVersions(handles...)
 	keep = l.KeepVersionsFor(keepVersions, handles...)
 	if canSet && siteKeep > 0 {
@@ -55,7 +54,7 @@ func projectedFileBytes(f storage.FileFootprint, versions []db.Version, floor, a
 // Called before any version files or durable rows are written. Both deploy
 // formats, create-or-update and unpublished deploys converge here.
 func (h *SiteHandler) checkFileCaps(w http.ResponseWriter, r *http.Request, user *db.User, site db.Site, files map[string][]byte, next int, publish bool) bool {
-	l := config.Active()
+	l := h.limits
 	if !h.ed.Storage().FileCaps || (l.MaxSiteTotalMB == 0 && l.MaxAccountMB == 0 && l.MaxSiteTotalOverrides == "" && l.MaxAccountOverrides == "") {
 		return true
 	}
@@ -77,7 +76,7 @@ func (h *SiteHandler) checkFileCaps(w http.ResponseWriter, r *http.Request, user
 	for _, b := range files {
 		incoming += int64(len(b))
 	}
-	keep, _, err := accountRetention(r.Context(), h.database, user.ID, site.KeepVersions)
+	keep, _, err := accountRetention(r.Context(), h.database, user.ID, site.KeepVersions, h.limits)
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return false
@@ -121,7 +120,7 @@ func (h *SiteHandler) accountFileUsage(ctx context.Context, user *db.User) (*acc
 	if err != nil {
 		return nil, err
 	}
-	mb := config.Active().AccountMBFor(accountHandles(ctx, h.database, user)...)
+	mb := h.limits.AccountMBFor(accountHandles(ctx, h.database, user)...)
 	msg := fmt.Sprintf("%.1f MB used", float64(used)/(1<<20))
 	if mb == 1024 {
 		msg = fmt.Sprintf("%.1f MB of 1 GB used", float64(used)/(1<<20))
@@ -132,7 +131,7 @@ func (h *SiteHandler) accountFileUsage(ctx context.Context, user *db.User) (*acc
 }
 
 func (h *SiteHandler) fileCapsEnabled() bool {
-	l := config.Active()
+	l := h.limits
 	return h.ed.Storage().FileCaps && (l.MaxSiteTotalMB > 0 || l.MaxAccountMB > 0 || l.MaxSiteTotalOverrides != "" || l.MaxAccountOverrides != "")
 }
 func (h *SiteHandler) lockAccountFiles(userID string) func() {

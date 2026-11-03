@@ -25,7 +25,7 @@ func TestInternalVisitorPassLifecycleAndNoOwner(t *testing.T) {
 		t.Fatal("visitor pass resolved as team key")
 	}
 	// Nil DB proves rejection happens before loading any account identity.
-	if _, err := GetUserByAPIKey(context.Background(), nil, key); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := GetUserByAPIKey(context.Background(), nil, key, DefaultLimits().KeyIdleExpiry); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("owner lookup: %v", err)
 	}
 	revoke()

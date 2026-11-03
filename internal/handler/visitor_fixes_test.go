@@ -218,7 +218,7 @@ func TestVisitorPasscodeExemptResources(t *testing.T) {
 	if err := f.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true })
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &f.a.sites.limitSet)
 	for _, kind := range []string{"kv", "sqlite"} {
 		f.must(t, "PUT", "/resources/"+kind, map[string]any{"kind": kind, "preset": "personal", "site_passcode": "off"}, f.key, 201)
 	}

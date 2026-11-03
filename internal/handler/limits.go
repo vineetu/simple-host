@@ -8,29 +8,26 @@ import (
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
-	"github.com/vsriram/simple-host/internal/tarball"
 )
 
-// ApplyLimits makes l the limits in force everywhere: this package reads them
-// from config, and the leaf packages that enforce or state some of them (db,
-// mcp, tarball) get their share, since they may not import config themselves.
-// main calls it once, before serving; tests call it to try a changed knob.
-// The sign-in email's wording and the analytics retention are handed to the
-// mailer and the ingester by main, which builds those.
-func ApplyLimits(l config.Limits) {
-	config.SetActive(l)
-	db.SetLimits(db.Limits{
-		MaxAccountKeys:       l.MaxKeysPerAccount,
-		KeyIdleExpiry:        l.KeyIdleExpiry,
-		EmailChangeUndoTTL:   l.EmailChangeUndoTTL,
-		DeletedRetention:     l.DeletedRetention,
-		UnprovenDomainTTL:    l.DomainUnprovenTTL,
-		UnprovenDomainMaxAge: l.DomainUnprovenMaxAge,
-		DomainCertDailyCap:   l.DomainCertsDaily,
-		VisitorSessionIdle:   l.VisitorSessionIdle,
-		OAuthUnusedClientAge: l.OAuthUnusedClientAge,
-	})
-	mcp.SetLimits(mcp.Limits{
+// limitSet is the operational limits an instance was built with: a value
+// copy of the edition's config.Limits (edition.Edition.Limits()), held by
+// every handler that needs to read or state one (SiteHandler, UserHandler,
+// OAuthHandler, ConnectorHandler, HackHandler, APIMetrics). It is embedded,
+// not a named field, so its methods are promoted: a call site that used to
+// read the package-global config.Active() now reads its own handler's own
+// copy (h.authTokenTTL()) instead, with no shared global and no setter.
+type limitSet struct {
+	limits config.Limits
+}
+
+// newLimitSet copies l into a limitSet. Construct one from ed.Limits() when
+// building a handler.
+func newLimitSet(l config.Limits) limitSet { return limitSet{limits: l} }
+
+// mcpLimits maps the instance snapshot to the connector’s presentation limits.
+func mcpLimits(l config.Limits) mcp.Limits {
+	return mcp.Limits{
 		DeletedRetention:     l.DeletedRetention,
 		PreviewLinkTTL:       l.PreviewLinkTTL,
 		ExportLinkTTL:        l.ExportLinkTTL,
@@ -41,35 +38,33 @@ func ApplyLimits(l config.Limits) {
 		DomainLapseAfter:     l.DomainLapseAfter,
 		UndoDays:             time.Duration(l.SavedData.UndoDays) * 24 * time.Hour,
 		FamilyUnprovenTTL:    l.FamilyUnprovenTTL,
-	})
-	tarball.SetMaxEntries(l.MaxFilesPerSite)
-	instanceLimits = newLimitsRewriter(l)
+	}
 }
 
-// The operational times and limits the handlers use, read from the one config
-// place (internal/config/limits.go) each time, so a knob set at startup — or
-// changed by a test — is what every caller sees. Each defaults to the value
-// the constant it replaced had.
+// The operational times and limits the handlers use, read from the snapshot
+// each handler was built with, so a knob set at startup — or an edition
+// built with overrides in a test — is what every caller sees. Each defaults
+// to the value the constant it replaced had.
 
 // authTokenTTL is how long an emailed sign-in or email-change code works.
-func authTokenTTL() time.Duration { return config.Active().SigninCodeTTL }
+func (s limitSet) authTokenTTL() time.Duration { return s.limits.SigninCodeTTL }
 
 // handleRenameEvery: after publishing, an account may move to a new handle
 // once in this long. Changes before anything is published are free.
-func handleRenameEvery() time.Duration { return config.Active().HandleRenameEvery }
+func (s limitSet) handleRenameEvery() time.Duration { return s.limits.HandleRenameEvery }
 
 // maxSitesPerUser caps how many sites a single non-admin account may create, so
 // a self-registered user can't fill the shared disk with sites. Admins are
 // exempt.
-func maxSitesPerUser() int { return config.Active().MaxSitesPerAccount }
+func (s limitSet) maxSitesPerUser() int { return s.limits.MaxSitesPerAccount }
 
 // maxSitesFor is the sites this account may hold: its MAX_SITES_OVERRIDES
 // entry, matched against its current handle and then its earlier ones (so a
 // handle change keeps the override), else MAX_SITES_PER_ACCOUNT. Resolved on
 // every call, never cached. A failed alias read falls back to the current
 // handle alone.
-func maxSitesFor(ctx context.Context, database *sql.DB, user *db.User) int {
-	l := config.Active()
+func (s limitSet) maxSitesFor(ctx context.Context, database *sql.DB, user *db.User) int {
+	l := s.limits
 	if l.MaxSitesOverrides == "" || user == nil {
 		return l.MaxSitesPerAccount
 	}
@@ -86,8 +81,8 @@ func maxSitesFor(ctx context.Context, database *sql.DB, user *db.User) int {
 // override says an entry matched. Without one the unpacked files stay under
 // the instance's own extractor caps (tarball.Extract), which are not derived
 // from MAX_ARCHIVE_MB when it is unset (500 MB total, 100 MB a file).
-func siteLimitFor(ctx context.Context, database *sql.DB, user *db.User) (limit int64, override bool) {
-	l := config.Active()
+func (s limitSet) siteLimitFor(ctx context.Context, database *sql.DB, user *db.User) (limit int64, override bool) {
+	l := s.limits
 	if l.MaxArchiveOverrides == "" || user == nil {
 		return maxSiteArchiveSize, false
 	}
@@ -109,8 +104,8 @@ func statedSiteMB(limit int64) int {
 
 // siteLimitMBOf is siteLimitFor as reported, with the account's earlier
 // handles already read (the admin list reads them all at once).
-func siteLimitMBOf(u db.User, aliases []string) int {
-	if mb, ok := config.Active().ArchiveOverrideMB(append([]string{u.Handle.String}, aliases...)...); ok {
+func (s limitSet) siteLimitMBOf(u db.User, aliases []string) int {
+	if mb, ok := s.limits.ArchiveOverrideMB(append([]string{u.Handle.String}, aliases...)...); ok {
 		return statedSiteMB(int64(mb) << 20)
 	}
 	return statedSiteMB(maxSiteArchiveSize)
@@ -119,9 +114,9 @@ func siteLimitMBOf(u db.User, aliases []string) int {
 // largestSiteLimit is the largest per-site cap any account has (MAX_ARCHIVE_MB
 // or an override above it), for caps that sit in front of the account being
 // known, like the connector's message size.
-func largestSiteLimit() int64 {
+func (s limitSet) largestSiteLimit() int64 {
 	max := maxSiteArchiveSize
-	for _, mb := range config.Active().ArchiveOverrides() {
+	for _, mb := range s.limits.ArchiveOverrides() {
 		if b := int64(mb) << 20; b > max {
 			max = b
 		}
@@ -140,37 +135,37 @@ func accountHandles(ctx context.Context, database *sql.DB, user *db.User) []stri
 	return handles
 }
 
-func previewLinkTTL() time.Duration { return config.Active().PreviewLinkTTL }
-func exportLinkTTL() time.Duration  { return config.Active().ExportLinkTTL }
+func (s limitSet) previewLinkTTL() time.Duration { return s.limits.PreviewLinkTTL }
+func (s limitSet) exportLinkTTL() time.Duration  { return s.limits.ExportLinkTTL }
 
 // visitorSessionTTL is a visitor sign-in's absolute lifetime (and the cookie's
 // max age); visitorSessionIdle is how long it lasts unused (slid on use,
 // server-side).
-func visitorSessionTTL() time.Duration  { return config.Active().VisitorSessionTTL }
-func visitorSessionIdle() time.Duration { return config.Active().VisitorSessionIdle }
-func visitorCookieMaxAge() int          { return int(visitorSessionTTL() / time.Second) }
+func (s limitSet) visitorSessionTTL() time.Duration  { return s.limits.VisitorSessionTTL }
+func (s limitSet) visitorSessionIdle() time.Duration { return s.limits.VisitorSessionIdle }
+func (s limitSet) visitorCookieMaxAge() int          { return int(s.visitorSessionTTL() / time.Second) }
 
-func oauthAccessTTL() time.Duration  { return config.Active().OAuthAccessTTL }
-func oauthRefreshTTL() time.Duration { return config.Active().OAuthRefreshTTL }
+func (s limitSet) oauthAccessTTL() time.Duration  { return s.limits.OAuthAccessTTL }
+func (s limitSet) oauthRefreshTTL() time.Duration { return s.limits.OAuthRefreshTTL }
 
-func domainCheckInterval() time.Duration { return config.Active().DomainCheckInterval }
+func (s limitSet) domainCheckInterval() time.Duration { return s.limits.DomainCheckInterval }
 
 // A verified domain that keeps failing its checks: its owner is emailed after
 // domainLapseWarnAfter, and after domainLapseAfter it stops being the site's
 // home (its verification is cleared).
-func domainLapseWarnAfter() time.Duration { return config.Active().DomainLapseWarnAfter }
-func domainLapseAfter() time.Duration     { return config.Active().DomainLapseAfter }
+func (s limitSet) domainLapseWarnAfter() time.Duration { return s.limits.DomainLapseWarnAfter }
+func (s limitSet) domainLapseAfter() time.Duration     { return s.limits.DomainLapseAfter }
 
 // eventTTL is how long a claimed event name lives before the sweep removes it;
 // maxClaimsPerAccount caps how many one account can hold at once.
-func eventTTL() time.Duration  { return config.Active().EventTTL }
-func maxClaimsPerAccount() int { return config.Active().EventMaxClaims }
+func (s limitSet) eventTTL() time.Duration  { return s.limits.EventTTL }
+func (s limitSet) maxClaimsPerAccount() int { return s.limits.EventMaxClaims }
 
-func idleAfter() time.Duration { return config.Active().IdleAfter }
-func idleGrace() time.Duration { return config.Active().IdleGrace }
-func idleReplyTo() string      { return config.Active().IdleReplyTo }
+func (s limitSet) idleAfter() time.Duration { return s.limits.IdleAfter }
+func (s limitSet) idleGrace() time.Duration { return s.limits.IdleGrace }
+func (s limitSet) idleReplyTo() string      { return s.limits.IdleReplyTo }
 
-func metricsRetentionDays() int { return config.Active().APIMetricsRetention }
+func (s limitSet) metricsRetentionDays() int { return s.limits.APIMetricsRetention }
 
 // newRateLimiterFor builds a limiter from a configured rate.
 func newRateLimiterFor(r config.Rate) *rateLimiter {
@@ -179,9 +174,9 @@ func newRateLimiterFor(r config.Rate) *rateLimiter {
 
 // maxSitesOf is maxSitesFor with the account's earlier handles already read
 // (the admin list reads them all at once); nil for an admin, who has no limit.
-func maxSitesOf(u db.User, aliases []string) any {
+func (s limitSet) maxSitesOf(u db.User, aliases []string) any {
 	if u.IsAdmin {
 		return nil
 	}
-	return config.Active().MaxSitesFor(append([]string{u.Handle.String}, aliases...)...)
+	return s.limits.MaxSitesFor(append([]string{u.Handle.String}, aliases...)...)
 }

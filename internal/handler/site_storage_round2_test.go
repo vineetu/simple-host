@@ -14,8 +14,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/vsriram/simple-host/internal/config"
 )
 
 func TestStorageRound2Gallery150POC(t *testing.T) {
@@ -86,14 +84,14 @@ func TestStorageRound2SQLiteConcurrencyPOC(t *testing.T) {
 	s.resource(t, "db", "sqlite", "anyone", "owner", "full")
 	s.schema(t, "CREATE TABLE t(v)")
 	// Occupy every process-wide slot, independent of this handler/site/identity.
-	initRelease, err := acquireStorageSQLite(context.Background())
+	initRelease, err := acquireStorageSQLite(context.Background(), s.a.sites.limits.StorageSQLConcurrency, s.a.sites.limits.StorageAcquireWait)
 	if err != nil {
 		t.Fatal(err)
 	}
 	initRelease()
 	var releases []func()
 	for i := 0; i < cap(storageSQLiteGate.slots); i++ {
-		release, err := acquireStorageSQLite(context.Background())
+		release, err := acquireStorageSQLite(context.Background(), s.a.sites.limits.StorageSQLConcurrency, s.a.sites.limits.StorageAcquireWait)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -109,7 +107,7 @@ func TestStorageRound2SQLiteConcurrencyPOC(t *testing.T) {
 	for _, headers := range []map[string]string{s.key, browser(s.host, "")} {
 		start := time.Now()
 		r := s.call(t, "POST", "/sqlite/db/query", `{"sql":"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c) SELECT count(*) FROM c"}`, headers, 503)
-		if r.header.Get("Retry-After") == "" || time.Since(start) > config.Active().StorageAcquireWait+time.Second {
+		if r.header.Get("Retry-After") == "" || time.Since(start) > s.a.sites.limits.StorageAcquireWait+time.Second {
 			t.Fatal("SQLite queue did not return bounded retry response")
 		}
 	}
@@ -137,9 +135,9 @@ func TestStorageRound2OwnerTimeoutAndDeployWait(t *testing.T) {
 		deadline, ok := r.Context().Deadline()
 		left := time.Until(deadline)
 		release()
-		want := config.Active().StorageVisitorWriteTimeout
+		want := s.a.sites.limits.StorageVisitorWriteTimeout
 		if owner {
-			want = config.Active().StorageOwnerTimeout
+			want = s.a.sites.limits.StorageOwnerTimeout
 		}
 		if !ok || left < want-100*time.Millisecond {
 			t.Fatalf("owner=%v timeout %v, want %v", owner, left, want)

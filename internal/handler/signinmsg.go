@@ -33,8 +33,8 @@ const (
 	signInReasonLink    = "link_other_browser"
 )
 
-func signInCodeTTLMinutes() int {
-	min := int(authTokenTTL() / time.Minute)
+func signInCodeTTLMinutes(authTTL time.Duration) int {
+	min := int(authTTL / time.Minute)
 	if min < 1 {
 		min = 1
 	}
@@ -56,8 +56,8 @@ func signInCodeUsedUp() errorResponse {
 	return errorResponse{Error: signInMessages["code_used_up"], Reason: signInReasonUsedUp}
 }
 
-func signInCodeExpired() errorResponse {
-	msg := strings.ReplaceAll(signInMessages["code_expired"], "{min}", strconv.Itoa(signInCodeTTLMinutes()))
+func signInCodeExpired(authTTL time.Duration) errorResponse {
+	msg := strings.ReplaceAll(signInMessages["code_expired"], "{min}", strconv.Itoa(signInCodeTTLMinutes(authTTL)))
 	return errorResponse{Error: msg, Reason: signInReasonExpired}
 }
 

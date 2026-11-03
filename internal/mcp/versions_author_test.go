@@ -28,7 +28,7 @@ func TestListVersionsAuthorInTextOnly(t *testing.T) {
 			t.Fatalf("structured output carries author: %v", structured)
 		}
 	}
-	if err := ValidateOutput(outputSchemas()["list_versions"], structured, nil); err != nil {
+	if err := ValidateOutput(outputSchemasWithLimits(DefaultLimits())["list_versions"], structured, nil); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -362,7 +363,7 @@ func TestHackOrganiserConnector(t *testing.T) {
 		t.Fatalf("team key tools: %v", memberNames)
 	}
 	deployRaw, _ := auth.GenerateAPIKey()
-	if _, err := db.CreateAPIKey(context.Background(), a.database, a.uid(t, org), db.HashAPIKey(org.key), deployRaw, "ci", db.KeyScopeDeploy, nil); err != nil {
+	if _, err := db.CreateAPIKey(context.Background(), a.database, a.uid(t, org), db.HashAPIKey(org.key), deployRaw, "ci", db.KeyScopeDeploy, nil, 50, 180*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	deployNames := mcpToolNames(t, a.mcpWithKey(t, deployRaw))

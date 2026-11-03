@@ -117,7 +117,7 @@ func trafficSplitSchema(description string) map[string]any {
 // answers for the domain it just bound, which is pending or already active and
 // has not been checked yet; domain_status can also find no domain at all, or
 // one whose last check failed.
-func domainSchema(justConnected bool) map[string]any {
+func domainSchema(justConnected bool, limits Limits) map[string]any {
 	props := map[string]any{
 		"site":   outString(outSiteName),
 		"domain": map[string]any{"type": []string{"string", "null"}, "description": "The connected domain, or null when the site has none."},
@@ -153,7 +153,7 @@ func domainSchema(justConnected bool) map[string]any {
 			"certificate_note": outString("About the certificate, when it is not live."),
 		}, "site_prefix", "main_address", "live"), "Present only for an address family (domain *.<domain>): every site of the account answers at <label>.<domain>."),
 		"serving_at":    outString("The site's earlier address, where it is still served until this domain is live (then it redirects here). Present only while a new domain is pending."),
-		"failing_since": outString("When this verified domain started failing its checks. The owner is emailed after " + span(lim().DomainLapseWarnAfter) + "; after " + span(lim().DomainLapseAfter) + " the domain stops being the site's address."),
+		"failing_since": outString("When this verified domain started failing its checks. The owner is emailed after " + span(limits.DomainLapseWarnAfter) + "; after " + span(limits.DomainLapseAfter) + " the domain stops being the site's address."),
 		"note":          outString("What to do next. Present only when status is pending."),
 	}
 	if justConnected {
@@ -167,7 +167,7 @@ func domainSchema(justConnected bool) map[string]any {
 	return outObject(props, "domain", "status")
 }
 
-func outputSchemas() map[string]map[string]any {
+func outputSchemasWithLimits(limits Limits) map[string]map[string]any {
 	return map[string]map[string]any{
 		"set_bio":           outObject(map[string]any{"bio": outString("Public plain-text bio."), "max_length": outInteger("Configured maximum characters.")}, "bio", "max_length"),
 		"set_showcase_site": outObject(map[string]any{"site": outString("Owned site."), "pinned": outBool("Pinned to the first group."), "order": outInteger("Smaller numbers come first.")}, "site", "pinned", "order"),
@@ -264,7 +264,7 @@ func outputSchemas() map[string]map[string]any {
 			"file_count":          outInteger("How many files the new version has."),
 			"page_warnings":       pageWarningsSchema,
 			"unpublished_version": outInteger("Only with publish: false: the version stored without going live (active_version is still the live one)."),
-			"preview_url":         outString("Only with publish: false: a link showing the stored version that works for anyone who has it, for " + span(lim().PreviewLinkTTL) + ". Give it to the person; do not post it publicly."),
+			"preview_url":         outString("Only with publish: false: a link showing the stored version that works for anyone who has it, for " + span(limits.PreviewLinkTTL) + ". Give it to the person; do not post it publicly."),
 		}, "file_count"),
 
 		"list_versions": outObject(map[string]any{
@@ -283,7 +283,7 @@ func outputSchemas() map[string]map[string]any {
 			"site":       outString(outSiteName),
 			"version":    outInteger("The version the link shows."),
 			"live":       outBool("Whether this version is the one visitors see now."),
-			"url":        outString("The preview link: works for anyone who has it, for " + span(lim().PreviewLinkTTL) + ", that version only. Give it to the person to open; do not post it publicly."),
+			"url":        outString("The preview link: works for anyone who has it, for " + span(limits.PreviewLinkTTL) + ", that version only. Give it to the person to open; do not post it publicly."),
 			"expires_at": outString("When the link stops working (RFC 3339)."),
 		}, "site", "version", "live", "url", "expires_at"),
 
@@ -331,11 +331,11 @@ func outputSchemas() map[string]map[string]any {
 		"sign_out_site_visitors": passcodeSchema(false),
 		"keep_site": outObject(map[string]any{
 			"site": outString(outSiteName),
-			"keep": outBool("true: kept up for good, never flagged as idle; false: flagged (with an email first) after " + span(lim().IdleAfter) + " without visits or updates."),
+			"keep": outBool("true: kept up for good, never flagged as idle; false: flagged (with an email first) after " + span(limits.IdleAfter) + " without visits or updates."),
 		}, "site", "keep"),
 
-		"connect_domain": domainSchema(true),
-		"domain_status":  domainSchema(false),
+		"connect_domain": domainSchema(true, limits),
+		"domain_status":  domainSchema(false, limits),
 		"remove_domain": outObject(map[string]any{
 			"site":    outString(outSiteName + " Absent for an address family."),
 			"removed": outString("The address that was disconnected (*.<domain> for an address family)."),
@@ -360,7 +360,7 @@ func outputSchemas() map[string]map[string]any {
 		"export_site": outObject(map[string]any{
 			"site":       outString(outSiteName),
 			"url":        outString("The download link: a .tar.gz with the site's files, state.json and collections.json. Give it to the person; it opens without signing in, so do not post it publicly."),
-			"expires_at": outString("When the link stops working (RFC 3339), " + span(lim().ExportLinkTTL) + " after it was made."),
+			"expires_at": outString("When the link stops working (RFC 3339), " + span(limits.ExportLinkTTL) + " after it was made."),
 		}, "site", "url", "expires_at"),
 	}
 }

@@ -63,14 +63,12 @@ func (r *keepReadSignal) Read(p []byte) (int, error) {
 func TestKeepSnapshotUnderSiteLock(t *testing.T) {
 	a, user := keepReviewSite(t)
 	// No quota lock: keep=1 still has to wait before reading the live version.
-	l := *config.Active()
+	l := config.DefaultLimits()
 	l.MaxSiteTotalMB = 0
 	l.MaxAccountMB = 0
 	l.MaxSiteTotalOverrides = ""
 	l.MaxAccountOverrides = ""
-	old := *config.Active()
-	config.SetActive(l)
-	t.Cleanup(func() { config.SetActive(old) })
+	a.sites.limitSet = newLimitSet(l)
 	unlock := a.sites.lockSite(user.ID, "blog")
 	released := false
 	defer func() {
@@ -141,11 +139,9 @@ func TestKeepMergedUnpackedCaps(t *testing.T) {
 }
 func TestKeepDecodesAndValidatesBeforeLocks(t *testing.T) {
 	a, user := keepReviewSite(t)
-	old := *config.Active()
-	l := old
+	l := config.DefaultLimits()
 	l.MaxAccountMB = 1024
-	config.SetActive(l)
-	t.Cleanup(func() { config.SetActive(old) })
+	a.sites.limitSet = newLimitSet(l)
 	read := make(chan struct{})
 	release := make(chan struct{})
 	done := make(chan struct{})

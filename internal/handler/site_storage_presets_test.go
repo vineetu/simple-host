@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // Storage access presets (2026-10-10): every preset, every action, on KV,
@@ -61,9 +63,9 @@ type presetSite struct {
 	aliceID, ownerID string
 }
 
-func newPresetSite(t *testing.T) presetSite {
+func newPresetSite(t *testing.T, eds ...*edition.Edition) presetSite {
 	t.Helper()
-	a, cert := newSiteApp(t, "canonical")
+	a, cert := newSiteApp(t, "canonical", eds...)
 	owner := a.newPerson(t, "preset-owner")
 	alice := a.newPerson(t, "preset-alice")
 	bob := a.newPerson(t, "preset-bob")

@@ -76,7 +76,7 @@ var familyPrefixRE = regexp.MustCompile(`^(?:[a-z0-9][a-z0-9-]{0,39})?$`)
 // the list of live families (and checking them, when checks run here).
 func (h *SiteHandler) SetAddressFamilies(certDir string) {
 	h.familyCertDir = strings.TrimSpace(certDir)
-	lim := config.Active()
+	lim := h.limits
 	h.familyCheckLimiter = newRateLimiterFor(lim.RateFamilyCheck)
 	h.familyCheckLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h.familyCheckUserLimiter = newRateLimiterFor(lim.RateFamilyCheckUser)
@@ -85,7 +85,7 @@ func (h *SiteHandler) SetAddressFamilies(certDir string) {
 
 // familiesOn: families may exist and be served here.
 func (h *SiteHandler) familiesOn() bool {
-	return config.Active().AddressFamilies && h.familyCertDir != ""
+	return h.limits.AddressFamilies && h.familyCertDir != ""
 }
 
 // StartAddressFamilies loads the live families now and keeps them fresh,
@@ -96,7 +96,7 @@ func (h *SiteHandler) StartAddressFamilies(ctx context.Context) {
 	}
 	h.refreshFamilies(ctx)
 	go func() {
-		t := time.NewTicker(config.Active().FamilyCacheTTL)
+		t := time.NewTicker(h.limits.FamilyCacheTTL)
 		defer t.Stop()
 		for {
 			select {
@@ -118,7 +118,7 @@ func (h *SiteHandler) StartAddressFamilies(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(config.Active().FamilyCheckInterval):
+			case <-time.After(h.limits.FamilyCheckInterval):
 			}
 		}
 	}()
@@ -282,11 +282,11 @@ func (h *SiteHandler) isFamilyHostName(host string) bool {
 
 // familyLabelOK: label may name a site under f: one DNS label, not an
 // internationalised one, not reserved, and <prefix><label> is a site name.
-func familyLabelOK(f db.AddressFamily, label string) bool {
+func familyLabelOK(f db.AddressFamily, label string, l config.Limits) bool {
 	if !familyLabelRE.MatchString(label) || strings.HasPrefix(label, "xn--") {
 		return false
 	}
-	for _, r := range config.Active().ReservedFamilyLabels() {
+	for _, r := range l.ReservedFamilyLabels() {
 		if label == r {
 			return false
 		}
@@ -311,7 +311,7 @@ func (m familyMatch) Host() string { return m.Label + "." + m.Family.Suffix }
 // family's (the exact name wins).
 func (h *SiteHandler) familySiteForHost(ctx context.Context, host string) (familyMatch, bool, error) {
 	f, label, ok := h.liveFamily(host)
-	if !ok || !familyLabelOK(f, label) {
+	if !ok || !familyLabelOK(f, label, h.limits) {
 		return familyMatch{}, false, nil
 	}
 	if _, err := db.GetSiteByCustomDomain(ctx, h.database, requestHostLower(host)); err == nil {
@@ -355,7 +355,7 @@ func (h *SiteHandler) siteFamilyAddrs(userID, name string) []familyAddr {
 	var out []familyAddr
 	for _, f := range fams {
 		label, ok := strings.CutPrefix(name, f.SitePrefix)
-		if !ok || !familyLabelOK(f, label) {
+		if !ok || !familyLabelOK(f, label, h.limits) {
 			continue
 		}
 		out = append(out, familyAddr{Host: label + "." + f.Suffix, Family: f})
@@ -443,7 +443,7 @@ func (h *SiteHandler) familyRenamedTarget(ctx context.Context, f db.AddressFamil
 	}
 	if _, has, _ := h.siteOwnDomain(ctx, siteID); !has {
 		if _, _, name, err := db.GetSiteOwner(ctx, h.database, siteID); err == nil {
-			if nl, ok := strings.CutPrefix(name, f.SitePrefix); ok && familyLabelOK(f, nl) {
+			if nl, ok := strings.CutPrefix(name, f.SitePrefix); ok && familyLabelOK(f, nl, h.limits) {
 				return "https://" + nl + "." + f.Suffix + "/" + strings.TrimLeft(escapedPath, "/"), true
 			}
 		}
@@ -498,7 +498,7 @@ func (h *SiteHandler) FamilyHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		if !found {
-			if familyLabelOK(f, label) {
+			if familyLabelOK(f, label, h.limits) {
 				if target, ok := h.familyRenamedTarget(r.Context(), f, label, escaped); ok {
 					w.Header().Set("Cache-Control", "no-store")
 					http.Redirect(w, r, target+query, http.StatusFound)
