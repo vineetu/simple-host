@@ -226,7 +226,7 @@ func eventFailure(id json.RawMessage, err error) response {
 	return failure(id, codeInternalError, "internal error", nil)
 }
 
-func parseEventParams(raw json.RawMessage, subscribe bool, hack ...bool) (EventSubscribeRequest, error) {
+func parseEventParams(raw json.RawMessage, subscribe bool, eventScoped bool) (EventSubscribeRequest, error) {
 	var req EventSubscribeRequest
 	invalid := func() (EventSubscribeRequest, error) {
 		return EventSubscribeRequest{}, &EventError{Code: codeInvalidParams, Message: "InvalidParams"}
@@ -238,11 +238,10 @@ func parseEventParams(raw json.RawMessage, subscribe bool, hack ...bool) (EventS
 	if json.Unmarshal(params["name"], &req.Name) != nil || req.Name == "" {
 		return invalid()
 	}
-	hackMode := len(hack) > 0 && hack[0]
 	siteEvent := false
 	switch {
 	case req.Name == "record.added", req.Name == "record.changed", req.Name == "file.uploaded":
-	case isSiteEvent(req.Name) && !hackMode:
+	case isSiteEvent(req.Name) && !eventScoped:
 		siteEvent = true
 	default:
 		return req, &EventError{Code: EventCodeNotFound, Message: "NotFound", Data: map[string]any{"kind": "event"}}
@@ -253,7 +252,7 @@ func parseEventParams(raw json.RawMessage, subscribe bool, hack ...bool) (EventS
 	}
 	for key, value := range args {
 		// A site event takes the site only: its storage filter would mean nothing.
-		if key != "site" && !(key == "storage" && !siteEvent) && !(key == "event" && hackMode) {
+		if key != "site" && !(key == "storage" && !siteEvent) && !(key == "event" && eventScoped) {
 			return invalid()
 		}
 		if _, ok := value.(string); !ok {

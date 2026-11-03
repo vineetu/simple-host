@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
 )
 
@@ -162,6 +163,7 @@ func TestMCPNotificationVisitorReferences(t *testing.T) {
 		}
 	}
 	hackMode = true
+	h.ed = edition.ForKind(edition.Hack)
 	raw, _ := json.Marshal(map[string]any{"visitor": opaqueOwner})
 	body := h.notificationBody(db.Notification{Source: "mcp", SiteID: opaqueSite}, db.NotificationDelivery{Data: raw}, 1)
 	if !bytes.Contains(body, []byte(opaqueOwner)) {

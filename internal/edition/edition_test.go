@@ -18,6 +18,9 @@ func TestNew(t *testing.T) {
 		{"", Host, RoutePolicy{}, PresentationPolicy{ProductName: "Simple Host"}},
 	} {
 		e := New(config.Config{Events: tc.events})
+		if e.Notifications().EventScoped != (tc.want == Hack) {
+			t.Errorf("Events %q: unexpected notification policy: %+v", tc.events, e.Notifications())
+		}
 		if e.Identity() != (map[Kind]IdentityPolicy{Host: {PersonalSites: true}, Hack: {RandomHandles: true, HoldingAccounts: true, TeamKeys: true, PaperMetrics: true}})[tc.want] {
 			t.Errorf("Events %q: unexpected identity policy: %+v", tc.events, e.Identity())
 		}

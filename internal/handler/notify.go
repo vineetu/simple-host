@@ -182,7 +182,7 @@ func (h *SiteHandler) storeNotification(c storageCall, name string, data map[str
 // on their own site) is dropped, and dedupe > 0 drops a repeat of the same
 // event for the same visitor inside that window.
 func (h *SiteHandler) emitSiteNotification(siteID, name string, data map[string]any, dedupe time.Duration) {
-	if hackMode {
+	if h.ed.Notifications().EventScoped {
 		return
 	}
 	e := h.notifyEngine()
@@ -347,7 +347,7 @@ func (t *storageTableCall) notifyRow(name, change string, id int64, values map[s
 // Convert at delivery so REST history and plain webhooks retain their format.
 // Old queued events receive the same projection as newly saved events.
 func (h *SiteHandler) notificationBody(n db.Notification, d db.NotificationDelivery, cursor int64) []byte {
-	if n.Source == "mcp" && !hackMode {
+	if n.Source == "mcp" && !h.ed.Notifications().EventScoped {
 		var data map[string]any
 		decoder := json.NewDecoder(bytes.NewReader(d.Data))
 		decoder.UseNumber()
@@ -470,7 +470,7 @@ func (h *SiteHandler) processNotification(ctx context.Context, d db.Notification
 		return true
 	}
 	allowed := site.UserID == n.OwnerID
-	if err == nil && hackMode {
+	if err == nil && h.ed.Notifications().EventScoped {
 		allowed, err = db.HackNotificationAllowed(ctx, h.database, n.SiteID, n.OwnerID, false)
 		if err != nil {
 			return true
@@ -572,7 +572,7 @@ func (h *SiteHandler) sweepNotifications(ctx context.Context) {
 // Hack's organiser website uses an internal UUID for storage; delivery payloads
 // use the event slug and public address, as the website tools do.
 func (h *SiteHandler) notificationSiteInfo(ctx context.Context, site db.Site) (string, string, error) {
-	if !hackMode {
+	if !h.ed.Notifications().EventScoped {
 		return site.Name, h.siteURLFor(site), nil
 	}
 	ev, err := db.GetEventByAccount(ctx, h.database, site.UserID)

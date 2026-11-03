@@ -1,8 +1,11 @@
 package edition
 
-// NotificationPolicy is the notification policy (which events exist and how they are scoped).
-type NotificationPolicy struct{}
+// NotificationPolicy describes notification event and access scope.
+type NotificationPolicy struct {
+	// EventScoped enables Hack event membership and website scoping.
+	EventScoped bool
+}
 
 func notificationsFor(k Kind) NotificationPolicy {
-	return NotificationPolicy{}
+	return NotificationPolicy{EventScoped: k == Hack}
 }
