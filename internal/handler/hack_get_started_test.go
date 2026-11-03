@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	hacktoolkit "github.com/vsriram/simple-host/hack-toolkit"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestHackGetStartedSkills(t *testing.T) {
@@ -65,7 +67,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 
 	mux := http.NewServeMux()
 	RegisterHackGetStarted(mux)
-	RegisterSkillsHub(mux, "https://simple-hack.app", true)
+	newAssetPipeline(edition.ForKind(edition.Hack)).registerSkillsHub(mux, "https://simple-hack.app")
 	mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) { serveSkillsZip(w, r, true) })
 	get := func(path string) *httptest.ResponseRecorder {
 		t.Helper()

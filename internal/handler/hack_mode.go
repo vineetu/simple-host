@@ -18,6 +18,7 @@ import (
 	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // Hosted events (EVENTS=hosted, simple-hack.app; docs/designs/simple-hack-platform.md).
@@ -42,7 +43,62 @@ var hackMode bool
 // serving.
 func SetHackMode(on bool) {
 	hackMode = on
-	baseTextCache.Clear()
+}
+
+// hackChrome is set once at startup when this process is simple-hack.app
+// (EVENTS=hosted): pages then render the hack header and footer. With
+// hackInkBaseURL (SetHackInstanceURL) it is the default a new assetPipeline
+// starts from (assets.go); the pipeline itself reads only its own fields.
+var hackChrome bool
+var hackInkBaseURL = canonicalHackBaseURL
+
+// globalAssets is the asset pipeline as the transitional package settings
+// describe it, for callers that have no handler (and so no Edition) in reach
+// yet. It is built per call and never registered, so its swapped-file cache is
+// unused: these callers only read through it. It goes with hackMode.
+func globalAssets() *assetPipeline {
+	k := edition.Host
+	if hackMode {
+		k = edition.Hack
+	}
+	ed := edition.ForKind(k)
+	return &assetPipeline{pres: ed.Presentation(), hostedEvents: ed.Routes().HostedEvents, chromeHack: hackChrome, inkBase: hackInkBaseURL}
+}
+
+// The free forms below serve the callers that have no handler in reach yet
+// (route registration in RegisterHack*, the OAuth and connector handlers, the
+// Go-built status pages). Each reads the transitional settings at the moment
+// it runs, exactly as the package globals were read before; the pipeline
+// methods they call are the implementation.
+
+func hostedStatusPage(page string) []byte { return globalAssets().hostedStatusPage(page) }
+
+func chromeDataFor(r *http.Request, base string) chromeData {
+	return globalAssets().chromeDataFor(r, base)
+}
+
+func chromePage(name string, d chromeData) ([]byte, error) {
+	return globalAssets().chromePage(name, d)
+}
+
+func hackInstanceText(data []byte) []byte { return globalAssets().hackInstanceText(data) }
+
+func skillServedText(path string, data []byte) []byte {
+	return globalAssets().skillServedText(path, data)
+}
+
+func adminUICSP(next http.Handler) http.Handler { return uiCSP(next, "'self' blob:") }
+
+func uiCSP(next http.Handler, frameSrc string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		globalAssets().uiCSP(next, frameSrc).ServeHTTP(w, r)
+	})
+}
+
+func serveStaticPage(name string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		globalAssets().serveStaticPage(name).ServeHTTP(w, r)
+	})
 }
 
 // HackMode reports whether this instance runs EVENTS=hosted.

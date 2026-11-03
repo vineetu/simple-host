@@ -61,7 +61,11 @@ func init() {
 }
 
 type SiteHandler struct {
-	ed                *edition.Edition
+	ed *edition.Edition
+	// assets is the static asset and chrome pipeline for ed (assets.go);
+	// read it through pipeline().
+	assets            *assetPipeline
+	assetsOnce        sync.Once
 	createIdempotency *createIdempotencyStore
 
 	notifyOnce    sync.Once
@@ -391,6 +395,7 @@ func NewSiteHandler(ed *edition.Edition, database *sql.DB, disk *storage.DiskSto
 		adminUserID:            adminUserID,
 		exportKey:              newExportKey(),
 	}
+	h.assets = newAssetPipeline(ed)
 	h.createIdempotency = newCreateIdempotencyStore()
 	h.createIdempotency.startCleanup()
 	h.SetSavedData(config.DefaultSavedData())

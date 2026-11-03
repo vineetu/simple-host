@@ -52,7 +52,8 @@ func NewSetupHandler(db *sql.DB, publicAPI string, password string, dataDir stri
 
 func (h *SetupHandler) Register(mux *http.ServeMux) {
 	mux.Handle("/", serveStaticPage("setup.html"))
-	assets, _ := fs.Sub(staticFiles, "static")
+	// Only host-ink.css and the fonts: no product-specific file is served here.
+	assets, _ := fs.Sub(newAssetPipeline(nil).staticFS(), "static")
 	files := http.FileServerFS(assets)
 	mux.Handle("GET /host-ink.css", files)
 	mux.Handle("GET /fonts/{file...}", files)

@@ -25,9 +25,10 @@ import (
 //go:embed all:static
 var embeddedStatic embed.FS
 
-// staticFiles is the embedded tree as served. Public addresses use
+// staticFiles is the embedded tree, product-neutral (baseTextFS; a pipeline's
+// staticFS is the tree as one instance serves it). Public addresses use
 // simple-host.app; basetext.go retains the compatibility rewriter.
-var staticFiles = baseTextFS{embeddedStatic}
+var staticFiles = baseTextFS{fsys: embeddedStatic}
 
 var (
 	skillsZipOnce  sync.Once
@@ -44,8 +45,8 @@ var (
 // PluginVersion reads the version field from the embedded plugin.json
 // once and caches it. Used at boot to construct the notice middleware
 // and served at /skills/version for explicit checks by the MCP client.
-func PluginVersion() (string, error) {
-	if hackMode {
+func PluginVersion(hackAssets bool) (string, error) {
+	if hackAssets {
 		return "0.27.20", nil
 	}
 	pluginVersionOnce.Do(func() {
@@ -99,13 +100,14 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		w.Header().Set("Cache-Control", "public, max-age=300")
 		_, _ = w.Write(body)
 	})
-	sub, _ := fs.Sub(staticFiles, "static")
-	fileServer := hostDiagram(sh.ed.Routes().HostedEvents, http.FileServerFS(handlerOnlyFS{sub}))
+	assets := sh.pipeline()
+	sub, _ := fs.Sub(assets.staticFS(), "static")
+	fileServer := hostDiagram(sh.ed.Routes().HostedEvents, http.FileServerFS(handlerOnlyFS{sub, sh.ed.Presentation().HackAssets}))
 	staticServer := fileServer
 	fileServer = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/")
 		if name != "" {
-			if _, err := fs.Stat(handlerOnlyFS{sub}, name); err != nil {
+			if _, err := fs.Stat(handlerOnlyFS{sub, sh.ed.Presentation().HackAssets}, name); err != nil {
 				if sh.ed.Routes().HostedEvents {
 					sh.renderNotFound(w, r, r.URL.Path)
 				} else {
@@ -126,21 +128,21 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 			if name == "openapi.yaml" || name == "openapi.json" || sh.ed.Routes().HostedEvents && name == "install.html" {
 				continue
 			}
-			mux.Handle("GET /"+name, serveRewrittenAsset(name, instanceHosts, skillsModTime))
+			mux.Handle("GET /"+name, assets.serveRewrittenAsset(name, instanceHosts, skillsModTime))
 		}
 	}
 	for _, name := range []string{"openapi.yaml", "openapi.json"} {
-		mux.Handle("GET /"+name, serveRewrittenAsset(name, instanceHosts, skillsModTime))
+		mux.Handle("GET /"+name, assets.serveRewrittenAsset(name, instanceHosts, skillsModTime))
 	}
 	if sh.ed.Routes().HostedEvents {
 		mux.Handle("GET /install.html", http.RedirectHandler("/get-started", http.StatusFound))
-		mux.Handle("GET /docs.html", adminUICSP(serveStaticPage("docs.html")))
+		mux.Handle("GET /docs.html", assets.adminUICSP(assets.serveStaticPage("docs.html")))
 	}
 	// Each product's own icon (teal dot for Host, red dot for Hack), at the
 	// same four addresses. A day of caching plus the ?v= on every link
 	// (partials/head.html and the 13 pages with their own head) means a
 	// future icon change is picked up by bumping that letter, not renaming.
-	for name, file := range iconFiles() {
+	for name, file := range iconFiles(sh.ed.Presentation().HackAssets) {
 		mux.Handle("GET /"+name, serveIcon(sub, file))
 	}
 
@@ -149,20 +151,22 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.HandleFunc("GET /.well-known/ard.json", discoveryDocument(sh.ed.Presentation().HackAssets, "ard.json", "application/json", publicBaseURL))
 	mux.HandleFunc("GET /.well-known/api-catalog", discoveryDocument(sh.ed.Presentation().HackAssets, "api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
 	mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) { serveSkillsZip(w, r, sh.ed.Presentation().HackAssets) })
-	mux.HandleFunc("GET /skills/version", serveSkillsVersion)
+	mux.HandleFunc("GET /skills/version", func(w http.ResponseWriter, r *http.Request) {
+		serveSkillsVersion(w, r, sh.ed.Presentation().HackAssets)
+	})
 	// The landing film's video and poster files (film.go).
 	mux.HandleFunc("GET /film/{file}", serveFilm)
 	// Per-skill download routes, derived from the bundle rather than hand-listed:
 	// connect-domain shipped in 0.8.0 and never got its pair, so /skills/
 	// connect-domain.zip 404'd while the skill was advertised everywhere else.
-	for _, dir := range bundledSkillDirs() {
-		mux.HandleFunc("GET /skills/"+dir+".zip", serveSkillZip(dir))
-		mux.HandleFunc("GET /skills/"+dir+"/SKILL.md", serveSkillMarkdown(dir))
+	for _, dir := range assets.bundledSkillDirs() {
+		mux.HandleFunc("GET /skills/"+dir+".zip", assets.serveSkillZip(dir))
+		mux.HandleFunc("GET /skills/"+dir+"/SKILL.md", assets.serveSkillMarkdown(dir))
 		// Same shapes as /v1/skills/…: the bare skill path and its references.
-		mux.HandleFunc("GET /skills/"+dir, serveSkillMarkdown(dir))
+		mux.HandleFunc("GET /skills/"+dir, assets.serveSkillMarkdown(dir))
 		mux.HandleFunc("GET /skills/"+dir+"/references/{file}", func(w http.ResponseWriter, r *http.Request) {
 			r.SetPathValue("name", dir)
-			serveSkillReference(w, r)
+			assets.serveSkillReference(w, r)
 		})
 	}
 	mux.HandleFunc("GET /plugin.zip", func(w http.ResponseWriter, r *http.Request) { servePluginZip(w, r, sh.ed.Presentation().HackAssets) })
@@ -172,34 +176,34 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// a browser navigation carries no API key, so it cannot be gated server-side.
 	// It renders nothing until /v1/admin/users answers, and that IS gated; a
 	// non-admin gets the 404 page instead. See admin.html.
-	mux.Handle("GET /admin", adminUICSP(serveStaticPage("admin.html")))
+	mux.Handle("GET /admin", assets.adminUICSP(assets.serveStaticPage("admin.html")))
 	// Feature inventory: what the product actually does today, and where each
 	// capability lives in the UI. Given a clean URL like /admin because it is
 	// linked from the top nav, not just reachable as a file.
-	mux.Handle("GET /features", adminUICSP(serveStaticPage("features.html")))
+	mux.Handle("GET /features", assets.adminUICSP(assets.serveStaticPage("features.html")))
 	// What Simple Host costs and its real limits, generated from this
 	// install's own settings; agents looking for a plans or pricing page
 	// land here instead of finding none (SIM-190).
-	mux.Handle("GET /pricing", adminUICSP(serveStaticPage("pricing.html", sh.ed.Routes().HostedEvents)))
+	mux.Handle("GET /pricing", assets.adminUICSP(assets.serveStaticPage("pricing.html")))
 	// Marketing pages, one per audience, shared as direct links.
-	mux.Handle("GET /enterprise", adminUICSP(serveStaticPage("enterprise.html")))
-	mux.Handle("GET /enterprise/brief", adminUICSP(serveStaticPage("enterprise-brief.html")))
-	mux.Handle("GET /enterprise/architecture", adminUICSP(serveStaticPage("enterprise-architecture.html")))
-	mux.Handle("GET /hackathons", adminUICSP(serveStaticPage("hackathons.html")))
+	mux.Handle("GET /enterprise", assets.adminUICSP(assets.serveStaticPage("enterprise.html")))
+	mux.Handle("GET /enterprise/brief", assets.adminUICSP(assets.serveStaticPage("enterprise-brief.html")))
+	mux.Handle("GET /enterprise/architecture", assets.adminUICSP(assets.serveStaticPage("enterprise-architecture.html")))
+	mux.Handle("GET /hackathons", assets.adminUICSP(assets.serveStaticPage("hackathons.html")))
 	// The setup helper: a small-box .env and install command, or Enterprise's
 	// config.env and Secret template, built in the browser from the two
 	// settings lists under static/setup/ (docs/advanced/README.md).
-	mux.Handle("GET /setup", adminUICSP(serveStaticPage("setup-helper.html")))
+	mux.Handle("GET /setup", assets.adminUICSP(assets.serveStaticPage("setup-helper.html")))
 	mux.Handle("GET /setup/{$}", http.RedirectHandler("/setup", http.StatusMovedPermanently))
 	// What Simple Host Enterprise costs to run on each cloud: a calculator
 	// that runs in the browser from static/costs/prices.json (costs/calc.js).
-	mux.Handle("GET /costs", adminUICSP(serveStaticPage("costs.html")))
+	mux.Handle("GET /costs", assets.adminUICSP(assets.serveStaticPage("costs.html")))
 	// Terms of service and support, linked from plugin directory listings, so
 	// each needs a clean, stable URL.
-	mux.Handle("GET /terms", adminUICSP(serveStaticPage("terms.html")))
-	mux.Handle("GET /support", adminUICSP(serveStaticPage("support.html")))
+	mux.Handle("GET /terms", assets.adminUICSP(assets.serveStaticPage("terms.html")))
+	mux.Handle("GET /support", assets.adminUICSP(assets.serveStaticPage("support.html")))
 	// Report a page: a small form that emails the support address (report.go).
-	mux.Handle("GET /report", adminUICSP(serveStaticPage("report.html")))
+	mux.Handle("GET /report", assets.adminUICSP(assets.serveStaticPage("report.html")))
 	mux.Handle("POST /report", sh.ReportHandler())
 	// One site's analytics in full, linked from the dashboard card and from the
 	// showcase Analytics tab. Same public-shell reasoning as /admin: a browser
@@ -207,7 +211,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// says plainly when it is missing or the site is not the caller's. The site
 	// name is a path segment the page reads back off location.pathname, so no
 	// server-side templating is involved.
-	mux.Handle("GET /analytics/{sitename}", adminUICSP(serveStaticPage("analytics.html")))
+	mux.Handle("GET /analytics/{sitename}", assets.adminUICSP(assets.serveStaticPage("analytics.html")))
 	// Signing in has its own address, so the landing page can stay the landing
 	// page for everybody (owner decision 2026-09-23). It serves the same shell:
 	// with a session it goes straight through to the owner's app, without one it
@@ -221,8 +225,8 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		markdown := homepageMarkdownHandler(publicBaseURL, sh.ed.Presentation().HackAssets)
 		mux.HandleFunc("GET /index.md", markdown)
 		mux.HandleFunc("GET /llms.md", markdown)
-		mux.Handle("GET /dashboard", adminUICSP(serveStaticPage("index.html")))
-		mux.Handle("GET /{$}", adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("GET /dashboard", assets.adminUICSP(assets.serveStaticPage("index.html")))
+		mux.Handle("GET /{$}", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Vary", "Accept")
 			w.Header().Set("Link", homepageLinks)
 			q := r.URL.Query()
@@ -235,21 +239,21 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 				markdown(w, r)
 				return
 			}
-			serveStaticPage("host-story.html").ServeHTTP(w, r)
+			assets.serveStaticPage("host-story.html").ServeHTTP(w, r)
 		})))
 	}
 	// On the base origin, a bare /<handle> that resolves to a real user renders
 	// that user's owner app; everything else is the landing page / static files.
 	// Unknown POST endpoints are absent, even though static pages use a GET catch-all.
 	mux.Handle("POST /", http.NotFoundHandler())
-	mux.Handle("GET /", adminUICSP(sh.ownerAppOrStatic(chromeFileServer(handlerOnlyFS{sub}, fileServer))))
+	mux.Handle("GET /", assets.adminUICSP(sh.ownerAppOrStatic(assets.chromeFileServer(handlerOnlyFS{sub, sh.ed.Presentation().HackAssets}, fileServer))))
 }
 
 // iconFiles maps the icon addresses every page links to the physical file
 // served at that address: Simple Hack serves its own red-dot files at the
 // same four names Simple Host serves its teal ones at.
-func iconFiles() map[string]string {
-	if hackMode {
+func iconFiles(hackAssets bool) map[string]string {
+	if hackAssets {
 		return map[string]string{
 			"favicon.svg":          "favicon-hack.svg",
 			"favicon.ico":          "favicon-hack.ico",
@@ -309,14 +313,17 @@ var handlerOnlyPages = map[string]bool{
 	".well-known/hack-api-catalog": true,
 }
 
-type handlerOnlyFS struct{ fs.FS }
+type handlerOnlyFS struct {
+	fs.FS
+	hackAssets bool
+}
 
 func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 	// Hidden only when a handler has actually taken over, so the canonical
 	// instance still serves them straight off the embedded FS. The chrome
 	// partials are fragments for chrome.go, never pages in their own right,
 	// and the landing film's files are served by serveFilm (film.go).
-	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || name == "hack-auth.md" || handlerOnlyPages[name] || (hackMode && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || name == "film" || strings.HasPrefix(name, "film/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
+	if name == "openapi.yaml" || name == "openapi.json" || name == "hack-llms.txt" || name == "hack-auth.md" || handlerOnlyPages[name] || (f.hackAssets && (name == "docs.html" || name == "hack-directory.html" || name == "hack-voting.html")) || name == "partials" || strings.HasPrefix(name, "partials/") || name == "film" || strings.HasPrefix(name, "film/") || (assetsRewritten() && slices.Contains(rewrittenAssets, name)) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	return f.FS.Open(name)
@@ -325,20 +332,21 @@ func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 // serveStaticPage serves one embedded HTML page at a fixed route, for pages that
 // need a clean URL rather than the .html the file server would expose. The
 // shared chrome is filled in here; see chrome.go.
-func serveStaticPage(name string, pricingHostedEvents ...bool) http.Handler {
+// The pricing page's numbers follow the pipeline's hostedEvents.
+func (p *assetPipeline) serveStaticPage(name string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := chromePage(name, chromeDataFor(r, ""))
+		body, err := p.chromePage(name, p.chromeDataFor(r, ""))
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
-		if hackMode && name == "docs.html" {
-			body = hackInstanceText(hackDocsHTML(body))
+		if p.pres.HackAssets && name == "docs.html" {
+			body = p.hackInstanceText(hackDocsHTML(body))
 		}
 		if name == "pricing.html" {
-			body = applyPricingNumbers(body, len(pricingHostedEvents) > 0 && pricingHostedEvents[0])
+			body = applyPricingNumbers(body, p.hostedEvents)
 		}
-		if hackMode && name == "hack-get-started.html" && hackInkBaseURL != "https://simple-hack.app" {
+		if p.pres.HackAssets && name == "hack-get-started.html" && p.inkBase != canonicalHackBaseURL {
 			// GitHub skills name the hosted service. Install the local ZIP instead.
 			start := bytes.Index(body, []byte("<li>Install the five Simple Hack skills"))
 			if start >= 0 {
@@ -354,7 +362,7 @@ func serveStaticPage(name string, pricingHostedEvents ...bool) http.Handler {
 			body = bytes.ReplaceAll(body, []byte("Yes. Running an event, joining, judging and hosting team sites are free."), []byte("Simple Hack is free software. Server, domain and email costs are your provider’s bill."))
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if hackChrome {
+		if p.chromeHack {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		w.Write(stampNonce(r, body))
@@ -366,12 +374,12 @@ func serveStaticPage(name string, pricingHostedEvents ...bool) http.Handler {
 // no 'unsafe-inline': an injected <script> or on*= attribute cannot run and read
 // it. The pages' own inline scripts run under a per-response nonce, which the
 // handlers stamp onto them with stampNonce. Inline styles stay allowed.
-func adminUICSP(next http.Handler) http.Handler {
-	return uiCSP(next, "'self' blob:")
+func (p *assetPipeline) adminUICSP(next http.Handler) http.Handler {
+	return p.uiCSP(next, "'self' blob:")
 }
 
 // uiCSP is adminUICSP with the page's own frame-src sources.
-func uiCSP(next http.Handler, frameSrc string) http.Handler {
+func (p *assetPipeline) uiCSP(next http.Handler, frameSrc string) http.Handler {
 	const policyFmt = "default-src 'self'; " +
 		"script-src 'self' 'nonce-%s'; " +
 		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
@@ -390,7 +398,7 @@ func uiCSP(next http.Handler, frameSrc string) http.Handler {
 		}
 		nonce := base64.StdEncoding.EncodeToString(b[:])
 		policy := policyFmt
-		if hackChrome {
+		if p.chromeHack {
 			policy = strings.ReplaceAll(policy, " https://fonts.googleapis.com", "")
 			policy = strings.ReplaceAll(policy, " https://fonts.gstatic.com", "")
 		}
@@ -416,8 +424,8 @@ func stampNonce(r *http.Request, page []byte) []byte {
 // serveSkillsVersion returns {"version":"X"} from the embedded plugin.json.
 // Used by the MCP client for explicit version checks; the inline notice
 // middleware also reads the same value at boot.
-func serveSkillsVersion(w http.ResponseWriter, r *http.Request) {
-	version, err := PluginVersion()
+func serveSkillsVersion(w http.ResponseWriter, r *http.Request, hackAssets bool) {
+	version, err := PluginVersion(hackAssets)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -444,9 +452,9 @@ func serveSkillsZip(w http.ResponseWriter, r *http.Request, hackAssets bool) {
 	http.ServeContent(w, r, "simple-host-skills.zip", skillsModTime, bytes.NewReader(data))
 }
 
-func serveSkillZip(skillName string) http.HandlerFunc {
+func (p *assetPipeline) serveSkillZip(skillName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		data, err := buildSingleSkillZip(skillName)
+		data, err := p.buildSingleSkillZip(skillName)
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -459,9 +467,9 @@ func serveSkillZip(skillName string) http.HandlerFunc {
 	}
 }
 
-func serveSkillMarkdown(skillName string) http.HandlerFunc {
+func (p *assetPipeline) serveSkillMarkdown(skillName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		src, err := servedSkillFS().Open("skills/" + skillName + "/SKILL.md")
+		src, err := p.servedSkillFS().Open("skills/" + skillName + "/SKILL.md")
 		if err != nil {
 			http.NotFound(w, r)
 			return
@@ -679,11 +687,11 @@ func buildSkillsZip() ([]byte, error) {
 	return skillsZipBytes, skillsZipErr
 }
 
-func buildSingleSkillZip(skillName string) ([]byte, error) {
+func (p *assetPipeline) buildSingleSkillZip(skillName string) ([]byte, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 
-	skillRoot, err := fs.Sub(servedSkillFS(), "skills/"+skillName)
+	skillRoot, err := fs.Sub(p.servedSkillFS(), "skills/"+skillName)
 	if err != nil {
 		return nil, err
 	}

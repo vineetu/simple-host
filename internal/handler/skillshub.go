@@ -14,8 +14,8 @@ import (
 
 // servedSkillFS keeps Simple Host's maintained skill bundle intact while Simple Hack
 // serves the reviewed connector-only snapshot bundled with its toolkit.
-func servedSkillFS() embed.FS {
-	if hackMode {
+func (p *assetPipeline) servedSkillFS() embed.FS {
+	if p.pres.HackAssets {
 		return hacktoolkit.Skills
 	}
 	return plugin.FS
@@ -48,8 +48,8 @@ type skillsCatalog struct {
 
 // The organiser guide describes hosted events on simple-hack.app.
 // Joining and judging guides belong only to the hosted Simple Hack catalog.
-func skillAvailable(name string) bool {
-	if hackMode {
+func (p *assetPipeline) skillAvailable(name string) bool {
+	if p.pres.HackAssets {
 		return hostedHackSkill(name)
 	}
 	return name != "join-hackathon" && name != "judge-hackathon"
@@ -78,9 +78,9 @@ func parseSkillFrontmatter(md string) (name, desc string) {
 
 // listBundledSkills walks the embedded skills/ dir and returns each skill's
 // frontmatter (skipping any dir without a readable SKILL.md).
-func listBundledSkills() []skillEntry {
+func (p *assetPipeline) listBundledSkills() []skillEntry {
 	var out []skillEntry
-	entries, err := fs.ReadDir(servedSkillFS(), "skills")
+	entries, err := fs.ReadDir(p.servedSkillFS(), "skills")
 	if err != nil {
 		return out
 	}
@@ -88,10 +88,10 @@ func listBundledSkills() []skillEntry {
 		if !e.IsDir() {
 			continue
 		}
-		if !skillAvailable(e.Name()) {
+		if !p.skillAvailable(e.Name()) {
 			continue
 		}
-		data, err := servedSkillFS().ReadFile("skills/" + e.Name() + "/SKILL.md")
+		data, err := p.servedSkillFS().ReadFile("skills/" + e.Name() + "/SKILL.md")
 		if err != nil {
 			continue
 		}
@@ -107,8 +107,8 @@ func listBundledSkills() []skillEntry {
 // bundledSkillDirs returns the directory name of every embedded skill, sorted.
 // Directory names — not frontmatter names — because they are what the download
 // routes and the on-disk install layout are keyed on.
-func bundledSkillDirs() []string {
-	entries, err := fs.ReadDir(servedSkillFS(), "skills")
+func (p *assetPipeline) bundledSkillDirs() []string {
+	entries, err := fs.ReadDir(p.servedSkillFS(), "skills")
 	if err != nil {
 		return nil
 	}
@@ -117,10 +117,10 @@ func bundledSkillDirs() []string {
 		if !e.IsDir() {
 			continue
 		}
-		if !skillAvailable(e.Name()) {
+		if !p.skillAvailable(e.Name()) {
 			continue
 		}
-		if _, err := fs.Stat(servedSkillFS(), "skills/"+e.Name()+"/SKILL.md"); err != nil {
+		if _, err := fs.Stat(p.servedSkillFS(), "skills/"+e.Name()+"/SKILL.md"); err != nil {
 			continue
 		}
 		out = append(out, e.Name())
@@ -133,8 +133,8 @@ func bundledSkillDirs() []string {
 // to the skill directory ("SKILL.md", "references/backend.md", …). A skill is no
 // longer a single file: SKILL.md routes to references/*.md, and a discovery hub
 // that fetches only SKILL.md would hand the agent a map with no territory.
-func skillFiles(dir string) []string {
-	root, err := fs.Sub(servedSkillFS(), "skills/"+dir)
+func (p *assetPipeline) skillFiles(dir string) []string {
+	root, err := fs.Sub(p.servedSkillFS(), "skills/"+dir)
 	if err != nil {
 		return nil
 	}
@@ -167,11 +167,12 @@ func validSkillName(s string) bool {
 	return true
 }
 
-func serveSkillsCatalog(publicBaseURL string, hackAssets bool) http.HandlerFunc {
+func (p *assetPipeline) serveSkillsCatalog(publicBaseURL string) http.HandlerFunc {
 	base := strings.TrimRight(publicBaseURL, "/")
+	hackAssets := p.pres.HackAssets
 	return func(w http.ResponseWriter, r *http.Request) {
-		version, _ := PluginVersion()
-		skills := listBundledSkills()
+		version, _ := PluginVersion(hackAssets)
+		skills := p.listBundledSkills()
 		for i := range skills {
 			skills[i].URL = base + "/v1/skills/" + skills[i].Name
 		}
@@ -186,22 +187,22 @@ func serveSkillsCatalog(publicBaseURL string, hackAssets bool) http.HandlerFunc 
 	}
 }
 
-func serveSkillDoc(w http.ResponseWriter, r *http.Request) {
+func (p *assetPipeline) serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.PathValue("name"))
 	if !validSkillName(name) {
 		http.Error(w, "invalid skill name", http.StatusBadRequest)
 		return
 	}
-	if !skillAvailable(name) {
+	if !p.skillAvailable(name) {
 		writeSkillNotFound(w, r, "404 page not found")
 		return
 	}
-	data, err := servedSkillFS().ReadFile("skills/" + name + "/SKILL.md")
+	data, err := p.servedSkillFS().ReadFile("skills/" + name + "/SKILL.md")
 	if err != nil {
 		writeSkillNotFound(w, r, "skill not found")
 		return
 	}
-	data = skillServedText(name+"/SKILL.md", data)
+	data = p.skillServedText(name+"/SKILL.md", data)
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	_, _ = w.Write(data)
@@ -211,9 +212,9 @@ func serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 // and limits (MAX_ARCHIVE_MB and the knobs) put in, as the zips and
 // /skills/<name>/SKILL.md do, except for a control-plane skill, which states
 // the public instance's (see copyRewritten). path is relative to skills/.
-func skillServedText(path string, data []byte) []byte {
-	if hackMode {
-		return hackInstanceText(instanceLimits.apply(data))
+func (p *assetPipeline) skillServedText(path string, data []byte) []byte {
+	if p.pres.HackAssets {
+		return p.hackInstanceText(instanceLimits.apply(data))
 	}
 	if controlPlaneSkill(path) {
 		return data
@@ -234,23 +235,23 @@ func validReferenceFile(s string) bool {
 // at these both by relative path (for a folder install) and by absolute URL —
 // this is what makes the URL-only install methods (`copilot skill add <url>`,
 // `hermes skills install <url>`) still work after a skill is split.
-func serveSkillReference(w http.ResponseWriter, r *http.Request) {
+func (p *assetPipeline) serveSkillReference(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.PathValue("name"))
 	file := strings.TrimSpace(r.PathValue("file"))
 	if !validSkillName(name) || !validReferenceFile(file) {
 		http.Error(w, "invalid reference", http.StatusBadRequest)
 		return
 	}
-	if !skillAvailable(name) {
+	if !p.skillAvailable(name) {
 		writeSkillNotFound(w, r, "404 page not found")
 		return
 	}
-	data, err := servedSkillFS().ReadFile("skills/" + name + "/references/" + file)
+	data, err := p.servedSkillFS().ReadFile("skills/" + name + "/references/" + file)
 	if err != nil {
 		writeSkillNotFound(w, r, "reference not found")
 		return
 	}
-	data = skillServedText(name+"/references/"+file, data)
+	data = p.skillServedText(name+"/references/"+file, data)
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	_, _ = w.Write(data)
@@ -267,11 +268,11 @@ type wellKnownEntry struct {
 // serveWellKnownSkillsIndex serves /.well-known/skills/index.json so any hub can
 // discover this site's skills. Each skill's files live at
 // /.well-known/skills/<name>/SKILL.md.
-func serveWellKnownSkillsIndex(w http.ResponseWriter, r *http.Request) {
-	dirs := bundledSkillDirs()
+func (p *assetPipeline) serveWellKnownSkillsIndex(w http.ResponseWriter, r *http.Request) {
+	dirs := p.bundledSkillDirs()
 	entries := make([]wellKnownEntry, 0, len(dirs))
 	for _, dir := range dirs {
-		data, err := servedSkillFS().ReadFile("skills/" + dir + "/SKILL.md")
+		data, err := p.servedSkillFS().ReadFile("skills/" + dir + "/SKILL.md")
 		if err != nil {
 			continue
 		}
@@ -279,7 +280,7 @@ func serveWellKnownSkillsIndex(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			name = dir
 		}
-		entries = append(entries, wellKnownEntry{Name: name, Description: desc, Files: skillFiles(dir)})
+		entries = append(entries, wellKnownEntry{Name: name, Description: desc, Files: p.skillFiles(dir)})
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
@@ -297,16 +298,21 @@ func writeSkillNotFound(w http.ResponseWriter, r *http.Request, message string) 
 }
 
 // RegisterSkillsHub mounts the public skills catalog + per-skill markdown fetch,
-// plus the /.well-known/skills discovery endpoint used by agent skill hubs.
-func RegisterSkillsHub(mux *http.ServeMux, publicBaseURL string, hackAssets bool) {
-	mux.HandleFunc("GET /v1/skills", serveSkillsCatalog(publicBaseURL, hackAssets))
-	mux.HandleFunc("GET /v1/skills/{name}", serveSkillDoc)
+// plus the /.well-known/skills discovery endpoint used by agent skill hubs,
+// for sh's edition.
+func RegisterSkillsHub(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
+	sh.pipeline().registerSkillsHub(mux, publicBaseURL)
+}
+
+func (p *assetPipeline) registerSkillsHub(mux *http.ServeMux, publicBaseURL string) {
+	mux.HandleFunc("GET /v1/skills", p.serveSkillsCatalog(publicBaseURL))
+	mux.HandleFunc("GET /v1/skills/{name}", p.serveSkillDoc)
 	// Agents append /SKILL.md by habit (it works under /skills/ and
 	// /.well-known/skills/), so accept it here too.
-	mux.HandleFunc("GET /v1/skills/{name}/SKILL.md", serveSkillDoc)
-	mux.HandleFunc("GET /v1/skills/{name}/references/{file}", serveSkillReference)
+	mux.HandleFunc("GET /v1/skills/{name}/SKILL.md", p.serveSkillDoc)
+	mux.HandleFunc("GET /v1/skills/{name}/references/{file}", p.serveSkillReference)
 	// Well-known agent-skills discovery (Hermes/OpenClaw/etc.).
-	mux.HandleFunc("GET /.well-known/skills/index.json", serveWellKnownSkillsIndex)
-	mux.HandleFunc("GET /.well-known/skills/{name}/SKILL.md", serveSkillDoc)
-	mux.HandleFunc("GET /.well-known/skills/{name}/references/{file}", serveSkillReference)
+	mux.HandleFunc("GET /.well-known/skills/index.json", p.serveWellKnownSkillsIndex)
+	mux.HandleFunc("GET /.well-known/skills/{name}/SKILL.md", p.serveSkillDoc)
+	mux.HandleFunc("GET /.well-known/skills/{name}/references/{file}", p.serveSkillReference)
 }

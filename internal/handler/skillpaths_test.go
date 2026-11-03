@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // Any skill path that works under /v1/skills/ must work under /skills/ and the
@@ -12,7 +14,8 @@ import (
 // a 404 because only /skills/… accepted the /SKILL.md suffix.
 func TestSkillPathsWorkUnderBothPrefixes(t *testing.T) {
 	mux := http.NewServeMux()
-	RegisterSkillsHub(mux, "https://simple-host.app", false)
+	hostAssets := newAssetPipeline(edition.ForKind(edition.Host))
+	hostAssets.registerSkillsHub(mux, "https://simple-host.app")
 	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
 
 	get := func(path string) *httptest.ResponseRecorder {
@@ -21,7 +24,7 @@ func TestSkillPathsWorkUnderBothPrefixes(t *testing.T) {
 		return rec
 	}
 
-	dirs := bundledSkillDirs()
+	dirs := hostAssets.bundledSkillDirs()
 	if len(dirs) == 0 {
 		t.Fatal("no bundled skills")
 	}
@@ -42,7 +45,7 @@ func TestSkillPathsWorkUnderBothPrefixes(t *testing.T) {
 				}
 			}
 		}
-		for _, f := range skillFiles(dir) {
+		for _, f := range hostAssets.skillFiles(dir) {
 			if !strings.HasPrefix(f, "references/") {
 				continue
 			}
