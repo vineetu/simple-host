@@ -1,12 +1,12 @@
 package events
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-
 	"context"
 	"database/sql"
 	"errors"
+
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
 // JoinByCode joins an event as participant or judge.

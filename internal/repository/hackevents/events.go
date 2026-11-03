@@ -3,11 +3,12 @@ package hackevents
 import (
 	"context"
 	"database/sql"
+	"strings"
+	"time"
+
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
-	"strings"
-	"time"
 )
 
 // Event aliases the shared model record.

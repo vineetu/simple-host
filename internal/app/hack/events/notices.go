@@ -1,20 +1,19 @@
 package events
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
-	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
-
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-
-	"github.com/vsriram/simple-host/internal/repository/hackevents"
 	"log"
 	"regexp"
 	"strings"
 	"time"
+
+	model "github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
 // Need is one line of work or news awaiting a member. ID marks dismissable news; Count is for a live to-do.

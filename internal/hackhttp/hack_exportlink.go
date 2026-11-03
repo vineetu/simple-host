@@ -2,12 +2,13 @@ package hackhttp
 
 import (
 	"encoding/json"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // Event archive links follow the site's export-link pattern. Their signature

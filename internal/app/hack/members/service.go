@@ -1,10 +1,10 @@
 package members
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-
 	"context"
 	"database/sql"
+
+	model "github.com/vsriram/simple-host/internal/model"
 )
 
 // Service owns Hack membership workflows.

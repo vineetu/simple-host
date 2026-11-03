@@ -1,12 +1,12 @@
 package teams
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
-
 	"context"
 	"database/sql"
 	"errors"
+
+	model "github.com/vsriram/simple-host/internal/model"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 )
 
 // OpenTeam is a team shown in the finding directory.

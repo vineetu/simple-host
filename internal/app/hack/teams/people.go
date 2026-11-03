@@ -1,12 +1,11 @@
 package teams
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
+	"context"
 
+	model "github.com/vsriram/simple-host/internal/model"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
-
-	"context"
 )
 
 // ListPeople reads event people and the set of key holders.

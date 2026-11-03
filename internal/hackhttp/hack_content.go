@@ -5,14 +5,15 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/vsriram/simple-host/internal/app/hack/events"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/app/hack/events"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 type hackSponsor struct {

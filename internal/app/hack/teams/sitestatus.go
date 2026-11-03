@@ -3,10 +3,10 @@ package teams
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	rulesauth "github.com/vsriram/simple-host/internal/rules/auth"
-	"time"
 )
 
 // hackKeyMaxAge is how long a team key's own last use still counts as

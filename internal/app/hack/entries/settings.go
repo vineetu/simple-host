@@ -1,13 +1,11 @@
 package entries
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-
 	"context"
 
+	model "github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
 // JudgingSettings contains the optional settings to change.

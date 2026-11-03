@@ -7,11 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	entryapp "github.com/vsriram/simple-host/internal/app/hack/entries"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
-
-	"github.com/vsriram/simple-host/internal/rules/sites"
 	"log"
 	"net/http"
 	"sort"
@@ -19,8 +14,12 @@ import (
 	"strings"
 	"time"
 
+	entryapp "github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
+	"github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // paperHackTimes moved from hack_paper_metrics.go (cleanup 3.2 slice 1c):

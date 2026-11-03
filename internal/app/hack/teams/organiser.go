@@ -1,15 +1,14 @@
 package teams
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
-
 	"context"
 	"database/sql"
 	"errors"
 
+	model "github.com/vsriram/simple-host/internal/model"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 

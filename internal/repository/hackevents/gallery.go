@@ -3,11 +3,11 @@ package hackevents
 import (
 	"context"
 	"database/sql"
+
+	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/hackentries"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
-
-	"github.com/lib/pq"
 )
 
 // GalleryCard is one team on an event's public gallery. The team's site

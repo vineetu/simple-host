@@ -1,14 +1,13 @@
 package members
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 

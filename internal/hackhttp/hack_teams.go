@@ -4,14 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/app/hack/teams"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {

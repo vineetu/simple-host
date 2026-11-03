@@ -4,13 +4,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"html"
 	"io"
 	"net/http"
 	"strings"
 	"unicode"
+
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 func (h *HackHandler) hackIconLimit() int64 {

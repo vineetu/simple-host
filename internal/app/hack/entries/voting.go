@@ -1,16 +1,16 @@
 package entries
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
-	repo "github.com/vsriram/simple-host/internal/repository/hackentries"
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	"regexp"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
+	model "github.com/vsriram/simple-host/internal/model"
+	repo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
 // VotingStatus evaluates the voting window.

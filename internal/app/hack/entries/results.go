@@ -1,12 +1,11 @@
 package entries
 
 import (
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-
 	"context"
 
 	"github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 )

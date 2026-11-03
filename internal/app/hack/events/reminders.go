@@ -1,19 +1,19 @@
 package events
 
 import (
-	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
-
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"log"
 	"math"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/model"
+	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+	"github.com/vsriram/simple-host/internal/rules/hackentries"
 )
 
 // Entry deadline reminders (entries slice 3, zx-hack-entry-reminders.sql).

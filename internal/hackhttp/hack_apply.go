@@ -3,14 +3,14 @@ package hackhttp
 import (
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/app/hack/members"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"net/http"
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
+	"github.com/vsriram/simple-host/internal/app/hack/members"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Applying to a hackathon without a join link (zp-hack-applications.sql,

@@ -5,15 +5,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
-	rulesstorage "github.com/vsriram/simple-host/internal/rules/storage"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
+	rulesstorage "github.com/vsriram/simple-host/internal/rules/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
 )
 

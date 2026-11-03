@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
 	"github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 

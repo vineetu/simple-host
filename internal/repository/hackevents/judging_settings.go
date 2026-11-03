@@ -2,6 +2,7 @@ package hackevents
 
 import (
 	"context"
+
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )

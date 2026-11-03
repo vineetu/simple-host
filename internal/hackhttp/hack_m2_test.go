@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	"hash/crc32"
 	"io"
 	"net/http"
@@ -25,6 +24,7 @@ import (
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 

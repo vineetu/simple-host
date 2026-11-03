@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/sites"
 	"log"
 	"net/http"
 	"strconv"
@@ -15,7 +13,9 @@ import (
 	"github.com/vsriram/simple-host/internal/app/hack/teams"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // Team sites, member keys, per-team deadlines and the organiser's team-site

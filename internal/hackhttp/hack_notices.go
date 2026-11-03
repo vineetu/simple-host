@@ -2,12 +2,13 @@ package hackhttp
 
 import (
 	"context"
+	"net/http"
+	"time"
+
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
-	"net/http"
-	"time"
 )
 
 // Notify people when something waits on them (2026-11-02, audit item 7).

@@ -6,10 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/vsriram/simple-host/internal/app/hack/events"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
-
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
@@ -24,8 +20,11 @@ import (
 	"unicode/utf8"
 
 	entries "github.com/vsriram/simple-host/internal/app/hack/entries"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Entries: the text, links and screenshot a team submits, kept apart from

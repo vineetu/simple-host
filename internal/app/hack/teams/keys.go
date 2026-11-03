@@ -1,16 +1,16 @@
 package teams
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
-	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	"log"
+
+	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
+	model "github.com/vsriram/simple-host/internal/model"
+	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	"github.com/vsriram/simple-host/internal/repository/hackteams"
 )
 
 // MintTeamKey replaces a participant's key under the event and member locks.

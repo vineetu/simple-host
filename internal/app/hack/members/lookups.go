@@ -1,10 +1,10 @@
 package members
 
 import (
+	"context"
+
 	model "github.com/vsriram/simple-host/internal/model"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-
-	"context"
 )
 
 // MemberApprovalStatusLookup forwards the MemberApprovalStatus lookup.

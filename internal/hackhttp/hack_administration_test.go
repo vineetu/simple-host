@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/csv"
-	"github.com/vsriram/simple-host/internal/repository/hackevents"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
 func TestHackAdministrationCoOrganisers(t *testing.T) {

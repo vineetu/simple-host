@@ -1,12 +1,11 @@
 package teams
 
 import (
+	"context"
+
 	model "github.com/vsriram/simple-host/internal/model"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
-
-	"context"
-
 	"github.com/vsriram/simple-host/internal/rules/hackteams"
 )
 

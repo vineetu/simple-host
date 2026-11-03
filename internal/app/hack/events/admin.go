@@ -1,12 +1,12 @@
 package events
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-
 	"context"
-	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	"strings"
+
+	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
 // AdminListEvents lists events for the platform administrator.

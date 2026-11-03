@@ -3,10 +3,6 @@ package hackhttp
 import (
 	"context"
 	"fmt"
-	hackmodel "github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/repository/hackentries"
-	hackeventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-	hackteamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,6 +14,10 @@ import (
 
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
+	hackmodel "github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/hackentries"
+	hackeventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	hackteamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 )
 
 func runDemoReset(t *testing.T, envFile string) (string, error) {

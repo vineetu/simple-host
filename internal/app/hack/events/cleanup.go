@@ -1,18 +1,17 @@
 package events
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"log"
 	"strings"
 	"time"
+
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 )
 
 // RunEventCleanup is one pass: remove team sites whose keep window has

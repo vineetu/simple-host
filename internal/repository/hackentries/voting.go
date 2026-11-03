@@ -3,9 +3,10 @@ package hackentries
 import (
 	"context"
 	"database/sql"
+	"time"
+
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
-	"time"
 )
 
 // VotingSettings holds an event’s voting configuration.

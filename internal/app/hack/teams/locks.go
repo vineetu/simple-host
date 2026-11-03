@@ -1,14 +1,12 @@
 package teams
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-
-	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
-
 	"context"
 	"database/sql"
-
 	"sort"
+
+	model "github.com/vsriram/simple-host/internal/model"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 )
 
 // LockEventStage locks the event row FOR SHARE and returns its stage,

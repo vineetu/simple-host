@@ -3,13 +3,13 @@ package hackhttp
 import (
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // Leave this event (SIM-340). One route, self only: the server decides

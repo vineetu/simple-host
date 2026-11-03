@@ -2,8 +2,6 @@ package hackhttp
 
 import (
 	"database/sql"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +9,8 @@ import (
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // votingStatus keeps the existing handler callers on the shared voting rule.

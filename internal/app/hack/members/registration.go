@@ -1,16 +1,14 @@
 package members
 
 import (
-	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
-
-	model "github.com/vsriram/simple-host/internal/model"
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-
 	"context"
 	"database/sql"
 	"errors"
 	"strings"
 
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 	"github.com/vsriram/simple-host/internal/rules/hackteams"
 )

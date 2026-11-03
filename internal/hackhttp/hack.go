@@ -6,8 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/sites"
 	"io"
 	"io/fs"
 	"log"
@@ -25,8 +23,10 @@ import (
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
+	"github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // HackDefaultCoC is the default code of conduct shown when an organiser has

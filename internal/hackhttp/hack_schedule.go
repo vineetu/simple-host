@@ -2,11 +2,12 @@ package hackhttp
 
 import (
 	"context"
+	"sort"
+	"time"
+
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/model"
-	"sort"
-	"time"
 )
 
 // A schedule that acts (owner, 2026-11-02). The event's real times -- start

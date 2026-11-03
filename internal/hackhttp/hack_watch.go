@@ -3,10 +3,11 @@ package hackhttp
 import (
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"net/http"
 	"strings"
+
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // RegisterHackWatch is mounted only by the hosted-events homepage. Takes

@@ -3,11 +3,12 @@ package hackhttp
 import (
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/app/hack/events"
-	"github.com/vsriram/simple-host/internal/httpx"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/app/hack/events"
+	"github.com/vsriram/simple-host/internal/httpx"
 )
 
 // PublicEventJSON is a credentialless, read-only feed for an event's custom

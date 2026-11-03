@@ -3,11 +3,12 @@ package db
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/internal/repository/hackevents"
-	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
+	"github.com/vsriram/simple-host/internal/repository/hackteams"
 )
 
 // Account deletion and export (GDPR self-service, 2026-09-27).

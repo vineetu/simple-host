@@ -2,12 +2,12 @@ package hackhttp
 
 import (
 	"errors"
-	"github.com/vsriram/simple-host/internal/httpx"
 	"net/http"
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/app/hack/teams"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
 )
 
 // getTeamLink is the public GET /v1/hack/team-links/{code}: a team link or

@@ -6,16 +6,16 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	entryapp "github.com/vsriram/simple-host/internal/app/hack/entries"
-	"github.com/vsriram/simple-host/internal/app/hack/events"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
-
-	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	entryapp "github.com/vsriram/simple-host/internal/app/hack/entries"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 func (h *HackHandler) registerAdministration(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {

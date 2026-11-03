@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
+	"net/http"
+
 	entries "github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
-
-	"log"
-	"net/http"
 )
 
 // Entry rules, slice 1 of the entries and participant journey package

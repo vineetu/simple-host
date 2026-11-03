@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
 // Notices: "notify people when something waits on them" (2026-11-02, audit

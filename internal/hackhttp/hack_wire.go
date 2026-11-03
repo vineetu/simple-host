@@ -6,9 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"github.com/vsriram/simple-host/internal/app/hack/entries"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"log"
 	"net/http"
 	"net/url"
@@ -17,8 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // hackGallerySlug is one label: lowercase letters, digits and hyphens, not

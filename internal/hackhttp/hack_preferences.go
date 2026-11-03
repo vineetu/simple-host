@@ -1,12 +1,12 @@
 package hackhttp
 
 import (
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"net/http"
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 func (h *HackHandler) registerHackPreferences(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {

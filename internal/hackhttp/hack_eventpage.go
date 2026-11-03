@@ -6,8 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/model"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -17,6 +15,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // hackEventPage is the public event page at <event>.simple-hack.app/. The

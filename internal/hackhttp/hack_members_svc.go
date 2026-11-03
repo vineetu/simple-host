@@ -2,11 +2,12 @@ package hackhttp
 
 import (
 	"context"
+	"net/http"
+
 	"github.com/vsriram/simple-host/internal/app/hack/members"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
-	"net/http"
 )
 
 func (h *HackHandler) membersSvc() *members.Service {

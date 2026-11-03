@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/vsriram/simple-host/internal/repository/hackevents"
 	"strings"
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
 var ErrNotificationCap = errors.New("too many notifications")

@@ -1,11 +1,10 @@
 package events
 
 import (
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-
 	"context"
 
 	"github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 

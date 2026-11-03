@@ -5,13 +5,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/repository/hackevents"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
 // shotShown is the PNG a gallery team stores. shotHidden is a different image

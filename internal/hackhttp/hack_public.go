@@ -3,12 +3,12 @@ package hackhttp
 import (
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/app/hack/events"
-	"github.com/vsriram/simple-host/internal/httpx"
 	"net/http"
 	"strings"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
 )
 
 // RegisterHackPublic serves the trusted, stable built-in event page on the

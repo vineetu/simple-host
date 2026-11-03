@@ -1,17 +1,16 @@
 package events
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
-	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
-
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-
-	"github.com/vsriram/simple-host/internal/repository/hackevents"
 	"log"
+
+	model "github.com/vsriram/simple-host/internal/model"
+	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
+	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
 // PutContent stores the content after locking and checking the event.

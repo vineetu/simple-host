@@ -1,19 +1,19 @@
 package events
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
-
 	"context"
 	"database/sql"
 	"errors"
+	"time"
+
 	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
+	model "github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
-	"time"
 )
 
 func unique(err error) bool { return hackevents.UniqueError(err) }

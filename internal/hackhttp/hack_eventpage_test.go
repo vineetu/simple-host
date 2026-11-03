@@ -3,9 +3,6 @@ package hackhttp
 import (
 	"bytes"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/app/hack/entries"
-	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/handler"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -15,6 +12,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/app/hack/entries"
+	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/internal/handler"
 )
 
 func testHackEvent() hackEventPage {

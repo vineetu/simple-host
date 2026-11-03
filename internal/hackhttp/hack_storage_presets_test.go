@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	hackteamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"io"
 	"net/http"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
+	hackteamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 )
 
 // hackSession signs uid in on host (bound to siteID) and returns a request

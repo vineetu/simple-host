@@ -2,10 +2,11 @@ package hackhttp
 
 import (
 	"database/sql"
+	"net/http"
+
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
-	"net/http"
 )
 
 func nullableString(v sql.NullString) any {

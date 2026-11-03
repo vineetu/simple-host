@@ -1,16 +1,14 @@
 package events
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-
 	"context"
 	"database/sql"
 	"errors"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 

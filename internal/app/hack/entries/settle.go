@@ -1,10 +1,6 @@
 package entries
 
 import (
-	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
-
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-
 	"context"
 	"database/sql"
 	"errors"
@@ -12,6 +8,8 @@ import (
 	"time"
 
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/hackentries"
 )
 

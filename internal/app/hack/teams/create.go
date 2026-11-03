@@ -1,18 +1,16 @@
 package teams
 
 import (
-	model "github.com/vsriram/simple-host/internal/model"
-
-	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
-
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
+	model "github.com/vsriram/simple-host/internal/model"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 	"github.com/vsriram/simple-host/internal/rules/hackteams"
 	"github.com/vsriram/simple-host/internal/rules/sites"
-	"strings"
 )
 
 // CreateTeam creates a team and joins its creator atomically.

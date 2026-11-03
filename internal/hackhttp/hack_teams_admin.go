@@ -3,13 +3,13 @@ package hackhttp
 import (
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/app/hack/teams"
+	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // Team admins (owner 2026-10-31): the creator is admin; admins approve or
