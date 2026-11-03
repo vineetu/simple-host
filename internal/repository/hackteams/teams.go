@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-// Querier aliases the shared model record.
+// Querier aliases the shared SQL interface.
 type Querier = sqlkit.Querier
 
 // EventTeam aliases the shared model record.
@@ -53,20 +53,18 @@ var teamForUpdate = `
 	SELECT ` + teamColumns + `
 	  FROM event_teams WHERE id = $1 FOR UPDATE`
 
-// teamCodeAlphabet and teamCodeLen mirror handler/hack.go's hackCodeAlphabet
-// and hackTeamCodeLen exactly. internal/db cannot import internal/handler
-// (which already imports internal/db), so EraseAccount's rotation below --
-// the one place below the handler layer that mints a new team code --
-// duplicates them rather than share a constant.
+// teamCodeAlphabet and teamCodeLen mirror the alphabet in
+// internal/rules/hackevents/codes.go and team length in internal/hackhttp/hack.go.
+// Account erasure's rotation keeps these constants here.
 const (
 	teamCodeAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"
 	teamCodeLen      = 8
 )
 
-const effectiveDeadlineSQL = `CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END`
+const effectiveDeadlineSQL = hackevents.EffectiveDeadlineSQL
 
 // TeamKeepableSQL is the predicate for deleting an empty team.
-const TeamKeepableSQL = `t.pinned_at IS NULL AND (` + effectiveDeadlineSQL + ` IS NULL OR ` + effectiveDeadlineSQL + ` > clock_timestamp())`
+const TeamKeepableSQL = hackevents.TeamKeepableSQL
 
 func queryContext(ctx context.Context, q Querier, query string, args ...any) (*sql.Rows, error) {
 	switch t := q.(type) {
@@ -83,10 +81,13 @@ func scanMember(row *sql.Row) (EventMember, error) {
 	err := row.Scan(&m.EventID, &m.UserID, &m.Role, &m.DisplayName, &m.TeamID, &m.CocAcceptedAt, &m.JoinedAt)
 	return m, err
 }
+
+// isUniqueViolation detects a Postgres unique-constraint violation (SQLSTATE 23505).
 func isUniqueViolation(err error) bool {
 	if err == nil {
 		return false
 	}
+	// lib/pq and pgx both surface the SQLSTATE in the error text as "23505".
 	msg := err.Error()
 	return strings.Contains(msg, "23505") || strings.Contains(strings.ToLower(msg), "unique")
 }
@@ -245,7 +246,6 @@ func LockTeamBySlug(ctx context.Context, q Querier, eventID, slug string) (Event
 // fresh creator afterwards (CreateTeamAndJoin). Leaving clears both, so a
 // returning member's tenure and admin status never carry over from an
 // earlier stint on the same team.
-// SetMemberTeam exposes the team operation for transitional callers.
 func SetMemberTeam(ctx context.Context, q Querier, eventID, userID string, teamID sql.NullString) error {
 	var err error
 	if teamID.Valid {
@@ -317,9 +317,8 @@ func randomTeamCode() (string, error) {
 
 // RotateTeamCodeTx gives teamID a new code, retrying under a savepoint on a
 // collision (same pattern as claimHandleIn) so it never aborts the larger
-// transaction account erasure runs in. Mirrors handler/hack.go's
-// rotateTeamCode, which EraseAccount cannot call (layering).
-// RotateTeamCodeTx exposes the team operation for transitional callers.
+// transaction account erasure runs in. Mirrors the rotation helper in
+// internal/app/hack/teams/organiser.go, which the repository cannot import.
 func RotateTeamCodeTx(ctx context.Context, tx *sql.Tx, teamID string) error {
 	for attempt := 0; attempt < 8; attempt++ {
 		code, err := randomTeamCode()

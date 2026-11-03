@@ -108,9 +108,13 @@ var (
 func leaveOperations() hackevents.LeaveOperations {
 	return hackevents.LeaveOperations{LockMember: lockMember, LockTeam: lockTeam, DeleteTeamIfEmpty: deleteTeamIfEmpty, EnsureTeamAdmin: EnsureTeamAdmin}
 }
+
+// LeaveMembership forwards to hackevents.LeaveMembership.
 func LeaveMembership(ctx context.Context, q Querier, eventID, userID string, selfLeave bool) (string, error) {
 	return hackevents.LeaveMembership(ctx, q, eventID, userID, selfLeave, leaveOperations())
 }
+
+// RemoveCoOrganiser forwards to hackevents.RemoveCoOrganiser.
 func RemoveCoOrganiser(ctx context.Context, q *sql.Tx, eventID, actorID, userID string) error {
 	return hackevents.RemoveCoOrganiser(ctx, q, eventID, actorID, userID, leaveOperations())
 }
@@ -123,6 +127,7 @@ type FormerJudge = model.FormerJudge
 
 var UserEmail = hackevents.UserEmail
 
+// RemovePersonFromEvent forwards to hackevents.RemovePersonFromEvent.
 func RemovePersonFromEvent(ctx context.Context, q Querier, eventID, userID string) error {
 	return hackevents.RemovePersonFromEvent(ctx, q, eventID, userID, leaveOperations())
 }

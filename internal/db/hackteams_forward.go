@@ -45,15 +45,22 @@ var (
 	findingEvent                 = hackteams.FindingEvent
 )
 
+// JoinTeamByCode forwards to hackteams.JoinTeamByCode.
 func JoinTeamByCode(ctx context.Context, q Querier, eventID, userID, code string, sizeMax int) (EventTeam, error) {
 	return hackteams.JoinTeamByCode(ctx, q, eventID, userID, code, sizeMax, EnsureTeamAdmin)
 }
+
+// LeaveTeam forwards to hackteams.LeaveTeam.
 func LeaveTeam(ctx context.Context, q Querier, eventID, userID string) error {
 	return hackteams.LeaveTeam(ctx, q, eventID, userID, EnsureTeamAdmin)
 }
+
+// MoveParticipantToTeam forwards to hackteams.MoveParticipantToTeam.
 func MoveParticipantToTeam(ctx context.Context, q Querier, eventID, userID, slug string, sizeMax int) (EventTeam, error) {
 	return hackteams.MoveParticipantToTeam(ctx, q, eventID, userID, slug, sizeMax, EnsureTeamAdmin)
 }
+
+// RemoveParticipantFromTeam forwards to hackteams.RemoveParticipantFromTeam.
 func RemoveParticipantFromTeam(ctx context.Context, q Querier, eventID, slug, userID string) error {
 	return hackteams.RemoveParticipantFromTeam(ctx, q, eventID, slug, userID, EnsureTeamAdmin)
 }

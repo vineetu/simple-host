@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Event is one row of events.
+// Event is one row of events (db/migrations/hack1-events.sql).
 type Event struct {
 	ID                   string
 	Slug                 string
@@ -66,7 +66,7 @@ type Event struct {
 	DirectoryListed bool
 	// zv-hack-entry-summary.sql: the entry rules engine. EntryRules is
 	// {"v":1,"fields":{field: mode}}, validated and expanded server-side
-	// (internal/handler/hack_entry_rules.go) -- never stored as the client
+	// (internal/rules/hackentries/entries.go) -- never stored as the client
 	// sent it. JudgeFirst is which evidence judges see first.
 	EntryPreset string
 	EntryRules  []byte
@@ -106,7 +106,7 @@ type EventTeam struct {
 	LockedBy sql.NullString
 }
 
-// AdminEvent is an event with its administration counts.
+// AdminEvent is one row of GET /v1/admin/hack/events.
 type AdminEvent struct {
 	Event
 	CreatorEmail string

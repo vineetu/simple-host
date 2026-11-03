@@ -229,7 +229,7 @@ func InsertEvent(ctx context.Context, q sqlkit.Querier, e Event) (Event, error) 
 	// entry_preset/entry_rules: new events start on the AI-build preset (the
 	// create handler passes its expanded rules JSON; zv-hack-entry-summary.sql
 	// section 2 -- a Go table, not a DB default, so the preset's field list
-	// lives in one place, internal/handler/hack_entry_rules.go).
+	// lives in one place, internal/rules/hackentries/entries.go).
 	row := q.QueryRowContext(ctx, `
 		INSERT INTO events (
 			id, slug, account_id, created_by, title, stage,
@@ -512,10 +512,13 @@ func ListParticipantsOnNoTeam(ctx context.Context, q sqlkit.Querier, eventID str
 	}
 	return out, rows.Err()
 }
+
+// isUniqueViolation detects a Postgres unique-constraint violation (SQLSTATE 23505).
 func isUniqueViolation(err error) bool {
 	if err == nil {
 		return false
 	}
+	// lib/pq and pgx both surface the SQLSTATE in the error text as "23505".
 	msg := err.Error()
 	return strings.Contains(msg, "23505") || strings.Contains(strings.ToLower(msg), "unique")
 }

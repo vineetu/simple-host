@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
 func queryContext(ctx context.Context, q Querier, query string, args ...any) (*sql.Rows, error) {
@@ -57,7 +58,7 @@ func nullStr(s sql.NullString) any {
 // TeamKeepableSQL over event_teams t and events e: a team that may be
 // removed when it empties — its deadline has not passed and nothing is
 // pinned. A team past its deadline keeps its submission for judging.
-const TeamKeepableSQL = `t.pinned_at IS NULL AND (` + EffectiveDeadlineSQL + ` IS NULL OR ` + EffectiveDeadlineSQL + ` > clock_timestamp())`
+const TeamKeepableSQL = hackevents.TeamKeepableSQL
 
 // AccountKeyCount is how many API keys the account holds (holding accounts must be 0).
 func AccountKeyCount(ctx context.Context, q Querier, userID string) (int, error) {

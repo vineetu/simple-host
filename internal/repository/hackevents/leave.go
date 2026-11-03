@@ -24,10 +24,11 @@ type LeaveOperations struct {
 	EnsureTeamAdmin   func(context.Context, sqlkit.Querier, string) error
 }
 
-const effectiveDeadlineSQL = `CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END`
+// EffectiveDeadlineSQL is the team deadline expression over events e and event_teams t.
+const EffectiveDeadlineSQL = `CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END`
 
 // TeamKeepableSQL is the predicate for deleting an empty team.
-const TeamKeepableSQL = `t.pinned_at IS NULL AND (` + effectiveDeadlineSQL + ` IS NULL OR ` + effectiveDeadlineSQL + ` > clock_timestamp())`
+const TeamKeepableSQL = `t.pinned_at IS NULL AND (` + EffectiveDeadlineSQL + ` IS NULL OR ` + EffectiveDeadlineSQL + ` > clock_timestamp())`
 
 // LeaveSelf loads one membership row plus its approval status, for
 // GET/POST .../leave (hack_leave.go): every field the case logic there
