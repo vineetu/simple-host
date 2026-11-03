@@ -1,13 +1,13 @@
 package hackhttp
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/rules/sites"
 	"net/http"
 
+	"github.com/vsriram/simple-host/internal/app/hack/teams"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
@@ -67,147 +67,27 @@ func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, 200, out)
 		return
 	}
-	ctx := r.Context()
-	teams := []any{}
-	solo := []any{}
-	pending := []any{}
-	// Solo participants see open rosters; team members see opted-in solo people.
-	// A frozen team (Codex review, SIM-340, P2: TeamWriteState.Frozen's own
-	// condition, the one NewTeamRequest/JoinTeamByCode actually enforce) is
-	// excluded here too -- otherwise a team whose deadline passed, or whose
-	// last member just left past it, still advertises as open, inviting a
-	// request that can only 409 submissions_closed with nobody left to see it.
-	if !a.member.TeamID.Valid || a.member.Role == "organiser" {
-		// "Who can join" is gone (decision 5): every unlocked team is
-		// askable, the former code-only teams simply join this list.
-		rows, err := h.database.QueryContext(ctx, `SELECT t.id,t.slug,t.name,t.looking_for,
- COALESCE(x.id::text,''),COALESCE(x.slug,''),COALESCE(x.name,''),COALESCE(x.challenge,''),COALESCE(x.prize,'')
- FROM event_teams t JOIN events e ON e.id=t.event_id LEFT JOIN event_tracks x ON x.id=t.track_id
- WHERE t.event_id=$1 AND t.locked_at IS NULL
-   AND e.stage NOT IN ('judging','results','archived')
-   AND NOT COALESCE(`+db.EffectiveDeadlineSQL+` <= clock_timestamp(), false)
- ORDER BY t.created_at`, a.event.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		byID := map[string]map[string]any{}
-		for rows.Next() {
-			var id, slug, name, note string
-			var track db.EventTrack
-			if err = rows.Scan(&id, &slug, &name, &note, &track.ID, &track.Slug, &track.Name, &track.Challenge, &track.Prize); err != nil {
-				rows.Close()
-				httpx.WriteInternal(w)
-				return
-			}
-			var tr *db.EventTrack
-			if track.ID != "" {
-				tr = &track
-			}
-			t := map[string]any{"slug": slug, "name": name, "members": []string{}, "member_count": 0, "team_size_max": a.event.TeamSizeMax, "full": false, "track": tr, "looking_for": note}
-			teams = append(teams, t)
-			byID[id] = t
-		}
-		err = rows.Err()
-		rows.Close()
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		rows, err = h.database.QueryContext(ctx, `SELECT m.team_id,m.display_name FROM event_members m JOIN event_teams t ON t.id=m.team_id WHERE t.event_id=$1 AND t.locked_at IS NULL AND m.approval_status='approved' ORDER BY m.joined_at,m.user_id`, a.event.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		for rows.Next() {
-			var id, name string
-			if err = rows.Scan(&id, &name); err != nil {
-				rows.Close()
-				httpx.WriteInternal(w)
-				return
-			}
-			if t, ok := byID[id]; ok {
-				names := append(t["members"].([]string), name)
-				t["members"] = names
-				t["member_count"] = len(names)
-			}
-		}
-		err = rows.Err()
-		rows.Close()
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		for _, t := range byID {
-			t["full"] = t["member_count"].(int) >= a.event.TeamSizeMax
-		}
-	}
-	if a.member.TeamID.Valid || a.member.Role == "organiser" {
-		rows, err := h.database.QueryContext(ctx, `SELECT user_id,display_name,looking_intro FROM event_members WHERE event_id=$1 AND role='participant' AND approval_status='approved' AND team_id IS NULL AND looking ORDER BY joined_at,user_id`, a.event.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		for rows.Next() {
-			var id, name, intro string
-			if err = rows.Scan(&id, &name, &intro); err != nil {
-				rows.Close()
-				httpx.WriteInternal(w)
-				return
-			}
-			solo = append(solo, map[string]any{"user_id": id, "display_name": name, "intro": intro})
-		}
-		err = rows.Err()
-		rows.Close()
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-	}
-	rows, err := h.database.QueryContext(ctx, `SELECT r.id,r.team_id,t.slug,t.name,r.user_id,m.display_name,r.kind,r.created_at FROM event_team_requests r JOIN event_teams t ON t.id=r.team_id JOIN event_members m ON m.event_id=r.event_id AND m.user_id=r.user_id WHERE r.event_id=$1 AND (r.user_id=$2 OR r.team_id=$3 OR $4) ORDER BY r.created_at`, a.event.ID, a.user.ID, a.member.TeamID, a.member.Role == "organiser")
+	directory, err := h.teamsSvc().ListOpenTeams(r.Context(), a.event.ID, a.user.ID, a.member)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	for rows.Next() {
-		var p db.TeamRequest
-		if err = rows.Scan(&p.ID, &p.TeamID, &p.Team, &p.TeamName, &p.UserID, &p.DisplayName, &p.Kind, &p.CreatedAt); err != nil {
-			rows.Close()
-			httpx.WriteInternal(w)
-			return
-		}
+	teams := []any{}
+	for _, t := range directory.Teams {
+		teams = append(teams, map[string]any{"slug": t.Slug, "name": t.Name, "members": t.Members, "member_count": len(t.Members), "team_size_max": a.event.TeamSizeMax, "full": len(t.Members) >= a.event.TeamSizeMax, "track": t.Track, "looking_for": t.LookingFor})
+	}
+	solo := []any{}
+	for _, p := range directory.Solo {
+		solo = append(solo, map[string]any{"user_id": p.UserID, "display_name": p.DisplayName, "intro": p.Intro})
+	}
+	pending := []any{}
+	for _, p := range directory.Pending {
 		pending = append(pending, p)
 	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	var looking bool
-	var intro string
-	if err = h.database.QueryRowContext(ctx, `SELECT looking,looking_intro FROM event_members WHERE event_id=$1 AND user_id=$2`, a.event.ID, a.user.ID).Scan(&looking, &intro); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	out["looking"] = looking
-	out["intro"] = intro
-	out["teams"] = teams
-	out["solo"] = solo
-	out["pending"] = pending
-	if a.member.TeamID.Valid {
-		var locked bool
-		var note string
-		var admin bool
-		if err = h.database.QueryRowContext(ctx, `
-			SELECT t.locked_at IS NOT NULL, t.looking_for, m.team_admin
-			  FROM event_teams t JOIN event_members m ON m.team_id = t.id
-			 WHERE t.id = $1 AND m.event_id = $2 AND m.user_id = $3`,
-			a.member.TeamID, a.event.ID, a.user.ID).Scan(&locked, &note, &admin); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteInternal(w)
-			return
-		}
-		out["team"] = map[string]any{"looking_for": note, "locked": locked, "admin": admin}
+	out["teams"], out["solo"], out["pending"] = teams, solo, pending
+	out["looking"], out["intro"] = directory.Looking, directory.Intro
+	if t := directory.Team; t != nil {
+		out["team"] = map[string]any{"looking_for": t.LookingFor, "locked": t.Locked, "admin": t.Admin}
 	}
 	httpx.WriteJSON(w, 200, out)
 }
@@ -235,44 +115,9 @@ func (h *HackHandler) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	if err = db.LockFindingEvent(r.Context(), tx, a.event.ID); err == nil {
-		// Membership is rechecked while locked, before editing the team.
-		var team string
-		var admin bool
-		err = tx.QueryRowContext(r.Context(), `SELECT team_id, team_admin FROM event_members WHERE event_id=$1 AND user_id=$2 AND approval_status='approved' FOR UPDATE`, a.event.ID, a.user.ID).Scan(&team, &admin)
-		if err == nil && !admin {
-			err = db.ErrHackTeamAdminOnly
-		}
-		// Same team-row lock and frozen-team check as patchTeam (Grok
-		// security review, 2026-11-01): this deprecated alias writes the
-		// same column and deserves the same guard, not a looser one just
-		// because it predates patchTeam.
-		if err == nil {
-			_, err = tx.ExecContext(r.Context(), `SELECT 1 FROM event_teams WHERE id=$1 FOR UPDATE`, team)
-		}
-		if err == nil {
-			if st, serr := db.TeamWriteStateFor(r.Context(), tx, team, false); serr != nil {
-				err = serr
-			} else if st.Frozen() {
-				err = db.ErrHackTeamFrozen
-			}
-		}
-		if err == nil {
-			_, err = tx.ExecContext(r.Context(), `UPDATE event_teams SET looking_for=$2 WHERE id=$1`, team, note)
-		}
-	}
+	err := h.teamsSvc().SetTeamFinding(r.Context(), a.event.ID, a.user.ID, note)
 	if err != nil {
 		findingError(w, err)
-		return
-	}
-	if err = tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"ok": true, "deprecated": "use PATCH /v1/hack/events/{slug}/team"})
@@ -297,28 +142,9 @@ func (h *HackHandler) setLooking(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	if err = db.LockFindingEvent(r.Context(), tx, a.event.ID); err == nil {
-		var res sql.Result
-		res, err = tx.ExecContext(r.Context(), `UPDATE event_members SET looking=$3,looking_intro=$4 WHERE event_id=$1 AND user_id=$2 AND role='participant' AND approval_status='approved' AND team_id IS NULL`, a.event.ID, a.user.ID, req.Looking, intro)
-		if err == nil {
-			n, _ := res.RowsAffected()
-			if n == 0 {
-				err = db.ErrHackFindingForbidden
-			}
-		}
-	}
+	err := h.teamsSvc().SetLooking(r.Context(), a.event.ID, a.user.ID, req.Looking, intro)
 	if err != nil {
 		findingError(w, err)
-		return
-	}
-	if err = tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"ok": true})
@@ -344,32 +170,16 @@ func (h *HackHandler) createTeamRequest(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		userID = req.UserID
-		t, err := db.GetEventTeamByID(r.Context(), h.database, a.member.TeamID.String)
+		t, err := h.teamsSvc().GetTeam(r.Context(), a.member.TeamID.String)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
 		}
 		team = t.Slug
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	state := ""
-	if err = db.LockFindingEvent(r.Context(), tx, a.event.ID); err == nil {
-		state, err = db.NewTeamRequest(r.Context(), tx, a.event, a.user.ID, team, userID, kind)
-	}
-	if err == nil {
-		err = h.noticeTeamRequest(r.Context(), tx, a.event.ID, team, userID, kind, state)
-	}
+	state, err := h.teamsSvc().CreateTeamRequest(r.Context(), a.event, a.user.ID, team, userID, kind)
 	if err != nil {
 		findingError(w, err)
-		return
-	}
-	if err = tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
 		return
 	}
 	status := 200
@@ -396,36 +206,9 @@ func (h *HackHandler) resolveTeamRequest(w http.ResponseWriter, r *http.Request)
 		writeEventNotFound(w)
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	var answered struct{ teamID, userID, kind string }
-	if err = db.LockFindingEvent(r.Context(), tx, a.event.ID); err == nil {
-		// Read before it is resolved: resolving deletes the row.
-		err = tx.QueryRowContext(r.Context(), `SELECT team_id, user_id, kind FROM event_team_requests WHERE event_id = $1 AND id = $2`,
-			a.event.ID, id).Scan(&answered.teamID, &answered.userID, &answered.kind)
-		if err == nil {
-			err = db.ResolveTeamRequest(r.Context(), tx, a.event, a.user.ID, id, action)
-		}
-	}
-	// A team's admin answered someone's request to join: tell that person.
-	// An invite's answer and a withdrawal are the actor's own news.
-	if err == nil && answered.kind == "request" && action != "withdraw" {
-		detail := "declined"
-		if action == "accept" {
-			detail = "accepted"
-		}
-		err = db.NotifyUsers(r.Context(), tx, a.event.ID, db.NoticeRequestAnswered, answered.teamID, "", detail, answered.userID)
-	}
+	err := h.teamsSvc().ResolveTeamRequest(r.Context(), a.event, a.user.ID, id, action)
 	if err != nil {
 		findingError(w, err)
-		return
-	}
-	if err = tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"ok": true})
@@ -447,108 +230,22 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	ctx := r.Context()
-	tx, err := h.database.BeginTx(ctx, nil)
+	plan, skipped, size, err := h.teamsSvc().FillTeams(r.Context(), a.event.ID, a.user.ID, req.Size, req.Apply)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	// Lock all prospective members before teams, matching ordinary joining.
-	// Fill teams no longer needs team finding on (decision 10): only the
-	// stage check, rechecked here under the event row's lock.
-	ev, err := db.GetEventForUpdate(ctx, tx, a.event.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if !participantTeamStages(ev.Stage) {
-		httpx.WriteError(w, 409, "teams_locked", "teams cannot be changed at this stage")
-		return
-	}
-	// Target size (decision 13): default min(4, team_size_max), so a plain
-	// cap of 20 doesn't make one 20-person team of strangers.
-	size := 4
-	if ev.TeamSizeMax < size {
-		size = ev.TeamSizeMax
-	}
-	if req.Size != nil {
-		size = *req.Size
-	}
-	if size < 1 || size > ev.TeamSizeMax {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_team_size", "size must be between 1 and the event's team size")
-		return
-	}
-	if _, err = tx.ExecContext(ctx, `SELECT 1 FROM event_members WHERE event_id=$1 ORDER BY user_id FOR UPDATE`, ev.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if _, err = tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE event_id=$1 ORDER BY id FOR UPDATE`, ev.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	plan, skipped, err := db.PlanFillTeams(ctx, tx, ev, size)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if req.Apply {
-		for _, p := range plan {
-			if p.New {
-				code, e := hackevents.RandomCode(hackTeamCodeLen)
-				if e != nil {
-					httpx.WriteInternal(w)
-					return
-				}
-				if _, err = db.InsertEventTeam(ctx, tx, ev.ID, p.Team, p.Name, code, a.user.ID); err != nil {
-					httpx.WriteInternal(w)
-					return
-				}
-				// event_teams.open is no longer written (deprecated 2026-10-31).
-				if err = db.RecordUsedTeamName(ctx, tx, ev.Slug, p.Team); err != nil {
-					httpx.WriteInternal(w)
-					return
-				}
+		var teamErr *teams.Error
+		if errors.As(err, &teamErr) {
+			switch teamErr.Code {
+			case "teams_locked":
+				httpx.WriteError(w, 409, "teams_locked", "teams cannot be changed at this stage")
+			case "invalid_team_size":
+				httpx.WriteError(w, http.StatusBadRequest, "invalid_team_size", "size must be between 1 and the event's team size")
+			default:
+				httpx.WriteInternal(w)
 			}
-			for _, m := range p.Members {
-				// MoveParticipantToTeam runs EnsureTeamAdmin on the
-				// destination itself, so a new team's first person placed
-				// becomes its admin without any extra call here.
-				if _, err = db.MoveParticipantToTeam(ctx, tx, ev.ID, m.UserID, p.Team, ev.TeamSizeMax); err != nil {
-					findingError(w, err)
-					return
-				}
-			}
+		} else {
+			findingError(w, err)
 		}
-	}
-	if err = tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"plan": plan, "applied": req.Apply, "skipped": skipped, "size": size})
-}
-
-// noticeTeamRequest queues the notice for a new request or invite, inside
-// the transaction that made it and after its event, member and team locks: a
-// request reaches the team's admins, an invite the invited person. When the
-// call instead completed an earlier offer ("joined"), a teammate's invite
-// answered someone's waiting request, so that person hears they're in.
-func (h *HackHandler) noticeTeamRequest(ctx context.Context, tx *sql.Tx, eventID, teamSlug, userID, kind, state string) error {
-	if state != "created" && !(state == "joined" && kind == "invite") {
-		return nil
-	}
-	var teamID, requestID string
-	if err := tx.QueryRowContext(ctx, `SELECT id FROM event_teams WHERE event_id = $1 AND slug = $2`, eventID, teamSlug).Scan(&teamID); err != nil {
-		return err
-	}
-	if state == "joined" {
-		return db.NotifyUsers(ctx, tx, eventID, db.NoticeRequestAnswered, teamID, "", "accepted", userID)
-	}
-	if err := tx.QueryRowContext(ctx, `SELECT id FROM event_team_requests WHERE team_id = $1 AND user_id = $2`, teamID, userID).Scan(&requestID); err != nil {
-		return err
-	}
-	if kind == "request" {
-		return db.NotifyTeamAdmins(ctx, tx, eventID, teamID, db.NoticeJoinRequest, requestID, "")
-	}
-	return db.NotifyUsers(ctx, tx, eventID, db.NoticeInvite, teamID, requestID, "", userID)
 }
