@@ -75,7 +75,7 @@ func TestArchiveOverridesEnforced(t *testing.T) {
 	olive, oscar := a.newPerson(t, "olive"), a.newPerson(t, "oscar")
 	oliveID, oliveHandle := a.userID(t, olive)
 	withSiteLimit(t, 1)
-	withLimits(t, map[string]string{"MAX_ARCHIVE_MB_OVERRIDES": oliveHandle + ":3"})
+	setAppLimits(a, withLimits(t, map[string]string{"MAX_ARCHIVE_MB_OVERRIDES": oliveHandle + ":3"}))
 
 	const mb = 1 << 20
 	key := func(p person) map[string]string { return map[string]string{"X-API-Key": p.key} }
@@ -159,7 +159,7 @@ func TestArchiveOverridesEnforced(t *testing.T) {
 	}
 
 	// The connector's message cap is the largest any account has.
-	if got := largestSiteLimit(); got != 3*mb {
+	if got := a.sites.largestSiteLimit(); got != 3*mb {
 		t.Errorf("largestSiteLimit = %d, want %d", got, 3*mb)
 	}
 
@@ -182,7 +182,7 @@ func TestArchiveOverridesEnforced(t *testing.T) {
 
 	// Lowered below a live site: the site stays up, its versions stay, and
 	// only a new upload over the new limit is refused.
-	ApplyLimits(config.DefaultLimits())
+	setAppLimits(a, config.DefaultLimits())
 	if got := me(olive); got != float64(1) {
 		t.Fatalf("olive max_site_mb without the override = %v, want 1", got)
 	}
@@ -246,7 +246,7 @@ func TestArchiveNoOverrideKeepsInstanceUnpackCaps(t *testing.T) {
 	old := maxSiteArchiveSize
 	maxSiteArchiveSize = 1 << 20 // the body cap alone, as if SetSiteLimit never ran
 	t.Cleanup(func() { restore(); maxSiteArchiveSize = old })
-	withLimits(t, map[string]string{"MAX_ARCHIVE_MB_OVERRIDES": oliveHandle + ":1"})
+	setAppLimits(a, withLimits(t, map[string]string{"MAX_ARCHIVE_MB_OVERRIDES": oliveHandle + ":1"}))
 
 	body := tarGzOf(t, 3<<20/2) // a few KB compressed, 1.5 MB unpacked
 	r := a.at(t, "POST", "simple-host.test", "/v1/sites/wide", body, map[string]string{"X-API-Key": oscar.key})

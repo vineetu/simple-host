@@ -10,9 +10,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // A deploy-only key creates, updates, rolls back and lists sites and makes
@@ -198,7 +200,7 @@ func TestKeyExpiry(t *testing.T) {
 		}
 	}
 
-	withLimits(t, map[string]string{"KEY_IDLE_EXPIRY_DAYS": "0"})
+	setConnectorAppLimits(a, withLimits(t, map[string]string{"KEY_IDLE_EXPIRY_DAYS": "0"}))
 	if r := me(idle); r.status != http.StatusOK {
 		t.Errorf("idle expiry off: %d %s", r.status, r.body)
 	}
@@ -282,7 +284,7 @@ func TestSiteTopAnalytics(t *testing.T) {
 // only). Needs DB_DSN.
 func TestDeployKeyNeverAdmin(t *testing.T) {
 	a := newConnectorApp(t)
-	withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "1"})
+	setConnectorAppLimits(a, withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "1"}))
 	boss := a.newPerson(t, "adminci")
 	other := a.newPerson(t, "bystander")
 	if _, err := a.database.Exec(`UPDATE users SET is_admin = true WHERE id = (SELECT user_id FROM api_keys WHERE key_hash = $1)`, db.HashAPIKey(boss.key)); err != nil {
@@ -390,7 +392,7 @@ func TestPutCreateRace(t *testing.T) {
 // deleted 30 days after they stopped. Needs DB_DSN.
 func TestExpiredKeysFreeTheCapAndArePurged(t *testing.T) {
 	a := newConnectorApp(t)
-	withLimits(t, map[string]string{"MAX_KEYS_PER_ACCOUNT": "3"})
+	setConnectorAppLimits(a, withLimits(t, map[string]string{"MAX_KEYS_PER_ACCOUNT": "3"}))
 	p := a.newPerson(t, "keycap")
 	h := map[string]string{"X-API-Key": p.key, "Content-Type": "application/json"}
 	var ids []string
@@ -422,7 +424,7 @@ func TestExpiredKeysFreeTheCapAndArePurged(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE api_keys SET expires_at = now() - interval '1 day' WHERE id = $1`, recent); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.PurgeExpiredAPIKeys(context.Background(), a.database); err != nil {
+	if _, err := db.PurgeExpiredAPIKeys(context.Background(), a.database, 180*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	left := map[string]bool{}
@@ -468,8 +470,8 @@ func TestKeysPanelIdleCopyFollowsSetting(t *testing.T) {
 		"90": "A key unused for 90 days stops working.",
 		"0":  "Unused keys keep working until revoked.",
 	} {
-		withLimits(t, map[string]string{"KEY_IDLE_EXPIRY_DAYS": v})
-		page, err := chromePage("showcase.html", chromeData{})
+		l := withLimits(t, map[string]string{"KEY_IDLE_EXPIRY_DAYS": v})
+		page, err := chromeTestHandler(edition.ForKindWithLimits(edition.Host, l)).pipeline().chromePage("showcase.html", chromeData{})
 		if err != nil {
 			t.Fatal(err)
 		}

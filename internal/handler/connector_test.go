@@ -257,13 +257,20 @@ type connectorApp struct {
 	admin    string
 	conn     *ConnectorHandler
 	sites    *SiteHandler
+	users    *UserHandler
 	mux      *http.ServeMux
 }
 
 // newConnectorApp wires the server the way cmd/server/main.go does. It needs
 // DB_DSN pointing at a database with db/schema.sql applied.
-func newConnectorApp(t *testing.T) *connectorApp {
+func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	t.Helper()
+	var ed *edition.Edition
+	if len(eds) > 0 {
+		ed = eds[0]
+	} else {
+		ed = edition.ForKind(edition.Host)
+	}
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		t.Skip("DB_DSN unset")
@@ -290,7 +297,7 @@ func newConnectorApp(t *testing.T) *connectorApp {
 	}
 	mux := http.NewServeMux()
 	app := &connectorApp{database: database, admin: adminKey, mux: mux}
-	authMW := auth.Middleware(adminKey, adminID, database)
+	authMW := auth.Middleware(adminKey, adminID, database, ed.Limits().KeyIdleExpiry)
 	noticeMW := NoticeMiddleware("1.0.0")
 	mailer := email.NewResendSender("", "test@example.com")
 
@@ -300,14 +307,15 @@ func newConnectorApp(t *testing.T) *connectorApp {
 	app.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(app.srv.Close)
 
-	users := NewUserHandler(database, mailer, app.srv.URL)
+	users := NewUserHandler(database, mailer, app.srv.URL, ed)
 	users.Register(mux, authMW, noticeMW)
-	sites := NewSiteHandler(edition.ForKind(edition.Host), database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	app.users = users
+	sites := NewSiteHandler(ed, database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	app.sites = sites
 	t.Cleanup(sites.WaitNotifications)
 	sites.Register(mux, authMW, noticeMW)
-	gated := auth.ScopeGate(database, mux, false)
-	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated, false)
+	gated := auth.ScopeGate(database, mux, false, ed.Limits().KeyIdleExpiry)
+	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated, false, ed)
 	conn.Register(mux, authMW)
 	app.conn = conn
 	root = CORS(conn.BearerAuth(gated))
@@ -1018,7 +1026,7 @@ func TestAPIKeysStoredHashed(t *testing.T) {
 	me := func(k string) int {
 		return a.do(t, http.MethodGet, "/v1/me", nil, map[string]string{"X-API-Key": k}).status
 	}
-	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key)
+	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key, 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}

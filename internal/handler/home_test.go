@@ -173,7 +173,7 @@ func TestHomeFallbacks(t *testing.T) {
 			case "suspended":
 				err = db.SetUserSuspended(context.Background(), a.database, uid, "test")
 			case "recently-deleted":
-				err = db.MarkSiteDeleted(context.Background(), a.database, id)
+				err = db.MarkSiteDeleted(context.Background(), a.database, id, 7*24*time.Hour)
 			case "deleted":
 				_, err = a.database.Exec(`DELETE FROM sites WHERE id=$1`, id)
 			}

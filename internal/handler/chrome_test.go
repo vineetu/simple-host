@@ -15,12 +15,20 @@ import (
 
 // chromeTestHandler is a SiteHandler with no database. Every route exercised
 // here avoids the DB: handle-shaped paths are the only ones that query it.
-func chromeTestHandler() *SiteHandler {
-	kind := edition.Host
-	if hackMode {
-		kind = edition.Hack
+// An explicit edition (e.g. edition.ForKindWithLimits with an override) may
+// be passed; otherwise it is edition.ForKind(Host or Hack, by hackMode).
+func chromeTestHandler(eds ...*edition.Edition) *SiteHandler {
+	var ed *edition.Edition
+	if len(eds) > 0 {
+		ed = eds[0]
+	} else {
+		kind := edition.Host
+		if hackMode {
+			kind = edition.Hack
+		}
+		ed = edition.ForKind(kind)
 	}
-	return &SiteHandler{ed: edition.ForKind(kind), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
+	return &SiteHandler{ed: ed, limitSet: newLimitSet(ed.Limits()), siteDomain: "simple-host.app", contentHost: "sites.simple-host.app"}
 }
 
 func chromeTestMux(t *testing.T) *http.ServeMux {

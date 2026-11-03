@@ -188,12 +188,10 @@ func TestStorageSecurityPolicyConversionAndOmittedMode(t *testing.T) {
 }
 
 func TestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
-	old := *config.Active()
-	lim := old
-	lim.StorageFileObjects = 2
-	ApplyLimits(lim)
-	t.Cleanup(func() { ApplyLimits(old) })
 	s := newSecurityShop(t)
+	lim := config.DefaultLimits()
+	lim.StorageFileObjects = 2
+	s.a.sites.limitSet = newLimitSet(lim)
 	s.resource(t, "files", "files", "own", "signed-in", "add")
 	s.resource(t, "public", "files", "anyone", "anyone", "full")
 	s.resource(t, "kv", "kv", "own", "signed-in", "add")
@@ -442,7 +440,7 @@ func TestStorageSecurityReadsAndBoundedLockPOC(t *testing.T) {
 	s.call(t, "PUT", "/kv/kv/keys/blocked", `{"value":1}`, browser(s.host, ""), 503)
 	elapsed := time.Since(start)
 	unlock()
-	if elapsed > config.Active().StorageWriteLockWait+500*time.Millisecond {
+	if elapsed > s.a.sites.limits.StorageWriteLockWait+500*time.Millisecond {
 		t.Fatalf("unbounded lock wait %v", elapsed)
 	}
 	slow := make(chan struct{})

@@ -95,12 +95,12 @@ func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 	if err != nil || !strings.HasPrefix(string(raw), expected) || !strings.HasSuffix(string(raw), "."+base64.RawURLEncoding.EncodeToString([]byte(storage.linkScope))) {
 		t.Fatal("file scope lost")
 	}
-	for _, exp := range []time.Time{now.Add(-time.Second), now.Add(previewLinkTTL() + time.Minute)} {
+	for _, exp := range []time.Time{now.Add(-time.Second), now.Add(time.Hour + time.Minute)} {
 		if _, _, err := h.checkPreviewToken(h.signPreviewToken(opaqueSite, 2, exp), now); err == nil {
 			t.Error("preview expiry accepted")
 		}
 	}
-	for _, exp := range []time.Time{now.Add(-time.Second), now.Add(hackArchiveLinkTTL() + time.Minute)} {
+	for _, exp := range []time.Time{now.Add(-time.Second), now.Add(10*time.Minute + time.Minute)} {
 		bad := claim
 		bad.Expiry = exp.Unix()
 		if _, ok := hack.checkHackArchiveClaim(hack.signHackArchiveClaim(bad), now); ok {

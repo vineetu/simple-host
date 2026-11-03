@@ -78,11 +78,13 @@ const passcodeMaxLength = 128
 
 // passcodeState is the server key and the brute-force counters.
 type passcodeState struct {
-	// limits is the handler's own snapshot (h.limits), copied in once at
+	// limitSet is the handler's own snapshot (h.limits), copied in once at
 	// construction (NewSiteHandler) since the rate-limit methods below have
-	// no SiteHandler of their own. Zero in a bare notifyClient{secrets:
-	// &passcodeState{}} test literal, which never calls wrongTry/sweep.
-	limits config.Limits
+	// no SiteHandler of their own; embedded (not a named field) so a test
+	// can retarget it the same way as any other handler's limitSet. Zero in
+	// a bare notifyClient{secrets: &passcodeState{}} test literal, which
+	// never calls wrongTry/sweep.
+	limitSet
 	aead   cipher.AEAD // nil: PASSCODE_ENC_KEY unset
 	macKey []byte
 	// refKey derives the connector's per-site visitor references, so they

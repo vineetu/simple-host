@@ -122,7 +122,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	if err := a.sites.SetPasscodeKey("q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80="); err != nil {
 		t.Fatal(err)
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 })
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 }, &a.sites.limitSet)
 	if s := call("set_site_passcode", map[string]any{"site": "shop", "passcode": "482915"}); s["passcode_protected"] != true || s["passcode"] != nil {
 		t.Fatalf("set_site_passcode set: %v", s)
 	}

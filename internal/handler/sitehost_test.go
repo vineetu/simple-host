@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 func TestSiteHostLabels(t *testing.T) {
@@ -37,9 +38,9 @@ func TestSiteHostLabels(t *testing.T) {
 // newSiteApp is the router with person hosts canonical and site hosts in
 // mode, with a certificate hand-off directory in which only the handles in
 // ready have a certificate.
-func newSiteApp(t *testing.T, mode string) (*privateApp, string) {
+func newSiteApp(t *testing.T, mode string, eds ...*edition.Edition) (*privateApp, string) {
 	t.Helper()
-	a := newPersonApp(t, "canonical")
+	a := newPersonApp(t, "canonical", eds...)
 	dir := t.TempDir()
 	for _, d := range []string{"requests", "ready"} {
 		if err := os.MkdirAll(filepath.Join(dir, d), 0o755); err != nil {

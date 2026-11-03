@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
-func newPersonApp(t *testing.T, mode string) *privateApp {
+func newPersonApp(t *testing.T, mode string, eds ...*edition.Edition) *privateApp {
 	t.Helper()
-	a := newPrivateApp(t)
+	a := newPrivateApp(t, eds...)
 	a.sites.SetPersonHosts(mode)
 	db.SetPlatformDomain(pcSiteDomain)
 	t.Cleanup(func() { db.SetPlatformDomain("") })

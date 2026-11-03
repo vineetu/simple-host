@@ -43,7 +43,7 @@ func TestIssueEmailCodeGeoBlock(t *testing.T) {
 		geoBlock := geoBlockFor(t, blockedIP, "IQ", []string{"IQ"})
 		limiter := newRateLimiter(1000, 1000)
 
-		_, _, status, body := issueEmailCode(ctx, database, m, limiter, address, "", "dashboard", sql.NullString{}, sql.NullString{}, blockedIP, geoBlock)
+		_, _, status, body := issueEmailCode(ctx, database, m, limiter, address, "", "dashboard", sql.NullString{}, sql.NullString{}, blockedIP, geoBlock, 15*time.Minute)
 		if status != 403 || body.Code != signupBlockedCode {
 			t.Fatalf("got status=%d code=%q, want 403 %s", status, body.Code, signupBlockedCode)
 		}
@@ -78,7 +78,7 @@ func TestIssueEmailCodeGeoBlock(t *testing.T) {
 		assertBlocked(t, address)
 
 		// The account itself is untouched: same id, same key.
-		fresh, err := db.GetUserByAPIKey(ctx, database, key)
+		fresh, err := db.GetUserByAPIKey(ctx, database, key, 180*24*time.Hour)
 		if err != nil || fresh.ID != existing.ID {
 			t.Fatalf("existing account changed by a refused sign-in attempt: %v %+v", err, fresh)
 		}
@@ -91,7 +91,7 @@ func TestIssueEmailCodeGeoBlock(t *testing.T) {
 		limiter := newRateLimiter(1000, 1000)
 		// A different, unmapped IP: Lookup finds nothing, ISO is empty, so the
 		// request is treated as unresolved and allowed.
-		_, _, status, body := issueEmailCode(ctx, database, m, limiter, address, "", "dashboard", sql.NullString{}, sql.NullString{}, "203.0.113.77", geoBlock)
+		_, _, status, body := issueEmailCode(ctx, database, m, limiter, address, "", "dashboard", sql.NullString{}, sql.NullString{}, "203.0.113.77", geoBlock, 15*time.Minute)
 		if status != 0 {
 			t.Fatalf("unresolved country must be allowed: status=%d body=%+v", status, body)
 		}
@@ -104,7 +104,7 @@ func TestIssueEmailCodeGeoBlock(t *testing.T) {
 		address := "emailgeoblock-off-" + stamp + "@example.com"
 		m := &mailbox{}
 		limiter := newRateLimiter(1000, 1000)
-		_, _, status, body := issueEmailCode(ctx, database, m, limiter, address, "", "dashboard", sql.NullString{}, sql.NullString{}, blockedIP, signupGeoBlock{})
+		_, _, status, body := issueEmailCode(ctx, database, m, limiter, address, "", "dashboard", sql.NullString{}, sql.NullString{}, blockedIP, signupGeoBlock{}, 15*time.Minute)
 		if status != 0 {
 			t.Fatalf("empty block list must be a no-op: status=%d body=%+v", status, body)
 		}

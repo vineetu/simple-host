@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
 )
@@ -317,7 +316,7 @@ func TestNotifySiteEventsDedupeUnderLock(t *testing.T) {
 func TestNotifySiteEventsBodyTooLarge(t *testing.T) {
 	s, x := notificationFixture(t)
 	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"site.deployed"}, "secret": notifyTestSecret}, 201)
-	big := strings.Repeat("x", config.Active().NotifyBodyMaxBytes+1)
+	big := strings.Repeat("x", s.a.sites.limits.NotifyBodyMaxBytes+1)
 	s.a.sites.storeSiteNotification(s.sid, "site.deployed", map[string]any{"version": 2, "previous_version": 1, "via": big}, 0)
 	if n := siteEventCount(t, s, "site.deployed"); n != 0 {
 		t.Fatalf("oversized site event stored: %d", n)

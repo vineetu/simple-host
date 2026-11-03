@@ -81,7 +81,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	}
 	mux := http.NewServeMux()
 	a := &teamSiteApp{connectorApp: &connectorApp{database: database, admin: adminKey, mux: mux}, certDir: certDir}
-	authMW := auth.Middleware(adminKey, adminID, database)
+	authMW := auth.Middleware(adminKey, adminID, database, 180*24*time.Hour)
 	var root http.Handler
 	a.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(a.srv.Close)
@@ -101,7 +101,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.hack.Register(mux, authMW)
 	a.sites.SetHackEventPage(HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady))
 	a.sites.SetHackScreenshot(HackScreenshot(database, a.sites.TeamSitesReady))
-	gated := a.sites.LegacyStorageCutoffGate(a.sites.HackLegacyStorageGate(auth.ScopeGate(database, mux, true)))
+	gated := a.sites.LegacyStorageCutoffGate(a.sites.HackLegacyStorageGate(auth.ScopeGate(database, mux, true, 180*24*time.Hour)))
 	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, a.sites.ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetHackTeams(true)

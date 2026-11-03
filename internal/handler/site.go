@@ -400,7 +400,7 @@ func NewSiteHandler(ed *edition.Edition, database *sql.DB, disk *storage.DiskSto
 		exportKey:              newExportKey(),
 	}
 	h.assets = newAssetPipeline(ed)
-	h.passcode.limits = lim
+	h.passcode.limitSet = newLimitSet(lim)
 	h.createIdempotency = newCreateIdempotencyStore(lim)
 	h.createIdempotency.startCleanup()
 	h.SetSavedData(config.DefaultSavedData())

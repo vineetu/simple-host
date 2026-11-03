@@ -36,7 +36,7 @@ func TestIssueEmailCodeOff(t *testing.T) {
 	withEmailSignIn(t, false)
 	m := &mailbox{}
 	limiter := newRateLimiter(1000, 1000)
-	_, _, status, body := issueEmailCode(context.Background(), nil, m, limiter, "person@example.com", "", "dashboard", sql.NullString{}, sql.NullString{}, "203.0.113.5", signupGeoBlock{})
+	_, _, status, body := issueEmailCode(context.Background(), nil, m, limiter, "person@example.com", "", "dashboard", sql.NullString{}, sql.NullString{}, "203.0.113.5", signupGeoBlock{}, 15*time.Minute)
 	if status != http.StatusForbidden || body.Code != "email_signin_off" {
 		t.Fatalf("got status=%d code=%q, want 403 email_signin_off", status, body.Code)
 	}
@@ -53,7 +53,7 @@ func TestIssueEmailCodeOff(t *testing.T) {
 func TestVerifyEmailCodeOff_EmailShapeRefused(t *testing.T) {
 	withEmailSignIn(t, false)
 	limiter := newRateLimiter(1000, 1000)
-	_, _, status, body := verifyEmailCode(context.Background(), nil, limiter, verifyRequest{Email: "person@example.com", Code: "123456"}, "dashboard", sql.NullString{}, false)
+	_, _, status, body := verifyEmailCode(context.Background(), nil, limiter, verifyRequest{Email: "person@example.com", Code: "123456"}, "dashboard", sql.NullString{}, false, 15*time.Minute)
 	if status != http.StatusForbidden || body.Code != "email_signin_off" {
 		t.Fatalf("got status=%d code=%q, want 403 email_signin_off", status, body.Code)
 	}
@@ -92,7 +92,7 @@ func TestVerifyEmailCodeOff_TokenShapeStillWorks(t *testing.T) {
 	t.Cleanup(func() { _, _ = database.ExecContext(ctx, `DELETE FROM users WHERE username = $1`, address) })
 
 	limiter := newRateLimiter(1000, 1000)
-	user, created, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Token: linkToken, Nonce: nonce}, "dashboard", sql.NullString{}, false)
+	user, created, status, body := verifyEmailCode(ctx, database, limiter, verifyRequest{Token: linkToken, Nonce: nonce}, "dashboard", sql.NullString{}, false, 15*time.Minute)
 	if status != 0 {
 		t.Fatalf("token redemption refused while EMAIL_SIGNIN=off: status=%d body=%+v", status, body)
 	}

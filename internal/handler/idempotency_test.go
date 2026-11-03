@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -27,7 +28,7 @@ func createRequest(account, method, path, key, body string) *http.Request {
 func TestCreateIdempotencyReplayAndConflict(t *testing.T) {
 	for _, status := range []int{http.StatusCreated, http.StatusBadRequest, http.StatusInternalServerError} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
-			store := newCreateIdempotencyStore()
+			store := newCreateIdempotencyStore(config.DefaultLimits())
 			calls := 0
 			h := store.wrap(NoticeMiddleware("9.0.0")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls++
@@ -59,7 +60,7 @@ func TestCreateIdempotencyReplayAndConflict(t *testing.T) {
 }
 
 func TestCreateIdempotencyScopeAndExpiry(t *testing.T) {
-	store := newCreateIdempotencyStore()
+	store := newCreateIdempotencyStore(config.DefaultLimits())
 	now := time.Unix(0, 0)
 	store.now = func() time.Time { return now }
 	calls := 0
@@ -95,7 +96,7 @@ func TestCreateIdempotencyScopeAndExpiry(t *testing.T) {
 }
 
 func TestCreateIdempotencyConcurrent(t *testing.T) {
-	store := newCreateIdempotencyStore()
+	store := newCreateIdempotencyStore(config.DefaultLimits())
 	var calls atomic.Int32
 	started, release := make(chan struct{}), make(chan struct{})
 	h := store.wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +135,7 @@ func TestCreateIdempotencyConcurrent(t *testing.T) {
 }
 
 func TestCreateIdempotencyStorageSiteScope(t *testing.T) {
-	store := newCreateIdempotencyStore()
+	store := newCreateIdempotencyStore(config.DefaultLimits())
 	calls := 0
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
@@ -152,7 +153,7 @@ func TestCreateIdempotencyStorageSiteScope(t *testing.T) {
 }
 
 func TestCreateIdempotencyRateLimitHeadersStayCurrent(t *testing.T) {
-	store := newCreateIdempotencyStore()
+	store := newCreateIdempotencyStore(config.DefaultLimits())
 	limiter := newRateLimiter(2, 0.5)
 	limiter.now = func() time.Time { return time.Unix(0, 0) }
 	calls := 0

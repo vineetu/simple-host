@@ -82,7 +82,7 @@ func TestOAuthCallbackGeoBlock(t *testing.T) {
 		if r.status != http.StatusForbidden || !strings.Contains(string(r.body), signupBlockedMessage) {
 			t.Fatalf("got %d %q, want 403 with the blocked message", r.status, r.body)
 		}
-		fresh, err := db.GetUserByAPIKey(ctx, a.database, key)
+		fresh, err := db.GetUserByAPIKey(ctx, a.database, key, 180*24*time.Hour)
 		if err != nil || fresh.ID != existing.ID {
 			t.Fatalf("existing account changed by a refused sign-in attempt: %v %+v", err, fresh)
 		}

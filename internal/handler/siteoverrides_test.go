@@ -16,7 +16,7 @@ func TestSiteOverridesEnforced(t *testing.T) {
 	olive, oscar := a.newPerson(t, "olive"), a.newPerson(t, "oscar")
 	oliveID, oliveHandle := a.userID(t, olive)
 	oscarID, _ := a.userID(t, oscar)
-	withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "2", "MAX_SITES_OVERRIDES": oliveHandle + ":4"})
+	setAppLimits(a, withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "2", "MAX_SITES_OVERRIDES": oliveHandle + ":4"}))
 
 	fill := func(uid string, n int) {
 		t.Helper()

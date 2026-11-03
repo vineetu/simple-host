@@ -211,7 +211,7 @@ func TestVisitorResourceExistenceGated(t *testing.T) {
 		l.SitePasscodes = true
 		l.RatePasscodeSite.Burst = 100
 		l.RatePasscodeIP.Burst = 100
-	})
+	}, &f.a.sites.limitSet, &f.a.sites.passcode.limitSet)
 	if res := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, f.key); res.status != 200 {
 		t.Fatalf("lock: %s", res.body)
 	}

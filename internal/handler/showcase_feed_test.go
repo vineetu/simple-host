@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -29,7 +30,7 @@ func TestShowcaseFeedMatchesPublicProjection(t *testing.T) {
 	if err := db.SetSiteSuspended(context.Background(), a.database, a.siteID(t, owner, "taken-down"), "test"); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.MarkSiteDeleted(context.Background(), a.database, a.siteID(t, owner, "deleted")); err != nil {
+	if err := db.MarkSiteDeleted(context.Background(), a.database, a.siteID(t, owner, "deleted"), 7*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.database.Exec(`UPDATE sites SET passcode_enc='x'::bytea WHERE user_id=$1 AND name='locked'`, uid); err != nil {

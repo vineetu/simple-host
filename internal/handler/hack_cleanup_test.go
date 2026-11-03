@@ -64,17 +64,15 @@ func wantStarterRubric(t *testing.T, v rubricView) {
 
 func TestHackArchiveCleanup(t *testing.T) {
 	a := newHackApp(t)
-	old := *config.Active()
-	l := old
+	l := config.DefaultLimits()
 	l.EventCreatePerDay = 40
 	l.EventMaxActivePerOrganiser = 40
-	config.SetActive(l)
-	t.Cleanup(func() { config.SetActive(old) })
+	setHackAppLimits(a, l)
 
 	org := a.newPerson(t, "cln")
 	now := time.Date(2026, 6, 15, 15, 4, 5, 0, time.UTC)
-	keep := config.Active().EventSitesKeep
-	warnFor := config.Active().EventRemovalWarn
+	keep := a.hack.limits.EventSitesKeep
+	warnFor := a.hack.limits.EventRemovalWarn
 	pastRemove := now.Add(-keep - 36*time.Hour)
 	inWarn := now.Add(-keep + warnFor/2)
 
@@ -195,7 +193,7 @@ If you need more time, write to support@simple-host.app.
 
 Simple Hack
 `, removeOn)
-	wantMail := "harbour@example.com|" + idleReplyTo() + "|" + subject + "|" + text
+	wantMail := "harbour@example.com|" + a.hack.idleReplyTo() + "|" + subject + "|" + text
 	msgs := mail.messages()
 	if len(msgs) != 1 || msgs[0] != wantMail {
 		t.Fatalf("warning email:\n got %q\nwant %q", msgs, wantMail)

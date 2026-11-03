@@ -137,7 +137,7 @@ func TestSSORedteamListedConsentAndPending(t *testing.T) {
 				}
 				check(1, 1)
 				id, _ := hex.DecodeString(responseCookie(t, done, visitorCookieHost))
-				sess, err := db.GetVisitorSession(context.Background(), a.database, id)
+				sess, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
 				if err != nil || time.Until(sess.ExpiresAt) < time.Hour {
 					t.Fatal("pending session not promoted", err)
 				}
@@ -189,7 +189,7 @@ func TestVisitorRedteamPasscodeIsolation(t *testing.T) {
 		l.SitePasscodes = true
 		l.RatePasscodeIP = config.Rate{Burst: 2, Every: time.Hour}
 		l.RatePasscodeSite = config.Rate{Burst: 5, Every: time.Hour}
-	})
+	}, &f.a.sites.limitSet, &f.a.sites.passcode.limitSet)
 	if r := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, f.key); r.status != 200 {
 		t.Fatal(r.status)
 	}
@@ -318,7 +318,7 @@ func TestSSORedteamSignoutCascadeOnlyOnce(t *testing.T) {
 	if page.status != 200 || !strings.Contains(string(page.body), "Sign out of Simple Host on this browser?") {
 		t.Fatal("stale site did not require confirmation")
 	}
-	if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(nextPass)); err != nil {
+	if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(nextPass), 180*24*time.Hour); err != nil {
 		t.Fatal("stale site revoked new family")
 	}
 }

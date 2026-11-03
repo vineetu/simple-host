@@ -443,8 +443,8 @@ func TestNotificationLegacyWrites(t *testing.T) {
 }
 
 func TestNotificationKeyDoesNotEnableSharedOriginPasscodes(t *testing.T) {
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true })
 	h := notificationKey(t)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &h.limitSet)
 	if !h.SharedOrigin() || !h.NotificationsReady() || h.PasscodesReady() {
 		t.Fatal("notification key enabled shared-origin passcodes")
 	}

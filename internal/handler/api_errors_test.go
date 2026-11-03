@@ -18,7 +18,7 @@ func TestAPIRoutingErrors(t *testing.T) {
 		mux := http.NewServeMux()
 		identity := func(h http.Handler) http.Handler { return h }
 		users := &UserHandler{}
-		users.Register(mux, auth.Middleware("admin", "admin-id", nil), identity)
+		users.Register(mux, auth.Middleware("admin", "admin-id", nil, 0), identity)
 		connector := &ConnectorHandler{mcp: &mcp.Server{}}
 		connector.Register(mux, identity)
 		// The archive route supports writes, but no GET at the site root.

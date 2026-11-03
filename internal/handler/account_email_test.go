@@ -9,6 +9,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // mailbox captures sign-in codes and notices.
@@ -48,10 +49,10 @@ func (m *mailbox) to(address string) []string {
 	return out
 }
 
-func newAccountApp(t *testing.T) (*privateApp, *mailbox) {
+func newAccountApp(t *testing.T, eds ...*edition.Edition) (*privateApp, *mailbox) {
 	t.Helper()
 	mb := &mailbox{}
-	a := newPrivateAppMailer(t, mb)
+	a := newPrivateAppMailer(t, mb, eds...)
 	a.users.alerts.run = func(f func()) { f() }
 	// These tests sign the same address in several times.
 	a.users.emailLimiter = newRateLimiter(1000, 1000)

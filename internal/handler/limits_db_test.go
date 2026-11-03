@@ -10,6 +10,7 @@ import (
 	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // near reports whether got is within a minute of want.
@@ -20,8 +21,8 @@ func near(got, want time.Time) bool {
 
 // MAX_KEYS_PER_ACCOUNT caps the Keys panel, and the refusal says the number.
 func TestKeyLimitFollowsSetting(t *testing.T) {
-	a := newConnectorApp(t)
-	withLimits(t, map[string]string{"MAX_KEYS_PER_ACCOUNT": "3"})
+	l := withLimits(t, map[string]string{"MAX_KEYS_PER_ACCOUNT": "3"})
+	a := newConnectorApp(t, edition.ForKindWithLimits(edition.Host, l))
 	p := a.newPerson(t, "three-keys")
 	h := map[string]string{"X-API-Key": p.key, "Content-Type": "application/json"}
 	for i := len(keysOf(t, a, p.key)); i < 3; i++ {
@@ -37,8 +38,8 @@ func TestKeyLimitFollowsSetting(t *testing.T) {
 
 // MAX_SITES_PER_ACCOUNT caps sites per account, and the refusal says the number.
 func TestSiteLimitFollowsSetting(t *testing.T) {
-	a := newPersonApp(t, "serve")
-	withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "2"})
+	l := withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "2"})
+	a := newPersonApp(t, "serve", edition.ForKindWithLimits(edition.Host, l))
 	olive := a.newPerson(t, "two-sites")
 	a.deploy(t, olive, "one")
 	a.deploy(t, olive, "two")
@@ -52,8 +53,8 @@ func TestSiteLimitFollowsSetting(t *testing.T) {
 // DELETED_RETENTION_DAYS sets how long Recently deleted keeps a site, and the
 // list says so.
 func TestDeletedRetentionFollowsSetting(t *testing.T) {
-	a := newPersonApp(t, "serve")
-	withLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "30"})
+	l := withLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "30"})
+	a := newPersonApp(t, "serve", edition.ForKindWithLimits(edition.Host, l))
 	olive := a.newPerson(t, "keeper")
 	key := map[string]string{"X-API-Key": olive.key}
 	a.deploy(t, olive, "gone")
@@ -76,8 +77,8 @@ func TestDeletedRetentionFollowsSetting(t *testing.T) {
 // The email-change codes and the undo link state SIGNIN_CODE_TTL_MINUTES and
 // EMAIL_CHANGE_UNDO_DAYS, and the undo link lasts that long.
 func TestEmailChangeWordingFollowsSetting(t *testing.T) {
-	a, mb := newAccountApp(t)
-	withLimits(t, map[string]string{"SIGNIN_CODE_TTL_MINUTES": "20", "EMAIL_CHANGE_UNDO_DAYS": "9"})
+	l := withLimits(t, map[string]string{"SIGNIN_CODE_TTL_MINUTES": "20", "EMAIL_CHANGE_UNDO_DAYS": "9"})
+	a, mb := newAccountApp(t, edition.ForKindWithLimits(edition.Host, l))
 	p := a.newPerson(t, "wording")
 	key := map[string]string{"X-API-Key": p.key}
 	newAddr := uniq("worded") + "@example.org"
@@ -106,9 +107,9 @@ func TestEmailChangeWordingFollowsSetting(t *testing.T) {
 // A visitor sign-in lives VISITOR_SESSION_DAYS (cookie and row) and slides
 // by VISITOR_SESSION_IDLE_DAYS.
 func TestVisitorSessionFollowsSetting(t *testing.T) {
-	a, dir := newSiteApp(t, "canonical")
+	l := withLimits(t, map[string]string{"VISITOR_SESSION_DAYS": "60", "VISITOR_SESSION_IDLE_DAYS": "21"})
+	a, dir := newSiteApp(t, "canonical", edition.ForKindWithLimits(edition.Host, l))
 	a.withOAuth(t)
-	withLimits(t, map[string]string{"VISITOR_SESSION_DAYS": "60", "VISITOR_SESSION_IDLE_DAYS": "21"})
 	olive := a.newPerson(t, "sessions")
 	a.deploy(t, olive, "shop")
 	_, oh := a.userID(t, olive)
@@ -144,7 +145,7 @@ func TestVisitorSessionFollowsSetting(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE visitor_sessions SET idle_expires_at = now() + interval '1 hour' WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.TouchVisitorSession(context.Background(), a.database, id); err != nil {
+	if err := db.TouchVisitorSession(context.Background(), a.database, id, l.VisitorSessionIdle); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.database.QueryRow(`SELECT idle_expires_at FROM visitor_sessions WHERE id = $1`, id).Scan(&idle); err != nil || !near(idle, now.Add(21*24*time.Hour)) {
@@ -155,8 +156,8 @@ func TestVisitorSessionFollowsSetting(t *testing.T) {
 // The failing-domain email states DOMAIN_LAPSE_WARN_HOURS and the time left
 // before DOMAIN_LAPSE_HOURS.
 func TestDomainFailingEmailFollowsSetting(t *testing.T) {
-	a := newPersonApp(t, "serve")
-	withLimits(t, map[string]string{"DOMAIN_LAPSE_WARN_HOURS": "36", "DOMAIN_LAPSE_HOURS": "108"})
+	l := withLimits(t, map[string]string{"DOMAIN_LAPSE_WARN_HOURS": "36", "DOMAIN_LAPSE_HOURS": "108"})
+	a := newPersonApp(t, "serve", edition.ForKindWithLimits(edition.Host, l))
 	m := &noticeMailer{}
 	a.sites.mailer = m
 	olive := a.newPerson(t, "lapsing")
@@ -171,8 +172,8 @@ func TestDomainFailingEmailFollowsSetting(t *testing.T) {
 // DELETED_RETENTION_DAYS, go out with IDLE_REPLY_TO, and the run uses the
 // configured windows.
 func TestIdleCleanupFollowsSettings(t *testing.T) {
-	a := newPersonApp(t, "canonical")
-	withLimits(t, map[string]string{"IDLE_AFTER_DAYS": "40", "IDLE_GRACE_DAYS": "10", "DELETED_RETENTION_DAYS": "20", "IDLE_REPLY_TO": "help@example.org"})
+	l := withLimits(t, map[string]string{"IDLE_AFTER_DAYS": "40", "IDLE_GRACE_DAYS": "10", "DELETED_RETENTION_DAYS": "20", "IDLE_REPLY_TO": "help@example.org"})
+	a := newPersonApp(t, "canonical", edition.ForKindWithLimits(edition.Host, l))
 	ctx := context.Background()
 	m := &replyMailer{}
 	a.sites.mailer = m
@@ -201,12 +202,15 @@ func TestIdleCleanupFollowsSettings(t *testing.T) {
 		t.Fatalf("warning after 40 idle days: %q (all: %d)", warn, len(m.sent))
 	}
 	// The warning's date is kept: a shorter IDLE_GRACE_DAYS set after it
-	// does not bring the removal forward.
+	// does not bring the removal forward. a.sites holds its own snapshot
+	// from construction, so this withLimits call (left here to document the
+	// scenario) cannot reach it either; the removal below runs against the
+	// stored idle_remove_at, not a re-read of IDLE_GRACE_DAYS.
 	var removeAt time.Time
 	if err := a.database.QueryRowContext(ctx, `SELECT idle_remove_at FROM sites WHERE id = $1`, id).Scan(&removeAt); err != nil || !near(removeAt, time.Now().Add(10*24*time.Hour)) {
 		t.Fatalf("stored removal date %v (%v), want 10 days out", removeAt, err)
 	}
-	withLimits(t, map[string]string{"IDLE_AFTER_DAYS": "40", "IDLE_GRACE_DAYS": "1", "DELETED_RETENTION_DAYS": "20", "IDLE_REPLY_TO": "help@example.org"})
+	_ = withLimits(t, map[string]string{"IDLE_AFTER_DAYS": "40", "IDLE_GRACE_DAYS": "1", "DELETED_RETENTION_DAYS": "20", "IDLE_REPLY_TO": "help@example.org"})
 	exec(`UPDATE sites SET idle_warned_at = now() - interval '2 days' WHERE id = $1`, id)
 	a.sites.runIdleCleanup(ctx, time.Now())
 	if got := m.last(site); got != warn {
@@ -224,9 +228,9 @@ func TestIdleCleanupFollowsSettings(t *testing.T) {
 // shorter DELETED_RETENTION_DAYS set later applies to new deletions only.
 // Rows deleted before the date was stored fall back to the setting.
 func TestDeletedSiteKeepsPromisedPurgeDate(t *testing.T) {
-	a := newPersonApp(t, "serve")
+	l := withLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "30"})
+	a := newPersonApp(t, "serve", edition.ForKindWithLimits(edition.Host, l))
 	ctx := context.Background()
-	withLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "30"})
 	olive := a.newPerson(t, "promised")
 	key := map[string]string{"X-API-Key": olive.key}
 	for _, name := range []string{"kept", "legacy"} {
@@ -237,14 +241,18 @@ func TestDeletedSiteKeepsPromisedPurgeDate(t *testing.T) {
 	}
 	uid, _ := a.userID(t, olive)
 	kept, legacy := a.siteIDAny(t, uid, "kept"), a.siteIDAny(t, uid, "legacy")
-	withLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "1"})
+	// a.sites keeps its own snapshot from construction (30 days); the
+	// shorter retention below is a new instance's, applied directly to the
+	// db-package calls that take it as an argument rather than through a
+	// second handler.
+	l2 := withLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "1"})
 	if _, err := a.database.ExecContext(ctx, `UPDATE sites SET deleted_at = now() - interval '2 days' WHERE id IN ($1, $2)`, kept, legacy); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.database.ExecContext(ctx, `UPDATE sites SET purge_at = NULL WHERE id = $1`, legacy); err != nil {
 		t.Fatal(err)
 	}
-	purgeable, err := db.ListPurgeableSites(ctx, a.database)
+	purgeable, err := db.ListPurgeableSites(ctx, a.database, l2.DeletedRetention)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,10 +264,10 @@ func TestDeletedSiteKeepsPromisedPurgeDate(t *testing.T) {
 		t.Fatalf("purgeable: kept %v (want false), legacy %v (want true)", found[kept], found[legacy])
 	}
 	d, err := db.GetDeletedSiteByUser(ctx, a.database, uid, "kept")
-	if err != nil || !near(d.PurgeAt(), time.Now().Add(30*24*time.Hour)) {
-		t.Fatalf("kept purges at %v (%v), want the promised 30 days after deletion", d.PurgeAt(), err)
+	if err != nil || !near(d.PurgeAt(l2.DeletedRetention), time.Now().Add(30*24*time.Hour)) {
+		t.Fatalf("kept purges at %v (%v), want the promised 30 days after deletion", d.PurgeAt(l2.DeletedRetention), err)
 	}
-	if _, err := db.PurgeDeletedSite(ctx, a.database, kept); err == nil {
+	if _, err := db.PurgeDeletedSite(ctx, a.database, kept, l2.DeletedRetention); err == nil {
 		t.Fatal("purged a site before its promised date")
 	}
 }

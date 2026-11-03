@@ -17,17 +17,42 @@ import (
 	"github.com/vsriram/simple-host/internal/edition"
 )
 
-// withLimits applies the env settings in m for the rest of the test and puts
-// the defaults back afterwards.
+// withLimits loads the env settings in m into a config.Limits value. The
+// caller builds a handler (or edition.ForKindWithLimits) from it directly:
+// each handler holds its own snapshot now, so there is no global left to
+// apply it to.
 func withLimits(t *testing.T, m map[string]string) config.Limits {
 	t.Helper()
 	l, err := config.LoadLimits(func(k string) string { return m[k] })
 	if err != nil {
 		t.Fatal(err)
 	}
-	ApplyLimits(l)
-	t.Cleanup(func() { ApplyLimits(config.DefaultLimits()) })
 	return l
+}
+
+// setAppLimits overwrites a's already-built handlers' own limits snapshot in
+// place, for a test scenario that changes a knob partway through and needs
+// the SAME handlers (same caches, locks, deployed state) to see it rather
+// than rebuilding the app. This is the direct, same-package analogue of what
+// the old config.SetActive/ApplyLimits global allowed mid-test; production
+// code never does this (each handler's snapshot is set once, at
+// construction, from its edition).
+func setAppLimits(a *privateApp, l config.Limits) {
+	a.sites.limitSet = newLimitSet(l)
+	a.users.limitSet = newLimitSet(l)
+	a.conn.limitSet = newLimitSet(l)
+}
+
+// setConnectorAppLimits is setAppLimits for the connectorApp fixture.
+func setConnectorAppLimits(a *connectorApp, l config.Limits) {
+	a.sites.limitSet = newLimitSet(l)
+	a.conn.limitSet = newLimitSet(l)
+	a.users.limitSet = newLimitSet(l)
+}
+
+// setHackAppLimits is setAppLimits for the hackApp fixture.
+func setHackAppLimits(a *hackApp, l config.Limits) {
+	a.hack.limitSet = newLimitSet(l)
 }
 
 // otherValue is a valid, non-default setting for env.
@@ -253,7 +278,7 @@ func TestDefaultLimitsRewriteNothing(t *testing.T) {
 	if rw := newLimitsRewriter(config.DefaultLimits()); rw != nil {
 		t.Fatal("the rewriter should be nil at the defaults")
 	}
-	ApplyLimits(config.DefaultLimits())
+	newAssetPipeline(edition.ForKind(edition.Host))
 	if instanceLimits != nil || assetsRewritten() {
 		t.Fatal("defaults switched serve-time rewriting on")
 	}
@@ -262,9 +287,9 @@ func TestDefaultLimitsRewriteNothing(t *testing.T) {
 // The served pages, documents and skills carry the configured values, and not
 // the defaults they were written with.
 func TestServedTextFollowsLimits(t *testing.T) {
-	withLimits(t, changedLimits(t))
+	l := withLimits(t, changedLimits(t))
 	mux := http.NewServeMux()
-	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler(edition.ForKindWithLimits(edition.Host, l)))
 
 	for _, c := range []struct {
 		path      string
@@ -330,8 +355,9 @@ func TestServedTextFollowsLimits(t *testing.T) {
 // The owner app's own page (a showcase template) and the message pages carry
 // the settings too.
 func TestShowcaseAndMessagePagesFollowLimits(t *testing.T) {
-	withLimits(t, changedLimits(t))
-	page, err := chromePage("showcase.html", chromeData{})
+	l := withLimits(t, changedLimits(t))
+	ed := edition.ForKindWithLimits(edition.Host, l)
+	page, err := chromeTestHandler(ed).pipeline().chromePage("showcase.html", chromeData{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +366,7 @@ func TestShowcaseAndMessagePagesFollowLimits(t *testing.T) {
 			t.Errorf("showcase: missing %q", w)
 		}
 	}
-	h := chromeTestHandler()
+	h := chromeTestHandler(ed)
 	rec := httptest.NewRecorder()
 	h.renderPreviewExpired(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	if !strings.Contains(rec.Body.String(), "Preview links work for 2 hours.") {
@@ -354,8 +380,10 @@ func TestMCPTextFollowsLimits(t *testing.T) {
 	if !strings.Contains(string(def), "Recently deleted for 7 days") {
 		t.Fatal("default MCP text lost its wording")
 	}
-	withLimits(t, changedLimits(t))
-	b, _ := json.Marshal(mcp.Tools())
+	l := withLimits(t, changedLimits(t))
+	mcpLim := mcpLimits(l)
+	server := mcp.NewServer(mcp.Config{Limits: &mcpLim})
+	b, _ := json.Marshal(server.ListedTools())
 	tools := string(b)
 	for _, w := range []string{
 		"Recently deleted for 30 days", "deleted within the last 30 days", // delete_site, list_deleted_sites
@@ -379,8 +407,8 @@ func TestMCPTextFollowsLimits(t *testing.T) {
 
 // The limiters are built from the RATE_LIMIT_* settings.
 func TestRateLimitsFollowSettings(t *testing.T) {
-	withLimits(t, map[string]string{"RATE_LIMIT_SIGNIN_IP": "2,1h", "RATE_LIMIT_SIGNIN_EMAIL": "9,20s"})
-	h := NewUserHandler(nil, nil, "https://simple-host.app")
+	l := withLimits(t, map[string]string{"RATE_LIMIT_SIGNIN_IP": "2,1h", "RATE_LIMIT_SIGNIN_EMAIL": "9,20s"})
+	h := NewUserHandler(nil, nil, "https://simple-host.app", edition.ForKindWithLimits(edition.Host, l))
 	if h.ipLimiter.capacity != 2 || h.ipLimiter.rate != 1.0/3600 {
 		t.Errorf("sign-in IP limiter: burst %v, %v/s", h.ipLimiter.capacity, h.ipLimiter.rate)
 	}
@@ -425,8 +453,7 @@ func TestArchivePhrasesFollowTheUploadCap(t *testing.T) {
 func TestSkillRoutesFollowArchiveLimit(t *testing.T) {
 	old := SiteLimit()
 	SetSiteLimit(300 << 20)
-	t.Cleanup(func() { SetSiteLimit(old); ApplyLimits(config.DefaultLimits()) })
-	ApplyLimits(config.DefaultLimits())
+	t.Cleanup(func() { SetSiteLimit(old) })
 	mux := http.NewServeMux()
 	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandler())
 	newAssetPipeline(edition.ForKind(edition.Host)).registerSkillsHub(mux, "https://simple-host.app")

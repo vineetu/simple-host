@@ -25,7 +25,7 @@ func waitBlocked() { time.Sleep(300 * time.Millisecond) }
 // while the test holds the site's lock, as a delete that finished first.
 func (a *privateApp) deleteBehindLock(t *testing.T, uid, siteID, name string) {
 	t.Helper()
-	if err := db.MarkSiteDeleted(context.Background(), a.database, siteID); err != nil {
+	if err := db.MarkSiteDeleted(context.Background(), a.database, siteID, 7*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.sites.disk.TrashSite(uid, name, siteID); err != nil {
@@ -166,7 +166,7 @@ func TestPurgeKeepsTakenDownSites(t *testing.T) {
 		if err := a.database.QueryRow(`SELECT count(*) FROM sites WHERE id = $1`, id).Scan(&n); err != nil || n != 1 {
 			t.Fatalf("taken-down site %s purged (n=%d, %v)", id, n, err)
 		}
-		if _, err := db.PurgeDeletedSite(context.Background(), a.database, id); !errors.Is(err, sql.ErrNoRows) {
+		if _, err := db.PurgeDeletedSite(context.Background(), a.database, id, 7*24*time.Hour); !errors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("PurgeDeletedSite re-check let %s through: %v", id, err)
 		}
 	}
@@ -295,7 +295,7 @@ func TestPreviousDomainLapsesAndStuckBindingExpires(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sites SET domain_cert_status = 'failed', domain_bound_at = now() - interval '8 days' WHERE id = $1`, siteID); err != nil {
 		t.Fatal(err)
 	}
-	released, err := db.ReleaseExpiredDomains(ctx, a.database)
+	released, err := db.ReleaseExpiredDomains(ctx, a.database, 7*24*time.Hour, 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,7 +370,7 @@ func TestDeletedSitesCountTowardQuota(t *testing.T) {
 	olive := a.newPerson(t, "olive")
 	uid, _ := a.userID(t, olive)
 	if _, err := a.database.Exec(`INSERT INTO sites (user_id, name, deleted_at)
-		SELECT $1, 'gone-' || g, now() FROM generate_series(1, $2) g`, uid, maxSitesPerUser()); err != nil {
+		SELECT $1, 'gone-' || g, now() FROM generate_series(1, $2) g`, uid, a.sites.maxSitesPerUser()); err != nil {
 		t.Fatal(err)
 	}
 	r := a.at(t, "POST", "simple-host.test", "/v1/sites/fresh/files",

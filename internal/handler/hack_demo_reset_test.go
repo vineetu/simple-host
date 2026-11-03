@@ -36,11 +36,9 @@ func TestHackDemoResetScript(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Four local resets, independent of earlier tests using this same admin row.
-	oldLimits := *config.Active()
-	limits := oldLimits
+	limits := config.DefaultLimits()
 	limits.EventCreatePerDay = previousCreates + 4
-	config.SetActive(limits)
-	t.Cleanup(func() { config.SetActive(oldLimits) })
+	setHackAppLimits(a, limits)
 	testStart := time.Now()
 	t.Cleanup(func() {
 		_, _ = a.database.Exec(`DELETE FROM event_create_log WHERE user_id=$1 AND created_at >= $2`, adminID, testStart)
