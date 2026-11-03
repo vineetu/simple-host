@@ -2,14 +2,11 @@ package hackhttp
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
-	"fmt"
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/rules/sites"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -67,7 +64,7 @@ func (h *HackHandler) contentView(ctx context.Context, a hackAccess, c hackConte
 
 func (h *HackHandler) registerContent(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("PUT /v1/hack/events/{slug}/announcements/{announcement}", wrap(h.changeAnnouncement))
-	mux.Handle("DELETE /v1/hack/events/{slug}/announcements/{announcement}", wrap(h.changeAnnouncement))
+	mux.Handle(http.MethodDelete+" /v1/hack/events/{slug}/announcements/{announcement}", wrap(h.changeAnnouncement))
 	mux.Handle("GET /v1/hack/events/{slug}/content", wrap(h.getContent))
 	mux.Handle("PUT /v1/hack/events/{slug}/content", wrap(h.putContent))
 	mux.Handle("GET /v1/hack/events/{slug}/announcements", wrap(h.getAnnouncements))
@@ -75,7 +72,7 @@ func (h *HackHandler) registerContent(mux *http.ServeMux, wrap func(http.Handler
 }
 
 func readHackContent(ctx context.Context, q db.Querier, eventID string) (hackContent, error) {
-	raw, err := db.GetEventContent(ctx, q, eventID)
+	raw, err := events.ReadContent(ctx, q, eventID)
 	c := hackContent{Sponsors: []hackSponsor{}, FAQ: []hackFAQ{}, Schedule: []hackScheduleItem{}}
 	if err != nil {
 		return c, err
@@ -213,27 +210,8 @@ func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {
 	sponsors, _ := json.Marshal(c.Sponsors)
 	faq, _ := json.Marshal(c.FAQ)
 	schedule, _ := json.Marshal(c.Schedule)
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	var stage string
-	if err := tx.QueryRowContext(r.Context(), `SELECT stage FROM events WHERE id = $1 FOR UPDATE`, a.event.ID).Scan(&stage); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if stage == "archived" {
-		httpx.WriteError(w, http.StatusConflict, "event_ended", "this event has ended")
-		return
-	}
-	if err := db.PutEventContent(r.Context(), tx, a.event.ID, db.EventContent{Sponsors: sponsors, FAQ: faq, Schedule: schedule}); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+	if err := h.eventsSvc().PutContent(r.Context(), a.event.ID, db.EventContent{Sponsors: sponsors, FAQ: faq, Schedule: schedule}); err != nil {
+		writeContentError(w, err)
 		return
 	}
 	view, err := h.contentView(r.Context(), a, c)
@@ -249,7 +227,7 @@ func (h *HackHandler) getAnnouncements(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	items, err := db.ListEventAnnouncements(r.Context(), h.database, a.event.ID)
+	items, err := h.eventsSvc().ListAnnouncements(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -293,29 +271,9 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	item, queued, organiserCopied, err := h.eventsSvc().PostAnnouncement(r.Context(), a.event.ID, req.Title, req.Body, req.EmailParticipants, a.user.ID)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	// Recheck the stage in the same transaction that publishes the message.
-	var stage string
-	if err := tx.QueryRowContext(r.Context(), `SELECT stage FROM events WHERE id = $1 FOR UPDATE`, a.event.ID).Scan(&stage); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if stage == "archived" {
-		httpx.WriteError(w, http.StatusConflict, "event_ended", "this event has ended")
-		return
-	}
-	item, queued, organiserCopied, err := db.CreateEventAnnouncement(r.Context(), tx, a.event.ID, req.Title, req.Body, req.EmailParticipants, a.user.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+		writeContentError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"announcement": item, "emails_queued": queued, "organiser_copied": organiserCopied})
@@ -326,13 +284,7 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 // (event_id, team_id) caps it at one per team -- section 4.1: "moves from
 // 'first time complete' to 'submitted'").
 func (h *HackHandler) queueReceipt(ctx context.Context, ev db.Event, teamID, userID string) {
-	e, err := db.GetEventEntry(ctx, h.database, teamID)
-	if err != nil || !e.SubmittedAt.Valid {
-		return
-	}
-	if err := db.QueueEntryReceipt(ctx, h.database, ev.ID, teamID, userID); err != nil {
-		log.Printf("hack: queue entry receipt %s: %v", ev.Slug, err)
-	}
+	h.eventsSvc().QueueReceipt(ctx, ev, teamID, userID)
 }
 
 func (h *HackHandler) StartContentDelivery(ctx context.Context) {
@@ -359,53 +311,7 @@ func (h *HackHandler) deliverContentMail(ctx context.Context) {
 	if !ok {
 		return
 	}
-	for i := 0; i < 100; i++ {
-		tx, err := h.database.BeginTx(ctx, nil)
-		if err != nil {
-			log.Printf("hack: content mail: %v", err)
-			return
-		}
-		m, err := db.NextEventMail(ctx, tx)
-		if errors.Is(err, sql.ErrNoRows) {
-			tx.Rollback()
-			return
-		}
-		if err != nil {
-			tx.Rollback()
-			log.Printf("hack: content mail: %v", err)
-			return
-		}
-		var subject, body string
-		if m.Kind == "announcement" {
-			subject = m.EventTitle + ": " + m.Title
-			body = m.Body + "\n\nEvent page: " + h.EventURL(m.EventSlug) + "\n"
-		} else {
-			subject = m.EventTitle + ": entry received"
-			body = fmt.Sprintf("Your team's entry for %s was received.\n\nTeam: %s\nReview it at %s/e/%s/team\n", m.EventTitle, m.TeamName, h.publicBaseURL, m.EventSlug)
-		}
-		if err := sender.SendNotice(m.Recipient, subject, body); err != nil {
-			log.Printf("hack: content mail delivery failed: %v", err)
-			if deferErr := db.DeferEventMail(ctx, tx, m); deferErr != nil {
-				tx.Rollback()
-				log.Printf("hack: content mail defer: %v", deferErr)
-				return
-			}
-			if commitErr := tx.Commit(); commitErr != nil {
-				log.Printf("hack: content mail defer commit: %v", commitErr)
-				return
-			}
-			continue
-		}
-		if err := db.MarkEventMailSent(ctx, tx, m); err != nil {
-			tx.Rollback()
-			log.Printf("hack: content mail mark: %v", err)
-			return
-		}
-		if err := tx.Commit(); err != nil {
-			log.Printf("hack: content mail commit: %v", err)
-			return
-		}
-	}
+	h.eventsSvc().DeliverContentMail(ctx, sender, h.siteDomain, h.publicBaseURL)
 }
 
 // Editing an announcement changes the page only, without queueing mail.
@@ -435,42 +341,8 @@ func (h *HackHandler) changeAnnouncement(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer tx.Rollback()
-	var stage string
-	if err = tx.QueryRowContext(r.Context(), `SELECT stage FROM events WHERE id=$1 FOR UPDATE`, a.event.ID).Scan(&stage); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if stage == "archived" {
-		httpx.WriteError(w, 409, "event_ended", "this event has ended")
-		return
-	}
-	var result sql.Result
-	if r.Method == http.MethodDelete {
-		result, err = tx.ExecContext(r.Context(), `DELETE FROM event_announcements WHERE event_id=$1 AND id=$2`, a.event.ID, id)
-	} else {
-		result, err = tx.ExecContext(r.Context(), `UPDATE event_announcements SET title=$3,body=$4 WHERE event_id=$1 AND id=$2`, a.event.ID, id, req.Title, req.Body)
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	n, err := result.RowsAffected()
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if n == 0 {
-		httpx.WriteError(w, 404, "announcement_not_found", "announcement not found")
-		return
-	}
-	if err = tx.Commit(); err != nil {
-		httpx.WriteInternal(w)
+	if err := h.eventsSvc().ChangeAnnouncement(r.Context(), a.event.ID, id, req.Title, req.Body, r.Method == http.MethodDelete); err != nil {
+		writeContentError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
