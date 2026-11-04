@@ -305,7 +305,13 @@ func (w *savedDataWorker) Start(ctx context.Context) {
 		defer tick.Stop()
 		for {
 			w.tracker.Attempt()
-			w.h.sweepSavedData(ctx)
+			n, err := w.h.sweepSavedData(ctx)
+			if n > 0 {
+				w.tracker.Progress()
+			}
+			if err != nil {
+				w.tracker.Fail("sweep saved data", err)
+			}
 			select {
 			case <-ctx.Done():
 				return
@@ -316,7 +322,7 @@ func (w *savedDataWorker) Start(ctx context.Context) {
 }
 func (h *SiteHandler) StartSavedDataSweep(ctx context.Context) { h.SavedDataWorker().Start(ctx) }
 
-func (h *SiteHandler) sweepSavedData(ctx context.Context) {
+func (h *SiteHandler) sweepSavedData(ctx context.Context) (int64, error) {
 	svc := legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
 		HistoryThinStuck:   &h.thinStuck,
 		HistoryThinAllowed: func(siteID string) bool { return h.thinLimiter == nil || h.thinLimiter.allow(siteID) },
@@ -328,7 +334,7 @@ func (h *SiteHandler) sweepSavedData(ctx context.Context) {
 			}
 		},
 	})
-	svc.SweepSavedData(ctx, legacy.SweepSavedDataInput{UndoDays: h.savedData.UndoDays, IdempotencyHours: h.savedData.IdempotencyHours, IdempotencyMaxPerSite: h.savedData.IdempotencyMaxPerSite, WatchKeepDays: h.savedData.WatchKeepDays, HistoryCapBytes: int64(h.savedData.HistoryMaxMB) << 20})
+	return svc.SweepSavedData(ctx, legacy.SweepSavedDataInput{UndoDays: h.savedData.UndoDays, IdempotencyHours: h.savedData.IdempotencyHours, IdempotencyMaxPerSite: h.savedData.IdempotencyMaxPerSite, WatchKeepDays: h.savedData.WatchKeepDays, HistoryCapBytes: int64(h.savedData.HistoryMaxMB) << 20})
 }
 
 // ---- owner routes: history, Recently deleted, restore, delete for good ----------
