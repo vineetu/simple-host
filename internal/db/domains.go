@@ -100,52 +100,18 @@ func dropCustomDomain(ctx context.Context, tx *sql.Tx, siteID, expected string) 
 // that earlier address and the binding counts as verified. Returns
 // sql.ErrNoRows when none.
 func GetSiteByCustomDomain(ctx context.Context, database *sql.DB, domain string) (SiteDomainInfo, error) {
-	// A platform name is found under whichever platform domain it is stored.
-	f := hostForms(domain)
-	info, err := scanDomainInfo(database.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM sites WHERE custom_domain IN ($1, $2) AND deleted_at IS NULL ORDER BY custom_domain = $1 DESC LIMIT 1`, f[0], f[1]))
-	if !errors.Is(err, sql.ErrNoRows) {
-		return info, err
-	}
-	info, err = scanDomainInfo(database.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM sites WHERE previous_domain IN ($1, $2) AND deleted_at IS NULL ORDER BY previous_domain = $1 DESC LIMIT 1`, f[0], f[1]))
-	if err != nil {
-		return SiteDomainInfo{}, err
-	}
-	return info.AsPrevious(), nil
+	info, err := sites.GetSiteByCustomDomain(ctx, database, hostForms(domain))
+	return SiteDomainInfo(info), err
 }
 
 // AsPrevious is the view of the site's earlier proven address: that address
 // as its domain, active and verified.
 func (info SiteDomainInfo) AsPrevious() SiteDomainInfo {
-	prev := info
-	prev.Domain = info.PreviousDomain
-	prev.Status = "active"
-	prev.LastError = ""
-	prev.CertStatus = "live"
-	prev.FailingSince = sql.NullTime{}
-	if !prev.VerifiedAt.Valid {
-		prev.VerifiedAt = sql.NullTime{Time: time.Now(), Valid: true}
-	}
-	prev.PreviousDomain = ""
-	return prev
+	return SiteDomainInfo(model.SiteDomainInfo(info).AsPrevious(time.Now()))
 }
 
 // BoundDomain is one bound custom domain and the status it currently reports.
-type BoundDomain struct {
-	SiteID         string
-	Domain         string
-	Status         string
-	Verified       bool
-	PreviousDomain string
-	UserID         string
-	Name           string
-	// Token is the site's ownership token (TXT _simple-host.<domain>).
-	Token string
-	// ProofExempt: verified before the TXT proof existed (see SiteDomainInfo).
-	ProofExempt bool
-	// Suspended: the site or its owner's account is taken down; it gets no
-	// checks and no certificate.
-	Suspended bool
-}
+type BoundDomain = model.BoundDomain
 
 // BoundDomainOf is the check view of a site's binding.
 func BoundDomainOf(info SiteDomainInfo) BoundDomain {
@@ -580,39 +546,6 @@ func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host 
 		}
 	}
 	return released, tx.Commit()
-}
-
-// AllowDomainCertRequest records that userID asks for a certificate for
-// domain, unless that would be more than dailyCap
-// (DOMAIN_CERTS_PER_ACCOUNT_DAILY) different domains in the last 24 hours.
-// Asking again for a domain already asked for within the day is always
-// allowed and not counted twice.
-func AllowDomainCertRequest(ctx context.Context, database *sql.DB, userID, domain string, dailyCap int) (bool, error) {
-	tx, err := database.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('domain-cert:' || $1, 0))`, userID); err != nil {
-		return false, err
-	}
-	var again bool
-	var n int
-	if err := tx.QueryRowContext(ctx, `
-		SELECT COALESCE(bool_or(domain = $2), false), count(DISTINCT domain)
-		FROM domain_cert_requests WHERE user_id = $1 AND requested_at > now() - interval '24 hours'`, userID, domain).Scan(&again, &n); err != nil {
-		return false, err
-	}
-	if again {
-		return true, nil
-	}
-	if n >= dailyCap {
-		return false, nil
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO domain_cert_requests (user_id, domain) VALUES ($1, $2)`, userID, domain); err != nil {
-		return false, err
-	}
-	return true, tx.Commit()
 }
 
 // PruneDomainCertRequests forgets requests older than two days.

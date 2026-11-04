@@ -11,3 +11,6 @@ var ErrPeopleFull = errors.New("this Personal name has as many people as it may"
 var ErrVersionConflict = errors.New("the item changed since that version")
 var ErrNoEarlierValue = errors.New("this change has no earlier value to put back")
 var ErrOneDocument = errors.New("page info holds one document")
+
+// ErrStateVersionConflict means a conditional legacy document write lost its expected version.
+var ErrStateVersionConflict = errors.New("state version conflict")

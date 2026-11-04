@@ -18,7 +18,7 @@ import (
 // ErrStateVersionConflict is returned by UpdateSiteStateCAS when the caller's
 // expected version no longer matches the stored one (a concurrent write landed
 // in between). Callers should re-read and retry.
-var ErrStateVersionConflict = errors.New("state version conflict")
+var ErrStateVersionConflict = model.ErrStateVersionConflict
 
 // AddAPIKey stores one more key for an account under name (see the Key*
 // names). Every sign-in hands out a new key this way, because a stored hash
@@ -131,22 +131,7 @@ func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKe
 
 // GetUserByHandle looks up a user by their URL-safe handle.
 func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, error) {
-	const query = `
-		SELECT id, username, is_admin, created_at, handle, display_name
-		FROM users
-		WHERE handle = $1
-	`
-
-	var user User
-	err := db.QueryRowContext(ctx, query, handle).Scan(
-		&user.ID,
-		&user.Username,
-		&user.IsAdmin,
-		&user.CreatedAt,
-		&user.Handle,
-		&user.DisplayName,
-	)
-	return user, err
+	return accounts.GetUserByHandle(ctx, db, handle)
 }
 
 // GetHandleBySiteName returns the URL-safe handle of the OLDEST owner of a site
@@ -176,15 +161,7 @@ type ExpiredSite = model.ExpiredSite
 // older than the TTL become immediately expired and are removed by the next
 // sweep. Returns how many rows were updated.
 func BackfillPreviewExpiry(ctx context.Context, db *sql.DB, username string, ttlHours int) (int64, error) {
-	res, err := db.ExecContext(ctx,
-		`UPDATE sites SET expires_at = created_at + make_interval(hours => $1)
-		 WHERE expires_at IS NULL
-		   AND user_id IN (SELECT id FROM users WHERE lower(username) = lower($2))`,
-		ttlHours, username)
-	if err != nil {
-		return 0, err
-	}
-	return res.RowsAffected()
+	return sites.BackfillPreviewExpiry(ctx, db, username, ttlHours)
 }
 
 // GetAllowedOrigins returns the extra origins (beyond the site's own subdomain)
@@ -213,24 +190,7 @@ func GetAllowedOrigins(ctx context.Context, db *sql.DB, siteName string) ([]stri
 
 // GetAllowedOriginsByID is the site_id-keyed variant of GetAllowedOrigins.
 func GetAllowedOriginsByID(ctx context.Context, db *sql.DB, siteID string) ([]string, error) {
-	var raw sql.NullString
-	err := db.QueryRowContext(ctx, `SELECT allowed_origins FROM sites WHERE id = $1`, siteID).Scan(&raw)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
-		return nil, nil
-	}
-	var out []string
-	for _, o := range strings.Split(raw.String, ",") {
-		if o = strings.TrimSpace(o); o != "" {
-			out = append(out, o)
-		}
-	}
-	return out, nil
+	return sites.GetAllowedOriginsByID(ctx, db, siteID)
 }
 
 // GetLegacyHostnamesByID returns the frozen legacy hostnames bound to a site_id.
@@ -260,8 +220,7 @@ func GetLegacyHostnamesByID(ctx context.Context, db *sql.DB, siteID string) ([]s
 
 // SetAllowedOrigins replaces the allowed-origins list for a site (comma-joined).
 func SetAllowedOrigins(ctx context.Context, db *sql.DB, siteID, origins string) error {
-	_, err := db.ExecContext(ctx, `UPDATE sites SET allowed_origins = $1 WHERE id = $2`, origins, siteID)
-	return err
+	return sites.SetAllowedOrigins(ctx, db, siteID, origins)
 }
 
 func GetSite(ctx context.Context, db *sql.DB, name string) (Site, error) {
@@ -299,65 +258,20 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 
 // ListAllUsers returns every registered user (admin view), oldest first. API keys
 // are deliberately NOT selected.
-func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) { return listUsers(ctx, db, false) }
+func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) {
+	return accounts.ListAllUsers(ctx, db)
+}
 
 // ListSiteOwners excludes visitor-only identities from signup statistics.
 func ListSiteOwners(ctx context.Context, db *sql.DB) ([]User, error) { return listUsers(ctx, db, true) }
 func listUsers(ctx context.Context, db *sql.DB, withSites bool) ([]User, error) {
-	filter := ""
-	if withSites {
-		filter = " WHERE EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id)"
-	}
-	rows, err := db.QueryContext(ctx, `
-		SELECT id, username, is_admin, created_at, COALESCE(handle, ''), display_name,
-		       suspended_at IS NOT NULL, COALESCE(suspended_reason, ''),
-		       COALESCE(signup_source, ''), COALESCE(signup_agent, ''), COALESCE(signup_method, ''), signup_inferred,
-		       signup_detail
-		FROM users`+filter+`
-		ORDER BY created_at ASC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []User
-	for rows.Next() {
-		var u User
-		var handle string
-		var detail []byte
-		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.CreatedAt, &handle, &u.DisplayName, &u.Suspended, &u.SuspendedReason,
-			&u.Signup.Source, &u.Signup.Agent, &u.Signup.Method, &u.Signup.Inferred, &detail); err != nil {
-			return nil, err
-		}
-		if len(detail) > 0 {
-			var d SignupDetail
-			if json.Unmarshal(detail, &d) == nil {
-				u.Signup.Detail = &d
-			}
-		}
-		if handle != "" {
-			u.Handle = sql.NullString{String: handle, Valid: true}
-		}
-		out = append(out, u)
-	}
-	return out, rows.Err()
+	return accounts.ListUsers(ctx, db, withSites)
 }
 
 // SetSiteOffline takes a site offline (on) or brings it back (off). Nothing
 // else about the site changes. sql.ErrNoRows for an unknown or deleted site.
 func SetSiteOffline(ctx context.Context, q Querier, siteID string, on bool) error {
-	query := `UPDATE sites SET offline_at = NULL, updated_at = now() WHERE id = $1 AND deleted_at IS NULL`
-	if on {
-		query = `UPDATE sites SET offline_at = COALESCE(offline_at, now()), updated_at = now() WHERE id = $1 AND deleted_at IS NULL`
-	}
-	res, err := q.ExecContext(ctx, query, siteID)
-	if err != nil {
-		return err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
+	return sites.SetSiteOffline(ctx, q, siteID, on)
 }
 
 // SiteOffline reports whether a site is offline by its owner's choice.
@@ -576,9 +490,7 @@ func GetSiteStateVersion(ctx context.Context, db *sql.DB, name string) (int, err
 
 // GetSiteStateVersionByID is the site_id-keyed variant of GetSiteStateVersion.
 func GetSiteStateVersionByID(ctx context.Context, db *sql.DB, siteID string) (int, error) {
-	var version int
-	err := db.QueryRowContext(ctx, `SELECT state_version FROM sites WHERE id = $1`, siteID).Scan(&version)
-	return version, err
+	return sites.GetSiteStateVersionByID(ctx, db, siteID)
 }
 
 // GetSiteStateForUpdate reads state + version and locks the row FOR UPDATE, so a

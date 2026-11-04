@@ -98,3 +98,17 @@ type SiteDomainInfo struct {
 	// working without it while it stays verified.
 	ProofExempt bool
 }
+
+func (info SiteDomainInfo) AsPrevious(now time.Time) SiteDomainInfo {
+	prev := info
+	prev.Domain = info.PreviousDomain
+	prev.Status = "active"
+	prev.LastError = ""
+	prev.CertStatus = "live"
+	prev.FailingSince = sql.NullTime{}
+	if !prev.VerifiedAt.Valid {
+		prev.VerifiedAt = sql.NullTime{Time: now, Valid: true}
+	}
+	prev.PreviousDomain = ""
+	return prev
+}
