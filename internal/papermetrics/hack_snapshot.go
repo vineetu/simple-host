@@ -56,7 +56,12 @@ type hackSnapshotEvent struct {
 	values      map[string]any
 }
 
-func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) error {
+func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) (resultErr error) {
+	defer func() {
+		if resultErr != nil {
+			c.tracker.Fail("hackSnapshot", resultErr)
+		}
+	}()
 	if err := c.ensureHackKeys(ctx); err != nil {
 		return err
 	}
@@ -65,6 +70,7 @@ func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) error {
 		return err
 	}
 	if err := c.hackTimestampPhases(ctx); err != nil {
+		c.tracker.Fail("paper metrics timestamp phases", err)
 		log.Printf("paper metrics timestamp phases: %v", err)
 	}
 	day := now.UTC().Format("2006-01-02")
@@ -87,6 +93,7 @@ func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) error {
 		var stage string
 		var week time.Time
 		if err := rows.Scan(&e.id, &e.account, &key, &synthetic, &stage, &week); err != nil {
+			c.tracker.Fail("scan Hack metadata", err)
 			rows.Close()
 			return err
 		}
@@ -95,12 +102,14 @@ func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) error {
 	}
 	rows.Close()
 	if rows.Err() != nil {
+		c.tracker.Fail("read Hack metadata", rows.Err())
 		return rows.Err()
 	}
 	for _, e := range events {
 		for col, query := range hackEventQueries {
 			var value any
 			if err := c.db.QueryRowContext(ctx, query, e.id).Scan(&value); err != nil {
+				c.tracker.Fail("Hack column "+col, err)
 				log.Printf("paper metrics Hack column %s: %v", col, err)
 				continue
 			}
@@ -108,6 +117,7 @@ func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) error {
 		}
 		c.hackSiteSnapshot(ctx, e)
 	}
+	var written int64
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -121,16 +131,17 @@ func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) error {
 			values[i] = e.values[col]
 			marks[i] = fmt.Sprintf("$%d", i+1)
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO paper_hack_event (`+strings.Join(hackEventCols, ",")+`) VALUES (`+strings.Join(marks, ",")+`) ON CONFLICT (snapshot_day,event_key) DO NOTHING`, values...); err != nil {
+		if _, err := c.execMetric(ctx, tx, &written, `INSERT INTO paper_hack_event (`+strings.Join(hackEventCols, ",")+`) VALUES (`+strings.Join(marks, ",")+`) ON CONFLICT (snapshot_day,event_key) DO NOTHING`, values...); err != nil {
 			return err
 		}
 	}
-	return tx.Commit()
+	return c.commitMetrics(tx, written)
 }
 
 func (c *Collector) hackSiteSnapshot(ctx context.Context, e hackSnapshotEvent) {
 	rows, err := c.db.QueryContext(ctx, `SELECT name FROM sites WHERE user_id=$1 AND deleted_at IS NULL`, e.account)
 	if err != nil {
+		c.tracker.Fail("paper metrics Hack sites", err)
 		log.Printf("paper metrics Hack sites: %v", err)
 		return
 	}
@@ -138,6 +149,7 @@ func (c *Collector) hackSiteSnapshot(ctx context.Context, e hackSnapshotEvent) {
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
+			c.tracker.Fail("scan Hack metadata", err)
 			rows.Close()
 			return
 		}
@@ -145,6 +157,7 @@ func (c *Collector) hackSiteSnapshot(ctx context.Context, e hackSnapshotEvent) {
 	}
 	rows.Close()
 	if rows.Err() != nil {
+		c.tracker.Fail("read Hack metadata", rows.Err())
 		return
 	}
 	c.walkFootprints(sites)
@@ -173,6 +186,7 @@ func (c *Collector) hackSiteSnapshot(ctx context.Context, e hackSnapshotEvent) {
 		if err := c.db.QueryRowContext(ctx, `SELECT COALESCE(sum(pg_column_size(k.value)),0) FROM site_storage_kv k JOIN sites s ON s.id=k.site_id WHERE s.user_id=$1 AND s.deleted_at IS NULL`, e.account).Scan(&kv); err == nil {
 			e.values["event_storage_bytes"] = storage + kv
 		} else {
+			c.tracker.Fail("paper metrics Hack storage", err)
 			log.Printf("paper metrics Hack storage: %v", err)
 		}
 	}

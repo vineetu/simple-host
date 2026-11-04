@@ -11,7 +11,12 @@ import (
 
 const syntheticSQL = `(e.slug LIKE 'e2e-%' OR e.slug LIKE 'mock-%' OR e.slug LIKE 'mock2-%' OR e.slug LIKE 'local-%' OR COALESCE(u.username LIKE 'e2e-%',false))`
 
-func (c *Collector) ensureHackKeys(ctx context.Context) error {
+func (c *Collector) ensureHackKeys(ctx context.Context) (resultErr error) {
+	defer func() {
+		if resultErr != nil {
+			c.tracker.Fail("ensureHackKeys", resultErr)
+		}
+	}()
 	run, err := c.ensureRun(ctx)
 	if err != nil {
 		return err
@@ -28,6 +33,7 @@ func (c *Collector) ensureHackKeys(ctx context.Context) error {
 	for rows.Next() {
 		var item missing
 		if err := rows.Scan(&item.id, &item.synthetic); err != nil {
+			c.tracker.Fail("scan Hack metadata", err)
 			rows.Close()
 			return err
 		}
@@ -35,6 +41,7 @@ func (c *Collector) ensureHackKeys(ctx context.Context) error {
 	}
 	rows.Close()
 	if rows.Err() != nil {
+		c.tracker.Fail("read Hack metadata", rows.Err())
 		return rows.Err()
 	}
 	for _, item := range items {
@@ -44,7 +51,7 @@ func (c *Collector) ensureHackKeys(ctx context.Context) error {
 				return err
 			}
 			key := int64(binary.BigEndian.Uint64(bytes[:]))
-			_, err = c.db.ExecContext(ctx, `INSERT INTO paper_hack_key (event_id,event_key,synthetic,run_id) VALUES ($1,$2,$3,$4) ON CONFLICT (event_id) DO NOTHING`, item.id, key, item.synthetic, run)
+			_, err = c.execMetric(ctx, c.db, nil, `INSERT INTO paper_hack_key (event_id,event_key,synthetic,run_id) VALUES ($1,$2,$3,$4) ON CONFLICT (event_id) DO NOTHING`, item.id, key, item.synthetic, run)
 			if err == nil {
 				break
 			}
@@ -53,7 +60,7 @@ func (c *Collector) ensureHackKeys(ctx context.Context) error {
 			return err
 		}
 	}
-	_, err = c.db.ExecContext(ctx, `UPDATE paper_hack_key k SET synthetic=true FROM events e LEFT JOIN users u ON u.id=e.created_by WHERE k.event_id=e.id AND NOT k.synthetic AND `+syntheticSQL)
+	_, err = c.execMetric(ctx, c.db, nil, `UPDATE paper_hack_key k SET synthetic=true FROM events e LEFT JOIN users u ON u.id=e.created_by WHERE k.event_id=e.id AND NOT k.synthetic AND `+syntheticSQL)
 	return err
 }
 
@@ -63,6 +70,7 @@ func (c *Collector) refreshHack(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	if err := c.ensureHackKeys(ctx); err != nil {
+		c.tracker.Fail("paper metrics Hack keys", err)
 		log.Printf("paper metrics Hack keys: %v", err)
 		return
 	}
@@ -71,6 +79,7 @@ func (c *Collector) refreshHack(ctx context.Context) {
  AND stage IN ('draft','open','building','closed','judging','results','archived')
  ORDER BY recorded_at DESC LIMIT 1) last ON true`)
 	if err != nil {
+		c.tracker.Fail("paper metrics Hack metadata", err)
 		log.Printf("paper metrics Hack metadata: %v", err)
 		return
 	}
@@ -90,6 +99,7 @@ func (c *Collector) refreshHack(ctx context.Context) {
 		var key int64
 		var synthetic bool
 		if err := rows.Scan(&id, &slug, &account, &stage, &published, &key, &synthetic, &last, &origin); err != nil {
+			c.tracker.Fail("scan Hack metadata", err)
 			rows.Close()
 			return
 		}
@@ -106,13 +116,18 @@ func (c *Collector) refreshHack(ctx context.Context) {
 	}
 	rows.Close()
 	if rows.Err() != nil {
+		c.tracker.Fail("read Hack metadata", rows.Err())
 		return
 	}
 	rows, err = c.db.QueryContext(ctx, `SELECT e.slug,m.user_id::text FROM event_members m JOIN events e ON e.id=m.event_id WHERE e.stage IN ('open','building','closed','judging') OR (e.stage='results' AND COALESCE(e.results_published_at,(SELECT published_at FROM event_results r WHERE r.event_id=e.id))<=now() AND COALESCE(e.results_published_at,(SELECT published_at FROM event_results r WHERE r.event_id=e.id))>now()-interval '24 hours')`)
+	if err != nil {
+		c.tracker.Fail("query Hack metadata", err)
+	}
 	if err == nil {
 		for rows.Next() {
 			var slug, member string
 			if err := rows.Scan(&slug, &member); err != nil {
+				c.tracker.Fail("scan Hack metadata", err)
 				break
 			}
 			if meta.members[slug] == nil {
@@ -121,12 +136,19 @@ func (c *Collector) refreshHack(ctx context.Context) {
 			meta.members[slug][member] = struct{}{}
 		}
 		rows.Close()
+		if rows.Err() != nil {
+			c.tracker.Fail("read Hack metadata", rows.Err())
+		}
 	}
 	rows, err = c.db.QueryContext(ctx, `SELECT user_id::text,name FROM sites WHERE deleted_at IS NULL`)
+	if err != nil {
+		c.tracker.Fail("query Hack metadata", err)
+	}
 	if err == nil {
 		for rows.Next() {
 			var account, name string
 			if err := rows.Scan(&account, &name); err != nil {
+				c.tracker.Fail("scan Hack metadata", err)
 				break
 			}
 			if event := meta.accounts[account]; event != nil && name != event.id {
@@ -136,11 +158,15 @@ func (c *Collector) refreshHack(ctx context.Context) {
 			}
 		}
 		rows.Close()
+		if rows.Err() != nil {
+			c.tracker.Fail("read Hack metadata", rows.Err())
+		}
 	}
 	c.hack.meta.Store(meta)
 	now := time.Now().UTC()
 	for _, change := range changes {
 		if err := c.recordHackPhase(ctx, change.id, change.stage, now, !change.baseline, change.baseline, change.origin); err != nil {
+			c.tracker.Fail("paper metrics Hack observed phase", err)
 			log.Printf("paper metrics Hack observed phase: %v", err)
 		}
 	}
@@ -180,21 +206,33 @@ func (c *Collector) refreshHackBackground(ctx context.Context) {
 		select {
 		case notice := <-c.hack.phases:
 			if err := c.recordHackPhase(ctx, notice.eventID, notice.stage, notice.at, false, false, notice.origin); err != nil {
+				c.tracker.Fail("paper metrics Hack phase", err)
 				log.Printf("paper metrics Hack phase: %v", err)
 			}
 		default:
 			c.refreshHack(ctx)
 			if err := c.hackTimestampPhases(ctx); err != nil {
+				c.tracker.Fail("paper metrics Hack timestamp phases", err)
 				log.Printf("paper metrics Hack timestamp phases: %v", err)
 			}
 			return
 		}
 	}
 }
-func (c *Collector) recordHackStage(ctx context.Context, eventID, stage string, at time.Time, observed bool) error {
+func (c *Collector) recordHackStage(ctx context.Context, eventID, stage string, at time.Time, observed bool) (resultErr error) {
+	defer func() {
+		if resultErr != nil {
+			c.tracker.Fail("recordHackStage", resultErr)
+		}
+	}()
 	return c.recordHackPhase(ctx, eventID, stage, at, observed, false)
 }
-func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, at time.Time, observed, baseline bool, origin ...time.Time) error {
+func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, at time.Time, observed, baseline bool, origin ...time.Time) (resultErr error) {
+	defer func() {
+		if resultErr != nil {
+			c.tracker.Fail("recordHackPhase", resultErr)
+		}
+	}()
 	if err := c.ensureHackKeys(ctx); err != nil {
 		return err
 	}
@@ -206,6 +244,7 @@ func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, 
 	if len(origin) > 0 && !origin[0].IsZero() {
 		stamp = origin[0]
 	}
+	var written int64
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -233,17 +272,17 @@ func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, 
 			return err
 		}
 		if !exact {
-			if _, err = tx.ExecContext(ctx, `UPDATE paper_hack_phase SET origin_change=$4 WHERE event_key=$1 AND stage=$2 AND origin_change=$3`, key, stage, previousOrigin, stamp); err != nil {
+			if _, err = c.execMetric(ctx, tx, &written, `UPDATE paper_hack_phase SET origin_change=$4 WHERE event_key=$1 AND stage=$2 AND origin_change=$3`, key, stage, previousOrigin, stamp); err != nil {
 				return err
 			}
 		}
 	}
 	if stage == "open" && !observed && !baseline {
-		if _, err = tx.ExecContext(ctx, `UPDATE paper_hack_key SET first_open_at=COALESCE(first_open_at,$2) WHERE event_id=$1`, eventID, at); err != nil {
+		if _, err = c.execMetric(ctx, tx, &written, `UPDATE paper_hack_key SET first_open_at=COALESCE(first_open_at,$2) WHERE event_id=$1`, eventID, at); err != nil {
 			return err
 		}
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO paper_hack_phase(run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,baseline,origin_change)
+	_, err = c.execMetric(ctx, tx, &written, `INSERT INTO paper_hack_phase(run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,baseline,origin_change)
  SELECT $1,k.event_key,k.synthetic,$3,date_trunc('minute',$4::timestamptz),round(EXTRACT(epoch FROM ($4::timestamptz-COALESCE(e.starts_at,k.first_open_at)))/60)::int,date_trunc('minute',COALESCE(e.starts_at,k.first_open_at)+interval '30 seconds'),$5,$6,$7
  FROM events e JOIN paper_hack_key k ON k.event_id=e.id WHERE e.id=$2
  ON CONFLICT(event_key,stage,origin_change) DO UPDATE SET
@@ -256,14 +295,19 @@ func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, 
 	if err != nil {
 		return err
 	}
-	return tx.Commit()
+	return c.commitMetrics(tx, written)
 }
-func (c *Collector) hackTimestampPhases(ctx context.Context) error {
+func (c *Collector) hackTimestampPhases(ctx context.Context) (resultErr error) {
+	defer func() {
+		if resultErr != nil {
+			c.tracker.Fail("hackTimestampPhases", resultErr)
+		}
+	}()
 	run, err := c.ensureRun(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = c.db.ExecContext(ctx, `INSERT INTO paper_hack_phase (run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,origin_change)
+	_, err = c.execMetric(ctx, c.db, nil, `INSERT INTO paper_hack_phase (run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,origin_change)
  SELECT $1,k.event_key,k.synthetic,v.stage,date_trunc('minute',v.at),round(EXTRACT(epoch FROM (v.at-COALESCE(e.starts_at,k.first_open_at)))/60)::int,date_trunc('minute',COALESCE(e.starts_at,k.first_open_at)+interval '30 seconds'),false,v.at
  FROM events e JOIN paper_hack_key k ON k.event_id=e.id
  CROSS JOIN LATERAL (VALUES ('submission_deadline',e.submission_deadline),('judging_locked',e.judging_locked_at),('results_published',COALESCE(e.results_published_at,(SELECT published_at FROM event_results r WHERE r.event_id=e.id))),('voting_opens',e.voting_opens_at),('voting_closes',e.voting_closes_at)) v(stage,at)

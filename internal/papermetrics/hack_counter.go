@@ -368,6 +368,7 @@ func (h *hackMetrics) drain(now time.Time) []*hackSlotCount {
 func (c *Collector) flushHack(ctx context.Context, now time.Time) {
 	run, err := c.ensureRun(ctx)
 	if err != nil {
+		c.tracker.Fail("paper metrics run", err)
 		log.Printf("paper metrics run: %v", err)
 		return
 	}
@@ -379,7 +380,8 @@ func (c *Collector) flushHack(ctx context.Context, now time.Time) {
 		c.hack.releaseCells(slot)
 	}
 	for _, table := range []string{"paper_hack_latency", "paper_hack_minute"} {
-		if _, err := c.db.ExecContext(ctx, `DELETE FROM `+table+` WHERE slot<$1`, now.AddDate(0, 0, -400)); err != nil {
+		if _, err := c.execMetric(ctx, c.db, nil, `DELETE FROM `+table+` WHERE slot<$1`, now.AddDate(0, 0, -400)); err != nil {
+			c.tracker.Fail("paper metrics Hack retention", err)
 			log.Printf("paper metrics Hack retention: %v", err)
 		}
 	}
@@ -394,12 +396,14 @@ func (c *Collector) flushHackSlot(ctx context.Context, run int64, slot *hackSlot
 			peak = arrivals[i]
 		}
 	}
+	var written int64
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
+		c.tracker.Fail("paper metrics Hack slot", err)
 		log.Printf("paper metrics Hack slot: %v", err)
 		return
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO paper_hack_minute (run_id,slot,slot_secs,event_key,synthetic,requests,writes,data_writes,deploys,active_members,inflight_max,peak_rps_1s,arrivals_1s,writes_1s)
+	_, err = c.execMetric(ctx, tx, &written, `INSERT INTO paper_hack_minute (run_id,slot,slot_secs,event_key,synthetic,requests,writes,data_writes,deploys,active_members,inflight_max,peak_rps_1s,arrivals_1s,writes_1s)
    VALUES ($1,$2,60,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING`, run, slot.slot, slot.event.key, slot.event.synthetic.Load(), slot.requests.Load(), slot.writes.Load(), slot.dataWrites.Load(), slot.deploys.Load(), slot.active.Load(), slot.inflightMax.Load(), peak, pq.Array(arrivals[:]), pq.Array(writes[:]))
 	for class := 1; class < numClasses && err == nil; class++ {
 		for group := 0; group < 4 && err == nil; group++ {
@@ -410,17 +414,18 @@ func (c *Collector) flushHackSlot(ctx context.Context, run int64, slot *hackSlot
 					classArrivals[i] = int64(cell.arrivals[i].Load())
 					classWrites[i] = int64(cell.writes1s[i].Load())
 				}
-				_, err = tx.ExecContext(ctx, `INSERT INTO paper_hack_latency (run_id,slot,event_key,synthetic,class,status_group,n,sum_us,max_us,bytes_out,idx_offset,counts,arrivals_1s,writes_1s)
+				_, err = c.execMetric(ctx, tx, &written, `INSERT INTO paper_hack_latency (run_id,slot,event_key,synthetic,class,status_group,n,sum_us,max_us,bytes_out,idx_offset,counts,arrivals_1s,writes_1s)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT DO NOTHING`, run, slot.slot, slot.event.key, slot.event.synthetic.Load(), classNames[class], []string{"2xx", "3xx", "4xx", "5xx"}[group], hist.N, hist.SumUS, hist.MaxUS, cell.bytes.Load(), hist.Offset, pq.Array(hist.Counts), pq.Array(classArrivals[:]), pq.Array(classWrites[:]))
 			}
 		}
 	}
 	if err == nil {
-		err = tx.Commit()
+		err = c.commitMetrics(tx, written)
 	} else {
 		_ = tx.Rollback()
 	}
 	if err != nil {
+		c.tracker.Fail("paper metrics Hack slot", err)
 		log.Printf("paper metrics Hack slot: %v", err)
 	}
 }

@@ -287,6 +287,10 @@ func TestHackDailySkipsFailedQuery(t *testing.T) {
 	if err := c.dailySnapshot(context.Background(), time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
+	status := c.tracker.Snapshot()
+	if status.LastError == "" || status.LastProgress == nil {
+		t.Fatalf("partial snapshot status: %+v", status)
+	}
 	var metrics, votes int
 	if err := d.QueryRow(`SELECT count(*) FILTER (WHERE metric LIKE 'hack_%'),count(*) FILTER (WHERE metric='hack_votes_total') FROM paper_daily`).Scan(&metrics, &votes); err != nil {
 		t.Fatal(err)
