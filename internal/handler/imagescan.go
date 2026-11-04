@@ -59,16 +59,22 @@ type ImageScanConfig struct {
 // ImageScan is the queue worker and the quarantine. A nil *ImageScan is the
 // feature off: every method is a no-op.
 type ImageScan struct {
-	runner     *workers.Runner
-	tracker    *workers.Tracker
-	enqueueCtx context.Context
-	database   *sql.DB
-	disk       *storage.DiskStorage
-	matcher    imagescan.Matcher
-	reporter   imagescan.Reporter // nil: reports cannot be filed
-	mailer     email.Sender
-	cfg        ImageScanConfig
-	now        func() time.Time
+	runner        *workers.Runner
+	tracker       *workers.Tracker
+	enqueueCtx    context.Context
+	enqueueRunner *workers.Runner
+	enqueueMu     sync.Mutex
+	closing       bool
+	startOnce     sync.Once
+	stopOnce      sync.Once
+	stopDone      chan struct{}
+	database      *sql.DB
+	disk          *storage.DiskStorage
+	matcher       imagescan.Matcher
+	reporter      imagescan.Reporter // nil: reports cannot be filed
+	mailer        email.Sender
+	cfg           ImageScanConfig
+	now           func() time.Time
 	// run overrides dispatch in tests; production uses the retained runner.
 	run func(func())
 	// prepare is imagescan.Prepare; tests substitute a trivial one.
@@ -109,6 +115,7 @@ func NewImageScan(database *sql.DB, disk *storage.DiskStorage, matcher imagescan
 	}
 	t := workers.NewTracker("operations.image_scan")
 	s := &ImageScan{runner: workers.NewRunner(t), tracker: t,
+		enqueueCtx: context.Background(), enqueueRunner: workers.NewRunner(t), stopDone: make(chan struct{}),
 		database: database, disk: disk, matcher: matcher, reporter: reporter, mailer: mailer, cfg: cfg,
 		now:        time.Now,
 		prepare:    imagescan.Prepare,
@@ -345,23 +352,61 @@ func (s *ImageScan) runEnqueue(fn func(context.Context)) {
 		s.run(func() { fn(context.Background()) })
 		return
 	} // test dispatch hook
-	s.runner.Go(s.enqueueCtx, fn)
-}
-func (s *ImageScan) Stop() {
-	if s != nil {
-		s.runner.Stop()
+	s.enqueueMu.Lock()
+	defer s.enqueueMu.Unlock()
+	if !s.closing {
+		s.enqueueRunner.Go(s.enqueueCtx, fn)
 	}
 }
+
+// Stop closes enqueue admission and stops scans. Accepted persistence work has
+// ten seconds to drain before cancellation; Wait joins that work even on timeout.
+func (s *ImageScan) Stop() {
+	if s == nil {
+		return
+	}
+	s.stopOnce.Do(func() {
+		s.enqueueMu.Lock()
+		s.closing = true
+		s.enqueueMu.Unlock()
+		s.runner.Stop()
+		go func() {
+			done := make(chan struct{})
+			go func() { s.enqueueRunner.Wait(); close(done) }()
+			timer := time.NewTimer(10 * time.Second)
+			defer timer.Stop()
+			select {
+			case <-done:
+			case <-timer.C:
+				s.enqueueRunner.Stop()
+				<-done
+			}
+			s.enqueueRunner.Stop()
+			close(s.stopDone)
+		}()
+	})
+}
 func (s *ImageScan) Wait() {
-	if s != nil {
-		s.runner.Wait()
+	if s == nil {
+		return
+	}
+	s.runner.Wait()
+	s.enqueueMu.Lock()
+	closing := s.closing
+	s.enqueueMu.Unlock()
+	if closing {
+		<-s.stopDone
+	} else {
+		s.enqueueRunner.Wait()
 	}
 }
 func (s *ImageScan) Status() []workers.Status {
 	if s == nil {
 		return nil
 	}
-	return s.runner.Status()
+	status := s.runner.Status()
+	status[0].Running = status[0].Running || s.enqueueRunner.Status()[0].Running
+	return status
 }
 
 // Start waits briefly after boot, then scans every few seconds.
@@ -369,23 +414,28 @@ func (s *ImageScan) Start(ctx context.Context) {
 	if s == nil {
 		return
 	}
-	s.enqueueCtx = ctx
-	s.runner.Go(ctx, func(ctx context.Context) {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(imageScanBootDelay):
-		}
-		t := time.NewTicker(imageScanEvery)
-		defer t.Stop()
-		for {
-			s.RunOnce(ctx)
+	s.startOnce.Do(func() {
+		s.runner.Go(ctx, func(ctx context.Context) {
+			<-ctx.Done()
+			s.Stop()
+		})
+		s.runner.Go(ctx, func(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-t.C:
+			case <-time.After(imageScanBootDelay):
 			}
-		}
+			t := time.NewTicker(imageScanEvery)
+			defer t.Stop()
+			for {
+				s.RunOnce(ctx)
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+				}
+			}
+		})
 	})
 }
 
@@ -558,10 +608,10 @@ func (s *ImageScan) runJob(ctx context.Context, j db.ImageScanJob) {
 	m, err := s.matcher.Match(ctx, img)
 	switch {
 	case errors.Is(err, imagescan.ErrUnsupported):
-		s.record(ctx, j.SHA256, imagescan.VerdictSkipped, "", err.Error())
+		s.record(ctx, j.SHA256, imagescan.VerdictSkipped, "", imagescan.SafeError("match", err).Error())
 		s.finish(ctx, j.ID)
 	case err != nil:
-		s.deferJob(ctx, j, err)
+		s.deferJob(ctx, j, imagescan.SafeError("match", err))
 	case !m.IsMatch:
 		s.record(ctx, j.SHA256, imagescan.VerdictClean, m.TrackingID, "")
 		s.finish(ctx, j.ID)
@@ -1299,7 +1349,7 @@ func (s *ImageScan) fileReport(ctx context.Context, id int64) (string, time.Time
 	}
 	res, err := s.reporter.Report(ctx, in)
 	if err != nil {
-		return failed(err)
+		return failed(imagescan.SafeError("report", err))
 	}
 	at := s.now().UTC()
 	m.ReportStatus, m.ReportID, m.ReportError, m.ReportedAt = "filed", res.ReportID, "", sql.NullTime{Time: at, Valid: true}
