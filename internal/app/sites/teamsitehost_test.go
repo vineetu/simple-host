@@ -18,10 +18,13 @@ func TestTeamSiteHostLabels(t *testing.T) {
 		ok          bool
 	}{
 		{"alpha--weekend", "alpha", "weekend", true},
-		{"alpha", "", "", false},                 // no "--" at all
-		{"alpha--weekend--extra", "", "", false}, // ambiguous: two "--"
-		{"--weekend", "", "", false},             // empty team
-		{"alpha--", "", "", false},               // empty event
+		{"alpha", "", "", false}, // no "--" at all
+		// A legacy event slug containing "--" is accepted as the event,
+		// split at the FIRST "--": the team ("alpha") can never contain
+		// "--" itself (DeriveTeamSlug), so this is unambiguous.
+		{"alpha--weekend--extra", "alpha", "weekend--extra", true},
+		{"--weekend", "", "", false}, // empty team
+		{"alpha--", "", "", false},   // empty event
 		{"", "", "", false},
 	}
 	for _, c := range cases {

@@ -88,7 +88,10 @@ signIn:
 # matters once an installation runs enough concurrent events to hit a load
 # balancer's or certificate's per-name SAN/rule limit (the reason this
 # exists: AWS ALB listener-rule and certificate-SAN limits). Off by default,
-# matching simple-hack.app.
+# matching simple-hack.app. Turn it on for a new install, or before any event
+# exists: existing two-level team addresses (<team>.<event>.<host>) are not
+# redirected to the flat form, so turning it on after events are already
+# running leaves their team sites at the old addresses.
 teamSites:
   flatHosts: false
 

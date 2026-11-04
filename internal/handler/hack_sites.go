@@ -295,7 +295,7 @@ func (h *SiteHandler) hackTLSHostExists(ctx context.Context, host string) bool {
 			continue
 		}
 		label := strings.TrimSuffix(host, "."+base)
-		if h.teamSiteFlatHostsOn() {
+		if h.teamSiteFlatHostsOn() && h.flatLabelConfirmedNotAHandle(ctx, label) {
 			if team, event, ok := sites.TeamSiteHostLabels(label); ok {
 				return h.hackTeamSiteExists(ctx, event, team)
 			}

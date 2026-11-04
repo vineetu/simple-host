@@ -154,13 +154,15 @@ func TestAuthJSBases(t *testing.T) {
 	}
 }
 
-// TestAuthJSTeamSiteFlatHosts (issue 4): served auth.js takes the part of a
-// flat team-site host's one label before "--" as the site name, only when
-// TEAM_SITE_FLAT_HOSTS is on; off, it is byte for byte unpatched.
+// TestAuthJSTeamSiteFlatHosts (issue 4): served auth.js decides the flat
+// team case first, before the person-path heuristic, taking the part of a
+// flat team-site host's one label before the first "--" as the site name
+// for every path — only when TEAM_SITE_FLAT_HOSTS is on; off, it is byte
+// for byte unpatched.
 func TestAuthJSTeamSiteFlatHosts(t *testing.T) {
 	raw, _ := embeddedStatic.ReadFile("static/auth.js")
-	if bytes.Count(raw, []byte(authJSOwnHost)) != 1 {
-		t.Fatal("auth.js no longer has the own-host line the flat-hosts patch targets (basetext.go)")
+	if bytes.Count(raw, []byte(authJSOwnHostChain)) != 1 {
+		t.Fatal("auth.js no longer has the API-base chain the flat-hosts patch targets (basetext.go)")
 	}
 	setTeamSiteFlatHostsText(false)
 	off, _ := staticFiles.ReadFile("static/auth.js")
@@ -171,8 +173,8 @@ func TestAuthJSTeamSiteFlatHosts(t *testing.T) {
 	setTeamSiteFlatHostsText(true)
 	t.Cleanup(func() { setTeamSiteFlatHostsText(false) })
 	patched, _ := staticFiles.ReadFile("static/auth.js")
-	if !bytes.Contains(patched, []byte(authJSOwnHostFlat)) || bytes.Contains(patched, []byte(authJSOwnHost)) {
-		t.Fatal("flat: auth.js not patched (or the unpatched line is still present)")
+	if !bytes.Contains(patched, []byte(authJSOwnHostChainFlat)) || bytes.Contains(patched, []byte(authJSOwnHostChain)) {
+		t.Fatal("flat: auth.js not patched (or the unpatched chain is still present)")
 	}
 
 	if _, err := exec.LookPath("node"); err != nil {
@@ -187,6 +189,11 @@ func TestAuthJSTeamSiteFlatHosts(t *testing.T) {
 		// The bug this patch fixes: visiting a flat team site's root, the
 		// unpatched auth.js would call /v1/sites/alpha--weekend/me.
 		{"https://alpha--weekend.simple-host.app/", "https://alpha--weekend.simple-host.app/v1/sites/alpha/me"},
+		// A sub-path on the flat host must resolve the same way, decided
+		// before the person-path heuristic (oneLabel && seg) ever runs —
+		// otherwise it would guess "weekend" is a person host and "about"
+		// a site name.
+		{"https://alpha--weekend.simple-host.app/about/", "https://alpha--weekend.simple-host.app/v1/sites/alpha/me"},
 		// A two-level host (no "--") is unaffected.
 		{"https://alpha.weekend.simple-host.app/", "https://alpha.weekend.simple-host.app/v1/sites/alpha/me"},
 	})

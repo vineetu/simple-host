@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -99,10 +100,13 @@ func TestRequestSiteCertSkipsPerEventUnderFlatHosts(t *testing.T) {
 	}
 }
 
-// TestSiteHostPartsFlatHosts: a single <team>--<event> label resolves to the
-// same (site, handle) pair as the two-level form, only when flat mode is on;
-// off, it resolves to nothing (never read as a team site), and a plain
-// two-level host is unaffected either way.
+// TestSiteHostPartsFlatHosts covers the parts of siteHostParts that never
+// need a database: off mode (no flat logic runs at all), the two-level form
+// (parses the same whether flat is on or off), and malformed single labels
+// that are rejected before any handle lookup would be attempted (no "--" at
+// all, or an empty team/event after splitting). The happy-path flat split,
+// and the exact-handle-match-wins check that guards it, need a real account
+// to check against and are covered by the DB-backed tests below.
 func TestSiteHostPartsFlatHosts(t *testing.T) {
 	h := hackFlatApp(t, "")
 	ctx := context.Background()
@@ -117,23 +121,23 @@ func TestSiteHostPartsFlatHosts(t *testing.T) {
 	}
 
 	h.SetTeamSiteFlatHosts(true)
-	site, handle, base, ok = h.siteHostParts(ctx, "alpha--weekend.simple-hack.test")
-	if !ok || site != "alpha" || handle != "weekend" || base != "simple-hack.test" {
-		t.Fatalf("flat: %q %q %q %v", site, handle, base, ok)
-	}
-	// The two-level form still parses too (sitehost.go's own TLS/cert
-	// readiness is what actually makes it unreachable in production; see
-	// teamSitesReady).
+	// The two-level form still parses the same with flat mode on.
 	site, handle, base, ok = h.siteHostParts(ctx, "alpha.weekend.simple-hack.test")
 	if !ok || site != "alpha" || handle != "weekend" || base != "simple-hack.test" {
 		t.Fatalf("flat, two-level still parses: %q %q %q %v", site, handle, base, ok)
 	}
+	// Fails closed with no database to check against: a flat-shaped,
+	// handle-addressable label can never be confirmed NOT a real handle, so
+	// it is never read as a team site here (see the DB-backed tests for the
+	// same label resolving once there is a database to check).
+	if _, _, _, ok := h.siteHostParts(ctx, "alpha--weekend.simple-hack.test"); ok {
+		t.Fatal("flat, no database: a flat label resolved without being able to rule out a real handle")
+	}
 
 	for _, host := range []string{
-		"weekend.simple-hack.test",               // one label, no "--": an event host, not a team site
-		"alpha--weekend--extra.simple-hack.test", // ambiguous, more than one "--"
-		"--weekend.simple-hack.test",             // empty team
-		"alpha--.simple-hack.test",               // empty event
+		"weekend.simple-hack.test",   // one label, no "--": an event host, not a team site
+		"--weekend.simple-hack.test", // empty team
+		"alpha--.simple-hack.test",   // empty event
 	} {
 		if _, _, _, ok := h.siteHostParts(ctx, host); ok {
 			t.Errorf("flat: %q wrongly resolved as a team site", host)
@@ -165,6 +169,31 @@ func setHandle(t *testing.T, a *privateApp, p person, handle string) {
 	if _, err := a.database.Exec(`UPDATE users SET handle = $1 WHERE id = $2`, handle, id); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// makeEventAccount gives p's account a minimal, real events row (built-in
+// website mode, so serveHackEventHost reaches the hackEventPage callback
+// below once GetEventByAccount resolves it), and wires a stub event page so
+// a request that correctly falls through to the person/event host actually
+// gets distinctive, checkable content back instead of a 404.
+func makeEventAccount(t *testing.T, a *privateApp, p person) {
+	t.Helper()
+	id, _ := a.userID(t, p)
+	slug := uniqueLabel(t, "ev")
+	if _, err := a.database.Exec(
+		`INSERT INTO events (slug, account_id, title, organiser_name, contact_email, join_code, judge_code)
+		 VALUES ($1, $2, 'Legacy Event', 'Legacy Organiser', 'legacy@example.com', $3, $4)`,
+		slug, id, uniqueLabel(t, "join"), uniqueLabel(t, "judge"),
+	); err != nil {
+		t.Fatal(err)
+	}
+	a.sites.SetHackEventPage(func(w http.ResponseWriter, r *http.Request, user model.User) bool {
+		if user.ID != id {
+			return false
+		}
+		w.Write([]byte("<h1>legacy event page</h1>"))
+		return true
+	})
 }
 
 // TestSiteHostsFlatServesWithoutPerEventCertMarker (issue 1): with a
@@ -210,6 +239,10 @@ func TestSiteHostsFlatModeExactHandleWins(t *testing.T) {
 	a.deploy(t, otherEvent, "blue")
 	legacyHandle := "red--" + otherHandle
 	setHandle(t, a, legacyEvent, legacyHandle)
+	// legacyEvent is a real hosted event (not just a bare account), so its
+	// own host can actually be checked to serve the event, not merely to
+	// not serve "red".
+	makeEventAccount(t, a, legacyEvent)
 
 	asHackFlat(a)
 	ctx := context.Background()
@@ -223,9 +256,14 @@ func TestSiteHostsFlatModeExactHandleWins(t *testing.T) {
 	if strings.Contains(string(r.body), "<h1>red</h1>") {
 		t.Fatalf("existing handle %q was hijacked into serving another account's %q site: %d %s", legacyHandle, "red", r.status, r.body)
 	}
+	// Not just "didn't serve red": it must actually serve the legacy
+	// event's own page.
+	if r.status != 200 || !strings.Contains(string(r.body), "<h1>legacy event page</h1>") {
+		t.Fatalf("legacy event host %s did not serve the event: %d %s", host, r.status, r.body)
+	}
 
-	// Contrast: a genuinely ambiguous flat label (not a real handle) still
-	// splits and resolves to the real team site.
+	// Contrast: a genuine flat label (not a real handle) still splits and
+	// resolves to the real team site.
 	genuineHost := "blue--" + otherHandle + "." + pcSiteDomain
 	r2 := a.at(t, "GET", genuineHost, "/", nil, nil)
 	if r2.status != 200 || !strings.Contains(string(r2.body), "<h1>blue</h1>") {
@@ -237,6 +275,34 @@ func TestSiteHostsFlatModeExactHandleWins(t *testing.T) {
 	r3 := a.at(t, "GET", twoLevelHost, "/", nil, nil)
 	if r3.status != 200 || !strings.Contains(string(r3.body), "<h1>red</h1>") {
 		t.Fatalf("two-level host %s under flat mode: %d %s", twoLevelHost, r3.status, r3.body)
+	}
+}
+
+// TestSiteHostPartsFlatHostsLegacyEventSlugWithDoubleHyphen (issue 2): a
+// legacy event whose own slug/handle contains "--" (predating the rule that
+// forbids it) still gets correctly split at the FIRST "--": the team part
+// never contains "--" by construction, so everything after it, "--" and
+// all, is the event.
+func TestSiteHostPartsFlatHostsLegacyEventSlugWithDoubleHyphen(t *testing.T) {
+	a, _ := newSiteApp(t, "canonical")
+	legacyEvent := a.newPerson(t, "ev")
+	legacyEventHandle := uniqueLabel(t, "my") + "--" + uniqueLabel(t, "event")
+	setHandle(t, a, legacyEvent, legacyEventHandle)
+	a.deploy(t, legacyEvent, "alpha")
+
+	asHackFlat(a)
+	ctx := context.Background()
+
+	flatLabel := "alpha--" + legacyEventHandle
+	site, handle, base, ok := a.sites.siteHostParts(ctx, flatLabel+"."+pcSiteDomain)
+	if !ok || site != "alpha" || handle != legacyEventHandle || base != pcSiteDomain {
+		t.Fatalf("siteHostParts(%q) = %q, %q, %q, %v; want alpha, %q, %q, true", flatLabel, site, handle, base, ok, legacyEventHandle, pcSiteDomain)
+	}
+
+	host := flatLabel + "." + pcSiteDomain
+	r := a.at(t, "GET", host, "/", nil, nil)
+	if r.status != 200 || !strings.Contains(string(r.body), "<h1>alpha</h1>") {
+		t.Fatalf("flat host over a legacy double-hyphen event %s: %d %s", host, r.status, r.body)
 	}
 }
 

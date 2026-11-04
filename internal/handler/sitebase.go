@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -157,19 +159,50 @@ func (h *SiteHandler) userHostLabel(host string) (label, base string, ok bool) {
 	return "", "", false
 }
 
+// flatLabelConfirmedNotAHandle reports whether label — a single DNS label
+// under a served base, with flat hosts on — may safely be read as a flat
+// <team>--<event> label rather than some account's own host. False
+// whenever that cannot be ruled out: no "--" at all (never a flat label),
+// or label is itself a real account handle, or the lookup to check that
+// could not be completed.
+//
+// Shared by siteHostParts (routing) and hackTLSHostExists (the on-demand
+// TLS allowlist), so both apply the exact-handle-match-wins rule the same
+// way: a single label that is itself a real, addressable account handle —
+// an event created before "--" was forbidden in slugs, or any future
+// coincidence — is always that person/event's own host, never read as a
+// flat team label. Checked with one GetUserByHandle lookup, only for a
+// label that actually contains "--", so every other host costs nothing
+// extra. Fails closed: true only on a confirmed "no such handle"
+// (sql.ErrNoRows); a nil database or any other lookup error returns
+// false — a database hiccup must never risk serving one account's page as
+// another's.
+func (h *SiteHandler) flatLabelConfirmedNotAHandle(ctx context.Context, label string) bool {
+	if !strings.Contains(label, "--") {
+		return false
+	}
+	if !handleAddressable(label) {
+		return true // too long, or otherwise shaped, to ever be a real handle
+	}
+	if h.database == nil {
+		return false // fail closed: no way to rule out a real handle
+	}
+	_, err := h.storeAccounts().GetUserByHandle(ctx, label)
+	if err == nil {
+		return false // a real handle: its own host, never a team label
+	}
+	return errors.Is(err, sql.ErrNoRows) // fail closed on any other error
+}
+
 // siteHostParts is siteHostLabels under any served base, plus — only when
 // teamSiteFlatHostsOn() — the flat single-label <team>--<event> form. Every
 // caller (siteHostSite, SiteHosts, isSiteHostName, hostBase) resolves either
 // shape through the exact same lookup, so a flat team-site host is routed
 // identically to today's two-level one. With the setting off this is
 // unchanged: only siteHostLabels ever runs, so a "--" label is never read as
-// a team site.
-//
-// Exact handle match wins: a single label that is itself a real, addressable
-// account handle — an event created before "--" was forbidden in slugs, or
-// any future coincidence — is always that person/event's own host, never
-// read as a flat team label. Checked (one GetUserByHandle lookup) before the
-// flat split, so an existing event never loses its own origin to a team's.
+// a team site. Exact handle match wins (flatLabelConfirmedNotAHandle) before
+// the flat split, so an existing event never loses its own origin to a
+// team's.
 func (h *SiteHandler) siteHostParts(ctx context.Context, host string) (site, handle, base string, ok bool) {
 	for _, b := range h.servedBases() {
 		if s, hd, ok := siteHostLabels(host, b); ok {
@@ -179,13 +212,8 @@ func (h *SiteHandler) siteHostParts(ctx context.Context, host string) (site, han
 	if h.teamSiteFlatHostsOn() {
 		for _, b := range h.servedBases() {
 			label, ok := platformSubdomainLabel(host, b)
-			if !ok {
+			if !ok || !h.flatLabelConfirmedNotAHandle(ctx, label) {
 				continue
-			}
-			if handleAddressable(label) && h.database != nil {
-				if _, err := h.storeAccounts().GetUserByHandle(ctx, label); err == nil {
-					continue // a real handle: its own host, never a team label
-				}
 			}
 			if s, hd, ok := appsites.TeamSiteHostLabels(label); ok {
 				return s, hd, b, true

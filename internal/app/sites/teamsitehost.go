@@ -21,14 +21,20 @@ func TeamSiteHost(eventSlug, teamSlug, base string, flat bool) string {
 }
 
 // TeamSiteHostLabels splits a single DNS label of the flat team-site form,
-// <team>--<event>, back into its slugs. Event and team slugs may never
-// contain "--" (internal/rules/hackevents' event-slug check,
-// internal/rules/hackteams.DeriveTeamSlug's hyphen-run collapsing), so a
-// well-formed flat label has exactly one "--"; anything else — none, or more
-// than one, which would be ambiguous — is ok=false rather than guessed at.
+// <team>--<event>, back into its slugs: the team is everything before the
+// FIRST "--", the event everything after it. A team slug may never contain
+// "--" (internal/rules/hackteams.DeriveTeamSlug's hyphen-run collapsing), so
+// splitting on the first occurrence always isolates it correctly. An event
+// slug created after "--" was forbidden there (internal/hackhttp's
+// slugVerdict) cannot contain "--" either, but a legacy event slug from
+// before that rule can — this still accepts it as the event, "--" and all,
+// rather than rejecting it as ambiguous: callers (handler/sitebase.go's
+// siteHostParts) have already ruled out the whole label being a real
+// account handle before reaching here, so there is no longer an event to
+// confuse this with. Only an empty team or event is ok=false.
 func TeamSiteHostLabels(label string) (team, event string, ok bool) {
 	team, event, ok = strings.Cut(label, "--")
-	if !ok || team == "" || event == "" || strings.Contains(event, "--") {
+	if !ok || team == "" || event == "" {
 		return "", "", false
 	}
 	return team, event, true

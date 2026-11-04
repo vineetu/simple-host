@@ -29,9 +29,10 @@ var (
 	authJSBases []string
 	// teamSiteFlatHostsText: this instance's TEAM_SITE_FLAT_HOSTS is on
 	// (set by SiteHandler.SetTeamSiteFlatHosts, hack_sites.go, only when the
-	// edition also runs hosted events). auth.js then takes the part of a
-	// flat team-site host's one label before "--" as the site name
-	// (authJSOwnHostFlat).
+	// edition also runs hosted events). auth.js then decides the flat team
+	// case first, before the person-path heuristic, taking the part of a
+	// flat team-site host's one label before the first "--" as the site
+	// name for every path (authJSOwnHostChainFlat).
 	teamSiteFlatHostsText bool
 )
 
@@ -65,28 +66,58 @@ func SetSiteBaseText(bases []string) {
 	clearAssetText()
 }
 
-// authJSOwnHost is auth.js's site-host branch (the final else: the site is
-// the host's one label, same-origin). A test fails if this text changes.
-const authJSOwnHost = `    } else {
+// authJSOwnHostChain is auth.js's whole API-base decision chain for a page
+// not on a claimed name (_cfg.site unset): sites.<apex>/<handle>/<site>/,
+// <handle>.<apex>/<site>/... (the person-path heuristic, oneLabel && seg)
+// and the site-host/catch-all else. A test fails if this text changes.
+const authJSOwnHostChain = `    if (sub === "sites" && m) {
+      API_BASE = location.origin + "/v1/u/" + m[1] + "/sites/" + m[2];
+    } else if (oneLabel && seg) {
+      // <handle>.<apex>/<site>/...: a person's own address, where the site is
+      // the first path segment. A <name>.<apex> a site has claimed serves that
+      // site at its root instead. Ask the host once which it is.
+      var bySeg = location.origin + "/v1/sites/" + seg[1];
+      var byLabel = location.origin + "/v1/sites/" + sub;
+      API_BASE = BASE_TOKEN;
+      baseReady = fetch(bySeg + "/me", {credentials: "include", cache: "no-store"}).then(
+        function (r) { return r.ok ? bySeg : byLabel; },
+        function () { return byLabel; });
+    } else {
       // <site>.<handle>.<apex> (a site's own host) and every other host:
       // the site is the first label, and /v1/ is same-origin.
       API_BASE = location.origin + "/v1/sites/" + sub;
       ownOrigin = !contentHost;
     }`
 
-// authJSOwnHostFlat is authJSOwnHost for TEAM_SITE_FLAT_HOSTS: a flat
-// team-site host's one label is <team>--<event>, so the site is the part
-// before "--". (A pre-existing event slug that happens to contain "--",
-// impossible for one created after this shipped, still resolves correctly
-// server-side — handler/sitebase.go's exact-handle-match-wins siteHostParts
-// — but this client-side guess has no database to tell the two apart by
-// shape alone.)
-const authJSOwnHostFlat = `    } else {
-      // <site>.<handle>.<apex> (a site's own host) and every other host:
-      // the site is the first label, and /v1/ is same-origin. Flat
-      // team-site hosts (TEAM_SITE_FLAT_HOSTS) are <team>--<event>; the
-      // site is the part before "--".
+// authJSOwnHostChainFlat is authJSOwnHostChain for TEAM_SITE_FLAT_HOSTS: the
+// flat team case is decided first, before the person-path heuristic below
+// it, so a sub-path request (e.g. alpha--weekend.<host>/about/) still
+// resolves to the team's own site instead of trying "site is the first path
+// segment". A flat team-site host's one label is <team>--<event>; the site
+// is the part before the first "--", for every path. (A pre-existing event
+// slug that happens to contain "--", impossible for one created after this
+// shipped, still resolves correctly server-side —
+// handler/sitebase.go's exact-handle-match-wins siteHostParts — but this
+// client-side guess has no database to tell the two apart by shape alone.)
+const authJSOwnHostChainFlat = `    if (sub.indexOf("--") !== -1) {
       API_BASE = location.origin + "/v1/sites/" + sub.split("--")[0];
+      ownOrigin = !contentHost;
+    } else if (sub === "sites" && m) {
+      API_BASE = location.origin + "/v1/u/" + m[1] + "/sites/" + m[2];
+    } else if (oneLabel && seg) {
+      // <handle>.<apex>/<site>/...: a person's own address, where the site is
+      // the first path segment. A <name>.<apex> a site has claimed serves that
+      // site at its root instead. Ask the host once which it is.
+      var bySeg = location.origin + "/v1/sites/" + seg[1];
+      var byLabel = location.origin + "/v1/sites/" + sub;
+      API_BASE = BASE_TOKEN;
+      baseReady = fetch(bySeg + "/me", {credentials: "include", cache: "no-store"}).then(
+        function (r) { return r.ok ? bySeg : byLabel; },
+        function () { return byLabel; });
+    } else {
+      // <site>.<handle>.<apex> (a site's own host) and every other host:
+      // the site is the first label, and /v1/ is same-origin.
+      API_BASE = location.origin + "/v1/sites/" + sub;
       ownOrigin = !contentHost;
     }`
 
@@ -145,7 +176,7 @@ func (p *assetPipeline) transformStatic(name string, b []byte) []byte {
 			b = bytes.Replace(b, []byte(authJSOneLabel), []byte(authJSPatched(bases)), 1)
 		}
 		if flat {
-			b = bytes.Replace(b, []byte(authJSOwnHost), []byte(authJSOwnHostFlat), 1)
+			b = bytes.Replace(b, []byte(authJSOwnHostChain), []byte(authJSOwnHostChainFlat), 1)
 		}
 		return b
 	}

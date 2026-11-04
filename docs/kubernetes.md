@@ -80,6 +80,10 @@ Have these before `helm install`; the chart cannot make them.
    `helm upgrade` per event. Running against AWS ALB specifically: this is
    the escape hatch for its per-certificate SAN and per-listener rule
    limits, which a growing roster of concurrent events runs into otherwise.
+   Turn it on for a new install, or before any event exists: existing
+   two-level team addresses are not redirected to the flat form, so turning
+   it on after events are already running leaves their team sites at the
+   old addresses.
 
 4. **An OIDC client at your identity provider** (Entra ID, Okta, Google
    Workspace, Keycloak): a confidential web client, authorization-code
