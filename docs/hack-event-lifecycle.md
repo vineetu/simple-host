@@ -1,3 +1,4 @@
+[Implementation records and state transitions](architecture/hack-domain.md).
 # Simple Hack event lifecycle
 
 Status: shipped 2026-10-05.
