@@ -522,6 +522,7 @@ func main() {
 	// Caller location comes from local DB-IP files only (no network lookup);
 	// the watcher picks up the monthly refresh without a restart.
 	geo := geoip.Open(cfg.GeoIPDir)
+	defer geo.Close()
 
 	// Sign-in/sign-up country block (SIGNUP_BLOCKED_COUNTRIES): local lookup
 	// only, off by default. A listed country refuses every email-code and
@@ -602,7 +603,7 @@ func main() {
 	// The signal drains HTTP before it is allowed to cancel background work.
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
-	workerSet := startWorkers(workerCtx, workerDependencies{cfg: cfg, site: siteHandler, user: userHandler, oauth: oauthHandler, connector: connector, hack: hackEvents, image: imageScan, paper: paper, metrics: apiMetrics, geo: geo, analytics: ingester, eventDomains: eventDomains, hackSweep: hackSweep})
+	workerSet := startWorkers(workerCtx, workerDependencies{site: siteHandler, user: userHandler, oauth: oauthHandler, connector: connector, hack: hackEvents, image: imageScan, paper: paper, metrics: apiMetrics, geo: geo, analytics: ingester, eventDomains: eventDomains, hackSweep: hackSweep})
 	siteHandler.SetWorkerStatus(workerSet.Status)
 
 	serverErr := make(chan error, 1)
@@ -639,18 +640,13 @@ func main() {
 	cancelWorkers()
 	joinCtx, joinCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer joinCancel()
-	for _, name := range workerSet.Wait(joinCtx) {
+	laggards := workerSet.Wait(joinCtx)
+	for _, name := range laggards {
 		exitCode = 1
 		log.Printf("worker %s: shutdown deadline exceeded", name)
 	}
-	// The metric owner supplies its final buffered flush when D's hook lands.
-	flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer flushCancel()
-	switch flusher := any(apiMetrics).(type) {
-	case interface{ Flush(context.Context) }:
-		flusher.Flush(flushCtx)
-	case interface{ Flush() }:
-		flusher.Flush()
+	if len(laggards) == 0 {
+		log.Print("background workers stopped")
 	}
 }
 

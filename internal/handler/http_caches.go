@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,29 +12,28 @@ import (
 // HTTPCaches owns the transport's periodic in-memory eviction loops.
 // Registration finishes before Start, alongside route wiring.
 type HTTPCaches struct {
-	once   sync.Once
-	runner *workers.Runner
-	jobs   []cacheCleanup
+	once    sync.Once
+	runner  *workers.Runner
+	jobs    []cacheCleanup
+	tracker *workers.Tracker
+	name    string
 }
 type cacheCleanup struct {
-	tracker *workers.Tracker
-	every   time.Duration
-	evict   func() int
+	every time.Duration
+	evict func() int
 }
 
 func (c *HTTPCaches) add(name string, every time.Duration, evict func() int) {
-	c.jobs = append(c.jobs, cacheCleanup{workers.NewTracker(name), every, evict})
+	c.name = name[:strings.LastIndex(name, ".")] + ".caches"
+	c.jobs = append(c.jobs, cacheCleanup{every, evict})
 }
 func (c *HTTPCaches) rate(name string, rl *rateLimiter, every, idle time.Duration) {
 	c.add(name, every, func() int { return rl.EvictIdle(idle) })
 }
 func (c *HTTPCaches) init() {
 	c.once.Do(func() {
-		var ts []*workers.Tracker
-		for _, j := range c.jobs {
-			ts = append(ts, j.tracker)
-		}
-		c.runner = workers.NewRunner(ts...)
+		c.tracker = workers.NewTracker(c.name)
+		c.runner = workers.NewRunner(c.tracker)
 	})
 }
 func (c *HTTPCaches) Start(ctx context.Context) {
@@ -41,9 +41,9 @@ func (c *HTTPCaches) Start(ctx context.Context) {
 	for _, j := range c.jobs {
 		c.runner.Go(ctx, func(ctx context.Context) {
 			workers.Every(ctx, j.every, j.every, func(context.Context) {
-				j.tracker.Attempt()
+				c.tracker.Attempt()
 				if j.evict() > 0 {
-					j.tracker.Progress()
+					c.tracker.Progress()
 				}
 			})
 		})

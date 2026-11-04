@@ -10,18 +10,18 @@ import (
 
 type limiterJob struct {
 	limiter *httpx.RateLimiter
-	tracker *workers.Tracker
 }
 type limiterWorkers struct {
-	runner *workers.Runner
-	jobs   []limiterJob
+	runner  *workers.Runner
+	jobs    []limiterJob
+	tracker *workers.Tracker
 }
 
-func (h *HackHandler) addLimiter(name string, l *httpx.RateLimiter) {
+func (h *HackHandler) addLimiter(_ string, l *httpx.RateLimiter) {
 	if h.limiterOwner == nil {
 		h.limiterOwner = &limiterWorkers{}
 	}
-	h.limiterOwner.jobs = append(h.limiterOwner.jobs, limiterJob{l, workers.NewTracker(name)})
+	h.limiterOwner.jobs = append(h.limiterOwner.jobs, limiterJob{l})
 }
 func (h *HackHandler) LimiterWorkers() workers.Owner {
 	if h.limiterOwner == nil {
@@ -32,11 +32,8 @@ func (h *HackHandler) LimiterWorkers() workers.Owner {
 		for i, l := range []*httpx.RateLimiter{h.codesIP, h.codesUser, h.namesUser, h.entryWrites, h.shotWrites, h.applyIP, h.applyUser} {
 			h.addLimiter([]string{"http.hack.codes_ip", "http.hack.codes_user", "http.hack.names_user", "http.hack.entry_writes", "http.hack.shot_writes", "http.hack.apply_ip", "http.hack.apply_user"}[i], l)
 		}
-		var ts []*workers.Tracker
-		for _, j := range o.jobs {
-			ts = append(ts, j.tracker)
-		}
-		o.runner = workers.NewRunner(ts...)
+		o.tracker = workers.NewTracker("http.hack.limiters")
+		o.runner = workers.NewRunner(o.tracker)
 	}
 	return o
 }
@@ -47,9 +44,9 @@ func (o *limiterWorkers) Start(ctx context.Context) {
 	for _, j := range o.jobs {
 		o.runner.Go(ctx, func(ctx context.Context) {
 			workers.Every(ctx, 10*time.Minute, 10*time.Minute, func(context.Context) {
-				j.tracker.Attempt()
+				o.tracker.Attempt()
 				if j.limiter.EvictIdle(30*time.Minute) > 0 {
-					j.tracker.Progress()
+					o.tracker.Progress()
 				}
 			})
 		})
