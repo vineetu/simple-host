@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
@@ -17,12 +16,12 @@ var ErrRestoreFiles = errors.New("could not restore the site's files")
 
 // TrashInput describes a locked deletion, for an already locked site.
 type TrashInput struct {
-	Site db.Site
+	Site repo.Site
 }
 
 // RestoreTrashedInput describes a locked restore and current handle.
 type RestoreTrashedInput struct {
-	Site   db.DeletedSite
+	Site   repo.DeletedSite
 	Handle string
 }
 
@@ -68,7 +67,7 @@ func (s *Service) WakeImageScans(ctx context.Context, siteID string) {
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	if err := db.WakeImageScans(ctx, s.database, siteID); err != nil {
+	if err := repo.WakeImageScans(ctx, s.database, siteID); err != nil {
 		log.Printf("restore site %s: image checks: %v", siteID, err)
 	}
 }
@@ -77,46 +76,46 @@ func (s *Service) WakeImageScans(ctx context.Context, siteID string) {
 // was (plus whatever also records in the same transaction). handle is the
 // owner's current handle ("" if none). The caller holds the site's lock.
 // sql.ErrNoRows when it is not (or no longer) in Recently deleted.
-func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (db.Site, error) {
+func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (repo.Site, error) {
 	d, handle, also := in.Site, in.Handle, s.deps.DeletedTransaction
 	// It comes back as it was, taken down included (the operator may have
 	// taken it down while it was deleted): the marker goes into its folder
 	// before the folder is served again, so it is never live without it.
-	full, err := db.GetSiteByID(ctx, s.database, d.ID)
+	full, err := repo.GetSiteByID(ctx, s.database, d.ID)
 	if err != nil {
-		return db.Site{}, err
+		return repo.Site{}, err
 	}
 	if err := s.disk.SetTrashedSuspended(d.UserID, d.ID, full.Suspended()); err != nil {
 		log.Printf("restore site %s: suspend marker: %v", d.ID, err)
-		return db.Site{}, ErrRestoreFiles
+		return repo.Site{}, ErrRestoreFiles
 	}
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
-		return db.Site{}, err
+		return repo.Site{}, err
 	}
 	defer tx.Rollback()
 	if err := repo.RestoreDeletedSite(ctx, tx, d.ID); err != nil {
-		return db.Site{}, err
+		return repo.Site{}, err
 	}
 	if also != nil {
 		if err := also(tx); err != nil {
-			return db.Site{}, err
+			return repo.Site{}, err
 		}
 	}
 	// The name is this site's again; an old name another site left there
 	// stops redirecting.
 	if err := repo.DropOldSiteName(ctx, tx, d.UserID, d.Name); err != nil {
-		return db.Site{}, err
+		return repo.Site{}, err
 	}
 	if err := s.disk.RestoreSite(d.UserID, d.Name, d.ID); err != nil {
 		log.Printf("restore site %s: %v", d.ID, err)
-		return db.Site{}, ErrRestoreFiles
+		return repo.Site{}, ErrRestoreFiles
 	}
 	if err := tx.Commit(); err != nil {
 		if terr := s.disk.TrashSite(d.UserID, d.Name, d.ID); terr != nil {
 			log.Printf("restore site %s: commit failed and files could not be moved back: %v", d.ID, terr)
 		}
-		return db.Site{}, err
+		return repo.Site{}, err
 	}
 	s.WakeImageScans(ctx, d.ID)
 	// The handle may have changed while the site was deleted.
@@ -126,9 +125,9 @@ func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (d
 		}
 		s.deps.RequestCert(handle)
 	}
-	site, err := db.GetSiteByUser(ctx, s.database, d.UserID, d.Name)
+	site, err := repo.GetSiteByUser(ctx, s.database, d.UserID, d.Name)
 	if err != nil {
-		return db.Site{}, err
+		return repo.Site{}, err
 	}
 	// The operator may have acted since: make the marker follow the record.
 	if err := s.disk.SetSuspended(site.UserID, site.Name, site.Suspended()); err != nil {
@@ -144,7 +143,7 @@ func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (d
 // PurgeDeleted removes sites whose restore window has passed: the row
 // (versions, data and claimed names cascade) first, then the files.
 func (s *Service) PurgeDeleted(ctx context.Context) {
-	list, err := db.ListPurgeableSites(ctx, s.database, s.deps.DeletedRetention)
+	list, err := repo.ListPurgeableSites(ctx, s.database, s.deps.DeletedRetention)
 	if err != nil {
 		log.Printf("deleted-site purge: list: %v", err)
 		return
@@ -182,22 +181,7 @@ func (s *Service) PurgeDeleted(ctx context.Context) {
 }
 
 func (s *Service) purgeDeletedSite(ctx context.Context, siteID string) ([]string, error) {
-	tx, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	if err := repo.LockPurgeableSite(ctx, tx, siteID, s.deps.DeletedRetention); err != nil {
-		return nil, err
-	}
-	domains, err := db.RetireSiteNames(ctx, tx, siteID)
-	if err != nil {
-		return nil, err
-	}
-	if err := repo.DeleteSite(ctx, tx, siteID); err != nil {
-		return nil, err
-	}
-	return domains, tx.Commit()
+	return repo.PurgeDeletedSite(ctx, s.database, siteID, s.deps.DeletedRetention)
 }
 
 // DeleteInput identifies an owner request and any site selected by an administrator.
@@ -208,10 +192,10 @@ type DeleteInput struct {
 
 // Delete authorizes and moves a live site to Recently deleted under its lock.
 func (s *Service) Delete(ctx context.Context, in DeleteInput) error {
-	lookup := func() (db.Site, error) {
-		site, err := db.GetSiteByUser(ctx, s.database, in.UserID, in.Name)
+	lookup := func() (repo.Site, error) {
+		site, err := repo.GetSiteByUser(ctx, s.database, in.UserID, in.Name)
 		if err == nil && in.CheckSiteID && in.ExpectedSiteID != site.ID {
-			return db.Site{}, sql.ErrNoRows
+			return repo.Site{}, sql.ErrNoRows
 		}
 		return site, err
 	}
@@ -245,7 +229,7 @@ type RestoreInput struct{ UserID, Name, Handle string }
 
 // RestoreResult keeps the site and address response snapshot captured under its lock.
 type RestoreResult struct {
-	Site          db.Site
+	Site          repo.Site
 	ResponseState any
 }
 
@@ -253,14 +237,14 @@ type RestoreResult struct {
 func (s *Service) Restore(ctx context.Context, in RestoreInput) (RestoreResult, error) {
 	// Lock only a name really held in Recently deleted; check again under it.
 	unlock := func() {}
-	if _, err := db.GetDeletedSiteByUser(ctx, s.database, in.UserID, in.Name); err == nil {
+	if _, err := repo.GetDeletedSiteByUser(ctx, s.database, in.UserID, in.Name); err == nil {
 		unlock = s.deps.LockSite(in.UserID, in.Name)
 	}
 	defer func() { unlock() }()
-	d, err := db.GetDeletedSiteByUser(ctx, s.database, in.UserID, in.Name)
+	d, err := repo.GetDeletedSiteByUser(ctx, s.database, in.UserID, in.Name)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			if _, lerr := db.GetSiteByUser(ctx, s.database, in.UserID, in.Name); lerr == nil {
+			if _, lerr := repo.GetSiteByUser(ctx, s.database, in.UserID, in.Name); lerr == nil {
 				return RestoreResult{}, &Error{Code: "site_not_deleted"}
 			}
 			return RestoreResult{}, &Error{Code: "deleted_not_found"}
