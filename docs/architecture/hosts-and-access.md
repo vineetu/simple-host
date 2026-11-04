@@ -12,8 +12,9 @@ Exact endpoints are in [routes](../generated/routes.md); settings are in [config
 `PERSON_HOSTS` and `SITE_HOSTS` accept `off`, `serve`, `canonical`; site hosts require person
 hosts. Defaults are off (path model). Serve answers hosts but hands out path addresses; canonical
 hands out host addresses. `handler/personhost.go:PersonHosts` serves the person's public sites/home
-at `<handle>.<base>/`; its `/<site>/` path redirects to the ready site host or own address,
-otherwise serves the Host fallback. Aliases preserve old handles/site names and path/query.
+at `<handle>.<base>/`; its `/<site>/` path redirects to an own address, or to a ready site host
+only in canonical site-host mode (`sitehost.go:siteHostCanonicalOn`); otherwise it serves the Host
+fallback. Aliases preserve old handles/site names and path/query.
 
 `handler/sitehost.go:SiteHosts` serves `<site>.<handle>.<base>` files at `/` and binds `/v1/`
 lookups to that site. Normal files redirect with 302 to a verified own address; version previews
@@ -45,7 +46,7 @@ by `handler/platformsubdomain.go:BoundSubdomains`, with files at `/` and same-or
 
 | Custom-domain hand-off | Contract |
 |---|---|
-| App | Once DNS points here but HTTPS does not answer, write `DOMAIN_CERT_DIR/requests/<domain>` (`handler/domaincheck.go`, `domaincert.go`) |
+| App | Require matching TXT ownership token at `_simple-host.<domain>` unless the binding is already verified and proof-exempt; failed proof cancels requests. After proof, DNS pointing here without working HTTPS can queue `DOMAIN_CERT_DIR/requests/<domain>` (`handler/domaincheck.go:checkDomain`, `domainProof`, `domaincert.go`) |
 | Issuer activation | Path unit plus two-minute timer (`deploy/domain-certs/simple-host-domain-certs.{path,timer}`) |
 | Proof and limit | Recheck A/AAAA records; default maximum 50 new certificates per rolling day (`deploy/domain-certs/issue.sh`) |
 | Challenge | certbot HTTP-01 through `/var/www/acme`, answered by port-80 proxy configurations |
@@ -73,7 +74,7 @@ with active re-proof hourly (`handler/familyhost.go:StartAddressFamilies`,
 | Request | `ADDRESS_FAMILY_CERT_DIR/requests/<suffix>` contains token, relative account link, certificate mode/lineage, site prefix and reserved labels (`handler/familyapi.go:familyRequestBody`) |
 | Issuer | `deploy/family-certs/issue.sh`, installed as `/usr/local/sbin/simple-host-family-certs`; default state `/var/lib/simple-host-family-certs`; path unit plus ten-minute timer |
 | Certificate ownership | Check existing operator wildcard lineage covers `*.<suffix>` and is unexpired. Never issue, renew or delete it; normal certbot renewal owns that work |
-| Routing ownership | Refuse any competing nginx server; write managed `sites-enabled/simple-host-family-<suffix>`, test/reload and write `ready/<suffix>` |
+| Routing ownership | Refuse another nginx server answering the random `sh-probe-….<suffix>` probe; this does not detect every exact-host overlap. Write managed `sites-enabled/simple-host-family-<suffix>`, test/reload and write `ready/<suffix>` (`issue.sh`) |
 | Ready | App requires a ready-marker prefix matching the database; proven but non-live family hosts return 404 (`handler/familyhost.go:familyReadyPrefix`, `FamilyHosts`) |
 
 nginx serves `families/<suffix>/<prefix>$label/current` with suspension/offline/passcode and
@@ -164,7 +165,7 @@ Cached pages and instances without apex SSO retain the provider and email flows:
 |---|---|
 | Provider start | `/v1/visitor/oauth/{provider}` starts on the site origin; an apex start for a site redirects there. Set ten-minute host-only `__Host-sh_vnonce`; store only its SHA-256 with OAuth state (`handler/oauth.go:startOnSite`, `beginOAuth`) |
 | Provider callback | Callback reaches apex and creates a one-time token carrying nonce hash; redirect to the site `/v1/visitor/establish?once=...` (`oauth.go:callback`) |
-| Establish | Burn code before validation; require matching host/nonce, then set host-only `__Host-sh_vsess`. Wrong-browser/host or other failure cannot retry the code (`handler/visitorsession.go:establishVisitor`) |
+| Establish | Admit navigation first, then consume the code before host/nonce/session validation and set host-only `__Host-sh_vsess` on success. Navigation rejection leaves the code usable; host/nonce/session failures after consumption burn it (`handler/visitorsession.go:establishVisitor`, `internal/db/visitors.go:ConsumeEstablishToken`) |
 | Email | `POST /v1/sites/{site}/visitor/auth` and `/verify` bind codes to the site and issue its visitor cookie (`handler/visitoremail.go`) |
 
 Cookie helpers use HTTP development names without the `__Host-` prefix; HTTPS uses only the
@@ -190,7 +191,7 @@ allowlist on custom event hosts (`handler/hack_legacy_storage.go`, `hack_mode.go
 | Public state/collection read | Originless reads can succeed; browser reads apply Origin/Referer gates (`handler/kinds.go:readSitePrelude`, `app/legacy/collections.go:ReadCollection`) |
 | Write | Owner/admin key or permitted site-scoped visitor plus `X-SH-CSRF: 1`; anonymous and shared-host behavior depends on WRITE_AUTH_MODE, canonical mode and per-site policy (`app/legacy/kinds.go:VisitorWrite`) |
 | Private submission | Only signed-in visitors on an own site origin submit, not account keys or shared-host callers; server stamps identity (`app/legacy/collections.go:appendPrivate`) |
-| Private list read | Owner/admin keys read all; owner browser session on own origin can read. Originless non-owner reads and other visitors, including submitters reading their own submissions, get 404 (`collectionReadView`, `handler/privatecollections.go:ownerBrowserRead`) |
+| Private list read | Shared content host returns 404 even with owner/admin keys. Elsewhere owner/admin keys read all; owner browser session on own origin can read. Originless non-owner reads and other visitors, including submitters reading their own submissions, get 404 (`collectionReadView`, `handler/privatecollections.go:ownerBrowserRead`) |
 | Personal (`mine`) | Each person reads/writes their own record; owners may obtain limited counts, not other people's records (`app/legacy/personal.go:GetPersonal`, `personalWriter`) |
 | Shared board | Allowed visitors edit one item at a time; supplied If-Match version is checked, stale edits return 409 `version_conflict`; whole-board clear/replacement is owner-only (`handler/board.go`, `handler/entry_operations.go`, `internal/app/legacy` write operations) |
 
