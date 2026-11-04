@@ -173,6 +173,7 @@ type Config struct {
 }
 
 type Server struct {
+	registry         *toolRegistry
 	passcodeSessions passcodeSessionStore
 	importMu         sync.Mutex
 	imports          map[[32]byte]ImportLink
@@ -217,128 +218,29 @@ func NewServer(cfg Config) *Server {
 		l := *cfg.Limits
 		cfg.Limits = &l
 	}
-	tools := toolsWithLimits(*cfg.Limits)
-	if cfg.Events != nil {
-		tools = append(tools, notificationTools()...)
-	}
-	tools = instanceTools(addressTools(tools))
-	if cfg.NoSpamCheck {
-		for i, tool := range tools {
-			switch tool.Name {
-			case "storage_set_resource", "storage_sql_schema":
-				tools[i] = withoutSpamCheck(tool)
-			case "get_page_recipe":
-				tools[i] = noSpamCheckRecipeTool(tool)
-			}
-		}
-	}
-	byName := make(map[string]Tool, len(tools))
-	for _, tool := range tools {
-		byName[tool.Name] = tool
-	}
-	hackTools := make([]Tool, 0, len(HackTools()))
-	for _, tool := range addressTools(HackTools()) {
-		// Minting a team key belongs in the trusted browser/REST workflow,
-		// never in a connector result that could put the secret in chat.
-		if tool.Name != "hack_create_team_key" {
-			hackTools = append(hackTools, tool)
-		}
-	}
-	if cfg.Events != nil {
-		hackTools = append(hackTools, hackNotificationTools()...)
-	}
-	hackByName := make(map[string]Tool, len(hackTools))
-	for _, tool := range hackTools {
-		hackByName[tool.Name] = tool
-	}
-	hackBare := make([]Tool, len(hackTools))
-	for i, tool := range hackTools {
+	r := newRegistry(cfg)
+	host := r.view(cfg, editionHost, false, false, false)
+	deploy := r.view(cfg, editionHost, false, false, true)
+	hack := r.view(cfg, editionHack, false, false, false)
+	site := r.view(cfg, editionHost, true, false, false)
+	core, coreBare := make([]Tool, 0, len(coreToolNames)), make([]Tool, 0, len(coreToolNames))
+	for _, name := range coreToolNames {
+		tool := host.byName[name]
+		core = append(core, tool)
 		tool.OutputSchema = nil
-		hackBare[i] = tool
-	}
-	hackSiteTools := make([]Tool, 0, len(tools))
-	hackSiteBare := make([]Tool, 0, len(tools))
-	hackSiteByName := make(map[string]Tool, len(tools))
-	for _, tool := range tools {
-		if strings.HasPrefix(tool.Name, "visitor_") || tool.Name == "list_notifications" || tool.Name == "remove_notification" {
-			continue
-		}
-		if tool.Name == "create_import_link" || tool.Name == "get_import_report" || tool.Name == "set_keep_versions" || tool.Name == "discard_version" || tool.Name == "get_site_passcode" || tool.Name == "set_site_passcode" || tool.Name == "remove_site_passcode" || tool.Name == "sign_out_site_visitors" || tool.Name == "set_site_access" || tool.Name == "list_site_viewers" || tool.Name == "grant_site_viewer" || tool.Name == "revoke_site_viewer" || tool.Name == "storage_visitor_emails" || tool.Name == "set_home_page" || tool.Name == "set_bio" || tool.Name == "set_showcase_site" {
-			continue
-		}
-		switch tool.Name {
-		case "create_upload_link":
-			tool.Title = "Create a one-time archive upload link"
-			tool.Description = archiveUploadDescription
-		case "create_site", "update_site":
-			tool.Description = strings.Replace(tool.Description, deployPhotoTip, hackPhotoTip, 1)
-		case "who_am_i":
-			tool = hackWhoAmITool()
-		case "get_page_recipe":
-			tool = hackPageRecipeTool()
-		case "storage_set_resource":
-			tool.Description = hackPhotoWording(strings.Replace(tool.Description, storageOwnerSentence, hackTeamOwnerSentence, 1))
-			tool = withoutSpamCheck(tool)
-		case "storage_sql_schema":
-			tool = withoutSpamCheck(tool)
-		case "set_visibility":
-			tool.Description = "Choose whether the team website appears on its account's public listing. Unlisted also keeps it out of search engines unless it has its own domain or name, and is still reachable by anyone with its address; it does not make the site or any storage resource private."
-		case "delete_site":
-			tool.Description = "DESTRUCTIVE: take this team's website offline with its published versions and storage. It stays in Recently deleted for " + span(cfg.Limits.DeletedRetention) + " and can be restored during that time. Only call this after the person has confirmed in this conversation that they want this team's website deleted. Pass the site name twice: as `site` and as `confirm_name`."
-		case "restore_site":
-			tool.Description = "Restore this team's website from Recently deleted, including its files, versions and storage, while the retention period lasts."
-		case "set_site_offline":
-			tool.Description = "Take this team's website offline or bring it back. Offline stops serving files and access to KV, SQLite and file resources; nothing is deleted. Ask before taking it offline."
-		case "export_site":
-			tool.Description = "Make a private, expiring download link for a team's website archive. It contains site files and may include data saved before Simple Hack retired the old storage model. Current websites use KV, SQLite and files. Share the link only with the site owner."
-			run := tool.run
-			tool.run = func(c *call, args map[string]any) (output, error) {
-				out, err := run(c, args)
-				if err == nil {
-					out.Text = "Private site archive link: " + fmt.Sprint(out.Structured["url"]) + ". It may include previously stored data; keep the link private."
-				}
-				return out, err
-			}
-		}
-		hackSiteTools = append(hackSiteTools, tool)
-		bareTool := tool
-		bareTool.OutputSchema = nil
-		hackSiteBare = append(hackSiteBare, bareTool)
-		hackSiteByName[tool.Name] = tool
+		coreBare = append(coreBare, tool)
 	}
 	var analytics *analyticsSender
 	if cfg.AnalyticsProjectID != "" {
 		analytics = newAnalyticsSender(cfg)
 	}
-	for _, tool := range instanceTools(discoveryTools()) {
-		byName[tool.Name] = tool
-	}
-	core, coreBare := make([]Tool, 0, len(coreToolNames)), make([]Tool, 0, len(coreToolNames))
-	for _, name := range coreToolNames {
-		tool := byName[name]
-		core = append(core, tool)
-		tool.OutputSchema = nil
-		coreBare = append(coreBare, tool)
-	}
-	deployByName := make(map[string]Tool, len(byName))
-	deployTools := make([]Tool, 0, len(tools))
-	for name, tool := range byName {
-		if name != "list_notifications" && name != "remove_notification" {
-			deployByName[name] = tool
-		}
-	}
-	for _, tool := range tools {
-		if _, ok := deployByName[tool.Name]; ok {
-			deployTools = append(deployTools, tool)
-		}
-	}
 	return &Server{
-		coreTools: core, deployByName: deployByName,
-		search: newToolSearch(tools), deploySearch: newToolSearch(deployTools),
-		analytics: analytics,
-		cfg:       cfg, tools: tools, byName: byName, preOutputSchemaTools: coreBare,
-		hackTools: hackTools, hackByName: hackByName, hackBare: hackBare,
-		hackSiteTools: hackSiteTools, hackSiteBare: hackSiteBare, hackSiteByName: hackSiteByName,
+		registry:  r,
+		coreTools: core, deployByName: deploy.byName,
+		search: newToolSearch(host.tools), deploySearch: newToolSearch(deploy.tools),
+		analytics: analytics, cfg: cfg, tools: host.tools, byName: host.byName, preOutputSchemaTools: coreBare,
+		hackTools: hack.tools, hackByName: hack.byName, hackBare: hack.bare,
+		hackSiteTools: site.tools, hackSiteBare: site.bare, hackSiteByName: site.byName,
 	}
 }
 
@@ -365,14 +267,13 @@ func (s *Server) hackPersonalInventory() ([]Tool, []Tool, map[string]Tool) {
 	for name, tool := range s.hackByName {
 		byName[name] = tool
 	}
-	for i, tool := range s.hackSiteTools {
-		if tool.Name == "get_page_recipe" {
-			continue // hack_get_page_recipe stands in for it
-		}
-		all = append(all, tool)
-		withoutSchemas = append(withoutSchemas, s.hackSiteBare[i])
-		byName[tool.Name] = tool
+	site := s.registry.view(s.cfg, editionHost, true, true, false)
+	all = append(all, site.tools...)
+	withoutSchemas = append(withoutSchemas, site.bare...)
+	for name, tool := range site.byName {
+		byName[name] = tool
 	}
+
 	return all, withoutSchemas, byName
 }
 
@@ -389,13 +290,20 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 			}
 			byName = copied
 			if !flatListApp(caller.AppName) {
-				if tool, ok := byName["get_site_passcode"]; ok {
+				for _, entry := range s.registry.entries {
+					if !entry.policy.listWithPasscode {
+						continue
+					}
+					tool, ok := byName[entry.tool.Name]
+					if !ok {
+						continue
+					}
 					full = append(full, tool)
 					tool.OutputSchema = nil
 					bare = append(bare, tool)
 				}
 			}
-			tool := passcodeScreenTool()
+			tool := s.registry.view(s.cfg, editionScreen, false, false, false).tools[0]
 			byName[tool.Name] = tool
 			full = append(full, tool)
 			tool.OutputSchema = nil

@@ -8,21 +8,6 @@ import (
 	"strings"
 )
 
-// A basic build and the jobs people ask for most (SIM-187). 2026-10-27
-// (SIM-226): AgentCat showed storage_list_resources, site_analytics and
-// list_versions reached through run_tool more often than storage_get_kv,
-// storage_put_file and storage_visitor_emails were called at all, so they
-// swapped places. 2026-10-30 (SIM-190): a Haiku-only eval never found
-// visitor_read_site through find_tools (it never called a tool at all in
-// 3 of 5 runs), so it joins the core too.
-var coreToolNames = []string{
-	"who_am_i", "list_sites", "get_site", "read_site_file", "create_site", "update_site",
-	"get_page_recipe", "create_upload_link", "visitor_read_site", "storage_set_resource",
-	"storage_sql_schema", "storage_sql_query", "storage_sql_execute", "storage_put_kv",
-	"storage_list_resources", "site_analytics", "list_versions", "set_site_access", "grant_site_viewer",
-	"find_tools", "run_tool",
-}
-
 var toolAliases = map[string][]string{
 	"visitor_read_site":          {"sites shared with me", "read as a visitor", "my visitor entries"},
 	"visitor_add_entry":          {"add my hours", "add my entry", "post as a visitor"},
@@ -205,7 +190,7 @@ func newToolSearch(tools []Tool) *toolSearch {
 		listed[name] = true
 	}
 	for _, tool := range tools {
-		if tool.Name == "find_tools" || tool.Name == "run_tool" {
+		if toolPolicies[tool.Name].notSearchable {
 			continue
 		}
 		entry := searchableTool{tool: tool, weights: map[string]float64{}, listed: listed[tool.Name]}
@@ -350,7 +335,7 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 	copy.flat = flat
 	copy.tools = append([]searchableTool(nil), search.tools...)
 	for i := range copy.tools {
-		if screen && copy.tools[i].tool.Name == "get_site_passcode" {
+		if screen && toolPolicies[copy.tools[i].tool.Name].listWithPasscode {
 			copy.tools[i].listed = true
 		}
 		if flat {
