@@ -22,7 +22,7 @@ planned extraction is already complete.
 | Background worker | An explicit owner; preserve start conditions, stop/join ordering and transaction boundaries |
 
 `scripts/check-layering.sh` checks imports against
-`scripts/layering/rules.txt`, including declared transitional exceptions.
+`scripts/layering/rules.txt`. Step 5.4 removed all transitional exceptions.
 It is not proof that every workflow has reached the target layout.
 
 For a new route or tool, include these documentation changes:

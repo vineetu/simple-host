@@ -112,14 +112,14 @@ Go routing does not depend on those sidecars.
 Every completed account sign-in issues a fresh key; previous sign-in keys remain valid until
 revocation, expiry or rotation. Rotation deletes existing account keys, ends visitor sessions,
 issues a replacement and disconnects apps (`handler/user.go:verifySignIn`, `rotateAPIKey`,
-`internal/db/queries.go:RotateAPIKey`). Only SHA-256 hashes are stored. The dashboard retains its
+`internal/app/accounts/signin_operations.go:RotateKey`). Only SHA-256 hashes are stored. The dashboard retains its
 key in localStorage and sends `X-API-Key` (`handler/static/index.html`). Admin is a real user row
 upserted at boot (`cmd/server/main.go:main`); visitor cookies never confer account middleware power.
 
 OAuth registration, PKCE and consent guard Streamable HTTP `/mcp`. Tool calls and connector bearer
 REST replay enter the same gated mux as REST; scope/storage gates still apply
 (`handler/connector.go`, `cmd/server/main.go:main`). Replay mints an in-memory `shint_` credential,
-revokes it at request end and has a 15-minute TTL backstop (`internal/db/internalkey.go`). A selected
+revokes it at request end and has a 15-minute TTL backstop (`internal/repository/accounts/internalkey.go`). A selected
 Hack team uses a separately scoped credential; legacy and chat-facing credential tools are filtered.
 
 `simple-host oauth-client create` registers clients manually (`cmd/server/oauthclient.go`).
@@ -138,16 +138,19 @@ browser family (`handler/sso.go:ssoCookie`, `setSSOCookie`, `endBrowserSSO`).
 - `sso_passes` stores a hash referencing `api_keys.key_hash` with ON DELETE CASCADE; SSO-created
   `visitor_sessions.sso_pass_hash` references that pass with the same cascade (`db/schema.sql`).
 - Pass reads require live pass/idle expiry, live parent key/idle expiry and an unsuspended account
-  (`internal/db/sso.go:GetSSOPass`, `liveSSOParent`).
+  (`internal/app/accounts/sso.go:GetSSOPass`,
+  `internal/repository/accounts/acct_sso.go:GetSSOPass`, `principals.go:liveSSOParent`).
 - Site start stores host, return destination and nonce hash in `sso_hops`, then sends the browser
   to the apex for remembered consent or shared sign-in. Redemption creates a 60-second host- and
   nonce-bound establishment code (`handler/sso.go:startSSO`, `hopSSO`).
 - Pass issuance serializes on the parent key, keeps one pass per key and retires the previous
-  browser family (`internal/db/sso.go:ReplaceSSOPass`). Browser verification then calls `/v1/sso/session`.
+  browser family (`internal/app/accounts/sso.go:ReplaceSSOPass`,
+  `internal/repository/accounts/acct_sso.go:ReplaceSSOPass`). Browser verification then calls `/v1/sso/session`.
 - Site sign-out revokes the parent key (cascading sibling sessions) and stores a short-lived
   `sso_signouts` ticket. Even absent/expired/legacy local sessions receive the apex navigation;
   completion revokes the current apex-cookie family and clears the cookie (`handler/sso.go:endSiteSSO`,
-  `signedOutSSO`, `internal/db/sso.go:RevokeVisitorSSO`, `CompleteSSOSignout`).
+  `signedOutSSO`, `internal/app/accounts/sso.go:RevokeVisitorSSO`, `CompleteSSOSignout`;
+  SQL in `internal/repository/accounts/acct_sso.go`).
 - `SetSSOHop` wires automatic named-viewer gates. Provider discovery lets `/auth.js` retain its
   legacy behavior on instances without a hop-capable apex (`cmd/server/main.go`, `handler/sso.go`).
 
@@ -165,7 +168,7 @@ Cached pages and instances without apex SSO retain the provider and email flows:
 |---|---|
 | Provider start | `/v1/visitor/oauth/{provider}` starts on the site origin; an apex start for a site redirects there. Set ten-minute host-only `__Host-sh_vnonce`; store only its SHA-256 with OAuth state (`handler/oauth.go:startOnSite`, `beginOAuth`) |
 | Provider callback | Callback reaches apex and creates a one-time token carrying nonce hash; redirect to the site `/v1/visitor/establish?once=...` (`oauth.go:callback`) |
-| Establish | Admit navigation first, then consume the code before host/nonce/session validation and set host-only `__Host-sh_vsess` on success. Navigation rejection leaves the code usable; host/nonce/session failures after consumption burn it (`handler/visitorsession.go:establishVisitor`, `internal/db/visitors.go:ConsumeEstablishToken`) |
+| Establish | Admit navigation first, then consume the code before host/nonce/session validation and set host-only `__Host-sh_vsess` on success. Navigation rejection leaves the code usable; host/nonce/session failures after consumption burn it (`handler/visitorsession.go:establishVisitor`, `internal/app/accounts/acct_access.go:ConsumeEstablishToken`, `internal/repository/accounts/acct_visitors.go:ConsumeEstablishToken`) |
 | Email | `POST /v1/sites/{site}/visitor/auth` and `/verify` bind codes to the site and issue its visitor cookie (`handler/visitoremail.go`) |
 
 Cookie helpers use HTTP development names without the `__Host-` prefix; HTTPS uses only the

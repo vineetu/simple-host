@@ -138,11 +138,10 @@ The following packages exist today (verified with `go list ./internal/...`):
 | `testdb`, `geoip/geoiptest` | Test fixtures |
 
 `scripts/check-layering.sh` checks Go imports, including test imports, against the final allowlist
-and exact transitional edges in `scripts/layering/rules.txt`. Each exception names its removal
-step. `sitelocks` from the
+in `scripts/layering/rules.txt`; step 5.4 removed all transitional edges. `sitelocks` from the
 target map do not exist yet. Shared lock maps are injected by existing wiring
 (`app/sites/service.go:New`, `app/storage/service.go:Deps`), not by a new lock package.
-Do not copy a transitional import as precedent; follow [target §2](docs/architecture/target.md#2-package-map-and-import-contract).
+Follow [target §2](docs/architecture/target.md#2-package-map-and-import-contract).
 
 Outside `internal/`: `db/schema.sql` and `db/migrations` define fresh/install upgrades;
 `cmd/analytics-rebuild` and `cmd/ip-country-load` are operator tools; `cmd/server/reviewaccount.go`

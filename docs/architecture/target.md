@@ -74,7 +74,7 @@ Packages appear only when the first code moves into them. Do not commit empty sk
 | `app/sites` | Own publication and site lifecycle, using shared auth and storage services; no Hack service dependency. |
 | `app/storage` | Enforce resource access, quotas and mutations; no browser/MCP decisions. |
 | `app/legacy` | Preserve old Host contracts through typed operations; no new product capabilities. |
-| `app/hack/events`, `app/hack/entries` | Own Hack workflows on shared services; never reach back into handlers. |
+| `app/hack/{events,teams,members,entries}` | Own Hack workflows on shared services; never reach back into handlers. |
 | `app/notifications` | Own delivery queues, leases, retries and templates; no transport invocation. |
 | `app/operations` | Own operator workflows and background measurement/scanning; no HTTP response writing. |
 | `repository/*` | Execute SQL and map rows; never import app services, transports, disk storage or provider clients. |
@@ -82,47 +82,56 @@ Packages appear only when the first code moves into them. Do not commit empty sk
 | `rules/*`, `model` | Deterministic decisions and values; no SQL, HTTP, filesystem, provider calls or ambient clock. |
 | Other infrastructure | Focused mechanisms; no product service imports. Dependencies are limited below. |
 
-The following is the final production allowlist. Paths are relative to `internal/`, except `cmd/server`. Braces expand to exact alternatives; `/**` means a package and its descendants. Multiple matching rows are unioned. A missing row allows no internal imports. External/standard-library imports are outside this table; an import check alone cannot prove that handlers contain no SQL.
+The following is the final production allowlist, matching the `[final]` rows in `scripts/layering/rules.txt`. Paths are relative to `internal/`; `@/` prefixes module-root paths. Braces expand to exact alternatives; `/**` means a package and its descendants; `!` excludes a destination from that row. Multiple matching rows are unioned. A missing row allows no internal imports. External/standard-library imports are outside this table; an import check alone cannot prove that handlers contain no SQL.
 
-| Importing path pattern | Allowed internal dependency paths |
+| Importing path pattern | Allowed dependency paths |
 |---|---|
-| `cmd/server` | `/**` except `testdb`, `geoip/geoiptest` |
+| `@/cmd/server` | `/**`, `!testdb`, `!geoip/geoiptest`, `@/db`, `@/db/migrations` |
 | `{handler,hackhttp}` | `app/**`, `auth`, `httpx`, `edition`, `model`, `webassets`, `buildinfo`, `workers` |
-| `handler` | `mcp` (connector transport composition only) |
+| `handler` | `mcp` |
 | `auth` | `app/accounts`, `httpx`, `edition`, `model`, `rules/auth`, `rules/sites` |
-| `hackhttp` | `rules/sites` (pure name and UUID shape validation at the boundary only) |
+| `hackhttp` | `rules/sites` |
 | `mcp` | `app/**`, `edition`, `model`, `httpx`, `buildinfo`, `brain`, `webassets`, `workers` |
 | `httpx` | `app/errors`, `model`, `edition` |
-| `app/{accounts,sites,storage,legacy,notifications,operations}`, `app/hack/{events,entries}` | `app/errors`, `model`, `edition`, `workers`, `repository/sqlkit` |
+| `app/{accounts,sites,storage,legacy,notifications,operations}` | `app/errors`, `model`, `edition`, `workers`, `repository/sqlkit` |
+| `app/hack/{events,teams,members,entries}` | `app/errors`, `model`, `edition`, `workers`, `repository/sqlkit` |
 | `app/accounts` | `repository/{accounts,sites,hackevents}`, `rules/{auth,hackevents}`, `oauth`, `email`, `geoip` |
 | `app/sites` | `app/{accounts,storage,notifications}`, `repository/{sites,accounts}`, `rules/{sites,auth}`, `storage`, `sitelocks`, `tarball`, `wpimport`, `eventdns`, `capacity` |
 | `app/storage` | `app/{accounts,notifications}`, `repository/{storage,sites}`, `rules/{storage,auth}`, `storage`, `sitelocks` |
 | `app/legacy` | `app/{accounts,storage,notifications}`, `repository/{legacy,sites}`, `rules/{storage,auth}`, `sitelocks` |
-| `app/hack/events` | `app/{accounts,sites,storage,notifications}`, `app/hack/entries`, `repository/{hackevents,accounts,sites}`, `rules/{hackevents,auth}`, `storage`, `capacity` |
-| `app/hack/entries` | `app/{accounts,sites,storage,notifications}`, `repository/{hackentries,hackevents,sites}`, `rules/{hackentries,hackevents}`, `storage` |
+| `app/hack/events` | `app/{accounts,sites,storage,notifications}`, `app/hack/entries`, `repository/{hackevents,hackteams,hackentries,accounts,sites}`, `rules/{hackevents,hackentries,auth}`, `storage`, `capacity` |
+| `app/hack/{teams,members}` | `app/{accounts,sites,storage,notifications}`, `app/hack/{events,entries}`, `repository/{hackevents,hackteams,hackentries,accounts,sites}`, `rules/{hackevents,hackteams,sites,auth}` |
+| `app/hack/entries` | `app/{accounts,sites,storage,notifications}`, `repository/{hackentries,hackevents,hackteams,sites}`, `rules/{hackentries,hackevents}`, `storage` |
 | `app/notifications` | `app/accounts`, `repository/{notifications,accounts,hackevents,hackentries,legacy}`, `email`, `rules/{hackevents,hackentries}` |
 | `app/operations` | `app/{accounts,sites,storage}`, `repository/{operations,accounts,sites,hackevents,hackentries,legacy}`, `storage`, `analytics`, `netusage`, `papermetrics`, `geoip`, `imagescan`, `email`, `capacity`, `buildinfo` |
-| `repository/{accounts,sites,storage,legacy,hackevents,hackentries,notifications,operations}` | `repository/sqlkit`, `model`, `rules/{auth,sites,storage,hackevents,hackentries}` |
-| `rules/{auth,sites,storage,hackevents,hackentries}` | `model` |
+| `repository/{accounts,sites,storage,legacy,hackevents,hackteams,hackentries,notifications,operations}` | `repository/sqlkit`, `model`, `rules/{auth,sites,storage,hackevents,hackteams,hackentries}` |
+| `repository/hackteams` | `repository/hackevents` |
+| `repository/hackevents` | `repository/hackentries` |
+| `rules/{auth,sites,storage,hackevents,hackteams,hackentries}` | `model` |
 | `edition` | `config` |
 | `storage` | `model` |
 | `{analytics,netusage,papermetrics}` | `model`, `workers` |
 | `geoip` | `workers` |
 | `{app/errors,model,config,workers,sitelocks,repository/sqlkit,webassets}` | None |
 | `{brain,buildinfo,capacity,email,eventdns,imagescan,oauth,tarball,wpimport,testdb,geoip/geoiptest}` | None |
+| `@/cmd/analytics-rebuild` | `analytics`, `config` |
+| `@/cmd/ip-country-load` | None |
+| `@/scripts/layering` | None |
+| `@/scripts/inventory` | `mcp` |
+| `mcp/apps/gentool` | `mcp/apps/bundlegen` |
 
 `app/errors` is a small error-value package, not a framework. Cross-service calls follow the directed rows above. A needed reverse dependency is expressed as a narrow interface owned by the consumer and wired in `main`, not an import cycle. For example, sites can enqueue image scans through an injected interface implemented by operations. App interfaces must not mention handler types. Shared site operations must not call Hack HTTP to decide permission.
 
-Test imports use the production allowance plus the exact package under test, `testdb`, and `geoip/geoiptest`. Integration fixtures in transport `_test.go` files may also import `config`, `repository/**`, `storage`, `sitelocks`, and `email` to construct a real instance. These additions never apply to production files. `testdb` is never a runtime dependency. Existing exceptional test edges must be named individually, not hidden under `internal/**`.
+Test imports use the production allowance plus the exact package under test, `testdb`, and `geoip/geoiptest`. MCP tests additionally allow `mcp/apps/bundlegen` for the bundle freshness test. Integration fixtures in transport `_test.go` files may also import `config`, `repository/**`, `storage`, `sitelocks`, and `email` to construct a real instance. These additions never apply to production files. `testdb` is never a runtime dependency. Existing exceptional test edges must be named individually, not hidden under `internal/**`.
 
-The layering check reads Go's package graph, including `Imports`, `TestImports` and `XTestImports`, against `scripts/layering/rules.txt`. Normalize synthetic test package IDs and check nested packages independently. Check packages in this module, not third-party internals. Any other command under `cmd/` gets its actual, explicit dependency row when the checker lands.
+The layering check reads Go's package graph, including `Imports`, `TestImports` and `XTestImports`, against `scripts/layering/rules.txt`. Normalize synthetic test package IDs and check nested packages independently. Check packages in this module, not third-party internals. Commands and module-local generators have explicit dependency rows in the final table.
 
-The final graph cannot pass halfway through the moves. Alongside it, record an exact list of current transitional edges, each with its removal step in `scripts/layering/rules.txt`. Existing `handler -> db`, `auth -> db`, and helper-package SQL are migration debt, not precedents. New edges must match the final table or be reviewed and assigned a removal step. Remove exceptions as each area moves; never allow `handler -> anything`. The old regex bundler is gone; the 2.3 esbuild generator is the only generator allowance (`mcp/apps/gentool -> mcp/apps/bundlegen` and `mcp` tests -> `mcp/apps/bundlegen` for the bundle freshness test).
+Step 5.4 completed the import migration: `[transitional]` is empty, and the final table applies without exceptions. During earlier steps, exact transitional edges carried removal steps; those retired edges are not precedents. New edges must match the final table or receive an explicit architecture review. The old regex bundler is gone; the 2.3 esbuild generator uses the final `mcp/apps/gentool -> mcp/apps/bundlegen` allowance.
 
 | Existing package | Destination |
 |---|---|
 | `handler` | Splits into shared transport, `hackhttp`, app services, rules, repository calls and `webassets`; the package shrinks throughout. |
-| `db` | Splits into area repositories and `model`; SQL constants stay with their area. Temporary aliases/forwarders go when callers move. |
+| `db` (retired in step 5.4) | Split into area repositories and `model`; SQL constants stay with their area. All temporary aliases/forwarders were removed. |
 | `auth` | HTTP middleware stays; `scope.go` decisions move to accounts/rules; database access moves to repositories. |
 | `mcp` | Stays; tool families are files in this package, not mutually dependent subpackages. |
 | `mcp/apps/bundlegen`, `mcp/apps/gentool` | Replaced in 2.3 by the pinned asset-generation command; generated assets stay in `mcp/apps`. |
@@ -286,7 +295,7 @@ Step 5.3 consolidates the current entry plus four focused guides: Hack domain/st
 | 4.3 | Extract runtime-file disk primitives without reordering them; move one storage operation, then deploy/version flows. | Shared mutexes, quota checks, tx boundaries, new-deploy commit-before-promotion, active-version compensation, file author/publish order, all Host legacy behavior. | Sites/storage/legacy services own orchestration; handlers have no SQL/disk mutations; one Host legacy adapter and Hack rejection gate remain. |
 | 4.4 | Move one group of existing `Tool` declarations into a registrar; assemble it through the registry. | Names, schemas, annotations, client/edition listings, hidden tools, direct dispatch, credentials and result/error shapes. | Discovery and dispatch use one inventory; no parallel name switch or hand-maintained tool list remains. |
 
-Host account, site, key, notification and visitor dependencies remain on `internal/db` for step 4.3.
+Historical step-4.3 staging retained Host account, site, key, notification and visitor dependencies on `internal/db`; step 5.4 retired that package after all callers moved to services and repositories.
 
 Step 3.2 establishes ownership, not finished purity: move Hack workflows into app packages incrementally, initially retaining cohesive internal helpers. Steps 4.1 and 4.2 separate rules and repository details inside those owners. Never pass `ResponseWriter` into an app service to make a package move compile. If a workflow cannot yet move cleanly, leave a documented forwarding seam in the old transport until its next bounded extraction.
 
