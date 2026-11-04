@@ -11,6 +11,7 @@ import (
 
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // near reports whether got is within a minute of want.
@@ -267,7 +268,7 @@ func TestDeletedSiteKeepsPromisedPurgeDate(t *testing.T) {
 	if err != nil || !near(d.PurgeAt(l2.DeletedRetention), time.Now().Add(30*24*time.Hour)) {
 		t.Fatalf("kept purges at %v (%v), want the promised 30 days after deletion", d.PurgeAt(l2.DeletedRetention), err)
 	}
-	if _, err := db.PurgeDeletedSite(ctx, a.database, kept, l2.DeletedRetention); err == nil {
+	if _, err := sitesrepo.PurgeDeletedSite(ctx, a.database, kept, l2.DeletedRetention); err == nil {
 		t.Fatal("purged a site before its promised date")
 	}
 }

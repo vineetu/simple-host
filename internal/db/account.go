@@ -9,6 +9,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/repository/hackevents"
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
+	"github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // Account deletion and export (GDPR self-service, 2026-09-27).
@@ -500,13 +501,7 @@ func ListSubmissionsElsewhere(ctx context.Context, database *sql.DB, userID stri
 }
 
 // ExportItem is one list item as the export writes it.
-type ExportItem struct {
-	ID          int64
-	Collection  string
-	Data        []byte
-	CreatedAt   time.Time
-	SubmittedBy string // the identity the visitor sent it as, "" for public lists
-}
+type ExportItem = sites.ExportItem
 
 // ListExportItems returns every item of every list of a site (other people's
 // Personal records left out), with its id,
@@ -515,31 +510,5 @@ type ExportItem struct {
 // never a join to their account: the account's email may be one they did
 // not give the site owner, and it changes later.
 func ListExportItems(ctx context.Context, database *sql.DB, siteID string) ([]ExportItem, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT ci.id, ci.collection, ci.data, ci.created_at,
-		       CASE WHEN ci.submitted_by IS NOT NULL THEN COALESCE(ci.submitted_email, ci.data->>'_submitted_by', '') ELSE '' END
-		  FROM collection_items ci
-		 WHERE ci.site_id = $1 AND ci.deleted_at IS NULL
-		   -- Personal records are their people's own: the site's export
-		   -- carries only the owner's own record, never anyone else's.
-		   AND NOT EXISTS (
-		       SELECT 1 FROM collection_settings cs JOIN sites s ON s.id = cs.site_id
-		        WHERE cs.site_id = ci.site_id AND cs.collection = ci.collection AND cs.kind = 'mine'
-		          AND ci.submitted_by IS DISTINCT FROM s.user_id)
-		 ORDER BY ci.collection, ci.id`, siteID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []ExportItem
-	for rows.Next() {
-		var it ExportItem
-		var created sql.NullTime
-		if err := rows.Scan(&it.ID, &it.Collection, &it.Data, &created, &it.SubmittedBy); err != nil {
-			return nil, err
-		}
-		it.CreatedAt = created.Time
-		out = append(out, it)
-	}
-	return out, rows.Err()
+	return sites.ListExportItems(ctx, database, siteID)
 }

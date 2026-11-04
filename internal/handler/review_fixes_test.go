@@ -12,6 +12,7 @@ import (
 	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // Regression tests for the cp/integrate review (sections A and C). Needs
@@ -166,7 +167,9 @@ func TestPurgeKeepsTakenDownSites(t *testing.T) {
 		if err := a.database.QueryRow(`SELECT count(*) FROM sites WHERE id = $1`, id).Scan(&n); err != nil || n != 1 {
 			t.Fatalf("taken-down site %s purged (n=%d, %v)", id, n, err)
 		}
-		if _, err := db.PurgeDeletedSite(context.Background(), a.database, id, 7*24*time.Hour); !errors.Is(err, sql.ErrNoRows) {
+		// Bypass the sweep filter to exercise the transaction and locking query
+		// shared by app/sites, including its suspension recheck.
+		if _, err := sitesrepo.PurgeDeletedSite(context.Background(), a.database, id, 7*24*time.Hour); !errors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("PurgeDeletedSite re-check let %s through: %v", id, err)
 		}
 	}

@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
 	"github.com/vsriram/simple-host/internal/storage"
 )
@@ -66,7 +65,7 @@ func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, 
 	// The saved data first, because it is the part nothing else preserves: the
 	// files exist in whatever the person built from, the JSON only lives here.
 	state := "null"
-	if raw, _, err := db.GetSiteStateByID(ctx, s.database, siteID); err == nil && len(raw) > 0 {
+	if raw, _, err := repo.GetSiteStateByID(ctx, s.database, siteID); err == nil && len(raw) > 0 {
 		state = string(raw)
 	}
 	if err := putBytes(put, prefix+"/state.json", []byte(state)); err != nil {
@@ -202,7 +201,7 @@ type exportItem struct {
 }
 
 func exportCollections(ctx context.Context, database *sql.DB, siteID string) (map[string][]exportItem, error) {
-	items, err := db.ListExportItems(ctx, database, siteID)
+	items, err := repo.ListExportItems(ctx, database, siteID)
 	if err != nil {
 		return nil, err
 	}
@@ -222,10 +221,10 @@ type PreviewSiteInput struct {
 }
 
 // PreviewSite reads the site and verifies that its requested version is kept.
-func (s *Service) PreviewSite(ctx context.Context, in PreviewSiteInput) (db.Site, bool, error) {
+func (s *Service) PreviewSite(ctx context.Context, in PreviewSiteInput) (repo.Site, bool, error) {
 	site, err := repo.GetSiteByUser(ctx, s.database, in.AccountID, in.Name)
 	if err != nil {
-		return db.Site{}, false, err
+		return repo.Site{}, false, err
 	}
 	exists, err := repo.VersionKept(ctx, s.database, site.ID, in.Version)
 	return site, exists, err
@@ -238,22 +237,22 @@ type ExportSiteInput struct {
 }
 
 // ExportSite resolves the site for an archive or a download link.
-func (s *Service) ExportSite(ctx context.Context, in ExportSiteInput) (db.Site, error) {
+func (s *Service) ExportSite(ctx context.Context, in ExportSiteInput) (repo.Site, error) {
 	if !in.DownloadLink {
 		return repo.GetSiteByUser(ctx, s.database, in.UserID, in.Name)
 	}
 	site, err := repo.GetSiteByID(ctx, s.database, in.SiteID)
 	if err != nil || site.UserID != in.UserID || site.Deleted {
-		return db.Site{}, &Error{Code: "export_link_invalid"}
+		return repo.Site{}, &Error{Code: "export_link_invalid"}
 	}
 	// A link minted before suspension stops with its owner; a site-only takedown still exports.
 	if site.OwnerSuspended {
-		return db.Site{}, &Error{Code: "account_suspended"}
+		return repo.Site{}, &Error{Code: "account_suspended"}
 	}
 	return site, nil
 }
 
 // ExportSites lists all instance sites for an administrator's archive.
-func (s *Service) ExportSites(ctx context.Context) ([]db.Site, error) {
-	return db.ListAllSites(ctx, s.database)
+func (s *Service) ExportSites(ctx context.Context) ([]repo.Site, error) {
+	return repo.ListAllSites(ctx, s.database)
 }

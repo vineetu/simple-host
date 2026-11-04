@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // Image matching (SIM-200): the hash cache, the work queue and the record of
@@ -260,8 +262,7 @@ func DeleteImageScan(ctx context.Context, q Querier, id int64) error {
 // WakeImageScans makes a restored site's waiting jobs due now (not the ones
 // given up for good).
 func WakeImageScans(ctx context.Context, q Querier, siteID string) error {
-	_, err := q.ExecContext(ctx, `UPDATE image_scan_queue SET next_attempt_at = now() WHERE site_id = $1 AND next_attempt_at <> 'infinity'`, siteID)
-	return err
+	return sites.WakeImageScans(ctx, q, siteID)
 }
 
 // ImageScanQueueCountsNow reports what is due, what is on a retry, what was

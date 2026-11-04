@@ -10,6 +10,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
+	"github.com/vsriram/simple-host/internal/repository/sites"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
@@ -338,66 +339,7 @@ func SiteCreatedAt(ctx context.Context, q Querier, id string) (time.Time, string
 }
 
 func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
-	const query = `
-		SELECT s.id, s.user_id, s.name, s.active_version, COALESCE(s.site_url, ''), s.created_at, s.updated_at, s.custom_domain, s.domain_status, s.visibility, u.username, COALESCE(u.handle, ''),
-		       s.domain_last_error, s.domain_bound_at, s.domain_verified_at, COALESCE(s.previous_domain, ''), COALESCE(s.domain_cert_status, ''), COALESCE(s.domain_token, ''), (SELECT max(v.created_at) FROM versions v WHERE v.site_id = s.id AND v.status = 'active'),
-		       s.suspended_at IS NOT NULL, COALESCE(s.suspended_reason, ''),
-		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, ''),
-		       s.offline_at IS NOT NULL, s.keep_versions, s.passcode_enc IS NOT NULL, s.access = 'specific',
-		       COALESCE(s.summary_title, ''), COALESCE(s.summary_description, ''), COALESCE(s.summary_headings, ''), COALESCE(s.summary_text, '')
-		FROM sites s
-		INNER JOIN users u ON u.id = s.user_id
-		WHERE s.deleted_at IS NULL
-		ORDER BY s.updated_at DESC, s.created_at DESC, s.name ASC
-	`
-
-	rows, err := db.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var sites []Site
-	for rows.Next() {
-		var site Site
-		if err := rows.Scan(
-			&site.ID,
-			&site.UserID,
-			&site.Name,
-			&site.ActiveVersion,
-			&site.SiteURL,
-			&site.CreatedAt,
-			&site.UpdatedAt,
-			&site.CustomDomain,
-			&site.DomainStatus,
-			&site.Visibility,
-			&site.OwnerUsername,
-			&site.OwnerHandle,
-			&site.DomainLastError,
-			&site.DomainBoundAt,
-			&site.DomainVerifiedAt,
-			&site.PreviousDomain,
-			&site.DomainCertStatus,
-			&site.DomainToken,
-			&site.LastDeployedAt,
-			&site.SiteSuspended,
-			&site.SiteSuspendedReason,
-			&site.OwnerSuspended,
-			&site.OwnerSuspendedReason,
-			&site.Offline,
-			&site.KeepVersions,
-			&site.Passcode,
-			&site.NamedViewers,
-			&site.SummaryTitle, &site.SummaryDescription, &site.SummaryHeadings, &site.SummaryText,
-		); err != nil {
-			return nil, err
-		}
-		sites = append(sites, site)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return sites, nil
+	return sites.ListAllSites(ctx, db)
 }
 
 // ListAllUsers returns every registered user (admin view), oldest first. API keys
@@ -569,17 +511,7 @@ func GetSiteState(ctx context.Context, db *sql.DB, name string) (json.RawMessage
 
 // GetSiteStateByID is the site_id-keyed variant of GetSiteState.
 func GetSiteStateByID(ctx context.Context, db *sql.DB, siteID string) (json.RawMessage, int, error) {
-	const query = `SELECT COALESCE(state, 'null'::jsonb), state_version FROM sites WHERE id = $1`
-
-	var state []byte
-	var version int
-	if err := db.QueryRowContext(ctx, query, siteID).Scan(&state, &version); err != nil {
-		return nil, 0, err
-	}
-	if len(state) == 0 {
-		return json.RawMessage("null"), version, nil
-	}
-	return json.RawMessage(state), version, nil
+	return sites.GetSiteStateByID(ctx, db, siteID)
 }
 
 // UpdateSiteState overwrites state unconditionally (last-write-wins) and bumps

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // SiteDomainInfo is the domain-binding view of a site. Kept separate from the
@@ -458,14 +459,7 @@ func ReleaseExpiredDomains(ctx context.Context, database *sql.DB, maxAge, ttl ti
 // whichever site happens to share its name, and nobody else can claim it.
 // Any other host is ignored.
 func retirePlatformName(ctx context.Context, q Querier, host, siteID, userID string) error {
-	if !isPlatformName(host) {
-		return nil
-	}
-	_, err := q.ExecContext(ctx, `
-		INSERT INTO legacy_hostnames (hostname, site_id, user_id) VALUES (lower($1), $2, $3)
-		ON CONFLICT (hostname) DO UPDATE SET site_id = EXCLUDED.site_id, user_id = EXCLUDED.user_id`,
-		host, siteID, userID)
-	return err
+	return sites.RetirePlatformName(ctx, q, host, siteID, userID)
 }
 
 // RetireSiteNames records the site's claimed <name>.<SITE_DOMAIN> addresses
@@ -473,25 +467,7 @@ func retirePlatformName(ctx context.Context, q Querier, host, siteID, userID str
 // rows outlive it (site_id becomes NULL). Returns every domain the site had,
 // for the caller to unbind on disk.
 func RetireSiteNames(ctx context.Context, q Querier, siteID string) ([]string, error) {
-	var userID, cur, prev string
-	err := q.QueryRowContext(ctx, `SELECT user_id, COALESCE(custom_domain, ''), COALESCE(previous_domain, '') FROM sites WHERE id = $1`, siteID).Scan(&userID, &cur, &prev)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, d := range []string{cur, prev} {
-		if d == "" {
-			continue
-		}
-		out = append(out, d)
-		if err := retirePlatformName(ctx, q, d, siteID, userID); err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
+	return sites.RetireSiteNames(ctx, q, siteID)
 }
 
 // RetiredName is a released <name>.<SITE_DOMAIN>: the site it belongs to, or
