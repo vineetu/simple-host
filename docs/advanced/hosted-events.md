@@ -25,5 +25,6 @@ keep one account from flooding the server, and every one is an environment setti
 | `RATE_LIMIT_EVENT_APPLY_IP` | `30,2m` | any (warns past 10× looser) | Hosted events: applications to an event without a join link, per network address. |
 | `RATE_LIMIT_EVENT_APPLY_USER` | `5,12m` | any (warns past 10× looser) | Hosted events: applications to an event without a join link, per account. |
 | `EVENTS` | `off` | `off` / `hosted` | hosted runs this server as a hosted hackathon platform (simple-hack.app): anyone signed in creates an event with its own page at <event>.<SITE_DOMAIN>, and accounts own no personal sites. |
+| `HACK_DEMO_EVENT_SLUG` | `demo` | text | Base event slug for the standing demo on the hosted hackathon platform; empty uses demo. |
 | `EVENT_NAME_PEER` | none | text | The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise. |
 <!-- /settings -->

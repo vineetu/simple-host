@@ -315,6 +315,8 @@ func otherSettings() []Setting {
 			Description: "Each account at its own address, <handle>.<SITE_DOMAIN>. canonical makes it the address handed out."},
 		{Name: "EVENTS", Group: "events", Type: "enum", Default: "off", Allowed: []string{"off", "hosted"},
 			Description: "hosted runs this server as a hosted hackathon platform (simple-hack.app): anyone signed in creates an event with its own page at <event>.<SITE_DOMAIN>, and accounts own no personal sites."},
+		{Name: "HACK_DEMO_EVENT_SLUG", Group: "events", Type: "string", Default: "demo",
+			Description: "Base event slug for the standing demo on the hosted hackathon platform; empty uses demo."},
 		{Name: "EVENT_NAME_PEER", Group: "events", Type: "string",
 			Description: "The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise."},
 		{Name: "SITE_HOSTS", Group: "server", Type: "enum", Default: "off", Allowed: []string{"off", "serve", "canonical"},
@@ -359,6 +361,8 @@ func otherSettings() []Setting {
 			Description: "Concurrent photo saves across the process. Positive integer; invalid values use the default."},
 		{Name: "PHOTO_BODY_TIMEOUT_SECONDS", Group: "sites", Type: "int", Default: "60", Min: i64(1), Unit: "seconds", SmallBox: true,
 			Description: "Read deadline for a photo-link upload body. Positive integer; invalid values use the default."},
+		{Name: "BRAIN_DIR", Group: "server", Type: "string",
+			Description: "Folder containing bundle.json for the owner product-knowledge server; empty disables it, and hosted events ignore it."},
 		{Name: "OPENAI_APPS_CHALLENGE", Group: "server", Type: "string",
 			Description: "The OpenAI plugin portal's domain-verification token. Unset: not served."},
 
@@ -454,6 +458,8 @@ func otherSettings() []Setting {
 
 		{Name: "AGENTCAT_PROJECT_ID", Group: "observability", Type: "string", Security: false,
 			Description: "AgentCat project for MCP tool-call events (arguments, results, and stated intent, with secrets and file contents left out); empty disables sending."},
+		{Name: "PAPER_METRICS", Group: "observability", Type: "bool", Default: "on", Allowed: []string{"on", "off"},
+			Description: "Collects local paper metrics; off, false or 0 disables collection."},
 		{Name: "ANALYTICS_LOG", Group: "observability", Type: "string",
 			Description: "The web server's access log that visit analytics are read from. Empty: no analytics."},
 		{Name: "ANALYTICS_SALT", Group: "observability", Type: "secret", Security: true,

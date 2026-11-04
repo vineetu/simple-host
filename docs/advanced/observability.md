@@ -20,6 +20,7 @@
 | `NETWORK_SAMPLE_MINUTES` | `60` | 1–1440 minutes | How often the box's network counters are added to the month's totals. The admin page adds the growth since the last sample itself, so this only bounds what a reboot can lose. |
 | `API_METRICS_FLUSH_SECONDS` | `20` | 5–3600 seconds | How often counted API calls are written to the database for the admin page's API traffic and growth. Calls counted since the last write are lost if the server stops abruptly. |
 | `AGENTCAT_PROJECT_ID` | none | text | AgentCat project for MCP tool-call events (arguments, results, and stated intent, with secrets and file contents left out); empty disables sending. |
+| `PAPER_METRICS` | `on` | `on` / `off` | Collects local paper metrics; off, false or 0 disables collection. |
 | `ANALYTICS_LOG` | none | text | The web server's access log that visit analytics are read from. Empty: no analytics. |
 | `ANALYTICS_SALT` | none | secret | Salt for the hashed visitor addresses in analytics. Empty: derived from ADMIN_API_KEY. **Security-sensitive.** |
 | `NETWORK_INTERFACE` | `<default route>` | text | The network interface whose traffic the admin page reports as the box's own. Empty: the one the default route leaves by. Inside a container, where that is the container's own, network use is off unless this is set. |

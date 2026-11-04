@@ -2,11 +2,16 @@ package config
 
 import (
 	"bytes"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"sort"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -17,25 +22,65 @@ func TestSettingsCoverEveryEnvRead(t *testing.T) {
 	for _, k := range Knobs() {
 		read[k.Env] = true
 	}
-	re := regexp.MustCompile(`(?:os\.Getenv|getEnvOrDefault|photoLimit|appLimit)\("([A-Z0-9_]+)"`)
-	files, _ := filepath.Glob("../handler/*.go")
-	mcpFiles, _ := filepath.Glob("../mcp/*.go")
-	files = append(files, mcpFiles...)
-	files = append(files, "config.go")
-	for _, f := range files {
-		if filepath.Ext(f) != ".go" || regexp.MustCompile(`_test\.go$`).MatchString(f) {
-			continue
-		}
-		b, err := os.ReadFile(f)
+	// Only server sources belong here. Skip cmd/ip-country-load (its only
+	// env read is the already registered DB_DSN) and cmd/analytics-rebuild
+	// (an operator CLI with no env reads).
+	// testdb and geoiptest contain test-only database/GeoIP fixture helpers.
+	for _, root := range []string{"..", "../../cmd/server"} {
+		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				if entry.Name() == "testdb" || entry.Name() == "geoiptest" || entry.Name() == "testdata" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+			if err != nil {
+				return err
+			}
+			ast.Inspect(file, func(node ast.Node) bool {
+				var literal ast.Expr
+				switch n := node.(type) {
+				case *ast.CallExpr:
+					if len(n.Args) == 0 {
+						break
+					}
+					switch f := n.Fun.(type) {
+					case *ast.SelectorExpr:
+						if pkg, ok := f.X.(*ast.Ident); ok && pkg.Name == "os" && (f.Sel.Name == "Getenv" || f.Sel.Name == "LookupEnv") {
+							literal = n.Args[0]
+						}
+					case *ast.Ident:
+						// Literal calls through the getenv-style helpers used by the server.
+						// LoadLimits(os.Getenv) reads Knobs(), already included above.
+						if strings.Contains(strings.ToLower(f.Name), "getenv") || f.Name == "photoLimit" || f.Name == "appLimit" {
+							literal = n.Args[0]
+						}
+					}
+				case *ast.KeyValueExpr:
+					// appScreen stores its environment key in Flag, read indirectly.
+					if key, ok := n.Key.(*ast.Ident); ok && key.Name == "Flag" {
+						literal = n.Value
+					}
+				}
+				if value, ok := literal.(*ast.BasicLit); ok && value.Kind == token.STRING {
+					name, err := strconv.Unquote(value.Value)
+					if err == nil {
+						read[name] = true
+					}
+				}
+				return true
+			})
+			return nil
+		})
 		if err != nil {
 			t.Fatal(err)
-		}
-		// appScreen stores its environment key in Flag rather than a literal Getenv call.
-		for _, m := range regexp.MustCompile(`Flag: "(MCP_APP_[A-Z_]+)"`).FindAllSubmatch(b, -1) {
-			read[string(m[1])] = true
-		}
-		for _, m := range re.FindAllSubmatch(b, -1) {
-			read[string(m[1])] = true
 		}
 	}
 	listed := map[string]bool{}

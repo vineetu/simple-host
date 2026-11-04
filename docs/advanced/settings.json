@@ -309,6 +309,17 @@
       "small_box": false
     },
     {
+      "name": "BRAIN_DIR",
+      "group": "server",
+      "description": "Folder containing bundle.json for the owner product-knowledge server; empty disables it, and hosted events ignore it.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "OPENAI_APPS_CHALLENGE",
       "group": "server",
       "description": "The OpenAI plugin portal's domain-verification token. Unset: not served.",
@@ -2810,6 +2821,17 @@
       "small_box": false
     },
     {
+      "name": "HACK_DEMO_EVENT_SLUG",
+      "group": "events",
+      "description": "Base event slug for the standing demo on the hosted hackathon platform; empty uses demo.",
+      "type": "string",
+      "default": "demo",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "EVENT_NAME_PEER",
       "group": "events",
       "description": "The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise.",
@@ -3361,6 +3383,21 @@
       "description": "AgentCat project for MCP tool-call events (arguments, results, and stated intent, with secrets and file contents left out); empty disables sending.",
       "type": "string",
       "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
+      "name": "PAPER_METRICS",
+      "group": "observability",
+      "description": "Collects local paper metrics; off, false or 0 disables collection.",
+      "type": "bool",
+      "default": "on",
+      "allowed": [
+        "on",
+        "off"
+      ],
       "security_sensitive": false,
       "required": false,
       "basic": false,
