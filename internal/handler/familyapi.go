@@ -22,6 +22,7 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/email"
 )
 
 // The address-family API (familyhost.go has the model):
@@ -726,7 +727,7 @@ func (h *SiteHandler) checkFamily(ctx context.Context, f db.AddressFamily, ours 
 		}
 		for _, l := range losers {
 			h.removeFamilyRequest(l.Suffix, ctx)
-			h.emailFamilyNotice(l, "Your address family *."+l.Suffix+" was not connected",
+			h.emailFamilyNotice(ctx, l, "Your address family *."+l.Suffix+" was not connected",
 				fmt.Sprintf("You asked to connect *.%s to your Simple Host account, but another account proved it owns that name first, so your request was dropped.\n\nIf the name is yours, check who else has access to its DNS records.\n\nSimple Host\n", l.Suffix))
 		}
 		f.VerifiedAt = sql.NullTime{Time: time.Now(), Valid: true}
@@ -765,11 +766,11 @@ func (h *SiteHandler) checkFamily(ctx context.Context, f db.AddressFamily, ours 
 			sites.ReportWorkerFailure(ctx, "check address family", err)
 			return
 		}
-		h.emailFamilyNotice(f, "Your address family *."+f.Suffix+" was disconnected",
+		h.emailFamilyNotice(ctx, f, "Your address family *."+f.Suffix+" was disconnected",
 			fmt.Sprintf("*.%s failed every check for %s, so it was disconnected from your Simple Host account. Your sites answer at their own Simple Host addresses again.\n\nWhat the last check saw: %s\n\nConnecting it again needs its DNS ownership record (TXT %s) once more.\n\nSimple Host\n", f.Suffix, config.Span(failing.Round(time.Hour)), why, domainProofHost(f.Suffix)))
 	case failing >= lim.FamilyLapseWarnAfter && !check.Notified:
 		releaseAt := time.Now().Add(lim.FamilyLapseAfter - lim.FamilyLapseWarnAfter)
-		if h.emailFamilyNotice(f, "Your address family *."+f.Suffix+" has stopped working",
+		if h.emailFamilyNotice(ctx, f, "Your address family *."+f.Suffix+" has stopped working",
 			fmt.Sprintf("Your sites answer at <site>.%s, and that address family has failed every check for %s.\n\nWhat the last check saw: %s\n\nIf you moved the domain on purpose, there is nothing to do. Otherwise check its DNS records at your registrar (the wildcard record *.%s and the TXT record %s).\n\nIf it is still failing %s from now, *.%s is disconnected from your account and your sites answer at their own Simple Host addresses again.\n\nSimple Host\n",
 				f.Suffix, config.Span(lim.FamilyLapseWarnAfter), why, f.Suffix, domainProofHost(f.Suffix), config.Span(lim.FamilyLapseAfter-lim.FamilyLapseWarnAfter), f.Suffix)) {
 			if err := db.MarkFamilyLapseNotified(ctx, h.database, f.ID, releaseAt); err != nil {
@@ -780,12 +781,12 @@ func (h *SiteHandler) checkFamily(ctx context.Context, f db.AddressFamily, ours 
 }
 
 // emailFamilyNotice sends one plain notice to the family's owner.
-func (h *SiteHandler) emailFamilyNotice(f db.AddressFamily, subject, text string) bool {
+func (h *SiteHandler) emailFamilyNotice(ctx context.Context, f db.AddressFamily, subject, text string) bool {
 	mailer, ok := h.mailer.(noticeSender)
 	if !ok || !strings.Contains(f.Email, "@") {
 		return false
 	}
-	if err := mailer.SendNotice(f.Email, subject, text); err != nil {
+	if err := email.SendNoticeCtx(ctx, mailer, f.Email, subject, text); err != nil {
 		log.Printf("address family: send notice: %v", err)
 		return false
 	}

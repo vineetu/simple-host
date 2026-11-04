@@ -39,9 +39,16 @@ func (h *HackHandler) runEventCleanup(ctx context.Context, now time.Time) {
 	h.runEventCleanupTracked(ctx, now, nil)
 }
 func (h *HackHandler) runEventCleanupTracked(ctx context.Context, now time.Time, report *workers.Tracker) {
-	var send func(string, string, string, string) error
+	var send func(context.Context, string, string, string, string) error
 	if m, ok := h.mailer.(hackReplySender); ok {
-		send = m.SendNoticeReplyTo
+		send = func(ctx context.Context, to, replyTo, subject, body string) error {
+			if sender, ok := m.(interface {
+				SendNoticeReplyToCtx(context.Context, string, string, string, string) error
+			}); ok {
+				return sender.SendNoticeReplyToCtx(ctx, to, replyTo, subject, body)
+			}
+			return m.SendNoticeReplyTo(to, replyTo, subject, body)
+		}
 	}
 	var trash func(context.Context, string, string) error
 	if h.sites != nil {

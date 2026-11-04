@@ -18,7 +18,7 @@ import (
 // ended, then warn organisers whose warning date has arrived and who have
 // not been warned. With no mailer that can send a notice, the pass does
 // nothing (the same gate as the idle-site cleanup).
-func (s *Service) RunEventCleanup(ctx context.Context, now time.Time, keep, warnFor time.Duration, trash func(context.Context, string, string) error, send func(string, string, string, string) error, replyTo string, reports ...CleanupReport) {
+func (s *Service) RunEventCleanup(ctx context.Context, now time.Time, keep, warnFor time.Duration, trash func(context.Context, string, string) error, send func(context.Context, string, string, string, string) error, replyTo string, reports ...CleanupReport) {
 	if len(reports) > 0 && reports[0] != nil {
 		ctx = context.WithValue(ctx, cleanupReportKey{}, reports[0])
 	}
@@ -95,12 +95,19 @@ func (s *Service) removeEventSites(ctx context.Context, ev model.Event, now time
 // update takes), the email is sent, and only then is the mark committed. A
 // failed send rolls it back; a crash after the send and before the commit
 // leaves no warning on record, so the next run sends it again.
-func (s *Service) warnEventRemoval(ctx context.Context, send func(string, string, string, string) error, replyTo string, ev model.Event, now, removeAt time.Time, keepFor, warnFor time.Duration) {
+func (s *Service) warnEventRemoval(ctx context.Context, send func(context.Context, string, string, string, string) error, replyTo string, ev model.Event, now, removeAt time.Time, keepFor, warnFor time.Duration) {
 	if !strings.Contains(ev.ContactEmail, "@") {
 		log.Printf("event-site cleanup: warn %s: no contact email", ev.Slug)
 		return
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	if ctx.Err() != nil {
+		return
+	}
+	txCtx, cancelTx := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancelTx()
+	stopCancel := context.AfterFunc(ctx, cancelTx)
+	defer stopCancel()
+	tx, err := s.db.BeginTx(txCtx, nil)
 	if err != nil {
 		cleanupFail(ctx, "begin event warning transaction", err)
 		return
@@ -122,7 +129,17 @@ If you need more time, write to support@simple-host.app.
 
 Simple Hack
 `, ev.Title, removeOn)
-	if err := send(ev.ContactEmail, replyTo, subject, text); err != nil {
+	// Detach the transaction just before sending; a successful send must
+	// survive worker cancellation until its mark is committed.
+	if !stopCancel() || ctx.Err() != nil {
+		return
+	}
+	sendErr := send(ctx, ev.ContactEmail, replyTo, subject, text)
+	finishCtx, cancelFinish := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancelFinish()
+	stopFinish := context.AfterFunc(finishCtx, cancelTx)
+	defer stopFinish()
+	if err := sendErr; err != nil {
 		cleanupFail(ctx, "send event removal warning", err)
 		return
 	}

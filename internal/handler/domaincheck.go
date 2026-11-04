@@ -16,6 +16,7 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/email"
 )
 
 const (
@@ -361,7 +362,7 @@ If it is still failing %s from now, %s is disconnected from the site: the site s
 
 Simple Host
 `, siteName, d.Domain, config.Span(h.domainLapseWarnAfter()), reason, config.Span(releaseIn), d.Domain)
-	if err := mailer.SendNotice(to, subject, text); err != nil {
+	if err := email.SendNoticeCtx(ctx, mailer, to, subject, text); err != nil {
 		sites.ReportWorkerFailure(ctx, "send domain failure notice", err)
 		return
 	}

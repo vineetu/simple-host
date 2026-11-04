@@ -27,6 +27,20 @@ func (m *replyMailer) SendNoticeReplyTo(to, replyTo, subject, text string) error
 	return nil
 }
 
+// cancelReplyMailer models provider acceptance racing worker shutdown.
+type cancelReplyMailer struct {
+	*replyMailer
+	cancel context.CancelFunc
+}
+
+func (m *cancelReplyMailer) SendNoticeReplyToCtx(ctx context.Context, to, replyTo, subject, text string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	m.cancel()
+	return m.SendNoticeReplyTo(to, replyTo, subject, text)
+}
+
 // last returns the newest mail about site, or "".
 func (m *replyMailer) last(site string) string {
 	m.mu.Lock()
@@ -333,8 +347,14 @@ func TestIdleCleanupHardening(t *testing.T) {
 		t.Fatalf("warning recorded without an email: %v %v", warned, err)
 	}
 
-	// Warned; Keep lands between the removal list and the removal: it stays.
-	a.sites.warnIdleSite(ctx, m, s, time.Now())
+	// Provider acceptance racing cancellation still commits the warning/token.
+	warnCtx, cancelWarn := context.WithCancel(ctx)
+	defer cancelWarn()
+	a.sites.warnIdleSite(warnCtx, &cancelReplyMailer{m, cancelWarn}, s, time.Now())
+	if err := a.database.QueryRow(`SELECT idle_warned_at IS NOT NULL FROM sites WHERE id = $1`, plain).Scan(&warned); err != nil || !warned || warnCtx.Err() == nil {
+		t.Fatalf("accepted warning lost on cancellation: %v %v", warned, err)
+	}
+	// Keep lands between the removal list and the removal: it stays.
 	links := idleLinks(m.last("plain"))
 	if links["keep"] == "" {
 		t.Fatalf("no keep link: %v", m.sent)
@@ -372,7 +392,12 @@ func TestIdleCleanupHardening(t *testing.T) {
 
 	// Removed; restored by hand in the owner app: the idle state ends, the
 	// emailed link dies, and the next run leaves it alone.
-	a.sites.removeIdleSite(ctx, m, target, time.Now())
+	removeCtx, cancelRemove := context.WithCancel(ctx)
+	defer cancelRemove()
+	a.sites.removeIdleSite(removeCtx, &cancelReplyMailer{m, cancelRemove}, target, time.Now())
+	if err := a.database.QueryRow(`SELECT deleted_at IS NOT NULL AND idle_removed_at IS NOT NULL FROM sites WHERE id = $1`, plain).Scan(&deleted); err != nil || !deleted || removeCtx.Err() == nil {
+		t.Fatalf("accepted removal lost on cancellation: %v %v", deleted, err)
+	}
 	restore := idleLinks(m.last("plain"))["restore"]
 	if restore == "" {
 		t.Fatalf("no restore link: %v", m.sent)

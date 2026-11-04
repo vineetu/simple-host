@@ -1199,7 +1199,7 @@ func (s *ImageScan) sendAlert(ctx context.Context, m db.ImageMatch, steps []imag
 	if !reportFiled {
 		fmt.Fprintf(&b, "File the CyberTipline report (the Report button on the admin page, or https://report.cybertip.org/) as soon as reasonably possible; the law requires it.\n")
 	}
-	return sender.SendNotice(s.cfg.AlertEmail, subject, b.String())
+	return email.SendNoticeCtx(ctx, sender, s.cfg.AlertEmail, subject, b.String())
 }
 
 // addressOf is the site's own https address (as the dashboard shows it) or

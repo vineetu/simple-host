@@ -63,6 +63,20 @@ func wantStarterRubric(t *testing.T, v rubricView) {
 	}
 }
 
+// cancelCleanupMailer models provider acceptance racing worker shutdown.
+type cancelCleanupMailer struct {
+	*replyMailer
+	cancel context.CancelFunc
+}
+
+func (m *cancelCleanupMailer) SendNoticeReplyToCtx(ctx context.Context, to, replyTo, subject, text string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	m.cancel()
+	return m.SendNoticeReplyTo(to, replyTo, subject, text)
+}
+
 func TestHackArchiveCleanup(t *testing.T) {
 	a := newHackApp(t)
 	l := config.DefaultLimits()
@@ -160,8 +174,14 @@ func TestHackArchiveCleanup(t *testing.T) {
 	}
 
 	mail := &replyMailer{}
+	warnCtx, cancelWarn := context.WithCancel(ctx)
+	defer cancelWarn()
+	a.hack.SetMailer(&cancelCleanupMailer{mail, cancelWarn})
+	a.hack.runEventCleanup(warnCtx, now)
+	if warnCtx.Err() == nil {
+		t.Fatal("context-aware cleanup sender was not called")
+	}
 	a.hack.SetMailer(mail)
-	a.hack.runEventCleanup(ctx, now)
 	if more := sites.called(); len(more) != 2 {
 		t.Fatalf("trashed again on the warning pass: %+v", more)
 	}
