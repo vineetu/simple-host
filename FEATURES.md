@@ -780,8 +780,9 @@ any non-admin account, returning a temporary password once. The next sign-in req
 `new_password`. Passwords are 8–256 characters, stored as salted Argon2id PHC hashes in
 `account_passwords` (migration `0002-password-sign-in.sql`, deleted with the user). Failed attempts
 are limited per normalized login and IP. The dashboard, Hack sign-in and connector share the form;
-the admin Users panel creates accounts and resets passwords. Optional email metadata establishes
-no email identity; an admin can use an email as the username. With the setting off all four routes
+the admin Users panel creates accounts and resets passwords. An admin can use an email as the username.
+Password self-sign-up applies the same country block as email sign-up. Argon2 work runs at most
+two calls at a time; sign-in verifies before locking and rejects a password changed meanwhile. With the setting off all four routes
 answer 404 and no password UI appears. No TOTP, leaked-password checks or passkeys.
 Self-host marketing is shown only on simple-host.app and simple-hack.app using existing hosted
 blocks, including landing pages, features and navigation; the routes remain available.

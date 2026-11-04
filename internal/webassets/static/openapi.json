@@ -747,7 +747,7 @@
         ],
         "operationId": "passwordSignup",
         "summary": "Create a password account and sign in",
-        "description": "Available only when PASSWORD_SIGNIN=on. Passwords are 8\u2013256 characters. Temporary passwords require a different new_password at sign-in. Username is lowercased; @ is forbidden. Optional email establishes no email identity.",
+        "description": "Available only when PASSWORD_SIGNIN=on. Passwords are 8\u2013256 characters. Temporary passwords require a different new_password at sign-in. Username is lowercased; @ is forbidden.",
         "requestBody": {
           "required": true,
           "content": {
@@ -764,9 +764,6 @@
                     "format": "password",
                     "minLength": 8,
                     "maxLength": 256
-                  },
-                  "email": {
-                    "type": "string"
                   }
                 },
                 "required": [
@@ -790,6 +787,9 @@
           },
           "400": {
             "description": "invalid_username or invalid_password"
+          },
+          "403": {
+            "description": "signup_unavailable_region"
           },
           "404": {
             "description": "not found: PASSWORD_SIGNIN off or PASSWORD_SELF_SIGNUP off"
@@ -823,9 +823,6 @@
                 "type": "object",
                 "properties": {
                   "username": {
-                    "type": "string"
-                  },
-                  "email": {
                     "type": "string"
                   },
                   "password": {

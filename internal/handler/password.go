@@ -86,13 +86,15 @@ func (h *UserHandler) passwordSignup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
-		Email    string `json:"email"`
 	}
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		writeJSON(w, 400, errorResponse{Error: "invalid request body"})
 		return
 	}
-	// Email is optional metadata; it never establishes an unverified email identity.
+	if _, blocked := h.geoBlock.BlockedCountry(clientIP(r)); blocked {
+		writeJSON(w, http.StatusForbidden, signupBlockedError)
+		return
+	}
 	user, _, err := h.accounts.CreatePasswordAccount(r.Context(), req.Username, req.Password, false, h.ed.Identity().RandomHandles, h.assignPasswordHandle)
 	if writeLifecycleFailure(w, err) {
 		return
@@ -113,7 +115,6 @@ func (h *UserHandler) createPasswordUser(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
-		Email    string `json:"email"`
 	}
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		writeJSON(w, 400, errorResponse{Error: "invalid request body"})

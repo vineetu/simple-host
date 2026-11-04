@@ -22,6 +22,7 @@ func TestSignInMessagesTable(t *testing.T) {
 		"code_wrong", "code_used_up", "code_expired", "rate_limited", "invalid_email",
 		"send_failed", "signup_blocked", "email_signin_off", "email_unavailable",
 		"link_other_browser", "account_suspended", "network", "unknown",
+		"bad_credentials", "password_change_required", "username_taken",
 	}
 	if len(signInMessages) != len(keys) {
 		t.Errorf("table has %d keys, want %d", len(signInMessages), len(keys))

@@ -1953,9 +1953,13 @@ async function load(){
     D.loaded.users=true;
     var ev=await evP;
     if(ev) applyEventsPayload(ev);
-    var methods=await fetch('/v1/auth/oauth/providers').then(function(r){return r.json();});
-    passwordEnabled=!!(methods.password&&methods.password.enabled);
-    $('password-panel').hidden=!passwordEnabled;
+    passwordEnabled=false;
+    $('password-panel').hidden=true;
+    fetch('/v1/auth/oauth/providers').then(function(r){return r.json();}).then(function(methods){
+      passwordEnabled=!!(methods.password&&methods.password.enabled);
+      $('password-panel').hidden=!passwordEnabled;
+      if(current==='users') renderUsers();
+    }).catch(function(){});
     clearStatus();
     $('tabs').hidden=false;
     showTab(tabFromHash());

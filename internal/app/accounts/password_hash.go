@@ -14,6 +14,8 @@ import (
 // Argon2id uses 64 MiB, three passes and two lanes, suitable for the small-box profile.
 const passwordMemory = 64 * 1024
 
+var passwordHashSlots = make(chan struct{}, 2)
+
 func validPassword(password string) error {
 	n := utf8.RuneCountInString(password)
 	if n < 8 || n > 256 {
@@ -26,6 +28,8 @@ func hashPassword(password string) (string, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
+	passwordHashSlots <- struct{}{}
+	defer func() { <-passwordHashSlots }()
 	key := argon2.IDKey([]byte(password), salt, 3, passwordMemory, 2, 32)
 	return fmt.Sprintf("$argon2id$v=19$m=65536,t=3,p=2$%s$%s", base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(key)), nil
 }
@@ -42,6 +46,8 @@ func verifyPassword(password, phc string) bool {
 	if err != nil || len(want) != 32 {
 		return false
 	}
+	passwordHashSlots <- struct{}{}
+	defer func() { <-passwordHashSlots }()
 	got := argon2.IDKey([]byte(password), salt, 3, passwordMemory, 2, 32)
 	return subtle.ConstantTimeCompare(got, want) == 1
 }

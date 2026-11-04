@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/edition"
 )
 
@@ -16,9 +17,6 @@ func TestPasswordAccounts(t *testing.T) {
 		return a.do(t, "POST", path, jsonBody(body), map[string]string{"Content-Type": "application/json", "X-API-Key": key})
 	}
 	name := fmt.Sprintf("password-%d", time.Now().UnixNano())
-	if r := post("/v1/auth/password", map[string]string{}, ""); r.status != 404 {
-		t.Fatalf("off: %d %s", r.status, r.body)
-	}
 	a.users.SetPasswordSignIn(true, true)
 	signup := post("/v1/auth/password/signup", map[string]string{"username": name, "password": "first password"}, "")
 	if signup.status != 200 {
@@ -51,18 +49,6 @@ func TestPasswordAccounts(t *testing.T) {
 	missing := post("/v1/auth/password", map[string]string{"login": noPassword.email, "password": "wrong password"}, "")
 	if missing.status != 401 || string(missing.body) != string(wrong.body) {
 		t.Fatalf("passwordless: %d %s", missing.status, missing.body)
-	}
-	for i := 0; i < 9; i++ {
-		if r := login("wrong password", ""); r.status != 401 {
-			t.Fatalf("attempt %d: %d %s", i, r.status, r.body)
-		}
-	}
-	if r := login("wrong password", ""); r.status != 429 || r.header.Get("Retry-After") == "" {
-		t.Fatalf("limit: %d %s", r.status, r.body)
-	}
-	a.users.SetPasswordSignIn(true, false)
-	if r := post("/v1/auth/password/signup", map[string]string{"username": name + "-off", "password": "first password"}, ""); r.status != 404 {
-		t.Fatalf("signup off: %d", r.status)
 	}
 	// A password-issued key completes the unchanged connector consent flow.
 	redirect := "https://client.example/callback"
@@ -114,6 +100,55 @@ func TestPasswordAccounts(t *testing.T) {
 	}
 }
 
+func TestPasswordAccountsDisabled(t *testing.T) {
+	for _, selfSignup := range []bool{false, true} {
+		t.Run(fmt.Sprintf("password-enabled-%v", selfSignup), func(t *testing.T) {
+			a := newConnectorApp(t)
+			path := "/v1/auth/password"
+			if selfSignup {
+				a.users.SetPasswordSignIn(true, false)
+				path += "/signup"
+			}
+			r := a.do(t, "POST", path, jsonBody(map[string]string{"username": "signup-off", "password": "first password"}), map[string]string{"Content-Type": "application/json"})
+			if r.status != 404 {
+				t.Fatalf("disabled: %d %s", r.status, r.body)
+			}
+		})
+	}
+}
+
+func TestPasswordLoginLimit(t *testing.T) {
+	a := newConnectorApp(t)
+	a.users.SetPasswordSignIn(true, true)
+	for i := 0; i < 11; i++ {
+		r := a.do(t, "POST", "/v1/auth/password", jsonBody(map[string]string{"login": "missing-login", "password": "wrong password"}), map[string]string{"Content-Type": "application/json"})
+		if i < 10 {
+			if r.status != 401 {
+				t.Fatalf("attempt %d: %d %s", i, r.status, r.body)
+			}
+		} else if r.status != 429 || r.header.Get("Retry-After") == "" {
+			t.Fatalf("limit: %d %s", r.status, r.body)
+		}
+	}
+}
+
+func TestPasswordIPLimitAcrossUsernames(t *testing.T) {
+	limits := config.DefaultLimits()
+	limits.RateSigninIP = config.Rate{Burst: 3, Every: time.Hour}
+	a := newConnectorApp(t, edition.ForKindWithLimits(edition.Host, limits))
+	a.users.SetPasswordSignIn(true, true)
+	for i := 0; i < 4; i++ {
+		r := a.do(t, "POST", "/v1/auth/password", jsonBody(map[string]string{"login": fmt.Sprintf("missing-%d", i), "password": "wrong password"}), map[string]string{"Content-Type": "application/json"})
+		if i < 3 {
+			if r.status != 401 {
+				t.Fatalf("attempt %d: %d %s", i, r.status, r.body)
+			}
+		} else if r.status != 429 || r.header.Get("Retry-After") == "" {
+			t.Fatalf("IP limit: %d %s", r.status, r.body)
+		}
+	}
+}
+
 func TestSelfHostMarketingOnlyOnHostedServices(t *testing.T) {
 	prev := instanceIsHostedService
 	t.Cleanup(func() { instanceIsHostedService = prev })
@@ -133,7 +168,7 @@ func TestSelfHostMarketingOnlyOnHostedServices(t *testing.T) {
 			p := newAssetPipeline(edition.ForKind(tc.kind), tc.base)
 			hosted := tc.hosted || tc.base == "https://simple-hack.app" && tc.kind == edition.Hack
 			for _, page := range []struct{ name, marketing string }{
-				{"hack-home.html", "Prefer your own server?"}, {"hack-story.html", "Prefer your own server?"},
+				{"hack-home.html", "Prefer your own server?"}, {"hack-home.html", "Running this inside a company?"}, {"hack-story.html", "Prefer your own server?"},
 				{"hack-get-started.html", "Can I run my own?"}, {"features.html", `id="self-host"`},
 				{"host-story.html", "Self-host on one small server"}, {"hack-companies.html", `href="#install"`},
 			} {

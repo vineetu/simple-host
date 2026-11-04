@@ -21,12 +21,7 @@ func badCredentials() error {
 	return lifecycleFail(401, "Wrong username or password.", "bad_credentials")
 }
 func (s *Service) PasswordSignIn(ctx context.Context, login, password, newPassword string) (model.User, error) {
-	tx, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return model.User{}, err
-	}
-	defer tx.Rollback()
-	user, hash, must, err := repo.PasswordAccount(ctx, tx, NormalizeLogin(login))
+	user, hash, _, err := repo.PasswordAccount(ctx, s.database, NormalizeLogin(login))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return model.User{}, err
 	}
@@ -42,6 +37,18 @@ func (s *Service) PasswordSignIn(ctx context.Context, login, password, newPasswo
 	matches := verifyPassword(bounded, hash)
 	if missing || !matches || validPassword(password) != nil {
 		return model.User{}, badCredentials()
+	}
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return model.User{}, err
+	}
+	defer tx.Rollback()
+	lockedHash, must, err := repo.LockPassword(ctx, tx, user.ID)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && lockedHash != hash {
+		return model.User{}, badCredentials()
+	}
+	if err != nil {
+		return model.User{}, err
 	}
 	if must {
 		if newPassword == "" {

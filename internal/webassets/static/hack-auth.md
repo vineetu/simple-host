@@ -20,10 +20,9 @@ same `{id,username,api_key,is_admin,created,handle}` as email verification. Use 
 `bad_credentials`; repeated failures return 429 with `Retry-After`.
 A 403 `password_change_required` asks for a different `new_password` (8–256 characters).
 If `password.self_signup` is true, `POST /v1/auth/password/signup` with
-`{username,password,email?}` creates an account and signs in. Public usernames are 3–64
-lowercase letters, digits, dots, underscores or hyphens, never email addresses; `email` is
-optional metadata and establishes no email identity. Taken usernames return 409 `username_taken`.
-The admin key can call `POST /v1/admin/password-users` with `{username,email?,password?}`
+`{username,password}` creates an account and signs in. Public usernames are 3–64
+lowercase letters, digits, dots, underscores or hyphens, never email addresses. Taken usernames return 409 `username_taken`.
+The admin key can call `POST /v1/admin/password-users` with `{username,password?}`
 or `POST /v1/admin/users/{id}/password` with `{password?}`. Each returns
 `{id,username,handle,temporary_password,message}` once and requires a password change at sign-in.
 Omit `password` to generate a temporary one. Admin usernames may be emails; admin accounts
