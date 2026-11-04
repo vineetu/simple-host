@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"go/ast"
 	"go/parser"
@@ -165,13 +166,13 @@ func TestAPIMetricsPrunesAtStartup(t *testing.T) {
 			}
 			if es, ok := st.(*ast.ExprStmt); ok {
 				if call, ok := es.X.(*ast.CallExpr); ok {
-					if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "pruneOld" {
+					if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "pruneOldContext" {
 						return
 					}
 				}
 			}
 		}
-		t.Fatal("flushLoop does not call pruneOld before its loop")
+		t.Fatal("flushLoop does not call pruneOldContext before its loop")
 	}
 	t.Fatal("flushLoop not found")
 }
@@ -254,5 +255,37 @@ func TestUploadMetricsUsePattern(t *testing.T) {
 		if agg.lastRoute != pattern {
 			t.Fatal("token recorded in metrics")
 		}
+	}
+}
+
+// The constructor must be inert, and shutdown must persist the final buffered
+// request without requiring a timer tick or leaving a goroutine behind.
+func TestAPIMetricsStopFlushesBuffer(t *testing.T) {
+	database := growthTestDB(t)
+	m := NewAPIMetrics(database, nil)
+	if m.Status()[0].Running {
+		t.Fatal("constructor started a worker")
+	}
+	m.record("GET /v1/sites", 200, "203.0.113.0", "XX")
+	m.recordSelf("GET /v1/sites", 200)
+	m.Start(context.Background())
+	t.Cleanup(func() { m.Stop(); m.Wait() })
+	m.Stop()
+	m.Wait()
+	for _, table := range []string{"api_request_daily", "api_self_daily", "api_ip_daily"} {
+		var n int64
+		if err := database.QueryRow("SELECT COALESCE(SUM(calls),0) FROM " + table).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("%s calls=%d err=%v", table, n, err)
+		}
+	}
+	if m.Status()[0].Running || m.Status()[0].LastProgress == nil {
+		t.Fatalf("stopped status: %+v", m.Status())
+	}
+	// Stop and Wait are safe to repeat and must not flush the same counts twice.
+	m.Stop()
+	m.Wait()
+	var n int64
+	if err := database.QueryRow(`SELECT SUM(calls) FROM api_request_daily`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("repeat stop calls=%d err=%v", n, err)
 	}
 }

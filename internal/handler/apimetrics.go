@@ -13,6 +13,7 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/geoip"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // APIMetrics counts every /v1/* request into per-day aggregates so the admin
@@ -42,6 +43,8 @@ import (
 // applies to every row and nothing outlives the 30-day IP retention. If the
 // database files are missing, the columns are simply blank.
 type APIMetrics struct {
+	runner  *workers.Runner
+	tracker *workers.Tracker
 	limitSet
 	db  *sql.DB
 	geo *geoip.DB // nil = no geo at all (blank columns)
@@ -82,7 +85,8 @@ func NewAPIMetrics(db *sql.DB, geo *geoip.DB, editions ...*edition.Edition) *API
 	if len(editions) > 0 {
 		ed = editions[0]
 	}
-	m := &APIMetrics{
+	t := workers.NewTracker("operations.api_metrics")
+	m := &APIMetrics{runner: workers.NewRunner(t), tracker: t,
 		limitSet: newLimitSet(ed.Limits()),
 		db:       db,
 		geo:      geo,
@@ -91,7 +95,6 @@ func NewAPIMetrics(db *sql.DB, geo *geoip.DB, editions ...*edition.Edition) *API
 		ips:      make(map[string]*ipAgg),
 		growth:   make(map[growthKey]int64),
 	}
-	go m.flushLoop()
 	return m
 }
 
@@ -224,32 +227,48 @@ func (m *APIMetrics) recordSelf(route string, status int) {
 	m.growth[growthKey{growthDimSource, growthKeySelf}]++
 }
 
-func (m *APIMetrics) flushLoop() {
+func (m *APIMetrics) Start(ctx context.Context) { m.runner.Go(ctx, m.flushLoop) }
+
+func (m *APIMetrics) Stop()                    { m.runner.Stop() }
+func (m *APIMetrics) Wait()                    { m.runner.Wait() }
+func (m *APIMetrics) Status() []workers.Status { return m.runner.Status() }
+
+func (m *APIMetrics) flushLoop(ctx context.Context) {
+	m.tracker.Attempt()
 	// Prune once at startup too: the service can restart more often than every
 	// 6 hours, and a ticker alone would then never fire, keeping shortened IPs
 	// past the 30 days the privacy page promises.
-	m.pruneOld()
+	m.pruneOldContext(ctx)
 	// Fill the growth counts from the traffic tables (a no-op once done).
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	if n, err := m.BackfillGrowth(ctx); err != nil {
-		log.Printf("api growth backfill: %v", err)
+	backfillCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	if n, err := m.BackfillGrowth(backfillCtx); err != nil {
+		m.tracker.Fail("growth backfill", err)
 	} else if n > 0 {
+		m.tracker.Progress()
 		log.Printf("api growth backfill: added %d calls from the API traffic tables", n)
 	}
 	cancel()
 	tick := time.NewTicker(m.limits.APIMetricsFlush)
 	prune := time.NewTicker(6 * time.Hour)
+	defer tick.Stop()
+	defer prune.Stop()
 	for {
 		select {
+		case <-ctx.Done():
+			m.flushContext(context.Background()) // HTTP is drained; persist the final buffer before Wait returns.
+			return
 		case <-tick.C:
-			m.flush()
+			// Finish a bounded buffer write even if Stop cancels the scan context.
+			m.flushContext(context.WithoutCancel(ctx))
 		case <-prune.C:
-			m.pruneOld()
+			m.pruneOldContext(ctx)
 		}
 	}
 }
 
-func (m *APIMetrics) flush() {
+func (m *APIMetrics) flush() { m.flushContext(context.Background()) }
+func (m *APIMetrics) flushContext(ctx context.Context) {
+	m.tracker.Attempt()
 	m.flushMu.Lock()
 	defer m.flushMu.Unlock()
 	m.mu.Lock()
@@ -266,7 +285,7 @@ func (m *APIMetrics) flush() {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	for k, n := range routes {
 		if _, err := m.db.ExecContext(ctx, `
@@ -274,7 +293,7 @@ func (m *APIMetrics) flush() {
 			VALUES (CURRENT_DATE, $1, $2, $3)
 			ON CONFLICT (day, route, status) DO UPDATE SET calls = api_request_daily.calls + EXCLUDED.calls`,
 			k.route, k.status, n); err != nil {
-			log.Printf("api metrics flush (route): %v", err)
+			m.tracker.Fail("flush route", err)
 			return // DB down: drop this batch rather than queue forever
 		}
 	}
@@ -284,14 +303,14 @@ func (m *APIMetrics) flush() {
 			VALUES (CURRENT_DATE, $1, $2, $3)
 			ON CONFLICT (day, route, status) DO UPDATE SET calls = api_self_daily.calls + EXCLUDED.calls`,
 			k.route, k.status, n); err != nil {
-			log.Printf("api metrics flush (self): %v", err)
+			m.tracker.Fail("flush self", err)
 			return
 		}
 	}
 	// Growth next, so a DB that fails mid-flush loses the traffic detail
 	// rather than the long-kept counts; the backfill repairs a gap either way.
 	if err := flushGrowth(ctx, m.db, "", growth); err != nil {
-		log.Printf("api metrics flush (growth): %v", err)
+		m.tracker.Fail("flush growth", err)
 		return
 	}
 	for ip, a := range ips {
@@ -303,26 +322,33 @@ func (m *APIMetrics) flush() {
 				last_route = EXCLUDED.last_route,
 				last_seen = now()`,
 			ip, a.calls, a.lastRoute); err != nil {
-			log.Printf("api metrics flush (ip): %v", err)
+			m.tracker.Fail("flush ip", err)
 			return
 		}
 	}
+	m.tracker.Progress()
 }
 
-func (m *APIMetrics) pruneOld() {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+func (m *APIMetrics) pruneOld() { m.pruneOldContext(context.Background()) }
+func (m *APIMetrics) pruneOldContext(ctx context.Context) {
+	m.tracker.Attempt()
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	for _, q := range []string{
 		`DELETE FROM api_request_daily WHERE day < CURRENT_DATE - $1::int`,
 		`DELETE FROM api_ip_daily WHERE day < CURRENT_DATE - $1::int`,
 		`DELETE FROM api_self_daily WHERE day < CURRENT_DATE - $1::int`,
 	} {
-		if _, err := m.db.ExecContext(ctx, q, m.metricsRetentionDays()); err != nil {
-			log.Printf("api metrics prune: %v", err)
+		if result, err := m.db.ExecContext(ctx, q, m.metricsRetentionDays()); err != nil {
+			m.tracker.Fail("prune", err)
+		} else if n, _ := result.RowsAffected(); n > 0 {
+			m.tracker.Progress()
 		}
 	}
-	if _, err := m.db.ExecContext(ctx, `DELETE FROM api_growth_daily WHERE day < CURRENT_DATE - $1::int`, m.limits.APIGrowthRetention); err != nil {
-		log.Printf("api growth prune: %v", err)
+	if result, err := m.db.ExecContext(ctx, `DELETE FROM api_growth_daily WHERE day < CURRENT_DATE - $1::int`, m.limits.APIGrowthRetention); err != nil {
+		m.tracker.Fail("growth prune", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		m.tracker.Progress()
 	}
 }
 
