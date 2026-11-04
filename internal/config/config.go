@@ -291,36 +291,52 @@ func ParseLegacyStorageCutoff(v string) (time.Time, bool) {
 	return t, true
 }
 
+// Load keeps the original warning, file-read and error order. Pure environment
+// reads within each error-free phase are grouped by SettingGroups area; they
+// have no side effects. Areas recur where combining them would change which
+// warning or validation error is observed first (notably proxy before OIDC,
+// events before site certificates, and limits before the database pool).
 func Load() (Config, error) {
-	cfg := Config{
-		DBDSN:         os.Getenv("DB_DSN"),
-		DataDir:       getEnvOrDefault("DATA_DIR", defaultDataDir),
-		SiteDomain:    getEnvOrDefault("SITE_DOMAIN", defaultSiteDomain),
-		AdminAPIKey:   os.Getenv("ADMIN_API_KEY"),
-		Port:          getEnvOrDefault("PORT", defaultPort),
-		BindAddr:      strings.TrimSpace(os.Getenv("BIND_ADDR")),
-		DeployScript:  getEnvOrDefault("DEPLOY_SCRIPT", defaultDeployScript),
-		PublicBaseURL: getEnvOrDefault("PUBLIC_BASE_URL", defaultPublicBaseURL),
-		MailFrom:      getEnvOrDefault("MAIL_FROM", defaultMailFrom),
-		ResendAPIKey:  os.Getenv("RESEND_API_KEY"),
-	}
-	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
-	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)
-	// CNAME_TARGET defaults to cname.<SITE_DOMAIN> — the record humans add when
-	// binding a custom domain.
-	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
-	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
-	for _, ip := range strings.Split(os.Getenv("CUSTOM_DOMAIN_IP_ALSO"), ",") {
-		if ip = strings.TrimSpace(ip); ip != "" {
-			cfg.CustomDomainIPAlso = append(cfg.CustomDomainIPAlso, ip)
+	var cfg Config
+	for _, load := range []func(*Config) error{
+		loadServer,
+		loadStoragePaths,
+		loadEmail,
+		loadDomains,
+		loadObservability,
+		loadAccounts,
+		loadDataSpamCheck,
+		loadSitesImageScan,
+		loadAccountProviders,
+		loadStorageStartup,
+		loadServerProxy,
+		validateAccountSignIn,
+		loadDataWriteAuth,
+		loadServerPersonHosts,
+		loadEvents,
+		loadServerSiteAddresses,
+		loadCleanup,
+		loadDataLegacyCutoff,
+		loadSitesPreview,
+		loadOperationalLimits,
+		loadStoragePool,
+		validateRequiredSettings,
+	} {
+		if err := load(&cfg); err != nil {
+			return Config{}, err
 		}
 	}
-	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
-	cfg.NetworkInterface = strings.TrimSpace(os.Getenv("NETWORK_INTERFACE"))
-	cfg.AnalyticsSalt = strings.TrimSpace(os.Getenv("ANALYTICS_SALT"))
-	cfg.PasscodeEncKey = strings.TrimSpace(os.Getenv("PASSCODE_ENC_KEY"))
-	cfg.GeoIPDir = getEnvOrDefault("GEOIP_DIR", filepath.Join(filepath.Dir(filepath.Clean(cfg.DataDir)), "geoip"))
+	return cfg, nil
+}
 
+func loadServer(cfg *Config) error {
+	cfg.SiteDomain = getEnvOrDefault("SITE_DOMAIN", defaultSiteDomain)
+	cfg.Port = getEnvOrDefault("PORT", defaultPort)
+	cfg.BindAddr = strings.TrimSpace(os.Getenv("BIND_ADDR"))
+	cfg.DeployScript = getEnvOrDefault("DEPLOY_SCRIPT", defaultDeployScript)
+	cfg.PublicBaseURL = getEnvOrDefault("PUBLIC_BASE_URL", defaultPublicBaseURL)
+	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
+	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)
 	// Event hostnames: handed to a hackathon organiser under a domain we own,
 	// pointing at their server. Unset means the feature is off and organisers
 	// must bring their own domain.
@@ -335,6 +351,32 @@ func Load() (Config, error) {
 	cfg.SetupPublicAPI = getEnvOrDefault("SETUP_PUBLIC_API", "https://"+canonicalPublicHost)
 	cfg.SetupPassword = os.Getenv("SETUP_PASSWORD")
 
+	cfg.OpenAIAppsChallenge = strings.TrimSpace(os.Getenv("OPENAI_APPS_CHALLENGE"))
+	return nil
+}
+
+func loadStoragePaths(cfg *Config) error {
+	cfg.DBDSN = os.Getenv("DB_DSN")
+	cfg.DataDir = getEnvOrDefault("DATA_DIR", defaultDataDir)
+	return nil
+}
+
+func loadEmail(cfg *Config) error {
+	cfg.MailFrom = getEnvOrDefault("MAIL_FROM", defaultMailFrom)
+	cfg.ResendAPIKey = os.Getenv("RESEND_API_KEY")
+	return nil
+}
+
+func loadDomains(cfg *Config) error {
+	// CNAME_TARGET defaults to cname.<SITE_DOMAIN> — the record humans add when
+	// binding a custom domain.
+	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
+	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
+	for _, ip := range strings.Split(os.Getenv("CUSTOM_DOMAIN_IP_ALSO"), ",") {
+		if ip = strings.TrimSpace(ip); ip != "" {
+			cfg.CustomDomainIPAlso = append(cfg.CustomDomainIPAlso, ip)
+		}
+	}
 	cfg.EventDNSToken = os.Getenv("EVENT_DNS_TOKEN")
 	cfg.EventDNSTeamID = os.Getenv("EVENT_DNS_TEAM_ID")
 	for _, d := range strings.Split(os.Getenv("EVENT_DOMAINS"), ",") {
@@ -342,8 +384,19 @@ func Load() (Config, error) {
 			cfg.EventDomains = append(cfg.EventDomains, d)
 		}
 	}
+	return nil
+}
 
-	cfg.OpenAIAppsChallenge = strings.TrimSpace(os.Getenv("OPENAI_APPS_CHALLENGE"))
+func loadObservability(cfg *Config) error {
+	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
+	cfg.NetworkInterface = strings.TrimSpace(os.Getenv("NETWORK_INTERFACE"))
+	cfg.AnalyticsSalt = strings.TrimSpace(os.Getenv("ANALYTICS_SALT"))
+	cfg.GeoIPDir = getEnvOrDefault("GEOIP_DIR", filepath.Join(filepath.Dir(filepath.Clean(cfg.DataDir)), "geoip"))
+	return nil
+}
+
+func loadAccounts(cfg *Config) error {
+	cfg.AdminAPIKey = os.Getenv("ADMIN_API_KEY")
 	cfg.ReviewAccountEmail = os.Getenv("REVIEW_ACCOUNT_EMAIL")
 	cfg.ReviewAccountPasswordHash = os.Getenv("REVIEW_ACCOUNT_PASSWORD_HASH")
 	for _, c := range strings.Split(os.Getenv("SIGNUP_BLOCKED_COUNTRIES"), ",") {
@@ -358,7 +411,16 @@ func Load() (Config, error) {
 	}
 	cfg.GoogleOAuthClientID = os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
 	cfg.GoogleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+	return nil
+}
+
+func loadDataSpamCheck(cfg *Config) error {
 	cfg.TurnstileSiteKey, cfg.TurnstileSecret = loadTurnstile()
+	return nil
+}
+
+func loadSitesImageScan(cfg *Config) error {
+	cfg.PasscodeEncKey = strings.TrimSpace(os.Getenv("PASSCODE_ENC_KEY"))
 	cfg.PhotoDNAKey = loadPhotoDNAKey()
 	cfg.PhotoDNAMatchURL = strings.TrimSpace(getEnvOrDefault("PHOTODNA_MATCH_URL", defaultPhotoDNAMatchURL))
 	cfg.PhotoDNAReportURL = strings.TrimSpace(getEnvOrDefault("PHOTODNA_REPORT_URL", defaultPhotoDNAReportURL))
@@ -374,6 +436,10 @@ func Load() (Config, error) {
 	cfg.ImageScanReportEmail = strings.TrimSpace(os.Getenv("IMAGE_SCAN_REPORT_EMAIL"))
 	cfg.ImageScanAlertEmail = strings.TrimSpace(os.Getenv("IMAGE_SCAN_ALERT_EMAIL"))
 	cfg.ImageScanEvidenceDir = strings.TrimSpace(os.Getenv("IMAGE_SCAN_EVIDENCE_DIR"))
+	return nil
+}
+
+func loadAccountProviders(cfg *Config) error {
 	cfg.GitHubOAuthClientID = os.Getenv("GITHUB_OAUTH_CLIENT_ID")
 	cfg.GitHubOAuthClientSecret = os.Getenv("GITHUB_OAUTH_CLIENT_SECRET")
 	if xorNonEmpty(cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret) {
@@ -393,12 +459,24 @@ func Load() (Config, error) {
 	}
 	cfg.OIDCLabel = getEnvOrDefault("OIDC_LABEL", "your company account")
 	cfg.OIDCInsecureAllowed = strings.EqualFold(strings.TrimSpace(os.Getenv("OIDC_INSECURE_ALLOWED")), "true")
+	return nil
+}
+
+func loadStorageStartup(cfg *Config) error {
 	cfg.MigrateOnStart = strings.EqualFold(strings.TrimSpace(os.Getenv("MIGRATE_ON_START")), "true")
+	return nil
+}
+
+func loadServerProxy(cfg *Config) error {
 	cidrs, err := parseCIDRList(os.Getenv("TRUSTED_PROXY_CIDRS"))
 	if err != nil {
-		return Config{}, fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)
+		return fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)
 	}
 	cfg.TrustedProxyCIDRs = cidrs
+	return nil
+}
+
+func validateAccountSignIn(cfg *Config) error {
 	if set := nonEmptyCount(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret); set > 0 && set < 3 {
 		log.Printf("warning: company sign-in is misconfigured (need all of OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET); treating as off")
 		cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret = "", "", ""
@@ -406,13 +484,13 @@ func Load() (Config, error) {
 	if cfg.OIDCIssuer != "" {
 		u, err := url.Parse(cfg.OIDCIssuer)
 		if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
-			return Config{}, fmt.Errorf("OIDC_ISSUER must be an absolute https URL, not %q", cfg.OIDCIssuer)
+			return fmt.Errorf("OIDC_ISSUER must be an absolute https URL, not %q", cfg.OIDCIssuer)
 		}
 		if u.Scheme == "http" && !cfg.OIDCInsecureAllowed {
-			return Config{}, fmt.Errorf("OIDC_ISSUER %q is plain http; set OIDC_INSECURE_ALLOWED=true for local testing only", cfg.OIDCIssuer)
+			return fmt.Errorf("OIDC_ISSUER %q is plain http; set OIDC_INSECURE_ALLOWED=true for local testing only", cfg.OIDCIssuer)
 		}
 		if isGoogleOIDCIssuer(cfg.OIDCIssuer) && len(cfg.AllowedEmailDomains) == 0 {
-			return Config{}, errors.New("ALLOWED_EMAIL_DOMAINS is required when OIDC_ISSUER is Google (https://accounts.google.com)")
+			return errors.New("ALLOWED_EMAIL_DOMAINS is required when OIDC_ISSUER is Google (https://accounts.google.com)")
 		}
 	}
 	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("EMAIL_SIGNIN"))); mode {
@@ -425,9 +503,12 @@ func Load() (Config, error) {
 		cfg.EmailSignIn = "on"
 	}
 	if cfg.EmailSignIn == "off" && !cfg.CompanySignInEnabled() {
-		return Config{}, errors.New("EMAIL_SIGNIN=off needs company sign-in configured (OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET): otherwise nobody could sign in")
+		return errors.New("EMAIL_SIGNIN=off needs company sign-in configured (OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET): otherwise nobody could sign in")
 	}
+	return nil
+}
 
+func loadDataWriteAuth(cfg *Config) error {
 	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("WRITE_AUTH_MODE"))); mode {
 	case "off", "log", "on":
 		cfg.WriteAuthMode = mode
@@ -437,7 +518,10 @@ func Load() (Config, error) {
 		log.Printf("warning: invalid WRITE_AUTH_MODE %q; treating as log", mode)
 		cfg.WriteAuthMode = "log"
 	}
+	return nil
+}
 
+func loadServerPersonHosts(cfg *Config) error {
 	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("PERSON_HOSTS"))); mode {
 	case "off", "serve", "canonical":
 		cfg.PersonHosts = mode
@@ -447,23 +531,29 @@ func Load() (Config, error) {
 		log.Printf("warning: invalid PERSON_HOSTS %q; treating as off", mode)
 		cfg.PersonHosts = "off"
 	}
+	return nil
+}
 
+func loadEvents(cfg *Config) error {
 	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("EVENTS"))); mode {
 	case "off", "hosted":
 		cfg.Events = mode
 	case "":
 		cfg.Events = "off"
 	default:
-		return Config{}, fmt.Errorf("EVENTS must be off or hosted, not %q", mode)
+		return fmt.Errorf("EVENTS must be off or hosted, not %q", mode)
 	}
 	cfg.EventNamePeer = strings.TrimRight(strings.TrimSpace(os.Getenv("EVENT_NAME_PEER")), "/")
 	if p := cfg.EventNamePeer; p != "" {
 		u, err := url.Parse(p)
 		if err != nil || u.Scheme != "http" || !isLoopbackHost(u.Hostname()) || u.Path != "" {
-			return Config{}, fmt.Errorf("EVENT_NAME_PEER must be http://127.0.0.1:<port> (a loopback address), not %q", p)
+			return fmt.Errorf("EVENT_NAME_PEER must be http://127.0.0.1:<port> (a loopback address), not %q", p)
 		}
 	}
+	return nil
+}
 
+func loadServerSiteAddresses(cfg *Config) error {
 	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("SITE_HOSTS"))); mode {
 	case "off", "serve", "canonical":
 		cfg.SiteHosts = mode
@@ -488,11 +578,15 @@ func Load() (Config, error) {
 		cfg.SiteBaseMove = "off"
 	}
 	cfg.SiteBaseCertDir = strings.TrimSpace(os.Getenv("SITE_BASE_CERT_DIR"))
-	if err := checkSiteBaseCertDir(cfg); err != nil {
-		return Config{}, err
+	if err := checkSiteBaseCertDir(*cfg); err != nil {
+		return err
 	}
 	cfg.DomainCertDir = strings.TrimSpace(os.Getenv("DOMAIN_CERT_DIR"))
 	cfg.FamilyCertDir = strings.TrimSpace(os.Getenv("ADDRESS_FAMILY_CERT_DIR"))
+	return nil
+}
+
+func loadCleanup(cfg *Config) error {
 	cfg.IdleCleanup = strings.EqualFold(strings.TrimSpace(os.Getenv("IDLE_CLEANUP")), "on")
 	if v := strings.TrimSpace(os.Getenv("IDLE_CLEANUP_MAX_EMAILS")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -506,7 +600,10 @@ func Load() (Config, error) {
 			cfg.IdleCleanupExemptHandles = append(cfg.IdleCleanupExemptHandles, hd)
 		}
 	}
+	return nil
+}
 
+func loadDataLegacyCutoff(cfg *Config) error {
 	if raw := strings.TrimSpace(os.Getenv("LEGACY_STORAGE_CUTOFF")); raw != "" {
 		t, ok := ParseLegacyStorageCutoff(raw)
 		if !ok {
@@ -515,7 +612,10 @@ func Load() (Config, error) {
 			cfg.LegacyStorageCutoff = t
 		}
 	}
+	return nil
+}
 
+func loadSitesPreview(cfg *Config) error {
 	cfg.PreviewAccounts = map[string]bool{}
 	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {
 		if a = strings.TrimSpace(strings.ToLower(a)); a != "" {
@@ -528,13 +628,19 @@ func Load() (Config, error) {
 			cfg.PreviewTTL = time.Duration(n) * time.Hour
 		}
 	}
+	return nil
+}
 
+func loadOperationalLimits(cfg *Config) error {
 	limits, err := limitsFromEnv()
 	if err != nil {
-		return Config{}, err
+		return err
 	}
 	cfg.Limits = limits
+	return nil
+}
 
+func loadStoragePool(cfg *Config) error {
 	// A zero open limit would restore database/sql's unbounded default.
 	for _, setting := range []struct {
 		name, raw string
@@ -546,7 +652,7 @@ func Load() (Config, error) {
 	} {
 		n, err := strconv.Atoi(strings.TrimSpace(setting.raw))
 		if err != nil || n < setting.min {
-			return Config{}, fmt.Errorf("%s must be a whole number >= %d", setting.name, setting.min)
+			return fmt.Errorf("%s must be a whole number >= %d", setting.name, setting.min)
 		}
 		*setting.dest = n
 	}
@@ -559,19 +665,21 @@ func Load() (Config, error) {
 	} {
 		n, err := strconv.Atoi(strings.TrimSpace(setting.raw))
 		if err != nil || n < 1 || int64(n) > int64((1<<63-1)/time.Minute) {
-			return Config{}, fmt.Errorf("%s must be a positive whole number of minutes that fits a duration", setting.name)
+			return fmt.Errorf("%s must be a positive whole number of minutes that fits a duration", setting.name)
 		}
 		*setting.dest = time.Duration(n) * time.Minute
 	}
+	return nil
+}
 
+func validateRequiredSettings(cfg *Config) error {
 	if cfg.DBDSN == "" {
-		return Config{}, errors.New("DB_DSN is required")
+		return errors.New("DB_DSN is required")
 	}
 	if cfg.AdminAPIKey == "" {
-		return Config{}, errors.New("ADMIN_API_KEY is required (no default — set it explicitly so the public source doesn't ship a known key)")
+		return errors.New("ADMIN_API_KEY is required (no default — set it explicitly so the public source doesn't ship a known key)")
 	}
-
-	return cfg, nil
+	return nil
 }
 
 // checkSiteBaseCertDir refuses a split base without its certificate hand-off.
