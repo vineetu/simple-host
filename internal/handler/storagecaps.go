@@ -7,7 +7,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/storage"
 )
 
 const storageTips = "Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need."
@@ -33,20 +32,6 @@ func retainedFloor(versions []db.Version, keep int) int {
 		return 0
 	}
 	return versions[keep-1].VersionNumber
-}
-
-func projectedFileBytes(f storage.FileFootprint, versions []db.Version, floor, active, next int, incoming int64, publish bool) int64 {
-	total := f.Total() - f.Versions[next] + incoming
-	if publish {
-		total += incoming - f.Live
-		active = next
-	}
-	for _, v := range versions {
-		if floor > 0 && v.VersionNumber < floor && v.VersionNumber != active && v.VersionNumber != next {
-			total -= f.Versions[v.VersionNumber]
-		}
-	}
-	return total
 }
 
 type accountFileUsage struct {

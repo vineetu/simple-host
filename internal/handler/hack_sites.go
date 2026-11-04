@@ -40,20 +40,6 @@ func (h *SiteHandler) hackNoPersonalSites(w http.ResponseWriter, user *db.User) 
 	return false
 }
 
-// hackTeamTxGate runs inside a deploy, upload or rollback transaction: for a
-// team credential it checks the site is the team's, the event's certificate
-// is ready, and the team may still change its site, holding the team row FOR
-// SHARE until the transaction ends. false after writing the answer. Anyone
-// else passes.
-func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx *sql.Tx, user *db.User, siteName string) bool {
-	decision := h.hackTeamTxDecision(r.Context(), tx, user, siteName, func() { h.paperHackSite(r, user.Team.AccountID, siteName, user) }, func(stage string) { paperHackTeamState(r, user, stage) })
-	if decision == nil {
-		return true
-	}
-	writeRollbackGateError(w, decision)
-	return false
-}
-
 func (h *SiteHandler) hackTeamTxDecision(ctx context.Context, tx *sql.Tx, user *db.User, siteName string, paperSite func(), paperState func(string)) *sites.GateError {
 	if h.ed.Identity().TeamKeys && user.EventWebsite != nil {
 		id := user.EventWebsite
@@ -129,7 +115,7 @@ func (h *SiteHandler) TeamSiteURL(eventSlug, teamSlug string) string {
 
 // PublishEventWebsite sends an organiser's upload through the same validated,
 // versioned deploy path as a team site. The holding account is visible only to
-// this scoped internal request; hackTeamTxGate rechecks membership at commit.
+// this scoped internal request; hackTeamTxDecision rechecks membership at commit.
 func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request, ev db.Event, organiserID string, files bool) {
 	if r.URL.Query().Get("publish") == "false" {
 		writeHackErr(w, http.StatusBadRequest, "invalid_request", "event website uploads go live when published")

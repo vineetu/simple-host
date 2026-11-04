@@ -68,7 +68,7 @@ type Deps struct {
 	NormalizePatch          func(map[string][]byte, []string) (map[string]bool, error)
 	MaxFilesPerSite         int
 	PhotoLimits             func(context.Context, *db.User) (int64, int64)
-	ResponseState           func(model.Site, int, bool) any
+	ResponseState           func(model.Site, int, bool, bool) any
 }
 
 // CreateInput contains the values and non-HTTP dependencies for a locked create.
@@ -81,9 +81,10 @@ type CreateInput struct {
 
 // CreateResult describes a created site or an existing site selected for update.
 type CreateResult struct {
-	Site      model.Site
-	Exists    bool
-	FileBytes int64
+	Site          model.Site
+	Exists        bool
+	FileBytes     int64
+	ResponseState any
 }
 
 // Create creates and promotes a site while holding the account and site locks.
@@ -198,7 +199,7 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 	if footprint, err := s.disk.SiteFootprint(site.UserID, site.Name); err == nil {
 		fileBytes = footprint.Total()
 	}
-	return CreateResult{Site: site, FileBytes: fileBytes}, nil
+	return CreateResult{Site: site, FileBytes: fileBytes, ResponseState: s.deps.ResponseState(site, 0, false, false)}, nil
 }
 
 // resolveCreateConflict checks the deleted-name hold after the transaction rolls back.
@@ -715,7 +716,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 			if err != nil {
 				return UpdateResult{}, &Error{Code: "photo_read_failed"}
 			}
-			return UpdateResult{Site: site, PhotoPaths: paths, Reconciled: true, ResponseState: s.deps.ResponseState(site, 0, false)}, nil
+			return UpdateResult{Site: site, PhotoPaths: paths, Reconciled: true, ResponseState: s.deps.ResponseState(site, 0, false, true)}, nil
 		}
 		in.Files, in.ArchiveSHA, err = s.sanitizeFiles(in.Files, in.Budget)
 		if err != nil {
@@ -802,7 +803,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 		}
 		s.PruneVersions(ctx, PruneInput{site.ID, site.UserID, in.Name, site.ActiveVersion, site.KeepVersions})
 		s.deps.NotifyUpdate(ctx, in.User, site, n, liveBefore, false, in.Files)
-		return UpdateResult{Site: site, Version: n, ResponseState: s.deps.ResponseState(site, n, true)}, nil
+		return UpdateResult{Site: site, Version: n, ResponseState: s.deps.ResponseState(site, n, true, true)}, nil
 	}
 	if err := repo.ActivateVersion(ctx, tx, version.ID); err != nil {
 		return UpdateResult{}, err
@@ -826,7 +827,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 	s.PruneVersions(ctx, PruneInput{site.ID, site.UserID, in.Name, n, site.KeepVersions})
 	s.deps.NotifyUpdate(ctx, in.User, site, n, liveBefore, true, in.Files)
 	site.ActiveVersion = n
-	return UpdateResult{Site: site, Version: n, Published: true, PhotoPaths: paths, ResponseState: s.deps.ResponseState(site, 0, false)}, nil
+	return UpdateResult{Site: site, Version: n, Published: true, PhotoPaths: paths, ResponseState: s.deps.ResponseState(site, 0, false, true)}, nil
 }
 
 // mergePatch reads the live files while the update owns the deploy locks.
@@ -956,7 +957,7 @@ func (s *Service) Rollback(ctx context.Context, in RollbackInput) (RollbackResul
 	if err != nil {
 		return RollbackResult{Site: site}, err
 	}
-	return RollbackResult{Site: site, Unchanged: unchanged, ResponseState: s.deps.ResponseState(site, 0, false)}, nil
+	return RollbackResult{Site: site, Unchanged: unchanged, ResponseState: s.deps.ResponseState(site, 0, false, true)}, nil
 }
 
 func authorizePersonalSite(user *db.User, enabled bool) error {

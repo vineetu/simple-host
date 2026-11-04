@@ -1604,7 +1604,9 @@ func (h *SiteHandler) respondCreate(w http.ResponseWriter, user *db.User, result
 		}
 		return false
 	}
-	resp := h.siteResponseWithFileBytes(user, site, result.FileBytes)
+	state := result.ResponseState.(siteResponseState)
+	state.fileBytes = result.FileBytes
+	resp := h.siteResponseFromState(user, site, state)
 	writeJSON(w, http.StatusCreated, resp)
 	return false
 }
@@ -2487,12 +2489,6 @@ func (h *SiteHandler) siteResponseFor(user *db.User, site db.Site) siteResponse 
 	if f, err := h.disk.SiteFootprint(site.UserID, site.Name); err == nil {
 		resp.FileBytes = f.Total()
 	}
-	return h.siteResponseForCaller(user, resp)
-}
-
-func (h *SiteHandler) siteResponseWithFileBytes(user *db.User, site db.Site, fileBytes int64) siteResponse {
-	resp := h.toSiteResponse(site, "")
-	resp.FileBytes = fileBytes
 	return h.siteResponseForCaller(user, resp)
 }
 

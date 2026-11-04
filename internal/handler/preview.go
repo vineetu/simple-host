@@ -132,28 +132,6 @@ func publishParam(w http.ResponseWriter, r *http.Request) (publish, ok bool) {
 	return false, false
 }
 
-// writeUnpublished answers a publish=false deploy: the site as it still is,
-// the version just stored and a preview link for it.
-func (h *SiteHandler) writeUnpublished(w http.ResponseWriter, user *db.User, site db.Site, n int) {
-	note := "Stored as version " + strconv.Itoa(n) + " without making it live; visitors still see version " + strconv.Itoa(site.ActiveVersion) +
-		". Make it live with PUT /v1/sites/" + site.Name + "/active-version {\"version_number\": " + strconv.Itoa(n) + "}."
-	resp := h.toSiteResponse(site, note)
-	if f, err := h.disk.SiteFootprint(site.UserID, site.Name); err == nil {
-		resp.FileBytes = f.Total()
-	}
-	if user != nil && user.Team != nil {
-		resp.UserID = ""
-	}
-	resp.UnpublishedVersion = n
-	if link, exp, ok := h.previewLink(site, n); ok {
-		resp.PreviewURL = link
-		resp.PreviewExpiresAt = &exp
-	} else {
-		resp.Note += " No preview link: " + h.noPreviewWhy() + "."
-	}
-	writeJSON(w, http.StatusOK, resp)
-}
-
 // createPreviewLink is POST /v1/sites/{sitename}/versions/{version}/preview-link:
 // the owner mints an hour-long preview address for one kept version.
 func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) {
