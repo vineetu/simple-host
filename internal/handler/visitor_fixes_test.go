@@ -354,7 +354,7 @@ func TestVisitorConnectionLastSite(t *testing.T) {
 	if !strings.Contains(connections(), f.host) {
 		t.Fatal("denied call changed last site")
 	}
-	page, err := os.ReadFile("static/showcase.html")
+	page, err := embeddedStatic.ReadFile("static/showcase.html")
 	if err != nil {
 		t.Fatal(err)
 	}
