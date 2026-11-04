@@ -364,3 +364,9 @@ func DropOldSiteName(ctx context.Context, q Querier, userID, name string) error 
 func LockUserHandle(ctx context.Context, tx *sql.Tx, userID string, handle *sql.NullString) error {
 	return tx.QueryRowContext(ctx, "SELECT handle FROM users WHERE id = $1 FOR UPDATE", userID).Scan(handle)
 }
+
+// LockUserForFileCaps serializes account-wide file quota checks.
+func LockUserForFileCaps(ctx context.Context, tx *sql.Tx, userID string) error {
+	_, err := tx.ExecContext(ctx, "SELECT id FROM users WHERE id = $1 FOR UPDATE", userID)
+	return err
+}

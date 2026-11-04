@@ -3,10 +3,8 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"net/http/httptest"
-
 	"errors"
+
 	"fmt"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/papermetrics"
@@ -18,7 +16,21 @@ import (
 func (h *SiteHandler) sitesSvc() *sites.Service {
 	return sites.New(h.database, h.disk, h.previewAccounts, h.previewTTL, sites.Deps{
 		ContentHost: h.contentHost, SiteDomain: h.siteDomain, PersonalSitesEnabled: h.ed.Identity().PersonalSites,
-		LockSite:   h.lockSite,
+		LockSite: h.lockSite,
+		ResponseState: func(site db.Site, version int, preview bool) any {
+			return h.captureSiteResponseState(site, version, preview, true)
+		},
+		PhotoLimits: func(ctx context.Context, user *db.User) (int64, int64) {
+			limit, override := h.siteLimitFor(ctx, h.database, user)
+			return limit, extractBudget(limit, override)
+		},
+		DefaultRetention: keepVersions,
+		CanSetRetention: func(ctx context.Context, user *db.User) bool {
+			return h.limits.CanSetKeepVersions(accountHandles(ctx, h.database, user)...)
+		},
+		MaxFilesPerSite: h.limits.MaxFilesPerSite,
+		NormalizePatch:  normalizeFilePatch,
+
 		MaxSites:   func(ctx context.Context, user *db.User) int { return h.maxSitesFor(ctx, h.database, user) },
 		WantMarker: h.wantUnlistedMarker, SiteURL: h.siteURLFor,
 		RenameURL: func(handle, name string) string {
@@ -41,14 +53,24 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		},
 		PinnedFloor: h.hackPinnedFloor,
 		CreateGate: func(ctx context.Context, tx *sql.Tx, user *db.User, name string) error {
-			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, "/", nil).WithContext(ctx)
-			if h.hackTeamTxGate(w, r, tx, user, name) {
-				return nil
+			decision := h.hackTeamTxDecision(ctx, tx, user, name, func() {
+				if h.ed.Identity().PaperMetrics {
+					papermetrics.ResolveHackSite(ctx, user.Team.AccountID, name, user.Team.MemberID, false)
+				}
+			}, func(stage string) { papermetrics.ResolveHackEvent(ctx, user.Team.EventSlug, stage, user.Team.MemberID) })
+			if decision != nil {
+				return decision
 			}
-			var body errorResponse
-			_ = json.Unmarshal(w.Body.Bytes(), &body)
-			return &sites.GateError{Message: body.Error, Code: body.Code}
+			return nil
+		},
+		NotifyUpdate: func(ctx context.Context, user *db.User, site db.Site, n, prev int, published bool, files map[string][]byte) {
+			if published {
+				h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": n, "previous_version": prev, "via": "deploy"}, 0)
+				if h.ed.Identity().PaperMetrics && user.Team != nil {
+					papermetrics.HackDeploy(ctx)
+				}
+			}
+			h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), site.Name, n, files)
 		},
 		NotifyRollback: func(siteID string, version, prev int) {
 			h.emitSiteNotification(siteID, "site.deployed", map[string]any{"version": version, "previous_version": prev, "via": "active_version"}, 0)
@@ -62,7 +84,7 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 			}
 			h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), site.Name, 1, files)
 		},
-		FileCaps: h.ed.Storage().FileCaps && (h.limits.MaxSiteTotalMB != 0 || h.limits.MaxAccountMB != 0 || h.limits.MaxSiteTotalOverrides != "" || h.limits.MaxAccountOverrides != ""), CapCutoff: h.limits.SiteTotalCapFrom,
+		FileCaps: h.fileCapsEnabled(), CapCutoff: h.limits.SiteTotalCapFrom,
 		CapLimits: func(ctx context.Context, user *db.User) (int, int) {
 			handles := accountHandles(ctx, h.database, user)
 			return h.limits.SiteTotalMBFor(handles...), h.limits.AccountMBFor(handles...)

@@ -409,20 +409,3 @@ func TestPhotoReconcile(t *testing.T) {
 		t.Fatalf("reconciliation wrote a version: %d %v", len(versions), err)
 	}
 }
-
-func TestMatchesPhotoName(t *testing.T) {
-	for _, tc := range []struct {
-		path, name string
-		want       bool
-	}{
-		{"images/front.jpg", "front.jpg", true}, {"images/front-2.jpg", "front.jpg", true},
-		{"images/front-02.jpg", "front.jpg", false}, {"images/front-1.jpg", "front.jpg", false},
-		{"images/other.jpg", "front.jpg", false}, {"other/front.jpg", "front.jpg", false},
-		{"images/front-2.webp", "front.jpg", false},
-		{"images/" + strings.Repeat("x", 58) + "-2.jpg", strings.Repeat("x", 60) + ".jpg", true},
-	} {
-		if got := matchesPhotoName(tc.path, tc.name); got != tc.want {
-			t.Errorf("%s / %s: %v", tc.path, tc.name, got)
-		}
-	}
-}

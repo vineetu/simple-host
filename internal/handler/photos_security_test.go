@@ -2,9 +2,7 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net/http/httptest"
 	"os"
@@ -13,29 +11,6 @@ import (
 	"strings"
 	"testing"
 )
-
-func TestPhotoCollisionIndex(t *testing.T) {
-	files := map[string][]byte{"images/front.jpg": nil, "images/dir.jpg/child": nil}
-	for i := 2; i <= 20000; i++ {
-		files[fmt.Sprintf("images/front-%d.jpg", i)] = nil
-	}
-	occupied, err := photoOccupiedPaths(context.Background(), files)
-	if err != nil {
-		t.Fatal(err)
-	}
-	path, err := nextPhotoPath(context.Background(), occupied, "front.jpg")
-	if err != nil || path != "images/front-20001.jpg" || !occupied["images/dir.jpg"] {
-		t.Fatalf("collision: %s %v", path, err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if _, err := photoOccupiedPaths(ctx, files); !errors.Is(err, context.Canceled) {
-		t.Fatal("index ignored cancellation")
-	}
-	if _, err := nextPhotoPath(ctx, occupied, "front.jpg"); !errors.Is(err, context.Canceled) {
-		t.Fatal("search ignored cancellation")
-	}
-}
 
 type unreadPhotoBody struct{ t *testing.T }
 

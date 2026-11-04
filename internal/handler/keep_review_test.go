@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/tarball"
 )
 
 func keepReviewSite(t *testing.T) (*connectorApp, *db.User) {
@@ -124,16 +124,20 @@ func TestKeepMergedUnpackedCaps(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "large.txt"), body, 0600); err != nil {
 		t.Fatal(err)
 	}
-	request := keepReviewRequest(user, nil)
-	w := httptest.NewRecorder()
-	// A 1 MB request budget must not replace the ordinary 500 MB unpacked budget.
-	files, _, err := a.sites.finishJSONFiles(w, request, "blog", map[string][]byte{"about.html": []byte("patch")}, nil, 1<<20, false, true)
-	if err != nil || len(files["large.txt"]) != len(body) {
+	input := sites.UpdateInput{User: user, Name: "blog", Files: map[string][]byte{"about.html": []byte("patch")}, Keep: true, Publish: true, Budget: extractBudget(1<<20, false), Limit: 1 << 20}
+	result, err := a.sites.sitesSvc().Update(context.Background(), input)
+	if err != nil {
 		t.Fatal("request cap applied to retained bytes", err)
 	}
-	// An explicit account budget must still constrain the merged result.
-	_, _, err = a.sites.finishJSONFiles(httptest.NewRecorder(), request, "blog", map[string][]byte{"about.html": []byte("patch")}, nil, 1<<20, true, true)
-	if !errors.Is(err, tarball.ErrTooLarge) {
+	retained, err := os.ReadFile(filepath.Join(a.sites.disk.VersionDir(user.ID, "blog", result.Version), "large.txt"))
+	if err != nil || len(retained) != len(body) {
+		t.Fatal("retained file missing", err)
+	}
+	input.Files = map[string][]byte{"about.html": []byte("patch")}
+	input.Budget = extractBudget(1<<20, true)
+	_, err = a.sites.sitesSvc().Update(context.Background(), input)
+	var siteErr *sites.Error
+	if !errors.As(err, &siteErr) || siteErr.Code != "patch_too_large" {
 		t.Fatal("override ignored", err)
 	}
 }

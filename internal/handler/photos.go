@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"encoding/binary"
 	"errors"
@@ -14,12 +13,12 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 	"golang.org/x/image/webp"
@@ -179,156 +178,38 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, errorResponse{Error: "Choose at least one photo."})
 		return
 	}
-	unlockAccount := h.lockAccountFiles(user.ID)
-	defer unlockAccount()
-	unlockSite := h.lockSite(user.ID, name)
-	defer unlockSite()
-	limit, override := h.siteLimitFor(r.Context(), h.database, user)
-	// Load under the deploy locks so simultaneous deploys cannot lose files.
-	files, digest, err := h.finishJSONFiles(w, r, name, map[string][]byte{}, nil, limit, override, true)
-	if err != nil {
-		return
+	photos := make([]sites.Photo, len(uploads))
+	for i, p := range uploads {
+		photos[i] = sites.Photo{Name: p.name, Data: p.data}
 	}
-	// A lost response must never allocate fresh collision suffixes. Compare the
-	// submitted bytes under the same deploy locks, without committing a version.
-	if r.Header.Get("X-Photo-Reconcile") == "1" {
-		paths := make([]string, 0, len(files))
-		for path := range files {
-			paths = append(paths, path)
-		}
-		sort.Strings(paths)
-		used := make(map[string]bool)
-		results := make([]photoResult, 0, len(uploads))
-		for _, p := range uploads {
-			found := "images/" + p.name
-			if used[found] || !bytes.Equal(files[found], p.data) {
-				found = ""
-				for _, path := range paths {
-					if !used[path] && matchesPhotoName(path, p.name) && bytes.Equal(files[path], p.data) {
-						found = path
-						break
-					}
-				}
-			}
-			if found == "" {
-				writeJSON(w, 409, errorResponse{Error: "Could not confirm this batch. Check the site before adding these photos again.", Code: "photo_save_uncertain"})
-				return
-			}
-			used[found] = true
-			results = append(results, photoResult{Path: found, Bytes: len(p.data), Width: p.config.Width, Height: p.config.Height})
-		}
-		site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name)
-		if err != nil {
+	input := sites.UpdateInput{User: user, Name: name, Files: map[string][]byte{}, Photos: photos, Reconcile: r.Header.Get("X-Photo-Reconcile") == "1", Publish: true}
+	input.ExpectedID, input.CheckID = r.Context().Value(adminSiteKey{}).(string)
+	result, err := h.sitesSvc().Update(r.Context(), input)
+	if err != nil {
+		var siteErr *sites.Error
+		switch {
+		case errors.As(err, &siteErr) && siteErr.Code == "photo_save_uncertain":
+			writeJSON(w, 409, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
+		case errors.As(err, &siteErr) && siteErr.Code == "photo_conflict":
+			writeJSON(w, 409, errorResponse{Error: siteErr.Message})
+		case errors.As(err, &siteErr) && siteErr.Code == "photo_read_failed":
 			writeJSON(w, 500, errorResponse{Error: "Could not read this site."})
+		case errors.As(err, &siteErr) && siteErr.Code == "photo_allocation_cancelled":
 			return
+		default:
+			input.Limit = result.Limit
+			h.writeSiteUpdateError(w, r, name, input, err)
 		}
-		response := h.siteResponseFor(user, site)
-		for i := range results {
-			results[i].URL = strings.TrimRight(response.SiteURL, "/") + "/" + results[i].Path
-		}
-		writeJSON(w, 200, photoBatchResult{name, site.ActiveVersion, results, true})
 		return
 	}
-	occupied, err := photoOccupiedPaths(r.Context(), files)
-	if err != nil {
-		return
-	}
+	response := h.siteResponseFromState(user, result.Site, result.ResponseState.(siteResponseState))
 	results := make([]photoResult, 0, len(uploads))
-	for _, p := range uploads {
-		path, err := nextPhotoPath(r.Context(), occupied, p.name)
-		if err != nil {
-			if r.Context().Err() == nil {
-				writeJSON(w, 409, errorResponse{Error: err.Error()})
-			}
-			return
-		}
-		occupied[path] = false
-		files[path] = p.data
-		results = append(results, photoResult{Path: path, Bytes: len(p.data), Width: p.config.Width, Height: p.config.Height})
+	for i, p := range uploads {
+		path := result.PhotoPaths[i]
+		results = append(results, photoResult{Path: path, URL: strings.TrimRight(response.SiteURL, "/") + "/" + path, Bytes: len(p.data), Width: p.config.Width, Height: p.config.Height})
 	}
-	files, digest, err = h.finishJSONFiles(w, r, name, files, nil, limit, override, false)
-	if err != nil {
-		return
-	}
-	h.commitSiteUpdateRespond(w, r, user, name, files, digest, true, "", func(site siteResponse) {
-		for i := range results {
-			results[i].URL = strings.TrimRight(site.SiteURL, "/") + "/" + results[i].Path
-		}
-		writeJSON(w, 200, photoBatchResult{name, site.ActiveVersion, results, false})
-	})
-}
+	writeJSON(w, 200, photoBatchResult{name, result.Site.ActiveVersion, results, result.Reconciled})
 
-// Match only names this uploader can allocate, including truncated collision stems.
-func matchesPhotoName(path, name string) bool {
-	if path == "images/"+name {
-		return true
-	}
-	ext := name[strings.LastIndexByte(name, '.'):]
-	if !strings.HasPrefix(path, "images/") || !strings.HasSuffix(path, ext) {
-		return false
-	}
-	stem := strings.TrimSuffix(strings.TrimPrefix(path, "images/"), ext)
-	at := strings.LastIndexByte(stem, '-')
-	if at < 0 {
-		return false
-	}
-	n, err := strconv.Atoi(stem[at+1:])
-	if err != nil || n < 2 || strconv.Itoa(n) != stem[at+1:] {
-		return false
-	}
-	base := strings.TrimSuffix(name, ext)
-	if max := 60 - len(stem[at:]); len(base) > max {
-		base = base[:max]
-	}
-	return stem[:at] == base
-}
-
-// The value distinguishes directories from files. Build prefixes once, then
-// each suffix probe is one map lookup, even in a large, collision-heavy tree.
-func photoOccupiedPaths(ctx context.Context, files map[string][]byte) (map[string]bool, error) {
-	occupied := make(map[string]bool, len(files))
-	for path := range files {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		occupied[path] = false
-		for i := strings.IndexByte(path, '/'); i >= 0; {
-			occupied[path[:i]] = true
-			next := strings.IndexByte(path[i+1:], '/')
-			if next < 0 {
-				break
-			}
-			i += next + 1
-		}
-	}
-	return occupied, nil
-}
-
-func nextPhotoPath(ctx context.Context, occupied map[string]bool, name string) (string, error) {
-	if dir, exists := occupied["images"]; exists && !dir {
-		return "", errors.New("The images path is a file. Rename it before adding photos.")
-	}
-	ext := name[strings.LastIndexByte(name, '.'):]
-	stem := strings.TrimSuffix(name, ext)
-	path := "images/" + name
-	for n := 2; ; n++ {
-		if err := ctx.Err(); err != nil {
-			return "", err
-		}
-		dir, taken := occupied[path]
-		if !taken {
-			return path, nil
-		}
-		if dir {
-			return "", errors.New("A folder uses this photo name. Choose another name.")
-		}
-		suffix := fmt.Sprintf("-%d", n)
-		base := stem
-		if len(base)+len(suffix) > 60 {
-			base = base[:60-len(suffix)]
-		}
-		path = "images/" + base + suffix + ext
-	}
 }
 
 var errPhotoContainer = errors.New("This photo is incomplete or is not a supported WebP or JPEG image.")

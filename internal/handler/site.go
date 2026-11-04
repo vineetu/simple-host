@@ -800,7 +800,7 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "new site name must be different"})
 		return
 	}
-	result, err := h.sitesSvc().Rename(r.Context(), user.ID, oldName, newName, user.Handle.String)
+	result, err := h.sitesSvc().Rename(r.Context(), sites.RenameInput{UserID: user.ID, OldName: oldName, NewName: newName, Handle: user.Handle.String})
 	if err != nil {
 		var siteErr *sites.Error
 		if errors.As(err, &siteErr) {
@@ -1550,7 +1550,7 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.commitCreate(w, r, user, siteName, files, archiveSHA, false, false)
+	h.commitCreate(w, r, user, siteName, files, archiveSHA, false)
 }
 
 // createOrUpdateSite is the commit for PUT ?create=1: it creates the site, and
@@ -1558,21 +1558,19 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 // upload as an update instead of answering site_exists to a caller that asked
 // for create-or-update.
 func (h *SiteHandler) createOrUpdateSite(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
-	if h.commitCreate(w, r, user, siteName, files, archiveSHA, true, false) {
-		h.commitSiteUpdate(w, r, user, siteName, files, archiveSHA, publish)
-	}
+	h.respondSiteUpdate(w, r, user, siteName, sites.UpdateInput{User: user, Name: siteName, Files: files, ArchiveSHA: archiveSHA, Author: versionAuthor(r), Publish: publish, CreateIfMissing: true}, func(site siteResponse) { writeJSON(w, http.StatusOK, site) })
 }
 
 // commitCreate commits files as a new site. With orUpdate, a site of that name
 // that already exists is not an error: nothing is written and it reports true
 // so the caller updates it (after this has released the site lock).
-func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate, locked bool) (exists bool) {
+func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate bool) (exists bool) {
 	// Every path that creates a site comes through here (hack_mode.go).
 	// A guest-created users row has a NULL handle until owner-intent. First
 	// deploy is owner-intent: assign before building the path-model site URL.
 	result, err := h.sitesSvc().Create(r.Context(), sites.CreateInput{
 		User: user, Name: siteName,
-		ArchiveSHA: archiveSHA, Author: versionAuthor(r), Files: files, OrUpdate: orUpdate, LocksHeld: locked,
+		ArchiveSHA: archiveSHA, Author: versionAuthor(r), Files: files, OrUpdate: orUpdate,
 	})
 	return h.respondCreate(w, user, result, err)
 }
@@ -1658,157 +1656,25 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 // `current`, active_version and what visitors see stay as they are, and the
 // answer names the new version and a preview link for it.
 func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
-	unlockAccount := h.lockAccountFiles(user.ID)
-	defer unlockAccount()
-	unlockSite := h.lockSite(user.ID, siteName)
-	defer unlockSite()
-	h.commitSiteUpdateLocked(w, r, user, siteName, files, archiveSHA, publish)
+	h.respondSiteUpdate(w, r, user, siteName, sites.UpdateInput{User: user, Name: siteName, Files: files, ArchiveSHA: archiveSHA, Author: versionAuthor(r), Publish: publish}, func(site siteResponse) { writeJSON(w, http.StatusOK, site) })
 }
 
-// Caller holds the account lock (when quotas apply) and the site lock.
-func (h *SiteHandler) commitSiteUpdateLocked(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
-	h.commitSiteUpdateRespond(w, r, user, siteName, files, archiveSHA, publish, versionAuthor(r), func(site siteResponse) { writeJSON(w, http.StatusOK, site) })
-}
-
-// Caller holds the same locks as commitSiteUpdateLocked. author is stored on
-// the new version (?author= on a deploy route; "" from other callers).
-func (h *SiteHandler) commitSiteUpdateRespond(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool, author string, respond func(siteResponse)) {
-	// Serialize write+promote for this site (in-process), and read the site
-	// only once the lock is held: a delete or rename that finished while this
-	// upload waited must not be undone by a stale copy. The DB row lock below
-	// makes version allocation safe across instances and refuses a site that
-	// was deleted meanwhile.
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
+func (h *SiteHandler) respondSiteUpdate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, input sites.UpdateInput, respond func(siteResponse)) {
+	input.ExpectedID, input.CheckID = r.Context().Value(adminSiteKey{}).(string)
+	result, err := h.sitesSvc().Update(r.Context(), input)
+	if result.Created != nil {
+		h.respondCreate(w, user, *result.Created, err)
+		return
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeDeploySiteNotFound(w, r, siteName)
-			return
-		}
-
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		h.writeSiteUpdateError(w, r, siteName, input, err)
 		return
 	}
-	if refuseSuspendedSite(w, site) {
+	if !result.Published {
+		h.writeUnpublishedState(w, user, result.Site, result.Version, result.ResponseState.(siteResponseState))
 		return
 	}
-
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	defer tx.Rollback()
-
-	if h.fileCapsEnabled() {
-		if _, err := tx.ExecContext(r.Context(), "SELECT id FROM users WHERE id = $1 FOR UPDATE", user.ID); err != nil {
-			writeJSON(w, 500, errorResponse{Error: "internal server error"})
-			return
-		}
-	}
-	if err := db.LockSiteForUpdate(r.Context(), tx, site.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	// What is live now, read under the lock (site.ActiveVersion was read
-	// before it): only the site.deployed event uses it.
-	liveBefore, err := db.SiteActiveVersion(r.Context(), tx, site.ID)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if !h.hackTeamTxGate(w, r, tx, user, siteName) {
-		return
-	}
-
-	maxVersion, err := db.GetMaxVersionNumber(r.Context(), tx, site.ID)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	versionNumber := maxVersion + 1
-	if !h.checkFileCaps(w, r, user, site, files, versionNumber, publish) {
-		return
-	}
-	diskPath := fmt.Sprintf("by-id/%s/%s/v%d/", site.UserID, siteName, versionNumber)
-
-	version, err := db.CreateVersion(r.Context(), tx, site.ID, versionNumber, diskPath, archiveSHA, author)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if err := db.UpdateSiteSummary(r.Context(), tx, site.ID, ExtractSiteSummary(files)); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	// Write the new version dir (not yet live) before committing.
-	if err := h.disk.WriteFiles(r.Context(), site.UserID, siteName, versionNumber, files); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if !publish {
-		if err := db.MarkVersionReady(r.Context(), tx, version.ID); err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		if err := tx.Commit(); err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, site.ActiveVersion, site.KeepVersions)
-		h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), siteName, versionNumber, files)
-		h.writeUnpublished(w, user, site, versionNumber)
-		return
-	}
-
-	if err := db.ActivateVersion(r.Context(), tx, version.ID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if err := db.UpdateSiteActiveVersion(r.Context(), tx, site.ID, versionNumber); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if err := tx.Commit(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	// Promote only AFTER commit: if the DB never committed, `current` still
-	// points at the previous good version instead of a half-applied swap.
-	if err := h.disk.UpdateCurrent(site.UserID, siteName, versionNumber); err != nil {
-		log.Printf("updateSite: promote %s v%d after commit: %v", siteName, versionNumber, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if user.Handle.Valid && user.Handle.String != "" {
-		if err := h.disk.EnsureHandleLink(user.Handle.String, user.ID); err != nil {
-			log.Printf("updateSite: ensure handle link %s: %v", user.Handle.String, err)
-		}
-		h.RequestSiteCert(user.Handle.String)
-	}
-
-	// Retention runs last, on the request context, and only ever removes
-	// history. A failure here is logged and nothing else: the deploy is already
-	// committed, promoted and live.
-	h.pruneVersions(r.Context(), site.ID, site.UserID, siteName, versionNumber, site.KeepVersions)
-
-	// The version is live: tell the owner's subscribers.
-	h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": versionNumber, "previous_version": liveBefore, "via": "deploy"}, 0)
-	site.ActiveVersion = versionNumber
-	h.paperHackDeploy(r, user)
-	h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), siteName, versionNumber, files)
-	respond(h.siteResponseFor(user, site))
+	respond(h.siteResponseFromState(user, result.Site, result.ResponseState.(siteResponseState)))
 }
 
 // filesRequest is the JSON deploy body: a map of relative path -> file contents.
@@ -1821,16 +1687,39 @@ type filesRequest struct {
 	RemoveFiles []string          `json:"remove_files"`
 }
 
+func (h *SiteHandler) writeSiteUpdateError(w http.ResponseWriter, r *http.Request, siteName string, input sites.UpdateInput, err error) {
+	var siteErr *sites.Error
+	var gateErr *sites.GateError
+	switch {
+	case errors.As(err, &gateErr):
+		writeRollbackGateError(w, gateErr)
+	case errors.As(err, &siteErr) && siteErr.Code == "deploy_site_not_found":
+		writeDeploySiteNotFound(w, r, siteName)
+	case errors.As(err, &siteErr) && siteErr.Code == "patch_too_large":
+		writeTooLarge(w, input.Limit, siteErr.Message)
+	case errors.As(err, &siteErr) && siteErr.Code == "patch_invalid":
+		writeJSON(w, 400, errorResponse{Error: siteErr.Message})
+	case errors.As(err, &siteErr) && siteErr.Code == "patch_extension":
+		writeJSON(w, 400, errorResponse{Error: siteErr.Message, Code: "blocked_file_type"})
+	case errors.As(err, &siteErr) && (siteErr.Code == "site_total_too_large" || siteErr.Code == "account_storage_full"):
+		writeJSON(w, 413, errorResponse{Code: siteErr.Code, Error: siteErr.Message, Hint: storageTips})
+	case errors.As(err, &siteErr) && (siteErr.Code == "site_measure_failed" || siteErr.Code == "account_measure_failed"):
+		writeJSON(w, 500, errorResponse{Error: siteErr.Message})
+	default:
+		writeSitesError(w, err, siteName)
+	}
+}
+
 // readJSONFiles decodes a {"files":{path:contents}} body and runs it through the
 // SAME path/secret/size guards as archive extraction (tarball.SanitizeFiles +
 // ValidateExtensions). Returns the file map and a content digest for the version
 // row. On any error it has already written the HTTP response.
 func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
-	raw, remove, limit, override, err := h.decodeJSONFiles(w, r)
+	raw, _, limit, override, err := h.decodeJSONFiles(w, r)
 	if err != nil {
 		return nil, "", err
 	}
-	return h.finishJSONFiles(w, r, siteName, raw, remove, limit, override, false)
+	return h.finishJSONFiles(w, raw, limit, override)
 }
 
 func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (map[string][]byte, []string, int64, bool, error) {
@@ -1907,18 +1796,7 @@ func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (m
 	return raw, req.RemoveFiles, limit, override, nil
 }
 
-func (h *SiteHandler) finishJSONFiles(w http.ResponseWriter, r *http.Request, siteName string, raw map[string][]byte, remove []string, limit int64, override, keep bool) (map[string][]byte, string, error) {
-	if keep {
-		if err := h.keepSiteFiles(r, siteName, raw, remove, extractBudget(limit, override)); err != nil {
-			if errors.Is(err, tarball.ErrTooLarge) {
-				writeTooLarge(w, limit, err.Error())
-			} else {
-				writeJSON(w, 400, errorResponse{Error: err.Error()})
-			}
-			return nil, "", err
-		}
-	}
-
+func (h *SiteHandler) finishJSONFiles(w http.ResponseWriter, raw map[string][]byte, limit int64, override bool) (map[string][]byte, string, error) {
 	files, err := tarball.SanitizeFilesWithLimit(raw, extractBudget(limit, override), h.limits.MaxFilesPerSite)
 	if err != nil {
 		if errors.Is(err, tarball.ErrTooLarge) {
@@ -1987,7 +1865,7 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.commitCreate(w, r, user, siteName, files, digest, false, false)
+	h.commitCreate(w, r, user, siteName, files, digest, false)
 }
 
 // newSiteChecks is what creating a site checks before reading the upload,
@@ -1996,23 +1874,27 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 // Updates to existing sites are never gated by the quota. False after writing
 // the answer.
 func (h *SiteHandler) newSiteChecks(w http.ResponseWriter, r *http.Request, user *db.User) bool {
-	if !h.publishOnCreate(w, r) {
-		return false
+	err := h.sitesSvc().CreatePreflight(r.Context(), sites.PreflightInput{User: user, Publish: r.URL.Query().Get("publish")})
+	return writeCreatePreflight(w, err)
+}
+
+func writeCreatePreflight(w http.ResponseWriter, err error) bool {
+	if err == nil {
+		return true
 	}
-	// A team's site is one per team: the holding account has no site cap.
-	// Sites in Recently deleted count: delete-then-create must not
-	// get round the cap (their files are still on disk).
-	err := h.sitesSvc().CheckCreateAllowed(r.Context(), user)
-	if err != nil {
-		var siteErr *sites.Error
-		if errors.As(err, &siteErr) && (siteErr.Code == "site_quota_reached" || siteErr.Code == "no_personal_sites") {
+	var siteErr *sites.Error
+	if errors.As(err, &siteErr) {
+		switch siteErr.Code {
+		case "site_quota_reached", "no_personal_sites":
 			writeJSON(w, http.StatusForbidden, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
 			return false
+		case "name_reserved", "invalid_request":
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
+			return false
 		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return false
 	}
-	return true
+	writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	return false
 }
 
 // createIfMissing is PUT ?create=1 (one call from CI whether or not the site
@@ -2028,17 +1910,16 @@ func (h *SiteHandler) createIfMissing(w http.ResponseWriter, r *http.Request, us
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "create must be 1 or 0", Code: "invalid_request"})
 		return false, false
 	}
-	if exists, err := h.sitesSvc().SiteExists(r.Context(), user.ID, siteName); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return false, false
-	} else if exists {
+	reserved := ""
+	if err := validateSiteReserved(siteName); err != nil {
+		reserved = err.Error()
+	}
+	err := h.sitesSvc().CreatePreflight(r.Context(), sites.PreflightInput{User: user, Name: siteName, CheckExisting: true, ReservedError: reserved, Publish: r.URL.Query().Get("publish")})
+	var siteErr *sites.Error
+	if errors.As(err, &siteErr) && siteErr.Code == "preflight_exists" {
 		return false, true
 	}
-	if err := validateSiteReserved(siteName); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
-		return false, false
-	}
-	if !h.newSiteChecks(w, r, user) {
+	if !writeCreatePreflight(w, err) {
 		return false, false
 	}
 	return true, true
@@ -2114,20 +1995,14 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 	}
 	keep := r.URL.Query().Get("keep") == "1"
 	if keep {
-		unlockAccount := h.lockAccountFiles(user.ID)
-		defer unlockAccount()
-		unlockSite := h.lockSite(user.ID, siteName)
-		defer unlockSite()
+		h.respondSiteUpdate(w, r, user, siteName, sites.UpdateInput{User: user, Name: siteName, Files: raw, Author: versionAuthor(r), Publish: publish, CreateIfMissing: create, Keep: true, Remove: remove, Budget: extractBudget(limit, override), Limit: limit}, func(site siteResponse) { writeJSON(w, http.StatusOK, site) })
+		return
 	}
-	files, digest, err := h.finishJSONFiles(w, r, siteName, raw, remove, limit, override, keep)
+	files, digest, err := h.finishJSONFiles(w, raw, limit, override)
 	if err != nil {
 		return
 	}
-	if keep {
-		if !create || h.commitCreate(w, r, user, siteName, files, digest, true, true) {
-			h.commitSiteUpdateLocked(w, r, user, siteName, files, digest, publish)
-		}
-	} else if create {
+	if create {
 		h.createOrUpdateSite(w, r, user, siteName, files, digest, publish)
 	} else {
 		h.commitSiteUpdate(w, r, user, siteName, files, digest, publish)
@@ -2216,19 +2091,7 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expectedID, checkID := r.Context().Value(adminSiteKey{}).(string)
-	site, unlock, unchanged, err := h.sitesSvc().PrepareRollback(r.Context(), user.ID, siteName, expectedID, checkID, req.VersionNumber)
-	defer unlock()
-	if err != nil {
-		writeSitesError(w, err, siteName)
-		return
-	}
-	if unchanged {
-		writeJSON(w, http.StatusOK, h.siteResponseFor(user, site))
-		return
-	}
-
-	ctx := r.Context()
-	site, err = h.sitesSvc().RollbackTransaction(ctx, site, req.VersionNumber, user)
+	result, err := h.sitesSvc().Rollback(r.Context(), sites.RollbackInput{User: user, Name: siteName, ExpectedID: expectedID, CheckID: checkID, Version: req.VersionNumber})
 	if err != nil {
 		var gateErr *sites.GateError
 		if errors.As(err, &gateErr) {
@@ -2238,7 +2101,7 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	writeJSON(w, http.StatusOK, h.siteResponseFor(user, site))
+	writeJSON(w, http.StatusOK, h.siteResponseFromState(user, result.Site, result.ResponseState.(siteResponseState)))
 }
 
 // setVisibility toggles a site's showcase visibility ('public' | 'unlisted').
@@ -2270,7 +2133,7 @@ func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.sitesSvc().SetVisibility(r.Context(), user.ID, siteName, vis); err != nil {
+	if err := h.sitesSvc().SetVisibility(r.Context(), sites.VisibilityInput{UserID: user.ID, Name: siteName, Visibility: vis}); err != nil {
 		writeSitesError(w, err, siteName)
 		return
 	}
@@ -2574,6 +2437,49 @@ func archiveFilename(siteName string, body []byte) string {
 	return siteName + ".tar.gz"
 }
 
+type siteResponseState struct {
+	siteURL         string
+	familyAddresses []string
+	familyAddress   string
+	addressState    *addressState
+	partner         *partnerInfo
+	fileBytes       int64
+	previewURL      string
+	previewExpires  time.Time
+	previewOK       bool
+}
+
+func (h *SiteHandler) captureSiteResponseState(site db.Site, version int, preview, footprint bool) siteResponseState {
+	state := siteResponseState{siteURL: h.siteURLFor(site)}
+	for _, a := range h.siteFamilyAddrs(site.UserID, site.Name) {
+		state.familyAddresses = append(state.familyAddresses, "https://"+a.Host+"/")
+	}
+	if host, ok := h.siteFamilyAddress(site.UserID, site.Name); ok {
+		state.familyAddress = "https://" + host + "/"
+	}
+	if !(site.CustomDomain.Valid && site.DomainVerifiedAt.Valid) {
+		state.addressState = h.siteAddressStateFor(site.OwnerHandle, site.Name)
+	}
+	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
+		state.partner = h.partnerInfoFor(site.CustomDomain.String, site.ID)
+	}
+	if footprint {
+		if f, err := h.disk.SiteFootprint(site.UserID, site.Name); err == nil {
+			state.fileBytes = f.Total()
+		}
+	}
+	if preview {
+		state.previewURL, state.previewExpires, state.previewOK = h.previewLink(site, version)
+	}
+	return state
+}
+
+func (h *SiteHandler) siteResponseFromState(user *db.User, site db.Site, state siteResponseState) siteResponse {
+	resp := h.toSiteResponseState(site, "", state)
+	resp.FileBytes = state.fileBytes
+	return h.siteResponseForCaller(user, resp)
+}
+
 // siteResponseFor is toSiteResponse for the caller: a team credential never
 // sees the event's internal account id.
 func (h *SiteHandler) siteResponseFor(user *db.User, site db.Site) siteResponse {
@@ -2604,6 +2510,10 @@ func (h *SiteHandler) siteResponseForCaller(user *db.User, resp siteResponse) si
 }
 
 func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
+	return h.toSiteResponseState(site, note, h.captureSiteResponseState(site, 0, false, false))
+}
+
+func (h *SiteHandler) toSiteResponseState(site db.Site, note string, state siteResponseState) siteResponse {
 	visibility := site.Visibility
 	if visibility == "" {
 		visibility = "unlisted" // never guess "public"
@@ -2613,7 +2523,7 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		UserID:            site.UserID,
 		Name:              site.Name,
 		ActiveVersion:     site.ActiveVersion,
-		SiteURL:           h.siteURLFor(site),
+		SiteURL:           state.siteURL,
 		CreatedAt:         site.CreatedAt,
 		UpdatedAt:         site.UpdatedAt,
 		CustomDomain:      site.CustomDomain.String,
@@ -2635,17 +2545,13 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		t := site.LastDeployedAt.Time
 		resp.DeployedAt = &t
 	}
-	for _, a := range h.siteFamilyAddrs(site.UserID, site.Name) {
-		resp.FamilyAddresses = append(resp.FamilyAddresses, "https://"+a.Host+"/")
-	}
-	if host, ok := h.siteFamilyAddress(site.UserID, site.Name); ok {
-		resp.FamilyAddress = "https://" + host + "/"
-	}
+	resp.FamilyAddresses = state.familyAddresses
+	resp.FamilyAddress = state.familyAddress
 	if !(site.CustomDomain.Valid && site.DomainVerifiedAt.Valid) {
-		resp.AddressState = h.siteAddressStateFor(site.OwnerHandle, site.Name)
+		resp.AddressState = state.addressState
 	}
 	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
-		if p := h.partnerInfoFor(site.CustomDomain.String, site.ID); p != nil {
+		if p := state.partner; p != nil {
 			resp.DomainPartner, resp.DomainPartnerDNS, resp.DomainPartnerStatus, resp.DomainPartnerNote = p.Domain, p.DNS, p.Status, p.Note
 		}
 	}
@@ -2705,4 +2611,22 @@ func (h *SiteHandler) adminSiteRow(s db.Site) map[string]any {
 		m["family_addresses"] = list
 	}
 	return m
+}
+
+func (h *SiteHandler) writeUnpublishedState(w http.ResponseWriter, user *db.User, site db.Site, n int, state siteResponseState) {
+	note := "Stored as version " + strconv.Itoa(n) + " without making it live; visitors still see version " + strconv.Itoa(site.ActiveVersion) +
+		". Make it live with PUT /v1/sites/" + site.Name + "/active-version {\"version_number\": " + strconv.Itoa(n) + "}."
+	resp := h.toSiteResponseState(site, note, state)
+	resp.FileBytes = state.fileBytes
+	if user != nil && user.Team != nil {
+		resp.UserID = ""
+	}
+	resp.UnpublishedVersion = n
+	if link, exp, ok := state.previewURL, state.previewExpires, state.previewOK; ok {
+		resp.PreviewURL = link
+		resp.PreviewExpiresAt = &exp
+	} else {
+		resp.Note += " No preview link: " + h.noPreviewWhy() + "."
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
