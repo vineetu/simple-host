@@ -9,11 +9,10 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Account keys one at a time: list them, mint a named one, revoke one, and
@@ -23,21 +22,7 @@ import (
 const maxKeyNameLen = 60
 
 // normalizeKeyName trims a typed key name; "" means "use the default".
-func normalizeKeyName(name string) (string, error) {
-	name = strings.TrimSpace(name)
-	if utf8.RuneCountInString(name) > maxKeyNameLen {
-		return "", errors.New("name must be at most 60 characters")
-	}
-	// Cf covers zero-width and bidi overrides (U+200B, U+202E), which make a
-	// name read differently from what it is.
-	if strings.IndexFunc(name, func(r rune) bool { return unicode.IsControl(r) || unicode.Is(unicode.Cf, r) }) >= 0 {
-		return "", errors.New("name must not contain control or invisible formatting characters")
-	}
-	if db.ReservedKeyName(name) {
-		return "", errors.New("that name is used by Simple Host for its own keys; pick another")
-	}
-	return name, nil
-}
+func normalizeKeyName(name string) (string, error) { return accounts.NormalizeKeyName(name) }
 
 type keyView struct {
 	ID         string     `json:"id"`
@@ -56,10 +41,10 @@ type keyView struct {
 	Current bool   `json:"current"`
 }
 
-func newKeyView(k db.APIKey, now time.Time, current bool, keyIdle time.Duration) keyView {
+func newKeyView(k accounts.KeyInfo, current bool) keyView {
 	return keyView{
 		ID: k.ID, Name: k.Name, Last4: k.Last4, Scope: k.Scope, CreatedAt: k.CreatedAt, LastUsedAt: k.LastUsedAt,
-		ExpiresAt: k.ExpiresAt, IdleExpiresAt: k.IdleExpiresAt(keyIdle), Expired: k.Expired(now, keyIdle), Current: current,
+		ExpiresAt: k.ExpiresAt, IdleExpiresAt: k.IdleExpiresAt, Expired: k.Expired, Current: current,
 	}
 }
 
@@ -70,7 +55,7 @@ const maxKeyExpiryDays = 3650
 // not_an_account_key) a request that did not come with one of the account's
 // stored keys: the env admin key, or a connected app acting for the person.
 // A connected app must not turn its grant into a key that outlives it.
-func accountKeyUser(w http.ResponseWriter, r *http.Request, what string) *db.User {
+func accountKeyUser(w http.ResponseWriter, r *http.Request, what string) *model.User {
 	user := auth.GetUser(r.Context())
 	if user == nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized", "code": "missing_api_key"})
@@ -93,16 +78,13 @@ func (h *UserHandler) signOut(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	if err := endBrowserSSO(r, h.database, user.ID); err != nil {
+	browserPass := signOutBrowserPass(r)
+	if err := h.accounts.SignOut(r.Context(), user.ID, user.KeyHash, browserPass); err != nil {
 		log.Printf("sign out user_id=%s: %v", user.ID, err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if _, err := db.DeleteAPIKeyByHash(r.Context(), h.database, user.ID, user.KeyHash); err != nil {
-		log.Printf("sign out user_id=%s: %v", user.ID, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
+
 	setSSOCookie(w, r, "", -1)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -113,15 +95,14 @@ func (h *UserHandler) listKeys(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized", "code": "missing_api_key"})
 		return
 	}
-	keys, err := db.ListAPIKeys(r.Context(), h.database, user.ID)
+	keys, err := h.accounts.ListKeys(r.Context(), user.ID, h.limits.KeyIdleExpiry)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 	out := make([]keyView, 0, len(keys))
-	now := time.Now()
 	for _, k := range keys {
-		out = append(out, newKeyView(k, now, user.KeyHash != "" && k.Hash == user.KeyHash, h.limits.KeyIdleExpiry))
+		out = append(out, newKeyView(k, user.KeyHash != "" && k.Hash == user.KeyHash))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"keys": out})
 }
@@ -155,8 +136,8 @@ func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 	scope := strings.TrimSpace(req.Scope)
 	switch scope {
 	case "":
-		scope = db.KeyScopeFull
-	case db.KeyScopeFull, db.KeyScopeDeploy:
+		scope = model.KeyScopeFull
+	case model.KeyScopeFull, model.KeyScopeDeploy:
 	default:
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `scope must be "full" (the default) or "deploy" (create, update, roll back and list sites, and preview links only)`})
 		return
@@ -176,13 +157,13 @@ func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	k, err := db.CreateAPIKey(r.Context(), h.database, user.ID, user.KeyHash, plain, name, scope, expiresAt, h.limits.MaxKeysPerAccount, h.limits.KeyIdleExpiry)
+	k, err := h.accounts.CreateKey(r.Context(), user.ID, user.KeyHash, plain, name, scope, expiresAt, h.limits.MaxKeysPerAccount, h.limits.KeyIdleExpiry)
 	if errors.Is(err, sql.ErrNoRows) {
 		// The key this request came with was revoked or rotated away meanwhile.
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: auth.InvalidKeyMessage(), Code: "invalid_api_key"})
 		return
 	}
-	if errors.Is(err, db.ErrKeyLimit) {
+	if errors.Is(err, accounts.ErrKeyLimit) {
 		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("this account already holds %d keys; revoke ones you no longer use first", h.limits.MaxKeysPerAccount), Code: "key_limit"})
 		return
 	}
@@ -191,7 +172,7 @@ func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	v := newKeyView(k, time.Now(), false, h.limits.KeyIdleExpiry)
+	v := newKeyView(k, false)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id": v.ID, "name": v.Name, "last4": v.Last4, "scope": v.Scope, "created_at": v.CreatedAt, "last_used_at": nil,
 		"expires_at": v.ExpiresAt, "idle_expires_at": v.IdleExpiresAt,
@@ -205,7 +186,7 @@ func (h *UserHandler) deleteKey(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	ok, err := db.DeleteAPIKey(r.Context(), h.database, user.ID, r.PathValue("id"))
+	ok, err := h.accounts.DeleteKey(r.Context(), user.ID, r.PathValue("id"))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return

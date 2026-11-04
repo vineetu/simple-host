@@ -25,10 +25,7 @@ var ErrStateVersionConflict = errors.New("state version conflict")
 // cannot be handed back; the keys an account already holds keep working until
 // the person revokes them or rotates.
 func AddAPIKey(ctx context.Context, q Querier, userID, apiKey, name string) error {
-	_, err := q.ExecContext(ctx,
-		`INSERT INTO api_keys (key_hash, user_id, name, last4) VALUES ($1, $2, $3, $4)`,
-		HashAPIKey(apiKey), userID, name, keyLast4(apiKey))
-	return err
+	return accounts.AddAPIKey(ctx, q, userID, apiKey, name)
 }
 
 // GetUserByAPIKey resolves a presented key: a stored key by its hash, or an
@@ -370,77 +367,11 @@ func SiteOffline(ctx context.Context, q Querier, siteID string) (bool, error) {
 // is redeemable only together with the nonce that hashes to it (see
 // verifyEmailCode). Null means the link token can never be redeemed.
 func CreateAuthToken(ctx context.Context, q Querier, email, code, linkToken string, expiresAt time.Time, purpose string, siteID, nonceHash sql.NullString) error {
-	const query = `
-		INSERT INTO auth_tokens (email, code, link_token, expires_at, purpose, site_id, nonce_hash)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`
-	_, err := q.ExecContext(ctx, query, email, code, linkToken, expiresAt, purpose, siteID, nonceHash)
-	return err
+	return accounts.CreateAuthToken(ctx, q, email, code, linkToken, expiresAt, purpose, siteID, nonceHash)
 }
 
 // AuthToken is the in-memory representation of a row in auth_tokens.
-type AuthToken struct {
-	Purpose   string
-	SiteID    sql.NullString
-	ID        string
-	Email     string
-	Code      string
-	LinkToken string
-	ExpiresAt time.Time
-	UsedAt    sql.NullTime
-	Attempts  int
-	NonceHash sql.NullString
-}
-
-// GetAuthTokenByLink returns the active (unused, not expired) token for a
-// magic-link sign-in. Returns sql.ErrNoRows if none.
-func GetAuthTokenByLink(ctx context.Context, db *sql.DB, linkToken string) (AuthToken, error) {
-	const query = `
-		SELECT id, email, code, link_token, expires_at, used_at, attempts, purpose, site_id, nonce_hash
-		FROM auth_tokens
-		WHERE link_token = $1 AND purpose = 'dashboard' AND used_at IS NULL AND expires_at > now()
-	`
-	var t AuthToken
-	err := db.QueryRowContext(ctx, query, linkToken).Scan(
-		&t.ID, &t.Email, &t.Code, &t.LinkToken, &t.ExpiresAt, &t.UsedAt, &t.Attempts, &t.Purpose, &t.SiteID, &t.NonceHash,
-	)
-	return t, err
-}
-
-// GetLatestAuthTokenForEmail returns the most recent active token for an email
-// address (used for code entry). Returns sql.ErrNoRows if none.
-func GetLatestAuthTokenForEmail(ctx context.Context, db *sql.DB, email, purpose string, siteID sql.NullString) (AuthToken, error) {
-	const query = `
-		SELECT id, email, code, link_token, expires_at, used_at, attempts, purpose, site_id
-		FROM auth_tokens
-		WHERE email = $1 AND purpose = $2 AND site_id IS NOT DISTINCT FROM $3 AND used_at IS NULL AND expires_at > now()
-		ORDER BY created_at DESC
-		LIMIT 1
-	`
-	var t AuthToken
-	err := db.QueryRowContext(ctx, query, email, purpose, siteID).Scan(
-		&t.ID, &t.Email, &t.Code, &t.LinkToken, &t.ExpiresAt, &t.UsedAt, &t.Attempts, &t.Purpose, &t.SiteID,
-	)
-	return t, err
-}
-
-// ClaimAuthToken consumes the token, reporting false when it was already
-// used (redeemed by a concurrent verify, or retired by a sign-in email change
-// that took its address away).
-func ClaimAuthToken(ctx context.Context, q Querier, id string) (bool, error) {
-	res, err := q.ExecContext(ctx, `UPDATE auth_tokens SET used_at = now() WHERE id = $1 AND used_at IS NULL`, id)
-	if err != nil {
-		return false, err
-	}
-	n, err := res.RowsAffected()
-	return n == 1, err
-}
-
-// IncrementAuthTokenAttempts bumps the failed-attempt counter.
-func IncrementAuthTokenAttempts(ctx context.Context, db *sql.DB, id string) error {
-	_, err := db.ExecContext(ctx, `UPDATE auth_tokens SET attempts = attempts + 1 WHERE id = $1`, id)
-	return err
-}
+type AuthToken = model.AuthToken
 
 // GetSiteState returns the site's state document and its current version. The
 // version is a monotonic counter bumped on every write, used for optimistic

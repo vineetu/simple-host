@@ -2,15 +2,12 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/app/accounts"
 )
 
 // SignInAlerts emails the owner after each successful sign-in (emailed code or
@@ -20,8 +17,8 @@ import (
 // event accounts, the plugin reviewer account or an account that turned them
 // off. API key calls never send one.
 type SignInAlerts struct {
-	database      *sql.DB
-	mailer        email.Sender
+	accounts      *accounts.Service
+	mailer        signInCodeSender
 	publicBaseURL string
 	reviewerEmail string
 	// run sends in the background so a sign-in never waits on the mail
@@ -30,9 +27,9 @@ type SignInAlerts struct {
 	now func() time.Time
 }
 
-func newSignInAlerts(database *sql.DB, mailer email.Sender, publicBaseURL string) *SignInAlerts {
+func newSignInAlerts(service *accounts.Service, mailer signInCodeSender, publicBaseURL string) *SignInAlerts {
 	return &SignInAlerts{
-		database:      database,
+		accounts:      service,
 		mailer:        mailer,
 		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
 		run:           func(f func()) { go f() },
@@ -55,30 +52,9 @@ func (a *SignInAlerts) Alert(userID, userAgent, app string) {
 	a.run(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		t, err := db.GetSignInAlertTarget(ctx, a.database, userID)
-		if err != nil {
-			log.Printf("sign-in alert user_id=%s: %v", userID, err)
-			return
-		}
-		if !t.On || t.Event || !strings.Contains(t.Email, "@") ||
-			(a.reviewerEmail != "" && strings.EqualFold(t.Email, a.reviewerEmail)) {
-			return
-		}
-		key := summary
-		if app != "" {
-			key = summary + " · " + app
-		}
-		first, err := db.ClaimSignInAlert(ctx, a.database, userID, key)
-		if err != nil || !first {
-			if err != nil {
-				log.Printf("sign-in alert user_id=%s: claim: %v", userID, err)
-			}
-			return
-		}
-		subject, text := signInAlertText(t.Email, a.ownerAppURL(t.Handle), summary, app, at)
-		if err := mailer.SendNotice(t.Email, subject, text); err != nil {
-			log.Printf("sign-in alert user_id=%s: send: %v", userID, err)
-		}
+		a.accounts.DeliverSignInAlert(ctx, userID, a.reviewerEmail, summary, app, mailer, func(email, handle string) (string, string) {
+			return signInAlertText(email, a.ownerAppURL(handle), summary, app, at)
+		})
 	})
 }
 

@@ -126,7 +126,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	if mailer == nil {
 		mailer = email.NewResendSender("", "test@example.com")
 	}
-	users := handler.NewUserHandler(database, mailer, a.srv.URL, ed)
+	users := handler.NewUserHandler(database, accountapp.New(database), mailer, a.srv.URL, ed)
 	a.users = users
 	users.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
 	a.sites = handler.NewSiteHandler(ed, "", database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())

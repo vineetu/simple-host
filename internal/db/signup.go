@@ -2,11 +2,10 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // Signup is where an account came from, recorded once when it is created
@@ -21,30 +20,30 @@ type Signup = model.Signup
 type SignupDetail = model.SignupDetail
 
 const (
-	SignupWebsite = "website"
+	SignupWebsite = model.SignupWebsite
 	// SignupArtifactHub is a website sign-up by a visitor who arrived through
 	// artifact-hub.com (INTENT 2026-10-15).
-	SignupArtifactHub = "artifact-hub"
+	SignupArtifactHub = model.SignupArtifactHub
 	// SignupVercelShip is a website sign-up by a visitor who arrived through
 	// the post-poll link on ship.vineetsriram.com (Vercel Ship, 2026-10-15).
-	SignupVercelShip = "vercel-ship"
+	SignupVercelShip = model.SignupVercelShip
 	// SignupAgentCon is a website sign-up by a visitor who arrived through the
 	// QR code and link given out at Agent Con, San Jose (2026-10-22).
-	SignupAgentCon = "agentcon"
+	SignupAgentCon = model.SignupAgentCon
 	// SignupFromPrefix marks a /?from= value with no name in the handler's
 	// arrival source list: "from:<value>".
-	SignupFromPrefix      = "from:"
-	SignupConnectorPrefix = "connector:"
-	SignupAgent           = "agent"
-	SignupVisitor         = "visitor"
-	SignupAdmin           = "admin"
-	SignupReviewer        = "reviewer"
+	SignupFromPrefix      = model.SignupFromPrefix
+	SignupConnectorPrefix = model.SignupConnectorPrefix
+	SignupAgent           = model.SignupAgent
+	SignupVisitor         = model.SignupVisitor
+	SignupAdmin           = model.SignupAdmin
+	SignupReviewer        = model.SignupReviewer
 
-	SignupMethodEmail    = "email"
-	SignupMethodGoogle   = "google"
-	SignupMethodGitHub   = "github"
-	SignupMethodIssued   = "issued"
-	SignupMethodPassword = "password"
+	SignupMethodEmail    = model.SignupMethodEmail
+	SignupMethodGoogle   = model.SignupMethodGoogle
+	SignupMethodGitHub   = model.SignupMethodGitHub
+	SignupMethodIssued   = model.SignupMethodIssued
+	SignupMethodPassword = model.SignupMethodPassword
 )
 
 // signupFieldMax caps each stored field; the values come partly from the
@@ -55,23 +54,7 @@ const signupFieldMax = 80
 // while the account has no source yet, so the first record wins and a later
 // sign-in never rewrites it.
 func SetSignup(ctx context.Context, q Querier, userID string, s Signup) error {
-	src := clip(s.Source)
-	if src == "" || userID == "" {
-		return nil
-	}
-	var detail sql.NullString
-	if s.Detail != nil {
-		b, err := json.Marshal(s.Detail)
-		if err != nil {
-			return err
-		}
-		detail = sql.NullString{String: string(b), Valid: true}
-	}
-	_, err := q.ExecContext(ctx, `
-		UPDATE users SET signup_source = $2, signup_agent = NULLIF($3, ''), signup_method = NULLIF($4, ''), signup_detail = $5::jsonb
-		 WHERE id = $1 AND signup_source IS NULL`,
-		userID, src, clip(s.Agent), clip(s.Method), detail)
-	return err
+	return accounts.SetSignup(ctx, q, userID, s)
 }
 
 func clip(s string) string {

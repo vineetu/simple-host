@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/accounts"
 	"strings"
 	"time"
 
@@ -16,16 +18,7 @@ import (
 
 // OAuthClient is an app that registered itself (RFC 7591) or was inserted by
 // the operator.
-type OAuthClient struct {
-	ClientID                string
-	SecretHash              sql.NullString
-	Name                    string
-	RedirectURIs            []string
-	TokenEndpointAuthMethod string
-	PKCERequired            bool
-	Dynamic                 bool
-	CreatedAt               time.Time
-}
+type OAuthClient = model.OAuthClient
 
 // OAuthCode is one authorization code, as stored.
 type OAuthCode struct {
@@ -91,12 +84,7 @@ func InsertOAuthClient(ctx context.Context, q Querier, c OAuthClient) error {
 }
 
 func GetOAuthClient(ctx context.Context, q Querier, clientID string) (OAuthClient, error) {
-	var c OAuthClient
-	err := q.QueryRowContext(ctx, `
-		SELECT client_id, client_secret_hash, client_name, redirect_uris, token_endpoint_auth_method, pkce_required, dynamic, created_at
-		  FROM oauth_clients WHERE client_id = $1`, clientID).
-		Scan(&c.ClientID, &c.SecretHash, &c.Name, pq.Array(&c.RedirectURIs), &c.TokenEndpointAuthMethod, &c.PKCERequired, &c.Dynamic, &c.CreatedAt)
-	return c, err
+	return accounts.GetOAuthClient(ctx, q, clientID)
 }
 
 // ListOperatorOAuthClients returns the clients the operator created by hand.
@@ -292,8 +280,7 @@ func DeleteOAuthGrantsForClient(ctx context.Context, q Querier, userID, clientID
 // they rotate their API key: whoever held the old key could have connected an
 // app, and that connection must not outlive the key.
 func DeleteOAuthGrantsForUser(ctx context.Context, q Querier, userID string) error {
-	_, err := q.ExecContext(ctx, `DELETE FROM oauth_grants WHERE user_id = $1`, userID)
-	return err
+	return accounts.DeleteOAuthGrantsForUser(ctx, q, userID)
 }
 
 // ListOAuthConnections returns the apps a person has connected, newest first.

@@ -56,7 +56,7 @@ func (h *OAuthHandler) writeOAuthHTMLBlocked(w http.ResponseWriter) {
 
 type OAuthHandler struct {
 	visitorWorkerOnce sync.Once
-	visitorWorker     *visitorAuthWorkers
+	visitorWorker     *accounts.VisitorAuthWorker
 	httpCaches        HTTPCaches
 	ed                *edition.Edition
 	limitSet
@@ -75,6 +75,7 @@ type OAuthHandler struct {
 	sameHost  func(a, b string) bool
 
 	database      *sql.DB
+	accounts      *accounts.Service
 	cfg           config.Config
 	providers     map[string]oauth.Provider
 	ipLimiter     *rateLimiter
@@ -115,7 +116,7 @@ func (h *OAuthHandler) SetSignupGeoBlock(guard accounts.SignupGeoBlock) {
 	h.geoBlock = guard
 }
 
-func NewOAuthHandler(database *sql.DB, cfg config.Config, editions ...*edition.Edition) *OAuthHandler {
+func NewOAuthHandler(database *sql.DB, service *accounts.Service, cfg config.Config, editions ...*edition.Edition) *OAuthHandler {
 	var ed *edition.Edition
 	if len(editions) > 0 {
 		ed = editions[0]
@@ -144,6 +145,7 @@ func NewOAuthHandler(database *sql.DB, cfg config.Config, editions ...*edition.E
 		ed:            ed,
 		limitSet:      newLimitSet(lim),
 		database:      database,
+		accounts:      service,
 		cfg:           cfg,
 		providers:     providers,
 		ipLimiter:     ipLimiter,

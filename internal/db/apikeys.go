@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 	"time"
 
@@ -14,25 +13,25 @@ import (
 // Names given to keys by where they came from. A key minted from the Keys
 // panel (POST /v1/me/keys) carries the name its owner typed instead.
 const (
-	KeyNameDashboard = "dashboard sign-in"
-	KeyNameAgent     = "agent sign-in"
-	KeyNameEvent     = "event account"
-	KeyNameReviewer  = "reviewer sign-in"
-	KeyNameRotated   = "replacement key"
+	KeyNameDashboard = model.KeyNameDashboard
+	KeyNameAgent     = model.KeyNameAgent
+	KeyNameEvent     = model.KeyNameEvent
+	KeyNameReviewer  = model.KeyNameReviewer
+	KeyNameRotated   = model.KeyNameRotated
 )
 
 // Key scopes (api_keys.scope). A full key does everything the account can
 // through the API; a deploy key only what a CI job that publishes needs
 // (internal/auth/scope.go holds the route table).
 const (
-	KeyScopeFull   = "full"
-	KeyScopeDeploy = "deploy"
+	KeyScopeFull   = model.KeyScopeFull
+	KeyScopeDeploy = model.KeyScopeDeploy
 )
 
 // Why a stored key no longer works (APIKey.Expired).
 const (
-	KeyExpiredFixed = "expired" // past the expiry chosen when it was minted
-	KeyExpiredIdle  = "idle"    // unused for KEY_IDLE_EXPIRY_DAYS
+	KeyExpiredFixed = model.KeyExpiredFixed // past the expiry chosen when it was minted
+	KeyExpiredIdle  = model.KeyExpiredIdle  // unused for KEY_IDLE_EXPIRY_DAYS
 )
 
 // ErrKeyExpired and ErrKeyExpiredIdle are returned by GetUserByAPIKey for a
@@ -47,17 +46,7 @@ var (
 // APIKey is one row of api_keys as its owner sees it. The key itself is never
 // stored; Last4 is only for recognising it. Name and Last4 are empty for keys
 // issued before keys had names.
-type APIKey struct {
-	ID         string
-	Hash       string
-	Name       string
-	Last4      string
-	Scope      string
-	CreatedAt  time.Time
-	LastUsedAt *time.Time
-	ExpiresAt  *time.Time
-	IdleFrom   time.Time
-}
+type APIKey model.APIKey
 
 // IdleExpiresAt is when the key stops working if it is not used before then,
 // or nil when idle expiry is off (keyIdle <= 0). keyIdle is the caller's
@@ -94,28 +83,20 @@ func touchAPIKey(ctx context.Context, q Querier, keyHash string) {
 
 // ListAPIKeys returns an account's keys, newest first.
 func ListAPIKeys(ctx context.Context, q *sql.DB, userID string) ([]APIKey, error) {
-	rows, err := q.QueryContext(ctx, `
-		SELECT id, key_hash, COALESCE(name, ''), COALESCE(last4, ''), scope, created_at, last_used_at, expires_at, idle_from
-		  FROM api_keys WHERE user_id = $1
-		 ORDER BY created_at DESC, id`, userID)
+	rows, err := accounts.ListAPIKeys(ctx, q, userID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := []APIKey{}
-	for rows.Next() {
-		var k APIKey
-		if err := rows.Scan(&k.ID, &k.Hash, &k.Name, &k.Last4, &k.Scope, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt, &k.IdleFrom); err != nil {
-			return nil, err
-		}
-		out = append(out, k)
+	out := make([]APIKey, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, APIKey(row))
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // ErrKeyLimit: the account already holds maxAccountKeys (MAX_KEYS_PER_ACCOUNT)
 // keys. Sign-in keys are not refused by it.
-var ErrKeyLimit = errors.New("account key limit reached")
+var ErrKeyLimit = model.ErrKeyLimit
 
 // CreateAPIKey stores a new key under name, with scope (KeyScopeFull or
 // KeyScopeDeploy) and an optional fixed expiry, and returns its row, but only while
@@ -131,18 +112,11 @@ func CreateAPIKey(ctx context.Context, db *sql.DB, userID, callerKeyHash, apiKey
 		return APIKey{}, err
 	}
 	defer tx.Rollback()
-	var one, n int
-	if err := tx.QueryRowContext(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&one); err != nil {
+	if err := accounts.LockKeyIssuer(ctx, tx, userID, callerKeyHash); err != nil {
 		return APIKey{}, err
 	}
-	if err := tx.QueryRowContext(ctx,
-		`SELECT 1 FROM api_keys WHERE key_hash = $1 AND user_id = $2 FOR UPDATE`,
-		callerKeyHash, userID).Scan(&one); err != nil {
-		return APIKey{}, err
-	}
-	// Keys that have stopped working do not count: an account minting
-	// short-lived CI keys must not fill the cap with dead ones.
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM api_keys WHERE user_id = $1 AND `+liveKeySQL, userID, keyIdle.Seconds()).Scan(&n); err != nil {
+	n, err := accounts.CountLiveKeys(ctx, tx, userID, keyIdle)
+	if err != nil {
 		return APIKey{}, err
 	}
 	if n >= maxAccountKeys {
@@ -152,11 +126,11 @@ func CreateAPIKey(ctx context.Context, db *sql.DB, userID, callerKeyHash, apiKey
 		scope = KeyScopeFull
 	}
 	k := APIKey{Hash: HashAPIKey(apiKey), Name: name, Last4: keyLast4(apiKey), Scope: scope, ExpiresAt: expiresAt}
-	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO api_keys (key_hash, user_id, name, last4, scope, expires_at) VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, created_at, idle_from`, k.Hash, userID, name, k.Last4, scope, expiresAt).Scan(&k.ID, &k.CreatedAt, &k.IdleFrom); err != nil {
+	row, err := accounts.InsertNamedKey(ctx, tx, userID, model.APIKey(k))
+	if err != nil {
 		return APIKey{}, err
 	}
+	k = APIKey(row)
 	return k, tx.Commit()
 }
 
@@ -184,25 +158,9 @@ func AddSignInKey(ctx context.Context, db *sql.DB, userID, apiKey, name string) 
 	return tx.Commit()
 }
 
-// DeleteAPIKey revokes one of userID's keys by id. It reports false when the
-// account has no such key (someone else's id reads the same as a missing one).
-func DeleteAPIKey(ctx context.Context, q Querier, userID, keyID string) (bool, error) {
-	res, err := q.ExecContext(ctx, `DELETE FROM api_keys WHERE id::text = $1 AND user_id = $2`, keyID, userID)
-	if err != nil {
-		return false, err
-	}
-	n, err := res.RowsAffected()
-	return n > 0, err
-}
-
 // DeleteAPIKeyByHash revokes the key a request authenticated with (sign-out).
 func DeleteAPIKeyByHash(ctx context.Context, q Querier, userID, keyHash string) (bool, error) {
-	res, err := q.ExecContext(ctx, `DELETE FROM api_keys WHERE key_hash = $1 AND user_id = $2`, keyHash, userID)
-	if err != nil {
-		return false, err
-	}
-	n, err := res.RowsAffected()
-	return n > 0, err
+	return accounts.DeleteAPIKeyByHash(ctx, q, userID, keyHash)
 }
 
 // ReservedKeyName reports whether name is one the service gives its own keys

@@ -103,7 +103,7 @@ func newBridgeTeamApp(t *testing.T) *bridgeTeamApp {
 	a.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(a.srv.Close)
 	mailer := email.NewResendSender("", "test@example.com")
-	users := NewUserHandler(database, mailer, a.srv.URL, ed)
+	users := NewUserHandler(database, accountapp.New(database), mailer, a.srv.URL, ed)
 	a.users = users
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.sites = NewSiteHandler(ed, "", database, disk, bridgeTSDomain, "sites."+bridgeTSDomain, "cname."+bridgeTSDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())

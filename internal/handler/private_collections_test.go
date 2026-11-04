@@ -94,7 +94,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	if base == "" {
 		base = a.srv.URL
 	}
-	users := NewUserHandler(database, mailer, base, ed)
+	users := NewUserHandler(database, accountapp.New(database), mailer, base, ed)
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.users = users
 	a.sites = NewSiteHandler(ed, "", database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())

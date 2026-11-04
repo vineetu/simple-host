@@ -2,12 +2,10 @@ package handler
 
 import (
 	"context"
-	"log"
-	"strconv"
 	"strings"
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // reservedHandles are path segments / product names that must never be claimed
@@ -47,46 +45,7 @@ var reservedHandles = map[string]bool{
 // sanitizeHandleBase turns an email into a URL-safe handle base from its local-part:
 // lowercase, non-[a-z0-9-] → '-', collapse dashes, trim, truncate to 30 chars.
 // Empty result becomes "user".
-func sanitizeHandleBase(email string) string {
-	local := email
-	if i := strings.IndexByte(email, '@'); i >= 0 {
-		local = email[:i]
-	}
-	local = strings.ToLower(local)
-
-	var b strings.Builder
-	b.Grow(len(local))
-	prevDash := false
-	for _, r := range local {
-		ok := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-'
-		if !ok {
-			if !prevDash {
-				b.WriteByte('-')
-				prevDash = true
-			}
-			continue
-		}
-		if r == '-' {
-			if prevDash {
-				continue
-			}
-			prevDash = true
-			b.WriteByte('-')
-			continue
-		}
-		prevDash = false
-		b.WriteRune(r)
-	}
-
-	s := strings.Trim(b.String(), "-")
-	if len(s) > 30 {
-		s = strings.TrimRight(s[:30], "-")
-	}
-	if s == "" {
-		return "user"
-	}
-	return s
-}
+func sanitizeHandleBase(email string) string { return appsites.SanitizeHandleBase(email) }
 
 // handleSeed is what a first handle is derived from: the account's username
 // (its email), except for the instance's own admin row (username "admin",
@@ -94,7 +53,7 @@ func sanitizeHandleBase(email string) string {
 // label of the instance's domain instead (spring for spring.example.com), or
 // "organiser" when that label is reserved or not a handle as written. Taken
 // labels fall through to organiser-2 and so on, as for anyone.
-func handleSeed(user *db.User, siteDomain string) string {
+func handleSeed(user *model.User, siteDomain string) string {
 	if !user.IsAdmin || user.Username != "admin" {
 		return user.Username
 	}
@@ -108,53 +67,6 @@ func handleSeed(user *db.User, siteDomain string) string {
 // assignHandle claims a free URL-safe handle for userID derived from email.
 // Failures are logged but never fatal — a missing handle must not break sign-in.
 // Owner-intent only: email-code verify, dashboard OAuth, or first deploy.
-func assignHandle(ctx context.Context, q db.Querier, userID, email string, randomHandles bool) {
-	if randomHandles {
-		// Nobody's handle is an address on the hackathon platform, and an
-		// email-derived one could squat an event's name (hack_mode.go).
-		for i := 0; i < 5; i++ {
-			ok, err := db.ClaimHandle(ctx, q, userID, hackHandle())
-			if err != nil {
-				log.Printf("auth: ClaimHandle(%s, hack): %v", userID, err)
-				return
-			}
-			if ok {
-				return
-			}
-		}
-		return
-	}
-	base := sanitizeHandleBase(email)
-
-	// Candidates: base, base-2 … base-20, then base-<first8(userID)>.
-	candidates := make([]string, 0, 22)
-	if !appsites.LabelReservedForNew(base) {
-		candidates = append(candidates, base)
-	}
-	for n := 2; n <= 20; n++ {
-		c := base + "-" + strconv.Itoa(n)
-		if !appsites.LabelReservedForNew(c) {
-			candidates = append(candidates, c)
-		}
-	}
-	suffix := userID
-	if len(suffix) > 8 {
-		suffix = suffix[:8]
-	}
-	fallback := base + "-" + suffix
-	if !appsites.LabelReservedForNew(fallback) {
-		candidates = append(candidates, fallback)
-	}
-
-	for _, c := range candidates {
-		ok, err := db.ClaimHandle(ctx, q, userID, c)
-		if err != nil {
-			log.Printf("auth: ClaimHandle(%s, %s): %v", userID, c, err)
-			return
-		}
-		if ok {
-			return
-		}
-	}
-	log.Printf("auth: assignHandle: no free handle for user %s (base=%s)", userID, base)
+func assignHandle(ctx context.Context, q accountQuerier, userID, email string, randomHandles bool) {
+	appsites.AssignHandle(ctx, q, userID, email, randomHandles)
 }

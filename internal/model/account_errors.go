@@ -9,3 +9,7 @@ import (
 var ErrKeyExpired = fmt.Errorf("api key expired: %w", sql.ErrNoRows)
 var ErrKeyExpiredIdle = fmt.Errorf("api key expired after going unused: %w", sql.ErrNoRows)
 var ErrAccountSuspended = errors.New("account suspended")
+
+var ErrKeyLimit = errors.New("account key limit reached")
+
+var ErrUndoAddressTaken = errors.New("the old address belongs to another account now")

@@ -6,15 +6,13 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
-	"errors"
-	"log"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // EmailLimiter shares the account sign-in throttle with hosted-page sign-in.
@@ -55,228 +53,16 @@ func writeEmailCodeError(w http.ResponseWriter, status int, body errorResponse) 
 // refusal is simpler and sufficient). geoBlock's zero value (the default,
 // feature off) never looks anything up, so this is a no-op for every caller
 // until the knob is set.
-func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, limiter *rateLimiter, address, linkBase string, purpose string, siteID, nonceHash sql.NullString, ip string, geoBlock signupGeoBlock, authTTL time.Duration) (string, int, int, errorResponse) {
-	if !emailSignInEnabled {
-		return "", 0, http.StatusForbidden, errEmailSignInOff
-	}
-	address = strings.TrimSpace(strings.ToLower(address))
-	if address == "" || !validEmail.MatchString(address) {
-		return "", 0, http.StatusBadRequest, signInInvalidEmail()
-	}
-
-	if _, blocked := geoBlock.BlockedCountry(ip); blocked {
-		return "", 0, http.StatusForbidden, signupBlockedError
-	}
-
-	// Per-address throttle: stops one email from being mail-bombed even if the
-	// attacker rotates source IPs.
-	if !limiter.allow(emailLimiterKey(address)) {
-		return "", 0, http.StatusTooManyRequests, signInRateLimited()
-	}
-
-	code, err := generateNumericCode(6)
-	if err != nil {
-		log.Printf("auth: generateNumericCode: %v", err)
-		return "", 0, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-	}
-	// Visitor rows still need a random UNIQUE NOT NULL link token.
-	// GetAuthTokenByLink refuses non-dashboard rows, so it is inert for the dashboard link flow.
-	linkToken, err := generateLinkToken(24)
-	if err != nil {
-		log.Printf("auth: generateLinkToken: %v", err)
-		return "", 0, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-	}
-
-	expiresAt := time.Now().Add(authTTL)
-	if purpose != "dashboard" {
-		nonceHash = sql.NullString{}
-	}
-	if err := db.CreateAuthToken(ctx, database, address, code, linkToken, expiresAt, purpose, siteID, nonceHash); err != nil {
-		log.Printf("auth: CreateAuthToken: %v", err)
-		return "", 0, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-	}
-
-	link := ""
-	if purpose == "dashboard" && linkBase != "" && nonceHash.Valid {
-		link = linkBase + "/?token=" + linkToken + "&cn=" + nonceHash.String
-	}
-	if err := mailer.SendSignInCode(address, code, link); err != nil {
-		// Don't expose details to the caller, but log loudly — this is the
-		// most likely failure mode in production (Resend misconfig, DNS, etc).
-		log.Printf("auth: mailer.SendSignInCode(%s): %v", redactEmail(address), err)
-		return "", 0, http.StatusInternalServerError, signInSendFailed()
-	}
-
-	return address, int(authTTL.Seconds()), 0, errorResponse{}
+func issueEmailCode(ctx context.Context, database *sql.DB, mailer signInCodeSender, limiter *rateLimiter, address, linkBase string, purpose string, siteID, nonceHash sql.NullString, ip string, geoBlock signupGeoBlock, authTTL time.Duration) (string, int, int, errorResponse) {
+	address, expires, status, failure := accounts.New(database).IssueEmailCode(ctx, mailer, limiter.allow, address, linkBase, purpose, siteID, nonceHash, ip, geoBlock, authTTL, emailSignInEnabled, codeMessages(), codeHandleActions(database))
+	return address, expires, status, codeFailureResponse(failure)
 }
 
 // verifyEmailCode shares token verification and lazy account creation. Only the
 // dashboard caller accepts a magic-link token in req.
-func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter, req verifyRequest, purpose string, siteID sql.NullString, randomHandles bool, authTTL time.Duration) (db.User, bool, int, errorResponse) {
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	req.Code = strings.ReplaceAll(strings.TrimSpace(req.Code), "-", "")
-	req.Token = strings.TrimSpace(req.Token)
-
-	var tok db.AuthToken
-	var err error
-
-	switch {
-	case req.Token != "" && purpose == "dashboard":
-		tok, err = db.GetAuthTokenByLink(ctx, database, req.Token)
-	case req.Email != "" && req.Code != "":
-		if !emailSignInEnabled {
-			return db.User{}, false, http.StatusForbidden, errEmailSignInOff
-		}
-		tok, err = db.GetLatestAuthTokenForEmail(ctx, database, req.Email, purpose, siteID)
-	default:
-		return db.User{}, false, http.StatusBadRequest, errorResponse{Error: "supply token or email+code"}
-	}
-
-	if errors.Is(err, sql.ErrNoRows) {
-		return db.User{}, false, http.StatusUnauthorized, signInCodeExpired(authTTL)
-	}
-	if err != nil {
-		log.Printf("auth: lookup token: %v", err)
-		return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-	}
-
-	if tok.Attempts >= maxCodeAttempts {
-		return db.User{}, false, http.StatusUnauthorized, signInCodeUsedUp()
-	}
-
-	// A sign-in link works only in the browser that asked for it: the token
-	// is redeemed together with the nonce whose hash was stored with it. A
-	// link someone else forwards (their own token, to sign a victim into
-	// their account) or copies is useless without that browser's nonce.
-	if req.Token != "" {
-		if !tok.NonceHash.Valid || !nonceMatches(req.Nonce, tok.NonceHash.String) {
-			_ = db.IncrementAuthTokenAttempts(ctx, database, tok.ID)
-			return db.User{}, false, http.StatusUnauthorized, signInLinkOtherBrowser()
-		}
-	}
-
-	// For code-entry path, compare submitted code against the stored value.
-	if req.Token == "" {
-		// Throttle guesses against a specific address across tokens, on top of
-		// the per-token maxCodeAttempts cap.
-		if !limiter.allow(emailLimiterKey(tok.Email)) {
-			return db.User{}, false, http.StatusTooManyRequests, signInRateLimited()
-		}
-		if subtleConstantTimeEqual(req.Code, tok.Code) != 1 {
-			_ = db.IncrementAuthTokenAttempts(ctx, database, tok.ID)
-			left := maxCodeAttempts - (tok.Attempts + 1)
-			if left <= 0 {
-				return db.User{}, false, http.StatusUnauthorized, signInCodeUsedUp()
-			}
-			return db.User{}, false, http.StatusUnauthorized, signInCodeWrong(left)
-		}
-	}
-
-	// The code is right. A new account's address: chosen now, before
-	// anything is created or the code is spent, so a refusal can be retried.
-	var chosen string
-	if purpose == "dashboard" && !randomHandles && (req.Handle != nil || req.ChooseHandle) {
-		_, lerr := db.GetUserByUsername(ctx, database, tok.Email)
-		switch {
-		case errors.Is(lerr, sql.ErrNoRows) && req.Handle != nil:
-			chosen = strings.ToLower(strings.TrimSpace(*req.Handle))
-			v, jerr := JudgeHandle(ctx, database, "", chosen)
-			if jerr != nil {
-				return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-			}
-			if v.Status != 0 {
-				return db.User{}, false, v.Status, errorResponse{Error: v.Error, Code: v.Code, Address: v.Address}
-			}
-		case errors.Is(lerr, sql.ErrNoRows):
-			sug := suggestHandle(ctx, database, tok.Email)
-			return db.User{}, false, http.StatusConflict, errorResponse{
-				Error: "Choose your address before the account is created: send the same code again with \"handle\". You can change it later, not more than once in 30 days.",
-				Code:  "choose_handle", SuggestedHandle: sug, Address: handleAddress(sug),
-			}
-		case lerr != nil:
-			log.Printf("auth: lookup before choosing a handle: %v", lerr)
-			return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-		}
-	}
-
-	// Spend the token and look the account up in one transaction. A sign-in
-	// email change retires the old address's tokens in its own transaction,
-	// so the two serialize on the token row: either this verify finds the
-	// account under the old address (before the change commits), or the
-	// token is already spent. Never an empty new account under the old one.
-	tx, err := database.BeginTx(ctx, nil)
-	if err != nil {
-		return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-	}
-	defer tx.Rollback()
-	if ok, err := db.ClaimAuthToken(ctx, tx, tok.ID); err != nil {
-		log.Printf("auth: ClaimAuthToken: %v", err)
-		return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-	} else if !ok {
-		return db.User{}, false, http.StatusUnauthorized, signInCodeExpired(authTTL)
-	}
-	user, err := db.GetUserByUsername(ctx, tx, tok.Email)
-	if cerr := tx.Commit(); err == nil || errors.Is(err, sql.ErrNoRows) {
-		if cerr != nil {
-			log.Printf("auth: commit token claim: %v", cerr)
-			return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-		}
-	}
-
-	// Lazily create the user on first successful verification. requestSignIn no
-	// longer pre-creates the row, so this is where a new account is born.
-	//
-	// This relies on issueEmailCode having already refused every request from
-	// a blocked country before any auth_token row could exist (signupgeo.go):
-	// a code can only reach here if it was allowed to be issued in the first
-	// place. There is no independent geo check at this CreateUser call — if a
-	// path other than issueEmailCode is ever added that creates an auth_token,
-	// it must apply the same check before doing so.
-	created := false
-	if errors.Is(err, sql.ErrNoRows) {
-		// No key yet: a key is issued only where one is handed out.
-		user, err = db.CreateUser(ctx, database, tok.Email, "", false)
-		if err != nil {
-			if isUniqueViolation(err) {
-				// Concurrent verify won the race — re-fetch the existing row.
-				user, err = db.GetUserByUsername(ctx, database, tok.Email)
-			}
-			if err != nil {
-				log.Printf("auth: CreateUser after verify: %v", err)
-				return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-			}
-		} else {
-			created = true
-		}
-	} else if err != nil {
-		log.Printf("auth: GetUserByUsername after verify: %v", err)
-		return db.User{}, false, http.StatusInternalServerError, errorResponse{Error: "internal server error"}
-	}
-
-	// Assign a URL-safe handle for dashboard users (or lazy-backfill older rows that
-	// still have a NULL handle). ClaimHandle only writes WHERE handle IS NULL,
-	// so existing handles are never overwritten.
-	if purpose == "dashboard" && (created || !user.Handle.Valid) {
-		claimed := false
-		if created && chosen != "" {
-			ok, cerr := db.ClaimHandle(ctx, database, user.ID, chosen)
-			if cerr != nil {
-				log.Printf("auth: ClaimHandle(chosen %s): %v", chosen, cerr)
-			}
-			claimed = ok
-		}
-		if !claimed {
-			// Not asked, or taken in the moment since the check: the old rule.
-			assignHandle(ctx, database, user.ID, tok.Email, randomHandles)
-		}
-		if refetched, rerr := db.GetUserByUsername(ctx, database, tok.Email); rerr == nil {
-			user = refetched
-		} else {
-			log.Printf("auth: refetch after assignHandle: %v", rerr)
-		}
-	}
-
-	return user, created, 0, errorResponse{}
+func verifyEmailCode(ctx context.Context, database *sql.DB, limiter *rateLimiter, req verifyRequest, purpose string, siteID sql.NullString, randomHandles bool, authTTL time.Duration) (model.User, bool, int, errorResponse) {
+	user, created, status, failure := accounts.New(database).VerifyEmailCode(ctx, limiter.allow, req, purpose, siteID, randomHandles, authTTL, emailSignInEnabled, codeMessages(), codeHandleActions(database))
+	return user, created, status, codeFailureResponse(failure)
 }
 
 // emailLimiterKey groups plus aliases without changing the stored or sent address.

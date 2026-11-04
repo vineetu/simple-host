@@ -310,7 +310,7 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	app.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(app.srv.Close)
 
-	users := NewUserHandler(database, mailer, app.srv.URL, ed)
+	users := NewUserHandler(database, accountapp.New(database), mailer, app.srv.URL, ed)
 	users.Register(mux, authMW, noticeMW)
 	app.users = users
 	sites := NewSiteHandler(ed, "", database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())

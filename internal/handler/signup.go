@@ -2,15 +2,15 @@ package handler
 
 import (
 	"context"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	httpx "github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Where an account came from (users.signup_*), recorded once when it is
@@ -23,17 +23,15 @@ const signupAgentMax = 40
 
 // recordSignup stores s for a just-created account. A failure is logged and
 // never fails the sign-in: the label is not worth refusing a person over.
-func recordSignup(ctx context.Context, q db.Querier, userID string, s db.Signup) {
-	if err := db.SetSignup(ctx, q, userID, s); err != nil {
-		log.Printf("signup: record source user_id=%s: %v", userID, err)
-	}
+func recordSignup(ctx context.Context, q accountQuerier, userID string, s model.Signup) {
+	accounts.RecordSignup(ctx, q, userID, s)
 }
 
 // signupForVerify says where an account created by POST /v1/auth/verify came
 // from: the /mcp consent page (it names the app's client_id), one of the
 // site's own pages (a same-site browser request), or an agent calling the API.
-func signupForVerify(ctx context.Context, q db.Querier, r *http.Request, publicBaseURL, clientID string, viaLink bool) db.Signup {
-	method := db.SignupMethodEmail
+func signupForVerify(ctx context.Context, q accountQuerier, r *http.Request, publicBaseURL, clientID string, viaLink bool) model.Signup {
+	method := model.SignupMethodEmail
 	if clientID = strings.TrimSpace(clientID); clientID != "" {
 		if s, ok := connectorSignup(ctx, q, clientID, method); ok {
 			return withArrival(r, s)
@@ -42,22 +40,18 @@ func signupForVerify(ctx context.Context, q db.Querier, r *http.Request, publicB
 	if viaLink || fromOwnPages(r, publicBaseURL) {
 		return websiteSignup(r, method)
 	}
-	return db.Signup{Source: db.SignupAgent, Agent: signupAgentName(r), Method: method}
+	return model.Signup{Source: model.SignupAgent, Agent: signupAgentName(r), Method: method}
 }
 
 // connectorSignup names the app registered as clientID.
-func connectorSignup(ctx context.Context, q db.Querier, clientID, method string) (db.Signup, bool) {
-	c, err := db.GetOAuthClient(ctx, q, clientID)
-	if err != nil {
-		return db.Signup{}, false
-	}
-	return db.Signup{Source: db.SignupConnectorPrefix + httpx.CleanClientName(c.Name), Method: method}, true
+func connectorSignup(ctx context.Context, q accountQuerier, clientID, method string) (model.Signup, bool) {
+	return accounts.SignupForClient(ctx, q, clientID, method, httpx.CleanClientName)
 }
 
 // signupForOwnerReturnTo says where a Google or GitHub sign-up that started on one of
 // the site's pages came from: the consent page (/oauth/authorize, whose query
 // names the app) or anywhere else on the site.
-func signupForOwnerReturnTo(ctx context.Context, q db.Querier, r *http.Request, returnTo, provider string) db.Signup {
+func signupForOwnerReturnTo(ctx context.Context, q accountQuerier, r *http.Request, returnTo, provider string) model.Signup {
 	// The callback query belongs to the identity provider. Attribution travels
 	// only in the return URL saved with the existing OAuth state.
 	r = r.Clone(ctx)
@@ -73,7 +67,7 @@ func signupForOwnerReturnTo(ctx context.Context, q db.Querier, r *http.Request, 
 		}
 	}
 	if r.URL.Path == "/v1/sso/hop" {
-		return db.Signup{Source: "visitor_sso", Method: provider}
+		return model.Signup{Source: "visitor_sso", Method: provider}
 	}
 	return websiteSignup(r, provider)
 }
@@ -90,9 +84,9 @@ type arrivalSource struct {
 // line here; the admin page reads its labels from GET /v1/admin/users. Any
 // other well-formed from value still counts, as "from:<value>".
 var arrivalSources = map[string]arrivalSource{
-	db.SignupArtifactHub: {Label: "Artifact Hub", Where: "artifact-hub.com"},
-	db.SignupVercelShip:  {Label: "Vercel Ship", Where: "ship.vineetsriram.com"},
-	db.SignupAgentCon:    {Label: "Agent Con", Where: "Agent Con, San Jose"},
+	model.SignupArtifactHub: {Label: "Artifact Hub", Where: "artifact-hub.com"},
+	model.SignupVercelShip:  {Label: "Vercel Ship", Where: "ship.vineetsriram.com"},
+	model.SignupAgentCon:    {Label: "Agent Con", Where: "Agent Con, San Jose"},
 }
 
 // arrivalUTM are the link parameters carried with a from value.
@@ -158,7 +152,7 @@ func hostOnly(h string) string {
 
 // requestArrival reads same-visit URL/form labels, never browser storage.
 // LandedAt now means the account-creation visit, not a remembered first touch.
-func requestArrival(r *http.Request) (*db.SignupDetail, bool) {
+func requestArrival(r *http.Request) (*model.SignupDetail, bool) {
 	from, ok := arrivalFrom(r.FormValue("from"))
 	if !ok {
 		return nil, false
@@ -168,7 +162,7 @@ func requestArrival(r *http.Request) (*db.SignupDetail, bool) {
 	if value := r.FormValue("referrer"); value != "" {
 		ref.Header.Set("Referer", "https://"+value)
 	}
-	d := &db.SignupDetail{From: from, Referrer: arrivalReferrer(ref), LandedAt: time.Now().UTC()}
+	d := &model.SignupDetail{From: from, Referrer: arrivalReferrer(ref), LandedAt: time.Now().UTC()}
 	d.UTMSource = arrivalText(r.FormValue("utm_source"))
 	d.UTMMedium = arrivalText(r.FormValue("utm_medium"))
 	d.UTMCampaign = arrivalText(r.FormValue("utm_campaign"))
@@ -182,18 +176,18 @@ func arrivalSourceOf(from string) string {
 	if _, ok := arrivalSources[from]; ok {
 		return from
 	}
-	return db.SignupFromPrefix + from
+	return model.SignupFromPrefix + from
 }
 
 // withArrival credits only the URL/form labels carried on this visit.
 // The connected app's name moves to Agent so it is not lost.
-func withArrival(r *http.Request, s db.Signup) db.Signup {
+func withArrival(r *http.Request, s model.Signup) model.Signup {
 	d, ok := requestArrival(r)
 	if !ok {
 		return s
 	}
-	if strings.HasPrefix(s.Source, db.SignupConnectorPrefix) {
-		s.Agent = strings.TrimPrefix(s.Source, db.SignupConnectorPrefix)
+	if strings.HasPrefix(s.Source, model.SignupConnectorPrefix) {
+		s.Agent = strings.TrimPrefix(s.Source, model.SignupConnectorPrefix)
 	}
 	s.Source = arrivalSourceOf(d.From)
 	s.Detail = d
@@ -202,8 +196,8 @@ func withArrival(r *http.Request, s db.Signup) db.Signup {
 
 // websiteSignup is a sign-up from the site's own pages: credited to the
 // same-visit outside link when there is one, else "website".
-func websiteSignup(r *http.Request, method string) db.Signup {
-	return withArrival(r, db.Signup{Source: db.SignupWebsite, Method: method})
+func websiteSignup(r *http.Request, method string) model.Signup {
+	return withArrival(r, model.Signup{Source: model.SignupWebsite, Method: method})
 }
 
 // fromOwnPages reports a browser request made by one of this site's pages.

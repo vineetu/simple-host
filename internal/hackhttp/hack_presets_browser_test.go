@@ -2,6 +2,7 @@ package hackhttp
 
 import (
 	"encoding/json"
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http"
 	"os"
 	"testing"
@@ -32,7 +33,7 @@ func TestServeHackPresetsBrowser(t *testing.T) {
 	a.sites.SetVisitorAuthLimiterForTest(1000, 0)
 	a.sites.SetStorageIPLimiterForTest(100000, 0)
 	handler.RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
-	oauth := handler.NewOAuthHandler(a.database, config.Config{PublicBaseURL: a.srv.URL, ResendAPIKey: "test-mail-sink"}, edition.ForKind(edition.Hack))
+	oauth := handler.NewOAuthHandler(a.database, accountapp.New(a.database), config.Config{PublicBaseURL: a.srv.URL, ResendAPIKey: "test-mail-sink"}, edition.ForKind(edition.Hack))
 	oauth.Register(a.mux)
 	org, member := a.newPerson(t, "hfix-org"), a.newPerson(t, "hfix-member")
 	slug := a.makeEvent(t, org)

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -13,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Change sign-in email: POST /v1/me/email sends a code to the new address AND
@@ -62,7 +61,7 @@ func (h *UserHandler) SetPreviewAccounts(accounts map[string]bool) { h.previewAc
 
 // emailChangeRefused writes why the account cannot change its sign-in email
 // and reports true, or reports false.
-func (h *UserHandler) emailChangeRefused(w http.ResponseWriter, r *http.Request, user *db.User) bool {
+func (h *UserHandler) emailChangeRefused(w http.ResponseWriter, r *http.Request, user *model.User) bool {
 	refuse := func(code, msg string) bool {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: msg, Code: code})
 		return true
@@ -81,7 +80,7 @@ func (h *UserHandler) emailChangeRefused(w http.ResponseWriter, r *http.Request,
 	case !strings.Contains(user.Username, "@"):
 		return refuse("no_current_email", supportText("this account does not sign in with an email address, so there is none to confirm the change from; write to support@simple-host.app"))
 	}
-	t, err := db.GetSignInAlertTarget(r.Context(), h.database, user.ID)
+	t, err := h.accounts.EmailChangeTarget(r.Context(), user.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return true
@@ -125,29 +124,13 @@ func (h *UserHandler) requestEmailChange(w http.ResponseWriter, r *http.Request)
 		writeEmailCodeError(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down"})
 		return
 	}
-	code, err := generateNumericCode(6)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	oldCode, err := generateNumericCode(6)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if err := db.PutEmailChange(r.Context(), h.database, user.ID, address, hashEmailChangeCode(code), hashEmailChangeCode(oldCode), time.Now().Add(h.authTokenTTL())); err != nil {
-		log.Printf("email change user_id=%s: store: %v", user.ID, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if err := h.sendEmailChangeCode(address, code); err != nil {
-		log.Printf("email change: send code to %s: %v", redactEmail(address), err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not send verification email"})
-		return
-	}
-	if err := h.sendEmailChangeCurrentCode(current, address, oldCode); err != nil {
-		log.Printf("email change: send code to current %s: %v", redactEmail(current), err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not send verification email"})
+	if err := h.accounts.RequestEmailChange(r.Context(), user.ID, address, current, h.mailer, h.authTokenTTL(), supportText); err != nil {
+		var changeError *accounts.EmailChangeError
+		if errors.As(err, &changeError) {
+			writeJSON(w, changeError.Status, errorResponse{Error: changeError.Message, Code: changeError.Code})
+		} else {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		}
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{
@@ -158,41 +141,8 @@ func (h *UserHandler) requestEmailChange(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-func (h *UserHandler) sendEmailChangeCode(address, code string) error {
-	mailer, ok := h.mailer.(noticeSender)
-	if !ok {
-		return h.mailer.SendSignInCode(address, code, "")
-	}
-	return mailer.SendNotice(address, "Simple Host confirmation code: "+code, `Someone asked to make this address the sign-in email of a Simple Host account.
-
-Your confirmation code:
-
-    `+code+`
-
-It expires in `+config.Span(h.authTokenTTL())+`. If you didn't ask for this, ignore this email: nothing changes.
-
-Simple Host
-`)
-}
-
 // sendEmailChangeCurrentCode sends the code the current address must give
 // for the change to go through.
-func (h *UserHandler) sendEmailChangeCurrentCode(current, newAddress, code string) error {
-	mailer, ok := h.mailer.(noticeSender)
-	if !ok {
-		return h.mailer.SendSignInCode(current, code, "")
-	}
-	return mailer.SendNotice(current, "Simple Host: confirm changing your sign-in email ("+code+")", supportText(`Someone signed in to your Simple Host account asked to change its sign-in email to `+maskEmail(newAddress)+`.
-
-If that was you, enter this code together with the one sent to the new address:
-
-    `+code+`
-
-It expires in `+config.Span(h.authTokenTTL())+`. If it wasn't you, do not share this code: without it nothing changes. Someone has one of your keys, so sign in and remove the keys you don't recognise, or write to support@simple-host.app.
-
-Simple Host
-`))
-}
 
 func (h *UserHandler) verifyEmailChange(w http.ResponseWriter, r *http.Request) {
 	user := accountKeyUser(w, r, "changing the sign-in email")
@@ -213,75 +163,18 @@ func (h *UserHandler) verifyEmailChange(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "code (sent to the new address) and current_code (sent to your current address) are both required", Code: "codes_required"})
 		return
 	}
-	ctx := r.Context()
-	tx, err := h.database.BeginTx(ctx, nil)
+	result, err := h.accounts.VerifyEmailChange(r.Context(), user, code, oldCode, h.reviewerEmail, func(address string) bool { return h.emailLimiter.allow(emailLimiterKey(address)) }, h.limits.EmailChangeUndoTTL)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	defer tx.Rollback()
-	var oldEmail string
-	if err := tx.QueryRowContext(ctx, `SELECT username FROM users WHERE id = $1 FOR UPDATE`, user.ID).Scan(&oldEmail); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	change, err := db.GetEmailChangeForUpdate(ctx, tx, user.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "no email change is waiting, or its code expired; ask for a new code", Code: "no_pending_change"})
-		return
-	}
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if change.Attempts >= maxCodeAttempts {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "too many attempts, request a new code", Code: "invalid_code"})
-		return
-	}
-	if !h.emailLimiter.allow(emailLimiterKey(change.NewEmail)) {
-		writeEmailCodeError(w, http.StatusTooManyRequests, errorResponse{Error: "rate limit exceeded, slow down"})
-		return
-	}
-	newOK := subtle.ConstantTimeCompare([]byte(hashEmailChangeCode(code)), []byte(change.CodeHash)) == 1
-	oldOK := change.OldCodeHash != "" && subtle.ConstantTimeCompare([]byte(hashEmailChangeCode(oldCode)), []byte(change.OldCodeHash)) == 1
-	if !newOK || !oldOK {
-		if err := db.CountEmailChangeAttempt(ctx, tx, user.ID); err == nil {
-			_ = tx.Commit()
+		var changeError *accounts.EmailChangeError
+		if errors.As(err, &changeError) {
+			writeEmailCodeError(w, changeError.Status, errorResponse{Error: changeError.Message, Code: changeError.Code})
+		} else {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		}
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid or expired code", Code: "invalid_code"})
 		return
 	}
-	if h.reviewerEmail != "" && strings.EqualFold(change.NewEmail, h.reviewerEmail) {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "that address cannot be used to sign in", Code: "reserved_email"})
-		return
-	}
-	taken, err := db.EmailInUseByOther(ctx, tx, user.ID, change.NewEmail)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if taken {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "another Simple Host account already signs in with that address", Code: "email_taken"})
-		return
-	}
-	undo, err := randomHex(24)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	err = db.ApplyEmailChange(ctx, tx, user.ID, oldEmail, change.NewEmail, user.KeyHash, hashEmailChangeCode(undo), h.limits.EmailChangeUndoTTL)
-	if err == nil {
-		err = tx.Commit()
-	}
-	if isUniqueViolation(err) {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "another Simple Host account already signs in with that address", Code: "email_taken"})
-		return
-	}
-	if err != nil {
-		log.Printf("email change user_id=%s: apply: %v", user.ID, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
+	oldEmail, undo := result.OldEmail, result.UndoToken
+	change := model.EmailChange{NewEmail: result.NewEmail}
 	log.Printf("email change user_id=%s: sign-in email changed", user.ID)
 	h.emailOldAddress(oldEmail, change.NewEmail, undo)
 	writeJSON(w, http.StatusOK, map[string]string{
@@ -298,24 +191,7 @@ func (h *UserHandler) undoLink(tok string) string {
 // emailOldAddress tells the old address where the account went, masked,
 // with the undo link.
 func (h *UserHandler) emailOldAddress(oldEmail, newEmail, undoToken string) {
-	mailer, ok := h.mailer.(noticeSender)
-	if !ok || !strings.Contains(oldEmail, "@") {
-		return
-	}
-	text := "Your Simple Host sign-in email was changed to " + maskEmail(newEmail) + `. From now on you sign in with that address.
-
-If this wasn't you, undo it (opens a page with an Undo button; works for ` + config.Span(h.limits.EmailChangeUndoTTL) + `):
-` + h.undoLink(undoToken) + `
-
-Undoing puts the account back on this address, signs out every key and every sign-in on sites, and removes Google or GitHub sign-ins and connected apps added since the change. Questions: support@simple-host.app.
-
-Simple Host
-`
-	h.alerts.run(func() {
-		if err := mailer.SendNotice(oldEmail, "Your Simple Host sign-in email was changed", supportText(text)); err != nil {
-			log.Printf("email change: notice to old address: %v", err)
-		}
-	})
+	accounts.NotifyEmailChanged(h.mailer, oldEmail, newEmail, h.undoLink(undoToken), h.limits.EmailChangeUndoTTL, supportText, h.alerts.run)
 }
 
 // undoEmailChange GET /v1/me/email/undo?t= shows the Undo button; POST (the
@@ -338,7 +214,7 @@ func (h *UserHandler) undoEmailChange(w http.ResponseWriter, r *http.Request) {
 	}
 	hash := hashEmailChangeCode(tok)
 	if linkConfirming(r) {
-		u, err := db.GetEmailChangeUndo(r.Context(), h.database, hash)
+		u, err := h.accounts.GetEmailChangeUndo(r.Context(), hash)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				gone()
@@ -352,12 +228,12 @@ func (h *UserHandler) undoEmailChange(w http.ResponseWriter, r *http.Request) {
 			"", "", confirmForm("/v1/me/email/undo", map[string]string{"t": tok}, "Undo the change"))
 		return
 	}
-	u, err := db.UndoEmailChange(r.Context(), h.database, hash)
+	u, err := h.accounts.UndoEmailChange(r.Context(), hash)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		gone()
 		return
-	case errors.Is(err, db.ErrUndoAddressTaken):
+	case errors.Is(err, model.ErrUndoAddressTaken):
 		h.pipeline().WriteMessagePage(w, r, "", http.StatusConflict, "That address is used by another account now",
 			supportText("Write to support@simple-host.app and we will sort it out."), home, "Go to Simple Host", "")
 		return
@@ -386,7 +262,7 @@ func (h *UserHandler) listIdentities(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	list, err := db.ListSignInIdentities(r.Context(), h.database, user.ID)
+	list, err := h.accounts.ListSignInIdentities(r.Context(), user.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -405,7 +281,7 @@ func (h *UserHandler) unlinkIdentity(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	err := db.UnlinkSignInIdentity(r.Context(), h.database, user.ID, strings.TrimSpace(r.PathValue("id")))
+	err := h.accounts.UnlinkSignInIdentity(r.Context(), user.ID, strings.TrimSpace(r.PathValue("id")))
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such sign-in on this account"})
 		return

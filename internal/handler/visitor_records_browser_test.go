@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http"
 	"os"
 	"strconv"
@@ -58,7 +59,7 @@ func TestServeVisitorRecordsBrowser(t *testing.T) {
 	a.sites.storageIPLimiter = newRateLimiter(100000, 0)
 	RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
 	// A mailer is wired (the mailbox above), so provider discovery must say so.
-	oauth := NewOAuthHandler(a.database, config.Config{PublicBaseURL: a.srv.URL, ResendAPIKey: "test-mail-sink"})
+	oauth := NewOAuthHandler(a.database, accountapp.New(a.database), config.Config{PublicBaseURL: a.srv.URL, ResendAPIKey: "test-mail-sink"})
 	oauth.Register(a.mux)
 	// The test mail sink: the script reads each customer's code here.
 	a.mux.HandleFunc("GET /_fixture/mail", func(w http.ResponseWriter, r *http.Request) {

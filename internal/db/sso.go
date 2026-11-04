@@ -3,14 +3,13 @@ package db
 import (
 	"context"
 	"database/sql"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/accounts"
 	"time"
 )
 
 type SSOPass struct{ Hash, UserID, ParentKeyHash string }
-type SSOHop struct {
-	State, SiteID, Host, ReturnTo, NonceHash string
-	ConsentHash, ConsentPassHash             sql.NullString
-}
+type SSOHop = model.SSOHop
 
 // The live parent predicate is shared by pass issuance, redemption, and site
 // session reads. Expiry and suspension take effect without a cleanup worker.
@@ -63,13 +62,7 @@ func InsertSSOHop(ctx context.Context, q Querier, h SSOHop) error {
 	return err
 }
 func GetSSOHop(ctx context.Context, q Querier, state string, consume bool) (SSOHop, error) {
-	query := `SELECT state,site_id::text,host,return_to,nonce_hash,consent_hash,consent_pass_hash FROM sso_hops WHERE state=$1 AND expires_at>now()`
-	if consume {
-		query = `DELETE FROM sso_hops WHERE state=$1 AND expires_at>now() RETURNING state,site_id::text,host,return_to,nonce_hash,consent_hash,consent_pass_hash`
-	}
-	var h SSOHop
-	err := q.QueryRowContext(ctx, query, state).Scan(&h.State, &h.SiteID, &h.Host, &h.ReturnTo, &h.NonceHash, &h.ConsentHash, &h.ConsentPassHash)
-	return h, err
+	return accounts.GetSSOHop(ctx, q, state, consume)
 }
 func SetSSOConsentForm(ctx context.Context, q Querier, state, hash, pass string) error {
 	_, err := q.ExecContext(ctx, `UPDATE sso_hops SET consent_hash=$2,consent_pass_hash=$3 WHERE state=$1`, state, hash, pass)
