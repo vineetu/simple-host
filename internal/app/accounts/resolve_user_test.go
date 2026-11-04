@@ -10,7 +10,6 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/vsriram/simple-host/internal/oauth"
 	repo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
@@ -57,7 +56,7 @@ func TestResolveUserMatching(t *testing.T) {
 	}
 
 	// Verified email links onto the existing users row; key unchanged.
-	linked, created, err := resolveUser(ctx, database, oauth.Identity{
+	linked, created, err := resolveUser(ctx, database, ProviderIdentity{
 		Provider:      "google",
 		UserID:        "sub-existing-" + stamp,
 		Email:         existingEmail,
@@ -79,7 +78,7 @@ func TestResolveUserMatching(t *testing.T) {
 	// Unverified email must create no user and no identity.
 	beforeUsers := countQuery(t, database, `SELECT count(*) FROM users`)
 	beforeIDs := countQuery(t, database, `SELECT count(*) FROM oauth_identities`)
-	_, _, err = resolveUser(ctx, database, oauth.Identity{
+	_, _, err = resolveUser(ctx, database, ProviderIdentity{
 		Provider:      "google",
 		UserID:        "sub-unverified-" + stamp,
 		Email:         newEmail,

@@ -55,6 +55,14 @@ func TestSignupGeoBlock(t *testing.T) {
 		}
 	})
 
+	t.Run("typed nil geo database is allowed", func(t *testing.T) {
+		var geo *geoip.DB
+		g := NewSignupGeoBlock(geo, []string{"IQ"})
+		if cc, blocked := g.BlockedCountry("198.51.100.7"); blocked || cc != "" {
+			t.Fatalf("no geo database must allow, got country=%q blocked=%v", cc, blocked)
+		}
+	})
+
 	t.Run("empty ip is allowed", func(t *testing.T) {
 		g := NewSignupGeoBlock(geo, []string{"IQ"})
 		if _, blocked := g.BlockedCountry(""); blocked {

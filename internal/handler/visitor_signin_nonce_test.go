@@ -12,8 +12,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/vsriram/simple-host/internal/oauth"
 )
 
 // testNonce is a sign-in nonce whose hash tests store directly.
@@ -35,8 +33,8 @@ func (fakeProvider) Name() string { return "google" }
 func (fakeProvider) AuthCodeURL(state, _ string) string {
 	return "https://accounts.example.test/auth?state=" + url.QueryEscape(state)
 }
-func (fakeProvider) Exchange(_ context.Context, code, _ string) (oauth.Identity, error) {
-	return oauth.Identity{Provider: "google", UserID: "g-" + code, Email: code + "@example.test", EmailVerified: true}, nil
+func (fakeProvider) Exchange(_ context.Context, code, _ string) (accounts.ProviderIdentity, error) {
+	return accounts.ProviderIdentity{Provider: "google", UserID: "g-" + code, Email: code + "@example.test", EmailVerified: true}, nil
 }
 
 // withOAuth mounts visitor Google sign-in (fake provider) on the app.
@@ -47,7 +45,7 @@ func (a *privateApp) withOAuth(t *testing.T) *OAuthHandler {
 		limitSet:      a.sites.limitSet,
 		cfg:           OAuthSettings{PublicBaseURL: "https://" + pcSiteDomain, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain},
 		accounts:      accounts.New(a.database),
-		signIn:        accounts.NewProviderSignIn(accounts.New(a.database), map[string]oauth.Provider{"google": fakeProvider{}}),
+		signIn:        accounts.NewProviderSignIn(accounts.New(a.database), map[string]accounts.Provider{"google": fakeProvider{}}),
 		ipLimiter:     newRateLimiter(10000, 10000),
 		ssoKeyLimiter: newRateLimiter(10000, 10000),
 		lookupIP:      func(context.Context, string) ([]net.IP, error) { return nil, nil },
