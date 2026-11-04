@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/analytics"
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -433,16 +434,6 @@ func NewSiteHandler(ed *edition.Edition, hackInstanceURL string, database *sql.D
 	return h
 }
 
-// previewExpiry returns a per-site expiry timestamp when the owner is a
-// configured preview account, or nil for a permanent site.
-func (h *SiteHandler) previewExpiry(user *db.User) *time.Time {
-	if user == nil || len(h.previewAccounts) == 0 || !h.previewAccounts[strings.ToLower(user.Username)] {
-		return nil
-	}
-	t := time.Now().Add(h.previewTTL)
-	return &t
-}
-
 // startExpirySweep periodically deletes sites whose expires_at has passed
 // (DB rows + on-disk files), keeping the platform free of stale preview sites.
 func (h *SiteHandler) startExpirySweep(every time.Duration) {
@@ -457,27 +448,7 @@ func (h *SiteHandler) startExpirySweep(every time.Duration) {
 }
 
 func (h *SiteHandler) sweepExpiredSites() {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	expired, err := db.ListExpiredSites(ctx, h.database)
-	if err != nil {
-		log.Printf("expiry sweep: list failed: %v", err)
-		return
-	}
-	for _, s := range expired {
-		unlock := h.lockSite(s.UserID, s.Name)
-		if err := db.DeleteSite(ctx, h.database, s.ID); err != nil {
-			log.Printf("expiry sweep: delete row %s (%s): %v", s.Name, s.ID, err)
-			unlock()
-			continue
-		}
-		if err := h.disk.DeleteSite(s.UserID, s.Name); err != nil {
-			log.Printf("expiry sweep: delete disk %s: %v", s.Name, err)
-		}
-		unlock()
-		log.Printf("expiry sweep: removed preview site %q", s.Name)
-	}
+	h.sitesSvc().SweepExpiredSites()
 }
 
 func (h *SiteHandler) registerStorageRoutes(mux *http.ServeMux) {
@@ -829,85 +800,31 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "new site name must be different"})
 		return
 	}
-	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, oldName); err != nil {
-		writeSiteNotFound(w, oldName)
-		return
-	}
-	first, second := oldName, newName
-	if second < first {
-		first, second = second, first
-	}
-	unlockFirst := h.lockSite(user.ID, first)
-	defer unlockFirst()
-	unlockSecond := h.lockSite(user.ID, second)
-	defer unlockSecond()
-
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, oldName)
+	result, err := h.sitesSvc().Rename(r.Context(), user.ID, oldName, newName, user.Handle.String)
 	if err != nil {
-		writeSiteNotFound(w, oldName)
-		return
-	}
-	if refuseSuspendedSite(w, site) {
-		return
-	}
-	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, newName); err == nil {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name", Code: "site_exists"})
-		return
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if msg, held := h.deletedNameConflict(r.Context(), user.ID, newName); held {
-		writeJSON(w, http.StatusConflict, map[string]any{"error": msg, "code": "recently_deleted", "recently_deleted": true})
-		return
-	}
-	oldURL := h.siteURLFor(site)
-	newURL := h.SiteURL(user.Handle.String, newName)
-	if newURL == "" {
-		newURL = fmt.Sprintf("https://%s/%s/%s/", h.contentHost, user.Handle.String, newName)
-	}
-	domain := ""
-	if site.CustomDomain.Valid {
-		domain = site.CustomDomain.String
-	}
-	// The earlier address a site keeps serving while a new domain is pending
-	// has its own link, which must follow the rename too.
-	domains := []string{domain}
-	if info, ok, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	} else if ok && info.PreviousDomain != "" {
-		domains = append(domains, info.PreviousDomain)
-	}
-	if err := h.disk.RenameSite(user.ID, oldName, newName, domains...); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not move site files"})
-		return
-	}
-	// The row and the old name go together: links to the old name redirect
-	// to the new address from the moment the rename is visible.
-	err = func() error {
-		tx, err := h.database.BeginTx(r.Context(), nil)
-		if err != nil {
-			return err
+		var siteErr *sites.Error
+		if errors.As(err, &siteErr) {
+			switch siteErr.Code {
+			case "site_exists":
+				writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name", Code: "site_exists"})
+				return
+			case "recently_deleted":
+				writeJSON(w, http.StatusConflict, map[string]any{"error": siteErr.Message, "code": "recently_deleted", "recently_deleted": true})
+				return
+			case "move_failed":
+				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not move site files"})
+				return
+			}
 		}
-		defer tx.Rollback()
-		if err := db.RenameSite(r.Context(), tx, site.ID, newName, newURL); err != nil {
-			return err
-		}
-		if err := db.KeepOldSiteName(r.Context(), tx, user.ID, site.ID, oldName, newName); err != nil {
-			return err
-		}
-		return tx.Commit()
-	}()
-	if err != nil {
-		_ = h.disk.RenameSite(user.ID, newName, oldName, domains...)
 		if isUniqueViolation(err) {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a site with that name", Code: "site_exists"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		writeSitesError(w, err, oldName)
 		return
 	}
+	site, oldURL, newURL, domain := result.Site, result.OldURL, result.NewURL, result.Domain
+
 	// The main address may change with the name (address families).
 	h.syncDomainRedirect(r.Context(), site.ID)
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -1634,15 +1551,7 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.commitNewSite(w, r, user, siteName, files, archiveSHA)
-}
-
-// commitNewSite writes a brand-new site's first version and promotes it after
-// the DB commit. Shared by the archive upload (createSite) and the JSON upload
-// (createSiteFiles) so both inherit identical versioning, locking, commit-then-
-// promote ordering, and deploy-queue behavior.
-func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string) {
-	h.commitCreate(w, r, user, siteName, files, archiveSHA, false)
+	h.commitCreate(w, r, user, siteName, files, archiveSHA, false, false)
 }
 
 // createOrUpdateSite is the commit for PUT ?create=1: it creates the site, and
@@ -1650,7 +1559,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 // upload as an update instead of answering site_exists to a caller that asked
 // for create-or-update.
 func (h *SiteHandler) createOrUpdateSite(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
-	if h.commitCreate(w, r, user, siteName, files, archiveSHA, true) {
+	if h.commitCreate(w, r, user, siteName, files, archiveSHA, true, false) {
 		h.commitSiteUpdate(w, r, user, siteName, files, archiveSHA, publish)
 	}
 }
@@ -1658,166 +1567,46 @@ func (h *SiteHandler) createOrUpdateSite(w http.ResponseWriter, r *http.Request,
 // commitCreate commits files as a new site. With orUpdate, a site of that name
 // that already exists is not an error: nothing is written and it reports true
 // so the caller updates it (after this has released the site lock).
-func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate bool) (exists bool) {
-	if user == nil {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
-		return false
-	}
-	unlockAccount := h.lockAccountFiles(user.ID)
-	defer unlockAccount()
-	unlockSite := h.lockSite(user.ID, siteName)
-	defer unlockSite()
-	return h.commitCreateLocked(w, r, user, siteName, files, archiveSHA, orUpdate)
-}
-
-// Caller holds the account and site locks, including for a keep=1 first deploy.
-func (h *SiteHandler) commitCreateLocked(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate bool) (exists bool) {
+func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate, locked bool) (exists bool) {
 	// Every path that creates a site comes through here (hack_mode.go).
-	if user == nil {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
-		return false
-	}
-	if !h.hackNoPersonalSites(w, user) {
-		return false
-	}
 	// A guest-created users row has a NULL handle until owner-intent. First
 	// deploy is owner-intent: assign before building the path-model site URL.
-	if !user.Handle.Valid || user.Handle.String == "" {
-		assignHandle(r.Context(), h.database, user.ID, handleSeed(user, h.siteDomain), h.ed.Identity().RandomHandles)
-		if refetched, err := db.GetUserByUsername(r.Context(), h.database, user.Username); err == nil {
-			*user = refetched
-		}
-	}
+	result, err := h.sitesSvc().Create(r.Context(), sites.CreateInput{
+		User: user, Name: siteName,
+		ArchiveSHA: archiveSHA, Author: versionAuthor(r), Files: files, OrUpdate: orUpdate, LocksHeld: locked,
+	})
+	return h.respondCreate(w, user, result, err)
+}
 
-	tx, err := h.database.BeginTx(r.Context(), nil)
+// respondCreate maps a completed create workflow to its existing HTTP response.
+func (h *SiteHandler) respondCreate(w http.ResponseWriter, user *db.User, result sites.CreateResult, err error) bool {
+	site, exists := result.Site, result.Exists
+	if exists {
+		return true
+	}
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	defer tx.Rollback()
-
-	if !h.hackTeamTxGate(w, r, tx, user, siteName) {
+		var gateErr *sites.GateError
+		var siteErr *sites.Error
+		switch {
+		case errors.As(err, &siteErr) && siteErr.Code == "unauthorized":
+			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		case errors.As(err, &gateErr):
+			writeRollbackGateError(w, gateErr)
+		case errors.As(err, &siteErr) && siteErr.Code == "no_personal_sites":
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
+		case errors.As(err, &siteErr) && siteErr.Code == "recently_deleted":
+			writeJSON(w, http.StatusConflict, map[string]any{"error": siteErr.Message, "code": "recently_deleted", "recently_deleted": true})
+		case errors.As(err, &siteErr) && siteErr.Code == "site_exists":
+			writeJSON(w, http.StatusConflict, errorResponse{Error: siteErr.Message, Code: "site_exists"})
+		case errors.As(err, &siteErr) && (siteErr.Code == "site_total_too_large" || siteErr.Code == "account_storage_full"):
+			writeJSON(w, 413, errorResponse{Code: siteErr.Code, Error: siteErr.Message, Hint: storageTips})
+		case errors.As(err, &siteErr) && (siteErr.Code == "site_measure_failed" || siteErr.Code == "account_measure_failed"):
+			writeJSON(w, 500, errorResponse{Error: siteErr.Message})
+		default:
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		}
 		return false
 	}
-
-	// Rename and first deploy must agree on the handle before constructing a URL.
-	if err := tx.QueryRowContext(r.Context(), "SELECT handle FROM users WHERE id = $1 FOR UPDATE", user.ID).Scan(&user.Handle); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	// Stored for the record only: the address answered is computed on read
-	// (siteURLFor), so it follows PERSON_HOSTS.
-	var siteURL string
-	if user.Handle.Valid && user.Handle.String != "" {
-		siteURL = fmt.Sprintf("https://%s/%s/%s/", h.contentHost, user.Handle.String, siteName)
-	} else {
-		siteURL = fmt.Sprintf("https://%s.%s", siteName, h.siteDomain)
-	}
-	site, err := db.CreateSite(r.Context(), tx, user.ID, siteName, siteURL, h.previewExpiry(user))
-	if err != nil {
-		if isUniqueViolation(err) {
-			tx.Rollback()
-			if msg, held := h.deletedNameConflict(r.Context(), user.ID, siteName); held {
-				writeJSON(w, http.StatusConflict, map[string]any{"error": msg, "code": "recently_deleted", "recently_deleted": true})
-				return
-			}
-			if orUpdate {
-				return true
-			}
-			writeJSON(w, http.StatusConflict, errorResponse{Error: "site already exists: use PUT to update it (PUT /v1/sites/" + siteName + " or PUT /v1/sites/" + siteName + "/files); add ?create=1 to a PUT to create or update in one call", Code: "site_exists"})
-			return
-		}
-
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if err := db.UpdateSiteSummary(r.Context(), tx, site.ID, ExtractSiteSummary(files)); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	// A renamed site's old name is free for a new site, which wins: links to
-	// the name stop following the renamed one.
-	if err := db.DropOldSiteName(r.Context(), tx, user.ID, siteName); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if !h.checkFileCaps(w, r, user, site, files, 1, true) {
-		return false
-	}
-
-	const versionNumber = 1
-	diskPath := fmt.Sprintf("by-id/%s/%s/v%d/", user.ID, siteName, versionNumber)
-
-	version, err := db.CreateVersion(r.Context(), tx, site.ID, versionNumber, diskPath, archiveSHA, versionAuthor(r))
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	// Write the new version dir (not yet live) before committing.
-	if err := h.disk.WriteFiles(r.Context(), user.ID, siteName, versionNumber, files); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if err := db.ActivateVersion(r.Context(), tx, version.ID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if err := db.UpdateSiteActiveVersion(r.Context(), tx, site.ID, versionNumber); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if err := tx.Commit(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	// A new site starts unlisted (the column default): mark it before it
-	// goes live, so its first response already keeps search engines out.
-	if err := h.syncUnlistedMarker(r.Context(), site); err != nil {
-		log.Printf("createSite: unlisted marker %s: %v", siteName, err)
-	}
-	// Promote only AFTER the DB is durable: a commit failure leaves `current`
-	// untouched (pointing at the last good version) rather than half-swapped.
-	if err := h.disk.UpdateCurrent(user.ID, siteName, versionNumber); err != nil {
-		log.Printf("createSite: promote %s v%d after commit: %v", siteName, versionNumber, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	// Ensure handles/<handle> -> by-id/<user_id> so the content-host path URL
-	// (sites.<domain>/<handle>/<site>/) resolves — critical for a new user's
-	// first deploy. Non-fatal: the legacy subdomain still works if this fails.
-	if user.Handle.Valid && user.Handle.String != "" {
-		if err := h.disk.EnsureHandleLink(user.Handle.String, user.ID); err != nil {
-			log.Printf("createSite: ensure handle link %s: %v", user.Handle.String, err)
-		}
-		h.RequestSiteCert(user.Handle.String)
-	}
-
-	site.ActiveVersion = versionNumber
-	site.OwnerHandle = user.Handle.String
-	// Under an address family the new site's main address may be its
-	// family address: old content-host links follow it.
-	if h.hasLiveFamilies() {
-		h.syncDomainRedirect(r.Context(), site.ID)
-	}
-
-	// Queue for cortex-share registration (processed by deploy-watcher)
-	if h.deployScript != "" {
-		queueFile := h.disk.DataDir() + "/.deploy-queue"
-		if err := appendToFile(queueFile, siteName); err != nil {
-			log.Printf("failed to queue deploy for %s: %v", siteName, err)
-		}
-	}
-
-	h.paperHackDeploy(r, user)
-	h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), siteName, versionNumber, files)
 	writeJSON(w, http.StatusCreated, h.siteResponseFor(user, site))
 	return false
 }
@@ -2198,7 +1987,7 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.commitNewSite(w, r, user, siteName, files, digest)
+	h.commitCreate(w, r, user, siteName, files, digest, false, false)
 }
 
 // newSiteChecks is what creating a site checks before reading the upload,
@@ -2210,22 +1999,18 @@ func (h *SiteHandler) newSiteChecks(w http.ResponseWriter, r *http.Request, user
 	if !h.publishOnCreate(w, r) {
 		return false
 	}
-	if !h.hackNoPersonalSites(w, user) {
-		return false
-	}
 	// A team's site is one per team: the holding account has no site cap.
-	if !user.IsAdmin && user.Team == nil && user.EventWebsite == nil {
-		// Sites in Recently deleted count: delete-then-create must not
-		// get round the cap (their files are still on disk).
-		existing, err := db.CountSitesByUser(r.Context(), h.database, user.ID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	// Sites in Recently deleted count: delete-then-create must not
+	// get round the cap (their files are still on disk).
+	err := h.sitesSvc().CheckCreateAllowed(r.Context(), user)
+	if err != nil {
+		var siteErr *sites.Error
+		if errors.As(err, &siteErr) && (siteErr.Code == "site_quota_reached" || siteErr.Code == "no_personal_sites") {
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
 			return false
 		}
-		if max := h.maxSitesFor(r.Context(), h.database, user); existing >= max {
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("site quota reached: this account holds at most %d sites (sites in Recently deleted count until they are removed)", max), Code: "site_quota_reached"})
-			return false
-		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return false
 	}
 	return true
 }
@@ -2243,11 +2028,11 @@ func (h *SiteHandler) createIfMissing(w http.ResponseWriter, r *http.Request, us
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "create must be 1 or 0", Code: "invalid_request"})
 		return false, false
 	}
-	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName); err == nil {
-		return false, true
-	} else if !errors.Is(err, sql.ErrNoRows) {
+	if exists, err := h.sitesSvc().SiteExists(r.Context(), user.ID, siteName); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return false, false
+	} else if exists {
+		return false, true
 	}
 	if err := validateSiteReserved(siteName); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
@@ -2339,7 +2124,7 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if keep {
-		if !create || h.commitCreateLocked(w, r, user, siteName, files, digest, true) {
+		if !create || h.commitCreate(w, r, user, siteName, files, digest, true, true) {
 			h.commitSiteUpdateLocked(w, r, user, siteName, files, digest, publish)
 		}
 	} else if create {
@@ -2375,7 +2160,7 @@ func (h *SiteHandler) listVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	versions, err := db.ListVersionsBySite(r.Context(), h.database, site.ID)
+	versions, err := h.sitesSvc().ListVersions(r.Context(), site.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -2430,101 +2215,29 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Same lock as a deploy, delete or rename of this site: a rollback never
-	// re-points `current` of a site that was deleted or renamed meanwhile.
-	unlock := h.lockSite(user.ID, siteName)
+	expectedID, checkID := r.Context().Value(adminSiteKey{}).(string)
+	site, unlock, unchanged, err := h.sitesSvc().PrepareRollback(r.Context(), user.ID, siteName, expectedID, checkID, req.VersionNumber)
 	defer unlock()
-
-	site, err := h.siteForCaller(r, user.ID, siteName)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeSiteNotFound(w, siteName)
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		writeSitesError(w, err, siteName)
 		return
 	}
-	if refuseSuspendedSite(w, site) {
-		return
-	}
-
-	if site.ActiveVersion == req.VersionNumber {
+	if unchanged {
 		writeJSON(w, http.StatusOK, h.siteResponseFor(user, site))
 		return
 	}
 
-	versions, err := db.ListVersionsBySite(r.Context(), h.database, site.ID)
+	ctx := r.Context()
+	site, err = h.sitesSvc().RollbackTransaction(ctx, site, req.VersionNumber, user)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	var found bool
-	for _, v := range versions {
-		// A version whose upload never finished is not one to go live.
-		if v.VersionNumber == req.VersionNumber && v.Status != "uploading" {
-			found = true
-			break
+		var gateErr *sites.GateError
+		if errors.As(err, &gateErr) {
+			writeRollbackGateError(w, gateErr)
+		} else {
+			writeSitesError(w, err, siteName)
 		}
-	}
-	if !found {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found"})
 		return
 	}
-
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	defer tx.Rollback()
-	if err := db.LockSiteForUpdate(r.Context(), tx, site.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if !h.hackTeamTxGate(w, r, tx, user, siteName) {
-		return
-	}
-
-	prev, err := db.SiteActiveVersion(r.Context(), tx, site.ID)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if err := db.UpdateSiteActiveVersion(r.Context(), tx, site.ID, req.VersionNumber); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	// A version stored with publish=false goes live for the first time.
-	if err := db.ActivateVersionNumber(r.Context(), tx, site.ID, req.VersionNumber); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	// The served files change only once every database step has worked,
-	// still under the site's lock (so two rollbacks cannot cross), and go
-	// back if the commit then fails: what is served matches active_version.
-	if err := h.disk.UpdateCurrent(site.UserID, site.Name, req.VersionNumber); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		if prev != req.VersionNumber {
-			if rerr := h.disk.UpdateCurrent(site.UserID, site.Name, prev); rerr != nil {
-				log.Printf("rollback site_id=%s: commit failed (%v) and serving v%d again failed: %v", site.ID, err, prev, rerr)
-			}
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
-	if prev != req.VersionNumber {
-		h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": req.VersionNumber, "previous_version": prev, "via": "active_version"}, 0)
-	}
-	site.ActiveVersion = req.VersionNumber
 	writeJSON(w, http.StatusOK, h.siteResponseFor(user, site))
 }
 
@@ -2557,36 +2270,8 @@ func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Same lock as a deploy, rename or delete: the unlisted marker is never
-	// written into a folder that moved meanwhile.
-	unlock := h.lockSite(user.ID, siteName)
-	defer unlock()
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeSiteNotFound(w, siteName)
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if refuseSuspendedSite(w, site) {
-		return
-	}
-
-	if err := db.SetSiteVisibility(r.Context(), h.database, site.ID, vis); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	// The marker carries the change to every address at once (unlisted.go).
-	site.Visibility = vis
-	if err := h.syncUnlistedMarker(r.Context(), site); err != nil {
-		log.Printf("visibility: marker for site %s: %v", site.ID, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "saved, but the site's files could not be marked; try again"})
+	if err := h.sitesSvc().SetVisibility(r.Context(), user.ID, siteName, vis); err != nil {
+		writeSitesError(w, err, siteName)
 		return
 	}
 
@@ -2971,23 +2656,6 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		}
 	}
 	return resp
-}
-
-func appendToFile(path, line string) error {
-	// Defense-in-depth: a newline would inject an extra line into the
-	// deploy queue that the root deploy-watcher consumes. Site names are
-	// already charset-validated upstream, but never rely solely on that.
-	if strings.ContainsAny(line, "\n\r") {
-		return errors.New("invalid queue entry")
-	}
-
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = f.WriteString(line + "\n")
-	return err
 }
 
 func (h *SiteHandler) adminSiteRow(s db.Site) map[string]any {

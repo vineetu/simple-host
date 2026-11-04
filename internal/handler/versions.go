@@ -2,11 +2,8 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -14,8 +11,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // keepVersions is the instance retention (0 keeps all). Hosted Simple Host
@@ -77,10 +74,7 @@ const maxSiteKeepVersions = 1000
 // setting (sites.keep_versions) when it has one, else the instance's
 // KEEP_VERSIONS. 0 means keep every version.
 func effectiveKeepVersions(siteKeep int) int {
-	if siteKeep > 0 {
-		return siteKeep
-	}
-	return keepVersions
+	return sites.EffectiveKeepVersions(siteKeep, keepVersions)
 }
 
 // pruneVersions drops deploy history beyond the site's retention (its own
@@ -91,41 +85,7 @@ func effectiveKeepVersions(siteKeep int) int {
 // Rows go first, then the folders: once the row is gone nothing can serve
 // or roll back to that version. It returns the version numbers removed.
 func (h *SiteHandler) pruneVersions(ctx context.Context, siteID, userID, siteName string, activeVersion, siteKeep int) []int {
-	keep, _, err := accountRetention(ctx, h.database, userID, siteKeep, h.limits)
-	if err != nil {
-		log.Printf("prune versions: %v", err)
-		return nil
-	}
-	versions, err := db.ListVersionsBySite(ctx, h.database, siteID)
-	if err != nil {
-		log.Printf("prune versions: %v", err)
-		return nil
-	}
-	keepFrom := retainedFloor(versions, keep)
-	if h.ed.Storage().EventVersionRetention {
-		// Preserve event retention, including its existing deadline pin behavior.
-		keepFrom, _ = pruneThreshold(activeVersion, effectiveKeepVersions(siteKeep))
-	}
-	if keepFrom < 2 {
-		return nil
-	}
-	// A team's deadline version stays whatever the retention (hack_sites.go).
-	if keepFrom = h.hackPinnedFloor(ctx, userID, siteName, keepFrom); keepFrom < 2 {
-		return nil
-	}
-	removed, err := db.PruneVersions(ctx, h.database, siteID, keepFrom, activeVersion)
-	if err != nil {
-		log.Printf("prune versions for %s: %v", siteName, err)
-		return nil
-	}
-	for _, versionNum := range removed {
-		if err := h.disk.DeleteVersion(userID, siteName, versionNum); err != nil {
-			// The row is already gone, so nothing can serve this version and
-			// nothing will try. It is wasted space until someone notices.
-			log.Printf("prune versions for %s: v%d row removed but files remain: %v", siteName, versionNum, err)
-		}
-	}
-	return removed
+	return h.sitesSvc().PruneVersions(ctx, siteID, userID, siteName, activeVersion, siteKeep)
 }
 
 // setKeepVersions sets how many deploys of one site are kept and applies it at
@@ -162,41 +122,11 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Under the same per-site lock as deploy, rollback, rename and delete, and
-	// with the site read only once it is held: a rollback copying an older
-	// version into place, or a delete and re-create of the name, must not have
-	// that version's folder removed underneath it.
-	unlock := h.lockSite(user.ID, siteName)
-	defer unlock()
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeSiteNotFound(w, siteName)
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if refuseSuspendedSite(w, site) {
-		return
-	}
 	keep := *req.KeepVersions
-	if err := db.SetSiteKeepVersions(r.Context(), h.database, site.ID, keep); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	effective, _, err := accountRetention(r.Context(), h.database, user.ID, keep, h.limits)
+	site, effective, removed, err := h.sitesSvc().SetKeepVersions(r.Context(), user.ID, siteName, keep)
 	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		writeSitesError(w, err, siteName)
 		return
-	}
-	removed := h.pruneVersions(r.Context(), site.ID, site.UserID, site.Name, site.ActiveVersion, keep)
-	if removed == nil {
-		removed = []int{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"name":                    site.Name,
@@ -266,65 +196,11 @@ func (h *SiteHandler) discardVersion(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found", Code: "version_not_found"})
 		return
 	}
-	// Same locks in the same order as a deploy (commitSiteUpdate): the account
-	// file lock first, so an account-wide file walk does not meet a folder
-	// going away, then the per-site lock shared with rollback, rename and
-	// delete, with the site read only once it is held: a rollback copying this
-	// version into place must not have its folder removed underneath it.
-	unlockAccount := h.lockAccountFiles(user.ID)
-	defer unlockAccount()
-	unlock := h.lockSite(user.ID, siteName)
-	defer unlock()
-	site, err := h.siteForCaller(r, user.ID, siteName)
+	expectedSiteID, checkSiteID := r.Context().Value(adminSiteKey{}).(string)
+	site, err := h.sitesSvc().DiscardVersion(r.Context(), user.ID, siteName, expectedSiteID, checkSiteID, n)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeSiteNotFound(w, siteName)
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		writeSitesError(w, err, siteName)
 		return
-	}
-	if refuseSuspendedSite(w, site) {
-		return
-	}
-	versions, err := db.ListVersionsBySite(r.Context(), h.database, site.ID)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	var found *db.Version
-	for i := range versions {
-		if versions[i].VersionNumber == n {
-			found = &versions[i]
-			break
-		}
-	}
-	if found == nil || found.Status == "uploading" {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found", Code: "version_not_found"})
-		return
-	}
-	if n == site.ActiveVersion {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("version %d is live; only a version that was never live can be discarded", n), Code: "version_live"})
-		return
-	}
-	if found.Status == "active" {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("version %d has been live; kept versions are removed by retention, not discarded", n), Code: "version_published"})
-		return
-	}
-	gone, err := db.DiscardReadyVersion(r.Context(), h.database, site.ID, n)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if !gone {
-		// Made live or removed since the list above.
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found", Code: "version_not_found"})
-		return
-	}
-	if err := h.disk.DeleteVersion(site.UserID, site.Name, n); err != nil {
-		// The row is a tombstone now, so nothing can serve this version; the
-		// files are wasted space until someone notices.
-		log.Printf("discard version for %s: v%d discarded but files remain: %v", site.Name, n, err)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"site":              site.Name,
