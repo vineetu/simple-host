@@ -18,11 +18,11 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
+	httpx "github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -176,13 +176,13 @@ func TestNormalizeResourceMCPAlias(t *testing.T) {
 }
 
 func TestCleanClientName(t *testing.T) {
-	if got := cleanClientName("  Claude‮\n  Desktop  "); got != "Claude Desktop" {
+	if got := httpx.CleanClientName("  Claude‮\n  Desktop  "); got != "Claude Desktop" {
 		t.Errorf("got %q", got)
 	}
-	if got := cleanClientName(""); got != "An app" {
+	if got := httpx.CleanClientName(""); got != "An app" {
 		t.Errorf("got %q", got)
 	}
-	if got := cleanClientName(strings.Repeat("x", 200)); len([]rune(got)) != 60 {
+	if got := httpx.CleanClientName(strings.Repeat("x", 200)); len([]rune(got)) != 60 {
 		t.Errorf("not truncated: %d", len(got))
 	}
 }

@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-04: Cleanup 5.4: static pages and reviewed skill bundles now live in webassets; event DNS sweep and import jobs move into site services, and the knowledge HTTP routes use an injected store. Routes, responses and asset bytes are unchanged.
+
 2026-11-04: Admin usage now includes background worker lifecycle and progress reports, with a Background workers table in Overview. HTTP cache and limiter cleanup has explicit cancellation and join ownership; server shutdown drains requests before stopping the worker set.
 
 2026-11-04: `remove_site_passcode` now needs a fresh yes (Grok bot SIM-350, case 30). The Nov 3 wording fix (below) held for ChatGPT asking for a passcode in chat (case 28), but both ChatGPT and Claude still removed a passcode the moment the person asked for it, reading that request itself as enough consent. The tool now takes a `confirm` argument and refuses with an error until it is `true`, telling the model to say anyone with the link will be able to open the site once the passcode is gone and get a fresh agreement in the conversation first. No change to the HTTP API (`DELETE /v1/sites/{s}/lock` is unchanged); any other MCP caller must add `confirm: true`. No migration.

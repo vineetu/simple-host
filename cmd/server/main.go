@@ -16,8 +16,8 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-
 	"github.com/vsriram/simple-host/internal/analytics"
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/config"
@@ -388,7 +388,7 @@ func main() {
 	// simple-host.app only, on when BRAIN_DIR holds the bundle sh-brain-sync
 	// builds. Never on the hackathon platform.
 	if dir := os.Getenv("BRAIN_DIR"); dir != "" && !hosted {
-		connector.EnableBrain(mux, authMW, filepath.Join(dir, "bundle.json"))
+		connector.EnableBrain(mux, authMW, filepath.Join(dir, "bundle.json"), mcp.OpenBrainStore(filepath.Join(dir, "bundle.json")))
 	}
 	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL, siteHandler)
@@ -505,7 +505,8 @@ func main() {
 	// hand out names under a domain it does not control.
 	var eventDomains *handler.EventDomainHandler
 	if cfg.EventDNSToken != "" && len(cfg.EventDomains) > 0 {
-		ev := handler.NewEventDomainHandler(db, eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), cfg.EventDomains, ed)
+		eventSvc := sites.New(db, nil, nil, 0, sites.Deps{EventDNS: eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), EventProbe: eventdns.NewLiveProbe(), EventDomains: cfg.EventDomains, EventTTL: ed.Limits().EventTTL, EventMaxClaims: ed.Limits().EventMaxClaims})
+		ev := handler.NewEventDomainHandler(eventSvc, cfg.EventDomains)
 		if cfg.EventNamePeer != "" && !hosted {
 			// One name list with the hackathon platform (hack_mode.go).
 			ev.SetNamePeer(handler.NamePeerClient(cfg.EventNamePeer))

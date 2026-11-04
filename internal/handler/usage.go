@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/capacity"
-	"github.com/vsriram/simple-host/internal/tarball"
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
@@ -23,7 +23,7 @@ func SetSiteLimit(bytes int64) {
 		return
 	}
 	maxSiteArchiveSize = bytes
-	tarball.SetSiteLimit(bytes)
+	sites.SetArchiveSiteLimit(bytes)
 }
 
 // SiteLimit reports the per-site cap currently in force, in bytes.

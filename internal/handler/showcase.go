@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	xhtml "golang.org/x/net/html"
-
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	db "github.com/vsriram/simple-host/internal/db"
+	xhtml "golang.org/x/net/html"
 )
 
 // showcaseHandleRe mirrors the handle charset used across the app
@@ -379,7 +379,7 @@ func (h *SiteHandler) renamedContentPath(ctx context.Context, uri string) (strin
 		return "", false
 	}
 	handle, name := strings.ToLower(parts[0]), parts[1]
-	if !showcaseHandleRe.MatchString(handle) || !validSiteName.MatchString(name) {
+	if !showcaseHandleRe.MatchString(handle) || !appsites.ValidSiteName.MatchString(name) {
 		return "", false
 	}
 	user, err := db.GetUserByHandleOrAlias(ctx, h.database, handle)

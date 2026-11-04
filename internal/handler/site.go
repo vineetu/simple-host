@@ -31,8 +31,8 @@ import (
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/netusage"
+	rulesstorage "github.com/vsriram/simple-host/internal/rules/storage"
 	"github.com/vsriram/simple-host/internal/storage"
-	"github.com/vsriram/simple-host/internal/tarball"
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
@@ -795,11 +795,11 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 // {"name": ...}, see patchSite).
 func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName, newName string) {
 	user := auth.GetUser(r.Context())
-	if err := validateSiteShape(newName); err != nil {
+	if err := sites.ValidateShape(newName); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
-	if err := validateSiteReserved(newName); err != nil {
+	if err := sites.ValidateReserved(newName); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
@@ -1537,13 +1537,13 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
 		return
 	}
-	if err := validateSiteShape(siteName); err != nil {
+	if err := sites.ValidateShape(siteName); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
 	// Reserved-name check is create-only: existing sites must always remain
 	// re-deployable even if a name later lands on the reserved list.
-	if err := validateSiteReserved(siteName); err != nil {
+	if err := sites.ValidateReserved(siteName); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
@@ -1632,7 +1632,7 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 	}
 	// Charset/shape only on update — never the reserved-name denylist, so an
 	// existing site is always re-deployable.
-	if err := validateSiteShape(siteName); err != nil {
+	if err := sites.ValidateShape(siteName); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
@@ -1720,7 +1720,7 @@ func (h *SiteHandler) writeSiteUpdateError(w http.ResponseWriter, r *http.Reques
 }
 
 // readJSONFiles decodes a {"files":{path:contents}} body and runs it through the
-// SAME path/secret/size guards as archive extraction (tarball.SanitizeFiles +
+// SAME path/secret/size guards as archive extraction (sites.SanitizeFiles +
 // ValidateExtensions). Returns the file map and a content digest for the version
 // row. On any error it has already written the HTTP response.
 func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
@@ -1785,9 +1785,9 @@ func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (m
 			return nil, nil, limit, override, err
 		}
 		if len(raw) > 0 {
-			clean, err := tarball.SanitizeFilePatchWithLimit(raw, extractBudget(limit, override), h.limits.MaxFilesPerSite)
+			clean, err := sites.SanitizeFilePatchWithLimit(raw, rulesstorage.ExtractBudget(limit, override), h.limits.MaxFilesPerSite)
 			if err != nil {
-				if errors.Is(err, tarball.ErrTooLarge) {
+				if errors.Is(err, sites.ErrArchiveTooLarge) {
 					writeTooLarge(w, limit, err.Error())
 				} else {
 					writeJSON(w, 400, errorResponse{Error: err.Error()})
@@ -1795,7 +1795,7 @@ func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (m
 				return nil, nil, limit, override, err
 			}
 			raw = clean
-			if err := tarball.ValidateExtensions(raw); err != nil {
+			if err := sites.ValidateExtensions(raw); err != nil {
 				writeJSON(w, 400, errorResponse{Error: err.Error()})
 				return nil, nil, limit, override, err
 			}
@@ -1806,16 +1806,16 @@ func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (m
 }
 
 func (h *SiteHandler) finishJSONFiles(w http.ResponseWriter, raw map[string][]byte, limit int64, override bool) (map[string][]byte, string, error) {
-	files, err := tarball.SanitizeFilesWithLimit(raw, extractBudget(limit, override), h.limits.MaxFilesPerSite)
+	files, err := sites.SanitizeFilesWithLimit(raw, rulesstorage.ExtractBudget(limit, override), h.limits.MaxFilesPerSite)
 	if err != nil {
-		if errors.Is(err, tarball.ErrTooLarge) {
+		if errors.Is(err, sites.ErrArchiveTooLarge) {
 			writeTooLarge(w, limit, err.Error())
 			return nil, "", err
 		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
 		return nil, "", err
 	}
-	if err := tarball.ValidateExtensions(files); err != nil {
+	if err := sites.ValidateExtensions(files); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "blocked_file_type"})
 		return nil, "", err
 	}
@@ -1857,11 +1857,11 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
 		return
 	}
-	if err := validateSiteShape(siteName); err != nil {
+	if err := sites.ValidateShape(siteName); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
-	if err := validateSiteReserved(siteName); err != nil {
+	if err := sites.ValidateReserved(siteName); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "name_reserved"})
 		return
 	}
@@ -1920,7 +1920,7 @@ func (h *SiteHandler) createIfMissing(w http.ResponseWriter, r *http.Request, us
 		return false, false
 	}
 	reserved := ""
-	if err := validateSiteReserved(siteName); err != nil {
+	if err := sites.ValidateReserved(siteName); err != nil {
 		reserved = err.Error()
 	}
 	err := h.sitesSvc().CreatePreflight(r.Context(), sites.PreflightInput{User: user, Name: siteName, CheckExisting: true, ReservedError: reserved, Publish: r.URL.Query().Get("publish")})
@@ -1985,7 +1985,7 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
 		return
 	}
-	if err := validateSiteShape(siteName); err != nil {
+	if err := sites.ValidateShape(siteName); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_name"})
 		return
 	}
@@ -2004,7 +2004,7 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 	}
 	keep := r.URL.Query().Get("keep") == "1"
 	if keep {
-		h.respondSiteUpdate(w, r, user, siteName, sites.UpdateInput{User: user, Name: siteName, Files: raw, Author: versionAuthor(r), Publish: publish, CreateIfMissing: create, Keep: true, Remove: remove, Budget: extractBudget(limit, override), Limit: limit}, func(site siteResponse) { writeJSON(w, http.StatusOK, site) })
+		h.respondSiteUpdate(w, r, user, siteName, sites.UpdateInput{User: user, Name: siteName, Files: raw, Author: versionAuthor(r), Publish: publish, CreateIfMissing: create, Keep: true, Remove: remove, Budget: rulesstorage.ExtractBudget(limit, override), Limit: limit}, func(site siteResponse) { writeJSON(w, http.StatusOK, site) })
 		return
 	}
 	files, digest, err := h.finishJSONFiles(w, raw, limit, override)
@@ -2372,9 +2372,9 @@ func (h *SiteHandler) readAndValidateFiles(w http.ResponseWriter, r *http.Reques
 	}
 
 	filename := archiveFilename(siteName, body)
-	files, err := tarball.ExtractWithLimit(bytes.NewReader(body), filename, extractBudget(limit, override), h.limits.MaxFilesPerSite)
+	files, err := sites.ExtractWithLimit(bytes.NewReader(body), filename, rulesstorage.ExtractBudget(limit, override), h.limits.MaxFilesPerSite)
 	if err != nil {
-		if errors.Is(err, tarball.ErrTooLarge) {
+		if errors.Is(err, sites.ErrArchiveTooLarge) {
 			writeTooLarge(w, limit, err.Error())
 			return nil, "", err
 		}
@@ -2393,7 +2393,7 @@ func (h *SiteHandler) readAndValidateFiles(w http.ResponseWriter, r *http.Reques
 			return nil, "", err
 		}
 	}
-	if err := tarball.ValidateExtensions(files); err != nil {
+	if err := sites.ValidateExtensions(files); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "blocked_file_type"})
 		return nil, "", err
 	}

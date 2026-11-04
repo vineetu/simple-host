@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -67,7 +68,7 @@ func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 	if req.Prefix != nil {
 		prefix = strings.TrimSpace(*req.Prefix)
 	}
-	if !visitorHandleRe.MatchString(prefix) {
+	if !appsites.VisitorHandle.MatchString(prefix) {
 		return nil, errors.New("prefix must contain 1 to 39 lowercase letters, digits or hyphens")
 	}
 	names := make([]string, *req.Count)
@@ -78,17 +79,17 @@ func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 }
 
 func validateHandle(handle string) error {
-	if !visitorHandleRe.MatchString(handle) || !handleIsLabel(handle) {
+	if !appsites.VisitorHandle.MatchString(handle) || !appsites.HandleIsLabel(handle) {
 		return errors.New("handle must contain 1 to 39 lowercase letters, digits or hyphens (not at the start or end) and must not be reserved")
 	}
-	if labelReservedForNew(handle) {
+	if appsites.LabelReservedForNew(handle) {
 		return errReservedName
 	}
 	return nil
 }
 
 // errReservedName: a new handle, claimed name or site name that is reserved
-// (labelReservedForNew, reservedNewSiteNames).
+// (appsites.LabelReservedForNew, reservedNewSiteNames).
 var errReservedName = errors.New("this name is reserved; pick another")
 
 func normalizeDisplayName(name string) (string, error) {

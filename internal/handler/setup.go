@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/eventdns"
 )
 
 // SetupHandler serves first-boot setup. Register it on the setup-mode mux only.
@@ -368,7 +368,7 @@ func (h *SetupHandler) publicIPv4(ctx context.Context) (string, error) {
 		if ip == nil || ip.To4() == nil {
 			continue
 		}
-		if canonical, err := eventdns.ValidatePublicIP(raw); err == nil {
+		if canonical, err := sites.ValidatePublicIP(raw); err == nil {
 			h.ip = canonical
 			return h.ip, nil
 		}

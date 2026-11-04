@@ -1,4 +1,4 @@
-package handler
+package sites
 
 import (
 	"context"
@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 type importRoundTrip func(*http.Request) (*http.Response, error)
 
 func (f importRoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 func TestImportFetcherRefusals(t *testing.T) {
-	f := newImportFetcher(map[string]bool{"old.example": true, "127.0.0.1": true, "169.254.169.254": true}, "https://old.example/", true, config.DefaultLimits())
+	f := newImportFetcher(map[string]bool{"old.example": true, "127.0.0.1": true, "169.254.169.254": true}, "https://old.example/", true, edition.ForKind(edition.Host).Limits())
 	defer f.client.CloseIdleConnections()
 	for _, raw := range []string{"http://127.0.0.1/", "http://169.254.169.254/latest/meta-data/", "http://[::ffff:127.0.0.1]/", "file:///etc/passwd", "https://unknown.example/", "http://100.64.0.1/", "http://0.1.2.3/", "http://[fd00::1]/"} {
 		if _, err := f.Fetch(context.Background(), raw); err == nil {
@@ -47,7 +47,7 @@ func mustImportURL(t *testing.T, raw string) *url.URL {
 	return u
 }
 func TestImportFetcherBudgetsAndPhotoOptOut(t *testing.T) {
-	f := newImportFetcher(map[string]bool{"old.example": true}, "https://old.example/", false, config.DefaultLimits())
+	f := newImportFetcher(map[string]bool{"old.example": true}, "https://old.example/", false, edition.ForKind(edition.Host).Limits())
 	defer f.client.CloseIdleConnections()
 	calls := 0
 	f.client.Transport = importRoundTrip(func(r *http.Request) (*http.Response, error) {
@@ -83,7 +83,7 @@ func TestImportFetcherBudgetsAndPhotoOptOut(t *testing.T) {
 }
 
 func TestImportFetcherRedirectsAndAllowedHosts(t *testing.T) {
-	f := newImportFetcher(map[string]bool{"old.example": true}, "", true, config.DefaultLimits())
+	f := newImportFetcher(map[string]bool{"old.example": true}, "", true, edition.ForKind(edition.Host).Limits())
 	for _, raw := range []string{"https://old.example/x", "https://a.files.wordpress.com/photo.jpg", "https://i0.wp.com/photo.jpg", "https://fonts.googleapis.com/css?family=example", "https://fonts.gstatic.com/font.woff2", "https://images.squarespace-cdn.com/content/v1/a/b/photo.jpg", "https://static1.squarespace.com/static/a/old.jpg", "https://static.squarespace.com/static/a/old.jpg", "https://assets.squarespace.com/universal/styles.css"} {
 		if err := f.allowed(mustImportURL(t, raw)); err != nil {
 			t.Fatal(raw, err)
@@ -100,7 +100,7 @@ func TestImportFetcherRedirectsAndAllowedHosts(t *testing.T) {
 }
 
 func TestImportFetcherWordPressComHosts(t *testing.T) {
-	f := newImportFetcher(map[string]bool{"old.example": true}, "", true, config.DefaultLimits())
+	f := newImportFetcher(map[string]bool{"old.example": true}, "", true, edition.ForKind(edition.Host).Limits())
 	defer f.client.CloseIdleConnections()
 	for _, raw := range []string{
 		"https://bakery.wordpress.com/2016/10/a.jpg",
@@ -127,7 +127,7 @@ func TestImportFetcherWordPressComHosts(t *testing.T) {
 }
 
 func TestImportFetcherSquarespaceHosts(t *testing.T) {
-	f := newImportFetcher(map[string]bool{}, "", true, config.DefaultLimits())
+	f := newImportFetcher(map[string]bool{}, "", true, edition.ForKind(edition.Host).Limits())
 	if err := f.allowed(mustImportURL(t, "https://user:pass@images.squarespace-cdn.com/a.jpg")); err == nil {
 		t.Fatal("credentials on a Squarespace host were accepted")
 	}

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/wpimport"
+	"github.com/vsriram/simple-host/internal/app/sites"
 )
 
 func TestKeepOtherFiles(t *testing.T) {
@@ -62,7 +62,7 @@ func TestImportRealDeploy(t *testing.T) {
 	owner := a.newPerson(t, "import-owner")
 	client := a.registerClient(t, testRedirect)
 	token := a.connect(t, owner, client, testRedirect)["access_token"].(string)
-	fakeImport(t, func(ctx context.Context, in wpimport.Input) (*wpimport.Result, error) {
+	fakeImport(t, func(ctx context.Context, in sites.ImportInput) (*sites.ImportResult, error) {
 		if len(in.WXR) != 1 {
 			t.Error("missing WXR")
 		}
@@ -70,7 +70,7 @@ func TestImportRealDeploy(t *testing.T) {
 		if err != nil || !strings.Contains(string(b), "<rss") {
 			t.Error("XML unreadable")
 		}
-		return &wpimport.Result{Files: map[string][]byte{"index.html": []byte("<h1>Moved</h1>"), "about.html": []byte("<p>About</p>")}, Report: wpimport.Report{Pages: 2}}, nil
+		return &sites.ImportResult{Files: map[string][]byte{"index.html": []byte("<h1>Moved</h1>"), "about.html": []byte("<p>About</p>")}, Report: sites.ImportReport{Pages: 2}}, nil
 	})
 	r := a.rpc(t, token, "tools/call", map[string]any{"name": "create_import_link", "arguments": map[string]any{"site": "moved"}})
 	_, out, failed := toolResultOf(t, r)

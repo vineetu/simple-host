@@ -10,6 +10,7 @@ import (
 	"time"
 
 	db "github.com/vsriram/simple-host/internal/db"
+	httpx "github.com/vsriram/simple-host/internal/httpx"
 )
 
 // Where an account came from (users.signup_*), recorded once when it is
@@ -50,7 +51,7 @@ func connectorSignup(ctx context.Context, q db.Querier, clientID, method string)
 	if err != nil {
 		return db.Signup{}, false
 	}
-	return db.Signup{Source: db.SignupConnectorPrefix + cleanClientName(c.Name), Method: method}, true
+	return db.Signup{Source: db.SignupConnectorPrefix + httpx.CleanClientName(c.Name), Method: method}, true
 }
 
 // signupForOwnerReturnTo says where a Google or GitHub sign-up that started on one of

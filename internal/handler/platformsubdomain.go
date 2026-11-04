@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -28,8 +29,8 @@ import (
 // private collections. Names nobody has claimed keep the legacy 301 to the path
 // URL (LegacyHostRedirect).
 
-// reservedSubdomainLabels, reservedSubdomainSet, labelReserved,
-// reservedNewNames, reservedNewSiteNames and labelReservedForNew moved to
+// reservedSubdomainLabels, appsites.ReservedSubdomainSet, appsites.LabelReserved,
+// reservedNewNames, reservedNewSiteNames and appsites.LabelReservedForNew moved to
 // internal/rules/sites (cleanup 3.2): see sites.ReservedSubdomainSet,
 // sites.LabelReserved and sites.LabelReservedForNew. Transitional lowercase
 // aliases live in internal/handler/sites_forward.go.
@@ -87,7 +88,7 @@ func (h *SiteHandler) claimableSubdomain(host string) (string, error) {
 		return "", errors.New("internationalised names are not supported")
 	}
 	full := label + "." + base
-	if labelReservedForNew(label) {
+	if appsites.LabelReservedForNew(label) {
 		return "", errSubdomainReserved
 	}
 	for _, b := range []string{base, strings.ToLower(h.siteDomain)} {

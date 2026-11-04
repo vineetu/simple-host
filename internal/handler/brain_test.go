@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/brain"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
 )
@@ -56,13 +55,9 @@ func brainFixture(t *testing.T) string {
 			}
 		}
 	}
-	b, err := brain.Build(filepath.Join(root, "host"), filepath.Join(root, "ent"), time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
 	out := filepath.Join(root, "bundle.json")
-	if err := brain.WriteFile(b, out); err != nil {
-		t.Fatal(err)
+	if output, err := exec.Command("go", "run", "../../cmd/server", "brain-build", "-host", filepath.Join(root, "host"), "-enterprise", filepath.Join(root, "ent"), "-out", out).CombinedOutput(); err != nil {
+		t.Fatalf("build brain fixture: %v %s", err, output)
 	}
 	return out
 }
@@ -74,7 +69,8 @@ func newBrainApp(t *testing.T) *connectorApp {
 		t.Fatal(err)
 	}
 	authMW := auth.Middleware(a.admin, adminID, a.database, 180*24*time.Hour)
-	a.conn.EnableBrain(a.mux, authMW, brainFixture(t))
+	path := brainFixture(t)
+	a.conn.EnableBrain(a.mux, authMW, path, mcp.OpenBrainStore(path))
 	return a
 }
 

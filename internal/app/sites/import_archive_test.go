@@ -1,4 +1,4 @@
-package handler
+package sites
 
 import (
 	"archive/tar"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/wpimport"
 )
 
@@ -70,26 +70,26 @@ func makeImportArchive(t *testing.T, format string, entries []importArchiveEntry
 	}
 	return b.Bytes()
 }
-func unpackImportTest(t *testing.T, body []byte, l config.Limits) (*importFiles, error) {
+func unpackImportTest(t *testing.T, body []byte, l edition.Limits) (*ImportFiles, error) {
 	t.Helper()
 	dir := t.TempDir()
 	name := filepath.Join(dir, "upload")
 	if err := os.WriteFile(name, body, 0600); err != nil {
 		t.Fatal(err)
 	}
-	files := &importFiles{dir: dir, limits: l, media: map[string]wpimport.MediaFile{}}
-	err := files.unpack(name)
+	files := &ImportFiles{Dir: dir, Limits: l, Media: map[string]wpimport.MediaFile{}}
+	err := files.Unpack(name)
 	return files, err
 }
 func TestImportArchiveFormatsAndSafety(t *testing.T) {
 	for _, format := range []string{"zip", "tar", "tgz"} {
 		t.Run(format, func(t *testing.T) {
-			l := config.DefaultLimits()
+			l := edition.ForKind(edition.Host).Limits()
 			files, err := unpackImportTest(t, makeImportArchive(t, format, []importArchiveEntry{{"export.xml", testWXR, 0}, {"2026/10/photo.jpg", "photo bytes", 0}, {"__MACOSX/junk", "junk", 0}, {".DS_Store", "junk", 0}, {"Thumbs.db", "junk", 0}}), l)
-			if err != nil || len(files.xml) != 1 || len(files.media) != 1 {
-				t.Fatal(err, len(files.xml), files.media)
+			if err != nil || len(files.Xml) != 1 || len(files.Media) != 1 {
+				t.Fatal(err, len(files.Xml), files.Media)
 			}
-			media := files.media["2026/10/photo.jpg"]
+			media := files.Media["2026/10/photo.jpg"]
 			r, err := media.Open()
 			if err != nil {
 				t.Fatal(err)
@@ -99,7 +99,7 @@ func TestImportArchiveFormatsAndSafety(t *testing.T) {
 			if string(body) != "photo bytes" || media.Size != 11 {
 				t.Fatal(media.Size, string(body))
 			}
-			hosts := importSourceHosts(files.xml)
+			hosts := importSourceHosts(files.Xml)
 			if !hosts["old.example"] || !hosts["www.old.example"] {
 				t.Fatal(hosts)
 			}
@@ -120,7 +120,7 @@ func TestImportArchiveFormatsAndSafety(t *testing.T) {
 		})
 	}
 	for _, name := range []string{"x\x00y", `C:\windows\file`, "/absolute", "../parent", `\root\file`} {
-		if _, err := importPath(name); err == nil {
+		if _, err := ImportPath(name); err == nil {
 			t.Fatal("unsafe path", name)
 		}
 	}
@@ -128,19 +128,19 @@ func TestImportArchiveFormatsAndSafety(t *testing.T) {
 func TestImportArchiveCapsAndEntity(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
-		l       func(*config.Limits)
+		l       func(*edition.Limits)
 		format  string
 		entries []importArchiveEntry
 		want    string
 	}{
-		{"entries", func(l *config.Limits) { l.ImportMaxArchiveEntries = 1 }, "zip", []importArchiveEntry{{"a", "1", 0}, {"b", "2", 0}}, "too many"},
-		{"total", func(l *config.Limits) { l.ImportMaxUnpackedMB = 1 }, "tar", []importArchiveEntry{{"a", strings.Repeat("x", 1<<20), 0}, {"b", "x", 0}}, "too large"},
-		{"ratio", func(l *config.Limits) {}, "zip", []importArchiveEntry{{"bomb", strings.Repeat("x", (1<<20)+1), 0}}, "ratio"},
-		{"xml", func(l *config.Limits) { l.ImportMaxXMLMB = 1 }, "tar", []importArchiveEntry{{"a.xml", testWXR + strings.Repeat(" ", 1<<20), 0}}, "XML files"},
-		{"entity", func(l *config.Limits) {}, "zip", []importArchiveEntry{{"a.xml", `<?xml?><!ENTITY example "x"><rss/>`, 0}}, "entity"},
+		{"entries", func(l *edition.Limits) { l.ImportMaxArchiveEntries = 1 }, "zip", []importArchiveEntry{{"a", "1", 0}, {"b", "2", 0}}, "too many"},
+		{"Total", func(l *edition.Limits) { l.ImportMaxUnpackedMB = 1 }, "tar", []importArchiveEntry{{"a", strings.Repeat("x", 1<<20), 0}, {"b", "x", 0}}, "too large"},
+		{"ratio", func(l *edition.Limits) {}, "zip", []importArchiveEntry{{"bomb", strings.Repeat("x", (1<<20)+1), 0}}, "ratio"},
+		{"Xml", func(l *edition.Limits) { l.ImportMaxXMLMB = 1 }, "tar", []importArchiveEntry{{"a.xml", testWXR + strings.Repeat(" ", 1<<20), 0}}, "XML files"},
+		{"entity", func(l *edition.Limits) {}, "zip", []importArchiveEntry{{"a.xml", `<?xml?><!ENTITY example "x"><rss/>`, 0}}, "entity"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			l := config.DefaultLimits()
+			l := edition.ForKind(edition.Host).Limits()
 			tc.l(&l)
 			_, err := unpackImportTest(t, makeImportArchive(t, tc.format, tc.entries), l)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
@@ -148,9 +148,9 @@ func TestImportArchiveCapsAndEntity(t *testing.T) {
 			}
 		})
 	}
-	// Extension alone does not turn a media file into XML; content sniffing does.
-	files, err := unpackImportTest(t, []byte("\xef\xbb\xbf \n<rss><channel/></rss>"), config.DefaultLimits())
-	if err != nil || len(files.xml) != 1 {
+	// Extension alone does not turn a Media file into XML; content sniffing does.
+	files, err := unpackImportTest(t, []byte("\xef\xbb\xbf \n<rss><channel/></rss>"), edition.ForKind(edition.Host).Limits())
+	if err != nil || len(files.Xml) != 1 {
 		t.Fatal(err)
 	}
 }
@@ -160,25 +160,27 @@ type importZeros struct{}
 
 func (importZeros) Read(p []byte) (int, error) { clear(p); return len(p), nil }
 func TestImportArchiveEntryByteCap(t *testing.T) {
-	files := &importFiles{dir: t.TempDir(), limits: config.DefaultLimits(), media: map[string]wpimport.MediaFile{}}
-	if err := files.entry("large.bin", io.LimitReader(importZeros{}, (200<<20)+1), 0); err == nil || !strings.Contains(err.Error(), "200 MB") {
+	files := &ImportFiles{Dir: t.TempDir(), Limits: edition.ForKind(edition.Host).Limits(), Media: map[string]wpimport.MediaFile{}}
+	if err := files.Entry("large.bin", io.LimitReader(importZeros{}, (200<<20)+1), 0); err == nil || !strings.Contains(err.Error(), "200 MB") {
 		t.Fatal(err)
 	}
 }
 
 func TestImportArchiveXMLMediaIsNotAnExport(t *testing.T) {
 	const svg = `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>`
-	files, err := unpackImportTest(t, makeImportArchive(t, "zip", []importArchiveEntry{{"export.xml", testWXR, 0}, {"2026/10/logo.svg", svg, 0}}), config.DefaultLimits())
-	if err != nil || len(files.xml) != 1 || len(files.media) != 1 {
-		t.Fatal(err, len(files.xml), files.media)
+	files, err := unpackImportTest(t, makeImportArchive(t, "zip", []importArchiveEntry{{"export.xml", testWXR, 0}, {"2026/10/logo.svg", svg, 0}}), edition.ForKind(edition.Host).Limits())
+	if err != nil || len(files.Xml) != 1 || len(files.Media) != 1 {
+		t.Fatal(err, len(files.Xml), files.Media)
 	}
-	r, err := files.media["2026/10/logo.svg"].Open()
+	r, err := files.Media["2026/10/logo.svg"].Open()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer r.Close()
 	body, _ := io.ReadAll(r)
 	if string(body) != svg {
-		t.Fatal("XML media changed")
+		t.Fatal("XML Media changed")
 	}
 }
+
+const testWXR = `<?xml version="1.0"?><rss xmlns:wp="http://wordpress.org/export/1.2/"><channel><wp:base_site_url>https://old.example</wp:base_site_url><wp:base_blog_url>https://www.old.example</wp:base_blog_url><item/></channel></rss>`

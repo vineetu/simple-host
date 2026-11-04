@@ -9,15 +9,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/tarball"
 )
 
 // withSiteLimit sets MAX_ARCHIVE_MB for one test and puts it back.
 func withSiteLimit(t *testing.T, mb int) {
 	t.Helper()
 	old := SiteLimit()
-	restore := tarball.SnapshotLimits()
+	restore := sites.SnapshotArchiveLimits()
 	SetSiteLimit(int64(mb) << 20)
 	t.Cleanup(func() { restore(); maxSiteArchiveSize = old })
 }
@@ -242,7 +242,7 @@ func TestArchiveNoOverrideKeepsInstanceUnpackCaps(t *testing.T) {
 	a := newPersonApp(t, "serve")
 	olive, oscar := a.newPerson(t, "olive"), a.newPerson(t, "oscar")
 	_, oliveHandle := a.userID(t, olive)
-	restore := tarball.SnapshotLimits()
+	restore := sites.SnapshotArchiveLimits()
 	old := maxSiteArchiveSize
 	maxSiteArchiveSize = 1 << 20 // the body cap alone, as if SetSiteLimit never ran
 	t.Cleanup(func() { restore(); maxSiteArchiveSize = old })

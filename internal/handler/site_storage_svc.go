@@ -2,11 +2,13 @@ package handler
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/papermetrics"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/db"
+	httpx "github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/papermetrics"
 )
 import appstorage "github.com/vsriram/simple-host/internal/app/storage"
 import rules "github.com/vsriram/simple-host/internal/rules/storage"
@@ -23,7 +25,7 @@ func (h *SiteHandler) storageDeps() appstorage.Deps {
 		VisitorSessionIdle: h.limits.VisitorSessionIdle,
 	}
 	deps.VisitorEmail = func(ctx context.Context, id string) (string, error) { return visitorEmail(ctx, h.database, id) }
-	deps.OpenFileToken = func(token string) ([]byte, error) { return openLink(h.exportKey, "site storage file v1", token) }
+	deps.OpenFileToken = func(token string) ([]byte, error) { return httpx.OpenLink(h.exportKey, "site storage file v1", token) }
 	deps.FileResourceExists = func(ctx context.Context, siteID, name string) bool {
 		resource, err := h.loadStorageResource(ctx, siteID, name)
 		return err == nil && resource.Kind == "files"

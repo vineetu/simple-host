@@ -291,7 +291,7 @@ func familyLabelOK(f db.AddressFamily, label string, l config.Limits) bool {
 			return false
 		}
 	}
-	return validSiteName.MatchString(f.SitePrefix + label)
+	return sites.ValidSiteName.MatchString(f.SitePrefix + label)
 }
 
 // familyMatch is what a family host names.

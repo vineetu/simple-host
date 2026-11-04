@@ -1,6 +1,10 @@
 package handler
 
-import "testing"
+import (
+	"testing"
+
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
+)
 
 func TestValidateSiteShapeAcceptsExistingNames(t *testing.T) {
 	// A representative sample of names actually deployed on the box, plus the
@@ -12,8 +16,8 @@ func TestValidateSiteShapeAcceptsExistingNames(t *testing.T) {
 		"xianqu-box-sample-20260626", "open-kit", "auto-tune", "mixologist",
 	}
 	for _, name := range existing {
-		if err := validateSiteShape(name); err != nil {
-			t.Errorf("existing site %q rejected by validateSiteShape: %v", name, err)
+		if err := appsites.ValidateShape(name); err != nil {
+			t.Errorf("existing site %q rejected by appsites.ValidateShape: %v", name, err)
 		}
 	}
 }
@@ -36,20 +40,20 @@ func TestValidateSiteShapeRejectsAbuse(t *testing.T) {
 		strings64(),           // 64 chars — exceeds DNS label limit
 	}
 	for _, name := range bad {
-		if err := validateSiteShape(name); err == nil {
-			t.Errorf("abusive name %q was accepted by validateSiteShape", name)
+		if err := appsites.ValidateShape(name); err == nil {
+			t.Errorf("abusive name %q was accepted by appsites.ValidateShape", name)
 		}
 	}
 }
 
 func TestValidateSiteReservedCreateOnly(t *testing.T) {
 	for _, name := range []string{"simple-host", "jot-webhook", "api", "admin", "www"} {
-		if err := validateSiteReserved(name); err == nil {
+		if err := appsites.ValidateReserved(name); err == nil {
 			t.Errorf("reserved name %q should be rejected on create", name)
 		}
 	}
 	// jot is a live site — it must NOT be reserved, or its redeploys break.
-	if err := validateSiteReserved("jot"); err != nil {
+	if err := appsites.ValidateReserved("jot"); err != nil {
 		t.Errorf("jot must not be reserved (it is a live site): %v", err)
 	}
 }
