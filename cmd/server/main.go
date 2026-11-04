@@ -35,6 +35,14 @@ import (
 )
 
 func main() {
+	exitCode := 0
+	// Keep failure exit codes while allowing dependency cleanup to run first.
+	defer func() {
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
+	}()
+
 	if len(os.Args) > 1 && os.Args[1] == "prune-versions" {
 		os.Exit(runPruneVersions(os.Args[2:]))
 	}
@@ -610,6 +618,7 @@ func main() {
 	select {
 	case err := <-serverErr:
 		if err != nil {
+			exitCode = 1
 			log.Printf("server error: %v", err)
 		}
 	case <-ctx.Done():
@@ -620,6 +629,7 @@ func main() {
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
+		exitCode = 1
 		log.Printf("graceful shutdown failed: %v", err)
 		if closeErr := server.Close(); closeErr != nil {
 			log.Printf("force close failed: %v", closeErr)
@@ -630,6 +640,7 @@ func main() {
 	joinCtx, joinCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer joinCancel()
 	for _, name := range workerSet.Wait(joinCtx) {
+		exitCode = 1
 		log.Printf("worker %s: shutdown deadline exceeded", name)
 	}
 	// The metric owner supplies its final buffered flush when D's hook lands.

@@ -1628,7 +1628,7 @@
       "method": "GET",
       "path": "/v1/admin/api-analytics",
       "feature_id": "moderation",
-      "source": "cmd/server/main.go:534",
+      "source": "cmd/server/main.go:542",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1652,7 +1652,7 @@
       "method": "GET",
       "path": "/v1/admin/growth",
       "feature_id": "moderation",
-      "source": "cmd/server/main.go:535",
+      "source": "cmd/server/main.go:543",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1684,7 +1684,7 @@
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "cmd/server/main.go:552",
+      "source": "cmd/server/main.go:560",
       "package": "cmd/server",
       "dynamic": false
     },
