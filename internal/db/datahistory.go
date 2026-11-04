@@ -91,14 +91,14 @@ func roomAfter(ctx context.Context, q Querier, siteID string, maxBytes int64) er
 
 // lockState reads the document, its version and its stored size with the
 // site row locked.
-func lockState(ctx context.Context, q Querier, siteID string) (json.RawMessage, int, int64, error) {
+func lockState(ctx context.Context, q *sql.Tx, siteID string) (json.RawMessage, int, int64, error) {
 	return legacy.LockState(ctx, q, siteID)
 }
 
 // setStateWithin writes the document (row locked by lockState) and returns
 // ErrSiteFull when the document grew and the site is now past maxBytes. The
 // caller rolls back on error.
-func setStateWithin(ctx context.Context, q Querier, siteID string, state json.RawMessage, oldSize, maxBytes int64) (int, error) {
+func setStateWithin(ctx context.Context, q *sql.Tx, siteID string, state json.RawMessage, oldSize, maxBytes int64) (int, error) {
 	version, size, total, err := legacy.UpdateLockedState(ctx, q, siteID, state)
 	if err != nil {
 		return 0, err

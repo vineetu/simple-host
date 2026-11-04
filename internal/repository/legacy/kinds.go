@@ -100,7 +100,10 @@ func PersonalItemID(ctx context.Context, q sqlkit.Querier, siteID, name, userID 
 // ItemAuthor is a shared legacy record.
 type ItemAuthor = model.ItemAuthor
 
-// GetItemAuthor reads the stamped author of an item.
+// GetItemAuthor reads who sent item id of name on siteID: the address the
+// server stamped when it was saved. Only a private list's _submitted_by
+// (stamped by the server too) stands in for rows saved before that column;
+// a public list's is whatever the page sent, so it is never used.
 func GetItemAuthor(ctx context.Context, q sqlkit.Querier, siteID, name string, id int64) (ItemAuthor, error) {
 	var a ItemAuthor
 	var by, email sql.NullString

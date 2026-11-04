@@ -36,7 +36,6 @@ type Deps struct {
 	VisitorInternalSession         func(string) (db.VisitorSession, bool)
 	VisitorResolveKey              func(context.Context, string) (db.User, bool, error)
 	VisitorKeyActor                func(string) db.Actor
-	VisitorSessionCookie           func() string
 	VisitorSessionValid            func(db.VisitorSession, string) bool
 	VisitorLog                     func(string, string)
 	VisitorLogKey                  func(string, bool)
@@ -47,7 +46,6 @@ type Deps struct {
 	ContentAuthor                  func(context.Context, db.Actor) db.Actor
 	HistoryThinStuck               *sync.Map
 	HistoryThinAllowed             func(string) bool
-	ReadBucketClientIP             func() string
 	DataReadLimit                  func(string) bool
 	DataOwnerBrowser               func(string) bool
 	MineResolveSite                func(string) (string, error)

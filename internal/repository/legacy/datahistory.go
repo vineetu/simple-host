@@ -158,7 +158,7 @@ func HistoryRecord(ctx context.Context, q sqlkit.Querier, siteID, kind, name str
 }
 
 // LockState locks and reads a site’s current document.
-func LockState(ctx context.Context, q sqlkit.Querier, siteID string) (json.RawMessage, int, int64, error) {
+func LockState(ctx context.Context, q *sql.Tx, siteID string) (json.RawMessage, int, int64, error) {
 	var state []byte
 	var version int
 	var size int64
@@ -172,7 +172,7 @@ func LockState(ctx context.Context, q sqlkit.Querier, siteID string) (json.RawMe
 }
 
 // UpdateLockedState updates a locked document and returns its measured sizes.
-func UpdateLockedState(ctx context.Context, q sqlkit.Querier, siteID string, state json.RawMessage) (int, int64, int64, error) {
+func UpdateLockedState(ctx context.Context, q *sql.Tx, siteID string, state json.RawMessage) (int, int64, int64, error) {
 	var version int
 	var size, total int64
 	err := q.QueryRowContext(ctx, `

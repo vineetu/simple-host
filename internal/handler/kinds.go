@@ -240,7 +240,6 @@ func (h *SiteHandler) visitorWriteSvc(r *http.Request, in legacy.VisitorWriteInp
 		VisitorInternalSession: func(site string) (db.VisitorSession, bool) { return h.internalVisitorSession(r, site) },
 		VisitorResolveKey:      h.resolveWriterKey,
 		VisitorKeyActor:        func(owner string) db.Actor { return h.keyActor(r, owner) },
-		VisitorSessionCookie:   func() string { return h.sessionCookieFor(r) },
 		VisitorSessionValid:    func(sess db.VisitorSession, site string) bool { return h.sessionValidFor(r, sess, site) },
 		VisitorLog: func(mode, outcome string) {
 			h.logAnonWrite(r, in.SiteID, in.SiteName, in.Route, in.Collection, mode, outcome)
@@ -257,7 +256,8 @@ func (h *SiteHandler) visitorWriteSvc(r *http.Request, in legacy.VisitorWriteInp
 
 func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) (db.Actor, bool) {
 	in := legacy.VisitorWriteInput{
-		SiteID: siteID, SiteName: siteName, Route: route, Collection: collection,
+		VisitorSessionCookie: h.sessionCookieFor(r),
+		SiteID:               siteID, SiteName: siteName, Route: route, Collection: collection,
 		Mode: h.writeAuthMode, Key: r.Header.Get("X-API-Key"),
 		Preview: previewReferer(r), ContentHost: strings.EqualFold(requestHostName(r), h.contentHost),
 		Canonical: h.personHostsCanonical(), VisitorPass: r.Header.Get(visitorPassHeader) != "",
@@ -648,13 +648,6 @@ func (h *SiteHandler) listMine(w http.ResponseWriter, r *http.Request, siteName,
 	writeJSON(w, http.StatusOK, map[string]any{"items": result.Items, "next": result.Next, "mine": true})
 }
 
-// isOwnerRequest: the request carries a key (the item routes send those to
-// the owner's handlers, which check it), or comes from the site's owner
-// signed in on the site.
-func (h *SiteHandler) isOwnerRequest(r *http.Request, siteID string) bool {
-	return r.Header.Get("X-API-Key") != "" || h.ownerBrowserView(r, siteID)
-}
-
 // putContent is PUT /v1/sites/{s}/data/{name}: the owner replaces a Page info
 // document (one JSON object, at most SAVED_DATA_CONTENT_MAX_KB). The earlier
 // document goes to the name's history.
@@ -861,82 +854,19 @@ func (h *SiteHandler) contentWriter(w http.ResponseWriter, r *http.Request, site
 	return db.Actor{}, false
 }
 
-// itemKind reads the name of an item route: a Personal name has no items
-// anyone addresses by id (answered: the refusal is written); everything else
-// comes back to its handler.
-func (h *SiteHandler) itemKind(w http.ResponseWriter, r *http.Request, siteID, siteName string) (db.DataSettings, bool) {
-	name := strings.TrimSpace(r.PathValue("coll"))
-	set, ok := h.dataSettings(w, r, siteID, name)
-	if !ok {
-		return set, true
-	}
-	if set.Kind == db.KindPersonal {
-		writeWrongKind(w, name, set.Kind, "each visitor changes their own record with PUT, PATCH or DELETE /v1/sites/"+siteName+"/data/"+name)
-		return set, true
-	}
-	return set, false
-}
-
-// itemSite resolves {sitename} for the item routes. Writes the 404.
-func (h *SiteHandler) itemSite(w http.ResponseWriter, r *http.Request) (string, string, bool) {
-	w.Header().Set("Cache-Control", "private, no-store")
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	name := strings.TrimSpace(r.PathValue("coll"))
-	if siteName == "" || !validCollectionName.MatchString(name) {
-		writePrivateNotFound(w)
-		return "", "", false
-	}
-	siteID, err := h.resolveSiteID(r, siteName)
-	if err != nil {
-		writePrivateNotFound(w)
-		return "", "", false
-	}
-	return siteID, siteName, true
-}
-
 // updateEntry is PATCH /v1/sites/{s}/data/{name}/items/{id}. The owner (key,
 // connector, or signed in on the site) goes to the list's owner edit; a
 // signed-in visitor changes their own entry: the fields sent are merged in (a
 // null removes one); _submitted_by and _submitted_at never change.
 func (h *SiteHandler) updateEntry(w http.ResponseWriter, r *http.Request) {
-	siteID, siteName, ok := h.itemSite(w, r)
-	if !ok {
+	w.Header().Set("Cache-Control", "private, no-store")
+	in := h.entryRequest(r)
+	siteName, name := in.SiteName, in.Name
+	result, err := h.entrySvc(r).UpdateEntry(r.Context(), in)
+	if h.writeEntrySelection(w, in, result, err, "update") {
 		return
 	}
-	if set, answered := h.itemKind(w, r, siteID, siteName); answered {
-		return
-	} else if storagerules.LegacyEntryRoute(set.Kind, false, false) == storagerules.LegacyEntryBoard {
-		h.updateBoardItem(w, r, siteID, set)
-		return
-	}
-	if h.isOwnerRequest(r, siteID) {
-		h.updatePrivateItem(w, r)
-		return
-	}
-	if h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID) {
-		return
-	}
-	if strings.EqualFold(requestHostName(r), h.contentHost) {
-		writeVisitorAuthRequired(w)
-		return
-	}
-	sess, ok := h.strictVisitorSession(r, siteID)
-	if !ok {
-		writeVisitorAuthRequired(w)
-		return
-	}
-	name := strings.TrimSpace(r.PathValue("coll"))
-	id, valid := pathID(r, "id")
-	entryLimit := int64(h.savedData.EntryMaxKB) << 10
-	readLimit := int64(maxCollectionItemSize)
-	if entryLimit > readLimit {
-		readLimit = entryLimit
-	}
-	raw, readErr := io.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
-	var maxErr *http.MaxBytesError
-	tooLarge := errors.As(readErr, &maxErr)
-	patch, patchValid := storagerules.DecodeLegacyEntryPatch(raw)
-	item, set, err := h.legacySvc().UpdateEntry(r.Context(), legacy.UpdateEntryInput{SiteID: siteID, Name: name, VisitorAccess: legacy.VisitorAccessInput{UserID: sess.UserID, SessionID: sess.ID, NeedCSRF: true, CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, Idle: h.limits.VisitorSessionIdle}, ID: id, ValidID: valid, DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst, VisitorPass: r.Header.Get(visitorPassHeader) != "", EntryMaxKB: h.savedData.EntryMaxKB, ListMaxBytes: maxCollectionItemSize, Patch: raw, DecodedPatch: patch, PatchValid: patchValid, PatchReadError: readErr != nil, PatchTooLarge: tooLarge})
+	item, set := result.Item, result.Settings
 	var serviceErr *legacy.Error
 	switch {
 	case errors.As(err, &serviceErr) && serviceErr.Code == "account_suspended":
@@ -958,6 +888,7 @@ func (h *SiteHandler) updateEntry(w http.ResponseWriter, r *http.Request) {
 	case errors.As(err, &serviceErr) && serviceErr.Code == "not_allowed":
 		writeNotAllowedToSave(w)
 	case errors.As(err, &serviceErr) && serviceErr.Code == "item_too_large":
+		signalLegacyBodyTooLarge(w)
 		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
 	case errors.As(err, &serviceErr) && serviceErr.Code == "invalid_patch":
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `send a JSON object of the fields to change, e.g. {"guests": 3}`})
@@ -985,38 +916,14 @@ func (h *SiteHandler) updateEntry(w http.ResponseWriter, r *http.Request) {
 // and the owner for SAVED_DATA_UNDO_DAYS. A blocked visitor can still
 // withdraw their own.
 func (h *SiteHandler) withdrawEntry(w http.ResponseWriter, r *http.Request) {
-	siteID, siteName, ok := h.itemSite(w, r)
-	if !ok {
+	w.Header().Set("Cache-Control", "private, no-store")
+	in := h.entryRequest(r)
+	siteName, name, id := in.SiteName, in.Name, in.ID
+	result, err := h.entrySvc(r).WithdrawEntry(r.Context(), in)
+	if h.writeEntrySelection(w, in, result, err, "withdraw") {
 		return
 	}
-	kset, answered := h.itemKind(w, r, siteID, siteName)
-	if answered {
-		return
-	}
-	owner := h.isOwnerRequest(r, siteID)
-	switch storagerules.LegacyEntryRoute(kset.Kind, owner, true) {
-	case storagerules.LegacyEntryOwner:
-		h.deletePrivateItem(w, r)
-		return
-	case storagerules.LegacyEntryBoard:
-		h.deleteBoardItem(w, r, siteID, kset)
-		return
-	}
-	if h.refuseSuspendedSiteID(w, r, siteID) {
-		return
-	}
-	if strings.EqualFold(requestHostName(r), h.contentHost) {
-		writeVisitorAuthRequired(w)
-		return
-	}
-	sess, ok := h.strictVisitorSession(r, siteID)
-	if !ok {
-		writeVisitorAuthRequired(w)
-		return
-	}
-	name := strings.TrimSpace(r.PathValue("coll"))
-	id, valid := pathID(r, "id")
-	set, err := h.legacySvc().WithdrawEntry(r.Context(), legacy.WithdrawEntryInput{SiteID: siteID, Name: name, VisitorAccess: legacy.VisitorAccessInput{UserID: sess.UserID, SessionID: sess.ID, NeedCSRF: true, CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, Idle: h.limits.VisitorSessionIdle}, ID: id, ValidID: valid, DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst})
+	set := result.Settings
 	var serviceErr *legacy.Error
 	switch {
 	case errors.As(err, &serviceErr) && serviceErr.Code == "account_suspended":
@@ -1053,32 +960,15 @@ func (h *SiteHandler) withdrawEntry(w http.ResponseWriter, r *http.Request) {
 // SAVED_DATA_WITHDRAW_UNDO_MINUTES. (The owner restores anything from
 // Recently deleted instead.)
 func (h *SiteHandler) undoWithdraw(w http.ResponseWriter, r *http.Request) {
-	siteID, siteName, ok := h.itemSite(w, r)
-	if !ok {
+	w.Header().Set("Cache-Control", "private, no-store")
+	in := h.entryRequest(r)
+	siteName, name := in.SiteName, in.Name
+	window := in.Window
+	result, err := h.entrySvc(r).UndoEntry(r.Context(), in)
+	if h.writeEntrySelection(w, in, result, err, "undo") {
 		return
 	}
-	if set, answered := h.itemKind(w, r, siteID, siteName); answered {
-		return
-	} else if set.Kind == db.KindBoard {
-		h.undoBoardDelete(w, r, siteID, set)
-		return
-	}
-	if h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID) {
-		return
-	}
-	if strings.EqualFold(requestHostName(r), h.contentHost) {
-		writeVisitorAuthRequired(w)
-		return
-	}
-	sess, ok := h.strictVisitorSession(r, siteID)
-	if !ok {
-		writeVisitorAuthRequired(w)
-		return
-	}
-	name := strings.TrimSpace(r.PathValue("coll"))
-	id, valid := pathID(r, "id")
-	window := time.Duration(h.savedData.WithdrawUndoMinutes) * time.Minute
-	item, done, set, err := h.legacySvc().UndoEntry(r.Context(), legacy.UndoEntryInput{SiteID: siteID, Name: name, ID: id, VisitorAccess: legacy.VisitorAccessInput{UserID: sess.UserID, SessionID: sess.ID, NeedCSRF: true, CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, Idle: h.limits.VisitorSessionIdle}, Window: window, ValidID: valid, DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst, VisitorPass: r.Header.Get(visitorPassHeader) != "", MaxItems: h.savedData.EntriesMax, MaxBytes: h.siteMaxBytes()})
+	item, done, set := result.Item, result.Done, result.Settings
 	var serviceErr *legacy.Error
 	switch {
 	case errors.As(err, &serviceErr) && serviceErr.Code == "account_suspended":

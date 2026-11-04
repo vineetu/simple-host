@@ -80,21 +80,19 @@ func (a *Adapter) PersonSaverAllowed(ctx context.Context, in PersonSaverInput) (
 	return false, nil
 }
 
-// UpdateEntryInput contains the validated patch for a visitor's entry.
-type UpdateEntryInput struct {
-	SiteID, Name                              string
-	VisitorAccess                             VisitorAccessInput
-	ID                                        int64
-	ValidID, DeclareFirst, VisitorPass        bool
-	EntryMaxKB                                int
-	ListMaxBytes                              int64
-	Patch                                     []byte
-	DecodedPatch                              map[string]json.RawMessage
-	PatchValid, PatchReadError, PatchTooLarge bool
+// updateVisitorEntryInput contains request facts and a deferred body reader for an entry patch.
+type updateVisitorEntryInput struct {
+	SiteID, Name                       string
+	VisitorAccess                      VisitorAccessInput
+	ID                                 int64
+	ValidID, DeclareFirst, VisitorPass bool
+	EntryMaxKB                         int
+	ListMaxBytes                       int64
+	ReadPatch                          func(int64) ([]byte, error)
 }
 
-// UpdateEntry applies a visitor patch and records its previous value.
-func (a *Adapter) UpdateEntry(ctx context.Context, in UpdateEntryInput) (db.CollectionItem, db.DataSettings, error) {
+// updateVisitorEntry applies a visitor patch and records its previous value.
+func (a *Adapter) updateVisitorEntry(ctx context.Context, in updateVisitorEntryInput) (db.CollectionItem, db.DataSettings, error) {
 	set, err := a.visitorEntrySettings(ctx, in.SiteID, in.Name, in.DeclareFirst, in.VisitorAccess)
 	if errors.Is(err, sql.ErrNoRows) {
 		return db.CollectionItem{}, set, &Error{Code: "site_not_found"}
@@ -109,15 +107,16 @@ func (a *Adapter) UpdateEntry(ctx context.Context, in UpdateEntryInput) (db.Coll
 		return db.CollectionItem{}, set, err
 	}
 	maxBytes := EntryMaxBytes(set, in.EntryMaxKB, in.ListMaxBytes)
-	raw := in.Patch
-	if in.PatchTooLarge || int64(len(raw)) > maxBytes {
+	raw, readErr := in.ReadPatch(maxBytes)
+	var bodyErr *Error
+	if errors.As(readErr, &bodyErr) && bodyErr.Code == "item_too_large" {
 		return db.CollectionItem{}, set, &Error{Code: "item_too_large"}
 	}
-	if in.PatchReadError {
+	if readErr != nil {
 		return db.CollectionItem{}, set, &Error{Code: "invalid_patch"}
 	}
-	patch := in.DecodedPatch
-	if !in.PatchValid {
+	patch, valid := storagerules.DecodeLegacyEntryPatch(raw)
+	if !valid {
 		return db.CollectionItem{}, set, &Error{Code: "invalid_patch"}
 	}
 	if !storagerules.LegacyJSONStorable(raw) {
@@ -159,16 +158,16 @@ func (a *Adapter) UpdateEntry(ctx context.Context, in UpdateEntryInput) (db.Coll
 	return it, set, tx.Commit()
 }
 
-// WithdrawEntryInput identifies the signed-in visitor and entry to withdraw.
-type WithdrawEntryInput struct {
+// withdrawVisitorEntryInput identifies the signed-in visitor and entry to withdraw.
+type withdrawVisitorEntryInput struct {
 	SiteID, Name          string
 	VisitorAccess         VisitorAccessInput
 	ID                    int64
 	ValidID, DeclareFirst bool
 }
 
-// WithdrawEntry checks the declaration and author before withdrawing an entry.
-func (a *Adapter) WithdrawEntry(ctx context.Context, in WithdrawEntryInput) (db.DataSettings, error) {
+// withdrawVisitorEntry checks the declaration and author before withdrawing an entry.
+func (a *Adapter) withdrawVisitorEntry(ctx context.Context, in withdrawVisitorEntryInput) (db.DataSettings, error) {
 	set, err := a.visitorEntrySettings(ctx, in.SiteID, in.Name, in.DeclareFirst, in.VisitorAccess)
 	if err != nil {
 		return set, err
@@ -274,8 +273,8 @@ func (a *Adapter) visitorEmail(ctx context.Context, userID string) (string, erro
 	return email, nil
 }
 
-// UndoEntryInput identifies a withdrawn entry and its restoration limits.
-type UndoEntryInput struct {
+// undoVisitorEntryInput identifies a withdrawn entry and its restoration limits.
+type undoVisitorEntryInput struct {
 	SiteID, Name                       string
 	VisitorAccess                      VisitorAccessInput
 	ID                                 int64
@@ -285,8 +284,8 @@ type UndoEntryInput struct {
 	MaxBytes                           int64
 }
 
-// UndoEntry restores a visitor's withdrawal within its permitted window.
-func (a *Adapter) UndoEntry(ctx context.Context, in UndoEntryInput) (db.CollectionItem, bool, db.DataSettings, error) {
+// undoVisitorEntry restores a visitor's withdrawal within its permitted window.
+func (a *Adapter) undoVisitorEntry(ctx context.Context, in undoVisitorEntryInput) (db.CollectionItem, bool, db.DataSettings, error) {
 	set, err := a.visitorEntrySettings(ctx, in.SiteID, in.Name, in.DeclareFirst, in.VisitorAccess)
 	if errors.Is(err, sql.ErrNoRows) {
 		return db.CollectionItem{}, false, set, &Error{Code: "site_not_found"}
@@ -992,6 +991,7 @@ func (a *Adapter) DataKind(ctx context.Context, in DataKindInput) (DataKindResul
 
 // VisitorWriteInput contains request facts for a visitor write.
 type VisitorWriteInput struct {
+	VisitorSessionCookie                                    string
 	SiteID, SiteName, Route, Collection, Mode, Key          string
 	Preview, ContentHost, Canonical, VisitorPass, CSRFValid bool
 	SessionIdle, KeyIdle                                    time.Duration
@@ -1086,7 +1086,7 @@ func (a *Adapter) VisitorWrite(ctx context.Context, in VisitorWriteInput) (db.Ac
 		a.deps.VisitorLog(mode, "public_host")
 		return a.visitorSaver(ctx, in, anon)
 	}
-	if raw := a.deps.VisitorSessionCookie(); raw != "" && !in.ContentHost {
+	if raw := in.VisitorSessionCookie; raw != "" && !in.ContentHost {
 		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
 			sess, sessErr := db.GetVisitorSession(ctx, a.database, id, in.KeyIdle)
 			if sessErr == nil && a.deps.VisitorSessionValid(sess, in.SiteID) {
