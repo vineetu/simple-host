@@ -2,16 +2,15 @@ package handler
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/internal/app/operations"
-	"github.com/vsriram/simple-host/internal/db"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/operations"
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	httpx "github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
-import appstorage "github.com/vsriram/simple-host/internal/app/storage"
-import rules "github.com/vsriram/simple-host/internal/rules/storage"
 
 func (h *SiteHandler) storageSvc() *appstorage.Service {
 	return appstorage.New(h.database, h.storageDeps())
@@ -33,7 +32,7 @@ func (h *SiteHandler) storageDeps() appstorage.Deps {
 	deps.EventOwners = h.ed.Storage().EventOwners
 	deps.LegacyRoutes = h.ed.Storage().LegacyRoutes
 	deps.ResourceHistory = func(ctx context.Context, siteID, name string) (any, error) {
-		return db.ListHistory(ctx, h.database, siteID, db.HistoryStorage, name, 20, 0)
+		return h.legacySvc().ListHistory(ctx, siteID, model.HistoryStorage, name, 20, 0)
 	}
 	deps.FilePath = func(call appstorage.Call, path string) string {
 		return storageFileOnDisk(h.disk, call.OwnerID, call.SiteName, call.ResourceName, path)
@@ -48,7 +47,7 @@ func (h *SiteHandler) storageRequestSvc(r *http.Request, c storageCall) *appstor
 
 func (h *SiteHandler) storageRequestDeps(r *http.Request, c storageCall) appstorage.Deps {
 	deps := h.storageDeps()
-	deps.StageResourceRuntime = func() (string, func(), error) { return h.stageStorageRuntime(c) }
+	deps.Disk = h.disk
 	deps.SpamCheckAvailable = h.turnstile != nil
 	deps.SQLitePath = h.storageSQLPath(c)
 	deps.SQLiteGate = h.sqliteGateFor()
@@ -88,7 +87,7 @@ func (h *SiteHandler) storageServiceCall(c storageCall) appstorage.Call {
 		SiteID: c.siteID, OwnerID: c.ownerID, SiteName: c.siteName, ResourceName: c.resourceName,
 		AccountID: c.accountID, Owner: c.owner, OwnerOnSite: c.ownerOnSite, VisitorAI: c.visitorAI,
 		VisitorID: c.visitorID, LinkScope: c.linkScope, Resource: c.resource.rulesResource(),
-		ActiveChecked: c.activeChecked, CurrentMatrix: rules.AccessMatrix(c.currentMatrix),
+		ActiveChecked: c.activeChecked, CurrentMatrix: model.AccessMatrix(c.currentMatrix),
 		Filter: c.filter, SpamCheck: c.spamCheck, CheckedPost: c.checkedPost,
 		UploaderID: c.uploaderID, RuntimeDir: h.storageRuntimeDir(c),
 		VisitorSessionID: c.visitorSession.ID, VisitorSessionUserID: c.visitorSession.UserID,

@@ -14,7 +14,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // Report a page (GET /report, POST /report).
@@ -71,7 +70,7 @@ func (h *SiteHandler) ReportHandler() http.Handler {
 			if h.database == nil {
 				return false, nil
 			}
-			_, err := db.GetSiteByCustomDomain(ctx, h.database, host)
+			_, err := h.sitesSvc().GetSiteByCustomDomain(ctx, host)
 			if errors.Is(err, sql.ErrNoRows) {
 				// A site's address under a live address family.
 				_, ok, ferr := h.familySiteForHost(ctx, host)

@@ -18,13 +18,13 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/sites"
-	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Address families (owner decision 2026-09-29; INTENT.md).
 //
-// An account connects *.<suffix> once (db.AddressFamily). Every site of that
+// An account connects *.<suffix> once (model.AddressFamily). Every site of that
 // account named <prefix><label> then answers at <label>.<suffix>, where
 // <prefix> is the family's optional site-name prefix. Nothing else of the
 // account, and nothing of any other account, is ever reachable there: the
@@ -50,8 +50,8 @@ import (
 // certificate live with the site prefix the database has now.
 type familyIndex struct {
 	mu       sync.RWMutex
-	bySuffix map[string]db.AddressFamily
-	byUser   map[string][]db.AddressFamily
+	bySuffix map[string]model.AddressFamily
+	byUser   map[string][]model.AddressFamily
 	// known is every proven family's suffix (verified, or proof-exempt by
 	// the admin), live or not (failing, waiting for its certificate or its
 	// ready marker): a host under one is never the platform's, so it is
@@ -148,7 +148,7 @@ func validFamilyKey(s string) bool {
 
 // familyIsLive: verified, wildcard certificate named, and the issuer serves
 // it with the prefix the database has now.
-func (h *SiteHandler) familyIsLive(f db.AddressFamily) bool {
+func (h *SiteHandler) familyIsLive(f model.AddressFamily) bool {
 	if !f.VerifiedAt.Valid || f.CertMode != "wildcard" || f.CertName == "" {
 		return false
 	}
@@ -159,11 +159,11 @@ func (h *SiteHandler) familyIsLive(f db.AddressFamily) bool {
 // refreshFamilies reloads the live families. The content-host redirect
 // markers of every account whose live families changed follow.
 func (h *SiteHandler) refreshFamilies(ctx context.Context) {
-	bySuffix := map[string]db.AddressFamily{}
-	byUser := map[string][]db.AddressFamily{}
+	bySuffix := map[string]model.AddressFamily{}
+	byUser := map[string][]model.AddressFamily{}
 	known := map[string]bool{}
 	if h.familiesOn() {
-		list, err := db.ListAllFamilies(ctx, h.database)
+		list, err := h.sitesSvc().ListAllFamilies(ctx)
 		if err != nil {
 			sites.ReportWorkerFailure(ctx, "refresh address families", err)
 			return
@@ -179,7 +179,7 @@ func (h *SiteHandler) refreshFamilies(ctx context.Context) {
 			byUser[f.UserID] = append(byUser[f.UserID], f)
 		}
 	}
-	sig := func(fs []db.AddressFamily) string {
+	sig := func(fs []model.AddressFamily) string {
 		var b strings.Builder
 		for _, f := range fs {
 			b.WriteString(f.Suffix + "|" + f.SitePrefix + "|" + boolStr(f.Canonical) + "|" + strconv.Itoa(f.Rank) + ";")
@@ -222,7 +222,7 @@ func boolStr(b bool) string {
 // syncUserRedirects re-points the content-host redirect of every site of an
 // account (its main address may have changed).
 func (h *SiteHandler) syncUserRedirects(ctx context.Context, userID string) {
-	sites, err := db.ListSitesByUser(ctx, h.database, userID)
+	sites, err := h.sitesSvc().ListSitesByUser(ctx, userID)
 	if err != nil {
 		log.Printf("address families: sites of %s: %v", userID, err)
 		return
@@ -234,24 +234,24 @@ func (h *SiteHandler) syncUserRedirects(ctx context.Context, userID string) {
 
 // liveFamily is the live family a host is directly under, and the host's
 // first label. Purely the index: no database.
-func (h *SiteHandler) liveFamily(host string) (db.AddressFamily, string, bool) {
+func (h *SiteHandler) liveFamily(host string) (model.AddressFamily, string, bool) {
 	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
 	label, suffix, ok := strings.Cut(host, ".")
 	if !ok || label == "" {
-		return db.AddressFamily{}, "", false
+		return model.AddressFamily{}, "", false
 	}
 	h.families.mu.RLock()
 	f, ok := h.families.bySuffix[suffix]
 	h.families.mu.RUnlock()
 	if !ok {
-		return db.AddressFamily{}, "", false
+		return model.AddressFamily{}, "", false
 	}
 	return f, label, true
 }
 
 // familyServed: f is live in the index requests are routed by (what
 // familyIsLive says the disk holds reaches it at the next refresh).
-func (h *SiteHandler) familyServed(f db.AddressFamily) bool {
+func (h *SiteHandler) familyServed(f model.AddressFamily) bool {
 	h.families.mu.RLock()
 	g, ok := h.families.bySuffix[f.Suffix]
 	h.families.mu.RUnlock()
@@ -282,7 +282,7 @@ func (h *SiteHandler) isFamilyHostName(host string) bool {
 
 // familyLabelOK: label may name a site under f: one DNS label, not an
 // internationalised one, not reserved, and <prefix><label> is a site name.
-func familyLabelOK(f db.AddressFamily, label string, l config.Limits) bool {
+func familyLabelOK(f model.AddressFamily, label string, l edition.Limits) bool {
 	if !familyLabelRE.MatchString(label) || strings.HasPrefix(label, "xn--") {
 		return false
 	}
@@ -296,9 +296,9 @@ func familyLabelOK(f db.AddressFamily, label string, l config.Limits) bool {
 
 // familyMatch is what a family host names.
 type familyMatch struct {
-	Family db.AddressFamily
+	Family model.AddressFamily
 	Label  string
-	Site   db.Site
+	Site   model.Site
 }
 
 // Host is the family address of the matched site.
@@ -314,12 +314,12 @@ func (h *SiteHandler) familySiteForHost(ctx context.Context, host string) (famil
 	if !ok || !familyLabelOK(f, label, h.limits) {
 		return familyMatch{}, false, nil
 	}
-	if _, err := db.GetSiteByCustomDomain(ctx, h.database, requestHostLower(host)); err == nil {
+	if _, err := h.sitesSvc().GetSiteByCustomDomain(ctx, requestHostLower(host)); err == nil {
 		return familyMatch{}, false, nil
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return familyMatch{}, false, err
 	}
-	site, err := db.GetSiteByUser(ctx, h.database, f.UserID, f.SitePrefix+label)
+	site, err := h.sitesSvc().GetSiteByUser(ctx, f.UserID, f.SitePrefix+label)
 	if errors.Is(err, sql.ErrNoRows) {
 		return familyMatch{}, false, nil
 	}
@@ -331,7 +331,7 @@ func (h *SiteHandler) familySiteForHost(ctx context.Context, host string) (famil
 
 // isBoundDomain: host is a custom domain (or earlier address) bound here.
 func (h *SiteHandler) isBoundDomain(ctx context.Context, host string) bool {
-	_, err := db.GetSiteByCustomDomain(ctx, h.database, requestHostLower(host))
+	_, err := h.sitesSvc().GetSiteByCustomDomain(ctx, requestHostLower(host))
 	return err == nil
 }
 
@@ -342,7 +342,7 @@ func requestHostLower(host string) string {
 // familyAddr is one family address of a site.
 type familyAddr struct {
 	Host   string
-	Family db.AddressFamily
+	Family model.AddressFamily
 }
 
 // siteFamilyAddrs is every family address the site answers at, the most
@@ -396,23 +396,23 @@ func (h *SiteHandler) hasLiveFamilies() bool {
 // person address: its proven own domain (siteOwnDomain), else its most
 // specific canonical family address. For a family address, Domain is that
 // host and the view counts as verified.
-func (h *SiteHandler) siteOwnAddress(ctx context.Context, siteID string) (db.SiteDomainInfo, bool, error) {
+func (h *SiteHandler) siteOwnAddress(ctx context.Context, siteID string) (model.SiteDomainInfo, bool, error) {
 	info, has, err := h.siteOwnDomain(ctx, siteID)
 	if err != nil || has || !h.hasLiveFamilies() {
-		return info, has, err
+		return model.SiteDomainInfo(info), has, err
 	}
-	_, userID, name, err := db.GetSiteOwner(ctx, h.database, siteID)
+	_, userID, name, err := h.sitesSvc().GetSiteOwner(ctx, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.SiteDomainInfo{}, false, nil
+		return model.SiteDomainInfo{}, false, nil
 	}
 	if err != nil {
-		return db.SiteDomainInfo{}, false, err
+		return model.SiteDomainInfo{}, false, err
 	}
 	host, ok := h.siteFamilyAddress(userID, name)
 	if !ok {
-		return db.SiteDomainInfo{}, false, nil
+		return model.SiteDomainInfo{}, false, nil
 	}
-	return db.SiteDomainInfo{SiteID: siteID, UserID: userID, Name: name, Domain: host, Status: "active",
+	return model.SiteDomainInfo{SiteID: siteID, UserID: userID, Name: name, Domain: host, Status: "active",
 		VerifiedAt: sql.NullTime{Time: time.Now(), Valid: true}, CertStatus: "live"}, true, nil
 }
 
@@ -433,8 +433,8 @@ func (h *SiteHandler) isSiteFamilyHost(ctx context.Context, siteID, host string)
 // familyRenamedTarget: label under f names an old name of a renamed site
 // of f's owner. The site's current address with escapedPath: under the same
 // family when its new name still has the prefix, else its main address.
-func (h *SiteHandler) familyRenamedTarget(ctx context.Context, f db.AddressFamily, label, escapedPath string) (string, bool) {
-	siteID, _, err := db.ResolveOldSiteName(ctx, h.database, f.UserID, f.SitePrefix+label)
+func (h *SiteHandler) familyRenamedTarget(ctx context.Context, f model.AddressFamily, label, escapedPath string) (string, bool) {
+	siteID, _, err := h.sitesSvc().ResolveOldSiteName(ctx, f.UserID, f.SitePrefix+label)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("family host: old name %s%s: %v", f.SitePrefix, label, err)
@@ -442,7 +442,7 @@ func (h *SiteHandler) familyRenamedTarget(ctx context.Context, f db.AddressFamil
 		return "", false
 	}
 	if _, has, _ := h.siteOwnDomain(ctx, siteID); !has {
-		if _, _, name, err := db.GetSiteOwner(ctx, h.database, siteID); err == nil {
+		if _, _, name, err := h.sitesSvc().GetSiteOwner(ctx, siteID); err == nil {
 			if nl, ok := strings.CutPrefix(name, f.SitePrefix); ok && familyLabelOK(f, nl, h.limits) {
 				return "https://" + nl + "." + f.Suffix + "/" + strings.TrimLeft(escapedPath, "/"), true
 			}
@@ -473,7 +473,7 @@ func (h *SiteHandler) FamilyHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		// A custom domain bound here under the family: the exact name wins.
-		if _, err := db.GetSiteByCustomDomain(r.Context(), h.database, host); err == nil {
+		if _, err := h.sitesSvc().GetSiteByCustomDomain(r.Context(), host); err == nil {
 			next.ServeHTTP(w, r)
 			return
 		}

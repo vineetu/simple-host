@@ -5,14 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/app/legacy"
-	db "github.com/vsriram/simple-host/internal/db"
 	"io"
 	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/vsriram/simple-host/internal/app/legacy"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // signalLegacyBodyTooLarge preserves net/http's oversized-request connection behavior.
@@ -120,7 +121,7 @@ func (h *SiteHandler) legacyCollectionAppendSvc(r *http.Request) *legacy.Adapter
 	deps.CollectionOwnerKeyWrite = func(ownerID string) bool { return h.ownerKeyWrite(r, ownerID) }
 	deps.CollectionDomainElsewhere = func(siteID string) (string, bool) { return h.livesOnDomainElsewhere(r, siteID) }
 	deps.CollectionSharedDomain = func(ctx context.Context, siteID string) (string, bool) {
-		info, ok, _ := db.GetSiteDomainInfo(ctx, h.database, siteID)
+		info, ok, _ := h.sitesSvc().GetSiteDomainInfo(ctx, siteID)
 		if !ok || info.Domain == "" {
 			return "", false
 		}
@@ -129,10 +130,10 @@ func (h *SiteHandler) legacyCollectionAppendSvc(r *http.Request) *legacy.Adapter
 		}
 		return info.Domain, true
 	}
-	deps.CollectionKeyActor = func(ownerID string) db.Actor { return h.keyActor(r, ownerID) }
-	deps.CollectionInternalSession = func(siteID string) (db.VisitorSession, bool) { return h.internalVisitorSession(r, siteID) }
+	deps.CollectionKeyActor = func(ownerID string) model.Actor { return h.keyActor(r, ownerID) }
+	deps.CollectionInternalSession = func(siteID string) (model.VisitorSession, bool) { return h.internalVisitorSession(r, siteID) }
 	deps.CollectionResolveKey = h.resolveWriterKey
-	deps.CollectionSessionValid = func(sess db.VisitorSession, siteID string) bool { return h.sessionValidFor(r, sess, siteID) }
+	deps.CollectionSessionValid = func(sess model.VisitorSession, siteID string) bool { return h.sessionValidFor(r, sess, siteID) }
 	deps.CollectionLogAnon = func(siteID, name, mode, outcome string) {
 		h.logAnonWrite(r, siteID, name, writeRouteCollectionPost, strings.TrimSpace(r.PathValue("coll")), mode, outcome)
 	}

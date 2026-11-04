@@ -10,13 +10,13 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	httpx "github.com/vsriram/simple-host/internal/httpx"
-	"github.com/vsriram/simple-host/internal/storage"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -24,15 +24,25 @@ func storageFileMaxBytes() int64 {
 	return storageLimitBytes(os.Getenv("SITE_STORAGE_FILE_MAX_BYTES"), 1000000, 10<<30)
 }
 
-func storageObjectPath(p string) bool { return storage.ValidObjectPath(p) }
+func storageObjectPath(p string) bool {
+	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "\\") || strings.ContainsRune(p, 0) || len(p) > 1024 || path.Clean(p) != p || len(strings.Split(p, "/")) > 16 {
+		return false
+	}
+	for _, s := range strings.Split(p, "/") {
+		if s == "" || s == "." || s == ".." || strings.HasPrefix(s, ".") {
+			return false
+		}
+	}
+	return true
+}
 func (h *SiteHandler) storageFilesDir(c storageCall) string {
-	return storage.RuntimeFilesDir(h.disk, c.ownerID, c.siteName, c.resourceName)
+	return filepath.Join(h.storageRuntimeDir(c), "files", c.resourceName)
 }
 func (h *SiteHandler) storageFilePath(c storageCall, p string) string {
 	return storageFileOnDisk(h.disk, c.ownerID, c.siteName, c.resourceName, p)
 }
-func storageFileOnDisk(disk *storage.DiskStorage, ownerID, siteName, resourceName, p string) string {
-	return storage.RuntimeFilePath(disk, ownerID, siteName, resourceName, p)
+func storageFileOnDisk(disk interface{ SiteDir(string, string) string }, ownerID, siteName, resourceName, p string) string {
+	return filepath.Join(disk.SiteDir(ownerID, siteName), "runtime", "files", resourceName, filepath.FromSlash(p))
 }
 
 func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {

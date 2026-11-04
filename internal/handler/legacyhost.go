@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
-	db "github.com/vsriram/simple-host/internal/db"
 )
 
 // LegacyHostRedirect answers single-label <name>.<siteDomain> hosts that no
@@ -67,7 +66,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 			return
 		}
 
-		retired, err := db.GetRetiredName(r.Context(), h.database, host)
+		retired, err := h.sitesSvc().GetRetiredName(r.Context(), host)
 		switch {
 		case err == nil:
 			if retired.SiteID != "" {
@@ -92,7 +91,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 
 		// A claimed name whose site is in Recently deleted stays held: it
 		// answers as removed (restore brings it back), never another site.
-		if held, err := db.DomainHeldByDeletedSite(r.Context(), h.database, host); err != nil {
+		if held, err := h.sitesSvc().DomainHeldByDeletedSite(r.Context(), host); err != nil {
 			log.Printf("legacy host %s: %v", host, err)
 			h.renderServiceError(w, r)
 			return
@@ -106,7 +105,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 		// A deprecated <name>.<siteDomain>. Resolve the oldest owner's handle (the
 		// account this host historically served) and 301 to the path URL. Unknown
 		// name → send them to the home page rather than a dead end.
-		handle, err := db.GetHandleBySiteName(r.Context(), h.database, label)
+		handle, err := h.sitesSvc().GetHandleBySiteName(r.Context(), label)
 		if err != nil || handle == "" {
 			http.Redirect(w, r, "https://"+siteDomain+"/", http.StatusMovedPermanently)
 			return
@@ -123,13 +122,13 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 // its proven own domain, else the address every tool hands out for it.
 func (h *SiteHandler) siteAddressFor(ctx context.Context, siteID, escapedPath string) (string, bool) {
 	rest := strings.TrimLeft(escapedPath, "/")
-	if _, _, _, err := db.GetSiteOwner(ctx, h.database, siteID); err != nil {
+	if _, _, _, err := h.sitesSvc().GetSiteOwner(ctx, siteID); err != nil {
 		return "", false // gone, or in Recently deleted
 	}
 	if info, has, err := h.siteOwnAddress(ctx, siteID); err == nil && has {
 		return "https://" + strings.ToLower(info.Domain) + "/" + rest, true
 	}
-	handle, _, name, err := db.GetSiteOwner(ctx, h.database, siteID)
+	handle, _, name, err := h.sitesSvc().GetSiteOwner(ctx, siteID)
 	if err != nil || handle == "" {
 		return "", false
 	}

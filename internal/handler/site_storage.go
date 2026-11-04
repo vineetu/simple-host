@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	rules "github.com/vsriram/simple-host/internal/rules/storage"
 	"io"
 	"net/http"
 	"os"
@@ -14,7 +13,7 @@ import (
 	"strings"
 
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 var storageNameRE = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
@@ -44,7 +43,7 @@ type storageCall struct {
 	owner                                   bool
 	visitorAI                               bool
 	visitorID                               string
-	visitorSession                          db.VisitorSession
+	visitorSession                          model.VisitorSession
 	linkScope                               string
 	resource                                storageResource
 	// ownerOnSite: the site's owner signed in on the site's own address
@@ -77,8 +76,8 @@ func storageError(w http.ResponseWriter, status int, code, message string) {
 // ServeEventWebsiteStorage is called only after the Hack handler has checked
 // current organiser membership on the event. It maps the public event slug to
 // the holding account's immutable event-ID site before using the shared routes.
-func (h *SiteHandler) ServeEventWebsiteStorage(w http.ResponseWriter, r *http.Request, ev db.Event, organiserID string) {
-	site, err := db.GetSiteByUser(r.Context(), h.database, ev.AccountID, ev.ID)
+func (h *SiteHandler) ServeEventWebsiteStorage(w http.ResponseWriter, r *http.Request, ev model.Event, organiserID string) {
+	site, err := h.sitesSvc().GetSiteByUser(r.Context(), ev.AccountID, ev.ID)
 	if err != nil {
 		storageError(w, 404, "site_not_found", "publish the custom event website first")
 		return
@@ -115,7 +114,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 		storageError(w, 404, "site_not_found", "site not found")
 		return storageCall{}, false
 	}
-	_, ownerID, siteName, err := db.GetSiteOwner(r.Context(), h.database, id)
+	_, ownerID, siteName, err := h.sitesSvc().GetSiteOwner(r.Context(), id)
 	if err != nil {
 		storageError(w, 404, "site_not_found", "site not found")
 		return storageCall{}, false
@@ -146,7 +145,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 			storageError(w, 500, "internal_error", "internal server error")
 			return storageCall{}, false
 		}
-		if ok && u.KeyScope != db.KeyScopeDeploy && (u.ID == ownerID || u.IsAdmin) &&
+		if ok && u.KeyScope != model.KeyScopeDeploy && (u.ID == ownerID || u.IsAdmin) &&
 			(u.Team == nil || (h.ed.Storage().EventOwners && u.Team.AccountID == ownerID && strings.EqualFold(u.Team.TeamSlug, siteName))) &&
 			(u.EventWebsite == nil || (h.ed.Storage().EventOwners && u.EventWebsite.EventID == siteName && u.EventWebsite.OrganiserID != "")) {
 			c.owner = true
@@ -286,11 +285,11 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	}
 	var req struct {
 		Kind string `json:"kind"`
-		rules.AccessRequest
+		model.AccessRequest
 		Write        string                          `json:"write"`
 		WriteMode    string                          `json:"write_mode"`
 		SitePasscode string                          `json:"site_passcode"`
-		Tables       *map[string]rules.AccessRequest `json:"tables"`
+		Tables       *map[string]model.AccessRequest `json:"tables"`
 		ApproveFirst *bool                           `json:"approve_first"`
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10))

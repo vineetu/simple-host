@@ -13,10 +13,10 @@ import (
 // Deps holds the storage service configuration.
 type Deps struct {
 	VisitorEmail                             func(context.Context, string) (string, error)
-	StageResourceRuntime                     func() (string, func(), error)
+	Disk                                     *runtime.DiskStorage
 	SpamCheckAvailable                       bool
 	SQLitePath                               string
-	SQLiteGate                               *runtime.SQLiteGate
+	SQLiteGate                               *SQLiteGate
 	SQLiteTimeout                            time.Duration
 	SQLiteMaxMemory                          int64
 	Locks                                    *sync.Map

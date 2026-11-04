@@ -10,8 +10,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/operations"
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
-	"github.com/vsriram/simple-host/internal/db"
-	rules "github.com/vsriram/simple-host/internal/rules/storage"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Storage access presets (owner decision 2026-10-10; INTENT.md and
@@ -26,53 +25,53 @@ import (
 // storageOwnerOnSite.
 
 const (
-	storageWhoNobody   = rules.WhoNobody
-	storageWhoOwner    = rules.WhoOwner
-	storageWhoOwn      = rules.WhoOwn
-	storageWhoSignedIn = rules.WhoSignedIn
-	storageWhoAnyone   = rules.WhoAnyone
-	storageWhoChecked  = rules.WhoChecked
+	storageWhoNobody   = model.WhoNobody
+	storageWhoOwner    = model.WhoOwner
+	storageWhoOwn      = model.WhoOwn
+	storageWhoSignedIn = model.WhoSignedIn
+	storageWhoAnyone   = model.WhoAnyone
+	storageWhoChecked  = model.WhoChecked
 )
 
-type storageAccessMatrix rules.AccessMatrix
+type storageAccessMatrix model.AccessMatrix
 type storagePreset struct {
 	ID     string
 	Matrix storageAccessMatrix
 }
 
 var storagePresets = func() []storagePreset {
-	out := make([]storagePreset, 0, len(rules.Presets))
-	for _, p := range rules.Presets {
+	out := make([]storagePreset, 0, len(model.Presets))
+	for _, p := range model.Presets {
 		out = append(out, storagePreset{p.ID, storageAccessMatrix(p.Matrix)})
 	}
 	return out
 }()
 
 func storagePresetMatrix(id string) (storageAccessMatrix, bool) {
-	m, ok := rules.PresetMatrix(id)
+	m, ok := model.PresetMatrix(id)
 	return storageAccessMatrix(m), ok
 }
-func storagePresetName(m storageAccessMatrix) string  { return rules.PresetName(rules.AccessMatrix(m)) }
-func (m storageAccessMatrix) value(a string) string   { return rules.AccessMatrix(m).Value(a) }
-func (m storageAccessMatrix) check() (string, string) { return rules.AccessMatrix(m).Check() }
-func (m storageAccessMatrix) usesOwn() bool           { return rules.AccessMatrix(m).UsesOwn() }
-func (m storageAccessMatrix) recordsAuthor() bool     { return rules.AccessMatrix(m).RecordsAuthor() }
+func storagePresetName(m storageAccessMatrix) string  { return model.PresetName(model.AccessMatrix(m)) }
+func (m storageAccessMatrix) value(a string) string   { return model.AccessMatrix(m).Value(a) }
+func (m storageAccessMatrix) check() (string, string) { return model.AccessMatrix(m).Check() }
+func (m storageAccessMatrix) usesOwn() bool           { return model.AccessMatrix(m).UsesOwn() }
+func (m storageAccessMatrix) recordsAuthor() bool     { return model.AccessMatrix(m).RecordsAuthor() }
 func storageTranslateOld(r, w, mode string) (storageAccessMatrix, string, string) {
-	m, c, h := rules.TranslateOld(r, w, mode)
+	m, c, h := model.TranslateOld(r, w, mode)
 	return storageAccessMatrix(m), c, h
 }
 func storageOldFields(m storageAccessMatrix) (string, string, string, bool) {
-	return rules.OldFields(rules.AccessMatrix(m))
+	return model.OldFields(model.AccessMatrix(m))
 }
 
 type storageTableRule struct {
 	Matrix     storageAccessMatrix
 	PresetBase string
 }
-type storageAccessRequest rules.AccessRequest
+type storageAccessRequest model.AccessRequest
 
 func (q storageAccessRequest) matrix() (storageAccessMatrix, string, string, string) {
-	m, b, c, h := rules.AccessRequest(q).Matrix()
+	m, b, c, h := model.AccessRequest(q).Matrix()
 	return storageAccessMatrix(m), b, c, h
 }
 
@@ -125,19 +124,19 @@ func storageResourceJSON(x storageResource) map[string]any {
 	return out
 }
 
-func (x storageResource) rulesResource() rules.Resource {
-	r := rules.Resource{Name: x.Name, Kind: x.Kind, Read: x.Read, Write: x.Write, SitePasscode: x.SitePasscode, WriteMode: x.WriteMode, PresetBase: x.PresetBase, ApproveFirst: x.ApproveFirst}
+func (x storageResource) rulesResource() model.Resource {
+	r := model.Resource{Name: x.Name, Kind: x.Kind, Read: x.Read, Write: x.Write, SitePasscode: x.SitePasscode, WriteMode: x.WriteMode, PresetBase: x.PresetBase, ApproveFirst: x.ApproveFirst}
 	if x.Access != nil {
-		m := rules.AccessMatrix(*x.Access)
+		m := model.AccessMatrix(*x.Access)
 		r.Access = &m
 	}
-	r.TableLookup = func(n string) (rules.TableRule, bool) {
+	r.TableLookup = func(n string) (model.TableRule, bool) {
 		t, ok := x.Tables[n]
-		return rules.TableRule{Matrix: rules.AccessMatrix(t.Matrix), PresetBase: t.PresetBase}, ok
+		return model.TableRule{Matrix: model.AccessMatrix(t.Matrix), PresetBase: t.PresetBase}, ok
 	}
-	r.TableRange = func(visit func(string, rules.TableRule)) {
+	r.TableRange = func(visit func(string, model.TableRule)) {
 		for n, t := range x.Tables {
-			visit(n, rules.TableRule{Matrix: rules.AccessMatrix(t.Matrix), PresetBase: t.PresetBase})
+			visit(n, model.TableRule{Matrix: model.AccessMatrix(t.Matrix), PresetBase: t.PresetBase})
 		}
 	}
 	return r
@@ -155,7 +154,7 @@ func (x storageResource) hasChecked() bool             { return x.rulesResource(
 func (x storageResource) holds(t string) bool          { return x.rulesResource().Holds(t) }
 func (x storageResource) fingerprint() string          { return x.rulesResource().Fingerprint() }
 
-func fromRulesResource(r rules.Resource) storageResource {
+func fromRulesResource(r model.Resource) storageResource {
 	x := storageResource{Name: r.Name, Kind: r.Kind, Read: r.Read, Write: r.Write, SitePasscode: r.SitePasscode, WriteMode: r.WriteMode, PresetBase: r.PresetBase, ApproveFirst: r.ApproveFirst}
 	if r.Access != nil {
 		m := storageAccessMatrix(*r.Access)
@@ -209,7 +208,7 @@ func (h *SiteHandler) storageOwnerOnSite(r *http.Request, c storageCall) bool {
 		return false
 	}
 	if h.ed.Storage().EventOwners {
-		ok, err := db.HackSiteOwnerOnSite(r.Context(), h.database, c.siteID, c.visitorID)
+		ok, err := h.storeAccounts().HackSiteOwnerOnSite(r.Context(), c.siteID, c.visitorID)
 		return err == nil && ok
 	}
 	return true
@@ -236,13 +235,13 @@ func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ow
 	if err != nil || len(id) != 32 {
 		return
 	}
-	sess, err := db.GetVisitorSession(r.Context(), h.database, id, h.limits.KeyIdleExpiry)
+	sess, err := h.storeAccounts().GetVisitorSession(r.Context(), id, h.limits.KeyIdleExpiry)
 	if err != nil || !strings.EqualFold(sess.Host, requestHostName(r)) || time.Now().After(sess.ExpiresAt) {
 		return
 	}
 	if h.ed.Storage().EventOwners {
 		operations.HackMember(r.Context(), sess.UserID)
-		if ok, err := db.HackSiteOwnerOnSite(r.Context(), h.database, sess.SiteID, sess.UserID); err != nil || !ok {
+		if ok, err := h.storeAccounts().HackSiteOwnerOnSite(r.Context(), sess.SiteID, sess.UserID); err != nil || !ok {
 			return
 		}
 	} else if sess.UserID != ownerID {
@@ -292,7 +291,7 @@ func (h *SiteHandler) storageVisitorActive(w http.ResponseWriter, r *http.Reques
 	if c.activeChecked {
 		return true
 	}
-	suspended, err := db.UserSuspended(r.Context(), h.database, c.visitorSession.UserID)
+	suspended, err := h.storeAccounts().UserSuspended(r.Context(), c.visitorSession.UserID)
 	if err != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return false
@@ -301,7 +300,7 @@ func (h *SiteHandler) storageVisitorActive(w http.ResponseWriter, r *http.Reques
 		writeAccountSuspended(w)
 		return false
 	}
-	_ = db.TouchVisitorSession(r.Context(), h.database, c.visitorSession.ID, h.limits.VisitorSessionIdle)
+	_ = h.storeAccounts().TouchVisitorSession(r.Context(), c.visitorSession.ID, h.limits.VisitorSessionIdle)
 	c.activeChecked = true
 	return true
 }

@@ -14,7 +14,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"regexp"
 	"slices"
 	"strconv"
@@ -23,11 +22,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/legacy"
-	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/model"
-	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
@@ -57,7 +52,7 @@ import (
 // made after the kinds; sites made before them (sites.legacy_data) stay
 // Shared either way.
 
-var kindLabels = map[string]string{db.KindContent: "Page info", db.KindEntries: "Submissions", db.KindPersonal: "Personal", db.KindBoard: "Shared board"}
+var kindLabels = map[string]string{model.KindContent: "Page info", model.KindEntries: "Submissions", model.KindPersonal: "Personal", model.KindBoard: "Shared board"}
 
 func kindLabel(kind string) string {
 	if l, ok := kindLabels[kind]; ok {
@@ -107,8 +102,8 @@ func writeNotAllowedToSave(w http.ResponseWriter) {
 }
 
 // dataSettings reads name's declaration on siteID (500 written on failure).
-func (h *SiteHandler) dataSettings(w http.ResponseWriter, r *http.Request, siteID, name string) (db.DataSettings, bool) {
-	set, err := h.legacySvc().WriteCollectionSettings(r.Context(), siteID, name, h.savedData.DefaultKind == config.DefaultKindDeclareFirst)
+func (h *SiteHandler) dataSettings(w http.ResponseWriter, r *http.Request, siteID, name string) (model.DataSettings, bool) {
+	set, err := h.legacySvc().WriteCollectionSettings(r.Context(), siteID, name, h.savedData.DefaultKind == legacyDeclareFirst)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return set, false
@@ -122,24 +117,24 @@ func (h *SiteHandler) dataSettings(w http.ResponseWriter, r *http.Request, siteI
 
 // entriesLike: the name holds Submissions, declared or (on a legacy site)
 // an undeclared list that behaves as before.
-func entriesLike(set db.DataSettings) bool {
-	return storagerules.LegacyEntriesLike(set.Kind, set.Shared)
+func entriesLike(set model.DataSettings) bool {
+	return (set.Kind == "entries" || (set.Kind == "" && set.Shared))
 }
 
 // listLike: the name is a list of items anyone may be shown (Submissions,
 // Shared) or a Shared board.
-func listLike(set db.DataSettings) bool {
-	return entriesLike(set) || set.Kind == db.KindBoard
+func listLike(set model.DataSettings) bool {
+	return entriesLike(set) || set.Kind == model.KindBoard
 }
 
 // appendAllowed is the kind check before any item is added to a name. Writes
 // the refusal.
-func (h *SiteHandler) appendAllowed(w http.ResponseWriter, set db.DataSettings, siteName string) bool {
+func (h *SiteHandler) appendAllowed(w http.ResponseWriter, set model.DataSettings, siteName string) bool {
 	switch {
-	case set.Kind == db.KindContent:
+	case set.Kind == model.KindContent:
 		writeWrongKind(w, set.Name, set.Kind, "only the owner saves it, as a whole document with PUT /v1/sites/"+siteName+"/data/"+set.Name)
 		return false
-	case set.Kind == db.KindPersonal:
+	case set.Kind == model.KindPersonal:
 		writeWrongKind(w, set.Name, set.Kind, "each signed-in visitor saves their own record with PUT or PATCH /v1/sites/"+siteName+"/data/"+set.Name+" (SH.data(name, 'personal').set)")
 		return false
 	case set.Kind == "" && !set.Shared:
@@ -151,36 +146,36 @@ func (h *SiteHandler) appendAllowed(w http.ResponseWriter, set db.DataSettings, 
 
 // entryMaxBytes is the largest item a name takes: SAVED_DATA_ENTRY_MAX_KB for
 // declared Submissions, the list limit for a legacy list.
-func (h *SiteHandler) entryMaxBytes(set db.DataSettings) int64 {
+func (h *SiteHandler) entryMaxBytes(set model.DataSettings) int64 {
 	return legacy.EntryMaxBytes(set, h.savedData.EntryMaxKB, maxCollectionItemSize)
 }
 
 // saveEntry stores one new item in a declared Submissions name with its rules
 // (one per person, the per-name cap), or appends to a legacy list. Writes the
 // answer on a refusal; ok=false then.
-func (h *SiteHandler) saveEntry(w http.ResponseWriter, r *http.Request, siteID string, set db.DataSettings, body []byte, a db.Actor) (db.CollectionItem, bool) {
+func (h *SiteHandler) saveEntry(w http.ResponseWriter, r *http.Request, siteID string, set model.DataSettings, body []byte, a model.Actor) (model.CollectionItem, bool) {
 	item, have, err := h.legacySvc().SaveEntry(r.Context(), legacy.SaveEntryInput{SiteID: siteID, Settings: set, Body: body, Actor: a, MaxEntries: h.savedData.EntriesMax})
 	return h.entryResult(w, set, item, have, err)
 }
 
-func (h *SiteHandler) entryResult(w http.ResponseWriter, set db.DataSettings, item db.CollectionItem, have int64, err error) (db.CollectionItem, bool) {
+func (h *SiteHandler) entryResult(w http.ResponseWriter, set model.DataSettings, item model.CollectionItem, have int64, err error) (model.CollectionItem, bool) {
 	switch {
-	case errors.Is(err, db.ErrOnePerPerson) && have == 0:
+	case errors.Is(err, model.ErrOnePerPerson) && have == 0:
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Error: "this address already has an entry here (one per person), sent from another sign-in; change or withdraw it from there",
 			Code:  "one_per_person",
 		})
-	case errors.Is(err, db.ErrOnePerPerson):
+	case errors.Is(err, model.ErrOnePerPerson):
 		writeJSON(w, http.StatusConflict, map[string]any{
 			"error": "you already have an entry here (one per person): change it with PATCH .../items/" + strconv.FormatInt(have, 10) + " or withdraw it first",
 			"code":  "one_per_person", "id": have,
 		})
-	case errors.Is(err, db.ErrNameFull):
+	case errors.Is(err, model.ErrNameFull):
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Error: fmt.Sprintf("this list is full (%d entries); the owner can delete entries or clear it to make room", h.savedData.EntriesMax),
 			Code:  "list_full",
 		})
-	case errors.Is(err, db.ErrKindChanged):
+	case errors.Is(err, model.ErrKindChanged):
 		writeKindChanged(w, set.Name)
 	case errors.Is(err, sql.ErrNoRows):
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -244,10 +239,10 @@ func (h *SiteHandler) visitorWriteSvc(r *http.Request, in legacy.VisitorWriteInp
 			info, ok, err := h.siteOwnAddress(ctx, siteID)
 			return model.SiteDomainInfo(info), ok, err
 		},
-		VisitorInternalSession: func(site string) (db.VisitorSession, bool) { return h.internalVisitorSession(r, site) },
+		VisitorInternalSession: func(site string) (model.VisitorSession, bool) { return h.internalVisitorSession(r, site) },
 		VisitorResolveKey:      h.resolveWriterKey,
-		VisitorKeyActor:        func(owner string) db.Actor { return h.keyActor(r, owner) },
-		VisitorSessionValid:    func(sess db.VisitorSession, site string) bool { return h.sessionValidFor(r, sess, site) },
+		VisitorKeyActor:        func(owner string) model.Actor { return h.keyActor(r, owner) },
+		VisitorSessionValid:    func(sess model.VisitorSession, site string) bool { return h.sessionValidFor(r, sess, site) },
 		VisitorLog: func(mode, outcome string) {
 			h.logAnonWrite(r, in.SiteID, in.SiteName, in.Route, in.Collection, mode, outcome)
 		},
@@ -261,7 +256,7 @@ func (h *SiteHandler) visitorWriteSvc(r *http.Request, in legacy.VisitorWriteInp
 	})
 }
 
-func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) (db.Actor, bool) {
+func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) (model.Actor, bool) {
 	in := legacy.VisitorWriteInput{
 		VisitorSessionCookie: h.sessionCookieFor(r),
 		SiteID:               siteID, SiteName: siteName, Route: route, Collection: collection,
@@ -373,7 +368,7 @@ func (h *SiteHandler) getDataKind(w http.ResponseWriter, r *http.Request) {
 			return h.readLimiter == nil || h.readLimiter.allowHTTP(&dataReadHeaders{headers}, h.readBucket(r, id))
 		},
 	})
-	kind, err := svc.GetDataKind(r.Context(), legacy.GetDataKindInput{SiteName: siteName, Name: name, ValidName: validCollectionName.MatchString(name), Originless: noBrowserOrigin(r), DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst})
+	kind, err := svc.GetDataKind(r.Context(), legacy.GetDataKindInput{SiteName: siteName, Name: name, ValidName: validCollectionName.MatchString(name), Originless: noBrowserOrigin(r), DeclareFirst: h.savedData.DefaultKind == legacyDeclareFirst})
 	for key, values := range headers {
 		w.Header()[key] = values
 	}
@@ -447,22 +442,22 @@ func (h *SiteHandler) getData(w http.ResponseWriter, r *http.Request) {
 		KindOriginAllowed:  func(name string) bool { return h.authorizeStateOrigin(&dataReadHeaders{headers}, r, name) },
 		KindResolveSite:    func(name string) (string, error) { return h.resolveSiteID(r, name) },
 		DataOwnerBrowser:   func(id string) bool { return h.ownerBrowserView(r, id) },
-		ResolveMineSession: func(id string) (db.VisitorSession, bool) { return h.strictVisitorSession(r, id) },
+		ResolveMineSession: func(id string) (model.VisitorSession, bool) { return h.strictVisitorSession(r, id) },
 		DataAdminMismatch:  func(id string) bool { return adminSiteMismatch(r, id) },
-		DataPrivateRead: func(ctx context.Context, id string) (db.VisitorSession, error) {
+		DataPrivateRead: func(ctx context.Context, id string) (model.VisitorSession, error) {
 			if strings.EqualFold(requestHostName(r), h.contentHost) {
-				return db.VisitorSession{}, &legacy.Error{Code: "private_not_found"}
+				return model.VisitorSession{}, &legacy.Error{Code: "private_not_found"}
 			}
 			info, here, err := h.onOwnDomain(r, id)
 			if err != nil {
-				return db.VisitorSession{}, err
+				return model.VisitorSession{}, err
 			}
 			if !here {
-				return db.VisitorSession{}, &legacy.Error{Code: "private_not_found"}
+				return model.VisitorSession{}, &legacy.Error{Code: "private_not_found"}
 			}
 			sess, ok := h.strictVisitorSession(r, id)
 			if !ok || sess.UserID != info.OwnerID || r.Header.Get(visitorPassHeader) != "" {
-				return db.VisitorSession{}, &legacy.Error{Code: "private_not_found"}
+				return model.VisitorSession{}, &legacy.Error{Code: "private_not_found"}
 			}
 			return sess, nil
 		},
@@ -470,7 +465,7 @@ func (h *SiteHandler) getData(w http.ResponseWriter, r *http.Request) {
 			return h.readLimiter == nil || h.readLimiter.allowHTTP(&dataReadHeaders{headers}, h.readBucket(r, id))
 		},
 	})
-	result, err := svc.ReadData(r.Context(), legacy.DataReadInput{GetDataKindInput: legacy.GetDataKindInput{SiteName: siteName, Name: name, ValidName: validCollectionName.MatchString(name), Originless: noBrowserOrigin(r), DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst}, Count: q.Get("count") != "", ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), Access: legacy.VisitorAccessInput{Idle: h.limits.VisitorSessionIdle}, Limit: q.Get("limit"), Before: q.Get("before")})
+	result, err := svc.ReadData(r.Context(), legacy.DataReadInput{GetDataKindInput: legacy.GetDataKindInput{SiteName: siteName, Name: name, ValidName: validCollectionName.MatchString(name), Originless: noBrowserOrigin(r), DeclareFirst: h.savedData.DefaultKind == legacyDeclareFirst}, Count: q.Get("count") != "", ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), Access: legacy.VisitorAccessInput{Idle: h.limits.VisitorSessionIdle}, Limit: q.Get("limit"), Before: q.Get("before")})
 	for key, values := range headers {
 		w.Header()[key] = values
 	}
@@ -518,7 +513,7 @@ func (h *SiteHandler) getData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch result.Route {
-	case storagerules.LegacyDataPersonal:
+	case model.LegacyDataPersonal:
 		if result.PersonalCount {
 			if result.PersonalFew {
 				writeJSON(w, http.StatusOK, map[string]any{"name": name, "count": 0, "few": true})
@@ -528,8 +523,8 @@ func (h *SiteHandler) getData(w http.ResponseWriter, r *http.Request) {
 		} else {
 			writeJSONETag(w, r, personalBody(name, result.Document, result.Found))
 		}
-	case storagerules.LegacyDataContent:
-		resp := map[string]any{"name": name, "kind": db.KindContent, "data": nil}
+	case model.LegacyDataContent:
+		resp := map[string]any{"name": name, "kind": model.KindContent, "data": nil}
 		if result.Found {
 			if result.OwnerView {
 				resp["data"] = result.Document.Data
@@ -539,9 +534,9 @@ func (h *SiteHandler) getData(w http.ResponseWriter, r *http.Request) {
 			resp["saved_at"] = result.Document.CreatedAt
 		}
 		writeJSON(w, http.StatusOK, resp)
-	case storagerules.LegacyDataUndeclared:
+	case model.LegacyDataUndeclared:
 		writeDeclareFirst(w, siteName, name)
-	case storagerules.LegacyDataCount:
+	case model.LegacyDataCount:
 		writeJSON(w, http.StatusOK, map[string]any{"name": name, "count": result.Count})
 	default:
 		resp := map[string]any{"items": result.Items, "next": result.Next}
@@ -549,7 +544,7 @@ func (h *SiteHandler) getData(w http.ResponseWriter, r *http.Request) {
 			resp["private"] = true
 		}
 		if result.Board {
-			resp["kind"] = db.KindBoard
+			resp["kind"] = model.KindBoard
 			writeJSONETag(w, r, resp)
 			return
 		}
@@ -567,10 +562,10 @@ func (h *dataReadHeaders) WriteHeader(int)           { panic("unexpected status"
 // visitorOnSite is the visitor signed in to siteID on its own address, from a
 // page there (the __Host- cookie, same origin), with the CSRF header when
 // needCSRF. Writes 401/403 and ok=false otherwise.
-func (h *SiteHandler) visitorOnSite(w http.ResponseWriter, r *http.Request, siteID string, needCSRF bool) (db.VisitorSession, bool) {
+func (h *SiteHandler) visitorOnSite(w http.ResponseWriter, r *http.Request, siteID string, needCSRF bool) (model.VisitorSession, bool) {
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
 		writeVisitorAuthRequired(w)
-		return db.VisitorSession{}, false
+		return model.VisitorSession{}, false
 	}
 	sess, ok := h.strictVisitorSession(r, siteID)
 	if !ok {
@@ -598,7 +593,7 @@ func (h *SiteHandler) visitorOnSite(w http.ResponseWriter, r *http.Request, site
 
 func (h *SiteHandler) mineSvc(r *http.Request, headers http.Header) *legacy.Adapter {
 	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
-		ResolveMineSession: func(id string) (db.VisitorSession, bool) { return h.strictVisitorSession(r, id) },
+		ResolveMineSession: func(id string) (model.VisitorSession, bool) { return h.strictVisitorSession(r, id) },
 		MineResolveSite:    func(name string) (string, error) { return h.resolveSiteID(r, name) },
 		MineReadLimit: func(id string) bool {
 			return h.readLimiter == nil || h.readLimiter.allowHTTP(&dataReadHeaders{headers}, h.readBucket(r, id))
@@ -617,7 +612,7 @@ func (h *SiteHandler) listMine(w http.ResponseWriter, r *http.Request, siteName,
 	limit, before := pageArgs(r)
 	headers := http.Header{}
 	result, err := h.mineSvc(r, headers).ListMine(r.Context(), legacy.ListMineInput{
-		SiteName: siteName, Name: name, DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst,
+		SiteName: siteName, Name: name, DeclareFirst: h.savedData.DefaultKind == legacyDeclareFirst,
 		ContentHost: strings.EqualFold(requestHostName(r), h.contentHost),
 		Access:      legacy.VisitorAccessInput{Idle: h.limits.VisitorSessionIdle}, Limit: limit, Before: before,
 	})
@@ -639,7 +634,7 @@ func (h *SiteHandler) listMine(w http.ResponseWriter, r *http.Request, siteName,
 		writeAccountSuspended(w)
 		return
 	case errors.As(err, &serviceErr) && serviceErr.Code == "wrong_kind":
-		if result.Settings.Kind == db.KindContent || result.Settings.Kind == db.KindPersonal {
+		if result.Settings.Kind == model.KindContent || result.Settings.Kind == model.KindPersonal {
 			writeWrongKind(w, name, result.Settings.Kind, "read it with GET /v1/sites/"+siteName+"/data/"+name)
 		} else {
 			writeDeclareFirst(w, siteName, name)
@@ -661,11 +656,11 @@ func (h *SiteHandler) listMine(w http.ResponseWriter, r *http.Request, siteName,
 func (h *SiteHandler) contentSvc(r *http.Request, headers http.Header) *legacy.Adapter {
 	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
 		ContentSiteMaxBytes: h.siteMaxBytes, BoundHistory: h.boundHistoryContext,
-		ContentDeclareFirst: func() bool { return h.savedData.DefaultKind == config.DefaultKindDeclareFirst },
+		ContentDeclareFirst: func() bool { return h.savedData.DefaultKind == legacyDeclareFirst },
 		VisitorResolveKey:   h.resolveWriterKey,
 		ContentOwnerBrowser: func(siteID string) bool { return h.ownerBrowserView(r, siteID) },
 		ContentAuthor:       h.withAuthorEmail,
-		PersonalSession:     func(id string) (db.VisitorSession, bool) { return h.strictVisitorSession(r, id) },
+		PersonalSession:     func(id string) (model.VisitorSession, bool) { return h.strictVisitorSession(r, id) },
 		PersonalWriteLimit: func() bool {
 			return h.appendLimiter == nil || h.appendLimiter.allowHTTP(&dataReadHeaders{headers}, clientIP(r))
 		},
@@ -798,9 +793,9 @@ func (h *SiteHandler) putContent(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`, Code: "invalid_json"})
 	case result.Personal && errors.Is(err, sql.ErrNoRows):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q is not Personal any more", name), Code: "wrong_kind"})
-	case errors.Is(err, db.ErrPeopleFull):
+	case errors.Is(err, model.ErrPeopleFull):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q already keeps a record for %d people, the most one Personal name holds, so it takes no one new; ask the site owner", name, h.savedData.PersonalPeopleMax), Code: "people_full"})
-	case errors.Is(err, db.ErrSiteFull):
+	case errors.Is(err, model.ErrSiteFull):
 		h.writeSiteFull(w)
 	case err != nil:
 		if result.Personal && result.SaveAttempted {
@@ -815,7 +810,7 @@ func (h *SiteHandler) putContent(w http.ResponseWriter, r *http.Request) {
 			}
 			writeJSON(w, status, personalBody(name, result.Item, result.Found))
 		} else {
-			writeJSON(w, http.StatusOK, map[string]any{"name": name, "kind": db.KindContent, "data": result.Item.Data, "saved_at": result.Item.CreatedAt})
+			writeJSON(w, http.StatusOK, map[string]any{"name": name, "kind": model.KindContent, "data": result.Item.Data, "saved_at": result.Item.CreatedAt})
 		}
 	}
 }
@@ -824,27 +819,27 @@ func (h *SiteHandler) putContent(w http.ResponseWriter, r *http.Request) {
 // or connector, or the owner signed in on the site's own address with the
 // CSRF header. A key of another account gets the 404 of a missing site;
 // anyone else 403 owner_only. Writes the refusal.
-func (h *SiteHandler) contentWriter(w http.ResponseWriter, r *http.Request, siteID string) (db.Actor, bool) {
-	ownerID, _, err := db.GetSiteWriteGate(r.Context(), h.database, siteID)
+func (h *SiteHandler) contentWriter(w http.ResponseWriter, r *http.Request, siteID string) (model.Actor, bool) {
+	ownerID, _, err := h.sitesSvc().GetSiteWriteGate(r.Context(), siteID)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-		return db.Actor{}, false
+		return model.Actor{}, false
 	}
 	if key := r.Header.Get("X-API-Key"); key != "" {
 		u, ok, err := h.resolveWriterKey(r.Context(), key)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return db.Actor{}, false
+			return model.Actor{}, false
 		}
 		if !ok {
 			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key", Code: "invalid_api_key"})
-			return db.Actor{}, false
+			return model.Actor{}, false
 		}
 		if !u.IsAdmin && u.ID != ownerID {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return db.Actor{}, false
+			return model.Actor{}, false
 		}
-		a := db.Actor{ID: u.ID, Kind: actorOwner}
+		a := model.Actor{ID: u.ID, Kind: actorOwner}
 		if u.ID != ownerID {
 			a.Kind = actorAdmin
 		}
@@ -853,12 +848,12 @@ func (h *SiteHandler) contentWriter(w http.ResponseWriter, r *http.Request, site
 	if h.ownerBrowserView(r, siteID) {
 		if r.Header.Get(visitorCSRFHeader) != visitorCSRFValue {
 			writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
-			return db.Actor{}, false
+			return model.Actor{}, false
 		}
-		return h.withAuthorEmail(r.Context(), db.Actor{ID: ownerID, Kind: actorOwner}), true
+		return h.withAuthorEmail(r.Context(), model.Actor{ID: ownerID, Kind: actorOwner}), true
 	}
 	writeJSON(w, http.StatusForbidden, errorResponse{Error: "only the site owner can change page info", Code: "owner_only"})
-	return db.Actor{}, false
+	return model.Actor{}, false
 }
 
 // updateEntry is PATCH /v1/sites/{s}/data/{name}/items/{id}. The owner (key,
@@ -883,7 +878,7 @@ func (h *SiteHandler) updateEntry(w http.ResponseWriter, r *http.Request) {
 	case errors.As(err, &serviceErr) && serviceErr.Code == "site_not_found":
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 	case errors.As(err, &serviceErr) && serviceErr.Code == "wrong_kind":
-		if set.Kind == db.KindContent {
+		if set.Kind == model.KindContent {
 			writeWrongKind(w, name, set.Kind, "only the owner changes it")
 		} else {
 			writeDeclareFirst(w, siteName, name)
@@ -904,11 +899,11 @@ func (h *SiteHandler) updateEntry(w http.ResponseWriter, r *http.Request) {
 
 	case errors.Is(err, sql.ErrNoRows):
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no entry of yours with that id", Code: "not_found"})
-	case errors.Is(err, storagerules.ErrLegacyEntryTooLarge):
+	case errors.Is(err, model.ErrLegacyEntryTooLarge):
 		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
-	case errors.Is(err, db.ErrSiteFull):
+	case errors.Is(err, model.ErrSiteFull):
 		h.writeSiteFull(w)
-	case errors.Is(err, storagerules.ErrLegacyEntryNotObject):
+	case errors.Is(err, model.ErrLegacyEntryNotObject):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "this entry is not a JSON object, so it has no fields to change; withdraw it and send a new one", Code: "not_an_object"})
 	case err != nil:
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -940,7 +935,7 @@ func (h *SiteHandler) withdrawEntry(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
 		return
 	case errors.As(err, &serviceErr) && serviceErr.Code == "wrong_kind":
-		if set.Kind == db.KindContent {
+		if set.Kind == model.KindContent {
 			writeWrongKind(w, name, set.Kind, "only the owner changes it")
 		} else {
 			writeDeclareFirst(w, siteName, name)
@@ -985,7 +980,7 @@ func (h *SiteHandler) undoWithdraw(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
 		return
 	case errors.As(err, &serviceErr) && serviceErr.Code == "wrong_kind":
-		if set.Kind == db.KindContent {
+		if set.Kind == model.KindContent {
 			writeWrongKind(w, name, set.Kind, "only the owner changes it")
 		} else {
 			writeDeclareFirst(w, siteName, name)
@@ -998,20 +993,20 @@ func (h *SiteHandler) undoWithdraw(w http.ResponseWriter, r *http.Request) {
 		writeNotAllowedToSave(w)
 	case errors.As(err, &serviceErr) && serviceErr.Code == "site_not_found":
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-	case errors.Is(err, db.ErrOnePerPerson):
+	case errors.Is(err, model.ErrOnePerPerson):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "you have another entry here now (one per person); withdraw it first", Code: "one_per_person"})
-	case errors.Is(err, db.ErrNameFull):
+	case errors.Is(err, model.ErrNameFull):
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Error: fmt.Sprintf("this list is full (%d entries); the owner can delete entries or clear it to make room", h.savedData.EntriesMax),
 			Code:  "list_full",
 		})
-	case errors.Is(err, db.ErrSiteFull):
+	case errors.Is(err, model.ErrSiteFull):
 		h.writeSiteFull(w)
 	case err != nil:
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 	case !done:
 		writeJSON(w, http.StatusConflict, errorResponse{
-			Error: fmt.Sprintf("only an entry you withdrew yourself in the last %s can be brought back here; the site owner can restore older ones", config.Span(window)),
+			Error: fmt.Sprintf("only an entry you withdrew yourself in the last %s can be brought back here; the site owner can restore older ones", storeSpan(window)),
 			Code:  "undo_expired",
 		})
 	default:
@@ -1068,15 +1063,15 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 	}
 	// Kinds that take saves only from signed-in visitors are not offered
 	// where nobody can sign in (a name already declared keeps its kind).
-	if req.Kind != prev.Kind && (req.Kind == db.KindEntries || req.Kind == db.KindPersonal || req.Kind == db.KindBoard) &&
-		!h.signInNeededOK(w, map[string]string{db.KindEntries: "Submissions", db.KindPersonal: "Personal records", db.KindBoard: "Shared boards"}[req.Kind]) {
+	if req.Kind != prev.Kind && (req.Kind == model.KindEntries || req.Kind == model.KindPersonal || req.Kind == model.KindBoard) &&
+		!h.signInNeededOK(w, map[string]string{model.KindEntries: "Submissions", model.KindPersonal: "Personal records", model.KindBoard: "Shared boards"}[req.Kind]) {
 		return
 	}
 	// Personal records belong to the people who saved them: a Personal name
 	// becomes another kind (which the owner or everyone reads) only when it
 	// holds none, not even in Recently deleted.
-	if prev.Kind == db.KindPersonal && req.Kind != db.KindPersonal && validKind(req.Kind) {
-		has, err := db.NameHasRows(r.Context(), h.database, siteID, name)
+	if prev.Kind == model.KindPersonal && req.Kind != model.KindPersonal && validKind(req.Kind) {
+		has, err := h.legacySvc().NameHasRows(r.Context(), siteID, name)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
@@ -1087,13 +1082,13 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	switch req.Kind {
-	case db.KindContent:
-		if req.Visibility == "owner" || (req.OnePerPerson != nil && *req.OnePerPerson) || (req.Notify != "" && req.Notify != db.NotifyOff) {
+	case model.KindContent:
+		if req.Visibility == "owner" || (req.OnePerPerson != nil && *req.OnePerPerson) || (req.Notify != "" && req.Notify != model.NotifyOff) {
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "page info is always public and written only by the owner; visibility, one_per_person and notify apply to Submissions (kind entries)", Code: "invalid_kind"})
 			return
 		}
-		if prev.Kind != db.KindContent {
-			n, err := db.CountKindNames(r.Context(), h.database, siteID, db.KindContent, name)
+		if prev.Kind != model.KindContent {
+			n, err := h.legacySvc().CountKindNames(r.Context(), siteID, model.KindContent, name)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 				return
@@ -1107,19 +1102,19 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 		// visitors sent there stays theirs and the owner's), and a list of
 		// several entries never becomes one document: both checked under
 		// the declaration lock.
-		if !h.declareLocked(w, r, siteID, name, db.KindContent, false, false, db.NotifyOff, false, "page info") {
+		if !h.declareLocked(w, r, siteID, name, model.KindContent, false, false, model.NotifyOff, false, "page info") {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"site": siteName, "name": name, "kind": db.KindContent, "label": kindLabel(db.KindContent),
+			"site": siteName, "name": name, "kind": model.KindContent, "label": kindLabel(model.KindContent),
 			"message": "Page info: anyone who can open the site reads it; only you change it (PUT /v1/sites/" + siteName + "/data/" + name + ", update_data).",
 		})
-	case db.KindEntries:
+	case model.KindEntries:
 		// A first declaration starts from the defaults: private to the owner,
 		// a daily email while private (off when public), any number per
 		// person. A re-declaration keeps what it does not name.
 		private, notify, one := true, "", false
-		if prev.Kind == db.KindEntries {
+		if prev.Kind == model.KindEntries {
 			private, notify, one = prev.Private, prev.Notify, prev.OnePerPerson
 		}
 		switch req.Visibility {
@@ -1134,19 +1129,19 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 		}
 		switch req.Notify {
 		case "":
-		case db.NotifyOff, db.NotifyEach, db.NotifyDaily:
+		case model.NotifyOff, model.NotifyEach, model.NotifyDaily:
 			notify = req.Notify
 		default:
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: `notify is "off", "each" (batched, soon after they arrive) or "daily" (a digest)`, Code: "invalid_kind"})
 			return
 		}
 		if notify == "" {
-			notify = db.NotifyDaily
+			notify = model.NotifyDaily
 			if !private || h.noEmail {
-				notify = db.NotifyOff
+				notify = model.NotifyOff
 			}
 		}
-		if notify != db.NotifyOff && h.noEmail && req.Notify != "" {
+		if notify != model.NotifyOff && h.noEmail && req.Notify != "" {
 			writeJSON(w, http.StatusConflict, errorResponse{
 				Error: `this server sends no email (RESEND_API_KEY is not set), so it cannot email you about new entries; send "notify": "off", and read them with GET .../data/` + name,
 				Code:  "email_unavailable",
@@ -1178,10 +1173,10 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 		if !private && !h.publicEntriesOK(w) {
 			return
 		}
-		if prev.Kind != db.KindEntries && !h.entriesNameRoom(w, r, siteID, name) {
+		if prev.Kind != model.KindEntries && !h.entriesNameRoom(w, r, siteID, name) {
 			return
 		}
-		if !h.declareLocked(w, r, siteID, name, db.KindEntries, private, one, notify, req.ConfirmPublic, "public Submissions") {
+		if !h.declareLocked(w, r, siteID, name, model.KindEntries, private, one, notify, req.ConfirmPublic, "public Submissions") {
 			return
 		}
 		msg := "Submissions, private: signed-in visitors on https://" + home.Host + " add entries and see, change or withdraw their own; only you read them all."
@@ -1193,10 +1188,10 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 		}
 		msg += " " + notifyWords(notify)
 		writeJSON(w, http.StatusOK, map[string]any{
-			"site": siteName, "name": name, "kind": db.KindEntries, "label": kindLabel(db.KindEntries),
+			"site": siteName, "name": name, "kind": model.KindEntries, "label": kindLabel(model.KindEntries),
 			"visibility": visibilityWord(private), "one_per_person": one, "notify": notify, "message": msg,
 		})
-	case db.KindPersonal, db.KindBoard:
+	case model.KindPersonal, model.KindBoard:
 		h.declarePersonalOrBoard(w, r, siteID, siteName, name, req.Kind, prev, req.Visibility, req.OnePerPerson, req.Notify, req.ConfirmPublic)
 	default:
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `kind is "entries" (Submissions: things visitors send), "content" (Page info: only the owner writes it), "mine" (Personal: one private record per signed-in visitor) or "board" (Shared board: a list signed-in visitors edit together)`, Code: "invalid_kind"})
@@ -1209,14 +1204,14 @@ func (h *SiteHandler) declareData(w http.ResponseWriter, r *http.Request) {
 // name made readable by anyone (as what) holds nothing, or the owner
 // confirmed. Writes the refusal; false then.
 func (h *SiteHandler) declareLocked(w http.ResponseWriter, r *http.Request, siteID, name, kind string, private, one bool, notify string, confirmPublic bool, what string) bool {
-	err := db.DeclareDataLocked(r.Context(), h.database, siteID, name, kind, private, one, notify, confirmPublic)
-	var pe *db.PrivateItemsError
+	err := h.legacySvc().DeclareDataLocked(r.Context(), siteID, name, kind, private, one, notify, confirmPublic)
+	var pe *model.PrivateItemsError
 	switch {
-	case errors.Is(err, db.ErrNameHasRows) && kind == db.KindPersonal:
+	case errors.Is(err, model.ErrNameHasRows) && kind == model.KindPersonal:
 		writeHoldsData(w, name)
-	case errors.Is(err, db.ErrNameHasRows):
+	case errors.Is(err, model.ErrNameHasRows):
 		writeHasRecords(w, name)
-	case errors.Is(err, db.ErrSeveralItems):
+	case errors.Is(err, model.ErrSeveralItems):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q holds several entries, and page info is one document; use another name, or clear the list first", name), Code: "has_entries"})
 	case errors.As(err, &pe):
 		writePrivateItems(w, name, pe, what)
@@ -1232,7 +1227,7 @@ func (h *SiteHandler) declareLocked(w http.ResponseWriter, r *http.Request, site
 // deleted, which a restore brings back) never becomes page info, and becomes
 // readable by anyone (as what) only when the owner confirms, knowing what
 // that shows. The 409 has_entries or confirm_public, with the count.
-func writePrivateItems(w http.ResponseWriter, name string, e *db.PrivateItemsError, what string) {
+func writePrivateItems(w http.ResponseWriter, name string, e *model.PrivateItemsError, what string) {
 	n := e.Live + e.Deleted
 	noun := "entries"
 	if n == 1 {
@@ -1274,7 +1269,7 @@ func writeHoldsData(w http.ResponseWriter, name string) {
 
 func validKind(k string) bool {
 	switch k {
-	case db.KindContent, db.KindEntries, db.KindPersonal, db.KindBoard:
+	case model.KindContent, model.KindEntries, model.KindPersonal, model.KindBoard:
 		return true
 	}
 	return false
@@ -1285,15 +1280,15 @@ func validKind(k string) bool {
 // own, where visitors sign in. A name that already holds data never becomes
 // Personal (it would vanish from the owner's view); private entries become a
 // (public) board only with confirm_public.
-func (h *SiteHandler) declarePersonalOrBoard(w http.ResponseWriter, r *http.Request, siteID, siteName, name, kind string, prev db.DataSettings, visibility string, one *bool, notify string, confirmPublic bool) {
-	if (visibility != "" && !(kind == db.KindBoard && visibility == "public")) || (one != nil && *one) || (notify != "" && notify != db.NotifyOff) {
+func (h *SiteHandler) declarePersonalOrBoard(w http.ResponseWriter, r *http.Request, siteID, siteName, name, kind string, prev model.DataSettings, visibility string, one *bool, notify string, confirmPublic bool) {
+	if (visibility != "" && !(kind == model.KindBoard && visibility == "public")) || (one != nil && *one) || (notify != "" && notify != model.NotifyOff) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Personal and Shared board take no options: visibility, one_per_person and notify apply to Submissions (kind entries)", Code: "invalid_kind"})
 		return
 	}
 	internal := func() { writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"}) }
 	if prev.Kind != kind {
-		if kind == db.KindPersonal {
-			has, err := db.NameHasRows(r.Context(), h.database, siteID, name)
+		if kind == model.KindPersonal {
+			has, err := h.legacySvc().NameHasRows(r.Context(), siteID, name)
 			if err != nil {
 				internal()
 				return
@@ -1304,10 +1299,10 @@ func (h *SiteHandler) declarePersonalOrBoard(w http.ResponseWriter, r *http.Requ
 			}
 		}
 		max, label := h.savedData.PersonalNamesMax, "Personal"
-		if kind == db.KindBoard {
+		if kind == model.KindBoard {
 			max, label = h.savedData.BoardNamesMax, "Shared board"
 		}
-		n, err := db.CountKindNames(r.Context(), h.database, siteID, kind, name)
+		n, err := h.legacySvc().CountKindNames(r.Context(), siteID, kind, name)
 		if err != nil {
 			internal()
 			return
@@ -1329,11 +1324,11 @@ func (h *SiteHandler) declarePersonalOrBoard(w http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	if !h.declareLocked(w, r, siteID, name, kind, false, false, db.NotifyOff, confirmPublic, "a Shared board") {
+	if !h.declareLocked(w, r, siteID, name, kind, false, false, model.NotifyOff, confirmPublic, "a Shared board") {
 		return
 	}
 	msg := fmt.Sprintf("Personal: each visitor signed in on https://%s keeps one record here (at most %d KB), on any device; only they change it. You see how many people have one (from 3 people up), never what they saved: Simple Host's owner tools never show a person's Personal record; the site's own pages run in the visitor's browser and can read that visitor's record, so only use Personal on sites you trust. Never publish a page that sends what it reads from a Personal record anywhere else.", home.Host, h.savedData.PersonalMaxKB)
-	if kind == db.KindBoard {
+	if kind == model.KindBoard {
 		msg = fmt.Sprintf("Shared board: anyone who can open the site reads it; visitors signed in on https://%s add items and change or delete any item, one at a time (at most %d items of %d KB). Only you can clear it; changed and deleted items can be restored for %d days.", home.Host, h.savedData.BoardMax, h.savedData.BoardItemMaxKB, h.savedData.UndoDays)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "name": name, "kind": kind, "label": kindLabel(kind), "message": msg})
@@ -1357,7 +1352,7 @@ func (h *SiteHandler) publicEntriesOK(w http.ResponseWriter) bool {
 // entriesNameRoom: the site may declare one more Submissions name
 // (SAVED_DATA_ENTRIES_NAMES_MAX). Writes the refusal.
 func (h *SiteHandler) entriesNameRoom(w http.ResponseWriter, r *http.Request, siteID, name string) bool {
-	n, err := db.CountKindNames(r.Context(), h.database, siteID, db.KindEntries, name)
+	n, err := h.legacySvc().CountKindNames(r.Context(), siteID, model.KindEntries, name)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return false
@@ -1373,22 +1368,22 @@ func (h *SiteHandler) entriesNameRoom(w http.ResponseWriter, r *http.Request, si
 func normalizeKind(k string) string {
 	switch strings.ToLower(strings.TrimSpace(strings.NewReplacer("_", " ", "-", " ").Replace(k))) {
 	case "content", "page info":
-		return db.KindContent
+		return model.KindContent
 	case "entries", "submissions":
-		return db.KindEntries
+		return model.KindEntries
 	case "mine", "personal":
-		return db.KindPersonal
+		return model.KindPersonal
 	case "board", "shared board":
-		return db.KindBoard
+		return model.KindBoard
 	}
 	return strings.TrimSpace(k)
 }
 
 func notifyWords(notify string) string {
 	switch notify {
-	case db.NotifyEach:
+	case model.NotifyEach:
 		return "You get an email soon after new entries arrive (batched)."
-	case db.NotifyDaily:
+	case model.NotifyDaily:
 		return "You get a daily email when there are new entries."
 	}
 	return "No email about new entries."
@@ -1396,7 +1391,7 @@ func notifyWords(notify string) string {
 
 // dataSummary is one name in the owner's list.
 type dataSummary struct {
-	db.CollectionSummary
+	model.CollectionSummary
 	Label string `json:"label"`
 }
 
@@ -1407,12 +1402,12 @@ func (h *SiteHandler) listData(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	summaries, err := db.ListCollectionSummariesByID(r.Context(), h.database, siteID)
+	summaries, err := h.legacySvc().ListCollectionSummariesByID(r.Context(), siteID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	savers, err := db.GetSavers(r.Context(), h.database, siteID)
+	savers, err := h.legacySvc().GetSavers(r.Context(), siteID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1484,7 +1479,7 @@ func (h *SiteHandler) getSavers(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s, err := db.GetSavers(r.Context(), h.database, siteID)
+	s, err := h.legacySvc().GetSavers(r.Context(), siteID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1510,9 +1505,9 @@ func (h *SiteHandler) putSavers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch req.Mode {
-	case "", db.SaversAnyone:
-		req.Mode = db.SaversAnyone
-	case db.SaversListed:
+	case "", model.SaversAnyone:
+		req.Mode = model.SaversAnyone
+	case model.SaversListed:
 	default:
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `mode is "anyone" (anyone who signs in) or "listed" (only the emails and domains in allow)`, Code: "invalid_savers"})
 		return
@@ -1531,7 +1526,7 @@ func (h *SiteHandler) putSavers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("at most %d emails and domains in total", h.savedData.SaversMax), Code: "too_many_savers"})
 		return
 	}
-	s := db.Savers{Mode: req.Mode, Allow: allow, Block: req.Block}
+	s := model.Savers{Mode: req.Mode, Allow: allow, Block: req.Block}
 	if err := h.legacySvc().SetSavers(r.Context(), legacy.SetSaversInput{SiteID: siteID, Savers: s}); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1539,9 +1534,9 @@ func (h *SiteHandler) putSavers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "mode": s.Mode, "allow": s.Allow, "block": s.Block, "message": saversWords(s)})
 }
 
-func saversWords(s db.Savers) string {
+func saversWords(s model.Savers) string {
 	msg := "Anyone who signs in can save on this site."
-	if s.Mode == db.SaversListed {
+	if s.Mode == model.SaversListed {
 		msg = fmt.Sprintf("Only the %d emails and domains you listed can save on this site (you always can).", len(s.Allow))
 	}
 	if len(s.Block) > 0 {
@@ -1579,7 +1574,7 @@ func (h *SiteHandler) blockSaver(w http.ResponseWriter, r *http.Request) {
 		if h.refusePersonal(w, r, siteID, req.Collection) {
 			return
 		}
-		author, err := db.GetItemAuthor(r.Context(), h.database, siteID, req.Collection, id)
+		author, err := h.legacySvc().GetItemAuthor(r.Context(), siteID, req.Collection, id)
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such entry", Code: "not_found"})
 			return
@@ -1588,20 +1583,20 @@ func (h *SiteHandler) blockSaver(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		if author.Email == "" || author.Email == db.OperatorLabel {
+		if author.Email == "" || author.Email == model.OperatorLabel {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "that entry was saved without a sign-in, so there is nobody to block", Code: "no_author"})
 			return
 		}
 		// The address the server stamped, without a +tag, so the same
 		// mailbox under another tag is blocked too.
-		pattern = db.BaseEmail(author.Email)
+		pattern = model.BaseEmail(author.Email)
 	}
 	norm, valid := normalizeSaver(pattern)
 	if !valid {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "send an email address, a domain (@company.com), or an entry (collection and id)", Code: "invalid_savers"})
 		return
 	}
-	cur, err := db.GetSavers(r.Context(), h.database, siteID)
+	cur, err := h.legacySvc().GetSavers(r.Context(), siteID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1610,7 +1605,7 @@ func (h *SiteHandler) blockSaver(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("at most %d emails and domains in total", h.savedData.SaversMax), Code: "too_many_savers"})
 		return
 	}
-	n, err := db.AddBlocked(r.Context(), h.database, siteID, norm)
+	n, err := h.legacySvc().AddBlocked(r.Context(), siteID, norm)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1685,71 +1680,9 @@ func (o *submissionEmailOwner) Start(ctx context.Context) {
 }
 
 func (h *SiteHandler) sendSubmissionEmails(ctx context.Context) int {
-	t := h.notifyEngine().submissions.tracker
-	t.Attempt()
-	mailer, ok := h.mailer.(noticeSender)
-	each := time.Duration(h.savedData.NotifyEachMinutes) * time.Minute
-	daily := time.Duration(h.savedData.NotifyDailyHours) * time.Hour
-	due, err := db.DueNotifications(ctx, h.database, each, daily)
-	if err != nil {
-		t.Fail("list due mail", err)
-		return 0
-	}
-	t.SetPending(int64(len(due)))
-	if !ok {
-		return 0
-	}
-	pending := int64(len(due))
-	sent := 0
-	for _, d := range due {
-		to, err := db.GetSiteOwnerEmail(ctx, h.database, d.SiteID)
-		if err != nil || !strings.Contains(to, "@") {
-			continue
-		}
-		// Claimed before it is sent: another server (or the next tick after
-		// a failed send) never sends the same email again.
-		won, err := db.ClaimNotification(ctx, h.database, d)
-		if err != nil {
-			t.Fail("claim mail", err)
-			continue
-		}
-		if !won {
-			continue
-		}
-		pending--
-		t.SetPending(pending)
-		t.Progress() // The claim durably consumes this batch, including failed sends.
-		noun := "entries"
-		if d.Count == 1 {
-			noun = "entry"
-		}
-		subject := fmt.Sprintf("%d new %s in %s on %s", d.Count, noun, d.Name, d.SiteName)
-		owner := h.exportLinkBase() + "/"
-		if d.Handle != "" {
-			owner = h.mainSiteURL() + "/" + d.Handle
-		}
-		stop := h.exportLinkBase() + "/v1/data-notify/stop#t=" + url.QueryEscape(h.notifyStopToken(d.SiteID, d.Name))
-		text := fmt.Sprintf(`%d new %s arrived in %s on your site %s since %s.
-
-See who sent them and what they say in your sites page: %s
-
-Stop these emails for %s: %s
-
-Simple Host
-`, d.Count, noun, d.Name, d.SiteName, d.Since.UTC().Format("2 Jan 2006 15:04 UTC"), owner, d.Name, stop)
-		if err := email.SendNoticeCtx(ctx, mailer, to, subject, text); err != nil {
-			// Not retried: the next email counts from here, so these entries
-			// are left out of the count rather than mailed twice.
-			t.Fail("send mail", notificationMailError(err))
-			continue
-		}
-		sent++
-		t.Progress()
-	}
-	if sent > 0 {
-		log.Printf("submission emails: sent %d", sent)
-	}
-	return sent
+	svc := h.storeMail()
+	svc.Tracker = h.notifyEngine().submissions.tracker
+	return svc.SendSubmissions(ctx)
 }
 
 // notifyStop is GET/POST /v1/data-notify/stop?t=: the emailed "stop these"
@@ -1774,7 +1707,7 @@ func (h *SiteHandler) notifyStop(w http.ResponseWriter, r *http.Request) {
 			"", "", confirmForm("/v1/data-notify/stop", map[string]string{"t": tok}, "Stop these emails"))
 		return
 	}
-	if _, err := db.SetNotify(r.Context(), h.database, siteID, name, db.NotifyOff); err != nil {
+	if _, err := h.legacySvc().SetNotify(r.Context(), siteID, name, model.NotifyOff); err != nil {
 		h.renderServiceError(w, r)
 		return
 	}
@@ -1786,7 +1719,7 @@ func (h *SiteHandler) notifyStop(w http.ResponseWriter, r *http.Request) {
 // (key, connector, or signed in on the site, as for Page info), or a visitor
 // signed in on the site's own address with the CSRF header who is allowed to
 // save here, within the per-address write rate. Writes the refusal.
-func (h *SiteHandler) boardWriter(w http.ResponseWriter, r *http.Request, siteID string) (db.Actor, bool) {
+func (h *SiteHandler) boardWriter(w http.ResponseWriter, r *http.Request, siteID string) (model.Actor, bool) {
 	result, err := h.legacyBoardWriterSvc(r).BoardWriter(r.Context(), legacy.BoardWriterInput{SiteID: siteID, Key: r.Header.Get("X-API-Key"), Preview: previewReferer(r), ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, VisitorPass: r.Header.Get(visitorPassHeader) != ""})
 	for k, v := range result.Headers {
 		w.Header()[k] = v
@@ -1823,5 +1756,5 @@ func (h *SiteHandler) boardWriter(w http.ResponseWriter, r *http.Request, siteID
 	} else {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 	}
-	return db.Actor{}, false
+	return model.Actor{}, false
 }

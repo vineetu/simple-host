@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Saved data, step 4: Shared board (kind "board"; saved-data redesign, owner
@@ -46,7 +46,7 @@ func (h *SiteHandler) writeBoardFull(w http.ResponseWriter) {
 
 // boardItemOut is an item as a board answers it: its version, and never who
 // added it (that is the owner's, in the owner's reads).
-func boardItemOut(it db.CollectionItem) db.CollectionItem {
+func boardItemOut(it model.CollectionItem) model.CollectionItem {
 	it.Data = withoutSubmitter(it.Data)
 	it.By = ""
 	return it

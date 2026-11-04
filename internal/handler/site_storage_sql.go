@@ -1,68 +1,61 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
-	rules "github.com/vsriram/simple-host/internal/rules/storage"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
-	sqlite3 "github.com/ncruces/go-sqlite3"
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
-	"github.com/vsriram/simple-host/internal/storage"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Keep the previous 4096-page (256 MiB) per-connection memory ceiling after
 // moving from the wazero interpreter to the compiled-Go SQLite engine.
 const storageSQLiteMaxMemory = 4096 * 65536
 
-func storageSQLTables(c *sqlite3.Conn) (map[string]bool, error) { return storage.SQLTables(c) }
+// storageInspection is the catalog surface needed by the visitor-tool transport.
+// The storage service owns its connection, deadline, budget and release function.
+type storageInspection interface {
+	Tables() (map[string]bool, error)
+	TableInfo(string) (map[string]string, []string, error)
+}
 
-func storageTableInfo(conn *sqlite3.Conn, table string) (map[string]string, []string, error) {
-	return storage.TableInfo(conn, table)
+func storageSQLTables(c storageInspection) (map[string]bool, error) { return c.Tables() }
+func storageTableInfo(c storageInspection, table string) (map[string]string, []string, error) {
+	return c.TableInfo(table)
 }
 
 // openStorageTableConn opens the database for one table route.
-func (h *SiteHandler) openStorageTableConn(w http.ResponseWriter, r *http.Request, c storageCall, write bool) (*sqlite3.Conn, func(), bool) {
-	timeout := h.limits.StorageOwnerTimeout
-	if !c.owner {
-		timeout = h.limits.StorageVisitorQueryTimeout
-		if write {
-			timeout = h.limits.StorageVisitorWriteTimeout
-		}
-	}
-	conn, done, err := storage.OpenTableConn(r.Context(), h.storageSQLPath(c), write, h.sqliteGateFor(), timeout, storageSQLiteMaxMemory, func() (int64, error) {
-		usage, err := h.measureSiteStorage(r.Context(), c)
-		return storageSiteLimitBytes(h.ed.Storage().CombinedPool) - h.storageBudgetUsed(usage), err
-	})
-	switch err {
-	case nil:
+func (h *SiteHandler) openStorageTableConn(w http.ResponseWriter, r *http.Request, c storageCall, write bool) (storageInspection, func(), bool) {
+	svc := h.storageRequestSvc(r, c)
+	conn, done, err := svc.OpenInspection(r.Context(), h.storageServiceCall(c), write)
+	if err == nil {
 		return conn, done, true
-	case storage.ErrUnknownTable:
-		storageError(w, 400, "invalid_rows", "unknown table")
-	case storage.ErrTableFull:
-		storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
-	case storage.ErrSQLiteBusy:
+	}
+	e := err.(*appstorage.Error)
+	switch e.Code {
+	case "invalid_rows":
+		storageError(w, 400, e.Code, e.Message)
+	case "site_full":
+		storageError(w, 507, e.Code, e.Message)
+	case "storage_busy":
 		storageBusy(w)
 	default:
 		storageError(w, 500, "internal_error", "internal server error")
 	}
+
 	return nil, nil, false
 }
 
 func (h *SiteHandler) storageRuntimeDir(c storageCall) string {
-	return storage.RuntimeDir(h.disk, c.ownerID, c.siteName)
+	return filepath.Join(h.disk.SiteDir(c.ownerID, c.siteName), "runtime")
 }
 func (h *SiteHandler) storageSQLPath(c storageCall) string {
-	return storage.RuntimeSQLitePath(h.disk, c.ownerID, c.siteName, c.resourceName)
-}
-
-// stageStorageRuntime moves bytes out of the live resource name before the
-// PostgreSQL declaration is deleted. The caller restores on DB failure and
-// removes the staging directory only after commit.
-func (h *SiteHandler) stageStorageRuntime(c storageCall) (string, func(), error) {
-	return storage.StageRuntime(h.disk, c.ownerID, c.siteName, c.resourceName, c.resource.Kind)
+	return filepath.Join(h.storageRuntimeDir(c), "sqlite", c.resourceName+".sqlite")
 }
 
 func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
@@ -73,9 +66,9 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	mode := strings.TrimPrefix(r.URL.Path, "/v1/sites/"+r.PathValue("sitename")+"/storage/sqlite/"+c.resourceName+"/")
 	call := h.storageServiceCall(c)
 	call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
-	call.Resource.Tables = make(map[string]rules.TableRule, len(c.resource.Tables))
+	call.Resource.Tables = make(map[string]model.TableRule, len(c.resource.Tables))
 	for name, rule := range c.resource.Tables {
-		call.Resource.Tables[name] = rules.TableRule{Matrix: rules.AccessMatrix(rule.Matrix), PresetBase: rule.PresetBase}
+		call.Resource.Tables[name] = model.TableRule{Matrix: model.AccessMatrix(rule.Matrix), PresetBase: rule.PresetBase}
 	}
 	svc := h.storageRequestSvc(r, c)
 	result, err := svc.LegacySQL(r.Context(), appstorage.LegacySQLInput{Call: call, Mode: mode, ReadBody: func() ([]byte, error) { return io.ReadAll(io.LimitReader(r.Body, (64<<10)+1)) }, ResultLimit: storageResultLimitBytes()})
@@ -105,17 +98,23 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, body)
 }
 
-func bindStorageParam(stmt *sqlite3.Stmt, i int, raw json.RawMessage) error {
-	return storage.BindStorageParam(stmt, i, raw)
+func storageScalar(raw json.RawMessage) bool {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var value any
+	if dec.Decode(&value) != nil {
+		return false
+	}
+	switch value.(type) {
+	case nil, string, bool, json.Number:
+		return true
+	}
+	return false
 }
-func storageColumn(stmt *sqlite3.Stmt, i int) any { return storage.StorageColumn(stmt, i) }
-func storageScalar(raw json.RawMessage) bool      { return storage.StorageScalar(raw) }
 
-var errStorageBusy = storage.ErrSQLiteBusy
+type sqliteGate = appstorage.SQLiteGate
 
-type sqliteGate = storage.SQLiteGate
-
-func newSQLiteGate(n int, wait time.Duration) *sqliteGate { return storage.NewSQLiteGate(n, wait) }
+func newSQLiteGate(n int, wait time.Duration) *sqliteGate { return appstorage.NewSQLiteGate(n, wait) }
 
 // sqliteGateFor is h's SQLite concurrency gate. NewSiteHandler builds one
 // from h.limits up front; a bare &SiteHandler{} (some test fixtures) has no
@@ -129,8 +128,6 @@ func (h *SiteHandler) sqliteGateFor() *sqliteGate {
 	})
 	return h.sqlite
 }
-
-func createIfNotExists(sql string) bool { return storage.CreateIfNotExists(sql) }
 
 func writeLegacySQLError(w http.ResponseWriter, e *appstorage.Error) {
 	status := 400

@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/app/legacy"
-	"github.com/vsriram/simple-host/internal/config"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/legacy"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Saved data, step 3: Personal (kind "mine"; saved-data redesign, owner
@@ -43,7 +42,7 @@ import (
 //   - It goes into the person's own "Download my data" and is erased with
 //     their account (it is their row: collection_items.submitted_by).
 //
-// Each person has one row per name for good (db.SavePersonal writes over a
+// Each person has one row per name for good (model.SavePersonal writes over a
 // deleted one), so a restore never gives anyone two records.
 
 // writePersonalOnly is the answer to anyone asking for someone's Personal
@@ -61,12 +60,12 @@ func writePersonalOnly(w http.ResponseWriter, name string) {
 // isPersonalName reports whether name on siteID is declared Personal (500
 // written on failure: ok=false).
 func (h *SiteHandler) isPersonalName(w http.ResponseWriter, r *http.Request, siteID, name string) (personal, ok bool) {
-	set, err := db.GetDataSettings(r.Context(), h.database, siteID, name)
+	set, err := h.legacySvc().GetDataSettings(r.Context(), siteID, name)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return false, false
 	}
-	return set.Kind == db.KindPersonal, true
+	return set.Kind == model.KindPersonal, true
 }
 
 // refusePersonal writes the personal_data refusal when name is Personal.
@@ -86,8 +85,8 @@ func (h *SiteHandler) refusePersonal(w http.ResponseWriter, r *http.Request, sit
 	return false
 }
 
-func personalBody(name string, it db.CollectionItem, found bool) map[string]any {
-	out := map[string]any{"name": name, "kind": db.KindPersonal, "data": nil, "version": 0}
+func personalBody(name string, it model.CollectionItem, found bool) map[string]any {
+	out := map[string]any{"name": name, "kind": model.KindPersonal, "data": nil, "version": 0}
 	if found {
 		out["data"] = it.Data
 		out["version"] = it.Version
@@ -172,9 +171,9 @@ func (h *SiteHandler) writePersonalSaveResult(w http.ResponseWriter, siteID, nam
 	case errors.Is(err, sql.ErrNoRows):
 		// The name stopped being Personal while this ran.
 		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q is not Personal any more", name), Code: "wrong_kind"})
-	case errors.Is(err, db.ErrSiteFull):
+	case errors.Is(err, model.ErrSiteFull):
 		h.writeSiteFull(w)
-	case errors.Is(err, db.ErrPeopleFull):
+	case errors.Is(err, model.ErrPeopleFull):
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Error: fmt.Sprintf("%q already keeps a record for %d people, the most one Personal name holds, so it takes no one new; ask the site owner", name, h.savedData.PersonalPeopleMax),
 			Code:  "people_full",
@@ -309,7 +308,7 @@ func (h *SiteHandler) deleteData(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	siteName, name := strings.TrimSpace(r.PathValue("sitename")), strings.TrimSpace(r.PathValue("coll"))
 	result, err := h.legacyPersonalPutSvc(r).DeletePersonalRequest(r.Context(), legacy.DeletePersonalRequest{
-		SiteName: siteName, Name: name, DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst,
+		SiteName: siteName, Name: name, DeclareFirst: h.savedData.DefaultKind == legacyDeclareFirst,
 		ActorFacts: legacy.CollectionWriteActor{Key: r.Header.Get("X-API-Key"), Preview: previewReferer(r), ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), CSRF: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue},
 	})
 	for key, values := range result.Headers {
@@ -352,9 +351,9 @@ func (h *SiteHandler) writePersonalRequestError(w http.ResponseWriter, siteName,
 		return true
 	case "personal_wrong_kind":
 		switch kind {
-		case db.KindContent:
+		case model.KindContent:
 			writeWrongKind(w, name, kind, "the owner replaces it whole with PUT /v1/sites/"+siteName+"/data/"+name)
-		case db.KindEntries, db.KindBoard:
+		case model.KindEntries, model.KindBoard:
 			writeWrongKind(w, name, kind, "change or delete one item with PATCH or DELETE /v1/sites/"+siteName+"/data/"+name+"/items/{id}; the owner empties the whole list with DELETE /v1/sites/"+siteName+"/collections/"+name)
 		default:
 			writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q is not Personal: the site owner declares it first with PUT /v1/sites/%s/data/%s/kind and {\"kind\": \"mine\"}", name, siteName, name), Code: "declare_first"})
@@ -387,7 +386,7 @@ func (h *SiteHandler) writePersonalRequestError(w http.ResponseWriter, siteName,
 
 // personalRouteRequest captures facts shared by personal history routes.
 func (h *SiteHandler) personalRouteRequest(r *http.Request) legacy.DeletePersonalRequest {
-	return legacy.DeletePersonalRequest{SiteName: strings.TrimSpace(r.PathValue("sitename")), Name: strings.TrimSpace(r.PathValue("coll")), DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst,
+	return legacy.DeletePersonalRequest{SiteName: strings.TrimSpace(r.PathValue("sitename")), Name: strings.TrimSpace(r.PathValue("coll")), DeclareFirst: h.savedData.DefaultKind == legacyDeclareFirst,
 		ActorFacts: legacy.CollectionWriteActor{Key: r.Header.Get("X-API-Key"), Preview: previewReferer(r), ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), VisitorPass: r.Header.Get(visitorPassHeader) != "", CSRF: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue}}
 }
 
@@ -418,7 +417,7 @@ func (h *SiteHandler) personalHistory(w http.ResponseWriter, r *http.Request) {
 // ownHistoryView is a change as its visitor sees it: who made it only when it
 // was them (a clear by the site owner or the operator names nobody; by_kind
 // says which).
-func ownHistoryView(e db.HistoryEntry) db.HistoryEntry {
+func ownHistoryView(e model.HistoryEntry) model.HistoryEntry {
 	if e.ByKind != actorVisitor {
 		e.By = ""
 	}
@@ -472,9 +471,9 @@ func (h *SiteHandler) restorePersonal(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows), errors.As(err, &opErr) && opErr.Code == "history_not_found":
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no such change", Code: "not_found"})
-	case errors.Is(err, db.ErrNoEarlierValue):
+	case errors.Is(err, model.ErrNoEarlierValue):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: err.Error(), Code: "nothing_to_restore"})
-	case errors.Is(err, db.ErrSiteFull):
+	case errors.Is(err, model.ErrSiteFull):
 		h.writeSiteFull(w)
 	case err != nil:
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

@@ -10,9 +10,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/legacy"
-	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
-	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 func (h *SiteHandler) entrySvc(r *http.Request) *legacy.Adapter {
@@ -46,7 +44,7 @@ func (h *SiteHandler) entryRequest(r *http.Request) legacy.EntryRequest {
 	name := strings.TrimSpace(r.PathValue("coll"))
 	return legacy.EntryRequest{
 		SiteName: strings.TrimSpace(r.PathValue("sitename")), Name: name, Handle: strings.TrimSpace(r.PathValue("handle")), Key: r.Header.Get("X-API-Key"), Method: r.Method, Path: r.URL.Path,
-		ID: id, ValidID: valid, ValidName: validCollectionName.MatchString(name), DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst,
+		ID: id, ValidID: valid, ValidName: validCollectionName.MatchString(name), DeclareFirst: h.savedData.DefaultKind == legacyDeclareFirst,
 		ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, VisitorPass: r.Header.Get(visitorPassHeader) != "", Preview: previewReferer(r),
 		EntryMaxKB: h.savedData.EntryMaxKB, BoardMax: h.savedData.BoardMax, BoardItemMaxKB: h.savedData.BoardItemMaxKB, MaxItems: h.savedData.EntriesMax, ListMaxBytes: maxCollectionItemSize, MaxBytes: h.siteMaxBytes(), Idle: h.limits.VisitorSessionIdle, Window: time.Duration(h.savedData.WithdrawUndoMinutes) * time.Minute,
 		IfVersion: int64(version), ValidIfVersion: validVersion,
@@ -148,7 +146,7 @@ func (h *SiteHandler) writeEntrySelection(w http.ResponseWriter, in legacy.Entry
 		default:
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		}
-	case errors.Is(err, db.ErrVersionConflict):
+	case errors.Is(err, model.ErrVersionConflict):
 		writeJSON(w, http.StatusConflict, map[string]any{"error": fmt.Sprintf("someone changed this item since version %d; here it is now (version %d): apply your change to it and send it again", in.IfVersion, out.Item.Version), "code": "version_conflict", "item": boardItemOut(out.Item)})
 	case errors.Is(err, sql.ErrNoRows):
 		if operation != "update" {
@@ -158,21 +156,21 @@ func (h *SiteHandler) writeEntrySelection(w http.ResponseWriter, in legacy.Entry
 		} else {
 			writePrivateNotFound(w)
 		}
-	case errors.Is(err, storagerules.ErrLegacyEntryTooLarge):
+	case errors.Is(err, model.ErrLegacyEntryTooLarge):
 		msg := "item too large"
 		if board {
 			msg = fmt.Sprintf("a board item is at most %d KB", in.BoardItemMaxKB)
 		}
 		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: msg, Code: "item_too_large"})
-	case errors.Is(err, storagerules.ErrLegacyEntryNotObject):
+	case errors.Is(err, model.ErrLegacyEntryNotObject):
 		msg := "this item is not a JSON object, so it has no fields to change; delete it instead"
 		if board {
 			msg = "this item is not a JSON object, so it has no fields to change; delete it and add a new one"
 		}
 		writeJSON(w, http.StatusConflict, errorResponse{Error: msg, Code: "not_an_object"})
-	case errors.Is(err, db.ErrNameFull):
+	case errors.Is(err, model.ErrNameFull):
 		h.writeBoardFull(w)
-	case errors.Is(err, db.ErrSiteFull):
+	case errors.Is(err, model.ErrSiteFull):
 		h.writeSiteFull(w)
 	case err != nil:
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -183,7 +181,7 @@ func (h *SiteHandler) writeEntrySelection(w http.ResponseWriter, in legacy.Entry
 			w.WriteHeader(http.StatusNoContent)
 		}
 	case operation == "undo" && !out.Done:
-		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("only an item you deleted yourself in the last %s can be brought back here; the site owner can restore older ones", config.Span(in.Window)), Code: "undo_expired"})
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("only an item you deleted yourself in the last %s can be brought back here; the site owner can restore older ones", storeSpan(in.Window)), Code: "undo_expired"})
 	default:
 		item := out.Item
 		if board {

@@ -15,9 +15,10 @@ import (
 	"strconv"
 	"strings"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Private collections (owner decision 2026-09-24; reverses "nothing gates
@@ -112,20 +113,20 @@ func strictVisitorCookie(r *http.Request) string {
 
 // strictVisitorSession returns the visitor signed in to siteID on this host,
 // for a same-origin request carrying the __Host- cookie. ok=false otherwise.
-func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (db.VisitorSession, bool) {
+func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (model.VisitorSession, bool) {
 	if r.Header.Get(visitorPassHeader) != "" {
 		return h.internalVisitorSession(r, siteID)
 	}
 	if !sameOriginRequest(r) {
-		return db.VisitorSession{}, false
+		return model.VisitorSession{}, false
 	}
 	id, err := hex.DecodeString(strictVisitorCookie(r))
 	if err != nil || len(id) != 32 {
-		return db.VisitorSession{}, false
+		return model.VisitorSession{}, false
 	}
-	sess, err := db.GetVisitorSession(r.Context(), h.database, id, h.limits.KeyIdleExpiry)
+	sess, err := h.storeAccounts().GetVisitorSession(r.Context(), id, h.limits.KeyIdleExpiry)
 	if err != nil || !h.sessionValidFor(r, sess, siteID) {
-		return db.VisitorSession{}, false
+		return model.VisitorSession{}, false
 	}
 	operations.HackMember(r.Context(), sess.UserID)
 	return sess, true
@@ -139,14 +140,14 @@ func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (db.V
 // account can move off an address it no longer owns while the identity
 // linked under it stays.
 func visitorEmail(ctx context.Context, database *sql.DB, userID string) (string, error) {
-	u, err := db.GetUserByID(ctx, database, userID)
+	u, err := accountapp.New(database).GetUserByID(ctx, userID)
 	if err != nil {
 		return "", err
 	}
 	if strings.Contains(u.Username, "@") {
 		return u.Username, nil
 	}
-	identity, err := db.GetLatestOAuthIdentity(ctx, database, userID)
+	identity, err := accountapp.New(database).GetLatestOAuthIdentity(ctx, userID)
 	if err == nil && identity.Email.Valid && identity.Email.String != "" {
 		return identity.Email.String, nil
 	}
@@ -160,7 +161,7 @@ func visitorEmail(ctx context.Context, database *sql.DB, userID string) (string,
 // domain, else its owner's person address (siteHomeFor). Returns that home.
 func (h *SiteHandler) onOwnDomain(r *http.Request, siteID string) (siteHome, bool, error) {
 	if h.isHomeSiteHost(r.Context(), siteID, requestHostName(r)) {
-		_, ownerID, _, err := db.GetSiteOwner(r.Context(), h.database, siteID)
+		_, ownerID, _, err := h.sitesSvc().GetSiteOwner(r.Context(), siteID)
 		return siteHome{Host: requestHostName(r), OwnerID: ownerID}, err == nil, err
 	}
 	home, ok, err := h.siteHomeFor(r.Context(), siteID)
@@ -171,7 +172,7 @@ func (h *SiteHandler) onOwnDomain(r *http.Request, siteID string) (siteHome, boo
 	// address is the most specific one; the others keep working).
 	if h.isSiteFamilyHost(r.Context(), siteID, requestHostName(r)) {
 		if !ok {
-			_, ownerID, _, err := db.GetSiteOwner(r.Context(), h.database, siteID)
+			_, ownerID, _, err := h.sitesSvc().GetSiteOwner(r.Context(), siteID)
 			if err != nil {
 				return siteHome{}, false, err
 			}
@@ -230,7 +231,7 @@ func (h *SiteHandler) ownerBrowserRead(w http.ResponseWriter, r *http.Request, s
 		writePrivateNotFound(w)
 		return false
 	}
-	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID, h.limits.VisitorSessionIdle)
+	_ = h.storeAccounts().TouchVisitorSession(r.Context(), sess.ID, h.limits.VisitorSessionIdle)
 	return true
 }
 
@@ -280,10 +281,10 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	switch set.Kind {
-	case db.KindContent, db.KindBoard:
+	case model.KindContent, model.KindBoard:
 		writeWrongKind(w, coll, set.Kind, "page info and Shared boards are always public; only Submissions (kind entries) can be private")
 		return
-	case db.KindPersonal:
+	case model.KindPersonal:
 		writeWrongKind(w, coll, set.Kind, "Personal records are always private, each to its own person")
 		return
 	}
@@ -302,7 +303,7 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	if !*req.Private && (set.Kind == db.KindEntries || (set.Kind == "" && !set.Shared)) && !h.publicEntriesOK(w) {
+	if !*req.Private && (set.Kind == model.KindEntries || (set.Kind == "" && !set.Shared)) && !h.publicEntriesOK(w) {
 		return
 	}
 	// On a site that needs kinds, choosing privacy declares the name as
@@ -310,22 +311,22 @@ func (h *SiteHandler) setCollectionPrivacy(w http.ResponseWriter, r *http.Reques
 	// private list public is checked under the name's lock: while it holds
 	// entries (Recently deleted too) only with confirm_public.
 	setPrivacy := func() error {
-		return db.SetCollectionPrivateLocked(r.Context(), h.database, siteID, coll, *req.Private, req.ConfirmPublic)
+		return h.legacySvc().SetCollectionPrivateLocked(r.Context(), siteID, coll, *req.Private, req.ConfirmPublic)
 	}
 	if set.Kind == "" && !set.Shared {
 		if !h.entriesNameRoom(w, r, siteID, coll) {
 			return
 		}
-		notify := db.NotifyDaily
+		notify := model.NotifyDaily
 		if !*req.Private {
-			notify = db.NotifyOff
+			notify = model.NotifyOff
 		}
 		setPrivacy = func() error {
-			return db.DeclareDataLocked(r.Context(), h.database, siteID, coll, db.KindEntries, *req.Private, false, notify, req.ConfirmPublic)
+			return h.legacySvc().DeclareDataLocked(r.Context(), siteID, coll, model.KindEntries, *req.Private, false, notify, req.ConfirmPublic)
 		}
 	}
 	if err := setPrivacy(); err != nil {
-		var pe *db.PrivateItemsError
+		var pe *model.PrivateItemsError
 		if errors.As(err, &pe) {
 			writePrivateItems(w, coll, pe, "a public list")
 			return
@@ -378,7 +379,7 @@ func (h *SiteHandler) privateManager(w http.ResponseWriter, r *http.Request, sit
 			log.Printf("admin_private_edit user_id=%s site_id=%s route=%s %s", u.ID, id, r.Method, r.URL.Path)
 			return id, true
 		}
-		site, err := db.GetSiteByUser(r.Context(), h.database, u.ID, siteName)
+		site, err := h.sitesSvc().GetSiteByUser(r.Context(), u.ID, siteName)
 		if err != nil {
 			writePrivateNotFound(w)
 			return "", false
@@ -425,19 +426,19 @@ func (h *SiteHandler) privateItemTarget(w http.ResponseWriter, r *http.Request) 
 	if h.refuseSuspendedSiteID(w, r, siteID) {
 		return "", "", 0, false
 	}
-	set, err := db.GetDataSettings(r.Context(), h.database, siteID, coll)
+	set, err := h.legacySvc().GetDataSettings(r.Context(), siteID, coll)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return "", "", 0, false
 	}
 	// Nobody changes or deletes one person's Personal record but that
 	// person; the owner may empty the whole name (clear).
-	if set.Kind == db.KindPersonal {
+	if set.Kind == model.KindPersonal {
 		writePersonalOnly(w, coll)
 		return "", "", 0, false
 	}
 	// A Shared board is edited item by item, the owner included.
-	if !set.Private && set.Kind != db.KindBoard && r.Method != http.MethodDelete {
+	if !set.Private && set.Kind != model.KindBoard && r.Method != http.MethodDelete {
 		writeJSON(w, http.StatusConflict, map[string]string{
 			"error": "items in a public list cannot be edited, only deleted; only items in a private list can be edited",
 			"code":  "append_only",
@@ -482,7 +483,7 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 	}
 	errTooLarge := errors.New("too large")
 	errNotObject := errors.New("not an object")
-	item, err := db.UpdateCollectionItemByID(r.Context(), h.database, siteID, coll, id, h.managerActor(r, siteID), h.siteMaxBytes(), func(old json.RawMessage) (json.RawMessage, error) {
+	item, err := h.legacySvc().UpdateCollectionItemByID(r.Context(), siteID, coll, id, h.managerActor(r, siteID), h.siteMaxBytes(), func(old json.RawMessage) (json.RawMessage, error) {
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(old, &fields); err != nil || fields == nil {
 			return nil, errNotObject
@@ -512,7 +513,7 @@ func (h *SiteHandler) updatePrivateItem(w http.ResponseWriter, r *http.Request) 
 		writePrivateNotFound(w)
 	case errors.Is(err, errTooLarge):
 		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
-	case errors.Is(err, db.ErrSiteFull):
+	case errors.Is(err, model.ErrSiteFull):
 		h.writeSiteFull(w)
 	case errors.Is(err, errNotObject):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "this item is not a JSON object, so it has no fields to change; delete it instead", Code: "not_an_object"})
@@ -530,7 +531,7 @@ func (h *SiteHandler) deletePrivateItem(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	found, err := db.SoftDeleteItem(r.Context(), h.database, siteID, coll, id, h.managerActor(r, siteID))
+	found, err := h.legacySvc().SoftDeleteItem(r.Context(), siteID, coll, id, h.managerActor(r, siteID))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -573,7 +574,7 @@ func (h *SiteHandler) clearCollection(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	n, err := db.SoftClearCollection(r.Context(), h.database, siteID, coll, h.managerActor(r, siteID))
+	n, err := h.legacySvc().SoftClearCollection(r.Context(), siteID, coll, h.managerActor(r, siteID))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return

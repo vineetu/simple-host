@@ -7,12 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	sqlite3 "github.com/ncruces/go-sqlite3"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	sqlite3 "github.com/ncruces/go-sqlite3"
 )
 
 // Quote provides the existing runtime storage helper.
@@ -344,7 +345,9 @@ var (
 
 // OpenTableConn opens the database for one table route: read-only
 // for reads, and for writes with the site's allowance as the page cap.
-func OpenTableConn(parent context.Context, dbPath string, write bool, gate *SQLiteGate, timeout time.Duration, maxMemory int64, budget func() (int64, error)) (*sqlite3.Conn, func(), error) {
+func OpenTableConn(parent context.Context, dbPath string, write bool, gate interface {
+	Acquire(context.Context) (func(), error)
+}, timeout time.Duration, maxMemory int64, budget func() (int64, error)) (*sqlite3.Conn, func(), error) {
 	uri := (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String()
 	var remaining int64
 	var currentDBBytes int64

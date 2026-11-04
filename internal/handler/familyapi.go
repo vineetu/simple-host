@@ -16,13 +16,11 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/publicsuffix"
-
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/internal/model"
+	"golang.org/x/net/publicsuffix"
 )
 
 // The address-family API (familyhost.go has the model):
@@ -173,7 +171,7 @@ func timePtr(t sql.NullTime) *time.Time {
 
 // familyCertOf reads the family's certificate from the database and the
 // issuer's hand-off files.
-func (h *SiteHandler) familyCertOf(f db.AddressFamily) familyCert {
+func (h *SiteHandler) familyCertOf(f model.AddressFamily) familyCert {
 	c := familyCert{Mode: f.CertMode}
 	switch {
 	case f.CertMode != "wildcard":
@@ -217,7 +215,7 @@ func (h *SiteHandler) familyReadyValue(suffix, key string) string {
 	return ""
 }
 
-func (h *SiteHandler) familyResponseFor(ctx context.Context, f db.AddressFamily, withSites bool) familyResponse {
+func (h *SiteHandler) familyResponseFor(ctx context.Context, f model.AddressFamily, withSites bool) familyResponse {
 	resp := familyResponse{
 		ID: f.ID, Family: "*." + f.Suffix, Suffix: f.Suffix, SitePrefix: f.SitePrefix, Rank: f.Rank,
 		Canonical: f.Canonical, Status: f.Status, Live: h.familyServed(f), LastError: f.LastError,
@@ -238,7 +236,7 @@ func (h *SiteHandler) familyResponseFor(ctx context.Context, f db.AddressFamily,
 	if !f.ProofExempt {
 		resp.DNSTXT = &dnsRecord{Type: "TXT", Host: domainProofHost(f.Suffix), Value: f.Token}
 	}
-	if sites, err := db.ListSitesByUser(ctx, h.database, f.UserID); err == nil {
+	if sites, err := h.sitesSvc().ListSitesByUser(ctx, f.UserID); err == nil {
 		for _, s := range sites {
 			label, ok := strings.CutPrefix(s.Name, f.SitePrefix)
 			if !ok || !familyLabelOK(f, label, h.limits) {
@@ -302,7 +300,7 @@ func (h *SiteHandler) createFamilyFor(w http.ResponseWriter, r *http.Request, us
 	if !h.familiesAvailable(w) {
 		return
 	}
-	if u, err := db.GetUserByID(r.Context(), h.database, userID); err != nil {
+	if u, err := h.storeAccounts().GetUserByID(r.Context(), userID); err != nil {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "account not found"})
 		return
 	} else if u.Suspended {
@@ -349,7 +347,7 @@ func (h *SiteHandler) createFamilyFor(w http.ResponseWriter, r *http.Request, us
 	if req.Canonical != nil {
 		canonical = *req.Canonical
 	}
-	b := db.FamilyBind{UserID: userID, Suffix: suffix, SitePrefix: prefix, Rank: rank, Canonical: canonical,
+	b := model.FamilyBind{UserID: userID, Suffix: suffix, SitePrefix: prefix, Rank: rank, Canonical: canonical,
 		CertMode: "wildcard", Max: h.limits.FamiliesPerAccount}
 	if admin {
 		name := strings.ToLower(strings.TrimSpace(req.CertName))
@@ -359,18 +357,18 @@ func (h *SiteHandler) createFamilyFor(w http.ResponseWriter, r *http.Request, us
 		}
 		b.CertName, b.ProofExempt = name, req.ProofExempt
 	}
-	f, err := db.BindFamily(r.Context(), h.database, b)
+	f, err := h.sitesSvc().BindFamily(r.Context(), b)
 	switch {
-	case errors.Is(err, db.ErrFamilyExists):
-		f, err = db.GetFamilyByUserSuffix(r.Context(), h.database, userID, suffix)
+	case errors.Is(err, model.ErrFamilyExists):
+		f, err = h.sitesSvc().GetFamilyByUserSuffix(r.Context(), userID, suffix)
 		if err == nil {
 			writeJSON(w, http.StatusOK, h.familyResponseFor(r.Context(), f, false))
 			return
 		}
-	case errors.Is(err, db.ErrFamilyTaken):
+	case errors.Is(err, model.ErrFamilyTaken):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "*." + suffix + " (or a name under it) is connected to another account", Code: "domain_taken"})
 		return
-	case errors.Is(err, db.ErrFamilyCap):
+	case errors.Is(err, model.ErrFamilyCap):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("an account may connect %d address families on this server", h.limits.FamiliesPerAccount), Code: "address_family_limit"})
 		return
 	}
@@ -403,7 +401,7 @@ func (h *SiteHandler) listFamilies(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
-	fams, err := db.ListFamiliesByUser(r.Context(), h.database, user.ID)
+	fams, err := h.sitesSvc().ListFamiliesByUser(r.Context(), user.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -416,22 +414,22 @@ func (h *SiteHandler) listFamilies(w http.ResponseWriter, r *http.Request) {
 }
 
 // callerFamily loads the caller's family named by {suffix} (either form).
-func (h *SiteHandler) callerFamily(w http.ResponseWriter, r *http.Request) (db.AddressFamily, bool) {
+func (h *SiteHandler) callerFamily(w http.ResponseWriter, r *http.Request) (model.AddressFamily, bool) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
-		return db.AddressFamily{}, false
+		return model.AddressFamily{}, false
 	}
 	raw, _ := url.PathUnescape(r.PathValue("suffix"))
 	suffix := domainCandidate(strings.TrimPrefix(strings.TrimSpace(raw), "*."))
-	f, err := db.GetFamilyByUserSuffix(r.Context(), h.database, user.ID, suffix)
+	f, err := h.sitesSvc().GetFamilyByUserSuffix(r.Context(), user.ID, suffix)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no address family *." + suffix + " on this account", Code: "no_address_family"})
-		return db.AddressFamily{}, false
+		return model.AddressFamily{}, false
 	}
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return db.AddressFamily{}, false
+		return model.AddressFamily{}, false
 	}
 	return f, true
 }
@@ -474,7 +472,7 @@ func (h *SiteHandler) patchFamily(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "rank must be between 0 and 1000", Code: "invalid_rank"})
 		return
 	}
-	f, err := db.UpdateFamily(r.Context(), h.database, f.UserID, f.Suffix, db.FamilyPatch{SitePrefix: req.SitePrefix, Rank: req.Rank, Canonical: req.Canonical})
+	f, err := h.sitesSvc().UpdateFamily(r.Context(), f.UserID, f.Suffix, model.FamilyPatch{SitePrefix: req.SitePrefix, Rank: req.Rank, Canonical: req.Canonical})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -514,7 +512,7 @@ func (h *SiteHandler) checkFamilyNow(w http.ResponseWriter, r *http.Request) {
 		h.checkFamily(ctx, f, h.serverAddrs(ctx))
 		h.refreshFamilies(ctx)
 	}
-	f, err := db.GetFamilyByID(r.Context(), h.database, f.ID)
+	f, err := h.sitesSvc().GetFamilyByID(r.Context(), f.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "the family was let go", Code: "no_address_family"})
 		return
@@ -529,8 +527,8 @@ func (h *SiteHandler) checkFamilyNow(w http.ResponseWriter, r *http.Request) {
 // releaseFamily lets a family go: the row, the link (so nginx stops serving
 // it at once), the issuer's request (so it withdraws the server; it never
 // touches the operator's certificate), and every redirect that followed it.
-func (h *SiteHandler) releaseFamily(ctx context.Context, f db.AddressFamily) error {
-	if _, err := db.DeleteFamily(ctx, h.database, f.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+func (h *SiteHandler) releaseFamily(ctx context.Context, f model.AddressFamily) error {
+	if _, err := h.sitesSvc().DeleteFamily(ctx, f.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 	if err := h.disk.UnbindFamily(f.Suffix); err != nil {
@@ -555,7 +553,7 @@ func (h *SiteHandler) releaseFamily(ctx context.Context, f db.AddressFamily) err
 
 // familyRequestBody is requests/<suffix>: the token, the link target, the
 // certificate mode and lineage, the site prefix and the reserved labels.
-func familyRequestBody(f db.AddressFamily, l config.Limits) string {
+func familyRequestBody(f model.AddressFamily, l edition.Limits) string {
 	return f.Token + "\n" + filepath.Join("..", "by-id", f.UserID) + "\n" + f.CertMode + "\n" + f.CertName + "\n" +
 		f.SitePrefix + "\n" + strings.Join(l.ReservedFamilyLabels(), " ") + "\n"
 }
@@ -563,7 +561,7 @@ func familyRequestBody(f db.AddressFamily, l config.Limits) string {
 // syncFamilyRequest keeps requests/<suffix> in step with a verified family
 // that has its certificate set up (rewritten only when it changed, so the
 // issuer's path unit fires only then); anything else has none.
-func (h *SiteHandler) syncFamilyRequest(f db.AddressFamily, contexts ...context.Context) {
+func (h *SiteHandler) syncFamilyRequest(f model.AddressFamily, contexts ...context.Context) {
 	ctx := context.Background()
 	if len(contexts) > 0 {
 		ctx = contexts[0]
@@ -592,7 +590,7 @@ func (h *SiteHandler) checkFamilies(ctx context.Context) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, domainPassTimeout)
 	defer cancel()
-	expired, err := db.ReleaseExpiredFamilies(ctx, h.database, h.limits.FamilyUnprovenTTL)
+	expired, err := h.sitesSvc().ReleaseExpiredFamilies(ctx, h.limits.FamilyUnprovenTTL)
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "check address family", err)
 	}
@@ -603,7 +601,7 @@ func (h *SiteHandler) checkFamilies(ctx context.Context) {
 		h.removeFamilyRequest(f.Suffix, ctx)
 		log.Printf("address family *.%s: never proved; dropped", f.Suffix)
 	}
-	due, err := db.ListFamiliesToCheck(ctx, h.database, h.limits.FamilyActiveRecheck)
+	due, err := h.sitesSvc().ListFamiliesToCheck(ctx, h.limits.FamilyActiveRecheck)
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "check address family", err)
 		return
@@ -624,7 +622,7 @@ func familyProbeLabel() string {
 
 // verifyFamilyDNS: the ownership record (unless exempt) and the wildcard:
 // a label nobody has resolves here and only here.
-func (h *SiteHandler) verifyFamilyDNS(ctx context.Context, f db.AddressFamily, ours map[string]bool) (bool, string) {
+func (h *SiteHandler) verifyFamilyDNS(ctx context.Context, f model.AddressFamily, ours map[string]bool) (bool, string) {
 	if !f.ProofExempt {
 		if ok, why := domainProof(ctx, f.Suffix, f.Token); !ok {
 			return false, why
@@ -650,7 +648,7 @@ func (h *SiteHandler) verifyFamilyDNS(ctx context.Context, f db.AddressFamily, o
 	return true, ""
 }
 
-func (h *SiteHandler) familyRecordHint(f db.AddressFamily) string {
+func (h *SiteHandler) familyRecordHint(f model.AddressFamily) string {
 	if h.cnameTarget != "" {
 		return "CNAME *." + f.Suffix + " -> " + h.cnameTarget
 	}
@@ -660,8 +658,8 @@ func (h *SiteHandler) familyRecordHint(f db.AddressFamily) string {
 // probeFamily: one of the account's sites answers over HTTPS at its family
 // address, through this server (any HTTP answer counts: a site may be
 // offline or locked).
-func (h *SiteHandler) probeFamily(ctx context.Context, f db.AddressFamily, ours map[string]bool) (bool, string) {
-	sites, err := db.ListSitesByUser(ctx, h.database, f.UserID)
+func (h *SiteHandler) probeFamily(ctx context.Context, f model.AddressFamily, ours map[string]bool) (bool, string) {
+	sites, err := h.sitesSvc().ListSitesByUser(ctx, f.UserID)
 	if err != nil {
 		return true, ""
 	}
@@ -702,25 +700,25 @@ func (h *SiteHandler) probeFamily(ctx context.Context, f db.AddressFamily, ours 
 // checkFamily proves one family and acts on it: a pending one that passes
 // is verified (the first account to prove a name wins it), a verified one
 // that keeps failing is warned about and then let go.
-func (h *SiteHandler) checkFamily(ctx context.Context, f db.AddressFamily, ours map[string]bool) {
+func (h *SiteHandler) checkFamily(ctx context.Context, f model.AddressFamily, ours map[string]bool) {
 	ok, why := h.verifyFamilyDNS(ctx, f, ours)
 	if ok && f.VerifiedAt.Valid && h.familyIsLive(f) {
 		ok, why = h.probeFamily(ctx, f, ours)
 	}
 	if !f.VerifiedAt.Valid {
 		if !ok {
-			if _, err := db.SetFamilyCheck(ctx, h.database, f.ID, false, why); err != nil {
+			if _, err := h.sitesSvc().SetFamilyCheck(ctx, f.ID, false, why); err != nil {
 				sites.ReportWorkerFailure(ctx, "check address family", err)
 			}
 			return
 		}
-		won, losers, err := db.VerifyFamily(ctx, h.database, f.ID)
+		won, losers, err := h.sitesSvc().VerifyFamily(ctx, f.ID)
 		if err != nil {
 			sites.ReportWorkerFailure(ctx, "check address family", err)
 			return
 		}
 		if !won {
-			if _, err := db.SetFamilyCheck(ctx, h.database, f.ID, false, "*."+f.Suffix+" (or a name under it) is connected to another account"); err != nil {
+			if _, err := h.sitesSvc().SetFamilyCheck(ctx, f.ID, false, "*."+f.Suffix+" (or a name under it) is connected to another account"); err != nil {
 				sites.ReportWorkerFailure(ctx, "check address family", err)
 			}
 			return
@@ -745,7 +743,7 @@ func (h *SiteHandler) checkFamily(ctx context.Context, f db.AddressFamily, ours 
 		sites.ReportWorkerFailure(ctx, "check address family", err)
 	}
 	h.syncFamilyRequest(f, ctx)
-	check, err := db.SetFamilyCheck(ctx, h.database, f.ID, ok, why)
+	check, err := h.sitesSvc().SetFamilyCheck(ctx, f.ID, ok, why)
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "check address family", err)
 		return
@@ -767,13 +765,13 @@ func (h *SiteHandler) checkFamily(ctx context.Context, f db.AddressFamily, ours 
 			return
 		}
 		h.emailFamilyNotice(ctx, f, "Your address family *."+f.Suffix+" was disconnected",
-			fmt.Sprintf("*.%s failed every check for %s, so it was disconnected from your Simple Host account. Your sites answer at their own Simple Host addresses again.\n\nWhat the last check saw: %s\n\nConnecting it again needs its DNS ownership record (TXT %s) once more.\n\nSimple Host\n", f.Suffix, config.Span(failing.Round(time.Hour)), why, domainProofHost(f.Suffix)))
+			fmt.Sprintf("*.%s failed every check for %s, so it was disconnected from your Simple Host account. Your sites answer at their own Simple Host addresses again.\n\nWhat the last check saw: %s\n\nConnecting it again needs its DNS ownership record (TXT %s) once more.\n\nSimple Host\n", f.Suffix, storeSpan(failing.Round(time.Hour)), why, domainProofHost(f.Suffix)))
 	case failing >= lim.FamilyLapseWarnAfter && !check.Notified:
 		releaseAt := time.Now().Add(lim.FamilyLapseAfter - lim.FamilyLapseWarnAfter)
 		if h.emailFamilyNotice(ctx, f, "Your address family *."+f.Suffix+" has stopped working",
 			fmt.Sprintf("Your sites answer at <site>.%s, and that address family has failed every check for %s.\n\nWhat the last check saw: %s\n\nIf you moved the domain on purpose, there is nothing to do. Otherwise check its DNS records at your registrar (the wildcard record *.%s and the TXT record %s).\n\nIf it is still failing %s from now, *.%s is disconnected from your account and your sites answer at their own Simple Host addresses again.\n\nSimple Host\n",
-				f.Suffix, config.Span(lim.FamilyLapseWarnAfter), why, f.Suffix, domainProofHost(f.Suffix), config.Span(lim.FamilyLapseAfter-lim.FamilyLapseWarnAfter), f.Suffix)) {
-			if err := db.MarkFamilyLapseNotified(ctx, h.database, f.ID, releaseAt); err != nil {
+				f.Suffix, storeSpan(lim.FamilyLapseWarnAfter), why, f.Suffix, domainProofHost(f.Suffix), storeSpan(lim.FamilyLapseAfter-lim.FamilyLapseWarnAfter), f.Suffix)) {
+			if err := h.sitesSvc().MarkFamilyLapseNotified(ctx, f.ID, releaseAt); err != nil {
 				sites.ReportWorkerFailure(ctx, "check address family", err)
 			}
 		}
@@ -781,16 +779,8 @@ func (h *SiteHandler) checkFamily(ctx context.Context, f db.AddressFamily, ours 
 }
 
 // emailFamilyNotice sends one plain notice to the family's owner.
-func (h *SiteHandler) emailFamilyNotice(ctx context.Context, f db.AddressFamily, subject, text string) bool {
-	mailer, ok := h.mailer.(noticeSender)
-	if !ok || !strings.Contains(f.Email, "@") {
-		return false
-	}
-	if err := email.SendNoticeCtx(ctx, mailer, f.Email, subject, text); err != nil {
-		log.Printf("address family: send notice: %v", err)
-		return false
-	}
-	return true
+func (h *SiteHandler) emailFamilyNotice(ctx context.Context, f model.AddressFamily, subject, text string) bool {
+	return h.storeMail().FamilyNotice(ctx, f, subject, text)
 }
 
 // --- Admin ---
@@ -800,7 +790,7 @@ func (h *SiteHandler) adminListFamilies(w http.ResponseWriter, r *http.Request) 
 	if !accountAdmin(w, r) {
 		return
 	}
-	fams, err := db.ListAllFamilies(r.Context(), h.database)
+	fams, err := h.sitesSvc().ListAllFamilies(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -828,23 +818,23 @@ func (h *SiteHandler) adminCreateFamily(w http.ResponseWriter, r *http.Request) 
 }
 
 // adminFamily loads the family {id}.
-func (h *SiteHandler) adminFamily(w http.ResponseWriter, r *http.Request) (db.AddressFamily, bool) {
+func (h *SiteHandler) adminFamily(w http.ResponseWriter, r *http.Request) (model.AddressFamily, bool) {
 	if !accountAdmin(w, r) {
-		return db.AddressFamily{}, false
+		return model.AddressFamily{}, false
 	}
 	id := strings.ToLower(strings.TrimSpace(r.PathValue("id")))
 	if !siteIDShape.MatchString(id) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "address family not found"})
-		return db.AddressFamily{}, false
+		return model.AddressFamily{}, false
 	}
-	f, err := db.GetFamilyByID(r.Context(), h.database, id)
+	f, err := h.sitesSvc().GetFamilyByID(r.Context(), id)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "address family not found"})
-		return db.AddressFamily{}, false
+		return model.AddressFamily{}, false
 	}
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return db.AddressFamily{}, false
+		return model.AddressFamily{}, false
 	}
 	return f, true
 }
@@ -879,12 +869,12 @@ func (h *SiteHandler) adminSetFamilyCert(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "cert_name is a certificate lineage name (letters, digits, dots, hyphens)", Code: "invalid_cert_name"})
 		return
 	}
-	if err := db.SetFamilyCert(r.Context(), h.database, f.ID, "wildcard", name); err != nil {
+	if err := h.sitesSvc().SetFamilyCert(r.Context(), f.ID, "wildcard", name); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 	log.Printf("admin %s set address family *.%s certificate to wildcard %q", adminName(r), f.Suffix, name)
-	f, _ = db.GetFamilyByID(r.Context(), h.database, f.ID)
+	f, _ = h.sitesSvc().GetFamilyByID(r.Context(), f.ID)
 	h.syncFamilyRequest(f)
 	h.refreshFamilies(r.Context())
 	resp := h.familyResponseFor(r.Context(), f, false)
@@ -907,12 +897,12 @@ func (h *SiteHandler) adminSetFamilyProofExempt(w http.ResponseWriter, r *http.R
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "proof_exempt (true or false) is required"})
 		return
 	}
-	if err := db.SetFamilyProofExempt(r.Context(), h.database, f.ID, *req.ProofExempt); err != nil {
+	if err := h.sitesSvc().SetFamilyProofExempt(r.Context(), f.ID, *req.ProofExempt); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 	log.Printf("admin %s set address family *.%s proof exempt to %v", adminName(r), f.Suffix, *req.ProofExempt)
-	f, _ = db.GetFamilyByID(r.Context(), h.database, f.ID)
+	f, _ = h.sitesSvc().GetFamilyByID(r.Context(), f.ID)
 	resp := h.familyResponseFor(r.Context(), f, false)
 	resp.Owner, resp.OwnerID, resp.CertName = f.Email, f.UserID, f.CertName
 	writeJSON(w, http.StatusOK, resp)
@@ -945,7 +935,7 @@ func (h *SiteHandler) adminCheckFamily(w http.ResponseWriter, r *http.Request) {
 		h.checkFamily(ctx, f, h.serverAddrs(ctx))
 		h.refreshFamilies(ctx)
 	}
-	f, err := db.GetFamilyByID(r.Context(), h.database, f.ID)
+	f, err := h.sitesSvc().GetFamilyByID(r.Context(), f.ID)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "the family was let go"})
 		return

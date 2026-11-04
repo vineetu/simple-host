@@ -20,7 +20,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 	"golang.org/x/image/webp"
 )
 
@@ -98,7 +97,7 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, errorResponse{Error: "Invalid site name."})
 		return
 	}
-	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name); err != nil {
+	if _, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, name); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeDeploySiteNotFound(w, r, name)
 		} else {

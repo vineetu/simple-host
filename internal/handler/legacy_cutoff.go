@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/app/legacy"
-	db "github.com/vsriram/simple-host/internal/db"
 )
 
 const legacyStorageClosedCode = "legacy_storage_closed"
@@ -79,11 +78,11 @@ func (h *SiteHandler) legacyCutoffCandidates(r *http.Request, p legacyStoragePat
 		}
 	}
 	if p.handle != "" {
-		u, err := db.GetUserByHandleOrAlias(ctx, h.database, p.handle)
+		u, err := h.storeAccounts().GetUserByHandleOrAlias(ctx, p.handle)
 		if err != nil {
 			return out
 		}
-		if s, err := db.GetSiteByUser(ctx, h.database, u.ID, p.site); err == nil {
+		if s, err := h.sitesSvc().GetSiteByUser(ctx, u.ID, p.site); err == nil {
 			add(s.ID, s.Name)
 			return out
 		}

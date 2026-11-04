@@ -15,8 +15,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Append-only collections: a second backend type, for lists that grow large or
@@ -38,11 +37,11 @@ const (
 func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	coll := strings.TrimSpace(r.PathValue("coll"))
-	gate := legacy.CollectionGateInput{SiteName: siteName, Collection: coll, KeyWithoutPage: keyWithoutPage(r), DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst}
+	gate := legacy.CollectionGateInput{SiteName: siteName, Collection: coll, KeyWithoutPage: keyWithoutPage(r), DeclareFirst: h.savedData.DefaultKind == legacyDeclareFirst}
 	result, err := h.legacyCollectionAppendSvc(r).AppendCollection(r.Context(), legacy.AppendCollectionInput{
 		Gate: gate, IdempotencyKey: r.Header.Get("Idempotency-Key"), SuccessStatus: http.StatusCreated,
 		ActorFacts: legacy.CollectionWriteActor{SiteName: siteName, Key: r.Header.Get("X-API-Key"), Mode: h.writeAuthMode, Cookie: h.sessionCookieFor(r), Preview: previewReferer(r), ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), Canonical: h.personHostsCanonical(), VisitorPass: r.Header.Get(visitorPassHeader) != "", CSRF: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue},
-		DecodeBody: func(branch string, set db.DataSettings) (legacy.CollectionBody, error) {
+		DecodeBody: func(branch string, set model.DataSettings) (legacy.CollectionBody, error) {
 			size := legacy.EntryMaxBytes(set, h.savedData.EntryMaxKB, maxCollectionItemSize)
 			if branch == "board" {
 				size = h.boardItemMax()
@@ -188,7 +187,7 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 }
 
 // writeSpecialCollection maps private and board adapter results to wire responses.
-func (h *SiteHandler) writeSpecialCollection(w http.ResponseWriter, set db.DataSettings, result legacy.AppendWriteResult, err error, board bool) {
+func (h *SiteHandler) writeSpecialCollection(w http.ResponseWriter, set model.DataSettings, result legacy.AppendWriteResult, err error, board bool) {
 	if result.Replayed {
 		w.Header().Set("Idempotent-Replayed", "true")
 		if result.ReplayFound {
@@ -295,9 +294,9 @@ func (h *SiteHandler) writeSpecialCollection(w http.ResponseWriter, set db.DataS
 	switch {
 	case errors.As(err, &quotaErr) && quotaErr.Full:
 		h.writeSiteFull(w)
-	case errors.Is(err, db.ErrNameFull):
+	case errors.Is(err, model.ErrNameFull):
 		h.writeBoardFull(w)
-	case errors.Is(err, sql.ErrNoRows), errors.Is(err, db.ErrKindChanged):
+	case errors.Is(err, sql.ErrNoRows), errors.Is(err, model.ErrKindChanged):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q is not a board any more", set.Name), Code: "wrong_kind"})
 	case err != nil:
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -370,14 +369,14 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	set, private, items, next := page.Settings, page.Private, page.Items, page.Next
-	board := set.Kind == db.KindBoard
+	board := set.Kind == model.KindBoard
 	resp := map[string]any{"items": items, "next": next}
 	if private {
 		resp["private"] = true
 	}
 	if board {
 		// A page polls a board with If-None-Match: 304 while nothing changed.
-		resp["kind"] = db.KindBoard
+		resp["kind"] = model.KindBoard
 		writeJSONETag(w, r, resp)
 		return
 	}
@@ -435,7 +434,7 @@ func (h *SiteHandler) ownerSiteIDFromKey(r *http.Request, siteName string) (stri
 // ownedSiteID resolves the site the caller is allowed to inspect. Regular
 // users must own it (user_id + name). Admins may look up any site by name
 // (oldest same-named owner, matching GetSiteIDByName).
-func (h *SiteHandler) ownedSiteID(r *http.Request, user *db.User, siteName string) (string, error) {
+func (h *SiteHandler) ownedSiteID(r *http.Request, user *model.User, siteName string) (string, error) {
 	in := legacy.OwnedSiteInput{SiteName: siteName}
 	if user != nil {
 		in.SignedIn, in.UserID, in.Admin = true, user.ID, user.IsAdmin

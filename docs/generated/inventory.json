@@ -28,7 +28,7 @@
       "method": "DELETE",
       "path": "/v1/admin/address-families/{id}",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:975",
+      "source": "internal/handler/familyapi.go:965",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -236,7 +236,7 @@
       "method": "DELETE",
       "path": "/v1/me/address-families/{suffix}",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:968",
+      "source": "internal/handler/familyapi.go:958",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -988,7 +988,7 @@
       "method": "GET",
       "path": "/internal/family/{rest...}",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:976",
+      "source": "internal/handler/familyapi.go:966",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1620,7 +1620,7 @@
       "method": "GET",
       "path": "/v1/admin/address-families",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:970",
+      "source": "internal/handler/familyapi.go:960",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2332,7 +2332,7 @@
       "method": "GET",
       "path": "/v1/me/address-families",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:965",
+      "source": "internal/handler/familyapi.go:955",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2340,7 +2340,7 @@
       "method": "GET",
       "path": "/v1/me/address-families/{suffix}",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:966",
+      "source": "internal/handler/familyapi.go:956",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3268,7 +3268,7 @@
       "method": "PATCH",
       "path": "/v1/me/address-families/{suffix}",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:967",
+      "source": "internal/handler/familyapi.go:957",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3436,7 +3436,7 @@
       "method": "POST",
       "path": "/v1/admin/address-families/{id}/check",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:974",
+      "source": "internal/handler/familyapi.go:964",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3516,7 +3516,7 @@
       "method": "POST",
       "path": "/v1/admin/users/{id}/address-families",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:971",
+      "source": "internal/handler/familyapi.go:961",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3932,7 +3932,7 @@
       "method": "POST",
       "path": "/v1/me/address-families",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:964",
+      "source": "internal/handler/familyapi.go:954",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3940,7 +3940,7 @@
       "method": "POST",
       "path": "/v1/me/address-families/{suffix}/check",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:969",
+      "source": "internal/handler/familyapi.go:959",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4412,7 +4412,7 @@
       "method": "PUT",
       "path": "/v1/admin/address-families/{id}/cert-mode",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:972",
+      "source": "internal/handler/familyapi.go:962",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4420,7 +4420,7 @@
       "method": "PUT",
       "path": "/v1/admin/address-families/{id}/proof-exempt",
       "feature_id": "address-families",
-      "source": "internal/handler/familyapi.go:973",
+      "source": "internal/handler/familyapi.go:963",
       "package": "internal/handler",
       "dynamic": false
     },

@@ -4,14 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	sqlite3 "github.com/ncruces/go-sqlite3"
-	runtime "github.com/vsriram/simple-host/internal/storage"
 	"regexp"
 	"sort"
 	"strings"
 
+	sqlite3 "github.com/ncruces/go-sqlite3"
 	repo "github.com/vsriram/simple-host/internal/repository/storage"
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
+	runtime "github.com/vsriram/simple-host/internal/storage"
 )
 
 // ResourceListing contains a resource and optional legacy visitor history.
@@ -267,7 +267,7 @@ func (s *Service) DeleteStorageResource(ctx context.Context, call Call) error {
 		return err
 	}
 	defer unlock()
-	staged, restore, err := s.deps.StageResourceRuntime()
+	staged, restore, err := runtime.StageRuntime(s.deps.Disk, call.OwnerID, call.SiteName, call.ResourceName, call.Resource.Kind)
 	if err != nil {
 		return &Error{Code: "internal_error", Message: "internal server error"}
 	}

@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Per-person addresses (owner decision 2026-09-25).
@@ -114,7 +114,7 @@ func (h *SiteHandler) PersonPageURL(handle string) string {
 
 // siteURLFor is SiteURL for a site row, falling back to the stored address
 // for the rare site whose owner has no handle.
-func (h *SiteHandler) siteURLFor(site db.Site) string {
+func (h *SiteHandler) siteURLFor(site model.Site) string {
 	if u := h.SiteURL(site.OwnerHandle, site.Name); u != "" {
 		return u
 	}
@@ -124,17 +124,17 @@ func (h *SiteHandler) siteURLFor(site db.Site) string {
 // personHostOwner returns the account whose address host is, when person
 // hosts are on. Claimed names never get here (BoundSubdomains answers them
 // first, and the shared namespace keeps them apart from handles).
-func (h *SiteHandler) personHostOwner(ctx context.Context, host string) (db.User, bool) {
+func (h *SiteHandler) personHostOwner(ctx context.Context, host string) (model.User, bool) {
 	if !h.personHostsOn() {
-		return db.User{}, false
+		return model.User{}, false
 	}
 	label, _, ok := h.userHostLabel(host)
 	if !ok || !h.isPlatformSubdomainHost(host) || !handleAddressable(label) {
-		return db.User{}, false
+		return model.User{}, false
 	}
-	u, err := db.GetUserByHandle(ctx, h.database, label)
+	u, err := h.storeAccounts().GetUserByHandle(ctx, label)
 	if err != nil {
-		return db.User{}, false
+		return model.User{}, false
 	}
 	return u, true
 }
@@ -168,7 +168,7 @@ func (h *SiteHandler) siteHomeFor(ctx context.Context, siteID string) (siteHome,
 	if !h.personHostsOn() {
 		return siteHome{}, false, nil
 	}
-	handle, ownerID, name, err := db.GetSiteOwner(ctx, h.database, siteID)
+	handle, ownerID, name, err := h.sitesSvc().GetSiteOwner(ctx, siteID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return siteHome{}, false, nil
@@ -228,7 +228,7 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 		return "", false
 	}
 	if !h.ed.Routes().HostedEvents {
-		home, has, err := db.HomeSite(ctx, h.database, owner.ID)
+		home, has, err := h.sitesSvc().HomeSite(ctx, owner.ID)
 		if err != nil {
 			return "", false
 		}
@@ -238,8 +238,8 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 	}
 	seg, _, _ := strings.Cut(strings.TrimPrefix(path.Clean("/"+p), "/"), "/")
 	if h.ed.Routes().HostedEvents {
-		if ev, err := db.GetEventByAccount(ctx, h.database, owner.ID); err == nil && ev.WebsiteMode == "custom" && !ev.TakenDown() {
-			if site, err := db.GetSiteByUser(ctx, h.database, owner.ID, ev.ID); err == nil {
+		if ev, err := h.storeAccounts().GetEventByAccount(ctx, owner.ID); err == nil && ev.WebsiteMode == "custom" && !ev.TakenDown() {
+			if site, err := h.sitesSvc().GetSiteByUser(ctx, owner.ID, ev.ID); err == nil {
 				return site.ID, true
 			}
 		}
@@ -248,7 +248,7 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 	if !appsites.ValidSiteName.MatchString(seg) {
 		return "", false
 	}
-	site, err := db.GetSiteByUser(ctx, h.database, owner.ID, seg)
+	site, err := h.sitesSvc().GetSiteByUser(ctx, owner.ID, seg)
 	if err != nil || !h.personAddressFor(owner.Handle.String, site.Name) {
 		return "", false
 	}
@@ -279,14 +279,14 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		user, err := db.GetUserByHandle(r.Context(), h.database, label)
+		user, err := h.storeAccounts().GetUserByHandle(r.Context(), label)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("person host %s: %v", host, err)
 				h.renderServiceError(w, r)
 				return
 			}
-			if current, aerr := db.ResolveHandleAlias(r.Context(), h.database, label); aerr == nil && handleAddressable(current) {
+			if current, aerr := h.storeAccounts().ResolveHandleAlias(r.Context(), label); aerr == nil && handleAddressable(current) {
 				http.Redirect(w, r, "https://"+h.personHostOn(current, base)+r.URL.RequestURI(), http.StatusMovedPermanently)
 				return
 			}
@@ -306,7 +306,7 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 }
 
 // servePersonHost answers a non-API request on a person host under base.
-func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, user db.User, base string) {
+func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, user model.User, base string) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -335,7 +335,7 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 		h.renderPersonNotFound(w, r, handle)
 		return
 	}
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, seg)
+	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, seg)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			h.renderServiceError(w, r)
@@ -415,7 +415,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 	if r.URL.RawQuery != "" {
 		query = "?" + r.URL.RawQuery
 	}
-	user, err := db.GetUserByHandleOrAlias(r.Context(), h.database, handle)
+	user, err := h.storeAccounts().GetUserByHandleOrAlias(r.Context(), handle)
 	if err != nil {
 		h.renderNotFound(w, r, "/"+handle)
 		return
@@ -434,7 +434,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 		return
 	}
 	rest := "/" + strings.TrimPrefix(r.PathValue("rest"), "/")
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name)
+	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, name)
 	if err != nil || !appsites.ValidSiteName.MatchString(name) {
 		if errors.Is(err, sql.ErrNoRows) {
 			// An old name of a renamed site: its current address.
