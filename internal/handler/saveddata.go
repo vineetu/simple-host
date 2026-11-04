@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -162,12 +160,7 @@ func (h *SiteHandler) managerActor(r *http.Request, siteID string) db.Actor {
 
 // watch counts metric n times for siteID today. Never fails a request.
 func (h *SiteHandler) watch(ctx context.Context, siteID, metric string, n int64) {
-	if n <= 0 {
-		return
-	}
-	if err := db.BumpDataWatch(ctx, h.database, siteID, metric, n); err != nil {
-		log.Printf("data_watch site_id=%s metric=%s: %v", siteID, metric, err)
-	}
+	h.legacySvc().Watch(ctx, siteID, metric, n)
 }
 
 // siteHasRoom refuses (507 site_full) a write that grows a site's live saved
@@ -258,21 +251,19 @@ func (h *SiteHandler) idemBegin(w http.ResponseWriter, r *http.Request, siteID, 
 	if actor.ID == "" {
 		return nil, false
 	}
-	sum := sha256.Sum256([]byte(siteID + "\x00" + route + "\x00" + actor.ID + "\x00" + key))
-	bodySum := sha256.Sum256(body)
-	claimed, prev, err := db.ClaimIdempotencyKey(r.Context(), h.database, sum[:], siteID, bodySum[:], 2*time.Minute)
+	scope, prev, state, err := h.legacySvc().ClaimWrite(r.Context(), siteID, route, actor.ID, key, body)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return nil, true
 	}
-	if claimed {
-		return &idemClaim{scope: sum[:]}, false
+	if state == "claimed" {
+		return &idemClaim{scope: scope}, false
 	}
-	if !bytes.Equal(prev.BodyHash, bodySum[:]) {
+	if state == "reused" {
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "this Idempotency-Key was already used for a different request; use a new key for a new write", Code: "idempotency_key_reused"})
 		return nil, true
 	}
-	if prev.Status == 0 {
+	if state == "pending" {
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "a request with this Idempotency-Key is still being saved; retry in a moment", Code: "idempotency_in_progress"})
 		return nil, true
 	}
@@ -288,7 +279,7 @@ func (h *SiteHandler) idemSave(r *http.Request, c *idemClaim, status int, etag s
 	}
 	c.saved = true
 	// Keep it even if the caller has gone: that is the retry case.
-	if err := db.SaveIdempotentResponse(context.WithoutCancel(r.Context()), h.database, c.scope, status, etag, ref); err != nil {
+	if err := h.legacySvc().SaveIdempotentResponse(context.WithoutCancel(r.Context()), c.scope, status, etag, ref); err != nil {
 		log.Printf("idempotency save: %v", err)
 	}
 }
@@ -299,7 +290,7 @@ func (h *SiteHandler) idemEnd(r *http.Request, c *idemClaim) {
 	if c == nil || c.saved {
 		return
 	}
-	if err := db.ReleaseIdempotencyKey(context.WithoutCancel(r.Context()), h.database, c.scope); err != nil {
+	if err := h.legacySvc().ReleaseIdempotencyKey(context.WithoutCancel(r.Context()), c.scope); err != nil {
 		log.Printf("idempotency release: %v", err)
 	}
 }
@@ -307,7 +298,7 @@ func (h *SiteHandler) idemEnd(r *http.Request, c *idemClaim) {
 // replayItem answers a retried append with the item the first one made.
 func (h *SiteHandler) replayItem(w http.ResponseWriter, r *http.Request, siteID, coll string) func(db.IdempotentResponse) {
 	return func(prev db.IdempotentResponse) {
-		item, err := db.GetCollectionItemByID(r.Context(), h.database, siteID, coll, prev.Ref)
+		item, err := h.legacySvc().ReplayCollectionItem(r.Context(), siteID, coll, prev.Ref)
 		if err != nil {
 			writeJSON(w, prev.Status, map[string]int64{"id": prev.Ref})
 			return

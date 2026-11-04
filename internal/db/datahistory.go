@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/repository/legacy"
 )
 
 // Saved-data history and undo (saved-data redesign step 1, 2026-09-27).
@@ -36,13 +38,6 @@ const (
 	OpRestore  = "restore"  // an earlier version put back
 )
 
-// Actor is who made a change. ID is "" when nobody was signed in.
-type Actor struct {
-	ID    string
-	Kind  string // owner | admin | visitor | anonymous
-	Email string
-}
-
 // ErrNoEarlierValue: the history row holds nothing to put back.
 var ErrNoEarlierValue = errors.New("this change has no earlier value to put back")
 
@@ -72,15 +67,6 @@ func nullIfEmpty(s string) any {
 }
 
 // ---- the per-site size ------------------------------------------------------
-
-// SiteDataUsage is a site's live saved data in bytes (the document plus live
-// list items), kept by triggers in the same transaction as every write
-// (db/migrations/sd1-saved-data-safety2-limits.sql): one row read.
-func SiteDataUsage(ctx context.Context, q Querier, siteID string) (int64, error) {
-	var n int64
-	err := q.QueryRowContext(ctx, `SELECT data_bytes FROM sites WHERE id = $1`, siteID).Scan(&n)
-	return n, err
-}
 
 // HasRoom reports whether growing siteID's live saved data by growth bytes
 // stays within maxBytes. A write that does not grow it (growth <= 0) always
@@ -161,21 +147,8 @@ type HistoryEntry struct {
 	Value  json.RawMessage `json:"value,omitempty"`
 }
 
-const insertHistory = `
-	INSERT INTO data_history (site_id, kind, name, item_id, op, prev, actor_id, actor_kind, actor_email)
-	VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)`
-
 func recordHistory(ctx context.Context, q Querier, siteID, kind, name string, itemID *int64, op string, prev json.RawMessage, a Actor) error {
-	var p any
-	if prev != nil {
-		p = string(prev)
-	}
-	var item any
-	if itemID != nil {
-		item = *itemID
-	}
-	_, err := q.ExecContext(ctx, insertHistory, siteID, kind, name, item, op, p, nullIfEmpty(a.ID), a.Kind, nullIfEmpty(a.Email))
-	return err
+	return legacy.RecordHistory(ctx, q, siteID, kind, name, itemID, op, prev, a)
 }
 
 // RecordStateChange records that the document went from prev to next, with a
@@ -483,9 +456,7 @@ func SoftDeleteItem(ctx context.Context, database *sql.DB, siteID, collection st
 		return false, err
 	}
 	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, `
-		UPDATE collection_items SET deleted_at = now()
-		 WHERE id = $1 AND site_id = $2 AND collection = $3 AND deleted_at IS NULL`, id, siteID, collection)
+	res, err := legacy.SoftDeleteItem(ctx, tx, siteID, collection, id)
 	if err != nil {
 		return false, err
 	}
@@ -686,49 +657,6 @@ func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collectio
 		return CollectionItem{}, err
 	}
 	return it, tx.Commit()
-}
-
-// DeletedItem is an item in a list's Recently deleted.
-type DeletedItem struct {
-	ID        int64           `json:"id"`
-	Data      json.RawMessage `json:"data"`
-	CreatedAt time.Time       `json:"created_at"`
-	DeletedAt time.Time       `json:"deleted_at"`
-	By        string          `json:"by,omitempty"`
-}
-
-// DeletedCursor is where a page of Recently deleted ended: the last item's
-// deletion time and id (the page is ordered by both, newest first).
-type DeletedCursor struct {
-	At time.Time
-	ID int64
-}
-
-// ListDeletedItems returns a list's deleted items, most recently deleted
-// first. A non-zero after continues past that item (keyset on deleted_at, id).
-func ListDeletedItems(ctx context.Context, database *sql.DB, siteID, collection string, limit int, after DeletedCursor) ([]DeletedItem, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT id, data, created_at, deleted_at, `+authorExpr+`
-		  FROM collection_items
-		 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL
-		   AND ($3::bigint = 0 OR (deleted_at, id) < ($4, $3))
-		 ORDER BY deleted_at DESC, id DESC
-		 LIMIT $5`, siteID, collection, after.ID, after.At, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := make([]DeletedItem, 0)
-	for rows.Next() {
-		var it DeletedItem
-		var created sql.NullTime
-		if err := rows.Scan(&it.ID, &it.Data, &created, &it.DeletedAt, &it.By); err != nil {
-			return nil, err
-		}
-		it.CreatedAt = created.Time
-		out = append(out, it)
-	}
-	return out, rows.Err()
 }
 
 // ---- deleting for good (owner) ------------------------------------------------

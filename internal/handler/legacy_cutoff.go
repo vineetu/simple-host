@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/vsriram/simple-host/internal/app/legacy"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -18,12 +19,8 @@ const legacyStorageClosedCode = "legacy_storage_closed"
 // handler answers as today.
 func (h *SiteHandler) LegacyStorageCutoffGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if h.legacyStorageCutoff.IsZero() || !h.ed.Storage().LegacyRoutes || r.Method == http.MethodOptions {
-			next.ServeHTTP(w, r)
-			return
-		}
 		p := parseLegacyStoragePath(r.URL.Path)
-		if !p.match || p.skip {
+		if !h.legacySvc().CutoffApplies(h.ed.Storage().LegacyRoutes, r.Method == http.MethodOptions, p.match, p.skip) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -54,41 +51,14 @@ func (h *SiteHandler) writeLegacyStorageClosed(w http.ResponseWriter, siteName s
 // candidate lets the request through: an existing site must never lose its
 // saved data to this gate.
 func (h *SiteHandler) legacyStorageClosedFor(r *http.Request, p legacyStoragePath) (string, bool) {
-	cutoff := h.legacyStorageCutoff
-	ctx := r.Context()
-	closedName, found := "", false
-	for _, c := range h.legacyCutoffCandidates(r, p) {
-		at, name, err := db.SiteCreatedAt(ctx, h.database, c.id)
-		if err != nil {
-			continue
-		}
-		if at.Before(cutoff) {
-			return "", false
-		}
-		if !found {
-			closedName, found = name, true
-			if closedName == "" {
-				closedName = c.name
-			}
-		}
-	}
-	return closedName, found
+	return h.legacySvc().ClosedFor(r.Context(), h.legacyCutoffCandidates(r, p))
 }
 
-type legacyCutoffCandidate struct {
-	id, name string
-}
-
-func (h *SiteHandler) legacyCutoffCandidates(r *http.Request, p legacyStoragePath) []legacyCutoffCandidate {
+func (h *SiteHandler) legacyCutoffCandidates(r *http.Request, p legacyStoragePath) []legacy.CutoffCandidate {
 	ctx := r.Context()
-	var out []legacyCutoffCandidate
-	seen := map[string]bool{}
+	var out []legacy.CutoffCandidate
 	add := func(id, name string) {
-		if id == "" || seen[id] {
-			return
-		}
-		seen[id] = true
-		out = append(out, legacyCutoffCandidate{id: id, name: name})
+		out = append(out, legacy.CutoffCandidate{ID: id, Name: name})
 	}
 	if p.adminID != "" {
 		add(p.adminID, "")

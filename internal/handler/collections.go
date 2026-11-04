@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"bytes"
 	"context"
-	"crypto/subtle"
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
@@ -12,10 +10,10 @@ import (
 	"io"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -30,8 +28,6 @@ var validCollectionName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
 const (
 	maxCollectionItemSize = 64 * 1024
-	defaultCollectionPage = 50
-	maxCollectionPage     = 200
 )
 
 func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
@@ -111,52 +107,60 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	if !storableJSON(w, body) {
 		return
 	}
-	claim, handled := h.idemBegin(w, r, siteID, "POST collections/"+coll, actor, body, h.replayItem(w, r, siteID, coll))
-	if handled {
+	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if len(key) > maxIdempotencyKey {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Idempotency-Key is at most 255 characters", Code: "invalid_idempotency_key"})
 		return
 	}
-	defer h.idemEnd(r, claim)
-	if !h.siteHasRoom(w, r, siteID, int64(len(body))) {
-		return
-	}
-	// The watch: a visitor starting a list name nobody used before.
-	newName := false
-	if isVisitorActor(actor) {
-		if used, err := db.CollectionNameUsed(r.Context(), h.database, siteID, coll); err == nil && !used {
-			newName = true
-		}
-	}
-
 	// Who sent it is kept with the item (the owner sees it; public reads
 	// never do). Nothing in the item itself changes.
-	item, ok := h.saveEntry(w, r, siteID, set, body, actor)
+	result, err := h.legacySvc().AppendCollectionOnce(r.Context(), legacy.AppendInput{
+		SiteID: siteID, Settings: set, Body: body, Actor: actor, Key: key,
+		Visitor: isVisitorActor(actor), SuccessStatus: http.StatusCreated,
+	})
+	switch result.State {
+	case "reused":
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "this Idempotency-Key was already used for a different request; use a new key for a new write", Code: "idempotency_key_reused"})
+		return
+	case "pending":
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "a request with this Idempotency-Key is still being saved; retry in a moment", Code: "idempotency_in_progress"})
+		return
+	case "replay":
+		w.Header().Set("Idempotent-Replayed", "true")
+		if result.ReplayFound {
+			writeJSON(w, result.Previous.Status, result.Item)
+		} else {
+			writeJSON(w, result.Previous.Status, map[string]int64{"id": result.Previous.Ref})
+		}
+		return
+	}
+	item, have := result.Item, result.Have
+	var quotaErr *legacy.AppendQuotaError
+	if errors.As(err, &quotaErr) {
+		if quotaErr.Full {
+			h.writeSiteFull(w)
+		} else {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		}
+		return
+	}
+	item, ok = h.entryResult(w, set, item, have, err)
 	if !ok {
 		return
 	}
-	if newName {
-		h.watch(r.Context(), siteID, watchNewList, 1)
-	}
-	h.watchItemSize(r.Context(), siteID, len(body))
-	h.idemSave(r, claim, http.StatusCreated, "", item.ID)
 	writeJSON(w, http.StatusCreated, item)
 }
 
 // watchItemSize counts a list item larger than SAVED_DATA_WATCH_ITEM_KB.
 func (h *SiteHandler) watchItemSize(ctx context.Context, siteID string, size int) {
-	if size > h.savedData.WatchItemKB<<10 {
-		h.watch(ctx, siteID, watchItemLarge, 1)
-	}
+	h.legacySvc().WatchItemSize(ctx, siteID, size, h.savedData.WatchItemKB, watchItemLarge)
 }
 
 func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	coll := strings.TrimSpace(r.PathValue("coll"))
-	if siteName == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
-		return
-	}
-	if !validCollectionName.MatchString(coll) {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid collection name"})
+	if err := h.legacySvc().AuthorizeCollectionGate(r.Context(), legacy.CollectionGateInput{SiteName: siteName, Collection: coll, OriginAllowed: true}); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
 		return
 	}
 	// Owner (or admin) API key is an alternative to the Origin gate so the
@@ -201,15 +205,15 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 	// Private list: the owner's key reads everything (except through the
 	// shared host, where private lists do not exist); a browser needs the
 	// owner's or a submitter's visitor session on the site's own domain.
-	set, err := db.GetDataSettings(r.Context(), h.database, siteID, coll)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
+	set, err := h.legacySvc().ListCollectionSettings(r.Context(), siteID, coll)
 	// Personal records are read only by their own person, one each, with
 	// GET .../data/{name}: never as a list, by anyone (the owner included).
-	if set.Kind == db.KindPersonal {
+	if errors.Is(err, legacy.ErrPersonalList) {
 		writePersonalOnly(w, coll)
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 	private := set.Private
@@ -228,18 +232,6 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	limit := defaultCollectionPage
-	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 {
-		limit = v
-	}
-	if limit > maxCollectionPage {
-		limit = maxCollectionPage
-	}
-	var before int64
-	if v, err := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64); err == nil && v > 0 {
-		before = v
-	}
-
 	// Who sent each item: the owner's key (or the admin's), or the owner
 	// signed in on the site's own address, only.
 	withAuthor := ownerKey || h.ownerBrowserView(r, siteID)
@@ -250,32 +242,12 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Vary", "Cookie")
 		w.Header().Add("Vary", "X-API-Key")
 	}
-	items, err := db.ListCollectionItemsByID(r.Context(), h.database, siteID, coll, limit, before, withAuthor)
+	items, next, err := h.legacySvc().ListCollection(r.Context(), legacy.CollectionListInput{SiteID: siteID, Collection: coll, Limit: r.URL.Query().Get("limit"), Before: r.URL.Query().Get("before"), WithAuthor: withAuthor, Settings: set})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	// next cursor: if we filled the page, the oldest id is the cursor for the next page.
-	var next *int64
-	if len(items) == limit {
-		n := items[len(items)-1].ID
-		next = &n
-	}
-	// A list made public after it was private still holds the submitters'
-	// emails (_submitted_by). They stay private: only the owner's key (or
-	// the admin's), or the owner signed in on the site's own address, sees
-	// them. A private list's reader is already the owner.
-	if !private && !withAuthor {
-		for i := range items {
-			items[i].Data = withoutSubmitter(items[i].Data)
-		}
-	}
 	board := set.Kind == db.KindBoard
-	for i := range items {
-		if !board {
-			items[i].Version = 0
-		}
-	}
 	resp := map[string]any{"items": items, "next": next}
 	if private {
 		resp["private"] = true
@@ -291,7 +263,8 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 
 func (h *SiteHandler) optionsCollection(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if siteName == "" || !h.authorizeStateOrigin(w, r, siteName) {
+	originAllowed := siteName != "" && h.authorizeStateOrigin(w, r, siteName)
+	if err := h.legacySvc().CollectionOptions(r.Context(), legacy.CollectionOptionsInput{SiteName: r.PathValue("sitename"), OriginAllowed: originAllowed}); err != nil {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -304,16 +277,20 @@ func (h *SiteHandler) optionsCollection(w http.ResponseWriter, r *http.Request) 
 // collectionGate applies the shared checks: valid name and Origin gate. Writes
 // the error response and returns false when blocked.
 func (h *SiteHandler) collectionGate(w http.ResponseWriter, r *http.Request, siteName, coll string) bool {
-	if siteName == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
-		return false
+	// Origin authorization sets CORS headers, so retain its original position
+	// after the name checks while the adapter makes the authorization decision.
+	originAllowed := false
+	if siteName != "" && validCollectionName.MatchString(coll) {
+		originAllowed = h.authorizeStateOrigin(w, r, siteName)
 	}
-	if !validCollectionName.MatchString(coll) {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid collection name"})
-		return false
-	}
-	if !h.authorizeStateOrigin(w, r, siteName) {
-		writeOriginRefused(w)
+	err := h.legacySvc().AuthorizeCollectionGate(r.Context(), legacy.CollectionGateInput{SiteName: siteName, Collection: coll, OriginAllowed: originAllowed})
+	if err != nil {
+		opErr := err.(*legacy.Error)
+		if opErr.Code == "origin_not_allowed" {
+			writeOriginRefused(w)
+		} else {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: opErr.Message})
+		}
 		return false
 	}
 	return true
@@ -325,94 +302,47 @@ func (h *SiteHandler) collectionGate(w http.ResponseWriter, r *http.Request, sit
 // ok=false so the caller can fall through to the Origin gate — they
 // must not 401 here.
 func (h *SiteHandler) ownerSiteIDFromKey(r *http.Request, siteName string) (string, bool) {
-	if siteName == "" {
-		return "", false
-	}
-	apiKey := r.Header.Get("X-API-Key")
-	if apiKey == "" {
-		return "", false
-	}
-
-	var user *db.User
-	if h.adminAPIKey != "" && subtle.ConstantTimeCompare([]byte(apiKey), []byte(h.adminAPIKey)) == 1 {
-		user = &db.User{IsAdmin: true}
-	} else {
-		u, err := db.GetUserByAPIKey(r.Context(), h.database, apiKey, h.limits.KeyIdleExpiry)
-		if err != nil {
-			return "", false
-		}
-		user = &u
-	}
-	// With a {handle} route the site is named exactly: an owner key must own
-	// that handle's site, and the admin gets that site (not whichever
-	// same-named site is oldest).
-	if handle := strings.TrimSpace(r.PathValue("handle")); handle != "" {
-		if user.IsAdmin && user.ID == "" {
-			id, err := h.resolveSiteID(r, siteName)
-			return id, err == nil
-		}
-		if !strings.EqualFold(handle, user.Handle.String) {
-			if !user.IsAdmin {
-				return "", false
-			}
-			id, err := h.resolveSiteID(r, siteName)
-			return id, err == nil
-		}
-	}
-	id, err := h.ownedSiteID(r, user, siteName)
-	if err != nil {
-		return "", false
-	}
-	return id, true
+	in := legacy.OwnerKeyInput{SiteName: siteName, APIKey: r.Header.Get("X-API-Key"), Handle: r.PathValue("handle")}
+	in.ScopedSiteID, in.Scoped = r.Context().Value(adminSiteKey{}).(string)
+	return h.legacyRequestSvc(r).OwnerSiteFromKey(r.Context(), in)
 }
 
 // ownedSiteID resolves the site the caller is allowed to inspect. Regular
 // users must own it (user_id + name). Admins may look up any site by name
 // (oldest same-named owner, matching GetSiteIDByName).
 func (h *SiteHandler) ownedSiteID(r *http.Request, user *db.User, siteName string) (string, error) {
-	if user == nil {
-		return "", sql.ErrNoRows
+	in := legacy.OwnedSiteInput{SiteName: siteName}
+	if user != nil {
+		in.SignedIn, in.UserID, in.Admin = true, user.ID, user.IsAdmin
 	}
-	if user.ID != "" {
-		site, err := h.siteForCaller(r, user.ID, siteName)
-		if err == nil {
-			return site.ID, nil
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			return "", err
-		}
-	}
-	if user.IsAdmin {
-		return db.GetSiteIDByName(r.Context(), h.database, siteName)
-	}
-	return "", sql.ErrNoRows
+	in.ScopedSiteID, in.Scoped = r.Context().Value(adminSiteKey{}).(string)
+	return h.legacySvc().OwnedSiteID(r.Context(), in)
 }
 
 // listSiteCollections is GET /v1/sites/{sitename}/collections — owner-only
 // inventory of what the site has saved.
 func (h *SiteHandler) listSiteCollections(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
-	if user == nil {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
-		return
+	in := legacy.OwnedSiteInput{SiteName: r.PathValue("sitename")}
+	if user != nil {
+		in.SignedIn, in.UserID, in.Admin = true, user.ID, user.IsAdmin
 	}
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if siteName == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
-		return
-	}
-	siteID, err := h.ownedSiteID(r, user, siteName)
+	in.ScopedSiteID, in.Scoped = r.Context().Value(adminSiteKey{}).(string)
+	summaries, err := h.legacySvc().ListSiteCollections(r.Context(), in)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
+		var opErr *legacy.Error
+		if errors.As(err, &opErr) {
+			status := http.StatusBadRequest
+			switch opErr.Code {
+			case "unauthorized":
+				status = http.StatusUnauthorized
+			case "site_not_found":
+				status = http.StatusNotFound
+			}
+			writeJSON(w, status, errorResponse{Error: opErr.Message})
+		} else {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	summaries, err := db.ListCollectionSummariesByID(r.Context(), h.database, siteID)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"collections": summaries})
@@ -446,7 +376,7 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
-		if private, err := db.IsCollectionPrivate(r.Context(), h.database, siteID, coll); err != nil || private {
+		if private, err := h.legacySvc().IsCollectionPrivate(r.Context(), siteID, coll); err != nil || private {
 			writePrivateNotFound(w)
 			return
 		}
@@ -454,7 +384,7 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 	if h.refusePersonal(w, r, siteID, coll) {
 		return
 	}
-	exists, err := db.CollectionExistsByID(r.Context(), h.database, siteID, coll)
+	keys, exists, err := h.legacySvc().CollectionExportKeys(r.Context(), siteID, coll)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -464,39 +394,20 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	keys, err := db.ListCollectionKeysByID(r.Context(), h.database, siteID, coll)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-
 	filename := fmt.Sprintf("%s-%s-%s.csv", siteName, coll, time.Now().UTC().Format("2006-01-02"))
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	w.WriteHeader(http.StatusOK)
 
 	cw := csv.NewWriter(w)
-	header := make([]string, 0, 3+len(keys))
-	header = append(header, "id", "created_at")
-	for _, k := range keys {
-		header = append(header, csvSafe(k))
-	}
-	// Last: who sent each item (the owner's download only).
-	header = append(header, "sent_by")
+	header := legacy.CollectionCSVHeader(keys, csvSafe)
 	if err := cw.Write(header); err != nil {
 		return
 	}
 
 	n := 0
-	err = db.ForEachCollectionItemByID(r.Context(), h.database, siteID, coll, func(it db.CollectionItem) error {
-		row := make([]string, 3+len(keys))
-		row[0] = strconv.FormatInt(it.ID, 10)
-		row[1] = it.CreatedAt.UTC().Format(time.RFC3339)
-		fields := jsonObjectFields(it.Data)
-		for i, k := range keys {
-			row[2+i] = jsonCSVCell(fields[k])
-		}
-		row[2+len(keys)] = csvSafe(it.By)
+	err = h.legacySvc().ForEachCollectionItem(r.Context(), siteID, coll, func(it db.CollectionItem) error {
+		row := legacy.CollectionCSVRow(it, keys, csvSafe)
 		if err := cw.Write(row); err != nil {
 			return err
 		}
@@ -519,57 +430,12 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 // withoutSubmitter drops the _submitted_by stamp from an item that has one.
 // Anything else (and anything that is not a JSON object) comes back as is.
 func withoutSubmitter(data json.RawMessage) json.RawMessage {
-	if !bytes.Contains(data, []byte(`"_submitted_by"`)) {
-		return data
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil || fields == nil {
-		return data
-	}
-	if _, ok := fields["_submitted_by"]; !ok {
-		return data
-	}
-	delete(fields, "_submitted_by")
-	out, err := json.Marshal(fields)
-	if err != nil {
-		return data
-	}
-	return out
+	return legacy.WithoutSubmitter(data)
 }
 
-// jsonObjectFields decodes a JSON object into raw per-key values. Non-objects
-// yield an empty map so the CSV row is just id + created_at.
-func jsonObjectFields(data json.RawMessage) map[string]json.RawMessage {
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(data, &m); err != nil {
-		return map[string]json.RawMessage{}
-	}
-	return m
-}
-
-// jsonCSVCell renders one JSON value as a CSV cell: objects/arrays as compact
-// JSON, null as empty, strings unquoted, numbers and booleans plainly.
+// jsonCSVCell retains the existing helper for callers and tests.
 func jsonCSVCell(raw json.RawMessage) string {
-	raw = bytes.TrimSpace(raw)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return ""
-	}
-	switch raw[0] {
-	case '"':
-		var s string
-		if err := json.Unmarshal(raw, &s); err == nil {
-			return csvSafe(s)
-		}
-	case '{', '[':
-		var v any
-		if err := json.Unmarshal(raw, &v); err == nil {
-			b, err := json.Marshal(v)
-			if err == nil {
-				return string(b)
-			}
-		}
-	}
-	return string(raw)
+	return legacy.JSONCSVCell(raw, csvSafe)
 }
 
 // csvSafe moved to internal/httpx (httpx.CSVSafe); see the alias in

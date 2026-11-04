@@ -1,4 +1,4 @@
-package db
+package legacy
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"errors"
 	"sort"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // ---- idempotency keys --------------------------------------------------------
@@ -15,12 +17,7 @@ import (
 // version or item id (Ref), and a hash of the request body, so the same key
 // with another body is refused. Never the response body. Status 0: that first
 // request is still running.
-type IdempotentResponse struct {
-	Status   int
-	ETag     string
-	Ref      int64
-	BodyHash []byte
-}
+type IdempotentResponse = model.LegacyIdempotentResponse
 
 // ClaimIdempotencyKey reserves scope for this request on siteID. claimed=false
 // with a stored answer means a retry (Status 0: still running). A reservation
@@ -105,13 +102,7 @@ func BumpDataWatch(ctx context.Context, database *sql.DB, siteID, metric string,
 }
 
 // DataWatchSite is one site's counts over the window.
-type DataWatchSite struct {
-	SiteID  string           `json:"site_id"`
-	Site    string           `json:"site"`
-	Handle  string           `json:"handle"`
-	Metrics map[string]int64 `json:"metrics"`
-	LastAt  time.Time        `json:"last_at"`
-}
+type DataWatchSite = model.LegacyDataWatchSite
 
 // ListDataWatch returns every site with a count in the last days days (UTC),
 // most recent first, and the first day anything was ever counted (zero when
@@ -161,4 +152,11 @@ func ListDataWatch(ctx context.Context, database *sql.DB, days int) ([]DataWatch
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].LastAt.After(out[j].LastAt) })
 	return out, first.Time, nil
+}
+
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }

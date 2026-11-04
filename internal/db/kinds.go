@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/repository/legacy"
+
 	"github.com/lib/pq"
 )
 
@@ -64,65 +66,6 @@ var ErrOnePerPerson = errors.New("one entry per person")
 // ErrNameFull: the name holds as many entries as it may.
 var ErrNameFull = errors.New("this list is full")
 
-// DataSettings is one data name's declaration. Kind "" = not declared.
-type DataSettings struct {
-	Name         string
-	Kind         string
-	Private      bool
-	OnePerPerson bool
-	Notify       string
-	DeclaredAt   *time.Time
-	// MadeBeforeKinds is the site's legacy_data flag: an undeclared name
-	// there is Shared whatever SAVED_DATA_DEFAULT_KIND says.
-	MadeBeforeKinds bool
-	// Shared: a name nobody declared takes saves here as before the kinds
-	// (set by the handler from MadeBeforeKinds and SAVED_DATA_DEFAULT_KIND).
-	Shared bool
-}
-
-// GetDataSettings reads one name's declaration and the site's legacy flag.
-// sql.ErrNoRows when the site does not exist.
-func GetDataSettings(ctx context.Context, q Querier, siteID, name string) (DataSettings, error) {
-	s := DataSettings{Name: name, Notify: NotifyOff}
-	var kind sql.NullString
-	var declared sql.NullTime
-	err := q.QueryRowContext(ctx, `
-		SELECT s.legacy_data, cs.kind, COALESCE(cs.private, false), COALESCE(cs.one_per_person, false),
-		       COALESCE(cs.notify, 'off'), cs.declared_at
-		  FROM sites s
-		  LEFT JOIN collection_settings cs ON cs.site_id = s.id AND cs.collection = $2
-		 WHERE s.id = $1`, siteID, name).Scan(&s.MadeBeforeKinds, &kind, &s.Private, &s.OnePerPerson, &s.Notify, &declared)
-	if err != nil {
-		return s, err
-	}
-	s.Shared = s.MadeBeforeKinds
-	s.Kind = kind.String
-	if declared.Valid {
-		t := declared.Time
-		s.DeclaredAt = &t
-	}
-	return s, nil
-}
-
-// DeclareData records name's kind and options. Declaring content always
-// leaves it public (private = false). A Personal name is always stored
-// private: nothing that knows the kinds reads the flag for it, and code that
-// does not (an older binary after a rollback) then treats it as owner-only
-// instead of public. declared_at is kept from the first declaration.
-func DeclareData(ctx context.Context, q Querier, siteID, name, kind string, private, onePerPerson bool, notify string) error {
-	if kind == KindPersonal {
-		private = true
-	}
-	_, err := q.ExecContext(ctx, `
-		INSERT INTO collection_settings (site_id, collection, private, kind, one_per_person, notify, declared_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, now(), now())
-		ON CONFLICT (site_id, collection) DO UPDATE SET
-		  private = EXCLUDED.private, kind = EXCLUDED.kind, one_per_person = EXCLUDED.one_per_person,
-		  notify = EXCLUDED.notify, declared_at = COALESCE(collection_settings.declared_at, now()), updated_at = now()`,
-		siteID, name, private, kind, onePerPerson, notify)
-	return err
-}
-
 // ErrNameHasRows: the name holds items (live or in Recently deleted), so it
 // cannot become Personal, or stop being Personal.
 var ErrNameHasRows = errors.New("the name holds items")
@@ -133,7 +76,7 @@ var ErrSeveralItems = errors.New("the name holds several items")
 
 // ErrKindChanged: the name's declaration changed after the caller read it
 // (the owner changed its kind at the same moment); nothing was saved.
-var ErrKindChanged = errors.New("the name's kind changed")
+var ErrKindChanged = legacy.ErrKindChanged
 
 // PrivateItemsError: a change would make a private name readable by anyone
 // while it holds items, live or in Recently deleted (a restore would bring
@@ -150,13 +93,7 @@ func (e *PrivateItemsError) Error() string { return "the private name holds item
 // lockDeclaration takes the name's declaration-row lock (the row is made
 // first when missing) and returns its kind and private flag.
 func lockDeclaration(ctx context.Context, tx *sql.Tx, siteID, name string) (kind string, private bool, err error) {
-	if _, err = tx.ExecContext(ctx, `
-		INSERT INTO collection_settings (site_id, collection) VALUES ($1, $2) ON CONFLICT DO NOTHING`, siteID, name); err != nil {
-		return
-	}
-	err = tx.QueryRowContext(ctx, `
-		SELECT COALESCE(kind, ''), private FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&kind, &private)
-	return
+	return legacy.LockDeclaration(ctx, tx, siteID, name)
 }
 
 // publicGate runs under the declaration lock before a private name (cur,
@@ -167,10 +104,8 @@ func publicGate(ctx context.Context, tx *sql.Tx, siteID, name, cur string, curPr
 	if cur == KindPersonal || !curPrivate || !public {
 		return nil
 	}
-	var live, deleted int64
-	if err := tx.QueryRowContext(ctx, `
-		SELECT count(*) FILTER (WHERE deleted_at IS NULL), count(*) FILTER (WHERE deleted_at IS NOT NULL)
-		  FROM collection_items WHERE site_id = $1 AND collection = $2`, siteID, name).Scan(&live, &deleted); err != nil {
+	live, deleted, err := legacy.CountCollectionItems(ctx, tx, siteID, name)
+	if err != nil {
 		return err
 	}
 	if live+deleted == 0 || (kind != KindContent && confirmPublic) {
@@ -275,37 +210,11 @@ func BaseEmail(email string) string {
 	return local + email[at:]
 }
 
-// baseEmailSQL is BaseEmail in SQL, over a column.
-func baseEmailSQL(col string) string {
-	return `regexp_replace(lower(` + col + `), '^([^+@]+)\+[^@]*@', '\1@')`
-}
-
 // livePersonEntry is the id of a live entry in name sent by this person
 // (the same account, or the same address with any +tag), 0 when none;
 // mine reports whether that entry is the account's own.
 func livePersonEntry(ctx context.Context, q Querier, siteID, name string, a Actor, exceptID int64) (int64, bool, error) {
-	var id int64
-	var mine bool
-	err := q.QueryRowContext(ctx, `
-		SELECT id, submitted_by IS NOT DISTINCT FROM $3::uuid FROM collection_items
-		 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NULL AND id <> $5
-		   AND (submitted_by = $3::uuid OR ($4 <> '' AND `+baseEmailSQL("submitted_email")+` = $4))
-		 ORDER BY (submitted_by IS NOT DISTINCT FROM $3::uuid) DESC, id DESC LIMIT 1`,
-		siteID, name, a.ID, BaseEmail(a.Email), exceptID).Scan(&id, &mine)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false, nil
-	}
-	return id, mine, err
-}
-
-// NameHoldsItems reports whether name has more than max live items (a list
-// cannot become Page info, which is one document).
-func NameHoldsItems(ctx context.Context, q Querier, siteID, name string, max int) (bool, error) {
-	var n int
-	err := q.QueryRowContext(ctx, `
-		SELECT count(*) FROM (SELECT 1 FROM collection_items
-		  WHERE site_id = $1 AND collection = $2 AND deleted_at IS NULL LIMIT $3) x`, siteID, name, max+1).Scan(&n)
-	return n > max, err
+	return legacy.LivePersonEntry(ctx, q, siteID, name, a.ID, BaseEmail(a.Email), exceptID)
 }
 
 // ---- Page info (content) --------------------------------------------------------
@@ -391,10 +300,8 @@ func AppendEntry(ctx context.Context, database *sql.DB, siteID, name, kind strin
 	// Under the lock, the name is still what the caller read: a change of
 	// kind (to Page info, say) or of privacy (a private list made public
 	// while this entry was on its way) may have committed since.
-	var cur string
-	var curPrivate bool
-	if err := tx.QueryRowContext(ctx, `
-		SELECT COALESCE(kind, ''), private FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&cur, &curPrivate); err != nil {
+	cur, curPrivate, err := legacy.LockEntryDeclaration(ctx, tx, siteID, name)
+	if err != nil {
 		return CollectionItem{}, 0, err
 	}
 	if cur != kind || curPrivate != private {
@@ -419,11 +326,7 @@ func AppendEntry(ctx context.Context, database *sql.DB, siteID, name, kind strin
 	if full {
 		return CollectionItem{}, 0, ErrNameFull
 	}
-	var it CollectionItem
-	err = tx.QueryRowContext(ctx, `
-		INSERT INTO collection_items (site_id, collection, data, submitted_by, submitted_email)
-		VALUES ($1, $2, $3::jsonb, $4, $5) RETURNING id, data, created_at`,
-		siteID, name, string(data), nullIfEmpty(a.ID), nullIfEmpty(a.Email)).Scan(&it.ID, &it.Data, &it.CreatedAt)
+	it, err := legacy.InsertEntry(ctx, tx, siteID, name, data, a)
 	if err != nil {
 		return CollectionItem{}, 0, err
 	}

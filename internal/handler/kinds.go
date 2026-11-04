@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -102,7 +103,7 @@ func writeNotAllowedToSave(w http.ResponseWriter) {
 
 // dataSettings reads name's declaration on siteID (500 written on failure).
 func (h *SiteHandler) dataSettings(w http.ResponseWriter, r *http.Request, siteID, name string) (db.DataSettings, bool) {
-	set, err := db.GetDataSettings(r.Context(), h.database, siteID, name)
+	set, err := h.legacySvc().WriteCollectionSettings(r.Context(), siteID, name, h.savedData.DefaultKind == config.DefaultKindDeclareFirst)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return set, false
@@ -110,9 +111,6 @@ func (h *SiteHandler) dataSettings(w http.ResponseWriter, r *http.Request, siteI
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return set, false
-	}
-	if h.savedData.DefaultKind != config.DefaultKindDeclareFirst {
-		set.Shared = true
 	}
 	return set, true
 }
@@ -149,24 +147,18 @@ func (h *SiteHandler) appendAllowed(w http.ResponseWriter, set db.DataSettings, 
 // entryMaxBytes is the largest item a name takes: SAVED_DATA_ENTRY_MAX_KB for
 // declared Submissions, the list limit for a legacy list.
 func (h *SiteHandler) entryMaxBytes(set db.DataSettings) int64 {
-	if set.Kind == db.KindEntries {
-		return int64(h.savedData.EntryMaxKB) << 10
-	}
-	return maxCollectionItemSize
+	return legacy.EntryMaxBytes(set, h.savedData.EntryMaxKB, maxCollectionItemSize)
 }
 
 // saveEntry stores one new item in a declared Submissions name with its rules
 // (one per person, the per-name cap), or appends to a legacy list. Writes the
 // answer on a refusal; ok=false then.
 func (h *SiteHandler) saveEntry(w http.ResponseWriter, r *http.Request, siteID string, set db.DataSettings, body []byte, a db.Actor) (db.CollectionItem, bool) {
-	var item db.CollectionItem
-	var err error
-	var have int64
-	if set.Kind == db.KindEntries {
-		item, have, err = db.AppendEntry(r.Context(), h.database, siteID, set.Name, db.KindEntries, set.Private, body, a, set.OnePerPerson && a.ID != "", h.savedData.EntriesMax)
-	} else {
-		item, err = db.AppendCollectionItemByID(r.Context(), h.database, siteID, set.Name, set.Private, body, a)
-	}
+	item, have, err := h.legacySvc().SaveEntry(r.Context(), legacy.SaveEntryInput{SiteID: siteID, Settings: set, Body: body, Actor: a, MaxEntries: h.savedData.EntriesMax})
+	return h.entryResult(w, set, item, have, err)
+}
+
+func (h *SiteHandler) entryResult(w http.ResponseWriter, set db.DataSettings, item db.CollectionItem, have int64, err error) (db.CollectionItem, bool) {
 	switch {
 	case errors.Is(err, db.ErrOnePerPerson) && have == 0:
 		writeJSON(w, http.StatusConflict, errorResponse{
@@ -728,7 +720,7 @@ func (h *SiteHandler) updateEntry(w http.ResponseWriter, r *http.Request) {
 	errTooLarge := errors.New("too large")
 	errNotObject := errors.New("not an object")
 	actor := h.withAuthorEmail(r.Context(), db.Actor{ID: sess.UserID, Kind: actorVisitor})
-	item, err := db.UpdateCollectionItemByID(r.Context(), h.database, siteID, set.Name, id, actor, h.siteMaxBytes(), func(old json.RawMessage) (json.RawMessage, error) {
+	item, err := h.legacySvc().UpdateCollectionItem(r.Context(), siteID, set.Name, id, actor, h.siteMaxBytes(), func(old json.RawMessage) (json.RawMessage, error) {
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(old, &fields); err != nil || fields == nil {
 			return nil, errNotObject
