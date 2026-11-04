@@ -67,6 +67,30 @@ func HashAPIKey(key string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// GetUserByID loads a users row by primary key, including whether the
+// operator has suspended it (callers that authenticate must check Suspended).
+func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
+	const query = `
+		SELECT id, username, is_admin, created_at, handle, display_name,
+		       suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
+		FROM users
+		WHERE id = $1
+	`
+
+	var user User
+	err := q.QueryRowContext(ctx, query, id).Scan(
+		&user.ID,
+		&user.Username,
+		&user.IsAdmin,
+		&user.CreatedAt,
+		&user.Handle,
+		&user.DisplayName,
+		&user.Suspended,
+		&user.SuspendedReason,
+	)
+	return user, err
+}
+
 // GetUserByUsername preserves the shared accounts lookup.
 func GetUserByUsername(ctx context.Context, q Querier, username string) (User, error) {
 	const query = `

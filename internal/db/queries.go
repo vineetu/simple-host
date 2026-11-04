@@ -157,30 +157,6 @@ func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKe
 	return tx.Commit()
 }
 
-// GetUserByID loads a users row by primary key, including whether the
-// operator has suspended it (callers that authenticate must check Suspended).
-func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
-	const query = `
-		SELECT id, username, is_admin, created_at, handle, display_name,
-		       suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
-		FROM users
-		WHERE id = $1
-	`
-
-	var user User
-	err := q.QueryRowContext(ctx, query, id).Scan(
-		&user.ID,
-		&user.Username,
-		&user.IsAdmin,
-		&user.CreatedAt,
-		&user.Handle,
-		&user.DisplayName,
-		&user.Suspended,
-		&user.SuspendedReason,
-	)
-	return user, err
-}
-
 // GetUserByHandle looks up a user by their URL-safe handle.
 func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, error) {
 	const query = `

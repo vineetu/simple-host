@@ -22,6 +22,11 @@ func HashAPIKey(key string) string {
 	return accounts.HashAPIKey(key)
 }
 
+// GetUserByID forwards to the accounts repository.
+func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
+	return accounts.GetUserByID(ctx, q, id)
+}
+
 // GetUserByUsername forwards to the accounts repository.
 func GetUserByUsername(ctx context.Context, q Querier, username string) (User, error) {
 	return accounts.GetUserByUsername(ctx, q, username)

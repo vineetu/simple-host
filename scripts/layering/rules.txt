@@ -6,6 +6,7 @@
 {handler,hackhttp} -> app/** auth httpx edition model webassets buildinfo workers
 handler -> mcp
 auth -> app/accounts httpx edition model rules/auth rules/sites
+hackhttp -> rules/sites
 mcp -> app/** edition model httpx buildinfo brain webassets workers
 httpx -> app/errors model edition
 app/{accounts,sites,storage,legacy,notifications,operations} -> app/errors model edition workers repository/sqlkit
@@ -41,17 +42,16 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 mcp -> mcp/apps/bundlegen
 [transitional]
 app/legacy -> db production # removal step 4.3: legacy adapter still reads Host sites, settings and actors through db
-app/sites -> db production # removal step 4.3: Host users and handles until the accounts repository
-app/sites -> db test # removal step 4.3: Host fixtures
-app/storage -> db production # removal step 4.3: Host site and visitor-session lookups
+app/sites -> repository/hackteams production # removal step 4.3: team write-state checks until app/accounts owns shared authorization
+app/storage -> repository/accounts production # removal step 4.3: visitor session checks until app/accounts owns shared authorization
+app/storage -> repository/hackevents production # removal step 4.3: event file-link scope until app/accounts owns shared authorization
+app/storage -> repository/hackteams production # removal step 4.3: team file-link scope until app/accounts owns shared authorization
+db -> repository/accounts production # removal step 4.3: account SQL forwarders for remaining callers
+app/sites -> rules/storage production # removal step 4.3: shared unpacked archive budget rule used by website limits
 db -> repository/legacy production # removal step 4.3: legacy SQL forwarders for remaining callers
 db -> repository/sites production # removal step 4.3: site/version SQL forwarders for remaining callers
-handler -> repository/storage production # removal step 4.3: storage resource reads move into app/storage
-app/hack/events -> db production # removal step 4.3: Host accounts, handles and API key hashing
-app/hack/teams -> db production # removal step 4.3: Host sites and versions, and OrphanTeamSites (scans Host Site rows)
 db -> repository/hackevents production # removal step 4.3: event aliases, account cleanup and notification locks
 db -> repository/hackteams production # removal step 4.3: team aliases, account cleanup and team key checks
-app/hack/entries -> db production # removal step 4.3: Host email helper
 db -> repository/hackentries production # removal step 4.3: Host-dependent compatibility aliases
 db -> repository/sqlkit production # removal step 4.3: db keeps the Querier alias until the last repository moves
 db -> model production # removal step 4.3: db keeps type aliases until the last repository moves
@@ -63,13 +63,10 @@ hackhttp -> email production # removal step 5.4: final transport boundary
 hackhttp -> handler test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 hackhttp -> mcp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 hackhttp -> papermetrics production # removal step 5.4: worker lifecycle and operations
-hackhttp -> rules/sites production # removal step 4.3: site and storage workflows
-hackhttp -> rules/storage production # removal step 4.3: site and storage workflows
-hackhttp -> tarball production # removal step 4.3: site and storage workflows
 handler -> @/hack-toolkit production # removal step 5.4: webassets extraction
 handler -> analytics production # removal step 5.4: worker lifecycle and operations
 handler -> brain production # removal step 5.4: final transport boundary
-handler -> capacity production # removal step 4.3: site and storage workflows
+handler -> capacity production # removal step 5.4: admin disk-usage reporting moves to app/operations
 handler -> config production # removal step 5.4: final transport boundary
 handler -> db production # removal step 4.3: site and storage workflows
 handler -> email production # removal step 5.4: final transport boundary
@@ -94,7 +91,7 @@ hackhttp -> rules/hackevents test # removal step 5.4: event rule tests
 hackhttp -> rules/hackentries test # removal step 5.4: rubric test fixtures
 handler -> analytics test # removal step 5.4: worker lifecycle and operations
 handler -> brain test # removal step 5.4: final transport boundary
-handler -> capacity test # removal step 4.3: site and storage workflows
+handler -> capacity test # removal step 5.4: admin disk-usage reporting moves to app/operations
 handler -> db test # removal step 4.3: site and storage workflows
 handler -> geoip test # removal step 5.4: worker lifecycle and operations
 handler -> imagescan test # removal step 5.4: worker lifecycle and operations

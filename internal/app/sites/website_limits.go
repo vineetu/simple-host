@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vsriram/simple-host/internal/db"
+	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	rulesstorage "github.com/vsriram/simple-host/internal/rules/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
 )
@@ -16,7 +16,7 @@ type WebsiteLimitsInput struct {
 
 // WebsiteUploadLimit reads the account's archive limit, falling back to the instance default.
 func (s *Service) WebsiteUploadLimit(ctx context.Context, in WebsiteLimitsInput) int64 {
-	holder, err := db.GetUserByID(ctx, s.database, in.AccountID)
+	holder, err := accounts.GetUserByID(ctx, s.database, in.AccountID)
 	if err != nil {
 		return s.deps.WebsiteArchiveDefault
 	}
@@ -26,7 +26,7 @@ func (s *Service) WebsiteUploadLimit(ctx context.Context, in WebsiteLimitsInput)
 
 // WebsiteUploadLimits describes the account's archive and unpacked-file limits.
 func (s *Service) WebsiteUploadLimits(ctx context.Context, in WebsiteLimitsInput) string {
-	holder, err := db.GetUserByID(ctx, s.database, in.AccountID)
+	holder, err := accounts.GetUserByID(ctx, s.database, in.AccountID)
 	if err != nil {
 		return "Upload limits are unavailable."
 	}
