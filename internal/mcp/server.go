@@ -108,12 +108,12 @@ type Config struct {
 	VisitorTool func(*http.Request, Caller, string, map[string]any) (map[string]any, error)
 	// VisitorRefs shares the site handler export key for MCP-only attribution.
 	VisitorRefs *VisitorReferences
-	// Import callbacks keep conversion and report types in the handler package.
-	ValidateSiteShape func(string) error
-	ImportLinkTTL     time.Duration
-	ImportCreated     func(ImportLink) error
-	ImportReceiving   func(string)
-	ImportReport      func(owner, id string) (map[string]any, error)
+	// Import callbacks connect report lifecycle to the application service.
+	ValidateImportNames bool
+	ImportLinkTTL       time.Duration
+	ImportCreated       func(ImportLink) error
+	ImportReceiving     func(string)
+	ImportReport        func(owner, id string) (map[string]any, error)
 
 	// Upstream is the application router (the bare mux, not the edge
 	// middleware). Tool calls are served into it in process.

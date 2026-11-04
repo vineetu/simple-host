@@ -94,8 +94,7 @@ func (h *SiteHandler) siteHostLive(handle, name string) bool {
 // siteHostLiveOn is siteHostLive for the site host under base (whose
 // certificate readiness is kept apart from the other base's).
 func (h *SiteHandler) siteHostLiveOn(handle, name, base string) bool {
-	return h.siteHostsOn() && h.personAddressFor(handle, name) && sites.ValidSiteName.MatchString(name) &&
-		!strings.HasPrefix(name, "xn--") && h.siteCertReadyOn(handle, base)
+	return sites.SiteHostAddress(handle, name, base, h.siteHostsOn(), h.personAddressFor(handle, name), h.siteCertReadyOn(handle, base)) != ""
 }
 
 // siteHostCanonical: the site host is this site's address — handed out, and
@@ -141,12 +140,12 @@ func (h *SiteHandler) siteHostSite(ctx context.Context, host string) (model.Site
 		return model.Site{}, model.User{}, false, nil
 	}
 	label, handle, base, ok := h.siteHostParts(host)
-	if !ok || !handleAddressable(handle) || !sites.ValidSiteName.MatchString(label) {
+	if !ok {
 		return model.Site{}, model.User{}, false, nil
 	}
-	user, err := h.storeAccounts().GetUserByHandle(ctx, handle)
+	user, err := h.sitesSvc().HostOwner(ctx, handle, label)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, sites.ErrInvalidHost) {
 			return model.Site{}, model.User{}, false, nil
 		}
 		return model.Site{}, model.User{}, false, err
@@ -199,11 +198,11 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 		if r.URL.RawQuery != "" {
 			query = "?" + r.URL.RawQuery
 		}
-		if !handleAddressable(handle) || !sites.ValidSiteName.MatchString(label) {
+		user, err := h.sitesSvc().HostOwner(r.Context(), handle, label)
+		if errors.Is(err, sites.ErrInvalidHost) {
 			h.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", h.mainSiteURL(), "Go to "+h.siteDomain)
 			return
 		}
-		user, err := h.storeAccounts().GetUserByHandle(r.Context(), handle)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("site host %s: %v", host, err)
@@ -351,10 +350,7 @@ func (h *SiteHandler) siteHasPath(userID, siteName, rel string) bool {
 // (and no site has it now; callers look the site up first). Returns that
 // site's current address with escapedPath (starting with "/") appended.
 func (h *SiteHandler) renamedSiteAddress(ctx context.Context, userID, name, escapedPath string) (string, bool) {
-	if !sites.ValidSiteName.MatchString(name) {
-		return "", false
-	}
-	siteID, _, err := h.sitesSvc().ResolveOldSiteName(ctx, userID, name)
+	siteID, _, err := h.sitesSvc().AddressedOldSite(ctx, userID, name)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("old site name %s/%s: %v", userID, name, err)

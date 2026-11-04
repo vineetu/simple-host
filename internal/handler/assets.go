@@ -9,7 +9,6 @@ import (
 	"weak"
 
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/storage"
 )
 
 // canonicalHackBaseURL is simple-hack.app's own address: the hack ink base
@@ -171,11 +170,13 @@ func (h *SiteHandler) pipeline() *assetPipeline {
 // test fixtures.
 func (h *SiteHandler) Pages() *assetPipeline { return h.pipeline() }
 
-// DiskForTest is h.disk, exported as a test hook (cleanup 3.2 slice 3): the
-// moved hack_delete_test.go and others check file paths on disk directly
-// (storage.DiskStorage is already an exported leaf type; only the field
-// holding it was unexported).
-func (h *SiteHandler) DiskForTest() *storage.DiskStorage { return h.disk }
+// DiskForTest exposes only paths needed by cross-transport fixtures.
+func (h *SiteHandler) DiskForTest() interface {
+	SiteDir(string, string) string
+	TrashDir(string, string) string
+} {
+	return h.disk
+}
 
 // SetEmailLimiterForTest, SetVisitorAuthLimiterForTest and
 // SetStorageIPLimiterForTest lift h's own rate limits for a test fixture

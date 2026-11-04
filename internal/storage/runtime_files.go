@@ -28,27 +28,27 @@ func ValidObjectPath(p string) bool {
 }
 
 // RuntimeFilesDir returns the directory for a files resource.
-func RuntimeFilesDir(disk *DiskStorage, ownerID, siteName, resourceName string) string {
+func RuntimeFilesDir(disk interface{ SiteDir(string, string) string }, ownerID, siteName, resourceName string) string {
 	return filepath.Join(RuntimeDir(disk, ownerID, siteName), "files", resourceName)
 }
 
 // RuntimeFilePath returns the path of a runtime file.
-func RuntimeFilePath(disk *DiskStorage, ownerID, siteName, resourceName, p string) string {
+func RuntimeFilePath(disk interface{ SiteDir(string, string) string }, ownerID, siteName, resourceName, p string) string {
 	return filepath.Join(RuntimeFilesDir(disk, ownerID, siteName, resourceName), filepath.FromSlash(p))
 }
 
 // RuntimeDir returns a site's runtime directory.
-func RuntimeDir(disk *DiskStorage, ownerID, siteName string) string {
+func RuntimeDir(disk interface{ SiteDir(string, string) string }, ownerID, siteName string) string {
 	return filepath.Join(disk.SiteDir(ownerID, siteName), "runtime")
 }
 
 // RuntimeSQLitePath returns a resource's SQLite path.
-func RuntimeSQLitePath(disk *DiskStorage, ownerID, siteName, resourceName string) string {
+func RuntimeSQLitePath(disk interface{ SiteDir(string, string) string }, ownerID, siteName, resourceName string) string {
 	return filepath.Join(RuntimeDir(disk, ownerID, siteName), "sqlite", resourceName+".sqlite")
 }
 
 // StageRuntime moves a resource aside until its declaration is deleted.
-func StageRuntime(disk *DiskStorage, ownerID, siteName, resourceName, kind string) (staged string, restore func(), err error) {
+func StageRuntime(disk interface{ SiteDir(string, string) string }, ownerID, siteName, resourceName, kind string) (staged string, restore func(), err error) {
 	if kind == "kv" {
 		return "", func() {}, nil
 	}

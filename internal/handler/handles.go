@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"strings"
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/model"
@@ -54,14 +53,7 @@ func sanitizeHandleBase(email string) string { return appsites.SanitizeHandleBas
 // "organiser" when that label is reserved or not a handle as written. Taken
 // labels fall through to organiser-2 and so on, as for anyone.
 func handleSeed(user *model.User, siteDomain string) string {
-	if !user.IsAdmin || user.Username != "admin" {
-		return user.Username
-	}
-	label, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(siteDomain)), ".")
-	if base := sanitizeHandleBase(label); label != "" && base == label && !appsites.LabelReservedForNew(base) {
-		return base
-	}
-	return "organiser"
+	return appsites.HandleSeed(user, siteDomain)
 }
 
 // assignHandle claims a free URL-safe handle for userID derived from email.

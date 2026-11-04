@@ -55,13 +55,10 @@ func (h *SiteHandler) asSiteOwner(next http.HandlerFunc) http.Handler {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 			return
 		}
-		site, err := h.sitesSvc().GetSiteByID(r.Context(), id)
-		if err == nil && site.Deleted {
-			err = sql.ErrNoRows
-		}
-		var owner model.User
-		if err == nil {
-			owner, err = h.storeAccounts().GetUserByID(r.Context(), site.UserID)
+		site, owner, err := h.sitesSvc().AdminSiteTarget(r.Context(), id, r.Pattern == "DELETE /v1/admin/sites/{id}")
+		if e, ok := err.(*appsites.Error); ok && e.Code == "legacy_site_name" {
+			writeJSON(w, http.StatusConflict, errorResponse{Error: e.Error(), Code: e.Code})
+			return
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -69,12 +66,6 @@ func (h *SiteHandler) asSiteOwner(next http.HandlerFunc) http.Handler {
 		}
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		// Delete refuses a name from before today's naming rules; say so
-		// rather than answering "not found".
-		if err := appsites.ValidateShape(site.Name); err != nil && r.Pattern == "DELETE /v1/admin/sites/{id}" {
-			writeJSON(w, http.StatusConflict, errorResponse{Error: "this site's name (" + site.Name + ") is from before the current naming rules, so it cannot be deleted from here; its owner can rename it first, or take it down instead", Code: "legacy_site_name"})
 			return
 		}
 		// The owner as the owner routes see them: no key of theirs, and never

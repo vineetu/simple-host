@@ -65,9 +65,7 @@ var contentHostOnlySites = map[string]bool{
 }
 
 // handleAddressable: the handle can be a host label and is not reserved.
-func handleAddressable(handle string) bool {
-	return appsites.VisitorHandle.MatchString(handle) && appsites.HandleIsLabel(handle) && !appsites.LabelReserved(handle)
-}
+func handleAddressable(handle string) bool { return appsites.HandleAddressable(handle) }
 
 // personHostFor is the host of an account's own address, as handed out
 // (under the base in use, sitebase.go).
@@ -245,10 +243,7 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 		}
 		return "", false
 	}
-	if !appsites.ValidSiteName.MatchString(seg) {
-		return "", false
-	}
-	site, err := h.sitesSvc().GetSiteByUser(ctx, owner.ID, seg)
+	site, err := h.sitesSvc().AddressedSite(ctx, owner.ID, seg)
 	if err != nil || !h.personAddressFor(owner.Handle.String, site.Name) {
 		return "", false
 	}
@@ -331,11 +326,7 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 	if r.URL.RawQuery != "" {
 		query = "?" + r.URL.RawQuery
 	}
-	if !appsites.ValidSiteName.MatchString(seg) {
-		h.renderPersonNotFound(w, r, handle)
-		return
-	}
-	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, seg)
+	site, err := h.sitesSvc().AddressedSite(r.Context(), user.ID, seg)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			h.renderServiceError(w, r)
@@ -434,8 +425,8 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 		return
 	}
 	rest := "/" + strings.TrimPrefix(r.PathValue("rest"), "/")
-	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, name)
-	if err != nil || !appsites.ValidSiteName.MatchString(name) {
+	site, err := h.sitesSvc().AddressedSite(r.Context(), user.ID, name)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// An old name of a renamed site: its current address.
 			escRest := (&url.URL{Path: rest}).EscapedPath()

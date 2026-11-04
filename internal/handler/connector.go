@@ -191,20 +191,20 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	h.skillVersion = skillVersion
 	mcpSnapshot := mcpLimits(lim)
 	h.mcpConfig = mcp.Config{
-		Limits:             &mcpSnapshot,
-		AnalyticsProjectID: strings.TrimSpace(os.Getenv("AGENTCAT_PROJECT_ID")),
-		AnalyticsEnv:       analyticsEnv(issuer),
-		AnalyticsPepper:    analyticsPepper(adminAPIKey),
-		ImportLinkTTL:      lim.ImportLinkTTL,
-		ImportCreated:      func(link mcp.ImportLink) error { return h.imports.Created(importJobLink(link)) },
-		ImportReceiving:    h.imports.Receiving,
-		ImportReport:       h.imports.Report,
-		ValidateSiteShape:  appsites.ValidateShape,
-		Upstream:           upstream,
-		APIHost:            apiHost,
-		ContentOrigin:      "https://" + contentHost,
-		SiteBases:          []string{siteDomain},
-		SkillVersion:       skillVersion,
+		Limits:              &mcpSnapshot,
+		AnalyticsProjectID:  strings.TrimSpace(os.Getenv("AGENTCAT_PROJECT_ID")),
+		AnalyticsEnv:        analyticsEnv(issuer),
+		AnalyticsPepper:     analyticsPepper(adminAPIKey),
+		ImportLinkTTL:       lim.ImportLinkTTL,
+		ImportCreated:       func(link mcp.ImportLink) error { return h.imports.Created(importJobLink(link)) },
+		ImportReceiving:     h.imports.Receiving,
+		ImportReport:        h.imports.Report,
+		ValidateImportNames: true,
+		Upstream:            upstream,
+		APIHost:             apiHost,
+		ContentOrigin:       "https://" + contentHost,
+		SiteBases:           []string{siteDomain},
+		SkillVersion:        skillVersion,
 		// This install's contact in hints (auth.SetSupportContact runs first).
 		SupportContact: auth.SupportContact,
 		ServerName:     "simple-host",
@@ -1346,20 +1346,7 @@ func (h *ConnectorHandler) tokenAccess(ctx context.Context, token string, audien
 // selectHackTeam is called only by the hosted MCP team-selection tool. A
 // grant cannot select a team unless its person is a current participant on it.
 func (h *ConnectorHandler) selectHackTeam(ctx context.Context, caller mcp.Caller, teamID string) error {
-	if !h.hackTeams || caller.GrantID == "" || caller.UserID == "" {
-		return errors.New("connect your personal account to select a team")
-	}
-	if !appsites.UUIDShape.MatchString(teamID) {
-		return errors.New("team_id must be a team UUID")
-	}
-	ok, err := h.accountsSvc().SelectOAuthTeam(ctx, caller.GrantID, caller.UserID, strings.ToLower(teamID))
-	if err != nil {
-		return errors.New("could not select the team")
-	}
-	if !ok {
-		return errors.New("select a team you currently belong to")
-	}
-	return nil
+	return appsites.New(h.database, nil, nil, 0, appsites.Deps{}).SelectConnectionTeam(ctx, h.hackTeams, caller.GrantID, caller.UserID, teamID)
 }
 
 // internalKeyFor mints the per-request credential for a connection: bound to

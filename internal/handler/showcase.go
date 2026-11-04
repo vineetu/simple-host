@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/model"
 	xhtml "golang.org/x/net/html"
 )
@@ -379,14 +378,11 @@ func (h *SiteHandler) renamedContentPath(ctx context.Context, uri string) (strin
 		return "", false
 	}
 	handle, name := strings.ToLower(parts[0]), parts[1]
-	if !showcaseHandleRe.MatchString(handle) || !appsites.ValidSiteName.MatchString(name) {
-		return "", false
-	}
-	user, err := h.storeAccounts().GetUserByHandleOrAlias(ctx, handle)
+	user, err := h.sitesSvc().ContentPathOwner(ctx, handle, name)
 	if err != nil {
 		return "", false
 	}
-	if _, err := h.sitesSvc().GetSiteByUser(ctx, user.ID, name); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := h.sitesSvc().AddressedSite(ctx, user.ID, name); !errors.Is(err, sql.ErrNoRows) {
 		return "", false // a real site (a missing file), or a lookup error
 	}
 	rest := ""

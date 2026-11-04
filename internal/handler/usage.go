@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/operations"
-	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/workers"
 )
@@ -21,12 +20,11 @@ func SetSiteLimit(bytes int64) {
 	if bytes <= 0 {
 		return
 	}
-	maxSiteArchiveSize = bytes
-	sites.SetArchiveSiteLimit(bytes)
+	uploadLimits.Configure(bytes)
 }
 
 // SiteLimit reports the per-site cap currently in force, in bytes.
-func SiteLimit() int64 { return maxSiteArchiveSize }
+func SiteLimit() int64 { return uploadLimits.Body }
 
 // SetWorkerStatus connects the composition root's background status snapshot.
 func (h *SiteHandler) SetWorkerStatus(status func() []workers.Status) { h.workerStatus = status }

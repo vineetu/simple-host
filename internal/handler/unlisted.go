@@ -85,9 +85,5 @@ func (h *SiteHandler) wantUnlistedMarker(ctx context.Context, site model.Site) (
 
 // syncUnlistedMarker makes the disk marker match wantUnlistedMarker.
 func (h *SiteHandler) syncUnlistedMarker(ctx context.Context, site model.Site) error {
-	want, err := h.wantUnlistedMarker(ctx, site)
-	if err != nil {
-		return err
-	}
-	return h.disk.SetUnlisted(site.UserID, site.Name, want)
+	return h.sitesSvc().SyncUnlistedMarker(ctx, site)
 }

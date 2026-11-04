@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -32,13 +31,7 @@ const oauthStateTTL = 10 * time.Minute
 
 var oauthHTMLFailed = themed(`<!DOCTYPE html><html><head><meta charset="utf-8"><!--sh:theme--><title>Sign-in failed</title></head><body><p>Sign-in failed. Close this tab and try again from the site.</p></body></html>`)
 
-// appsites.VisitorHandle moved to internal/rules/sites (sites.VisitorHandle); see
-// the lowercase alias in internal/handler/sites_forward.go. visitorSitenameRe
-// is the path-model segment allowed in return_to (SPEC §2.1): the nginx
-// content-host charset, not the slightly stricter create-site DNS-label regex.
 var (
-	visitorSitenameRe = regexp.MustCompile(`^[a-z0-9-]{1,63}$`)
-
 	errOAuthEmailRefused = errors.New("oauth email refused")
 	errOAuthAdminRefused = errors.New("oauth admin refused")
 )
@@ -738,19 +731,7 @@ var errInvalidReturnTo = errors.New("invalid return_to")
 // is not one of the platform's own hosts. Whether a site holds it is the
 // caller's lookup.
 func (h *OAuthHandler) isClaimedPlatformSubdomain(host string) bool {
-	label, ok := "", false
-	for _, b := range h.bases() {
-		if label, ok = platformSubdomainLabel(host, b); ok {
-			break
-		}
-	}
-	if !ok || label == "www" || appsites.ReservedSubdomainSet[label] {
-		return false
-	}
-	host = strings.ToLower(host)
-	return !strings.EqualFold(host, h.cfg.ContentHost) &&
-		!strings.EqualFold(host, strings.TrimSuffix(h.cfg.CNAMETarget, ".")) &&
-		!strings.EqualFold(host, publicBaseHost(h.cfg.PublicBaseURL))
+	return appsites.ClaimedReturnHost(host, h.bases(), h.cfg.ContentHost, h.cfg.CNAMETarget, publicBaseHost(h.cfg.PublicBaseURL))
 }
 
 func parseAbsoluteReturnTo(raw, publicBaseURL string) (*url.URL, error) {
@@ -955,20 +936,7 @@ func isRejectedPlatformHost(host, siteDomain, contentHost, publicBaseHostName st
 }
 
 func splitContentHostPath(p string) (handle, sitename string, ok bool) {
-	cleaned := path.Clean("/" + p)
-	parts := strings.Split(strings.Trim(cleaned, "/"), "/")
-	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", false
-	}
-	handle, sitename = parts[0], parts[1]
-	if !appsites.VisitorHandle.MatchString(handle) || !visitorSitenameRe.MatchString(sitename) {
-		return "", "", false
-	}
-	prefix := "/" + handle + "/" + sitename
-	if cleaned != prefix && !strings.HasPrefix(cleaned, prefix+"/") {
-		return "", "", false
-	}
-	return handle, sitename, true
+	return appsites.SplitContentHostPath(p)
 }
 
 func (h *OAuthHandler) proveCustomDomainControl(ctx context.Context, host string) error {

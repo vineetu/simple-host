@@ -1,9 +1,7 @@
-package handler
+package sites
 
 import (
 	"testing"
-
-	appsites "github.com/vsriram/simple-host/internal/app/sites"
 )
 
 func TestValidateSiteShapeAcceptsExistingNames(t *testing.T) {
@@ -16,8 +14,8 @@ func TestValidateSiteShapeAcceptsExistingNames(t *testing.T) {
 		"xianqu-box-sample-20260626", "open-kit", "auto-tune", "mixologist",
 	}
 	for _, name := range existing {
-		if err := appsites.ValidateShape(name); err != nil {
-			t.Errorf("existing site %q rejected by appsites.ValidateShape: %v", name, err)
+		if err := ValidateShape(name); err != nil {
+			t.Errorf("existing site %q rejected by ValidateShape: %v", name, err)
 		}
 	}
 }
@@ -40,20 +38,20 @@ func TestValidateSiteShapeRejectsAbuse(t *testing.T) {
 		strings64(),           // 64 chars — exceeds DNS label limit
 	}
 	for _, name := range bad {
-		if err := appsites.ValidateShape(name); err == nil {
-			t.Errorf("abusive name %q was accepted by appsites.ValidateShape", name)
+		if err := ValidateShape(name); err == nil {
+			t.Errorf("abusive name %q was accepted by ValidateShape", name)
 		}
 	}
 }
 
 func TestValidateSiteReservedCreateOnly(t *testing.T) {
 	for _, name := range []string{"simple-host", "jot-webhook", "api", "admin", "www"} {
-		if err := appsites.ValidateReserved(name); err == nil {
+		if err := ValidateReserved(name); err == nil {
 			t.Errorf("reserved name %q should be rejected on create", name)
 		}
 	}
 	// jot is a live site — it must NOT be reserved, or its redeploys break.
-	if err := appsites.ValidateReserved("jot"); err != nil {
+	if err := ValidateReserved("jot"); err != nil {
 		t.Errorf("jot must not be reserved (it is a live site): %v", err)
 	}
 }
@@ -64,4 +62,17 @@ func strings64() string {
 		b[i] = 'a'
 	}
 	return string(b)
+}
+
+func TestReservedNewSiteNames(t *testing.T) {
+	for _, n := range []string{"support", "admin", "login", "simplehack"} {
+		if ValidateReserved(n) == nil {
+			t.Errorf("site %q allowed", n)
+		}
+	}
+	for _, n := range []string{"blog", "docs", "team", "test", "my-shop"} {
+		if err := ValidateReserved(n); err != nil {
+			t.Errorf("site %q refused: %v", n, err)
+		}
+	}
 }

@@ -3,6 +3,7 @@ package sites
 import (
 	"context"
 	"encoding/json"
+	rules "github.com/vsriram/simple-host/internal/rules/sites"
 
 	"github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
@@ -41,6 +42,9 @@ func (s *Service) GetSiteStateVersionByID(ctx context.Context, siteID string) (i
 }
 
 func (s *Service) SetHomeSite(ctx context.Context, userID string, name *string) error {
+	if name != nil && !rules.ValidSiteName.MatchString(*name) {
+		return &Error{Code: "invalid_name", Message: "send site as a name or null"}
+	}
 	return repo.SetHomeSite(ctx, s.database, userID, name)
 }
 

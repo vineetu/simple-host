@@ -131,16 +131,16 @@ type scanFixture struct {
 	runs     sync.WaitGroup
 }
 
-func newImageScanFixture(t *testing.T, a *privateApp, disk *storage.DiskStorage) *scanFixture {
+func newImageScanFixture(t *testing.T, a *privateApp, disk SiteDisk) *scanFixture {
 	t.Helper()
 	return newImageScanFixtureDB(t, a.database, disk)
 }
 
-func newImageScanFixtureDB(t *testing.T, database *sql.DB, disk *storage.DiskStorage) *scanFixture {
+func newImageScanFixtureDB(t *testing.T, database *sql.DB, disk SiteDisk) *scanFixture {
 	t.Helper()
 	f := &scanFixture{matcher: &fakeMatcher{matches: map[string]operations.ScanMatch{}}, reporter: &fakeReporter{}, mailer: &fakeNoticeMailer{}, evidence: t.TempDir()}
 	t.Cleanup(f.runs.Wait)
-	f.scan = operations.NewImageScan(database, disk, f.matcher, f.reporter, f.mailer, ImageScanConfig{
+	f.scan = operations.NewImageScan(database, disk.(*storage.DiskStorage), f.matcher, f.reporter, f.mailer, ImageScanConfig{
 		EvidenceDir: f.evidence, AlertEmail: "alerts@example.com", ReportOrg: "Test Org", ReportName: "Tester",
 		ReportEmail: "reports@example.com", PublicBaseURL: "https://host.test",
 	})

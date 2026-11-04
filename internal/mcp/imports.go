@@ -2,12 +2,11 @@ package mcp
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/app/sites"
 )
 
 // ImportLink carries no credential; Mint rechecks the creating connection at use.
@@ -30,29 +29,11 @@ func createImportLink(c *call, args map[string]any) (output, error) {
 	if err != nil {
 		return output{}, err
 	}
-	if c.server.cfg.ValidateSiteShape != nil {
-		if err := c.server.cfg.ValidateSiteShape(site); err != nil {
-			return output{}, err
-		}
-	}
-	theme, err := optionalString(args, "theme_url")
+	token, prepared, err := sites.PrepareImportLink(site, importOwner(c.caller), args["theme_url"], c.server.cfg.ImportLinkTTL, c.server.cfg.ValidateImportNames)
 	if err != nil {
 		return output{}, err
 	}
-	var secret [32]byte
-	var id [16]byte
-	if _, err = rand.Read(secret[:]); err != nil {
-		return output{}, err
-	}
-	if _, err = rand.Read(id[:]); err != nil {
-		return output{}, err
-	}
-	token := base64.RawURLEncoding.EncodeToString(secret[:])
-	ttl := c.server.cfg.ImportLinkTTL
-	if ttl <= 0 {
-		ttl = 30 * time.Minute
-	}
-	link := ImportLink{ID: hex.EncodeToString(id[:]), Owner: importOwner(c.caller), Site: site, ThemeURL: theme, Expires: time.Now().Add(ttl), Mint: c.caller.MintUpload}
+	link := ImportLink{ID: prepared.ID, Owner: prepared.Owner, Site: prepared.Site, ThemeURL: prepared.ThemeURL, Expires: prepared.Expires, Mint: c.caller.MintUpload}
 	if link.Mint == nil {
 		key := c.caller.APIKey
 		link.Mint = func(context.Context, bool) (string, func(), error) { return key, func() {}, nil }

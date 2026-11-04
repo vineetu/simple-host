@@ -24,11 +24,10 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
-// maxSiteArchiveSize caps the upload body. Default 100 MB; override with
+// uploadLimits.Body caps the upload body. Default 100 MB; override with
 // MAX_ARCHIVE_MB on an instance you run yourself (a hosted instance has other
 // people's disk to protect, your own does not).
 //
@@ -42,7 +41,7 @@ import (
 // before Go ever sees it. Lowering it goes through SetSiteLimit, which moves
 // the extractor's uncompressed caps with it; setting this variable on its own
 // would bound compressed bytes and nothing else.
-var maxSiteArchiveSize int64 = 100 << 20
+var uploadLimits = sites.UploadLimits{Body: 100 << 20}
 
 const maxSiteStateSize = 1 << 20
 
@@ -84,7 +83,7 @@ type SiteHandler struct {
 	mailer       signInMailer
 	emailLimiter *rateLimiter
 	database     *sql.DB
-	disk         *storage.DiskStorage
+	disk         SiteDisk
 	// imageScan checks uploaded images against known abuse hash sets
 	// (imagescan.go); nil until PHOTODNA_API_KEY is set.
 	imageScan      *ImageScan
@@ -395,7 +394,7 @@ type versionResponse struct {
 
 // hackInstanceURL is this instance's own public address, used only when ed is
 // the Hack edition (the pipeline's inkBaseURL; "" takes canonicalHackBaseURL).
-func NewSiteHandler(ed *edition.Edition, hackInstanceURL string, database *sql.DB, disk *storage.DiskStorage, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string, mailer signInMailer, emailLimiter *rateLimiter) *SiteHandler {
+func NewSiteHandler(ed *edition.Edition, hackInstanceURL string, database *sql.DB, disk SiteDisk, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, writeAuthMode, adminUserID string, mailer signInMailer, emailLimiter *rateLimiter) *SiteHandler {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
 	lim := ed.Limits()

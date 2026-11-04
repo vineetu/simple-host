@@ -76,7 +76,7 @@ func TestPhotoAncestorConflicts(t *testing.T) {
 
 func TestPhotoReservedNamesKeepExistingHosts(t *testing.T) {
 	for _, handle := range []string{"photos", "photo-codecs"} {
-		if !appsites.LabelReservedForNew(handle) || !handleAddressable(handle) {
+		if appsites.CheckNewHandle(handle) == nil || !handleAddressable(handle) {
 			t.Fatalf("claim/serve policy: %s", handle)
 		}
 		t.Run(handle, func(t *testing.T) {
