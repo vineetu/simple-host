@@ -85,6 +85,7 @@ type Deps struct {
 	PersonalPeopleMax              func() int
 	PersonalNext                   func(json.RawMessage) (json.RawMessage, error)
 	PersonalPreparePatch           func([]byte) (func(json.RawMessage) (json.RawMessage, error), error)
+	VisitorResourceWrite           func(string) (any, error)
 }
 
 // New constructs an adapter for the given database and legacy cutoff.
