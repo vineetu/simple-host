@@ -15,7 +15,6 @@ import (
 
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/db"
-	repostorage "github.com/vsriram/simple-host/internal/repository/storage"
 )
 
 var storageNameRE = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
@@ -349,7 +348,7 @@ func storageAccessError(w http.ResponseWriter, rule, hint string) {
 }
 
 func (h *SiteHandler) listStorageResourceRows(ctx context.Context, siteID string) ([]storageResource, error) {
-	resources, err := repostorage.ListResources(ctx, h.database, siteID)
+	resources, err := h.storageSvc().ListResourceRecords(ctx, appstorage.ResourceListInput{SiteID: siteID})
 	if err != nil {
 		return nil, err
 	}

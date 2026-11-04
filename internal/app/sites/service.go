@@ -72,6 +72,8 @@ type Deps struct {
 	MaxFilesPerSite         int
 	PhotoLimits             func(context.Context, *model.User) (int64, int64)
 	ResponseState           func(model.Site, int, bool, bool) any
+	WebsiteArchiveDefault   int64
+	WebsiteLimit            func(context.Context, *db.User) (int64, bool)
 }
 
 // CreateInput contains the values and non-HTTP dependencies for a locked create.

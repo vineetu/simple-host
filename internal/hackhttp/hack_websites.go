@@ -4,17 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
-	rulesstorage "github.com/vsriram/simple-host/internal/rules/storage"
-	"github.com/vsriram/simple-host/internal/tarball"
 )
 
 type eventWebsitePublisher interface {
@@ -191,21 +189,20 @@ func (h *HackHandler) putEventWebsite(w http.ResponseWriter, r *http.Request, fi
 	_, _ = io.Copy(w, res.Body)
 }
 
+func (h *HackHandler) websiteSitesSvc() *appsites.Service {
+	return appsites.New(h.database, nil, nil, 0, appsites.Deps{
+		WebsiteArchiveDefault: h.siteArchiveDefault,
+		WebsiteLimit: func(ctx context.Context, user *db.User) (int64, bool) {
+			return h.siteLimitFor(ctx, h.database, user)
+		},
+		MaxFilesPerSite: h.limits.MaxFilesPerSite,
+	})
+}
+
 func (h *HackHandler) websiteUploadLimit(ctx context.Context, ev model.Event) int64 {
-	holder, err := db.GetUserByID(ctx, h.database, ev.AccountID)
-	if err != nil {
-		return h.siteArchiveDefault
-	}
-	limit, _ := h.siteLimitFor(ctx, h.database, &holder)
-	return limit
+	return h.websiteSitesSvc().WebsiteUploadLimit(ctx, appsites.WebsiteLimitsInput{AccountID: ev.AccountID})
 }
 
 func (h *HackHandler) websiteUploadLimits(ctx context.Context, ev model.Event) string {
-	holder, err := db.GetUserByID(ctx, h.database, ev.AccountID)
-	if err != nil {
-		return "Upload limits are unavailable."
-	}
-	limit, override := h.siteLimitFor(ctx, h.database, &holder)
-	total, file, entries := tarball.FileLimits(rulesstorage.ExtractBudget(limit, override), h.limits.MaxFilesPerSite)
-	return fmt.Sprintf("Zip up to %d MB. Unpacked, up to %d MB in total, %d MB per file and %d files.", limit>>20, total>>20, file>>20, entries)
+	return h.websiteSitesSvc().WebsiteUploadLimits(ctx, appsites.WebsiteLimitsInput{AccountID: ev.AccountID})
 }
