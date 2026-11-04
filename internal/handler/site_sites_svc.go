@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"fmt"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	db "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/papermetrics"
 	"net/http"
 
 	"github.com/vsriram/simple-host/internal/app/sites"
@@ -54,17 +54,17 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		TeamKeys:    h.ed.Identity().TeamKeys, TeamSitesReady: h.teamSitesReady,
 		PaperSite: func(ctx context.Context, user *db.User, name string) {
 			if h.ed.Identity().PaperMetrics {
-				papermetrics.ResolveHackSite(ctx, user.Team.AccountID, name, user.Team.MemberID, false)
+				operations.ResolveHackSite(ctx, user.Team.AccountID, name, user.Team.MemberID, false)
 			}
 		},
 		PaperState: func(ctx context.Context, user *db.User, stage string) {
-			papermetrics.ResolveHackEvent(ctx, user.Team.EventSlug, stage, user.Team.MemberID)
+			operations.ResolveHackEvent(ctx, user.Team.EventSlug, stage, user.Team.MemberID)
 		},
 		NotifyUpdate: func(ctx context.Context, user *db.User, site db.Site, n, prev int, published bool, files map[string][]byte) {
 			if published {
 				h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": n, "previous_version": prev, "via": "deploy"}, 0)
 				if h.ed.Identity().PaperMetrics && user.Team != nil {
-					papermetrics.HackDeploy(ctx)
+					operations.HackDeploy(ctx)
 				}
 			}
 			h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), site.Name, n, files)
@@ -77,7 +77,7 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		},
 		NotifyCreate: func(ctx context.Context, user *db.User, site db.Site, files map[string][]byte) {
 			if h.ed.Identity().PaperMetrics && user.Team != nil {
-				papermetrics.HackDeploy(ctx)
+				operations.HackDeploy(ctx)
 			}
 			h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), site.Name, 1, files)
 		},

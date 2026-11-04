@@ -18,6 +18,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/vsriram/simple-host/internal/analytics"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/config"
@@ -281,6 +282,7 @@ func main() {
 	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL, ed)
 	userHandler.Register(mux, authMW, noticeMW)
 	siteHandler := handler.NewSiteHandler(ed, hackInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
+	siteHandler.SetOperationsNetwork(operations.NewNetworkUsage(db, ed))
 	userHandler.ShareAssets(siteHandler)
 	userHandler.SetFileUsage(siteHandler)
 	siteHandler.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())

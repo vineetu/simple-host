@@ -15,9 +15,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/papermetrics"
 )
 
 // Private collections (owner decision 2026-09-24; reverses "nothing gates
@@ -127,7 +127,7 @@ func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (db.V
 	if err != nil || !h.sessionValidFor(r, sess, siteID) {
 		return db.VisitorSession{}, false
 	}
-	papermetrics.HackMember(r.Context(), sess.UserID)
+	operations.HackMember(r.Context(), sess.UserID)
 	return sess, true
 }
 

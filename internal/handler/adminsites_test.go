@@ -3,7 +3,7 @@ package handler
 import (
 	"database/sql"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/capacity"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/db"
 	"net/url"
 	"slices"
@@ -15,9 +15,9 @@ import (
 func TestAdminSiteSortsBeforePagination(t *testing.T) {
 	now := time.Now()
 	rows := []adminSiteEntry{
-		{site: db.Site{ID: "a", CreatedAt: now, LastDeployedAt: sql.NullTime{Time: now.Add(-time.Hour), Valid: true}}, size: capacity.SiteUsage{Bytes: 100, LiveBytes: 90}, views: 0},
-		{site: db.Site{ID: "b", CreatedAt: now.Add(-time.Hour), LastDeployedAt: sql.NullTime{Time: now, Valid: true}}, size: capacity.SiteUsage{Bytes: 200, LiveBytes: 10}, views: 10},
-		{site: db.Site{ID: "c", CreatedAt: now.Add(-2 * time.Hour)}, size: capacity.SiteUsage{Bytes: 300, LiveBytes: 1}, views: 20},
+		{site: db.Site{ID: "a", CreatedAt: now, LastDeployedAt: sql.NullTime{Time: now.Add(-time.Hour), Valid: true}}, size: operations.SiteUsage{Bytes: 100, LiveBytes: 90}, views: 0},
+		{site: db.Site{ID: "b", CreatedAt: now.Add(-time.Hour), LastDeployedAt: sql.NullTime{Time: now, Valid: true}}, size: operations.SiteUsage{Bytes: 200, LiveBytes: 10}, views: 10},
+		{site: db.Site{ID: "c", CreatedAt: now.Add(-2 * time.Hour)}, size: operations.SiteUsage{Bytes: 300, LiveBytes: 1}, views: 20},
 	}
 	for _, tt := range []struct{ key, want string }{{"created", "abc"}, {"updated", "bac"}, {"size", "cba"}, {"views", "cba"}, {"live", "abc"}} {
 		t.Run(tt.key, func(t *testing.T) {

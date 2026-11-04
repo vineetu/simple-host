@@ -46,11 +46,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
-	"github.com/vsriram/simple-host/internal/papermetrics"
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
@@ -216,7 +216,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// internal/mcp is a leaf package (check-layering.sh) and may not
 		// import internal/papermetrics directly; this is the same hook it
 		// used to call inline from internal/mcp/tools.go.
-		MutationResultHook: papermetrics.HackMutationResult,
+		MutationResultHook: operations.HackMutationResult,
 		// main sets it from the server's Turnstile keys (OfferSpamCheck).
 		SelfHosted: siteDomain != canonicalSiteDomain,
 	}

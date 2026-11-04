@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/analytics"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
@@ -30,7 +31,6 @@ import (
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/geoip"
-	"github.com/vsriram/simple-host/internal/netusage"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
 	"github.com/vsriram/simple-host/internal/workers"
@@ -63,15 +63,13 @@ func init() {
 }
 
 type SiteHandler struct {
-	savedWorkerOnce   sync.Once
-	savedWorker       *savedDataWorker
-	networkWorkerOnce sync.Once
-	networkWorker     *networkUsageWorker
-	httpCaches        HTTPCaches
-	workerStatus      func() []workers.Status
-	ed                *edition.Edition
-	siteWorkersOnce   sync.Once
-	siteWorkers       *siteWorkerGroup
+	savedWorkerOnce sync.Once
+	savedWorker     *savedDataWorker
+	httpCaches      HTTPCaches
+	workerStatus    func() []workers.Status
+	ed              *edition.Edition
+	siteWorkersOnce sync.Once
+	siteWorkers     *siteWorkerGroup
 	// limitSet is ed.Limits(), held once so a request does not copy the
 	// whole snapshot on every read (limits.go).
 	limitSet
@@ -111,11 +109,11 @@ type SiteHandler struct {
 
 	// usage caches the disk measurement behind /v1/admin/usage. Measuring walks
 	// every file under the data directory, so it is not done per request.
-	usage usageCache
+	usage operations.UsageCache
 
 	// netUsage reads the box's network counters (netusage.go); nil when off.
 	// trafficOn: the analytics log is read, so traffic figures exist.
-	netUsage  *netusage.Sampler
+	network   *operations.NetworkUsage
 	trafficOn bool
 	// ownerMarks notes the addresses an account is seen signed in from, so
 	// the owner's own visits are filed apart from People (ownermarks.go);

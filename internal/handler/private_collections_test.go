@@ -14,6 +14,7 @@ import (
 
 	"database/sql"
 
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -97,6 +98,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.users = users
 	a.sites = NewSiteHandler(ed, "", database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	a.sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.sites.WaitNotifications)
 	users.SetFileUsage(a.sites)

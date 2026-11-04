@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
@@ -105,6 +106,7 @@ func newBridgeTeamApp(t *testing.T) *bridgeTeamApp {
 	a.users = users
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.sites = NewSiteHandler(ed, "", database, disk, bridgeTSDomain, "sites."+bridgeTSDomain, "cname."+bridgeTSDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	a.sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.sites.WaitNotifications)
 	a.sites.SetPersonHosts("canonical")

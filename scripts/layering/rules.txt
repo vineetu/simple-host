@@ -66,11 +66,9 @@ hackhttp -> db production # removal step 5.4: Host accounts, sites and keys
 hackhttp -> email production # removal step 5.4: final transport boundary
 hackhttp -> handler test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 hackhttp -> mcp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
-hackhttp -> papermetrics production # removal step 5.4: worker lifecycle and operations
 handler -> @/hack-toolkit production # removal step 5.4: webassets extraction
 handler -> analytics production # removal step 5.4: worker lifecycle and operations
 handler -> brain production # removal step 5.4: final transport boundary
-handler -> capacity production # removal step 5.4: admin disk-usage reporting moves to app/operations
 handler -> config production # removal step 5.4: final transport boundary
 handler -> db production # removal step 5.4: site and storage workflows
 handler -> email production # removal step 5.4: final transport boundary
@@ -78,9 +76,7 @@ handler -> eventdns production # removal step 5.4: site and storage workflows
 handler -> geoip production # removal step 5.4: worker lifecycle and operations
 handler -> hackhttp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 handler -> imagescan production # removal step 5.4: worker lifecycle and operations
-handler -> netusage production # removal step 5.4: worker lifecycle and operations
 handler -> oauth production # removal step 5.4: final transport boundary
-handler -> papermetrics production # removal step 5.4: worker lifecycle and operations
 handler -> rules/auth production # removal step 5.4: site and storage workflows
 handler -> rules/sites production # removal step 5.4: site and storage workflows
 handler -> rules/storage production # removal step 5.4: site and storage workflows
@@ -95,7 +91,6 @@ hackhttp -> rules/hackevents test # removal step 5.4: event rule tests
 hackhttp -> rules/hackentries test # removal step 5.4: rubric test fixtures
 handler -> analytics test # removal step 5.4: worker lifecycle and operations
 handler -> brain test # removal step 5.4: final transport boundary
-handler -> capacity test # removal step 5.4: admin disk-usage reporting moves to app/operations
 handler -> db test # removal step 5.4: site and storage workflows
 handler -> geoip test # removal step 5.4: worker lifecycle and operations
 handler -> imagescan test # removal step 5.4: worker lifecycle and operations
