@@ -132,48 +132,10 @@ func changedLimits(t *testing.T) map[string]string {
 	return m
 }
 
-// The edition and leaf packages must use the same operational defaults as
-// config, word for word.
+// MCP must use the same operational defaults and span formatting as config.
+// The independent DB defaults comparison lives in cmd/server.
 func TestLeafLimitDefaultsMatchConfig(t *testing.T) {
-	type queryLimits struct {
-		MaxAccountKeys       int           // MAX_KEYS_PER_ACCOUNT
-		KeyIdleExpiry        time.Duration // KEY_IDLE_EXPIRY_DAYS (0 = never)
-		EmailChangeUndoTTL   time.Duration // EMAIL_CHANGE_UNDO_DAYS
-		DeletedRetention     time.Duration // DELETED_RETENTION_DAYS
-		UnprovenDomainTTL    time.Duration // DOMAIN_UNPROVEN_HOURS
-		UnprovenDomainMaxAge time.Duration // DOMAIN_UNPROVEN_MAX_DAYS
-		DomainCertDailyCap   int           // DOMAIN_CERTS_PER_ACCOUNT_DAILY
-		VisitorSessionIdle   time.Duration // VISITOR_SESSION_IDLE_DAYS
-		OAuthUnusedClientAge time.Duration // OAUTH_UNUSED_CLIENT_DAYS
-	}
-
-	defaults := edition.ForKind(edition.Host).Limits()
-	queryDefaults := queryLimits{
-		MaxAccountKeys:       defaults.MaxKeysPerAccount,
-		KeyIdleExpiry:        defaults.KeyIdleExpiry,
-		EmailChangeUndoTTL:   defaults.EmailChangeUndoTTL,
-		DeletedRetention:     defaults.DeletedRetention,
-		UnprovenDomainTTL:    defaults.DomainUnprovenTTL,
-		UnprovenDomainMaxAge: defaults.DomainUnprovenMaxAge,
-		DomainCertDailyCap:   defaults.DomainCertsDaily,
-		VisitorSessionIdle:   defaults.VisitorSessionIdle,
-		OAuthUnusedClientAge: defaults.OAuthUnusedClientAge,
-	}
-
 	def := config.DefaultLimits()
-	if got, want := queryDefaults, (queryLimits{
-		MaxAccountKeys:       def.MaxKeysPerAccount,
-		KeyIdleExpiry:        def.KeyIdleExpiry,
-		EmailChangeUndoTTL:   def.EmailChangeUndoTTL,
-		DeletedRetention:     def.DeletedRetention,
-		UnprovenDomainTTL:    def.DomainUnprovenTTL,
-		UnprovenDomainMaxAge: def.DomainUnprovenMaxAge,
-		DomainCertDailyCap:   def.DomainCertsDaily,
-		VisitorSessionIdle:   def.VisitorSessionIdle,
-		OAuthUnusedClientAge: def.OAuthUnusedClientAge,
-	}); got != want {
-		t.Errorf("db defaults %+v, config says %+v", got, want)
-	}
 	if got, want := mcp.DefaultLimits(), (mcp.Limits{
 		DeletedRetention:     def.DeletedRetention,
 		PreviewLinkTTL:       def.PreviewLinkTTL,
