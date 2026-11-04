@@ -27,7 +27,7 @@ func badCredentials() error {
 // treat any 401 on a signed-in request as an expired key and sign the
 // browser out, which a mistyped current password must not do.
 func changePasswordBadCredentials() error {
-	return lifecycleFail(403, "Wrong username or password.", "bad_credentials")
+	return lifecycleFail(403, "That is not your current password.", "bad_credentials")
 }
 func (s *Service) PasswordSignIn(ctx context.Context, login, password, newPassword string) (model.User, error) {
 	user, hash, _, err := repo.PasswordAccount(ctx, s.database, NormalizeLogin(login))
