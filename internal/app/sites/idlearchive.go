@@ -56,6 +56,7 @@ func (svc *Service) WarnIdleSite(ctx context.Context, in IdleArchiveInput) {
 	tok, hash := d.NewToken()
 	tx, err := svc.database.BeginTx(ctx, nil)
 	if err != nil {
+		ReportWorkerFailure(ctx, "begin idle warning transaction", err)
 		log.Printf("idle-site cleanup: warn %s: %v", s.SiteID, err)
 		return
 	}
@@ -63,6 +64,7 @@ func (svc *Service) WarnIdleSite(ctx context.Context, in IdleArchiveInput) {
 	removeAt := now.Add(d.Grace)
 	if err := repo.MarkIdleWarned(ctx, tx, d.Exempt, s.SiteID, hash, now.Add(-d.After), removeAt); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
+			ReportWorkerFailure(ctx, "mark idle warning", err)
 			log.Printf("idle-site cleanup: mark %s warned: %v", s.SiteID, err)
 		}
 		return
@@ -85,13 +87,16 @@ Questions? Just reply to this email.
 Simple Host
 `, s.Name, d.SiteAddress(s), days, d.Link("keep", tok), d.OwnerApp(s), removeOn, d.Span(svc.deps.DeletedRetention))
 	if err := mailer.SendNoticeReplyTo(s.OwnerEmail, d.ReplyTo(), subject, text); err != nil {
+		ReportWorkerFailure(ctx, "send idle warning", err)
 		log.Printf("idle-site cleanup: warn %s: %v", s.SiteID, err)
 		return
 	}
 	if err := tx.Commit(); err != nil {
+		ReportWorkerFailure(ctx, "commit idle warning", err)
 		log.Printf("idle-site cleanup: warn %s: email sent but not recorded (it goes again next run): %v", s.SiteID, err)
 		return
 	}
+	ReportWorkerProgress(ctx)
 	log.Printf("idle-site cleanup: warned owner of %s (%s)", s.Name, s.SiteID)
 }
 
@@ -147,9 +152,11 @@ Simple Host
 	err = trashSvc.Trash(ctx, TrashInput{Site: site})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
+			ReportWorkerFailure(ctx, "remove idle site", err)
 			log.Printf("idle-site cleanup: remove %s: %v", s.SiteID, err)
 		}
 		return
 	}
+	ReportWorkerProgress(ctx)
 	log.Printf("idle-site cleanup: moved %s (%s) to Recently deleted", s.Name, s.SiteID)
 }

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -120,25 +121,30 @@ var nonPublicPrefixes = []netip.Prefix{
 // domain_status reflects what the domain actually does rather than what was
 // hoped for at bind time.
 func (h *SiteHandler) startDomainChecks(every time.Duration) {
-	go func() {
-		time.Sleep(30 * time.Second)
-		for {
-			h.checkBoundDomains()
-			time.Sleep(every)
+	o := h.siteLoop("sites.domain_checks")
+	o.once.Do(func() {
+		if o.enabled() {
+			h.startDomainChecksContext(context.Background(), every)
 		}
-	}()
+	})
+}
+func (h *SiteHandler) startDomainChecksContext(ctx context.Context, every time.Duration) {
+	h.siteLoop("sites.domain_checks").periodic(ctx, 30*time.Second, every, h.checkBoundDomainsContext)
 }
 
 func (h *SiteHandler) checkBoundDomains() {
-	ctx, cancel := context.WithTimeout(context.Background(), domainPassTimeout)
+	h.checkBoundDomainsContext(context.Background())
+}
+func (h *SiteHandler) checkBoundDomainsContext(parent context.Context) {
+	ctx, cancel := context.WithTimeout(parent, domainPassTimeout)
 	defer cancel()
 
 	if err := db.PruneDomainCertRequests(ctx, h.database); err != nil {
-		log.Printf("domain check: prune certificate requests: %v", err)
+		sites.ReportWorkerFailure(ctx, "prune domain certificate requests", err)
 	}
 	released, err := db.ReleaseExpiredDomains(ctx, h.database, h.limits.DomainUnprovenMaxAge, h.limits.DomainUnprovenTTL)
 	if err != nil {
-		log.Printf("domain check: expiry failed: %v", err)
+		sites.ReportWorkerFailure(ctx, "release expired domains", err)
 		return
 	}
 	for _, info := range released {
@@ -149,7 +155,7 @@ func (h *SiteHandler) checkBoundDomains() {
 
 	due, err := db.ListDomainsToCheck(ctx, h.database, domainActiveAge)
 	if err != nil {
-		log.Printf("domain check: list failed: %v", err)
+		sites.ReportWorkerFailure(ctx, "list domains due for checks", err)
 		return
 	}
 	if len(due) == 0 {
@@ -226,7 +232,7 @@ func (h *SiteHandler) checkPreviousDomain(ctx context.Context, d db.BoundDomain,
 	status, _, _ := h.verifyDomain(ctx, d.PreviousDomain, ours)
 	since, err := db.SetPreviousDomainCheck(ctx, h.database, d.SiteID, d.PreviousDomain, status == "active")
 	if err != nil {
-		log.Printf("domain check %s (earlier address): %v", d.PreviousDomain, err)
+		sites.ReportWorkerFailure(ctx, "record previous domain check", err)
 		return
 	}
 	if !since.Valid || time.Since(since.Time) < h.domainLapseAfter() {
@@ -238,14 +244,14 @@ func (h *SiteHandler) checkPreviousDomain(ctx context.Context, d db.BoundDomain,
 	}
 	lapsed, err := db.LapsePreviousDomain(ctx, h.database, d.SiteID, d.PreviousDomain)
 	if err != nil {
-		log.Printf("domain %s: lapse earlier address: %v", d.PreviousDomain, err)
+		sites.ReportWorkerFailure(ctx, "lapse previous domain", err)
 		return
 	}
 	if !lapsed {
 		return
 	}
 	if _, err := h.disk.UnbindDomainOf(d.PreviousDomain, info.UserID, info.Name); err != nil {
-		log.Printf("domain: unbind earlier %s: %v", d.PreviousDomain, err)
+		sites.ReportWorkerFailure(ctx, "unbind previous domain", err)
 	}
 	h.syncDomainRedirect(ctx, d.SiteID)
 	log.Printf("domain %s: earlier address of %s failing since %s; let go", d.PreviousDomain, info.Name, since.Time.UTC().Format(time.RFC3339))
@@ -255,8 +261,11 @@ func (h *SiteHandler) checkPreviousDomain(ctx context.Context, d db.BoundDomain,
 func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, status, reason, cert string) {
 	check, err := db.SetDomainStatus(ctx, h.database, d.SiteID, d.Domain, status, reason, cert)
 	if err != nil {
-		log.Printf("domain check %s: %v", d.Domain, err)
+		sites.ReportWorkerFailure(ctx, "record domain check", err)
 		return
+	}
+	if check.UserID != "" {
+		sites.ReportWorkerProgress(ctx)
 	}
 	if status != d.Status {
 		log.Printf("domain %s: %s -> %s %s", d.Domain, d.Status, status, reason)
@@ -286,12 +295,12 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, st
 	switch {
 	case due:
 		if lapsed, err := db.LapseDomain(ctx, h.database, d.SiteID, d.Domain); err != nil {
-			log.Printf("domain %s: lapse: %v", d.Domain, err)
+			sites.ReportWorkerFailure(ctx, "lapse domain", err)
 		} else if lapsed {
 			// Released fully: the link goes, so the issuer drops its server and
 			// certificate and nobody inherits a live address.
 			if _, err := h.disk.UnbindDomainOf(d.Domain, check.UserID, check.Name); err != nil {
-				log.Printf("domain: unbind lapsed %s: %v", d.Domain, err)
+				sites.ReportWorkerFailure(ctx, "unbind lapsed domain", err)
 			}
 			h.cancelDomainCert(d.Domain)
 			h.syncDomainRedirect(ctx, d.SiteID)
@@ -309,11 +318,11 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, st
 func (h *SiteHandler) domainVerified(ctx context.Context, d db.BoundDomain) {
 	prev, err := db.PromoteDomain(ctx, h.database, d.SiteID)
 	if err != nil {
-		log.Printf("domain %s: switch from earlier address: %v", d.Domain, err)
+		sites.ReportWorkerFailure(ctx, "finish domain switch", err)
 	}
 	if prev != "" {
 		if err := h.disk.UnbindDomain(prev); err != nil {
-			log.Printf("domain: unbind earlier %s: %v", prev, err)
+			sites.ReportWorkerFailure(ctx, "unbind earlier domain", err)
 		}
 		log.Printf("domain %s: live; earlier address %s let go", d.Domain, prev)
 	}
@@ -353,11 +362,11 @@ If it is still failing %s from now, %s is disconnected from the site: the site s
 Simple Host
 `, siteName, d.Domain, config.Span(h.domainLapseWarnAfter()), reason, config.Span(releaseIn), d.Domain)
 	if err := mailer.SendNotice(to, subject, text); err != nil {
-		log.Printf("domain %s: failing notice: %v", d.Domain, err)
+		sites.ReportWorkerFailure(ctx, "send domain failure notice", err)
 		return
 	}
 	if err := db.MarkDomainLapseNotified(ctx, h.database, d.SiteID, d.Domain, releaseAt); err != nil {
-		log.Printf("domain %s: mark notified: %v", d.Domain, err)
+		sites.ReportWorkerFailure(ctx, "mark domain failure notice", err)
 	}
 	log.Printf("domain %s: owner emailed about failing checks", d.Domain)
 }

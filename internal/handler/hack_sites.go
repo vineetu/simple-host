@@ -208,13 +208,23 @@ func (h *SiteHandler) hackPinnedFloor(ctx context.Context, userID, siteName stri
 // StartHackSweep pins teams whose deadline has passed and moves sites whose
 // team is gone to Recently deleted, now and then every interval.
 func (h *SiteHandler) StartHackSweep(ctx context.Context, every time.Duration, alsoFn func(context.Context)) {
+	o := h.siteLoop("sites.hack_sweep")
+	o.once.Do(func() {
+		if o.enabled() {
+			h.startHackSweep(ctx, every, alsoFn)
+		}
+	})
+}
+func (h *SiteHandler) startHackSweep(ctx context.Context, every time.Duration, alsoFn func(context.Context)) {
 	if !h.ed.Identity().TeamKeys {
 		return
 	}
-	go func() {
+	h.siteLoop("sites.hack_sweep").Go(ctx, func(ctx context.Context) {
+		ctx = sites.WithWorkerReport(ctx, h.siteLoop("sites.hack_sweep").tracker)
 		t := time.NewTicker(every)
 		defer t.Stop()
 		for n := 0; ; n++ {
+			h.siteLoop("sites.hack_sweep").tracker.Attempt()
 			h.hackSweep(ctx)
 			// Take-down markers follow the database again every ten rounds
 			// (a marker write that failed after a take-down is retried).
@@ -230,7 +240,7 @@ func (h *SiteHandler) StartHackSweep(ctx context.Context, every time.Duration, a
 			case <-t.C:
 			}
 		}
-	}()
+	})
 }
 
 // HackSweepForTest is hackSweep, exported as a test hook (cleanup 3.2 slice
@@ -239,21 +249,22 @@ func (h *SiteHandler) StartHackSweep(ctx context.Context, every time.Duration, a
 func (h *SiteHandler) HackSweepForTest(ctx context.Context) { h.hackSweep(ctx) }
 
 func (h *SiteHandler) hackSweep(ctx context.Context) {
-	if err := db.PinDueTeams(ctx, h.database, ""); err != nil {
-		log.Printf("hack sweep: pin: %v", err)
+	if err := db.PinDueTeams(ctx, h.database, "", func() { sites.ReportWorkerProgress(ctx) }); err != nil {
+		sites.ReportWorkerFailure(ctx, "pin due teams", err)
 	}
-	if err := db.DeleteEmptyOpenTeams(ctx, h.database); err != nil {
-		log.Printf("hack sweep: empty teams: %v", err)
+	if err := db.DeleteEmptyOpenTeams(ctx, h.database, func() { sites.ReportWorkerProgress(ctx) }); err != nil {
+		sites.ReportWorkerFailure(ctx, "delete empty open teams", err)
 	}
 	orphans, err := db.OrphanTeamSites(ctx, h.database, "")
 	if err != nil {
-		log.Printf("hack sweep: orphan sites: %v", err)
+		sites.ReportWorkerFailure(ctx, "list orphan team sites", err)
 		return
 	}
 	for _, s := range orphans {
 		if err := h.TrashTeamSite(ctx, s.UserID, s.Name); err != nil {
-			log.Printf("hack sweep: remove site %s of a removed team: %v", s.Name, err)
+			sites.ReportWorkerFailure(ctx, "trash orphan team site", err)
 		} else {
+			sites.ReportWorkerProgress(ctx)
 			log.Printf("hack sweep: site %s of a removed team moved to Recently deleted", s.Name)
 		}
 	}

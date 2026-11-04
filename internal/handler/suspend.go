@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -146,14 +147,14 @@ func (h *SiteHandler) syncSiteMarker(site db.Site) error {
 func (h *SiteHandler) SyncSuspendMarkers(ctx context.Context) {
 	sites, err := db.ListAllSites(ctx, h.database)
 	if err != nil {
-		log.Printf("suspend: marker sync skipped: %v", err)
+		appsites.ReportWorkerFailure(ctx, "sync site markers", err)
 		return
 	}
 	n := 0
 	for _, s := range sites {
 		if s.Suspended() != h.disk.IsSuspended(s.UserID, s.Name) {
 			if err := h.syncSiteMarker(s); err != nil {
-				log.Printf("suspend: marker for %s/%s: %v", s.UserID, s.Name, err)
+				appsites.ReportWorkerFailure(ctx, "sync site markers", err)
 				continue
 			}
 			n++
@@ -161,17 +162,17 @@ func (h *SiteHandler) SyncSuspendMarkers(ctx context.Context) {
 		// The owner's offline switch (offline.go) has a marker too.
 		if s.Offline != h.disk.IsOffline(s.UserID, s.Name) {
 			if err := h.syncOfflineMarker(s); err != nil {
-				log.Printf("offline: marker for %s/%s: %v", s.UserID, s.Name, err)
+				appsites.ReportWorkerFailure(ctx, "sync site markers", err)
 				continue
 			}
 			n++
 		}
 		// And unlisted (unlisted.go).
 		if want, err := h.wantUnlistedMarker(ctx, s); err != nil {
-			log.Printf("unlisted: own address of %s/%s: %v", s.UserID, s.Name, err)
+			appsites.ReportWorkerFailure(ctx, "sync site markers", err)
 		} else if want != h.disk.IsUnlisted(s.UserID, s.Name) {
 			if err := h.disk.SetUnlisted(s.UserID, s.Name, want); err != nil {
-				log.Printf("unlisted: marker for %s/%s: %v", s.UserID, s.Name, err)
+				appsites.ReportWorkerFailure(ctx, "sync site markers", err)
 				continue
 			}
 			n++
@@ -179,13 +180,14 @@ func (h *SiteHandler) SyncSuspendMarkers(ctx context.Context) {
 		// And a passcode (passcode.go).
 		if (s.Passcode || s.NamedViewers) != h.disk.HasPasscodeMarker(s.UserID, s.Name) {
 			if err := h.syncPasscodeMarker(s); err != nil {
-				log.Printf("passcode: marker for %s/%s: %v", s.UserID, s.Name, err)
+				appsites.ReportWorkerFailure(ctx, "sync site markers", err)
 				continue
 			}
 			n++
 		}
 	}
 	if n > 0 {
+		appsites.ReportWorkerProgress(ctx)
 		log.Printf("suspend: corrected %d site marker(s)", n)
 	}
 }

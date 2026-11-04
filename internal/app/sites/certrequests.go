@@ -35,17 +35,17 @@ func (s *Service) SyncFamilyCertRequest(ctx context.Context, in FamilyCertReques
 		return
 	}
 	if _, err := storage.UpdateCertRequest(storage.CertRequest{Directory: in.Directory, Key: in.Suffix, Body: in.Body}); err != nil {
-		log.Printf("address family %s: request: %v", in.Suffix, err)
+		ReportWorkerFailure(ctx, "write family certificate request", err)
 	}
 }
 
 // RemoveFamilyCertRequest removes the family issuer hand-off if present.
-func (s *Service) RemoveFamilyCertRequest(_ context.Context, in FamilyCertRequestInput) {
+func (s *Service) RemoveFamilyCertRequest(ctx context.Context, in FamilyCertRequestInput) {
 	if in.Directory == "" || !in.ValidKey {
 		return
 	}
 	if _, err := storage.UpdateCertRequest(storage.CertRequest{Directory: in.Directory, Key: in.Suffix, Mode: storage.CertRequestRemove}); err != nil {
-		log.Printf("address family %s: remove request: %v", in.Suffix, err)
+		ReportWorkerFailure(ctx, "remove family certificate request", err)
 	}
 }
 
@@ -53,22 +53,26 @@ func (s *Service) RemoveFamilyCertRequest(_ context.Context, in FamilyCertReques
 type SiteCertRequestInput struct{ Handle string }
 
 // RequestSiteCert creates missing markers for each configured certificate base.
-func (s *Service) RequestSiteCert(_ context.Context, in SiteCertRequestInput) {
+func (s *Service) RequestSiteCert(ctx context.Context, in SiteCertRequestInput) {
 	handle := strings.ToLower(strings.TrimSpace(in.Handle))
 	d := s.deps.CertRequests
 	if !d.SiteHostsOn() || !d.HandleAddressable(handle) {
 		return
 	}
 	for _, base := range d.Bases() {
+		if ctx.Err() != nil {
+			return
+		}
 		if d.Ready(handle, base) {
 			continue
 		}
 		created, err := storage.UpdateCertRequest(storage.CertRequest{Directory: d.Directory(base), Key: handle, Mode: storage.CertRequestCreate})
 		if err != nil {
-			log.Printf("site certs: request %s: %v", handle, err)
+			ReportWorkerFailure(ctx, "write certificate request", err)
 			continue
 		}
 		if created {
+			ReportWorkerProgress(ctx)
 			log.Printf("site certs: requested *.%s", d.PersonHost(handle, base))
 		}
 	}

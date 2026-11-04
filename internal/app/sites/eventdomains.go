@@ -232,13 +232,14 @@ func (s *Service) ListEventDomains(ctx context.Context, in EventListInput) ([]Ev
 func (s *Service) SweepEventDomains(ctx context.Context) {
 	list, err := reposite.ExpiredEventDomains(ctx, s.database)
 	if err != nil {
+		ReportWorkerFailure(ctx, "list expired claims", err)
 		return
 	}
 	for _, e := range list {
 		ok := true
 		for _, id := range e.IDs {
 			if err := s.deps.EventDNS.DeleteRecord(ctx, e.Domain, id); err != nil {
-				log.Printf("event sweep: %s.%s: %v", e.Name, e.Domain, err)
+				ReportWorkerFailure(ctx, "delete DNS record", err)
 				ok = false
 			}
 		}
@@ -253,6 +254,7 @@ func (s *Service) SweepEventDomains(ctx context.Context) {
 		// orphaned-record case this sweep exists to prevent.
 		res, err := reposite.DeleteExpiredEventDomain(ctx, s.database, e)
 		if err != nil {
+			ReportWorkerFailure(ctx, "delete expired claim", err)
 			continue
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
@@ -261,6 +263,7 @@ func (s *Service) SweepEventDomains(ctx context.Context) {
 			log.Printf("event sweep: %s.%s was renewed mid-sweep, left alone", e.Name, e.Domain)
 			continue
 		}
+		ReportWorkerProgress(ctx)
 		log.Printf("event sweep: released %s.%s", e.Name, e.Domain)
 	}
 }

@@ -8,13 +8,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/sites"
-
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/eventdns"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // eventTTL (EVENT_TTL_DAYS, default 21) is how long a claimed event name
@@ -31,6 +32,8 @@ import (
 // EventDomainHandler hands an organiser two hostnames under a domain we own,
 // pointing at their own server, so they never touch a registrar.
 type EventDomainHandler struct {
+	sweepOnceInit sync.Once
+	sweepOwner    *siteLoop
 	limitSet
 	db      *sql.DB
 	dns     eventdns.Provider
@@ -183,13 +186,18 @@ func (h *EventDomainHandler) list(w http.ResponseWriter, r *http.Request) {
 //
 // This is the whole reason expires_at exists. An organiser who forgets leaves a
 // name pointing at a cloud address that provider will hand to someone else.
+func (h *EventDomainHandler) Owner() workers.Owner {
+	h.sweepOnceInit.Do(func() {
+		h.sweepOwner = newSiteLoop("sites.event_dns_sweep", func() bool { return true }, func(ctx context.Context) { h.startSweep(ctx, time.Hour) })
+	})
+	return h.sweepOwner
+}
 func (h *EventDomainHandler) StartSweep(every time.Duration) {
-	go func() {
-		for {
-			time.Sleep(every)
-			h.sweepOnce(context.Background())
-		}
-	}()
+	h.Owner()
+	h.sweepOwner.once.Do(func() { h.startSweep(context.Background(), every) })
+}
+func (h *EventDomainHandler) startSweep(ctx context.Context, every time.Duration) {
+	h.sweepOwner.periodic(ctx, every, every, h.sweepOnce)
 }
 
 func (h *EventDomainHandler) sweepOnce(ctx context.Context) {

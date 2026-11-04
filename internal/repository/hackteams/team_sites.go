@@ -147,7 +147,7 @@ func TeamWriteStatesForEvent(ctx context.Context, q interface {
 // when it has no live site). eventID "" means every event. Each team is
 // pinned in its own transaction holding the team row FOR UPDATE, so a deploy
 // already let in (holding it FOR SHARE) finishes first.
-func PinDueTeams(ctx context.Context, database *sql.DB, eventID string) error {
+func PinDueTeams(ctx context.Context, database *sql.DB, eventID string, progress ...func()) error {
 	rows, err := database.QueryContext(ctx, `
 		SELECT t.id FROM event_teams t JOIN events e ON e.id = t.event_id
 		 WHERE t.pinned_at IS NULL
@@ -170,14 +170,14 @@ func PinDueTeams(ctx context.Context, database *sql.DB, eventID string) error {
 		return err
 	}
 	for _, id := range ids {
-		if err := pinTeam(ctx, database, id); err != nil {
+		if err := pinTeam(ctx, database, id, progress...); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func pinTeam(ctx context.Context, database *sql.DB, teamID string) error {
+func pinTeam(ctx context.Context, database *sql.DB, teamID string, progress ...func()) error {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -214,7 +214,13 @@ func pinTeam(ctx context.Context, database *sql.DB, teamID string) error {
 		UPDATE event_teams SET pinned_version = $2, pinned_at = clock_timestamp() WHERE id = $1`, teamID, v); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	for _, fn := range progress {
+		fn()
+	}
+	return nil
 }
 
 // UnpinReopened clears the pin of every team of the event whose deadline is
@@ -277,11 +283,18 @@ func RecordUsedTeamName(ctx context.Context, q Querier, eventSlug, teamSlug stri
 // DeleteEmptyOpenTeams removes teams nobody is on whose deadline has not
 // passed and that hold no pin (a team kept for its submission that the
 // organiser reopened). Their sites follow with the orphan sweep.
-func DeleteEmptyOpenTeams(ctx context.Context, q Querier) error {
-	_, err := q.ExecContext(ctx, `
+func DeleteEmptyOpenTeams(ctx context.Context, q Querier, progress ...func()) error {
+	res, err := q.ExecContext(ctx, `
 		DELETE FROM event_teams t USING events e
 		 WHERE e.id = t.event_id AND `+TeamKeepableSQL+`
 		   AND NOT EXISTS (SELECT 1 FROM event_members m WHERE m.team_id = t.id)`)
+	if err == nil {
+		if n, _ := res.RowsAffected(); n > 0 {
+			for _, fn := range progress {
+				fn()
+			}
+		}
+	}
 	return err
 }
 
