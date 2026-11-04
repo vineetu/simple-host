@@ -4,16 +4,16 @@ import (
 	"bytes"
 	"os"
 
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // pricingNumbers answers the handful of /pricing figures that are not
 // already covered by limitstext.go's phrase rewriter, because the knob is
 // read directly from the environment (storage and photo byte caps) or lives
-// outside config.Limits (the version-retention package var). Computed fresh
+// outside edition.Limits (the version-retention package var). Computed fresh
 // on every request, straight from this install's own settings, the same
 // source every other page or email draws its numbers from.
-func pricingNumbers(hostedEvents bool, l config.Limits) map[string]string {
+func pricingNumbers(hostedEvents bool, l edition.Limits) map[string]string {
 	accountMB := l.MaxAccountMB
 	account := "no account-wide cap by default"
 	switch {
@@ -46,7 +46,7 @@ func pricingNumbers(hostedEvents bool, l config.Limits) map[string]string {
 	}
 }
 
-func applyPricingNumbers(body []byte, hostedEvents bool, l config.Limits) []byte {
+func applyPricingNumbers(body []byte, hostedEvents bool, l edition.Limits) []byte {
 	for token, value := range pricingNumbers(hostedEvents, l) {
 		body = bytes.ReplaceAll(body, []byte(token), []byte(value))
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // purgeDue is true for a deleted row whose promised date has passed; $1 is
@@ -59,33 +61,18 @@ func LockPurgeableSite(ctx context.Context, tx *sql.Tx, siteID string, retention
 }
 
 // DeletedSite is one site in an account's Recently deleted list.
-type DeletedSite struct {
-	ID           string
-	UserID       string
-	Name         string
-	DeletedAt    time.Time
-	CustomDomain sql.NullString
-	// purgeAt is the date stored when it was deleted (NULL for sites deleted
-	// before the column existed).
-	purgeAt sql.NullTime
-}
+type DeletedSite = model.DeletedSite
 
 // PurgeAt is when the site is removed for good: the date promised when it was
 // deleted, so a later DELETED_RETENTION_DAYS change applies to new deletions
 // only. retention is the caller's instance limit, used only for a row
 // deleted before the purge_at column existed.
-func (d DeletedSite) PurgeAt(retention time.Duration) time.Time {
-	if d.purgeAt.Valid {
-		return d.purgeAt.Time
-	}
-	return d.DeletedAt.Add(retention)
-}
 
 const deletedSiteCols = `id, user_id, name, deleted_at, custom_domain, purge_at`
 
 func scanDeletedSite(sc interface{ Scan(...any) error }) (DeletedSite, error) {
 	var d DeletedSite
-	err := sc.Scan(&d.ID, &d.UserID, &d.Name, &d.DeletedAt, &d.CustomDomain, &d.purgeAt)
+	err := sc.Scan(&d.ID, &d.UserID, &d.Name, &d.DeletedAt, &d.CustomDomain, &d.PurgeAtStored)
 	return d, err
 }
 

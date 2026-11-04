@@ -8,9 +8,6 @@ import (
 	"time"
 )
 
-func (s *Service) AllowDomainCertRequest(ctx context.Context, userID string, domain string, dailyCap int) (bool, error) {
-	return repo.AllowDomainCertRequest(ctx, s.database, userID, domain, dailyCap)
-}
 func (s *Service) BindCustomDomain(ctx context.Context, siteID string, domain string) (*model.SiteDomainInfo, string, error) {
 	return repo.BindCustomDomain(ctx, s.database, siteID, domain, s.deps.PlatformDomains...)
 }

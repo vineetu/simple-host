@@ -14,7 +14,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Per-site addresses (owner decision 2026-09-26).
@@ -136,30 +136,30 @@ func (h *SiteHandler) isSiteHostName(host string) bool {
 // siteHostSite resolves a site host to its site: the handle is a current
 // handle (not an alias), the site is that account's, and the site is live on
 // its site host. ok=false otherwise, including when site hosts are off.
-func (h *SiteHandler) siteHostSite(ctx context.Context, host string) (db.Site, db.User, bool, error) {
+func (h *SiteHandler) siteHostSite(ctx context.Context, host string) (model.Site, model.User, bool, error) {
 	if !h.siteHostsOn() {
-		return db.Site{}, db.User{}, false, nil
+		return model.Site{}, model.User{}, false, nil
 	}
 	label, handle, base, ok := h.siteHostParts(host)
 	if !ok || !handleAddressable(handle) || !sites.ValidSiteName.MatchString(label) {
-		return db.Site{}, db.User{}, false, nil
+		return model.Site{}, model.User{}, false, nil
 	}
-	user, err := db.GetUserByHandle(ctx, h.database, handle)
+	user, err := h.storeAccounts().GetUserByHandle(ctx, handle)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return db.Site{}, db.User{}, false, nil
+			return model.Site{}, model.User{}, false, nil
 		}
-		return db.Site{}, db.User{}, false, err
+		return model.Site{}, model.User{}, false, err
 	}
-	site, err := db.GetSiteByUser(ctx, h.database, user.ID, label)
+	site, err := h.sitesSvc().GetSiteByUser(ctx, user.ID, label)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return db.Site{}, db.User{}, false, nil
+			return model.Site{}, model.User{}, false, nil
 		}
-		return db.Site{}, db.User{}, false, err
+		return model.Site{}, model.User{}, false, err
 	}
 	if !h.siteHostLiveOn(user.Handle.String, site.Name, base) {
-		return db.Site{}, db.User{}, false, nil
+		return model.Site{}, model.User{}, false, nil
 	}
 	return site, user, true, nil
 }
@@ -203,7 +203,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			h.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", h.mainSiteURL(), "Go to "+h.siteDomain)
 			return
 		}
-		user, err := db.GetUserByHandle(r.Context(), h.database, handle)
+		user, err := h.storeAccounts().GetUserByHandle(r.Context(), handle)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("site host %s: %v", host, err)
@@ -211,9 +211,9 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 				return
 			}
 			// An old handle kept as an alias: the site's current address.
-			if current, aerr := db.ResolveHandleAlias(r.Context(), h.database, handle); aerr == nil && handleAddressable(current) {
-				if cu, cerr := db.GetUserByHandle(r.Context(), h.database, current); cerr == nil {
-					if site, serr := db.GetSiteByUser(r.Context(), h.database, cu.ID, label); serr == nil {
+			if current, aerr := h.storeAccounts().ResolveHandleAlias(r.Context(), handle); aerr == nil && handleAddressable(current) {
+				if cu, cerr := h.storeAccounts().GetUserByHandle(r.Context(), current); cerr == nil {
+					if site, serr := h.sitesSvc().GetSiteByUser(r.Context(), cu.ID, label); serr == nil {
 						w.Header().Set("Cache-Control", "no-store")
 						http.Redirect(w, r, h.siteAddressWithPathOn(current, site.Name, r.URL.EscapedPath(), base)+query, http.StatusFound)
 						return
@@ -229,7 +229,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			h.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", h.mainSiteURL(), "Go to "+h.siteDomain)
 			return
 		}
-		site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, label)
+		site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, label)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("site host %s: %v", host, err)
@@ -318,7 +318,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 
 // oldAddressPrefix: p starts with /<handle>/<site>/ or /<site>/ and the site
 // has no file there. Returns the escaped remainder after the prefix.
-func (h *SiteHandler) oldAddressPrefix(handle string, site db.Site, p, escaped string) (string, bool) {
+func (h *SiteHandler) oldAddressPrefix(handle string, site model.Site, p, escaped string) (string, bool) {
 	for _, prefix := range []string{"/" + handle + "/" + site.Name + "/", "/" + site.Name + "/"} {
 		if !strings.HasPrefix(p, prefix) || !strings.HasPrefix(escaped, prefix) {
 			continue
@@ -354,7 +354,7 @@ func (h *SiteHandler) renamedSiteAddress(ctx context.Context, userID, name, esca
 	if !sites.ValidSiteName.MatchString(name) {
 		return "", false
 	}
-	siteID, _, err := db.ResolveOldSiteName(ctx, h.database, userID, name)
+	siteID, _, err := h.sitesSvc().ResolveOldSiteName(ctx, userID, name)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("old site name %s/%s: %v", userID, name, err)
@@ -421,7 +421,7 @@ func (h *SiteHandler) requestSiteCertsForAll(ctx context.Context) {
 	if !h.siteHostsOn() || len(h.certRequestBases()) == 0 {
 		return
 	}
-	handles, err := db.ListHandlesWithSites(ctx, h.database)
+	handles, err := h.sitesSvc().ListHandlesWithSites(ctx)
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "list certificate handles", err)
 		return

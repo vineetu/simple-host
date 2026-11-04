@@ -11,7 +11,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
 )
 
@@ -29,7 +28,7 @@ import (
 
 // hackNoPersonalSites refuses a new site on the hackathon platform unless the
 // caller is a team credential (or the admin); false after writing the answer.
-func (h *SiteHandler) hackNoPersonalSites(w http.ResponseWriter, user *db.User) bool {
+func (h *SiteHandler) hackNoPersonalSites(w http.ResponseWriter, user *model.User) bool {
 	if h.ed.Identity().PersonalSites || user.IsAdmin || user.Team != nil || user.EventWebsite != nil {
 		return true
 	}
@@ -61,17 +60,17 @@ func (h *SiteHandler) TeamSiteURL(eventSlug, teamSlug string) string {
 // PublishEventWebsite sends an organiser's upload through the same validated,
 // versioned deploy path as a team site. The holding account is visible only to
 // this scoped internal request; the transaction gate rechecks membership at commit.
-func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request, ev db.Event, organiserID string, files bool) {
+func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request, ev model.Event, organiserID string, files bool) {
 	if r.URL.Query().Get("publish") == "false" {
 		writeHackErr(w, http.StatusBadRequest, "invalid_request", "event website uploads go live when published")
 		return
 	}
-	holder, err := db.GetUserByID(r.Context(), h.database, ev.AccountID)
+	holder, err := h.storeAccounts().GetUserByID(r.Context(), ev.AccountID)
 	if err != nil || holder.Suspended {
 		hackSitesEventNotFound(w)
 		return
 	}
-	holder.EventWebsite = &db.EventWebsiteIdentity{EventID: ev.ID, EventSlug: ev.Slug, OrganiserID: organiserID}
+	holder.EventWebsite = &model.EventWebsiteIdentity{EventID: ev.ID, EventSlug: ev.Slug, OrganiserID: organiserID}
 	r = r.WithContext(auth.WithUser(r.Context(), &holder))
 	r.SetPathValue("sitename", ev.ID)
 	if files {
@@ -91,13 +90,13 @@ func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request
 type TeamSite = model.TeamSite
 
 // TeamSiteInfo reads the team's site of the holding account, if any.
-func (h *SiteHandler) TeamSiteInfo(ctx context.Context, accountID, teamSlug string) (TeamSite, db.Site, error) {
-	site, err := db.GetSiteByUser(ctx, h.database, accountID, teamSlug)
+func (h *SiteHandler) TeamSiteInfo(ctx context.Context, accountID, teamSlug string) (TeamSite, model.Site, error) {
+	site, err := h.sitesSvc().GetSiteByUser(ctx, accountID, teamSlug)
 	if errors.Is(err, sql.ErrNoRows) {
-		return TeamSite{}, db.Site{}, nil
+		return TeamSite{}, model.Site{}, nil
 	}
 	if err != nil {
-		return TeamSite{}, db.Site{}, err
+		return TeamSite{}, model.Site{}, err
 	}
 	return TeamSite{Exists: true, ActiveVersion: site.ActiveVersion, Suspended: site.Suspended()}, site, nil
 }
@@ -126,7 +125,7 @@ var ErrNotOrganiserTakedown = model.ErrNotOrganiserTakedown
 
 // TeamPreviewLinkFor mints a preview address for version n of a team site
 // already read (the caller checked the version exists). No database work.
-func (h *SiteHandler) TeamPreviewLinkFor(site db.Site, eventSlug string, n int) (string, bool) {
+func (h *SiteHandler) TeamPreviewLinkFor(site model.Site, eventSlug string, n int) (string, bool) {
 	if n < 1 || !h.siteCertReady(eventSlug) {
 		return "", false
 	}
@@ -151,7 +150,7 @@ func (h *SiteHandler) SetTeamSiteTakenDown(ctx context.Context, accountID, teamI
 func (h *SiteHandler) TrashTeamSite(ctx context.Context, accountID, name string) error {
 	unlock := h.lockSite(accountID, name)
 	defer unlock()
-	site, err := db.GetSiteByUser(ctx, h.database, accountID, name)
+	site, err := h.sitesSvc().GetSiteByUser(ctx, accountID, name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
@@ -175,7 +174,7 @@ func (h *SiteHandler) RemoveAccountFiles(userID, handle string) error {
 // account in line with the database (an event taken down or restored by the
 // platform suspends its holding account: every team site goes down with it).
 func (h *SiteHandler) SyncAccountMarkers(ctx context.Context, accountID string) error {
-	sites, err := db.ListSitesByUser(ctx, h.database, accountID)
+	sites, err := h.sitesSvc().ListSitesByUser(ctx, accountID)
 	if err != nil {
 		return err
 	}
@@ -194,7 +193,7 @@ func (h *SiteHandler) hackPinnedFloor(ctx context.Context, userID, siteName stri
 	if !h.ed.Identity().TeamKeys {
 		return keepFrom
 	}
-	v, ok, err := db.PinnedVersionOfSite(ctx, h.database, userID, siteName)
+	v, ok, err := h.hackSiteSvc().SitePinnedVersion(ctx, userID, siteName)
 	if err != nil {
 		log.Printf("prune versions for %s: pinned version: %v", siteName, err)
 		return 0 // keep everything rather than guess
@@ -249,25 +248,7 @@ func (h *SiteHandler) startHackSweep(ctx context.Context, every time.Duration, a
 func (h *SiteHandler) HackSweepForTest(ctx context.Context) { h.hackSweep(ctx) }
 
 func (h *SiteHandler) hackSweep(ctx context.Context) {
-	if err := db.PinDueTeams(ctx, h.database, "", func() { sites.ReportWorkerProgress(ctx) }); err != nil {
-		sites.ReportWorkerFailure(ctx, "pin due teams", err)
-	}
-	if err := db.DeleteEmptyOpenTeams(ctx, h.database, func() { sites.ReportWorkerProgress(ctx) }); err != nil {
-		sites.ReportWorkerFailure(ctx, "delete empty open teams", err)
-	}
-	orphans, err := db.OrphanTeamSites(ctx, h.database, "")
-	if err != nil {
-		sites.ReportWorkerFailure(ctx, "list orphan team sites", err)
-		return
-	}
-	for _, s := range orphans {
-		if err := h.TrashTeamSite(ctx, s.UserID, s.Name); err != nil {
-			sites.ReportWorkerFailure(ctx, "trash orphan team site", err)
-		} else {
-			sites.ReportWorkerProgress(ctx)
-			log.Printf("hack sweep: site %s of a removed team moved to Recently deleted", s.Name)
-		}
-	}
+	h.hackSiteSvc().SweepSites(ctx, h.TrashTeamSite, func() { sites.ReportWorkerProgress(ctx) }, func(op string, err error) { sites.ReportWorkerFailure(ctx, op, err) })
 }
 
 // hackTLSHostExists bounds on-demand certificates to actual platform names.
@@ -288,29 +269,29 @@ func (h *SiteHandler) hackTLSHostExists(ctx context.Context, host string) bool {
 		if len(labels) < 1 || len(labels) > 2 {
 			return false
 		}
-		ev, err := db.GetEventBySlug(ctx, h.database, labels[len(labels)-1])
+		ev, err := h.hackSiteSvc().SiteEventBySlug(ctx, labels[len(labels)-1])
 		if err != nil {
 			return false
 		}
 		if len(labels) == 1 {
 			return true
 		}
-		if _, err := db.GetEventTeamBySlug(ctx, h.database, ev.ID, labels[0]); err != nil {
+		if _, err := h.hackSiteSvc().TeamBySlug(ctx, ev.ID, labels[0]); err != nil {
 			return false
 		}
-		site, err := db.GetSiteByUser(ctx, h.database, ev.AccountID, labels[0])
+		site, err := h.sitesSvc().GetSiteByUser(ctx, ev.AccountID, labels[0])
 		return err == nil && site.ActiveVersion > 0
 	}
 	return false
 }
 
-func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request, member db.User, teamID string) {
-	id, err := db.ResolveTeamIdentity(r.Context(), h.database, member.ID, teamID)
+func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request, member model.User, teamID string) {
+	id, err := h.hackSiteSvc().SiteTeamIdentity(r.Context(), member.ID, teamID)
 	if err != nil {
 		hackSitesEventNotFound(w)
 		return
 	}
-	holder, err := db.GetUserByID(r.Context(), h.database, id.AccountID)
+	holder, err := h.storeAccounts().GetUserByID(r.Context(), id.AccountID)
 	if err != nil || holder.Suspended {
 		hackSitesEventNotFound(w)
 		return
@@ -319,7 +300,7 @@ func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request,
 	holder.Team = &id
 	r = r.WithContext(auth.WithUser(r.Context(), &holder))
 	r.SetPathValue("sitename", id.TeamSlug)
-	st, err := db.TeamWriteStateFor(r.Context(), h.database, teamID, false)
+	st, err := h.hackSiteSvc().WriteState(r.Context(), teamID)
 	if err != nil {
 		writeInternal(w)
 		return

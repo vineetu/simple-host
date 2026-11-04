@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Unlisted sites and search engines (INTENT 2026-10-14).
@@ -75,7 +75,7 @@ func (h *SiteHandler) serveUnlistedRobots(w http.ResponseWriter, r *http.Request
 
 // wantUnlistedMarker: the site is unlisted (anything but "public", as
 // toSiteResponse reads it) and has no address of its own.
-func (h *SiteHandler) wantUnlistedMarker(ctx context.Context, site db.Site) (bool, error) {
+func (h *SiteHandler) wantUnlistedMarker(ctx context.Context, site model.Site) (bool, error) {
 	if site.Visibility == "public" || len(h.siteFamilyAddrs(site.UserID, site.Name)) > 0 {
 		return false, nil
 	}
@@ -84,7 +84,7 @@ func (h *SiteHandler) wantUnlistedMarker(ctx context.Context, site db.Site) (boo
 }
 
 // syncUnlistedMarker makes the disk marker match wantUnlistedMarker.
-func (h *SiteHandler) syncUnlistedMarker(ctx context.Context, site db.Site) error {
+func (h *SiteHandler) syncUnlistedMarker(ctx context.Context, site model.Site) error {
 	want, err := h.wantUnlistedMarker(ctx, site)
 	if err != nil {
 		return err

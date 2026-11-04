@@ -11,7 +11,7 @@ import (
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // The admin page's per-site actions (Versions, Make active, Data, Connect or
@@ -55,13 +55,13 @@ func (h *SiteHandler) asSiteOwner(next http.HandlerFunc) http.Handler {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 			return
 		}
-		site, err := db.GetSiteByID(r.Context(), h.database, id)
+		site, err := h.sitesSvc().GetSiteByID(r.Context(), id)
 		if err == nil && site.Deleted {
 			err = sql.ErrNoRows
 		}
-		var owner db.User
+		var owner model.User
 		if err == nil {
-			owner, err = db.GetUserByID(r.Context(), h.database, site.UserID)
+			owner, err = h.storeAccounts().GetUserByID(r.Context(), site.UserID)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -105,10 +105,10 @@ func adminSiteMismatch(r *http.Request, siteID string) bool {
 
 // siteForCaller is db.GetSiteByUser for the owner routes asSiteOwner runs:
 // sql.ErrNoRows when the site found is not the one the admin named.
-func (h *SiteHandler) siteForCaller(r *http.Request, userID, siteName string) (db.Site, error) {
-	site, err := db.GetSiteByUser(r.Context(), h.database, userID, siteName)
+func (h *SiteHandler) siteForCaller(r *http.Request, userID, siteName string) (model.Site, error) {
+	site, err := h.sitesSvc().GetSiteByUser(r.Context(), userID, siteName)
 	if err == nil && adminSiteMismatch(r, site.ID) {
-		return db.Site{}, sql.ErrNoRows
+		return model.Site{}, sql.ErrNoRows
 	}
 	return site, err
 }

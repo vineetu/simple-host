@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 var errInvalidVersionPath = errors.New("invalid path")
@@ -58,7 +58,7 @@ func (h *SiteHandler) readVersionFiles(w http.ResponseWriter, r *http.Request, l
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid version"})
 		return
 	}
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
+	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeSiteNotFound(w, siteName)
@@ -67,7 +67,7 @@ func (h *SiteHandler) readVersionFiles(w http.ResponseWriter, r *http.Request, l
 		}
 		return
 	}
-	versions, err := db.ListVersionsBySite(r.Context(), h.database, site.ID)
+	versions, err := h.sitesSvc().ListVersionsBySite(r.Context(), site.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -77,8 +77,8 @@ func (h *SiteHandler) readVersionFiles(w http.ResponseWriter, r *http.Request, l
 
 // serveVersionFiles checks retained metadata as well as disk: a pruned version
 // must not be readable even if its directory has not yet been removed.
-func serveVersionFiles(w http.ResponseWriter, r *http.Request, dir string, versions []db.Version, n, active int, listing bool) {
-	var version *db.Version
+func serveVersionFiles(w http.ResponseWriter, r *http.Request, dir string, versions []model.Version, n, active int, listing bool) {
+	var version *model.Version
 	for i := range versions {
 		if versions[i].VersionNumber == n {
 			version = &versions[i]

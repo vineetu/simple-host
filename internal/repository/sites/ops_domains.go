@@ -470,33 +470,6 @@ func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host 
 // (DOMAIN_CERTS_PER_ACCOUNT_DAILY) different domains in the last 24 hours.
 // Asking again for a domain already asked for within the day is always
 // allowed and not counted twice.
-func AllowDomainCertRequest(ctx context.Context, database *sql.DB, userID, domain string, dailyCap int) (bool, error) {
-	tx, err := database.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('domain-cert:' || $1, 0))`, userID); err != nil {
-		return false, err
-	}
-	var again bool
-	var n int
-	if err := tx.QueryRowContext(ctx, `
-		SELECT COALESCE(bool_or(domain = $2), false), count(DISTINCT domain)
-		FROM domain_cert_requests WHERE user_id = $1 AND requested_at > now() - interval '24 hours'`, userID, domain).Scan(&again, &n); err != nil {
-		return false, err
-	}
-	if again {
-		return true, nil
-	}
-	if n >= dailyCap {
-		return false, nil
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO domain_cert_requests (user_id, domain) VALUES ($1, $2)`, userID, domain); err != nil {
-		return false, err
-	}
-	return true, tx.Commit()
-}
 
 // PruneDomainCertRequests forgets requests older than two days.
 func PruneDomainCertRequests(ctx context.Context, database *sql.DB) error {

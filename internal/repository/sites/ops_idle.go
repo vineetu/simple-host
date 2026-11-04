@@ -30,13 +30,13 @@ import (
 // event accounts (users.event_account).
 
 func queryIdleSites(ctx context.Context, database *sql.DB, ex IdleExempt, extra string, args ...any) ([]IdleSite, error) {
-	all := append(ex.args(), args...)
+	all := append(idleExemptArgs(ex), args...)
 	rows, err := database.QueryContext(ctx, `
 		SELECT id, user_id, name, username, handle, last_activity, idle_warned_at, idle_remove_at FROM (
 			SELECT s.id, s.user_id::text AS user_id, s.name, u.username, COALESCE(u.handle, '') AS handle,
 			       `+idleLastActivity+` AS last_activity, s.idle_warned_at, s.idle_remove_at
 			  FROM sites s JOIN users u ON u.id = s.user_id
-			 WHERE s.deleted_at IS NULL AND `+ex.eligible(1)+`
+			 WHERE s.deleted_at IS NULL AND `+idleExemptEligible(ex, 1)+`
 		) x WHERE `+extra, all...)
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func ClearStaleIdleWarnings(ctx context.Context, database *sql.DB, ex IdleExempt
 		UPDATE sites s SET idle_warned_at = NULL, idle_token_hash = NULL
 		  FROM users u
 		 WHERE u.id = s.user_id AND s.idle_warned_at IS NOT NULL AND s.deleted_at IS NULL
-		   AND (NOT (`+ex.eligible(1)+`) OR `+idleLastActivity+` > s.idle_warned_at)`, ex.args()...)
+		   AND (NOT (`+idleExemptEligible(ex, 1)+`) OR `+idleLastActivity+` > s.idle_warned_at)`, idleExemptArgs(ex)...)
 	if err != nil {
 		return 0, err
 	}

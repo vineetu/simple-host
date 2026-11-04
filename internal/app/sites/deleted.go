@@ -10,6 +10,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/repository/accounts"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
+	rules "github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // ErrRestoreFiles means the deleted site's files could not be restored.
@@ -199,6 +200,9 @@ type DeleteInput struct {
 
 // Delete authorizes and moves a live site to Recently deleted under its lock.
 func (s *Service) Delete(ctx context.Context, in DeleteInput) error {
+	if err := rules.ValidateShape(in.Name); err != nil {
+		return &Error{Code: "delete_not_found"}
+	}
 	lookup := func() (repo.Site, error) {
 		site, err := repo.GetSiteByUser(ctx, s.database, in.UserID, in.Name)
 		if err == nil && in.CheckSiteID && in.ExpectedSiteID != site.ID {
@@ -242,6 +246,9 @@ type RestoreResult struct {
 
 // Restore restores a deleted site under its name lock, with its current addresses.
 func (s *Service) Restore(ctx context.Context, in RestoreInput) (RestoreResult, error) {
+	if err := rules.ValidateShape(in.Name); err != nil {
+		return RestoreResult{}, &Error{Code: "deleted_not_found"}
+	}
 	// Lock only a name really held in Recently deleted; check again under it.
 	unlock := func() {}
 	if _, err := repo.GetDeletedSiteByUser(ctx, s.database, in.UserID, in.Name); err == nil {

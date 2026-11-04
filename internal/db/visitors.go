@@ -232,10 +232,7 @@ func GetSiteWriteGate(ctx context.Context, q Querier, siteID string) (userID str
 
 // SetAllowAnonymousWrites is the admin-only escape hatch on a site.
 func SetAllowAnonymousWrites(ctx context.Context, q Querier, siteID string, allow bool) error {
-	_, err := q.ExecContext(ctx,
-		`UPDATE sites SET allow_anonymous_writes = $1 WHERE id = $2`,
-		allow, siteID)
-	return err
+	return sites.SetAllowAnonymousWrites(ctx, q, siteID, allow)
 }
 
 // SweepVisitorAuth deletes expired OAuth states, establish tokens, sessions,

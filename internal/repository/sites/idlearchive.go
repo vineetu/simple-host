@@ -8,19 +8,13 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // IdleExempt is the operator's list of accounts the cleanup never touches.
-type IdleExempt struct {
-	Handles       []string // lowercased handles
-	ReviewerEmail string   // REVIEW_ACCOUNT_EMAIL, "" when none
-	// FamilySites (IDLE_EXEMPT_FAMILY_SITES): a site whose main address is a
-	// verified address family of its account is kept, like one with a
-	// domain of its own.
-	FamilySites bool
-}
+type IdleExempt = model.IdleExempt
 
-func (e IdleExempt) args() []any {
+func idleExemptArgs(e IdleExempt) []any {
 	h := e.Handles
 	if h == nil {
 		h = []string{}
@@ -29,16 +23,7 @@ func (e IdleExempt) args() []any {
 }
 
 // IdleSite is one site the cleanup acts on (or would, in the dry run).
-type IdleSite struct {
-	SiteID       string
-	UserID       string
-	Name         string
-	OwnerEmail   string
-	OwnerHandle  string
-	LastActivity time.Time
-	WarnedAt     sql.NullTime
-	RemoveAt     sql.NullTime // the removal date the warning email gave
-}
+type IdleSite = model.IdleSite
 
 // idleRemoveDue is true for a warned site whose promised removal date is
 // before $<p+1>: the date stored with the warning, or (for warnings sent
@@ -82,7 +67,7 @@ func idleEligible(p int) string {
 
 // eligible is idleEligible plus the family exemption (a constant, not a
 // parameter, so the callers' parameter numbers stay as they are).
-func (e IdleExempt) eligible(p int) string {
+func idleExemptEligible(e IdleExempt, p int) string {
 	if !e.FamilySites {
 		return idleEligible(p)
 	}
@@ -98,11 +83,11 @@ func (e IdleExempt) eligible(p int) string {
 // caller sends the email before committing, so a warning is only on record
 // once the email was accepted.
 func MarkIdleWarned(ctx context.Context, tx *sql.Tx, ex IdleExempt, siteID string, tokenHash []byte, idleBefore, removeAt time.Time) error {
-	args := append(ex.args(), siteID, tokenHash, idleBefore, removeAt)
+	args := append(idleExemptArgs(ex), siteID, tokenHash, idleBefore, removeAt)
 	res, err := tx.ExecContext(ctx, `UPDATE sites s SET idle_warned_at = now(), idle_remove_at = $6, idle_token_hash = $4
 		  FROM users u
 		 WHERE s.id = $3 AND u.id = s.user_id AND s.deleted_at IS NULL AND s.idle_warned_at IS NULL
-		   AND `+ex.eligible(1)+` AND `+idleLastActivity+` < $5`, args...)
+		   AND `+idleExemptEligible(ex, 1)+` AND `+idleLastActivity+` < $5`, args...)
 	return oneRow(res, err)
 }
 
@@ -113,11 +98,11 @@ func MarkIdleWarned(ctx context.Context, tx *sql.Tx, ex IdleExempt, siteID strin
 // new domain that landed since the list was read rolls the removal back).
 // sql.ErrNoRows when it no longer qualifies.
 func MarkIdleRemoved(ctx context.Context, q Querier, ex IdleExempt, siteID string, tokenHash []byte, now time.Time, grace time.Duration) error {
-	args := append(ex.args(), siteID, tokenHash, graceSeconds(grace), now)
+	args := append(idleExemptArgs(ex), siteID, tokenHash, graceSeconds(grace), now)
 	res, err := q.ExecContext(ctx, `UPDATE sites s SET idle_removed_at = now(), idle_token_hash = $4
 		  FROM users u
 		 WHERE s.id = $3 AND u.id = s.user_id
 		   AND s.idle_warned_at IS NOT NULL AND `+idleRemoveDue(5)+`
-		   AND `+ex.eligible(1)+` AND `+idleLastActivity+` <= s.idle_warned_at`, args...)
+		   AND `+idleExemptEligible(ex, 1)+` AND `+idleLastActivity+` <= s.idle_warned_at`, args...)
 	return oneRow(res, err)
 }

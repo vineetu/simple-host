@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Site-side of Hack administration exports (cleanup 3.2 slice 1c): these are
@@ -24,18 +24,18 @@ import (
 
 // ExportEventProjects is called only after event/own-team authorization. It
 // selects this event's teams and holding account; no instance-wide export is used.
-func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request, ev db.Event, ownSlug string) {
-	teams, err := db.ListEventTeams(r.Context(), h.database, ev.ID)
+func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request, ev model.Event, ownSlug string) {
+	teams, err := h.hackSiteSvc().SiteTeams(r.Context(), ev.ID)
 	if err != nil {
 		writeInternal(w)
 		return
 	}
-	var sites []db.Site
+	var sites []model.Site
 	for _, team := range teams {
 		if ownSlug != "" && team.Slug != ownSlug {
 			continue
 		}
-		site, err := db.GetSiteByUser(r.Context(), h.database, ev.AccountID, team.Slug)
+		site, err := h.sitesSvc().GetSiteByUser(r.Context(), ev.AccountID, team.Slug)
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
@@ -69,7 +69,7 @@ func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (h *SiteHandler) EventFileBytes(ctx context.Context, ev db.Event) (int64, error) {
+func (h *SiteHandler) EventFileBytes(ctx context.Context, ev model.Event) (int64, error) {
 	var total int64
 	for _, area := range []string{"by-id", "deleted"} {
 		root := filepath.Join(h.disk.DataDir(), area, ev.AccountID)

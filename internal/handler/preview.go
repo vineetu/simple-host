@@ -11,9 +11,8 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
 	httpx "github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Look before it goes live.
@@ -78,7 +77,7 @@ func (h *SiteHandler) checkPreviewToken(token string, now time.Time) (siteID str
 // the path prefix up to and including "/__preview/". ok=false when the site
 // has no address of its own to preview on (site and person hosts off, or a
 // site pinned to the content host).
-func (h *SiteHandler) previewBase(site db.Site) (string, bool) {
+func (h *SiteHandler) previewBase(site model.Site) (string, bool) {
 	handle := site.OwnerHandle
 	switch {
 	case handle == "":
@@ -111,7 +110,7 @@ func (h *SiteHandler) noPreviewWhy() string {
 }
 
 // previewLink mints a preview address for version n of site.
-func (h *SiteHandler) previewLink(site db.Site, n int) (string, time.Time, bool) {
+func (h *SiteHandler) previewLink(site model.Site, n int) (string, time.Time, bool) {
 	base, ok := h.previewBase(site)
 	if !ok {
 		return "", time.Time{}, false
@@ -159,7 +158,7 @@ func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) 
 	if refuseSuspendedSite(w, site) {
 		return
 	}
-	kept, err := db.VersionKept(r.Context(), h.database, site.ID, n)
+	kept, err := h.sitesSvc().VersionKept(r.Context(), site.ID, n)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -187,7 +186,7 @@ func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) 
 // servePreview answers <prefix><n>/<token>/<rest> for site, where tail is
 // everything after "__preview/" (decoded) and prefix the escaped path up to
 // and including it.
-func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site db.Site, tail, prefix string) {
+func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site model.Site, tail, prefix string) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -223,7 +222,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 		h.serveTakedown(w, r)
 		return
 	}
-	kept, err := db.VersionKept(r.Context(), h.database, site.ID, n)
+	kept, err := h.sitesSvc().VersionKept(r.Context(), site.ID, n)
 	if err != nil {
 		log.Printf("preview %s v%d: %v", site.ID, n, err)
 		h.renderServiceError(w, r)
@@ -248,7 +247,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 
 func (h *SiteHandler) renderPreviewExpired(w http.ResponseWriter, r *http.Request) {
 	h.renderNotFoundPage(w, r, "This preview link has expired",
-		"Preview links work for "+config.Span(h.previewLinkTTL())+". Make a new one from Versions on your Simple Host page, or ask your AI app.",
+		"Preview links work for "+limitSpan(h.previewLinkTTL())+". Make a new one from Versions on your Simple Host page, or ask your AI app.",
 		h.mainSiteURL(), "Go to "+h.siteDomain)
 }
 

@@ -15,9 +15,6 @@ type RetiredName = model.RetiredName
 
 var ErrDomainTaken = model.ErrDomainTaken
 
-func AllowDomainCertRequest(ctx context.Context, database *sql.DB, userID, domain string, dailyCap int) (bool, error) {
-	return repo.AllowDomainCertRequest(ctx, database, userID, domain, dailyCap)
-}
 func BindCustomDomain(ctx context.Context, database *sql.DB, siteID, domain string) (*SiteDomainInfo, string, error) {
 	return repo.BindCustomDomain(ctx, database, siteID, domain, platformDomains()...)
 }

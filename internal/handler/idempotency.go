@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 const createIdempotencyTTL = 24 * time.Hour
@@ -46,7 +46,7 @@ type createIdempotencyStore struct {
 	now           func() time.Time
 }
 
-func newCreateIdempotencyStore(l config.Limits) *createIdempotencyStore {
+func newCreateIdempotencyStore(l edition.Limits) *createIdempotencyStore {
 	return &createIdempotencyStore{
 		limitSet:      newLimitSet(l),
 		entries:       make(map[createIdempotencyKey]*createIdempotencyResponse),

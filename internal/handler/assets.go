@@ -8,7 +8,6 @@ import (
 	"time"
 	"weak"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/storage"
 )
@@ -39,7 +38,7 @@ type assetPipeline struct {
 	// is the same snapshot as a served-text rewriter (limitstext.go). Both
 	// come from the one ed.Limits() call in newAssetPipeline, so formatting
 	// never drifts from enforcement.
-	limits     config.Limits
+	limits     edition.Limits
 	limitsText *limitsRewriter
 	// chromeHack renders the simple-hack.app header, footer and ink: always
 	// pres.HackAssets, kept as its own field because that is the question
