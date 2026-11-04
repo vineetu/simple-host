@@ -68,24 +68,17 @@ func (s *createIdempotencyStore) deleteLocked(k createIdempotencyKey) {
 	}
 }
 
-func (s *createIdempotencyStore) evictExpired() {
+func (s *createIdempotencyStore) evictExpired() int {
+	removed := 0
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for k, v := range s.entries {
 		if !v.expires.IsZero() && !s.now().Before(v.expires) {
 			s.deleteLocked(k)
+			removed++
 		}
 	}
-}
-
-func (s *createIdempotencyStore) startCleanup() {
-	go func() {
-		ticker := time.NewTicker(time.Hour)
-		defer ticker.Stop()
-		for range ticker.C {
-			s.evictExpired()
-		}
-	}()
+	return removed
 }
 
 // wrap belongs inside authentication and rate limiting, outside the response

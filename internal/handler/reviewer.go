@@ -151,7 +151,7 @@ func (h *ConnectorHandler) EnableReviewerSignIn(email, encodedHash string) bool 
 	}
 	h.reviewer = rv
 	if rv != nil {
-		rv.perIP.startCleanup(10*time.Minute, 2*time.Hour)
+		h.httpCaches.rate("http.connector.reviewer_ip", rv.perIP, 10*time.Minute, 2*time.Hour)
 		log.Printf("reviewer sign-in enabled for one account on the connector consent page")
 	}
 	return rv != nil

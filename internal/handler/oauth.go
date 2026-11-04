@@ -55,7 +55,8 @@ func (h *OAuthHandler) writeOAuthHTMLBlocked(w http.ResponseWriter) {
 }
 
 type OAuthHandler struct {
-	ed *edition.Edition
+	httpCaches HTTPCaches
+	ed         *edition.Edition
 	limitSet
 	// personSite resolves a return_to on a person host to its site
 	// (SiteHandler.PersonReturnSite); nil when person hosts are not wired.
@@ -136,9 +137,7 @@ func NewOAuthHandler(database *sql.DB, cfg config.Config, editions ...*edition.E
 	}
 	lim := ed.Limits()
 	ipLimiter := newRateLimiterFor(lim.RateVisitorOAuth)
-	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	ssoKeyLimiter := newRateLimiterFor(lim.RateVisitorOAuth)
-	ssoKeyLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	h := &OAuthHandler{
 		ed:            ed,
 		limitSet:      newLimitSet(lim),
@@ -150,7 +149,8 @@ func NewOAuthHandler(database *sql.DB, cfg config.Config, editions ...*edition.E
 		lookupIP:      defaultLookupIP,
 		lookupCNAME:   defaultLookupCNAME,
 	}
-	h.startVisitorAuthSweep(time.Hour)
+	h.httpCaches.rate("http.oauth.ipLimiter", ipLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.oauth.ssoKeyLimiter", ssoKeyLimiter, 10*time.Minute, 30*time.Minute)
 	return h
 }
 
@@ -1030,24 +1030,6 @@ func defaultLookupIP(ctx context.Context, host string) ([]net.IP, error) {
 
 func defaultLookupCNAME(ctx context.Context, host string) (string, error) {
 	return net.DefaultResolver.LookupCNAME(ctx, host)
-}
-
-func (h *OAuthHandler) startVisitorAuthSweep(every time.Duration) {
-	if h.database == nil {
-		// A handler built without a database (route tests) has nothing to sweep.
-		return
-	}
-	go func() {
-		time.Sleep(30 * time.Second)
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			if err := db.SweepVisitorAuth(ctx, h.database); err != nil {
-				log.Printf("visitor auth sweep: %v", err)
-			}
-			cancel()
-			time.Sleep(every)
-		}
-	}()
 }
 
 func randomRaw(n int) ([]byte, error) {

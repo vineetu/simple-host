@@ -69,7 +69,8 @@ const (
 
 // ConnectorHandler serves the OAuth authorization server and /mcp.
 type ConnectorHandler struct {
-	ed *edition.Edition
+	httpCaches HTTPCaches
+	ed         *edition.Edition
 	limitSet
 	hostedEvents bool
 	database     *sql.DB
@@ -175,6 +176,11 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		importStatusLimiter: newRateLimiter(60, 1),
 		now:                 time.Now,
 	}
+	h.httpCaches.rate("http.connector.registerLimiter", h.registerLimiter, 10*time.Minute, 2*time.Hour)
+	h.httpCaches.rate("http.connector.authorizeLimiter", h.authorizeLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.connector.tokenLimiter", h.tokenLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.connector.uploadLimiter", h.uploadLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.connector.importStatusLimiter", h.importStatusLimiter, 10*time.Minute, 30*time.Minute)
 	h.imports = newImportManager(lim.ImportMaxConcurrent)
 	h.upstream = upstream
 	h.skillVersion = skillVersion
@@ -253,11 +259,6 @@ func (h *ConnectorHandler) SetEventsBackend(b mcp.EventsBackend) {
 // StartSweep removes expired codes and tokens, abandoned registrations, and
 // API keys that stopped working more than 30 days ago.
 func (h *ConnectorHandler) StartSweep(every time.Duration) {
-	h.registerLimiter.startCleanup(10*time.Minute, 2*time.Hour)
-	h.authorizeLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	h.tokenLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	h.uploadLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	h.importStatusLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	go func() {
 		time.Sleep(45 * time.Second)
 		for {

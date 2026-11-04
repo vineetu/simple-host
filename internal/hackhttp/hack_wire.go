@@ -314,11 +314,13 @@ func hackGalleryLink(teamSiteURL func(string, string) string, eventSlug, teamSlu
 // HackScreenshot is the SiteHandler hook for GET/HEAD /screenshots/<team> on
 // the event host. It writes the image only while that team is on the public
 // gallery; otherwise false, and the caller renders the 404.
-func HackScreenshot(database *sql.DB, ready func(string) bool) func(w http.ResponseWriter, r *http.Request, user db.User, team string) bool {
+func HackScreenshot(database *sql.DB, ready func(string) bool, owners ...*HackHandler) func(w http.ResponseWriter, r *http.Request, user db.User, team string) bool {
 	// Public and unauthenticated, each hit reads up to 2 MB from the
 	// database: metered per network address.
 	perIP := httpx.NewRateLimiter(120, 5)
-	perIP.StartCleanup(10*time.Minute, 30*time.Minute)
+	if len(owners) > 0 {
+		owners[0].addLimiter("http.hack.screenshots", perIP)
+	}
 	return func(w http.ResponseWriter, r *http.Request, user db.User, team string) bool {
 		if !hackGallerySlug(team) {
 			return false

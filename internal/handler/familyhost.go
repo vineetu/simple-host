@@ -78,9 +78,9 @@ func (h *SiteHandler) SetAddressFamilies(certDir string) {
 	h.familyCertDir = strings.TrimSpace(certDir)
 	lim := h.limits
 	h.familyCheckLimiter = newRateLimiterFor(lim.RateFamilyCheck)
-	h.familyCheckLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.familyCheckLimiter", h.familyCheckLimiter, 10*time.Minute, 30*time.Minute)
 	h.familyCheckUserLimiter = newRateLimiterFor(lim.RateFamilyCheckUser)
-	h.familyCheckUserLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.familyCheckUserLimiter", h.familyCheckUserLimiter, 10*time.Minute, 30*time.Minute)
 }
 
 // familiesOn: families may exist and be served here.

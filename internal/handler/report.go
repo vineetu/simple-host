@@ -83,7 +83,7 @@ func (h *SiteHandler) ReportHandler() http.Handler {
 	if m, ok := h.mailer.(replyNoticeSender); ok {
 		rh.mailer = m
 	}
-	rh.perIP.startCleanup(10*time.Minute, time.Hour)
+	h.httpCaches.rate("http.site.report_ip", rh.perIP, 10*time.Minute, time.Hour)
 	return rh
 }
 

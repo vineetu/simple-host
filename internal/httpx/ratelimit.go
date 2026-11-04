@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"net"
@@ -101,19 +102,23 @@ func (rl *RateLimiter) AllowHTTP(w http.ResponseWriter, key string) bool {
 
 // StartCleanup periodically evicts idle, fully-refilled buckets so the map
 // can't grow without bound under a churn of distinct keys.
-func (rl *RateLimiter) StartCleanup(every, idle time.Duration) {
-	go func() {
-		ticker := time.NewTicker(every)
-		defer ticker.Stop()
-		for range ticker.C {
+func (rl *RateLimiter) StartCleanup(ctx context.Context, every, idle time.Duration) {
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 			rl.EvictIdle(idle)
 		}
-	}()
+	}
 }
 
 // EvictIdle drops buckets unused for idle that have refilled: a new bucket
 // starts full, so forgetting them changes nothing.
-func (rl *RateLimiter) EvictIdle(idle time.Duration) {
+func (rl *RateLimiter) EvictIdle(idle time.Duration) int {
+	removed := 0
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 	now := rl.Now()
@@ -121,8 +126,10 @@ func (rl *RateLimiter) EvictIdle(idle time.Duration) {
 	for k, b := range rl.buckets {
 		if b.last.Before(cutoff) && b.tokens+now.Sub(b.last).Seconds()*rl.Rate >= rl.Capacity-0.0001 {
 			delete(rl.buckets, k)
+			removed++
 		}
 	}
+	return removed
 }
 
 // BucketCount reports how many distinct keys this limiter currently tracks

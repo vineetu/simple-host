@@ -33,6 +33,7 @@ import (
 	"github.com/vsriram/simple-host/internal/netusage"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // maxSiteArchiveSize caps the upload body. Default 100 MB; override with
@@ -62,7 +63,9 @@ func init() {
 }
 
 type SiteHandler struct {
-	ed *edition.Edition
+	httpCaches   HTTPCaches
+	workerStatus func() []workers.Status
+	ed           *edition.Edition
 	// limitSet is ed.Limits(), held once so a request does not copy the
 	// whole snapshot on every read (limits.go).
 	limitSet
@@ -369,17 +372,11 @@ func NewSiteHandler(ed *edition.Edition, hackInstanceURL string, database *sql.D
 	uploadLimiter := newRateLimiterFor(lim.RateUpload)
 	storageIPLimiter := newRateLimiterFor(lim.RateStorageIP)
 	storageVisitorLimiter := newRateLimiterFor(lim.RateStorageVisitor)
-	storageIPLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	storageVisitorLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+
 	stateLimiter := newRateLimiterFor(lim.RateState)
 	visitorAuthLimiter := newRateLimiterFor(lim.RateVisitorAuth)
 	domainCheckLimiter := newRateLimiterFor(lim.RateDomainCheck)
-	domainCheckLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 	domainCheckUserLimiter := newRateLimiterFor(lim.RateDomainCheckUser)
-	domainCheckUserLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	visitorAuthLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	uploadLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	stateLimiter.startCleanup(10*time.Minute, 30*time.Minute)
 
 	h := &SiteHandler{
 		ed:                     ed,
@@ -413,7 +410,7 @@ func NewSiteHandler(ed *edition.Edition, hackInstanceURL string, database *sql.D
 	h.sqlite = newSQLiteGate(lim.StorageSQLConcurrency, lim.StorageAcquireWait)
 	h.passcode.limitSet = newLimitSet(lim)
 	h.createIdempotency = newCreateIdempotencyStore(lim)
-	h.createIdempotency.startCleanup()
+	h.httpCaches.add("http.site.idempotency", time.Hour, h.createIdempotency.evictExpired)
 	h.SetSavedData(config.DefaultSavedData())
 	if len(previewAccounts) > 0 {
 		ttlHours := int(previewTTL.Hours())
@@ -431,6 +428,13 @@ func NewSiteHandler(ed *edition.Edition, hackInstanceURL string, database *sql.D
 		h.startDomainChecks(h.domainCheckInterval())
 		log.Printf("custom-domain verification enabled: every %s, active re-proved after %s", h.domainCheckInterval(), domainActiveAge)
 	}
+	h.httpCaches.rate("http.site.storageIPLimiter", storageIPLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.storageVisitorLimiter", storageVisitorLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.domainCheckLimiter", domainCheckLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.domainCheckUserLimiter", domainCheckUserLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.visitorAuthLimiter", visitorAuthLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.uploadLimiter", uploadLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.stateLimiter", stateLimiter, 10*time.Minute, 30*time.Minute)
 	return h
 }
 
@@ -486,7 +490,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// Delete, rename and restore each take per-site locks: rate-limited so a
 	// loop cannot pile up locks or disk moves.
 	siteOpLimiter := newRateLimiterFor(h.limits.RateSiteOps)
-	siteOpLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.siteOpLimiter", siteOpLimiter, 10*time.Minute, 30*time.Minute)
 	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSite)))))
 	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.patchSite)))))
 	mux.Handle("POST /v1/sites/{sitename}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.restoreSite)))))
@@ -507,7 +511,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// Owner downloads are heavy (a tar of every site): RATE_LIMIT_EXPORT per
 	// address, like the signed export link.
 	exportLimiter := newRateLimiterFor(h.limits.RateExport)
-	exportLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.exportLimiter", exportLimiter, 10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/me/export.zip", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportMe))))
 	// The address before the download became a .zip; serves the same zip.
 	mux.Handle("GET /v1/me/export.tar.gz", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportMe))))
@@ -549,7 +553,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics/geo", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteGeoAnalytics))))
 	analyticsLimiter := newRateLimiterFor(h.limits.RateAnalytics)
-	analyticsLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.analyticsLimiter", analyticsLimiter, 10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/sites/{sitename}/analytics/top", noticeMiddleware(authMiddleware(rateLimitByIP(analyticsLimiter, http.HandlerFunc(h.getSiteTopAnalytics)))))
 	// Deliberately not /v1/sites/analytics: that would collide with a site
 	// actually named "analytics".
@@ -563,7 +567,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PUT /v1/sites/{sitename}/keep-versions", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.setKeepVersions)))))
 	mux.Handle("GET /v1/admin/idle-sites", authMiddleware(http.HandlerFunc(h.adminIdleSites)))
 	idleLinkLimiter := newRateLimiter(10, 0.1)
-	idleLinkLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.idleLinkLimiter", idleLinkLimiter, 10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/idle/keep", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleKeep)))
 	mux.Handle("POST /v1/idle/keep", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleKeep)))
 	mux.Handle("GET /v1/idle/restore", rateLimitByIP(idleLinkLimiter, http.HandlerFunc(h.idleRestore)))
@@ -600,7 +604,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// waiting for the next background pass.
 	mux.Handle("POST /v1/sites/{sitename}/domain/check", noticeMiddleware(authMiddleware(rateLimitByIP(h.domainCheckLimiter, http.HandlerFunc(h.checkDomainNow)))))
 	tlsAskLimiter := newRateLimiterFor(h.limits.RateTLSAsk)
-	tlsAskLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.tlsAskLimiter", tlsAskLimiter, 10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /internal/tls-ask", rateLimitByIP(tlsAskLimiter, http.HandlerFunc(h.tlsAsk)))
 	mux.HandleFunc("GET /internal/domain-redirect/{handle}/{sitename}", h.domainRedirect)
 	mux.HandleFunc("GET /internal/domain-redirect/{handle}/{sitename}/{rest...}", h.domainRedirect)
@@ -629,8 +633,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("DELETE /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSitePasscode)))))
 	mux.Handle("POST /v1/sites/{sitename}/lock/sign-out-everyone", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.signOutEveryone)))))
 	unlockLimiter := newRateLimiterFor(h.limits.RateVisitor)
-	unlockLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	h.passcode.startSweep(5 * time.Minute)
+	h.httpCaches.rate("http.site.unlockLimiter", unlockLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.add("http.site.passcodes", 5*time.Minute, h.passcode.evict)
 	mux.Handle("POST /v1/site-unlock", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.unlockSite)))
 	// Named viewers (viewers.go): who can open the site, and the gate's own
 	// sign-in and sign-out forms.
@@ -701,7 +705,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("PUT /v1/sites/{sitename}/savers", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.putSavers)))))
 	mux.Handle("POST /v1/sites/{sitename}/savers/block", noticeMiddleware(authMiddleware(rateLimitByIP(h.stateLimiter, http.HandlerFunc(h.blockSaver)))))
 	stopLimiter := newRateLimiter(10, 0.1)
-	stopLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.stopLimiter", stopLimiter, 10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/data-notify/stop", rateLimitByIP(stopLimiter, http.HandlerFunc(h.notifyStop)))
 	mux.Handle("POST /v1/data-notify/stop", rateLimitByIP(stopLimiter, http.HandlerFunc(h.notifyStop)))
 	mux.Handle("GET /v1/sites/{sitename}/data/{coll}", h.passcodeGate(http.HandlerFunc(h.getData)))
@@ -779,7 +783,7 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	// Visitor session cookie is issued here (content host / custom domain),
 	// never on the apex OAuth callback.
 	visitorLimiter := newRateLimiterFor(h.limits.RateVisitor)
-	visitorLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.site.visitorLimiter", visitorLimiter, 10*time.Minute, 30*time.Minute)
 	mux.Handle("GET /v1/visitor/establish", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.establishVisitor)))
 	mux.Handle("POST /v1/visitor/logout", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.logoutVisitor)))
 }

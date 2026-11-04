@@ -922,16 +922,12 @@ func take(m map[string]*passcodeBucket, key string, rate config.Rate, now time.T
 
 // startSweep evicts idle counters every few minutes, so a burst of wrong
 // tries from many addresses does not stay in memory after it ends.
-func (p *passcodeState) startSweep(every time.Duration) {
-	go func() {
-		t := time.NewTicker(every)
-		defer t.Stop()
-		for range t.C {
-			p.mu.Lock()
-			p.sweep(p.clock())
-			p.mu.Unlock()
-		}
-	}()
+func (p *passcodeState) evict() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	before := len(p.ipTries) + len(p.siteTries)
+	p.sweep(p.clock())
+	return before - len(p.ipTries) - len(p.siteTries)
 }
 
 // sweepLocked drops buckets that have refilled and are not locked out, so

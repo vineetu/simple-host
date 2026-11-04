@@ -74,6 +74,7 @@ var hackStagesOfferedList = []string{"draft", "open", "building", "closed", "jud
 
 // HackHandler is the hosted-events API (EVENTS=hosted).
 type HackHandler struct {
+	limiterOwner *limiterWorkers
 	// limits is this instance's edition.Limits() snapshot. A plain field,
 	// not handler's shared limitSet embedding (cleanup 3.2 slice 1c: that
 	// type's methods are unexported in another package once this type
@@ -462,13 +463,6 @@ func (h *HackHandler) exportLinkTTL() time.Duration { return h.limits.ExportLink
 // idleReplyTo is the Reply-To address on the one archive-removal warning
 // (hack_cleanup.go).
 func (h *HackHandler) idleReplyTo() string { return h.limits.IdleReplyTo }
-
-// StartCleanup evicts idle rate-limit buckets; call once from the server.
-func (h *HackHandler) StartCleanup() {
-	for _, l := range []*httpx.RateLimiter{h.codesIP, h.codesUser, h.namesUser, h.entryWrites, h.shotWrites, h.applyIP, h.applyUser} {
-		l.StartCleanup(10*time.Minute, 30*time.Minute)
-	}
-}
 
 // Register adds every /v1/hack/... and /v1/admin/hack/... route in the spec.
 // authMW is auth.Middleware (X-API-Key).

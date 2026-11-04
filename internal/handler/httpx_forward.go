@@ -56,10 +56,6 @@ func (rl *rateLimiter) allowHTTP(w http.ResponseWriter, key string) bool {
 	return rl.RateLimiter.AllowHTTP(w, key)
 }
 
-func (rl *rateLimiter) startCleanup(every, idle time.Duration) {
-	rl.RateLimiter.StartCleanup(every, idle)
-}
-
 func (rl *rateLimiter) evictIdle(idle time.Duration) {
 	rl.RateLimiter.EvictIdle(idle)
 }

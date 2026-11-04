@@ -31,7 +31,8 @@ const (
 )
 
 type UserHandler struct {
-	ed *edition.Edition
+	httpCaches HTTPCaches
+	ed         *edition.Edition
 	limitSet
 	database      *sql.DB
 	mailer        email.Sender
@@ -166,11 +167,10 @@ func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string,
 	// (burst 5). Generous for a human signing in, tight against automation.
 	ipLimiter := newRateLimiterFor(lim.RateSigninIP)
 	emailLimiter := newRateLimiterFor(lim.RateSigninEmail)
-	ipLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	emailLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+
 	checkLimiter := newRateLimiterFor(lim.RateHandleCheck)
-	checkLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	return &UserHandler{
+
+	h := &UserHandler{
 		ed:            ed,
 		limitSet:      newLimitSet(lim),
 		checkLimiter:  checkLimiter,
@@ -181,6 +181,10 @@ func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string,
 		emailLimiter:  emailLimiter,
 		alerts:        newSignInAlerts(database, mailer, publicBaseURL),
 	}
+	h.httpCaches.rate("http.user.ipLimiter", ipLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.user.emailLimiter", emailLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.rate("http.user.checkLimiter", checkLimiter, 10*time.Minute, 30*time.Minute)
+	return h
 }
 
 func (h *UserHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {

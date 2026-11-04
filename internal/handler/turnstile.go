@@ -77,8 +77,8 @@ func newTurnstileVerifier(siteKey, secret, publicBaseURL string) *turnstileVerif
 func (h *SiteHandler) SetTurnstile(siteKey, secret, publicBaseURL string) {
 	h.turnstile = newTurnstileVerifier(siteKey, secret, publicBaseURL)
 	if h.turnstile != nil {
-		h.spamIPLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-		h.spamSiteLimiter.startCleanup(10*time.Minute, 30*time.Minute)
+		h.httpCaches.rate("http.site.spamIPLimiter", h.spamIPLimiter, 10*time.Minute, 30*time.Minute)
+		h.httpCaches.rate("http.site.spamSiteLimiter", h.spamSiteLimiter, 10*time.Minute, 30*time.Minute)
 	}
 }
 
