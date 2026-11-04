@@ -44,35 +44,6 @@ import (
 //   - No live feed (decided later): a page polls GET with If-None-Match and
 //     gets 304 while nothing changed.
 
-// boardWriter is who may add to, change or delete from a board: the owner
-// (key, connector, or signed in on the site, as for Page info), or a visitor
-// signed in on the site's own address with the CSRF header who is allowed to
-// save here, within the per-address write rate. Writes the refusal.
-func (h *SiteHandler) boardWriter(w http.ResponseWriter, r *http.Request, siteID string) (db.Actor, bool) {
-	if r.Header.Get("X-API-Key") != "" || h.ownerBrowserView(r, siteID) {
-		return h.contentWriter(w, r, siteID)
-	}
-	if h.refuseOffline(w, r, siteID) {
-		return db.Actor{}, false
-	}
-	if previewReferer(r) {
-		writePreviewReadOnly(w)
-		return db.Actor{}, false
-	}
-	sess, ok := h.visitorOnSite(w, r, siteID, true)
-	if !ok {
-		return db.Actor{}, false
-	}
-	if !h.personSaverOK(w, r, siteID, sess.UserID) || !h.allowAppend(w, r) {
-		return db.Actor{}, false
-	}
-	if h.boardLimiter != nil && !h.boardLimiter.allow("u:"+sess.UserID) {
-		tooManyRequests(w)
-		return db.Actor{}, false
-	}
-	return h.withAuthorEmail(r.Context(), db.Actor{ID: sess.UserID, Kind: actorVisitor}), true
-}
-
 func (h *SiteHandler) boardItemMax() int64 { return int64(h.savedData.BoardItemMaxKB) << 10 }
 
 func (h *SiteHandler) writeBoardFull(w http.ResponseWriter) {

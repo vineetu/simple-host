@@ -163,3 +163,14 @@ func (a *Adapter) ReadBucket(ctx context.Context, in ReadBucketInput) string {
 	}
 	return "site:" + in.SiteID + "|" + in.ClientIP
 }
+
+// HistoryThinCheckInput identifies a history size and its configured cap.
+type HistoryThinCheckInput struct {
+	SiteID         string
+	Size, CapBytes int64
+}
+
+// HistoryThinPointless reports whether the last ineffective thin is still current.
+func (a *Adapter) HistoryThinPointless(in HistoryThinCheckInput) bool {
+	return a.historyThinPointless(in.SiteID, in.Size, in.CapBytes)
+}

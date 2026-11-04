@@ -222,3 +222,19 @@ func (h *SiteHandler) legacyPersonalPatchSvc(r *http.Request, maxBytes *int64) *
 	}
 	return legacy.New(h.database, h.legacyStorageCutoff, deps)
 }
+
+// legacyBoardWriterSvc supplies request facts for board-write authorization.
+func (h *SiteHandler) legacyBoardWriterSvc(r *http.Request) *legacy.Adapter {
+	deps := h.legacyCollectionRequestDeps(r)
+	deps.ContentOwnerBrowser = func(id string) bool { return h.ownerBrowserView(r, id) }
+	deps.VisitorResolveKey = h.resolveWriterKey
+	deps.ContentAuthor = h.withAuthorEmail
+	deps.VisitorSessionIdle = h.limits.VisitorSessionIdle
+	deps.CollectionStrictSession = func(id string) legacy.CollectionBrowserSession {
+		sess, ok := h.strictVisitorSession(r, id)
+		return legacy.CollectionBrowserSession{UserID: sess.UserID, ID: sess.ID, OK: ok}
+	}
+	deps.CollectionAppendLimit = func() (bool, map[string][]string) { return collectionRateLimit(h.appendLimiter, clientIP(r)) }
+	deps.CollectionBoardLimit = func(userID string) bool { return h.boardLimiter == nil || h.boardLimiter.allow("u:"+userID) }
+	return legacy.New(h.database, h.legacyStorageCutoff, deps)
+}

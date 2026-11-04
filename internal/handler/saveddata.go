@@ -95,11 +95,7 @@ func thinMargin(capBytes int64) int64 { return storagerules.LegacyHistoryThinMar
 
 // thinPointless reports whether the last over-cap thin is still current.
 func (h *SiteHandler) thinPointless(siteID string, size, capBytes int64) bool {
-	v, ok := h.thinStuck.Load(siteID)
-	if !ok {
-		return false
-	}
-	return storagerules.LegacyHistoryThinPointless(size, v.(int64), capBytes, true)
+	return h.historySvc().HistoryThinPointless(legacy.HistoryThinCheckInput{SiteID: siteID, Size: size, CapBytes: capBytes})
 }
 
 // siteMaxBytes is SAVED_DATA_SITE_MAX_MB in bytes.
@@ -196,18 +192,6 @@ func (h *SiteHandler) readBucketSvc() *legacy.Adapter {
 
 func (h *SiteHandler) readBucket(r *http.Request, siteID string) string {
 	return h.readBucketSvc().ReadBucket(r.Context(), legacy.ReadBucketInput{SiteID: siteID, APIKey: r.Header.Get("X-API-Key"), ClientIP: clientIP(r)})
-}
-
-// allowAppend is the per-address limit on list items added without the
-// owner's key (SAVED_DATA_APPEND_PER_MIN, SAVED_DATA_APPEND_BURST). Writes
-// the 429 when refused.
-// TODO(4.3): move this limit into each complete caller workflow in the adapter.
-func (h *SiteHandler) allowAppend(w http.ResponseWriter, r *http.Request) bool {
-	if h.appendLimiter != nil && !h.appendLimiter.allowHTTP(w, clientIP(r)) {
-		tooManyRequests(w)
-		return false
-	}
-	return true
 }
 
 // ---- Idempotency-Key -----------------------------------------------------------

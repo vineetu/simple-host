@@ -1862,3 +1862,47 @@ func (h *SiteHandler) notifyStop(w http.ResponseWriter, r *http.Request) {
 	h.renderMessagePage(w, r, http.StatusOK, "Stopped: no more emails about "+html.EscapeString(name),
 		"Turn them back on any time from your sites page.", h.exportLinkBase()+"/", "Go to Simple Host")
 }
+
+// boardWriter is who may add to, change or delete from a board: the owner
+// (key, connector, or signed in on the site, as for Page info), or a visitor
+// signed in on the site's own address with the CSRF header who is allowed to
+// save here, within the per-address write rate. Writes the refusal.
+func (h *SiteHandler) boardWriter(w http.ResponseWriter, r *http.Request, siteID string) (db.Actor, bool) {
+	result, err := h.legacyBoardWriterSvc(r).BoardWriter(r.Context(), legacy.BoardWriterInput{SiteID: siteID, Key: r.Header.Get("X-API-Key"), Preview: previewReferer(r), ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, VisitorPass: r.Header.Get(visitorPassHeader) != ""})
+	for k, v := range result.Headers {
+		w.Header()[k] = v
+	}
+	if err == nil {
+		return result.Actor, true
+	}
+	var opErr *legacy.Error
+	if errors.As(err, &opErr) {
+		switch opErr.Code {
+		case "site_not_found":
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		case "invalid_api_key":
+			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key", Code: "invalid_api_key"})
+		case "owner_only":
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: "only the site owner can change page info", Code: "owner_only"})
+		case "csrf_required":
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
+		case "site_offline":
+			writeSiteOffline(w)
+		case "preview_read_only":
+			writePreviewReadOnly(w)
+		case "visitor_auth_required":
+			writeVisitorAuthRequired(w)
+		case "account_suspended":
+			writeAccountSuspended(w)
+		case "not_allowed_to_save":
+			writeNotAllowedToSave(w)
+		case "rate_limited":
+			tooManyRequests(w)
+		default:
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		}
+	} else {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	}
+	return db.Actor{}, false
+}

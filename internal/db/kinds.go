@@ -177,7 +177,7 @@ func SetCollectionPrivateLocked(ctx context.Context, database *sql.DB, siteID, n
 }
 
 // BaseEmail normalizes an address for block lists.
-func BaseEmail(email string) string { return storagerules.BaseEmail(email) }
+func BaseEmail(email string) string { return model.BaseEmail(email) }
 
 // ---- Page info (content) --------------------------------------------------------
 

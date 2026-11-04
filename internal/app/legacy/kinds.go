@@ -1138,3 +1138,86 @@ func (a *Adapter) visitorSaver(ctx context.Context, in VisitorWriteInput, actor 
 	}
 	return actor, nil
 }
+
+// BoardWriterInput contains request facts for authorizing a board writer.
+type BoardWriterInput struct {
+	SiteID, Key                                  string
+	Preview, ContentHost, CSRFValid, VisitorPass bool
+}
+
+// BoardWriterResult contains the writer and any reached rate-limit headers.
+type BoardWriterResult struct {
+	Actor   db.Actor
+	Headers map[string][]string
+}
+
+// BoardWriter authorizes a board write and applies its visitor write limits.
+func (a *Adapter) BoardWriter(ctx context.Context, in BoardWriterInput) (out BoardWriterResult, err error) {
+	if in.Key != "" || a.deps.ContentOwnerBrowser(in.SiteID) {
+		ownerID, _, err := db.GetSiteWriteGate(ctx, a.database, in.SiteID)
+		if err != nil {
+			return out, &Error{Code: "site_not_found"}
+		}
+		if in.Key != "" {
+			u, ok, err := a.deps.VisitorResolveKey(ctx, in.Key)
+			if err != nil {
+				return out, err
+			}
+			if !ok {
+				return out, &Error{Code: "invalid_api_key"}
+			}
+			if !u.IsAdmin && u.ID != ownerID {
+				return out, &Error{Code: "site_not_found"}
+			}
+			out.Actor = db.Actor{ID: u.ID, Kind: "owner"}
+			if u.ID != ownerID {
+				out.Actor.Kind = "admin"
+			}
+		} else if a.deps.ContentOwnerBrowser(in.SiteID) {
+			if !in.CSRFValid {
+				return out, &Error{Code: "csrf_required"}
+			}
+			out.Actor = db.Actor{ID: ownerID, Kind: "owner"}
+		} else {
+			return out, &Error{Code: "owner_only"}
+		}
+		out.Actor = a.deps.ContentAuthor(ctx, out.Actor)
+		return out, nil
+	}
+	offline, err := db.SiteOffline(ctx, a.database, in.SiteID)
+	if err != nil {
+		return out, err
+	}
+	if offline {
+		return out, &Error{Code: "site_offline"}
+	}
+	if in.Preview {
+		return out, &Error{Code: "preview_read_only"}
+	}
+	if in.ContentHost {
+		return out, &Error{Code: "visitor_auth_required"}
+	}
+	sess := a.deps.CollectionStrictSession(in.SiteID)
+	if !sess.OK {
+		return out, &Error{Code: "visitor_auth_required"}
+	}
+	if err := a.CheckVisitorAccess(ctx, VisitorAccessInput{UserID: sess.UserID, SessionID: sess.ID, NeedCSRF: true, CSRFValid: in.CSRFValid, Idle: a.deps.VisitorSessionIdle}); err != nil {
+		return out, err
+	}
+	allowed, err := a.PersonSaverAllowed(ctx, PersonSaverInput{SiteID: in.SiteID, UserID: sess.UserID, VisitorPass: in.VisitorPass})
+	if err != nil {
+		return out, err
+	}
+	if !allowed {
+		return out, &Error{Code: "not_allowed_to_save"}
+	}
+	allowed, out.Headers = a.deps.CollectionAppendLimit()
+	if !allowed {
+		return out, &Error{Code: "rate_limited"}
+	}
+	if !a.deps.CollectionBoardLimit(sess.UserID) {
+		return out, &Error{Code: "rate_limited"}
+	}
+	out.Actor = a.deps.ContentAuthor(ctx, db.Actor{ID: sess.UserID, Kind: "visitor"})
+	return out, nil
+}
