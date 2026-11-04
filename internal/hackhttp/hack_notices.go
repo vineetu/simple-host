@@ -15,7 +15,7 @@ import (
 // What each person sees is computed in the events service, so the website's
 // badges and Needs you lines, GET /v1/hack/todos and the AI apps
 // (hack_get_my_todos, hack_get_team_status) always say the same thing.
-// Storage and the email queue: internal/db/hack_notices.go.
+// Storage and the email queue: internal/repository/hackevents/notices.go and notice_delivery.go.
 
 func (h *HackHandler) registerNotices(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("GET /v1/hack/todos", wrap(h.getTodos))
