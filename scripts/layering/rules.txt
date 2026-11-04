@@ -41,24 +41,27 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 {handler,hackhttp,auth,mcp} -> config repository/** storage sitelocks email
 mcp -> mcp/apps/bundlegen
 [transitional]
-app/legacy -> db production # removal step 4.3: legacy adapter still reads Host sites, settings and actors through db
-app/sites -> repository/hackteams production # removal step 4.3: team write-state checks until app/accounts owns shared authorization
-app/storage -> repository/accounts production # removal step 4.3: visitor session checks until app/accounts owns shared authorization
-app/storage -> repository/hackevents production # removal step 4.3: event file-link scope until app/accounts owns shared authorization
-app/storage -> repository/hackteams production # removal step 4.3: team file-link scope until app/accounts owns shared authorization
-db -> repository/accounts production # removal step 4.3: account SQL forwarders for remaining callers
-app/sites -> rules/storage production # removal step 4.3: shared unpacked archive budget rule used by website limits
-db -> repository/legacy production # removal step 4.3: legacy SQL forwarders for remaining callers
-db -> repository/sites production # removal step 4.3: site/version SQL forwarders for remaining callers
-db -> repository/hackevents production # removal step 4.3: event aliases, account cleanup and notification locks
-db -> repository/hackteams production # removal step 4.3: team aliases, account cleanup and team key checks
-db -> repository/hackentries production # removal step 4.3: Host-dependent compatibility aliases
-db -> repository/sqlkit production # removal step 4.3: db keeps the Querier alias until the last repository moves
-db -> model production # removal step 4.3: db keeps type aliases until the last repository moves
+app/legacy -> db production # removal step 5.4: legacy adapter still reads Host sites, settings and actors through db
+app/sites -> repository/hackteams production # removal step 5.4: team write-state checks until app/accounts owns shared authorization
+app/storage -> repository/accounts production # removal step 5.4: visitor session checks until app/accounts owns shared authorization
+app/storage -> repository/hackevents production # removal step 5.4: event file-link scope until app/accounts owns shared authorization
+app/storage -> repository/hackteams production # removal step 5.4: team file-link scope until app/accounts owns shared authorization
+db -> repository/accounts production # removal step 5.4: account SQL forwarders for remaining callers
+app/sites -> rules/storage production # removal step 5.4: shared unpacked archive budget rule used by website limits
+app/legacy -> db test # removal step 5.4: legacy adapter tests use Host db fixtures
+db -> rules/storage production # removal step 5.4: legacy db forwarders call extracted pure storage rules
+repository/sites -> repository/accounts production # removal step 5.4: hostname retirement reuses shared platform-name classification
+db -> repository/legacy production # removal step 5.4: legacy SQL forwarders for remaining callers
+db -> repository/sites production # removal step 5.4: site/version SQL forwarders for remaining callers
+db -> repository/hackevents production # removal step 5.4: event aliases, account cleanup and notification locks
+db -> repository/hackteams production # removal step 5.4: team aliases, account cleanup and team key checks
+db -> repository/hackentries production # removal step 5.4: Host-dependent compatibility aliases
+db -> repository/sqlkit production # removal step 5.4: db keeps the Querier alias until the last repository moves
+db -> model production # removal step 5.4: db keeps type aliases until the last repository moves
 auth -> db production # removal step 5.4: accounts repository
 hackhttp -> @/hack-toolkit production # removal step 5.4: webassets extraction
 hackhttp -> config production # removal step 5.4: final transport boundary
-hackhttp -> db production # removal step 4.3: Host accounts, sites and keys
+hackhttp -> db production # removal step 5.4: Host accounts, sites and keys
 hackhttp -> email production # removal step 5.4: final transport boundary
 hackhttp -> handler test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 hackhttp -> mcp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
@@ -68,34 +71,34 @@ handler -> analytics production # removal step 5.4: worker lifecycle and operati
 handler -> brain production # removal step 5.4: final transport boundary
 handler -> capacity production # removal step 5.4: admin disk-usage reporting moves to app/operations
 handler -> config production # removal step 5.4: final transport boundary
-handler -> db production # removal step 4.3: site and storage workflows
+handler -> db production # removal step 5.4: site and storage workflows
 handler -> email production # removal step 5.4: final transport boundary
-handler -> eventdns production # removal step 4.3: site and storage workflows
+handler -> eventdns production # removal step 5.4: site and storage workflows
 handler -> geoip production # removal step 5.4: worker lifecycle and operations
 handler -> hackhttp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 handler -> imagescan production # removal step 5.4: worker lifecycle and operations
 handler -> netusage production # removal step 5.4: worker lifecycle and operations
 handler -> oauth production # removal step 5.4: final transport boundary
 handler -> papermetrics production # removal step 5.4: worker lifecycle and operations
-handler -> rules/auth production # removal step 4.3: site and storage workflows
-handler -> rules/sites production # removal step 4.3: site and storage workflows
-handler -> rules/storage production # removal step 4.3: site and storage workflows
-handler -> storage production # removal step 4.3: site and storage workflows
-handler -> tarball production # removal step 4.3: site and storage workflows
-handler -> wpimport production # removal step 4.3: site and storage workflows
+handler -> rules/auth production # removal step 5.4: site and storage workflows
+handler -> rules/sites production # removal step 5.4: site and storage workflows
+handler -> rules/storage production # removal step 5.4: site and storage workflows
+handler -> storage production # removal step 5.4: site and storage workflows
+handler -> tarball production # removal step 5.4: site and storage workflows
+handler -> wpimport production # removal step 5.4: site and storage workflows
 handler -> @/simple-host-website production # removal step 5.4: webassets extraction
 hackhttp -> @/hack-toolkit test # removal step 5.4: webassets extraction
-hackhttp -> db test # removal step 4.3: Host fixtures and Hack compatibility aliases
-hackhttp -> rules/auth test # removal step 4.3: site and storage workflows
+hackhttp -> db test # removal step 5.4: Host fixtures and Hack compatibility aliases
+hackhttp -> rules/auth test # removal step 5.4: site and storage workflows
 hackhttp -> rules/hackevents test # removal step 5.4: event rule tests
 hackhttp -> rules/hackentries test # removal step 5.4: rubric test fixtures
 handler -> analytics test # removal step 5.4: worker lifecycle and operations
 handler -> brain test # removal step 5.4: final transport boundary
 handler -> capacity test # removal step 5.4: admin disk-usage reporting moves to app/operations
-handler -> db test # removal step 4.3: site and storage workflows
+handler -> db test # removal step 5.4: site and storage workflows
 handler -> geoip test # removal step 5.4: worker lifecycle and operations
 handler -> imagescan test # removal step 5.4: worker lifecycle and operations
 handler -> oauth test # removal step 5.4: final transport boundary
-handler -> tarball test # removal step 4.3: site and storage workflows
-handler -> wpimport test # removal step 4.3: site and storage workflows
+handler -> tarball test # removal step 5.4: site and storage workflows
+handler -> wpimport test # removal step 5.4: site and storage workflows
 handler -> @/simple-host-website test # removal step 5.4: webassets extraction
