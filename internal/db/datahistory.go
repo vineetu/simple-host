@@ -153,70 +153,7 @@ func WriteSiteState(ctx context.Context, database *sql.DB, siteID string, state 
 	return next, tx.Commit()
 }
 
-// StatePatch is one PATCH of the document: Before is the document as read
-// (decoded), After the same with the ops applied, Next After as saved.
-type StatePatch struct {
-	Before any
-	After  any
-	Next   json.RawMessage
-}
-
-// PatchSiteState runs a PATCH in one transaction. apply gets the document,
-// read with the site row locked, and returns the patch or an error, which is
-// passed back as is. The change goes to history as a reverse diff, or as a
-// full copy on the day's first change, when none of the last snapshotEvery
-// changes is one, or when the diff would be about as large. ErrSiteFull when
-// the document grew and the site is past maxBytes. Returns the new version.
-func PatchSiteState(ctx context.Context, database *sql.DB, siteID string, a Actor, maxBytes int64, snapshotEvery int, apply func(cur json.RawMessage) (StatePatch, error)) (int, error) {
-	tx, err := database.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-	cur, _, size, err := lockState(ctx, tx, siteID)
-	if err != nil {
-		return 0, err
-	}
-	p, err := apply(cur)
-	if err != nil {
-		return 0, err
-	}
-	ver, err := setStateWithin(ctx, tx, siteID, p.Next, size, maxBytes)
-	if err != nil {
-		return 0, err
-	}
-	if err := recordStatePatch(ctx, tx, siteID, cur, p, snapshotEvery, a); err != nil {
-		return 0, err
-	}
-	return ver, tx.Commit()
-}
-
-func recordStatePatch(ctx context.Context, tx *sql.Tx, siteID string, prev json.RawMessage, p StatePatch, snapshotEvery int, a Actor) error {
-	d, err := reverseDiff(p.Before, p.After)
-	if err != nil {
-		return err
-	}
-	if len(d) == 0 {
-		return nil
-	}
-	diff, err := json.Marshal(d)
-	if err != nil {
-		return err
-	}
-	full := len(diff)*2 >= len(prev)
-	if !full {
-		fullToday, fullRecent, err := legacy.FullStateSnapshots(ctx, tx, siteID, snapshotEvery)
-		if err != nil {
-			return err
-		}
-		full = !fullToday || !fullRecent
-	}
-	if full {
-		return recordHistory(ctx, tx, siteID, HistoryState, "", nil, OpChange, prev, a)
-	}
-	err = legacy.InsertStateDiff(ctx, tx, siteID, OpChange, diff, a)
-	return err
-}
+type StatePatch = model.StatePatch
 
 // stateBefore rebuilds the document as it was just before state change id:
 // the row's own full copy, else the nearest newer full copy (or the current

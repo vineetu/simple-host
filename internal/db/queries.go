@@ -129,24 +129,8 @@ func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKe
 	return tx.Commit()
 }
 
-// GetUserByHandle looks up a user by their URL-safe handle.
 func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, error) {
-	const query = `
-		SELECT id, username, is_admin, created_at, handle, display_name
-		FROM users
-		WHERE handle = $1
-	`
-
-	var user User
-	err := db.QueryRowContext(ctx, query, handle).Scan(
-		&user.ID,
-		&user.Username,
-		&user.IsAdmin,
-		&user.CreatedAt,
-		&user.Handle,
-		&user.DisplayName,
-	)
-	return user, err
+	return accounts.GetUserByHandle(ctx, db, handle)
 }
 
 // GetHandleBySiteName returns the URL-safe handle of the OLDEST owner of a site
@@ -304,43 +288,10 @@ func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) { return list
 // ListSiteOwners excludes visitor-only identities from signup statistics.
 func ListSiteOwners(ctx context.Context, db *sql.DB) ([]User, error) { return listUsers(ctx, db, true) }
 func listUsers(ctx context.Context, db *sql.DB, withSites bool) ([]User, error) {
-	filter := ""
 	if withSites {
-		filter = " WHERE EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id)"
+		return accounts.ListSiteOwners(ctx, db)
 	}
-	rows, err := db.QueryContext(ctx, `
-		SELECT id, username, is_admin, created_at, COALESCE(handle, ''), display_name,
-		       suspended_at IS NOT NULL, COALESCE(suspended_reason, ''),
-		       COALESCE(signup_source, ''), COALESCE(signup_agent, ''), COALESCE(signup_method, ''), signup_inferred,
-		       signup_detail
-		FROM users`+filter+`
-		ORDER BY created_at ASC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []User
-	for rows.Next() {
-		var u User
-		var handle string
-		var detail []byte
-		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.CreatedAt, &handle, &u.DisplayName, &u.Suspended, &u.SuspendedReason,
-			&u.Signup.Source, &u.Signup.Agent, &u.Signup.Method, &u.Signup.Inferred, &detail); err != nil {
-			return nil, err
-		}
-		if len(detail) > 0 {
-			var d SignupDetail
-			if json.Unmarshal(detail, &d) == nil {
-				u.Signup.Detail = &d
-			}
-		}
-		if handle != "" {
-			u.Handle = sql.NullString{String: handle, Valid: true}
-		}
-		out = append(out, u)
-	}
-	return out, rows.Err()
+	return accounts.ListAllUsers(ctx, db)
 }
 
 // SetSiteOffline takes a site offline (on) or brings it back (off). Nothing

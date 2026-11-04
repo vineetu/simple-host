@@ -21,30 +21,21 @@ type Signup = model.Signup
 type SignupDetail = model.SignupDetail
 
 const (
-	SignupWebsite = "website"
-	// SignupArtifactHub is a website sign-up by a visitor who arrived through
-	// artifact-hub.com (INTENT 2026-10-15).
-	SignupArtifactHub = "artifact-hub"
-	// SignupVercelShip is a website sign-up by a visitor who arrived through
-	// the post-poll link on ship.vineetsriram.com (Vercel Ship, 2026-10-15).
-	SignupVercelShip = "vercel-ship"
-	// SignupAgentCon is a website sign-up by a visitor who arrived through the
-	// QR code and link given out at Agent Con, San Jose (2026-10-22).
-	SignupAgentCon = "agentcon"
-	// SignupFromPrefix marks a /?from= value with no name in the handler's
-	// arrival source list: "from:<value>".
-	SignupFromPrefix      = "from:"
-	SignupConnectorPrefix = "connector:"
-	SignupAgent           = "agent"
-	SignupVisitor         = "visitor"
-	SignupAdmin           = "admin"
-	SignupReviewer        = "reviewer"
-
-	SignupMethodEmail    = "email"
-	SignupMethodGoogle   = "google"
-	SignupMethodGitHub   = "github"
-	SignupMethodIssued   = "issued"
-	SignupMethodPassword = "password"
+	SignupWebsite         = model.SignupWebsite
+	SignupArtifactHub     = model.SignupArtifactHub
+	SignupVercelShip      = model.SignupVercelShip
+	SignupAgentCon        = model.SignupAgentCon
+	SignupFromPrefix      = model.SignupFromPrefix
+	SignupConnectorPrefix = model.SignupConnectorPrefix
+	SignupAgent           = model.SignupAgent
+	SignupVisitor         = model.SignupVisitor
+	SignupAdmin           = model.SignupAdmin
+	SignupReviewer        = model.SignupReviewer
+	SignupMethodEmail     = model.SignupMethodEmail
+	SignupMethodGoogle    = model.SignupMethodGoogle
+	SignupMethodGitHub    = model.SignupMethodGitHub
+	SignupMethodIssued    = model.SignupMethodIssued
+	SignupMethodPassword  = model.SignupMethodPassword
 )
 
 // signupFieldMax caps each stored field; the values come partly from the
