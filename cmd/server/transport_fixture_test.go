@@ -31,7 +31,6 @@ import (
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/hackhttp"
@@ -39,6 +38,7 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/storage"
 )
@@ -146,7 +146,7 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	h.ShareAssets(handler.NewPages(ed, srv.URL))
 	h.SetHandleChecker(hackHandleCheckerForTest)
 	h.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
-		return db.GetUserByAPIKey(ctx, database, key, idle)
+		return accountapp.New(database).GetUserByAPIKey(ctx, key, idle)
 	})
 	h.Register(mux, authMW)
 	root = mux
@@ -613,7 +613,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	if err := database.Ping(); err != nil {
 		t.Skipf("postgres not reachable: %v", err)
 	}
-	if err := db.VerifyHackSchema(context.Background(), database); err != nil {
+	if err := operationrepo.VerifyHackSchema(context.Background(), database); err != nil {
 		t.Fatalf("test database is behind the schema: %v", err)
 	}
 	disk, err := storage.NewDiskStorage(t.TempDir())
@@ -660,7 +660,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.hack.ShareAssets(a.sites.Pages())
 	a.hack.SetHandleChecker(hackHandleCheckerForTest)
 	a.hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
-		return db.GetUserByAPIKey(ctx, database, key, idle)
+		return accountapp.New(database).GetUserByAPIKey(ctx, key, idle)
 	})
 	a.hack.SetSites(a.sites)
 	a.hack.Register(mux, authMW)

@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
-	dbpkg "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/handler"
+	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 const moveSiteBaseUsage = `usage: simple-host move-site-base --from DOMAIN --to DOMAIN [--apply]
@@ -48,11 +49,11 @@ func runMoveSiteBaseCommand(args []string) int {
 	defer database.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	if err := dbpkg.VerifySchema(ctx, database); err != nil {
+	if err := operationrepo.VerifySchema(ctx, database); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	rep, err := dbpkg.MoveSiteBase(ctx, database, *from, *to, handler.LabelReserved, *apply)
+	rep, err := siterepo.MoveSiteBase(ctx, database, *from, *to, handler.LabelReserved, *apply)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1

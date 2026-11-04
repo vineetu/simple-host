@@ -11,7 +11,7 @@ import (
 	schema "github.com/vsriram/simple-host/db"
 	"github.com/vsriram/simple-host/db/migrations"
 	"github.com/vsriram/simple-host/internal/buildinfo"
-	dbpkg "github.com/vsriram/simple-host/internal/db"
+	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
 )
 
 const migrateUsage = `usage: simple-host migrate [-init | -status | -mark FILE]
@@ -129,7 +129,7 @@ func migrateDatabase(ctx context.Context, database *sql.DB, initSchema bool, log
 	} else {
 		logf("applied %d migration(s)", len(ran))
 	}
-	return dbpkg.VerifySchema(ctx, database)
+	return operationrepo.VerifySchema(ctx, database)
 }
 
 func waitForDB(database *sql.DB, limit time.Duration) error {

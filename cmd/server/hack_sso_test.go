@@ -13,9 +13,9 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
+	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func TestSSOHackEventAndTeamHosts(t *testing.T) {
@@ -37,7 +37,7 @@ func TestSSOHackEventAndTeamHosts(t *testing.T) {
 	for _, host := range []string{team + "." + event + "." + tsDomain, event + "." + tsDomain} {
 		raw, _ := pa.finishSSO(t, host, pass)
 		id, _ := hex.DecodeString(raw)
-		sess, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
+		sess, err := accountrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
 		if err != nil || sess.Host != host {
 			t.Fatalf("Hack site pass: %v", err)
 		}

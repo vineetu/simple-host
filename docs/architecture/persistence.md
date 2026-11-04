@@ -11,7 +11,7 @@ Hack transitions and transaction boundaries.
 
 | Store | Contents | Implementation and workflow owner |
 |---|---|---|
-| PostgreSQL | Accounts, sites, versions, policies, KV, legacy data, Hack records, outboxes, metrics | `internal/db` and area packages in `internal/repository/*`; application services orchestrate extracted workflows |
+| PostgreSQL | Accounts, sites, versions, policies, KV, legacy data, Hack records, outboxes, metrics | Area packages in `internal/repository/*`; application services orchestrate workflows |
 | Per-resource SQLite | A site's tables, indexes, views and triggers | `internal/storage/runtime_*.go` implements mechanics; `internal/app/storage` owns policy, quotas and mutations |
 | Deploy files | Retained version trees and the live serving copy | `internal/storage/disk.go`, called by `internal/app/sites.Service` |
 | Runtime files | Uploaded bucket objects and SQLite database files | `internal/storage` mechanics and `internal/app/storage.Service`; image scanning also removes flagged bytes |
@@ -22,10 +22,9 @@ storage for a website, not a replacement for PostgreSQL. Enterprise replicas/S3
 are outside this local SQLite contract; see
 [site storage primitives](../designs/site-storage-primitives.md).
 
-The boundary is not completely extracted: notifications still use
-`internal/db/notifications.go` and `internal/handler/notify.go`, and legacy
-services still call some `internal/db` functions. The target package map is a
-[cleanup contract](target.md), not evidence that every target package exists.
+SQL belongs to the area repositories; the retired `internal/db` compatibility
+package has no remaining callers. Startup schema verification lives in
+`internal/repository/operations/schemacheck.go`. See the [package contract](target.md).
 
 The pinned CGO-free `ncruces/go-sqlite3` driver uses compiled Go translated from
 its SQLite WebAssembly build. It needs neither runtime code generation nor
@@ -72,8 +71,7 @@ entry reminders, rubric criteria, assignments, conflicts, scores, votes and
 results. `events.account_id` identifies the holding account whose sites host
 team and event websites; membership is a separate relationship, not site
 ownership transferred to every participant. SQL lives in
-`repository/hackevents`, `repository/hackteams`, `repository/hackentries`, with
-remaining `db` compatibility functions. See [Hack domain](hack-domain.md).
+`repository/hackevents`, `repository/hackteams` and `repository/hackentries`. See [Hack domain](hack-domain.md).
 
 Analytics and operational records also belong to the database:
 
@@ -179,7 +177,7 @@ Do not treat an upload mutex as a global filesystem lock across processes.
 | Account/site within one process | `internal/handler/site.go:lockSite` uses `uploadLocks` keyed by user/name; `storagecaps.go:lockAccountFiles` uses the empty site name for the account cap lock |
 | Runtime resource writes | `internal/app/storage/service.go:writeLock` uses the injected shared mutex map, bounded wait/write contexts and a resource recheck under lock |
 | PostgreSQL site/user mutation | `repository/sites/sites.go:LockSiteForUpdate`, `LockUserHandle`, `LockUserForFileCaps` use row locks within the caller's transaction |
-| Domain/namespace claims | Transaction advisory locks in `internal/db/domains.go`, `internal/db/families.go` and `repository/accounts/accounts.go:LockPlatformName` serialize competing claims |
+| Domain/namespace claims | Transaction advisory locks in `internal/repository/sites/domains.go`, `internal/repository/sites/store_families.go` and `repository/accounts/accounts.go:LockPlatformName` serialize competing claims |
 | SQLite capacity | `internal/storage/sqlite_gate.go:SQLiteGate` bounds concurrent work; SQLite transactions/authorizers control individual statements |
 | Migrations and delivery | Database locks/leases described below; these work across processes |
 
@@ -226,7 +224,7 @@ secrets and `notification:<id>:header` for header tokens. Values are opened only
 when needed for signing, sending or refresh comparison. New subscriptions need
 the encryption key; startup can seal old plaintext records as a data-only sweep.
 Evidence: `internal/handler/notify_secrets.go`, `passcode.go`,
-`internal/db/notifications.go:SaveNotification`, `SealNotificationSecrets`.
+`internal/repository/notifications/notifications.go:SaveNotification`, `SealNotificationSecrets`.
 
 `emitSiteEvent` locks the site row, appends `site_events` with increasing `seq`,
 and inserts matching `site_event_deliveries` in one PostgreSQL transaction.
@@ -235,8 +233,8 @@ until retention cleanup. The outbox insert is separate from the originating
 storage mutation: services release write locks before emitting notifications.
 There is no atomic PostgreSQL/SQLite/file/outbox commit.
 
-The worker is `internal/handler/notify.go` (`StartNotifications`,
-`deliverNotification`, `processNotification`); SQL is in `internal/db/notifications.go`:
+Delivery runs through `internal/app/notifications/delivery.go` (`Deliver`,
+`ProcessDelivery`), started by `internal/handler/notify.go:StartNotifications`; SQL is in `internal/repository/notifications/notifications.go`:
 
 - `ClaimNotificationDelivery` expires old leases, counting them as timeout
   attempts; selects due eligible work with `FOR UPDATE OF d SKIP LOCKED`; and
@@ -305,7 +303,7 @@ instance database backup or all retained deployment versions. Evidence:
 `internal/app/legacy.Adapter` is the shared compatibility workflow layer for
 state, collections/private submissions, declared kinds/data, Personal `mine`,
 shared `board`, savers, history/undo, watch and notification behavior. Its SQL is
-in `internal/repository/legacy` plus remaining `internal/db` functions. HTTP and
+in `internal/repository/legacy`. HTTP and
 MCP reuse this adapter; there is no separate MCP legacy persistence engine.
 
 Host keeps these APIs because live sites can depend on their versions, origin

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // Covers the two Hack storage identities and the visitor's event origin.
@@ -81,7 +81,7 @@ func TestHackStorageScopedReview(t *testing.T) {
 	if _, err := rand.Read(sessionID[:]); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.InsertVisitorSession(context.Background(), a.database, sessionID[:], a.uid(t, other), eventSiteID, eventHost, time.Now().Add(time.Hour), time.Now().Add(time.Hour)); err != nil {
+	if _, err := accountrepo.InsertVisitorSession(context.Background(), a.database, sessionID[:], a.uid(t, other), eventSiteID, eventHost, time.Now().Add(time.Hour), time.Now().Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM visitor_sessions WHERE id=$1`, sessionID[:]) })
