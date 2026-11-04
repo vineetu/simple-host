@@ -818,7 +818,7 @@ func (a *Adapter) authorizeCollectionSaver(ctx context.Context, siteID string, a
 			return &Error{Code: "internal"}
 		}
 	}
-	allowed, err := db.SaverAllowed(ctx, a.database, siteID, email)
+	allowed, err := a.saverAllowed(ctx, siteID, email)
 	if err != nil {
 		return &Error{Code: "internal"}
 	}
@@ -1161,7 +1161,7 @@ func (a *Adapter) appendPrivate(ctx context.Context, in AppendWriteInput) (out A
 		return out, &Error{Code: "internal"}
 	}
 	if visitor {
-		allowed, err := db.SaverAllowed(ctx, a.database, siteID, email)
+		allowed, err := a.saverAllowed(ctx, siteID, email)
 		if err != nil {
 			return out, &Error{Code: "internal"}
 		}

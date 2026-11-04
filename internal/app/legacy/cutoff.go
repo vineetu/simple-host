@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
@@ -27,6 +28,38 @@ type Deps struct {
 	AdminAPIKey                    string
 	KeyIdleExpiry                  time.Duration
 	ResolveNamedSite               func(context.Context, string) (string, error)
+	BoundHistory                   func(context.Context, string)
+	ResolveMineSession             func(string) (db.VisitorSession, bool)
+	VisitorOwnerKeyWrite           func(string) bool
+	VisitorDomainElsewhere         func(string) (string, bool)
+	VisitorOwnAddress              func(context.Context, string) (db.SiteDomainInfo, bool, error)
+	VisitorInternalSession         func(string) (db.VisitorSession, bool)
+	VisitorResolveKey              func(context.Context, string) (db.User, bool, error)
+	VisitorKeyActor                func(string) db.Actor
+	VisitorSessionValid            func(db.VisitorSession, string) bool
+	VisitorLog                     func(string, string)
+	VisitorLogKey                  func(string, bool)
+	ContentOwnerBrowser            func(string) bool
+	ContentBody                    func() ([]byte, error)
+	ContentDeclareFirst            func() bool
+	ContentSiteMaxBytes            func() int64
+	ContentAuthor                  func(context.Context, db.Actor) db.Actor
+	HistoryThinStuck               *sync.Map
+	HistoryThinAllowed             func(string) bool
+	DataReadLimit                  func(string) bool
+	DataOwnerBrowser               func(string) bool
+	MineResolveSite                func(string) (string, error)
+	MineReadLimit                  func(string) bool
+	KindOwnerSite                  func(string) (string, bool)
+	KindOriginAllowed              func(string) bool
+	KindResolveSite                func(string) (string, error)
+	KindReadLimit                  func(string) bool
+	DataAdminMismatch              func(string) bool
+	DataPrivateRead                func(context.Context, string) (db.VisitorSession, error)
+	PersonalSession                func(string) (db.VisitorSession, bool)
+	PersonalReadBody               func() ([]byte, []byte, error)
+	PersonalWriteLimit             func() bool
+	SweepEvict                     func()
 	ResolveWriteSite               func(context.Context, string) (string, error)
 	CollectionOwnerDomain          func(context.Context, string) (string, bool, error)
 	CollectionBrowserSession       func(context.Context, string) CollectionBrowserSession

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	legacy "github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -252,6 +253,14 @@ func TestSubmissionsRules(t *testing.T) {
 	}
 	if d := mine[0]["data"].(map[string]any); d["_submitted_by"] != s.vic.email {
 		t.Fatalf("stamp: %v", d)
+	}
+	page := s.as(t, s.vicCooky, "GET", base+"?mine=1&limit=1", nil).json(t)
+	if page["next"] != mine[0]["id"] {
+		t.Fatalf("mine next cursor: %v", page)
+	}
+	last := s.as(t, s.vicCooky, "GET", base+"?mine=1&limit=1&before="+vicID, nil).json(t)
+	if len(last["items"].([]any)) != 0 || last["next"] != nil {
+		t.Fatalf("mine last page: %v", last)
 	}
 	wantCode(t, "mine, not signed in", s.a.at(t, "GET", s.dom, base+"?mine=1", nil, nil), 401, "visitor_auth_required")
 
@@ -796,4 +805,98 @@ type failingNoticeMailer struct{}
 func (failingNoticeMailer) SendSignInCode(string, string, string) error { return nil }
 func (failingNoticeMailer) SendNotice(string, string, string) error {
 	return errors.New("smtp down")
+}
+
+func TestMineSiteSuspensionBeforeVisitorAuth(t *testing.T) {
+	s := newKindsSite(t, false)
+	path := "/v1/sites/shop/data/rsvps?mine=1"
+	if _, err := s.a.database.Exec(`UPDATE sites SET suspended_at = now(), suspended_reason = 'test' WHERE id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, "suspended mine without session", s.a.at(t, "GET", s.dom, path, nil, nil), http.StatusForbidden, "site_suspended")
+	if _, err := s.a.database.Exec(`UPDATE sites SET suspended_at = NULL, suspended_reason = NULL WHERE id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, "mine without session", s.a.at(t, "GET", s.dom, path, nil, nil), http.StatusUnauthorized, "visitor_auth_required")
+}
+
+func TestDataKindSiteStatusAndOwnerKey(t *testing.T) {
+	s := newKindsSite(t, false)
+	s.declare(t, "rsvps", map[string]any{"kind": "entries"})
+	path := "/v1/sites/shop/data/rsvps/kind"
+	s.declare(t, "menu", map[string]any{"kind": "content"})
+	dataPath := "/v1/sites/shop/data/menu"
+	if _, err := s.a.database.Exec(`UPDATE sites SET suspended_at = now(), suspended_reason = 'test' WHERE id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, "suspended kind", s.a.at(t, "GET", s.dom, path, nil, nil), http.StatusForbidden, "site_suspended")
+	wantCode(t, "suspended kind owner", s.owner(t, "GET", path, nil), http.StatusOK, "")
+	wantCode(t, "suspended data", s.a.at(t, "GET", s.dom, dataPath, nil, nil), http.StatusForbidden, "site_suspended")
+	wantCode(t, "suspended data owner", s.owner(t, "GET", dataPath, nil), http.StatusOK, "")
+	if _, err := s.a.database.Exec(`UPDATE sites SET suspended_at = NULL, suspended_reason = NULL, offline_at = now() WHERE id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, "offline kind", s.a.at(t, "GET", s.dom, path, nil, nil), http.StatusForbidden, "site_offline")
+	wantCode(t, "offline kind owner", s.owner(t, "GET", path, nil), http.StatusOK, "")
+	wantCode(t, "offline data", s.a.at(t, "GET", s.dom, dataPath, nil, nil), http.StatusForbidden, "site_offline")
+	wantCode(t, "offline data owner", s.owner(t, "GET", dataPath, nil), http.StatusOK, "")
+}
+
+type observedContentBody struct {
+	*strings.Reader
+	reads int
+}
+
+func (b *observedContentBody) Read(p []byte) (int, error) { b.reads++; return b.Reader.Read(p) }
+func (b *observedContentBody) Close() error               { return nil }
+
+func TestContentAuthorizesBeforeBody(t *testing.T) {
+	s := newKindsSite(t, false)
+	s.declare(t, "menu", map[string]any{"kind": "content"})
+	body := &observedContentBody{Reader: strings.NewReader(`{"x":1}`)}
+	r := &http.Request{Body: body}
+	_, err := s.a.sites.contentSvc(r, http.Header{}).PutData(context.Background(), legacy.PutDataInput{PutContentInput: legacy.PutContentInput{SiteID: s.shopID, Name: "menu", Key: "invalid-key"}})
+	var serviceErr *legacy.Error
+	if !errors.As(err, &serviceErr) || serviceErr.Code != "invalid_api_key" || body.reads != 0 {
+		t.Fatalf("unauthorized body: error=%v reads=%d", err, body.reads)
+	}
+	s.declare(t, "rsvps", map[string]any{"kind": "entries"})
+	_, err = s.a.sites.contentSvc(r, http.Header{}).PutData(context.Background(), legacy.PutDataInput{PutContentInput: legacy.PutContentInput{SiteID: s.shopID, Name: "rsvps", Key: "invalid-key"}})
+	if !errors.As(err, &serviceErr) || serviceErr.Code != "content_wrong_kind" || body.reads != 0 {
+		t.Fatalf("wrong kind before key and body: error=%v reads=%d", err, body.reads)
+	}
+	if _, err := s.a.database.Exec(`UPDATE sites SET suspended_at = now(), suspended_reason = 'test' WHERE id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.a.sites.contentSvc(r, http.Header{}).PutData(context.Background(), legacy.PutDataInput{PutContentInput: legacy.PutContentInput{SiteID: s.shopID, Name: "menu", Key: "invalid-key"}})
+	if !errors.As(err, &serviceErr) || serviceErr.Code != "site_suspended" || body.reads != 0 {
+		t.Fatalf("suspension before key and body: error=%v reads=%d", err, body.reads)
+	}
+	if _, err := s.a.database.Exec(`UPDATE sites SET suspended_at = NULL, suspended_reason = NULL WHERE id = $1`, s.shopID); err != nil {
+		t.Fatal(err)
+	}
+	body = &observedContentBody{Reader: strings.NewReader(`{"x":1}`)}
+	r.Body = body
+	_, err = s.a.sites.contentSvc(r, http.Header{}).PutData(context.Background(), legacy.PutDataInput{PutContentInput: legacy.PutContentInput{SiteID: s.shopID, Name: "menu", Key: s.olive.key}})
+	if err != nil || body.reads == 0 {
+		t.Fatalf("authorized body: error=%v reads=%d", err, body.reads)
+	}
+	s.setLimits(t, func(c *config.SavedData) { c.ContentMaxKB = 1 })
+	wantCode(t, "large content", s.owner(t, "PUT", "/v1/sites/shop/data/menu", map[string]any{"x": strings.Repeat("a", 2048)}), http.StatusRequestEntityTooLarge, "item_too_large")
+	request, err := http.NewRequest("PUT", s.a.srv.URL+"/v1/sites/shop/data/menu", strings.NewReader(`{"x":"`+strings.Repeat("a", 2048)+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Host = pcSiteDomain
+	request.Header.Set("X-API-Key", s.olive.key)
+	request.Header.Set("X-Forwarded-Proto", "https")
+	request.Header.Set("Content-Type", "application/json")
+	response, err := s.a.srv.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusRequestEntityTooLarge || !response.Close {
+		t.Fatalf("large content connection: status=%d close=%v", response.StatusCode, response.Close)
+	}
 }
