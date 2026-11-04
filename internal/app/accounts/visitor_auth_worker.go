@@ -23,7 +23,7 @@ func NewVisitorAuthWorker(service *Service) *VisitorAuthWorker {
 }
 func (o *VisitorAuthWorker) Start(ctx context.Context) {
 	o.startOnce.Do(func() {
-		if o.service.database == nil {
+		if o.service == nil || o.service.database == nil {
 			return
 		}
 		o.runner.Go(ctx, func(ctx context.Context) {

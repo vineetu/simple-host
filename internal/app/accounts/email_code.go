@@ -86,14 +86,14 @@ func (s *Service) IssueEmailCode(ctx context.Context, mailer CodeSender, allow f
 
 	code, err := numericCode(6)
 	if err != nil {
-		log.Printf("auth: numericCode: %v", err)
+		log.Printf("auth: generateNumericCode: %v", err)
 		return "", 0, http.StatusInternalServerError, CodeFailure{Error: "internal server error"}
 	}
 	// Visitor rows still need a random UNIQUE NOT NULL link token.
 	// GetAuthTokenByLink refuses non-dashboard rows, so it is inert for the dashboard link flow.
 	linkToken, err := secureHex(24)
 	if err != nil {
-		log.Printf("auth: secureHex: %v", err)
+		log.Printf("auth: generateLinkToken: %v", err)
 		return "", 0, http.StatusInternalServerError, CodeFailure{Error: "internal server error"}
 	}
 

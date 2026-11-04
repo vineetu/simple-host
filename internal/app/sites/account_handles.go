@@ -109,7 +109,7 @@ func AssignHandle(ctx context.Context, q HandleStore, userID, email string, rand
 			return
 		}
 	}
-	log.Printf("auth: AssignHandle: no free handle for user %s (base=%s)", userID, base)
+	log.Printf("auth: assignHandle: no free handle for user %s (base=%s)", userID, base)
 }
 
 func HandleAddress(handle string) string {
