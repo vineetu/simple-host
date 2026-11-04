@@ -4,20 +4,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/testdb"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
-// testHackPages is the hack-event.html template cache every test fixture in
-// this package shares (HackEventPage, RegisterHackPublic, and the tests
-// that call renderHackEventPage/writeHackEventNotFound directly), built
-// from the same embedded static/ tree main.go uses in production
-// (handler.EmbeddedStatic()). cmd/server/main.go builds its own
-// hackhttp.NewHackEventPages the same way; a test binary never runs main,
-// so this package needs its own, test-only handler import (cleanup 3.2
-// slice 3; the value itself replaces the old package-level
-// SetEmbeddedStatic in slice 4).
-var testHackPages = NewHackEventPages(handler.EmbeddedStatic())
+// testHackPages is the shared event template cache built from embedded assets.
+var testHackPages = NewHackEventPages(webassets.Static)
 
 // TestMain runs this package's tests in a disposable per-process database
 // when TESTDB_ISOLATE=1 (see internal/testdb). Duplicated from

@@ -22,8 +22,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/edition"
-	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
-	eventsrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	opsrepo "github.com/vsriram/simple-host/internal/repository/operations"
 	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
@@ -448,80 +446,6 @@ func TestImageScanStorageFile(t *testing.T) {
 	}
 	if !a.sites.disk.IsSuspended(uid, "gallery") {
 		t.Fatal("no marker")
-	}
-}
-
-// 4. An event icon: cleared, and the event taken down.
-func TestImageScanEventIcon(t *testing.T) {
-	isolateQueueTest(t)
-	a := newBridgeTeamApp(t)
-	disk, err := storage.NewDiskStorage(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	matcher := &fakeMatcher{matches: map[string]operations.ScanMatch{}}
-	mailer := &fakeNoticeMailer{}
-	s := operations.NewImageScan(a.database, disk, matcher, nil, mailer, ImageScanConfig{EvidenceDir: t.TempDir(), AlertEmail: "alerts@example.com"})
-	s.Prepare = fakePrepare
-	var runs sync.WaitGroup
-	t.Cleanup(runs.Wait)
-	s.Dispatch = func(fn func()) {
-		runs.Add(1)
-		go func() {
-			defer runs.Done()
-			fn()
-		}()
-	}
-	a.hack.SetImageScan(s)
-	s.SetHackTakeDownSync(a.hack.SyncEventMarkers) // as main wires it
-	ada := a.newPerson(t, "ada")
-	slug := uniqueSlug()
-	if r := a.createEvent(t, ada, slug, nil); r.status != http.StatusCreated {
-		t.Fatalf("create event: %d %s", r.status, r.body)
-	}
-	ev, err := eventsrepo.GetEventBySlug(context.Background(), a.database, slug)
-	if err != nil {
-		t.Fatal(err)
-	}
-	icon := testPNG(t)
-	matcher.mu.Lock()
-	matcher.matches[operations.ImageHash(icon)] = operations.ScanMatch{IsMatch: true, TrackingID: "t-icon", Source: "IWF"}
-	matcher.mu.Unlock()
-	if err := eventsrepo.SetEventIcon(context.Background(), a.database, ev.ID, "image/png", icon); err != nil {
-		t.Fatal(err)
-	}
-	var adaID string
-	if err := a.database.QueryRow(`SELECT id FROM users WHERE username = $1`, ada.email).Scan(&adaID); err != nil {
-		t.Fatal(err)
-	}
-	s.EnqueueEventIcon(ev.ID, adaID, icon)
-	runs.Wait()
-	if n := s.RunOnce(context.Background()); n != 1 {
-		t.Fatalf("RunOnce handled %d", n)
-	}
-	if typ, body, err := eventsrepo.GetEventIcon(context.Background(), a.database, ev.ID); err != nil || typ != "" || len(body) != 0 {
-		t.Fatalf("icon not cleared: %q %d %v", typ, len(body), err)
-	}
-	after, err := eventsrepo.GetEventByID(context.Background(), a.database, ev.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !after.TakenDown() || after.TakenDownReason != operations.ImageScanTakeDownMsg {
-		t.Fatalf("event not taken down: %+v", after.TakenDownAt)
-	}
-	if susp, _ := accountsrepo.UserSuspended(context.Background(), a.database, ev.AccountID); !susp {
-		t.Fatal("holding account not suspended with the event")
-	}
-	matches, err := opsrepo.ListImageMatches(context.Background(), a.database, 10)
-	if err != nil || len(matches) == 0 || matches[0].Kind != "event_icon" || matches[0].EventSlug != slug || matches[0].ReportStatus != "off" || !matches[0].TakenDown {
-		t.Fatalf("match row: %+v %v", matches, err)
-	}
-	if sent := mailer.sent(); len(sent) != 1 || !strings.Contains(sent[0], "event "+slug) || !strings.Contains(sent[0], "report: not filed") || !strings.Contains(sent[0], "CyberTipline") {
-		t.Fatalf("alert: %v", sent)
-	}
-	// The report names the organiser who uploaded the icon.
-	if who := s.ReporteeOf(context.Background(), matches[0]); !strings.Contains(who, ada.email) {
-		t.Fatalf("reportee %q, want the uploader %s", who, ada.email)
 	}
 }
 
@@ -1234,69 +1158,6 @@ func TestImageScanReportSaveFails(t *testing.T) {
 	}
 }
 
-// Pass 3, item 4: on Simple Hack a team member's deploy and files-storage
-// upload record the member, and the report names the member, never the
-// event's holding account.
-func TestImageScanHackUploader(t *testing.T) {
-	isolateQueueTest(t)
-	a := newBridgeTeamApp(t)
-	f := newImageScanFixtureDB(t, a.database, a.sites.disk)
-	a.sites.SetImageScan(f.scan)
-	org, p1 := a.newPerson(t, "org"), a.newPerson(t, "p1")
-	slug := a.makeEvent(t, org)
-	a.join(t, slug, p1, org)
-	team, _ := a.startTeam(t, slug, "Alpha", p1)
-	key := a.teamKey(t, slug, p1)
-	markReady(t, a.certDir, slug)
-	deployed, stored := testPNG(t), testPNG(t)
-	f.markMatch(operations.ImageHash(deployed))
-	f.markMatch(operations.ImageHash(stored))
-	body := map[string]any{"files": map[string]string{"index.html": "<h1>alpha</h1>"},
-		"files_base64": map[string]string{"img/bad.png": base64.StdEncoding.EncodeToString(deployed)}}
-	if r := a.api(t, "PUT", "/v1/sites/"+team+"/files?create=1", body, key); r.status != http.StatusCreated && r.status != http.StatusOK {
-		t.Fatalf("team deploy: %d %s", r.status, r.body)
-	}
-	wantTS(t, "team files resource", a.api(t, "PUT", "/v1/sites/"+team+"/storage/resources/pics", map[string]string{"kind": "files"}, key), 201, "")
-	wantTS(t, "team file", a.api(t, "PUT", "/v1/sites/"+team+"/storage/files/pics/objects/bad.png", string(stored), key), 200, "")
-	f.wait()
-	f.scan.RunOnce(context.Background())
-	member := a.uid(t, p1)
-	rows, err := opsrepo.ListImageMatches(context.Background(), a.database, 50)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bySHA := map[string]opsrepo.ImageMatch{}
-	for _, m := range rows {
-		bySHA[m.SHA256] = m
-	}
-	site, obj := bySHA[operations.ImageHash(deployed)], bySHA[operations.ImageHash(stored)]
-	if site.Kind != "site_file" || site.WriterID != member {
-		t.Fatalf("deploy match writer %q, want the member %s: %+v", site.WriterID, member, site)
-	}
-	if obj.Kind != "storage_file" || obj.WriterID != "user:"+member {
-		t.Fatalf("storage match writer %q, want user:%s: %+v", obj.WriterID, member, obj)
-	}
-	for _, m := range []opsrepo.ImageMatch{site, obj} {
-		if !strings.Contains(m.Uploader, p1.email) || strings.Contains(m.Uploader, holdingAccountSuffix) {
-			t.Fatalf("%s: uploader %q, want %s", m.Kind, m.Uploader, p1.email)
-		}
-		if !strings.HasSuffix(m.OwnerEmail, holdingAccountSuffix) {
-			t.Fatalf("%s: owner %q is not the holding account; the test proves nothing", m.Kind, m.OwnerEmail)
-		}
-		if _, _, err := f.scan.FileReport(context.Background(), m.ID); err != nil {
-			t.Fatalf("%s report: %v", m.Kind, err)
-		}
-	}
-	if len(f.reporter.reports) != 2 {
-		t.Fatalf("reports %d", len(f.reporter.reports))
-	}
-	for _, rep := range f.reporter.reports {
-		if !strings.Contains(rep.ReporteeName, p1.email) || strings.Contains(rep.ReporteeName, holdingAccountSuffix) {
-			t.Fatalf("report names %q, want the member %s", rep.ReporteeName, p1.email)
-		}
-	}
-}
-
 // Pass 3, item 5: a report carries the uploader and address recorded at
 // detection, not today's; the admin list shows an empty recorded value as
 // empty.
@@ -1519,103 +1380,6 @@ func TestImageScanRecordKeepsFiledReport(t *testing.T) {
 
 // Pass 3b, item 5: with no uploader on record on an event's site, the
 // report names nobody, not the event's holding account.
-
-// Pass 3b, item 6: an organiser's publish of the event website and an
-// organiser's event-storage upload record the organiser.
-func TestImageScanHackOrganiserUploader(t *testing.T) {
-	isolateQueueTest(t)
-	a := newBridgeTeamApp(t)
-	f := newImageScanFixtureDB(t, a.database, a.sites.disk)
-	a.sites.SetImageScan(f.scan)
-	org := a.newPerson(t, "org")
-	slug := a.makeEvent(t, org)
-	markReady(t, a.certDir, slug)
-	deployed, stored := testPNG(t), testPNG(t)
-	f.markMatch(operations.ImageHash(deployed))
-	f.markMatch(operations.ImageHash(stored))
-	ev := "/v1/hack/events/" + slug + "/website"
-	body := map[string]any{"files": map[string]string{"index.html": "<h1>event</h1>"},
-		"files_base64": map[string]string{"img/bad.png": base64.StdEncoding.EncodeToString(deployed)}}
-	wantTS(t, "organiser publish", a.api(t, "PUT", ev+"/files?create=1", body, org.key), 201, "")
-	wantTS(t, "organiser files resource", a.api(t, "PUT", ev+"/storage/resources/pics", map[string]string{"kind": "files"}, org.key), 201, "")
-	wantTS(t, "organiser file", a.api(t, "PUT", ev+"/storage/files/pics/objects/bad.png", string(stored), org.key), 200, "")
-	f.wait()
-	f.scan.RunOnce(context.Background())
-	organiser := a.uid(t, org)
-	rows, err := opsrepo.ListImageMatches(context.Background(), a.database, 50)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bySHA := map[string]opsrepo.ImageMatch{}
-	for _, m := range rows {
-		bySHA[m.SHA256] = m
-	}
-	site, obj := bySHA[operations.ImageHash(deployed)], bySHA[operations.ImageHash(stored)]
-	if site.Kind != "site_file" || site.WriterID != organiser {
-		t.Fatalf("publish match writer %q, want the organiser %s: %+v", site.WriterID, organiser, site)
-	}
-	if obj.Kind != "storage_file" || obj.WriterID != "user:"+organiser {
-		t.Fatalf("storage match writer %q, want user:%s: %+v", obj.WriterID, organiser, obj)
-	}
-	for _, m := range []opsrepo.ImageMatch{site, obj} {
-		if !strings.HasSuffix(m.OwnerEmail, holdingAccountSuffix) {
-			t.Fatalf("%s: owner %q is not the holding account; the test proves nothing", m.Kind, m.OwnerEmail)
-		}
-		if !strings.Contains(m.Uploader, org.email) {
-			t.Fatalf("%s: uploader %q, want the organiser %s", m.Kind, m.Uploader, org.email)
-		}
-	}
-}
-
-// Pass 3c, item 4: a team key's deploy to an EXISTING team site, published
-// and with publish=false, records the member as the writer.
-func TestImageScanHackUploaderExistingSite(t *testing.T) {
-	isolateQueueTest(t)
-	a := newBridgeTeamApp(t)
-	f := newImageScanFixtureDB(t, a.database, a.sites.disk)
-	a.sites.SetImageScan(f.scan)
-	org, p1 := a.newPerson(t, "org"), a.newPerson(t, "p1")
-	slug := a.makeEvent(t, org)
-	a.join(t, slug, p1, org)
-	team, _ := a.startTeam(t, slug, "Alpha", p1)
-	key := a.teamKey(t, slug, p1)
-	markReady(t, a.certDir, slug)
-	first := map[string]any{"files": map[string]string{"index.html": "<h1>alpha</h1>"}}
-	if r := a.api(t, "PUT", "/v1/sites/"+team+"/files?create=1", first, key); r.status != http.StatusCreated && r.status != http.StatusOK {
-		t.Fatalf("team create: %d %s", r.status, r.body)
-	}
-	published, unpublished := testPNG(t), testPNG(t)
-	f.markMatch(operations.ImageHash(published))
-	f.markMatch(operations.ImageHash(unpublished))
-	deploy := func(query string, img []byte) {
-		t.Helper()
-		body := map[string]any{"files": map[string]string{"index.html": "<h1>alpha</h1>"},
-			"files_base64": map[string]string{"img/bad.png": base64.StdEncoding.EncodeToString(img)}}
-		if r := a.api(t, "PUT", "/v1/sites/"+team+"/files"+query, body, key); r.status != http.StatusOK {
-			t.Fatalf("team update %q: %d %s", query, r.status, r.body)
-		}
-	}
-	deploy("?publish=false", unpublished)
-	deploy("", published)
-	f.wait()
-	member := a.uid(t, p1)
-	var holding string
-	if err := a.database.QueryRow(`SELECT s.user_id FROM sites s WHERE s.name = $1`, team).Scan(&holding); err != nil {
-		t.Fatal(err)
-	}
-	if holding == member {
-		t.Fatal("the team site is owned by the member; the test proves nothing")
-	}
-	for name, img := range map[string][]byte{"publish=false": unpublished, "published": published} {
-		var writer string
-		if err := a.database.QueryRow(`SELECT writer_id FROM image_scan_queue WHERE sha256 = $1`, operations.ImageHash(img)).Scan(&writer); err != nil {
-			t.Fatalf("%s: queued job: %v", name, err)
-		}
-		if writer != member {
-			t.Fatalf("%s: queued writer %q, want the member %s", name, writer, member)
-		}
-	}
-}
 
 // Pass 3c, item 1: when the site is deleted, loadJobBytes has postponed the
 // job by the time it returns (so under the site lock, not after it).

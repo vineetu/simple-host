@@ -21,12 +21,10 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/email"
-	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/model"
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
@@ -61,12 +59,9 @@ func jsonBody(v any) io.Reader {
 	return strings.NewReader(string(b))
 }
 
-// hackHandleCheckerForTest wires HackHandler.SetHandleChecker the way
-// cmd/server/main.go does: handlecheck.go's JudgeHandle (internal/handler),
-// reached through the test-only handler import the brief allows for
-// building these fixtures.
+// hackHandleCheckerForTest uses the app service that owns the handle namespace.
 func hackHandleCheckerForTest(ctx context.Context, q sqlkit.Querier, h string) (HandleVerdict, error) {
-	v, err := handler.JudgeHandle(ctx, q, "", h)
+	v, err := appsites.JudgeHandle(ctx, q, "", h)
 	return HandleVerdict{Status: v.Status, Code: v.Code}, err
 }
 
@@ -145,13 +140,10 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(srv.Close)
 	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), ed.Limits().KeyIdleExpiry)
-	users := handler.NewUserHandler(database, accountapp.New(database), email.NewResendSender("", "test@example.com"), srv.URL, ed)
-	users.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
 	h := NewHackHandler(database, srv.URL, "simple-hack.test", ed)
-	h.ShareAssets(handler.NewPages(ed, srv.URL))
 	h.SetHandleChecker(hackHandleCheckerForTest)
 	h.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
-		return db.GetUserByAPIKey(ctx, database, key, idle)
+		return accountapp.New(database).GetUserByAPIKey(ctx, key, idle)
 	})
 	h.Register(mux, authMW)
 	root = mux
@@ -1280,14 +1272,14 @@ func TestHackReviewRound2(t *testing.T) {
 	// An organiser of a running event cannot delete the account; after the
 	// event ends they can, and their name and address leave the event.
 	orgID := a.userID(t, org)
-	if code, _, err := handler.HackAccountDeleteBlock(context.Background(), a.database, orgID, true); err != nil || code != "organises_events" {
+	if code, _, err := accountapp.CheckHackAccountDeletion(context.Background(), a.database, orgID, true); err != nil || code != "organises_events" {
 		t.Fatalf("running event: %q %v", code, err)
 	}
 	var holding string
 	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&holding); err != nil {
 		t.Fatal(err)
 	}
-	if code, _, err := handler.HackAccountDeleteBlock(context.Background(), a.database, holding, true); err != nil || code != "event_account" {
+	if code, _, err := accountapp.CheckHackAccountDeletion(context.Background(), a.database, holding, true); err != nil || code != "event_account" {
 		t.Fatalf("holding account: %q %v", code, err)
 	}
 	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "archived"}, a.key(org)); r.status != 200 {
@@ -1297,7 +1289,7 @@ func TestHackReviewRound2(t *testing.T) {
 	if r := a.at(t, "DELETE", "/v1/hack/events/"+slug+"/people/"+a.userID(t, p2), nil, a.key(org)); r.status != 409 || r.json(t)["code"] != "event_closed" {
 		t.Fatalf("remove after end: %d %s", r.status, r.body)
 	}
-	if code, _, err := handler.HackAccountDeleteBlock(context.Background(), a.database, orgID, true); err != nil || code != "" {
+	if code, _, err := accountapp.CheckHackAccountDeletion(context.Background(), a.database, orgID, true); err != nil || code != "" {
 		t.Fatalf("ended event: %q %v", code, err)
 	}
 	var name, contact string
@@ -1348,14 +1340,14 @@ func TestHackReviewRound3(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&holding); err != nil {
 		t.Fatal(err)
 	}
-	if held, err := handler.HackHoldingAccount(ctx, a.database, holding, true); err != nil || !held {
+	if held, err := accountapp.HoldingAccount(ctx, a.database, holding, true); err != nil || !held {
 		t.Fatalf("holding account not recognised: %v %v", held, err)
 	}
-	if held, err := handler.HackHoldingAccount(ctx, a.database, a.userID(t, org), true); err != nil || held {
+	if held, err := accountapp.HoldingAccount(ctx, a.database, a.userID(t, org), true); err != nil || held {
 		t.Fatalf("organiser taken for a holding account: %v %v", held, err)
 	}
 	// A person alone on a team takes the team with them.
-	if code, _, err := handler.HackAccountDeleteBlock(ctx, a.database, a.userID(t, p1), true); err != nil || code != "" {
+	if code, _, err := accountapp.CheckHackAccountDeletion(ctx, a.database, a.userID(t, p1), true); err != nil || code != "" {
 		t.Fatalf("participant delete: %q %v", code, err)
 	}
 	var n int
@@ -1366,7 +1358,7 @@ func TestHackReviewRound3(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET taken_down_at = now() WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	if code, _, err := handler.HackAccountDeleteBlock(ctx, a.database, a.userID(t, org), true); err != nil || code != "" {
+	if code, _, err := accountapp.CheckHackAccountDeletion(ctx, a.database, a.userID(t, org), true); err != nil || code != "" {
 		t.Fatalf("taken-down organiser: %q %v", code, err)
 	}
 }
@@ -1391,7 +1383,7 @@ func TestHackReviewRound4(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&holding); err != nil {
 		t.Fatal(err)
 	}
-	if held, err := handler.HackHoldingAccount(ctx, a.database, strings.ToUpper(holding), true); err != nil || !held {
+	if held, err := accountapp.HoldingAccount(ctx, a.database, strings.ToUpper(holding), true); err != nil || !held {
 		t.Fatalf("upper-case holding id: %v %v", held, err)
 	}
 	// An organiser leaving with a taken-down event ends it, so a later
@@ -1399,7 +1391,7 @@ func TestHackReviewRound4(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET taken_down_at = now() WHERE slug = $1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	if code, _, err := handler.HackAccountDeleteBlock(ctx, a.database, a.userID(t, org), true); err != nil || code != "" {
+	if code, _, err := accountapp.CheckHackAccountDeletion(ctx, a.database, a.userID(t, org), true); err != nil || code != "" {
 		t.Fatalf("delete: %q %v", code, err)
 	}
 	var stage string

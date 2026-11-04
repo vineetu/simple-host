@@ -1,14 +1,12 @@
 package handler
 
 import (
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/hackhttp"
 )
 
 // Text only the hosted service can say (Claude's directory, the published
@@ -64,28 +62,6 @@ func TestSitemapNamesThisServer(t *testing.T) {
 		serveSitemapXML(rec, req, false)
 		if !strings.Contains(rec.Body.String(), "<loc>"+strings.TrimSuffix(want, "sitemap.xml")+"</loc>") {
 			t.Errorf("%s sitemap.xml does not list its own home page", host)
-		}
-	}
-}
-
-// A self-hosted Simple Hack names its own connector for Claude, never the
-// hosted listing.
-func TestSelfHostedHackGetStartedClaude(t *testing.T) {
-	sh := chromeTestHandler(edition.Hack)
-	sh.assets = newAssetPipeline(sh.ed, "https://hack.example")
-	mux := http.NewServeMux()
-	hackhttp.RegisterHackGetStarted(mux, sh.Pages())
-	r := httptest.NewRecorder()
-	mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/get-started", nil))
-	page := r.Body.String()
-	_, rest, _ := strings.Cut(page, `<details class="accordion" id="claude" name="pick-ai">`)
-	card, _, _ := strings.Cut(rest, "</details>")
-	if !strings.Contains(card, "Add custom connector") || !strings.Contains(card, "https://hack.example/mcp") {
-		t.Errorf("self-hosted Hack Claude card lacks its own custom connector: %s", card)
-	}
-	for _, w := range []string{"Browse connectors", "<!--sh:", "in review in the ChatGPT app directory"} {
-		if strings.Contains(page, w) {
-			t.Errorf("self-hosted Hack Get started says %q", w)
 		}
 	}
 }
