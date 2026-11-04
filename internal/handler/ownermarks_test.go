@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/analytics"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	db "github.com/vsriram/simple-host/internal/db"
+	repo "github.com/vsriram/simple-host/internal/repository/operations"
 )
 
 // Owner visit marks and the site list's people-only view counts (SIM-151).
@@ -34,11 +36,11 @@ func TestListSitesViews(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	add(db.ClassPerson, 1, 3)
-	add(db.ClassPerson, 12*24, 4)
-	add(db.ClassPerson, 45*24, 500)
-	add(db.ClassOwner, 2, 40)
-	add(db.ClassBot, 2, 60)
+	add(repo.ClassPerson, 1, 3)
+	add(repo.ClassPerson, 12*24, 4)
+	add(repo.ClassPerson, 45*24, 500)
+	add(repo.ClassOwner, 2, 40)
+	add(repo.ClassBot, 2, 60)
 
 	// Without the analytics log nothing was measured, so views is left out.
 	if r := a.at(t, "GET", "simple-host.test", "/v1/sites", nil, map[string]string{"X-API-Key": olive.key}); r.status != 200 || strings.Contains(string(r.body), `"views"`) {
@@ -50,23 +52,23 @@ func TestListSitesViews(t *testing.T) {
 		t.Fatalf("list: %d %s", r.status, r.body)
 	}
 	var items []struct {
-		Name  string        `json:"name"`
-		Views *db.SiteViews `json:"views"`
+		Name  string                `json:"name"`
+		Views *operations.SiteViews `json:"views"`
 	}
 	if err := json.Unmarshal(r.body, &items); err != nil {
 		t.Fatal(err)
 	}
-	seen := map[string]db.SiteViews{}
+	seen := map[string]operations.SiteViews{}
 	for _, it := range items {
 		if it.Views == nil {
 			t.Fatalf("%s: no views field in %s", it.Name, r.body)
 		}
 		seen[it.Name] = *it.Views
 	}
-	if want := (db.SiteViews{People7Days: 3, People30Days: 7}); seen["shop"] != want {
+	if want := (operations.SiteViews{People7Days: 3, People30Days: 7}); seen["shop"] != want {
 		t.Errorf("shop views %+v, want %+v", seen["shop"], want)
 	}
-	if want := (db.SiteViews{}); seen["quiet"] != want {
+	if want := (operations.SiteViews{}); seen["quiet"] != want {
 		t.Errorf("quiet views %+v, want zeros", seen["quiet"])
 	}
 
@@ -76,19 +78,19 @@ func TestListSitesViews(t *testing.T) {
 		t.Fatalf("admin list: %d %s", r.status, r.body)
 	}
 	var all []struct {
-		ID    string        `json:"id"`
-		Views *db.SiteViews `json:"views"`
+		ID    string                `json:"id"`
+		Views *operations.SiteViews `json:"views"`
 	}
 	if err := json.Unmarshal(r.body, &all); err != nil {
 		t.Fatal(err)
 	}
-	var got *db.SiteViews
+	var got *operations.SiteViews
 	for _, it := range all {
 		if it.ID == shop {
 			got = it.Views
 		}
 	}
-	if got == nil || *got != (db.SiteViews{People7Days: 3, People30Days: 7}) {
+	if got == nil || *got != (operations.SiteViews{People7Days: 3, People30Days: 7}) {
 		t.Errorf("admin all=1 shop views %+v", got)
 	}
 }
@@ -98,7 +100,7 @@ func TestListSitesViews(t *testing.T) {
 // call without the header writes none.
 func TestOwnerBrowserMark(t *testing.T) {
 	a := newPrivateApp(t)
-	a.sites.SetOwnerMarks(analytics.NewOwnerMarks(a.database, "k", "t"))
+	a.sites.SetOwnerMarks(operations.NewOwnerMarks(a.database, "k", "t"))
 	olive := a.newPerson(t, "olive")
 	a.deploy(t, olive, "shop")
 	uid, _ := a.userID(t, olive)
@@ -132,7 +134,7 @@ func TestOwnerBrowserMark(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT ip_hash FROM owner_visitor_marks WHERE user_id = $1`, uid).Scan(&hash); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(hash, analytics.HashIP("t", "198.51.100.7")) {
+	if !bytes.Equal(hash, ownerTestHashIP("t", "198.51.100.7")) {
 		t.Fatalf("mark hash is not HashIP(salt, client address)")
 	}
 
@@ -160,7 +162,7 @@ func TestOwnerBrowserMark(t *testing.T) {
 // three sign-in paths call after their session row is written.
 func TestOwnerVisitorSignInMark(t *testing.T) {
 	a := newPrivateApp(t)
-	a.sites.SetOwnerMarks(analytics.NewOwnerMarks(a.database, "k", "t"))
+	a.sites.SetOwnerMarks(operations.NewOwnerMarks(a.database, "k", "t"))
 	olive, vic := a.newPerson(t, "olive"), a.newPerson(t, "vic")
 	a.deploy(t, olive, "shop")
 	a.deploy(t, vic, "theirs")
@@ -196,7 +198,7 @@ func TestOwnerVisitorSignInMark(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT ip_hash FROM owner_visitor_marks WHERE user_id = $1`, oliveID).Scan(&hash); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(hash, analytics.HashIP("t", "203.0.113.22")) {
+	if !bytes.Equal(hash, ownerTestHashIP("t", "203.0.113.22")) {
 		t.Fatal("mark hash is not HashIP(salt, client address)")
 	}
 
@@ -244,4 +246,9 @@ func TestIdleOwnerViewCountsAsActivity(t *testing.T) {
 	if found[mine] {
 		t.Errorf("a site its owner opened last week was listed as idle")
 	}
+}
+
+func ownerTestHashIP(salt, ip string) []byte {
+	sum := sha256.Sum256([]byte(salt + ip))
+	return sum[:16]
 }

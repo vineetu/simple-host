@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/capacity"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
 type adminSiteEntry struct {
 	site  db.Site
-	size  capacity.SiteUsage
+	size  operations.SiteUsage
 	views int64
 }
 
@@ -124,16 +124,16 @@ func (h *SiteHandler) adminSites(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, errorResponse{Error: "could not list sites"})
 		return
 	}
-	usage, measured, err := h.usage.get(h.disk.DataDir(), h.disk.Changes())
+	usage, measured, err := h.usage.Get(h.disk.DataDir(), h.disk.Changes())
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "could not measure sites"})
 		return
 	}
-	sizes := map[string]capacity.SiteUsage{}
+	sizes := map[string]operations.SiteUsage{}
 	for _, s := range usage.All {
 		sizes[s.UserID+"/"+s.Name] = s
 	}
-	views, err := db.AdminSiteViews(r.Context(), h.database, time.Now().UTC().Add(-30*24*time.Hour))
+	views, err := h.reporting.AdminSiteViews(r.Context(), time.Now().UTC().Add(-30*24*time.Hour))
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "could not read views"})
 		return

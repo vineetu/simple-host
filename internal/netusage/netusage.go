@@ -20,7 +20,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/workers"
@@ -41,49 +40,17 @@ type Counters struct {
 
 // Sampler adds counter growth to net_usage_daily.
 type Sampler struct {
-	startOnce sync.Once
-	runner    *workers.Runner
-	tracker   *workers.Tracker
-	db        *sql.DB
-	iface     string // "" picks the interface of the default route on each sample
-	now       func() time.Time
+	tracker *workers.Tracker
+	db      *sql.DB
+	iface   string // "" picks the interface of the default route on each sample
+	now     func() time.Time
 }
 
 // New builds a sampler. iface is NETWORK_INTERFACE; empty means the interface
 // the default route leaves by.
 func New(db *sql.DB, iface string) *Sampler {
 	t := workers.NewTracker("operations.network_usage")
-	return &Sampler{runner: workers.NewRunner(t), tracker: t, db: db, iface: strings.TrimSpace(iface), now: time.Now}
-}
-
-// Start samples now and then every interval until ctx ends.
-func (s *Sampler) Start(ctx context.Context, interval time.Duration) {
-	s.startOnce.Do(func() {
-		s.runner.Go(ctx, func(ctx context.Context) {
-			t := time.NewTicker(interval)
-			defer t.Stop()
-			for {
-				s.tracker.Attempt()
-				func() {
-					defer func() {
-						if rec := recover(); rec != nil {
-							s.tracker.Fail("sample panic", fmt.Errorf("%v", rec))
-						}
-					}()
-					c, cancel := context.WithTimeout(ctx, 30*time.Second)
-					defer cancel()
-					if err := s.Sample(c); err != nil {
-						s.tracker.Fail("sample", err)
-					}
-				}()
-				select {
-				case <-ctx.Done():
-					return
-				case <-t.C:
-				}
-			}
-		})
-	})
+	return &Sampler{tracker: t, db: db, iface: strings.TrimSpace(iface), now: time.Now}
 }
 
 // Interface is the interface this sampler reads.
@@ -324,14 +291,5 @@ func bootTime() (time.Time, bool) {
 	return time.Time{}, false
 }
 
-func (s *Sampler) Stop()                    { s.runner.Stop() }
-func (s *Sampler) Wait()                    { s.runner.Wait() }
-func (s *Sampler) Status() []workers.Status { return s.runner.Status() }
-
-type samplerWorker struct {
-	*Sampler
-	interval time.Duration
-}
-
-func (s *Sampler) Worker(interval time.Duration) workers.Owner { return &samplerWorker{s, interval} }
-func (w *samplerWorker) Start(ctx context.Context)             { w.Sampler.Start(ctx, w.interval) }
+// ProgressTracker is shared with the owning operations loop.
+func (s *Sampler) ProgressTracker() *workers.Tracker { return s.tracker }

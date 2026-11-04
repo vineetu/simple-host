@@ -1,8 +1,9 @@
-package db
+package operations
 
 import (
 	"context"
 	"database/sql"
+	"github.com/vsriram/simple-host/internal/model"
 	"log"
 	"sort"
 	"time"
@@ -667,4 +668,17 @@ func PersonViewsBySite(ctx context.Context, database *sql.DB, userID string, all
 		out[id] = v
 	}
 	return out, rows.Err()
+}
+
+// GetAnalyticsOwner resolves the current account handle for an admin report.
+func GetAnalyticsOwner(ctx context.Context, database *sql.DB, handle string) (model.User, error) {
+	var u model.User
+	err := database.QueryRowContext(ctx, `SELECT id,username,is_admin,created_at,handle,display_name FROM users WHERE handle=$1`, handle).Scan(&u.ID, &u.Username, &u.IsAdmin, &u.CreatedAt, &u.Handle, &u.DisplayName)
+	return u, err
+}
+
+func AccountCount(ctx context.Context, db *sql.DB) (int, error) {
+	var n int
+	err := db.QueryRowContext(ctx, `SELECT count(*) FROM users u WHERE NOT is_admin AND EXISTS (SELECT 1 FROM sites s WHERE s.user_id=u.id)`).Scan(&n)
+	return n, err
 }

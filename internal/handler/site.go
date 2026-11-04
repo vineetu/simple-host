@@ -22,15 +22,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/analytics"
 	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
-	"github.com/vsriram/simple-host/internal/netusage"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
 	"github.com/vsriram/simple-host/internal/workers"
@@ -63,15 +62,13 @@ func init() {
 }
 
 type SiteHandler struct {
-	savedWorkerOnce   sync.Once
-	savedWorker       *savedDataWorker
-	networkWorkerOnce sync.Once
-	networkWorker     *networkUsageWorker
-	httpCaches        HTTPCaches
-	workerStatus      func() []workers.Status
-	ed                *edition.Edition
-	siteWorkersOnce   sync.Once
-	siteWorkers       *siteWorkerGroup
+	savedWorkerOnce sync.Once
+	savedWorker     *savedDataWorker
+	httpCaches      HTTPCaches
+	workerStatus    func() []workers.Status
+	ed              *edition.Edition
+	siteWorkersOnce sync.Once
+	siteWorkers     *siteWorkerGroup
 	// limitSet is ed.Limits(), held once so a request does not copy the
 	// whole snapshot on every read (limits.go).
 	limitSet
@@ -111,16 +108,17 @@ type SiteHandler struct {
 
 	// usage caches the disk measurement behind /v1/admin/usage. Measuring walks
 	// every file under the data directory, so it is not done per request.
-	usage usageCache
+	usage     operations.UsageCache
+	reporting *operations.Reporting
 
 	// netUsage reads the box's network counters (netusage.go); nil when off.
 	// trafficOn: the analytics log is read, so traffic figures exist.
-	netUsage  *netusage.Sampler
+	network   *operations.NetworkUsage
 	trafficOn bool
 	// ownerMarks notes the addresses an account is seen signed in from, so
 	// the owner's own visits are filed apart from People (ownermarks.go);
 	// nil when the analytics log is off.
-	ownerMarks *analytics.OwnerMarks
+	ownerMarks *operations.OwnerMarks
 
 	// uploadLimiter throttles create/update uploads per client IP; stateLimiter
 	// throttles per-site state writes (Origin-gated reads; writes also go
@@ -296,8 +294,8 @@ type siteResponse struct {
 	Summary *siteSummaryFields `json:"summary,omitempty"`
 	// Only in the site list, on every item when the analytics log is read:
 	// views by people over the rolling
-	// last 7 and 30 days, the owner's own visits excluded (db.SiteViews).
-	Views *db.SiteViews `json:"views,omitempty"`
+	// last 7 and 30 days, the owner's own visits excluded (operations.SiteViews).
+	Views *operations.SiteViews `json:"views,omitempty"`
 	// Only in the site list: what is wrong with a domain that is not active
 	// yet, the DNS record it needs, and when an unproven binding lapses.
 	DomainLastError string     `json:"domain_last_error,omitempty"`
@@ -2217,9 +2215,9 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 	}
 	// Views exist only where the analytics log is read; elsewhere the field
 	// is left out rather than showing zeros nobody measured.
-	var views map[string]db.SiteViews
+	var views map[string]operations.SiteViews
 	if h.trafficOn {
-		views, err = db.PersonViewsBySite(r.Context(), h.database, flagsFor, allAccounts)
+		views, err = h.reporting.PersonViewsBySite(r.Context(), flagsFor, allAccounts)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return

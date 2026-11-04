@@ -92,7 +92,7 @@ Analytics and operational records also belong to the database:
 - `paper_*` tables: measurement records; `image_scan_hashes`, `image_scan_queue`,
   `image_scan_matches`: scan cache, queued work and findings.
 
-Evidence: `db/schema.sql`; `internal/handler/apimetrics.go` (`pruneOld`);
+Evidence: `db/schema.sql`; `internal/app/operations/apimetrics.go` (`pruneOld`);
 `internal/analytics/ingest.go`; `internal/repository/sites/sites.go`
 (`DropOldSiteName`); `internal/repository/storage/access.go` (`LoadTables`).
 
@@ -169,7 +169,7 @@ live outside deployment versions. A rollback to the current version is a no-op.
 The deploy-version writer is `internal/storage/disk.go`, used through site
 workflows. It is not the only writer beneath a site directory: runtime resources
 are written by `app/storage` using `internal/storage` helpers; the image-scan
-worker can remove flagged deploy/runtime images (`internal/handler/imagescan.go`).
+worker can remove flagged deploy/runtime images (`internal/app/operations/imagescan.go`).
 Do not treat an upload mutex as a global filesystem lock across processes.
 
 ## Lock scope and quota accounting

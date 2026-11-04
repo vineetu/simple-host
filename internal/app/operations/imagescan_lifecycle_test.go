@@ -1,14 +1,15 @@
-package handler
+package operations
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/internal/imagescan"
 	"testing"
 )
 
 func TestImageScanEnqueueLifecycle(t *testing.T) {
 	for _, mode := range []string{"before-start", "stop", "parent-cancel"} {
 		t.Run(mode, func(t *testing.T) {
-			s := NewImageScan(nil, nil, &fakeMatcher{}, nil, nil, ImageScanConfig{})
+			s := NewImageScan(nil, nil, &lifecycleMatcher{}, nil, nil, ImageScanConfig{})
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			release := make(chan struct{})
@@ -56,4 +57,11 @@ func TestImageScanEnqueueLifecycle(t *testing.T) {
 			}
 		})
 	}
+}
+
+type lifecycleMatcher struct{}
+
+func (*lifecycleMatcher) Name() string { return "fake" }
+func (*lifecycleMatcher) Match(context.Context, *imagescan.Image) (imagescan.Match, error) {
+	return imagescan.Match{}, nil
 }

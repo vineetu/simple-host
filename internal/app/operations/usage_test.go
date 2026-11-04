@@ -1,4 +1,4 @@
-package handler
+package operations
 
 import (
 	"os"
@@ -18,8 +18,8 @@ func TestUsageCacheMeasuresOnceAndServesStaleRatherThanBlocking(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var cache usageCache
-	first, takenFirst, err := cache.get(dir, 0)
+	var cache UsageCache
+	first, takenFirst, err := cache.Get(dir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestUsageCacheMeasuresOnceAndServesStaleRatherThanBlocking(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(second, "index.html"), make([]byte, 8192), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cached, takenCached, err := cache.get(dir, 0)
+	cached, takenCached, err := cache.Get(dir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestUsageCacheMeasuresOnceAndServesStaleRatherThanBlocking(t *testing.T) {
 	cache.taken = time.Now().Add(-2 * usageMaxAge)
 	cache.mu.Unlock()
 
-	stale, _, err := cache.get(dir, 0)
+	stale, _, err := cache.Get(dir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestUsageCacheMeasuresOnceAndServesStaleRatherThanBlocking(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if fresh, _, _ := cache.get(dir, 0); fresh.SiteBytes == 12288 {
+		if fresh, _, _ := cache.Get(dir, 0); fresh.SiteBytes == 12288 {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -85,22 +85,22 @@ func TestUsageCacheNeverServesAReadingFromBeforeAChange(t *testing.T) {
 		}
 	}
 	write("a", 4096)
-	var cache usageCache
-	if u, _, _ := cache.get(dir, 7); u.SiteBytes != 4096 {
+	var cache UsageCache
+	if u, _, _ := cache.Get(dir, 7); u.SiteBytes != 4096 {
 		t.Fatalf("first reading: %d", u.SiteBytes)
 	}
 	write("b", 8192)
-	if u, _, _ := cache.get(dir, 7); u.SiteBytes != 4096 {
+	if u, _, _ := cache.Get(dir, 7); u.SiteBytes != 4096 {
 		t.Fatalf("no change counted, fresh reading: %d", u.SiteBytes)
 	}
-	if u, _, _ := cache.get(dir, 8); u.SiteBytes != 12288 {
+	if u, _, _ := cache.Get(dir, 8); u.SiteBytes != 12288 {
 		t.Fatalf("after a change: %d, want a new walk (12288)", u.SiteBytes)
 	}
 	write("c", 4096)
 	cache.mu.Lock()
 	cache.taken = time.Now().Add(-2 * usageStaleAfter)
 	cache.mu.Unlock()
-	if u, _, _ := cache.get(dir, 8); u.SiteBytes != 16384 {
+	if u, _, _ := cache.Get(dir, 8); u.SiteBytes != 16384 {
 		t.Fatalf("a reading past usageStaleAfter was served: %d", u.SiteBytes)
 	}
 }
@@ -110,13 +110,13 @@ func TestUsageCacheUnderConcurrentReaders(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "by-id"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	var cache usageCache
+	var cache UsageCache
 	var wg sync.WaitGroup
 	for i := 0; i < 24; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, _, err := cache.get(dir, 0); err != nil {
+			if _, _, err := cache.Get(dir, 0); err != nil {
 				t.Errorf("concurrent get: %v", err)
 			}
 		}()
@@ -130,13 +130,13 @@ func TestUsageCacheBlockingWalkIsShared(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "by-id"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	var cache usageCache
+	var cache UsageCache
 	var wg sync.WaitGroup
 	for i := 0; i < 16; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, _, err := cache.get(dir, 3); err != nil {
+			if _, _, err := cache.Get(dir, 3); err != nil {
 				t.Errorf("get: %v", err)
 			}
 		}()

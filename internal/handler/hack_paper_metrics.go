@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/papermetrics"
+	"github.com/vsriram/simple-host/internal/app/operations"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // paperHackEvent, paperHackUser, paperHackKnownMember and paperHackStage
@@ -16,7 +16,7 @@ import (
 // *SiteHandler methods, and the latter two are called only from the
 // (staying) storage/deploy side.
 
-func (h *SiteHandler) paperHackSite(r *http.Request, account, site string, user *db.User) {
+func (h *SiteHandler) paperHackSite(r *http.Request, account, site string, user *model.User) {
 	if !h.ed.Identity().PaperMetrics {
 		return
 	}
@@ -34,20 +34,20 @@ func (h *SiteHandler) paperHackSite(r *http.Request, account, site string, user 
 	write := r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS" &&
 		(strings.Contains(p, "/storage/kv/") || strings.Contains(p, "/storage/sqlite/") || strings.Contains(p, "/storage/files/")) &&
 		!strings.HasSuffix(p, "/query") && !strings.HasSuffix(p, "/download-link")
-	papermetrics.ResolveHackSite(r.Context(), account, site, member, write)
+	operations.ResolveHackSite(r.Context(), account, site, member, write)
 }
 
-func (h *SiteHandler) paperHackDeploy(r *http.Request, user *db.User) {
+func (h *SiteHandler) paperHackDeploy(r *http.Request, user *model.User) {
 	if !h.ed.Identity().PaperMetrics || user == nil || user.Team == nil {
 		return
 	}
-	papermetrics.HackDeploy(r.Context())
+	operations.HackDeploy(r.Context())
 }
 
-func paperHackTeamState(r *http.Request, user *db.User, stage string) {
+func paperHackTeamState(r *http.Request, user *model.User, stage string) {
 	if user != nil && user.Team != nil {
-		papermetrics.ResolveHackEvent(r.Context(), user.Team.EventSlug, stage, user.Team.MemberID)
+		operations.ResolveHackEvent(r.Context(), user.Team.EventSlug, stage, user.Team.MemberID)
 	}
 }
 
-func paperHackWrite(r *http.Request) { papermetrics.HackWriteCommitted(r.Context()) }
+func paperHackWrite(r *http.Request) { operations.HackWriteCommitted(r.Context()) }

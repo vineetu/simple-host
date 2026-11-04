@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/geoip"
-	"github.com/vsriram/simple-host/internal/handler"
 )
 
 const apiGrowthUsage = `usage: simple-host api-growth-backfill [NGINX_LOG...]
@@ -61,7 +61,7 @@ func runAPIGrowthBackfill(args []string) int {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	m := handler.NewAPIGrowthBackfiller(database, geo)
+	m := operations.NewAPIGrowthBackfiller(database, geo)
 	n, err := m.BackfillGrowth(ctx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "backfill from the API traffic tables:", err)

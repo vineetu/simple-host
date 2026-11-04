@@ -1,19 +1,15 @@
-package handler
+package operations
 
 import (
 	"compress/gzip"
 	"context"
 	"database/sql"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/geoip/geoiptest"
 )
@@ -129,8 +125,6 @@ func TestParseMCPLogLine(t *testing.T) {
 	}
 }
 
-// --- database tests (DB_DSN, db/schema.sql applied) ---
-
 func growthTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("DB_DSN")
@@ -144,9 +138,6 @@ func growthTestDB(t *testing.T) *sql.DB {
 	t.Cleanup(func() { database.Close() })
 	if err := database.Ping(); err != nil {
 		t.Skipf("postgres not reachable: %v", err)
-	}
-	if err := db.VerifySchema(context.Background(), database); err != nil {
-		t.Fatalf("test database is behind the schema: %v", err)
 	}
 	clear := func() {
 		for _, q := range []string{`DELETE FROM api_growth_daily`, `DELETE FROM api_request_daily`, `DELETE FROM api_ip_daily`, `DELETE FROM api_self_daily`} {
@@ -211,9 +202,6 @@ func sameCounts(t *testing.T, what string, got, want map[string]int64) {
 	}
 }
 
-// The live counter feeds both sets of tables; the backfill adds only what the
-// growth table lacks, so the upgrade day gets exactly its pre-upgrade calls
-// and a second run adds nothing.
 func TestGrowthBackfillFromTrafficTables(t *testing.T) {
 	database := growthTestDB(t)
 	m := NewAPIGrowthBackfiller(database, growthTestGeo(t))
@@ -257,8 +245,6 @@ func TestGrowthBackfillFromTrafficTables(t *testing.T) {
 	}
 }
 
-// /mcp calls from old nginx logs fill days with no connector calls, and only
-// those; plain and gzipped files both count.
 func TestGrowthBackfillFromLogs(t *testing.T) {
 	database := growthTestDB(t)
 	m := NewAPIGrowthBackfiller(database, growthTestGeo(t))
@@ -301,7 +287,6 @@ func TestGrowthBackfillFromLogs(t *testing.T) {
 	}
 }
 
-// The live path: record() then flush() lands in api_growth_daily for today.
 func TestGrowthLiveFlush(t *testing.T) {
 	database := growthTestDB(t)
 	m := NewAPIGrowthBackfiller(database, growthTestGeo(t))
@@ -322,115 +307,6 @@ func TestGrowthLiveFlush(t *testing.T) {
 	}
 }
 
-func TestAdminGrowthEndpoint(t *testing.T) {
-	database := growthTestDB(t)
-	m := NewAPIGrowthBackfiller(database, nil)
-	m.routes, m.ips = map[routeKey]int64{}, map[string]*ipAgg{}
-	var today time.Time
-	if err := database.QueryRow(`SELECT CURRENT_DATE`).Scan(&today); err != nil {
-		t.Fatal(err)
-	}
-	d := func(back int) string { return today.AddDate(0, 0, -back).Format("2006-01-02") }
-	exec := func(q string, args ...any) {
-		t.Helper()
-		if _, err := database.Exec(q, args...); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// Current 7 days: 10 today, 30 six days ago. Previous 7 days: 20 + 5.
-	// Eight days before that is outside both and must not count.
-	for _, r := range []struct {
-		back     int
-		dim, key string
-		n        int64
-	}{
-		{0, "group", "deploy", 6}, {0, "group", "connector", 4}, {0, "country", "US", 7}, {0, "country", "XX", 3},
-		{6, "group", "data", 30}, {6, "country", "JP", 30},
-		{7, "group", "deploy", 20}, {13, "group", "auth", 5},
-		{14, "group", "deploy", 99}, {14, "country", "US", 99},
-	} {
-		exec(`INSERT INTO api_growth_daily (day, dim, key, calls) VALUES ($1::date, $2, $3, $4)`, d(r.back), r.dim, r.key, r.n)
-	}
-	// Accounts and sites, marked so the test counts only its own rows.
-	var before7, before14 int64
-	database.QueryRow(`SELECT COUNT(*) FROM users WHERE EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id) AND created_at >= $1::date`, d(6)).Scan(&before7)
-	database.QueryRow(`SELECT COUNT(*) FROM users WHERE EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id) AND created_at >= $1::date AND created_at < $2::date`, d(13), d(6)).Scan(&before14)
-	var uid string
-	if err := database.QueryRow(`INSERT INTO users (username, created_at) VALUES ('growth-t1', $1::date + interval '3 hours') RETURNING id`, d(2)).Scan(&uid); err != nil {
-		t.Fatal(err)
-	}
-	exec(`INSERT INTO users (username, created_at) VALUES ('growth-t2', $1::date + interval '1 hour')`, d(9))
-	exec(`INSERT INTO sites(user_id,name) SELECT id,'growth-site' FROM users WHERE username IN ('growth-t1','growth-t2')`)
-	t.Cleanup(func() { database.Exec(`DELETE FROM users WHERE username IN ('growth-t1', 'growth-t2')`) })
-
-	call := func(user *db.User, q string) *httptest.ResponseRecorder {
-		r := httptest.NewRequest("GET", "/v1/admin/growth"+q, nil)
-		if user != nil {
-			r = r.WithContext(auth.WithUser(r.Context(), user))
-		}
-		w := httptest.NewRecorder()
-		m.AdminGrowth(w, r)
-		return w
-	}
-	if w := call(nil, ""); w.Code != http.StatusUnauthorized {
-		t.Errorf("anonymous: %d", w.Code)
-	}
-	if w := call(&db.User{ID: uid}, ""); w.Code != http.StatusNotFound {
-		t.Errorf("non-admin: %d", w.Code)
-	}
-	admin := &db.User{ID: uid, IsAdmin: true}
-	if w := call(admin, "?range=3y"); w.Code != http.StatusBadRequest {
-		t.Errorf("bad range: %d", w.Code)
-	}
-	w := call(admin, "?range=7d")
-	if w.Code != http.StatusOK {
-		t.Fatalf("7d: %d %s", w.Code, w.Body)
-	}
-	var out growthResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
-		t.Fatal(err)
-	}
-	if out.From != d(6) || out.To != d(0) || len(out.Dates) != 7 || out.Days != 7 {
-		t.Errorf("window %s..%s (%d dates)", out.From, out.To, len(out.Dates))
-	}
-	if out.API.Total != 40 || out.API.Previous != 25 {
-		t.Errorf("api total %d prev %d, want 40 / 25", out.API.Total, out.API.Previous)
-	}
-	if out.API.ChangePct == nil || *out.API.ChangePct != 60 {
-		t.Errorf("api change %v, want 60", out.API.ChangePct)
-	}
-	if out.API.Daily[6] != 10 || out.API.Daily[0] != 30 || out.API.Groups["connector"][6] != 4 || out.API.Groups["data"][0] != 30 {
-		t.Errorf("api daily %v groups %v", out.API.Daily, out.API.Groups)
-	}
-	if len(out.Countries) != 2 || out.Countries[0].Code != "JP" || out.Countries[0].Calls != 30 || out.Countries[0].Name != "Japan" || out.Countries[1].Calls != 7 || out.UnknownCalls != 3 {
-		t.Errorf("countries %+v unknown %d", out.Countries, out.UnknownCalls)
-	}
-	if out.TrackingSince == nil || *out.TrackingSince != d(14) {
-		t.Errorf("tracking since %v", out.TrackingSince)
-	}
-	if out.Users.Total != before7+1 || out.Users.Previous != before14+1 || out.Users.Daily[4] < 1 {
-		t.Errorf("users total %d prev %d daily %v", out.Users.Total, out.Users.Previous, out.Users.Daily)
-	}
-
-	// 14 days: the previous period starts before counting did, so no change.
-	w = call(admin, "?range=14d")
-	json.Unmarshal(w.Body.Bytes(), &out)
-	if out.API.Total != 65 || out.API.ChangePct != nil {
-		t.Errorf("14d total %d change %v, want 65 / nil", out.API.Total, out.API.ChangePct)
-	}
-
-	// Cached for a minute: a new row does not show until then.
-	exec(`INSERT INTO api_growth_daily (day, dim, key, calls) VALUES ($1::date, 'group', 'other', 1000)`, d(0))
-	w = call(admin, "?range=7d")
-	json.Unmarshal(w.Body.Bytes(), &out)
-	if out.API.Total != 40 {
-		t.Errorf("cached total %d, want 40", out.API.Total)
-	}
-}
-
-// Calls from this server land in api_self_daily and the growth "source" count,
-// never in the calls, errors or growth kinds; the admin endpoints show them
-// apart. A backfill adds nothing for them.
 func TestSelfCallsCountedApart(t *testing.T) {
 	database := growthTestDB(t)
 	m := NewAPIGrowthBackfiller(database, growthTestGeo(t))
@@ -439,24 +315,21 @@ func TestSelfCallsCountedApart(t *testing.T) {
 	m.recordSelf("GET /v1/sites/{sitename}/state", 200)
 	m.flush()
 
-	admin := &db.User{ID: "x", IsAdmin: true}
-	r := httptest.NewRequest("GET", "/v1/admin/api-analytics", nil).WithContext(auth.WithUser(context.Background(), admin))
-	w := httptest.NewRecorder()
-	m.AdminSummary(w, r)
-	var sum apiAnalyticsResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &sum); err != nil {
-		t.Fatalf("%d %s", w.Code, w.Body)
+	sum, err := m.Summary(context.Background())
+	if err != nil {
+		t.Fatal(err)
 	}
 	if sum.CallsToday != 1 || sum.ErrorsToday != 0 || sum.SelfToday != 2 || sum.SelfErrorsToday != 1 || sum.IPsToday != 1 {
 		t.Errorf("summary %+v", sum)
 	}
 
-	r = httptest.NewRequest("GET", "/v1/admin/growth?range=7d", nil).WithContext(auth.WithUser(context.Background(), admin))
-	w = httptest.NewRecorder()
-	m.AdminGrowth(w, r)
+	body, err := m.Growth(context.Background(), "7d")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var g growthResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &g); err != nil {
-		t.Fatalf("%d %s", w.Code, w.Body)
+	if err := json.Unmarshal(body, &g); err != nil {
+		t.Fatal(err)
 	}
 	if g.API.Total != 1 || g.SelfCalls != 2 || g.UnknownCalls != 0 {
 		t.Errorf("growth total %d self %d unknown %d, want 1 / 2 / 0", g.API.Total, g.SelfCalls, g.UnknownCalls)
@@ -466,12 +339,9 @@ func TestSelfCallsCountedApart(t *testing.T) {
 	}
 }
 
-// v079 takes requests that matched no API route out of the traffic table and
-// out of the growth kind they were counted in, and a second run changes
-// nothing.
 func TestMigrationDropsUnmatchedRequests(t *testing.T) {
 	database := growthTestDB(t)
-	sqlText, err := os.ReadFile("../../db/migrations/v079-api-self-calls.sql")
+	sqlText, err := os.ReadFile("../../../db/migrations/v079-api-self-calls.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

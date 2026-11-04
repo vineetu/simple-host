@@ -18,6 +18,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/analytics"
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/config"
@@ -283,6 +284,8 @@ func main() {
 	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL, ed)
 	userHandler.Register(mux, authMW, noticeMW)
 	siteHandler := handler.NewSiteHandler(ed, hackInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
+	siteHandler.SetOperationsNetwork(operations.NewNetworkUsage(db, ed))
+	siteHandler.SetOperationsReporting(operations.NewReporting(db))
 	userHandler.ShareAssets(siteHandler)
 	userHandler.SetFileUsage(siteHandler)
 	siteHandler.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
@@ -444,7 +447,7 @@ func main() {
 	// Image matching (SIM-200): uploaded images are checked against known
 	// abuse hash sets through PhotoDNA. Nothing is built while the key is
 	// empty, so a box without it is unchanged.
-	var imageScan *handler.ImageScan
+	var imageScan *operations.ImageScan
 	if cfg.PhotoDNAKey != "" {
 		client := imagescan.NewPhotoDNA(cfg.PhotoDNAKey)
 		if cfg.PhotoDNAMatchURL != "" {
@@ -462,7 +465,7 @@ func main() {
 		if !strings.Contains(contact, "@") {
 			contact = ""
 		}
-		scanCfg := handler.ImageScanConfig{
+		scanCfg := operations.ImageScanConfig{
 			ProductName: ed.Presentation().ProductName,
 			EvidenceDir: cfg.ImageScanEvidenceDir, AlertEmail: cfg.ImageScanAlertEmail,
 			ReportOrg: cfg.ImageScanReportOrg, ReportName: cfg.ImageScanReportName, ReportEmail: cfg.ImageScanReportEmail,
@@ -482,7 +485,7 @@ func main() {
 		if scanCfg.ReportOrg != "" && scanCfg.ReportName != "" && scanCfg.ReportEmail != "" {
 			reporter = client
 		}
-		imageScan = handler.NewImageScan(db, diskStorage, client, reporter, mailer, scanCfg)
+		imageScan = operations.NewImageScan(db, diskStorage, client, reporter, mailer, scanCfg)
 		siteHandler.SetImageScan(imageScan)
 		if hackEvents != nil {
 			hackEvents.SetImageScan(imageScan)
@@ -542,7 +545,7 @@ func main() {
 		log.Printf("signup geo-block: sign-in and sign-up refused from %s; API keys and site viewing unaffected", strings.Join(cfg.SignupBlockedCountries, ", "))
 	}
 
-	apiMetrics := handler.NewAPIMetrics(db, geo, ed)
+	apiMetrics := handler.NewAPIMetrics(operations.NewAPIMetrics(db, geo, ed))
 	// Requests that match no API route are not counted; calls from this box
 	// (loopback, its own public address) are counted apart.
 	apiMetrics.SetRouting(mux, append([]string{cfg.CustomDomainIP}, cfg.CustomDomainIPAlso...)...)
@@ -581,7 +584,7 @@ func main() {
 			WithItemCaps(cfg.Limits.AnalyticsPagesDay, cfg.Limits.AnalyticsRefsDay)
 		// The owner's own visits are told apart by marks the handlers write
 		// (ownermarks.go); an install without analytics writes none.
-		siteHandler.SetOwnerMarks(analytics.NewOwnerMarks(db, cfg.AdminAPIKey, cfg.AnalyticsSalt))
+		siteHandler.SetOwnerMarks(operations.NewOwnerMarks(db, cfg.AdminAPIKey, cfg.AnalyticsSalt))
 		log.Printf("analytics ingester enabled: %s", cfg.AnalyticsLog)
 	}
 	siteHandler.SetTrafficLog(cfg.AnalyticsLog != "")
@@ -609,7 +612,15 @@ func main() {
 	// The signal drains HTTP before it is allowed to cancel background work.
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
-	workerSet := registerWorkers(workerDependencies{site: siteHandler, user: userHandler, oauth: oauthHandler, connector: connector, hack: hackEvents, image: imageScan, paper: paper, metrics: apiMetrics, geo: geo, analytics: ingester, eventDomains: eventDomains, hackSweep: hackSweep})
+	var paperWorker *operations.PaperMetrics
+	if paper != nil {
+		paperWorker = operations.NewPaperMetrics(paper)
+	}
+	var analyticsWorker *operations.AnalyticsIngest
+	if ingester != nil {
+		analyticsWorker = operations.NewAnalyticsIngest(ingester, 5*time.Minute)
+	}
+	workerSet := registerWorkers(workerDependencies{site: siteHandler, user: userHandler, oauth: oauthHandler, connector: connector, hack: hackEvents, image: imageScan, paper: paperWorker, metrics: apiMetrics.APIMetrics, geo: geo, analytics: analyticsWorker, eventDomains: eventDomains, hackSweep: hackSweep})
 	// Startup must finish its initial cache/retention work before serving,
 	// but a signal must still interrupt a blocked initial database query.
 	startupDone := make(chan struct{})

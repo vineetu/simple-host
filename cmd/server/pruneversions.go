@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/storage"
 )
@@ -39,7 +41,7 @@ func runPruneVersions(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	if err = handler.PruneFixedAccounts(context.Background(), database, disk, limits, *apply, os.Stdout); err != nil {
+	if err = operations.PruneFixedAccounts(context.Background(), database, disk, edition.ForKindWithLimits(edition.Host, limits), handler.KeepVersions(), *apply, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}

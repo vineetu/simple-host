@@ -320,3 +320,6 @@ func HackPhasesChanged(ctx context.Context) {
 		request.metrics.nudge()
 	}
 }
+
+// RefreshHackBackground drains phase notices and refreshes the metadata snapshot.
+func (c *Collector) RefreshHackBackground(ctx context.Context) { c.refreshHackBackground(ctx) }

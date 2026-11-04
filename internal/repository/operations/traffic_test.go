@@ -1,8 +1,12 @@
-package handler
+package operations
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	_ "github.com/lib/pq"
+	"github.com/vsriram/simple-host/internal/testdb"
+	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -12,8 +16,15 @@ import (
 // pages/API split, and the top sites with their owners. Dated in 2031 so no
 // other test's rows fall in the windows.
 func TestServedTraffic(t *testing.T) {
-	a := newPrivateApp(t)
-	db := a.database
+	dsn := os.Getenv("DB_DSN")
+	if dsn == "" {
+		t.Skip("DB_DSN not set")
+	}
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
 	ctx := context.Background()
 	owner := "tr" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	var userID string
@@ -52,8 +63,11 @@ func TestServedTraffic(t *testing.T) {
 	site(small, "2031-03-05", "pages", 50, 1)
 	site(small, "2031-02-28", "pages", 99999, 1) // last month
 
-	a.sites.SetTrafficLog(true)
-	got := a.sites.networkUsage(ctx, time.Date(2031, 3, 10, 18, 0, 0, 0, time.UTC))
+	served, err := ServedTraffic(ctx, db, time.Date(2031, 3, 10, 18, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]any{"served": served, "box": nil, "allowance_gb": 10240}
 	raw, _ := json.Marshal(got)
 	var out struct {
 		Served struct {
@@ -102,3 +116,5 @@ func TestServedTraffic(t *testing.T) {
 		t.Errorf("allowance = %d, want the default 10240", out.AllowanceGB)
 	}
 }
+
+func TestMain(m *testing.M) { testdb.Main(m) }

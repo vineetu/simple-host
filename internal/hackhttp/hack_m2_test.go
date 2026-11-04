@@ -20,6 +20,7 @@ import (
 	"time"
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
@@ -129,6 +130,8 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.users = users
 	users.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
 	a.sites = handler.NewSiteHandler(ed, "", database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	a.sites.SetOperationsReporting(operations.NewReporting(database))
+	a.sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
 	a.sites.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.sites.WaitNotifications)
 	a.sites.SetPersonHosts("canonical")

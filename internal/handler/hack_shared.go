@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/papermetrics"
 )
 
 // Small helpers both the Hack event API (hack.go and friends, which move
@@ -74,5 +74,5 @@ func hackSitesPaperUser(r *http.Request, user *db.User) {
 	if user.EventWebsite != nil {
 		member = user.EventWebsite.OrganiserID
 	}
-	papermetrics.HackMember(r.Context(), member)
+	operations.HackMember(r.Context(), member)
 }

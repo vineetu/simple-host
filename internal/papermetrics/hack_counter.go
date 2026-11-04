@@ -429,26 +429,9 @@ func (c *Collector) flushHackSlot(ctx context.Context, run int64, slot *hackSlot
 		log.Printf("paper metrics Hack slot: %v", err)
 	}
 }
-func (c *Collector) hackLoop(ctx context.Context) {
-	tick := time.NewTimer(time.Until(time.Now().UTC().Truncate(hackSlot).Add(hackSlot)))
-	defer tick.Stop()
-	c.refreshHackBackground(ctx)
-	for {
-		select {
-		case <-ctx.Done():
-			finalCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-			c.flushHack(finalCtx, time.Now().UTC())
-			cancel()
-			return
-		case <-c.hack.refresh:
-			c.refreshHackBackground(ctx)
-		case now := <-tick.C:
-			c.flushHack(ctx, now)
-			c.refreshHackBackground(ctx)
-			tick.Reset(time.Until(time.Now().UTC().Truncate(hackSlot).Add(hackSlot)))
-		}
-	}
-}
+
+// FlushHack persists the completed Hack slots.
+func (c *Collector) FlushHack(ctx context.Context, now time.Time) { c.flushHack(ctx, now) }
 
 func mutationMethod(method string) bool {
 	return method != "GET" && method != "HEAD" && method != "OPTIONS"

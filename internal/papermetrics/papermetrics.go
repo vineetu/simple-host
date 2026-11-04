@@ -36,8 +36,6 @@ func Enabled() bool {
 
 // Collector owns every paper metric for one server process.
 type Collector struct {
-	startOnce  sync.Once
-	runner     *workers.Runner
 	tracker    *workers.Tracker
 	db         *sql.DB
 	dataDir    string
@@ -58,7 +56,7 @@ type Collector struct {
 // any other host is a hosted site.
 func New(db *sql.DB, dataDir string, apexHosts ...string) *Collector {
 	t := workers.NewTracker("operations.paper_metrics")
-	c := &Collector{runner: workers.NewRunner(t), tracker: t, db: db, dataDir: dataDir, apexHosts: map[string]bool{}, started: time.Now()}
+	c := &Collector{tracker: t, db: db, dataDir: dataDir, apexHosts: map[string]bool{}, started: time.Now()}
 	for _, h := range apexHosts {
 		h = strings.ToLower(strings.TrimSpace(h))
 		if h != "" {
@@ -69,77 +67,31 @@ func New(db *sql.DB, dataDir string, apexHosts ...string) *Collector {
 	return c
 }
 
-// Start runs the flush, sample and snapshot loops until ctx ends.
-func (c *Collector) Start(ctx context.Context) {
-	c.startOnce.Do(func() {
-		if !Enabled() {
-			return
-		}
-		c.runner.Go(ctx, func(ctx context.Context) {
-			c.tracker.Attempt()
-			newRun := c.runID.Load() == 0
-			if _, err := c.ensureRun(ctx); err != nil {
-				c.tracker.Fail("register run", err)
-			} else if newRun {
-				c.tracker.Progress()
-			}
-			if c.hack != nil {
-				c.runner.Go(ctx, c.hackLoop)
-			}
-			c.loop(ctx)
-		})
-	})
-}
+// ProgressTracker is shared with the owning operations loop.
+func (c *Collector) ProgressTracker() *workers.Tracker { return c.tracker }
 
-func (c *Collector) Stop()                    { c.runner.Stop() }
-func (c *Collector) Wait()                    { c.runner.Wait() }
-func (c *Collector) Status() []workers.Status { return c.runner.Status() }
-
-func (c *Collector) loop(ctx context.Context) {
+// InitializeRun registers provenance before collection begins.
+func (c *Collector) InitializeRun(ctx context.Context) {
 	c.tracker.Attempt()
-	flush := time.NewTicker(time.Minute)
-	sampleT := time.NewTicker(5 * time.Minute)
-	snap := time.NewTicker(time.Hour)
-	defer flush.Stop()
-	defer sampleT.Stop()
-	defer snap.Stop()
-	c.takeSample(ctx) // primes the CPU baselines
-	c.snapshots(ctx)
-	for {
-		select {
-		case <-ctx.Done():
-			c.flush(context.Background())
-			return
-		case <-flush.C:
-			c.tracker.Attempt()
-			c.flush(ctx)
-		case <-sampleT.C:
-			c.tracker.Attempt()
-			c.takeSample(ctx)
-		case <-snap.C:
-			c.tracker.Attempt()
-			c.snapshots(ctx)
-		}
+	newRun := c.runID.Load() == 0
+	if _, err := c.ensureRun(ctx); err != nil {
+		c.tracker.Fail("register run", err)
+	} else if newRun {
+		c.tracker.Progress()
 	}
 }
-
-// snapshots writes yesterday's daily snapshot and this week's footprint once
-// each; both are no-ops when the row already exists, so restarts are safe.
-func (c *Collector) snapshots(ctx context.Context) {
-	c.tracker.Attempt()
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-	defer cancel()
-	if err := c.dailySnapshot(ctx, time.Now().UTC()); err != nil {
-		c.tracker.Fail("daily snapshot", err)
-	}
-	if c.hack != nil {
-		if err := c.hackSnapshot(ctx, time.Now().UTC()); err != nil {
-			c.tracker.Fail("Hack snapshot", err)
-		}
-	}
-	if err := c.weeklyFootprint(ctx, time.Now().UTC()); err != nil {
-		c.tracker.Fail("footprint", err)
-	}
+func (c *Collector) HackEnabled() bool              { return c.hack != nil }
+func (c *Collector) HackRefresh() <-chan struct{}   { return c.hack.refresh }
+func (c *Collector) Flush(ctx context.Context)      { c.flush(ctx) }
+func (c *Collector) TakeSample(ctx context.Context) { c.takeSample(ctx) }
+func (c *Collector) DailySnapshot(ctx context.Context, now time.Time) error {
+	return c.dailySnapshot(ctx, now)
+}
+func (c *Collector) HackSnapshot(ctx context.Context, now time.Time) error {
+	return c.hackSnapshot(ctx, now)
+}
+func (c *Collector) WeeklyFootprint(ctx context.Context, now time.Time) error {
+	return c.weeklyFootprint(ctx, now)
 }
 
 // Wrap times every request through h into its class's histogram.

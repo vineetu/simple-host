@@ -19,6 +19,8 @@ import (
 
 	_ "github.com/lib/pq"
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
+
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
@@ -311,6 +313,8 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	users.Register(mux, authMW, noticeMW)
 	app.users = users
 	sites := NewSiteHandler(ed, "", database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
+	sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
+	sites.SetOperationsReporting(operations.NewReporting(database))
 	app.sites = sites
 	t.Cleanup(sites.WaitNotifications)
 	sites.Register(mux, authMW, noticeMW)

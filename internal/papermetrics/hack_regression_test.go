@@ -120,24 +120,7 @@ func TestHackIdleMinuteOmitted(t *testing.T) {
 		t.Fatalf("active rows=%d err=%v", count, err)
 	}
 }
-func TestPaperOffWritesNothing(t *testing.T) {
-	d := isolatedDB(t)
-	t.Setenv("PAPER_METRICS", "off")
-	c := New(d, "").WithHack()
-	c.Start(context.Background())
-	t.Cleanup(func() { c.Stop(); c.Wait() })
-	c.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		RecordHackStage(r.Context(), "ignored", "open")
-		HackPhasesChanged(r.Context())
-	})).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
-	if err := c.RegisterRun(context.Background()); err == nil {
-		t.Fatal("registered disabled run")
-	}
-	var count int
-	if err := d.QueryRow(`SELECT count(*) FROM paper_run`).Scan(&count); err != nil || count != 0 {
-		t.Fatalf("off wrote %d runs: %v", count, err)
-	}
-}
+
 func TestHostDailyExportPinned(t *testing.T) {
 	d := isolatedDB(t)
 	c := New(d, "")
