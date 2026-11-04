@@ -213,6 +213,15 @@ func (d *DB) Loaded() (city, asn bool) {
 	return d.city.reader != nil, d.asn.reader != nil
 }
 
+// CountryISO returns the address's ISO-3166 alpha-2 country code, or an
+// empty string when the database is unset or the country cannot be resolved.
+func (d *DB) CountryISO(ip string) string {
+	if d == nil {
+		return ""
+	}
+	return d.Lookup(ip).ISO
+}
+
 // Lookup resolves one address. Unparseable input, unknown addresses and
 // missing databases all yield a blank (or partly blank) Info.
 func (d *DB) Lookup(ip string) Info {

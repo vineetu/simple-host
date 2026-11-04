@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,24 +10,13 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/geoip"
-	"github.com/vsriram/simple-host/internal/geoip/geoiptest"
 	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
-// buildGeo writes a tiny local geo database mapping ip to iso, for a test to
-// hand to SetSignupGeoBlock directly.
-func buildGeo(t *testing.T, ip, iso string) *geoip.DB {
+// buildGeo supplies a local country lookup mapping ip to iso.
+func buildGeo(t *testing.T, ip, iso string) countryLookup {
 	t.Helper()
-	dir := t.TempDir()
-	if err := geoiptest.Write(filepath.Join(dir, geoip.CityFile), "DBIP-City-Lite", map[string]geoiptest.Record{
-		ip + "/32": {"country": geoiptest.Record{"iso_code": iso, "names": geoiptest.Record{"en": iso}}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	geo := geoip.Open(dir)
-	t.Cleanup(geo.Close)
-	return geo
+	return countryLookup{ip: iso}
 }
 
 // TestOAuthCallbackGeoBlock covers the OAuth sign-in/sign-up country block:

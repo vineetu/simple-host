@@ -42,5 +42,3 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 {handler,hackhttp,auth,mcp} -> config repository/** storage sitelocks email
 mcp -> mcp/apps/bundlegen
 [transitional]
-handler -> geoip test # removal step 5.4: worker lifecycle and operations
-handler -> oauth test # removal step 5.4: final transport boundary

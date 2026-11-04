@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/oauth"
 	repo "github.com/vsriram/simple-host/internal/repository/accounts"
@@ -25,12 +26,27 @@ var providerNoncePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
 var errOAuthEmailRefused = errors.New("oauth email refused")
 var errOAuthAdminRefused = errors.New("oauth admin refused")
 
-type ProviderSignIn struct {
-	service   *Service
-	providers map[string]oauth.Provider
+// ProviderIdentity is the stable provider user ID and verified-email snapshot.
+// Email is used only for the first-link decision; re-logins key on UserID.
+type ProviderIdentity struct {
+	Provider      string
+	UserID        string
+	Email         string
+	EmailVerified bool
 }
 
-func NewProviderSignIn(service *Service, providers map[string]oauth.Provider) *ProviderSignIn {
+// Provider supplies authorization URLs and exchanges codes for sign-in identities.
+type Provider interface {
+	AuthCodeURL(state, verifier string) string
+	Exchange(ctx context.Context, code, verifier string) (ProviderIdentity, error)
+}
+
+type ProviderSignIn struct {
+	service   *Service
+	providers map[string]Provider
+}
+
+func NewProviderSignIn(service *Service, providers map[string]Provider) *ProviderSignIn {
 	return &ProviderSignIn{service: service, providers: providers}
 }
 func (flow *ProviderSignIn) Has(name string) bool {
@@ -187,7 +203,7 @@ func (flow *ProviderSignIn) Callback(ctx context.Context, in ProviderCallbackInp
 
 	return ProviderResult{State: st, Once: once}, nil
 }
-func resolveUser(ctx context.Context, q repo.Querier, ident oauth.Identity) (model.User, bool, error) {
+func resolveUser(ctx context.Context, q repo.Querier, ident ProviderIdentity) (model.User, bool, error) {
 	existing, err := repo.GetOAuthIdentity(ctx, q, ident.Provider, ident.UserID)
 	if err == nil {
 		user, uerr := repo.GetUserByID(ctx, q, existing.UserID)
@@ -312,34 +328,4 @@ func (s *Service) SiteSuspension(ctx context.Context, id string) (bool, string, 
 
 func (s *Service) GetSitePasscode(ctx context.Context, id string) (model.SitePasscodeRow, error) {
 	return sites.GetSitePasscode(ctx, s.database, id)
-}
-
-type ProviderSettings struct {
-	GoogleEnabled, GitHubEnabled, CompanyEnabled                    bool
-	GoogleOAuthClientID, GoogleOAuthClientSecret, GoogleRedirectURI string
-	GitHubOAuthClientID, GitHubOAuthClientSecret, GithubRedirectURI string
-	OIDCIssuer, OIDCClientID, OIDCClientSecret, OidcRedirectURI     string
-	AllowedEmailDomains                                             []string
-	OIDCInsecureAllowed                                             bool
-}
-
-func NewConfiguredProviderSignIn(service *Service, cfg ProviderSettings) *ProviderSignIn {
-	providers := make(map[string]oauth.Provider, 3)
-	if cfg.GoogleEnabled {
-		providers["google"] = oauth.NewGoogle(cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleRedirectURI)
-	}
-	if cfg.GitHubEnabled {
-		providers["github"] = oauth.NewGitHub(cfg.GitHubOAuthClientID, cfg.GitHubOAuthClientSecret, cfg.GithubRedirectURI)
-	}
-	if cfg.CompanyEnabled {
-		providers["oidc"] = oauth.NewCompany(oauth.CompanyConfig{
-			Issuer:              cfg.OIDCIssuer,
-			ClientID:            cfg.OIDCClientID,
-			ClientSecret:        cfg.OIDCClientSecret,
-			RedirectURI:         cfg.OidcRedirectURI,
-			AllowedEmailDomains: cfg.AllowedEmailDomains,
-			InsecureAllowed:     cfg.OIDCInsecureAllowed,
-		})
-	}
-	return NewProviderSignIn(service, providers)
 }

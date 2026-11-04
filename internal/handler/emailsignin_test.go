@@ -14,7 +14,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/config"
 	model "github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/oauth"
 	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
@@ -105,9 +104,9 @@ func TestVerifyEmailCodeOff_TokenShapeStillWorks(t *testing.T) {
 // ResendAPIKey. listProviders touches no database.
 func TestListProvidersOIDC(t *testing.T) {
 	newHandler := func(withOIDC bool, resendKey, emailSignIn string) *OAuthHandler {
-		providers := map[string]oauth.Provider{"google": fakeProvider{}}
+		providers := map[string]accounts.Provider{"google": fakeProvider{}}
 		if withOIDC {
-			providers["oidc"] = oauth.NewCompany(oauth.CompanyConfig{Issuer: "https://idp.example.test", ClientID: "c", ClientSecret: "s", RedirectURI: "https://app.example.test/v1/auth/oauth/oidc/callback"})
+			providers["oidc"] = ssoOIDCProvider{}
 		}
 		cfg := config.Config{ResendAPIKey: resendKey, EmailSignIn: emailSignIn}
 		return &OAuthHandler{cfg: testOAuthSettings(cfg, accounts.New(nil)), signIn: accounts.NewProviderSignIn(accounts.New(nil), providers)}

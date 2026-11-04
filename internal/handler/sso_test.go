@@ -16,7 +16,6 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/oauth"
 	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
@@ -519,7 +518,7 @@ func TestSSOProviderAndEmailSignup(t *testing.T) {
 type ssoOIDCProvider struct{ fakeProvider }
 
 func (ssoOIDCProvider) Name() string { return "oidc" }
-func (ssoOIDCProvider) Exchange(ctx context.Context, code, verifier string) (oauth.Identity, error) {
+func (ssoOIDCProvider) Exchange(ctx context.Context, code, verifier string) (accountapp.ProviderIdentity, error) {
 	id, err := (fakeProvider{}).Exchange(ctx, code, verifier)
 	id.Provider = "oidc"
 	return id, err
@@ -531,7 +530,7 @@ func TestSSOCompanyProvider(t *testing.T) {
 	_, handle := a.userID(t, owner)
 	markReady(t, dir, handle)
 	host := "portal." + handle + "." + pcSiteDomain
-	o.signIn = accountapp.NewProviderSignIn(o.accounts, map[string]oauth.Provider{"google": fakeProvider{}, "oidc": ssoOIDCProvider{}})
+	o.signIn = accountapp.NewProviderSignIn(o.accounts, map[string]accountapp.Provider{"google": fakeProvider{}, "oidc": ssoOIDCProvider{}})
 	state, _ := a.ssoStartAt(t, host)
 	ret := a.srv.URL + "/v1/sso/hop?state=" + state + "&cn=" + testNonceHash(testNonce).String
 	r := a.at(t, "GET", a.appHost(), "/v1/auth/oauth/oidc?return_to="+url.QueryEscape(ret), nil, nil)
@@ -868,7 +867,7 @@ func TestSSOStartWithoutApexUsesLegacyProvider(t *testing.T) {
 	host := "page." + handle + "." + pcSiteDomain
 	o.cfg.PublicBaseURL = ""
 	for _, provider := range []string{"google", "oidc"} {
-		o.signIn = accountapp.NewProviderSignIn(o.accounts, map[string]oauth.Provider{provider: ssoOIDCProvider{}})
+		o.signIn = accountapp.NewProviderSignIn(o.accounts, map[string]accountapp.Provider{provider: ssoOIDCProvider{}})
 		back := "https://" + host + "/page?ok=1"
 		r := a.at(t, "GET", host, "/v1/sso/start?return_to="+url.QueryEscape(back), nil, nil)
 		if r.status != 302 || r.header.Get("Location") != "/v1/visitor/oauth/"+provider+"?return_to="+url.QueryEscape(back) {

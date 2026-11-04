@@ -1,10 +1,12 @@
 package accounts
 
-import (
-	"strings"
+import "strings"
 
-	"github.com/vsriram/simple-host/internal/geoip"
-)
+// CountryLookup resolves an address to an ISO-3166 alpha-2 country code.
+// An empty result means the country is unknown.
+type CountryLookup interface {
+	CountryISO(ip string) string
+}
 
 // SignupGeoBlock decides whether sign-in or sign-up may proceed from the
 // country an IP resolves to. SIGNUP_BLOCKED_COUNTRIES is empty by default,
@@ -19,14 +21,14 @@ import (
 // country the local geo database (internal/geoip) cannot resolve is always
 // allowed.
 type SignupGeoBlock struct {
-	geo     *geoip.DB
+	geo     CountryLookup
 	blocked map[string]bool
 }
 
 // NewSignupGeoBlock builds the guard from the resolved geo database and the
 // configured country list (SignupBlockedCountries). An empty list, or a nil
 // geo database, yields a zero value that always allows.
-func NewSignupGeoBlock(geo *geoip.DB, countries []string) SignupGeoBlock {
+func NewSignupGeoBlock(geo CountryLookup, countries []string) SignupGeoBlock {
 	if len(countries) == 0 {
 		return SignupGeoBlock{}
 	}
@@ -51,7 +53,7 @@ func (g SignupGeoBlock) BlockedCountry(ip string) (country string, blocked bool)
 	if len(g.blocked) == 0 || g.geo == nil || ip == "" {
 		return "", false
 	}
-	cc := strings.ToUpper(g.geo.Lookup(ip).ISO)
+	cc := strings.ToUpper(g.geo.CountryISO(ip))
 	if cc == "" {
 		return "", false
 	}
