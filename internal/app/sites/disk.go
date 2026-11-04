@@ -8,6 +8,18 @@ import (
 
 // Disk is the filesystem capability consumed by this service.
 type Disk interface {
+	DeleteUser(userID, handle string) error
+	FamilyLinkTarget(suffix string) string
+	HasHandleLink(handle string) bool
+	HasPasscodeMarker(userID, siteName string) bool
+	IsOffline(userID, siteName string) bool
+	IsSuspended(userID, siteName string) bool
+	IsUnlisted(userID, siteName string) bool
+	RemoveHandleLink(handle string) error
+	RemoveHandleLinkOf(handle, userID string) error
+	SetOffline(userID, siteName string, on bool) error
+	SetPasscodeMarker(userID, siteName string, on bool) error
+	UnbindFamily(suffix string) error
 	AccountFileBytes(userID string) (int64, error)
 	DataDir() string
 	DeleteSite(userID, siteName string) error

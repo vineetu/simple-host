@@ -5,7 +5,7 @@ import (
 	"database/sql"
 )
 
-func sweepSSOCount(ctx context.Context, q Querier) (int64, error) {
+func SweepSSOCount(ctx context.Context, q Querier) (int64, error) {
 	var deleted int64
 	for _, query := range []string{`DELETE FROM sso_hops WHERE expires_at<now()`, `DELETE FROM sso_signouts WHERE expires_at<now()`, `DELETE FROM sso_passes WHERE expires_at<now() OR idle_expires_at<now()`} {
 		result, err := q.ExecContext(ctx, query)
@@ -22,7 +22,7 @@ func sweepSSOCount(ctx context.Context, q Querier) (int64, error) {
 }
 
 func SweepVisitorAuthCount(ctx context.Context, database *sql.DB) (int64, error) {
-	deleted, err := sweepSSOCount(ctx, database)
+	deleted, err := SweepSSOCount(ctx, database)
 	if err != nil {
 		return deleted, err
 	}

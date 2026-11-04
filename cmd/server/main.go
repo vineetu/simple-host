@@ -355,7 +355,7 @@ func main() {
 	})
 	// Take-down markers on disk follow the database (suspend.go).
 	siteHandler.SyncSuspendMarkers(context.Background())
-	oauthHandler := handler.NewOAuthHandler(db, accountsService, cfg, ed)
+	oauthHandler := handler.NewOAuthHandler(db, accountsService, oauthSettings(cfg, accountsService), ed)
 	oauthHandler.ShareAssets(siteHandler)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
 	oauthHandler.SetPasscodeCheck(siteHandler.PasscodeLetsIn)

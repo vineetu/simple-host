@@ -4,14 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strconv"
 	"testing"
 	"time"
-
-	_ "github.com/lib/pq"
 
 	"github.com/vsriram/simple-host/internal/config"
 	model "github.com/vsriram/simple-host/internal/model"
@@ -111,7 +110,7 @@ func TestListProvidersOIDC(t *testing.T) {
 			providers["oidc"] = oauth.NewCompany(oauth.CompanyConfig{Issuer: "https://idp.example.test", ClientID: "c", ClientSecret: "s", RedirectURI: "https://app.example.test/v1/auth/oauth/oidc/callback"})
 		}
 		cfg := config.Config{ResendAPIKey: resendKey, EmailSignIn: emailSignIn}
-		return &OAuthHandler{cfg: cfg, providers: providers}
+		return &OAuthHandler{cfg: testOAuthSettings(cfg, accounts.New(nil)), signIn: accounts.NewProviderSignIn(accounts.New(nil), providers)}
 	}
 
 	t.Run("oidc off", func(t *testing.T) {

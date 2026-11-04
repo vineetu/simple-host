@@ -14,7 +14,7 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	model "github.com/vsriram/simple-host/internal/model"
-	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
@@ -237,7 +237,7 @@ func TestPersonalLimitsHistoryAndErase(t *testing.T) {
 
 	// The visitor's "Download my data" has it; deleting their account erases it.
 	vicID, _ := s.a.userID(t, s.vic)
-	subs, err := legacyrepo.ListSubmissionsElsewhere(context.Background(), s.a.database, vicID)
+	subs, err := accountsrepo.ListSubmissionsElsewhere(context.Background(), s.a.database, vicID)
 	if err != nil {
 		t.Fatal(err)
 	}

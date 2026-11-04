@@ -1303,44 +1303,7 @@ func (h *ConnectorHandler) userForAccessTokenTeam(ctx context.Context, token str
 // personal hosted grant and "" otherwise. A malformed hosted grant cannot
 // authenticate. The returned grant also carries the selected team, if any.
 func (h *ConnectorHandler) tokenAccess(ctx context.Context, token string, audiences ...string) (model.User, string, string, model.OAuthTokenGrant, bool) {
-	tok, err := h.accountsSvc().GetOAuthToken(ctx, hashSecret(token))
-	if err != nil || tok.Kind != "access" || h.now().After(tok.ExpiresAt) {
-		return model.User{}, "", "", model.OAuthTokenGrant{}, false
-	}
-	audienceOK := false
-	for _, a := range audiences {
-		if tok.Resource == a {
-			audienceOK = true
-		}
-	}
-	if !audienceOK {
-		return model.User{}, "", "", model.OAuthTokenGrant{}, false
-	}
-	user, err := h.accountsSvc().GetUserByID(ctx, tok.UserID)
-	// No "has an API key" check any more: keys are stored hashed and the
-	// connector does not replay one (it acts through a per-request internal
-	// credential), so an account with no key yet can still use its connection.
-	if err != nil || user.Username == "admin" {
-		return model.User{}, "", "", model.OAuthTokenGrant{}, false
-	}
-	// A suspended person's token is refused but the grant is kept, so
-	// re-enabling the account brings the connection back. The user is
-	// returned (with Suspended set) so callers can say why.
-	if user.Suspended {
-		return user, "", "", model.OAuthTokenGrant{}, false
-	}
-	_ = h.accountsSvc().TouchOAuthGrant(ctx, tok.GrantID)
-	if !h.hackTeams {
-		return user, auth.ScopeTeam(tok.Scope), "", tok, true
-	}
-	teamID, events, ok := auth.GrantKind(tok.Scope)
-	if !ok {
-		return model.User{}, "", "", model.OAuthTokenGrant{}, false
-	}
-	if events {
-		return user, "", mcp.CallerModeEvents, tok, true
-	}
-	return user, teamID, "", tok, true
+	return h.accountsSvc().ConnectorAccess(ctx, token, h.now, h.hackTeams, audiences...)
 }
 
 // selectHackTeam is called only by the hosted MCP team-selection tool. A
@@ -1459,15 +1422,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		}
 		appName = httpx.CleanClientName(client.Name)
 		mintPhoto = func(ctx context.Context, _ bool) (string, func(), error) {
-			current, err := h.accountsSvc().GetOAuthGrantByID(ctx, grant.GrantID)
-			if err != nil || current.UserID != user.ID || current.ClientID != grant.ClientID || current.Resource != h.mcpResource {
-				return "", nil, errors.New("photo sign-in ended")
-			}
-			u, err := h.accountsSvc().GetUserByID(ctx, current.UserID)
-			if err != nil || u.Suspended || u.Username == "admin" {
-				return "", nil, errors.New("photo sign-in ended")
-			}
-			return h.internalKeyFor(u.ID, auth.ScopeTeam(current.Scope))
+			return h.accountsSvc().PhotoCredential(ctx, grant.GrantID, user.ID, grant.ClientID, h.mcpResource)
 		}
 		mintUpload = func(ctx context.Context, team bool) (string, func(), error) {
 			u, currentTeam, _, currentGrant, valid := h.tokenAccess(ctx, token, h.mcpResource, h.issuer)

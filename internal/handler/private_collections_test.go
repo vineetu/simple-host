@@ -17,7 +17,6 @@ import (
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
@@ -700,7 +699,7 @@ func TestClaimedSubdomainSessionIsolation(t *testing.T) {
 		t.Errorf("cookie accepted as apex credential: %d", r.status)
 	}
 	// Sign-in may return to the claimed host (no DNS proof needed); not to an unclaimed one.
-	oh := &OAuthHandler{database: a.database, cfg: config.Config{PublicBaseURL: "https://simple-host.test", SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain}}
+	oh := &OAuthHandler{database: a.database, accounts: accountapp.New(a.database), cfg: OAuthSettings{PublicBaseURL: "https://simple-host.test", SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain}}
 	if _, site, _, purpose, err := oh.sanitizeReturnTo(context.Background(), "https://"+dom+"/rsvp.html"); err != nil || purpose != "site" || site.String != siteID {
 		t.Errorf("return_to claimed host: %v %q", err, purpose)
 	}

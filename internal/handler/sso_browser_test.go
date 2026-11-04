@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http"
 	"os"
 	"strings"
@@ -34,12 +35,12 @@ func TestServeSSOBrowser(t *testing.T) {
 	uid, handle := a.userID(t, owner)
 	markReady(t, dir, handle)
 	o := a.withOAuth(t)
-	o.cfg.ResendAPIKey = "fixture-mail"
+	o.cfg.EmailEnabled = true
 	// Registered middleware holds the limiter pointer; adjust it in place.
 	for _, limiter := range []*rateLimiter{a.users.ipLimiter, a.users.emailLimiter, a.sites.emailLimiter, a.sites.visitorAuthLimiter, o.ipLimiter} {
 		limiter.Reset(10000, 0)
 	}
-	o.providers = nil
+	o.signIn = accounts.NewProviderSignIn(o.accounts, nil)
 	a.sites.SetSSOHop(o)
 	RegisterUIRoutes(a.mux, apex, a.sites)
 	// Production nginx serves custom-domain files at the host root. Reuse

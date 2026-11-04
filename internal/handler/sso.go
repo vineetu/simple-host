@@ -12,8 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 const ssoCookieHost = "__Host-sh_sso"
@@ -58,12 +59,12 @@ func setSSOCookie(w http.ResponseWriter, r *http.Request, value string, maxAge i
 // Issuance runs only through /v1/sso/session, after account sign-in on the
 // apex. ttl and idle are the visitor session limits (limitSet.
 // visitorSessionTTL/visitorSessionIdle) of the handler issuing the pass.
-func issueSSOPass(w http.ResponseWriter, r *http.Request, database *sql.DB, keyHash string, ttl, idle, keyIdle time.Duration) error {
+func issueSSOPass(w http.ResponseWriter, r *http.Request, service *accounts.Service, keyHash string, ttl, idle, keyIdle time.Duration) error {
 	raw, err := randomHex(32)
 	if err != nil {
 		return err
 	}
-	if err = db.ReplaceSSOPass(r.Context(), database, db.HashAPIKey(raw), keyHash, db.HashAPIKey(ssoCookie(r)), ttl, idle, keyIdle); err != nil {
+	if err = service.ReplaceSSOPass(r.Context(), hashSecret(raw), keyHash, hashSecret(ssoCookie(r)), ttl, idle, keyIdle); err != nil {
 		return err
 	}
 	setSSOCookie(w, r, raw, int(ttl/time.Second))
@@ -129,20 +130,20 @@ func (h *OAuthHandler) bootstrapSSO(w http.ResponseWriter, r *http.Request) {
 	}
 	// Stored full account keys only. Internal connector and deploy keys cannot
 	// manufacture a browser sign-in that outlives their authority.
-	keyHash := db.HashAPIKey(key)
+	keyHash := hashSecret(key)
 	if !h.ssoKeyLimiter.allowHTTP(w, keyHash) {
 		tooManyRequests(w)
 		return
 	}
-	if p, err := db.GetSSOPass(r.Context(), h.database, db.HashAPIKey(ssoCookie(r)), h.limits.KeyIdleExpiry); err == nil && p.ParentKeyHash == keyHash {
-		if err := db.TouchSSOPass(r.Context(), h.database, p.Hash, h.visitorSessionIdle()); err != nil {
+	if p, err := h.accounts.GetSSOPass(r.Context(), hashSecret(ssoCookie(r)), h.limits.KeyIdleExpiry); err == nil && p.ParentKeyHash == keyHash {
+		if err := h.accounts.TouchSSOPass(r.Context(), p.Hash, h.visitorSessionIdle()); err != nil {
 			writeOAuthHTMLError(h.pipeline(), w, 500)
 			return
 		}
 		w.WriteHeader(204)
 		return
 	}
-	if err := issueSSOPass(w, r, h.database, keyHash, h.visitorSessionTTL(), h.visitorSessionIdle(), h.limits.KeyIdleExpiry); err != nil {
+	if err := issueSSOPass(w, r, h.accounts, keyHash, h.visitorSessionTTL(), h.visitorSessionIdle(), h.limits.KeyIdleExpiry); err != nil {
 		http.Error(w, "Sign in first.", 401)
 		return
 	}
@@ -158,7 +159,7 @@ func (h *OAuthHandler) startSSO(w http.ResponseWriter, r *http.Request) {
 		// Discovery can fail before auth.js learns that this is a legacy instance.
 		provider := "google"
 		for _, name := range []string{"google", "oidc", "github"} {
-			if _, ok := h.providers[name]; ok {
+			if h.signIn.Has(name) {
 				provider = name
 				break
 			}
@@ -186,8 +187,8 @@ func (h *OAuthHandler) startSSO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sum := sha256.Sum256([]byte(nonce))
-	hop := db.SSOHop{State: state, SiteID: siteID.String, Host: host, ReturnTo: sanitized, NonceHash: base64.RawURLEncoding.EncodeToString(sum[:])}
-	if err := db.InsertSSOHop(r.Context(), h.database, hop); err != nil {
+	hop := model.SSOHop{State: state, SiteID: siteID.String, Host: host, ReturnTo: sanitized, NonceHash: base64.RawURLEncoding.EncodeToString(sum[:])}
+	if err := h.accounts.InsertSSOHop(r.Context(), hop); err != nil {
 		writeOAuthHTMLError(h.pipeline(), w, 500)
 		return
 	}
@@ -206,7 +207,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 		}
 		state = r.PostForm.Get("state")
 	}
-	hop, err := db.GetSSOHop(r.Context(), h.database, state, false)
+	hop, err := h.accounts.GetSSOHop(r.Context(), state, false)
 	if err != nil {
 		logSignInFail(r, "sso_hop", "state_unknown", state)
 		writeOAuthHTMLError(h.pipeline(), w, 400)
@@ -214,7 +215,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 	}
 	// An OAuth callback carries a browser-bound account token. Redeem that on
 	// the apex before using any existing pass, including when switching people.
-	p, err := db.GetSSOPass(r.Context(), h.database, db.HashAPIKey(ssoCookie(r)), h.limits.KeyIdleExpiry)
+	p, err := h.accounts.GetSSOPass(r.Context(), hashSecret(ssoCookie(r)), h.limits.KeyIdleExpiry)
 	if err != nil || r.URL.Query().Get("token") != "" {
 		if r.Method == "POST" {
 			logSignInFail(r, "sso_consent", "no_pass", state)
@@ -229,7 +230,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(h.pipeline(), w, 500)
 		return
 	}
-	consent, err := db.HasSSOConsent(r.Context(), h.database, p.UserID, hop.SiteID)
+	consent, err := h.accounts.HasSSOConsent(r.Context(), p.UserID, hop.SiteID)
 	if err != nil {
 		writeOAuthHTMLError(h.pipeline(), w, 500)
 		return
@@ -247,7 +248,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		sum := sha256.Sum256([]byte(token))
-		if err := db.SetSSOConsentForm(r.Context(), h.database, state, base64.RawURLEncoding.EncodeToString(sum[:]), p.Hash); err != nil {
+		if err := h.accounts.SetSSOConsentForm(r.Context(), state, base64.RawURLEncoding.EncodeToString(sum[:]), p.Hash); err != nil {
 			writeOAuthHTMLError(h.pipeline(), w, 500)
 			return
 		}
@@ -264,73 +265,27 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 	// Delete the state in the same transaction as the fresh session and code.
 	// Concurrent hops cannot mint twice; revoking the parent races safely with
 	// the foreign-key insert, and is checked again when the code is redeemed.
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	out, err := h.accounts.RedeemSSOHop(r.Context(), state, p, r.Method == "POST", r.PostForm.Get("form_token"), h.limits.KeyIdleExpiry, h.visitorSessionIdle())
 	if err != nil {
-		writeOAuthHTMLError(h.pipeline(), w, 500)
-		return
-	}
-	defer tx.Rollback()
-	hop, err = db.GetSSOHop(r.Context(), tx, state, true)
-	if err != nil {
-		logSignInFail(r, "sso_hop", "state_used", state)
-		writeOAuthHTMLError(h.pipeline(), w, 400)
-		return
-	}
-	if _, err = db.GetSSOPass(r.Context(), tx, p.Hash, h.limits.KeyIdleExpiry); err != nil {
-		logSignInFail(r, "sso_hop", "pass_gone", state)
-		writeOAuthHTMLError(h.pipeline(), w, 401)
-		return
-	}
-	if r.Method == "POST" {
-		if hop.ConsentPassHash.String != p.Hash || !nonceMatches(r.PostForm.Get("form_token"), hop.ConsentHash.String) {
-			writeOAuthHTMLError(h.pipeline(), w, 403)
-			return
+		if out.Failure != "" {
+			logSignInFail(r, "sso_hop", out.Failure, state)
 		}
-		if err = db.RememberSSOConsent(r.Context(), tx, p.UserID, hop.SiteID); err != nil {
-			writeOAuthHTMLError(h.pipeline(), w, 500)
-			return
+		if out.Status == 429 {
+			tooManyRequests(w)
+		} else {
+			writeOAuthHTMLError(h.pipeline(), w, out.Status)
 		}
-	}
-	if err := db.LimitPendingSSOSessions(r.Context(), tx, p.Hash, hop.SiteID); err != nil {
-		logSignInFail(r, "sso_hop", "too_many_pending", state)
-		tooManyRequests(w)
 		return
 	}
-	id, err := randomRaw(32)
-	if err != nil {
-		writeOAuthHTMLError(h.pipeline(), w, 500)
-		return
-	}
-	once, err := randomHex(32)
-	if err != nil {
-		writeOAuthHTMLError(h.pipeline(), w, 500)
-		return
-	}
-	now := time.Now()
-	if err = db.InsertPendingVisitorSession(r.Context(), tx, id, p.UserID, hop.SiteID, hop.Host, now.Add(time.Minute)); err == nil {
-		err = db.ParentVisitorSession(r.Context(), tx, id, p.Hash)
-	}
-	if err == nil {
-		err = db.InsertEstablishToken(r.Context(), tx, once, id, hop.Host, hop.ReturnTo, sql.NullString{String: hop.NonceHash, Valid: true}, now.Add(time.Minute))
-	}
-	if err == nil {
-		err = db.TouchSSOPass(r.Context(), tx, p.Hash, h.visitorSessionIdle())
-	}
-	if err == nil {
-		err = tx.Commit()
-	}
-	if err != nil {
-		logSignInFail(r, "sso_hop", "mint", state)
-		writeOAuthHTMLError(h.pipeline(), w, 500)
-		return
-	}
+	hop, once := out.Hop, out.Once
+
 	u, _ := url.Parse(hop.ReturnTo)
 	http.Redirect(w, r, u.Scheme+"://"+u.Host+"/v1/visitor/establish?once="+once, 302)
 }
 func (h *OAuthHandler) signedOutSSO(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	formHash := ""
-	cookieHash := db.HashAPIKey(ssoCookie(r))
+	cookieHash := hashSecret(ssoCookie(r))
 	if r.Method == "POST" {
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
 		if r.ParseForm() != nil {
@@ -338,9 +293,9 @@ func (h *OAuthHandler) signedOutSSO(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		token = r.PostForm.Get("token")
-		formHash = db.HashAPIKey(r.PostForm.Get("form_token"))
+		formHash = hashSecret(r.PostForm.Get("form_token"))
 	} else {
-		ticket, err := db.GetSSOSignout(r.Context(), h.database, token)
+		ticket, err := h.accounts.GetSSOSignout(r.Context(), token)
 		if err != nil {
 			writeOAuthHTMLError(h.pipeline(), w, 400)
 			return
@@ -351,7 +306,7 @@ func (h *OAuthHandler) signedOutSSO(w http.ResponseWriter, r *http.Request) {
 				writeOAuthHTMLError(h.pipeline(), w, 500)
 				return
 			}
-			if err := db.SetSSOSignoutForm(r.Context(), h.database, token, db.HashAPIKey(form), cookieHash); err != nil {
+			if err := h.accounts.SetSSOSignoutForm(r.Context(), token, hashSecret(form), cookieHash); err != nil {
 				writeOAuthHTMLError(h.pipeline(), w, 500)
 				return
 			}
@@ -363,7 +318,7 @@ func (h *OAuthHandler) signedOutSSO(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	back, err := db.CompleteSSOSignout(r.Context(), h.database, token, cookieHash, formHash)
+	back, err := h.accounts.CompleteSSOSignout(r.Context(), token, cookieHash, formHash)
 	if err != nil {
 		writeOAuthHTMLError(h.pipeline(), w, 400)
 		return
@@ -419,17 +374,17 @@ func (h *SiteHandler) startGateSSO(w http.ResponseWriter, r *http.Request) bool 
 // endSiteSSO never reads the apex cookie. Every site logout with an account
 // apex returns a one-use navigation, including absent, expired and legacy sessions.
 func (h *SiteHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next string) (string, error) {
-	var sess db.VisitorSession
+	var sess model.VisitorSession
 	id, err := hex.DecodeString(strictVisitorCookie(r))
 	if err == nil && len(id) == 32 {
-		s, err := db.GetVisitorSession(r.Context(), h.database, id, h.limits.KeyIdleExpiry)
+		s, err := h.storeAccounts().GetVisitorSession(r.Context(), id, h.limits.KeyIdleExpiry)
 		if err != nil && err != sql.ErrNoRows {
 			return "", err
 		}
 		if err == nil && time.Now().Before(s.ExpiresAt) && time.Now().Before(s.IdleExpiresAt) && strings.EqualFold(s.Host, requestHostName(r)) {
 			sess = s
 			if !s.SSOPassHash.Valid || h.ssoBaseURL == "" {
-				if err := db.DeleteVisitorSession(r.Context(), h.database, id); err != nil {
+				if err := h.storeAccounts().DeleteVisitorSession(r.Context(), id); err != nil {
 					return "", err
 				}
 			}
@@ -458,7 +413,7 @@ func (h *SiteHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next st
 		scheme = "https"
 	}
 	back := scheme + "://" + r.Host + safeNext(next)
-	if err = db.RevokeVisitorSSO(r.Context(), h.database, sess, token, back); err != nil {
+	if err = h.storeAccounts().RevokeVisitorSSO(r.Context(), sess, token, back); err != nil {
 		return "", err
 	}
 	return h.ssoBaseURL + "/v1/sso/signed-out?token=" + token, nil
@@ -484,7 +439,7 @@ func ssoReturnToOK(u *url.URL, base string) bool {
 // theme. Consent works with scripts disabled; only theme selection uses JS.
 var ssoConsentPage = themed(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--sh:theme--><title>Continue to site</title><style>` + passcodeGateCSS + `html:root main.gate h1,html:root main.gate p{overflow-wrap:anywhere}html:root main.gate h1 span{display:block;font:600 20px/1.4 system-ui;margin:8px 0 16px}</style></head><body><main class="gate"><h1>Continue as <span>__EMAIL__</span></h1><p class="lead">to __HOST__</p><p class="fine">The site owner can see the email you sign in with.</p><form method="post" action="/v1/sso/consent"><input type="hidden" name="state" value="__STATE__"><input type="hidden" name="form_token" value="__TOKEN__"><button class="primary" type="submit">Continue</button></form></main></body></html>`)
 
-func (h *OAuthHandler) ssoSignInPage(w http.ResponseWriter, r *http.Request, hop db.SSOHop) {
+func (h *OAuthHandler) ssoSignInPage(w http.ResponseWriter, r *http.Request, hop model.SSOHop) {
 	page, err := h.pipeline().chromePage("sso-signin.html", h.pipeline().chromeDataFor(r, ""))
 	if err != nil {
 		writeOAuthHTMLError(h.pipeline(), w, 500)
@@ -506,11 +461,11 @@ func (h *UserHandler) forgetSSOConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user := auth.GetUser(r.Context())
-	if user == nil || user.KeyHash == "" || user.KeyScope != db.KeyScopeFull {
+	if user == nil || user.KeyHash == "" || user.KeyScope != model.KeyScopeFull {
 		writeJSON(w, 403, errorResponse{Error: "Use a full account key."})
 		return
 	}
-	if err := db.ForgetSSOConsent(r.Context(), h.database, user.ID, r.PathValue("site")); err != nil {
+	if err := h.accounts.ForgetSSOConsent(r.Context(), user.ID, r.PathValue("site")); err != nil {
 		writeJSON(w, 500, errorResponse{Error: "Could not forget consent."})
 		return
 	}

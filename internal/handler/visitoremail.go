@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -114,10 +114,10 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if created {
-		recordSignup(r.Context(), h.database, user.ID, db.Signup{Source: db.SignupVisitor, Method: db.SignupMethodEmail})
+		recordSignup(r.Context(), h.database, user.ID, model.Signup{Source: model.SignupVisitor, Method: model.SignupMethodEmail})
 	}
 	// Only a real suspension answers account_suspended; a failed lookup is ours.
-	if susp, serr := db.UserSuspended(r.Context(), h.database, user.ID); serr != nil {
+	if susp, serr := h.storeAccounts().UserSuspended(r.Context(), user.ID); serr != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	} else if susp {
@@ -131,7 +131,7 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 	}
 	now := time.Now()
 	expires, idle := now.Add(h.visitorSessionTTL()), now.Add(h.visitorSessionIdle())
-	first, err := db.InsertVisitorSession(r.Context(), h.database, id, user.ID, siteID, requestHostName(r), expires, idle)
+	first, err := h.storeAccounts().InsertVisitorSession(r.Context(), id, user.ID, siteID, requestHostName(r), expires, idle)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return

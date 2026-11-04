@@ -531,7 +531,7 @@ func TestSSOCompanyProvider(t *testing.T) {
 	_, handle := a.userID(t, owner)
 	markReady(t, dir, handle)
 	host := "portal." + handle + "." + pcSiteDomain
-	o.providers["oidc"] = ssoOIDCProvider{}
+	o.signIn = accountapp.NewProviderSignIn(o.accounts, map[string]oauth.Provider{"google": fakeProvider{}, "oidc": ssoOIDCProvider{}})
 	state, _ := a.ssoStartAt(t, host)
 	ret := a.srv.URL + "/v1/sso/hop?state=" + state + "&cn=" + testNonceHash(testNonce).String
 	r := a.at(t, "GET", a.appHost(), "/v1/auth/oauth/oidc?return_to="+url.QueryEscape(ret), nil, nil)
@@ -758,7 +758,7 @@ func TestSSOSessionRetainsOnePassPerKey(t *testing.T) {
 		go func() {
 			raw, err := randomHex(32)
 			if err == nil {
-				err = accountsrepo.ReplaceSSOPass(context.Background(), a.database, accountsrepo.HashAPIKey(raw), accountsrepo.HashAPIKey(p.key), "", a.sites.visitorSessionTTL(), a.sites.visitorSessionIdle(), a.sites.limits.KeyIdleExpiry)
+				err = accountapp.New(a.database).ReplaceSSOPass(context.Background(), accountsrepo.HashAPIKey(raw), accountsrepo.HashAPIKey(p.key), "", a.sites.visitorSessionTTL(), a.sites.visitorSessionIdle(), a.sites.limits.KeyIdleExpiry)
 			}
 			errs <- err
 		}()
@@ -868,7 +868,7 @@ func TestSSOStartWithoutApexUsesLegacyProvider(t *testing.T) {
 	host := "page." + handle + "." + pcSiteDomain
 	o.cfg.PublicBaseURL = ""
 	for _, provider := range []string{"google", "oidc"} {
-		o.providers = map[string]oauth.Provider{provider: ssoOIDCProvider{}}
+		o.signIn = accountapp.NewProviderSignIn(o.accounts, map[string]oauth.Provider{provider: ssoOIDCProvider{}})
 		back := "https://" + host + "/page?ok=1"
 		r := a.at(t, "GET", host, "/v1/sso/start?return_to="+url.QueryEscape(back), nil, nil)
 		if r.status != 302 || r.header.Get("Location") != "/v1/visitor/oauth/"+provider+"?return_to="+url.QueryEscape(back) {

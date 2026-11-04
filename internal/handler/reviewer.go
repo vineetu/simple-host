@@ -23,7 +23,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -34,8 +33,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 const (
@@ -211,9 +211,9 @@ func (h *ConnectorHandler) reviewerSignInHandler(w http.ResponseWriter, r *http.
 	// the reviewer's earlier keys keep working.
 	key, err := auth.GenerateAPIKey()
 	if err == nil {
-		err = db.AddSignInKey(r.Context(), h.database, user.ID, key, db.KeyNameReviewer)
+		err = h.accountsSvc().AddSignInKey(r.Context(), user.ID, key, model.KeyNameReviewer)
 	}
-	if errors.Is(err, db.ErrAccountSuspended) {
+	if errors.Is(err, model.ErrAccountSuspended) {
 		writeAccountSuspended(w)
 		return
 	}
@@ -229,27 +229,8 @@ func (h *ConnectorHandler) reviewerSignInHandler(w http.ResponseWriter, r *http.
 // reviewerAccount returns the reviewer's ordinary account, creating it on first
 // use the way a first verified email code does. An admin account is refused:
 // the reviewer must never hold more than a normal person's power.
-func (h *ConnectorHandler) reviewerAccount(ctx context.Context, email string) (db.User, error) {
-	user, err := db.GetUserByUsername(ctx, h.database, email)
-	if errors.Is(err, sql.ErrNoRows) {
-		user, err = db.CreateUser(ctx, h.database, email, "", false)
-		if err == nil {
-			recordSignup(ctx, h.database, user.ID, db.Signup{Source: db.SignupReviewer, Method: db.SignupMethodPassword})
-		} else if isUniqueViolation(err) {
-			user, err = db.GetUserByUsername(ctx, h.database, email)
-		}
-	}
-	if err != nil {
-		return db.User{}, err
-	}
-	if user.IsAdmin || user.Username == "admin" {
-		return db.User{}, errors.New("the reviewer account is an admin account; refusing")
-	}
-	if !user.Handle.Valid {
-		assignHandle(ctx, h.database, user.ID, email, h.ed.Identity().RandomHandles)
-		if fresh, ferr := db.GetUserByUsername(ctx, h.database, email); ferr == nil {
-			user = fresh
-		}
-	}
-	return user, nil
+func (h *ConnectorHandler) reviewerAccount(ctx context.Context, email string) (model.User, error) {
+	return h.accountsSvc().ReviewerAccount(ctx, email, h.ed.Identity().RandomHandles, func(ctx context.Context, q accounts.AttributionStore, id, email string, random bool) {
+		assignHandle(ctx, q, id, email, random)
+	})
 }

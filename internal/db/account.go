@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"github.com/vsriram/simple-host/internal/model"
 	"sort"
-	"strings"
-	"time"
 
 	"github.com/vsriram/simple-host/internal/repository/accounts"
 	"github.com/vsriram/simple-host/internal/repository/hackevents"
@@ -26,86 +24,20 @@ import (
 
 // AccountForDelete is the account row, locked, with what the delete policy
 // needs to decide.
-type AccountForDelete struct {
-	ID          string
-	Username    string
-	Handle      string
-	IsAdmin     bool
-	Suspended   bool
-	EventClaims int
-	// TakenDown counts the account's sites the operator took down (live or
-	// Recently deleted): the person cannot delete those, so neither the
-	// account that holds them; the operator can.
-	TakenDown int
-}
+type AccountForDelete = model.AccountForDelete
 
 // LockAccountForDelete locks the account row inside tx. sql.ErrNoRows when
 // there is no such account.
 func LockAccountForDelete(ctx context.Context, tx *sql.Tx, id string) (AccountForDelete, error) {
-	var a AccountForDelete
-	var handle sql.NullString
-	err := tx.QueryRowContext(ctx, `SELECT id, username, handle, COALESCE(is_admin, false), suspended_at IS NOT NULL
-		FROM users WHERE id::text = $1 FOR UPDATE`, id).Scan(&a.ID, &a.Username, &handle, &a.IsAdmin, &a.Suspended)
-	if err != nil {
-		return a, err
-	}
-	a.Handle = handle.String
-	// event_domains cascades on user_id, so deleting the row would take the
-	// claim with it and strand live DNS records under our domain that nothing
-	// could then find or remove. The operator releases them first.
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM event_domains WHERE user_id = $1`, a.ID).Scan(&a.EventClaims)
-	if err != nil {
-		return a, err
-	}
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM sites WHERE user_id = $1 AND suspended_at IS NOT NULL`, a.ID).Scan(&a.TakenDown)
-	return a, err
-}
-
-// AccountSiteNames lists the names of every site of the account, live and
-// Recently deleted, so the caller can take each site's lock before erasing.
-func AccountSiteNames(ctx context.Context, database *sql.DB, userID string) ([]string, error) {
-	rows, err := database.QueryContext(ctx, `SELECT name FROM sites WHERE user_id::text = $1 ORDER BY name`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var n string
-		if err := rows.Scan(&n); err != nil {
-			return nil, err
-		}
-		out = append(out, n)
-	}
-	return out, rows.Err()
+	return accounts.LockAccountForDelete(ctx, tx, id)
 }
 
 // ErasedSite is one site removed with its account, for the disk clean-up.
-type ErasedSite struct {
-	ID   string
-	Name string
-	// Domains is every own address the site had: its custom domain or
-	// claimed name and the earlier one it still served at (previous_domain),
-	// to unbind and withdraw while they still point at this site.
-	Domains []string
-}
+type ErasedSite = model.ErasedSite
 
 // ErasedAccount is what EraseAccount removed from the database and leaves
 // the caller to remove on disk after the commit.
-type ErasedAccount struct {
-	UserID  string
-	Handle  string
-	Aliases []string     // earlier handles, whose disk links go too
-	Sites   []ErasedSite // live and Recently deleted
-	// Families are the account's address-family suffixes, whose links and
-	// issuer requests go too (the rows go with the account).
-	Families []string
-	// AffectedEventAccounts are the holding accounts of hosted events whose
-	// team this person admined and whose team row was deleted outright
-	// below (not kept): the caller sweeps orphan team sites for each, the
-	// same way leaveTeam does (Grok security review, 2026-11-01).
-	AffectedEventAccounts []string
-}
+type ErasedAccount = model.ErasedAccount
 
 // EraseAccount deletes the account locked by LockAccountForDelete and
 // everything tied to it, inside tx: every site (Recently deleted ones too)
@@ -114,253 +46,24 @@ type ErasedAccount struct {
 // to other people's lists; pending sign-in codes sent to its email. The
 // handle, old handles and claimed names are retired, not freed.
 func EraseAccount(ctx context.Context, tx *sql.Tx, a AccountForDelete) (ErasedAccount, error) {
-	out := ErasedAccount{UserID: a.ID, Handle: a.Handle}
-	// Take what a save on these sites takes, in the order a save takes it:
-	// the names' declaration rows, then their items, then the site rows
-	// (the size triggers update those). A save already under way finishes
-	// first; one that starts later waits for the erase. Taken in another
-	// order, the erase and a visitor's save could each hold what the other
-	// needs (a deadlock that aborts the erase).
-	for _, q := range []string{
-		`SELECT count(*) FROM (SELECT 1 FROM collection_settings WHERE site_id IN (SELECT id FROM sites WHERE user_id = $1) ORDER BY site_id, collection FOR UPDATE) x`,
-		`SELECT count(*) FROM (SELECT 1 FROM collection_items WHERE site_id IN (SELECT id FROM sites WHERE user_id = $1) ORDER BY id FOR UPDATE) x`,
-		`SELECT count(*) FROM (SELECT 1 FROM sites WHERE user_id = $1 ORDER BY id FOR UPDATE) x`,
-	} {
-		var n int64
-		if err := tx.QueryRowContext(ctx, q, a.ID).Scan(&n); err != nil {
-			return out, err
-		}
-	}
-	rows, err := tx.QueryContext(ctx, `SELECT id, name FROM sites WHERE user_id = $1 ORDER BY name`, a.ID)
-	if err != nil {
-		return out, err
-	}
-	for rows.Next() {
-		var s ErasedSite
-		if err := rows.Scan(&s.ID, &s.Name); err != nil {
-			rows.Close()
-			return out, err
-		}
-		out.Sites = append(out.Sites, s)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return out, err
-	}
-	for i := range out.Sites {
-		// Claimed <name>.<SITE_DOMAIN> addresses (current and earlier)
-		// become retired names.
-		domains, err := RetireSiteNames(ctx, tx, out.Sites[i].ID)
-		if err != nil {
-			return out, err
-		}
-		for _, d := range domains {
-			out.Sites[i].Domains = append(out.Sites[i].Domains, strings.ToLower(d))
-		}
-	}
-
-	arows, err := tx.QueryContext(ctx, `SELECT handle FROM handle_aliases WHERE user_id = $1 ORDER BY handle`, a.ID)
-	if err != nil {
-		return out, err
-	}
-	for arows.Next() {
-		var h string
-		if err := arows.Scan(&h); err != nil {
-			arows.Close()
-			return out, err
-		}
-		out.Aliases = append(out.Aliases, h)
-	}
-	arows.Close()
-	if err := arows.Err(); err != nil {
-		return out, err
-	}
-	frows, err := tx.QueryContext(ctx, `SELECT suffix FROM address_families WHERE user_id = $1 ORDER BY suffix`, a.ID)
-	if err != nil {
-		return out, err
-	}
-	for frows.Next() {
-		var s string
-		if err := frows.Scan(&s); err != nil {
-			frows.Close()
-			return out, err
-		}
-		out.Families = append(out.Families, s)
-	}
-	frows.Close()
-	if err := frows.Err(); err != nil {
-		return out, err
-	}
-
-	// Hack event membership (event_members.user_id REFERENCES users(id) ON
-	// DELETE CASCADE) disappears with the account below, same as leaving a
-	// team -- but with no handler in between to run hackteams.EnsureTeamAdmin. Read
-	// which teams this person currently admins before the cascade, so a
-	// successor can be chosen for each once the cascade has actually run
-	// (Codex review, 2026-11-01; this account may hold no event membership
-	// at all, in which case the slice is empty and the loop below is a
-	// no-op).
-	adminTeamIDs, err := hackteams.AdminTeamIDs(ctx, tx, a.ID)
-	if err != nil {
-		return out, err
-	}
-
-	steps := []struct {
-		q    string
-		args []any
-	}{
-		// GDPR erasure: what this person submitted to anyone's list goes.
-		// (Their own sites' items go with the sites.)
-		{`DELETE FROM collection_items WHERE submitted_by = $1`, []any{a.ID}},
-		// Their address leaves the history of other people's saved data
-		// (the rows stay: they hold the site owner's earlier data).
-		{`UPDATE data_history SET actor_email = NULL WHERE actor_id = $1`, []any{a.ID}},
-		// Old handles and retired names stay held, by nobody.
-		{`UPDATE handle_aliases SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
-		{`UPDATE legacy_hostnames SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
-		// Sign-in codes are keyed by email, not by account.
-		{`DELETE FROM auth_tokens WHERE lower(email) = lower($1)`, []any{a.Username}},
-		// Sites go first so nothing depends on the row's cascade order; the
-		// row's own cascade takes keys, connected apps (grants, tokens,
-		// codes), sign-in identities and visitor sessions.
-		{`DELETE FROM sites WHERE user_id = $1`, []any{a.ID}},
-		{`DELETE FROM users WHERE id = $1`, []any{a.ID}},
-	}
-	if a.Handle != "" {
-		// The handle itself joins the retired names.
-		steps = append([]struct {
-			q    string
-			args []any
-		}{{`INSERT INTO handle_aliases (handle, user_id) VALUES ($1, NULL)
-			ON CONFLICT (handle) DO UPDATE SET user_id = NULL
-			WHERE handle_aliases.user_id IS NULL OR handle_aliases.user_id = $2`, []any{a.Handle, a.ID}}}, steps...)
-	}
-	for _, s := range steps {
-		if _, err := tx.ExecContext(ctx, s.q, s.args...); err != nil {
-			return out, err
-		}
-	}
-	// The cascade above already took this person's membership off each team
-	// they admined. Run the same cleanup LeaveMembership runs for a
-	// voluntary last-member leave, in the same order (Grok security review,
-	// 2026-11-01: hackteams.EnsureTeamAdmin alone is not enough when the erased
-	// account was the team's only member -- an empty, unlocked team with a
-	// live code would otherwise survive the account that used to run it).
-	sort.Strings(adminTeamIDs)
-	for _, teamID := range adminTeamIDs {
-		var eventAccountID string
-		if err := tx.QueryRowContext(ctx, `
-			SELECT e.account_id FROM event_teams t JOIN events e ON e.id = t.event_id WHERE t.id = $1`,
-			teamID).Scan(&eventAccountID); err != nil {
-			if err == sql.ErrNoRows {
-				continue // the team is already gone by some other path
-			}
-			return out, err
-		}
-		if err := hackteams.DeleteTeamIfEmpty(ctx, tx, teamID); err != nil {
-			return out, err
-		}
-		var stillExists bool
-		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_teams WHERE id = $1)`, teamID).Scan(&stillExists); err != nil {
-			return out, err
-		}
-		if !stillExists {
-			out.AffectedEventAccounts = append(out.AffectedEventAccounts, eventAccountID)
-			continue
-		}
-		var members int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM event_members WHERE team_id = $1`, teamID).Scan(&members); err != nil {
-			return out, err
-		}
-		if members == 0 {
-			// Not keepable (frozen or pinned): kept for good and locked, the
-			// same as a voluntary last-member leave past the deadline, and
-			// its code rotated so the dead link that used to work for this
-			// person stops working for anyone else too.
-			if err := hackevents.MarkTeamKeptAfterLeave(ctx, tx, teamID); err != nil {
-				return out, err
-			}
-			if err := hackteams.RotateTeamCodeTx(ctx, tx, teamID); err != nil {
-				return out, err
-			}
-			continue
-		}
-		// Members remain: give them a successor. hackteams.EnsureTeamAdmin locks
-		// that team's remaining members (sorted), then the team row, so
-		// running this sequentially here (never concurrently with itself)
-		// carries no extra deadlock risk.
-		if err := hackteams.EnsureTeamAdmin(ctx, tx, teamID); err != nil {
-			return out, err
-		}
-	}
-	return out, nil
+	return accounts.EraseAccount(ctx, tx, a, accounts.ErasureOperations{
+		RetireSiteNames: func(ctx context.Context, tx *sql.Tx, id string) ([]string, error) {
+			return RetireSiteNames(ctx, tx, id)
+		},
+		AdminTeamIDs: func(ctx context.Context, tx *sql.Tx, id string) ([]string, error) {
+			return hackteams.AdminTeamIDs(ctx, tx, id)
+		},
+		FinishTeams: finishErasedAccountTeams,
+	})
 }
 
 // ---- export ----------------------------------------------------------------
 
 // AccountAddress is one own address of one of the account's live sites.
-type AccountAddress struct {
-	Site     string
-	Domain   string
-	Status   string
-	Previous string
-}
-
-// ListAccountAddresses returns every live site's own address (claimed name
-// or custom domain), and the earlier one it still serves at while a new one
-// is pending.
-func ListAccountAddresses(ctx context.Context, database *sql.DB, userID string) ([]AccountAddress, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT name, lower(COALESCE(custom_domain, '')), COALESCE(domain_status, ''), lower(COALESCE(previous_domain, ''))
-		  FROM sites WHERE user_id = $1 AND deleted_at IS NULL
-		   AND (custom_domain IS NOT NULL OR previous_domain IS NOT NULL)
-		 ORDER BY name`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []AccountAddress
-	for rows.Next() {
-		var a AccountAddress
-		if err := rows.Scan(&a.Site, &a.Domain, &a.Status, &a.Previous); err != nil {
-			return nil, err
-		}
-		out = append(out, a)
-	}
-	return out, rows.Err()
-}
+type AccountAddress = model.AccountAddress
 
 // RetiredAccountName is a name the account's sites used to have.
-type RetiredAccountName struct {
-	Name string
-	Site string // "" when that site is gone
-}
-
-// ListRetiredNames returns the account's retired <name>.<SITE_DOMAIN> names.
-func ListRetiredNames(ctx context.Context, database *sql.DB, userID string) ([]RetiredAccountName, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT l.hostname, COALESCE(s.name, '')
-		  FROM legacy_hostnames l LEFT JOIN sites s ON s.id = l.site_id AND s.deleted_at IS NULL
-		 WHERE l.user_id = $1 ORDER BY l.hostname`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []RetiredAccountName
-	for rows.Next() {
-		var r RetiredAccountName
-		if err := rows.Scan(&r.Name, &r.Site); err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, rows.Err()
-}
-
-// ListHandleAliases returns the account's earlier handles.
-func ListHandleAliases(ctx context.Context, database *sql.DB, userID string) ([]string, error) {
-	return accounts.ListHandleAliases(ctx, database, userID)
-}
+type RetiredAccountName = model.RetiredAccountName
 
 // HandleAliasesByUser returns every account's earlier handles, by user id.
 func HandleAliasesByUser(ctx context.Context, database *sql.DB) (map[string][]string, error) {
@@ -369,11 +72,6 @@ func HandleAliasesByUser(ctx context.Context, database *sql.DB) (map[string][]st
 
 // SignInIdentity is a linked Google or GitHub sign-in.
 type SignInIdentity = model.SignInIdentity
-
-// ListSignInIdentities returns the account's linked Google/GitHub sign-ins.
-func ListSignInIdentities(ctx context.Context, database *sql.DB, userID string) ([]SignInIdentity, error) {
-	return accounts.ListSignInIdentities(ctx, database, userID)
-}
 
 // UnlinkSignInIdentity removes one of the account's linked Google/GitHub
 // sign-ins: that Google or GitHub account no longer signs in here.
@@ -394,64 +92,15 @@ func UnlinkSignInIdentity(ctx context.Context, database *sql.DB, userID, id stri
 }
 
 // VisitorSignIn is a site this person is signed in to as a visitor.
-type VisitorSignIn struct {
-	SiteID    string
-	Host      string
-	FirstSeen time.Time
-	LastSeen  time.Time
-}
-
-// ListVisitorSignIns returns the sites this person holds visitor sessions on.
-func ListVisitorSignIns(ctx context.Context, database *sql.DB, userID string) ([]VisitorSignIn, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT site_id::text, host, min(created_at), max(last_seen_at)
-		  FROM visitor_sessions WHERE user_id = $1
-		 GROUP BY site_id, host ORDER BY min(created_at)`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []VisitorSignIn
-	for rows.Next() {
-		var v VisitorSignIn
-		if err := rows.Scan(&v.SiteID, &v.Host, &v.FirstSeen, &v.LastSeen); err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, rows.Err()
-}
+type VisitorSignIn = model.VisitorSignIn
 
 // Submission is one list item this person submitted to someone else's site.
-type Submission struct {
-	ID         int64
-	SiteID     string
-	Collection string
-	Data       []byte
-	CreatedAt  time.Time
-}
+type Submission = model.Submission
 
 // ListSubmissionsElsewhere returns every list item this person submitted to
 // a site that is not theirs, oldest first.
 func ListSubmissionsElsewhere(ctx context.Context, database *sql.DB, userID string) ([]Submission, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT ci.id, ci.site_id::text, ci.collection, ci.data, ci.created_at
-		  FROM collection_items ci JOIN sites s ON s.id = ci.site_id
-		 WHERE ci.submitted_by = $1 AND s.user_id IS DISTINCT FROM $1
-		 ORDER BY ci.created_at, ci.id`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Submission
-	for rows.Next() {
-		var s Submission
-		if err := rows.Scan(&s.ID, &s.SiteID, &s.Collection, &s.Data, &s.CreatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, s)
-	}
-	return out, rows.Err()
+	return accounts.ListSubmissionsElsewhere(ctx, database, userID)
 }
 
 // ExportItem is one list item as the export writes it.
@@ -465,4 +114,54 @@ type ExportItem = sites.ExportItem
 // not give the site owner, and it changes later.
 func ListExportItems(ctx context.Context, database *sql.DB, siteID string) ([]ExportItem, error) {
 	return sites.ListExportItems(ctx, database, siteID)
+}
+
+func finishErasedAccountTeams(ctx context.Context, tx *sql.Tx, adminTeamIDs []string) ([]string, error) {
+	var affected []string
+	sort.Strings(adminTeamIDs)
+	for _, teamID := range adminTeamIDs {
+		var eventAccountID string
+		if err := hackteams.ErasureEventAccount(ctx, tx, teamID, &eventAccountID); err != nil {
+			if err == sql.ErrNoRows {
+				continue // the team is already gone by some other path
+			}
+			return affected, err
+		}
+		if err := hackteams.DeleteTeamIfEmpty(ctx, tx, teamID); err != nil {
+			return affected, err
+		}
+		var stillExists bool
+		if err := hackteams.ErasureTeamExists(ctx, tx, teamID, &stillExists); err != nil {
+			return affected, err
+		}
+		if !stillExists {
+			affected = append(affected, eventAccountID)
+			continue
+		}
+		var members int
+		if err := hackteams.ErasureMemberCount(ctx, tx, teamID, &members); err != nil {
+			return affected, err
+		}
+		if members == 0 {
+			// Not keepable (frozen or pinned): kept for good and locked, the
+			// same as a voluntary last-member leave past the deadline, and
+			// its code rotated so the dead link that used to work for this
+			// person stops working for anyone else too.
+			if err := hackevents.MarkTeamKeptAfterLeave(ctx, tx, teamID); err != nil {
+				return affected, err
+			}
+			if err := hackteams.RotateTeamCodeTx(ctx, tx, teamID); err != nil {
+				return affected, err
+			}
+			continue
+		}
+		// Members remain: give them a successor. hackteams.EnsureTeamAdmin locks
+		// that team's remaining members (sorted), then the team row, so
+		// running this sequentially here (never concurrently with itself)
+		// carries no extra deadlock risk.
+		if err := hackteams.EnsureTeamAdmin(ctx, tx, teamID); err != nil {
+			return affected, err
+		}
+	}
+	return affected, nil
 }

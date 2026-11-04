@@ -20,24 +20,24 @@ import (
 	"github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 	httpx "github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/model"
 	"golang.org/x/net/html"
 )
 
 const visitorPassHeader = "X-SH-Visitor-Pass"
 
-func (h *SiteHandler) internalVisitorSession(r *http.Request, siteID string) (db.VisitorSession, bool) {
-	pass, ok := db.LookupInternalVisitorKey(r.Header.Get(visitorPassHeader))
+func (h *SiteHandler) internalVisitorSession(r *http.Request, siteID string) (model.VisitorSession, bool) {
+	pass, ok := h.storeAccounts().LookupInternalVisitorKey(r.Header.Get(visitorPassHeader))
 	if !ok || pass.SiteID != siteID || pass.Host != requestHostName(r) || !sameOriginRequest(r) {
-		return db.VisitorSession{}, false
+		return model.VisitorSession{}, false
 	}
-	suspended, err := db.UserSuspended(r.Context(), h.database, pass.UserID)
+	suspended, err := h.storeAccounts().UserSuspended(r.Context(), pass.UserID)
 	if err != nil || suspended {
-		return db.VisitorSession{}, false
+		return model.VisitorSession{}, false
 	}
-	return db.VisitorSession{UserID: pass.UserID, SiteID: siteID, Host: pass.Host, ExpiresAt: time.Now().Add(time.Minute)}, true
+	return model.VisitorSession{UserID: pass.UserID, SiteID: siteID, Host: pass.Host, ExpiresAt: time.Now().Add(time.Minute)}, true
 }
 
 // SetVisitorTools uses the same address validator as browser sign-in. No
@@ -77,7 +77,7 @@ func visitorResult(data any, owner bool) map[string]any {
 }
 
 func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool string, args map[string]any, oauth *OAuthHandler) (map[string]any, error) {
-	user, err := db.GetUserByID(orig.Context(), h.database, caller.Owner)
+	user, err := h.storeAccounts().GetUserByID(orig.Context(), caller.Owner)
 	if err != nil || user.Suspended {
 		return nil, fmt.Errorf("this connection is signed out or suspended")
 	}
@@ -105,11 +105,11 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 	if err != nil || !id.Valid || purpose != "site" {
 		return nil, fmt.Errorf("site_not_found: use the site's browser address, claimed short name, or verified custom domain")
 	}
-	_, ownerID, siteName, err := db.GetSiteOwner(orig.Context(), h.database, id.String)
+	_, ownerID, siteName, err := h.sitesSvc().GetSiteOwner(orig.Context(), id.String)
 	if err != nil {
 		return nil, fmt.Errorf("site_not_found: site not found")
 	}
-	pass, revoke, err := db.IssueInternalVisitorKey(db.InternalVisitorPass{UserID: user.ID, SiteID: id.String, Host: host, AppName: caller.AppName})
+	pass, revoke, err := h.storeAccounts().IssueInternalVisitorKey(model.InternalVisitorPass{UserID: user.ID, SiteID: id.String, Host: host, AppName: caller.AppName})
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 	if !h.ViewersLetIn(req, id.String) {
 		return nil, fmt.Errorf("site_private: this site is open only to its named viewers")
 	}
-	row, err := db.GetSitePasscode(req.Context(), h.database, id.String)
+	row, err := h.sitesSvc().GetSitePasscode(req.Context(), id.String)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +248,7 @@ func (h *SiteHandler) visitorSharedSites(ctx context.Context, userID string) ([]
 	}
 	out := []map[string]any{}
 	for _, x := range list {
-		site, err := db.GetSiteByUser(ctx, h.database, x.Owner, x.Name)
+		site, err := h.sitesSvc().GetSiteByUser(ctx, x.Owner, x.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -405,7 +405,7 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 			}
 		}
 	}
-	summaries, err := db.ListCollectionSummariesByID(r.Context(), h.database, siteID)
+	summaries, err := h.legacySvc().ListCollectionSummariesByID(r.Context(), siteID)
 	if err != nil {
 		return nil, err
 	}
@@ -413,14 +413,14 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 		if resource != "" && resource != summary.Name {
 			continue
 		}
-		set, err := db.GetDataSettings(r.Context(), h.database, siteID, summary.Name)
+		set, err := h.legacySvc().GetDataSettings(r.Context(), siteID, summary.Name)
 		if err != nil {
 			return nil, err
 		}
-		if set.Kind == db.KindPersonal || set.Kind == db.KindContent {
+		if set.Kind == model.KindPersonal || set.Kind == model.KindContent {
 			continue
 		}
-		entry := map[string]any{"resource": summary.Name, "kind": "collection", "preset": set.Kind, "read_own_only": set.Private, "rights": map[string]any{"read": !set.Private || entriesLike(set), "add": true, "edit_own": entriesLike(set) || set.Kind == db.KindBoard, "delete_own": entriesLike(set) || set.Kind == db.KindBoard}}
+		entry := map[string]any{"resource": summary.Name, "kind": "collection", "preset": set.Kind, "read_own_only": set.Private, "rights": map[string]any{"read": !set.Private || entriesLike(set), "add": true, "edit_own": entriesLike(set) || set.Kind == model.KindBoard, "delete_own": entriesLike(set) || set.Kind == model.KindBoard}}
 		if resource == "" && (!set.Private || entriesLike(set)) {
 			query := map[string]any{"resource": summary.Name, "kind": "collection"}
 			if limit, ok := args["limit"]; ok {
@@ -469,7 +469,7 @@ func (h *SiteHandler) visitorResourceRequest(base *http.Request, args map[string
 	}
 	if after != "" {
 		if kind == "kv" {
-			pass, _ := db.LookupInternalVisitorKey(base.Header.Get(visitorPassHeader))
+			pass, _ := h.storeAccounts().LookupInternalVisitorKey(base.Header.Get(visitorPassHeader))
 			raw, err := httpx.OpenLink(h.visitorRefKey(), "visitor-kv-cursor:"+pass.SiteID+":"+resource, after)
 			if err != nil {
 				return nil, fmt.Errorf("invalid pagination cursor")
@@ -674,7 +674,7 @@ func visitorIdentityField(name string) bool {
 // Structural names retain ordinary UUIDs and the caller's own ID. Only UUID
 // substrings identifying another real account are replaced.
 func (h *SiteHandler) visitorStructuralName(r *http.Request, name string) (string, error) {
-	pass, _ := db.LookupInternalVisitorKey(r.Header.Get(visitorPassHeader))
+	pass, _ := h.storeAccounts().LookupInternalVisitorKey(r.Header.Get(visitorPassHeader))
 	for _, id := range visitorAccountPattern.FindAllString(name, -1) {
 		if strings.EqualFold(id, pass.UserID) {
 			continue
@@ -691,7 +691,7 @@ func (h *SiteHandler) visitorStructuralName(r *http.Request, name string) (strin
 }
 
 func (h *SiteHandler) visitorKVResult(r *http.Request, resource string, result any) (any, error) {
-	pass, _ := db.LookupInternalVisitorKey(r.Header.Get(visitorPassHeader))
+	pass, _ := h.storeAccounts().LookupInternalVisitorKey(r.Header.Get(visitorPassHeader))
 	obj, _ := result.(map[string]any)
 	protectKey := func(entry map[string]any) (bool, error) {
 		key, ok := entry["key"].(string)

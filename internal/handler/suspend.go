@@ -5,14 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"log"
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http"
 	"strings"
 	"unicode/utf8"
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Operator take-down of a site, and suspension of a person.
@@ -82,7 +82,7 @@ func writeAccountSuspended(w http.ResponseWriter) {
 
 // refuseSuspendedSite writes the refusal and returns true when the site (or
 // its owner's account) is suspended.
-func refuseSuspendedSite(w http.ResponseWriter, site db.Site) bool {
+func refuseSuspendedSite(w http.ResponseWriter, site model.Site) bool {
 	if !site.Suspended() {
 		return false
 	}
@@ -93,7 +93,7 @@ func refuseSuspendedSite(w http.ResponseWriter, site db.Site) bool {
 // refuseSuspendedSiteID is refuseSuspendedSite for handlers that hold only
 // the site id. A lookup error refuses too (fail closed).
 func (h *SiteHandler) refuseSuspendedSiteID(w http.ResponseWriter, r *http.Request, siteID string) bool {
-	susp, reason, err := db.SiteSuspension(r.Context(), h.database, siteID)
+	susp, reason, err := h.sitesSvc().SiteSuspension(r.Context(), siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return true
@@ -133,64 +133,18 @@ func readSuspendReason(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 // syncSiteMarker makes the disk marker match the site's effective state.
-func (h *SiteHandler) syncSiteMarker(site db.Site) error {
-	return h.disk.SetSuspended(site.UserID, site.Name, site.Suspended())
+func (h *SiteHandler) syncSiteMarker(site model.Site) error {
+	return h.sitesSvc().SyncSiteSuspensionMarker(site)
 }
 
 // SyncSuspendMarkers makes every site's disk marker match the database. Run
 // once at boot so a marker lost to a failed write, a restore from backup or a
 // hand-applied migration cannot leave a taken-down site serving (or a
 // restored one dark).
-func (h *SiteHandler) SyncSuspendMarkers(ctx context.Context) {
-	sites, err := db.ListAllSites(ctx, h.database)
-	if err != nil {
-		appsites.ReportWorkerFailure(ctx, "sync site markers", err)
-		return
-	}
-	n := 0
-	for _, s := range sites {
-		if s.Suspended() != h.disk.IsSuspended(s.UserID, s.Name) {
-			if err := h.syncSiteMarker(s); err != nil {
-				appsites.ReportWorkerFailure(ctx, "sync site markers", err)
-				continue
-			}
-			n++
-		}
-		// The owner's offline switch (offline.go) has a marker too.
-		if s.Offline != h.disk.IsOffline(s.UserID, s.Name) {
-			if err := h.syncOfflineMarker(s); err != nil {
-				appsites.ReportWorkerFailure(ctx, "sync site markers", err)
-				continue
-			}
-			n++
-		}
-		// And unlisted (unlisted.go).
-		if want, err := h.wantUnlistedMarker(ctx, s); err != nil {
-			appsites.ReportWorkerFailure(ctx, "sync site markers", err)
-		} else if want != h.disk.IsUnlisted(s.UserID, s.Name) {
-			if err := h.disk.SetUnlisted(s.UserID, s.Name, want); err != nil {
-				appsites.ReportWorkerFailure(ctx, "sync site markers", err)
-				continue
-			}
-			n++
-		}
-		// And a passcode (passcode.go).
-		if (s.Passcode || s.NamedViewers) != h.disk.HasPasscodeMarker(s.UserID, s.Name) {
-			if err := h.syncPasscodeMarker(s); err != nil {
-				appsites.ReportWorkerFailure(ctx, "sync site markers", err)
-				continue
-			}
-			n++
-		}
-	}
-	if n > 0 {
-		appsites.ReportWorkerProgress(ctx)
-		log.Printf("suspend: corrected %d site marker(s)", n)
-	}
-}
+func (h *SiteHandler) SyncSuspendMarkers(ctx context.Context) { h.sitesSvc().SyncSuspendMarkers(ctx) }
 
 // adminSiteJSON is how the admin calls report a site after a change.
-func (h *SiteHandler) adminSiteJSON(s db.Site) map[string]any {
+func (h *SiteHandler) adminSiteJSON(s model.Site) map[string]any {
 	return map[string]any{
 		"id":               s.ID,
 		"name":             s.Name,
@@ -204,7 +158,7 @@ func (h *SiteHandler) adminSiteJSON(s db.Site) map[string]any {
 }
 
 // suspendedBy says which switch holds a site down: "site", "account", or "".
-func suspendedBy(s db.Site) string {
+func suspendedBy(s model.Site) string {
 	switch {
 	case s.SiteSuspended:
 		return "site"
@@ -228,59 +182,10 @@ func (h *SiteHandler) setSiteSuspension(on bool) http.HandlerFunc {
 				return
 			}
 		}
-		id := r.PathValue("id")
-		site, err := db.GetSiteByID(r.Context(), h.database, id)
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		site, err := h.sitesSvc().SuspendSite(r.Context(), r.PathValue("id"), reason, auth.GetUser(r.Context()).ID, on)
+		if writeLifecycleFailure(w, err) {
 			return
 		}
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		// Lock, then re-read: a rename or delete that finished while this
-		// waited would otherwise be undone by the stale copy (a marker, and
-		// folders, written under the old name).
-		for {
-			unlock := h.lockSite(site.UserID, site.Name)
-			fresh, err := db.GetSiteByID(r.Context(), h.database, id)
-			if err != nil {
-				unlock()
-				if errors.Is(err, sql.ErrNoRows) {
-					writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-					return
-				}
-				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-				return
-			}
-			if fresh.UserID == site.UserID && fresh.Name == site.Name {
-				site = fresh
-				defer unlock()
-				break
-			}
-			unlock()
-			site = fresh
-		}
-		if err := db.SetSiteSuspended(r.Context(), h.database, site.ID, reason); err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		site.SiteSuspended, site.SiteSuspendedReason = on, reason
-		// A site in Recently deleted has no served folder; Restore writes its
-		// marker from the database when it comes back.
-		if site.Deleted {
-			admin := auth.GetUser(r.Context())
-			log.Printf("admin_site_suspend on=%t site_id=%s name=%s owner=%s by=%s reason=%q deleted=true", on, site.ID, site.Name, site.UserID, admin.ID, reason)
-			writeJSON(w, http.StatusOK, h.adminSiteJSON(site))
-			return
-		}
-		if err := h.syncSiteMarker(site); err != nil {
-			log.Printf("suspend: marker for site %s: %v", site.ID, err)
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "saved, but the site's files could not be marked; retry"})
-			return
-		}
-		admin := auth.GetUser(r.Context())
-		log.Printf("admin_site_suspend on=%t site_id=%s name=%s owner=%s by=%s reason=%q", on, site.ID, site.Name, site.UserID, admin.ID, reason)
 		writeJSON(w, http.StatusOK, h.adminSiteJSON(site))
 	}
 }
@@ -313,47 +218,24 @@ func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
 			return
 		}
 
-		target, err := db.GetUserByID(r.Context(), h.database, id)
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
-			return
-		}
+		out, err := h.storeAccounts().SuspendAccount(r.Context(), accounts.SuspensionInput{ID: id, AdminID: h.adminUserID, ActorID: auth.GetUser(r.Context()).ID, Reason: reason, On: on, HoldingAccounts: false, Marker: h.syncSiteMarker})
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		if on && (target.IsAdmin || target.ID == h.adminUserID) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "cannot suspend an admin account", "code": "admin_account"})
-			return
-		}
-		if err := db.SetUserSuspended(r.Context(), h.database, target.ID, reason); err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		sites, err := db.ListSitesByUser(r.Context(), h.database, target.ID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "saved, but the account's sites could not be listed; retry"})
-			return
-		}
-		failed := 0
-		for _, s := range sites {
-			if err := h.syncSiteMarker(s); err != nil {
-				log.Printf("suspend: marker for %s/%s: %v", s.UserID, s.Name, err)
-				failed++
+			var failure *accounts.LifecycleError
+			if errors.As(err, &failure) && failure.Code == "admin_account" {
+				writeJSON(w, 400, map[string]string{"error": failure.Message, "code": failure.Code})
+				return
 			}
-		}
-		if failed > 0 {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "saved, but some of the account's sites could not be marked; retry"})
+			writeLifecycleFailure(w, err)
 			return
 		}
-		admin := auth.GetUser(r.Context())
-		log.Printf("admin_user_suspend on=%t user_id=%s sites=%d by=%s reason=%q", on, target.ID, len(sites), admin.ID, reason)
+		target := out.User
+
 		writeJSON(w, http.StatusOK, map[string]any{
 			"id":               target.ID,
 			"username":         target.Username,
 			"suspended":        on,
 			"suspended_reason": reason,
-			"site_count":       len(sites),
+			"site_count":       out.SiteCount,
 		})
 	}
 }

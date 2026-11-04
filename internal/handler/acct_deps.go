@@ -3,8 +3,11 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"github.com/vsriram/simple-host/internal/app/accounts"
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/model"
+	"net/http"
 	"time"
 )
 
@@ -50,4 +53,26 @@ func codeHandleActions(database *sql.DB) accounts.HandleActions {
 			assignHandle(ctx, database, userID, email, random)
 		},
 	}
+}
+
+func writeLifecycleFailure(w http.ResponseWriter, err error) bool {
+	if err == nil {
+		return false
+	}
+	var failure *accounts.LifecycleError
+	if errors.As(err, &failure) {
+		writeJSON(w, failure.Status, errorResponse{Error: supportText(failure.Message), Code: failure.Code})
+	} else {
+		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+	}
+	return true
+}
+
+func writeAccessMutationError(w http.ResponseWriter, err error) {
+	var marker *appsites.Error
+	if errors.As(err, &marker) && marker.Code == "access_marker" {
+		writeJSON(w, 500, errorResponse{Error: marker.Message})
+		return
+	}
+	writeSiteLookupError(w, err)
 }
