@@ -722,7 +722,7 @@ func (h *SiteHandler) passcodeSiteForHost(ctx context.Context, host, next string
 	if host == "" || h.sharedHost(host) {
 		return "", "", false, nil
 	}
-	if h.isSiteHostName(host) {
+	if h.isSiteHostName(ctx, host) {
 		site, _, ok, err := h.siteHostSite(ctx, host)
 		if err != nil || !ok {
 			return "", "", false, err

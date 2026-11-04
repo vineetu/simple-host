@@ -46,18 +46,11 @@ func (h *SiteHandler) hackNoPersonalSites(w http.ResponseWriter, user *model.Use
 // sites are offered and deployed only then, so a
 // team's work never lands anywhere but its own origin.
 //
-// Under TEAM_SITE_FLAT_HOSTS, team sites live under the instance's own
-// *.<base> wildcard instead of a per-event one, so readiness never waits on
-// a per-event marker — RequestSiteCertContext (sitehost.go) never requests
-// one either.
+// siteCertReady (sitebase.go's siteCertReadyOn) is itself flat-aware: under
+// TEAM_SITE_FLAT_HOSTS it never waits on a per-event marker, since team
+// sites live under the instance's own *.<base> wildcard instead.
 func (h *SiteHandler) teamSitesReady(eventSlug string) bool {
-	if eventSlug == "" || !h.siteHostsOn() {
-		return false
-	}
-	if h.teamSiteFlatHostsOn() {
-		return true
-	}
-	return h.siteCertReady(eventSlug)
+	return eventSlug != "" && h.siteHostsOn() && h.siteCertReady(eventSlug)
 }
 
 // TeamSitesReady is teamSitesReady for the events API.
@@ -71,17 +64,24 @@ func (h *SiteHandler) teamSiteFlatHostsOn() bool {
 	return h.teamSiteFlatHosts && h.ed.Routes().HostedEvents
 }
 
-// SetTeamSiteFlatHosts sets TEAM_SITE_FLAT_HOSTS.
-func (h *SiteHandler) SetTeamSiteFlatHosts(on bool) { h.teamSiteFlatHosts = on }
+// SetTeamSiteFlatHosts sets TEAM_SITE_FLAT_HOSTS, including the served
+// auth.js patch (basetext.go) that teaches it to take the part of a flat
+// team-site host's one label before "--" as the site name.
+func (h *SiteHandler) SetTeamSiteFlatHosts(on bool) {
+	h.teamSiteFlatHosts = on
+	setTeamSiteFlatHostsText(on && h.ed.Routes().HostedEvents)
+}
 
-// TeamSiteURL is the address of a team's site: sites.TeamSiteHost is the one
-// function that knows the format (the two-level <team>.<event>.<base>, or
-// the flat <team>--<event>.<base> single label under
-// TEAM_SITE_FLAT_HOSTS) — hackhttp's own fallback (hack.go, used only when
-// no SiteHandler is wired) calls the same function, so the format never
-// scatters across the two packages.
+// TeamSiteFlatHostsOn is teamSiteFlatHostsOn for hackhttp (hackSiteHooks).
+func (h *SiteHandler) TeamSiteFlatHostsOn() bool { return h.teamSiteFlatHostsOn() }
+
+// TeamSiteURL is the address of a team's site: siteHostFor (sitehost.go) is
+// itself flat-aware (every site host on a hosted-events instance is a
+// team's), through the one function (sites.TeamSiteHost) that knows the
+// format — hackhttp's own fallback (hack.go, used only when no SiteHandler
+// is wired) calls the same function, so the format never scatters.
 func (h *SiteHandler) TeamSiteURL(eventSlug, teamSlug string) string {
-	return "https://" + sites.TeamSiteHost(eventSlug, teamSlug, h.handoutBase(), h.teamSiteFlatHostsOn()) + "/"
+	return "https://" + h.siteHostFor(eventSlug, teamSlug) + "/"
 }
 
 // PublishEventWebsite sends an organiser's upload through the same validated,

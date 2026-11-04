@@ -187,7 +187,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	team, err := h.teamsSvc().CreateTeam(r.Context(), a.event, a.user.ID, name, note, eventNameReserved)
+	team, err := h.teamsSvc().CreateTeam(r.Context(), a.event, a.user.ID, name, note, h.teamSiteFlatHostsOn(), eventNameReserved)
 	var teamErr *teams.Error
 	switch {
 	case errors.As(err, &teamErr) && teamErr.Code == "submissions_closed":

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -157,13 +158,19 @@ func (h *SiteHandler) userHostLabel(host string) (label, base string, ok bool) {
 }
 
 // siteHostParts is siteHostLabels under any served base, plus — only when
-// teamSiteFlatHostsOn() — the flat single-label <team>--<event> form
-// (flatTeamHostLabels, sitehost.go). Every caller (siteHostSite, SiteHosts,
-// isSiteHostName, hostBase) resolves either shape through the exact same
-// lookup, so a flat team-site host is routed identically to today's
-// two-level one. With the setting off this is unchanged: only siteHostLabels
-// ever runs, so a "--" label is never read as a team site.
-func (h *SiteHandler) siteHostParts(host string) (site, handle, base string, ok bool) {
+// teamSiteFlatHostsOn() — the flat single-label <team>--<event> form. Every
+// caller (siteHostSite, SiteHosts, isSiteHostName, hostBase) resolves either
+// shape through the exact same lookup, so a flat team-site host is routed
+// identically to today's two-level one. With the setting off this is
+// unchanged: only siteHostLabels ever runs, so a "--" label is never read as
+// a team site.
+//
+// Exact handle match wins: a single label that is itself a real, addressable
+// account handle — an event created before "--" was forbidden in slugs, or
+// any future coincidence — is always that person/event's own host, never
+// read as a flat team label. Checked (one GetUserByHandle lookup) before the
+// flat split, so an existing event never loses its own origin to a team's.
+func (h *SiteHandler) siteHostParts(ctx context.Context, host string) (site, handle, base string, ok bool) {
 	for _, b := range h.servedBases() {
 		if s, hd, ok := siteHostLabels(host, b); ok {
 			return s, hd, b, true
@@ -171,7 +178,16 @@ func (h *SiteHandler) siteHostParts(host string) (site, handle, base string, ok 
 	}
 	if h.teamSiteFlatHostsOn() {
 		for _, b := range h.servedBases() {
-			if s, hd, ok := flatTeamHostLabels(host, b); ok {
+			label, ok := platformSubdomainLabel(host, b)
+			if !ok {
+				continue
+			}
+			if handleAddressable(label) && h.database != nil {
+				if _, err := h.storeAccounts().GetUserByHandle(ctx, label); err == nil {
+					continue // a real handle: its own host, never a team label
+				}
+			}
+			if s, hd, ok := appsites.TeamSiteHostLabels(label); ok {
 				return s, hd, b, true
 			}
 		}
@@ -180,11 +196,11 @@ func (h *SiteHandler) siteHostParts(host string) (site, handle, base string, ok 
 }
 
 // hostBase is the served base host is one or two labels under ("" if none).
-func (h *SiteHandler) hostBase(host string) string {
+func (h *SiteHandler) hostBase(ctx context.Context, host string) string {
 	if _, b, ok := h.userHostLabel(host); ok {
 		return b
 	}
-	if _, _, b, ok := h.siteHostParts(host); ok {
+	if _, _, b, ok := h.siteHostParts(ctx, host); ok {
 		return b
 	}
 	return ""
@@ -223,9 +239,11 @@ func (h *SiteHandler) personHostOn(handle, base string) string {
 	return strings.ToLower(handle) + "." + strings.ToLower(base)
 }
 
-// siteHostOn is the site host of a site under base.
+// siteHostOn is the site host of a site under base: <name>.<handle>.<base>,
+// or, under teamSiteFlatHostsOn(), the flat <name>--<handle>.<base> single
+// label (appsites.TeamSiteHost, the one function that knows the format).
 func (h *SiteHandler) siteHostOn(handle, name, base string) string {
-	return strings.ToLower(name) + "." + h.personHostOn(handle, base)
+	return appsites.TeamSiteHost(handle, name, base, h.teamSiteFlatHostsOn())
 }
 
 // certDirFor is the certificate hand-off directory for base.
@@ -238,7 +256,16 @@ func (h *SiteHandler) certDirFor(base string) string {
 
 // siteCertReadyOn reports whether *.<handle>.<base> is served with a valid
 // certificate. Without a hand-off directory every person counts as ready.
+//
+// Under TEAM_SITE_FLAT_HOSTS every handle here is a hosted event's own
+// (team sites are the only site hosts on that edition), and team sites live
+// under the instance's own *.<base> wildcard instead of a per-event one —
+// RequestSiteCertContext (sitehost.go) never requests, or waits on, a
+// per-event marker, so every event counts as ready.
 func (h *SiteHandler) siteCertReadyOn(handle, base string) bool {
+	if h.teamSiteFlatHostsOn() {
+		return true
+	}
 	dir := h.certDirFor(base)
 	if dir == "" {
 		return true

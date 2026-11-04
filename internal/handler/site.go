@@ -1025,7 +1025,7 @@ func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (str
 	// only that site resolves there, under its name (what auth.js derives
 	// from the first host label) or its owner's handle route. Any other name
 	// — another site of the same person included — does not exist there.
-	if h.isSiteHostName(host) {
+	if h.isSiteHostName(r.Context(), host) {
 		site, owner, ok, err := h.siteHostSite(r.Context(), host)
 		if err != nil {
 			return "", err
@@ -1207,7 +1207,7 @@ func (h *SiteHandler) originIsPersonHostID(ctx context.Context, siteID, host str
 		}
 	}
 	handle, _, name, err := h.sitesSvc().GetSiteOwner(ctx, siteID)
-	if err != nil || !h.personAddressFor(handle, name) || (!h.ed.Storage().EventSites && h.siteHostCanonicalOn(handle, name, h.hostBase(host))) {
+	if err != nil || !h.personAddressFor(handle, name) || (!h.ed.Storage().EventSites && h.siteHostCanonicalOn(handle, name, h.hostBase(ctx, host))) {
 		return false
 	}
 	// Its person host under any base that serves it.
@@ -1217,11 +1217,11 @@ func (h *SiteHandler) originIsPersonHostID(ctx context.Context, siteID, host str
 // originIsSiteHostID reports whether host is the site's own site host
 // (<site>.<handle>.<SITE_DOMAIN>) while that host serves it.
 func (h *SiteHandler) originIsSiteHostID(ctx context.Context, siteID, host string) bool {
-	if !h.siteHostsOn() || !h.isSiteHostName(host) {
+	if !h.siteHostsOn() || !h.isSiteHostName(ctx, host) {
 		return false
 	}
 	handle, _, name, err := h.sitesSvc().GetSiteOwner(ctx, siteID)
-	if err != nil || !h.siteHostLiveOn(handle, name, h.hostBase(host)) {
+	if err != nil || !h.siteHostLiveOn(handle, name, h.hostBase(ctx, host)) {
 		return false
 	}
 	return h.sameUserHost(h.siteHostFor(handle, name), host)

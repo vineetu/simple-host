@@ -22,7 +22,7 @@ func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (
 	// page there could sign a visitor in as someone else (login CSRF).
 	// The same on a family address (<label>.<family>): all of them, and the
 	// family owner's other names, are one "site" to the browser.
-	if host := requestHostName(r); (h.isPlatformSubdomainHost(host) || h.isSiteHostName(host) || h.isFamilyHostName(host)) && !sameOriginRequest(r) {
+	if host := requestHostName(r); (h.isPlatformSubdomainHost(host) || h.isSiteHostName(r.Context(), host) || h.isFamilyHostName(host)) && !sameOriginRequest(r) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
 		return "", false
 	}

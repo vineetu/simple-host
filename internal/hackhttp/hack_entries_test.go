@@ -739,6 +739,7 @@ func (entrySiteStub) TeamPreviewLinkFor(site model.Site, eventSlug string, n int
 }
 func (entrySiteStub) RemoveAccountFiles(string, string) error          { return nil }
 func (entrySiteStub) SyncAccountMarkers(context.Context, string) error { return nil }
+func (entrySiteStub) TeamSiteFlatHostsOn() bool                        { return false }
 
 // tinyJPEG is a real 2x2 JPEG (DecodeConfig reads its header).
 func tinyJPEG() []byte {

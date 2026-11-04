@@ -454,7 +454,7 @@ func (p *assetPipeline) chromeFileServer(fsys fs.FS, next http.Handler) http.Han
 func (h *SiteHandler) chromeBase(r *http.Request) string {
 	// Pages rendered for the content host (/internal/...) or on a person host
 	// link back to the main site absolutely.
-	if strings.HasPrefix(r.URL.Path, "/internal/") || h.isPlatformSubdomainHost(requestHostName(r)) || h.isSiteHostName(requestHostName(r)) {
+	if strings.HasPrefix(r.URL.Path, "/internal/") || h.isPlatformSubdomainHost(requestHostName(r)) || h.isSiteHostName(r.Context(), requestHostName(r)) {
 		return h.mainSiteURL()
 	}
 	return ""

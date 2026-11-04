@@ -150,7 +150,7 @@ func (h *SiteHandler) legacyCollectionAppendSvc(r *http.Request) *legacy.Adapter
 	}
 	deps.CollectionPrivateWrongHost = func() bool {
 		host := requestHostName(r)
-		return strings.EqualFold(host, h.contentHost) || h.isSiteHostName(host) || h.isPersonHost(r.Context(), host) || h.isFamilyHostName(host)
+		return strings.EqualFold(host, h.contentHost) || h.isSiteHostName(r.Context(), host) || h.isPersonHost(r.Context(), host) || h.isFamilyHostName(host)
 	}
 	deps.CollectionBoardLimit = func(userID string) bool { return h.boardLimiter == nil || h.boardLimiter.allow("u:"+userID) }
 	return legacy.New(h.database, h.legacyStorageCutoff, deps)

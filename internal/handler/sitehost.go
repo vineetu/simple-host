@@ -78,9 +78,13 @@ func (h *SiteHandler) siteCertReady(handle string) bool {
 	return h.siteCertReadyOn(handle, h.handoutBase())
 }
 
-// siteHostFor is the host of a site's own address.
+// siteHostFor is the host of a site's own address: <site>.<handle>.<base>,
+// or, in a hosted-events instance with TEAM_SITE_FLAT_HOSTS on, the flat
+// <site>--<handle>.<base> single label (every site host on that edition is
+// a team's site, so this is the same format TeamSiteURL hands out —
+// siteHostOn, sitebase.go, is the shared construction for any base).
 func (h *SiteHandler) siteHostFor(handle, name string) string {
-	return strings.ToLower(name) + "." + h.personHostFor(handle)
+	return h.siteHostOn(handle, name, h.handoutBase())
 }
 
 // siteHostLive: this site is served at <site>.<handle>.<SITE_DOMAIN> — the
@@ -124,32 +128,13 @@ func siteHostLabels(host, siteDomain string) (site, handle string, ok bool) {
 	return site, handle, true
 }
 
-// flatTeamHostLabels splits <team>--<event>.<siteDomain> — the flat form of
-// a hosted-events team-site host (TEAM_SITE_FLAT_HOSTS), one DNS label
-// instead of two — into (site=team, handle=event), the same pair
-// siteHostLabels returns for the two-level form, so every caller of
-// siteHostParts (sitebase.go) resolves a flat host exactly as it resolves a
-// two-level one. Purely syntactic, like siteHostLabels: any other shape
-// (more than one label left after siteDomain, no "--", an ambiguous second
-// "--") is ok=false. Only consulted when teamSiteFlatHostsOn().
-func flatTeamHostLabels(host, siteDomain string) (site, handle string, ok bool) {
-	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
-	siteDomain = strings.ToLower(strings.TrimSpace(siteDomain))
-	if siteDomain == "" || !strings.HasSuffix(host, "."+siteDomain) {
-		return "", "", false
-	}
-	label := strings.TrimSuffix(host, "."+siteDomain)
-	if strings.Contains(label, ".") {
-		return "", "", false
-	}
-	return sites.TeamSiteHostLabels(label)
-}
-
 // isSiteHostName: host has the shape of a site host (two labels under the
-// platform domain). Such a host is never the content host, the apex or a
-// claimed name, and every browser treats it as same-site with all of them.
-func (h *SiteHandler) isSiteHostName(host string) bool {
-	_, _, _, ok := h.siteHostParts(host)
+// platform domain, or, under TEAM_SITE_FLAT_HOSTS, a flat team label that is
+// not itself a real account handle). Such a host is never the content host,
+// the apex or a claimed name, and every browser treats it as same-site with
+// all of them.
+func (h *SiteHandler) isSiteHostName(ctx context.Context, host string) bool {
+	_, _, _, ok := h.siteHostParts(ctx, host)
 	return ok
 }
 
@@ -160,7 +145,7 @@ func (h *SiteHandler) siteHostSite(ctx context.Context, host string) (model.Site
 	if !h.siteHostsOn() {
 		return model.Site{}, model.User{}, false, nil
 	}
-	label, handle, base, ok := h.siteHostParts(host)
+	label, handle, base, ok := h.siteHostParts(ctx, host)
 	if !ok {
 		return model.Site{}, model.User{}, false, nil
 	}
@@ -210,7 +195,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		host := requestHostName(r)
-		label, handle, base, ok := h.siteHostParts(host)
+		label, handle, base, ok := h.siteHostParts(r.Context(), host)
 		if !ok {
 			next.ServeHTTP(w, r)
 			return

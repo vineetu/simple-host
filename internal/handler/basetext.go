@@ -27,6 +27,12 @@ var (
 	// auth.js then treats a one-label host under any of them as a person
 	// host (authJSPatch).
 	authJSBases []string
+	// teamSiteFlatHostsText: this instance's TEAM_SITE_FLAT_HOSTS is on
+	// (set by SiteHandler.SetTeamSiteFlatHosts, hack_sites.go, only when the
+	// edition also runs hosted events). auth.js then takes the part of a
+	// flat team-site host's one label before "--" as the site name
+	// (authJSOwnHostFlat).
+	teamSiteFlatHostsText bool
 )
 
 // authJSOneLabel is auth.js's person-host test: one label under the auth
@@ -55,6 +61,40 @@ func SetSiteBaseText(bases []string) {
 	} else {
 		authJSBases = nil
 	}
+	baseTextMu.Unlock()
+	clearAssetText()
+}
+
+// authJSOwnHost is auth.js's site-host branch (the final else: the site is
+// the host's one label, same-origin). A test fails if this text changes.
+const authJSOwnHost = `    } else {
+      // <site>.<handle>.<apex> (a site's own host) and every other host:
+      // the site is the first label, and /v1/ is same-origin.
+      API_BASE = location.origin + "/v1/sites/" + sub;
+      ownOrigin = !contentHost;
+    }`
+
+// authJSOwnHostFlat is authJSOwnHost for TEAM_SITE_FLAT_HOSTS: a flat
+// team-site host's one label is <team>--<event>, so the site is the part
+// before "--". (A pre-existing event slug that happens to contain "--",
+// impossible for one created after this shipped, still resolves correctly
+// server-side — handler/sitebase.go's exact-handle-match-wins siteHostParts
+// — but this client-side guess has no database to tell the two apart by
+// shape alone.)
+const authJSOwnHostFlat = `    } else {
+      // <site>.<handle>.<apex> (a site's own host) and every other host:
+      // the site is the first label, and /v1/ is same-origin. Flat
+      // team-site hosts (TEAM_SITE_FLAT_HOSTS) are <team>--<event>; the
+      // site is the part before "--".
+      API_BASE = location.origin + "/v1/sites/" + sub.split("--")[0];
+      ownOrigin = !contentHost;
+    }`
+
+// setTeamSiteFlatHostsText tells the served auth.js that this instance's
+// team sites are flat (SiteHandler.SetTeamSiteFlatHosts).
+func setTeamSiteFlatHostsText(on bool) {
+	baseTextMu.Lock()
+	teamSiteFlatHostsText = on
 	baseTextMu.Unlock()
 	clearAssetText()
 }
@@ -99,9 +139,13 @@ func (p *assetPipeline) transformStatic(name string, b []byte) []byte {
 		}
 		baseTextMu.RLock()
 		bases := authJSBases
+		flat := teamSiteFlatHostsText
 		baseTextMu.RUnlock()
 		if bases != nil {
 			b = bytes.Replace(b, []byte(authJSOneLabel), []byte(authJSPatched(bases)), 1)
+		}
+		if flat {
+			b = bytes.Replace(b, []byte(authJSOwnHost), []byte(authJSOwnHostFlat), 1)
 		}
 		return b
 	}

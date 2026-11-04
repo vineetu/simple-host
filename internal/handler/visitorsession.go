@@ -96,7 +96,7 @@ func visitorCookieValue(r *http.Request) string {
 // __Host- cookie counts (a sibling can plant a plain one, never a __Host- one)
 // and only on a same-origin request.
 func (h *SiteHandler) sessionCookieFor(r *http.Request) string {
-	if host := requestHostName(r); h.isPlatformSubdomainHost(host) || h.isSiteHostName(host) || h.isFamilyHostName(host) {
+	if host := requestHostName(r); h.isPlatformSubdomainHost(host) || h.isSiteHostName(r.Context(), host) || h.isFamilyHostName(host) {
 		if !sameOriginRequest(r) {
 			return ""
 		}

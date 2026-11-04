@@ -13,9 +13,13 @@ import (
 	"github.com/vsriram/simple-host/internal/rules/sites"
 )
 
-// CreateTeam creates a team and joins its creator atomically.
-func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, name, note string, reserved func(string) bool) (model.EventTeam, error) {
-	base := hackteams.DeriveTeamSlug(name)
+// CreateTeam creates a team and joins its creator atomically. flatHosts is
+// TEAM_SITE_FLAT_HOSTS: on, the team slug is capped so the flat
+// <team>--<event> single label never exceeds the 63-character DNS label
+// limit (hackteams.MaxTeamSlugLen).
+func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, name, note string, flatHosts bool, reserved func(string) bool) (model.EventTeam, error) {
+	max := hackteams.MaxTeamSlugLen(event.Slug, flatHosts)
+	base := hackteams.DeriveTeamSlug(name, max)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return model.EventTeam{}, internalError(err)
@@ -38,7 +42,7 @@ func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, nam
 	}
 	var team model.EventTeam
 	for n := 0; n < 50; n++ {
-		slug := hackteams.TeamSlugCandidate(base, n)
+		slug := hackteams.TeamSlugCandidate(base, n, max)
 		taken, err := teamrepo.TeamSlugExists(ctx, tx, event.ID, slug)
 		if err != nil {
 			return team, internalError(err)

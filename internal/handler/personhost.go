@@ -199,7 +199,7 @@ func (h *SiteHandler) livesOnDomainElsewhere(r *http.Request, siteID string) (st
 		}
 		return info.Domain, true
 	}
-	if !h.isSiteHostName(host) && !h.isPersonHost(r.Context(), host) {
+	if !h.isSiteHostName(r.Context(), host) && !h.isPersonHost(r.Context(), host) {
 		return "", false
 	}
 	info, ok, err := h.siteOwnAddress(r.Context(), siteID)
@@ -218,7 +218,7 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 		return h.FamilyReturnSite(ctx, host)
 	}
 	// A site host names its site itself (sitehost.go); the path does not.
-	if h.isSiteHostName(host) {
+	if h.isSiteHostName(ctx, host) {
 		return h.SiteReturnSite(ctx, host)
 	}
 	owner, ok := h.personHostOwner(ctx, host)
@@ -248,7 +248,7 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 		return "", false
 	}
 	// A site on its own site host signs visitors in there, not here.
-	if h.siteHostCanonicalOn(owner.Handle.String, site.Name, h.hostBase(host)) {
+	if h.siteHostCanonicalOn(owner.Handle.String, site.Name, h.hostBase(ctx, host)) {
 		return "", false
 	}
 	if _, has, err := h.siteOwnAddress(ctx, site.ID); err != nil || has {

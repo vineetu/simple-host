@@ -153,3 +153,55 @@ func TestAuthJSBases(t *testing.T) {
 		t.Fatalf("auth.js as written:\n%s", out)
 	}
 }
+
+// TestAuthJSTeamSiteFlatHosts (issue 4): served auth.js takes the part of a
+// flat team-site host's one label before "--" as the site name, only when
+// TEAM_SITE_FLAT_HOSTS is on; off, it is byte for byte unpatched.
+func TestAuthJSTeamSiteFlatHosts(t *testing.T) {
+	raw, _ := embeddedStatic.ReadFile("static/auth.js")
+	if bytes.Count(raw, []byte(authJSOwnHost)) != 1 {
+		t.Fatal("auth.js no longer has the own-host line the flat-hosts patch targets (basetext.go)")
+	}
+	setTeamSiteFlatHostsText(false)
+	off, _ := staticFiles.ReadFile("static/auth.js")
+	if bytes.Contains(off, []byte(`sub.split("--")[0]`)) {
+		t.Fatal("off: auth.js carries the flat-hosts patch")
+	}
+
+	setTeamSiteFlatHostsText(true)
+	t.Cleanup(func() { setTeamSiteFlatHostsText(false) })
+	patched, _ := staticFiles.ReadFile("static/auth.js")
+	if !bytes.Contains(patched, []byte(authJSOwnHostFlat)) || bytes.Contains(patched, []byte(authJSOwnHost)) {
+		t.Fatal("flat: auth.js not patched (or the unpatched line is still present)")
+	}
+
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node not installed")
+	}
+	dir := t.TempDir()
+	p := filepath.Join(dir, "flat.js")
+	if err := os.WriteFile(p, patched, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases, _ := json.Marshal([][2]string{
+		// The bug this patch fixes: visiting a flat team site's root, the
+		// unpatched auth.js would call /v1/sites/alpha--weekend/me.
+		{"https://alpha--weekend.simple-host.app/", "https://alpha--weekend.simple-host.app/v1/sites/alpha/me"},
+		// A two-level host (no "--") is unaffected.
+		{"https://alpha.weekend.simple-host.app/", "https://alpha.weekend.simple-host.app/v1/sites/alpha/me"},
+	})
+	out, err := exec.Command("node", filepath.Join("..", "..", "web", "auth-base.test.js"), p, string(cases)).CombinedOutput()
+	if err != nil {
+		t.Fatalf("patched auth.js:\n%s", out)
+	}
+	rawPath := filepath.Join(dir, "raw.js")
+	if err := os.WriteFile(rawPath, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rawCases, _ := json.Marshal([][2]string{
+		{"https://alpha--weekend.simple-host.app/", "https://alpha--weekend.simple-host.app/v1/sites/alpha/me"},
+	})
+	if out, err := exec.Command("node", filepath.Join("..", "..", "web", "auth-base.test.js"), rawPath, string(rawCases)).CombinedOutput(); err == nil || !strings.Contains(string(out), "not ok 1 ") {
+		t.Fatalf("unpatched auth.js passed the flat-host case (the bug this patch fixes):\n%s", out)
+	}
+}

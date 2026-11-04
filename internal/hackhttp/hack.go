@@ -252,6 +252,10 @@ type hackSiteHooks interface {
 	RequestSiteCert(handle string)
 	RemoveAccountFiles(userID, handle string) error
 	SyncAccountMarkers(ctx context.Context, accountID string) error
+	// TeamSiteFlatHostsOn reports whether TEAM_SITE_FLAT_HOSTS is on
+	// (SiteHandler owns the config; teamSiteFlatHostsOn, hack.go, is the
+	// nil-safe read for when no SiteHandler is wired).
+	TeamSiteFlatHostsOn() bool
 }
 
 // hackImageScanner is what moving Hack code needs of the image-scan worker
@@ -317,6 +321,12 @@ func (h *HackHandler) SyncEventMarkers(ctx context.Context, ev model.Event) bool
 // teamSitesReady: the event's team addresses have their certificate.
 func (h *HackHandler) teamSitesReady(eventSlug string) bool {
 	return h.sites != nil && h.sites.TeamSitesReady(eventSlug)
+}
+
+// teamSiteFlatHostsOn: TEAM_SITE_FLAT_HOSTS is on (h.sites, the SiteHandler,
+// owns the config; false with no SiteHandler wired).
+func (h *HackHandler) teamSiteFlatHostsOn() bool {
+	return h.sites != nil && h.sites.TeamSiteFlatHostsOn()
 }
 
 // teamSiteURL is https://<team>.<event>.<SITE_DOMAIN>/, or the flat
