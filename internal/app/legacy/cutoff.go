@@ -23,6 +23,7 @@ type Deps struct {
 	AdminAPIKey                    string
 	KeyIdleExpiry                  time.Duration
 	ResolveNamedSite               func(context.Context, string) (string, error)
+	BoundHistory                   func(context.Context, string)
 }
 
 // New constructs an adapter for the given database and legacy cutoff.

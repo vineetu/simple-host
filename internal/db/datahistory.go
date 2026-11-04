@@ -136,16 +136,7 @@ func setStateWithin(ctx context.Context, q Querier, siteID string, state json.Ra
 
 // HistoryEntry is one change, newest first in lists. Value is the saved data
 // as it was just before the change (only filled when one entry is read).
-type HistoryEntry struct {
-	ID     int64           `json:"id"`
-	ItemID *int64          `json:"item_id,omitempty"`
-	Op     string          `json:"op"`
-	By     string          `json:"by,omitempty"`
-	ByKind string          `json:"by_kind"`
-	At     time.Time       `json:"at"`
-	Size   int64           `json:"size"`
-	Value  json.RawMessage `json:"value,omitempty"`
-}
+type HistoryEntry = legacy.HistoryEntry
 
 func recordHistory(ctx context.Context, q Querier, siteID, kind, name string, itemID *int64, op string, prev json.RawMessage, a Actor) error {
 	return legacy.RecordHistory(ctx, q, siteID, kind, name, itemID, op, prev, a)
@@ -155,12 +146,7 @@ func recordHistory(ctx context.Context, q Querier, siteID, kind, name string, it
 // full copy of prev. A write that leaves the document as it was records
 // nothing.
 func RecordStateChange(ctx context.Context, q Querier, siteID, op string, prev, next json.RawMessage, a Actor) error {
-	_, err := q.ExecContext(ctx, `
-		INSERT INTO data_history (site_id, kind, name, op, prev, actor_id, actor_kind, actor_email)
-		SELECT $1, 'state', '', $2, $3::jsonb, $5, $6, $7
-		 WHERE $3::jsonb IS DISTINCT FROM $4::jsonb`,
-		siteID, op, string(prev), string(next), nullIfEmpty(a.ID), a.Kind, nullIfEmpty(a.Email))
-	return err
+	return legacy.RecordStateChange(ctx, q, siteID, op, prev, next, a)
 }
 
 // WriteSiteState replaces the document and records the change, in one
@@ -440,10 +426,7 @@ func RestoreStateVersion(ctx context.Context, database *sql.DB, siteID string, i
 
 // HasStateHistory reports whether the document has any recorded change.
 func HasStateHistory(ctx context.Context, database *sql.DB, siteID string) (bool, error) {
-	var ok bool
-	err := database.QueryRowContext(ctx, `
-		SELECT EXISTS(SELECT 1 FROM data_history WHERE site_id = $1 AND kind = 'state' AND name = '')`, siteID).Scan(&ok)
-	return ok, err
+	return legacy.HasStateHistory(ctx, database, siteID)
 }
 
 // ---- list items -------------------------------------------------------------
@@ -722,31 +705,12 @@ const historySize = `COALESCE(octet_length(prev::text), octet_length(diff::text)
 // HistoryBytes is a site's history size (sites.history_bytes); 0 when the
 // site is gone.
 func HistoryBytes(ctx context.Context, q Querier, siteID string) (int64, error) {
-	var n int64
-	err := q.QueryRowContext(ctx, `SELECT history_bytes FROM sites WHERE id = $1`, siteID).Scan(&n)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil
-	}
-	return n, err
+	return legacy.HistoryBytes(ctx, q, siteID)
 }
 
 // SitesOverHistoryCap lists the sites whose history holds more than capBytes.
 func SitesOverHistoryCap(ctx context.Context, database *sql.DB, capBytes int64) ([]string, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT id::text FROM sites WHERE history_bytes > $1`, capBytes)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
+	return legacy.SitesOverHistoryCap(ctx, database, capBytes)
 }
 
 // ThinSiteHistory brings one site's history under capBytes by dropping the

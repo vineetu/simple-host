@@ -7,7 +7,7 @@ import (
 )
 
 func (h *SiteHandler) legacySvc() *legacy.Adapter {
-	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{MaxEntries: h.savedData.EntriesMax, WatchItemKB: h.savedData.WatchItemKB, MaxBytes: h.siteMaxBytes(), NewListMetric: watchNewList, LargeItemMetric: watchItemLarge})
+	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{MaxEntries: h.savedData.EntriesMax, WatchItemKB: h.savedData.WatchItemKB, MaxBytes: h.siteMaxBytes(), NewListMetric: watchNewList, LargeItemMetric: watchItemLarge, BoundHistory: h.boundHistoryContext})
 }
 
 // legacyRequestSvc supplies the request-specific named-site resolver.

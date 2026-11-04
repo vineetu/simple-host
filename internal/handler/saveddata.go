@@ -11,11 +11,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
 )
 
 // Saved data, step 1: the safety floor (saved-data redesign, owner approved
@@ -73,8 +73,12 @@ func (h *SiteHandler) SetSavedData(c config.SavedData) {
 // once a second per site, so a flood of writes cannot grow it for a whole
 // sweep interval. Never fails the write.
 func (h *SiteHandler) boundHistory(r *http.Request, siteID string) {
+	h.boundHistoryContext(r.Context(), siteID)
+}
+
+func (h *SiteHandler) boundHistoryContext(ctx context.Context, siteID string) {
 	capBytes := int64(h.savedData.HistoryMaxMB) << 20
-	ctx := context.WithoutCancel(r.Context())
+	ctx = context.WithoutCancel(ctx)
 	size, err := db.HistoryBytes(ctx, h.database, siteID)
 	if err != nil || size <= capBytes || h.thinPointless(siteID, size, capBytes) || (h.thinLimiter != nil && !h.thinLimiter.allow(siteID)) {
 		return
@@ -405,20 +409,11 @@ func pageArgs(r *http.Request) (int, int64) {
 // deletedCursor is Recently deleted's `next`/`before`: "<deleted_at in unix
 // microseconds>_<id>". Anything else starts from the newest.
 func deletedCursor(v string) db.DeletedCursor {
-	at, id, ok := strings.Cut(v, "_")
-	if !ok {
-		return db.DeletedCursor{}
-	}
-	us, err1 := strconv.ParseInt(at, 10, 64)
-	n, err2 := strconv.ParseInt(id, 10, 64)
-	if err1 != nil || err2 != nil || n <= 0 {
-		return db.DeletedCursor{}
-	}
-	return db.DeletedCursor{At: time.UnixMicro(us), ID: n}
+	return storagerules.LegacyDeletedCursor(v)
 }
 
 func deletedNext(it db.DeletedItem) string {
-	return strconv.FormatInt(it.DeletedAt.UnixMicro(), 10) + "_" + strconv.FormatInt(it.ID, 10)
+	return storagerules.LegacyDeletedNext(it)
 }
 
 // ownedDataSite resolves {sitename} (with {handle} when the route names one)
@@ -875,41 +870,4 @@ func storableJSON(w http.ResponseWriter, body []byte) bool {
 	return false
 }
 
-// jsonStorable reports whether JSON text body has none of what jsonb refuses.
-// Backslashes appear only inside strings in JSON, so escapes are found by
-// scanning the bytes.
-func jsonStorable(body []byte) bool {
-	if !utf8.Valid(body) {
-		return false
-	}
-	hex4 := func(i int) (rune, bool) {
-		if i+6 > len(body) || body[i] != '\\' || body[i+1] != 'u' {
-			return 0, false
-		}
-		n, err := strconv.ParseUint(string(body[i+2:i+6]), 16, 32)
-		return rune(n), err == nil
-	}
-	for i := 0; i < len(body); i++ {
-		if body[i] != '\\' {
-			continue
-		}
-		if i+1 < len(body) && body[i+1] == 'u' {
-			r, ok := hex4(i)
-			switch {
-			case !ok:
-			case r == 0:
-				return false
-			case r >= 0xD800 && r <= 0xDBFF:
-				lo, ok := hex4(i + 6)
-				if !ok || lo < 0xDC00 || lo > 0xDFFF {
-					return false
-				}
-				i += 6
-			case r >= 0xDC00 && r <= 0xDFFF:
-				return false
-			}
-		}
-		i++ // the escaped character: \\ never starts another escape
-	}
-	return true
-}
+func jsonStorable(body []byte) bool { return storagerules.LegacyJSONStorable(body) }

@@ -24,6 +24,7 @@ import (
 	"github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
 )
 
 // Saved data, step 2: kinds (saved-data redesign, owner approved 2026-09-27;
@@ -118,7 +119,7 @@ func (h *SiteHandler) dataSettings(w http.ResponseWriter, r *http.Request, siteI
 // entriesLike: the name holds Submissions, declared or (on a legacy site)
 // an undeclared list that behaves as before.
 func entriesLike(set db.DataSettings) bool {
-	return set.Kind == db.KindEntries || (set.Kind == "" && set.Shared)
+	return storagerules.LegacyEntriesLike(set.Kind, set.Shared)
 }
 
 // listLike: the name is a list of items anyone may be shown (Submissions,
@@ -200,7 +201,7 @@ func writeKindChanged(w http.ResponseWriter, name string) {
 // is the visitor's verified address ("" when nobody is signed in). Writes the
 // refusal.
 func (h *SiteHandler) saverOK(w http.ResponseWriter, r *http.Request, siteID, email string) bool {
-	ok, err := db.SaverAllowed(r.Context(), h.database, siteID, email)
+	ok, err := h.legacySvc().SaverAllowed(r.Context(), legacy.SaverInput{SiteID: siteID, Email: email})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return false
@@ -217,26 +218,13 @@ func (h *SiteHandler) saverOK(w http.ResponseWriter, r *http.Request, siteID, em
 // visitor pass. Writes the
 // refusal.
 func (h *SiteHandler) personSaverOK(w http.ResponseWriter, r *http.Request, siteID, userID string) bool {
-	email := ""
-	if userID != "" {
-		var err error
-		if email, err = visitorEmail(r.Context(), h.database, userID); err != nil || email == "" {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return false
-		}
-	}
-	ok, err := db.SaverAllowed(r.Context(), h.database, siteID, email)
+	ok, err := h.legacySvc().PersonSaverAllowed(r.Context(), legacy.PersonSaverInput{SiteID: siteID, UserID: userID, VisitorPass: r.Header.Get(visitorPassHeader) != ""})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return false
 	}
 	if ok {
 		return true
-	}
-	if userID != "" && r.Header.Get(visitorPassHeader) == "" {
-		if ownerID, _, err := db.GetSiteWriteGate(r.Context(), h.database, siteID); err == nil && ownerID == userID {
-			return true
-		}
 	}
 	writeNotAllowedToSave(w)
 	return false
@@ -406,18 +394,22 @@ func (h *SiteHandler) visitorOnSite(w http.ResponseWriter, r *http.Request, site
 		writeVisitorAuthRequired(w)
 		return sess, false
 	}
-	if susp, err := db.UserSuspended(r.Context(), h.database, sess.UserID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return sess, false
-	} else if susp {
+	err := h.legacySvc().CheckVisitorAccess(r.Context(), legacy.VisitorAccessInput{
+		UserID: sess.UserID, SessionID: sess.ID, NeedCSRF: needCSRF,
+		CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, Idle: h.limits.VisitorSessionIdle,
+	})
+	var serviceErr *legacy.Error
+	switch {
+	case errors.As(err, &serviceErr) && serviceErr.Code == "account_suspended":
 		writeAccountSuspended(w)
 		return sess, false
-	}
-	if needCSRF && r.Header.Get(visitorCSRFHeader) != visitorCSRFValue {
+	case errors.As(err, &serviceErr) && serviceErr.Code == "csrf_required":
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
 		return sess, false
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return sess, false
 	}
-	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID, h.limits.VisitorSessionIdle)
 	return sess, true
 }
 
@@ -595,45 +587,6 @@ func (h *SiteHandler) contentWriter(w http.ResponseWriter, r *http.Request, site
 	return db.Actor{}, false
 }
 
-// ownEntry resolves {sitename}/{coll}/{id} for a visitor acting on their own
-// entry: the visitor signed in on the site (with CSRF), a Submissions name,
-// and a live item they sent. Anything else is 404 not_found (nothing about
-// other people's entries is revealed).
-func (h *SiteHandler) ownEntry(w http.ResponseWriter, r *http.Request, siteID, siteName string, live bool) (db.VisitorSession, db.DataSettings, int64, bool) {
-	name := strings.TrimSpace(r.PathValue("coll"))
-	sess, ok := h.visitorOnSite(w, r, siteID, true)
-	if !ok {
-		return sess, db.DataSettings{}, 0, false
-	}
-	set, ok := h.dataSettings(w, r, siteID, name)
-	if !ok {
-		return sess, set, 0, false
-	}
-	if !entriesLike(set) {
-		if set.Kind == db.KindContent {
-			writeWrongKind(w, name, set.Kind, "only the owner changes it")
-		} else {
-			writeDeclareFirst(w, siteName, name)
-		}
-		return sess, set, 0, false
-	}
-	id, valid := pathID(r, "id")
-	if !valid {
-		writePrivateNotFound(w)
-		return sess, set, 0, false
-	}
-	author, err := db.GetItemAuthor(r.Context(), h.database, siteID, name, id)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return sess, set, 0, false
-	}
-	if err != nil || author.SubmittedBy != sess.UserID || (live && author.DeletedAt != nil) {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no entry of yours with that id", Code: "not_found"})
-		return sess, set, 0, false
-	}
-	return sess, set, id, true
-}
-
 // itemKind reads the name of an item route: a Personal name has no items
 // anyone addresses by id (answered: the refusal is written); everything else
 // comes back to its handler.
@@ -678,7 +631,7 @@ func (h *SiteHandler) updateEntry(w http.ResponseWriter, r *http.Request) {
 	}
 	if set, answered := h.itemKind(w, r, siteID, siteName); answered {
 		return
-	} else if set.Kind == db.KindBoard {
+	} else if storagerules.LegacyEntryRoute(set.Kind, false, false) == storagerules.LegacyEntryBoard {
 		h.updateBoardItem(w, r, siteID, set)
 		return
 	}
@@ -689,70 +642,70 @@ func (h *SiteHandler) updateEntry(w http.ResponseWriter, r *http.Request) {
 	if h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID) {
 		return
 	}
-	sess, set, id, ok := h.ownEntry(w, r, siteID, siteName, true)
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		writeVisitorAuthRequired(w)
+		return
+	}
+	sess, ok := h.strictVisitorSession(r, siteID)
 	if !ok {
+		writeVisitorAuthRequired(w)
 		return
 	}
-	if !h.personSaverOK(w, r, siteID, sess.UserID) {
-		return
-	}
-	maxBytes := h.entryMaxBytes(set)
-	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBytes))
-	var patch map[string]json.RawMessage
-	if err == nil {
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		if err = dec.Decode(&patch); err == nil && (patch == nil || dec.More()) {
-			err = errors.New("not one object")
+	name := strings.TrimSpace(r.PathValue("coll"))
+	id, valid := pathID(r, "id")
+	entryLimit := int64(h.savedData.EntryMaxKB) << 10
+	entryReader := http.MaxBytesReader(w, r.Body, entryLimit)
+	listReader := http.MaxBytesReader(w, r.Body, maxCollectionItemSize)
+	readPatch := func(maxBytes int64) ([]byte, error) {
+		reader := listReader
+		if maxBytes == entryLimit {
+			reader = entryReader
 		}
-	}
-	if err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
-			return
-		}
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `send a JSON object of the fields to change, e.g. {"guests": 3}`})
-		return
-	}
-	if !storableJSON(w, raw) {
-		return
-	}
-	errTooLarge := errors.New("too large")
-	errNotObject := errors.New("not an object")
-	actor := h.withAuthorEmail(r.Context(), db.Actor{ID: sess.UserID, Kind: actorVisitor})
-	item, err := h.legacySvc().UpdateCollectionItem(r.Context(), siteID, set.Name, id, actor, h.siteMaxBytes(), func(old json.RawMessage) (json.RawMessage, error) {
-		var fields map[string]json.RawMessage
-		if err := json.Unmarshal(old, &fields); err != nil || fields == nil {
-			return nil, errNotObject
-		}
-		for k, v := range patch {
-			if slices.Contains(privateStampKeys, k) {
-				continue
-			}
-			if string(bytes.TrimSpace(v)) == "null" {
-				delete(fields, k)
-				continue
-			}
-			fields[k] = v
-		}
-		next, err := json.Marshal(fields)
+		raw, err := io.ReadAll(reader)
 		if err != nil {
-			return nil, err
+			var maxErr *http.MaxBytesError
+			if errors.As(err, &maxErr) {
+				return nil, &legacy.Error{Code: "item_too_large"}
+			}
+			return nil, &legacy.Error{Code: "invalid_patch"}
 		}
-		if int64(len(next)) > maxBytes && len(next) > len(old) {
-			return nil, errTooLarge
-		}
-		return next, nil
-	})
-	h.boundHistory(r, siteID)
+		return raw, nil
+	}
+	item, set, err := h.legacySvc().UpdateEntry(r.Context(), legacy.UpdateEntryInput{SiteID: siteID, Name: name, VisitorAccess: legacy.VisitorAccessInput{UserID: sess.UserID, SessionID: sess.ID, NeedCSRF: true, CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, Idle: h.limits.VisitorSessionIdle}, ID: id, ValidID: valid, DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst, VisitorPass: r.Header.Get(visitorPassHeader) != "", EntryMaxKB: h.savedData.EntryMaxKB, ListMaxBytes: maxCollectionItemSize, ReadPatch: readPatch})
+	var serviceErr *legacy.Error
 	switch {
+	case errors.As(err, &serviceErr) && serviceErr.Code == "account_suspended":
+		writeAccountSuspended(w)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "csrf_required":
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "site_not_found":
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "wrong_kind":
+		if set.Kind == db.KindContent {
+			writeWrongKind(w, name, set.Kind, "only the owner changes it")
+		} else {
+			writeDeclareFirst(w, siteName, name)
+		}
+	case errors.As(err, &serviceErr) && serviceErr.Code == "invalid_id":
+		writePrivateNotFound(w)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "not_found":
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no entry of yours with that id", Code: "not_found"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "not_allowed":
+		writeNotAllowedToSave(w)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "item_too_large":
+		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "invalid_patch":
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `send a JSON object of the fields to change, e.g. {"guests": 3}`})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "invalid_json":
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`, Code: "invalid_json"})
+
 	case errors.Is(err, sql.ErrNoRows):
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no entry of yours with that id", Code: "not_found"})
-	case errors.Is(err, errTooLarge):
+	case errors.Is(err, storagerules.ErrLegacyEntryTooLarge):
 		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
 	case errors.Is(err, db.ErrSiteFull):
 		h.writeSiteFull(w)
-	case errors.Is(err, errNotObject):
+	case errors.Is(err, storagerules.ErrLegacyEntryNotObject):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "this entry is not a JSON object, so it has no fields to change; withdraw it and send a new one", Code: "not_an_object"})
 	case err != nil:
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -775,29 +728,56 @@ func (h *SiteHandler) withdrawEntry(w http.ResponseWriter, r *http.Request) {
 	if answered {
 		return
 	}
-	if h.isOwnerRequest(r, siteID) {
+	owner := h.isOwnerRequest(r, siteID)
+	switch storagerules.LegacyEntryRoute(kset.Kind, owner, true) {
+	case storagerules.LegacyEntryOwner:
 		h.deletePrivateItem(w, r)
 		return
-	}
-	if kset.Kind == db.KindBoard {
+	case storagerules.LegacyEntryBoard:
 		h.deleteBoardItem(w, r, siteID, kset)
 		return
 	}
 	if h.refuseSuspendedSiteID(w, r, siteID) {
 		return
 	}
-	sess, set, id, ok := h.ownEntry(w, r, siteID, siteName, true)
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		writeVisitorAuthRequired(w)
+		return
+	}
+	sess, ok := h.strictVisitorSession(r, siteID)
 	if !ok {
+		writeVisitorAuthRequired(w)
 		return
 	}
-	actor := h.withAuthorEmail(r.Context(), db.Actor{ID: sess.UserID, Kind: actorVisitor})
-	found, err := db.SoftDeleteItem(r.Context(), h.database, siteID, set.Name, id, actor)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	name := strings.TrimSpace(r.PathValue("coll"))
+	id, valid := pathID(r, "id")
+	set, err := h.legacySvc().WithdrawEntry(r.Context(), legacy.WithdrawEntryInput{SiteID: siteID, Name: name, VisitorAccess: legacy.VisitorAccessInput{UserID: sess.UserID, SessionID: sess.ID, NeedCSRF: true, CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, Idle: h.limits.VisitorSessionIdle}, ID: id, ValidID: valid, DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst})
+	var serviceErr *legacy.Error
+	switch {
+	case errors.As(err, &serviceErr) && serviceErr.Code == "account_suspended":
+		writeAccountSuspended(w)
 		return
-	}
-	if !found {
+	case errors.As(err, &serviceErr) && serviceErr.Code == "csrf_required":
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "wrong_kind":
+		if set.Kind == db.KindContent {
+			writeWrongKind(w, name, set.Kind, "only the owner changes it")
+		} else {
+			writeDeclareFirst(w, siteName, name)
+		}
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "invalid_id":
+		writePrivateNotFound(w)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "not_found":
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no entry of yours with that id", Code: "not_found"})
+		return
+	case errors.Is(err, sql.ErrNoRows):
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"withdrawn": id, "undo_minutes": h.savedData.WithdrawUndoMinutes})
@@ -821,18 +801,41 @@ func (h *SiteHandler) undoWithdraw(w http.ResponseWriter, r *http.Request) {
 	if h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID) {
 		return
 	}
-	sess, set, id, ok := h.ownEntry(w, r, siteID, siteName, false)
+	if strings.EqualFold(requestHostName(r), h.contentHost) {
+		writeVisitorAuthRequired(w)
+		return
+	}
+	sess, ok := h.strictVisitorSession(r, siteID)
 	if !ok {
+		writeVisitorAuthRequired(w)
 		return
 	}
-	if !h.personSaverOK(w, r, siteID, sess.UserID) {
-		return
-	}
-	actor := h.withAuthorEmail(r.Context(), db.Actor{ID: sess.UserID, Kind: actorVisitor})
+	name := strings.TrimSpace(r.PathValue("coll"))
+	id, valid := pathID(r, "id")
 	window := time.Duration(h.savedData.WithdrawUndoMinutes) * time.Minute
-	declared := set.Kind == db.KindEntries
-	item, done, err := db.UndoOwnWithdrawal(r.Context(), h.database, siteID, set.Name, id, sess.UserID, window, declared, declared && set.OnePerPerson, h.savedData.EntriesMax, actor, h.siteMaxBytes(), false)
+	item, done, set, err := h.legacySvc().UndoEntry(r.Context(), legacy.UndoEntryInput{SiteID: siteID, Name: name, ID: id, VisitorAccess: legacy.VisitorAccessInput{UserID: sess.UserID, SessionID: sess.ID, NeedCSRF: true, CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, Idle: h.limits.VisitorSessionIdle}, Window: window, ValidID: valid, DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst, VisitorPass: r.Header.Get(visitorPassHeader) != "", MaxItems: h.savedData.EntriesMax, MaxBytes: h.siteMaxBytes()})
+	var serviceErr *legacy.Error
 	switch {
+	case errors.As(err, &serviceErr) && serviceErr.Code == "account_suspended":
+		writeAccountSuspended(w)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "csrf_required":
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "wrong_kind":
+		if set.Kind == db.KindContent {
+			writeWrongKind(w, name, set.Kind, "only the owner changes it")
+		} else {
+			writeDeclareFirst(w, siteName, name)
+		}
+	case errors.As(err, &serviceErr) && serviceErr.Code == "invalid_id":
+		writePrivateNotFound(w)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "not_found":
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no entry of yours with that id", Code: "not_found"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "not_allowed":
+		writeNotAllowedToSave(w)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "site_not_found":
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 	case errors.Is(err, db.ErrOnePerPerson):
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "you have another entry here now (one per person); withdraw it first", Code: "one_per_person"})
 	case errors.Is(err, db.ErrNameFull):
