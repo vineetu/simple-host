@@ -3,6 +3,7 @@ package legacy
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
@@ -17,12 +18,39 @@ type Adapter struct {
 
 // Deps contains configuration shared by legacy operations.
 type Deps struct {
-	MaxEntries, WatchItemKB        int
-	MaxBytes                       int64
+	MaxEntries, WatchItemKB        func() int
+	MaxBytes                       func() int64
+	BoundPersonalHistory           func(context.Context, string)
+	PersonalSiteMaxBytes           func() int64
 	NewListMetric, LargeItemMetric string
 	AdminAPIKey                    string
 	KeyIdleExpiry                  time.Duration
 	ResolveNamedSite               func(context.Context, string) (string, error)
+	ResolveWriteSite               func(context.Context, string) (string, error)
+	CollectionOwnerDomain          func(context.Context, string) (string, bool, error)
+	CollectionBrowserSession       func(context.Context, string) CollectionBrowserSession
+	VisitorSessionIdle             time.Duration
+	CollectionJSONStorable         func([]byte) bool
+	CollectionOrigin               func(string) (bool, map[string][]string)
+	CollectionReadLimit            func(string) (bool, map[string][]string)
+	CollectionAppendLimit          func() (bool, map[string][]string)
+	CollectionOwnerKeyWrite        func(string) bool
+	CollectionDomainElsewhere      func(string) (string, bool)
+	CollectionSharedDomain         func(context.Context, string) (string, bool)
+	CollectionKeyActor             func(string) db.Actor
+	CollectionInternalSession      func(string) (db.VisitorSession, bool)
+	CollectionResolveKey           func(context.Context, string) (db.User, bool, error)
+	CollectionSessionValid         func(db.VisitorSession, string) bool
+	CollectionLogAnon              func(string, string, string, string)
+	CollectionOwnerBrowser         func(string) bool
+	CollectionStrictSession        func(string) CollectionBrowserSession
+	CollectionBoardLimit           func(string) bool
+	BoardMax                       func() int
+	CollectionPrivateHome          func(string) (CollectionPrivateHome, bool, error)
+	CollectionPrivateWrongHost     func() bool
+	PersonalPeopleMax              func() int
+	PersonalNext                   func(json.RawMessage) (json.RawMessage, error)
+	PersonalPreparePatch           func([]byte) (func(json.RawMessage) (json.RawMessage, error), error)
 }
 
 // New constructs an adapter for the given database and legacy cutoff.
