@@ -55,3 +55,6 @@ jobs:
           # throwaway database on this server rather than starting Docker.
           TEST_PG_URL: postgres://postgres:postgres@127.0.0.1:5432
         run: make check
+
+      - name: make check-release
+        run: make check-release

@@ -20,6 +20,10 @@ https://simple-host.app and runs in production for real users.
 
 ## In the same commit as a feature change
 
+- Route and MCP tool indexes are generated: run `make inventory`. Reference features by their
+  stable FEATURES.md anchor ID (`docs/feature-ids.txt`). `make check-release` holds network,
+  publication and cross-repo checks; offline checks stay in `make check`.
+
 - Update `FEATURES.md` and add a line to `CHANGELOG.md` (newest first, plain language). A new
   section or bold-lead feature in `FEATURES.md` also gets an entry in
   `internal/handler/static/features.json` (the public /features page: plain words, an example,

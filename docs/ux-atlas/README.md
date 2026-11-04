@@ -25,9 +25,13 @@ Today's production screenshots are not in the repo (19 MB). They live in
 redesigned screen ships.
 
 ```
+python3 docs/ux-atlas/build.py --check    # read-only offline checks (also in make check)
 python3 docs/ux-atlas/build.py            # checks + builds dist/
 python3 docs/ux-atlas/build.py --publish  # and publishes the site
 ```
 
-`build.py` reports features with no screen, screens naming unknown features, and screens with
-no prototype file. Keep all three at zero.
+`build.py` fails on features with no screen, screens naming unknown features, screens with
+no prototype file, or a feature whose `feature` field does not name an anchor in FEATURES.md
+(see `docs/feature-ids.txt`). Keep these at zero. `--check` also fails if committed
+`prototype/nav.js` or `prototype/files.json` is stale. It writes nothing and never reads
+screenshots or publishing credentials. Normal builds regenerate those files and copy the kit.

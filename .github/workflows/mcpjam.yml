@@ -51,7 +51,7 @@ jobs:
           node-version: '22'
       - run: CGO_ENABLED=0 go build -o "$BIN" ./cmd/server
       - run: bash scripts/mcpjam/fixture.sh
-      - run: bash scripts/mcpjam/checks.sh
+      - run: bash scripts/check-release.sh --mcpjam
       - if: failure()
         run: tail -50 "$FIX/server.log"
 
