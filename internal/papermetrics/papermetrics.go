@@ -18,13 +18,14 @@ import (
 	"context"
 	"database/sql"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // Enabled reports whether PAPER_METRICS allows collection (default on).
@@ -35,6 +36,8 @@ func Enabled() bool {
 
 // Collector owns every paper metric for one server process.
 type Collector struct {
+	runner     *workers.Runner
+	tracker    *workers.Tracker
 	db         *sql.DB
 	dataDir    string
 	apexHosts  map[string]bool
@@ -53,7 +56,8 @@ type Collector struct {
 // (simple-host.app, www.simple-host.app): a page there is a platform page,
 // any other host is a hosted site.
 func New(db *sql.DB, dataDir string, apexHosts ...string) *Collector {
-	c := &Collector{db: db, dataDir: dataDir, apexHosts: map[string]bool{}, started: time.Now()}
+	t := workers.NewTracker("operations.paper_metrics")
+	c := &Collector{runner: workers.NewRunner(t), tracker: t, db: db, dataDir: dataDir, apexHosts: map[string]bool{}, started: time.Now()}
 	for _, h := range apexHosts {
 		h = strings.ToLower(strings.TrimSpace(h))
 		if h != "" {
@@ -69,16 +73,27 @@ func (c *Collector) Start(ctx context.Context) {
 	if !Enabled() {
 		return
 	}
-	if _, err := c.ensureRun(ctx); err != nil {
-		log.Printf("paper metrics run: %v", err)
-	}
-	if c.hack != nil {
-		go c.hackLoop(ctx)
-	}
-	go c.loop(ctx)
+	c.runner.Go(ctx, func(ctx context.Context) {
+		c.tracker.Attempt()
+		newRun := c.runID.Load() == 0
+		if _, err := c.ensureRun(ctx); err != nil {
+			c.tracker.Fail("register run", err)
+		} else if newRun {
+			c.tracker.Progress()
+		}
+		if c.hack != nil {
+			c.runner.Go(ctx, c.hackLoop)
+		}
+		c.loop(ctx)
+	})
 }
 
+func (c *Collector) Stop()                    { c.runner.Stop() }
+func (c *Collector) Wait()                    { c.runner.Wait() }
+func (c *Collector) Status() []workers.Status { return c.runner.Status() }
+
 func (c *Collector) loop(ctx context.Context) {
+	c.tracker.Attempt()
 	flush := time.NewTicker(time.Minute)
 	sampleT := time.NewTicker(5 * time.Minute)
 	snap := time.NewTicker(time.Hour)
@@ -93,10 +108,13 @@ func (c *Collector) loop(ctx context.Context) {
 			c.flush(context.Background())
 			return
 		case <-flush.C:
+			c.tracker.Attempt()
 			c.flush(ctx)
 		case <-sampleT.C:
+			c.tracker.Attempt()
 			c.takeSample(ctx)
 		case <-snap.C:
+			c.tracker.Attempt()
 			c.snapshots(ctx)
 		}
 	}
@@ -105,18 +123,19 @@ func (c *Collector) loop(ctx context.Context) {
 // snapshots writes yesterday's daily snapshot and this week's footprint once
 // each; both are no-ops when the row already exists, so restarts are safe.
 func (c *Collector) snapshots(ctx context.Context) {
+	c.tracker.Attempt()
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	if err := c.dailySnapshot(ctx, time.Now().UTC()); err != nil {
-		log.Printf("paper metrics daily snapshot: %v", err)
+		c.tracker.Fail("daily snapshot", err)
 	}
 	if c.hack != nil {
 		if err := c.hackSnapshot(ctx, time.Now().UTC()); err != nil {
-			log.Printf("paper metrics Hack snapshot: %v", err)
+			c.tracker.Fail("Hack snapshot", err)
 		}
 	}
 	if err := c.weeklyFootprint(ctx, time.Now().UTC()); err != nil {
-		log.Printf("paper metrics footprint: %v", err)
+		c.tracker.Fail("footprint", err)
 	}
 }
 

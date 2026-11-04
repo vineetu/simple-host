@@ -51,6 +51,7 @@ import (
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/papermetrics"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 const (
@@ -252,28 +253,49 @@ func (h *ConnectorHandler) SetEventsBackend(b mcp.EventsBackend) {
 
 // StartSweep removes expired codes and tokens, abandoned registrations, and
 // API keys that stopped working more than 30 days ago.
-func (h *ConnectorHandler) StartSweep(every time.Duration) {
-	h.registerLimiter.startCleanup(10*time.Minute, 2*time.Hour)
-	h.authorizeLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	h.tokenLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	h.uploadLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	h.importStatusLimiter.startCleanup(10*time.Minute, 30*time.Minute)
-	go func() {
-		time.Sleep(45 * time.Second)
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+type connectorSweepWorker struct {
+	*workers.Runner
+	h       *ConnectorHandler
+	tracker *workers.Tracker
+	every   time.Duration
+}
+
+func (h *ConnectorHandler) SweepWorker(every time.Duration) workers.Owner {
+	t := workers.NewTracker("accounts.connector_sweep")
+	return &connectorSweepWorker{workers.NewRunner(t), h, t, every}
+}
+func (w *connectorSweepWorker) Start(ctx context.Context) {
+	h := w.h
+	for _, entry := range []struct {
+		limiter *rateLimiter
+		idle    time.Duration
+	}{
+		{h.registerLimiter, 2 * time.Hour}, {h.authorizeLimiter, 30 * time.Minute}, {h.tokenLimiter, 30 * time.Minute}, {h.uploadLimiter, 30 * time.Minute}, {h.importStatusLimiter, 30 * time.Minute},
+	} {
+		entry := entry
+		w.Go(ctx, func(ctx context.Context) {
+			workers.Every(ctx, 10*time.Minute, 10*time.Minute, func(context.Context) { entry.limiter.evictIdle(entry.idle) })
+		})
+	}
+	w.Go(ctx, func(ctx context.Context) {
+		workers.Every(ctx, 45*time.Second, w.every, func(ctx context.Context) {
+			w.tracker.Attempt()
+			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
 			if err := db.SweepOAuth(ctx, h.database, h.limits.OAuthUnusedClientAge); err != nil {
-				log.Printf("connector sweep: %v", err)
+				w.tracker.Fail("sweep OAuth", err)
 			}
 			if n, err := db.PurgeExpiredAPIKeys(ctx, h.database, h.limits.KeyIdleExpiry); err != nil {
-				log.Printf("api key sweep: %v", err)
+				w.tracker.Fail("purge expired API keys", err)
 			} else if n > 0 {
+				w.tracker.Progress()
 				log.Printf("api key sweep: removed %d keys expired over 30 days", n)
 			}
-			cancel()
-			time.Sleep(every)
-		}
-	}()
+		})
+	})
+}
+func (h *ConnectorHandler) StartSweep(every time.Duration) {
+	h.SweepWorker(every).Start(context.Background())
 }
 
 func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
