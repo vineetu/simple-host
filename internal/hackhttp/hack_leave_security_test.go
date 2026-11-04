@@ -7,7 +7,7 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Regression tests for the Grok security review of SIM-340 (leave this
@@ -265,8 +265,8 @@ func TestHackLeaveNeverTouchesVotes(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET voting_eligibility='participants' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	p1Email := db.BaseEmail(a.emailOf(t, p1))
-	p3Email := db.BaseEmail(a.emailOf(t, p3))
+	p1Email := model.BaseEmail(a.emailOf(t, p1))
+	p3Email := model.BaseEmail(a.emailOf(t, p3))
 	for _, email := range []string{p1Email, p3Email} {
 		if _, err := a.database.Exec(`INSERT INTO event_votes (event_id, voter_email, team_id) VALUES ((SELECT id FROM events WHERE slug=$1), $2, $3)`,
 			slug, email, teamID); err != nil {

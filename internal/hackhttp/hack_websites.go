@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
@@ -60,7 +59,7 @@ func (h *HackHandler) eventWebsiteStorage(w http.ResponseWriter, r *http.Request
 }
 
 func (h *HackHandler) eventWebsiteState(ctx context.Context, ev model.Event) (map[string]any, error) {
-	site, err := db.GetSiteByUser(ctx, h.database, ev.AccountID, ev.ID)
+	site, err := h.eventsSvc().SiteByUser(ctx, ev.AccountID, ev.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": false, "upload_limit_bytes": h.websiteUploadLimit(ctx, ev), "upload_limits": h.websiteUploadLimits(ctx, ev), "versions": []any{},
 			"custom_url": h.EventURL(ev.Slug), "builtin_url": h.publicBaseURL + "/e/" + ev.Slug}, nil
@@ -68,7 +67,7 @@ func (h *HackHandler) eventWebsiteState(ctx context.Context, ev model.Event) (ma
 	if err != nil {
 		return nil, err
 	}
-	versions, err := db.ListVersionsBySite(ctx, h.database, site.ID)
+	versions, err := h.eventsSvc().SiteVersions(ctx, site.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +115,7 @@ func (h *HackHandler) patchEventWebsite(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if req.Mode == "custom" {
-		if _, err := db.GetSiteByUser(r.Context(), h.database, a.event.AccountID, a.event.ID); err != nil {
+		if _, err := h.eventsSvc().SiteByUser(r.Context(), a.event.AccountID, a.event.ID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				httpx.WriteError(w, http.StatusConflict, "website_not_published", "publish an event website first")
 			} else {
@@ -192,7 +191,7 @@ func (h *HackHandler) putEventWebsite(w http.ResponseWriter, r *http.Request, fi
 func (h *HackHandler) websiteSitesSvc() *appsites.Service {
 	return appsites.New(h.database, nil, nil, 0, appsites.Deps{
 		WebsiteArchiveDefault: h.siteArchiveDefault,
-		WebsiteLimit: func(ctx context.Context, user *db.User) (int64, bool) {
+		WebsiteLimit: func(ctx context.Context, user *model.User) (int64, bool) {
 			return h.siteLimitFor(ctx, h.database, user)
 		},
 		MaxFilesPerSite: h.limits.MaxFilesPerSite,

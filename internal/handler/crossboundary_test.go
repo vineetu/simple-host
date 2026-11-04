@@ -111,6 +111,9 @@ func newBridgeTeamApp(t *testing.T) *bridgeTeamApp {
 	a.sites.SetPersonHosts("canonical")
 	a.sites.SetSiteHosts("canonical", certDir)
 	a.hack = hackhttp.NewHackHandler(database, a.srv.URL, bridgeTSDomain)
+	a.hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (db.User, error) {
+		return db.GetUserByAPIKey(ctx, database, key, idle)
+	})
 	a.hack.ShareAssets(a.sites.Pages())
 	a.hack.SetSites(a.sites)
 	a.hack.Register(mux, authMW)

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
@@ -34,7 +33,7 @@ func (h *HackHandler) registerLeave(mux *http.ServeMux, wrap func(http.HandlerFu
 // event_not_found like anyone else (build plan 2.1: "Do not use
 // loadMember(..., write=false): it synthesises organiser access for the
 // admin key").
-func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug string) (model.Event, model.EventMember, string, *db.User, bool) {
+func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug string) (model.Event, model.EventMember, string, *model.User, bool) {
 	user := hackNeedUser(w, r)
 	if user == nil {
 		return model.Event{}, model.EventMember{}, "", nil, false

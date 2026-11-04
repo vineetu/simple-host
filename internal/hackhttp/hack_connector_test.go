@@ -3,7 +3,6 @@ package hackhttp
 import (
 	"context"
 	"encoding/json"
-	rulesauth "github.com/vsriram/simple-host/internal/rules/auth"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,37 +12,8 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
+	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
-
-func TestHackGrantKind(t *testing.T) {
-	team := "00000000-0000-4000-8000-000000000000"
-	cases := []struct {
-		scope      string
-		teamID     string
-		events, ok bool
-	}{
-		{"sites", "", false, false},
-		{"sites events", "", true, true},
-		{"events", "", false, false},
-		{"sites team:" + team, team, false, true},
-		{"sites team:" + team + " events", "", false, false},
-		{"sites team:", "", false, false},
-		{"sites eventsx", "", false, false},
-		{"sites myevents", "", false, false},
-		{"sites Events", "", false, false},
-		{"sites team: events", "", false, false},
-		{"sites team:not-a-uuid", "", false, false},
-		{"sites team:" + team + " team:" + team, "", false, false},
-		{"sites events events", "", false, false},
-		{"events sites", "", true, true},
-	}
-	for _, c := range cases {
-		teamID, events, ok := rulesauth.GrantKind(c.scope)
-		if teamID != c.teamID || events != c.events || ok != c.ok {
-			t.Errorf("%q: got team=%q events=%v ok=%v, want team=%q events=%v ok=%v", c.scope, teamID, events, ok, c.teamID, c.events, c.ok)
-		}
-	}
-}
 
 func (a *teamSiteApp) consentPage(t *testing.T, q url.Values) (string, string) {
 	t.Helper()
@@ -364,7 +334,7 @@ func TestHackOrganiserConnector(t *testing.T) {
 		t.Fatalf("team key tools: %v", memberNames)
 	}
 	deployRaw, _ := auth.GenerateAPIKey()
-	if _, err := db.CreateAPIKey(context.Background(), a.database, a.uid(t, org), db.HashAPIKey(org.key), deployRaw, "ci", db.KeyScopeDeploy, nil, 50, 180*24*time.Hour); err != nil {
+	if _, err := db.CreateAPIKey(context.Background(), a.database, a.uid(t, org), accountrepo.HashAPIKey(org.key), deployRaw, "ci", db.KeyScopeDeploy, nil, 50, 180*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	deployNames := mcpToolNames(t, a.mcpWithKey(t, deployRaw))

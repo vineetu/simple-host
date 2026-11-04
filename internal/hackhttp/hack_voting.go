@@ -8,7 +8,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
@@ -233,7 +232,7 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	created, err := h.entries.CastVote(r.Context(), ev.ID, ev.AccountID, db.BaseEmail(user.Username), req.Team)
+	created, err := h.entries.CastVote(r.Context(), ev.ID, ev.AccountID, model.BaseEmail(user.Username), req.Team)
 	if err != nil {
 		if e, ok := err.(*entries.Error); ok {
 			status := 0

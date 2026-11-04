@@ -27,6 +27,10 @@ import (
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/internal/model"
+	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
 // person and resp (cleanup 3.2 slice 3): duplicated from
@@ -61,7 +65,7 @@ func jsonBody(v any) io.Reader {
 // cmd/server/main.go does: handlecheck.go's JudgeHandle (internal/handler),
 // reached through the test-only handler import the brief allows for
 // building these fixtures.
-func hackHandleCheckerForTest(ctx context.Context, q db.Querier, h string) (HandleVerdict, error) {
+func hackHandleCheckerForTest(ctx context.Context, q sqlkit.Querier, h string) (HandleVerdict, error) {
 	v, err := handler.JudgeHandle(ctx, q, "", h)
 	return HandleVerdict{Status: v.Status, Code: v.Code}, err
 }
@@ -132,7 +136,7 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 		t.Skipf("postgres not reachable: %v", err)
 	}
 	adminKey, _ := auth.GenerateAPIKey()
-	adminID, err := db.EnsureAdminUser(context.Background(), database)
+	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,6 +150,9 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	h := NewHackHandler(database, srv.URL, "simple-hack.test", ed)
 	h.ShareAssets(handler.NewPages(ed, srv.URL))
 	h.SetHandleChecker(hackHandleCheckerForTest)
+	h.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
+		return db.GetUserByAPIKey(ctx, database, key, idle)
+	})
 	h.Register(mux, authMW)
 	root = mux
 	return &hackApp{database: database, admin: adminKey, mux: mux, srv: srv, hack: h}
@@ -192,7 +199,7 @@ func (a *hackApp) newPerson(t *testing.T, label string) person {
 	t.Helper()
 	addr := label + "-" + strings.ReplaceAll(uniqueSlug(), "-", "") + "@example.com"
 	key, _ := auth.GenerateAPIKey()
-	u, err := db.CreateUser(context.Background(), a.database, addr, key, false)
+	u, err := accountrepo.CreateUser(context.Background(), a.database, addr, key, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +220,7 @@ func (a *hackApp) newKeyOnlyPerson(t *testing.T, label string) person {
 	t.Helper()
 	username := "k" + label + strings.ReplaceAll(uniqueSlug(), "-", "")
 	key, _ := auth.GenerateAPIKey()
-	u, err := db.CreateUser(context.Background(), a.database, username, key, false)
+	u, err := accountrepo.CreateUser(context.Background(), a.database, username, key, false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/rules/hackentries"
 	"net/http"
 	"strings"
 	"sync"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Archive cleanup (M4) and the starter rubric seeded when an event is created.
@@ -51,7 +51,12 @@ func TestHackStarterRubric(t *testing.T) {
 
 func wantStarterRubric(t *testing.T, v rubricView) {
 	t.Helper()
-	want := hackentries.DefaultEventRubric()
+	want := []model.RubricCriterion{
+		{Name: "Idea", Description: "How original or useful is it?", Weight: 25, MaxPoints: 5},
+		{Name: "Execution", Description: "How well does it work?", Weight: 25, MaxPoints: 5},
+		{Name: "Design", Description: "How good is the user experience?", Weight: 25, MaxPoints: 5},
+		{Name: "Demo", Description: "How clearly was it presented?", Weight: 25, MaxPoints: 5},
+	}
 	if len(v.Criteria) != len(want) {
 		t.Fatalf("criteria: %+v", v.Criteria)
 	}

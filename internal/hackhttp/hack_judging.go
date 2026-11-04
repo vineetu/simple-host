@@ -15,7 +15,6 @@ import (
 	"time"
 
 	entryapp "github.com/vsriram/simple-host/internal/app/hack/entries"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
@@ -1061,7 +1060,7 @@ func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 	// redraw its own view correctly after a page reload. Auth here is
 	// optional: a bad or missing key just falls through to the public view.
 	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := db.GetUserByAPIKey(r.Context(), h.database, k, h.limits.KeyIdleExpiry); err == nil {
+		if u, err := h.eventsSvc().UserByAPIKey(r.Context(), k, h.limits.KeyIdleExpiry); err == nil {
 			if u.IsAdmin {
 				httpx.WriteJSON(w, http.StatusOK, map[string]any{"results": rows, "full_ranking": res.FullRanking})
 				return

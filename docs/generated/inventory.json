@@ -36,7 +36,7 @@
       "method": "DELETE",
       "path": "/v1/admin/hack/events/{slug}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:531",
+      "source": "internal/hackhttp/hack.go:508",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -92,7 +92,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/hackhttp/hack.go:495",
+      "source": "internal/hackhttp/hack.go:472",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -100,7 +100,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/announcements/{announcement}",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/hackhttp/hack_content.go:75",
+      "source": "internal/hackhttp/hack_content.go:70",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -108,7 +108,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/conflicts/{team_id}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:42",
+      "source": "internal/hackhttp/hack_judging.go:41",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -116,7 +116,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/entry/screenshot",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:49",
+      "source": "internal/hackhttp/hack_entries.go:48",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -132,7 +132,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/judging/former-judges/{user_id}",
       "feature_id": "leave-this-event",
-      "source": "internal/hackhttp/hack_judging.go:44",
+      "source": "internal/hackhttp/hack_judging.go:43",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -140,7 +140,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/key",
       "feature_id": "guided-team-site-publishing",
-      "source": "internal/hackhttp/hack_keys.go:29",
+      "source": "internal/hackhttp/hack_keys.go:28",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -164,7 +164,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/people/{user_id}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:497",
+      "source": "internal/hackhttp/hack.go:474",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -172,7 +172,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/people/{user_id}/key",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_keys.go:30",
+      "source": "internal/hackhttp/hack_keys.go:29",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -180,7 +180,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/requests/{id}",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:505",
+      "source": "internal/hackhttp/hack.go:482",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -188,7 +188,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/team/members/{user_id}",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:506",
+      "source": "internal/hackhttp/hack.go:483",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -196,7 +196,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/teams/{team}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:513",
+      "source": "internal/hackhttp/hack.go:490",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -204,7 +204,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/teams/{team}/members/{user_id}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:512",
+      "source": "internal/hackhttp/hack.go:489",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -220,7 +220,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack_websites.go:35",
+      "source": "internal/hackhttp/hack_websites.go:34",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1628,7 +1628,7 @@
       "method": "GET",
       "path": "/v1/admin/api-analytics",
       "feature_id": "moderation",
-      "source": "cmd/server/main.go:545",
+      "source": "cmd/server/main.go:549",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1652,7 +1652,7 @@
       "method": "GET",
       "path": "/v1/admin/growth",
       "feature_id": "moderation",
-      "source": "cmd/server/main.go:546",
+      "source": "cmd/server/main.go:550",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1660,7 +1660,7 @@
       "method": "GET",
       "path": "/v1/admin/hack/events",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:527",
+      "source": "internal/hackhttp/hack.go:504",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1684,7 +1684,7 @@
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "cmd/server/main.go:563",
+      "source": "cmd/server/main.go:567",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1844,7 +1844,7 @@
       "method": "GET",
       "path": "/v1/hack/directory",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:478",
+      "source": "internal/hackhttp/hack.go:455",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1852,7 +1852,7 @@
       "method": "GET",
       "path": "/v1/hack/events",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack.go:488",
+      "source": "internal/hackhttp/hack.go:465",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1860,7 +1860,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/hackhttp/hack.go:491",
+      "source": "internal/hackhttp/hack.go:468",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1868,7 +1868,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/announcements",
       "feature_id": "event-administration",
-      "source": "internal/hackhttp/hack_content.go:78",
+      "source": "internal/hackhttp/hack_content.go:73",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1900,7 +1900,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/conflicts",
       "feature_id": "judging",
-      "source": "internal/hackhttp/hack_judging.go:40",
+      "source": "internal/hackhttp/hack_judging.go:39",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1908,7 +1908,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/content",
       "feature_id": "a-schedule-that-acts",
-      "source": "internal/hackhttp/hack_content.go:76",
+      "source": "internal/hackhttp/hack_content.go:71",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1916,7 +1916,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entries",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:53",
+      "source": "internal/hackhttp/hack_entries.go:52",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1924,7 +1924,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entry",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:43",
+      "source": "internal/hackhttp/hack_entries.go:42",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1932,7 +1932,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entry-rules",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:50",
+      "source": "internal/hackhttp/hack_entries.go:49",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1940,7 +1940,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entry/screenshot",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:47",
+      "source": "internal/hackhttp/hack_entries.go:46",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1972,7 +1972,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/results.csv",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:55",
+      "source": "internal/hackhttp/hack_judging.go:54",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1980,7 +1980,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/scores.csv",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:54",
+      "source": "internal/hackhttp/hack_judging.go:53",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2004,7 +2004,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judge/queue",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:47",
+      "source": "internal/hackhttp/hack_judging.go:46",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2012,7 +2012,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judge/scores/{team}",
       "feature_id": "the-judges-one-screen",
-      "source": "internal/hackhttp/hack_judging.go:48",
+      "source": "internal/hackhttp/hack_judging.go:47",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2020,7 +2020,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judging/dashboard",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:43",
+      "source": "internal/hackhttp/hack_judging.go:42",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2044,7 +2044,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judging/settings",
       "feature_id": "judging-choices",
-      "source": "internal/hackhttp/hack_judging.go:37",
+      "source": "internal/hackhttp/hack_judging.go:36",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2052,7 +2052,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/key",
       "feature_id": "guided-team-site-publishing",
-      "source": "internal/hackhttp/hack_keys.go:27",
+      "source": "internal/hackhttp/hack_keys.go:26",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2060,7 +2060,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/leave",
       "feature_id": "leave-this-event",
-      "source": "internal/hackhttp/hack_leave.go:27",
+      "source": "internal/hackhttp/hack_leave.go:26",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2068,7 +2068,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/my-results",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:53",
+      "source": "internal/hackhttp/hack_judging.go:52",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2076,7 +2076,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/my-vote",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:486",
+      "source": "internal/hackhttp/hack.go:463",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2084,7 +2084,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/people",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:496",
+      "source": "internal/hackhttp/hack.go:473",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2092,7 +2092,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/public",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:479",
+      "source": "internal/hackhttp/hack.go:456",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2108,7 +2108,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/results",
       "feature_id": "results-show-what-each-team-built",
-      "source": "internal/hackhttp/hack_judging.go:52",
+      "source": "internal/hackhttp/hack_judging.go:51",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2116,7 +2116,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/rubric",
       "feature_id": "teams-can-see-the-rubric",
-      "source": "internal/hackhttp/hack_judging.go:35",
+      "source": "internal/hackhttp/hack_judging.go:34",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2124,7 +2124,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/site",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack_keys.go:26",
+      "source": "internal/hackhttp/hack_keys.go:25",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2140,7 +2140,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:498",
+      "source": "internal/hackhttp/hack.go:475",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2148,7 +2148,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams/open",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:499",
+      "source": "internal/hackhttp/hack.go:476",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2156,7 +2156,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams/{team}/screenshot",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:52",
+      "source": "internal/hackhttp/hack_entries.go:51",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2180,7 +2180,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/vote",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:485",
+      "source": "internal/hackhttp/hack.go:462",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2188,7 +2188,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/voting",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:482",
+      "source": "internal/hackhttp/hack.go:459",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2196,7 +2196,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/website",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_websites.go:27",
+      "source": "internal/hackhttp/hack_websites.go:26",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2220,7 +2220,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack_websites.go:31",
+      "source": "internal/hackhttp/hack_websites.go:30",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2228,7 +2228,7 @@
       "method": "GET",
       "path": "/v1/hack/join/{code}",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "internal/hackhttp/hack.go:523",
+      "source": "internal/hackhttp/hack.go:500",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2236,7 +2236,7 @@
       "method": "GET",
       "path": "/v1/hack/judge/{code}",
       "feature_id": "judging",
-      "source": "internal/hackhttp/hack.go:525",
+      "source": "internal/hackhttp/hack.go:502",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2244,7 +2244,7 @@
       "method": "GET",
       "path": "/v1/hack/my-teams",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_keys.go:34",
+      "source": "internal/hackhttp/hack_keys.go:33",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2252,7 +2252,7 @@
       "method": "GET",
       "path": "/v1/hack/names/{slug}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:490",
+      "source": "internal/hackhttp/hack.go:467",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2268,7 +2268,7 @@
       "method": "GET",
       "path": "/v1/hack/preferences",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack_preferences.go:13",
+      "source": "internal/hackhttp/hack_preferences.go:12",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2276,7 +2276,7 @@
       "method": "GET",
       "path": "/v1/hack/team-links/{code}",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:522",
+      "source": "internal/hackhttp/hack.go:499",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2980,7 +2980,7 @@
       "method": "OPTIONS",
       "path": "/v1/hack/events/{slug}/public",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:480",
+      "source": "internal/hackhttp/hack.go:457",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3180,7 +3180,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/hackhttp/hack.go:492",
+      "source": "internal/hackhttp/hack.go:469",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3188,7 +3188,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/directory",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:484",
+      "source": "internal/hackhttp/hack.go:461",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3196,7 +3196,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/judging/settings",
       "feature_id": "judging-choices",
-      "source": "internal/hackhttp/hack_judging.go:38",
+      "source": "internal/hackhttp/hack_judging.go:37",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3204,7 +3204,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/results",
       "feature_id": "results-show-what-each-team-built",
-      "source": "internal/hackhttp/hack_judging.go:51",
+      "source": "internal/hackhttp/hack_judging.go:50",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3212,7 +3212,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/team",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:515",
+      "source": "internal/hackhttp/hack.go:492",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3228,7 +3228,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/website",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_websites.go:28",
+      "source": "internal/hackhttp/hack_websites.go:27",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3244,7 +3244,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack_websites.go:34",
+      "source": "internal/hackhttp/hack_websites.go:33",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3252,7 +3252,7 @@
       "method": "PATCH",
       "path": "/v1/hack/preferences",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack_preferences.go:14",
+      "source": "internal/hackhttp/hack_preferences.go:13",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3444,7 +3444,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/keep-sites",
       "feature_id": "archive-cleanup",
-      "source": "internal/hackhttp/hack.go:529",
+      "source": "internal/hackhttp/hack.go:506",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3452,7 +3452,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/restore",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:530",
+      "source": "internal/hackhttp/hack.go:507",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3460,7 +3460,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/takedown",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:528",
+      "source": "internal/hackhttp/hack.go:505",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3588,7 +3588,7 @@
       "method": "POST",
       "path": "/v1/hack/events",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack.go:489",
+      "source": "internal/hackhttp/hack.go:466",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3596,7 +3596,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/announcements",
       "feature_id": "event-administration",
-      "source": "internal/hackhttp/hack_content.go:79",
+      "source": "internal/hackhttp/hack_content.go:74",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3620,7 +3620,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/assignments/generate",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:39",
+      "source": "internal/hackhttp/hack_judging.go:38",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3628,7 +3628,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/codes/{kind}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:494",
+      "source": "internal/hackhttp/hack.go:471",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3636,7 +3636,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/conflicts",
       "feature_id": "judging",
-      "source": "internal/hackhttp/hack_judging.go:41",
+      "source": "internal/hackhttp/hack_judging.go:40",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3644,7 +3644,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/entry/submit",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:45",
+      "source": "internal/hackhttp/hack_entries.go:44",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3652,7 +3652,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/entry/unsubmit",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:46",
+      "source": "internal/hackhttp/hack_entries.go:45",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3676,7 +3676,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/judging/lock",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:45",
+      "source": "internal/hackhttp/hack_judging.go:44",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3684,7 +3684,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/judging/unlock",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:46",
+      "source": "internal/hackhttp/hack_judging.go:45",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3692,7 +3692,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/key",
       "feature_id": "guided-team-site-publishing",
-      "source": "internal/hackhttp/hack_keys.go:28",
+      "source": "internal/hackhttp/hack_keys.go:27",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3700,7 +3700,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/leave",
       "feature_id": "leave-this-event",
-      "source": "internal/hackhttp/hack_leave.go:28",
+      "source": "internal/hackhttp/hack_leave.go:27",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3724,7 +3724,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/requests/{id}/{action}",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:504",
+      "source": "internal/hackhttp/hack.go:481",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3732,7 +3732,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/results/publish",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:50",
+      "source": "internal/hackhttp/hack_judging.go:49",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3740,7 +3740,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/stage",
       "feature_id": "hack-next-step",
-      "source": "internal/hackhttp/hack.go:493",
+      "source": "internal/hackhttp/hack.go:470",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3748,7 +3748,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/team/invites",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:503",
+      "source": "internal/hackhttp/hack.go:480",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3756,7 +3756,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/team/link",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:518",
+      "source": "internal/hackhttp/hack.go:495",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3764,7 +3764,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:508",
+      "source": "internal/hackhttp/hack.go:485",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3772,7 +3772,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/fill",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:507",
+      "source": "internal/hackhttp/hack.go:484",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3780,7 +3780,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/join",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:509",
+      "source": "internal/hackhttp/hack.go:486",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3788,7 +3788,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/leave",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:510",
+      "source": "internal/hackhttp/hack.go:487",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3796,7 +3796,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/entry/exclude",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:54",
+      "source": "internal/hackhttp/hack_entries.go:53",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3804,7 +3804,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/entry/include",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_entries.go:55",
+      "source": "internal/hackhttp/hack_entries.go:54",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3812,7 +3812,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/link",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:521",
+      "source": "internal/hackhttp/hack.go:498",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3820,7 +3820,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/members",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:511",
+      "source": "internal/hackhttp/hack.go:488",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3828,7 +3828,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/requests",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:502",
+      "source": "internal/hackhttp/hack.go:479",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3836,7 +3836,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/restore",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_keys.go:33",
+      "source": "internal/hackhttp/hack_keys.go:32",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3844,7 +3844,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/takedown",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_keys.go:32",
+      "source": "internal/hackhttp/hack_keys.go:31",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3876,7 +3876,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack_websites.go:33",
+      "source": "internal/hackhttp/hack_websites.go:32",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3884,7 +3884,7 @@
       "method": "POST",
       "path": "/v1/hack/join/{code}",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "internal/hackhttp/hack.go:524",
+      "source": "internal/hackhttp/hack.go:501",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3892,7 +3892,7 @@
       "method": "POST",
       "path": "/v1/hack/judge/{code}",
       "feature_id": "judging",
-      "source": "internal/hackhttp/hack.go:526",
+      "source": "internal/hackhttp/hack.go:503",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4436,7 +4436,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/announcements/{announcement}",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/hackhttp/hack_content.go:74",
+      "source": "internal/hackhttp/hack_content.go:69",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4452,7 +4452,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/content",
       "feature_id": "a-schedule-that-acts",
-      "source": "internal/hackhttp/hack_content.go:77",
+      "source": "internal/hackhttp/hack_content.go:72",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4460,7 +4460,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/entry",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:44",
+      "source": "internal/hackhttp/hack_entries.go:43",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4468,7 +4468,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/entry-rules",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:51",
+      "source": "internal/hackhttp/hack_entries.go:50",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4476,7 +4476,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/entry/screenshot",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "internal/hackhttp/hack_entries.go:48",
+      "source": "internal/hackhttp/hack_entries.go:47",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4492,7 +4492,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/judge/scores/{team}",
       "feature_id": "the-judges-one-screen",
-      "source": "internal/hackhttp/hack_judging.go:49",
+      "source": "internal/hackhttp/hack_judging.go:48",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4508,7 +4508,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/me/looking",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:501",
+      "source": "internal/hackhttp/hack.go:478",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4524,7 +4524,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/rubric",
       "feature_id": "teams-can-see-the-rubric",
-      "source": "internal/hackhttp/hack_judging.go:36",
+      "source": "internal/hackhttp/hack_judging.go:35",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4532,7 +4532,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/site",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack_keys.go:25",
+      "source": "internal/hackhttp/hack_keys.go:24",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4540,7 +4540,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/finding",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:500",
+      "source": "internal/hackhttp/hack.go:477",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4548,7 +4548,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/lock",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:516",
+      "source": "internal/hackhttp/hack.go:493",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4556,7 +4556,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/members/{user_id}/admin",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:517",
+      "source": "internal/hackhttp/hack.go:494",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4572,7 +4572,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/teams/{team}/deadline",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_keys.go:31",
+      "source": "internal/hackhttp/hack_keys.go:30",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4580,7 +4580,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/teams/{team}/lock",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:519",
+      "source": "internal/hackhttp/hack.go:496",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4588,7 +4588,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/teams/{team}/members/{user_id}/admin",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:520",
+      "source": "internal/hackhttp/hack.go:497",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4604,7 +4604,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/vote",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:487",
+      "source": "internal/hackhttp/hack.go:464",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4612,7 +4612,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/voting",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:483",
+      "source": "internal/hackhttp/hack.go:460",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4620,7 +4620,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/website",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_websites.go:29",
+      "source": "internal/hackhttp/hack_websites.go:28",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4628,7 +4628,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/website/files",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_websites.go:30",
+      "source": "internal/hackhttp/hack_websites.go:29",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4636,7 +4636,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack_websites.go:32",
+      "source": "internal/hackhttp/hack_websites.go:31",
       "package": "internal/hackhttp",
       "dynamic": false
     },

@@ -8,7 +8,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/app/hack/members"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
@@ -61,7 +60,7 @@ func hackApplyFields() map[string]any {
 func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 	caller := ""
 	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := db.GetUserByAPIKey(r.Context(), h.database, k, h.limits.KeyIdleExpiry); err == nil {
+		if u, err := h.eventsSvc().UserByAPIKey(r.Context(), k, h.limits.KeyIdleExpiry); err == nil {
 			caller = u.ID
 		}
 	}

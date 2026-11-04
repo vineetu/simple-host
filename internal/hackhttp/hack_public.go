@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // RegisterHackPublic serves the trusted, stable built-in event page on the
@@ -19,23 +19,23 @@ func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
 	teamSiteURL func(string, string) string, ready func(string) bool, pages *HackEventPages) {
 	render := HackEventPage(database, appURL, teamSiteURL, ready, pages)
 	screenshot := HackScreenshot(database, ready)
-	load := func(w http.ResponseWriter, r *http.Request) (db.User, bool) {
+	load := func(w http.ResponseWriter, r *http.Request) (model.User, bool) {
 		ev, err := events.New(database).EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
 		if err == nil {
 			paperHackEvent(r, ev)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			writeHackEventNotFound(w, r, appURL, pages)
-			return db.User{}, false
+			return model.User{}, false
 		}
 		if err != nil {
 			httpx.WriteInternal(w)
-			return db.User{}, false
+			return model.User{}, false
 		}
-		user, err := db.GetUserByID(r.Context(), database, ev.AccountID)
+		user, err := events.New(database).UserByID(r.Context(), ev.AccountID)
 		if err != nil {
 			httpx.WriteInternal(w)
-			return db.User{}, false
+			return model.User{}, false
 		}
 		return user, true
 	}

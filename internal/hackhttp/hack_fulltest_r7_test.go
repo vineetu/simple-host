@@ -6,9 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
-	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
 
 // Tests for the fixes from the 2026-11-02 full production test of Simple
@@ -21,11 +19,11 @@ type liveSiteStub struct {
 	live map[string]bool
 }
 
-func (s liveSiteStub) TeamSiteInfo(_ context.Context, _ string, teamSlug string) (model.TeamSite, db.Site, error) {
+func (s liveSiteStub) TeamSiteInfo(_ context.Context, _ string, teamSlug string) (model.TeamSite, model.Site, error) {
 	if s.live[teamSlug] {
-		return model.TeamSite{Exists: true, ActiveVersion: 1}, db.Site{Name: teamSlug, ActiveVersion: 1}, nil
+		return model.TeamSite{Exists: true, ActiveVersion: 1}, model.Site{Name: teamSlug, ActiveVersion: 1}, nil
 	}
-	return model.TeamSite{}, db.Site{}, nil
+	return model.TeamSite{}, model.Site{}, nil
 }
 
 // publishTeamSite gives the event's holding account a live site named after
@@ -181,24 +179,6 @@ func TestHackAutoAssignmentSkipsTeamsWithoutEntry(t *testing.T) {
 
 // Finding 5: a date-only end lasts the whole of that day.
 func TestHackEventOverDateOnlyEnd(t *testing.T) {
-	jkt, _ := time.LoadLocation("Asia/Jakarta")
-	midnight := time.Date(2026, 11, 4, 0, 0, 0, 0, jkt)
-	if got, want := hackevents.EventOver(midnight, "Asia/Jakarta"), time.Date(2026, 11, 5, 0, 0, 0, 0, jkt); !got.Equal(want) {
-		t.Fatalf("date-only end over at %v, want %v", got, want)
-	}
-	timed := time.Date(2026, 11, 4, 17, 30, 0, 0, jkt)
-	if got := hackevents.EventOver(timed, "Asia/Jakarta"); !got.Equal(timed) {
-		t.Fatalf("timed end over at %v, want %v", got, timed)
-	}
-	// Midnight in UTC is 7 am in Jakarta: not a date-only end there.
-	utcMidnight := time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC)
-	if got := hackevents.EventOver(utcMidnight, "Asia/Jakarta"); !got.Equal(utcMidnight) {
-		t.Fatalf("UTC midnight in Jakarta: %v", got)
-	}
-	if got := hackevents.EventOver(utcMidnight, ""); !got.Equal(utcMidnight.AddDate(0, 0, 1)) {
-		t.Fatalf("no zone: %v", got)
-	}
-
 	// Find a hackathon keeps an event that ends today under "now".
 	a := newHackApp(t)
 	org := a.newPerson(t, "r7end")

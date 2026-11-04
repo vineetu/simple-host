@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
@@ -30,7 +29,7 @@ func (h *HackHandler) getHackPreferences(w http.ResponseWriter, r *http.Request)
 // hackPreferencesJSON adds email_possible: false for a key-only account
 // (a sign-in name that is not an email address), which is never emailed
 // whatever email_updates says.
-func hackPreferencesJSON(user *db.User, p model.HackPreferences) map[string]any {
+func hackPreferencesJSON(user *model.User, p model.HackPreferences) map[string]any {
 	return map[string]any{
 		"theme":                      p.Theme,
 		"organiser_walkthrough_done": p.OrganiserWalkthroughDone,

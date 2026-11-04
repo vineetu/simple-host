@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/internal/httpx"
 	"image"
 	"image/jpeg"
 	"io"
@@ -15,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
 
@@ -724,8 +723,8 @@ func (entrySiteStub) TeamSitesReady(string) bool { return true }
 func (entrySiteStub) TeamSiteURL(eventSlug, teamSlug string) string {
 	return "https://" + teamSlug + "." + eventSlug + ".simple-hack.test/"
 }
-func (entrySiteStub) TeamSiteInfo(context.Context, string, string) (model.TeamSite, db.Site, error) {
-	return model.TeamSite{}, db.Site{}, nil
+func (entrySiteStub) TeamSiteInfo(context.Context, string, string) (model.TeamSite, model.Site, error) {
+	return model.TeamSite{}, model.Site{}, nil
 }
 func (entrySiteStub) TeamPreviewLink(_ context.Context, _, eventSlug, teamSlug string, n int) (string, time.Time, bool) {
 	return "https://preview.example/" + eventSlug + "/" + teamSlug + "/v" + strconv.Itoa(n), time.Time{}, true
@@ -735,7 +734,7 @@ func (entrySiteStub) SetTeamSiteTakenDown(context.Context, string, string, strin
 }
 func (entrySiteStub) TrashTeamSite(context.Context, string, string) error { return nil }
 func (entrySiteStub) RequestSiteCert(string)                              {}
-func (entrySiteStub) TeamPreviewLinkFor(site db.Site, eventSlug string, n int) (string, bool) {
+func (entrySiteStub) TeamPreviewLinkFor(site model.Site, eventSlug string, n int) (string, bool) {
 	return "https://preview.example/" + eventSlug + "/" + site.Name + "/v" + strconv.Itoa(n), true
 }
 func (entrySiteStub) RemoveAccountFiles(string, string) error          { return nil }
