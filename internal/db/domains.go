@@ -14,8 +14,6 @@ import (
 // shared Site struct so existing SELECTs stay untouched (low blast radius).
 type SiteDomainInfo model.SiteDomainInfo
 
-// domainColumns is the column list scanDomainInfo reads, in order.
-
 // SetCustomDomain binds domain to siteID with status "pending" and clears any
 // prior verification. A proven address the site already had is kept as
 // previous_domain, so the site keeps serving there until the new domain is

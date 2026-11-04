@@ -10,6 +10,7 @@ import (
 	"github.com/vsriram/simple-host/internal/repository/sites"
 )
 
+// domainColumns is the column list scanDomainInfo reads, in order.
 const domainColumns = sites.DomainColumns
 
 // CreateUser forwards to the accounts repository.
