@@ -1,12 +1,47 @@
 package handler
 
 import (
+	"database/sql"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/internal/app/legacy"
 )
+
+func TestEntryPreparationNoRowsResponse(t *testing.T) {
+	for _, route := range []string{"owner", "board", "visitor", ""} {
+		t.Run(route, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			err := &legacy.EntryStageError{Stage: "preparation", Err: sql.ErrNoRows}
+			if !new(SiteHandler).writeEntrySelection(w, legacy.EntryRequest{}, legacy.EntryResult{Route: route}, err, "update") {
+				t.Fatal("preparation error was not handled")
+			}
+			if w.Code != http.StatusInternalServerError || w.Body.String() != "{\"error\":\"internal server error\"}\n" {
+				t.Fatalf("response = %d %q", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestEntryCSRFResponseOrdering(t *testing.T) {
+	for _, tc := range []struct{ route, body string }{
+		{"owner", "{\"code\":\"csrf_required\",\"error\":\"missing CSRF header\"}\n"},
+		{"board", "{\"error\":\"missing CSRF header\",\"code\":\"csrf_required\"}\n"},
+	} {
+		t.Run(tc.route, func(t *testing.T) {
+			for _, operation := range []string{"update", "withdraw"} {
+				w := httptest.NewRecorder()
+				new(SiteHandler).writeEntrySelection(w, legacy.EntryRequest{}, legacy.EntryResult{Route: tc.route}, &legacy.Error{Code: "csrf_required"}, operation)
+				if w.Code != http.StatusForbidden || w.Body.String() != tc.body {
+					t.Fatalf("%s response = %d %q", operation, w.Code, w.Body.String())
+				}
+			}
+		})
+	}
+}
 
 type entryReadCounter struct {
 	io.Reader

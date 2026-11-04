@@ -36,7 +36,21 @@ type EntryResult struct {
 	Headers  map[string][]string
 }
 
+// EntryStageError identifies whether an item operation failed before mutation.
+type EntryStageError struct {
+	Stage string
+	Err   error
+}
+
+func (e *EntryStageError) Error() string { return e.Err.Error() }
+func (e *EntryStageError) Unwrap() error { return e.Err }
+
 func (a *Adapter) prepareEntry(ctx context.Context, in EntryRequest, operation string) (out EntryResult, siteID string, access VisitorAccessInput, err error) {
+	defer func() {
+		if err != nil {
+			err = &EntryStageError{Stage: "preparation", Err: err}
+		}
+	}()
 	if in.SiteName == "" || !in.ValidName {
 		err = &Error{Code: "private_not_found"}
 		return
@@ -195,7 +209,13 @@ func (a *Adapter) entryManager(ctx context.Context, in EntryRequest) (string, er
 	return id, nil
 }
 
-func (a *Adapter) changeSelectedEntry(ctx context.Context, in EntryRequest, out EntryResult, siteID, operation string) (EntryResult, error) {
+func (a *Adapter) changeSelectedEntry(ctx context.Context, in EntryRequest, out EntryResult, siteID, operation string) (_ EntryResult, resultErr error) {
+	stage := "preparation"
+	defer func() {
+		if resultErr != nil {
+			resultErr = &EntryStageError{Stage: stage, Err: resultErr}
+		}
+	}()
 	var actor db.Actor
 	var err error
 	if out.Route == "board" {
@@ -233,6 +253,7 @@ func (a *Adapter) changeSelectedEntry(ctx context.Context, in EntryRequest, out 
 		if out.Route == "owner" {
 			actor = a.entryManagerActor(ctx, in, siteID)
 		}
+		stage = "mutation"
 		found, err := db.SoftDeleteItem(ctx, a.database, siteID, in.Name, in.ID, actor)
 		if err == nil && !found {
 			err = &Error{Code: "selected_not_found"}
@@ -240,6 +261,7 @@ func (a *Adapter) changeSelectedEntry(ctx context.Context, in EntryRequest, out 
 		return out, err
 	}
 	if operation == "undo" {
+		stage = "mutation"
 		out.Item, out.Done, err = db.UndoOwnWithdrawal(ctx, a.database, siteID, out.Settings.Name, in.ID, actor.ID, in.Window, true, false, in.BoardMax, actor, in.MaxBytes, true)
 		return out, err
 	}
@@ -275,9 +297,11 @@ func (a *Adapter) changeSelectedEntry(ctx context.Context, in EntryRequest, out 
 		return next, err
 	}
 	if out.Route == "board" {
+		stage = "mutation"
 		out.Item, err = db.UpdateItemVersioned(ctx, a.database, siteID, out.Settings.Name, in.ID, in.IfVersion, actor, in.MaxBytes, transform)
 	} else {
 		actor = a.entryManagerActor(ctx, in, siteID)
+		stage = "mutation"
 		out.Item, err = db.UpdateCollectionItemByID(ctx, a.database, siteID, in.Name, in.ID, actor, in.MaxBytes, transform)
 	}
 	a.deps.BoundHistory(ctx, siteID)
