@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
@@ -45,71 +46,67 @@ func (h *SiteHandler) hackNoPersonalSites(w http.ResponseWriter, user *db.User) 
 // SHARE until the transaction ends. false after writing the answer. Anyone
 // else passes.
 func (h *SiteHandler) hackTeamTxGate(w http.ResponseWriter, r *http.Request, tx *sql.Tx, user *db.User, siteName string) bool {
+	decision := h.hackTeamTxDecision(r.Context(), tx, user, siteName, func() { h.paperHackSite(r, user.Team.AccountID, siteName, user) }, func(stage string) { paperHackTeamState(r, user, stage) })
+	if decision == nil {
+		return true
+	}
+	writeRollbackGateError(w, decision)
+	return false
+}
+
+func (h *SiteHandler) hackTeamTxDecision(ctx context.Context, tx *sql.Tx, user *db.User, siteName string, paperSite func(), paperState func(string)) *sites.GateError {
 	if h.ed.Identity().TeamKeys && user.EventWebsite != nil {
 		id := user.EventWebsite
 		if siteName != id.EventID || user.ID == "" {
-			hackSitesEventNotFound(w)
-			return false
+			return &sites.GateError{Code: "event_not_found", Message: "event not found"}
 		}
 		var role, stage string
 		var takenDown bool
-		err := tx.QueryRowContext(r.Context(), `SELECT m.role, e.stage, e.taken_down_at IS NOT NULL
+		err := tx.QueryRowContext(ctx, `SELECT m.role, e.stage, e.taken_down_at IS NOT NULL
 			FROM events e JOIN event_members m ON m.event_id = e.id
 			WHERE e.id = $1 AND e.slug = $2 AND e.account_id = $3 AND m.user_id = $4
 			FOR SHARE OF e, m`, id.EventID, id.EventSlug, user.ID, id.OrganiserID).Scan(&role, &stage, &takenDown)
 		if err != nil || role != "organiser" {
-			hackSitesEventNotFound(w)
-			return false
+			return &sites.GateError{Code: "event_not_found", Message: "event not found"}
 		}
 		if takenDown {
-			writeHackErr(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
-			return false
+			return &sites.GateError{Code: "event_taken_down", Message: "this event has been taken down"}
 		}
 		if stage == "archived" {
-			writeHackErr(w, http.StatusConflict, "event_closed", "this event has ended")
-			return false
+			return &sites.GateError{Code: "event_closed", Message: "this event has ended"}
 		}
-		return true
+		return nil
 	}
 	if !h.ed.Identity().TeamKeys || user.Team == nil {
-		return true
+		return nil
 	}
 	if !strings.EqualFold(siteName, user.Team.TeamSlug) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "this team key works on your team's site only: " + user.Team.TeamSlug, Code: "team_site_only"})
-		return false
+		return &sites.GateError{Message: "this team key works on your team's site only: " + user.Team.TeamSlug, Code: "team_site_only"}
 	}
 	var memberID string
-	if err := tx.QueryRowContext(r.Context(), `SELECT user_id FROM event_members WHERE user_id = $1 AND team_id = $2 AND role = 'participant' AND approval_status = 'approved' FOR SHARE`, user.Team.MemberID, user.Team.TeamID).Scan(&memberID); err != nil {
-		hackSitesEventNotFound(w)
-		return false
+	if err := tx.QueryRowContext(ctx, `SELECT user_id FROM event_members WHERE user_id = $1 AND team_id = $2 AND role = 'participant' AND approval_status = 'approved' FOR SHARE`, user.Team.MemberID, user.Team.TeamID).Scan(&memberID); err != nil {
+		return &sites.GateError{Code: "event_not_found", Message: "event not found"}
 	}
-	h.paperHackSite(r, user.Team.AccountID, siteName, user)
-	st, err := db.TeamWriteStateFor(r.Context(), tx, user.Team.TeamID, true)
+	paperSite()
+	st, err := db.TeamWriteStateFor(ctx, tx, user.Team.TeamID, true)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "this team key stopped working: its team is gone", Code: "team_key_inactive"})
-			return false
+			return &sites.GateError{Message: "this team key stopped working: its team is gone", Code: "team_key_inactive"}
 		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return false
+		return &sites.GateError{Message: "internal server error"}
 	}
-	paperHackTeamState(r, user, st.Stage)
+	paperState(st.Stage)
 	if code := st.WriteRefusal(); code != "" {
-		status, msg := auth.TeamRefusal(code)
-		writeJSON(w, status, errorResponse{Error: msg, Code: code})
-		return false
+		_, msg := auth.TeamRefusal(code)
+		return &sites.GateError{Message: msg, Code: code}
 	}
 	if !h.teamSitesReady(user.Handle.String) {
 		if !st.EventTakenDown && (st.Stage == "open" || st.Stage == "building" || st.Stage == "closed") {
 			h.RequestSiteCert(user.Handle.String)
 		}
-		writeJSON(w, http.StatusConflict, errorResponse{
-			Error: "your event's team addresses are still being set up; try again in a few minutes",
-			Code:  "team_sites_not_ready",
-		})
-		return false
+		return &sites.GateError{Message: "your event's team addresses are still being set up; try again in a few minutes", Code: "team_sites_not_ready"}
 	}
-	return true
+	return nil
 }
 
 // teamSitesReady: *.<event>.<SITE_DOMAIN> is served with its certificate. A

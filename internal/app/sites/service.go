@@ -65,10 +65,10 @@ type Deps struct {
 	HasLiveFamilies         func() bool
 	SyncRedirect            func(context.Context, string)
 	DeployEnabled           bool
-	PatchSite               func(context.Context, string, string) (model.Site, error)
 	NormalizePatch          func(map[string][]byte, []string) (map[string]bool, error)
 	MaxFilesPerSite         int
 	PhotoLimits             func(context.Context, *db.User) (int64, int64)
+	ResponseState           func(model.Site, int, bool) any
 }
 
 // CreateInput contains the values and non-HTTP dependencies for a locked create.
@@ -86,7 +86,7 @@ type CreateResult struct {
 	FileBytes int64
 }
 
-// Create creates and promotes a site, acquiring locks unless already held.
+// Create creates and promotes a site while holding the account and site locks.
 func (s *Service) Create(ctx context.Context, in CreateInput) (CreateResult, error) {
 	if in.User == nil {
 		return CreateResult{}, &Error{Code: "unauthorized"}
@@ -659,6 +659,8 @@ type UpdateInput struct {
 	CreateIfMissing          bool
 	Keep                     bool
 	Remove                   []string
+	ExpectedID               string
+	CheckID                  bool
 	Budget                   int64
 	Limit                    int64
 }
@@ -671,13 +673,14 @@ type Photo struct {
 
 // UpdateResult describes the stored version and site.
 type UpdateResult struct {
-	Site       model.Site
-	Version    int
-	Published  bool
-	Created    *CreateResult
-	PhotoPaths []string
-	Reconciled bool
-	Limit      int64
+	Site          model.Site
+	Version       int
+	Published     bool
+	Created       *CreateResult
+	PhotoPaths    []string
+	Reconciled    bool
+	Limit         int64
+	ResponseState any
 }
 
 // Update writes a new version and publishes it when requested.
@@ -695,7 +698,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 	}
 	var paths []string
 	if in.Keep || in.Photos != nil {
-		files, digest, err := s.mergePatch(ctx, in.User.ID, in.Name, in.Files, in.Remove, in.Budget)
+		files, digest, err := s.mergePatch(ctx, in)
 		if err != nil {
 			return UpdateResult{Limit: in.Limit}, err
 		}
@@ -712,7 +715,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 			if err != nil {
 				return UpdateResult{}, &Error{Code: "photo_read_failed"}
 			}
-			return UpdateResult{Site: site, PhotoPaths: paths, Reconciled: true}, nil
+			return UpdateResult{Site: site, PhotoPaths: paths, Reconciled: true, ResponseState: s.deps.ResponseState(site, 0, false)}, nil
 		}
 		in.Files, in.ArchiveSHA, err = s.sanitizeFiles(in.Files, in.Budget)
 		if err != nil {
@@ -799,7 +802,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 		}
 		s.PruneVersions(ctx, PruneInput{site.ID, site.UserID, in.Name, site.ActiveVersion, site.KeepVersions})
 		s.deps.NotifyUpdate(ctx, in.User, site, n, liveBefore, false, in.Files)
-		return UpdateResult{Site: site, Version: n}, nil
+		return UpdateResult{Site: site, Version: n, ResponseState: s.deps.ResponseState(site, n, true)}, nil
 	}
 	if err := repo.ActivateVersion(ctx, tx, version.ID); err != nil {
 		return UpdateResult{}, err
@@ -823,16 +826,20 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 	s.PruneVersions(ctx, PruneInput{site.ID, site.UserID, in.Name, n, site.KeepVersions})
 	s.deps.NotifyUpdate(ctx, in.User, site, n, liveBefore, true, in.Files)
 	site.ActiveVersion = n
-	return UpdateResult{Site: site, Version: n, Published: true, PhotoPaths: paths}, nil
+	return UpdateResult{Site: site, Version: n, Published: true, PhotoPaths: paths, ResponseState: s.deps.ResponseState(site, 0, false)}, nil
 }
 
 // mergePatch reads the live files while the update owns the deploy locks.
-func (s *Service) mergePatch(ctx context.Context, userID, name string, files map[string][]byte, remove []string, budget int64) (map[string][]byte, string, error) {
-	totalLimit, fileLimit, entryLimit := tarball.FileLimits(budget, s.deps.MaxFilesPerSite)
-	removed, err := s.deps.NormalizePatch(files, remove)
+func (s *Service) mergePatch(ctx context.Context, in UpdateInput) (map[string][]byte, string, error) {
+	files := in.Files
+	totalLimit, fileLimit, entryLimit := tarball.FileLimits(in.Budget, s.deps.MaxFilesPerSite)
+	removed, err := s.deps.NormalizePatch(files, in.Remove)
 	if err == nil {
 		var site model.Site
-		site, err = s.deps.PatchSite(ctx, userID, name)
+		site, err = db.GetSiteByUser(ctx, s.database, in.User.ID, in.Name)
+		if err == nil && in.CheckID && site.ID != in.ExpectedID {
+			site, err = model.Site{}, sql.ErrNoRows
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		} else if err == nil && site.ActiveVersion >= 1 {
@@ -891,7 +898,7 @@ func (s *Service) mergePatch(ctx context.Context, userID, name string, files map
 		}
 		return nil, "", &Error{Code: code, Message: err.Error()}
 	}
-	return s.sanitizeFiles(files, budget)
+	return s.sanitizeFiles(files, in.Budget)
 }
 
 func (s *Service) sanitizeFiles(files map[string][]byte, budget int64) (map[string][]byte, string, error) {
@@ -931,19 +938,25 @@ type RollbackInput struct {
 
 // RollbackResult reports the site and whether it was already active.
 type RollbackResult struct {
-	Site      model.Site
-	Unchanged bool
+	Site          model.Site
+	Unchanged     bool
+	ResponseState any
 }
 
 // Rollback activates an eligible version under the site lock.
 func (s *Service) Rollback(ctx context.Context, in RollbackInput) (RollbackResult, error) {
 	site, unlock, unchanged, err := s.prepareRollback(ctx, in.User.ID, in.Name, in.ExpectedID, in.CheckID, in.Version)
 	defer unlock()
-	if err != nil || unchanged {
-		return RollbackResult{Site: site, Unchanged: unchanged}, err
+	if err != nil {
+		return RollbackResult{Site: site}, err
 	}
-	site, err = s.rollbackTransaction(ctx, site, in.Version, in.User)
-	return RollbackResult{Site: site}, err
+	if !unchanged {
+		site, err = s.rollbackTransaction(ctx, site, in.Version, in.User)
+	}
+	if err != nil {
+		return RollbackResult{Site: site}, err
+	}
+	return RollbackResult{Site: site, Unchanged: unchanged, ResponseState: s.deps.ResponseState(site, 0, false)}, nil
 }
 
 func authorizePersonalSite(user *db.User, enabled bool) error {
@@ -1048,13 +1061,13 @@ func mergePhotos(ctx context.Context, files map[string][]byte, photos []Photo, r
 	}
 	occupied, err := photoOccupiedPaths(ctx, files)
 	if err != nil {
-		return nil, err
+		return nil, &Error{Code: "photo_allocation_cancelled", Message: err.Error()}
 	}
 	for _, p := range photos {
 		path, err := nextPhotoPath(ctx, occupied, p.Name)
 		if err != nil {
 			if ctx.Err() != nil {
-				return nil, err
+				return nil, &Error{Code: "photo_allocation_cancelled", Message: err.Error()}
 			}
 			return nil, &Error{Code: "photo_conflict", Message: err.Error()}
 		}

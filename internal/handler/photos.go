@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"encoding/binary"
 	"errors"
@@ -184,6 +183,7 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 		photos[i] = sites.Photo{Name: p.name, Data: p.data}
 	}
 	input := sites.UpdateInput{User: user, Name: name, Files: map[string][]byte{}, Photos: photos, Reconcile: r.Header.Get("X-Photo-Reconcile") == "1", Publish: true}
+	input.ExpectedID, input.CheckID = r.Context().Value(adminSiteKey{}).(string)
 	result, err := h.sitesSvc().Update(r.Context(), input)
 	if err != nil {
 		var siteErr *sites.Error
@@ -194,7 +194,7 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 409, errorResponse{Error: siteErr.Message})
 		case errors.As(err, &siteErr) && siteErr.Code == "photo_read_failed":
 			writeJSON(w, 500, errorResponse{Error: "Could not read this site."})
-		case r.Context().Err() != nil:
+		case errors.As(err, &siteErr) && siteErr.Code == "photo_allocation_cancelled":
 			return
 		default:
 			input.Limit = result.Limit
@@ -202,7 +202,7 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	response := h.siteResponseFor(user, result.Site)
+	response := h.siteResponseFromState(user, result.Site, result.ResponseState.(siteResponseState))
 	results := make([]photoResult, 0, len(uploads))
 	for i, p := range uploads {
 		path := result.PhotoPaths[i]
@@ -210,79 +210,6 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, photoBatchResult{name, result.Site.ActiveVersion, results, result.Reconciled})
 
-}
-
-// Match only names this uploader can allocate, including truncated collision stems.
-func matchesPhotoName(path, name string) bool {
-	if path == "images/"+name {
-		return true
-	}
-	ext := name[strings.LastIndexByte(name, '.'):]
-	if !strings.HasPrefix(path, "images/") || !strings.HasSuffix(path, ext) {
-		return false
-	}
-	stem := strings.TrimSuffix(strings.TrimPrefix(path, "images/"), ext)
-	at := strings.LastIndexByte(stem, '-')
-	if at < 0 {
-		return false
-	}
-	n, err := strconv.Atoi(stem[at+1:])
-	if err != nil || n < 2 || strconv.Itoa(n) != stem[at+1:] {
-		return false
-	}
-	base := strings.TrimSuffix(name, ext)
-	if max := 60 - len(stem[at:]); len(base) > max {
-		base = base[:max]
-	}
-	return stem[:at] == base
-}
-
-// The value distinguishes directories from files. Build prefixes once, then
-// each suffix probe is one map lookup, even in a large, collision-heavy tree.
-func photoOccupiedPaths(ctx context.Context, files map[string][]byte) (map[string]bool, error) {
-	occupied := make(map[string]bool, len(files))
-	for path := range files {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		occupied[path] = false
-		for i := strings.IndexByte(path, '/'); i >= 0; {
-			occupied[path[:i]] = true
-			next := strings.IndexByte(path[i+1:], '/')
-			if next < 0 {
-				break
-			}
-			i += next + 1
-		}
-	}
-	return occupied, nil
-}
-
-func nextPhotoPath(ctx context.Context, occupied map[string]bool, name string) (string, error) {
-	if dir, exists := occupied["images"]; exists && !dir {
-		return "", errors.New("The images path is a file. Rename it before adding photos.")
-	}
-	ext := name[strings.LastIndexByte(name, '.'):]
-	stem := strings.TrimSuffix(name, ext)
-	path := "images/" + name
-	for n := 2; ; n++ {
-		if err := ctx.Err(); err != nil {
-			return "", err
-		}
-		dir, taken := occupied[path]
-		if !taken {
-			return path, nil
-		}
-		if dir {
-			return "", errors.New("A folder uses this photo name. Choose another name.")
-		}
-		suffix := fmt.Sprintf("-%d", n)
-		base := stem
-		if len(base)+len(suffix) > 60 {
-			base = base[:60-len(suffix)]
-		}
-		path = "images/" + base + suffix + ext
-	}
 }
 
 var errPhotoContainer = errors.New("This photo is incomplete or is not a supported WebP or JPEG image.")

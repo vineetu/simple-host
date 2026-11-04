@@ -132,20 +132,6 @@ func publishParam(w http.ResponseWriter, r *http.Request) (publish, ok bool) {
 	return false, false
 }
 
-// publishOnCreate refuses publish=false on a new site: its first version is
-// the only one, and nothing is live to keep. False after writing the answer.
-func (h *SiteHandler) publishOnCreate(w http.ResponseWriter, r *http.Request) bool {
-	publish, ok := publishParam(w, r)
-	if !ok {
-		return false
-	}
-	if !publish {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "publish=false is for a new version of an existing site; a new site's first version always goes live", Code: "invalid_request"})
-		return false
-	}
-	return true
-}
-
 // writeUnpublished answers a publish=false deploy: the site as it still is,
 // the version just stored and a preview link for it.
 func (h *SiteHandler) writeUnpublished(w http.ResponseWriter, user *db.User, site db.Site, n int) {

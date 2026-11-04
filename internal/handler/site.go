@@ -1660,6 +1660,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 }
 
 func (h *SiteHandler) respondSiteUpdate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, input sites.UpdateInput, respond func(siteResponse)) {
+	input.ExpectedID, input.CheckID = r.Context().Value(adminSiteKey{}).(string)
 	result, err := h.sitesSvc().Update(r.Context(), input)
 	if result.Created != nil {
 		h.respondCreate(w, user, *result.Created, err)
@@ -1670,10 +1671,10 @@ func (h *SiteHandler) respondSiteUpdate(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	if !result.Published {
-		h.writeUnpublished(w, user, result.Site, result.Version)
+		h.writeUnpublishedState(w, user, result.Site, result.Version, result.ResponseState.(siteResponseState))
 		return
 	}
-	respond(h.siteResponseFor(user, result.Site))
+	respond(h.siteResponseFromState(user, result.Site, result.ResponseState.(siteResponseState)))
 }
 
 // filesRequest is the JSON deploy body: a map of relative path -> file contents.
@@ -1686,10 +1687,6 @@ type filesRequest struct {
 	RemoveFiles []string          `json:"remove_files"`
 }
 
-// readJSONFiles decodes a {"files":{path:contents}} body and runs it through the
-// SAME path/secret/size guards as archive extraction (tarball.SanitizeFiles +
-// ValidateExtensions). Returns the file map and a content digest for the version
-// row. On any error it has already written the HTTP response.
 func (h *SiteHandler) writeSiteUpdateError(w http.ResponseWriter, r *http.Request, siteName string, input sites.UpdateInput, err error) {
 	var siteErr *sites.Error
 	var gateErr *sites.GateError
@@ -1713,12 +1710,16 @@ func (h *SiteHandler) writeSiteUpdateError(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// readJSONFiles decodes a {"files":{path:contents}} body and runs it through the
+// SAME path/secret/size guards as archive extraction (tarball.SanitizeFiles +
+// ValidateExtensions). Returns the file map and a content digest for the version
+// row. On any error it has already written the HTTP response.
 func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
-	raw, remove, limit, override, err := h.decodeJSONFiles(w, r)
+	raw, _, limit, override, err := h.decodeJSONFiles(w, r)
 	if err != nil {
 		return nil, "", err
 	}
-	return h.finishJSONFiles(w, r, siteName, raw, remove, limit, override, false)
+	return h.finishJSONFiles(w, raw, limit, override)
 }
 
 func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (map[string][]byte, []string, int64, bool, error) {
@@ -1795,18 +1796,7 @@ func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (m
 	return raw, req.RemoveFiles, limit, override, nil
 }
 
-func (h *SiteHandler) finishJSONFiles(w http.ResponseWriter, r *http.Request, siteName string, raw map[string][]byte, remove []string, limit int64, override, keep bool) (map[string][]byte, string, error) {
-	if keep {
-		if err := h.keepSiteFiles(r, siteName, raw, remove, extractBudget(limit, override)); err != nil {
-			if errors.Is(err, tarball.ErrTooLarge) {
-				writeTooLarge(w, limit, err.Error())
-			} else {
-				writeJSON(w, 400, errorResponse{Error: err.Error()})
-			}
-			return nil, "", err
-		}
-	}
-
+func (h *SiteHandler) finishJSONFiles(w http.ResponseWriter, raw map[string][]byte, limit int64, override bool) (map[string][]byte, string, error) {
 	files, err := tarball.SanitizeFilesWithLimit(raw, extractBudget(limit, override), h.limits.MaxFilesPerSite)
 	if err != nil {
 		if errors.Is(err, tarball.ErrTooLarge) {
@@ -2008,7 +1998,7 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 		h.respondSiteUpdate(w, r, user, siteName, sites.UpdateInput{User: user, Name: siteName, Files: raw, Author: versionAuthor(r), Publish: publish, CreateIfMissing: create, Keep: true, Remove: remove, Budget: extractBudget(limit, override), Limit: limit}, func(site siteResponse) { writeJSON(w, http.StatusOK, site) })
 		return
 	}
-	files, digest, err := h.finishJSONFiles(w, r, siteName, raw, remove, limit, override, keep)
+	files, digest, err := h.finishJSONFiles(w, raw, limit, override)
 	if err != nil {
 		return
 	}
@@ -2111,7 +2101,7 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	writeJSON(w, http.StatusOK, h.siteResponseFor(user, result.Site))
+	writeJSON(w, http.StatusOK, h.siteResponseFromState(user, result.Site, result.ResponseState.(siteResponseState)))
 }
 
 // setVisibility toggles a site's showcase visibility ('public' | 'unlisted').
@@ -2447,6 +2437,49 @@ func archiveFilename(siteName string, body []byte) string {
 	return siteName + ".tar.gz"
 }
 
+type siteResponseState struct {
+	siteURL         string
+	familyAddresses []string
+	familyAddress   string
+	addressState    *addressState
+	partner         *partnerInfo
+	fileBytes       int64
+	previewURL      string
+	previewExpires  time.Time
+	previewOK       bool
+}
+
+func (h *SiteHandler) captureSiteResponseState(site db.Site, version int, preview, footprint bool) siteResponseState {
+	state := siteResponseState{siteURL: h.siteURLFor(site)}
+	for _, a := range h.siteFamilyAddrs(site.UserID, site.Name) {
+		state.familyAddresses = append(state.familyAddresses, "https://"+a.Host+"/")
+	}
+	if host, ok := h.siteFamilyAddress(site.UserID, site.Name); ok {
+		state.familyAddress = "https://" + host + "/"
+	}
+	if !(site.CustomDomain.Valid && site.DomainVerifiedAt.Valid) {
+		state.addressState = h.siteAddressStateFor(site.OwnerHandle, site.Name)
+	}
+	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
+		state.partner = h.partnerInfoFor(site.CustomDomain.String, site.ID)
+	}
+	if footprint {
+		if f, err := h.disk.SiteFootprint(site.UserID, site.Name); err == nil {
+			state.fileBytes = f.Total()
+		}
+	}
+	if preview {
+		state.previewURL, state.previewExpires, state.previewOK = h.previewLink(site, version)
+	}
+	return state
+}
+
+func (h *SiteHandler) siteResponseFromState(user *db.User, site db.Site, state siteResponseState) siteResponse {
+	resp := h.toSiteResponseState(site, "", state)
+	resp.FileBytes = state.fileBytes
+	return h.siteResponseForCaller(user, resp)
+}
+
 // siteResponseFor is toSiteResponse for the caller: a team credential never
 // sees the event's internal account id.
 func (h *SiteHandler) siteResponseFor(user *db.User, site db.Site) siteResponse {
@@ -2477,6 +2510,10 @@ func (h *SiteHandler) siteResponseForCaller(user *db.User, resp siteResponse) si
 }
 
 func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
+	return h.toSiteResponseState(site, note, h.captureSiteResponseState(site, 0, false, false))
+}
+
+func (h *SiteHandler) toSiteResponseState(site db.Site, note string, state siteResponseState) siteResponse {
 	visibility := site.Visibility
 	if visibility == "" {
 		visibility = "unlisted" // never guess "public"
@@ -2486,7 +2523,7 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		UserID:            site.UserID,
 		Name:              site.Name,
 		ActiveVersion:     site.ActiveVersion,
-		SiteURL:           h.siteURLFor(site),
+		SiteURL:           state.siteURL,
 		CreatedAt:         site.CreatedAt,
 		UpdatedAt:         site.UpdatedAt,
 		CustomDomain:      site.CustomDomain.String,
@@ -2508,17 +2545,13 @@ func (h *SiteHandler) toSiteResponse(site db.Site, note string) siteResponse {
 		t := site.LastDeployedAt.Time
 		resp.DeployedAt = &t
 	}
-	for _, a := range h.siteFamilyAddrs(site.UserID, site.Name) {
-		resp.FamilyAddresses = append(resp.FamilyAddresses, "https://"+a.Host+"/")
-	}
-	if host, ok := h.siteFamilyAddress(site.UserID, site.Name); ok {
-		resp.FamilyAddress = "https://" + host + "/"
-	}
+	resp.FamilyAddresses = state.familyAddresses
+	resp.FamilyAddress = state.familyAddress
 	if !(site.CustomDomain.Valid && site.DomainVerifiedAt.Valid) {
-		resp.AddressState = h.siteAddressStateFor(site.OwnerHandle, site.Name)
+		resp.AddressState = state.addressState
 	}
 	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
-		if p := h.partnerInfoFor(site.CustomDomain.String, site.ID); p != nil {
+		if p := state.partner; p != nil {
 			resp.DomainPartner, resp.DomainPartnerDNS, resp.DomainPartnerStatus, resp.DomainPartnerNote = p.Domain, p.DNS, p.Status, p.Note
 		}
 	}
@@ -2578,4 +2611,22 @@ func (h *SiteHandler) adminSiteRow(s db.Site) map[string]any {
 		m["family_addresses"] = list
 	}
 	return m
+}
+
+func (h *SiteHandler) writeUnpublishedState(w http.ResponseWriter, user *db.User, site db.Site, n int, state siteResponseState) {
+	note := "Stored as version " + strconv.Itoa(n) + " without making it live; visitors still see version " + strconv.Itoa(site.ActiveVersion) +
+		". Make it live with PUT /v1/sites/" + site.Name + "/active-version {\"version_number\": " + strconv.Itoa(n) + "}."
+	resp := h.toSiteResponseState(site, note, state)
+	resp.FileBytes = state.fileBytes
+	if user != nil && user.Team != nil {
+		resp.UserID = ""
+	}
+	resp.UnpublishedVersion = n
+	if link, exp, ok := state.previewURL, state.previewExpires, state.previewOK; ok {
+		resp.PreviewURL = link
+		resp.PreviewExpiresAt = &exp
+	} else {
+		resp.Note += " No preview link: " + h.noPreviewWhy() + "."
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
