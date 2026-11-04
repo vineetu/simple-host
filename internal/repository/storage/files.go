@@ -39,23 +39,28 @@ func RecordFileAdd(ctx context.Context, db *sql.DB, site, resource, path, writer
 	return err
 }
 
-// ListFilePaths reads a visitor's paths in pagination order.
-func ListFilePaths(ctx context.Context, db *sql.DB, site, resource, writer, after, prefix string, limit int) ([]string, error) {
+// ForEachFilePath visits a visitor's paths in pagination order while the cursor is open.
+func ForEachFilePath(ctx context.Context, db *sql.DB, site, resource, writer, after, prefix string, limit int, fn func(string) (bool, error)) error {
 	prefix = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(prefix) + "%"
 	rows, err := db.QueryContext(ctx, `SELECT path FROM site_storage_files WHERE site_id=$1 AND resource_name=$2 AND writer_id=$3 AND path>$4 AND path LIKE $5 ESCAPE '\' ORDER BY path LIMIT $6`, site, resource, writer, after, prefix, limit)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer rows.Close()
-	var paths []string
 	for rows.Next() {
 		var p string
 		if err := rows.Scan(&p); err != nil {
-			return nil, err
+			return err
 		}
-		paths = append(paths, p)
+		cont, err := fn(p)
+		if err != nil {
+			return err
+		}
+		if !cont {
+			break
+		}
 	}
-	return paths, rows.Err()
+	return rows.Err()
 }
 
 // FileWriters reads the authors of the given paths.

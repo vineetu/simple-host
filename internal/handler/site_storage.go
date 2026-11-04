@@ -702,7 +702,7 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		call := h.storageServiceCall(c)
 		call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
 		reader := http.MaxBytesReader(w, r.Body, 1<<20)
-		value, auth, e := h.storageRequestSvcWithKVReader(r, c, reader).PutKV(r.Context(), appstorage.KVPutInput{Call: call, Key: key, Requested: r.Header.Get("X-SH-Visitor-Action")})
+		value, auth, e := h.storageRequestSvc(r, c).PutKV(r.Context(), appstorage.KVPutInput{Call: call, Key: key, Requested: r.Header.Get("X-SH-Visitor-Action"), Body: reader})
 		if auth != nil {
 			if len(auth.Refusals) == 0 {
 				storageError(w, http.StatusForbidden, auth.Code, auth.Message)

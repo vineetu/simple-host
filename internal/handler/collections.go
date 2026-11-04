@@ -118,6 +118,14 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		SiteID: siteID, Settings: set, Body: body, Actor: actor, Key: key,
 		Visitor: isVisitorActor(actor), SuccessStatus: http.StatusCreated,
 	})
+	if result.Release != nil {
+		defer result.Release()
+	}
+	var claimErr *legacy.ClaimError
+	if errors.As(err, &claimErr) {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 	switch result.State {
 	case "reused":
 		writeJSON(w, http.StatusConflict, errorResponse{Error: "this Idempotency-Key was already used for a different request; use a new key for a new write", Code: "idempotency_key_reused"})

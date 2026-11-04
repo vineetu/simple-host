@@ -2,9 +2,7 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/vsriram/simple-host/internal/papermetrics"
-	"io"
 	"net/http"
 	"os"
 	"time"
@@ -37,40 +35,7 @@ func (h *SiteHandler) storageDeps() appstorage.Deps {
 
 // storageRequestSvc configures request-dependent checks for the ordered gate.
 func (h *SiteHandler) storageRequestSvc(r *http.Request, c storageCall) *appstorage.Service {
-	return h.storageRequestSvcWithKVReader(r, c, nil)
-}
-
-func (h *SiteHandler) storageRequestSvcWithKVReader(r *http.Request, c storageCall, reader io.Reader) *appstorage.Service {
-	deps := h.storageRequestDeps(r, c)
-	if reader != nil {
-		deps.ReadKVValue = func() (json.RawMessage, error) {
-			body, err := io.ReadAll(reader)
-			if err != nil {
-				return nil, &appstorage.Error{Code: "invalid_value", Message: "value too large"}
-			}
-			var v struct {
-				Value json.RawMessage `json:"value"`
-			}
-			if json.Unmarshal(body, &v) != nil || len(v.Value) == 0 || !json.Valid(v.Value) {
-				return nil, &appstorage.Error{Code: "invalid_value", Message: "valid JSON value required"}
-			}
-			return v.Value, nil
-		}
-	}
-	return appstorage.New(h.database, deps)
-}
-
-func (h *SiteHandler) storageRequestSvcWithFileReader(w http.ResponseWriter, r *http.Request, c storageCall) *appstorage.Service {
-	deps := h.storageRequestDeps(r, c)
-	reader := http.MaxBytesReader(w, r.Body, storageFileMaxBytes())
-	deps.ReadFile = func() ([]byte, error) {
-		body, err := io.ReadAll(reader)
-		if err != nil {
-			return nil, &appstorage.Error{Code: "invalid_file", Message: "file too large; shrink photos to about 1600 px WebP"}
-		}
-		return body, nil
-	}
-	return appstorage.New(h.database, deps)
+	return appstorage.New(h.database, h.storageRequestDeps(r, c))
 }
 
 func (h *SiteHandler) storageRequestDeps(r *http.Request, c storageCall) appstorage.Deps {

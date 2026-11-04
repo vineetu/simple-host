@@ -230,7 +230,7 @@ func (t *storageTableCall) seesAuthors() bool { return t.c.owner || t.c.ownerOnS
 // one top-level write of the expected kind, no schema change, no trigger
 // writing elsewhere.
 func (t *storageTableCall) visitorAuthorizer(write sqlite3.AuthorizerActionCode) error {
-	return storage.SetRowAuthorizer(t.conn, t.table, t.c.owner, write)
+	return appstorage.SetRowAuthorizer(t.conn, t.table, t.c.owner, write)
 }
 
 func (t *storageTableCall) bindAll(stmt *sqlite3.Stmt, params []json.RawMessage) error {
@@ -344,9 +344,9 @@ func (t *storageTableCall) finish(commit func() error, body map[string]any, noti
 }
 
 func (t *storageTableCall) add(values map[string]json.RawMessage) {
-	query, params, err := storage.PrepareInsert(t.conn, t.table, t.rowid, t.cols, values, storage.InsertActor{Owner: t.c.owner, OwnerOnSite: t.c.ownerOnSite, Hold: t.hold, StampID: t.c.stampID()})
+	query, params, err := appstorage.PrepareInsert(t.conn, t.table, t.rowid, t.cols, values, appstorage.InsertActor{Owner: t.c.owner, OwnerOnSite: t.c.ownerOnSite, Hold: t.hold, StampID: t.c.stampID()})
 	if err != nil {
-		if errors.Is(err, storage.ErrInsertSuppliesID) {
+		if errors.Is(err, appstorage.ErrInsertSuppliesID) {
 			storageError(t.w, 400, "invalid_rows", "the server assigns ids")
 			return
 		}

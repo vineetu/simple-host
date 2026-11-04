@@ -5,67 +5,9 @@ import (
 	"errors"
 	"sort"
 	"strings"
-	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 )
-
-// InsertActor supplies the caller facts needed for server-owned columns.
-type InsertActor struct {
-	Owner, OwnerOnSite, Hold bool
-	StampID                  string
-}
-
-// StampInsertValues fills server-owned values for an insert.
-func StampInsertValues(cols map[string]string, values map[string]json.RawMessage, actor InsertActor) {
-	owner, ownerOnSite, hold, stampID := actor.Owner, actor.OwnerOnSite, actor.Hold, actor.StampID
-	encode := func(v any) json.RawMessage { b, _ := json.Marshal(v); return b }
-	if !owner {
-		delete(values, "visitor_id")
-		delete(values, "created_at")
-		delete(values, "updated_at")
-		if _, ok := cols["visitor_id"]; ok {
-			values["visitor_id"] = encode(stampID)
-			if stampID == "" {
-				values["visitor_id"] = json.RawMessage("null")
-			}
-		}
-		if _, ok := cols["created_at"]; ok {
-			values["created_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
-		}
-		if hold {
-			values["approved_at"] = json.RawMessage("null")
-			if ownerOnSite {
-				values["approved_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
-			}
-		}
-	} else if _, set := values["approved_at"]; hold && !set {
-		values["approved_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
-	}
-}
-
-// ErrInsertSuppliesID indicates a visitor supplied a server-assigned ID.
-var ErrInsertSuppliesID = errors.New("the server assigns ids")
-
-// PrepareInsert validates IDs, stamps server-owned values and constructs the insert statement.
-func PrepareInsert(conn *sqlite3.Conn, table, rowid string, cols map[string]string, values map[string]json.RawMessage, actor InsertActor) (string, []json.RawMessage, error) {
-	if !actor.Owner {
-		supplied, err := InsertSuppliesID(conn, table, values)
-		if err != nil {
-			return "", nil, err
-		}
-		if supplied {
-			return "", nil, ErrInsertSuppliesID
-		}
-	}
-	StampInsertValues(cols, values, actor)
-	names, err := InsertColumns(cols, values)
-	if err != nil {
-		return "", nil, err
-	}
-	query, params := InsertRowStatement(table, rowid, actor.Owner, names, values)
-	return query, params, nil
-}
 
 // InsertColumns validates insert column names and returns them for statement construction.
 func InsertColumns(cols map[string]string, values map[string]json.RawMessage) ([]string, error) {
@@ -80,11 +22,11 @@ func InsertColumns(cols map[string]string, values map[string]json.RawMessage) ([
 }
 
 // InsertRowStatement constructs a parameterized insert for validated columns.
-func InsertRowStatement(table, rowid string, owner bool, names []string, values map[string]json.RawMessage) (string, []json.RawMessage) {
+func InsertRowStatement(table, rowid string, abortOnConflict bool, names []string, values map[string]json.RawMessage) (string, []json.RawMessage) {
 	sort.Strings(names)
 	// OR ABORT overrides ON CONFLICT REPLACE for visitor inserts.
 	query := "INSERT INTO " + Quote(table)
-	if !owner {
+	if abortOnConflict {
 		query = "INSERT OR ABORT INTO " + Quote(table)
 	}
 	params := []json.RawMessage{}
@@ -122,11 +64,8 @@ func InsertSuppliesID(conn *sqlite3.Conn, table string, values map[string]json.R
 	return false, nil
 }
 
-// SetRowAuthorizer restricts visitor writes to the target table.
-func SetRowAuthorizer(conn *sqlite3.Conn, table string, owner bool, write sqlite3.AuthorizerActionCode) error {
-	if owner {
-		return conn.SetAuthorizer(nil)
-	}
+// SetRowAuthorizer confines writes to the target table.
+func SetRowAuthorizer(conn *sqlite3.Conn, table string, write sqlite3.AuthorizerActionCode) error {
 	return conn.SetAuthorizer(func(a sqlite3.AuthorizerActionCode, n3, n4, schema, inner string) sqlite3.AuthorizerReturnCode {
 		if schema != "" && schema != "main" {
 			return sqlite3.AUTH_DENY

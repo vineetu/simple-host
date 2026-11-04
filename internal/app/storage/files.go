@@ -22,6 +22,7 @@ import (
 type FilePutInput struct {
 	Call Call
 	Path string
+	Body io.Reader
 }
 
 // FilePutResult describes the uploaded file.
@@ -36,9 +37,9 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	if err := s.Gate(call, true); err != nil {
 		return FilePutResult{}, err.(*Error), nil
 	}
-	body, err := s.deps.ReadFile()
+	body, err := io.ReadAll(in.Body)
 	if err != nil {
-		return FilePutResult{}, nil, err
+		return FilePutResult{}, nil, &Error{Code: "invalid_file", Message: "file too large; shrink photos to about 1600 px WebP"}
 	}
 	ctx, unlock, err := s.WriteLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
@@ -274,36 +275,39 @@ func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, 
 	out := []FileItem{}
 	next := ""
 	if filter != "" {
-		paths, e := repository.ListFilePaths(ctx, s.db, call.SiteID, call.ResourceName, filter, in.After, in.Prefix, in.Limit+1)
-		if e != nil {
-			return nil, "", auth, e
-		}
-		more := len(paths) > in.Limit
-		if more {
-			paths = paths[:in.Limit]
-		}
-		for _, p := range paths {
+		count := 0
+		more := false
+		e := repository.ForEachFilePath(ctx, s.db, call.SiteID, call.ResourceName, filter, in.After, in.Prefix, in.Limit+1, func(p string) (bool, error) {
+			count++
+			if count > in.Limit {
+				more = true
+				return false, nil
+			}
 			next = p
 			if !mechanics.ValidObjectPath(p) {
-				continue
+				return true, nil
 			}
 			f, e := os.Open(s.deps.FilePath(call, p))
 			if os.IsNotExist(e) {
-				continue
+				return true, nil
 			}
 			if e != nil {
-				return nil, "", auth, e
+				return false, e
 			}
 			fi, e := f.Stat()
 			if e != nil || !fi.Mode().IsRegular() {
 				f.Close()
-				continue
+				return true, nil
 			}
 			var b [512]byte
 			n, _ := f.Read(b[:])
 			f.Close()
 			mine := true
 			out = append(out, FileItem{Path: p, Bytes: fi.Size(), ContentType: http.DetectContentType(b[:n]), Mine: &mine})
+			return true, nil
+		})
+		if e != nil {
+			return nil, "", auth, e
 		}
 		if !more {
 			next = ""

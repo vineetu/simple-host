@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"sync"
 	"time"
 
@@ -26,11 +25,9 @@ type Deps struct {
 	Recheck                                  func(context.Context) bool
 	Committed                                func(context.Context)
 	Notify                                   func(Call, string, map[string]any)
-	ReadKVValue                              func() (json.RawMessage, error)
 	FilePath                                 func(Call, string) string
 	MarkChanged                              func()
 	FileToken                                func(Call, string, time.Time) string
-	ReadFile                                 func() ([]byte, error)
 	ScanFile                                 func(Call, string, []byte)
 	FileObjectsLimit                         int
 	OpenFileToken                            func(string) ([]byte, error)

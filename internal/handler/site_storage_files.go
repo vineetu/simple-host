@@ -60,8 +60,8 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPut:
 		call := h.storageServiceCall(c)
 		call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
-		service := h.storageRequestSvcWithFileReader(w, r, c)
-		result, auth, err := service.PutFile(r.Context(), appstorage.FilePutInput{Call: call, Path: p})
+		service := h.storageRequestSvc(r, c)
+		result, auth, err := service.PutFile(r.Context(), appstorage.FilePutInput{Call: call, Path: p, Body: http.MaxBytesReader(w, r.Body, storageFileMaxBytes())})
 		if auth != nil {
 			if len(auth.Refusals) == 0 {
 				storageError(w, http.StatusForbidden, auth.Code, auth.Message)

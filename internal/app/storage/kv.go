@@ -8,6 +8,7 @@ import (
 	"fmt"
 	repository "github.com/vsriram/simple-host/internal/repository/storage"
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
+	"io"
 	"strings"
 	"time"
 
@@ -342,6 +343,7 @@ func kvTaken(call Call) bool {
 type KVPutInput struct {
 	Call           Call
 	Key, Requested string
+	Body           io.Reader
 }
 
 // PutKV resolves, authorizes and writes a key under the site lock.
@@ -350,10 +352,17 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 	if err := s.Gate(call, true); err != nil {
 		return nil, err.(*Error), nil
 	}
-	value, err := s.deps.ReadKVValue()
+	body, err := io.ReadAll(in.Body)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, &Error{Code: "invalid_value", Message: "value too large"}
 	}
+	var v struct {
+		Value json.RawMessage `json:"value"`
+	}
+	if json.Unmarshal(body, &v) != nil || len(v.Value) == 0 || !json.Valid(v.Value) {
+		return nil, nil, &Error{Code: "invalid_value", Message: "valid JSON value required"}
+	}
+	value := v.Value
 	requested := in.Requested
 	if !call.VisitorAI {
 		requested = ""

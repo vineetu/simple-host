@@ -365,8 +365,14 @@ func (a *Adapter) collectionHasRoom(ctx context.Context, siteID string, growth, 
 	return used+growth <= maxBytes, nil
 }
 
+// ClaimError identifies a failed idempotency reservation.
+type ClaimError struct{ Err error }
+
+func (e *ClaimError) Error() string { return e.Err.Error() }
+
 // AppendResult contains an append or an idempotent replay.
 type AppendResult struct {
+	Release     func()
 	Item        db.CollectionItem
 	Have        int64
 	State       string
@@ -392,7 +398,7 @@ func (a *Adapter) AppendCollectionOnce(ctx context.Context, in AppendInput) (res
 		var state string
 		scope, result.Previous, state, err = a.ClaimWrite(ctx, siteID, "POST collections/"+set.Name, actor.ID, key, body)
 		if err != nil {
-			return result, err
+			return result, &ClaimError{Err: err}
 		}
 		if state != "claimed" {
 			result.State = state
@@ -408,8 +414,10 @@ func (a *Adapter) AppendCollectionOnce(ctx context.Context, in AppendInput) (res
 	if scope != nil {
 		defer func() {
 			if !saved {
-				if releaseErr := a.ReleaseIdempotencyKey(context.WithoutCancel(ctx), scope); releaseErr != nil {
-					log.Printf("idempotency release: %v", releaseErr)
+				result.Release = func() {
+					if releaseErr := a.ReleaseIdempotencyKey(context.WithoutCancel(ctx), scope); releaseErr != nil {
+						log.Printf("idempotency release: %v", releaseErr)
+					}
 				}
 			}
 		}()

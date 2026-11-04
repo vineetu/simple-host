@@ -826,7 +826,6 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName
 	site, oldURL, newURL, domain := result.Site, result.OldURL, result.NewURL, result.Domain
 
 	// The main address may change with the name (address families).
-	h.syncDomainRedirect(r.Context(), site.ID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": site.ID, "old_name": oldName, "name": newName,
 		"old_url": oldURL, "site_url": newURL, "old_url_status": "redirects",
@@ -1607,7 +1606,8 @@ func (h *SiteHandler) respondCreate(w http.ResponseWriter, user *db.User, result
 		}
 		return false
 	}
-	writeJSON(w, http.StatusCreated, h.siteResponseFor(user, site))
+	resp := h.siteResponseWithFileBytes(user, site, result.FileBytes)
+	writeJSON(w, http.StatusCreated, resp)
 	return false
 }
 
@@ -2581,6 +2581,16 @@ func (h *SiteHandler) siteResponseFor(user *db.User, site db.Site) siteResponse 
 	if f, err := h.disk.SiteFootprint(site.UserID, site.Name); err == nil {
 		resp.FileBytes = f.Total()
 	}
+	return h.siteResponseForCaller(user, resp)
+}
+
+func (h *SiteHandler) siteResponseWithFileBytes(user *db.User, site db.Site, fileBytes int64) siteResponse {
+	resp := h.toSiteResponse(site, "")
+	resp.FileBytes = fileBytes
+	return h.siteResponseForCaller(user, resp)
+}
+
+func (h *SiteHandler) siteResponseForCaller(user *db.User, resp siteResponse) siteResponse {
 	if user != nil && user.Team != nil {
 		resp.UserID = ""
 	}

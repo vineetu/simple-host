@@ -66,8 +66,9 @@ type CreateInput struct {
 
 // CreateResult describes a created site or an existing site selected for update.
 type CreateResult struct {
-	Site   model.Site
-	Exists bool
+	Site      model.Site
+	Exists    bool
+	FileBytes int64
 }
 
 // Create creates and promotes a site, acquiring locks unless already held.
@@ -176,7 +177,11 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (CreateResult, err
 		}
 	}
 	s.deps.NotifyCreate(ctx, in.User, site, in.Files)
-	return CreateResult{Site: site}, nil
+	var fileBytes int64
+	if footprint, err := s.disk.SiteFootprint(site.UserID, site.Name); err == nil {
+		fileBytes = footprint.Total()
+	}
+	return CreateResult{Site: site, FileBytes: fileBytes}, nil
 }
 
 // createConflict resolves a duplicate after the create transaction is rolled back.
@@ -336,6 +341,8 @@ func (s *Service) Rename(ctx context.Context, userID, oldName, newName, handle s
 		_ = s.disk.RenameSite(userID, newName, oldName, domains...)
 		return result, err
 	}
+	// The main address may change with the name (address families).
+	s.deps.SyncRedirect(ctx, site.ID)
 	return result, nil
 }
 

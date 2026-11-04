@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,10 +15,9 @@ func TestPutFileRejectsExistingDirectory(t *testing.T) {
 	dir := t.TempDir()
 	s := New(nil, Deps{
 		Locks: &sync.Map{}, WriteLockWait: time.Second, WriteTimeout: time.Second,
-		ReadFile: func() ([]byte, error) { return []byte("file"), nil },
 		FilePath: func(Call, string) string { return dir },
 	})
-	_, auth, err := s.PutFile(context.Background(), FilePutInput{Call: Call{Owner: true}})
+	_, auth, err := s.PutFile(context.Background(), FilePutInput{Call: Call{Owner: true}, Body: strings.NewReader("file")})
 	if auth != nil || err == nil || err.(*Error).Code != "file_exists" {
 		t.Fatalf("directory: auth=%v err=%v", auth, err)
 	}
