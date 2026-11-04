@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/model"
 )
 
@@ -23,6 +24,7 @@ func (h *UserHandler) registerPasswords(mux *http.ServeMux, authMW, noticeMW fun
 	mux.Handle("POST /v1/auth/password/signup", h.passwordRoute(accountAuthOnly(h.publicBaseURL, noticeMW(http.HandlerFunc(h.passwordSignup)))))
 	mux.Handle("POST /v1/admin/password-users", h.passwordRoute(noticeMW(authMW(http.HandlerFunc(h.createPasswordUser)))))
 	mux.Handle("POST /v1/admin/users/{id}/password", h.passwordRoute(noticeMW(authMW(http.HandlerFunc(h.resetPassword)))))
+	mux.Handle("POST /v1/me/password", h.passwordRoute(noticeMW(authMW(http.HandlerFunc(h.changePassword)))))
 }
 func (h *UserHandler) passwordRoute(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -79,6 +81,51 @@ func (h *UserHandler) passwordSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.finishSignIn(w, r, user, false, verifyRequest{Name: req.Name, SSOState: req.SSOState})
+}
+
+// changePassword handles POST /v1/me/password {current_password,new_password}:
+// a signed-in password account replaces its own password. Wrong credentials
+// and successes share the sign-in limiters (login key: the account's
+// normalized username), refunding the login budget only when the current
+// password was right, same as passwordSignIn. Keys, sessions and connector
+// tokens are untouched; only this account's other keys see no change.
+func (h *UserHandler) changePassword(w http.ResponseWriter, r *http.Request) {
+	if !h.passwordEnabled {
+		passwordNotFound(w)
+		return
+	}
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		writeJSON(w, 400, errorResponse{Error: "invalid request body"})
+		return
+	}
+	login, ip := accounts.NormalizeLogin(user.Username), clientIP(r)
+	if !h.passwordIPLimiter.allowHTTP(w, ip) {
+		tooManyRequests(w)
+		return
+	}
+	if !h.passwordLoginLimiter.allowHTTP(w, login) {
+		h.passwordIPLimiter.Refund(ip)
+		tooManyRequests(w)
+		return
+	}
+	err := h.accounts.ChangePassword(r.Context(), user.ID, req.CurrentPassword, req.NewPassword)
+	var failure *accounts.LifecycleError
+	if !errors.As(err, &failure) || failure.Code != "bad_credentials" {
+		h.passwordLoginLimiter.Refund(login)
+	}
+	if writeLifecycleFailure(w, err) {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 func (h *UserHandler) assignPasswordHandle(ctx context.Context, q accounts.AttributionStore, id, name string, random bool) {
 	assignHandle(ctx, q, id, name, random)

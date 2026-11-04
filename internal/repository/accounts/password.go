@@ -16,6 +16,15 @@ func PasswordAccount(ctx context.Context, q Querier, login string) (User, string
 	user, err := GetUserByID(ctx, q, id)
 	return user, hash, must, err
 }
+
+// PasswordHashByID loads the stored hash for an account by id (unlocked),
+// for a caller that already knows the account, such as changing your own
+// password. sql.ErrNoRows: the account has no password row.
+func PasswordHashByID(ctx context.Context, q Querier, id string) (string, error) {
+	var hash string
+	err := q.QueryRowContext(ctx, `SELECT password_hash FROM account_passwords WHERE user_id=$1`, id).Scan(&hash)
+	return hash, err
+}
 func LockPassword(ctx context.Context, q Querier, id string) (string, bool, error) {
 	var hash string
 	var must bool

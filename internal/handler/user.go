@@ -427,6 +427,14 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if h.passwordEnabled {
+		has, err := h.accounts.HasPassword(r.Context(), user.ID)
+		if err != nil {
+			writeJSON(w, 500, errorResponse{Error: "internal server error"})
+			return
+		}
+		resp.HasPassword = &has
+	}
 	resp.CanSetKeepVersions = h.limits.CanSetKeepVersions(accountHandles(r.Context(), h.database, user)...)
 	resp.KeepVersions = h.limits.KeepVersionsFor(keepVersions, accountHandles(r.Context(), h.database, user)...)
 	limit, _ := h.siteLimitFor(r.Context(), h.database, user)
@@ -465,6 +473,10 @@ type meResponse struct {
 	PublicPage string `json:"public_page,omitempty"`
 	// SignInAlerts: an email after each sign-in (default on).
 	SignInAlerts *bool `json:"signin_alerts,omitempty"`
+	// HasPassword: whether this account has a password set. Present only
+	// when PASSWORD_SIGNIN is on (self-hosted installs only), so hosted
+	// responses stay byte-identical with the field absent.
+	HasPassword *bool `json:"has_password,omitempty"`
 	// MaxSites is the sites this account may hold (MAX_SITES_OVERRIDES, else
 	// MAX_SITES_PER_ACCOUNT); absent for admins, who have no limit.
 	MaxSites *int `json:"max_sites,omitempty"`

@@ -70,6 +70,65 @@ func (s *Service) PasswordSignIn(ctx context.Context, login, password, newPasswo
 	}
 	return user, tx.Commit()
 }
+
+// HasPassword reports whether userID has a password row, so the dashboard
+// and Hack account screens know whether to show the Password card
+// (GET /v1/me, PASSWORD_SIGNIN on only).
+func (s *Service) HasPassword(ctx context.Context, userID string) (bool, error) {
+	_, err := repo.PasswordHashByID(ctx, s.database, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// ChangePassword lets a signed-in password account replace its own password:
+// current must verify, next must be a different valid password. Same
+// verify-then-lock-and-compare-hash pattern as PasswordSignIn, so a password
+// changed between the two reads is rejected rather than silently overwritten.
+// It never touches keys or sessions; every other sign-in stays valid.
+func (s *Service) ChangePassword(ctx context.Context, userID, current, next string) error {
+	hash, err := repo.PasswordHashByID(ctx, s.database, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return lifecycleFail(404, "not found", "")
+	}
+	if err != nil {
+		return err
+	}
+	bounded := current
+	if len(bounded) > 1024 {
+		bounded = bounded[:1024]
+	}
+	if !verifyPassword(bounded, hash) {
+		return badCredentials()
+	}
+	if err := validPassword(next); err != nil {
+		return err
+	}
+	if current == next {
+		return lifecycleFail(400, "Choose a different password.", "invalid_password")
+	}
+	nextHash, err := hashPassword(next)
+	if err != nil {
+		return err
+	}
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	lockedHash, _, err := repo.LockPassword(ctx, tx, userID)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && lockedHash != hash {
+		return badCredentials()
+	}
+	if err != nil {
+		return err
+	}
+	if err := repo.SetPassword(ctx, tx, userID, nextHash, false); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 func temporaryPassword(password string) (string, error) {
 	if password == "" {
 		b := make([]byte, 12)

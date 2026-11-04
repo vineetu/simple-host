@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-04: A signed-in password account can change its own password from the Account page (`POST /v1/me/password`, current password plus a new one typed twice in the browser). It is counted on the same sign-in limiters as a wrong password, and never revokes any other key, session or connector token. `GET /v1/me` adds `has_password` only when `PASSWORD_SIGNIN` is on. No migration.
+
 2026-11-04: Hosted events on Kubernetes can turn on `TEAM_SITE_FLAT_HOSTS` (chart value `teamSites.flatHosts`, off by default) to serve a team's site at `<team>--<event>.<host>` instead of `<team>.<event>.<host>`, so one wildcard certificate and Ingress rule cover every event and team instead of one per event. Hosted simple-hack.app keeps it off, unchanged. Event and team slugs may no longer contain "--".
 
 2026-11-04: Password sign-in verifies before locking and checks for concurrent password changes; Argon2 work is limited to two calls. Password sign-up respects country blocks and no longer advertises unused email metadata. Admin discovery failures leave the page usable, and self-hosted Hack pages hide the complete company marketing copy.

@@ -682,6 +682,10 @@
     .toast.success { background: var(--success); }
     .toast.error { background: var(--error); }
 
+    .field-msg { font-size: 13px; padding: 4px 0; min-height: 1em; }
+    .field-msg.success { color: var(--success); }
+    .field-msg.error { color: var(--error); }
+
     /* Checkbox */
     .checkbox-group {
       display: flex;
@@ -941,6 +945,31 @@
             <span>Sign-in alerts: an email after each new sign-in or connected app, so you notice one that wasn't you.</span>
             <label><input type="checkbox" id="my-signin-alerts">Email me</label>
           </div>
+        </div>
+
+        <!-- Password: shown only when the signed-in account has a password
+             (has_password from GET /v1/me, set only when PASSWORD_SIGNIN is
+             on for this self-hosted install). Changing it does not sign out
+             any other key or session. -->
+        <div class="my-data" id="my-password" hidden>
+          <h2>Password</h2>
+          <div class="row inline">
+            <label for="my-password-current">Current password</label>
+            <input type="password" id="my-password-current" autocomplete="current-password">
+          </div>
+          <div class="row inline">
+            <label for="my-password-new">New password</label>
+            <input type="password" id="my-password-new" autocomplete="new-password" minlength="8">
+          </div>
+          <div class="row inline">
+            <label for="my-password-confirm">Confirm new password</label>
+            <input type="password" id="my-password-confirm" autocomplete="new-password" minlength="8">
+          </div>
+          <div class="row">
+            <span>At least 8 characters. Your other signed-in keys and sessions are not affected.</span>
+            <button type="button" class="btn btn-primary btn-small" data-act="changeMyPassword">Change password</button>
+          </div>
+          <div class="field-msg" id="my-password-msg"></div>
         </div>
       </div>
 
@@ -1396,6 +1425,8 @@ function parseAnalyticsSummary(data) {
           }).catch(() => {});
         }
       }
+      const myPassword = document.getElementById('my-password');
+      if (myPassword) myPassword.hidden = !(currentUser && currentUser.has_password === true);
       const banner = document.getElementById('showcase-banner');
       if (!banner) return;
       const handle = currentUser && currentUser.handle;
@@ -2273,6 +2304,46 @@ function parseAnalyticsSummary(data) {
       }
     }
 
+    // Password (POST /v1/me/password): current + new, with the "twice" match
+    // checked here in the browser before the request goes out. Does not
+    // touch keys or sessions, so no sign-out follows success.
+    async function changeMyPassword() {
+      const msg = document.getElementById('my-password-msg');
+      const currentEl = document.getElementById('my-password-current');
+      const nextEl = document.getElementById('my-password-new');
+      const confirmEl = document.getElementById('my-password-confirm');
+      msg.textContent = '';
+      msg.className = 'field-msg';
+      if (nextEl.value.length < 8) {
+        msg.textContent = 'New password must be at least 8 characters.';
+        msg.className = 'field-msg error';
+        return;
+      }
+      if (nextEl.value !== confirmEl.value) {
+        msg.textContent = 'New passwords do not match.';
+        msg.className = 'field-msg error';
+        return;
+      }
+      try {
+        const res = await api('POST', '/v1/me/password', { current_password: currentEl.value, new_password: nextEl.value });
+        if (res.ok) {
+          currentEl.value = '';
+          nextEl.value = '';
+          confirmEl.value = '';
+          msg.textContent = 'Password changed.';
+          msg.className = 'field-msg success';
+          toast('Password changed', 'success');
+          return;
+        }
+        const body = await res.json().catch(() => ({}));
+        msg.textContent = body.error || 'Could not change password.';
+        msg.className = 'field-msg error';
+      } catch {
+        msg.textContent = 'Could not change password.';
+        msg.className = 'field-msg error';
+      }
+    }
+
     async function connectDomain(name) {
       const d = await shPrompt({ title: 'Enter the custom domain to connect (e.g. recipes.brand.com):', label: 'Domain', placeholder: 'recipes.brand.com', confirmLabel: 'Connect' });
       if (!d) return;
@@ -2346,6 +2417,7 @@ function parseAnalyticsSummary(data) {
       sendEmailChange: () => sendEmailChange(),
       verifyEmailChange: () => verifyEmailChange(),
       unlinkIdentity: d => unlinkIdentity(d),
+      changeMyPassword: () => changeMyPassword(),
       logout: () => logout(),
       switchTab: d => switchTab(d.arg),
       hideAgentSetup: () => toggleOnboarding('agentSetup', false),

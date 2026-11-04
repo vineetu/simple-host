@@ -2264,6 +2264,10 @@
                       "type": "boolean",
                       "description": "Whether an email follows each sign-in or app connection (PATCH /v1/me to change)."
                     },
+                    "has_password": {
+                      "type": "boolean",
+                      "description": "Whether this account has a password set. Present only when PASSWORD_SIGNIN is on (self-hosted installs); absent on hosted services. POST /v1/me/password changes it."
+                    },
                     "max_sites": {
                       "type": "integer",
                       "description": "Sites this account may hold (sites in Recently deleted count; one more is 403 site_quota_reached): the instance's MAX_SITES_PER_ACCOUNT, or the account's own MAX_SITES_OVERRIDES entry. Absent for admins, who have no limit."
@@ -2394,6 +2398,68 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/me/password": {
+      "post": {
+        "x-audience": [
+          "public-host",
+          "public-hack"
+        ],
+        "tags": [
+          "Account"
+        ],
+        "operationId": "changeOwnPassword",
+        "summary": "Change your own password",
+        "description": "Available only when PASSWORD_SIGNIN=on, for an account that already has a password (404 for one that does not). current_password is verified against the same limiters as sign-in (passwordLoginLimiter, keyed by the normalized username, and passwordIPLimiter); a wrong current password counts against both and refunds neither. new_password must be 8-256 characters and differ from current_password. Does not revoke keys, sessions or connector tokens; every other sign-in stays valid.",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "current_password": {
+                    "type": "string",
+                    "format": "password"
+                  },
+                  "new_password": {
+                    "type": "string",
+                    "format": "password",
+                    "minLength": 8,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "current_password",
+                  "new_password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Password changed"
+          },
+          "400": {
+            "description": "invalid_password (too short, or same as current_password)"
+          },
+          "401": {
+            "description": "Wrong current password (bad_credentials), or missing/invalid API key"
+          },
+          "404": {
+            "description": "not found: PASSWORD_SIGNIN is off, or this account has no password"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         }
       }

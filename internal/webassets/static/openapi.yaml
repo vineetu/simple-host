@@ -1208,6 +1208,7 @@ paths:
                   display_name: { type: string }
                   is_admin: { type: boolean }
                   signin_alerts: { type: boolean, description: "Whether an email follows each sign-in or app connection (PATCH /v1/me to change)." }
+                  has_password: { type: boolean, description: "Whether this account has a password set. Present only when PASSWORD_SIGNIN is on (self-hosted installs); absent on hosted services. POST /v1/me/password changes it." }
                   max_sites: { type: integer, description: "Sites this account may hold (sites in Recently deleted count; one more is 403 site_quota_reached): the instance's MAX_SITES_PER_ACCOUNT, or the account's own MAX_SITES_OVERRIDES entry. Absent for admins, who have no limit." }
                   file_usage: { type: object, properties: { used_bytes: { type: integer }, limit_mb: { type: integer, description: "0 means no account file cap" }, message: { type: string, example: "12.3 MB of 1 GB used" }, tips: { type: string } }, description: "Website files and kept versions including the live copy and Recently deleted sites; saved data and storage resources excluded" }
                   can_set_keep_versions: { type: boolean, description: "Account is allowed to change per-site retention" }
@@ -1249,6 +1250,48 @@ paths:
         '403': { description: "Suspended account (code account_suspended), a site of the account taken down (code site_suspended) or admin account (code admin_account)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '409': { description: "The account still holds event hostnames (code event_hostnames)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '429': { description: Too many requests from this address, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /v1/me/password:
+    post:
+      x-audience:
+      - public-host
+      - public-hack
+      tags:
+      - Account
+      operationId: changeOwnPassword
+      summary: Change your own password
+      description: Available only when PASSWORD_SIGNIN=on, for an account that already has a password (404 for one that does not). current_password is verified against the same limiters as sign-in (passwordLoginLimiter, keyed by the normalized username, and passwordIPLimiter); a wrong current password counts against both and refunds neither. new_password must be 8-256 characters and differ from current_password. Does not revoke keys, sessions or connector tokens; every other sign-in stays valid.
+      security:
+      - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                current_password:
+                  type: string
+                  format: password
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  maxLength: 256
+              required:
+              - current_password
+              - new_password
+      responses:
+        '204':
+          description: Password changed
+        '400':
+          description: invalid_password (too short, or same as current_password)
+        '401':
+          description: Wrong current password (bad_credentials), or missing/invalid API key
+        '404':
+          description: 'not found: PASSWORD_SIGNIN is off, or this account has no password'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /v1/me/email:
     post:

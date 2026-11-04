@@ -100,6 +100,57 @@ func TestPasswordAccounts(t *testing.T) {
 	}
 }
 
+func TestChangeOwnPassword(t *testing.T) {
+	a := newConnectorApp(t)
+	post := func(path string, body map[string]string, key string) resp {
+		return a.do(t, "POST", path, jsonBody(body), map[string]string{"Content-Type": "application/json", "X-API-Key": key})
+	}
+	name := fmt.Sprintf("change-password-%d", time.Now().UnixNano())
+	a.users.SetPasswordSignIn(true, true)
+	signup := post("/v1/auth/password/signup", map[string]string{"username": name, "password": "first password"}, "")
+	if signup.status != 200 {
+		t.Fatalf("signup: %d %s", signup.status, signup.body)
+	}
+	id := signup.json(t)["id"].(string)
+	t.Cleanup(func() { _, _ = a.database.Exec("DELETE FROM users WHERE id=$1", id) })
+	key := signup.json(t)["api_key"].(string)
+
+	// Discovery: has_password is on only once there is a password to change.
+	if r := a.do(t, "GET", "/v1/me", nil, map[string]string{"X-API-Key": key}); r.status != 200 || r.json(t)["has_password"] != true {
+		t.Fatalf("has_password: %d %s", r.status, r.body)
+	}
+
+	// Wrong current password: 401, counted on the same limiter as sign-in,
+	// and the key used to ask is untouched.
+	wrong := post("/v1/me/password", map[string]string{"current_password": "not it", "new_password": "second password"}, key)
+	if wrong.status != 401 || wrong.json(t)["code"] != "bad_credentials" {
+		t.Fatalf("wrong current password: %d %s", wrong.status, wrong.body)
+	}
+
+	// Correct current password and a valid new one: success.
+	changed := post("/v1/me/password", map[string]string{"current_password": "first password", "new_password": "second password"}, key)
+	if changed.status != 204 {
+		t.Fatalf("change: %d %s", changed.status, changed.body)
+	}
+
+	// The old password no longer signs in; the new one does.
+	loginWith := func(password string) resp {
+		return post("/v1/auth/password", map[string]string{"login": name, "password": password}, "")
+	}
+	if r := loginWith("first password"); r.status != 401 {
+		t.Fatalf("old password still works: %d %s", r.status, r.body)
+	}
+	if r := loginWith("second password"); r.status != 200 {
+		t.Fatalf("new password: %d %s", r.status, r.body)
+	}
+
+	// The API key used to change the password still works: changing a
+	// password never revokes keys, sessions or connector tokens.
+	if r := a.do(t, "GET", "/v1/me", nil, map[string]string{"X-API-Key": key}); r.status != 200 {
+		t.Fatalf("key after change: %d %s", r.status, r.body)
+	}
+}
+
 func TestPasswordAccountsDisabled(t *testing.T) {
 	for _, selfSignup := range []bool{false, true} {
 		t.Run(fmt.Sprintf("password-enabled-%v", selfSignup), func(t *testing.T) {
