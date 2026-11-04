@@ -162,22 +162,24 @@ func (d *DB) reloadSlot(s *slot) {
 		if old != nil {
 			_ = old.Close()
 		}
-		d.tracker.Fail("stat database", err)
 		msg := "missing"
 		if !errors.Is(err, fs.ErrNotExist) {
 			msg = err.Error()
 		}
-		s.logOnce("missing", "geoip: %s unavailable (%s) — caller locations will be blank; no network lookup is made. Install it with scripts/geoip-refresh.sh", path, msg)
+		if s.logOnce("missing", "geoip: %s unavailable (%s) — caller locations will be blank; no network lookup is made. Install it with scripts/geoip-refresh.sh", path, msg) {
+			d.tracker.Fail("stat database", err)
+		}
 		return
 	}
 
 	r, err := maxminddb.Open(path)
 	if err != nil {
-		d.tracker.Fail("open database", err)
 		d.mu.Lock()
 		s.stamp = now // do not retry the same broken file every tick
 		d.mu.Unlock()
-		s.logOnce("bad:"+err.Error(), "geoip: cannot open %s: %v — keeping the previous data (blank if none)", path, err)
+		if s.logOnce("bad:"+err.Error(), "geoip: cannot open %s: %v — keeping the previous data (blank if none)", path, err) {
+			d.tracker.Fail("open database", err)
+		}
 		return
 	}
 	d.mu.Lock()
@@ -193,12 +195,15 @@ func (d *DB) reloadSlot(s *slot) {
 		r.Metadata.BuildTime().UTC().Format("2006-01-02"))
 }
 
-func (s *slot) logOnce(state, format string, args ...any) {
+// logOnce reports whether the state changed. Tracker.Fail also logs, so callers
+// record failures only on these transitions and retain LastError between them.
+func (s *slot) logOnce(state, format string, args ...any) bool {
 	if s.state == state {
-		return
+		return false
 	}
 	s.state = state
 	log.Printf(format, args...)
+	return true
 }
 
 // Loaded reports which databases are currently open.

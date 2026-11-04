@@ -1,7 +1,9 @@
 package geoip
 
 import (
+	"bytes"
 	"go/build"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,17 +66,49 @@ func TestMissingFilesAreBlank(t *testing.T) {
 }
 
 func TestCorruptFileIsBlankNotFatal(t *testing.T) {
+	var logs bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(previous) })
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, CityFile), []byte("not a database"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	db := Open(dir)
 	defer db.Close()
+	path := filepath.Join(dir, CityFile)
+	if err := os.WriteFile(path, []byte("not a database"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	db.Reload()
 	if got := db.Lookup("8.8.8.8"); got != (Info{}) {
 		t.Fatalf("Lookup with corrupt database = %+v, want blank", got)
 	}
 	if _, err := Verify(filepath.Join(dir, CityFile)); err == nil {
 		t.Fatal("Verify accepted a corrupt file")
+	}
+	// A changed file with the same corruption is still the same logged state.
+	before := db.tracker.Snapshot()
+	if !strings.HasPrefix(before.LastError, "open database: ") || before.LastErrorAt == nil {
+		t.Fatalf("corrupt database status = %+v", before)
+	}
+	logs.Reset()
+	if err := os.WriteFile(path, []byte("another invalid database"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	db.Reload()
+	after := db.tracker.Snapshot()
+	if logs.Len() != 0 || after.LastError != before.LastError || !after.LastErrorAt.Equal(*before.LastErrorAt) {
+		t.Fatalf("steady corruption logged or replaced LastError: logs=%q, status=%+v", logs.String(), after)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	db.Reload()
+	if !strings.HasPrefix(db.tracker.Snapshot().LastError, "stat database: ") || strings.Count(logs.String(), "worker operations.geoip_watch:") != 1 {
+		t.Fatalf("missing transition did not record one failure: logs=%q, status=%+v", logs.String(), db.tracker.Snapshot())
+	}
+	logs.Reset()
+	db.Reload()
+	if logs.Len() != 0 {
+		t.Fatalf("steady missing database logged: %s", logs.String())
 	}
 }
 

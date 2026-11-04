@@ -91,11 +91,9 @@ func (s *Sampler) Interface() (string, error) {
 	if s.iface != "" {
 		return s.iface, nil
 	}
-	iface, err := DefaultInterface()
-	if err != nil {
-		s.tracker.Fail("select network interface", err)
-	}
-	return iface, err
+	// Start records Sample errors once; interface discovery is also used by
+	// status reads, which must not log a steady discovery failure on each read.
+	return DefaultInterface()
 }
 
 // Sample reads the counters once and adds their growth since the previous
