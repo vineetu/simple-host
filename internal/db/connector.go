@@ -3,367 +3,85 @@ package db
 import (
 	"context"
 	"database/sql"
-	"errors"
-	"strings"
+	"github.com/vsriram/simple-host/internal/model"
+	repo "github.com/vsriram/simple-host/internal/repository/accounts"
 	"time"
-
-	"github.com/lib/pq"
 )
 
-// The connector's OAuth 2.1 authorization server keeps its state here. Every
-// secret column holds a SHA-256 hex digest; the plaintext exists only in the
-// response that hands it out. See db/migrations/oauth-connector.sql.
+type OAuthClient = model.OAuthClient
+type OAuthCode = model.OAuthCode
+type OAuthGrant = model.OAuthGrant
+type OAuthTokenGrant = model.OAuthTokenGrant
+type OAuthConnection = model.OAuthConnection
 
-// OAuthClient is an app that registered itself (RFC 7591) or was inserted by
-// the operator.
-type OAuthClient struct {
-	ClientID                string
-	SecretHash              sql.NullString
-	Name                    string
-	RedirectURIs            []string
-	TokenEndpointAuthMethod string
-	PKCERequired            bool
-	Dynamic                 bool
-	CreatedAt               time.Time
-}
+var ErrOAuthCodeUsed = model.ErrOAuthCodeUsed
 
-// OAuthCode is one authorization code, as stored.
-type OAuthCode struct {
-	ClientID      string
-	UserID        string
-	RedirectURI   string
-	CodeChallenge string
-	Scope         string
-	Resource      string
-	ExpiresAt     time.Time
-	UsedAt        sql.NullTime
-	GrantID       sql.NullString
-	// Device is the browser the person approved on, summarised ("Chrome on
-	// macOS"), for telling connections apart; never the full user agent or
-	// an address. Copied onto the grant.
-	Device string
-}
-
-// OAuthGrant is the connection, independent of its short-lived access tokens.
-type OAuthGrant struct {
-	SelectedTeamID sql.NullString
-	UserID         string
-	ClientID       string
-	Scope          string
-	Resource       string
-}
-
-// OAuthTokenGrant is a token row joined to the grant it belongs to.
-type OAuthTokenGrant struct {
-	Kind           string
-	ExpiresAt      time.Time
-	UsedAt         sql.NullTime
-	GrantID        string
-	UserID         string
-	ClientID       string
-	Scope          string
-	Resource       string
-	SelectedTeamID sql.NullString
-}
-
-// OAuthConnection is one app a person has connected, for the "connected apps"
-// list: every live grant for one client folded into a row.
-type OAuthConnection struct {
-	LastVisitorSite string
-	ClientID        string
-	ClientName      string
-	ConnectedAt     time.Time
-	LastUsedAt      time.Time
-	// Device is the newest connection's summarised browser ("" when unknown).
-	Device string
-}
-
-// ErrOAuthCodeUsed is returned when a code has already been redeemed. The
-// caller revokes whatever the first redemption issued.
-var ErrOAuthCodeUsed = errors.New("authorization code already used")
-
-func InsertOAuthClient(ctx context.Context, q Querier, c OAuthClient) error {
-	_, err := q.ExecContext(ctx, `
-		INSERT INTO oauth_clients (client_id, client_secret_hash, client_name, redirect_uris, token_endpoint_auth_method, pkce_required, dynamic)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		c.ClientID, c.SecretHash, c.Name, pq.Array(c.RedirectURIs), c.TokenEndpointAuthMethod, c.PKCERequired, c.Dynamic)
-	return err
-}
-
-func GetOAuthClient(ctx context.Context, q Querier, clientID string) (OAuthClient, error) {
-	var c OAuthClient
-	err := q.QueryRowContext(ctx, `
-		SELECT client_id, client_secret_hash, client_name, redirect_uris, token_endpoint_auth_method, pkce_required, dynamic, created_at
-		  FROM oauth_clients WHERE client_id = $1`, clientID).
-		Scan(&c.ClientID, &c.SecretHash, &c.Name, pq.Array(&c.RedirectURIs), &c.TokenEndpointAuthMethod, &c.PKCERequired, &c.Dynamic, &c.CreatedAt)
-	return c, err
-}
-
-// ListOperatorOAuthClients returns the clients the operator created by hand.
-func ListOperatorOAuthClients(ctx context.Context, database *sql.DB) ([]OAuthClient, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT client_id, client_secret_hash, client_name, redirect_uris, token_endpoint_auth_method, pkce_required, dynamic, created_at
-		  FROM oauth_clients WHERE NOT dynamic ORDER BY created_at`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []OAuthClient
-	for rows.Next() {
-		var c OAuthClient
-		if err := rows.Scan(&c.ClientID, &c.SecretHash, &c.Name, pq.Array(&c.RedirectURIs), &c.TokenEndpointAuthMethod, &c.PKCERequired, &c.Dynamic, &c.CreatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, c)
-	}
-	return out, rows.Err()
-}
-
-// SetOAuthClientRedirectURIs replaces an operator client's redirect URIs. A
-// GPT's callback URL is only known after its OAuth settings are first saved,
-// so it is added afterwards.
-func SetOAuthClientRedirectURIs(ctx context.Context, q Querier, clientID string, uris []string) error {
-	res, err := q.ExecContext(ctx, `UPDATE oauth_clients SET redirect_uris = $2 WHERE client_id = $1 AND NOT dynamic`, clientID, pq.Array(uris))
-	if err != nil {
-		return err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
-}
-
-// DeleteOAuthClient removes a client and, by cascade, every connection to it.
-func DeleteOAuthClient(ctx context.Context, q Querier, clientID string) (bool, error) {
-	res, err := q.ExecContext(ctx, `DELETE FROM oauth_clients WHERE client_id = $1`, clientID)
-	if err != nil {
-		return false, err
-	}
-	n, err := res.RowsAffected()
-	return n == 1, err
-}
-
-// TouchOAuthClient records use, at most once a minute, so the sweep can tell
-// an abandoned registration from a working one.
-func TouchOAuthClient(ctx context.Context, q Querier, clientID string) error {
-	_, err := q.ExecContext(ctx, `
-		UPDATE oauth_clients SET last_used_at = now()
-		 WHERE client_id = $1 AND (last_used_at IS NULL OR last_used_at < now() - interval '1 minute')`, clientID)
-	return err
-}
-
-func InsertOAuthCode(ctx context.Context, q Querier, codeHash string, c OAuthCode) error {
-	_, err := q.ExecContext(ctx, `
-		INSERT INTO oauth_codes (code_hash, client_id, user_id, redirect_uri, code_challenge, scope, resource, expires_at, device)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, ''))`,
-		codeHash, c.ClientID, c.UserID, c.RedirectURI, c.CodeChallenge, c.Scope, c.Resource, c.ExpiresAt, c.Device)
-	return err
-}
-
-// ConsumeOAuthCode marks a code used and returns it, in one statement, so two
-// concurrent redemptions cannot both succeed. A code that exists but was
-// already used returns ErrOAuthCodeUsed together with the stored row (whose
-// GrantID says what to revoke); an unknown code returns sql.ErrNoRows.
 func ConsumeOAuthCode(ctx context.Context, q Querier, codeHash string) (OAuthCode, error) {
-	var c OAuthCode
-	err := q.QueryRowContext(ctx, `
-		UPDATE oauth_codes SET used_at = now()
-		 WHERE code_hash = $1 AND used_at IS NULL
-		RETURNING client_id, user_id, redirect_uri, code_challenge, scope, resource, expires_at, used_at, grant_id, COALESCE(device, '')`, codeHash).
-		Scan(&c.ClientID, &c.UserID, &c.RedirectURI, &c.CodeChallenge, &c.Scope, &c.Resource, &c.ExpiresAt, &c.UsedAt, &c.GrantID, &c.Device)
-	if err == nil {
-		return c, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return c, err
-	}
-	err = q.QueryRowContext(ctx, `
-		SELECT client_id, user_id, redirect_uri, code_challenge, scope, resource, expires_at, used_at, grant_id
-		  FROM oauth_codes WHERE code_hash = $1`, codeHash).
-		Scan(&c.ClientID, &c.UserID, &c.RedirectURI, &c.CodeChallenge, &c.Scope, &c.Resource, &c.ExpiresAt, &c.UsedAt, &c.GrantID)
-	if err != nil {
-		return c, err
-	}
-	return c, ErrOAuthCodeUsed
+	return repo.ConsumeOAuthCode(ctx, q, codeHash)
 }
-
-// SetOAuthCodeGrant records which grant a redeemed code produced.
-func SetOAuthCodeGrant(ctx context.Context, q Querier, codeHash, grantID string) error {
-	_, err := q.ExecContext(ctx, `UPDATE oauth_codes SET grant_id = $2 WHERE code_hash = $1`, codeHash, grantID)
-	return err
+func DeleteOAuthClient(ctx context.Context, q Querier, clientID string) (bool, error) {
+	return repo.DeleteOAuthClient(ctx, q, clientID)
 }
-
-func InsertOAuthGrant(ctx context.Context, q Querier, userID, clientID, scope, resource, device string) (string, error) {
-	var id string
-	err := q.QueryRowContext(ctx, `
-		INSERT INTO oauth_grants (user_id, client_id, scope, resource, device)
-		VALUES ($1, $2, $3, $4, NULLIF($5, '')) RETURNING id`, userID, clientID, scope, resource, device).Scan(&id)
-	return id, err
-}
-
-func InsertOAuthToken(ctx context.Context, q Querier, tokenHash, grantID, kind string, expiresAt time.Time) error {
-	_, err := q.ExecContext(ctx, `
-		INSERT INTO oauth_tokens (token_hash, grant_id, kind, expires_at) VALUES ($1, $2, $3, $4)`,
-		tokenHash, grantID, kind, expiresAt)
-	return err
-}
-
-func GetOAuthGrantByID(ctx context.Context, q Querier, grantID string) (OAuthGrant, error) {
-	var g OAuthGrant
-	err := q.QueryRowContext(ctx, `
-		SELECT user_id, client_id, scope, resource, selected_team_id FROM oauth_grants WHERE id = $1`, grantID).
-		Scan(&g.UserID, &g.ClientID, &g.Scope, &g.Resource, &g.SelectedTeamID)
-	return g, err
-}
-
-// GetOAuthToken looks a token up by its hash, joined to its grant. A token
-// whose grant was deleted is gone with it (ON DELETE CASCADE), so a row found
-// here always belongs to a live grant.
-func GetOAuthToken(ctx context.Context, q Querier, tokenHash string) (OAuthTokenGrant, error) {
-	var t OAuthTokenGrant
-	err := q.QueryRowContext(ctx, `
-		SELECT t.kind, t.expires_at, t.used_at, g.id, g.user_id, g.client_id, g.scope, g.resource, g.selected_team_id
-		  FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id
-		 WHERE t.token_hash = $1`, tokenHash).
-		Scan(&t.Kind, &t.ExpiresAt, &t.UsedAt, &t.GrantID, &t.UserID, &t.ClientID, &t.Scope, &t.Resource, &t.SelectedTeamID)
-	return t, err
-}
-
-// SelectOAuthTeam changes only this grant's publishing target. The membership
-// predicate is checked here and again when the selected team credential is used.
-func SelectOAuthTeam(ctx context.Context, q Querier, grantID, userID, teamID string) (bool, error) {
-	res, err := q.ExecContext(ctx, `
-		UPDATE oauth_grants g SET selected_team_id = t.id
-		  FROM event_teams t JOIN event_members m ON m.event_id = t.event_id AND m.team_id = t.id
-		 WHERE g.id = $1::uuid AND g.user_id = $2::uuid AND g.scope = 'sites events'
-		   AND t.id = $3::uuid AND m.user_id = g.user_id AND m.role = 'participant'
-		   AND m.approval_status = 'approved'`, grantID, userID, teamID)
-	if err != nil {
-		return false, err
-	}
-	n, err := res.RowsAffected()
-	return n == 1, err
-}
-
-// MarkRefreshTokenUsed rotates a refresh token out. It reports false when the
-// token had already been used, which is reuse: the caller revokes the family.
-func MarkRefreshTokenUsed(ctx context.Context, q Querier, tokenHash string) (bool, error) {
-	res, err := q.ExecContext(ctx, `
-		UPDATE oauth_tokens SET used_at = now()
-		 WHERE token_hash = $1 AND kind = 'refresh' AND used_at IS NULL`, tokenHash)
-	if err != nil {
-		return false, err
-	}
-	n, err := res.RowsAffected()
-	return n == 1, err
-}
-
-// TouchOAuthGrant records that a grant was used, at most once a minute.
-func TouchOAuthGrant(ctx context.Context, q Querier, grantID string) error {
-	_, err := q.ExecContext(ctx, `
-		UPDATE oauth_grants SET last_used_at = now()
-		 WHERE id = $1 AND last_used_at < now() - interval '1 minute'`, grantID)
-	return err
-}
-
-// DeleteOAuthGrant revokes one grant and, by cascade, every token it issued.
 func DeleteOAuthGrant(ctx context.Context, q Querier, grantID string) error {
-	_, err := q.ExecContext(ctx, `DELETE FROM oauth_grants WHERE id = $1`, grantID)
-	return err
+	return repo.DeleteOAuthGrant(ctx, q, grantID)
 }
-
-// DeleteOAuthToken revokes a single token.
-func DeleteOAuthToken(ctx context.Context, q Querier, tokenHash string) error {
-	_, err := q.ExecContext(ctx, `DELETE FROM oauth_tokens WHERE token_hash = $1`, tokenHash)
-	return err
-}
-
-// DeleteOAuthGrantsForClient disconnects one app from one person. It reports
-// how many grants were removed, so "not connected" can be told from success.
 func DeleteOAuthGrantsForClient(ctx context.Context, q Querier, userID, clientID string) (int64, error) {
-	res, err := q.ExecContext(ctx, `DELETE FROM oauth_grants WHERE user_id = $1 AND client_id = $2`, userID, clientID)
-	if err != nil {
-		return 0, err
-	}
-	return res.RowsAffected()
+	return repo.DeleteOAuthGrantsForClient(ctx, q, userID, clientID)
 }
-
-// DeleteOAuthGrantsForUser disconnects every app a person connected. Used when
-// they rotate their API key: whoever held the old key could have connected an
-// app, and that connection must not outlive the key.
 func DeleteOAuthGrantsForUser(ctx context.Context, q Querier, userID string) error {
-	_, err := q.ExecContext(ctx, `DELETE FROM oauth_grants WHERE user_id = $1`, userID)
-	return err
+	return repo.DeleteOAuthGrantsForUser(ctx, q, userID)
 }
-
-// ListOAuthConnections returns the apps a person has connected, newest first.
+func DeleteOAuthToken(ctx context.Context, q Querier, tokenHash string) error {
+	return repo.DeleteOAuthToken(ctx, q, tokenHash)
+}
+func GetOAuthClient(ctx context.Context, q Querier, clientID string) (OAuthClient, error) {
+	return repo.GetOAuthClient(ctx, q, clientID)
+}
+func GetOAuthGrantByID(ctx context.Context, q Querier, grantID string) (OAuthGrant, error) {
+	return repo.GetOAuthGrantByID(ctx, q, grantID)
+}
+func GetOAuthToken(ctx context.Context, q Querier, tokenHash string) (OAuthTokenGrant, error) {
+	return repo.GetOAuthToken(ctx, q, tokenHash)
+}
+func InsertOAuthClient(ctx context.Context, q Querier, c OAuthClient) error {
+	return repo.InsertOAuthClient(ctx, q, c)
+}
+func InsertOAuthCode(ctx context.Context, q Querier, codeHash string, c OAuthCode) error {
+	return repo.InsertOAuthCode(ctx, q, codeHash, c)
+}
+func InsertOAuthGrant(ctx context.Context, q Querier, userID, clientID, scope, resource, device string) (string, error) {
+	return repo.InsertOAuthGrant(ctx, q, userID, clientID, scope, resource, device)
+}
+func InsertOAuthToken(ctx context.Context, q Querier, tokenHash, grantID, kind string, expiresAt time.Time) error {
+	return repo.InsertOAuthToken(ctx, q, tokenHash, grantID, kind, expiresAt)
+}
 func ListOAuthConnections(ctx context.Context, database *sql.DB, userID string) ([]OAuthConnection, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT g.client_id, c.client_name, MIN(g.created_at), MAX(g.last_used_at),
-		       COALESCE((array_agg(g.device ORDER BY g.created_at DESC) FILTER (WHERE g.device IS NOT NULL))[1], ''),
-		       COALESCE((array_agg(g.last_visitor_site->>'address' ORDER BY (g.last_visitor_site->>'at')::timestamptz DESC) FILTER (WHERE g.last_visitor_site IS NOT NULL))[1], '')
-		  FROM oauth_grants g JOIN oauth_clients c ON c.client_id = g.client_id
-		 WHERE g.user_id = $1
-		 GROUP BY g.client_id, c.client_name
-		 ORDER BY MIN(g.created_at) DESC`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []OAuthConnection{}
-	for rows.Next() {
-		var c OAuthConnection
-		if err := rows.Scan(&c.ClientID, &c.ClientName, &c.ConnectedAt, &c.LastUsedAt, &c.Device, &c.LastVisitorSite); err != nil {
-			return nil, err
-		}
-		out = append(out, c)
-	}
-	return out, rows.Err()
+	return repo.ListOAuthConnections(ctx, database, userID)
 }
-
-// SweepOAuth removes what can no longer be used: expired codes (kept a day so
-// a replay is still recognised as one), expired tokens, grants with no token
-// left, and registrations that never led to a connection (older than
-// unusedClientAge, OAUTH_UNUSED_CLIENT_DAYS).
+func ListOperatorOAuthClients(ctx context.Context, database *sql.DB) ([]OAuthClient, error) {
+	return repo.ListOperatorOAuthClients(ctx, database)
+}
+func MarkRefreshTokenUsed(ctx context.Context, q Querier, tokenHash string) (bool, error) {
+	return repo.MarkRefreshTokenUsed(ctx, q, tokenHash)
+}
+func SelectOAuthTeam(ctx context.Context, q Querier, grantID, userID, teamID string) (bool, error) {
+	return repo.SelectOAuthTeam(ctx, q, grantID, userID, teamID)
+}
+func SetOAuthClientRedirectURIs(ctx context.Context, q Querier, clientID string, uris []string) error {
+	return repo.SetOAuthClientRedirectURIs(ctx, q, clientID, uris)
+}
+func SetOAuthCodeGrant(ctx context.Context, q Querier, codeHash, grantID string) error {
+	return repo.SetOAuthCodeGrant(ctx, q, codeHash, grantID)
+}
 func SweepOAuth(ctx context.Context, database *sql.DB, unusedClientAge time.Duration) (int64, error) {
-	var removed int64
-	for _, stmt := range []string{
-		`DELETE FROM oauth_codes WHERE expires_at < now() - interval '1 day'`,
-		`DELETE FROM oauth_tokens WHERE expires_at < now() - interval '1 day'`,
-		`DELETE FROM oauth_grants g WHERE g.created_at < now() - interval '1 day'
-		   AND NOT EXISTS (SELECT 1 FROM oauth_tokens t WHERE t.grant_id = g.id)`,
-		// $1 is OAUTH_UNUSED_CLIENT_DAYS in seconds; the statements above
-		// ignore it.
-		`DELETE FROM oauth_clients c WHERE c.dynamic AND c.created_at < now() - ($1 * interval '1 second')
-		   AND COALESCE(c.last_used_at, c.created_at) < now() - ($1 * interval '1 second')
-		   AND NOT EXISTS (SELECT 1 FROM oauth_grants g WHERE g.client_id = c.client_id)`,
-	} {
-		var args []any
-		if strings.Contains(stmt, "$1") {
-			args = append(args, int64(unusedClientAge.Seconds()))
-		}
-		res, err := database.ExecContext(ctx, stmt, args...)
-		if err != nil {
-			return removed, err
-		}
-		n, err := res.RowsAffected()
-		removed += n
-		if err != nil {
-			return removed, err
-		}
-	}
-	return removed, nil
+	return repo.SweepOAuth(ctx, database, unusedClientAge)
 }
-
-// UpsertBuiltinOAuthClient creates or refreshes a public client the server
-// itself defines (Meta Muse's hosted client ID). It is never dynamic, so the
-// sweep keeps it, and it always holds to PKCE with no secret.
+func TouchOAuthClient(ctx context.Context, q Querier, clientID string) error {
+	return repo.TouchOAuthClient(ctx, q, clientID)
+}
+func TouchOAuthGrant(ctx context.Context, q Querier, grantID string) error {
+	return repo.TouchOAuthGrant(ctx, q, grantID)
+}
 func UpsertBuiltinOAuthClient(ctx context.Context, q Querier, clientID, name string, redirectURIs []string) error {
-	_, err := q.ExecContext(ctx, `
-		INSERT INTO oauth_clients (client_id, client_secret_hash, client_name, redirect_uris, token_endpoint_auth_method, pkce_required, dynamic)
-		VALUES ($1, NULL, $2, $3, 'none', TRUE, FALSE)
-		ON CONFLICT (client_id) DO UPDATE SET client_secret_hash = NULL, client_name = EXCLUDED.client_name,
-		  redirect_uris = EXCLUDED.redirect_uris, token_endpoint_auth_method = 'none', pkce_required = TRUE, dynamic = FALSE`,
-		clientID, name, pq.Array(redirectURIs))
-	return err
+	return repo.UpsertBuiltinOAuthClient(ctx, q, clientID, name, redirectURIs)
 }

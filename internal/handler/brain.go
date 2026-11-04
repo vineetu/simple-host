@@ -20,8 +20,8 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 const brainPath = "/brain/mcp"
@@ -102,7 +102,7 @@ func brainForbidden(w http.ResponseWriter) {
 
 // brainOwner is the one rule: the platform admin, as a person. The built-in
 // admin-key account is refused by tokenAccess before this.
-func brainOwner(u db.User) bool { return u.IsAdmin && !u.Suspended && u.Username != "" }
+func brainOwner(u model.User) bool { return u.IsAdmin && !u.Suspended && u.Username != "" }
 
 func (b *BrainHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 	h := b.connector

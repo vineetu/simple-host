@@ -12,7 +12,7 @@ import (
 	"time"
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // A free <name>.<SITE_DOMAIN> address (owner decision 2026-09-24).
@@ -101,7 +101,7 @@ func (h *SiteHandler) claimableSubdomain(host string) (string, error) {
 
 // bindPlatformSubdomain claims <label>.<siteDomain> for site: verified at once,
 // refused if any other site holds it.
-func (h *SiteHandler) bindPlatformSubdomain(w http.ResponseWriter, r *http.Request, site db.Site, requested string) {
+func (h *SiteHandler) bindPlatformSubdomain(w http.ResponseWriter, r *http.Request, site model.Site, requested string) {
 	host, err := h.claimableSubdomain(requested)
 	if err != nil {
 		code := "invalid_name"
@@ -111,13 +111,13 @@ func (h *SiteHandler) bindPlatformSubdomain(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error(), "code": code})
 		return
 	}
-	released, err := db.ClaimPlatformSubdomain(r.Context(), h.database, site.ID, host)
+	released, err := h.opsSitesSvc().ClaimPlatformSubdomain(r.Context(), site.ID, host)
 	if err != nil {
-		if errors.Is(err, db.ErrNameIsAccountAddress) {
+		if errors.Is(err, model.ErrNameIsAccountAddress) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "that name is someone's own address; pick another name", "code": "domain_taken"})
 			return
 		}
-		if errors.Is(err, db.ErrDomainTaken) {
+		if errors.Is(err, model.ErrDomainTaken) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "that address is taken by another site; pick another name", "code": "domain_taken"})
 			return
 		}
@@ -146,13 +146,13 @@ func (h *SiteHandler) bindPlatformSubdomain(w http.ResponseWriter, r *http.Reque
 
 // boundPlatformSite returns the site bound to a platform subdomain host, if
 // that binding is proven (a claimed name always is).
-func (h *SiteHandler) boundPlatformSite(ctx context.Context, host string) (db.SiteDomainInfo, bool) {
+func (h *SiteHandler) boundPlatformSite(ctx context.Context, host string) (model.SiteDomainInfo, bool) {
 	if !h.isPlatformSubdomainHost(host) {
-		return db.SiteDomainInfo{}, false
+		return model.SiteDomainInfo{}, false
 	}
-	info, err := db.GetSiteByCustomDomain(ctx, h.database, host)
+	info, err := h.opsSitesSvc().GetSiteByCustomDomain(ctx, host)
 	if err != nil || !info.VerifiedAt.Valid {
-		return db.SiteDomainInfo{}, false
+		return model.SiteDomainInfo{}, false
 	}
 	return info, true
 }
@@ -290,21 +290,21 @@ func (h *SiteHandler) siteNotFound(w http.ResponseWriter, r *http.Request, root 
 // or a claimed platform subdomain), or ok=false. While a newly connected
 // domain is still pending, that is the site's earlier proven address, which
 // keeps serving it until the new one is verified.
-func (h *SiteHandler) siteOwnDomain(ctx context.Context, siteID string) (db.SiteDomainInfo, bool, error) {
-	info, ok, err := db.GetSiteDomainInfo(ctx, h.database, siteID)
+func (h *SiteHandler) siteOwnDomain(ctx context.Context, siteID string) (model.SiteDomainInfo, bool, error) {
+	info, ok, err := h.opsSitesSvc().GetSiteDomainInfo(ctx, siteID)
 	if err != nil {
-		return db.SiteDomainInfo{}, false, err
+		return model.SiteDomainInfo{}, false, err
 	}
 	if !ok || info.Domain == "" {
-		return db.SiteDomainInfo{}, false, nil
+		return model.SiteDomainInfo{}, false, nil
 	}
 	if info.VerifiedAt.Valid {
 		return info, true, nil
 	}
 	if info.PreviousDomain != "" {
-		return info.AsPrevious(), true, nil
+		return info.PreviousDomainView(time.Now()), true, nil
 	}
-	return db.SiteDomainInfo{}, false, nil
+	return model.SiteDomainInfo{}, false, nil
 }
 
 // syncDomainRedirect points the content-host redirect marker at the site's
@@ -313,7 +313,7 @@ func (h *SiteHandler) siteOwnDomain(ctx context.Context, siteID string) (db.Site
 // sites.<SITE_DOMAIN> links never follow an address that does not work yet.
 // It also keeps the lives-elsewhere marker the family servers read.
 func (h *SiteHandler) syncDomainRedirect(ctx context.Context, siteID string) {
-	_, userID, name, err := db.GetSiteOwner(ctx, h.database, siteID)
+	_, userID, name, err := h.opsSitesSvc().GetSiteOwner(ctx, siteID)
 	if err != nil {
 		return
 	}
@@ -333,7 +333,7 @@ func (h *SiteHandler) syncDomainRedirect(ctx context.Context, siteID string) {
 	// Its family addresses redirect only to a domain of its own.
 	h.syncLivesElsewhere(ctx, siteID, userID, name)
 	// An own address exempts an unlisted site from noindex (unlisted.go).
-	if site, err := db.GetSiteByUser(ctx, h.database, userID, name); err == nil {
+	if site, err := h.opsSitesSvc().GetSiteByUser(ctx, userID, name); err == nil {
 		if err := h.syncUnlistedMarker(ctx, site); err != nil {
 			log.Printf("unlisted: marker for %s/%s: %v", userID, name, err)
 		}

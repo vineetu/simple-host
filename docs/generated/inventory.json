@@ -20,7 +20,7 @@
       "method": "DELETE",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:347",
+      "source": "internal/handler/connector.go:349",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -36,7 +36,7 @@
       "method": "DELETE",
       "path": "/v1/admin/hack/events/{slug}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:508",
+      "source": "internal/hackhttp/hack.go:507",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -92,7 +92,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/hackhttp/hack.go:472",
+      "source": "internal/hackhttp/hack.go:471",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -108,7 +108,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/conflicts/{team_id}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:41",
+      "source": "internal/hackhttp/hack_judging.go:40",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -132,7 +132,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/judging/former-judges/{user_id}",
       "feature_id": "leave-this-event",
-      "source": "internal/hackhttp/hack_judging.go:43",
+      "source": "internal/hackhttp/hack_judging.go:42",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -164,7 +164,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/people/{user_id}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:474",
+      "source": "internal/hackhttp/hack.go:473",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -180,7 +180,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/requests/{id}",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:482",
+      "source": "internal/hackhttp/hack.go:481",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -188,7 +188,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/team/members/{user_id}",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:483",
+      "source": "internal/hackhttp/hack.go:482",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -196,7 +196,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/teams/{team}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:490",
+      "source": "internal/hackhttp/hack.go:489",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -204,7 +204,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/teams/{team}/members/{user_id}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:489",
+      "source": "internal/hackhttp/hack.go:488",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -244,7 +244,7 @@
       "method": "DELETE",
       "path": "/v1/me/connections/{client_id}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:361",
+      "source": "internal/handler/connector.go:363",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -516,7 +516,7 @@
       "method": "GET",
       "path": "/.well-known/muse-client.json",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:332",
+      "source": "internal/handler/connector.go:334",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -524,7 +524,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:329",
+      "source": "internal/handler/connector.go:331",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -540,7 +540,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server/mcp",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:331",
+      "source": "internal/handler/connector.go:333",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -548,7 +548,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:327",
+      "source": "internal/handler/connector.go:329",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -564,7 +564,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource/mcp",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:328",
+      "source": "internal/handler/connector.go:330",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -916,7 +916,7 @@
       "method": "GET",
       "path": "/import/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:350",
+      "source": "internal/handler/connector.go:352",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -996,7 +996,7 @@
       "method": "GET",
       "path": "/internal/names/taken",
       "feature_id": "hack-voting",
-      "source": "internal/handler/hack_mode.go:148",
+      "source": "internal/handler/hack_mode.go:149",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1116,7 +1116,7 @@
       "method": "GET",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:347",
+      "source": "internal/handler/connector.go:349",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1132,7 +1132,7 @@
       "method": "GET",
       "path": "/oauth/authorize",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:335",
+      "source": "internal/handler/connector.go:337",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1660,7 +1660,7 @@
       "method": "GET",
       "path": "/v1/admin/hack/events",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:504",
+      "source": "internal/hackhttp/hack.go:503",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1844,7 +1844,7 @@
       "method": "GET",
       "path": "/v1/hack/directory",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:455",
+      "source": "internal/hackhttp/hack.go:454",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1852,7 +1852,7 @@
       "method": "GET",
       "path": "/v1/hack/events",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack.go:465",
+      "source": "internal/hackhttp/hack.go:464",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1860,7 +1860,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/hackhttp/hack.go:468",
+      "source": "internal/hackhttp/hack.go:467",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1900,7 +1900,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/conflicts",
       "feature_id": "judging",
-      "source": "internal/hackhttp/hack_judging.go:39",
+      "source": "internal/hackhttp/hack_judging.go:38",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1972,7 +1972,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/results.csv",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:54",
+      "source": "internal/hackhttp/hack_judging.go:53",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -1980,7 +1980,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/scores.csv",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:53",
+      "source": "internal/hackhttp/hack_judging.go:52",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2004,7 +2004,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judge/queue",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:46",
+      "source": "internal/hackhttp/hack_judging.go:45",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2012,7 +2012,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judge/scores/{team}",
       "feature_id": "the-judges-one-screen",
-      "source": "internal/hackhttp/hack_judging.go:47",
+      "source": "internal/hackhttp/hack_judging.go:46",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2020,7 +2020,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judging/dashboard",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:42",
+      "source": "internal/hackhttp/hack_judging.go:41",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2044,7 +2044,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judging/settings",
       "feature_id": "judging-choices",
-      "source": "internal/hackhttp/hack_judging.go:36",
+      "source": "internal/hackhttp/hack_judging.go:35",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2068,7 +2068,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/my-results",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:52",
+      "source": "internal/hackhttp/hack_judging.go:51",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2076,7 +2076,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/my-vote",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:463",
+      "source": "internal/hackhttp/hack.go:462",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2084,7 +2084,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/people",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:473",
+      "source": "internal/hackhttp/hack.go:472",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2092,7 +2092,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/public",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:456",
+      "source": "internal/hackhttp/hack.go:455",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2108,7 +2108,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/results",
       "feature_id": "results-show-what-each-team-built",
-      "source": "internal/hackhttp/hack_judging.go:51",
+      "source": "internal/hackhttp/hack_judging.go:50",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2116,7 +2116,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/rubric",
       "feature_id": "teams-can-see-the-rubric",
-      "source": "internal/hackhttp/hack_judging.go:34",
+      "source": "internal/hackhttp/hack_judging.go:33",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2140,7 +2140,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:475",
+      "source": "internal/hackhttp/hack.go:474",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2148,7 +2148,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams/open",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:476",
+      "source": "internal/hackhttp/hack.go:475",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2180,7 +2180,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/vote",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:462",
+      "source": "internal/hackhttp/hack.go:461",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2188,7 +2188,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/voting",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:459",
+      "source": "internal/hackhttp/hack.go:458",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2228,7 +2228,7 @@
       "method": "GET",
       "path": "/v1/hack/join/{code}",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "internal/hackhttp/hack.go:500",
+      "source": "internal/hackhttp/hack.go:499",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2236,7 +2236,7 @@
       "method": "GET",
       "path": "/v1/hack/judge/{code}",
       "feature_id": "judging",
-      "source": "internal/hackhttp/hack.go:502",
+      "source": "internal/hackhttp/hack.go:501",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2252,7 +2252,7 @@
       "method": "GET",
       "path": "/v1/hack/names/{slug}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:467",
+      "source": "internal/hackhttp/hack.go:466",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2276,7 +2276,7 @@
       "method": "GET",
       "path": "/v1/hack/team-links/{code}",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:499",
+      "source": "internal/hackhttp/hack.go:498",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -2316,7 +2316,7 @@
       "method": "GET",
       "path": "/v1/imports/status/{import_id}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:352",
+      "source": "internal/handler/connector.go:354",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2356,7 +2356,7 @@
       "method": "GET",
       "path": "/v1/me/connections",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:360",
+      "source": "internal/handler/connector.go:362",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2428,7 +2428,7 @@
       "method": "GET",
       "path": "/v1/photo-links",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:355",
+      "source": "internal/handler/connector.go:357",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2980,7 +2980,7 @@
       "method": "OPTIONS",
       "path": "/v1/hack/events/{slug}/public",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:457",
+      "source": "internal/hackhttp/hack.go:456",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3180,7 +3180,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/hackhttp/hack.go:469",
+      "source": "internal/hackhttp/hack.go:468",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3188,7 +3188,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/directory",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:461",
+      "source": "internal/hackhttp/hack.go:460",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3196,7 +3196,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/judging/settings",
       "feature_id": "judging-choices",
-      "source": "internal/hackhttp/hack_judging.go:37",
+      "source": "internal/hackhttp/hack_judging.go:36",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3204,7 +3204,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/results",
       "feature_id": "results-show-what-each-team-built",
-      "source": "internal/hackhttp/hack_judging.go:50",
+      "source": "internal/hackhttp/hack_judging.go:49",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3212,7 +3212,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/team",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:492",
+      "source": "internal/hackhttp/hack.go:491",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3380,7 +3380,7 @@
       "method": "POST",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:347",
+      "source": "internal/handler/connector.go:349",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -3388,7 +3388,7 @@
       "method": "POST",
       "path": "/oauth/authorize/decision",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:336",
+      "source": "internal/handler/connector.go:338",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3396,7 +3396,7 @@
       "method": "POST",
       "path": "/oauth/register",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:334",
+      "source": "internal/handler/connector.go:336",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3404,7 +3404,7 @@
       "method": "POST",
       "path": "/oauth/reviewer-signin",
       "feature_id": "visitor-signin",
-      "source": "internal/handler/connector.go:339",
+      "source": "internal/handler/connector.go:341",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3412,7 +3412,7 @@
       "method": "POST",
       "path": "/oauth/revoke",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:341",
+      "source": "internal/handler/connector.go:343",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3420,7 +3420,7 @@
       "method": "POST",
       "path": "/oauth/token",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:340",
+      "source": "internal/handler/connector.go:342",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3444,7 +3444,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/keep-sites",
       "feature_id": "archive-cleanup",
-      "source": "internal/hackhttp/hack.go:506",
+      "source": "internal/hackhttp/hack.go:505",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3452,7 +3452,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/restore",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:507",
+      "source": "internal/hackhttp/hack.go:506",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3460,7 +3460,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/takedown",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:505",
+      "source": "internal/hackhttp/hack.go:504",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3588,7 +3588,7 @@
       "method": "POST",
       "path": "/v1/hack/events",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "internal/hackhttp/hack.go:466",
+      "source": "internal/hackhttp/hack.go:465",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3620,7 +3620,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/assignments/generate",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:38",
+      "source": "internal/hackhttp/hack_judging.go:37",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3628,7 +3628,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/codes/{kind}",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:471",
+      "source": "internal/hackhttp/hack.go:470",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3636,7 +3636,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/conflicts",
       "feature_id": "judging",
-      "source": "internal/hackhttp/hack_judging.go:40",
+      "source": "internal/hackhttp/hack_judging.go:39",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3676,7 +3676,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/judging/lock",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:44",
+      "source": "internal/hackhttp/hack_judging.go:43",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3684,7 +3684,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/judging/unlock",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:45",
+      "source": "internal/hackhttp/hack_judging.go:44",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3724,7 +3724,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/requests/{id}/{action}",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:481",
+      "source": "internal/hackhttp/hack.go:480",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3732,7 +3732,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/results/publish",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack_judging.go:49",
+      "source": "internal/hackhttp/hack_judging.go:48",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3740,7 +3740,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/stage",
       "feature_id": "hack-next-step",
-      "source": "internal/hackhttp/hack.go:470",
+      "source": "internal/hackhttp/hack.go:469",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3748,7 +3748,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/team/invites",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:480",
+      "source": "internal/hackhttp/hack.go:479",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3756,7 +3756,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/team/link",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:495",
+      "source": "internal/hackhttp/hack.go:494",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3764,7 +3764,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:485",
+      "source": "internal/hackhttp/hack.go:484",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3772,7 +3772,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/fill",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:484",
+      "source": "internal/hackhttp/hack.go:483",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3780,7 +3780,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/join",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:486",
+      "source": "internal/hackhttp/hack.go:485",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3788,7 +3788,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/leave",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:487",
+      "source": "internal/hackhttp/hack.go:486",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3812,7 +3812,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/link",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:498",
+      "source": "internal/hackhttp/hack.go:497",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3820,7 +3820,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/members",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:488",
+      "source": "internal/hackhttp/hack.go:487",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3828,7 +3828,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/requests",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:479",
+      "source": "internal/hackhttp/hack.go:478",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3884,7 +3884,7 @@
       "method": "POST",
       "path": "/v1/hack/join/{code}",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "internal/hackhttp/hack.go:501",
+      "source": "internal/hackhttp/hack.go:500",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3892,7 +3892,7 @@
       "method": "POST",
       "path": "/v1/hack/judge/{code}",
       "feature_id": "judging",
-      "source": "internal/hackhttp/hack.go:503",
+      "source": "internal/hackhttp/hack.go:502",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3924,7 +3924,7 @@
       "method": "POST",
       "path": "/v1/imports/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:351",
+      "source": "internal/handler/connector.go:353",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3996,7 +3996,7 @@
       "method": "POST",
       "path": "/v1/photo-links",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:356",
+      "source": "internal/handler/connector.go:358",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4396,7 +4396,7 @@
       "method": "POST",
       "path": "/v1/uploads/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:358",
+      "source": "internal/handler/connector.go:360",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4492,7 +4492,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/judge/scores/{team}",
       "feature_id": "the-judges-one-screen",
-      "source": "internal/hackhttp/hack_judging.go:48",
+      "source": "internal/hackhttp/hack_judging.go:47",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4508,7 +4508,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/me/looking",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:478",
+      "source": "internal/hackhttp/hack.go:477",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4524,7 +4524,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/rubric",
       "feature_id": "teams-can-see-the-rubric",
-      "source": "internal/hackhttp/hack_judging.go:35",
+      "source": "internal/hackhttp/hack_judging.go:34",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4540,7 +4540,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/finding",
       "feature_id": "team-finding",
-      "source": "internal/hackhttp/hack.go:477",
+      "source": "internal/hackhttp/hack.go:476",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4548,7 +4548,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/lock",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:493",
+      "source": "internal/hackhttp/hack.go:492",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4556,7 +4556,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/members/{user_id}/admin",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:494",
+      "source": "internal/hackhttp/hack.go:493",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4580,7 +4580,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/teams/{team}/lock",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:496",
+      "source": "internal/hackhttp/hack.go:495",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4588,7 +4588,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/teams/{team}/members/{user_id}/admin",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "internal/hackhttp/hack.go:497",
+      "source": "internal/hackhttp/hack.go:496",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4604,7 +4604,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/vote",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:464",
+      "source": "internal/hackhttp/hack.go:463",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4612,7 +4612,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/voting",
       "feature_id": "hack-voting",
-      "source": "internal/hackhttp/hack.go:460",
+      "source": "internal/hackhttp/hack.go:459",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -4828,7 +4828,7 @@
       "method": "PUT",
       "path": "/v1/uploads/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:357",
+      "source": "internal/handler/connector.go:359",
       "package": "internal/handler",
       "dynamic": false
     }

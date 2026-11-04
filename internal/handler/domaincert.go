@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/app/sites"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Custom-domain certificates, issued without the operator.
@@ -55,7 +55,7 @@ func fileExists(p string) bool {
 // and whose ownership record matched, but that does not serve HTTPS yet, and
 // asks the issuer for one if nobody has: live (the issuer says it is served),
 // failed (with the issuer's reason, or the account's daily cap) or issuing.
-func (h *SiteHandler) domainCertProgress(ctx context.Context, d db.BoundDomain) (status, reason string) {
+func (h *SiteHandler) domainCertProgress(ctx context.Context, d model.BoundDomain) (status, reason string) {
 	if h.domainCertDir == "" {
 		return "issuing", ""
 	}
@@ -89,7 +89,7 @@ func (h *SiteHandler) domainCertProgress(ctx context.Context, d db.BoundDomain) 
 // target (the issuer acts only while the link still points at this site) and
 // the domain's www / bare partner, if it may have one (partner, from
 // requestablePartner).
-func domainCertRequestBody(d db.BoundDomain, partner string) string {
+func domainCertRequestBody(d model.BoundDomain, partner string) string {
 	body := d.Token + "\n" + filepath.Join("..", "by-id", d.UserID, d.Name) + "\n"
 	// Line 3: the www / bare partner, put on the same certificate as a
 	// redirect when it passes the issuer's checks (domainpartner.go).
@@ -103,7 +103,7 @@ func domainCertRequestBody(d db.BoundDomain, partner string) string {
 // existing one up to date). A request for a domain the account has not asked
 // for in the last day counts toward its daily cap; false when the cap is
 // reached and nothing was written.
-func (h *SiteHandler) requestDomainCert(ctx context.Context, d db.BoundDomain) bool {
+func (h *SiteHandler) requestDomainCert(ctx context.Context, d model.BoundDomain) bool {
 	return h.domainCertSvc().RequestDomainCert(ctx, sites.DomainCertInput{Path: h.domainCertFile("requests", d.Domain), Domain: d.Domain, SiteID: d.SiteID, UserID: d.UserID, Name: d.Name, Token: d.Token})
 }
 

@@ -19,7 +19,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 type notifyFailure string
@@ -180,7 +180,7 @@ type notifyResult struct {
 	body      []byte
 }
 
-func (c *notifyClient) send(ctx context.Context, n db.Notification, id string, body []byte) notifyResult {
+func (c *notifyClient) send(ctx context.Context, n model.Notification, id string, body []byte) notifyResult {
 	ctx, cancel := context.WithTimeout(ctx, c.notifyTimeout())
 	defer cancel()
 	if _, err := c.validate(ctx, n.URL); err != nil {

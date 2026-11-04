@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // www and the bare domain (completeness plan, 2026-09-27).
@@ -53,13 +53,13 @@ func (h *SiteHandler) partnerBoundElsewhere(ctx context.Context, partner, siteID
 	if h.database == nil || partner == "" {
 		return false
 	}
-	bound, err := db.DomainBoundToOtherSite(ctx, h.database, partner, siteID)
+	bound, err := h.opsSitesSvc().DomainBoundToOtherSite(ctx, partner, siteID)
 	return err != nil || bound
 }
 
 // requestablePartner is the partner a certificate request for d names: its
 // www / bare partner, unless another site has bound that name.
-func (h *SiteHandler) requestablePartner(ctx context.Context, d db.BoundDomain) string {
+func (h *SiteHandler) requestablePartner(ctx context.Context, d model.BoundDomain) string {
 	p := domainPartner(d.Domain)
 	if h.partnerBoundElsewhere(ctx, p, d.SiteID) {
 		return ""
@@ -127,7 +127,7 @@ func (h *SiteHandler) partnerInfoFor(domain, siteID string) *partnerInfo {
 // wantPartnerCert: a live domain whose partner is not on its certificate yet
 // asks the issuer again once the partner resolves here, at most every
 // partnerRetryAfter (and keeps a request the issuer has not taken yet).
-func (h *SiteHandler) wantPartnerCert(ctx context.Context, d db.BoundDomain, ours map[string]bool) bool {
+func (h *SiteHandler) wantPartnerCert(ctx context.Context, d model.BoundDomain, ours map[string]bool) bool {
 	p := h.partnerOf(d.Domain)
 	if p == "" || h.domainCertDir == "" || h.partnerBoundElsewhere(ctx, p, d.SiteID) {
 		return false

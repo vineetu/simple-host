@@ -46,12 +46,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	httpx "github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
@@ -299,14 +300,14 @@ func (w *connectorSweepWorker) Start(ctx context.Context) {
 					w.tracker.Attempt()
 					ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 					defer cancel()
-					n, err := db.SweepOAuth(ctx, h.database, h.limits.OAuthUnusedClientAge)
+					n, err := h.accountsSvc().SweepOAuth(ctx, h.limits.OAuthUnusedClientAge)
 					if err != nil {
 						w.tracker.Fail("sweep OAuth", err)
 					}
 					if n > 0 {
 						w.tracker.Progress()
 					}
-					if n, err := db.PurgeExpiredAPIKeys(ctx, h.database, h.limits.KeyIdleExpiry); err != nil {
+					if n, err := h.accountsSvc().PurgeExpiredAPIKeys(ctx, h.limits.KeyIdleExpiry); err != nil {
 						w.tracker.Fail("purge expired API keys", err)
 					} else if n > 0 {
 						w.tracker.Progress()
@@ -627,7 +628,7 @@ func (h *ConnectorHandler) register(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	client := db.OAuthClient{
+	client := model.OAuthClient{
 		ClientID:                randomToken(prefixClient, 16),
 		Name:                    httpx.CleanClientName(req.ClientName),
 		RedirectURIs:            req.RedirectURIs,
@@ -640,7 +641,7 @@ func (h *ConnectorHandler) register(w http.ResponseWriter, r *http.Request) {
 		secret = randomToken(prefixSecret, 32)
 		client.SecretHash = sql.NullString{String: hashSecret(secret), Valid: true}
 	}
-	if err := db.InsertOAuthClient(r.Context(), h.database, client); err != nil {
+	if err := h.accountsSvc().InsertOAuthClient(r.Context(), client); err != nil {
 		log.Printf("connector: register client: %v", err)
 		oauthError(w, http.StatusInternalServerError, "server_error", "")
 		return
@@ -678,7 +679,7 @@ func CreateOperatorClient(ctx context.Context, database *sql.DB, name string, re
 		return "", "", fmt.Errorf("at most %d redirect URIs", oauthMaxRedirectURIs)
 	}
 	secret := randomToken(prefixSecret, 32)
-	client := db.OAuthClient{
+	client := model.OAuthClient{
 		ClientID:                randomToken(prefixClient, 16),
 		SecretHash:              sql.NullString{String: hashSecret(secret), Valid: true},
 		Name:                    httpx.CleanClientName(name),
@@ -690,7 +691,7 @@ func CreateOperatorClient(ctx context.Context, database *sql.DB, name string, re
 	if client.RedirectURIs == nil {
 		client.RedirectURIs = []string{}
 	}
-	if err := db.InsertOAuthClient(ctx, database, client); err != nil {
+	if err := accounts.New(database).InsertOAuthClient(ctx, client); err != nil {
 		return "", "", err
 	}
 	return client.ClientID, secret, nil
@@ -706,7 +707,7 @@ func SetOperatorClientRedirects(ctx context.Context, database *sql.DB, clientID 
 	if len(redirectURIs) > oauthMaxRedirectURIs {
 		return fmt.Errorf("at most %d redirect URIs", oauthMaxRedirectURIs)
 	}
-	return db.SetOAuthClientRedirectURIs(ctx, database, clientID, redirectURIs)
+	return accounts.New(database).SetOAuthClientRedirectURIs(ctx, clientID, redirectURIs)
 }
 
 // ---- Meta Muse ---------------------------------------------------------------------
@@ -734,10 +735,10 @@ func (h *ConnectorHandler) museClientID() string { return h.issuer + museClientP
 // EnsureBuiltinClients creates or refreshes the clients the server defines
 // itself. Run at boot; idempotent.
 func (h *ConnectorHandler) EnsureBuiltinClients(ctx context.Context) error {
-	if err := db.UpsertBuiltinOAuthClient(ctx, h.database, h.museClientID(), museClientName, []string{museRedirectURI}); err != nil {
+	if err := h.accountsSvc().UpsertBuiltinOAuthClient(ctx, h.museClientID(), museClientName, []string{museRedirectURI}); err != nil {
 		return err
 	}
-	return db.UpsertBuiltinOAuthClient(ctx, h.database, museShortClientID, museClientName, []string{museRedirectURI})
+	return h.accountsSvc().UpsertBuiltinOAuthClient(ctx, museShortClientID, museClientName, []string{museRedirectURI})
 }
 
 // museKeyboardMangled reports a client ID that is one of ours changed on the
@@ -783,7 +784,7 @@ func clientIDShape(id string) string {
 
 // authzRequest is a validated authorization request.
 type authzRequest struct {
-	Client        db.OAuthClient
+	Client        model.OAuthClient
 	RedirectURI   string
 	State         string
 	CodeChallenge string
@@ -817,7 +818,7 @@ func (h *ConnectorHandler) parseAuthorize(ctx context.Context, q url.Values) (au
 	if clientID == "" {
 		return req, &authzError{code: "invalid_request", description: "This sign-in link is missing which app is asking. Go back to the app and try connecting again."}
 	}
-	client, err := db.GetOAuthClient(ctx, h.database, clientID)
+	client, err := h.accountsSvc().GetOAuthClient(ctx, clientID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("connector: get client: %v", err)
@@ -1033,39 +1034,39 @@ func connectedAppName(name string) string { return httpx.CleanClientName(name) }
 // (cleanup 3.2 slice 3): the moved hack_m2_test.go
 // (TestHackM2ConnectorBoundToTeam) checks that a team key fails consent
 // resolution.
-func (h *ConnectorHandler) ResolveConsentUserForTest(ctx context.Context, key string) (db.User, int, string) {
+func (h *ConnectorHandler) ResolveConsentUserForTest(ctx context.Context, key string) (model.User, int, string) {
 	return h.resolveConsentUser(ctx, key)
 }
 
 // resolveConsentUser authenticates the person deciding, by the API key the
 // sign-in on this page (or the dashboard) left in the browser.
-func (h *ConnectorHandler) resolveConsentUser(ctx context.Context, key string) (db.User, int, string) {
+func (h *ConnectorHandler) resolveConsentUser(ctx context.Context, key string) (model.User, int, string) {
 	if key == "" {
-		return db.User{}, http.StatusUnauthorized, "sign in first"
+		return model.User{}, http.StatusUnauthorized, "sign in first"
 	}
 	if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) == 1 {
-		return db.User{}, http.StatusForbidden, "The instance admin key cannot connect apps. Sign in with a personal account."
+		return model.User{}, http.StatusForbidden, "The instance admin key cannot connect apps. Sign in with a personal account."
 	}
-	user, err := db.GetUserByAPIKey(ctx, h.database, key, h.limits.KeyIdleExpiry)
+	user, err := h.accountsSvc().GetUserByAPIKey(ctx, key, h.limits.KeyIdleExpiry)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return db.User{}, http.StatusUnauthorized, "sign in again"
+			return model.User{}, http.StatusUnauthorized, "sign in again"
 		}
-		if errors.Is(err, db.ErrAccountSuspended) {
-			return db.User{}, http.StatusForbidden, "This account has been suspended by the operator, so it cannot connect apps."
+		if errors.Is(err, model.ErrAccountSuspended) {
+			return model.User{}, http.StatusForbidden, "This account has been suspended by the operator, so it cannot connect apps."
 		}
-		return db.User{}, http.StatusInternalServerError, "internal server error"
+		return model.User{}, http.StatusInternalServerError, "internal server error"
 	}
 	// The built-in admin-key account is not a person and never connects an
 	// app. A person who happens to be an admin connects like anyone else
 	// (owner decision 2026-09-24).
 	if user.Username == "admin" {
-		return db.User{}, http.StatusForbidden, "This account cannot connect apps. Sign in with a personal account."
+		return model.User{}, http.StatusForbidden, "This account cannot connect apps. Sign in with a personal account."
 	}
 	// A team key acts as the event, not as a person: it never connects an
 	// app (hosted events).
 	if user.Team != nil {
-		return db.User{}, http.StatusForbidden, "A team key cannot connect apps. Sign in with your own account."
+		return model.User{}, http.StatusForbidden, "A team key cannot connect apps. Sign in with your own account."
 	}
 	return user, 0, ""
 }
@@ -1147,7 +1148,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 		scope = auth.OAuthScope + " " + auth.HackEventsScope
 	}
 	code := randomToken(prefixCode, 32)
-	if err := db.InsertOAuthCode(r.Context(), h.database, hashSecret(code), db.OAuthCode{
+	if err := h.accountsSvc().InsertOAuthCode(r.Context(), hashSecret(code), model.OAuthCode{
 		ClientID:      req.Client.ClientID,
 		UserID:        user.ID,
 		RedirectURI:   req.RedirectURI,
@@ -1171,7 +1172,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 // authenticateClient applies RFC 6749 §2.3 to a token or revocation request.
 // A confidential client must prove its secret (Basic or in the body); a
 // public client identifies itself by client_id alone and is held to PKCE.
-func (h *ConnectorHandler) authenticateClient(r *http.Request) (db.OAuthClient, bool, string) {
+func (h *ConnectorHandler) authenticateClient(r *http.Request) (model.OAuthClient, bool, string) {
 	formID, formSecret := r.PostForm.Get("client_id"), r.PostForm.Get("client_secret")
 	basicID, basicSecret, hasBasic := r.BasicAuth()
 	if hasBasic {
@@ -1183,22 +1184,22 @@ func (h *ConnectorHandler) authenticateClient(r *http.Request) (db.OAuthClient, 
 			basicSecret = v
 		}
 		if formSecret != "" || (formID != "" && formID != basicID) {
-			return db.OAuthClient{}, false, "use one client authentication method"
+			return model.OAuthClient{}, false, "use one client authentication method"
 		}
 		formID, formSecret = basicID, basicSecret
 	}
 	if formID == "" {
-		return db.OAuthClient{}, false, "client_id is required"
+		return model.OAuthClient{}, false, "client_id is required"
 	}
-	client, err := db.GetOAuthClient(r.Context(), h.database, formID)
+	client, err := h.accountsSvc().GetOAuthClient(r.Context(), formID)
 	if err != nil {
 		// Hash anyway so an unknown client costs what a known one does.
 		_ = hashSecret(formSecret)
-		return db.OAuthClient{}, false, "unknown client"
+		return model.OAuthClient{}, false, "unknown client"
 	}
 	if client.SecretHash.Valid {
 		if formSecret == "" || subtle.ConstantTimeCompare([]byte(hashSecret(formSecret)), []byte(client.SecretHash.String)) != 1 {
-			return db.OAuthClient{}, false, "client authentication failed"
+			return model.OAuthClient{}, false, "client authentication failed"
 		}
 	}
 	return client, true, ""
@@ -1224,7 +1225,7 @@ func (h *ConnectorHandler) token(w http.ResponseWriter, r *http.Request) {
 		oauthError(w, http.StatusUnauthorized, "invalid_client", why)
 		return
 	}
-	_ = db.TouchOAuthClient(r.Context(), h.database, client.ClientID)
+	_ = h.accountsSvc().TouchOAuthClient(r.Context(), client.ClientID)
 	switch r.PostForm.Get("grant_type") {
 	case "authorization_code":
 		h.redeemCode(w, r, client)
@@ -1237,206 +1238,14 @@ func (h *ConnectorHandler) token(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *ConnectorHandler) redeemCode(w http.ResponseWriter, r *http.Request, client db.OAuthClient) {
-	code := r.PostForm.Get("code")
-	if code == "" || !strings.HasPrefix(code, prefixCode) {
-		oauthError(w, http.StatusBadRequest, "invalid_grant", "unknown code")
-		return
-	}
-	codeHash := hashSecret(code)
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		oauthError(w, http.StatusInternalServerError, "server_error", "")
-		return
-	}
-	defer tx.Rollback()
-
-	stored, err := db.ConsumeOAuthCode(r.Context(), tx, codeHash)
-	if errors.Is(err, db.ErrOAuthCodeUsed) {
-		// A code presented twice was intercepted or replayed. Whatever the
-		// first redemption issued is revoked (RFC 6749 §4.1.2).
-		_ = tx.Rollback()
-		if stored.GrantID.Valid {
-			if derr := db.DeleteOAuthGrant(r.Context(), h.database, stored.GrantID.String); derr != nil {
-				log.Printf("connector: revoke on code reuse: %v", derr)
-			}
-		}
-		log.Printf("connector: authorization code reused client_id=%s", stored.ClientID)
-		oauthError(w, http.StatusBadRequest, "invalid_grant", "code already used")
-		return
-	}
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			log.Printf("connector: consume code: %v", err)
-			oauthError(w, http.StatusInternalServerError, "server_error", "")
-			return
-		}
-		oauthError(w, http.StatusBadRequest, "invalid_grant", "unknown code")
-		return
-	}
-	// The code is spent from here on, whatever happens next: every failure
-	// below commits the spend, so a failed guess cannot be retried.
-	fail := func(desc string) {
-		_ = tx.Commit()
-		oauthError(w, http.StatusBadRequest, "invalid_grant", desc)
-	}
-	if stored.ClientID != client.ClientID {
-		fail("code was issued to another client")
-		return
-	}
-	if h.now().After(stored.ExpiresAt) {
-		fail("code expired")
-		return
-	}
-	if r.PostForm.Get("redirect_uri") != stored.RedirectURI {
-		fail("redirect_uri does not match the authorization request")
-		return
-	}
-	verifier := r.PostForm.Get("code_verifier")
-	if stored.CodeChallenge != "" {
-		if !validPKCEValue(verifier) || !pkceS256(verifier, stored.CodeChallenge) {
-			fail("PKCE verification failed")
-			return
-		}
-	} else if verifier != "" {
-		// A verifier for a code issued without a challenge is a downgrade
-		// attempt (RFC 9700 §2.1.1).
-		fail("code_verifier sent for a code issued without code_challenge")
-		return
-	}
-	if res := r.PostForm.Get("resource"); res != "" {
-		if norm, ok := h.normalizeResource(res); !ok || norm != stored.Resource {
-			_ = tx.Commit()
-			oauthError(w, http.StatusBadRequest, "invalid_target", "resource does not match the authorization request")
-			return
-		}
-	}
-	user, err := db.GetUserByID(r.Context(), tx, stored.UserID)
-	if err != nil || user.Username == "admin" || user.Suspended {
-		fail("account unavailable")
-		return
-	}
-	grantID, err := db.InsertOAuthGrant(r.Context(), tx, stored.UserID, client.ClientID, stored.Scope, stored.Resource, stored.Device)
-	if err != nil {
-		log.Printf("connector: insert grant: %v", err)
-		oauthError(w, http.StatusInternalServerError, "server_error", "")
-		return
-	}
-	if err := db.SetOAuthCodeGrant(r.Context(), tx, codeHash, grantID); err != nil {
-		oauthError(w, http.StatusInternalServerError, "server_error", "")
-		return
-	}
-	h.issueTokens(w, r, tx, grantID, stored.Scope)
+func (h *ConnectorHandler) redeemCode(w http.ResponseWriter, r *http.Request, client model.OAuthClient) {
+	reply, err := h.connectorSvc().RedeemCode(r.Context(), accounts.ConnectorTokenInput{Code: r.PostForm.Get("code"), RedirectURI: r.PostForm.Get("redirect_uri"), Verifier: r.PostForm.Get("code_verifier"), Resource: r.PostForm.Get("resource"), RefreshToken: r.PostForm.Get("refresh_token"), Scope: r.PostForm.Get("scope")}, client)
+	h.writeConnectorTokens(w, reply, err)
 }
 
-func (h *ConnectorHandler) refresh(w http.ResponseWriter, r *http.Request, client db.OAuthClient) {
-	presented := r.PostForm.Get("refresh_token")
-	if !strings.HasPrefix(presented, prefixRefresh) {
-		oauthError(w, http.StatusBadRequest, "invalid_grant", "unknown refresh token")
-		return
-	}
-	tokenHash := hashSecret(presented)
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		oauthError(w, http.StatusInternalServerError, "server_error", "")
-		return
-	}
-	defer tx.Rollback()
-	tok, err := db.GetOAuthToken(r.Context(), tx, tokenHash)
-	if err != nil || tok.Kind != "refresh" {
-		oauthError(w, http.StatusBadRequest, "invalid_grant", "unknown refresh token")
-		return
-	}
-	if tok.ClientID != client.ClientID {
-		oauthError(w, http.StatusBadRequest, "invalid_grant", "refresh token was issued to another client")
-		return
-	}
-	if h.now().After(tok.ExpiresAt) {
-		oauthError(w, http.StatusBadRequest, "invalid_grant", "refresh token expired")
-		return
-	}
-	if h.hackTeams {
-		if _, _, ok := auth.GrantKind(tok.Scope); !ok {
-			// Not spent: the transaction rolls back. The person reconnects.
-			oauthError(w, http.StatusBadRequest, "invalid_grant", "this connection cannot be refreshed; reconnect and choose a team or Manage my events")
-			return
-		}
-	}
-	fresh, err := db.MarkRefreshTokenUsed(r.Context(), tx, tokenHash)
-	if err != nil {
-		oauthError(w, http.StatusInternalServerError, "server_error", "")
-		return
-	}
-	if !fresh {
-		// A rotated-out refresh token came back: either the client or a thief
-		// holds a copy. The whole family goes, so the thief's copy dies too
-		// (OAuth 2.1 §4.3.1). The person reconnects once.
-		_ = tx.Rollback()
-		if derr := db.DeleteOAuthGrant(r.Context(), h.database, tok.GrantID); derr != nil {
-			log.Printf("connector: revoke on refresh reuse: %v", derr)
-		}
-		log.Printf("connector: refresh token reused client_id=%s user_id=%s; connection revoked", tok.ClientID, tok.UserID)
-		oauthError(w, http.StatusBadRequest, "invalid_grant", "refresh token already used; the connection was revoked")
-		return
-	}
-	if scope := r.PostForm.Get("scope"); scope != "" {
-		granted := map[string]bool{}
-		for _, g := range strings.Fields(tok.Scope) {
-			granted[g] = true
-		}
-		for _, s := range strings.Fields(scope) {
-			if !granted[s] {
-				oauthError(w, http.StatusBadRequest, "invalid_scope", "scope exceeds the original grant")
-				return
-			}
-		}
-	}
-	if res := r.PostForm.Get("resource"); res != "" {
-		if norm, ok := h.normalizeResource(res); !ok || norm != tok.Resource {
-			oauthError(w, http.StatusBadRequest, "invalid_target", "resource does not match the original grant")
-			return
-		}
-	}
-	// A suspended account's refresh is refused without being spent (the
-	// transaction rolls back), so it works again once the account is re-enabled.
-	user, err := db.GetUserByID(r.Context(), tx, tok.UserID)
-	if err != nil || user.Username == "admin" || user.Suspended {
-		oauthError(w, http.StatusBadRequest, "invalid_grant", "account unavailable")
-		return
-	}
-	_ = db.TouchOAuthGrant(r.Context(), tx, tok.GrantID)
-	h.issueTokens(w, r, tx, tok.GrantID, tok.Scope)
-}
-
-// issueTokens mints an access token and a refresh token in grantID, commits
-// the transaction, and writes the token response.
-func (h *ConnectorHandler) issueTokens(w http.ResponseWriter, r *http.Request, tx *sql.Tx, grantID, scope string) {
-	access := randomToken(prefixAccess, 32)
-	refresh := randomToken(prefixRefresh, 32)
-	now := h.now()
-	if err := db.InsertOAuthToken(r.Context(), tx, hashSecret(access), grantID, "access", now.Add(h.oauthAccessTTL())); err != nil {
-		log.Printf("connector: insert access token: %v", err)
-		oauthError(w, http.StatusInternalServerError, "server_error", "")
-		return
-	}
-	if err := db.InsertOAuthToken(r.Context(), tx, hashSecret(refresh), grantID, "refresh", now.Add(h.oauthRefreshTTL())); err != nil {
-		log.Printf("connector: insert refresh token: %v", err)
-		oauthError(w, http.StatusInternalServerError, "server_error", "")
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		oauthError(w, http.StatusInternalServerError, "server_error", "")
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
-	writeJSON(w, http.StatusOK, map[string]any{
-		"access_token":  access,
-		"token_type":    "Bearer",
-		"expires_in":    int(h.oauthAccessTTL() / time.Second),
-		"refresh_token": refresh,
-		"scope":         scope,
-	})
+func (h *ConnectorHandler) refresh(w http.ResponseWriter, r *http.Request, client model.OAuthClient) {
+	reply, err := h.connectorSvc().Refresh(r.Context(), accounts.ConnectorTokenInput{Code: r.PostForm.Get("code"), RedirectURI: r.PostForm.Get("redirect_uri"), Verifier: r.PostForm.Get("code_verifier"), Resource: r.PostForm.Get("resource"), RefreshToken: r.PostForm.Get("refresh_token"), Scope: r.PostForm.Get("scope")}, client)
+	h.writeConnectorTokens(w, reply, err)
 }
 
 // revoke is RFC 7009. It answers 200 whether or not the token was known, so it
@@ -1459,11 +1268,11 @@ func (h *ConnectorHandler) revoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tokenHash := hashSecret(token)
-	if tok, err := db.GetOAuthToken(r.Context(), h.database, tokenHash); err == nil && tok.ClientID == client.ClientID {
+	if tok, err := h.accountsSvc().GetOAuthToken(r.Context(), tokenHash); err == nil && tok.ClientID == client.ClientID {
 		if tok.Kind == "refresh" {
-			err = db.DeleteOAuthGrant(r.Context(), h.database, tok.GrantID)
+			err = h.accountsSvc().DeleteOAuthGrant(r.Context(), tok.GrantID)
 		} else {
-			err = db.DeleteOAuthToken(r.Context(), h.database, tokenHash)
+			err = h.accountsSvc().DeleteOAuthToken(r.Context(), tokenHash)
 		}
 		if err != nil {
 			log.Printf("connector: revoke: %v", err)
@@ -1478,14 +1287,14 @@ func (h *ConnectorHandler) revoke(w http.ResponseWriter, r *http.Request) {
 
 // userForAccessToken resolves an access token to its person. audiences lists
 // the grant resources acceptable where it is being presented.
-func (h *ConnectorHandler) userForAccessToken(ctx context.Context, token string, audiences ...string) (db.User, bool) {
+func (h *ConnectorHandler) userForAccessToken(ctx context.Context, token string, audiences ...string) (model.User, bool) {
 	u, _, ok := h.userForAccessTokenTeam(ctx, token, audiences...)
 	return u, ok
 }
 
 // userForAccessTokenTeam is userForAccessToken plus the team site the
 // connection is bound to ("" for none).
-func (h *ConnectorHandler) userForAccessTokenTeam(ctx context.Context, token string, audiences ...string) (db.User, string, bool) {
+func (h *ConnectorHandler) userForAccessTokenTeam(ctx context.Context, token string, audiences ...string) (model.User, string, bool) {
 	u, teamID, _, _, ok := h.tokenAccess(ctx, token, audiences...)
 	return u, teamID, ok
 }
@@ -1493,10 +1302,10 @@ func (h *ConnectorHandler) userForAccessTokenTeam(ctx context.Context, token str
 // tokenAccess resolves an access token. mode is mcp.CallerModeEvents for an
 // personal hosted grant and "" otherwise. A malformed hosted grant cannot
 // authenticate. The returned grant also carries the selected team, if any.
-func (h *ConnectorHandler) tokenAccess(ctx context.Context, token string, audiences ...string) (db.User, string, string, db.OAuthTokenGrant, bool) {
-	tok, err := db.GetOAuthToken(ctx, h.database, hashSecret(token))
+func (h *ConnectorHandler) tokenAccess(ctx context.Context, token string, audiences ...string) (model.User, string, string, model.OAuthTokenGrant, bool) {
+	tok, err := h.accountsSvc().GetOAuthToken(ctx, hashSecret(token))
 	if err != nil || tok.Kind != "access" || h.now().After(tok.ExpiresAt) {
-		return db.User{}, "", "", db.OAuthTokenGrant{}, false
+		return model.User{}, "", "", model.OAuthTokenGrant{}, false
 	}
 	audienceOK := false
 	for _, a := range audiences {
@@ -1505,28 +1314,28 @@ func (h *ConnectorHandler) tokenAccess(ctx context.Context, token string, audien
 		}
 	}
 	if !audienceOK {
-		return db.User{}, "", "", db.OAuthTokenGrant{}, false
+		return model.User{}, "", "", model.OAuthTokenGrant{}, false
 	}
-	user, err := db.GetUserByID(ctx, h.database, tok.UserID)
+	user, err := h.accountsSvc().GetUserByID(ctx, tok.UserID)
 	// No "has an API key" check any more: keys are stored hashed and the
 	// connector does not replay one (it acts through a per-request internal
 	// credential), so an account with no key yet can still use its connection.
 	if err != nil || user.Username == "admin" {
-		return db.User{}, "", "", db.OAuthTokenGrant{}, false
+		return model.User{}, "", "", model.OAuthTokenGrant{}, false
 	}
 	// A suspended person's token is refused but the grant is kept, so
 	// re-enabling the account brings the connection back. The user is
 	// returned (with Suspended set) so callers can say why.
 	if user.Suspended {
-		return user, "", "", db.OAuthTokenGrant{}, false
+		return user, "", "", model.OAuthTokenGrant{}, false
 	}
-	_ = db.TouchOAuthGrant(ctx, h.database, tok.GrantID)
+	_ = h.accountsSvc().TouchOAuthGrant(ctx, tok.GrantID)
 	if !h.hackTeams {
 		return user, auth.ScopeTeam(tok.Scope), "", tok, true
 	}
 	teamID, events, ok := auth.GrantKind(tok.Scope)
 	if !ok {
-		return db.User{}, "", "", db.OAuthTokenGrant{}, false
+		return model.User{}, "", "", model.OAuthTokenGrant{}, false
 	}
 	if events {
 		return user, "", mcp.CallerModeEvents, tok, true
@@ -1543,7 +1352,7 @@ func (h *ConnectorHandler) selectHackTeam(ctx context.Context, caller mcp.Caller
 	if !appsites.UUIDShape.MatchString(teamID) {
 		return errors.New("team_id must be a team UUID")
 	}
-	ok, err := db.SelectOAuthTeam(ctx, h.database, caller.GrantID, caller.UserID, strings.ToLower(teamID))
+	ok, err := h.accountsSvc().SelectOAuthTeam(ctx, caller.GrantID, caller.UserID, strings.ToLower(teamID))
 	if err != nil {
 		return errors.New("could not select the team")
 	}
@@ -1559,9 +1368,9 @@ func (h *ConnectorHandler) selectHackTeam(ctx context.Context, caller mcp.Caller
 // explicit events grant. That account still cannot publish a personal site.
 func (h *ConnectorHandler) internalKeyFor(userID, teamID string) (string, func(), error) {
 	if teamID != "" {
-		return db.IssueInternalTeamKey(userID, teamID)
+		return h.accountsSvc().InternalKeyFor(userID, teamID)
 	}
-	return db.IssueInternalKey(userID)
+	return h.accountsSvc().InternalKeyFor(userID, "")
 }
 
 func bearerToken(r *http.Request) (string, bool) {
@@ -1656,18 +1465,18 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		accountHandle = user.Handle.String
 		oauthGrantID = grant.GrantID
 		credentialExpiresAt = grant.ExpiresAt
-		client, err := db.GetOAuthClient(r.Context(), h.database, grant.ClientID)
+		client, err := h.accountsSvc().GetOAuthClient(r.Context(), grant.ClientID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
 		appName = httpx.CleanClientName(client.Name)
 		mintPhoto = func(ctx context.Context, _ bool) (string, func(), error) {
-			current, err := db.GetOAuthGrantByID(ctx, h.database, grant.GrantID)
+			current, err := h.accountsSvc().GetOAuthGrantByID(ctx, grant.GrantID)
 			if err != nil || current.UserID != user.ID || current.ClientID != grant.ClientID || current.Resource != h.mcpResource {
 				return "", nil, errors.New("photo sign-in ended")
 			}
-			u, err := db.GetUserByID(ctx, h.database, current.UserID)
+			u, err := h.accountsSvc().GetUserByID(ctx, current.UserID)
 			if err != nil || u.Suspended || u.Username == "admin" {
 				return "", nil, errors.New("photo sign-in ended")
 			}
@@ -1683,7 +1492,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 					return "", nil, errors.New("selected team no longer resolves")
 				}
 				currentTeam = currentGrant.SelectedTeamID.String
-				if _, err := db.ResolveTeamIdentity(ctx, h.database, u.ID, currentTeam); err != nil {
+				if _, err := h.accountsSvc().ResolveTeamIdentity(ctx, u.ID, currentTeam); err != nil {
 					return "", nil, err
 				}
 			}
@@ -1692,7 +1501,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		if h.hackTeams && grantMode == mcp.CallerModeEvents {
 			grantID, userID = grant.GrantID, user.ID
 			if grant.SelectedTeamID.Valid {
-				if _, err := db.ResolveTeamIdentity(r.Context(), h.database, user.ID, grant.SelectedTeamID.String); err == nil {
+				if _, err := h.accountsSvc().ResolveTeamIdentity(r.Context(), user.ID, grant.SelectedTeamID.String); err == nil {
 					teamAPIKey, revoke, err = h.internalKeyFor(user.ID, grant.SelectedTeamID.String)
 					if err != nil {
 						writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -1711,12 +1520,12 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		// personal key is the same identity as an events grant, so it sees
 		// the event tools; a team key keeps the website tools.
 		if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {
-			if u, err := db.GetUserByAPIKey(r.Context(), h.database, key, h.limits.KeyIdleExpiry); err != nil {
-				if errors.Is(err, db.ErrAccountSuspended) {
+			if u, err := h.accountsSvc().GetUserByAPIKey(r.Context(), key, h.limits.KeyIdleExpiry); err != nil {
+				if errors.Is(err, model.ErrAccountSuspended) {
 					writeAccountSuspended(w)
 					return
 				}
-				if errors.Is(err, db.ErrKeyExpired) || errors.Is(err, db.ErrKeyExpiredIdle) {
+				if errors.Is(err, model.ErrKeyExpired) || errors.Is(err, model.ErrKeyExpiredIdle) {
 					// Say why, with no OAuth challenge: the caller holds a key
 					// and needs a new one, not a sign-in flow.
 					msg, code := auth.ExpiredKeyMessage(err, u.KeyExpiresAt, h.limits.KeyIdleExpiry)
@@ -1732,8 +1541,8 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 				if u.KeyExpiresAt != nil {
 					credentialExpiresAt = *u.KeyExpiresAt
 				}
-				deployOnly = u.KeyScope == db.KeyScopeDeploy
-				if h.hackTeams && u.Team == nil && u.KeyScope != db.KeyScopeDeploy {
+				deployOnly = u.KeyScope == "deploy"
+				if h.hackTeams && u.Team == nil && u.KeyScope != "deploy" {
 					mode = mcp.CallerModeEvents
 				}
 			}
@@ -1741,7 +1550,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		apiKey = key
 		mintUpload = func(ctx context.Context, _ bool) (string, func(), error) {
 			if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {
-				if _, err := db.GetUserByAPIKey(ctx, h.database, key, h.limits.KeyIdleExpiry); err != nil {
+				if _, err := h.accountsSvc().GetUserByAPIKey(ctx, key, h.limits.KeyIdleExpiry); err != nil {
 					return "", nil, err
 				}
 			}
@@ -1784,7 +1593,7 @@ func (h *ConnectorHandler) listConnections(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
-	conns, err := db.ListOAuthConnections(r.Context(), h.database, user.ID)
+	conns, err := h.accountsSvc().ListOAuthConnections(r.Context(), user.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1809,7 +1618,7 @@ func (h *ConnectorHandler) deleteConnection(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
-	n, err := db.DeleteOAuthGrantsForClient(r.Context(), h.database, user.ID, r.PathValue("client_id"))
+	n, err := h.accountsSvc().DeleteOAuthGrantsForClient(r.Context(), user.ID, r.PathValue("client_id"))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1842,4 +1651,23 @@ func analyticsEnv(issuer string) string {
 		return "prod"
 	}
 	return "dev"
+}
+
+func (h *ConnectorHandler) accountsSvc() *accounts.Service { return accounts.New(h.database) }
+func (h *ConnectorHandler) connectorSvc() *accounts.Connector {
+	return accounts.NewConnector(h.database, h.now, h.normalizeResource, h.hackTeams, h.oauthAccessTTL(), h.oauthRefreshTTL())
+}
+func (h *ConnectorHandler) writeConnectorTokens(w http.ResponseWriter, reply accounts.ConnectorTokens, err error) {
+	if err != nil {
+		e := err.(*accounts.ConnectorError)
+		status := http.StatusBadRequest
+		if e.Internal {
+			status = http.StatusInternalServerError
+		}
+		oauthError(w, status, e.Code, e.Description)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	writeJSON(w, http.StatusOK, map[string]any{"access_token": reply.AccessToken, "token_type": reply.TokenType, "expires_in": reply.ExpiresIn, "refresh_token": reply.RefreshToken, "scope": reply.Scope})
 }

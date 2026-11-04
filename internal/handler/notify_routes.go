@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 func (h *SiteHandler) registerNotifications(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
@@ -37,7 +37,7 @@ func (h *SiteHandler) notifyLimits() map[string]any {
 	l := h.limits
 	return map[string]any{"enabled": h.NotificationsReady(), "per_site": l.NotifyMaxPerSite, "per_minute": l.NotifyPerMinute, "per_day": l.NotifyPerDay, "history_days": l.NotifyHistoryDays}
 }
-func notificationView(n db.Notification) map[string]any {
+func notificationView(n model.Notification) map[string]any {
 	state := n.State
 	if n.ExpiresAt != nil && !n.ExpiresAt.After(time.Now()) {
 		state = "expired"
@@ -128,12 +128,12 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	user := auth.GetUser(r.Context())
-	if user == nil || user.Suspended || user.Team != nil || user.EventWebsite != nil || user.KeyScope == db.KeyScopeDeploy {
+	if user == nil || user.Suspended || user.Team != nil || user.EventWebsite != nil || user.KeyScope == "deploy" {
 		notifyError(w, 403, "forbidden")
 		return
 	}
 	ctx := r.Context()
-	eventAccount, err := db.EventAccountFlag(ctx, h.database, user.ID)
+	eventAccount, err := h.notificationsSvc().EventAccountFlag(ctx, user.ID)
 	if err != nil {
 		notifyError(w, 500, "internal_error")
 		return
@@ -142,15 +142,15 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		notifyError(w, 404, "not_offered")
 		return
 	}
-	var site db.Site
+	var site model.Site
 	if name := r.PathValue("sitename"); name != "" || r.PathValue("slug") != "" {
 		if h.ed.Notifications().EventScoped {
-			site, err = db.HackNotificationSite(ctx, h.database, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
+			site, err = h.notificationsSvc().HackNotificationSite(ctx, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
 		} else {
-			site, err = db.GetSiteByUser(ctx, h.database, user.ID, name)
+			site, err = h.sitesSvc().GetSiteByUser(ctx, user.ID, name)
 		}
 		if errors.Is(err, sql.ErrNoRows) && h.ed.Notifications().EventScoped && r.Method == http.MethodGet && r.PathValue("id") == "" {
-			allowed, checkErr := db.HackNotificationContextExists(ctx, h.database, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
+			allowed, checkErr := h.notificationsSvc().HackNotificationContextExists(ctx, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
 			if checkErr != nil {
 				notifyError(w, 500, "internal_error")
 				return
@@ -169,7 +169,7 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 	}
 	id := r.PathValue("id")
 	if id == "" && r.Method == http.MethodGet {
-		ns, err := db.ListNotifications(ctx, h.database, user.ID, site.ID)
+		ns, err := h.notificationsSvc().ListNotifications(ctx, user.ID, site.ID)
 		if err != nil {
 			notifyError(w, 500, "internal_error")
 			return
@@ -180,13 +180,13 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		}
 		limits := h.notifyLimits()
 		if h.ed.Notifications().EventScoped && site.ID != "" {
-			canCreate, e := db.HackNotificationAllowed(ctx, h.database, site.ID, user.ID, true)
+			canCreate, e := h.notificationsSvc().HackNotificationAllowed(ctx, site.ID, user.ID, true)
 			if e != nil {
 				notifyError(w, 500, "internal_error")
 				return
 			}
 			limits["can_create"] = canCreate && h.NotificationsReady()
-			canManage, e := db.HackNotificationAllowed(ctx, h.database, site.ID, user.ID, false)
+			canManage, e := h.notificationsSvc().HackNotificationAllowed(ctx, site.ID, user.ID, false)
 			if e != nil {
 				notifyError(w, 500, "internal_error")
 				return
@@ -200,13 +200,13 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		h.createNotification(w, r, site)
 		return
 	}
-	n, err := db.GetNotification(ctx, h.database, id)
+	n, err := h.notificationsSvc().GetNotification(ctx, id)
 	if err != nil || n.OwnerID != user.ID || n.SiteID != site.ID {
 		notifyError(w, 404, "not_found")
 		return
 	}
 	if h.ed.Notifications().EventScoped && r.Method != http.MethodGet && r.Method != http.MethodDelete {
-		allowed, e := db.HackNotificationAllowed(ctx, h.database, site.ID, user.ID, false)
+		allowed, e := h.notificationsSvc().HackNotificationAllowed(ctx, site.ID, user.ID, false)
 		if e != nil {
 			notifyError(w, 500, "internal_error")
 			return
@@ -218,7 +218,7 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 	}
 	switch {
 	case r.Method == http.MethodDelete:
-		if _, err = db.DeleteNotification(ctx, h.database, id); err != nil {
+		if _, err = h.notificationsSvc().DeleteNotification(ctx, id); err != nil {
 			notifyError(w, 500, "internal_error")
 			return
 		}
@@ -231,11 +231,11 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 			notifyError(w, 400, "invalid_request")
 			return
 		}
-		if err = db.PauseNotification(ctx, h.database, id, *req.Paused); err != nil {
+		if err = h.notificationsSvc().PauseNotification(ctx, id, *req.Paused); err != nil {
 			notifyError(w, 500, "internal_error")
 			return
 		}
-		n, err = db.GetNotification(ctx, h.database, id)
+		n, err = h.notificationsSvc().GetNotification(ctx, id)
 		if err != nil {
 			notifyError(w, 500, "internal_error")
 			return
@@ -255,14 +255,14 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 			notifyError(w, 500, "internal_error")
 			return
 		}
-		until, err := db.RotateNotification(ctx, h.database, id, secret, h.notificationSecrets())
+		until, err := h.notificationsSvc().RotateNotification(ctx, id, secret, h.notificationSecrets())
 		if err != nil {
 			notifyError(w, 500, "internal_error")
 			return
 		}
 		writeJSON(w, 200, map[string]any{"secret": secret, "previous_valid_until": until})
 	case strings.HasSuffix(r.URL.Path, "/deliveries"):
-		deliveries, err := db.NotificationHistory(ctx, h.database, id, h.limits.NotifyHistoryDays)
+		deliveries, err := h.notificationsSvc().NotificationHistory(ctx, id, h.limits.NotifyHistoryDays)
 		if err != nil {
 			notifyError(w, 500, "internal_error")
 			return
@@ -300,8 +300,8 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 			notifyError(w, 500, "internal_error")
 			return
 		}
-		event := db.NotificationDelivery{EventID: notifyRandom("evt_test_", 16), Name: "notification.test", CreatedAt: time.Now(), Data: storageJSON(map[string]any{"v": 1, "site": name, "site_url": siteURL, "test": true})}
-		cursor, err := db.NotificationCursor(ctx, h.database, n.ID, n.SiteID)
+		event := model.NotificationDelivery{EventID: notifyRandom("evt_test_", 16), Name: "notification.test", CreatedAt: time.Now(), Data: storageJSON(map[string]any{"v": 1, "site": name, "site_url": siteURL, "test": true})}
+		cursor, err := h.notificationsSvc().NotificationCursor(ctx, n.ID, n.SiteID)
 		if err != nil {
 			notifyError(w, 500, "internal_error")
 			return
@@ -316,12 +316,12 @@ func (h *SiteHandler) requireNotifications(w http.ResponseWriter) bool {
 	storageError(w, http.StatusConflict, "notifications_not_enabled", "The server has no PASSCODE_ENC_KEY; new notifications are unavailable.")
 	return false
 }
-func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request, site db.Site) {
+func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request, site model.Site) {
 	if !h.requireNotifications(w) {
 		return
 	}
 	if h.ed.Notifications().EventScoped {
-		allowed, err := db.HackNotificationAllowed(r.Context(), h.database, site.ID, auth.GetUser(r.Context()).ID, true)
+		allowed, err := h.notificationsSvc().HackNotificationAllowed(r.Context(), site.ID, auth.GetUser(r.Context()).ID, true)
 		if err != nil {
 			notifyError(w, 500, "internal_error")
 			return
@@ -382,13 +382,13 @@ func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	now := time.Now()
-	n := db.Notification{ID: notifyRandom("sub_", 12), SiteID: site.ID, OwnerID: auth.GetUser(r.Context()).ID, Hack: h.ed.Notifications().EventScoped, Source: "owner", URL: req.URL, Events: req.Events, Storage: req.Storage, Secret: req.Secret, Label: req.Label, AuthHeaderName: req.AuthHeader.Name, AuthHeaderValue: req.AuthHeader.Value, VerifiedAt: &now}
-	_, _, err := db.SaveNotification(ctx, h.database, n, h.limits.NotifyMaxPerSite, nil, h.limits.NotifyHistoryDays, h.notificationSecrets())
-	if errors.Is(err, db.ErrNotificationAccess) {
+	n := model.Notification{ID: notifyRandom("sub_", 12), SiteID: site.ID, OwnerID: auth.GetUser(r.Context()).ID, Hack: h.ed.Notifications().EventScoped, Source: "owner", URL: req.URL, Events: req.Events, Storage: req.Storage, Secret: req.Secret, Label: req.Label, AuthHeaderName: req.AuthHeader.Name, AuthHeaderValue: req.AuthHeader.Value, VerifiedAt: &now}
+	_, _, err := h.notificationsSvc().SaveNotification(ctx, n, h.limits.NotifyMaxPerSite, nil, h.limits.NotifyHistoryDays, h.notificationSecrets())
+	if errors.Is(err, model.ErrNotificationAccess) {
 		notifyError(w, 403, "notification_access_ended")
 		return
 	}
-	if errors.Is(err, db.ErrNotificationCap) {
+	if errors.Is(err, model.ErrNotificationCap) {
 		notifyError(w, 409, "too_many_notifications")
 		return
 	}
@@ -396,7 +396,7 @@ func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request,
 		notifyError(w, 500, "internal_error")
 		return
 	}
-	n, err = db.GetNotification(ctx, h.database, n.ID)
+	n, err = h.notificationsSvc().GetNotification(ctx, n.ID)
 	if err != nil {
 		notifyError(w, 500, "internal_error")
 		return

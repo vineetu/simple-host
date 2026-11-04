@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/vsriram/simple-host/internal/model"
 	"strings"
 	"time"
 
@@ -12,39 +13,11 @@ import (
 	"github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
-var ErrNotificationCap = errors.New("too many notifications")
-var ErrNotificationAccess = errors.New("notification access ended")
-var ErrNotificationSite = errors.New("subscription site changed")
+var ErrNotificationCap = model.ErrNotificationCap
+var ErrNotificationAccess = model.ErrNotificationAccess
+var ErrNotificationSite = model.ErrNotificationSite
 
-type Notification struct {
-	Event           string     `json:"event,omitempty"` // organiser website slug, empty for team/Host sites
-	Hack            bool       `json:"-"`               // checked under the membership lock when saving
-	ID              string     `json:"id"`
-	SiteID          string     `json:"site_id"`
-	OwnerID         string     `json:"owner_id"`
-	Site            string     `json:"site"`
-	Source          string     `json:"source"`
-	GrantID         *string    `json:"grant_id"`
-	AppName         string     `json:"app_name"`
-	Label           string     `json:"label"`
-	URL             string     `json:"url"`
-	Events          []string   `json:"events"`
-	Storage         string     `json:"storage"`
-	ArgsCanonical   string     `json:"args_canonical"`
-	Secret          string     `json:"secret"`
-	PrevSecret      string     `json:"prev_secret"`
-	PrevSecretUntil *time.Time `json:"prev_secret_until"`
-	AuthHeaderName  string     `json:"auth_header_name"`
-	AuthHeaderValue string     `json:"auth_header_value"`
-	State           string     `json:"state"`
-	VerifiedAt      *time.Time `json:"verified_at"`
-	ExpiresAt       *time.Time `json:"expires_at"`
-	FailingSince    *time.Time `json:"failing_since"`
-	LastAttemptAt   *time.Time `json:"last_attempt_at"`
-	LastSuccessAt   *time.Time `json:"last_success_at"`
-	LastResult      string     `json:"last_result"`
-	CreatedAt       time.Time  `json:"created_at"`
-}
+type Notification = model.Notification
 
 const notificationColumns = `n.id,n.site_id,n.owner_id,s.name,n.source,n.grant_id,n.app_name,n.label,n.url,n.events,n.storage,n.args_canonical,n.secret,n.prev_secret,n.prev_secret_until,n.auth_header_name,n.auth_header_value,n.state,n.verified_at,n.expires_at,n.failing_since,n.last_attempt_at,n.last_success_at,n.last_result,n.created_at,CASE WHEN e.id::text=s.name THEN e.slug ELSE '' END`
 
@@ -73,11 +46,7 @@ func ListNotifications(ctx context.Context, database *sql.DB, owner, site string
 	return out, rows.Err()
 }
 
-// NotificationSecrets uses the handler's passcode AEAD without giving the DB a key.
-type NotificationSecrets struct {
-	Seal func(id, plaintext string) (string, error)
-	Open func(id, stored string) (string, error)
-}
+type NotificationSecrets = model.NotificationSecrets
 
 // sealLegacy preserves ciphertext and empty values, including during rotation.
 func sealLegacy(id, value string, seal func(string, string) (string, error)) (string, error) {
@@ -394,17 +363,7 @@ func RecentSiteEvent(ctx context.Context, q Querier, site, name, visitor string,
 	return yes, err
 }
 
-type NotificationDelivery struct {
-	Seq            int64
-	SubscriptionID string
-	Attempts       int
-	LeaseUntil     time.Time
-	LastAttemptAt  time.Time
-	EventID        string
-	Name           string
-	Data           json.RawMessage
-	CreatedAt      time.Time
-}
+type NotificationDelivery = model.NotificationDelivery
 
 func ClaimNotificationDelivery(ctx context.Context, database *sql.DB, lease time.Duration, maxAttempts, historyDays int, window time.Duration) (NotificationDelivery, error) {
 	var d NotificationDelivery
