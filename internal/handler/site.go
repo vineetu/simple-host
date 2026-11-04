@@ -31,7 +31,6 @@ import (
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/netusage"
-	"github.com/vsriram/simple-host/internal/papermetrics"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
 )
@@ -435,15 +434,6 @@ func NewSiteHandler(ed *edition.Edition, hackInstanceURL string, database *sql.D
 	return h
 }
 
-// previewExpiry returns a per-site expiry timestamp when the owner is a
-// configured preview account, or nil for a permanent site.
-func (h *SiteHandler) previewExpiry(user *db.User) *time.Time {
-	if user == nil {
-		return nil
-	}
-	return h.sitesSvc().PreviewExpiry(user.Username)
-}
-
 // startExpirySweep periodically deletes sites whose expires_at has passed
 // (DB rows + on-disk files), keeping the platform free of stale preview sites.
 func (h *SiteHandler) startExpirySweep(every time.Duration) {
@@ -810,15 +800,7 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "new site name must be different"})
 		return
 	}
-	result, err := h.sitesSvc().Rename(r.Context(), user.ID, oldName, newName,
-		func() string {
-			newURL := h.SiteURL(user.Handle.String, newName)
-			if newURL == "" {
-				newURL = fmt.Sprintf("https://%s/%s/%s/", h.contentHost, user.Handle.String, newName)
-			}
-			return newURL
-		},
-		func(site db.Site) (bool, string) { return !site.Suspended(), site.SuspendedReason() }, h.deletedNameConflict, h.siteURLFor)
+	result, err := h.sitesSvc().Rename(r.Context(), user.ID, oldName, newName, user.Handle.String)
 	if err != nil {
 		var siteErr *sites.Error
 		if errors.As(err, &siteErr) {
@@ -1569,15 +1551,7 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.commitNewSite(w, r, user, siteName, files, archiveSHA)
-}
-
-// commitNewSite writes a brand-new site's first version and promotes it after
-// the DB commit. Shared by the archive upload (createSite) and the JSON upload
-// (createSiteFiles) so both inherit identical versioning, locking, commit-then-
-// promote ordering, and deploy-queue behavior.
-func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string) {
-	h.commitCreate(w, r, user, siteName, files, archiveSHA, false)
+	h.commitCreate(w, r, user, siteName, files, archiveSHA, false, false)
 }
 
 // createOrUpdateSite is the commit for PUT ?create=1: it creates the site, and
@@ -1585,7 +1559,7 @@ func (h *SiteHandler) commitNewSite(w http.ResponseWriter, r *http.Request, user
 // upload as an update instead of answering site_exists to a caller that asked
 // for create-or-update.
 func (h *SiteHandler) createOrUpdateSite(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
-	if h.commitCreate(w, r, user, siteName, files, archiveSHA, true) {
+	if h.commitCreate(w, r, user, siteName, files, archiveSHA, true, false) {
 		h.commitSiteUpdate(w, r, user, siteName, files, archiveSHA, publish)
 	}
 }
@@ -1593,77 +1567,33 @@ func (h *SiteHandler) createOrUpdateSite(w http.ResponseWriter, r *http.Request,
 // commitCreate commits files as a new site. With orUpdate, a site of that name
 // that already exists is not an error: nothing is written and it reports true
 // so the caller updates it (after this has released the site lock).
-func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate bool) (exists bool) {
-	if user == nil {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
-		return false
-	}
-	return h.commitCreateWithLocks(w, r, user, siteName, files, archiveSHA, orUpdate, false)
-}
-
-// Caller holds the account and site locks, including for a keep=1 first deploy.
-func (h *SiteHandler) commitCreateLocked(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate bool) (exists bool) {
-	return h.commitCreateWithLocks(w, r, user, siteName, files, archiveSHA, orUpdate, true)
-}
-
-func (h *SiteHandler) commitCreateWithLocks(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate, locked bool) (exists bool) {
+func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user *db.User, siteName string, files map[string][]byte, archiveSHA string, orUpdate, locked bool) (exists bool) {
 	// Every path that creates a site comes through here (hack_mode.go).
-	if user == nil {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
-		return false
-	}
-	personalAllowed := h.ed.Identity().PersonalSites || user.IsAdmin || user.Team != nil || user.EventWebsite != nil
 	// A guest-created users row has a NULL handle until owner-intent. First
 	// deploy is owner-intent: assign before building the path-model site URL.
-	ctx := r.Context()
-	in := sites.CreateInput{
-		User: user, Name: siteName, ContentHost: h.contentHost, SiteDomain: h.siteDomain,
-		ArchiveSHA: archiveSHA, Author: versionAuthor(r), Files: files, OrUpdate: orUpdate,
-		FileCaps: h.ed.Storage().FileCaps && (h.limits.MaxSiteTotalMB != 0 || h.limits.MaxAccountMB != 0 || h.limits.MaxSiteTotalOverrides != "" || h.limits.MaxAccountOverrides != ""), CapCutoff: h.limits.SiteTotalCapFrom, DeployEnabled: h.deployScript != "",
-		Gate: func(tx *sql.Tx) error { return h.rollbackTeamGate(ctx, tx, user, siteName) },
-		Assign: func() {
-			assignHandle(ctx, h.database, user.ID, handleSeed(user, h.siteDomain), h.ed.Identity().RandomHandles)
-		},
-		Summarize: ExtractSiteSummary, Conflict: h.deletedNameConflict,
-		CapLimits: func() (int, int) {
-			handles := accountHandles(ctx, h.database, user)
-			return h.limits.SiteTotalMBFor(handles...), h.limits.AccountMBFor(handles...)
-		},
-		Retention: func(site db.Site) (int, error) {
-			keep, _, err := accountRetention(ctx, h.database, user.ID, site.KeepVersions, h.limits)
-			return keep, err
-		},
-		Marker: h.syncUnlistedMarker, RequestCert: h.RequestSiteCert,
-		HasLiveFamilies: h.hasLiveFamilies, SyncRedirect: func(siteID string) { h.syncDomainRedirect(ctx, siteID) },
-		Notify: func(site db.Site) {
-			if h.ed.Identity().PaperMetrics && user.Team != nil {
-				papermetrics.HackDeploy(ctx)
-			}
-			h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), siteName, 1, files)
-		},
-		PersonalGate: func() error {
-			if !personalAllowed {
-				return &rollbackGateResult{http.StatusForbidden, "team sites belong to an event: select your team in the Simple Hack connection before publishing", "no_personal_sites"}
-			}
-			return nil
-		},
-	}
-	var site db.Site
-	var err error
-	if locked {
-		site, exists, err = h.sitesSvc().CreateLocked(ctx, in)
-	} else {
-		site, exists, err = h.sitesSvc().Create(ctx, in, h.lockAccountFiles)
-	}
+	result, err := h.sitesSvc().Create(r.Context(), sites.CreateInput{
+		User: user, Name: siteName,
+		ArchiveSHA: archiveSHA, Author: versionAuthor(r), Files: files, OrUpdate: orUpdate, LocksHeld: locked,
+	})
+	return h.respondCreate(w, user, result, err)
+}
+
+// respondCreate maps a completed create workflow to its existing HTTP response.
+func (h *SiteHandler) respondCreate(w http.ResponseWriter, user *db.User, result sites.CreateResult, err error) bool {
+	site, exists := result.Site, result.Exists
 	if exists {
 		return true
 	}
 	if err != nil {
-		var gateErr *rollbackGateResult
+		var gateErr *sites.GateError
 		var siteErr *sites.Error
 		switch {
+		case errors.As(err, &siteErr) && siteErr.Code == "unauthorized":
+			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		case errors.As(err, &gateErr):
-			writeJSON(w, gateErr.status, errorResponse{Error: gateErr.message, Code: gateErr.code})
+			writeRollbackGateError(w, gateErr)
+		case errors.As(err, &siteErr) && siteErr.Code == "no_personal_sites":
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
 		case errors.As(err, &siteErr) && siteErr.Code == "recently_deleted":
 			writeJSON(w, http.StatusConflict, map[string]any{"error": siteErr.Message, "code": "recently_deleted", "recently_deleted": true})
 		case errors.As(err, &siteErr) && siteErr.Code == "site_exists":
@@ -2057,7 +1987,7 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.commitNewSite(w, r, user, siteName, files, digest)
+	h.commitCreate(w, r, user, siteName, files, digest, false, false)
 }
 
 // newSiteChecks is what creating a site checks before reading the upload,
@@ -2069,16 +1999,13 @@ func (h *SiteHandler) newSiteChecks(w http.ResponseWriter, r *http.Request, user
 	if !h.publishOnCreate(w, r) {
 		return false
 	}
-	if !h.hackNoPersonalSites(w, user) {
-		return false
-	}
 	// A team's site is one per team: the holding account has no site cap.
 	// Sites in Recently deleted count: delete-then-create must not
 	// get round the cap (their files are still on disk).
-	err := h.sitesSvc().CheckNewSiteQuota(r.Context(), user.ID, user.IsAdmin || user.Team != nil || user.EventWebsite != nil, func() int { return h.maxSitesFor(r.Context(), h.database, user) })
+	err := h.sitesSvc().CheckCreateAllowed(r.Context(), user)
 	if err != nil {
 		var siteErr *sites.Error
-		if errors.As(err, &siteErr) && siteErr.Code == "site_quota_reached" {
+		if errors.As(err, &siteErr) && (siteErr.Code == "site_quota_reached" || siteErr.Code == "no_personal_sites") {
 			writeJSON(w, http.StatusForbidden, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
 			return false
 		}
@@ -2197,7 +2124,7 @@ func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if keep {
-		if !create || h.commitCreateLocked(w, r, user, siteName, files, digest, true) {
+		if !create || h.commitCreate(w, r, user, siteName, files, digest, true, true) {
 			h.commitSiteUpdateLocked(w, r, user, siteName, files, digest, publish)
 		}
 	} else if create {
@@ -2301,15 +2228,11 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	site, err = h.sitesSvc().RollbackTransaction(ctx, site, req.VersionNumber, func(tx *sql.Tx) error {
-		return h.rollbackTeamGate(ctx, tx, user, siteName)
-	}, func(siteID string, prev int) {
-		h.emitSiteNotification(siteID, "site.deployed", map[string]any{"version": req.VersionNumber, "previous_version": prev, "via": "active_version"}, 0)
-	})
+	site, err = h.sitesSvc().RollbackTransaction(ctx, site, req.VersionNumber, user)
 	if err != nil {
-		var gateErr *rollbackGateResult
+		var gateErr *sites.GateError
 		if errors.As(err, &gateErr) {
-			writeJSON(w, gateErr.status, errorResponse{Error: gateErr.message, Code: gateErr.code})
+			writeRollbackGateError(w, gateErr)
 		} else {
 			writeSitesError(w, err, siteName)
 		}
@@ -2347,9 +2270,7 @@ func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.sitesSvc().SetVisibility(r.Context(), user.ID, siteName, vis,
-		func(site db.Site) (bool, string) { return !site.Suspended(), site.SuspendedReason() },
-		h.wantUnlistedMarker); err != nil {
+	if err := h.sitesSvc().SetVisibility(r.Context(), user.ID, siteName, vis); err != nil {
 		writeSitesError(w, err, siteName)
 		return
 	}

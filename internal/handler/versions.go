@@ -13,7 +13,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // keepVersions is the instance retention (0 keeps all). Hosted Simple Host
@@ -86,18 +85,7 @@ func effectiveKeepVersions(siteKeep int) int {
 // Rows go first, then the folders: once the row is gone nothing can serve
 // or roll back to that version. It returns the version numbers removed.
 func (h *SiteHandler) pruneVersions(ctx context.Context, siteID, userID, siteName string, activeVersion, siteKeep int) []int {
-	return h.sitesSvc().PruneVersions(ctx, siteID, userID, siteName, activeVersion, siteKeep,
-		func(ctx context.Context, userID string, siteKeep int) (int, error) {
-			keep, _, err := accountRetention(ctx, h.database, userID, siteKeep, h.limits)
-			return keep, err
-		},
-		func(versions []db.Version, keep, activeVersion, siteKeep int) int {
-			floor := retainedFloor(versions, keep)
-			if h.ed.Storage().EventVersionRetention {
-				floor, _ = pruneThreshold(activeVersion, effectiveKeepVersions(siteKeep))
-			}
-			return floor
-		}, h.hackPinnedFloor)
+	return h.sitesSvc().PruneVersions(ctx, siteID, userID, siteName, activeVersion, siteKeep)
 }
 
 // setKeepVersions sets how many deploys of one site are kept and applies it at
@@ -135,15 +123,7 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	keep := *req.KeepVersions
-	site, effective, removed, err := h.sitesSvc().SetKeepVersions(r.Context(), user.ID, siteName, keep,
-		func(site db.Site) (bool, string) { return !site.Suspended(), site.SuspendedReason() },
-		func(ctx context.Context, userID string, keep int) (int, error) {
-			effective, _, err := accountRetention(ctx, h.database, userID, keep, h.limits)
-			return effective, err
-		},
-		func(ctx context.Context, site db.Site, keep int) []int {
-			return h.pruneVersions(ctx, site.ID, site.UserID, site.Name, site.ActiveVersion, keep)
-		})
+	site, effective, removed, err := h.sitesSvc().SetKeepVersions(r.Context(), user.ID, siteName, keep)
 	if err != nil {
 		writeSitesError(w, err, siteName)
 		return
@@ -217,8 +197,7 @@ func (h *SiteHandler) discardVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	expectedSiteID, checkSiteID := r.Context().Value(adminSiteKey{}).(string)
-	site, err := h.sitesSvc().DiscardVersion(r.Context(), user.ID, siteName, expectedSiteID, checkSiteID, n, h.lockAccountFiles,
-		func(site db.Site) (bool, string) { return !site.Suspended(), site.SuspendedReason() })
+	site, err := h.sitesSvc().DiscardVersion(r.Context(), user.ID, siteName, expectedSiteID, checkSiteID, n)
 	if err != nil {
 		writeSitesError(w, err, siteName)
 		return

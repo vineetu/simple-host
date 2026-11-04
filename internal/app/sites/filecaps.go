@@ -5,24 +5,25 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
-// CheckFileCaps checks the projected disk use before writing a version.
-func (s *Service) CheckFileCaps(ctx context.Context, enabled bool, cutoffText string, limits func() (int, int), userID string, site model.Site, files map[string][]byte, next int, publish bool, retention func() (int, error)) error {
-	if !enabled {
+// checkFileCaps checks the projected disk use before writing a version.
+func (s *Service) checkFileCaps(ctx context.Context, user *db.User, site model.Site, files map[string][]byte, next int, publish bool) error {
+	if !s.deps.FileCaps {
 		return nil
 	}
-	siteMB, accountMB := limits()
-	cutoff, err := time.Parse(time.RFC3339, cutoffText)
+	siteMB, accountMB := s.deps.CapLimits(ctx, user)
+	cutoff, err := time.Parse(time.RFC3339, s.deps.CapCutoff)
 	if err != nil || site.CreatedAt.Before(cutoff) {
 		siteMB = 0
 	}
 	if siteMB == 0 && accountMB == 0 {
 		return nil
 	}
-	f, err := s.disk.SiteFootprint(userID, site.Name)
+	f, err := s.disk.SiteFootprint(user.ID, site.Name)
 	if err != nil {
 		return &Error{Code: "site_measure_failed", Message: "could not measure website files"}
 	}
@@ -30,7 +31,7 @@ func (s *Service) CheckFileCaps(ctx context.Context, enabled bool, cutoffText st
 	for _, b := range files {
 		incoming += int64(len(b))
 	}
-	keep, err := retention()
+	keep, err := s.deps.Retention(ctx, user, site)
 	if err != nil {
 		return err
 	}
@@ -58,7 +59,7 @@ func (s *Service) CheckFileCaps(ctx context.Context, enabled bool, cutoffText st
 		return &Error{Code: "site_total_too_large", Message: fmt.Sprintf("This website may use at most %d MB including its live files and kept versions; it currently uses %.1f MB. This deploy would use %.1f MB.", siteMB, float64(f.Total())/(1<<20), float64(projected)/(1<<20))}
 	}
 	if accountMB > 0 {
-		current, err := s.disk.AccountFileBytes(userID)
+		current, err := s.disk.AccountFileBytes(user.ID)
 		if err != nil {
 			return &Error{Code: "account_measure_failed", Message: "could not measure account files"}
 		}
