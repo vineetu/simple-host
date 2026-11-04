@@ -3,7 +3,6 @@ package handler
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/legacy"
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
@@ -199,7 +200,7 @@ func (h *SiteHandler) recordVisitorSite(r *http.Request, caller mcp.Caller, site
 		if !ok {
 			return
 		}
-		_, _ = h.database.ExecContext(r.Context(), `UPDATE oauth_grants SET last_visitor_site=jsonb_build_object('address',$1::text,'at',now()), last_used_at=now() WHERE id=$2 AND user_id=$3`, address, caller.OAuthGrantID, caller.Owner)
+		_ = h.sitesSvc().RecordVisitorSite(r.Context(), sites.RecordVisitorSiteInput{Address: address, GrantID: caller.OAuthGrantID, UserID: caller.Owner})
 	}
 }
 
@@ -240,36 +241,21 @@ func (h *SiteHandler) visitorSharedSites(ctx context.Context, userID string) ([]
 	if err != nil {
 		return nil, err
 	}
-	rows, err := h.database.QueryContext(ctx, `SELECT s.id, s.name, s.user_id FROM sites s JOIN site_viewers v ON v.site_id=s.id WHERE v.email=$1 AND s.deleted_at IS NULL ORDER BY s.name`, strings.ToLower(email))
-	if err != nil {
-		return nil, err
-	}
-	type entry struct{ id, name, owner string }
-	list := []entry{}
-	for rows.Next() {
-		var x entry
-		if err := rows.Scan(&x.id, &x.name, &x.owner); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		list = append(list, x)
-	}
-	err = rows.Err()
-	rows.Close()
+	list, err := h.sitesSvc().VisitorSharedSites(ctx, strings.ToLower(email))
 	if err != nil {
 		return nil, err
 	}
 	out := []map[string]any{}
 	for _, x := range list {
-		site, err := db.GetSiteByUser(ctx, h.database, x.owner, x.name)
+		site, err := db.GetSiteByUser(ctx, h.database, x.Owner, x.Name)
 		if err != nil {
 			return nil, err
 		}
 		address := h.siteURLFor(site)
-		if canonical, ok := h.siteAddressFor(ctx, x.id, ""); ok {
+		if canonical, ok := h.siteAddressFor(ctx, x.ID, ""); ok {
 			address = canonical
 		}
-		out = append(out, map[string]any{"name": x.name, "address": address})
+		out = append(out, map[string]any{"name": x.Name, "address": address})
 	}
 	return out, nil
 }
@@ -590,35 +576,17 @@ func (h *SiteHandler) visitorWrite(r *http.Request, siteID, userID, app, tool st
 			return nil, fmt.Errorf("action must be edit or delete")
 		}
 	}
-	cap := h.limits.VisitorAIWritesPerDay
-	var count int64
-	err := h.database.QueryRowContext(r.Context(), `INSERT INTO visitor_ai_daily(user_id,site_id,day,writes) VALUES($1,$2,(now() AT TIME ZONE 'UTC')::date,1) ON CONFLICT(user_id,site_id,day) DO UPDATE SET writes=visitor_ai_daily.writes+1 WHERE visitor_ai_daily.writes<$3 RETURNING writes`, userID, siteID, cap).Scan(&count)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("visitor_write_limit: daily limit of %d writes on this site reached; try again tomorrow (UTC)", cap)
-	}
-	if err != nil {
-		return nil, err
-	}
-	// Attempts count too, so failures and concurrent retries cannot evade the cap.
-	result, err := h.visitorResourceRequest(r, args, action)
-	if err != nil {
-		return nil, err
-	}
-	if entry, ok := result.(map[string]any); ok {
-		entry["mine"] = true
-	}
 	resource, _ := visitorString(args, "resource")
 	kind, _ := visitorString(args, "kind")
-	// A history marker has no earlier value and therefore cannot be restored.
-	historyKind := db.HistoryStorage
-	if kind == "collection" {
-		historyKind = db.HistoryList
-	}
-	_, err = h.database.ExecContext(r.Context(), `INSERT INTO data_history(site_id,kind,name,op,actor_id,actor_kind,actor_app) VALUES($1,$6,$2,$3,$4,'visitor',$5)`, siteID, resource, action+" "+kind, userID, app, historyKind)
-	if err != nil {
-		return map[string]any{"entry": result, "note": "Saved, but the app label could not be recorded in data history."}, nil
-	}
-	return result, nil
+	adapter := legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
+		VisitorResourceWrite: func(action string) (any, error) {
+			return h.visitorResourceRequest(r, args, action)
+		},
+	})
+	return adapter.VisitorToolWrite(r.Context(), legacy.VisitorToolWriteInput{
+		SiteID: siteID, UserID: userID, App: app, Action: action,
+		Resource: resource, Kind: kind, Cap: h.limits.VisitorAIWritesPerDay,
+	})
 }
 
 func (h *SiteHandler) visitorPageText(ownerID, siteName, page string) (string, bool, error) {
@@ -710,8 +678,8 @@ func (h *SiteHandler) visitorStructuralName(r *http.Request, name string) (strin
 		if strings.EqualFold(id, pass.UserID) {
 			continue
 		}
-		var other bool
-		if err := h.database.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM users WHERE id=$1)`, id).Scan(&other); err != nil {
+		other, err := h.sitesSvc().VisitorAccountExists(r.Context(), id)
+		if err != nil {
 			return "", err
 		}
 		if other {
