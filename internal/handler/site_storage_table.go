@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -72,6 +72,45 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 	}
 	if !storageTableNameRE.MatchString(table) {
 		storageError(w, 400, "invalid_rows", "invalid row request")
+		return
+	}
+	if action == "read" {
+		call := h.storageServiceCall(c)
+		call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
+		var result appstorage.RowResult
+		var err error
+		if rowID != 0 {
+			result, err = h.storageRequestSvc(r, c).GetRow(r.Context(), appstorage.RowInput{Call: call, Table: table, ID: rowID})
+		} else {
+			result, err = h.storageRequestSvc(r, c).ListRows(r.Context(), appstorage.ListRowsInput{Call: call, Table: table, Query: r.URL.Query()})
+		}
+		if auth := result.Authorization; auth != nil {
+			if len(auth.Refusals) == 0 {
+				storageError(w, 403, auth.Code, auth.Message)
+				return
+			}
+			writeStorageRefusals(w, auth.Refusals)
+			if !auth.Allowed {
+				return
+			}
+		}
+		if err != nil {
+			e := err.(*appstorage.Error)
+			if e.Code == "storage_busy" {
+				storageBusy(w)
+				return
+			}
+			status := 400
+			if e.Code == "row_not_found" {
+				status = 404
+			}
+			if e.Code == "internal_error" {
+				status = 500
+			}
+			storageError(w, status, e.Code, e.Message)
+			return
+		}
+		writeJSON(w, 200, result.Body)
 		return
 	}
 	if !h.storageGate(w, r, c, action != "read") {
@@ -142,12 +181,6 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		switch action {
-		case "read":
-			if rowID != 0 {
-				t.getOne(rowID)
-			} else {
-				t.list()
-			}
 		case "add":
 			t.add(values)
 		case "edit":
@@ -186,20 +219,7 @@ func (t *storageTableCall) hidesPending() bool { return t.hold && !t.seesAuthors
 // storageTableInfo is a table's columns (name to declared type) and their
 // order.
 func storageTableInfo(conn *sqlite3.Conn, table string) (map[string]string, []string, error) {
-	cols, err := storageTableColumns(conn, table)
-	if err != nil {
-		return nil, nil, err
-	}
-	stmt, _, err := conn.Prepare("SELECT * FROM " + storageQuote(table) + " LIMIT 0")
-	if err != nil {
-		return nil, nil, err
-	}
-	defer stmt.Close()
-	order := make([]string, stmt.ColumnCount())
-	for i := range order {
-		order[i] = stmt.ColumnName(i)
-	}
-	return cols, order, nil
+	return storage.TableInfo(conn, table)
 }
 
 // seesAuthors: the caller sees every row's visitor_id (the owner's tools,
@@ -210,30 +230,7 @@ func (t *storageTableCall) seesAuthors() bool { return t.c.owner || t.c.ownerOnS
 // one top-level write of the expected kind, no schema change, no trigger
 // writing elsewhere.
 func (t *storageTableCall) visitorAuthorizer(write sqlite3.AuthorizerActionCode) error {
-	if t.c.owner {
-		return t.conn.SetAuthorizer(nil)
-	}
-	return t.conn.SetAuthorizer(func(a sqlite3.AuthorizerActionCode, n3, n4, schema, inner string) sqlite3.AuthorizerReturnCode {
-		if schema != "" && schema != "main" {
-			return sqlite3.AUTH_DENY
-		}
-		switch a {
-		case sqlite3.AUTH_SELECT, sqlite3.AUTH_READ, sqlite3.AUTH_RECURSIVE:
-			return sqlite3.AUTH_OK
-		case sqlite3.AUTH_INSERT, sqlite3.AUTH_UPDATE, sqlite3.AUTH_DELETE:
-			if a != write || n3 != t.table || inner != "" {
-				return sqlite3.AUTH_DENY
-			}
-			return sqlite3.AUTH_OK
-		case sqlite3.AUTH_FUNCTION:
-			fn := strings.ToLower(n4)
-			if fn == "load_extension" || fn == "readfile" || fn == "writefile" {
-				return sqlite3.AUTH_DENY
-			}
-			return sqlite3.AUTH_OK
-		}
-		return sqlite3.AUTH_DENY
-	})
+	return storage.SetRowAuthorizer(t.conn, t.table, t.c.owner, write)
 }
 
 func (t *storageTableCall) bindAll(stmt *sqlite3.Stmt, params []json.RawMessage) error {
@@ -269,221 +266,13 @@ func (t *storageTableCall) resultRow(stmt *sqlite3.Stmt) ([]any, int64, bool) {
 	return row, stmt.ColumnInt64(n), mine
 }
 
-func (t *storageTableCall) list() {
-	q := t.r.URL.Query()
-	_, after, limit, ok := storagePage(t.r)
-	if !ok {
-		storageError(t.w, 400, "invalid_rows", "invalid limit")
-		return
-	}
-	order := q.Get("order")
-	if order == "" {
-		order = t.rowid
-	}
-	if _, ok := t.cols[order]; !ok && order != t.rowid || order == "visitor_id" && !t.seesAuthors() {
-		storageError(t.w, 400, "invalid_rows", "invalid row request")
-		return
-	}
-	desc := q.Get("desc")
-	if desc != "" && desc != "0" && desc != "1" {
-		storageError(t.w, 400, "invalid_rows", "desc is 0 or 1")
-		return
-	}
-	page := &storageRowPage{limit: limit, order: order, desc: desc == "1", orderIndex: -1}
-	for i, name := range t.order {
-		if name == order {
-			page.orderIndex = i
-		}
-	}
-	where := []string{}
-	params := []json.RawMessage{}
-	bind := func(v any) { params = append(params, storageJSON(v)) }
-	if t.filter != "" {
-		where = append(where, "visitor_id = ?")
-		bind(t.filter)
-	}
-	if t.hidesPending() {
-		where = append(where, "approved_at IS NOT NULL")
-	}
-	// Equality filters on real columns only, bound as values.
-	keys := []string{}
-	for k := range q {
-		if strings.HasPrefix(k, "where.") {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-	if len(keys) > storageWhereMax {
-		storageError(t.w, 400, "invalid_rows", "at most 3 where filters")
-		return
-	}
-	for _, k := range keys {
-		col := strings.TrimPrefix(k, "where.")
-		if _, ok := t.cols[col]; !ok || col == "visitor_id" && !t.seesAuthors() {
-			storageError(t.w, 400, "invalid_rows", "invalid row request")
-			return
-		}
-		where = append(where, storageQuote(col)+" = ?")
-		bind(q.Get(k))
-	}
-	direction, op := " ASC", ">"
-	if page.desc {
-		direction, op = " DESC", "<"
-	}
-	rowid := t.rowid
-	if after != "" {
-		b, e := base64.RawURLEncoding.DecodeString(after)
-		var cur storageRowCursor
-		if e != nil || json.Unmarshal(b, &cur) != nil || cur.Order != order || cur.Desc != page.desc || cur.Value == nil || !storageScalar(cur.Value) {
-			storageError(t.w, 400, "invalid_rows", "invalid after")
-			return
-		}
-		// SQLite sorts NULL first in ascending order; include them when descending.
-		qo := storageQuote(order)
-		if order == t.rowid {
-			qo = rowid
-		}
-		if string(cur.Value) == "null" {
-			if page.desc {
-				where = append(where, "("+qo+" IS NULL AND "+rowid+op+"?)")
-			} else {
-				where = append(where, "("+qo+" IS NOT NULL OR ("+qo+" IS NULL AND "+rowid+op+"?))")
-			}
-			bind(cur.ID)
-		} else {
-			nulls := ""
-			if page.desc {
-				nulls = qo + " IS NULL OR "
-			}
-			where = append(where, "("+nulls+qo+op+"? OR ("+qo+" = ? AND "+rowid+op+"?))")
-			params = append(params, cur.Value, cur.Value)
-			bind(cur.ID)
-		}
-	}
-	query := "SELECT *, " + rowid + " FROM " + storageQuote(t.table)
-	if len(where) > 0 {
-		query += " WHERE " + strings.Join(where, " AND ")
-	}
-	orderSQL := storageQuote(order)
-	if order == t.rowid {
-		orderSQL = rowid
-	}
-	query += " ORDER BY " + orderSQL + direction + ", " + rowid + direction + " LIMIT ?"
-	bind(limit + 1)
-	if err := t.visitorAuthorizer(sqlite3.AUTH_SELECT); err != nil {
-		storageError(t.w, 500, "internal_error", "internal server error")
-		return
-	}
-	stmt, _, err := t.conn.Prepare(query)
-	if err != nil || stmt == nil {
-		storageError(t.w, 400, "invalid_rows", "invalid row request")
-		return
-	}
-	defer stmt.Close()
-	if err = t.bindAll(stmt, params); err != nil {
-		storageError(t.w, 400, "invalid_rows", "invalid row request")
-		return
-	}
-	rows := make([][]any, 0)
-	mine := make([]bool, 0)
-	next := ""
-	hasMore := false
-	cols := t.order
-	encodedCols, _ := json.Marshal(cols)
-	resultBytes := len(encodedCols) + 64
-	for stmt.Step() {
-		if len(rows) >= page.limit {
-			hasMore = true
-			break
-		}
-		raw := make([]any, len(cols))
-		for i := range cols {
-			raw[i] = storageColumn(stmt, i)
-		}
-		cursor := page.cursor(raw, stmt.ColumnInt64(len(cols)))
-		row, _, m := t.resultRow(stmt)
-		encoded, e := json.Marshal(row)
-		if e != nil || resultBytes+len(encoded) > storageResultLimitBytes() {
-			storageError(t.w, 400, "result_too_large", "query result is too large")
-			return
-		}
-		resultBytes += len(encoded)
-		rows = append(rows, row)
-		mine = append(mine, m)
-		next = cursor
-	}
-	if stmt.Err() != nil {
-		storageError(t.w, 400, "invalid_rows", "query failed")
-		return
-	}
-	if !hasMore {
-		next = ""
-	}
-	result := map[string]any{"columns": cols, "rows": rows, "next_after": next}
-	if !t.seesAuthors() {
-		result["mine"] = mine
-	}
-	writeJSON(t.w, 200, result)
-}
-
-func (t *storageTableCall) getOne(id int64) {
-	query := "SELECT *, " + t.rowid + " FROM " + storageQuote(t.table) + " WHERE " + t.rowid + " = ?"
-	params := []json.RawMessage{storageJSON(id)}
-	if t.filter != "" {
-		query += " AND visitor_id = ?"
-		params = append(params, storageJSON(t.filter))
-	}
-	if t.hidesPending() {
-		query += " AND approved_at IS NOT NULL"
-	}
-	if err := t.visitorAuthorizer(sqlite3.AUTH_SELECT); err != nil {
-		storageError(t.w, 500, "internal_error", "internal server error")
-		return
-	}
-	stmt, _, err := t.conn.Prepare(query)
-	if err != nil || stmt == nil {
-		storageError(t.w, 400, "invalid_rows", "invalid row request")
-		return
-	}
-	defer stmt.Close()
-	if err = t.bindAll(stmt, params); err != nil {
-		storageError(t.w, 400, "invalid_rows", "invalid row request")
-		return
-	}
-	if !stmt.Step() {
-		if stmt.Err() != nil {
-			storageError(t.w, 400, "invalid_rows", "query failed")
-			return
-		}
-		storageError(t.w, 404, "row_not_found", "row not found")
-		return
-	}
-	row, _, mine := t.resultRow(stmt)
-	result := map[string]any{"columns": t.order, "row": row}
-	if !t.seesAuthors() {
-		result["mine"] = mine
-	}
-	writeJSON(t.w, 200, result)
-}
-
 // begin starts the write transaction the statement and its reference check
 // share; rollback runs unless commit succeeded.
 func (t *storageTableCall) begin() (func() error, func(), bool) {
-	if err := t.conn.Exec("BEGIN IMMEDIATE"); err != nil {
+	commit, rollback, err := storage.BeginRowWrite(t.conn)
+	if err != nil {
 		storageError(t.w, 503, "storage_busy", "storage is busy; retry shortly")
 		return nil, nil, false
-	}
-	done := false
-	commit := func() error {
-		err := t.conn.Exec("COMMIT")
-		done = err == nil
-		return err
-	}
-	rollback := func() {
-		_ = t.conn.SetAuthorizer(nil)
-		if !done {
-			_ = t.conn.Exec("ROLLBACK")
-		}
 	}
 	return commit, rollback, true
 }
@@ -495,29 +284,16 @@ func (t *storageTableCall) run(kind sqlite3.AuthorizerActionCode, query string, 
 		storageError(t.w, 500, "internal_error", "internal server error")
 		return 0, false
 	}
-	stmt, tail, err := t.conn.Prepare(query)
-	if err != nil || stmt == nil || strings.TrimSpace(tail) != "" {
+	id, stage, err := storage.RunRowStatement(t.conn, query, params, returning)
+	if stage == storage.RowStatementPrepare {
 		// A trigger or foreign-key action that writes elsewhere is refused
 		// while the statement is prepared.
 		storageError(t.w, 403, "forbidden", "this change would touch other tables; pages cannot make it, only the owner's tools")
 		return 0, false
 	}
-	defer stmt.Close()
-	if err = t.bindAll(stmt, params); err != nil {
+	if stage == storage.RowStatementBind {
 		storageError(t.w, 400, "invalid_rows", "invalid row request")
 		return 0, false
-	}
-	var id int64
-	if returning {
-		if stmt.Step() {
-			id = stmt.ColumnInt64(0)
-			stmt.Step()
-		}
-	} else {
-		stmt.Step()
-	}
-	if err = stmt.Err(); err == nil {
-		err = stmt.Close()
 	}
 	if err != nil {
 		switch {
@@ -568,78 +344,15 @@ func (t *storageTableCall) finish(commit func() error, body map[string]any, noti
 }
 
 func (t *storageTableCall) add(values map[string]json.RawMessage) {
-	if !t.c.owner {
-		info, _, err := t.conn.Prepare("PRAGMA table_info(" + storageQuote(t.table) + ")")
-		if err != nil {
-			storageError(t.w, 400, "invalid_rows", "invalid row request")
+	query, params, err := storage.PrepareInsert(t.conn, t.table, t.rowid, t.cols, values, storage.InsertActor{Owner: t.c.owner, OwnerOnSite: t.c.ownerOnSite, Hold: t.hold, StampID: t.c.stampID()})
+	if err != nil {
+		if errors.Is(err, storage.ErrInsertSuppliesID) {
+			storageError(t.w, 400, "invalid_rows", "the server assigns ids")
 			return
 		}
-		for info.Step() {
-			if _, supplied := values[info.ColumnText(1)]; supplied && info.ColumnInt(5) > 0 {
-				info.Close()
-				storageError(t.w, 400, "invalid_rows", "the server assigns ids")
-				return
-			}
-		}
-		info.Close()
-		for name := range values {
-			if l := strings.ToLower(name); l == "rowid" || l == "_rowid_" || l == "oid" {
-				storageError(t.w, 400, "invalid_rows", "the server assigns ids")
-				return
-			}
-		}
-		// Server-owned: anything the page sends for these is replaced.
-		delete(values, "visitor_id")
-		delete(values, "created_at")
-		delete(values, "updated_at")
-		if _, ok := t.cols["visitor_id"]; ok {
-			values["visitor_id"] = storageJSON(t.c.stampID())
-			if t.c.stampID() == "" {
-				values["visitor_id"] = json.RawMessage("null")
-			}
-		}
-		if _, ok := t.cols["created_at"]; ok {
-			values["created_at"] = storageJSON(time.Now().UTC().Format(time.RFC3339Nano))
-		}
-		if t.hold {
-			// A post through the spam check waits; the owner signed in on
-			// the site posts approved.
-			values["approved_at"] = json.RawMessage("null")
-			if t.c.ownerOnSite {
-				values["approved_at"] = storageJSON(time.Now().UTC().Format(time.RFC3339Nano))
-			}
-		}
-	} else if _, set := values["approved_at"]; t.hold && !set {
-		values["approved_at"] = storageJSON(time.Now().UTC().Format(time.RFC3339Nano))
+		storageError(t.w, 400, "invalid_rows", "invalid row request")
+		return
 	}
-	names := make([]string, 0, len(values))
-	for name := range values {
-		if _, ok := t.cols[name]; !ok {
-			storageError(t.w, 400, "invalid_rows", "invalid row request")
-			return
-		}
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	// OR ABORT overrides a table's ON CONFLICT REPLACE, which would let a
-	// visitor's insert delete someone else's row.
-	query := "INSERT INTO " + storageQuote(t.table)
-	if !t.c.owner {
-		query = "INSERT OR ABORT INTO " + storageQuote(t.table)
-	}
-	params := []json.RawMessage{}
-	if len(names) == 0 {
-		query += " DEFAULT VALUES"
-	} else {
-		quoted, marks := []string{}, []string{}
-		for _, name := range names {
-			quoted = append(quoted, storageQuote(name))
-			marks = append(marks, "?")
-			params = append(params, values[name])
-		}
-		query += " (" + strings.Join(quoted, ",") + ") VALUES (" + strings.Join(marks, ",") + ")"
-	}
-	query += " RETURNING " + t.rowid
 	commit, rollback, ok := t.begin()
 	if !ok {
 		return

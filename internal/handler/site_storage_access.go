@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/papermetrics"
 	repo "github.com/vsriram/simple-host/internal/repository/storage"
@@ -291,61 +292,18 @@ func (h *SiteHandler) storageOwnHost(r *http.Request, siteID string) bool {
 // filter is "" when every entry is in reach, or the visitor id entries must
 // carry (own). It writes the refusal itself.
 func (h *SiteHandler) storageAllow(w http.ResponseWriter, r *http.Request, c *storageCall, action, value string) (string, bool) {
-	if c.owner {
-		return "", true
+	call := h.storageServiceCall(*c)
+	call.Context = r.Context()
+	filter, err := h.storageSvc().Allow(&call, action, value)
+	allowed := err == nil
+	var refusals []*appstorage.Error
+	if err != nil {
+		e := err.(*appstorage.Error)
+		allowed, refusals = e.Allowed, e.Refusals
 	}
-	switch value {
-	case storageWhoAnyone:
-		if c.visitorAI && (action == "edit" || action == "delete") {
-			return c.visitorID, true
-		}
-		return "", true
-	case storageWhoChecked:
-		if c.visitorAI && h.storageVisitorActive(w, r, c) {
-			return "", true
-		}
-		// The owner signed in on the site posts without the check.
-		if c.ownerOnSite && h.storageVisitorActive(w, r, c) {
-			return "", true
-		}
-		if c.ownerOnSite {
-			return "", false
-		}
-		if c.visitorID != "" && !h.storageVisitorActive(w, r, c) {
-			return "", false
-		}
-		return "", storageCheckedAllow(w, c)
-	case storageWhoOwn, storageWhoSignedIn:
-		if c.visitorID == "" {
-			storageError(w, 401, "sign_in_required", "sign in to this site first")
-			return "", false
-		}
-		if !h.storageVisitorActive(w, r, c) {
-			return "", false
-		}
-		if c.visitorAI && (action == "edit" || action == "delete") {
-			return c.visitorID, true
-		}
-		if c.ownerOnSite || value == storageWhoSignedIn {
-			return "", true
-		}
-		return c.visitorID, true
-	case storageWhoOwner:
-		if c.ownerOnSite && h.storageVisitorActive(w, r, c) {
-			return "", true
-		}
-		if c.ownerOnSite {
-			return "", false
-		}
-	}
-	if (action == "edit" || action == "delete") && value != storageWhoNobody {
-		if add := c.currentMatrix.Add; add == storageWhoAnyone || add == storageWhoChecked || add == storageWhoSignedIn && c.visitorID != "" {
-			storageError(w, 403, "add_only", "visitors can add here, not change or delete")
-			return "", false
-		}
-	}
-	storageError(w, 403, "forbidden", action+" is not open to this visitor here ("+value+")")
-	return "", false
+	c.activeChecked, c.checkedPost = call.ActiveChecked, call.CheckedPost
+	writeStorageRefusals(w, refusals)
+	return filter, allowed
 }
 
 // storageVisitorActive refuses a suspended visitor account and keeps the
@@ -372,21 +330,11 @@ func (h *SiteHandler) storageVisitorActive(w http.ResponseWriter, r *http.Reques
 // today's order: the site's passcode, its named viewers, and CSRF on every
 // change.
 func (h *SiteHandler) storageGate(w http.ResponseWriter, r *http.Request, c storageCall, write bool) bool {
-	if c.owner {
-		return true
-	}
-	if c.resource.SitePasscode == "inherit" && !h.PasscodeLetsIn(r, c.siteID) {
-		storageError(w, 403, "site_locked", "unlock this site first")
-		return false
-	}
-	// A named-viewers site (viewers.go) keeps all of its saved data to the
-	// owner and its named viewers, whatever the resource's site_passcode says.
-	if !h.ViewersLetIn(r, c.siteID) {
-		storageError(w, 403, "site_private", "this site is open only to its named viewers; sign in on the site first")
-		return false
-	}
-	if write && r.Header.Get("X-SH-CSRF") != "1" {
-		storageError(w, 403, "csrf_required", "X-SH-CSRF: 1 required")
+	call := h.storageServiceCall(c)
+	call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
+	if err := h.storageRequestSvc(r, c).Gate(call, write); err != nil {
+		e := err.(*appstorage.Error)
+		storageError(w, http.StatusForbidden, e.Code, e.Message)
 		return false
 	}
 	return true
@@ -395,13 +343,22 @@ func (h *SiteHandler) storageGate(w http.ResponseWriter, r *http.Request, c stor
 // storageAccess is the gate plus one action on the resource's own matrix
 // (KV, files, and legacy SQL). It records the action's filter on c.
 func (h *SiteHandler) storageAccess(w http.ResponseWriter, r *http.Request, c *storageCall, action string) bool {
-	if !h.storageGate(w, r, *c, action != "read") {
+	call := h.storageServiceCall(*c)
+	call.Context = r.Context()
+	call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
+	filter, err := h.storageRequestSvc(r, *c).Access(&call, action)
+	c.activeChecked, c.checkedPost = call.ActiveChecked, call.CheckedPost
+	c.currentMatrix, c.filter = storageAccessMatrix(call.CurrentMatrix), filter
+	if err == nil {
+		return true
+	}
+	e := err.(*appstorage.Error)
+	if len(e.Refusals) == 0 {
+		storageError(w, http.StatusForbidden, e.Code, e.Message)
 		return false
 	}
-	c.currentMatrix = c.resource.matrix()
-	filter, ok := h.storageAllow(w, r, c, action, c.currentMatrix.value(action))
-	c.filter = filter
-	return ok
+	writeStorageRefusals(w, e.Refusals)
+	return e.Allowed
 }
 
 // storageMayRead reports, without answering, whether the caller passes value

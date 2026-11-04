@@ -421,3 +421,21 @@ func OpenTableConn(parent context.Context, dbPath string, write bool, gate *SQLi
 	}
 	return conn, done, nil
 }
+
+// TableInfo returns the declared types and ordered names of a table's columns.
+func TableInfo(conn *sqlite3.Conn, table string) (map[string]string, []string, error) {
+	cols, err := TableColumns(conn, table)
+	if err != nil {
+		return nil, nil, err
+	}
+	stmt, _, err := conn.Prepare("SELECT * FROM " + Quote(table) + " LIMIT 0")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer stmt.Close()
+	order := make([]string, stmt.ColumnCount())
+	for i := range order {
+		order[i] = stmt.ColumnName(i)
+	}
+	return cols, order, nil
+}

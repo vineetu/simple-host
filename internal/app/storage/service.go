@@ -3,15 +3,39 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"sync"
 	"time"
+
+	runtime "github.com/vsriram/simple-host/internal/storage"
 )
 
 // Deps holds the storage service configuration.
 type Deps struct {
-	Locks                 *sync.Map
-	CombinedPool          bool
-	SiteLimit, FilesLimit string
+	SQLitePath                               string
+	SQLiteGate                               *runtime.SQLiteGate
+	SQLiteTimeout                            time.Duration
+	SQLiteMaxMemory                          int64
+	Locks                                    *sync.Map
+	CombinedPool                             bool
+	SiteLimit, FilesLimit                    string
+	SpamCheckedMaxBytes, SpamCheckedMaxLinks int
+	VisitorSessionIdle                       time.Duration
+	PasscodeAllows, ViewersAllow             func() bool
+	WriteLockWait, WriteTimeout              time.Duration
+	Recheck                                  func(context.Context) bool
+	Committed                                func(context.Context)
+	Notify                                   func(Call, string, map[string]any)
+	ReadKVValue                              func() (json.RawMessage, error)
+	FilePath                                 func(Call, string) string
+	MarkChanged                              func()
+	FileToken                                func(Call, string, time.Time) string
+	ReadFile                                 func() ([]byte, error)
+	ScanFile                                 func(Call, string, []byte)
+	FileObjectsLimit                         int
+	OpenFileToken                            func(string) ([]byte, error)
+	FileResourceExists                       func(context.Context, string, string) bool
+	EventOwners                              bool
 }
 
 // Service owns site storage workflows.

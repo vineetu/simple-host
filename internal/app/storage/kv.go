@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	repository "github.com/vsriram/simple-host/internal/repository/storage"
+	rules "github.com/vsriram/simple-host/internal/rules/storage"
 	"strings"
 	"time"
 
@@ -55,24 +56,6 @@ func (s *Service) putKV(ctx context.Context, siteID, resource, root, key string,
 		return &Error{Code: "key_exists", Message: "this key already exists"}
 	}
 	committed(ctx)
-	return nil
-}
-
-// WriteCheckedKV checks the resolved author before completing an authorized write.
-func (s *Service) WriteCheckedKV(ctx context.Context, unlock func(), siteID, resource, root, key string, value json.RawMessage, filter string, owner bool, visitorID, writer string, exists bool, checkedPost bool, maxBytes, maxLinks int, committed func(context.Context), notify func(string, map[string]any)) error {
-	if err := checkKVAuthor(exists, writer, filter); err != nil {
-		return err
-	}
-	if checkedPost {
-		if err := validateKVPost(value, maxBytes, maxLinks); err != nil {
-			return err
-		}
-	}
-	if err := s.putKV(ctx, siteID, resource, root, key, value, filter, owner, visitorID, exists, committed); err != nil {
-		return err
-	}
-	name, data := finishKVWrite(unlock, key, value, exists)
-	notify(name, data)
 	return nil
 }
 
@@ -208,19 +191,6 @@ func (s *Service) deleteKVLocked(ctx context.Context, lockKey string, wait, time
 	return n, nil
 }
 
-// DeleteKVWithNotification deletes under the site lock and chooses the notification after release.
-func (s *Service) DeleteKVWithNotification(ctx context.Context, lockKey string, wait, timeout time.Duration, recheck func(context.Context) bool, committed func(context.Context), siteID, resource, key, filter string, notify func(string, map[string]any)) error {
-	n, err := s.deleteKVLocked(ctx, lockKey, wait, timeout, recheck, committed, siteID, resource, key, filter)
-	if err != nil {
-		return err
-	}
-	name, data := kvDeleteNotification(key, n)
-	if name != "" {
-		notify(name, data)
-	}
-	return nil
-}
-
 // kvWriteNotification describes the notification for a successful write.
 func kvWriteNotification(key string, value json.RawMessage, exists bool) (string, map[string]any) {
 	name := "record.added"
@@ -230,23 +200,6 @@ func kvWriteNotification(key string, value json.RawMessage, exists bool) (string
 		data["change"] = "edited"
 	}
 	return name, data
-}
-
-// BeginKVWrite locks and resolves a write before handler authorization.
-func (s *Service) BeginKVWrite(ctx context.Context, lockKey string, wait, timeout time.Duration, recheck func(context.Context) bool, siteID, resource, key, requested string, visitorAI, taken bool) (context.Context, func(), string, bool, string, error) {
-	if !visitorAI {
-		requested = ""
-	}
-	ctx, unlock, err := s.WriteLock(ctx, lockKey, wait, timeout, recheck)
-	if err != nil {
-		return ctx, nil, "", false, "", err
-	}
-	writer, exists, action, err := s.prepareKVWrite(ctx, siteID, resource, key, requested, taken)
-	if err != nil {
-		unlock()
-		return ctx, nil, "", false, "", err
-	}
-	return ctx, unlock, writer, exists, action, nil
 }
 
 // kvDeleteNotification describes the notification for a successful deletion.
@@ -281,25 +234,191 @@ type VisibleKVItem struct {
 }
 
 // ListVisibleKV reads a page and resolves its author visibility.
-func (s *Service) ListVisibleKV(ctx context.Context, siteID, resource, prefix, after string, limit int, filter, visitorID string, owner bool) ([]VisibleKVItem, string, error) {
-	rows, next, err := s.listKV(ctx, siteID, resource, prefix, after, limit, filter)
+func (s *Service) ListVisibleKV(ctx context.Context, call Call, prefix, after string, limit int) ([]VisibleKVItem, string, error) {
+	rows, next, err := s.listKV(ctx, call.SiteID, call.ResourceName, prefix, after, limit, call.Filter)
 	if err != nil {
 		return nil, "", err
 	}
 	out := make([]VisibleKVItem, 0, len(rows))
 	for _, row := range rows {
-		writer, mine := kvAuthorVisibility(row.WriterID, visitorID, owner)
+		writer, mine := kvAuthorVisibility(row.WriterID, call.VisitorID, call.Owner || call.OwnerOnSite)
 		out = append(out, VisibleKVItem{Key: row.Key, Value: row.Value, VisitorID: writer, Mine: mine})
 	}
 	return out, next, nil
 }
 
 // GetVisibleKV reads a key and resolves its author visibility.
-func (s *Service) GetVisibleKV(ctx context.Context, siteID, resource, key, filter, visitorID string, owner bool) (VisibleKVItem, error) {
-	item, err := s.getKV(ctx, siteID, resource, key, filter)
+func (s *Service) GetVisibleKV(ctx context.Context, call Call, key string) (VisibleKVItem, error) {
+	item, err := s.getKV(ctx, call.SiteID, call.ResourceName, key, call.Filter)
 	if err != nil {
 		return VisibleKVItem{}, err
 	}
-	writer, mine := kvAuthorVisibility(item.WriterID, visitorID, owner)
+	writer, mine := kvAuthorVisibility(item.WriterID, call.VisitorID, call.Owner || call.OwnerOnSite)
 	return VisibleKVItem{Key: item.Key, Value: item.Value, VisitorID: writer, Mine: mine}, nil
+}
+
+// KVReadInput identifies a key and the caller requesting it.
+type KVReadInput struct {
+	Call Call
+	Key  string
+}
+
+// KVReadResult carries the entry and any ordered authorization responses.
+type KVReadResult struct {
+	Item          VisibleKVItem
+	Authorization *Error
+}
+
+// GetKV authorizes and reads a single key.
+func (s *Service) GetKV(ctx context.Context, in KVReadInput) (KVReadResult, error) {
+	in.Call.Context = ctx
+	filter, err := s.Access(&in.Call, "read")
+	result := KVReadResult{}
+	if err != nil {
+		result.Authorization = err.(*Error)
+		if !result.Authorization.Allowed {
+			return result, nil
+		}
+	}
+	in.Call.Filter = filter
+	result.Item, err = s.GetVisibleKV(ctx, in.Call, in.Key)
+	return result, err
+}
+
+// KVListInput identifies a page and the caller requesting it.
+type KVListInput struct {
+	Call          Call
+	Prefix, After string
+	Limit         int
+	ValidLimit    bool
+}
+
+// KVListResult carries the page and ordered authorization responses.
+type KVListResult struct {
+	Items         []VisibleKVItem
+	Next          string
+	Authorization *Error
+}
+
+// ListKV authorizes and reads a page of keys.
+func (s *Service) ListKV(ctx context.Context, in KVListInput) (KVListResult, error) {
+	in.Call.Context = ctx
+	filter, err := s.Access(&in.Call, "read")
+	result := KVListResult{}
+	if err != nil {
+		result.Authorization = err.(*Error)
+		if !result.Authorization.Allowed {
+			return result, nil
+		}
+	}
+	if !in.ValidLimit {
+		return result, &Error{Code: "invalid_limit", Message: "invalid limit"}
+	}
+	in.Call.Filter = filter
+	result.Items, result.Next, err = s.ListVisibleKV(ctx, in.Call, in.Prefix, in.After, in.Limit)
+	return result, err
+}
+
+func kvTaken(call Call) bool {
+	may := func(value string) bool {
+		if call.Owner {
+			return true
+		}
+		switch value {
+		case rules.WhoAnyone, rules.WhoChecked:
+			return true
+		case rules.WhoSignedIn, rules.WhoOwn:
+			return call.VisitorID != ""
+		case rules.WhoOwner:
+			return call.OwnerOnSite
+		}
+		return false
+	}
+	matrix := call.Resource.Matrix()
+	return !may(matrix.Edit) && may(matrix.Add)
+}
+
+// KVPutInput identifies a value and the caller requesting a write.
+type KVPutInput struct {
+	Call           Call
+	Key, Requested string
+}
+
+// PutKV resolves, authorizes and writes a key under the site lock.
+func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *Error, error) {
+	call := in.Call
+	if err := s.Gate(call, true); err != nil {
+		return nil, err.(*Error), nil
+	}
+	value, err := s.deps.ReadKVValue()
+	if err != nil {
+		return nil, nil, err
+	}
+	requested := in.Requested
+	if !call.VisitorAI {
+		requested = ""
+	}
+	ctx, unlock, err := s.WriteLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer unlock()
+	writer, exists, action, err := s.prepareKVWrite(ctx, call.SiteID, call.ResourceName, in.Key, requested, kvTaken(call))
+	if err != nil {
+		return nil, nil, err
+	}
+	call.Context = ctx
+	call.CurrentMatrix = call.Resource.Matrix()
+	filter, err := s.Allow(&call, action, call.CurrentMatrix.Value(action))
+	var auth *Error
+	if err != nil {
+		auth = err.(*Error)
+		if !auth.Allowed {
+			return nil, auth, nil
+		}
+	}
+	call.Filter = filter
+	if err := checkKVAuthor(exists, writer, call.Filter); err != nil {
+		return nil, auth, err
+	}
+	if call.CheckedPost {
+		if err := validateKVPost(value, s.deps.SpamCheckedMaxBytes, s.deps.SpamCheckedMaxLinks); err != nil {
+			return nil, auth, err
+		}
+	}
+	if err := s.putKV(ctx, call.SiteID, call.ResourceName, call.RuntimeDir, in.Key, value, call.Filter, call.Owner, call.VisitorID, exists, s.deps.Committed); err != nil {
+		return nil, auth, err
+	}
+	name, data := finishKVWrite(unlock, in.Key, value, exists)
+	s.deps.Notify(call, name, data)
+	return value, auth, nil
+}
+
+// KVDeleteInput identifies a key and the caller requesting deletion.
+type KVDeleteInput struct {
+	Call Call
+	Key  string
+}
+
+// DeleteKV authorizes and deletes a key under the shared write lock.
+func (s *Service) DeleteKV(ctx context.Context, in KVDeleteInput) (*Error, error) {
+	in.Call.Context = ctx
+	filter, err := s.Access(&in.Call, "delete")
+	var auth *Error
+	if err != nil {
+		auth = err.(*Error)
+		if !auth.Allowed {
+			return auth, nil
+		}
+	}
+	in.Call.Filter = filter
+	n, err := s.deleteKVLocked(ctx, in.Call.OwnerID+"/"+in.Call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck, s.deps.Committed, in.Call.SiteID, in.Call.ResourceName, in.Key, filter)
+	if err != nil {
+		return auth, err
+	}
+	name, data := kvDeleteNotification(in.Key, n)
+	if name != "" {
+		s.deps.Notify(in.Call, name, data)
+	}
+	return auth, nil
 }

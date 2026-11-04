@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/vsriram/simple-host/internal/papermetrics"
 	"io"
 	"net/http"
 	"os"
@@ -654,7 +653,7 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 		key = appstorage.NormalizeKVKey(key)
 	}
 	if key == "" {
-		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || !h.storageAccess(w, r, &c, "read") {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			return
 		}
 		h.storageKVList(w, r, c)
@@ -666,10 +665,20 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
-		if !h.storageAccess(w, r, &c, "read") {
-			return
+		call := h.storageServiceCall(c)
+		call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
+		result, e := h.storageRequestSvc(r, c).GetKV(r.Context(), appstorage.KVReadInput{Call: call, Key: key})
+		if auth := result.Authorization; auth != nil {
+			if len(auth.Refusals) == 0 {
+				storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+				return
+			}
+			writeStorageRefusals(w, auth.Refusals)
+			if !auth.Allowed {
+				return
+			}
 		}
-		item, e := h.storageSvc().GetVisibleKV(r.Context(), c.siteID, c.resourceName, key, c.filter, c.visitorID, c.owner || c.ownerOnSite)
+		item := result.Item
 		var serviceErr *appstorage.Error
 		if errors.As(e, &serviceErr) && serviceErr.Code == "key_not_found" {
 			storageError(w, 404, serviceErr.Code, serviceErr.Message)
@@ -690,61 +699,33 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPut:
 		// Add or edit is decided below, inside the write lock, by whether
 		// the key exists; the page cannot choose.
-		if !h.storageGate(w, r, c, true) {
-			return
-		}
-		body, e := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
-		if e != nil {
-			storageError(w, 400, "invalid_value", "value too large")
-			return
-		}
-		var v struct {
-			Value json.RawMessage `json:"value"`
-		}
-		if json.Unmarshal(body, &v) != nil || len(v.Value) == 0 || !json.Valid(v.Value) {
-			storageError(w, 400, "invalid_value", "valid JSON value required")
-			return
-		}
-		want := r.Header.Get("X-SH-Visitor-Action")
-		timeout := h.limits.StorageVisitorWriteTimeout
-		if c.owner {
-			timeout = h.limits.StorageOwnerTimeout
-		}
-		recheck := func(ctx context.Context) bool {
-			current, err := h.loadStorageResource(ctx, c.siteID, c.resourceName)
-			return err == nil && current.fingerprint() == c.resource.fingerprint()
-		}
-		ctx, unlock, writer, exists, action, e := h.storageSvc().BeginKVWrite(r.Context(), c.ownerID+"/"+c.siteName, h.limits.StorageWriteLockWait, timeout, recheck, c.siteID, c.resourceName, key, want, c.visitorAI, c.storageTaken(c.resource.matrix()))
-		if e != nil {
-			var serviceErr *appstorage.Error
-			if errors.As(e, &serviceErr) {
-				if serviceErr.Code == "storage_busy" {
-					storageBusy(w)
-					return
-				}
-				status := 409
-				if serviceErr.Code == "key_not_found" {
-					status = 404
-				}
-				storageError(w, status, serviceErr.Code, serviceErr.Message)
-			} else {
-				storageError(w, 500, "internal_error", "internal server error")
+		call := h.storageServiceCall(c)
+		call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
+		reader := http.MaxBytesReader(w, r.Body, 1<<20)
+		value, auth, e := h.storageRequestSvcWithKVReader(r, c, reader).PutKV(r.Context(), appstorage.KVPutInput{Call: call, Key: key, Requested: r.Header.Get("X-SH-Visitor-Action")})
+		if auth != nil {
+			if len(auth.Refusals) == 0 {
+				storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+				return
 			}
-			return
+			writeStorageRefusals(w, auth.Refusals)
+			if !auth.Allowed {
+				return
+			}
 		}
-		defer unlock()
-		*r = *r.WithContext(ctx)
-		c.currentMatrix = c.resource.matrix()
-		filter, ok := h.storageAllow(w, r, &c, action, c.currentMatrix.value(action))
-		if !ok {
-			return
-		}
-		e = h.storageSvc().WriteCheckedKV(r.Context(), unlock, c.siteID, c.resourceName, h.storageRuntimeDir(c), key, v.Value, filter, c.owner, c.visitorID, writer, exists, c.checkedPost, h.limits.SpamCheckedMaxBytes, h.limits.SpamCheckedMaxLinks, papermetrics.HackWriteCommitted, func(name string, data map[string]any) { h.emitNotification(c, name, data) })
 		if e != nil {
 			var serviceErr *appstorage.Error
 			if errors.As(e, &serviceErr) {
 				status := 400
-				if serviceErr.Code == "post_too_large" {
+				if serviceErr.Code == "storage_busy" {
+					storageBusy(w)
+					return
+				}
+				if serviceErr.Code == "resource_changed" {
+					status = 409
+				} else if serviceErr.Code == "key_not_found" {
+					status = 404
+				} else if serviceErr.Code == "post_too_large" {
 					status = 413
 				} else if serviceErr.Code == "site_full" {
 					status = 507
@@ -757,21 +738,21 @@ func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		writeJSON(w, 200, map[string]any{"key": key, "value": v.Value})
+		writeJSON(w, 200, map[string]any{"key": key, "value": value})
 	case http.MethodDelete:
-		if !h.storageAccess(w, r, &c, "delete") {
-			return
+		call := h.storageServiceCall(c)
+		call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
+		auth, e := h.storageRequestSvc(r, c).DeleteKV(r.Context(), appstorage.KVDeleteInput{Call: call, Key: key})
+		if auth != nil {
+			if len(auth.Refusals) == 0 {
+				storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+				return
+			}
+			writeStorageRefusals(w, auth.Refusals)
+			if !auth.Allowed {
+				return
+			}
 		}
-		filter := c.filter
-		timeout := h.limits.StorageVisitorWriteTimeout
-		if c.owner {
-			timeout = h.limits.StorageOwnerTimeout
-		}
-		recheck := func(ctx context.Context) bool {
-			current, err := h.loadStorageResource(ctx, c.siteID, c.resourceName)
-			return err == nil && current.fingerprint() == c.resource.fingerprint()
-		}
-		e := h.storageSvc().DeleteKVWithNotification(r.Context(), c.ownerID+"/"+c.siteName, h.limits.StorageWriteLockWait, timeout, recheck, papermetrics.HackWriteCommitted, c.siteID, c.resourceName, key, filter, func(name string, data map[string]any) { h.emitNotification(c, name, data) })
 		if e != nil {
 			var serviceErr *appstorage.Error
 			if errors.As(e, &serviceErr) {
@@ -801,15 +782,29 @@ func (c storageCall) stampID() string {
 
 func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c storageCall) {
 	prefix, after, limit, ok := storagePage(r)
-	if !ok {
-		storageError(w, 400, "invalid_limit", "invalid limit")
+	call := h.storageServiceCall(c)
+	call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
+	result, e := h.storageRequestSvc(r, c).ListKV(r.Context(), appstorage.KVListInput{Call: call, Prefix: prefix, After: after, Limit: limit, ValidLimit: ok})
+	if auth := result.Authorization; auth != nil {
+		if len(auth.Refusals) == 0 {
+			storageError(w, http.StatusForbidden, auth.Code, auth.Message)
+			return
+		}
+		writeStorageRefusals(w, auth.Refusals)
+		if !auth.Allowed {
+			return
+		}
+	}
+	var serviceErr *appstorage.Error
+	if errors.As(e, &serviceErr) && serviceErr.Code == "invalid_limit" {
+		storageError(w, 400, serviceErr.Code, serviceErr.Message)
 		return
 	}
-	rows, next, e := h.storageSvc().ListVisibleKV(r.Context(), c.siteID, c.resourceName, prefix, after, limit, c.filter, c.visitorID, c.owner || c.ownerOnSite)
 	if e != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
+	rows, next := result.Items, result.Next
 	type item struct {
 		Key   string          `json:"key"`
 		Value json.RawMessage `json:"value"`
