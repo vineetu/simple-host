@@ -65,6 +65,30 @@ Shared page chrome uses `site.css` tokens and the shared theme switch;
 `internal/handler/theme_test.go` guards the conventions in CLAUDE.md.
 The Hack module app uses its own light kit.
 
+| Presentation asset | Serving relationship |
+|---|---|
+| `static/film/` | `handler/film.go:serveFilm` serves embedded video/poster files at `/film/{file}`, with Range support and ETags; registered by `ui.go:RegisterUIRoutes` |
+| `host-ink.css` / `hack-ink.css` | `chrome.go:addHostInk` supplies Host's local-font presentation; `addHackInk` supplies Hack's separate ink styling, never loaded by Host |
+| `host-status.css` | `chrome.go:hostedStatusPage` embeds the stylesheet and its data font in bare Host status pages; `passcode.go:hostPasscodeGateCSP` permits its style hash and `font-src data:` |
+| First-boot setup styles/fonts | `setup.go:SetupHandler.Register` explicitly serves `/host-ink.css` and `/fonts/{file...}` alongside the setup page |
+
+On nonce-protected account/consent pages, inline `on*=` attributes are
+blocked: bind events with `addEventListener` (`ui.go:adminUICSP`,
+`connector.go:consentHeaders`). A script nonce does not authorize event
+handler attributes.
+
+Hack onboarding uses exclusive native `<details name>` groups, a toggle
+fallback for older browsers, hash-linked AI row opening, and Copy buttons
+with Clipboard API → `execCommand` → selected-text fallbacks. Downloads
+start collapsed under Other ways to install
+(`static/hack-get-started.html:openLinkedAI` and its inline listeners).
+The dedicated browser check is `node scripts/check-hack-get-started.mjs`:
+HACK_GET_STARTED_URL selects the served page; it checks 320/390/1280px,
+both themes, accordions/deep links, copy fallbacks, local-only requests and
+browser/CSP errors, plus native accordions without JavaScript. Its fixed
+five-AI-row assertion currently trails the page's eight rows; review those
+expectations before using it to verify the current page.
+
 ## Hack screen conventions
 
 `hack/app.html` loads `hack/app.js` as a module. `hack/nav.js:resolveRoute`
@@ -197,10 +221,15 @@ Exact OpenAPI conversion (PyYAML required):
 python3 -c "import yaml,json;json.dump(yaml.safe_load(open('internal/handler/static/openapi.yaml')),open('internal/handler/static/openapi.json','w'),indent=2)"
 ```
 
-The served OpenAPI is audience-filtered by
-`handler/hack_assets.go:publicOpenAPISpec`; source operations still include
-internal and legacy coverage. Instance rewriting and filtering happen on
-served bytes, not by editing generated files per instance.
+Source OpenAPI operations use four `x-audience` values: `public-host`,
+`public-hack`, `internal` and `legacy`. `handler/hack_assets.go:publicOpenAPISpec`
+selects the product's public operations and removes unused tags/components;
+internal and legacy operations remain in the source for coverage.
+`handler/instancehost.go:serveRewrittenAsset` applies this to both
+`/openapi.json` and `/openapi.yaml`: both serve filtered JSON (valid YAML 1.2).
+`static/docs.html` loads that filtered `/openapi.json` reference. Instance
+rewriting/filtering happens on served bytes, not by editing generated files
+per instance.
 
 ## UX atlas: design, prototype and runtime
 

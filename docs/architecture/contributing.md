@@ -158,6 +158,11 @@ needs local tools/Postgres, and Docker can need an initial image download.
 Missing prerequisites or skipped release fixtures fail the release check.
 These checks do not deploy the application.
 
+Separately, `bash scripts/check-reserved-subdomains.sh` compares the reserved
+label list with nginx's server names (NGINX_CONF_DIR selects the config
+directory; SITE_DOMAIN/SITE_BASE_DOMAIN select the domains). It is outside
+both aggregate targets and skips if the directory is unreadable.
+
 | Workflow | Trigger / work |
 |---|---|
 | `.github/workflows/ci.yml` | Push/PR: Go from go.mod, Node 22, PyYAML, nginx, Postgres 16 service; `make check`, then `make check-release` |
@@ -242,6 +247,16 @@ Rollback reinstalls the saved `.bak` and restarts both services. It does not
 undo SQL; paired DB/site-tree restore and retained keys are a separate
 recovery operation described in the deployment profiles.
 
+The checked-in Host systemd unit runs as `simplehost`, with
+`ProtectSystem=strict` and `/srv/simple-host/sites` as its writable site
+boundary (`deploy/prod/simple-host.service`). Certificate drop-ins separately
+permit request writes under hosted `SITE_CERT_DIR=/var/lib/simple-host-site-certs`
+and `DOMAIN_CERT_DIR=/var/lib/simple-host-domain-certs`; other issuer markers
+stay read-only (`deploy/{site-certs,domain-certs}/simple-host.service.d-*.conf`).
+Empty BIND_ADDR listens on all interfaces; empty ANALYTICS_SALT derives the
+visitor salt from ADMIN_API_KEY (`internal/config/config.go:Config`,
+`internal/analytics/ingest.go:visitorSalt`, `WithSalt`).
+
 Keep hosted family settings (`PERSON_HOSTS=canonical`, SITE_HOSTS=canonical),
 certificate paths, WRITE_AUTH_MODE, BIND_ADDR, analytics and GeoIP settings in
 the per-instance environment. Their defaults and meaning are in
@@ -258,6 +273,8 @@ through the documented sh-brain-sync operation after a hosted deploy.
 
 Analytics logrotate uses create/delaycompress rather than copytruncate;
 retention is the live day plus 29 archives. Journald's 30-day setting is
-box-wide. The installed templates are `deploy/prod/logrotate-analytics.conf`
-and `journald-retention.conf`; `analytics-rebuild` can replay retained
-archives. These are operator configuration, not files rewritten by go build.
+box-wide. `deploy/prod/logrotate-analytics.conf` installs as
+`/etc/logrotate.d/simple-host-analytics`; `deploy/prod/journald-retention.conf`
+installs as `/etc/systemd/journald.conf.d/30-retention.conf` (destinations
+specified in each template). `analytics-rebuild` can replay retained archives.
+These are operator configuration, not files rewritten by go build.
