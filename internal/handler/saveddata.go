@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/legacy"
@@ -290,34 +291,40 @@ func (h *SiteHandler) replayItem(w http.ResponseWriter, r *http.Request, siteID,
 // SAVED_DATA_WATCH_KEEP_DAYS every SAVED_DATA_SWEEP_MINUTES, and thins any
 // site's history past SAVED_DATA_HISTORY_MAX_MB.
 type savedDataWorker struct {
+	startOnce sync.Once
 	*workers.Runner
 	h       *SiteHandler
 	tracker *workers.Tracker
 }
 
 func (h *SiteHandler) SavedDataWorker() workers.Owner {
-	t := workers.NewTracker("operations.saved_data_sweep")
-	return &savedDataWorker{workers.NewRunner(t), h, t}
+	h.savedWorkerOnce.Do(func() {
+		t := workers.NewTracker("operations.saved_data_sweep")
+		h.savedWorker = &savedDataWorker{Runner: workers.NewRunner(t), h: h, tracker: t}
+	})
+	return h.savedWorker
 }
 func (w *savedDataWorker) Start(ctx context.Context) {
-	w.Go(ctx, func(ctx context.Context) {
-		tick := time.NewTicker(time.Duration(w.h.savedData.SweepMinutes) * time.Minute)
-		defer tick.Stop()
-		for {
-			w.tracker.Attempt()
-			n, err := w.h.sweepSavedData(ctx)
-			if n > 0 {
-				w.tracker.Progress()
+	w.startOnce.Do(func() {
+		w.Go(ctx, func(ctx context.Context) {
+			tick := time.NewTicker(time.Duration(w.h.savedData.SweepMinutes) * time.Minute)
+			defer tick.Stop()
+			for {
+				w.tracker.Attempt()
+				n, err := w.h.sweepSavedData(ctx)
+				if n > 0 {
+					w.tracker.Progress()
+				}
+				if err != nil {
+					w.tracker.Fail("sweep saved data", err)
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-tick.C:
+				}
 			}
-			if err != nil {
-				w.tracker.Fail("sweep saved data", err)
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-tick.C:
-			}
-		}
+		})
 	})
 }
 func (h *SiteHandler) StartSavedDataSweep(ctx context.Context) { h.SavedDataWorker().Start(ctx) }

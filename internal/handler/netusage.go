@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/netusage"
@@ -45,22 +46,28 @@ func (h *SiteHandler) NetworkUsageWorker() workers.Owner {
 	if h.netUsage == nil {
 		return nil
 	}
-	return &networkUsageWorker{h: h, Owner: h.netUsage.Worker(h.limits.NetworkSample)}
+	h.networkWorkerOnce.Do(func() {
+		h.networkWorker = &networkUsageWorker{h: h, Owner: h.netUsage.Worker(h.limits.NetworkSample)}
+	})
+	return h.networkWorker
 }
 
 type networkUsageWorker struct {
+	startOnce sync.Once
 	workers.Owner
 	h *SiteHandler
 }
 
 func (w *networkUsageWorker) Start(ctx context.Context) {
-	iface, err := w.h.netUsage.Interface()
-	if err != nil {
-		log.Printf("network usage: %v", err)
-		return
-	}
-	log.Printf("network usage: counting %s every %s", iface, w.h.limits.NetworkSample)
-	w.Owner.Start(ctx)
+	w.startOnce.Do(func() {
+		iface, err := w.h.netUsage.Interface()
+		if err != nil {
+			log.Printf("network usage: %v", err)
+			return
+		}
+		log.Printf("network usage: counting %s every %s", iface, w.h.limits.NetworkSample)
+		w.Owner.Start(ctx)
+	})
 }
 func (h *SiteHandler) StartNetworkUsage(ctx context.Context) {
 	if w := h.NetworkUsageWorker(); w != nil {

@@ -70,8 +70,10 @@ const (
 
 // ConnectorHandler serves the OAuth authorization server and /mcp.
 type ConnectorHandler struct {
-	httpCaches HTTPCaches
-	ed         *edition.Edition
+	sweepWorkerOnce sync.Once
+	sweepWorker     *connectorSweepWorker
+	httpCaches      HTTPCaches
+	ed              *edition.Edition
 	limitSet
 	hostedEvents bool
 	database     *sql.DB
@@ -260,6 +262,7 @@ func (h *ConnectorHandler) SetEventsBackend(b mcp.EventsBackend) {
 // StartSweep removes expired codes and tokens, abandoned registrations, and
 // API keys that stopped working more than 30 days ago.
 type connectorSweepWorker struct {
+	startOnce sync.Once
 	*workers.Runner
 	h       *ConnectorHandler
 	tracker *workers.Tracker
@@ -267,29 +270,47 @@ type connectorSweepWorker struct {
 }
 
 func (h *ConnectorHandler) SweepWorker(every time.Duration) workers.Owner {
-	t := workers.NewTracker("accounts.connector_sweep")
-	return &connectorSweepWorker{workers.NewRunner(t), h, t, every}
+	h.sweepWorkerOnce.Do(func() {
+		t := workers.NewTracker("accounts.connector_sweep")
+		h.sweepWorker = &connectorSweepWorker{Runner: workers.NewRunner(t), h: h, tracker: t, every: every}
+	})
+	return h.sweepWorker
 }
 func (w *connectorSweepWorker) Start(ctx context.Context) {
-	h := w.h
-	// The five OAuth limiters are evicted by h.httpCaches; this owner only sweeps.
-	w.Go(ctx, func(ctx context.Context) {
-		workers.Every(ctx, 45*time.Second, w.every, func(ctx context.Context) {
-			w.tracker.Attempt()
-			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			defer cancel()
-			n, err := db.SweepOAuth(ctx, h.database, h.limits.OAuthUnusedClientAge)
-			if err != nil {
-				w.tracker.Fail("sweep OAuth", err)
-			}
-			if n > 0 {
-				w.tracker.Progress()
-			}
-			if n, err := db.PurgeExpiredAPIKeys(ctx, h.database, h.limits.KeyIdleExpiry); err != nil {
-				w.tracker.Fail("purge expired API keys", err)
-			} else if n > 0 {
-				w.tracker.Progress()
-				log.Printf("api key sweep: removed %d keys expired over 30 days", n)
+	w.startOnce.Do(func() {
+		h := w.h
+		// The five OAuth limiters are evicted by h.httpCaches; this owner only sweeps.
+		w.Go(ctx, func(ctx context.Context) {
+			timer := time.NewTimer(45 * time.Second)
+			defer timer.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-timer.C:
+				}
+				if ctx.Err() != nil {
+					return
+				}
+				func() {
+					w.tracker.Attempt()
+					ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+					defer cancel()
+					n, err := db.SweepOAuth(ctx, h.database, h.limits.OAuthUnusedClientAge)
+					if err != nil {
+						w.tracker.Fail("sweep OAuth", err)
+					}
+					if n > 0 {
+						w.tracker.Progress()
+					}
+					if n, err := db.PurgeExpiredAPIKeys(ctx, h.database, h.limits.KeyIdleExpiry); err != nil {
+						w.tracker.Fail("purge expired API keys", err)
+					} else if n > 0 {
+						w.tracker.Progress()
+						log.Printf("api key sweep: removed %d keys expired over 30 days", n)
+					}
+				}()
+				timer.Reset(w.every)
 			}
 		})
 	})

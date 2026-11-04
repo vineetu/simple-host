@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/db"
@@ -9,41 +10,50 @@ import (
 )
 
 type visitorAuthWorkers struct {
-	h       *OAuthHandler
-	runner  *workers.Runner
-	tracker *workers.Tracker
+	startOnce sync.Once
+	h         *OAuthHandler
+	runner    *workers.Runner
+	tracker   *workers.Tracker
 }
 
 // VisitorAuthWorkers owns expiry of visitor sign-in codes and sessions.
 func (h *OAuthHandler) VisitorAuthWorkers() workers.Owner {
-	t := workers.NewTracker("accounts.visitor_auth")
-	return &visitorAuthWorkers{h, workers.NewRunner(t), t}
+	h.visitorWorkerOnce.Do(func() {
+		t := workers.NewTracker("accounts.visitor_auth")
+		h.visitorWorker = &visitorAuthWorkers{h: h, runner: workers.NewRunner(t), tracker: t}
+	})
+	return h.visitorWorker
 }
 func (o *visitorAuthWorkers) Start(ctx context.Context) {
-	if o.h.database == nil {
-		return
-	}
-	o.runner.Go(ctx, func(ctx context.Context) {
-		timer := time.NewTimer(30 * time.Second)
-		defer timer.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-timer.C:
-			}
-			if ctx.Err() != nil {
-				return
-			}
-			o.tracker.Attempt()
-			runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			err := db.SweepVisitorAuth(runCtx, o.h.database)
-			cancel()
-			if err != nil {
-				o.tracker.Fail("sweep expired visitor authentication", err)
-			}
-			timer.Reset(time.Hour)
+	o.startOnce.Do(func() {
+		if o.h.database == nil {
+			return
 		}
+		o.runner.Go(ctx, func(ctx context.Context) {
+			timer := time.NewTimer(30 * time.Second)
+			defer timer.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-timer.C:
+				}
+				if ctx.Err() != nil {
+					return
+				}
+				o.tracker.Attempt()
+				runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				n, err := db.SweepVisitorAuthCount(runCtx, o.h.database)
+				cancel()
+				if n > 0 {
+					o.tracker.Progress()
+				}
+				if err != nil {
+					o.tracker.Fail("sweep expired visitor authentication", err)
+				}
+				timer.Reset(time.Hour)
+			}
+		})
 	})
 }
 func (o *visitorAuthWorkers) Stop()                    { o.runner.Stop() }
