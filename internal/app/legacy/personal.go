@@ -136,7 +136,7 @@ type PutPersonalInput struct {
 	SiteID, Name, Key, IdempotencyKey       string
 	ContentHost, Preview, VisitorPass, CSRF bool
 	SuccessStatus                           int
-	ReadBody                                func() ([]byte, bool, error)
+	DecodeBody                              func() (CollectionBody, error)
 }
 
 // PutPersonal authorizes a visitor and replaces that visitor's personal record.
@@ -184,21 +184,11 @@ func (a *Adapter) PutPersonal(ctx context.Context, in PutPersonalInput) (out Sav
 	if email, err := a.collectionVisitorEmail(ctx, actor.ID); err == nil {
 		actor.Email = email
 	}
-	raw, tooLarge, err := in.ReadBody()
+	decoded, err := in.DecodeBody()
 	if err != nil {
-		if tooLarge {
-			return out, &Error{Code: "personal_item_too_large"}
-		}
-		return out, &Error{Code: "invalid_request_body"}
+		return out, err
 	}
-	var obj map[string]json.RawMessage
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	if err := dec.Decode(&obj); err != nil || obj == nil || dec.More() {
-		return out, &Error{Code: "personal_not_object"}
-	}
-	if !a.deps.CollectionJSONStorable(raw) {
-		return out, &Error{Code: "invalid_json", Message: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`}
-	}
+	raw := decoded.Raw
 	doc := json.RawMessage(bytes.TrimSpace(raw))
 	local := *a
 	local.deps.PersonalNext = func(json.RawMessage) (json.RawMessage, error) { return doc, nil }

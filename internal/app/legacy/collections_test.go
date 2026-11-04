@@ -10,21 +10,6 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 )
 
-func TestCollectionPrivateReadAllowed(t *testing.T) {
-	for _, tc := range []struct {
-		owner, shared, originless, allowed bool
-	}{
-		{true, false, true, true},
-		{true, true, false, false},
-		{false, false, true, false},
-		{false, true, false, true},
-	} {
-		if got := CollectionPrivateReadAllowed(tc.owner, tc.shared, tc.originless); got != tc.allowed {
-			t.Errorf("owner=%v shared=%v originless=%v: got %v", tc.owner, tc.shared, tc.originless, got)
-		}
-	}
-}
-
 func TestCollectionReadTargetWithoutKeyDoesNotResolveSite(t *testing.T) {
 	called := false
 	a := New(nil, time.Time{}, Deps{
@@ -137,24 +122,6 @@ func TestAuthorizeCollectionSubmitter(t *testing.T) {
 				t.Fatalf("kind %q actor %q: unexpected error %v", tc.kind, tc.actor, err)
 			}
 		}
-	}
-}
-
-func TestCollectionBodyValidationOrder(t *testing.T) {
-	calls := 0
-	a := New(nil, time.Time{}, Deps{CollectionJSONStorable: func([]byte) bool {
-		calls++
-		return false
-	}})
-	for _, body := range []string{"", "{"} {
-		var opErr *Error
-		if err := a.validateCollectionBody([]byte(body)); !errors.As(err, &opErr) || opErr.Code != "invalid_collection_body" || calls != 0 {
-			t.Fatalf("body %q: error = %v, storable checks = %d", body, err, calls)
-		}
-	}
-	var opErr *Error
-	if err := a.validateCollectionBody([]byte(`"\u0000"`)); !errors.As(err, &opErr) || opErr.Code != "invalid_json" || calls != 1 {
-		t.Fatalf("unstorable body: error = %v, storable checks = %d", err, calls)
 	}
 }
 

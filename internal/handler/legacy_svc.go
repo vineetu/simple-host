@@ -21,7 +21,7 @@ func signalLegacyBodyTooLarge(w http.ResponseWriter) {
 }
 
 func (h *SiteHandler) legacySvc() *legacy.Adapter {
-	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{MaxEntries: func() int { return h.savedData.EntriesMax }, WatchItemKB: func() int { return h.savedData.WatchItemKB }, MaxBytes: h.siteMaxBytes, NewListMetric: watchNewList, LargeItemMetric: watchItemLarge, CollectionJSONStorable: jsonStorable})
+	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{CSVSafe: csvSafe, MaxEntries: func() int { return h.savedData.EntriesMax }, WatchItemKB: func() int { return h.savedData.WatchItemKB }, MaxBytes: h.siteMaxBytes, NewListMetric: watchNewList, LargeItemMetric: watchItemLarge, CollectionJSONStorable: jsonStorable})
 }
 
 // legacyRequestSvc supplies the request-specific named-site resolver.

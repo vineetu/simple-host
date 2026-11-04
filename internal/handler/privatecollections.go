@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -233,116 +232,6 @@ func (h *SiteHandler) ownerBrowserRead(w http.ResponseWriter, r *http.Request, s
 	}
 	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID, h.limits.VisitorSessionIdle)
 	return true
-}
-
-// appendPrivate is POST to a private collection. Returns after answering.
-func (h *SiteHandler) appendPrivate(w http.ResponseWriter, r *http.Request, siteID, siteName string, set db.DataSettings) {
-	coll := set.Name
-	w.Header().Set("Cache-Control", "private, no-store")
-	// Offline, or a page opened as a preview: no entries, as on public lists
-	// (visitorWriteOK). Keys cannot add to a private list at all (below).
-	if h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID) {
-		return
-	}
-	if previewReferer(r) {
-		writePreviewReadOnly(w)
-		return
-	}
-	onShared := strings.EqualFold(requestHostName(r), h.contentHost)
-	info, here, err := h.onOwnDomain(r, siteID)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	if info.IsDomain && !here && (onShared || h.isSiteHostName(requestHostName(r)) || h.isPersonHost(r.Context(), requestHostName(r)) || h.isFamilyHostName(requestHostName(r))) {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{
-			"error": "this site saves on its own domain", "code": "use_custom_domain", "domain": info.Host,
-		})
-		return
-	}
-	if r.Header.Get("X-API-Key") != "" {
-		writeJSON(w, http.StatusForbidden, map[string]string{
-			"error": "this list is private: only visitors signed in on the site's own domain can add to it; API keys cannot",
-			"code":  "private_visitor_only",
-		})
-		return
-	}
-	if !here {
-		writeJSON(w, http.StatusForbidden, map[string]string{
-			"error": "this list is private: it takes submissions only on the site's own address, from a signed-in visitor",
-			"code":  "private_needs_own_domain",
-		})
-		return
-	}
-	sess, ok := h.strictVisitorSession(r, siteID)
-	if !ok {
-		h.logAnonWrite(r, siteID, siteName, writeRouteCollectionPost, coll, "on", "private_rejected")
-		writeVisitorAuthRequired(w)
-		return
-	}
-	if r.Header.Get(visitorCSRFHeader) != visitorCSRFValue {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "missing CSRF header", "code": "csrf_required"})
-		return
-	}
-	if (sess.UserID != info.OwnerID || r.Header.Get(visitorPassHeader) != "") && !h.allowAppend(w, r) {
-		return
-	}
-	email, err := visitorEmail(r.Context(), h.database, sess.UserID)
-	if err != nil || email == "" {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	// Browser owners may always save; internal visitor passes use the saver rules.
-	if (sess.UserID != info.OwnerID || r.Header.Get(visitorPassHeader) != "") && !h.saverOK(w, r, siteID, email) {
-		return
-	}
-
-	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, h.entryMaxBytes(set)))
-	var fields map[string]json.RawMessage
-	if err == nil {
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		if err = dec.Decode(&fields); err == nil && (fields == nil || dec.More()) {
-			err = errors.New("not one object")
-		}
-	}
-	if err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
-			return
-		}
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "a private list takes one JSON object per item"})
-		return
-	}
-	if !storableJSON(w, raw) {
-		return
-	}
-	claim, handled := h.idemBegin(w, r, siteID, "POST collections/"+coll, db.Actor{ID: sess.UserID}, raw, h.replayItem(w, r, siteID, coll))
-	if handled {
-		return
-	}
-	defer h.idemEnd(r, claim)
-	// Server-stamped: whatever the page sent under these keys is replaced.
-	by, _ := json.Marshal(email)
-	at, _ := json.Marshal(time.Now().UTC().Format(time.RFC3339))
-	fields["_submitted_by"] = by
-	fields["_submitted_at"] = at
-	body, err := json.Marshal(fields)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid item"})
-		return
-	}
-	if !h.siteHasRoom(w, r, siteID, int64(len(body))) {
-		return
-	}
-	item, ok := h.saveEntry(w, r, siteID, set, body, db.Actor{ID: sess.UserID, Email: email, Kind: actorVisitor})
-	if !ok {
-		return
-	}
-	_ = db.TouchVisitorSession(r.Context(), h.database, sess.ID, h.limits.VisitorSessionIdle)
-	h.watchItemSize(r.Context(), siteID, len(body))
-	h.idemSave(r, claim, http.StatusCreated, "", item.ID)
-	writeJSON(w, http.StatusCreated, item)
 }
 
 // setCollectionPrivacy is PUT /v1/sites/{sitename}/collections/{coll}/privacy
