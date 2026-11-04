@@ -61,9 +61,9 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 		var result appstorage.TableResult
 		var err error
 		if rowID != 0 {
-			result, err = h.storageRequestSvc(r, c).TableGet(r.Context(), &call, appstorage.TableInput{Table: table, ID: rowID})
+			result, err = h.storageRequestSvc(r, c).TableGet(r.Context(), appstorage.TableInput{Call: call, Table: table, ID: rowID})
 		} else {
-			result, err = h.storageRequestSvc(r, c).TableList(r.Context(), &call, appstorage.TableInput{Table: table, Query: r.URL.Query()})
+			result, err = h.storageRequestSvc(r, c).TableList(r.Context(), appstorage.TableInput{Call: call, Table: table, Query: r.URL.Query()})
 		}
 		if auth := result.Authorization; auth != nil {
 			if len(auth.Refusals) == 0 {
@@ -135,15 +135,15 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 			})).ServeHTTP(w, r)
 		}
 		svc := appstorage.New(h.database, deps)
-		in := appstorage.TableInput{Table: table, ID: rowID}
+		in := appstorage.TableInput{Call: call, Table: table, ID: rowID}
 		var result appstorage.TableResult
 		var err error
 		if action == "add" {
-			result, err = svc.TableAdd(r.Context(), &call, in)
+			result, err = svc.TableAdd(r.Context(), in)
 		} else if action == "edit" {
-			result, err = svc.TableEdit(r.Context(), &call, in)
+			result, err = svc.TableEdit(r.Context(), in)
 		} else {
-			result, err = svc.TableRemove(r.Context(), &call, in)
+			result, err = svc.TableRemove(r.Context(), in)
 		}
 		if auth := result.Authorization; auth != nil {
 			if len(auth.Refusals) == 0 {
@@ -166,6 +166,10 @@ func writeTableError(w http.ResponseWriter, e *appstorage.Error) {
 	status := http.StatusBadRequest
 	switch e.Code {
 	case "storage_busy":
+		if e.NoRetryAfter {
+			storageError(w, 503, e.Code, e.Message)
+			return
+		}
 		storageBusy(w)
 		return
 	case "forbidden":

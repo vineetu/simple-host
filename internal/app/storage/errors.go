@@ -5,6 +5,7 @@ type Error struct {
 	Code, Message string
 	Rule          string
 	Allowed       bool
+	NoRetryAfter  bool
 	Refusals      []*Error
 }
 

@@ -17,6 +17,7 @@ import (
 
 // TableInput contains the decoded facts for a table operation.
 type TableInput struct {
+	Call   Call
 	Table  string
 	ID     int64
 	Values map[string]json.RawMessage
@@ -107,9 +108,9 @@ func (s *Service) authorizeTable(ctx context.Context, c Call, table, action stri
 }
 
 // TableGet authorizes and reads one SQLite table row.
-func (s *Service) TableGet(ctx context.Context, call *Call, in TableInput) (TableResult, error) {
+func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, error) {
 	var out TableResult
-	c, filter, auth, allowed := s.authorizeTable(ctx, *call, in.Table, "read")
+	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "read")
 	out.Authorization = auth
 	if !allowed {
 		return out, nil
@@ -178,9 +179,9 @@ func (s *Service) TableGet(ctx context.Context, call *Call, in TableInput) (Tabl
 }
 
 // TableList authorizes and lists SQLite table rows.
-func (s *Service) TableList(ctx context.Context, call *Call, in TableInput) (TableResult, error) {
+func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, error) {
 	var out TableResult
-	c, filter, auth, allowed := s.authorizeTable(ctx, *call, in.Table, "read")
+	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "read")
 	out.Authorization = auth
 	if !allowed {
 		return out, nil

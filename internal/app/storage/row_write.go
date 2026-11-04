@@ -144,15 +144,15 @@ func (s *Service) finishTableWrite(conn *sqlite3.Conn, c Call, commit func() err
 func beginTableWrite(conn *sqlite3.Conn) (func() error, func(), error) {
 	commit, rollback, err := runtime.BeginRowWrite(conn)
 	if err != nil {
-		return nil, nil, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
+		return nil, nil, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly", NoRetryAfter: true}
 	}
 	return commit, rollback, nil
 }
 
 // TableAdd authorizes before entering the request's idempotency boundary.
 // The callback decodes the request only on a cache miss.
-func (s *Service) TableAdd(ctx context.Context, call *Call, in TableInput) (TableResult, error) {
-	c, filter, auth, allowed := s.authorizeTable(ctx, *call, in.Table, "add")
+func (s *Service) TableAdd(ctx context.Context, in TableInput) (TableResult, error) {
+	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "add")
 	if !allowed {
 		return TableResult{Authorization: auth}, nil
 	}
@@ -198,8 +198,8 @@ func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta ro
 }
 
 // TableEdit authorizes and performs the complete row update.
-func (s *Service) TableEdit(ctx context.Context, call *Call, in TableInput) (TableResult, error) {
-	c, filter, auth, allowed := s.authorizeTable(ctx, *call, in.Table, "edit")
+func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, error) {
+	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "edit")
 	if !allowed {
 		return TableResult{Authorization: auth}, nil
 	}
@@ -320,8 +320,8 @@ func (s *Service) rowNotification(c Call, table, name, change string, id int64, 
 }
 
 // TableRemove authorizes and removes one visible row in a single workflow.
-func (s *Service) TableRemove(ctx context.Context, call *Call, in TableInput) (TableResult, error) {
-	c, filter, auth, allowed := s.authorizeTable(ctx, *call, in.Table, "delete")
+func (s *Service) TableRemove(ctx context.Context, in TableInput) (TableResult, error) {
+	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "delete")
 	if !allowed {
 		return TableResult{Authorization: auth}, nil
 	}

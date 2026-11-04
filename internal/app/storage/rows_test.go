@@ -24,7 +24,7 @@ func TestGetRowVisibility(t *testing.T) {
 	conn.Close()
 	s := New(nil, Deps{SQLitePath: path, SQLiteGate: runtime.NewSQLiteGate(1, time.Second), SQLiteTimeout: time.Second, SQLiteMaxMemory: 4096 * 65536, ViewersAllow: func() bool { return true }})
 	c := Call{VisitorID: "visitor", Resource: rules.Resource{Read: rules.WhoAnyone}}
-	got, err := s.TableGet(context.Background(), &c, TableInput{Table: "notes", ID: 1})
+	got, err := s.TableGet(context.Background(), TableInput{Call: c, Table: "notes", ID: 1})
 	if err != nil || got.Authorization != nil {
 		t.Fatalf("read: %+v %v", got, err)
 	}
@@ -33,11 +33,11 @@ func TestGetRowVisibility(t *testing.T) {
 		t.Fatalf("visibility: %#v", got.Body)
 	}
 	c.Owner = true
-	got, err = s.TableGet(context.Background(), &c, TableInput{Table: "notes", ID: 1})
+	got, err = s.TableGet(context.Background(), TableInput{Call: c, Table: "notes", ID: 1})
 	if err != nil || got.Body["row"].([]any)[1] != "other" {
 		t.Fatalf("owner: %+v %v", got, err)
 	}
-	_, err = s.TableGet(context.Background(), &c, TableInput{Table: "notes", ID: 2})
+	_, err = s.TableGet(context.Background(), TableInput{Call: c, Table: "notes", ID: 2})
 	if e, ok := err.(*Error); !ok || e.Code != "row_not_found" {
 		t.Fatalf("missing: %v", err)
 	}
@@ -55,8 +55,8 @@ func TestListRowsPaginationAndVisibility(t *testing.T) {
 	conn.Close()
 	s := New(nil, Deps{SQLitePath: path, SQLiteGate: runtime.NewSQLiteGate(1, time.Second), SQLiteTimeout: time.Second, SQLiteMaxMemory: 4096 * 65536, ViewersAllow: func() bool { return true }})
 	c := Call{VisitorID: "visitor", Resource: rules.Resource{Read: rules.WhoAnyone}}
-	in := TableInput{Table: "notes", Query: url.Values{"limit": {"1"}}}
-	first, err := s.TableList(context.Background(), &c, in)
+	in := TableInput{Call: c, Table: "notes", Query: url.Values{"limit": {"1"}}}
+	first, err := s.TableList(context.Background(), in)
 	if err != nil || first.Authorization != nil {
 		t.Fatalf("first: %+v %v", first, err)
 	}
@@ -65,7 +65,7 @@ func TestListRowsPaginationAndVisibility(t *testing.T) {
 		t.Fatalf("first: %#v", first.Body)
 	}
 	in.Query.Set("after", first.Body["next_after"].(string))
-	second, err := s.TableList(context.Background(), &c, in)
+	second, err := s.TableList(context.Background(), in)
 	if err != nil || len(second.Body["rows"].([][]any)) != 1 || second.Body["mine"].([]bool)[0] != true || second.Body["next_after"] != "" {
 		t.Fatalf("second: %+v %v", second, err)
 	}

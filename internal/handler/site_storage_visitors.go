@@ -60,8 +60,12 @@ func (h *SiteHandler) storageVisitors(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 400, "invalid_visitor_id", "give 1 to 100 visitor ids: ?id=<visitor_id>,<visitor_id>")
 		return
 	}
-	visitors, err := h.storageSvc().Visitors(r.Context(), appstorage.VisitorsInput{SiteID: c.siteID, IDs: ids})
+	visitors, err := h.storageSvc().Visitors(r.Context(), appstorage.VisitorsInput{Call: h.storageServiceCall(c), IDs: ids})
 	if err != nil {
+		if e, ok := err.(*appstorage.Error); ok && e.Code == "forbidden" {
+			storageError(w, 403, e.Code, e.Message)
+			return
+		}
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
