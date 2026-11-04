@@ -47,3 +47,16 @@ func TestSetDeadline(t *testing.T) {
 		t.Fatal(names)
 	}
 }
+
+func TestEveryImmediateCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	calls := 0
+	Every(ctx, 0, time.Hour, func(context.Context) { calls++; cancel() })
+	if calls != 1 {
+		t.Fatalf("calls=%d", calls)
+	}
+	r := NewRunner(NewTracker("stopped"))
+	r.Stop()
+	r.Go(context.Background(), func(context.Context) { t.Error("started after Stop") })
+	r.Wait()
+}

@@ -123,16 +123,22 @@ func (r *Runner) Status() []Status {
 func Every(ctx context.Context, first, every time.Duration, fn func(context.Context)) {
 	timer := time.NewTimer(first)
 	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return
+	case <-timer.C:
+	}
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+		fn(ctx)
 		select {
 		case <-ctx.Done():
 			return
-		case <-timer.C:
-			if ctx.Err() != nil {
-				return
-			}
-			fn(ctx)
-			timer.Reset(every)
+		case <-ticker.C:
 		}
 	}
 }
