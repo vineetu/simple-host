@@ -171,7 +171,7 @@ func (s *Service) listKV(ctx context.Context, siteID, resource, prefix, after st
 
 // deleteKVLocked removes a key under the shared site lock after rechecking its resource.
 func (s *Service) deleteKVLocked(ctx context.Context, lockKey string, wait, timeout time.Duration, recheck func(context.Context) bool, committed func(context.Context), siteID, resource, key, filter string) (int64, error) {
-	ctx, unlock, err := s.WriteLock(ctx, lockKey, wait, timeout, recheck)
+	ctx, unlock, err := s.writeLock(ctx, lockKey, wait, timeout, recheck)
 	if err != nil {
 		return 0, err
 	}
@@ -367,7 +367,7 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 	if !call.VisitorAI {
 		requested = ""
 	}
-	ctx, unlock, err := s.WriteLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
 		return nil, nil, err
 	}
