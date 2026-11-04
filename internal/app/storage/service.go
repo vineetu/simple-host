@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -11,6 +12,9 @@ import (
 
 // Deps holds the storage service configuration.
 type Deps struct {
+	VisitorEmail                             func(context.Context, string) (string, error)
+	StageResourceRuntime                     func() (string, func(), error)
+	SpamCheckAvailable                       bool
 	SQLitePath                               string
 	SQLiteGate                               *runtime.SQLiteGate
 	SQLiteTimeout                            time.Duration
@@ -33,6 +37,9 @@ type Deps struct {
 	OpenFileToken                            func(string) ([]byte, error)
 	FileResourceExists                       func(context.Context, string, string) bool
 	EventOwners                              bool
+	LegacyRoutes                             bool
+	ResourceHistory                          func(context.Context, string, string) (any, error)
+	TableWriteRequest                        func(Call, *Error, func(map[string]json.RawMessage) (TableResult, error))
 }
 
 // Service owns site storage workflows.

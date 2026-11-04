@@ -348,25 +348,6 @@ func notifyFields(raw json.RawMessage) map[string]any {
 	}
 	return map[string]any{"value": value}
 }
-func (t *storageTableCall) notifyRow(name, change string, id int64, values map[string]json.RawMessage) {
-	if t.c.owner {
-		return
-	}
-	data := map[string]any{"table": t.table, "row_id": id}
-	if change != "" {
-		data["change"] = change
-	}
-	if values != nil {
-		fields := map[string]any{}
-		for k, v := range values {
-			if k != "visitor_id" {
-				fields[k] = notifyValue(v)
-			}
-		}
-		data["fields"] = fields
-	}
-	t.h.emitNotification(t.c, name, data)
-}
 
 // Convert at delivery so REST history and plain webhooks retain their format.
 // Old queued events receive the same projection as newly saved events.

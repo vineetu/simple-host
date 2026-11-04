@@ -115,3 +115,15 @@ func (s *Service) FilesRemaining(u Usage) int64 {
 	}
 	return max(int64(0), s.FilesLimitBytes()-used)
 }
+
+// GetStorageUsage prepares the owner's storage usage report.
+func (s *Service) GetStorageUsage(ctx context.Context, call Call) (map[string]any, error) {
+	u, err := s.MeasureSiteStorage(ctx, call.SiteID, call.RuntimeDir)
+	if err != nil {
+		return nil, err
+	}
+	limit := SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool)
+	used := s.BudgetUsed(u)
+	remaining := max(int64(0), limit-used)
+	return map[string]any{"used_bytes": used, "limit_bytes": limit, "remaining_bytes": remaining, "files_used_bytes": u.Files, "files_limit_bytes": s.FilesLimitBytes(), "files_remaining_bytes": s.FilesRemaining(u), "breakdown": map[string]int64{"kv_bytes": u.KV, "sqlite_bytes": u.SQLite, "files_bytes": u.Files}}, nil
+}

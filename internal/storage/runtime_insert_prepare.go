@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	sqlite3 "github.com/ncruces/go-sqlite3"
-	mechanics "github.com/vsriram/simple-host/internal/storage"
 	"time"
 )
 
@@ -14,8 +13,8 @@ type InsertActor struct {
 	StampID                  string
 }
 
-// StampInsertValues fills server-owned values for an insert.
-func StampInsertValues(cols map[string]string, values map[string]json.RawMessage, actor InsertActor) {
+// stampInsertValues fills server-owned values for an insert.
+func stampInsertValues(cols map[string]string, values map[string]json.RawMessage, actor InsertActor) {
 	owner, ownerOnSite, hold, stampID := actor.Owner, actor.OwnerOnSite, actor.Hold, actor.StampID
 	encode := func(v any) json.RawMessage { b, _ := json.Marshal(v); return b }
 	if !owner {
@@ -48,7 +47,7 @@ var ErrInsertSuppliesID = errors.New("the server assigns ids")
 // PrepareInsert validates IDs, stamps server-owned values and constructs the insert statement.
 func PrepareInsert(conn *sqlite3.Conn, table, rowid string, cols map[string]string, values map[string]json.RawMessage, actor InsertActor) (string, []json.RawMessage, error) {
 	if !actor.Owner {
-		supplied, err := mechanics.InsertSuppliesID(conn, table, values)
+		supplied, err := insertSuppliesID(conn, table, values)
 		if err != nil {
 			return "", nil, err
 		}
@@ -56,19 +55,11 @@ func PrepareInsert(conn *sqlite3.Conn, table, rowid string, cols map[string]stri
 			return "", nil, ErrInsertSuppliesID
 		}
 	}
-	StampInsertValues(cols, values, actor)
-	names, err := mechanics.InsertColumns(cols, values)
+	stampInsertValues(cols, values, actor)
+	names, err := insertColumns(cols, values)
 	if err != nil {
 		return "", nil, err
 	}
-	query, params := mechanics.InsertRowStatement(table, rowid, !actor.Owner, names, values)
+	query, params := insertRowStatement(table, rowid, !actor.Owner, names, values)
 	return query, params, nil
-}
-
-// SetRowAuthorizer applies the caller’s authority to a row write.
-func SetRowAuthorizer(conn *sqlite3.Conn, table string, owner bool, write sqlite3.AuthorizerActionCode) error {
-	if owner {
-		return conn.SetAuthorizer(nil)
-	}
-	return mechanics.SetRowAuthorizer(conn, table, write)
 }

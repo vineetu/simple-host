@@ -8,20 +8,51 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
 // Keep the previous 4096-page (256 MiB) per-connection memory ceiling after
 // moving from the wazero interpreter to the compiled-Go SQLite engine.
 const storageSQLiteMaxMemory = 4096 * 65536
+
+func storageSQLTables(c *sqlite3.Conn) (map[string]bool, error) { return storage.SQLTables(c) }
+
+func storageTableInfo(conn *sqlite3.Conn, table string) (map[string]string, []string, error) {
+	return storage.TableInfo(conn, table)
+}
+
+// openStorageTableConn opens the database for one table route.
+func (h *SiteHandler) openStorageTableConn(w http.ResponseWriter, r *http.Request, c storageCall, write bool) (*sqlite3.Conn, func(), bool) {
+	timeout := h.limits.StorageOwnerTimeout
+	if !c.owner {
+		timeout = h.limits.StorageVisitorQueryTimeout
+		if write {
+			timeout = h.limits.StorageVisitorWriteTimeout
+		}
+	}
+	conn, done, err := storage.OpenTableConn(r.Context(), h.storageSQLPath(c), write, h.sqliteGateFor(), timeout, storageSQLiteMaxMemory, func() (int64, error) {
+		usage, err := h.measureSiteStorage(r.Context(), c)
+		return storageSiteLimitBytes(h.ed.Storage().CombinedPool) - h.storageBudgetUsed(usage), err
+	})
+	switch err {
+	case nil:
+		return conn, done, true
+	case storage.ErrUnknownTable:
+		storageError(w, 400, "invalid_rows", "unknown table")
+	case storage.ErrTableFull:
+		storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
+	case storage.ErrSQLiteBusy:
+		storageBusy(w)
+	default:
+		storageError(w, 500, "internal_error", "internal server error")
+	}
+	return nil, nil, false
+}
 
 func (h *SiteHandler) storageRuntimeDir(c storageCall) string {
 	return storage.RuntimeDir(h.disk, c.ownerID, c.siteName)
@@ -75,22 +106,9 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 400, "sql_request", `the body must be one JSON object: {"sql": "one statement", "params": [values for each ?]}`)
 		return
 	}
-	switch {
-	case strings.TrimSpace(req.SQL) == "":
-		storageError(w, 400, "sql_request", "sql is empty: send one SQL statement")
+	if e := appstorage.ValidateLegacySQL(req.SQL, req.Params); e != nil {
+		storageError(w, 400, e.Code, e.Message)
 		return
-	case len(req.SQL) > 32768:
-		storageError(w, 400, "sql_request", "sql is longer than 32,768 characters: send a shorter statement, with values in params")
-		return
-	case len(req.Params) > 100:
-		storageError(w, 400, "sql_request", "at most 100 params per call: split the change into several calls")
-		return
-	}
-	for i, raw := range req.Params {
-		if !storageScalar(raw) {
-			storageError(w, 400, "sql_params", fmt.Sprintf("params[%d] is not a single value: each param must be a string, number, true, false or null (store an object or list as a JSON string)", i))
-			return
-		}
 	}
 	var unlock func()
 	if mode != "query" {
@@ -113,13 +131,10 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
-		if fi, e := os.Stat(dbPath); e == nil {
-			currentDBBytes = fi.Size()
-		} else if !os.IsNotExist(e) {
+		currentDBBytes, newDB, e = storage.LegacySQLiteSize(dbPath)
+		if e != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
-		} else {
-			newDB = true
 		}
 		if currentDBBytes == 0 && h.storageBudgetUsed(usage)+8192 > storageSiteLimitBytes(h.ed.Storage().CombinedPool) {
 			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
@@ -127,25 +142,21 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		}
 		defer func() {
 			if newDB && !successful {
-				for _, s := range []string{"", "-wal", "-shm"} {
-					_ = os.Remove(dbPath + s)
-				}
+				storage.RemoveNewSQLite(dbPath)
 			}
 		}()
-		if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
+		if err := storage.EnsureSQLiteDirectory(dbPath); err != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
 		}
 	}
 	uri := dbPath
 	if mode == "query" {
-		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-			uri = ":memory:"
-		} else if err != nil {
+		var err error
+		uri, err = storage.LegacySQLiteQueryURI(dbPath)
+		if err != nil {
 			storageError(w, 500, "internal_error", "internal server error")
 			return
-		} else {
-			uri = (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String()
 		}
 	}
 	release, err := h.sqliteGateFor().Acquire(r.Context())
@@ -163,65 +174,22 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
-	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, storageSQLiteMaxMemory), uri)
+	conn, err := storage.OpenLegacySQLite(ctx, uri, storageSQLiteMaxMemory, mode != "query")
+	if conn != nil {
+		defer conn.Close()
+	}
 	if err != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
-	defer conn.Close()
-	conn.SetInterrupt(ctx)
-	if err = conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		storageError(w, 500, "internal_error", "internal server error")
-		return
-	}
-	if _, err = conn.Config(sqlite3.DBCONFIG_DEFENSIVE, true); err != nil {
-		storageError(w, 500, "internal_error", "internal server error")
-		return
-	}
-	_ = conn.Limit(sqlite3.LIMIT_SQL_LENGTH, 32768)
-	_ = conn.Limit(sqlite3.LIMIT_LENGTH, 1<<20)
 	if mode != "query" {
-		if err = conn.Exec("PRAGMA journal_mode=WAL"); err != nil {
-			storageError(w, 500, "internal_error", "internal server error")
-			return
-		}
-	}
-	if mode != "query" {
-		pageSizeStmt, _, e := conn.Prepare("PRAGMA page_size")
-		if e != nil || !pageSizeStmt.Step() {
-			if pageSizeStmt != nil {
-				pageSizeStmt.Close()
-			}
-			storageError(w, 500, "internal_error", "internal server error")
-			return
-		}
-		pageSize := pageSizeStmt.ColumnInt64(0)
-		pageSizeStmt.Close()
-		if pageSize <= 0 {
-			storageError(w, 500, "internal_error", "internal server error")
-			return
-		}
-		maxPages := (storageSiteLimitBytes(h.ed.Storage().CombinedPool) - (h.storageBudgetUsed(usage) - currentDBBytes)) / pageSize
-		if maxPages < 1 {
+		err = storage.SetLegacySQLiteLimit(conn, storageSiteLimitBytes(h.ed.Storage().CombinedPool)-(h.storageBudgetUsed(usage)-currentDBBytes))
+		if errors.Is(err, storage.ErrTableFull) {
 			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
-		if err = conn.Exec(fmt.Sprintf("PRAGMA max_page_count=%d", maxPages)); err != nil {
+		if err != nil {
 			storageError(w, 500, "internal_error", "internal server error")
-			return
-		}
-		capStmt, _, e := conn.Prepare("PRAGMA max_page_count")
-		if e != nil || !capStmt.Step() {
-			if capStmt != nil {
-				capStmt.Close()
-			}
-			storageError(w, 500, "internal_error", "internal server error")
-			return
-		}
-		actualPages := capStmt.ColumnInt64(0)
-		capStmt.Close()
-		if actualPages > maxPages {
-			storageError(w, 507, "site_full", "KV and SQLite storage is full; remove unused data before retrying")
 			return
 		}
 	}
@@ -238,67 +206,24 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		}
 		defer func() { _ = conn.SetAuthorizer(nil); _ = conn.Exec("ROLLBACK") }()
 	}
-	var didRead, didWrite, didSchema bool
+	var authorizerState storage.LegacyAuthorizerState
 	// denial keeps the first rule the authorizer applied, so a refused
 	// statement can say which one; writeTable names the table a write
 	// targets, for a foreign key failure.
 	var denial *sqlRefusal
-	var writeTable string
-	var writeAction sqlite3.AuthorizerActionCode
 	deny := func(why *sqlRefusal) sqlite3.AuthorizerReturnCode {
 		if denial == nil {
 			denial = why
 		}
 		return sqlite3.AUTH_DENY
 	}
-	err = conn.SetAuthorizer(func(a sqlite3.AuthorizerActionCode, n3, n4, schema, inner string) sqlite3.AuthorizerReturnCode {
-		if schema != "" && schema != "main" {
-			if schema == "temp" {
-				return deny(sqlAuthorizerDenial(sqlite3.AUTH_CREATE_TEMP_TABLE, mode, ""))
-			}
-			return deny(sqlAuthorizerDenial(sqlite3.AUTH_ATTACH, mode, ""))
-		}
-		switch a {
-		case sqlite3.AUTH_ATTACH, sqlite3.AUTH_DETACH, sqlite3.AUTH_PRAGMA, sqlite3.AUTH_CREATE_VTABLE, sqlite3.AUTH_DROP_VTABLE, sqlite3.AUTH_CREATE_TEMP_TABLE, sqlite3.AUTH_CREATE_TEMP_INDEX, sqlite3.AUTH_CREATE_TEMP_TRIGGER, sqlite3.AUTH_CREATE_TEMP_VIEW, sqlite3.AUTH_DROP_TEMP_TABLE, sqlite3.AUTH_DROP_TEMP_INDEX, sqlite3.AUTH_DROP_TEMP_TRIGGER, sqlite3.AUTH_DROP_TEMP_VIEW, sqlite3.AUTH_TRANSACTION, sqlite3.AUTH_SAVEPOINT:
-			return deny(sqlAuthorizerDenial(a, mode, ""))
-		case sqlite3.AUTH_READ:
-			didRead = true
-			if mode == "execute" && c.resource.Read != "anyone" && !c.owner {
-				if c.resource.Read == "owner" || c.visitorID == "" {
-					return deny(sqlVisitorReadDenial(c.resource.Read))
-				}
-			}
-		case sqlite3.AUTH_INSERT, sqlite3.AUTH_UPDATE, sqlite3.AUTH_DELETE:
-			didWrite = true
-			if writeTable == "" {
-				writeTable, writeAction = n3, a
-			}
-			if mode != "execute" && mode != "schema" {
-				if strings.HasPrefix(strings.ToLower(n3), "sqlite_") {
-					// DROP writes the schema table before it reports itself.
-					return deny(sqlAuthorizerDenial(sqlite3.AUTH_DROP_TABLE, mode, ""))
-				}
-				return deny(sqlAuthorizerDenial(a, mode, ""))
-			}
-		case sqlite3.AUTH_CREATE_INDEX, sqlite3.AUTH_CREATE_TABLE, sqlite3.AUTH_CREATE_TRIGGER, sqlite3.AUTH_CREATE_VIEW, sqlite3.AUTH_DROP_INDEX, sqlite3.AUTH_DROP_TABLE, sqlite3.AUTH_DROP_TRIGGER, sqlite3.AUTH_DROP_VIEW, sqlite3.AUTH_ALTER_TABLE, sqlite3.AUTH_REINDEX, sqlite3.AUTH_ANALYZE:
-			didSchema = true
-			if mode != "schema" {
-				return deny(sqlAuthorizerDenial(a, mode, ""))
-			}
-		case sqlite3.AUTH_FUNCTION:
-			fn := strings.ToLower(n4)
-			if fn == "load_extension" || fn == "readfile" || fn == "writefile" {
-				return deny(sqlAuthorizerDenial(a, mode, fn))
-			}
-		}
-		return sqlite3.AUTH_OK
-	})
+	err = storage.LegacyAuthorizer(conn, mode, c.resource.Read, c.visitorID, c.owner, &authorizerState, deny, sqlAuthorizerDenial, sqlVisitorReadDenial)
 	if err != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
 	fail := func(err error) {
-		sqlFailure(ctx, conn, err, c.owner, req.SQL, writeTable, writeAction, timeout).write(w)
+		sqlFailure(ctx, conn, err, c.owner, req.SQL, authorizerState.WriteTable, authorizerState.WriteAction, timeout).write(w)
 	}
 	stmt, tail, err := conn.Prepare(req.SQL)
 	if err != nil || stmt == nil {
@@ -326,8 +251,8 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	// and views still report theirs; an existing index compiles as a write and
 	// stays refused); the owner's setup is meant to be rerunnable, so that
 	// no-op passes the schema route.
-	noopCreate := mode == "schema" && !didSchema && !didWrite && stmt.ReadOnly() && createIfNotExists(req.SQL)
-	if refusal := sqlRouteMismatch(mode, req.SQL, stmt.ReadOnly(), didWrite, didSchema, noopCreate); refusal != nil {
+	noopCreate := mode == "schema" && !authorizerState.DidSchema && !authorizerState.DidWrite && stmt.ReadOnly() && createIfNotExists(req.SQL)
+	if refusal := sqlRouteMismatch(mode, req.SQL, stmt.ReadOnly(), authorizerState.DidWrite, authorizerState.DidSchema, noopCreate); refusal != nil {
 		refusal.write(w)
 		return
 	}
@@ -338,38 +263,17 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if mode == "query" {
-		cols := make([]string, stmt.ColumnCount())
-		for i := range cols {
-			cols[i] = stmt.ColumnName(i)
-		}
-		rows := make([][]any, 0)
-		encodedCols, _ := json.Marshal(cols)
-		resultBytes := len(encodedCols) + 64
-		for stmt.Step() {
-			if len(rows) >= 500 {
-				storageError(w, 400, "result_too_large", "query returned more than 500 rows")
-				return
-			}
-			row := make([]any, len(cols))
-			for i := range cols {
-				row[i] = storageColumn(stmt, i)
-			}
-			encoded, e := json.Marshal(row)
-			if e != nil || resultBytes+len(encoded) > storageResultLimitBytes() {
-				storageError(w, 400, "result_too_large", "query result is too large")
-				return
-			}
-			resultBytes += len(encoded)
-			rows = append(rows, row)
-		}
-		if err := stmt.Err(); err != nil {
-			fail(err)
+		result, err := storage.LegacyQueryResult(stmt, storageResultLimitBytes())
+		switch err {
+		case storage.ErrLegacyQueryRows:
+			storageError(w, 400, "result_too_large", "query returned more than 500 rows")
 			return
-		}
-		result := map[string]any{"columns": cols, "rows": rows}
-		encoded, e := json.Marshal(result)
-		if e != nil || len(encoded) > storageResultLimitBytes() {
+		case storage.ErrLegacyQuerySize:
 			storageError(w, 400, "result_too_large", "query result is too large")
+			return
+		case nil:
+		default:
+			fail(err)
 			return
 		}
 		writeJSON(w, 200, result)
@@ -394,22 +298,14 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		var after map[string]bool
 		if err == nil && c.resource.Access != nil {
 			if after, err = storageSQLTables(conn); err == nil {
-				renamed, added := false, []string{}
-				for t := range before {
-					if _, ruled := c.resource.Tables[strings.ToLower(t)]; ruled && !after[t] {
-						renamed = true
-					}
-				}
-				for t := range after {
-					if !before[t] {
-						added = append(added, t)
-					}
-				}
+				renamed, added := storage.SchemaTableChanges(before, after, func(t string) bool {
+					_, ruled := c.resource.Tables[strings.ToLower(t)]
+					return ruled
+				})
 				if renamed && len(added) > 0 {
 					storageError(w, 409, "table_preset_rename", "this table has its own preset; give the new name its preset first (storage_set_resource tables), then rename")
 					return
 				}
-				sort.Strings(added)
 				for _, t := range added {
 					m := c.resource.tableMatrix(t)
 					if _, ruled := c.resource.Tables[strings.ToLower(t)]; ruled {
@@ -421,10 +317,10 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err == nil {
-			err = storageEnsureOwnTables(conn, before, c.resource.ownTables())
+			err = storage.EnsureOwnTables(conn, before, c.resource.ownTables())
 		}
 		if err == nil {
-			err = storageEnsureHoldTables(conn, c.resource.holds)
+			err = storage.EnsureHoldTables(conn, c.resource.holds)
 		}
 		if err != nil {
 			storageError(w, 400, "visitor_id_required", "every table whose preset uses own or lets visitors add must keep its visitor_id TEXT column; only new tables receive it automatically, so do not drop or rename it")
@@ -435,7 +331,7 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if didWrite || didSchema {
+	if authorizerState.DidWrite || authorizerState.DidSchema {
 		paperHackWrite(r)
 	}
 	successful = true
@@ -459,7 +355,6 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	} else {
 		writeJSON(w, 200, map[string]any{"changes": conn.Changes(), "last_insert_id": conn.LastInsertRowID()})
 	}
-	_ = didRead
 }
 
 func bindStorageParam(stmt *sqlite3.Stmt, i int, raw json.RawMessage) error {

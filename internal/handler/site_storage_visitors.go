@@ -1,14 +1,11 @@
 package handler
 
 import (
-	"context"
-	"database/sql"
-	"errors"
 	"net/http"
 	"regexp"
 	"strings"
 
-	"github.com/lib/pq"
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 )
 
 // Who sent each record (2026-10-10). A visitor's saves carry an opaque
@@ -63,69 +60,14 @@ func (h *SiteHandler) storageVisitors(w http.ResponseWriter, r *http.Request) {
 		storageError(w, 400, "invalid_visitor_id", "give 1 to 100 visitor ids: ?id=<visitor_id>,<visitor_id>")
 		return
 	}
-	wrote, err := h.storageSignedInAmong(r.Context(), c, ids)
+	visitors, err := h.storageSvc().Visitors(r.Context(), appstorage.VisitorsInput{SiteID: c.siteID, IDs: ids})
 	if err != nil {
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
-	out := make([]storageVisitor, 0, len(ids))
-	for _, id := range ids {
-		v := storageVisitor{VisitorID: id}
-		if wrote[id] {
-			email, err := visitorEmail(r.Context(), h.database, id)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				storageError(w, 500, "internal_error", "internal server error")
-				return
-			}
-			v.Email, v.Found = email, err == nil && email != ""
-		}
-		out = append(out, v)
+	out := make([]storageVisitor, 0, len(visitors))
+	for _, v := range visitors {
+		out = append(out, storageVisitor{VisitorID: v.VisitorID, Email: v.Email, Found: v.Found})
 	}
 	writeJSON(w, 200, map[string]any{"visitors": out})
-}
-
-// storageSignedInAmong reports which of ids signed in on the site as a
-// visitor (site_visitor_signins, which the server writes whenever a visitor
-// session starts; db.InsertVisitorSession). Every visitor_id the server
-// stamps on a save belongs to such a person. It is never read from the site's
-// own data, which the owner can write. A page on the site can already read a
-// signed-in visitor's email (SH.me()), so the owner learns nothing new.
-func (h *SiteHandler) storageSignedInAmong(ctx context.Context, c storageCall, ids []string) (map[string]bool, error) {
-	// Live sessions count too (the server writes those as well), so a session
-	// started before site_visitor_signins existed still resolves.
-	rows, err := h.database.QueryContext(ctx, `
-		SELECT user_id::text FROM site_visitor_signins WHERE site_id = $1 AND user_id::text = ANY($2)
-		UNION SELECT user_id::text FROM visitor_sessions WHERE site_id = $1 AND user_id::text = ANY($2)`, c.siteID, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	found := map[string]bool{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		found[id] = true
-	}
-	return found, rows.Err()
-}
-
-// storageFileWriters is who uploaded each of paths in one files resource
-// (empty: the owner).
-func (h *SiteHandler) storageFileWriters(ctx context.Context, c storageCall, paths []string) (map[string]string, error) {
-	rows, err := h.database.QueryContext(ctx, `SELECT path, writer_id FROM site_storage_files WHERE site_id = $1 AND resource_name = $2 AND path = ANY($3)`, c.siteID, c.resourceName, pq.Array(paths))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]string{}
-	for rows.Next() {
-		var p, wid string
-		if err := rows.Scan(&p, &wid); err != nil {
-			return nil, err
-		}
-		out[p] = wid
-	}
-	return out, rows.Err()
 }

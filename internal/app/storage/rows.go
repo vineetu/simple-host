@@ -15,72 +15,116 @@ import (
 	runtime "github.com/vsriram/simple-host/internal/storage"
 )
 
-// RowInput identifies a table row and its caller.
-type RowInput struct {
-	Call  Call
-	Table string
-	ID    int64
+// TableInput contains the decoded facts for a table operation.
+type TableInput struct {
+	Table  string
+	ID     int64
+	Values map[string]json.RawMessage
+	Query  url.Values
 }
 
-// RowResult contains the row and any ordered authorization responses.
-type RowResult struct {
+// TableResult contains the response and any ordered authorization responses.
+type TableResult struct {
 	Body          map[string]any
 	Authorization *Error
+	Notify        func()
 }
 
-// GetRow authorizes and reads one SQLite table row.
-func (s *Service) GetRow(ctx context.Context, in RowInput) (RowResult, error) {
-	var out RowResult
-	c := in.Call
+// openTableConn opens the per-site database and translates runtime errors.
+// Write callers pass their bounded lock context so quota measurement and the
+// connection share the same deadline as the rest of the mutation.
+func (s *Service) openTableConn(ctx context.Context, c Call, write bool) (*sqlite3.Conn, func(), error) {
+	timeout := s.deps.SQLiteTimeout
+	var remaining func() (int64, error)
+	if write {
+		timeout = s.deps.WriteTimeout
+		remaining = func() (int64, error) {
+			u, err := s.MeasureSiteStorage(ctx, c.SiteID, c.RuntimeDir)
+			return SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool) - s.BudgetUsed(u), err
+		}
+	}
+	conn, done, err := runtime.OpenTableConn(ctx, s.deps.SQLitePath, write, s.deps.SQLiteGate, timeout, s.deps.SQLiteMaxMemory, remaining)
+	switch err {
+	case nil:
+		return conn, done, nil
+	case runtime.ErrSQLiteBusy:
+		return nil, nil, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
+	case runtime.ErrUnknownTable:
+		return nil, nil, &Error{Code: "invalid_rows", Message: "unknown table"}
+	case runtime.ErrTableFull:
+		return nil, nil, &Error{Code: "site_full", Message: "KV and SQLite storage is full; remove unused data before retrying"}
+	default:
+		return nil, nil, &Error{Code: "internal_error", Message: "internal server error"}
+	}
+}
+
+// tableMetadata applies the checks shared by table reads and writes, in the
+// same order as the original handler workflow.
+type rowMetadata struct {
+	cols  map[string]string
+	order []string
+	rowid string
+	hold  bool
+}
+
+func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadata, error) {
+	var m rowMetadata
+	var err error
+	m.cols, m.order, err = runtime.TableInfo(conn, table)
+	if err != nil {
+		return m, &Error{Code: "invalid_rows", Message: "invalid row request"}
+	}
+	if !c.Owner && len(m.cols) > 100 {
+		return m, &Error{Code: "invalid_rows", Message: "too many columns"}
+	}
+	if filter != "" && m.cols["visitor_id"] != "TEXT" {
+		return m, &Error{Code: "visitor_id_required", Message: "own needs the visitor_id TEXT column; set the policy again so the server adds it"}
+	}
+	m.rowid, err = runtime.RowID(conn, table, m.cols)
+	if err != nil {
+		return m, &Error{Code: "invalid_rows", Message: "invalid row request"}
+	}
+	m.hold = c.Resource.Holds(table)
+	if m.hold && m.cols["approved_at"] != "TEXT" {
+		return m, &Error{Code: "approved_at_required", Message: "approve_first needs the approved_at TEXT column; set the policy again so the server adds it"}
+	}
+	return m, nil
+}
+
+// authorizeTable preserves the gate and matrix authorization order, including
+// ordered nonfatal refusals.
+func (s *Service) authorizeTable(ctx context.Context, c Call, table, action string) (Call, string, *Error, bool) {
 	c.Context = ctx
-	if err := s.Gate(c, false); err != nil {
-		out.Authorization = err.(*Error)
+	if err := s.Gate(c, action != "read"); err != nil {
+		return c, "", err.(*Error), false
+	}
+	c.CurrentMatrix = c.Resource.TableMatrix(table)
+	filter, err := s.Allow(&c, action, c.CurrentMatrix.Value(action))
+	if err != nil {
+		return c, filter, err.(*Error), err.(*Error).Allowed
+	}
+	return c, filter, nil, true
+}
+
+// TableGet authorizes and reads one SQLite table row.
+func (s *Service) TableGet(ctx context.Context, call *Call, in TableInput) (TableResult, error) {
+	var out TableResult
+	c, filter, auth, allowed := s.authorizeTable(ctx, *call, in.Table, "read")
+	out.Authorization = auth
+	if !allowed {
 		return out, nil
 	}
-	c.CurrentMatrix = c.Resource.TableMatrix(in.Table)
-	filter, err := s.Allow(&c, "read", c.CurrentMatrix.Read)
+	conn, done, err := s.openTableConn(ctx, c, false)
 	if err != nil {
-		out.Authorization = err.(*Error)
-		if !out.Authorization.Allowed {
-			return out, nil
-		}
-	}
-	conn, done, err := runtime.OpenTableConn(ctx, s.deps.SQLitePath, false, s.deps.SQLiteGate, s.deps.SQLiteTimeout, s.deps.SQLiteMaxMemory, nil)
-	if err != nil {
-		if err == runtime.ErrSQLiteBusy {
-			return out, &Error{Code: "storage_busy"}
-		}
-		return out, &Error{Code: "internal_error", Message: "internal server error"}
+		return out, err
 	}
 	defer done()
-	invalid := func() (RowResult, error) { return out, &Error{Code: "invalid_rows", Message: "invalid row request"} }
-	cols, err := runtime.TableColumns(conn, in.Table)
+	invalid := func() (TableResult, error) { return out, &Error{Code: "invalid_rows", Message: "invalid row request"} }
+	meta, err := tableMetadata(conn, c, in.Table, filter)
 	if err != nil {
-		return invalid()
+		return out, err
 	}
-	stmt, _, err := conn.Prepare("SELECT * FROM " + runtime.Quote(in.Table) + " LIMIT 0")
-	if err != nil {
-		return invalid()
-	}
-	order := make([]string, stmt.ColumnCount())
-	for i := range order {
-		order[i] = stmt.ColumnName(i)
-	}
-	stmt.Close()
-	if !c.Owner && len(cols) > 100 {
-		return out, &Error{Code: "invalid_rows", Message: "too many columns"}
-	}
-	if filter != "" && cols["visitor_id"] != "TEXT" {
-		return out, &Error{Code: "visitor_id_required", Message: "own needs the visitor_id TEXT column; set the policy again so the server adds it"}
-	}
-	rowid, err := runtime.RowID(conn, in.Table, cols)
-	if err != nil {
-		return invalid()
-	}
-	hold := c.Resource.Holds(in.Table)
-	if hold && cols["approved_at"] != "TEXT" {
-		return out, &Error{Code: "approved_at_required", Message: "approve_first needs the approved_at TEXT column; set the policy again so the server adds it"}
-	}
+	order, rowid, hold := meta.order, meta.rowid, meta.hold
 	query := "SELECT *, " + rowid + " FROM " + runtime.Quote(in.Table) + " WHERE " + rowid + " = ?"
 	params := []any{in.ID}
 	if filter != "" {
@@ -90,30 +134,11 @@ func (s *Service) GetRow(ctx context.Context, in RowInput) (RowResult, error) {
 	if hold && !c.Owner && !c.OwnerOnSite {
 		query += " AND approved_at IS NOT NULL"
 	}
-	if !c.Owner {
-		err = conn.SetAuthorizer(func(a sqlite3.AuthorizerActionCode, n3, n4, schema, inner string) sqlite3.AuthorizerReturnCode {
-			if schema != "" && schema != "main" {
-				return sqlite3.AUTH_DENY
-			}
-			switch a {
-			case sqlite3.AUTH_SELECT, sqlite3.AUTH_READ, sqlite3.AUTH_RECURSIVE:
-				return sqlite3.AUTH_OK
-			case sqlite3.AUTH_FUNCTION:
-				n4 = strings.ToLower(n4)
-				if n4 == "load_extension" || n4 == "readfile" || n4 == "writefile" {
-					return sqlite3.AUTH_DENY
-				}
-				return sqlite3.AUTH_OK
-			}
-			return sqlite3.AUTH_DENY
-		})
-	} else {
-		err = conn.SetAuthorizer(nil)
-	}
+	err = rowReadAuthorizer(conn, c.Owner)
 	if err != nil {
 		return out, &Error{Code: "internal_error", Message: "internal server error"}
 	}
-	stmt, _, err = conn.Prepare(query)
+	stmt, _, err := conn.Prepare(query)
 	if err != nil || stmt == nil {
 		return invalid()
 	}
@@ -152,66 +177,24 @@ func (s *Service) GetRow(ctx context.Context, in RowInput) (RowResult, error) {
 	return out, nil
 }
 
-// ListRowsInput contains the table and unmodified URL query values.
-type ListRowsInput struct {
-	Call  Call
-	Table string
-	Query url.Values
-}
-
-// ListRows authorizes and lists SQLite table rows.
-func (s *Service) ListRows(ctx context.Context, in ListRowsInput) (RowResult, error) {
-	var out RowResult
-	c := in.Call
-	c.Context = ctx
-	if err := s.Gate(c, false); err != nil {
-		out.Authorization = err.(*Error)
+// TableList authorizes and lists SQLite table rows.
+func (s *Service) TableList(ctx context.Context, call *Call, in TableInput) (TableResult, error) {
+	var out TableResult
+	c, filter, auth, allowed := s.authorizeTable(ctx, *call, in.Table, "read")
+	out.Authorization = auth
+	if !allowed {
 		return out, nil
 	}
-	c.CurrentMatrix = c.Resource.TableMatrix(in.Table)
-	filter, err := s.Allow(&c, "read", c.CurrentMatrix.Read)
+	conn, done, err := s.openTableConn(ctx, c, false)
 	if err != nil {
-		out.Authorization = err.(*Error)
-		if !out.Authorization.Allowed {
-			return out, nil
-		}
-	}
-	conn, done, err := runtime.OpenTableConn(ctx, s.deps.SQLitePath, false, s.deps.SQLiteGate, s.deps.SQLiteTimeout, s.deps.SQLiteMaxMemory, nil)
-	if err != nil {
-		if err == runtime.ErrSQLiteBusy {
-			return out, &Error{Code: "storage_busy"}
-		}
-		return out, &Error{Code: "internal_error", Message: "internal server error"}
+		return out, err
 	}
 	defer done()
-	invalid := func() (RowResult, error) { return out, &Error{Code: "invalid_rows", Message: "invalid row request"} }
-	cols, err := runtime.TableColumns(conn, in.Table)
+	meta, err := tableMetadata(conn, c, in.Table, filter)
 	if err != nil {
-		return invalid()
+		return out, err
 	}
-	stmt, _, err := conn.Prepare("SELECT * FROM " + runtime.Quote(in.Table) + " LIMIT 0")
-	if err != nil {
-		return invalid()
-	}
-	orderCols := make([]string, stmt.ColumnCount())
-	for i := range orderCols {
-		orderCols[i] = stmt.ColumnName(i)
-	}
-	stmt.Close()
-	if !c.Owner && len(cols) > 100 {
-		return out, &Error{Code: "invalid_rows", Message: "too many columns"}
-	}
-	if filter != "" && cols["visitor_id"] != "TEXT" {
-		return out, &Error{Code: "visitor_id_required", Message: "own needs the visitor_id TEXT column; set the policy again so the server adds it"}
-	}
-	rowid, err := runtime.RowID(conn, in.Table, cols)
-	if err != nil {
-		return invalid()
-	}
-	hold := c.Resource.Holds(in.Table)
-	if hold && cols["approved_at"] != "TEXT" {
-		return out, &Error{Code: "approved_at_required", Message: "approve_first needs the approved_at TEXT column; set the policy again so the server adds it"}
-	}
+	cols, orderCols, rowid, hold := meta.cols, meta.order, meta.rowid, meta.hold
 	q := in.Query
 	after := q.Get("after")
 	limit := 100
@@ -319,7 +302,7 @@ func (s *Service) ListRows(ctx context.Context, in ListRowsInput) (RowResult, er
 	if err := rowReadAuthorizer(conn, c.Owner); err != nil {
 		return out, &Error{Code: "internal_error", Message: "internal server error"}
 	}
-	stmt, _, err = conn.Prepare(query)
+	stmt, _, err := conn.Prepare(query)
 	if err != nil || stmt == nil {
 		return out, &Error{Code: "invalid_rows", Message: "invalid row request"}
 	}

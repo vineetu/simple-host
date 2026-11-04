@@ -18,6 +18,7 @@ import (
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/storage"
 )
 
 type securityShop struct {
@@ -141,7 +142,10 @@ func TestStorageSecurityReferencesCatalogAndOraclePOC(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownCall := storageCall{visitorID: "alice", resource: storageResource{Kind: "sqlite", Read: "own", Write: "signed-in", WriteMode: "add"}}
-	if _, err = storageCheckReferences(conn, ownCall, "child", "rowid", 1); err == nil {
+	if _, err = storage.CheckReferences(conn, "child", "rowid", 1, func(parent string) (string, bool, bool) {
+		filter, ok := ownCall.storageMayRead(ownCall.resource.tableMatrix(parent).Read)
+		return filter, ok, ownCall.resource.holds(parent) && !ownCall.ownerOnSite
+	}); err == nil {
 		t.Fatal("parent without visitor_id accepted")
 	}
 }

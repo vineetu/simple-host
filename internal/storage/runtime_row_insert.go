@@ -9,8 +9,8 @@ import (
 	sqlite3 "github.com/ncruces/go-sqlite3"
 )
 
-// InsertColumns validates insert column names and returns them for statement construction.
-func InsertColumns(cols map[string]string, values map[string]json.RawMessage) ([]string, error) {
+// insertColumns validates insert column names and returns them for statement construction.
+func insertColumns(cols map[string]string, values map[string]json.RawMessage) ([]string, error) {
 	names := make([]string, 0, len(values))
 	for name := range values {
 		if _, ok := cols[name]; !ok {
@@ -21,8 +21,8 @@ func InsertColumns(cols map[string]string, values map[string]json.RawMessage) ([
 	return names, nil
 }
 
-// InsertRowStatement constructs a parameterized insert for validated columns.
-func InsertRowStatement(table, rowid string, abortOnConflict bool, names []string, values map[string]json.RawMessage) (string, []json.RawMessage) {
+// insertRowStatement constructs a parameterized insert for validated columns.
+func insertRowStatement(table, rowid string, abortOnConflict bool, names []string, values map[string]json.RawMessage) (string, []json.RawMessage) {
 	sort.Strings(names)
 	// OR ABORT overrides ON CONFLICT REPLACE for visitor inserts.
 	query := "INSERT INTO " + Quote(table)
@@ -44,8 +44,8 @@ func InsertRowStatement(table, rowid string, abortOnConflict bool, names []strin
 	return query + " RETURNING " + rowid, params
 }
 
-// InsertSuppliesID reports whether an insert supplies a primary key or rowid.
-func InsertSuppliesID(conn *sqlite3.Conn, table string, values map[string]json.RawMessage) (bool, error) {
+// insertSuppliesID reports whether an insert supplies a primary key or rowid.
+func insertSuppliesID(conn *sqlite3.Conn, table string, values map[string]json.RawMessage) (bool, error) {
 	info, _, err := conn.Prepare("PRAGMA table_info(" + Quote(table) + ")")
 	if err != nil {
 		return false, err
@@ -65,7 +65,10 @@ func InsertSuppliesID(conn *sqlite3.Conn, table string, values map[string]json.R
 }
 
 // SetRowAuthorizer confines writes to the target table.
-func SetRowAuthorizer(conn *sqlite3.Conn, table string, write sqlite3.AuthorizerActionCode) error {
+func SetRowAuthorizer(conn *sqlite3.Conn, table string, owner bool, write sqlite3.AuthorizerActionCode) error {
+	if owner {
+		return conn.SetAuthorizer(nil)
+	}
 	return conn.SetAuthorizer(func(a sqlite3.AuthorizerActionCode, n3, n4, schema, inner string) sqlite3.AuthorizerReturnCode {
 		if schema != "" && schema != "main" {
 			return sqlite3.AUTH_DENY

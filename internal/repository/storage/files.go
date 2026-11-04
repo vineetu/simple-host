@@ -80,3 +80,23 @@ func FileWriters(ctx context.Context, db *sql.DB, site, resource string, paths [
 	}
 	return out, rows.Err()
 }
+
+// SignedInAmong finds visitor IDs recorded for a site, including live sessions.
+func SignedInAmong(ctx context.Context, db *sql.DB, siteID string, ids []string) (map[string]bool, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT user_id::text FROM site_visitor_signins WHERE site_id = $1 AND user_id::text = ANY($2)
+		UNION SELECT user_id::text FROM visitor_sessions WHERE site_id = $1 AND user_id::text = ANY($2)`, siteID, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	found := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		found[id] = true
+	}
+	return found, rows.Err()
+}

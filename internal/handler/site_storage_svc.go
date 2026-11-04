@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/papermetrics"
 	"net/http"
 	"os"
@@ -21,12 +22,17 @@ func (h *SiteHandler) storageDeps() appstorage.Deps {
 		SpamCheckedMaxBytes: h.limits.SpamCheckedMaxBytes, SpamCheckedMaxLinks: h.limits.SpamCheckedMaxLinks,
 		VisitorSessionIdle: h.limits.VisitorSessionIdle,
 	}
+	deps.VisitorEmail = func(ctx context.Context, id string) (string, error) { return visitorEmail(ctx, h.database, id) }
 	deps.OpenFileToken = func(token string) ([]byte, error) { return openLink(h.exportKey, "site storage file v1", token) }
 	deps.FileResourceExists = func(ctx context.Context, siteID, name string) bool {
 		resource, err := h.loadStorageResource(ctx, siteID, name)
 		return err == nil && resource.Kind == "files"
 	}
 	deps.EventOwners = h.ed.Storage().EventOwners
+	deps.LegacyRoutes = h.ed.Storage().LegacyRoutes
+	deps.ResourceHistory = func(ctx context.Context, siteID, name string) (any, error) {
+		return db.ListHistory(ctx, h.database, siteID, db.HistoryStorage, name, 20, 0)
+	}
 	deps.FilePath = func(call appstorage.Call, path string) string {
 		return storageFileOnDisk(h.disk, call.OwnerID, call.SiteName, call.ResourceName, path)
 	}
@@ -40,6 +46,8 @@ func (h *SiteHandler) storageRequestSvc(r *http.Request, c storageCall) *appstor
 
 func (h *SiteHandler) storageRequestDeps(r *http.Request, c storageCall) appstorage.Deps {
 	deps := h.storageDeps()
+	deps.StageResourceRuntime = func() (string, func(), error) { return h.stageStorageRuntime(c) }
+	deps.SpamCheckAvailable = h.turnstile != nil
 	deps.SQLitePath = h.storageSQLPath(c)
 	deps.SQLiteGate = h.sqliteGateFor()
 	deps.SQLiteTimeout = h.limits.StorageVisitorQueryTimeout
