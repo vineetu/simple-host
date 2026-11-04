@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
@@ -146,7 +147,7 @@ func TestVisitorSessionFollowsSetting(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE visitor_sessions SET idle_expires_at = now() + interval '1 hour' WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.TouchVisitorSession(context.Background(), a.database, id, l.VisitorSessionIdle); err != nil {
+	if err := accountsrepo.TouchVisitorSession(context.Background(), a.database, id, l.VisitorSessionIdle); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.database.QueryRow(`SELECT idle_expires_at FROM visitor_sessions WHERE id = $1`, id).Scan(&idle); err != nil || !near(idle, now.Add(21*24*time.Hour)) {
@@ -163,7 +164,7 @@ func TestDomainFailingEmailFollowsSetting(t *testing.T) {
 	a.sites.mailer = m
 	olive := a.newPerson(t, "lapsing")
 	a.deploy(t, olive, "shop")
-	a.sites.emailDomainFailing(context.Background(), db.BoundDomain{SiteID: a.siteID(t, olive, "shop"), Domain: "shop.example.test"}, "shop", "")
+	a.sites.emailDomainFailing(context.Background(), model.BoundDomain{SiteID: a.siteID(t, olive, "shop"), Domain: "shop.example.test"}, "shop", "")
 	if len(m.sent) != 1 || !strings.Contains(m.sent[0], "failed every check for 36 hours.") || !strings.Contains(m.sent[0], "still failing 3 days from now") {
 		t.Fatalf("failing email: %v", m.sent)
 	}
@@ -253,7 +254,7 @@ func TestDeletedSiteKeepsPromisedPurgeDate(t *testing.T) {
 	if _, err := a.database.ExecContext(ctx, `UPDATE sites SET purge_at = NULL WHERE id = $1`, legacy); err != nil {
 		t.Fatal(err)
 	}
-	purgeable, err := db.ListPurgeableSites(ctx, a.database, l2.DeletedRetention)
+	purgeable, err := sitesrepo.ListPurgeableSites(ctx, a.database, l2.DeletedRetention)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +265,7 @@ func TestDeletedSiteKeepsPromisedPurgeDate(t *testing.T) {
 	if found[kept] || !found[legacy] {
 		t.Fatalf("purgeable: kept %v (want false), legacy %v (want true)", found[kept], found[legacy])
 	}
-	d, err := db.GetDeletedSiteByUser(ctx, a.database, uid, "kept")
+	d, err := sitesrepo.GetDeletedSiteByUser(ctx, a.database, uid, "kept")
 	if err != nil || !near(d.PurgeAt(l2.DeletedRetention), time.Now().Add(30*24*time.Hour)) {
 		t.Fatalf("kept purges at %v (%v), want the promised 30 days after deletion", d.PurgeAt(l2.DeletedRetention), err)
 	}
@@ -287,7 +288,7 @@ func TestDomainLapseKeepsPromisedDate(t *testing.T) {
 		domain_release_at = now() + interval '1 hour' WHERE id = $1`, id, domain); err != nil {
 		t.Fatal(err)
 	}
-	bd := db.BoundDomain{SiteID: id, Domain: domain, Status: "error", Verified: true}
+	bd := model.BoundDomain{SiteID: id, Domain: domain, Status: "error", Verified: true}
 	a.sites.applyDomainCheck(ctx, bd, "error", "no answer", "")
 	var cur *string
 	if err := a.database.QueryRowContext(ctx, `SELECT custom_domain FROM sites WHERE id = $1`, id).Scan(&cur); err != nil || cur == nil || *cur != domain {

@@ -18,10 +18,13 @@ import (
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/hackhttp"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	operationsrepo "github.com/vsriram/simple-host/internal/repository/operations"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -73,7 +76,7 @@ func newBridgeTeamApp(t *testing.T) *bridgeTeamApp {
 	if err := database.Ping(); err != nil {
 		t.Skipf("postgres not reachable: %v", err)
 	}
-	if err := db.VerifyHackSchema(context.Background(), database); err != nil {
+	if err := operationsrepo.VerifyHackSchema(context.Background(), database); err != nil {
 		t.Fatalf("test database is behind the schema: %v", err)
 	}
 	disk, err := storage.NewDiskStorage(t.TempDir())
@@ -86,13 +89,13 @@ func newBridgeTeamApp(t *testing.T) *bridgeTeamApp {
 			t.Fatal(err)
 		}
 	}
-	oldDomain := db.PlatformDomain()
-	db.SetPlatformDomain(bridgeTSDomain)
-	t.Cleanup(func() { db.SetPlatformDomain(oldDomain) })
+	oldDomain := accountsrepo.CurrentPlatformDomain()
+	accountsrepo.SetPlatformDomain(bridgeTSDomain)
+	t.Cleanup(func() { accountsrepo.SetPlatformDomain(oldDomain) })
 
 	ed := edition.ForKind(edition.Hack)
 	adminKey, _ := auth.GenerateAPIKey()
-	adminID, err := db.EnsureAdminUser(context.Background(), database)
+	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,8 +117,8 @@ func newBridgeTeamApp(t *testing.T) *bridgeTeamApp {
 	a.sites.SetPersonHosts("canonical")
 	a.sites.SetSiteHosts("canonical", certDir)
 	a.hack = hackhttp.NewHackHandler(database, a.srv.URL, bridgeTSDomain)
-	a.hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (db.User, error) {
-		return db.GetUserByAPIKey(ctx, database, key, idle)
+	a.hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
+		return accountapp.New(database).GetUserByAPIKey(ctx, key, idle)
 	})
 	a.hack.ShareAssets(a.sites.Pages())
 	a.hack.SetSites(a.sites)

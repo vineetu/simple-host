@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // MAX_SITES_OVERRIDES replaces the per-account cap for the listed handles
@@ -77,7 +77,7 @@ func TestSiteOverridesEnforced(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM handle_aliases WHERE handle = $1`, oliveHandle+"-held") })
-	all, err := db.HandleAliasesByUser(context.Background(), a.database)
+	all, err := accountsrepo.HandleAliasesByUser(context.Background(), a.database)
 	if err != nil || len(all[oliveID]) != 1 || all[oliveID][0] != oliveHandle {
 		t.Fatalf("aliases by user: %v %v", all[oliveID], err)
 	}

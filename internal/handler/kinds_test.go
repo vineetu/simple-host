@@ -14,7 +14,9 @@ import (
 	legacy "github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 )
 
 // Saved data, step 2: kinds (kinds.go). Needs DB_DSN (db/schema.sql applied).
@@ -518,7 +520,7 @@ func TestSubmissionEmails(t *testing.T) {
 	if r := s.a.at(t, "POST", pcSiteDomain, "/v1/data-notify/stop", form.Encode(), map[string]string{"Content-Type": "application/x-www-form-urlencoded"}); r.status != 200 {
 		t.Fatalf("stop: %d %s", r.status, r.body)
 	}
-	set, _ := db.GetDataSettings(ctx, s.a.database, s.shopID, "orders")
+	set, _ := legacyrepo.GetDataSettings(ctx, s.a.database, s.shopID, "orders")
 	if set.Notify != "off" {
 		t.Fatalf("after stop: %q", set.Notify)
 	}
@@ -593,7 +595,7 @@ func (s *kindsSite) taggedPerson(t *testing.T, p person) (person, string) {
 	t.Helper()
 	addr := strings.Replace(p.email, "@", "+two@", 1)
 	key, _ := auth.GenerateAPIKey()
-	u, err := db.CreateUser(context.Background(), s.a.database, addr, key, false)
+	u, err := accountsrepo.CreateUser(context.Background(), s.a.database, addr, key, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -770,11 +772,11 @@ func TestSubmissionEmailClaimedOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	due, err := db.DueNotifications(ctx, s.a.database, 10*time.Minute, 24*time.Hour)
+	due, err := legacyrepo.DueNotifications(ctx, s.a.database, 10*time.Minute, 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var mine []db.NotifyDue
+	var mine []model.NotifyDue
 	for _, d := range due {
 		if d.SiteID == s.shopID {
 			mine = append(mine, d)
@@ -783,8 +785,8 @@ func TestSubmissionEmailClaimedOnce(t *testing.T) {
 	if len(mine) != 1 {
 		t.Fatalf("due: %v", mine)
 	}
-	first, err1 := db.ClaimNotification(ctx, s.a.database, mine[0])
-	second, err2 := db.ClaimNotification(ctx, s.a.database, mine[0])
+	first, err1 := legacyrepo.ClaimNotification(ctx, s.a.database, mine[0])
+	second, err2 := legacyrepo.ClaimNotification(ctx, s.a.database, mine[0])
 	if err1 != nil || err2 != nil || !first || second {
 		t.Fatalf("claims: %v %v (%v %v)", first, second, err1, err2)
 	}

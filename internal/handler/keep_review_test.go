@@ -16,10 +16,12 @@ import (
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
-func keepReviewSite(t *testing.T) (*connectorApp, *db.User) {
+func keepReviewSite(t *testing.T) (*connectorApp, *model.User) {
 	t.Helper()
 	a := newConnectorApp(t)
 	person := a.newPerson(t, "keep-review")
@@ -34,13 +36,13 @@ func keepReviewSite(t *testing.T) (*connectorApp, *db.User) {
 			t.Fatal(res.status, string(res.body))
 		}
 	}
-	user, err := db.GetUserByUsername(context.Background(), a.database, person.email)
+	user, err := accountsrepo.GetUserByUsername(context.Background(), a.database, person.email)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return a, &user
 }
-func keepReviewRequest(user *db.User, body io.Reader) *http.Request {
+func keepReviewRequest(user *model.User, body io.Reader) *http.Request {
 	r := httptest.NewRequest("PUT", "/v1/sites/blog/files?keep=1", body)
 	r.SetPathValue("sitename", "blog")
 	return r.WithContext(auth.WithUser(r.Context(), user))
@@ -105,7 +107,7 @@ func TestKeepSnapshotUnderSiteLock(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("site mutex reacquired during commit")
 	}
-	site, err := db.GetSiteByUser(context.Background(), a.database, user.ID, "blog")
+	site, err := sitesrepo.GetSiteByUser(context.Background(), a.database, user.ID, "blog")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +118,7 @@ func TestKeepSnapshotUnderSiteLock(t *testing.T) {
 }
 func TestKeepMergedUnpackedCaps(t *testing.T) {
 	a, user := keepReviewSite(t)
-	site, err := db.GetSiteByUser(context.Background(), a.database, user.ID, "blog")
+	site, err := sitesrepo.GetSiteByUser(context.Background(), a.database, user.ID, "blog")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,9 +8,12 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // v0.7.1 security fixes. Need DB_DSN (db/schema.sql applied).
@@ -56,7 +59,7 @@ func TestLeversEndSiteSignIns(t *testing.T) {
 	// The admin's new key.
 	signIn()
 	newKey, _ := auth.GenerateAPIKey()
-	if err := db.ReplaceAPIKeys(ctx, a.database, uid, newKey, "x"); err != nil {
+	if err := accountsrepo.ReplaceAPIKeys(ctx, a.database, uid, newKey, "x"); err != nil {
 		t.Fatal(err)
 	}
 	if n := a.sessionCount(t, uid); n != 0 {
@@ -65,11 +68,11 @@ func TestLeversEndSiteSignIns(t *testing.T) {
 
 	// Removing a linked Google sign-in.
 	signIn()
-	ident, err := db.InsertOAuthIdentity(ctx, a.database, uid, "google", "g-"+uid, p.email, true)
+	ident, err := accountsrepo.InsertOAuthIdentity(ctx, a.database, uid, "google", "g-"+uid, p.email, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UnlinkSignInIdentity(ctx, a.database, uid, ident.ID); err != nil {
+	if err := accountapp.New(a.database).UnlinkSignInIdentity(ctx, uid, ident.ID); err != nil {
 		t.Fatal(err)
 	}
 	if n := a.sessionCount(t, uid); n != 0 {
@@ -83,7 +86,7 @@ func TestLeversEndSiteSignIns(t *testing.T) {
 		t.Fatal(err)
 	}
 	moved := "moved-" + p.email
-	if err := db.ApplyEmailChange(ctx, tx, uid, p.email, moved, db.HashAPIKey(newKey), "undo-hash-"+uid, 7*24*time.Hour); err != nil {
+	if err := accountsrepo.ApplyEmailChange(ctx, tx, uid, p.email, moved, accountsrepo.HashAPIKey(newKey), "undo-hash-"+uid, 7*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -95,7 +98,7 @@ func TestLeversEndSiteSignIns(t *testing.T) {
 	old := p.email
 	p.email = moved
 	signIn()
-	if _, err := db.UndoEmailChange(ctx, a.database, "undo-hash-"+uid); err != nil {
+	if _, err := accountapp.New(a.database).UndoEmailChange(ctx, "undo-hash-"+uid); err != nil {
 		t.Fatal(err)
 	}
 	if n := a.sessionCount(t, uid); n != 0 {
@@ -105,7 +108,7 @@ func TestLeversEndSiteSignIns(t *testing.T) {
 
 	// Suspension.
 	signIn()
-	if err := db.SetUserSuspended(ctx, a.database, uid, "abuse"); err != nil {
+	if err := accountsrepo.SetUserSuspended(ctx, a.database, uid, "abuse"); err != nil {
 		t.Fatal(err)
 	}
 	if n := a.sessionCount(t, uid); n != 0 {
@@ -120,7 +123,7 @@ func TestVisitorEmailFollowsAccountEmail(t *testing.T) {
 	ctx := context.Background()
 	p := a.newPerson(t, "bobmoved")
 	uid, _ := a.userID(t, p)
-	if _, err := db.InsertOAuthIdentity(ctx, a.database, uid, "google", "g-"+uid, "bob-"+uid+"@acme.test", true); err != nil {
+	if _, err := accountsrepo.InsertOAuthIdentity(ctx, a.database, uid, "google", "g-"+uid, "bob-"+uid+"@acme.test", true); err != nil {
 		t.Fatal(err)
 	}
 	got, err := visitorEmail(ctx, a.database, uid)
@@ -156,17 +159,17 @@ func TestReservedKeyNames(t *testing.T) {
 	uid, _ := a.userID(t, p)
 	// Even a key stored under the event name (an older row) does not make one.
 	k, _ := auth.GenerateAPIKey()
-	if err := db.AddAPIKey(context.Background(), a.database, uid, k, db.KeyNameEvent); err != nil {
+	if err := accountsrepo.AddAPIKey(context.Background(), a.database, uid, k, model.KeyNameEvent); err != nil {
 		t.Fatal(err)
 	}
-	tgt, err := db.GetSignInAlertTarget(context.Background(), a.database, uid)
+	tgt, err := accountsrepo.GetSignInAlertTarget(context.Background(), a.database, uid)
 	if err != nil || tgt.Event {
 		t.Fatalf("key name marked an event account: %+v %v", tgt, err)
 	}
-	if err := db.MarkEventAccount(context.Background(), a.database, uid); err != nil {
+	if err := accountsrepo.MarkEventAccount(context.Background(), a.database, uid); err != nil {
 		t.Fatal(err)
 	}
-	if tgt, _ = db.GetSignInAlertTarget(context.Background(), a.database, uid); !tgt.Event {
+	if tgt, _ = accountsrepo.GetSignInAlertTarget(context.Background(), a.database, uid); !tgt.Event {
 		t.Fatal("flag not read")
 	}
 }
@@ -238,7 +241,7 @@ func TestTakenDownSiteSignsNobodyIn(t *testing.T) {
 	_, oh := a.userID(t, olive)
 	shop := "shop." + oh + "." + pcSiteDomain
 	shopID := a.siteID(t, olive, "shop")
-	if err := db.SetSiteSuspended(context.Background(), a.database, shopID, "report"); err != nil {
+	if err := sitesrepo.SetSiteSuspended(context.Background(), a.database, shopID, "report"); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "POST", shop, "/v1/sites/shop/visitor/auth", map[string]string{"email": "ann@example.com"}, browser(shop, "")); r.status != 403 || r.json(t)["code"] != "site_suspended" {
@@ -305,7 +308,7 @@ func TestSignInRefusesEventKeyName(t *testing.T) {
 	a := newConnectorApp(t)
 	ann := a.newPerson(t, "evname")
 	lt, _ := auth.GenerateAPIKey()
-	if err := db.CreateAuthToken(context.Background(), a.database, ann.email, "555555", lt, time.Now().Add(time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
+	if err := accountsrepo.CreateAuthToken(context.Background(), a.database, ann.email, "555555", lt, time.Now().Add(time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
 		t.Fatal(err)
 	}
 	r := a.do(t, http.MethodPost, "/v1/auth/verify", jsonBody(map[string]string{"email": ann.email, "code": "555555", "name": "Event Account"}), map[string]string{"Content-Type": "application/json"})

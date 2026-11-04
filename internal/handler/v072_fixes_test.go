@@ -12,11 +12,12 @@ import (
 	"testing"
 	"time"
 
+	legacyapp "github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
-
 	"github.com/vsriram/simple-host/internal/edition"
+	model "github.com/vsriram/simple-host/internal/model"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 )
 
 // v0.7.2 correctness fixes (final/hosted-correctness.md). Needs DB_DSN.
@@ -46,8 +47,8 @@ func TestPrivateToPublicCountsRecentlyDeleted(t *testing.T) {
 	wantCode(t, "cleared private list, privacy off", s.owner(t, "PUT", "/v1/sites/shop/collections/orders/privacy", map[string]bool{"private": false}), 409, "confirm_public")
 
 	// Under the lock, not only in the handler.
-	var pe *db.PrivateItemsError
-	err := db.DeclareDataLocked(context.Background(), s.a.database, s.shopID, "orders", db.KindContent, false, false, db.NotifyOff, true)
+	var pe *model.PrivateItemsError
+	err := legacyapp.New(s.a.database, time.Time{}, legacyapp.Deps{}).DeclareDataLocked(context.Background(), s.shopID, "orders", model.KindContent, false, false, model.NotifyOff, true)
 	if !errors.As(err, &pe) || pe.Live != 0 || pe.Deleted != 1 || !pe.Content {
 		t.Fatalf("locked check: %v %+v", err, pe)
 	}
@@ -71,14 +72,14 @@ func TestAppendRechecksKindUnderLock(t *testing.T) {
 	s := newKindsSite(t, true)
 	ctx := context.Background()
 	s.declare(t, "menu", map[string]any{"kind": "content"})
-	if _, _, err := db.AppendEntry(ctx, s.a.database, s.shopID, "menu", db.KindEntries, false, []byte(`{"a":1}`), db.Actor{}, false, 100); !errors.Is(err, db.ErrKindChanged) {
+	if _, _, err := legacyapp.New(s.a.database, time.Time{}, legacyapp.Deps{}).SaveEntry(ctx, legacyapp.SaveEntryInput{SiteID: s.shopID, Settings: model.DataSettings{Name: "menu", Kind: model.KindEntries, Private: false}, Body: []byte(`{"a":1}`), Actor: model.Actor{}, MaxEntries: 100}); !errors.Is(err, model.ErrKindChanged) {
 		t.Fatalf("entry into page info: %v", err)
 	}
-	if _, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "menu", false, []byte(`{"a":1}`), db.Actor{}); !errors.Is(err, db.ErrKindChanged) {
+	if _, err := legacyrepo.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "menu", false, []byte(`{"a":1}`), model.Actor{}); !errors.Is(err, model.ErrKindChanged) {
 		t.Fatalf("legacy append into page info: %v", err)
 	}
 	// An undeclared name still takes legacy appends.
-	if _, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "guestbook", false, []byte(`{"a":1}`), db.Actor{}); err != nil {
+	if _, err := legacyrepo.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "guestbook", false, []byte(`{"a":1}`), model.Actor{}); err != nil {
 		t.Fatalf("legacy append: %v", err)
 	}
 }
@@ -93,17 +94,17 @@ func TestAppendRechecksPrivacyUnderLock(t *testing.T) {
 		ON CONFLICT (site_id, collection) DO UPDATE SET private = true`, s.shopID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "rsvps", false, []byte(`{"a":1}`), db.Actor{}); !errors.Is(err, db.ErrKindChanged) {
+	if _, err := legacyrepo.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "rsvps", false, []byte(`{"a":1}`), model.Actor{}); !errors.Is(err, model.ErrKindChanged) {
 		t.Fatalf("legacy append read as public into a private list: %v", err)
 	}
-	if _, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "rsvps", true, []byte(`{"a":1}`), db.Actor{}); err != nil {
+	if _, err := legacyrepo.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "rsvps", true, []byte(`{"a":1}`), model.Actor{}); err != nil {
 		t.Fatalf("legacy append into the private list it read: %v", err)
 	}
 	s.declare(t, "orders", map[string]any{"kind": "entries"})
-	if _, _, err := db.AppendEntry(ctx, s.a.database, s.shopID, "orders", db.KindEntries, false, []byte(`{"a":1}`), db.Actor{}, false, 100); !errors.Is(err, db.ErrKindChanged) {
+	if _, _, err := legacyapp.New(s.a.database, time.Time{}, legacyapp.Deps{}).SaveEntry(ctx, legacyapp.SaveEntryInput{SiteID: s.shopID, Settings: model.DataSettings{Name: "orders", Kind: model.KindEntries, Private: false}, Body: []byte(`{"a":1}`), Actor: model.Actor{}, MaxEntries: 100}); !errors.Is(err, model.ErrKindChanged) {
 		t.Fatalf("entry read as public into private submissions: %v", err)
 	}
-	if _, _, err := db.AppendEntry(ctx, s.a.database, s.shopID, "orders", db.KindEntries, true, []byte(`{"a":1}`), db.Actor{}, false, 100); err != nil {
+	if _, _, err := legacyapp.New(s.a.database, time.Time{}, legacyapp.Deps{}).SaveEntry(ctx, legacyapp.SaveEntryInput{SiteID: s.shopID, Settings: model.DataSettings{Name: "orders", Kind: model.KindEntries, Private: true}, Body: []byte(`{"a":1}`), Actor: model.Actor{}, MaxEntries: 100}); err != nil {
 		t.Fatalf("entry into the private submissions it read: %v", err)
 	}
 }
@@ -127,7 +128,7 @@ func TestAppendWaitsForFirstDeclaration(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := db.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "fresh", false, []byte(`{"a":1}`), db.Actor{})
+		_, err := legacyrepo.AppendCollectionItemByID(ctx, s.a.database, s.shopID, "fresh", false, []byte(`{"a":1}`), model.Actor{})
 		done <- err
 	}()
 	select {
@@ -140,7 +141,7 @@ func TestAppendWaitsForFirstDeclaration(t *testing.T) {
 	}
 	select {
 	case err := <-done:
-		if !errors.Is(err, db.ErrKindChanged) {
+		if !errors.Is(err, model.ErrKindChanged) {
 			t.Fatalf("append after the declaration: %v, want ErrKindChanged", err)
 		}
 	case <-time.After(10 * time.Second):
@@ -203,26 +204,26 @@ func TestBigIDsAndCursors(t *testing.T) {
 	ctx := context.Background()
 	const big = int64(3000000000)
 	d := s.a.database
-	if _, err := db.ListCollectionItemsByID(ctx, d, s.shopID, "guestbook", 10, big, false); err != nil {
+	if _, err := legacyrepo.ListCollectionItemsByID(ctx, d, s.shopID, "guestbook", 10, big, false); err != nil {
 		t.Fatalf("list before: %v", err)
 	}
-	if _, err := db.ListHistory(ctx, d, s.shopID, db.HistoryList, "guestbook", 10, big); err != nil {
+	if _, err := legacyrepo.ListHistory(ctx, d, s.shopID, model.HistoryList, "guestbook", 10, big); err != nil {
 		t.Fatalf("history before: %v", err)
 	}
-	if n, err := db.UndeleteItems(ctx, d, s.shopID, "guestbook", big, db.Actor{}, 0, false, 0, 0); err != nil || n != 0 {
+	if n, err := legacyapp.New(d, time.Time{}, legacyapp.Deps{}).UndeleteItems(ctx, s.shopID, "guestbook", big, model.Actor{}, 0, false, 0, 0); err != nil || n != 0 {
 		t.Fatalf("undelete: %d %v", n, err)
 	}
-	if _, err := db.ListDeletedItems(ctx, d, s.shopID, "guestbook", 10, db.DeletedCursor{At: time.Now(), ID: big}); err != nil {
+	if _, err := legacyrepo.ListDeletedItems(ctx, d, s.shopID, "guestbook", 10, model.LegacyDeletedCursor{At: time.Now(), ID: big}); err != nil {
 		t.Fatalf("deleted cursor: %v", err)
 	}
-	if n, err := db.PurgeDeletedItems(ctx, d, s.shopID, "guestbook", big); err != nil || n != 0 {
+	if n, err := legacyrepo.PurgeDeletedItems(ctx, d, s.shopID, "guestbook", big); err != nil || n != 0 {
 		t.Fatalf("purge: %d %v", n, err)
 	}
 	vicID, _ := s.a.userID(t, s.vic)
-	if _, err := db.ListOwnEntries(ctx, d, s.shopID, "guestbook", vicID, 10, big); err != nil {
+	if _, err := legacyrepo.ListOwnEntries(ctx, d, s.shopID, "guestbook", vicID, 10, big); err != nil {
 		t.Fatalf("own entries before: %v", err)
 	}
-	if _, err := db.ListItemHistory(ctx, d, s.shopID, "guestbook", big, 10, big); err != nil {
+	if _, err := legacyrepo.ListItemHistory(ctx, d, s.shopID, "guestbook", big, 10, big); err != nil {
 		t.Fatalf("item history before: %v", err)
 	}
 	// Over HTTP: the public list, and a restore or purge of an id nobody has.
@@ -312,13 +313,13 @@ func TestDigestCountsByID(t *testing.T) {
 	}
 	back(`UPDATE collection_settings SET declared_at = now() - interval '3 hours', updated_at = now() - interval '3 hours' WHERE site_id = $1`)
 	back(`UPDATE collection_items SET created_at = now() - interval '2 hours' WHERE site_id = $1`)
-	dueHere := func() []db.NotifyDue {
+	dueHere := func() []model.NotifyDue {
 		t.Helper()
-		due, err := db.DueNotifications(ctx, s.a.database, 10*time.Minute, 24*time.Hour)
+		due, err := legacyrepo.DueNotifications(ctx, s.a.database, 10*time.Minute, 24*time.Hour)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var mine []db.NotifyDue
+		var mine []model.NotifyDue
 		for _, d := range due {
 			if d.SiteID == s.shopID {
 				mine = append(mine, d)
@@ -330,7 +331,7 @@ func TestDigestCountsByID(t *testing.T) {
 	if len(first) != 1 || first[0].Count != 1 {
 		t.Fatalf("first digest: %+v", first)
 	}
-	if ok, err := db.ClaimNotification(ctx, s.a.database, first[0]); !ok || err != nil {
+	if ok, err := legacyrepo.ClaimNotification(ctx, s.a.database, first[0]); !ok || err != nil {
 		t.Fatalf("claim: %v %v", ok, err)
 	}
 	// The late entry: its transaction began before that digest ran.
@@ -343,7 +344,7 @@ func TestDigestCountsByID(t *testing.T) {
 	if len(next) != 1 || next[0].Count != 1 || strconv.FormatInt(next[0].LastID, 10) != late {
 		t.Fatalf("next digest misses the late entry: %+v", next)
 	}
-	if ok, err := db.ClaimNotification(ctx, s.a.database, next[0]); !ok || err != nil {
+	if ok, err := legacyrepo.ClaimNotification(ctx, s.a.database, next[0]); !ok || err != nil {
 		t.Fatalf("claim 2: %v %v", ok, err)
 	}
 	back(`UPDATE collection_settings SET notify_sent_at = notify_sent_at - interval '1 hour' WHERE site_id = $1`)
@@ -382,19 +383,7 @@ func TestEraseAccountWaitsForVisitorSave(t *testing.T) {
 	oliveID, _ := s.a.userID(t, s.olive)
 	erased := make(chan error, 1)
 	go func() {
-		tx, err := s.a.database.BeginTx(ctx, nil)
-		if err != nil {
-			erased <- err
-			return
-		}
-		defer tx.Rollback()
-		acct, err := db.LockAccountForDelete(ctx, tx, oliveID)
-		if err == nil {
-			_, err = db.EraseAccount(ctx, tx, acct)
-		}
-		if err == nil {
-			err = tx.Commit()
-		}
+		err := eraseFixtureAccount(ctx, s.a.sites, oliveID)
 		erased <- err
 	}()
 	time.Sleep(500 * time.Millisecond) // the erase is now waiting on the save
@@ -508,7 +497,7 @@ func TestThinSkipsWhenNothingCanGo(t *testing.T) {
 	if rows() != 12 {
 		t.Fatalf("keepers deleted: %d", rows())
 	}
-	size, err := db.HistoryBytes(ctx, a.database, s.shopID)
+	size, err := legacyrepo.HistoryBytes(ctx, a.database, s.shopID)
 	if err != nil || size <= capBytes {
 		t.Fatalf("history size %d %v", size, err)
 	}

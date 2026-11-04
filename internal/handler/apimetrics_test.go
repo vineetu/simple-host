@@ -4,14 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"github.com/vsriram/simple-host/internal/app/operations"
-	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/app/operations"
+	"github.com/vsriram/simple-host/internal/auth"
+	model "github.com/vsriram/simple-host/internal/model"
+	operationsrepo "github.com/vsriram/simple-host/internal/repository/operations"
 )
 
 func growthTestDB(t *testing.T) *sql.DB {
@@ -28,7 +30,7 @@ func growthTestDB(t *testing.T) *sql.DB {
 	if err := database.Ping(); err != nil {
 		t.Skipf("postgres not reachable: %v", err)
 	}
-	if err := db.VerifySchema(context.Background(), database); err != nil {
+	if err := operationsrepo.VerifySchema(context.Background(), database); err != nil {
 		t.Fatalf("test database is behind the schema: %v", err)
 	}
 	clear := func() {
@@ -164,7 +166,7 @@ func TestAdminGrowthEndpoint(t *testing.T) {
 	exec(`INSERT INTO sites(user_id,name) SELECT id,'growth-site' FROM users WHERE username IN ('growth-t1','growth-t2')`)
 	t.Cleanup(func() { database.Exec(`DELETE FROM users WHERE username IN ('growth-t1', 'growth-t2')`) })
 
-	call := func(user *db.User, q string) *httptest.ResponseRecorder {
+	call := func(user *model.User, q string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest("GET", "/v1/admin/growth"+q, nil)
 		if user != nil {
 			r = r.WithContext(auth.WithUser(r.Context(), user))
@@ -176,10 +178,10 @@ func TestAdminGrowthEndpoint(t *testing.T) {
 	if w := call(nil, ""); w.Code != http.StatusUnauthorized {
 		t.Errorf("anonymous: %d", w.Code)
 	}
-	if w := call(&db.User{ID: uid}, ""); w.Code != http.StatusNotFound {
+	if w := call(&model.User{ID: uid}, ""); w.Code != http.StatusNotFound {
 		t.Errorf("non-admin: %d", w.Code)
 	}
-	admin := &db.User{ID: uid, IsAdmin: true}
+	admin := &model.User{ID: uid, IsAdmin: true}
 	if w := call(admin, "?range=3y"); w.Code != http.StatusBadRequest {
 		t.Errorf("bad range: %d", w.Code)
 	}

@@ -3,14 +3,14 @@ package handler
 import (
 	"testing"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
 )
 
 // Small-box trial: the admin's first site went to /admin-2/<site>/ because
 // "admin" is reserved. The admin row takes the domain's first label instead,
 // when it is a usable handle; everyone else keeps their own.
 func TestHandleSeed(t *testing.T) {
-	admin := &db.User{Username: "admin", IsAdmin: true}
+	admin := &model.User{Username: "admin", IsAdmin: true}
 	for domain, want := range map[string]string{
 		"spring.example.com":          "spring",
 		"hack.example.com":            "organiser", // reserved label
@@ -25,10 +25,10 @@ func TestHandleSeed(t *testing.T) {
 			t.Errorf("admin on %q: %q, want %q", domain, got, want)
 		}
 	}
-	if got := handleSeed(&db.User{Username: "ann@example.com"}, "hack.example.com"); got != "ann@example.com" {
+	if got := handleSeed(&model.User{Username: "ann@example.com"}, "hack.example.com"); got != "ann@example.com" {
 		t.Errorf("a person: %q", got)
 	}
-	if got := handleSeed(&db.User{Username: "boss@example.com", IsAdmin: true}, "hack.example.com"); got != "boss@example.com" {
+	if got := handleSeed(&model.User{Username: "boss@example.com", IsAdmin: true}, "hack.example.com"); got != "boss@example.com" {
 		t.Errorf("another admin account: %q", got)
 	}
 }

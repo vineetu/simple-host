@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func TestConnectorPhotoGrant(t *testing.T) {
@@ -17,7 +18,7 @@ func TestConnectorPhotoGrant(t *testing.T) {
 			owner := a.newPerson(t, "photo-grant")
 			client := a.registerClient(t, testRedirect)
 			access := a.connect(t, owner, client, testRedirect)["access_token"].(string)
-			grant, err := db.GetOAuthToken(context.Background(), a.database, hashSecret(access))
+			grant, err := accountsrepo.GetOAuthToken(context.Background(), a.database, hashSecret(access))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -68,7 +69,7 @@ func TestConnectorPhotoGrant(t *testing.T) {
 				exec(`DELETE FROM users WHERE id=$1`, grant.UserID)
 			case "different_user":
 				other := a.newPerson(t, "photo-grant-other")
-				u, err := db.GetUserByAPIKey(context.Background(), a.database, other.key, 180*24*time.Hour)
+				u, err := accountapp.New(a.database).GetUserByAPIKey(context.Background(), other.key, 180*24*time.Hour)
 				if err != nil {
 					t.Fatal(err)
 				}

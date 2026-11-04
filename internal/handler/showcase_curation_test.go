@@ -7,7 +7,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func TestNormalizeShowcaseBio(t *testing.T) {
@@ -119,7 +119,7 @@ func TestShowcasePinOrderAndBio(t *testing.T) {
 	}
 	// Deployment-only credentials and visitor sessions cannot curate an account.
 	dk, _ := auth.GenerateAPIKey()
-	if _, err := a.database.Exec(`INSERT INTO api_keys(key_hash,user_id,scope) VALUES($1,$2,'deploy')`, db.HashAPIKey(dk), uid); err != nil {
+	if _, err := a.database.Exec(`INSERT INTO api_keys(key_hash,user_id,scope) VALUES($1,$2,'deploy')`, accountsrepo.HashAPIKey(dk), uid); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"/v1/me/bio", "/v1/sites/alpha/showcase"} {
@@ -149,7 +149,7 @@ func TestShowcasePinOrderAndBio(t *testing.T) {
 	if r := a.at(t, "PUT", pcSiteDomain, "/v1/me/bio", map[string]any{"bio": "🌴🌴🌴🌴"}, key); r.status != 400 || r.json(t)["code"] != "bio_too_long" {
 		t.Fatalf("limit: %d", r.status)
 	}
-	if got, _ := db.GetShowcaseBio(context.Background(), a.database, uid); got != "🌴🌴🌴" {
+	if got, _ := accountsrepo.GetShowcaseBio(context.Background(), a.database, uid); got != "🌴🌴🌴" {
 		t.Fatal("rejected bio overwrote stored text")
 	}
 	if r := a.at(t, "PUT", pcSiteDomain, "/v1/me/bio", map[string]any{"bio": ""}, key); r.status != 200 || r.json(t)["bio"] != "" {

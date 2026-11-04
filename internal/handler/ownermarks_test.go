@@ -12,8 +12,9 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/operations"
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/operations"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // Owner visit marks and the site list's people-only view counts (SIM-151).
@@ -232,7 +233,7 @@ func TestIdleOwnerViewCountsAsActivity(t *testing.T) {
 	// mine: old, but its owner opened it last week (class owner, no person).
 	exec(`INSERT INTO site_view_hourly (site_id, hour, class, views) VALUES ($1, date_trunc('hour', now() - interval '7 days'), 'owner', 2) ON CONFLICT DO NOTHING`, mine)
 
-	idle, err := db.ListIdleSitesToWarn(ctx, a.database, db.IdleExempt{}, time.Now().AddDate(0, 0, -90), 0)
+	idle, err := sitesrepo.ListIdleSitesToWarn(ctx, a.database, model.IdleExempt{}, time.Now().AddDate(0, 0, -90), 0)
 	if err != nil {
 		t.Fatal(err)
 	}

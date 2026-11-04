@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
 )
 
 const testPasscodeKey = "q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80=" // 32 bytes, tests only
@@ -830,7 +830,7 @@ func TestPasscodeMarkerLifecycle(t *testing.T) {
 	if p.sites.disk.HasPasscodeMarker(uid, "voyage") {
 		t.Fatal("stale marker kept")
 	}
-	_ = db.Site{}
+	_ = model.Site{}
 }
 
 // Person hosts in serve mode: the content host still serves sites from

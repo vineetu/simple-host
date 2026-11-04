@@ -6,14 +6,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/vsriram/simple-host/internal/app/operations"
-	"github.com/vsriram/simple-host/internal/edition"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/operations"
+	"github.com/vsriram/simple-host/internal/edition"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 func TestStorageCapsDeployPaths(t *testing.T) {
@@ -103,11 +103,11 @@ func TestStorageCapsRetentionAndGrandfathering(t *testing.T) {
 			t.Fatalf("roll %d: %d %s", i, r.status, r.body)
 		}
 	}
-	site, err := db.GetSiteByUser(context.Background(), a.database, uid, "roll")
+	site, err := sitesrepo.GetSiteByUser(context.Background(), a.database, uid, "roll")
 	if err != nil {
 		t.Fatal(err)
 	}
-	versions, err := db.ListVersionsBySite(context.Background(), a.database, site.ID)
+	versions, err := sitesrepo.ListVersionsBySite(context.Background(), a.database, site.ID)
 	if err != nil || len(versions) != 4 {
 		t.Fatalf("versions %v %v", versions, err)
 	}
@@ -124,7 +124,7 @@ func TestStorageCapsRetentionAndGrandfathering(t *testing.T) {
 	if r = a.at(t, "PUT", "simple-host.test", "/v1/sites/roll/files", body, headers); r.status != 200 {
 		t.Fatalf("ignored setting: %d %s", r.status, r.body)
 	}
-	versions, _ = db.ListVersionsBySite(context.Background(), a.database, site.ID)
+	versions, _ = sitesrepo.ListVersionsBySite(context.Background(), a.database, site.ID)
 	if len(versions) != 4 {
 		t.Fatalf("unauthorized persisted count honored: %d", len(versions))
 	}
@@ -269,8 +269,8 @@ func TestPruneFixedAccountsProtectsLiveAndDeleted(t *testing.T) {
 	if err := operations.PruneFixedAccounts(context.Background(), a.database, a.sites.disk, edition.ForKindWithLimits(edition.Host, l), KeepVersions(), false, &dry); err != nil {
 		t.Fatal(err)
 	}
-	site, _ := db.GetSiteByUser(context.Background(), a.database, uid, "history")
-	versions, _ := db.ListVersionsBySite(context.Background(), a.database, site.ID)
+	site, _ := sitesrepo.GetSiteByUser(context.Background(), a.database, uid, "history")
+	versions, _ := sitesrepo.ListVersionsBySite(context.Background(), a.database, site.ID)
 	if len(versions) != 7 {
 		t.Fatal("dry run removed rows")
 	}
@@ -278,11 +278,11 @@ func TestPruneFixedAccountsProtectsLiveAndDeleted(t *testing.T) {
 	if err := operations.PruneFixedAccounts(context.Background(), a.database, a.sites.disk, edition.ForKindWithLimits(edition.Host, l), KeepVersions(), true, &applied); err != nil {
 		t.Fatal(err)
 	}
-	site, _ = db.GetSiteByUser(context.Background(), a.database, uid, "history")
+	site, _ = sitesrepo.GetSiteByUser(context.Background(), a.database, uid, "history")
 	if site.KeepVersions != 0 {
 		t.Fatalf("fixed setting not reset: %d", site.KeepVersions)
 	}
-	versions, _ = db.ListVersionsBySite(context.Background(), a.database, site.ID)
+	versions, _ = sitesrepo.ListVersionsBySite(context.Background(), a.database, site.ID)
 	if len(versions) != 5 {
 		t.Fatalf("want newest 4 plus old live; got %v", versions)
 	}
@@ -290,8 +290,8 @@ func TestPruneFixedAccountsProtectsLiveAndDeleted(t *testing.T) {
 	if err != nil || f.Versions[1] == 0 || len(f.Versions) != 5 {
 		t.Fatalf("live protected %v %v", f, err)
 	}
-	site, _ = db.GetSiteByUser(context.Background(), a.database, exID, "history")
-	versions, _ = db.ListVersionsBySite(context.Background(), a.database, site.ID)
+	site, _ = sitesrepo.GetSiteByUser(context.Background(), a.database, exID, "history")
+	versions, _ = sitesrepo.ListVersionsBySite(context.Background(), a.database, site.ID)
 	if len(versions) != 7 {
 		t.Fatal("exempt versions touched")
 	}

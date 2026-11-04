@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/db"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 func TestKeepSanitizedPatch(t *testing.T) {
@@ -38,7 +38,7 @@ func TestKeepSanitizedPatch(t *testing.T) {
 			if w.Code != 200 {
 				t.Fatal(w.Code, w.Body.String())
 			}
-			site, err := db.GetSiteByUser(context.Background(), a.database, user.ID, "blog")
+			site, err := sitesrepo.GetSiteByUser(context.Background(), a.database, user.ID, "blog")
 			if err != nil {
 				t.Fatal(err)
 			}

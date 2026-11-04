@@ -10,7 +10,10 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // Recently deleted: a deleted site goes offline at once, keeps its files,
@@ -32,7 +35,7 @@ func TestRecentlyDeletedAndRestore(t *testing.T) {
 	claimed := "olv" + strings.ToLower(strings.TrimPrefix(oh, "olive-")) + "." + pcSiteDomain
 
 	// Saved data and a claimed free address that must survive the round trip.
-	if _, err := db.AppendCollectionItemByID(ctx, a.database, siteID, "rsvps", false, []byte(`{"name":"Ann"}`), db.Actor{Kind: "anonymous"}); err != nil {
+	if _, err := legacyrepo.AppendCollectionItemByID(ctx, a.database, siteID, "rsvps", false, []byte(`{"name":"Ann"}`), model.Actor{Kind: "anonymous"}); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": claimed}, okey); r.status != 200 {
@@ -131,7 +134,7 @@ func TestRecentlyDeletedAndRestore(t *testing.T) {
 		t.Fatalf("delete again: %d", r.status)
 	}
 	a.sites.purgeDeletedSites(ctx) // inside the window: kept
-	if _, err := db.GetDeletedSiteByUser(ctx, a.database, uid, "shop"); err != nil {
+	if _, err := sitesrepo.GetDeletedSiteByUser(ctx, a.database, uid, "shop"); err != nil {
 		t.Fatalf("purged inside the window: %v", err)
 	}
 	if _, err := a.database.Exec(`UPDATE sites SET deleted_at = now() - interval '8 days', purge_at = now() - interval '1 day' WHERE id = $1`, siteID); err != nil {
@@ -153,7 +156,7 @@ func TestRecentlyDeletedAndRestore(t *testing.T) {
 	if r := a.at(t, "GET", claimed, "/", nil, nil); r.status == 200 || !strings.Contains(string(r.body), "This site was removed") {
 		t.Fatalf("claimed host after purge: %d %s", r.status, r.body)
 	}
-	if _, err := db.GetRetiredName(ctx, a.database, claimed); err != nil {
+	if _, err := sitesrepo.GetRetiredName(ctx, a.database, claimed, accountsrepo.HostForms(claimed)); err != nil {
 		t.Fatalf("claimed name not retired by the purge: %v", err)
 	}
 	a.deploy(t, olive, "shop") // the site name is free again

@@ -18,14 +18,17 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	httpx "github.com/vsriram/simple-host/internal/httpx"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	operationsrepo "github.com/vsriram/simple-host/internal/repository/operations"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -236,7 +239,7 @@ func TestConnectReturnTo(t *testing.T) {
 func TestConsentCSRF(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	h := &ConnectorHandler{consentKey: []byte("k"), now: func() time.Time { return now }}
-	req := authzRequest{Client: db.OAuthClient{ClientID: "c"}, RedirectURI: "https://a/cb", CodeChallenge: "x", State: "s", Resource: "r"}
+	req := authzRequest{Client: model.OAuthClient{ClientID: "c"}, RedirectURI: "https://a/cb", CodeChallenge: "x", State: "s", Resource: "r"}
 	tok := h.consentCSRF(req, now.Unix())
 	if !h.checkConsentCSRF(req, tok) {
 		t.Fatal("fresh token refused")
@@ -286,7 +289,7 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	if err := database.Ping(); err != nil {
 		t.Skipf("postgres not reachable: %v", err)
 	}
-	if err := db.VerifySchema(context.Background(), database); err != nil {
+	if err := operationsrepo.VerifySchema(context.Background(), database); err != nil {
 		t.Fatalf("test database is behind the schema: %v", err)
 	}
 	disk, err := storage.NewDiskStorage(t.TempDir())
@@ -294,7 +297,7 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 		t.Fatal(err)
 	}
 	adminKey, _ := auth.GenerateAPIKey()
-	adminID, err := db.EnsureAdminUser(context.Background(), database)
+	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +336,7 @@ func (a *connectorApp) newPerson(t *testing.T, label string) person {
 	t.Helper()
 	addr := label + "-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
 	key, _ := auth.GenerateAPIKey()
-	u, err := db.CreateUser(context.Background(), a.database, addr, key, false)
+	u, err := accountsrepo.CreateUser(context.Background(), a.database, addr, key, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1006,7 +1009,7 @@ func TestConnectorConfidentialClientForGPTActions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _, _ = db.DeleteOAuthClient(context.Background(), a.database, id) })
+	t.Cleanup(func() { _, _ = accountsrepo.DeleteOAuthClient(context.Background(), a.database, id) })
 	q := url.Values{"response_type": {"code"}, "client_id": {id}, "redirect_uri": {redirect}, "scope": {"sites"}, "state": {"gpt"}}
 	code := codeFrom(t, a.consent(t, q, ann.key, "allow"))
 	if r := a.form(t, "/oauth/token", url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirect}, "client_id": {id}, "client_secret": {"wrong"}}, nil); r.status != http.StatusUnauthorized {
@@ -1049,7 +1052,7 @@ func TestSignInLinkNeedsTheRequestingBrowsersNonce(t *testing.T) {
 	hash := base64.RawURLEncoding.EncodeToString(sum[:])
 	issue := func(h sql.NullString, code string) string {
 		lt, _ := auth.GenerateAPIKey()
-		if err := db.CreateAuthToken(context.Background(), a.database, ann.email, code, lt, time.Now().Add(time.Minute), "dashboard", sql.NullString{}, h); err != nil {
+		if err := accountsrepo.CreateAuthToken(context.Background(), a.database, ann.email, code, lt, time.Now().Add(time.Minute), "dashboard", sql.NullString{}, h); err != nil {
 			t.Fatal(err)
 		}
 		return lt
@@ -1093,18 +1096,18 @@ func TestAPIKeysStoredHashed(t *testing.T) {
 		}
 		return n
 	}
-	if count(p.key) != 0 || count(db.HashAPIKey(p.key)) != 1 {
+	if count(p.key) != 0 || count(accountsrepo.HashAPIKey(p.key)) != 1 {
 		t.Fatal("api key is not stored as its hash")
 	}
 	me := func(k string) int {
 		return a.do(t, http.MethodGet, "/v1/me", nil, map[string]string{"X-API-Key": k}).status
 	}
-	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key, 180*24*time.Hour)
+	u, err := accountapp.New(a.database).GetUserByAPIKey(context.Background(), p.key, 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	second, _ := auth.GenerateAPIKey()
-	if err := db.AddAPIKey(context.Background(), a.database, u.ID, second, db.KeyNameAgent); err != nil {
+	if err := accountsrepo.AddAPIKey(context.Background(), a.database, u.ID, second, model.KeyNameAgent); err != nil {
 		t.Fatal(err)
 	}
 	if me(p.key) != http.StatusOK || me(second) != http.StatusOK {
@@ -1123,7 +1126,7 @@ func TestAPIKeysStoredHashed(t *testing.T) {
 		t.Fatalf("rotate with dead key: %d", r.status)
 	}
 
-	ik, revoke, err := db.IssueInternalKey(u.ID)
+	ik, revoke, err := accountsrepo.IssueInternalKey(u.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1214,12 +1217,12 @@ func TestConnectorMuseClient(t *testing.T) {
 	if r := m["redirect_uris"].([]any); len(r) != 1 || r[0] != museRedirectURI {
 		t.Fatalf("redirect_uris: %v", r)
 	}
-	c, err := db.GetOAuthClient(ctx, a.database, museID)
+	c, err := accountsrepo.GetOAuthClient(ctx, a.database, museID)
 	if err != nil || c.Dynamic || !c.PKCERequired || c.SecretHash.Valid {
 		t.Fatalf("stored client: %+v %v", c, err)
 	}
 	// A phone keyboard cannot mangle a short id. The same client answers to it.
-	short, err := db.GetOAuthClient(ctx, a.database, museShortClientID)
+	short, err := accountsrepo.GetOAuthClient(ctx, a.database, museShortClientID)
 	if err != nil || short.Dynamic || !short.PKCERequired || short.SecretHash.Valid || len(short.RedirectURIs) != 1 || short.RedirectURIs[0] != museRedirectURI {
 		t.Fatalf("short client: %+v %v", short, err)
 	}

@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
+	model "github.com/vsriram/simple-host/internal/model"
+	notificationsrepo "github.com/vsriram/simple-host/internal/repository/notifications"
 )
 
 // Site events (SIM-356): the engine side only. The hooks that call
@@ -83,7 +84,7 @@ func TestNotifySiteEventsRESTAndDelivery(t *testing.T) {
 	if len(data) != 6 {
 		t.Fatalf("unexpected keys: %v", data)
 	}
-	var stored db.NotificationDelivery
+	var stored model.NotificationDelivery
 	var storage string
 	if err := s.a.database.QueryRow(`SELECT storage, name FROM site_events WHERE site_id=$1 AND name='site.deployed'`, s.sid).Scan(&storage, &stored.Name); err != nil || storage != "" {
 		t.Fatalf("site event storage %q (%v)", storage, err)
@@ -171,7 +172,7 @@ func TestNotifySiteEventsMCP(t *testing.T) {
 	if result == nil {
 		t.Fatalf("subscribe: %v", out)
 	}
-	n, err := db.GetNotification(context.Background(), s.a.database, result["id"].(string))
+	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, result["id"].(string))
 	if err != nil || n.Storage != "" || n.Source != "mcp" || len(n.Events) != 1 || n.Events[0] != "visitor.signed_up" || n.ArgsCanonical != `{"site":"shop"}` {
 		t.Fatalf("stored MCP site subscription: %+v %v", n, err)
 	}

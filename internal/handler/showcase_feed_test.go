@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 func TestShowcaseFeedMatchesPublicProjection(t *testing.T) {
@@ -24,13 +25,13 @@ func TestShowcaseFeedMatchesPublicProjection(t *testing.T) {
 	if err := writeTestHomeFile(a.sites, a.siteID(t, owner, "visible"), "index.html", `<!doctype html><title>My &amp; Projects</title><meta name="description" content="A plain &lt;description&gt;"><h1>Visible</h1>`); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetSiteOffline(context.Background(), a.database, a.siteID(t, owner, "offline"), true); err != nil {
+	if err := sitesrepo.SetSiteOffline(context.Background(), a.database, a.siteID(t, owner, "offline"), true); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetSiteSuspended(context.Background(), a.database, a.siteID(t, owner, "taken-down"), "test"); err != nil {
+	if err := sitesrepo.SetSiteSuspended(context.Background(), a.database, a.siteID(t, owner, "taken-down"), "test"); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.MarkSiteDeleted(context.Background(), a.database, a.siteID(t, owner, "deleted"), 7*24*time.Hour); err != nil {
+	if err := sitesrepo.MarkSiteDeleted(context.Background(), a.database, a.siteID(t, owner, "deleted"), 7*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.database.Exec(`UPDATE sites SET passcode_enc='x'::bytea WHERE user_id=$1 AND name='locked'`, uid); err != nil {
@@ -69,14 +70,14 @@ func TestShowcaseFeedMatchesPublicProjection(t *testing.T) {
 	}
 	// Choosing a custom home does not change the public feed.
 	name := "visible"
-	if err := db.SetHomeSite(context.Background(), a.database, uid, &name); err != nil {
+	if err := sitesrepo.SetHomeSite(context.Background(), a.database, uid, &name); err != nil {
 		t.Fatal(err)
 	}
 	if again := a.at(t, "GET", handle+"."+pcSiteDomain, path, nil, nil); string(again.body) != string(r.body) {
 		t.Fatal("home changed feed")
 	}
 	// A suspended owner has no public entries, just as on the showcase.
-	if err := db.SetUserSuspended(context.Background(), a.database, uid, "test"); err != nil {
+	if err := accountsrepo.SetUserSuspended(context.Background(), a.database, uid, "test"); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "GET", pcSiteDomain, path, nil, nil); r.status != 200 || len(r.json(t)["sites"].([]any)) != 0 {

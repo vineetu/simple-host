@@ -18,9 +18,11 @@ import (
 	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	operationsrepo "github.com/vsriram/simple-host/internal/repository/operations"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -73,7 +75,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	if err := database.Ping(); err != nil {
 		t.Skipf("postgres not reachable: %v", err)
 	}
-	if err := db.VerifySchema(context.Background(), database); err != nil {
+	if err := operationsrepo.VerifySchema(context.Background(), database); err != nil {
 		t.Fatalf("test database is behind the schema: %v", err)
 	}
 	disk, err := storage.NewDiskStorage(t.TempDir())
@@ -81,7 +83,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 		t.Fatal(err)
 	}
 	adminKey, _ := auth.GenerateAPIKey()
-	adminID, err := db.EnsureAdminUser(context.Background(), database)
+	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +199,7 @@ func (a *privateApp) session(t *testing.T, p person, siteID, host string) string
 	raw := strings.TrimPrefix(key, auth.APIKeyPrefix)
 	id, _ = hex.DecodeString(raw)
 	now := time.Now()
-	if _, err := db.InsertVisitorSession(context.Background(), a.database, id, uid, siteID, host, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
+	if _, err := accountsrepo.InsertVisitorSession(context.Background(), a.database, id, uid, siteID, host, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	return raw
@@ -347,7 +349,7 @@ func TestPrivateCollectionsEndToEnd(t *testing.T) {
 	if r := a.at(t, "PUT", apex, "/v1/u/"+oliveHandle+"/sites/shop/collections/orders/privacy", map[string]bool{"private": false}, map[string]string{"X-API-Key": vic.key}); r.status == 200 {
 		t.Fatalf("stranger flipped privacy: %s", r.body)
 	}
-	if p, _ := db.IsCollectionPrivate(context.Background(), a.database, shopID, "orders"); !p {
+	if p, _ := legacyrepo.IsCollectionPrivate(context.Background(), a.database, shopID, "orders"); !p {
 		t.Fatal("privacy changed by a stranger")
 	}
 
@@ -651,11 +653,11 @@ func TestClaimedSubdomainSessionIsolation(t *testing.T) {
 	uid, _ := a.userID(t, vic)
 	sid, _ := hex.DecodeString(strings.Repeat("ab", 32))
 	now := time.Now()
-	if _, err := db.InsertVisitorSession(context.Background(), a.database, sid, uid, siteID, dom, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
+	if _, err := accountsrepo.InsertVisitorSession(context.Background(), a.database, sid, uid, siteID, dom, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = db.DeleteVisitorSession(context.Background(), a.database, sid) })
-	if err := db.InsertEstablishToken(context.Background(), a.database, "once-"+uid, sid, dom, "https://"+dom+"/", testNonceHash(testNonce), now.Add(time.Minute)); err != nil {
+	t.Cleanup(func() { _ = accountsrepo.DeleteVisitorSession(context.Background(), a.database, sid) })
+	if err := accountsrepo.InsertEstablishToken(context.Background(), a.database, "once-"+uid, sid, dom, "https://"+dom+"/", testNonceHash(testNonce), now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	r := a.at(t, "GET", dom, "/v1/visitor/establish?once=once-"+uid, nil, nonceCookie(testNonce))
@@ -798,11 +800,11 @@ func TestEstablishTokenWrongHostBurns(t *testing.T) {
 	now := time.Now()
 	issue := func(sidByte, once string) {
 		sid, _ := hex.DecodeString(strings.Repeat(sidByte, 32))
-		if _, err := db.InsertVisitorSession(ctx, a.database, sid, uid, siteID, dom, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
+		if _, err := accountsrepo.InsertVisitorSession(ctx, a.database, sid, uid, siteID, dom, now.Add(time.Hour), now.Add(time.Hour)); err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { _ = db.DeleteVisitorSession(ctx, a.database, sid) })
-		if err := db.InsertEstablishToken(ctx, a.database, once, sid, dom, "https://"+dom+"/", testNonceHash(testNonce), now.Add(time.Minute)); err != nil {
+		t.Cleanup(func() { _ = accountsrepo.DeleteVisitorSession(ctx, a.database, sid) })
+		if err := accountsrepo.InsertEstablishToken(ctx, a.database, once, sid, dom, "https://"+dom+"/", testNonceHash(testNonce), now.Add(time.Minute)); err != nil {
 			t.Fatal(err)
 		}
 	}

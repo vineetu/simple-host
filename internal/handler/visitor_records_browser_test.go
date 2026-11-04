@@ -2,15 +2,15 @@ package handler
 
 import (
 	"encoding/json"
-	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http"
 	"os"
 	"strconv"
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // TestServeVisitorRecordsBrowser stands up the whole app (database, captured
@@ -31,8 +31,8 @@ func TestServeVisitorRecordsBrowser(t *testing.T) {
 	mb := &mailbox{}
 	a := newPrivateAppMailer(t, mb)
 	a.sites.SetPersonHosts("canonical")
-	db.SetPlatformDomain(pcSiteDomain)
-	t.Cleanup(func() { db.SetPlatformDomain("") })
+	accountsrepo.SetPlatformDomain(pcSiteDomain)
+	t.Cleanup(func() { accountsrepo.SetPlatformDomain("") })
 	certDir := t.TempDir()
 	if err := os.Mkdir(certDir+"/ready", 0o755); err != nil {
 		t.Fatal(err)

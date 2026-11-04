@@ -7,8 +7,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // siteEventLog is a subscription to every site event (SIM-356) on the shop,
@@ -302,7 +302,7 @@ func TestNotifyHooksDomainStatusChanged(t *testing.T) {
 	if data["status"] != "released" || data["previous_status"] != "pending" || data["reason"] != why || data["cert"] != "" {
 		t.Fatalf("released event: %v", data)
 	}
-	if _, has, _ := db.GetSiteDomainInfo(ctx, s.a.database, s.sid); has {
+	if _, has, _ := sitesrepo.GetSiteDomainInfo(ctx, s.a.database, s.sid); has {
 		t.Fatal("domain still bound after the lapse")
 	}
 }

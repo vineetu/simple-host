@@ -10,8 +10,9 @@ import (
 
 	_ "github.com/lib/pq"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // TestIssueEmailCodeGeoBlock covers the required cases for the email-code
@@ -69,7 +70,7 @@ func TestIssueEmailCodeGeoBlock(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		existing, err := db.CreateUser(ctx, database, address, key, false)
+		existing, err := accountsrepo.CreateUser(ctx, database, address, key, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,7 +79,7 @@ func TestIssueEmailCodeGeoBlock(t *testing.T) {
 		assertBlocked(t, address)
 
 		// The account itself is untouched: same id, same key.
-		fresh, err := db.GetUserByAPIKey(ctx, database, key, 180*24*time.Hour)
+		fresh, err := accountapp.New(database).GetUserByAPIKey(ctx, key, 180*24*time.Hour)
 		if err != nil || fresh.ID != existing.ID {
 			t.Fatalf("existing account changed by a refused sign-in attempt: %v %+v", err, fresh)
 		}

@@ -3,21 +3,22 @@ package handler
 import (
 	"database/sql"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/app/operations"
-	"github.com/vsriram/simple-host/internal/db"
 	"net/url"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/app/operations"
+	model "github.com/vsriram/simple-host/internal/model"
 )
 
 func TestAdminSiteSortsBeforePagination(t *testing.T) {
 	now := time.Now()
 	rows := []adminSiteEntry{
-		{site: db.Site{ID: "a", CreatedAt: now, LastDeployedAt: sql.NullTime{Time: now.Add(-time.Hour), Valid: true}}, size: operations.SiteUsage{Bytes: 100, LiveBytes: 90}, views: 0},
-		{site: db.Site{ID: "b", CreatedAt: now.Add(-time.Hour), LastDeployedAt: sql.NullTime{Time: now, Valid: true}}, size: operations.SiteUsage{Bytes: 200, LiveBytes: 10}, views: 10},
-		{site: db.Site{ID: "c", CreatedAt: now.Add(-2 * time.Hour)}, size: operations.SiteUsage{Bytes: 300, LiveBytes: 1}, views: 20},
+		{site: model.Site{ID: "a", CreatedAt: now, LastDeployedAt: sql.NullTime{Time: now.Add(-time.Hour), Valid: true}}, size: operations.SiteUsage{Bytes: 100, LiveBytes: 90}, views: 0},
+		{site: model.Site{ID: "b", CreatedAt: now.Add(-time.Hour), LastDeployedAt: sql.NullTime{Time: now, Valid: true}}, size: operations.SiteUsage{Bytes: 200, LiveBytes: 10}, views: 10},
+		{site: model.Site{ID: "c", CreatedAt: now.Add(-2 * time.Hour)}, size: operations.SiteUsage{Bytes: 300, LiveBytes: 1}, views: 20},
 	}
 	for _, tt := range []struct{ key, want string }{{"created", "abc"}, {"updated", "bac"}, {"size", "cba"}, {"views", "cba"}, {"live", "abc"}} {
 		t.Run(tt.key, func(t *testing.T) {
@@ -37,7 +38,7 @@ func TestAdminSiteSortsBeforePagination(t *testing.T) {
 }
 
 func TestAdminSiteSortTiesHaveStableIDs(t *testing.T) {
-	rows := []adminSiteEntry{{site: db.Site{ID: "b"}}, {site: db.Site{ID: "a"}}}
+	rows := []adminSiteEntry{{site: model.Site{ID: "b"}}, {site: model.Site{ID: "a"}}}
 	for _, key := range []string{"created", "updated", "size", "views"} {
 		sortAdminSites(rows, key, false)
 		if rows[0].site.ID != "a" {

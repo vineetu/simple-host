@@ -8,8 +8,9 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // mailbox captures sign-in codes and notices.
@@ -104,7 +105,7 @@ func TestEmailChangeMovesAccountAndTellsOldAddress(t *testing.T) {
 	mb.mu.Unlock()
 	// Another key of the account, and an emailed idle-cleanup link.
 	other, _ := auth.GenerateAPIKey()
-	if err := db.AddAPIKey(ctx, a.database, uid, other, "agent sign-in"); err != nil {
+	if err := accountsrepo.AddAPIKey(ctx, a.database, uid, other, "agent sign-in"); err != nil {
 		t.Fatal(err)
 	}
 	a.deploy(t, p, "quiet")
@@ -270,10 +271,10 @@ func TestEmailChangeRefusals(t *testing.T) {
 	a.users.SetPreviewAccounts(nil)
 	uid, _ := a.userID(t, p)
 	k, _ := auth.GenerateAPIKey()
-	if err := db.AddAPIKey(context.Background(), a.database, uid, k, db.KeyNameEvent); err != nil {
+	if err := accountsrepo.AddAPIKey(context.Background(), a.database, uid, k, model.KeyNameEvent); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.MarkEventAccount(context.Background(), a.database, uid); err != nil {
+	if err := accountsrepo.MarkEventAccount(context.Background(), a.database, uid); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "POST", host, "/v1/me/email", map[string]string{"email": "y@example.org"}, key); r.status != 403 || r.json(t)["code"] != "event_account" {
@@ -281,7 +282,7 @@ func TestEmailChangeRefusals(t *testing.T) {
 	}
 	team := uniq("team")
 	tk, _ := auth.GenerateAPIKey()
-	if _, err := db.CreateUser(context.Background(), a.database, team, tk, false); err != nil {
+	if _, err := accountsrepo.CreateUser(context.Background(), a.database, team, tk, false); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "POST", host, "/v1/me/email", map[string]string{"email": "y@example.org"}, map[string]string{"X-API-Key": tk}); r.status != 403 || r.json(t)["code"] != "no_current_email" {
@@ -289,7 +290,7 @@ func TestEmailChangeRefusals(t *testing.T) {
 	}
 	adm := uniq("adm") + "@example.org"
 	ak, _ := auth.GenerateAPIKey()
-	if _, err := db.CreateUser(context.Background(), a.database, adm, ak, true); err != nil {
+	if _, err := accountsrepo.CreateUser(context.Background(), a.database, adm, ak, true); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "POST", host, "/v1/me/email", map[string]string{"email": "y@example.org"}, map[string]string{"X-API-Key": ak}); r.status != 403 || r.json(t)["code"] != "admin_account" {
@@ -406,10 +407,10 @@ func TestSignInAlertsSkipEventAndReviewer(t *testing.T) {
 		t.Fatal(err)
 	}
 	k, _ := auth.GenerateAPIKey()
-	if err := db.AddAPIKey(context.Background(), a.database, id, k, db.KeyNameEvent); err != nil {
+	if err := accountsrepo.AddAPIKey(context.Background(), a.database, id, k, model.KeyNameEvent); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.MarkEventAccount(context.Background(), a.database, id); err != nil {
+	if err := accountsrepo.MarkEventAccount(context.Background(), a.database, id); err != nil {
 		t.Fatal(err)
 	}
 	signInWith(t, a, mb, ev.email, uaMacChrome)

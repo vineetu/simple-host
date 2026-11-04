@@ -12,7 +12,8 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 )
 
 // Saved data, step 1, review fixes (2026-09-27). Needs DB_DSN.
@@ -311,7 +312,7 @@ func TestPatchHistoryRebuildsEveryVersion(t *testing.T) {
 	// Thinning to a third keeps every remaining version exact.
 	var total int64
 	a.database.QueryRow(`SELECT sum(COALESCE(octet_length(prev::text), octet_length(diff::text), 0)) FROM data_history WHERE site_id = $1`, s.shopID).Scan(&total)
-	if _, err := db.ThinSiteHistory(context.Background(), a.database, s.shopID, total/3); err != nil {
+	if _, err := legacyrepo.ThinSiteHistory(context.Background(), a.database, s.shopID, total/3); err != nil {
 		t.Fatal(err)
 	}
 	var kept int
@@ -449,7 +450,7 @@ func TestSavedDataAttributionAndLimits(t *testing.T) {
 		t.Fatalf("admin delete: %d %s", r.status, r.body)
 	}
 	h := historyOf(t, s.owner(t, "GET", gb+"/history", nil))
-	if len(h) == 0 || h[0]["by"] != db.OperatorLabel || h[0]["by_kind"] != "admin" {
+	if len(h) == 0 || h[0]["by"] != model.OperatorLabel || h[0]["by_kind"] != "admin" {
 		t.Fatalf("admin shown as: %v", h)
 	}
 	var stored string

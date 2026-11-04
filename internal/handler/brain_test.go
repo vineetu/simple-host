@@ -13,8 +13,9 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 )
 
 // brainFixture builds a small bundle from two throwaway git checkouts.
@@ -65,7 +66,7 @@ func brainFixture(t *testing.T) string {
 
 func newBrainApp(t *testing.T) *connectorApp {
 	a := newConnectorApp(t)
-	adminID, err := db.EnsureAdminUser(context.Background(), a.database)
+	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), a.database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +200,7 @@ func TestBrainOwnerOnlyAndAudience(t *testing.T) {
 	}
 	// A deploy-only key of the owner carries no admin powers.
 	deployKey, _ := auth.GenerateAPIKey()
-	if _, err := a.database.ExecContext(context.Background(), `INSERT INTO api_keys (user_id, key_hash, scope, name) SELECT id, $1, 'deploy', 'ci' FROM users WHERE username = $2`, db.HashAPIKey(deployKey), owner.email); err != nil {
+	if _, err := a.database.ExecContext(context.Background(), `INSERT INTO api_keys (user_id, key_hash, scope, name) SELECT id, $1, 'deploy', 'ci' FROM users WHERE username = $2`, accountsrepo.HashAPIKey(deployKey), owner.email); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.do(t, http.MethodGet, "/v1/brain", nil, map[string]string{"X-API-Key": deployKey}); r.status == http.StatusOK {

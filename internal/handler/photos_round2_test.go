@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func TestPhotoStalledBodyReleasesSlot(t *testing.T) {
@@ -85,7 +85,7 @@ func TestConnectorPhotoCredentialExpiry(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE oauth_tokens SET expires_at=$1 WHERE token_hash=$2`, expiry, hashSecret(access)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.database.Exec(`UPDATE api_keys SET expires_at=$1 WHERE key_hash=$2`, expiry, db.HashAPIKey(owner.key)); err != nil {
+	if _, err := a.database.Exec(`UPDATE api_keys SET expires_at=$1 WHERE key_hash=$2`, expiry, accountsrepo.HashAPIKey(owner.key)); err != nil {
 		t.Fatal(err)
 	}
 	for _, oauth := range []bool{false, true} {

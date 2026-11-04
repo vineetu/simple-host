@@ -14,7 +14,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func TestSignInMessagesTable(t *testing.T) {
@@ -135,7 +135,7 @@ func TestVerifyEmailCodeReasons(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := db.CreateAuthToken(ctx, database, addr, code, lt, time.Now().Add(15*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
+		if err := accountsrepo.CreateAuthToken(ctx, database, addr, code, lt, time.Now().Add(15*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() {

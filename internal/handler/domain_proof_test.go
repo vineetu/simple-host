@@ -13,7 +13,8 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // fakeDNS stands in for the resolver: TXT records by name, and every host
@@ -31,9 +32,9 @@ func fakeDNS(t *testing.T, ip string, txt map[string]string) {
 	lookupHost = func(_ context.Context, name string) ([]string, error) { return []string{ip}, nil }
 }
 
-func (a *privateApp) boundDomain(t *testing.T, siteID string) db.BoundDomain {
+func (a *privateApp) boundDomain(t *testing.T, siteID string) model.BoundDomain {
 	t.Helper()
-	return db.BoundDomainOf(a.domainInfo(t, siteID))
+	return model.BoundDomainOf(a.domainInfo(t, siteID))
 }
 
 // A custom domain is verified, and gets a certificate request, only with the
@@ -119,7 +120,7 @@ func TestDomainNeedsTXTProof(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sites SET suspended_at = now(), suspended_reason = 'x' WHERE id = $1`, shopID); err != nil {
 		t.Fatal(err)
 	}
-	due, err := db.ListDomainsToCheck(context.Background(), a.database, time.Hour)
+	due, err := sitesrepo.ListDomainsToCheck(context.Background(), a.database, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +181,7 @@ func TestDomainCertDailyCap(t *testing.T) {
 	a.sites.SetDomainCerts(dir)
 	olive := a.newPerson(t, "olive")
 	uid, _ := a.userID(t, olive)
-	d := db.BoundDomain{UserID: uid, Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
+	d := model.BoundDomain{UserID: uid, Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
 	for i := 0; i < 5; i++ {
 		d.Domain = uniq("c") + ".example.test"
 		if st, why := a.sites.domainCertProgress(context.Background(), d); st != "issuing" {
