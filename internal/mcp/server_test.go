@@ -566,7 +566,11 @@ func TestPasscodeGenerateAndTruthfulRemove(t *testing.T) {
 		}
 	}
 	text, _, isErr = resultOf(t, send(t, s, toolCall("remove_site_passcode", map[string]any{"site": "blog"}), nil, true))
+	if !isErr || !strings.Contains(text, "ask the person first") || len(up.bodies) != 1 {
+		t.Fatalf("remove without confirm: want a refusal before any request, got %q", text)
+	}
+	text, _, isErr = resultOf(t, send(t, s, toolCall("remove_site_passcode", map[string]any{"site": "blog", "confirm": true}), nil, true))
 	if isErr || !strings.Contains(text, "had no passcode, so nothing changed") || strings.Contains(text, "removed") {
-		t.Fatalf("remove without a passcode: %q", text)
+		t.Fatalf("remove with confirm: %q", text)
 	}
 }

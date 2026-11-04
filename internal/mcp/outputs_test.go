@@ -312,7 +312,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"revoke_site_viewer", map[string]any{"site": "blog", "email": "dad@example.com"}},
 		{"storage_visitor_emails", map[string]any{"site": "blog", "visitor_ids": []any{"1b4e28ba-2fa1-11d2-883f-0016d3cca427", "2b4e28ba-2fa1-11d2-883f-0016d3cca427"}}},
 		{"get_site_passcode", map[string]any{"site": "blog"}},
-		{"remove_site_passcode", map[string]any{"site": "blog"}},
+		{"remove_site_passcode", map[string]any{"site": "blog", "confirm": true}},
 		{"sign_out_site_visitors", map[string]any{"site": "blog"}},
 		{"keep_site", map[string]any{"site": "blog"}},
 		{"connect_domain", map[string]any{"site": "pend", "domain": "pend.example.com"}},
