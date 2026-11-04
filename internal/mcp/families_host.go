@@ -22,8 +22,8 @@ func hostFamilies(limits Limits) []familyTools {
 }
 
 // Tools is the callable surface, in the order a first-time agent needs it,
-// stated at the defaults; NewServer builds the instance's own copy from
-// ToolsWithLimits(cfg's snapshot).
+// stated at the defaults. NewServer registers the same families with the
+// instance's limits, optional tools and wording rewrites.
 func Tools() []Tool { return toolsWithLimits(DefaultLimits()) }
 
 // ToolsWithLimits is Tools stated with l instead of the defaults, for a
@@ -32,9 +32,7 @@ func Tools() []Tool { return toolsWithLimits(DefaultLimits()) }
 func ToolsWithLimits(l Limits) []Tool { return toolsWithLimits(l) }
 
 func toolsWithLimits(limits Limits) []Tool {
-	var tools []Tool
-	for _, family := range hostFamilies(limits) {
-		tools = append(tools, family.tools...)
-	}
-	return tools
+	r := &toolRegistry{}
+	r.addFamilies(editionHost, hostFamilies(limits), nil)
+	return r.declaredTools(editionHost)
 }

@@ -209,7 +209,7 @@ func runHackRoute(c *call, route hackRouteTool, args map[string]any) (output, er
 	}
 	if obj, ok := response.(map[string]any); ok {
 		includeEmails, _ := args["include_emails"].(bool)
-		minimiseHackOrganiserResult(route.name, includeEmails, obj)
+		minimiseHackOrganiserResult(route.policy, includeEmails, obj)
 	}
 	structured := map[string]any{"response": response, "status": res.status}
 	return output{Text: jsonText(structured), Structured: structured}, nil

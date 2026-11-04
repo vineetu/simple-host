@@ -86,7 +86,7 @@ func (c *call) visitorSiteID(site string) (string, error) {
 }
 
 // Rewrite only server-stamped identity fields, leaving authored data intact.
-func (c *call) storageVisitorRefs(site, tool string, response any) error {
+func (c *call) storageVisitorRefs(site string, policy toolPolicy, response any) error {
 	body, _ := response.(map[string]any)
 	siteID := ""
 	convert := func(value any) (any, error) {
@@ -118,7 +118,7 @@ func (c *call) storageVisitorRefs(site, tool string, response any) error {
 		}
 		return nil
 	}
-	switch declaredPolicy(tool).visitorResult {
+	switch policy.visitorResult {
 	case "item":
 		return field(body)
 	case "items":

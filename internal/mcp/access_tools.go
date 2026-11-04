@@ -32,7 +32,7 @@ type siteAccessResult struct {
 	Note              string   `json:"note"`
 }
 
-func siteAccessOutput(tool string, res upstreamResult) (output, error) {
+func siteAccessOutput(tool string, policy toolPolicy, res upstreamResult) (output, error) {
 	if !res.ok() {
 		return output{}, restError(tool, res)
 	}
@@ -42,7 +42,7 @@ func siteAccessOutput(tool string, res upstreamResult) (output, error) {
 	}
 	viewers := make([]any, 0, len(a.Viewers))
 	emails := make([]string, 0, len(a.Viewers))
-	if declaredPolicy(tool).accessResult == "list" {
+	if policy.accessResult == "list" {
 		for _, v := range a.Viewers {
 			viewers = append(viewers, map[string]any{"email": v.Email, "added_at": v.AddedAt})
 			emails = append(emails, v.Email)
@@ -63,7 +63,7 @@ func siteAccessOutput(tool string, res upstreamResult) (output, error) {
 	}
 	var text string
 	switch {
-	case declaredPolicy(tool).accessResult == "grant":
+	case policy.accessResult == "grant":
 		text = a.Site + ": named viewers updated."
 		if len(a.Added) > 0 {
 			text += " Added: " + strings.Join(a.Added, ", ") + "."
@@ -71,9 +71,9 @@ func siteAccessOutput(tool string, res upstreamResult) (output, error) {
 		if len(a.AlreadyListed) > 0 {
 			text += " Already listed: " + strings.Join(a.AlreadyListed, ", ") + "."
 		}
-	case declaredPolicy(tool).accessResult == "revoke":
+	case policy.accessResult == "revoke":
 		text = a.Site + ": removed " + a.Removed + "."
-	case declaredPolicy(tool).accessResult == "set":
+	case policy.accessResult == "set":
 		text = a.Site + ": access set to " + a.Access + "."
 	case a.Access == "specific" && len(emails) == 0:
 		text = a.Site + " is open only to its owner: no named viewers yet."
@@ -140,7 +140,7 @@ func accessTools() []Tool {
 					return output{}, errors.New("access must be anyone or specific")
 				}
 				body, _ := json.Marshal(map[string]string{"access": access})
-				return siteAccessOutput("set_site_access", c.do(http.MethodPut, path(name)+"/access", body, nil))
+				return siteAccessOutput("set_site_access", c.server.policy("set_site_access"), c.do(http.MethodPut, path(name)+"/access", body, nil))
 			},
 		},
 		{
@@ -156,7 +156,7 @@ func accessTools() []Tool {
 				if err != nil {
 					return output{}, err
 				}
-				return siteAccessOutput("list_site_viewers", c.do(http.MethodGet, path(name)+"/access", nil, nil))
+				return siteAccessOutput("list_site_viewers", c.server.policy("list_site_viewers"), c.do(http.MethodGet, path(name)+"/access", nil, nil))
 			},
 		},
 		{
@@ -188,7 +188,7 @@ func accessTools() []Tool {
 					return output{}, errors.New("emails is required: the email addresses the person gave")
 				}
 				body, _ := json.Marshal(map[string][]string{"emails": emails})
-				return siteAccessOutput("grant_site_viewer", c.do(http.MethodPost, path(name)+"/viewers", body, nil))
+				return siteAccessOutput("grant_site_viewer", c.server.policy("grant_site_viewer"), c.do(http.MethodPost, path(name)+"/viewers", body, nil))
 			},
 		},
 		{
@@ -213,7 +213,7 @@ func accessTools() []Tool {
 				if err != nil {
 					return output{}, err
 				}
-				return siteAccessOutput("revoke_site_viewer", c.do(http.MethodDelete, path(name)+"/viewers/"+url.PathEscape(strings.TrimSpace(email)), nil, nil))
+				return siteAccessOutput("revoke_site_viewer", c.server.policy("revoke_site_viewer"), c.do(http.MethodDelete, path(name)+"/viewers/"+url.PathEscape(strings.TrimSpace(email)), nil, nil))
 			},
 		},
 	}

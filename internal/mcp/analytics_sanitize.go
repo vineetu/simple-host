@@ -16,12 +16,12 @@ const analyticsFieldBytes = 8192
 // The only pattern is the SDK's binary-data test, not a personal-data redactor.
 var analyticsBase64 = regexp.MustCompile(`^[A-Za-z0-9+/\n\r]+=*$`)
 
-func analyticsParameters(tool string, args map[string]any) any {
-	if declaredPolicy(tool).analytics.redactAll {
+func analyticsParametersForPolicy(policy toolPolicy, args map[string]any) any {
+	if policy.analytics.redactAll {
 		return map[string]any{"arguments": "[removed]"}
 	}
 	return capAnalyticsJSON(sdkSanitizeParameters(map[string]any{
-		"arguments": dropAnalyticsValues(tool, analyticsCopy(args)),
+		"arguments": dropAnalyticsValuesForPolicy(policy, analyticsCopy(args)),
 	}))
 }
 
@@ -35,15 +35,15 @@ func analyticsCopy(value any) any {
 	return copy
 }
 
-func analyticsResponse(tool string, value any) any {
-	if declaredPolicy(tool).analytics.redactAll {
+func analyticsResponseForPolicy(policy toolPolicy, value any) any {
+	if policy.analytics.redactAll {
 		return "[removed]"
 	}
 	original, _ := value.(map[string]any)
 	// Never include result metadata, which can hold UI-only credentials.
 	response := map[string]any{"content": analyticsCopy(original["content"]), "isError": original["isError"]}
 	if structured, exists := original["structuredContent"]; exists {
-		response["structuredContent"] = dropAnalyticsValues(tool, analyticsCopy(structured))
+		response["structuredContent"] = dropAnalyticsValuesForPolicy(policy, analyticsCopy(structured))
 	}
 	blocks, _ := response["content"].([]any)
 	for _, raw := range blocks {
@@ -52,14 +52,14 @@ func analyticsResponse(tool string, value any) any {
 			continue
 		}
 		if block["type"] != "text" {
-			dropAnalyticsValues(tool, block)
+			dropAnalyticsValuesForPolicy(policy, block)
 			continue
 		}
 		text, _ := block["text"].(string)
 		switch {
-		case analyticsSecretText(tool):
+		case analyticsSecretText(policy):
 			block["text"] = "[removed: contains a secret]"
-		case analyticsFileResult(tool):
+		case analyticsFileResult(policy):
 			// File-read prose includes headers as well as the bytes. The
 			// structured copy has each file's real size and path/type.
 			if structured := response["structuredContent"]; structured != nil {
@@ -67,14 +67,14 @@ func analyticsResponse(tool string, value any) any {
 			} else {
 				block["text"] = jsonText(analyticsFile(text, "", false))
 			}
-		case declaredPolicy(tool).analytics.structuredText:
+		case policy.analytics.structuredText:
 			block["text"] = jsonText(response["structuredContent"])
 		default:
 			// Storage and Hack tools also return their JSON as text. Walk
 			// that representation so removing a structured field is enough.
 			var decoded any
 			if json.Unmarshal([]byte(text), &decoded) == nil {
-				block["text"] = jsonText(sdkSanitizeParameters(dropAnalyticsValues(tool, decoded)))
+				block["text"] = jsonText(sdkSanitizeParameters(dropAnalyticsValuesForPolicy(policy, decoded)))
 			} else if data, ok := analyticsDataURI(text); ok {
 				block["text"] = jsonText(data)
 			}
@@ -87,7 +87,7 @@ func analyticsFieldName(name string) string {
 	return strings.NewReplacer("_", "", "-", "").Replace(strings.ToLower(name))
 }
 
-func analyticsSecretField(tool, name string) bool {
+func analyticsSecretFieldForPolicy(policy toolPolicy, name string) bool {
 	name = analyticsFieldName(name)
 	for _, part := range []string{"passcode", "password", "secret", "token", "apikey", "authorization", "cookie"} {
 		if strings.Contains(name, part) {
@@ -108,30 +108,30 @@ func analyticsSecretField(tool, name string) bool {
 	case "city", "country", "agerange", "gender":
 		return true
 	case "key":
-		return declaredPolicy(tool).analytics.secretKey
+		return policy.analytics.secretKey
 	case "how":
-		return declaredPolicy(tool).analytics.secretHow // embeds the signed URL in a curl command
+		return policy.analytics.secretHow // embeds the signed URL in a curl command
 	case "url":
-		return declaredPolicy(tool).analytics.secretURL
+		return policy.analytics.secretURL
 	}
 	return false
 }
 
-func analyticsSecretText(tool string) bool { return declaredPolicy(tool).analytics.secretText }
+func analyticsSecretText(policy toolPolicy) bool { return policy.analytics.secretText }
 
-func analyticsEmailField(tool, name string) bool {
+func analyticsEmailField(policy toolPolicy, name string) bool {
 	name = analyticsFieldName(name)
-	if declaredPolicy(tool).analytics.emailChanges &&
+	if policy.analytics.emailChanges &&
 		(name == "added" || name == "alreadylisted" || name == "removed") {
 		return true
 	}
-	if name == "visitoremail" || name == "visitoremails" || (declaredPolicy(tool).analytics.contactEmail && name == "contactemail") {
+	if name == "visitoremail" || name == "visitoremails" || (policy.analytics.contactEmail && name == "contactemail") {
 		return true
 	}
 	if name != "email" && name != "emails" {
 		return false
 	}
-	return declaredPolicy(tool).analytics.emailIdentity
+	return policy.analytics.emailIdentity
 }
 
 func analyticsVisitorReference(obj map[string]any) string {
@@ -143,7 +143,7 @@ func analyticsVisitorReference(obj map[string]any) string {
 	return "[removed]"
 }
 
-func analyticsFileResult(tool string) bool { return declaredPolicy(tool).analytics.fileResult }
+func analyticsFileResult(policy toolPolicy) bool { return policy.analytics.fileResult }
 
 func analyticsFile(value any, kind string, encoded bool) any {
 	text, ok := value.(string)
@@ -209,11 +209,11 @@ func analyticsFileType(obj map[string]any) string {
 // Work on a JSON copy. Tool-specific field names cover binary files, signed
 // links, and visitor identity; ordinary conversation is left to AgentCat's
 // server-side redaction. No content-pattern matching is done here.
-func dropAnalyticsValues(tool string, value any) any {
-	return dropAnalyticsValue(tool, value, 0)
+func dropAnalyticsValuesForPolicy(policy toolPolicy, value any) any {
+	return dropAnalyticsValue(policy, value, 0)
 }
 
-func dropAnalyticsValue(tool string, value any, depth int) any {
+func dropAnalyticsValue(policy toolPolicy, value any, depth int) any {
 	if depth >= 32 {
 		return "[Object]"
 	}
@@ -224,7 +224,7 @@ func dropAnalyticsValue(tool string, value any, depth int) any {
 		}
 	case []any:
 		for i := range v {
-			v[i] = dropAnalyticsValue(tool, v[i], depth+1)
+			v[i] = dropAnalyticsValue(policy, v[i], depth+1)
 		}
 	case map[string]any:
 		// SQLite represents objects as column names plus positional rows.
@@ -238,7 +238,7 @@ func dropAnalyticsValue(tool string, value any, depth int) any {
 				for r, raw := range rows {
 					cells, ok := raw.([]any)
 					if !ok || depth+2 >= 32 {
-						rows[r] = dropAnalyticsValue(tool, raw, depth+2)
+						rows[r] = dropAnalyticsValue(policy, raw, depth+2)
 						continue
 					}
 					obj := map[string]any{}
@@ -252,7 +252,7 @@ func dropAnalyticsValue(tool string, value any, depth int) any {
 						if i < len(columns) {
 							name, _ = columns[i].(string)
 						}
-						cells[i] = dropAnalyticsField(tool, name, cell, obj, depth+3)
+						cells[i] = dropAnalyticsField(policy, name, cell, obj, depth+3)
 					}
 				}
 			}
@@ -261,35 +261,35 @@ func dropAnalyticsValue(tool string, value any, depth int) any {
 			if key == "rows" && handledRows {
 				continue
 			}
-			v[key] = dropAnalyticsField(tool, key, field, v, depth+1)
+			v[key] = dropAnalyticsField(policy, key, field, v, depth+1)
 		}
 	}
 	return value
 }
 
-func dropAnalyticsField(tool, key string, field any, obj map[string]any, depth int) any {
+func dropAnalyticsField(policy toolPolicy, key string, field any, obj map[string]any, depth int) any {
 	if depth >= 32 {
 		return "[Object]"
 	}
 	name := analyticsFieldName(key)
 	switch {
-	case declaredPolicy(tool).analytics.pageText && name == "pagetext":
+	case policy.analytics.pageText && name == "pagetext":
 		return analyticsFile(field, "text/plain", false)
-	case analyticsSecretField(tool, key):
+	case analyticsSecretFieldForPolicy(policy, key):
 		return "[removed]"
 	// Apply to a hackathon (2026-10-29/31 owner decisions, security review
 	// Grok 6): the four demographic fields are already removed everywhere by
-	// analyticsSecretField, but free-text answers and the applicant's name
+	// analyticsSecretFieldForPolicy, but free-text answers and the applicant's name
 	// can carry the same information in prose ("I'm 14, a girl, in
 	// Jakarta"). For these two tools only -- the apply call itself and the
 	// organiser's read of the queue -- also drop answers and display_name
 	// from the analytics copy. The tool result the organiser's own model
 	// sees is untouched; this is the telemetry copy only.
-	case declaredPolicy(tool).analytics.applicationAnswers && (name == "answers" || name == "displayname"):
+	case policy.analytics.applicationAnswers && (name == "answers" || name == "displayname"):
 		return "[removed]"
-	case analyticsEmailField(tool, key):
+	case analyticsEmailField(policy, key):
 		return analyticsVisitorReference(obj)
-	case (name == "files" && declaredPolicy(tool).analytics.fileArguments) || name == "filesbase64":
+	case (name == "files" && policy.analytics.fileArguments) || name == "filesbase64":
 		if text, ok := field.(string); ok {
 			var parsed any
 			if json.Unmarshal([]byte(text), &parsed) == nil {
@@ -303,30 +303,30 @@ func dropAnalyticsField(tool, key string, field any, obj map[string]any, depth i
 			return files
 		}
 		return analyticsFile(field, "", name == "filesbase64")
-	case name == "edits" && declaredPolicy(tool).analytics.edits:
-		return analyticsEdits(field, depth)
+	case name == "edits" && policy.analytics.edits:
+		return analyticsEdits(policy, field, depth)
 	case strings.HasSuffix(strings.ToLower(key), "_base64") || name == "base64":
 		kind := analyticsFileType(obj)
 		if name == "archivebase64" {
 			kind = "application/gzip"
 		}
 		return analyticsFile(field, kind, true)
-	case (declaredPolicy(tool).analytics.edits && (name == "find" || name == "replace")) ||
-		(analyticsFileResult(tool) && (name == "content" || name == "csv")) ||
-		(declaredPolicy(tool).analytics.fileData && name == "data"):
+	case (policy.analytics.edits && (name == "find" || name == "replace")) ||
+		(analyticsFileResult(policy) && (name == "content" || name == "csv")) ||
+		(policy.analytics.fileData && name == "data"):
 		file := analyticsFile(field, analyticsFileType(obj), false)
-		if declaredPolicy(tool).analytics.fileContentSize && name == "content" {
+		if policy.analytics.fileContentSize && name == "content" {
 			if size, ok := obj["size"].(float64); ok {
 				file.(map[string]any)["bytes"] = size
 			}
 		}
 		return file
 	default:
-		return dropAnalyticsValue(tool, field, depth)
+		return dropAnalyticsValue(policy, field, depth)
 	}
 }
 
-func analyticsEdits(value any, depth int) any {
+func analyticsEdits(policy toolPolicy, value any, depth int) any {
 	if text, ok := value.(string); ok {
 		var parsed any
 		if json.Unmarshal([]byte(text), &parsed) == nil {
@@ -354,7 +354,7 @@ func analyticsEdits(value any, depth int) any {
 		kind := path.Ext(filename)
 		for key, field := range edit {
 			if text, ok := field.(string); key == "path" && ok {
-				edit[key] = dropAnalyticsValue("update_site", text, depth+2)
+				edit[key] = dropAnalyticsValue(policy, text, depth+2)
 			} else {
 				edit[key] = analyticsFile(field, kind, false)
 			}
@@ -497,7 +497,7 @@ func capAnalyticsJSON(value any) any {
 }
 
 // Field removal also removes those supplied values when repeated in prose.
-func analyticsSecretValues(tool string, value any) []string {
+func analyticsSecretValues(policy toolPolicy, value any, policyFor func(string) toolPolicy) []string {
 	var values []string
 	var collect func(any, bool)
 	collect = func(v any, secret bool) {
@@ -520,7 +520,7 @@ func analyticsSecretValues(tool string, value any) []string {
 			}
 		case map[string]any:
 			for k, child := range x {
-				collect(child, secret || analyticsSecretField(tool, k))
+				collect(child, secret || analyticsSecretFieldForPolicy(policy, k))
 			}
 		case []any:
 			for _, child := range x {
@@ -528,10 +528,10 @@ func analyticsSecretValues(tool string, value any) []string {
 			}
 		}
 	}
-	if declaredPolicy(tool).unwrap {
+	if policy.unwrap {
 		if args, ok := value.(map[string]any); ok {
 			if name, ok := args["name"].(string); ok {
-				tool = name
+				policy = policyFor(name)
 			}
 			// Arguments sent as a JSON string are refused, but the event is
 			// still recorded; their secrets come out of the intent too.

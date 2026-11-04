@@ -1,7 +1,5 @@
 package mcp
 
-import "sync"
-
 // toolFamily names one capability family of MCP tools (docs/architecture/
 // target.md §6). Every registered tool belongs to exactly one family.
 type toolFamily string
@@ -68,6 +66,7 @@ const (
 	editionHost toolEdition = iota
 	editionHack
 	editionScreen
+	editionBrain
 )
 
 type toolEntry struct {
@@ -97,16 +96,12 @@ func (r *toolRegistry) add(edition toolEdition, family toolFamily, tools []Tool)
 
 func newRegistry(cfg Config) *toolRegistry {
 	r := &toolRegistry{}
-	for _, family := range hostFamilies(*cfg.Limits) {
-		r.add(editionHost, family.family, instanceTools(addressTools(family.tools)))
-	}
+	r.addFamilies(editionHost, hostFamilies(*cfg.Limits), func(tools []Tool) []Tool { return instanceTools(addressTools(tools)) })
 	if cfg.Events != nil {
 		r.add(editionHost, famNotifications, instanceTools(addressTools(notificationTools())))
 	}
 	r.add(editionHost, famDiscovery, instanceTools(discoveryTools()))
-	for _, family := range hackFamilies() {
-		r.add(editionHack, family.family, addressTools(family.tools))
-	}
+	r.addFamilies(editionHack, hackFamilies(), addressTools)
 	if cfg.Events != nil {
 		r.add(editionHack, famNotifications, hackNotificationTools())
 	}
@@ -173,28 +168,44 @@ func (r *toolRegistry) view(cfg Config, edition toolEdition, site, personal, dep
 // withToolPolicy attaches policy to a declaration produced by an adapter.
 func withToolPolicy(tool Tool, policy toolPolicy) Tool { tool.policy = policy; return tool }
 
-// declarationRegistry derives name-only helper lookups from the same declarations
-// used by each Server. It has Events enabled so optional notification tools exist.
-// No backend method is called while assembling declarations.
+// inventoryEvents marks Events enabled for the documentation inventory.
+// Inventory assembly never calls backend methods.
 type inventoryEvents struct{ EventsBackend }
 
-var declarationOnce sync.Once
-var declarations *toolRegistry
-
-func declarationRegistry() *toolRegistry {
-	declarationOnce.Do(func() {
-		limits := DefaultLimits()
-		declarations = newRegistry(Config{Limits: &limits, Events: inventoryEvents{}})
-	})
-	return declarations
-}
-func declaredPolicy(name string) toolPolicy {
-	for _, entry := range declarationRegistry().entries {
-		if entry.tool.Name == name {
-			return entry.policy
+// policy resolves name-only protocol inputs against this server's inventory.
+func (s *Server) policy(name string) toolPolicy {
+	if s.registry != nil {
+		for _, entry := range s.registry.entries {
+			if entry.tool.Name == name {
+				return entry.policy
+			}
 		}
 	}
 	return toolPolicy{}
+}
+
+// addFamilies shares registration and duplicate validation with the raw exports.
+// A nil rewrite retains the declarations' original wording.
+func (r *toolRegistry) addFamilies(edition toolEdition, families []familyTools, rewrite func([]Tool) []Tool) {
+	for _, family := range families {
+		tools := family.tools
+		if rewrite != nil {
+			tools = rewrite(tools)
+		}
+		r.add(edition, family.family, tools)
+	}
+}
+
+// declaredTools is the unfiltered view used by the compatibility exports.
+// Hidden declarations remain present, as in the original exports.
+func (r *toolRegistry) declaredTools(edition toolEdition) []Tool {
+	var tools []Tool
+	for _, entry := range r.entries {
+		if entry.edition == edition {
+			tools = append(tools, entry.tool)
+		}
+	}
+	return tools
 }
 
 // InventoryTool identifies one registered declaration, including hidden tools.

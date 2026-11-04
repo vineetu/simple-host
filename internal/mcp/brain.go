@@ -37,16 +37,12 @@ func NewBrainServer(cfg BrainConfig) *Server {
 	if cfg.Query == nil {
 		panic("mcp: brain server needs a query function")
 	}
-	tools := BrainTools(cfg.Query)
-	inv := &inventory{byName: map[string]Tool{}, instructions: BrainInstructions, title: "Simple Host product knowledge"}
-	for _, t := range tools {
-		inv.tools = append(inv.tools, t)
-		bare := t
-		bare.OutputSchema = nil
-		inv.bare = append(inv.bare, bare)
-		inv.byName[t.Name] = t
-	}
-	return &Server{cfg: Config{ServerName: cfg.ServerName, Version: cfg.Version, MaxBodyBytes: 1 << 20}, fixed: inv}
+	r := &toolRegistry{}
+	r.add(editionBrain, famAdmin, BrainTools(cfg.Query))
+	serverCfg := Config{ServerName: cfg.ServerName, Version: cfg.Version, MaxBodyBytes: 1 << 20}
+	view := r.view(serverCfg, editionBrain, false, false, false)
+	inv := &inventory{tools: view.tools, bare: view.bare, byName: view.byName, instructions: BrainInstructions, title: "Simple Host product knowledge"}
+	return &Server{cfg: serverCfg, registry: r, fixed: inv}
 }
 
 // BrainInstructions tells the agent what the server is and when to use it.

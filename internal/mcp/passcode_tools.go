@@ -75,7 +75,7 @@ func passcodeTools() []Tool {
 				default:
 					body, _ = json.Marshal(map[string]string{"passcode": raw})
 				}
-				out, err := passcodeOutput("set_site_passcode", name, c.do(http.MethodPut, path(name), body, nil))
+				out, err := passcodeOutput("set_site_passcode", c.server.policy("set_site_passcode"), name, c.do(http.MethodPut, path(name), body, nil))
 				if err == nil && generate {
 					out.Text = "A new passcode is set on " + name + ". " + c.passcodeDestination(name)
 					out.Structured["note"] = out.Text
@@ -103,7 +103,7 @@ func passcodeTools() []Tool {
 				if ok, _ := args["confirm"].(bool); !ok {
 					return output{}, errors.New("ask the person first: tell them anyone with " + name + "'s link will be able to open it once the passcode is gone, then call again with confirm: true once they agree")
 				}
-				return passcodeOutput("remove_site_passcode", name, c.do(http.MethodDelete, path(name), nil, nil))
+				return passcodeOutput("remove_site_passcode", c.server.policy("remove_site_passcode"), name, c.do(http.MethodDelete, path(name), nil, nil))
 			},
 		},
 		{
@@ -123,7 +123,7 @@ func passcodeTools() []Tool {
 				if err != nil {
 					return output{}, err
 				}
-				return passcodeOutput("sign_out_site_visitors", name, c.do(http.MethodPost, path(name)+"/sign-out-everyone", nil, nil))
+				return passcodeOutput("sign_out_site_visitors", c.server.policy("sign_out_site_visitors"), name, c.do(http.MethodPost, path(name)+"/sign-out-everyone", nil, nil))
 			},
 		},
 	}
@@ -131,7 +131,7 @@ func passcodeTools() []Tool {
 
 // passcodeOutput turns a /lock answer into the tool result shared by the
 // passcode tools.
-func passcodeOutput(tool, name string, res upstreamResult) (output, error) {
+func passcodeOutput(tool string, policy toolPolicy, name string, res upstreamResult) (output, error) {
 	if !res.ok() {
 		return output{}, restError(tool, res)
 	}
@@ -150,21 +150,21 @@ func passcodeOutput(tool, name string, res upstreamResult) (output, error) {
 	}
 	var text string
 	switch {
-	case declaredPolicy(tool).passcodeResult == "signout":
+	case policy.passcodeResult == "signout":
 		text = "Everyone was signed out of " + name + "; visitors must enter the passcode again."
-	case (declaredPolicy(tool).passcodeResult == "remove" || declaredPolicy(tool).passcodeResult == "set" || declaredPolicy(tool).passcodeResult == "screen") && strings.Contains(lock.Note, "nothing changed"):
+	case (policy.passcodeResult == "remove" || policy.passcodeResult == "set" || policy.passcodeResult == "screen") && strings.Contains(lock.Note, "nothing changed"):
 		return output{Text: name + ": " + lock.Note, Structured: out}, nil
-	case declaredPolicy(tool).passcodeResult == "remove" && lock.Note != "":
+	case policy.passcodeResult == "remove" && lock.Note != "":
 		// The server's note says whether a passcode was actually removed.
 		return output{Text: name + ": " + lock.Note, Structured: out}, nil
 	case !lock.Protected:
 		text = name + " has no passcode: anyone with its address can open it."
-	case declaredPolicy(tool).passcodeResult == "set":
+	case policy.passcodeResult == "set":
 		text = "Passcode set on " + name + ". Visitors see \"Enter the passcode\" until they enter it."
 	default:
 		text = name + " asks visitors for a passcode."
 	}
-	if lock.Note != "" && declaredPolicy(tool).passcodeResult != "set" {
+	if lock.Note != "" && policy.passcodeResult != "set" {
 		text += " " + lock.Note
 	}
 	return output{Text: text, Structured: out}, nil
@@ -190,7 +190,7 @@ func (c *call) passcodeDestination(name string) string {
 }
 
 func (c *call) passcodeStatus(name string) (output, error) {
-	out, err := passcodeOutput("get_site_passcode", name, c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/lock", nil, nil))
+	out, err := passcodeOutput("get_site_passcode", c.server.policy("get_site_passcode"), name, c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/lock", nil, nil))
 	if err != nil {
 		return out, err
 	}

@@ -540,7 +540,7 @@ func (s *Server) validate(r *http.Request, req request) (int, *rpcError) {
 	}
 
 	if req.Method == "tools/call" {
-		params, err := parseCallParams(req.Params)
+		params, err := s.parseCallParams(req.Params)
 		if err != nil {
 			return http.StatusBadRequest, &rpcError{Code: codeInvalidParams, Message: "params could not be read"}
 		}
@@ -581,7 +581,7 @@ func (s *Server) validate(r *http.Request, req request) (int, *rpcError) {
 	return http.StatusOK, nil
 }
 
-func parseCallParams(raw json.RawMessage) (callParams, error) {
+func (s *Server) parseCallParams(raw json.RawMessage) (callParams, error) {
 	var params callParams
 	if len(raw) == 0 {
 		return params, nil
@@ -594,10 +594,10 @@ func parseCallParams(raw json.RawMessage) (callParams, error) {
 		return params, err
 	}
 	name := envelope.Name
-	if declaredPolicy(name).unwrap {
+	if s.policy(name).unwrap {
 		_ = json.Unmarshal(envelope.Arguments["name"], &name)
 	}
-	if declaredPolicy(name).preserveNumbers {
+	if s.policy(name).preserveNumbers {
 		// Preserve entry values and IDs in both direct and wrapped calls.
 		dec := json.NewDecoder(bytes.NewReader(raw))
 		dec.UseNumber()
@@ -741,13 +741,13 @@ type callParams struct {
 }
 
 func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bool) (reply response) {
-	params, err := parseCallParams(req.Params)
+	params, err := s.parseCallParams(req.Params)
 	if err != nil {
 		return failure(req.ID, codeInvalidParams, "params could not be read", nil)
 	}
 	_, _, byName := s.forCaller(caller)
 	started := time.Now()
-	secretValues := analyticsSecretValues(params.Name, params.Arguments)
+	secretValues := analyticsSecretValues(s.policy(params.Name), params.Arguments, s.policy)
 	eventName := params.Name
 	intent, _ := takeAnalyticsContext(byName[params.Name], params.Arguments)
 	var recorded bool
@@ -759,14 +759,14 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	}
 	defer func() {
 		if s.analytics != nil && recorded {
-			if declaredPolicy(eventName).analytics.redactAll {
+			if s.policy(eventName).analytics.redactAll {
 				intent = "[removed]"
 			}
 			if parameters == nil {
-				parameters = analyticsParameters(eventName, params.Arguments)
+				parameters = analyticsParametersForPolicy(s.policy(eventName), params.Arguments)
 			}
 			s.analytics.enqueue(caller, eventName, completed.Sub(started), completed, runError,
-				redactAnalyticsSecrets(parameters, secretValues), redactAnalyticsSecrets(analyticsResponse(eventName, reply.Result), secretValues), capAnalyticsIntent(redactAnalyticsSecrets(intent, secretValues).(string)))
+				redactAnalyticsSecrets(parameters, secretValues), redactAnalyticsSecrets(analyticsResponseForPolicy(s.policy(eventName), reply.Result), secretValues), capAnalyticsIntent(redactAnalyticsSecrets(intent, secretValues).(string)))
 		}
 	}()
 	// Unwrap before lookup so direct and wrapped calls share the same checks.
@@ -785,7 +785,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		}
 		if s.analytics != nil {
 			if _, present := outer["arguments"]; validTarget && (objectArgs || !present) {
-				parameters = analyticsParameters(name, innerArgs)
+				parameters = analyticsParametersForPolicy(s.policy(name), innerArgs)
 			} else {
 				parameters = map[string]any{"arguments": "[removed]"}
 			}
@@ -912,7 +912,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		c.textOnlyClient = true
 	}
 	if s.analytics != nil && parameters == nil {
-		parameters = analyticsParameters(eventName, params.Arguments)
+		parameters = analyticsParametersForPolicy(s.policy(eventName), params.Arguments)
 	}
 	started = time.Now()
 	out, err := tool.run(c, params.Arguments)

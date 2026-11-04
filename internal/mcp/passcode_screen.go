@@ -171,7 +171,7 @@ func runPasscodeScreen(c *call, args map[string]any) (output, error) {
 	case "begin":
 		// REST checks the caller's current authority before issuing any session.
 		res := c.do(http.MethodGet, path, nil, nil)
-		out, err := passcodeOutput("passcode_screen", name, res)
+		out, err := passcodeOutput("passcode_screen", c.server.policy("passcode_screen"), name, res)
 		if err != nil {
 			return output{}, err
 		}
@@ -237,7 +237,7 @@ func runPasscodeScreen(c *call, args map[string]any) (output, error) {
 		}
 		// /lock validation errors describe the rule, never the submitted value.
 		// restError reads only error/code (not the passcode in a successful body).
-		out, err := passcodeOutput("passcode_screen", name, res)
+		out, err := passcodeOutput("passcode_screen", c.server.policy("passcode_screen"), name, res)
 		if err != nil {
 			return output{}, err
 		}

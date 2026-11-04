@@ -8,13 +8,11 @@ import (
 	"strings"
 )
 
-// HackTools flattens the hosted event capability families in registration order.
+// HackTools returns the registered event declarations, including hidden tools.
 func HackTools() []Tool {
-	var tools []Tool
-	for _, family := range hackFamilies() {
-		tools = append(tools, family.tools...)
-	}
-	return tools
+	r := &toolRegistry{}
+	r.addFamilies(editionHack, hackFamilies(), nil)
+	return r.declaredTools(editionHack)
 }
 
 func eventSlug(args map[string]any) (string, error) {

@@ -10,8 +10,8 @@ func hackPublicReadOnly() map[string]any {
 
 // Filter before serializing either representation. REST responses remain intact
 // for browser pages, and these optional fields need no output schema changes.
-func minimiseHackMemberResult(name, userID string, out map[string]any) {
-	switch declaredPolicy(name).memberResult {
+func minimiseHackMemberResult(policy toolPolicy, userID string, out map[string]any) {
+	switch policy.memberResult {
 	case "me":
 		if me, ok := out["me"].(map[string]any); ok {
 			delete(me, "team_key")
@@ -54,8 +54,8 @@ func hackOwnConflict(conflict map[string]any, userID string) bool {
 	return userID != "" && strings.EqualFold(judgeID, userID)
 }
 
-func minimiseHackOrganiserResult(name string, includeEmails bool, out map[string]any) {
-	switch declaredPolicy(name).organiserResult {
+func minimiseHackOrganiserResult(policy toolPolicy, includeEmails bool, out map[string]any) {
+	switch policy.organiserResult {
 	case "decision":
 		delete(out, "user_id")
 	case "teams":
@@ -74,7 +74,7 @@ func minimiseHackOrganiserResult(name string, includeEmails bool, out map[string
 			case "name", "slug":
 				continue
 			case "site", "deadline", "deadline_override", "frozen", "extended", "pinned_version", "pinned_url":
-				if declaredPolicy(name).organiserResult != "member" {
+				if policy.organiserResult != "member" {
 					continue
 				}
 			}
