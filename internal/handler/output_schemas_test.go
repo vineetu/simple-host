@@ -130,7 +130,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 		t.Fatalf("set_site_passcode read: %v", s)
 	}
 	call("sign_out_site_visitors", map[string]any{"site": "shop"})
-	if s := call("remove_site_passcode", map[string]any{"site": "shop"}); s["passcode_protected"] != false {
+	if s := call("remove_site_passcode", map[string]any{"site": "shop", "confirm": true}); s["passcode_protected"] != false {
 		t.Fatalf("set_site_passcode remove: %v", s)
 	}
 	if r := a.rpc(t, token, "tools/call", map[string]any{"name": "sign_out_site_visitors", "arguments": map[string]any{"site": "shop"}}); !strings.Contains(string(r.body), "no_passcode") {

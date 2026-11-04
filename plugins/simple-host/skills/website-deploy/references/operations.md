@@ -49,7 +49,7 @@ Never together with named viewers.
 |---|---|---|
 | Is there one, and when was it set | `get_site_passcode` | `GET /v1/sites/<site>/lock` |
 | Put one on, or change it (ask first) | `set_site_passcode` | `PUT /v1/sites/<site>/lock` `{"passcode":"..."}` |
-| Take it off (ask first) | `remove_site_passcode` | `DELETE /v1/sites/<site>/lock` |
+| Take it off (ask first; refuses without `confirm: true` once they agree) | `remove_site_passcode` | `DELETE /v1/sites/<site>/lock` |
 | Make every visitor enter it again | `sign_out_site_visitors` | `POST /v1/sites/<site>/lock/sign-out-everyone` |
 
 Changing the passcode signs everyone out. Existing storage resources may inherit that gate or

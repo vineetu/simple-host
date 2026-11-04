@@ -80,15 +80,22 @@ func passcodeTools() []Tool {
 			},
 		},
 		{
-			Name:        "remove_site_passcode",
-			Title:       "Take the passcode off a site",
-			Description: "ASK THE PERSON FIRST, before calling this: it takes the passcode off a site, so anyone with its address can open it again. Nothing on the site is deleted, and a new passcode can be set later with set_site_passcode.",
-			InputSchema: object(site, "site"),
+			Name:  "remove_site_passcode",
+			Title: "Take the passcode off a site",
+			Description: "ASK THE PERSON FIRST, before calling this: it takes the passcode off a site, so anyone with its address can open it again. Nothing on the site is deleted, and a new passcode can be set later with set_site_passcode. " +
+				"The person's own request to remove or change it is not consent on its own: tell them anyone with the link will be able to open the site once it is gone, then call again with confirm: true only after they agree in this conversation.",
+			InputSchema: object(map[string]any{
+				"site":    str(siteDesc),
+				"confirm": map[string]any{"type": "boolean", "description": "The person agreed, in this conversation, to remove the passcode after being told anyone with the link will then be able to open the site. Omit or send false to ask first; nothing is removed until this is true."},
+			}, "site"),
 			Annotations: writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
 					return output{}, err
+				}
+				if ok, _ := args["confirm"].(bool); !ok {
+					return output{}, errors.New("ask the person first: tell them anyone with " + name + "'s link will be able to open it once the passcode is gone, then call again with confirm: true once they agree")
 				}
 				return passcodeOutput("remove_site_passcode", name, c.do(http.MethodDelete, path(name), nil, nil))
 			},
