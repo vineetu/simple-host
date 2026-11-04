@@ -11,7 +11,7 @@ Fails when:
   - the data breaks the page's rules (duplicate ids, a one-liner over 140 characters, a
     missing field, an unknown edition or status value, a link outside the allowed public
     targets, a dash the voice rules ban);
-  - internal/handler/static/features.html is not what build-features-page.py renders from
+  - internal/webassets/static/features.html is not what build-features-page.py renders from
     features.json.
 
 Leads are matched by their stable FEATURES.md anchors, never by display text.
@@ -26,7 +26,7 @@ import sys
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 os.chdir(ROOT)
-DATA = "internal/handler/static/features.json"
+DATA = "internal/webassets/static/features.json"
 
 ALLOWED_PREFIXES = (
     "/install.html", "/docs.html", "/pricing", "/photos", "/hackathons", "/enterprise",
@@ -161,7 +161,7 @@ def main():
     if fails:
         for f in fails:
             print("  FAIL: " + f)
-        print("  add the feature to internal/handler/static/features.json (or list it under not_shown with a why), then run python3 scripts/build-features-page.py")
+        print("  add the feature to internal/webassets/static/features.json (or list it under not_shown with a why), then run python3 scripts/build-features-page.py")
         sys.exit(1)
     nfeat = sum(len(a["features"]) for a in data["areas"])
     print("  ok — %d areas, %d features cover %d FEATURES.md sections and %d bold leads; features.html is current" % (len(data["areas"]), nfeat, len(sections), len(leads)))

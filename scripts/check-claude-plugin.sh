@@ -4,12 +4,12 @@
 set -u
 cd "$(dirname "$0")/.."
 
-SRC=simple-host-website/skills
+SRC=internal/webassets/simple-host-website/skills
 DST=plugins/simple-host/skills
 SKILLS="website-deploy website-deploy-builder connect-domain"
 fail=0
 
-echo "== claude plugin skills match simple-host-website/skills =="
+echo "== claude plugin skills match internal/webassets/simple-host-website/skills =="
 for s in $SKILLS; do
   if [ ! -d "$DST/$s" ]; then
     echo "  FAIL: missing $DST/$s"; fail=1; continue
@@ -30,7 +30,7 @@ fi
 echo "== claude plugin version, marketplace and X-Skill-Version literals match skills version =="
 if python3 - <<'PY'
 import json, sys
-src = json.load(open("simple-host-website/.claude-plugin/plugin.json"))["version"]
+src = json.load(open("internal/webassets/simple-host-website/.claude-plugin/plugin.json"))["version"]
 plug = json.load(open("plugins/simple-host/.claude-plugin/plugin.json"))
 mk = {e["name"]: e for e in json.load(open(".claude-plugin/marketplace.json"))["plugins"]}
 bad = []
@@ -44,7 +44,7 @@ if mk.get("simple-host", {}).get("source") != "./plugins/simple-host": bad.appen
 # "your skill is out of date" notice. Bump both together.
 import os, re
 lits = 0
-for root in ("simple-host-website/skills", "plugins/simple-host/skills"):
+for root in ("internal/webassets/simple-host-website/skills", "plugins/simple-host/skills"):
     for d, _, fs in os.walk(root):
         for f in fs:
             p = os.path.join(d, f)
@@ -66,3 +66,6 @@ if [ "$fail" -ne 0 ]; then
   exit 1
 fi
 echo "claude plugin in sync ✓"
+
+# The public GitHub install address remains /hack-toolkit.
+diff -r internal/webassets/hack-toolkit/skills hack-toolkit/skills

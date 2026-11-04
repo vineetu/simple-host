@@ -4,7 +4,7 @@
 // internal/mcp/hack_apps_organiser.go). Pulls in the real website
 // screens, unmodified except the platform adapter calls each one uses in
 // place of the browser behaviour that does not hold inside this frame
-// (see internal/handler/static/hack/platform.js and this frame's own
+// (see internal/webassets/static/hack/platform.js and this frame's own
 // internal/mcp/apps/frame/platform.js). nav.js and tour.js are swapped for
 // this frame's own internal/mcp/apps/frame/organiser-nav.js and tour.js by
 // the esbuild OnResolve plugin (bundlegen's framePlugin) -- nothing here
@@ -13,9 +13,9 @@
 //
 // Phase 2 only: overview, people, judging -- teams, entries, results and
 // the event page are later phases (see GenerateOrganiserJS).
-import * as ui from '../../../handler/static/hack/ui.js'
-import * as overview from '../../../handler/static/hack/screens/organiser-overview.js'
-import * as people from '../../../handler/static/hack/screens/organiser-people.js'
-import * as judging from '../../../handler/static/hack/screens/organiser-judging.js'
+import * as ui from '../../../webassets/static/hack/ui.js'
+import * as overview from '../../../webassets/static/hack/screens/organiser-overview.js'
+import * as people from '../../../webassets/static/hack/screens/organiser-people.js'
+import * as judging from '../../../webassets/static/hack/screens/organiser-judging.js'
 
 window.__HACKO = { ui, screens: { overview, people, judging } }

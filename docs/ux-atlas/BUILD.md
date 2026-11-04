@@ -1,7 +1,7 @@
 # Building the new Simple Hack app from the atlas
 
 The signed-in Simple Hack app is being rebuilt from the UX atlas (`docs/ux-atlas/`). This file is
-the contract every change follows. Read it whole before touching `internal/handler/static/hack/`.
+the contract every change follows. Read it whole before touching `internal/webassets/static/hack/`.
 
 ## Goals
 
@@ -13,7 +13,7 @@ the contract every change follows. Read it whole before touching `internal/handl
 ## Layout
 
 ```
-internal/handler/static/hack/
+internal/webassets/static/hack/
   app.html          entry page; the server serves it on every signed-in route when the new UI is on
   kit.css           THE kit. Same file the atlas prototype uses (build.py copies it into the atlas)
   app.js            boot: sign-in check, load me + events, router, mount shell, render screen

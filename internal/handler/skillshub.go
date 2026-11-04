@@ -1,24 +1,22 @@
 package handler
 
 import (
-	"embed"
 	"encoding/json"
 	"io/fs"
 	"net/http"
 	"sort"
 	"strings"
 
-	hacktoolkit "github.com/vsriram/simple-host/hack-toolkit"
-	plugin "github.com/vsriram/simple-host/simple-host-website"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 // servedSkillFS keeps Simple Host's maintained skill bundle intact while Simple Hack
 // serves the reviewed connector-only snapshot bundled with its toolkit.
-func (p *assetPipeline) servedSkillFS() embed.FS {
+func (p *assetPipeline) servedSkillFS() webassets.Files {
 	if p.pres.HackAssets {
-		return hacktoolkit.Skills
+		return webassets.HackSkills
 	}
-	return plugin.FS
+	return webassets.Host
 }
 
 // Skills hub: a tiny public HTTP catalog so any agent (Hermes, OpenClaw, a raw

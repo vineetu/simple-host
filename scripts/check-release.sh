@@ -14,7 +14,7 @@ fi
 fail=0
 
 echo "== the setup page pins the Enterprise Helm chart =="
-js=internal/handler/static/setup/setup.js
+js=internal/webassets/static/setup/setup.js
 ent_version=$(sed -n "s/^ *var ENT_CHART_VERSION = '\([0-9.]*\)';.*/\1/p" "$js")
 release_tmp=$(mktemp -d)
 chart="$release_tmp/Chart.yaml"

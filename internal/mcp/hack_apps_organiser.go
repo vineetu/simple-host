@@ -26,7 +26,7 @@ import (
 // ... -- keeps its own full-text result for a host or model with no UI).
 //
 // apps/hack-organiser-bundle.js and apps/hack-organiser-kit.css are
-// generated from internal/handler/static/hack by internal/mcp/apps/
+// generated from internal/webassets/static/hack by internal/mcp/apps/
 // bundlegen; after changing organiser-overview.js, organiser-people.js,
 // organiser-judging.js, _orgA-util.js or kit.css, regenerate with:
 //

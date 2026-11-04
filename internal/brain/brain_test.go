@@ -42,7 +42,7 @@ func fixtureRepos(t *testing.T) (string, string) {
 	write(host, "FEATURES.md", "# FEATURES\n\n## 1. Sites and deploy\n\nDeploy a tarball.\n\n### WordPress import\n\nThe converter `internal/wpimport` turns a WordPress export into a site.\n")
 	write(host, "PARITY.md", parity)
 	write(host, "CHANGELOG.md", "# Changelog\n\n## 2026-10-16: Simple Hack for companies\n\n- Company sign-in.\n- A /companies page\n  with a film.\n\n## 2026-09-01: Old\n\n- Old thing.\n")
-	write(host, "internal/handler/static/hack-llms.txt", "Simple Hack (https://simple-hack.app): hackathons for everyone.\n\nSimple Hack for companies: the self-hosted package.\n")
+	write(host, "internal/webassets/static/hack-llms.txt", "Simple Hack (https://simple-hack.app): hackathons for everyone.\n\nSimple Hack for companies: the self-hosted package.\n")
 	write(host, "docs/platforms/README.md", "# Where it runs\n\nThe small box needs a disk.\n")
 	write(host, ".env", "SECRET=do-not-read\n")
 	write(host, "docs/platforms/leak.md", "# Leak\n\nkey shat_AAAAAAAAAAAAAAAAAAAAAAAAAAAA and sk-ant-0123456789abcdefghijk end\n")

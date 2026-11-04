@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -19,11 +18,10 @@ import (
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/mcp"
-	plugin "github.com/vsriram/simple-host/simple-host-website"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
-//go:embed all:static
-var embeddedStatic embed.FS
+var embeddedStatic = webassets.Static
 
 // staticFiles is the embedded tree, product-neutral (baseTextFS; a pipeline's
 // staticFS is the tree as one instance serves it). Public addresses use
@@ -40,7 +38,7 @@ func PluginVersion(hackAssets bool) (string, error) {
 		return "0.27.20", nil
 	}
 	pluginVersionOnce.Do(func() {
-		src, err := plugin.FS.Open(".claude-plugin/plugin.json")
+		src, err := webassets.Host.Open(".claude-plugin/plugin.json")
 		if err != nil {
 			pluginVersionErr = fmt.Errorf("open plugin.json: %w", err)
 			return
@@ -625,7 +623,7 @@ func (p *assetPipeline) buildSkillsZip() ([]byte, error) {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
 
-		skillsRoot, err := fs.Sub(plugin.FS, "skills")
+		skillsRoot, err := fs.Sub(webassets.Host, "skills")
 		if err != nil {
 			z.err = err
 			return
@@ -730,7 +728,7 @@ func (p *assetPipeline) buildPluginZip() ([]byte, error) {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
 
-		err := fs.WalkDir(plugin.FS, ".", func(path string, d fs.DirEntry, walkErr error) error {
+		err := fs.WalkDir(webassets.Host, ".", func(path string, d fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
@@ -738,7 +736,7 @@ func (p *assetPipeline) buildPluginZip() ([]byte, error) {
 				return nil
 			}
 
-			src, err := plugin.FS.Open(path)
+			src, err := webassets.Host.Open(path)
 			if err != nil {
 				return err
 			}

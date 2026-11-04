@@ -8,7 +8,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-const file = process.argv[2] || path.join(__dirname, '..', 'internal', 'handler', 'static', 'auth.js');
+const file = process.argv[2] || path.join(__dirname, '..', 'internal', 'webassets', 'static', 'auth.js');
 const src = fs.readFileSync(file, 'utf8');
 const cases = JSON.parse(process.argv[3] || '[]');
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The cost calculator's list prices go stale: every price in
-# internal/handler/static/costs/prices.json carries the day it was checked.
+# internal/webassets/static/costs/prices.json carries the day it was checked.
 # This fails (exit 1) when any is older than MAX_AGE_DAYS (45), naming each one,
 # so a monthly look at the providers' pages is not forgotten. `make check`
 # runs it as a warning only.
@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 python3 - "${MAX_AGE_DAYS:-45}" <<'PY'
 import datetime, json, sys
 limit = int(sys.argv[1])
-doc = json.load(open("internal/handler/static/costs/prices.json"))
+doc = json.load(open("internal/webassets/static/costs/prices.json"))
 today = datetime.date.today()
 stale, seen = [], 0
 def walk(path, v):

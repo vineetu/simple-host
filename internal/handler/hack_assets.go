@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	hacktoolkit "github.com/vsriram/simple-host/hack-toolkit"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 // Site-side asset/text code for the Hack edition. Stays in internal/handler
@@ -75,7 +75,7 @@ func (p *assetPipeline) BuildHackSkillsZip() ([]byte, error) {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
 		for _, name := range HackSkillNames {
-			root, err := fs.Sub(hacktoolkit.Skills, "skills/"+name)
+			root, err := fs.Sub(webassets.HackSkills, "skills/"+name)
 			if err != nil {
 				z.err = err
 				break

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"net/http"
 
-	hacktoolkit "github.com/vsriram/simple-host/hack-toolkit"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 // RegisterHackGetStarted is mounted only when EVENTS=hosted. Takes the
@@ -26,7 +26,7 @@ func RegisterHackGetStarted(mux *http.ServeMux, pages hackPages) {
 	}
 	for _, version := range []string{"0.2.6", "0.2.7", "0.2.8", "0.2.9", "0.2.10", "0.2.11", "0.2.12", "0.2.13"} {
 		mux.HandleFunc("GET /simple-hack-skills-only-"+version+".zip", func(w http.ResponseWriter, r *http.Request) {
-			data, err := hacktoolkit.Files.ReadFile("site/downloads/simple-hack-skills-only-" + version + ".zip")
+			data, err := webassets.HackFiles.ReadFile("site/downloads/simple-hack-skills-only-" + version + ".zip")
 			if err != nil {
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return

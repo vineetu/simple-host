@@ -187,7 +187,7 @@ func TestCostsCalcFixture(t *testing.T) {
 // traffic more than typical, a private link less than the internet on the
 // big three once traffic is past the free tiers).
 func TestCostsCalcRealPrices(t *testing.T) {
-	out := runCostsNode(t, "static/costs/prices.json", `
+	out := runCostsNode(t, "../webassets/static/costs/prices.json", `
 	  var bad = [], r = {};
 	  P.providers.forEach(function (p) {
 	    [10, 100, 2000].forEach(function (people) {
@@ -253,7 +253,7 @@ func TestCostsPageAndLinks(t *testing.T) {
 // the calculator (calc.js headline over prices.json): when prices change,
 // this names the text to change.
 func TestCostsHeadlineMatchesPages(t *testing.T) {
-	out := runCostsNode(t, "static/costs/prices.json", `
+	out := runCostsNode(t, "../webassets/static/costs/prices.json", `
 	  var r = {};
 	  P.model.headline.people.forEach(function (n) { r[n] = C.headline(P, n); });
 	  return r;`)

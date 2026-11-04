@@ -61,7 +61,7 @@ func validateDynamicInputs(root string) error {
 	}
 	// bundledSkillDirs reads these embedded directories rather than a Go list.
 	var dirs []string
-	for _, bundle := range []string{"simple-host-website/skills", "hack-toolkit/skills"} {
+	for _, bundle := range []string{"internal/webassets/simple-host-website/skills", "internal/webassets/hack-toolkit/skills"} {
 		entries, err := os.ReadDir(filepath.Join(root, bundle))
 		if err != nil {
 			return err

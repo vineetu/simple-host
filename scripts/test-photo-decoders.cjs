@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const root = path.join(__dirname, '../internal/handler/static/photo-codecs/v3');
+const root = path.join(__dirname, '../internal/webassets/static/photo-codecs/v3');
 function environment() {
   const ctx = vm.createContext({console, ArrayBuffer, Uint8Array, Uint8ClampedArray, setTimeout});
   ctx.self = ctx;

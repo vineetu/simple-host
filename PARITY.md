@@ -14,7 +14,7 @@ Enterprise operator is itself the provider under 18 U.S.C. 2258A, so the same kn
 offered there. Status: `gap → enterprise`.
 
 2026-11-02 features page: the hosted public `/features` page is generated from
-`internal/handler/static/features.json` (one entry per feature with editions for Simple Host,
+`internal/webassets/static/features.json` (one entry per feature with editions for Simple Host,
 Simple Hack, Enterprise and the small box, drawn from this file) and checked against FEATURES.md
 by `scripts/check-features-page.py`. Presentation only; no API or permission change. Enterprise
 keeps its own capabilities page; a port of the generated page is optional and not planned.

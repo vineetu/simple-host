@@ -11,10 +11,9 @@ import (
 
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/mcp"
-	plugin "github.com/vsriram/simple-host/simple-host-website"
-
 	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 // withLimits loads the env settings in m into a config.Limits value. The
@@ -200,7 +199,7 @@ func servedTexts(t *testing.T) map[string]string {
 		}
 	}
 	add(staticFiles, "static", "")
-	add(plugin.FS, "skills", "")
+	add(webassets.Host, "skills", "")
 	return out
 }
 

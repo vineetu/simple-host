@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	hacktoolkit "github.com/vsriram/simple-host/hack-toolkit"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 func TestFullHackInstancePresentation(t *testing.T) {
@@ -28,7 +28,7 @@ func TestFullHackInstancePresentation(t *testing.T) {
 		}
 	}
 	for _, name := range handler.HackSkillNames {
-		raw, err := hacktoolkit.Skills.ReadFile("skills/" + name + "/SKILL.md")
+		raw, err := webassets.HackSkills.ReadFile("skills/" + name + "/SKILL.md")
 		if err != nil {
 			t.Fatal(err)
 		}

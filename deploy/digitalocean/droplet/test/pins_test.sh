@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root=../../..
-js=$root/internal/handler/static/setup/setup.js
+js=$root/internal/webassets/static/setup/setup.js
 fl=files/opt/simple-host-setup/first-login.sh
 fail=0
 check() {
