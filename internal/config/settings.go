@@ -319,6 +319,8 @@ func otherSettings() []Setting {
 			Description: "Base event slug for the standing demo on the hosted hackathon platform; empty uses demo."},
 		{Name: "EVENT_NAME_PEER", Group: "events", Type: "string",
 			Description: "The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise."},
+		{Name: "TEAM_SITE_FLAT_HOSTS", Group: "events", Type: "bool", Default: "false", Allowed: []string{"true", "false"},
+			Description: "Hosted events: true serves a team's site at <team>--<event>.<SITE_DOMAIN> (one DNS label) instead of <team>.<event>.<SITE_DOMAIN> (two), so one wildcard certificate and one ingress rule cover every event and team instead of a certificate SAN and a Helm upgrade per event. Hosted simple-hack.app keeps this off: behaviour is byte-for-byte unchanged."},
 		{Name: "SITE_HOSTS", Group: "server", Type: "enum", Default: "off", Allowed: []string{"off", "serve", "canonical"},
 			Description: "Each site at its own address, <site>.<handle>.<SITE_DOMAIN>. Needs PERSON_HOSTS."},
 		{Name: "SITE_CERT_DIR", Group: "domains", Type: "string",

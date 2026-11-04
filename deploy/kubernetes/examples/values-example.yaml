@@ -22,7 +22,10 @@ ingress:
   className: nginx
   # The event(s) this installation runs: team sites live at
   # https://<team>.<event>.hack.example.com/, so each event's wildcard gets
-  # its own rule here and its own SAN in the certificate below.
+  # its own rule here and its own SAN in the certificate below. Running many
+  # events at once instead? Set teamSites.flatHosts: true (values.yaml) and
+  # drop this list — every team site then fits under the *.hack.example.com
+  # wildcard already below, with no per-event rule or certificate SAN.
   events: [spring-hack]
   tls: true
   tlsSecretName: hack-example-com-tls   # kubernetes.io/tls: hack.example.com, *.hack.example.com, *.spring-hack.hack.example.com

@@ -1,6 +1,8 @@
 {{- if .Values.ingress.enabled }}
 {{- $hosts := list .Values.host (printf "*.%s" .Values.host) }}
+{{- if not .Values.teamSites.flatHosts }}
 {{- range .Values.ingress.events }}{{ $hosts = append $hosts (printf "*.%s.%s" . $.Values.host) }}{{ end }}
+{{- end }}
 {{- range .Values.ingress.extraHosts }}{{ $hosts = append $hosts . }}{{ end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -39,7 +41,7 @@ spec:
                 port:
                   name: http
     {{- end }}
-    {{- if .Values.ingress.catchAll }}
+    {{- if and .Values.ingress.catchAll (not .Values.teamSites.flatHosts) }}
     # No host: every <team>.<event>.<host>, which no Ingress wildcard can name.
     - http:
         paths:

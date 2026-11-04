@@ -297,6 +297,7 @@ func main() {
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
 	siteHandler.SetCustomDomainIPAlso(cfg.CustomDomainIPAlso)
 	siteHandler.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
+	siteHandler.SetTeamSiteFlatHosts(cfg.TeamSiteFlatHosts)
 	siteHandler.SetSiteBase(cfg.SiteBaseDomain, cfg.SiteBaseMove, cfg.SiteBaseCertDir)
 	// auth.js serves pages under every base while addresses move.
 	handler.SetSiteBaseText(siteHandler.ServedBases())

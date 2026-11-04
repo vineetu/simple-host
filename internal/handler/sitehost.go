@@ -124,6 +124,27 @@ func siteHostLabels(host, siteDomain string) (site, handle string, ok bool) {
 	return site, handle, true
 }
 
+// flatTeamHostLabels splits <team>--<event>.<siteDomain> — the flat form of
+// a hosted-events team-site host (TEAM_SITE_FLAT_HOSTS), one DNS label
+// instead of two — into (site=team, handle=event), the same pair
+// siteHostLabels returns for the two-level form, so every caller of
+// siteHostParts (sitebase.go) resolves a flat host exactly as it resolves a
+// two-level one. Purely syntactic, like siteHostLabels: any other shape
+// (more than one label left after siteDomain, no "--", an ambiguous second
+// "--") is ok=false. Only consulted when teamSiteFlatHostsOn().
+func flatTeamHostLabels(host, siteDomain string) (site, handle string, ok bool) {
+	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	siteDomain = strings.ToLower(strings.TrimSpace(siteDomain))
+	if siteDomain == "" || !strings.HasSuffix(host, "."+siteDomain) {
+		return "", "", false
+	}
+	label := strings.TrimSuffix(host, "."+siteDomain)
+	if strings.Contains(label, ".") {
+		return "", "", false
+	}
+	return sites.TeamSiteHostLabels(label)
+}
+
 // isSiteHostName: host has the shape of a site host (two labels under the
 // platform domain). Such a host is never the content host, the apex or a
 // claimed name, and every browser treats it as same-site with all of them.
@@ -407,6 +428,13 @@ func (h *SiteHandler) RequestSiteCert(handle string) {
 	h.RequestSiteCertContext(context.Background(), handle)
 }
 func (h *SiteHandler) RequestSiteCertContext(ctx context.Context, handle string) {
+	// Under TEAM_SITE_FLAT_HOSTS every caller here is a hosted event asking
+	// for its own *.<event>.<SITE_DOMAIN> (hack_sites.go requestEventCert):
+	// team sites live under the instance's *.<base> wildcard instead, so no
+	// per-event certificate is ever requested.
+	if h.teamSiteFlatHostsOn() {
+		return
+	}
 	h.certRequestSvc().RequestSiteCert(ctx, sites.SiteCertRequestInput{Handle: handle})
 }
 

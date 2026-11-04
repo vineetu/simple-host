@@ -137,6 +137,14 @@ type Config struct {
 	// self-host claims (/v1/events) and simple-hack.app's hosted events ask
 	// each other before taking a name. Empty: no peer.
 	EventNamePeer string
+	// TeamSiteFlatHosts is TEAM_SITE_FLAT_HOSTS=true (default false; hosted
+	// events only). A team's site is served at <team>--<event>.<SITE_DOMAIN>
+	// (one DNS label) instead of <team>.<event>.<SITE_DOMAIN> (two), so one
+	// wildcard certificate (*.<SITE_DOMAIN>) and one ingress rule cover every
+	// event and team instead of a certificate SAN and a Helm upgrade per
+	// event (AWS ALB's cert-SAN and rule limits). Hosted simple-hack.app
+	// keeps this off: with it off, behaviour is byte-for-byte unchanged.
+	TeamSiteFlatHosts bool
 	// SiteCertDir holds the per-person certificate hand-off with the root
 	// issuer: requests/<handle> (written here) and ready/<handle> (written by
 	// the issuer once *.<handle>.<SITE_DOMAIN> is served). Empty: every person
@@ -560,6 +568,7 @@ func loadEvents(cfg *Config) error {
 			return fmt.Errorf("EVENT_NAME_PEER must be http://127.0.0.1:<port> (a loopback address), not %q", p)
 		}
 	}
+	cfg.TeamSiteFlatHosts = strings.EqualFold(strings.TrimSpace(os.Getenv("TEAM_SITE_FLAT_HOSTS")), "true")
 	return nil
 }
 

@@ -156,11 +156,24 @@ func (h *SiteHandler) userHostLabel(host string) (label, base string, ok bool) {
 	return "", "", false
 }
 
-// siteHostParts is siteHostLabels under any served base.
+// siteHostParts is siteHostLabels under any served base, plus — only when
+// teamSiteFlatHostsOn() — the flat single-label <team>--<event> form
+// (flatTeamHostLabels, sitehost.go). Every caller (siteHostSite, SiteHosts,
+// isSiteHostName, hostBase) resolves either shape through the exact same
+// lookup, so a flat team-site host is routed identically to today's
+// two-level one. With the setting off this is unchanged: only siteHostLabels
+// ever runs, so a "--" label is never read as a team site.
 func (h *SiteHandler) siteHostParts(host string) (site, handle, base string, ok bool) {
 	for _, b := range h.servedBases() {
 		if s, hd, ok := siteHostLabels(host, b); ok {
 			return s, hd, b, true
+		}
+	}
+	if h.teamSiteFlatHostsOn() {
+		for _, b := range h.servedBases() {
+			if s, hd, ok := flatTeamHostLabels(host, b); ok {
+				return s, hd, b, true
+			}
 		}
 	}
 	return "", "", "", false

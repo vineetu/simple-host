@@ -1,5 +1,7 @@
 # PARITY — Simple Host (hosted) and Simple Host Enterprise
 
+2026-11-04 team-site flat hosts: the Simple Hack Kubernetes chart (`deploy/kubernetes/simple-hack/`) gains `teamSites.flatHosts` / `TEAM_SITE_FLAT_HOSTS` (off by default): on, a team's site is the single label `<team>--<event>.<host>` instead of `<team>.<event>.<host>`, so the chart's one `*.<host>` Ingress rule and certificate cover every event and team (no per-event `ingress.events` entry or certificate SAN, which otherwise runs into a load balancer's or certificate's per-name limits as events accumulate). Hosted simple-hack.app keeps it off, unchanged. Event and team slugs may no longer contain "--" on any install (slug validation tightened everywhere, not only under this flag). Enterprise's own, separate Helm chart has not received an equivalent (`gap → enterprise`).
+
 2026-11-04 password accounts: self-hosted Host/Hack support PASSWORD_SIGNIN and PASSWORD_SELF_SIGNUP, temporary passwords and shared connector sign-in; hosted defaults off. Enterprise port outstanding (`gap → enterprise`). Self-host marketing is hidden outside the hosted services.
 
 2026-11-04 background worker status: hosted Host/Hack and small-box builds add a `workers` array to admin usage and a Background workers Overview table. Enterprise has not yet received the lifecycle/status contract (`gap → enterprise`).

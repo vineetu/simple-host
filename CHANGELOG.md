@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-04: Hosted events on Kubernetes can turn on `TEAM_SITE_FLAT_HOSTS` (chart value `teamSites.flatHosts`, off by default) to serve a team's site at `<team>--<event>.<host>` instead of `<team>.<event>.<host>`, so one wildcard certificate and Ingress rule cover every event and team instead of one per event. Hosted simple-hack.app keeps it off, unchanged. Event and team slugs may no longer contain "--".
+
 2026-11-04: Password sign-in verifies before locking and checks for concurrent password changes; Argon2 work is limited to two calls. Password sign-up respects country blocks and no longer advertises unused email metadata. Admin discovery failures leave the page usable, and self-hosted Hack pages hide the complete company marketing copy.
 
 2026-11-04: Self-hosted installs can use username/password accounts, with optional public sign-up and admin-issued temporary passwords. Password sign-in works in the dashboard, Simple Hack and connector consent. Self-hosted pages hide run-your-own-server marketing.

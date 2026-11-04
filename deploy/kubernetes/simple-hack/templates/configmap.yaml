@@ -12,6 +12,7 @@ data:
   EVENTS: hosted
   PERSON_HOSTS: canonical
   SITE_HOSTS: canonical
+  TEAM_SITE_FLAT_HOSTS: {{ ternary "true" "false" .Values.teamSites.flatHosts | quote }}
   WRITE_AUTH_MODE: "on"
   # Where it listens and keeps files. /data is the persistent volume.
   PORT: "8090"

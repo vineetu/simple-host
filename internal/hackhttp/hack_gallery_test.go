@@ -69,6 +69,23 @@ func TestHackGalleryLink(t *testing.T) {
 		}
 	}
 }
+
+// TestHackGalleryLinkFlatHosts: a builder returning the flat
+// <team>--<event>.<base> single label (TEAM_SITE_FLAT_HOSTS) is accepted
+// exactly like the two-level form; a host that belongs to neither shape is
+// still refused.
+func TestHackGalleryLinkFlatHosts(t *testing.T) {
+	flat := func(event, team string) string {
+		return "https://" + team + "--" + event + ".simple-hack.test/"
+	}
+	if got := hackGalleryLink(flat, "weekend", "alpha"); got != "https://alpha--weekend.simple-hack.test/" {
+		t.Fatalf("flat link %q", got)
+	}
+	wrongTeam := func(string, string) string { return "https://someone-else--weekend.simple-hack.test/" }
+	if got := hackGalleryLink(wrongTeam, "weekend", "alpha"); got != "" {
+		t.Errorf("accepted a flat host for another team: %q", got)
+	}
+}
 func TestHackEventGalleryMarkup(t *testing.T) {
 	p := testHackEvent()
 	p.Prizes = "Glory."

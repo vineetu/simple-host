@@ -158,6 +158,12 @@ by you. Rendered YAML needs a persistent Secret created separately
 `deploy/kubernetes/simple-hack/templates/secret.yaml:11`,
 `deploy/kubernetes/simple-hack/templates/deployment.yaml:72`,
 `deploy/kubernetes/simple-hack/values.yaml:194`, `docs/kubernetes.md:17`).
+`teamSites.flatHosts` (off by default, matching simple-hack.app) renders
+`TEAM_SITE_FLAT_HOSTS`: on, a team's site is the single label
+`<team>--<event>.<SITE_DOMAIN>` instead of `<team>.<event>.<SITE_DOMAIN>`, so
+the chart's one `*.<host>` Ingress rule and certificate cover every event
+and team without a per-event `ingress.events` entry or certificate SAN
+(`docs/kubernetes.md`, certificate prerequisite).
 
 ### Migration ownership
 

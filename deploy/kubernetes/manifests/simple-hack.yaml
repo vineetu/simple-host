@@ -79,6 +79,7 @@ data:
   EVENTS: hosted
   PERSON_HOSTS: canonical
   SITE_HOSTS: canonical
+  TEAM_SITE_FLAT_HOSTS: "false"
   WRITE_AUTH_MODE: "on"
   # Where it listens and keeps files. /data is the persistent volume.
   PORT: "8090"
@@ -171,7 +172,7 @@ spec:
         app.kubernetes.io/instance: simple-hack
       annotations:
         # A changed setting restarts the pod; the server reads them at start.
-        checksum/config: 270b6e41a67095e15ba556bcd1666d705b1ec6ccfcebda22b76825794f00f5fa
+        checksum/config: 13e063df7e984b575e0237adbe9b71ebb87edb0321265aa14deeb1e17390fe79
     spec:
       automountServiceAccountToken: false
       securityContext:

@@ -45,16 +45,43 @@ func (h *SiteHandler) hackNoPersonalSites(w http.ResponseWriter, user *model.Use
 // never from a page view, so drafts and deleted events spend no budget. Team
 // sites are offered and deployed only then, so a
 // team's work never lands anywhere but its own origin.
+//
+// Under TEAM_SITE_FLAT_HOSTS, team sites live under the instance's own
+// *.<base> wildcard instead of a per-event one, so readiness never waits on
+// a per-event marker — RequestSiteCertContext (sitehost.go) never requests
+// one either.
 func (h *SiteHandler) teamSitesReady(eventSlug string) bool {
-	return eventSlug != "" && h.siteHostsOn() && h.siteCertReady(eventSlug)
+	if eventSlug == "" || !h.siteHostsOn() {
+		return false
+	}
+	if h.teamSiteFlatHostsOn() {
+		return true
+	}
+	return h.siteCertReady(eventSlug)
 }
 
 // TeamSitesReady is teamSitesReady for the events API.
 func (h *SiteHandler) TeamSitesReady(eventSlug string) bool { return h.teamSitesReady(eventSlug) }
 
-// TeamSiteURL is the address of a team's site.
+// teamSiteFlatHostsOn: TEAM_SITE_FLAT_HOSTS is on, for an instance running
+// hosted events — the only edition team sites exist in. Off on every other
+// edition, and off by default on simple-hack.app itself, so the two-level
+// form stays byte-for-byte unchanged unless an operator turns this on.
+func (h *SiteHandler) teamSiteFlatHostsOn() bool {
+	return h.teamSiteFlatHosts && h.ed.Routes().HostedEvents
+}
+
+// SetTeamSiteFlatHosts sets TEAM_SITE_FLAT_HOSTS.
+func (h *SiteHandler) SetTeamSiteFlatHosts(on bool) { h.teamSiteFlatHosts = on }
+
+// TeamSiteURL is the address of a team's site: sites.TeamSiteHost is the one
+// function that knows the format (the two-level <team>.<event>.<base>, or
+// the flat <team>--<event>.<base> single label under
+// TEAM_SITE_FLAT_HOSTS) — hackhttp's own fallback (hack.go, used only when
+// no SiteHandler is wired) calls the same function, so the format never
+// scatters across the two packages.
 func (h *SiteHandler) TeamSiteURL(eventSlug, teamSlug string) string {
-	return "https://" + h.siteHostFor(eventSlug, teamSlug) + "/"
+	return "https://" + sites.TeamSiteHost(eventSlug, teamSlug, h.handoutBase(), h.teamSiteFlatHostsOn()) + "/"
 }
 
 // PublishEventWebsite sends an organiser's upload through the same validated,
@@ -254,6 +281,8 @@ func (h *SiteHandler) hackSweep(ctx context.Context) {
 // hackTLSHostExists bounds on-demand certificates to actual platform names.
 // A real archived or taken-down host still needs HTTPS to show its page or
 // notice; arbitrary names and deleted projects must not consume certificates.
+// Used by the Caddy on-demand TLS gate (domains.go tlsAsk); a Kubernetes
+// install with a static *.<base> wildcard never calls this.
 func (h *SiteHandler) hackTLSHostExists(ctx context.Context, host string) bool {
 	if host == strings.ToLower(h.contentHost) {
 		return true
@@ -265,24 +294,41 @@ func (h *SiteHandler) hackTLSHostExists(ctx context.Context, host string) bool {
 		if !strings.HasSuffix(host, "."+base) {
 			continue
 		}
-		labels := strings.Split(strings.TrimSuffix(host, "."+base), ".")
+		label := strings.TrimSuffix(host, "."+base)
+		if h.teamSiteFlatHostsOn() {
+			if team, event, ok := sites.TeamSiteHostLabels(label); ok {
+				return h.hackTeamSiteExists(ctx, event, team)
+			}
+		}
+		labels := strings.Split(label, ".")
 		if len(labels) < 1 || len(labels) > 2 {
 			return false
 		}
-		ev, err := h.hackSiteSvc().SiteEventBySlug(ctx, labels[len(labels)-1])
-		if err != nil {
+		if _, err := h.hackSiteSvc().SiteEventBySlug(ctx, labels[len(labels)-1]); err != nil {
 			return false
 		}
 		if len(labels) == 1 {
 			return true
 		}
-		if _, err := h.hackSiteSvc().TeamBySlug(ctx, ev.ID, labels[0]); err != nil {
-			return false
-		}
-		site, err := h.sitesSvc().GetSiteByUser(ctx, ev.AccountID, labels[0])
-		return err == nil && site.ActiveVersion > 0
+		return h.hackTeamSiteExists(ctx, labels[1], labels[0])
 	}
 	return false
+}
+
+// hackTeamSiteExists reports whether team is a real team of event with a
+// live site: the on-demand TLS allowlist's team-site check, shared by the
+// two-level (<team>.<event>.<base>) and flat (<team>--<event>.<base>) host
+// shapes.
+func (h *SiteHandler) hackTeamSiteExists(ctx context.Context, eventSlug, teamSlug string) bool {
+	ev, err := h.hackSiteSvc().SiteEventBySlug(ctx, eventSlug)
+	if err != nil {
+		return false
+	}
+	if _, err := h.hackSiteSvc().TeamBySlug(ctx, ev.ID, teamSlug); err != nil {
+		return false
+	}
+	site, err := h.sitesSvc().GetSiteByUser(ctx, ev.AccountID, teamSlug)
+	return err == nil && site.ActiveVersion > 0
 }
 
 func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request, member model.User, teamID string) {
@@ -314,8 +360,11 @@ func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request,
 }
 
 // TeamSitesFrameBase is the domain team sites are served under
-// (<team>.<event>.<base>), for the judge route's frame-src; "" when sites
-// have no hosts of their own, so nothing is ever framed.
+// (<team>.<event>.<base>, or the flat <team>--<event>.<base> single label
+// under TEAM_SITE_FLAT_HOSTS — either way one extra label under base, which
+// the judge route's "https://*.<base>" frame-src already matches), for the
+// judge route's frame-src; "" when sites have no hosts of their own, so
+// nothing is ever framed.
 func (h *SiteHandler) TeamSitesFrameBase() string {
 	if !h.siteHostsOn() {
 		return ""

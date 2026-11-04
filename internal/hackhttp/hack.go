@@ -19,6 +19,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/httpx"
@@ -318,12 +319,18 @@ func (h *HackHandler) teamSitesReady(eventSlug string) bool {
 	return h.sites != nil && h.sites.TeamSitesReady(eventSlug)
 }
 
-// teamSiteURL is https://<team>.<event>.<SITE_DOMAIN>/.
+// teamSiteURL is https://<team>.<event>.<SITE_DOMAIN>/, or the flat
+// <team>--<event>.<SITE_DOMAIN> form under TEAM_SITE_FLAT_HOSTS — h.sites
+// (the SiteHandler) owns that config, through the one function
+// (appsites.TeamSiteHost) both packages call, so the format never scatters.
 func (h *HackHandler) teamSiteURL(eventSlug, teamSlug string) string {
 	if h.sites != nil {
 		return h.sites.TeamSiteURL(eventSlug, teamSlug)
 	}
-	return "https://" + teamSlug + "." + eventSlug + "." + h.siteDomain + "/"
+	// No SiteHandler wired (incomplete test/deployment wiring): there is no
+	// TEAM_SITE_FLAT_HOSTS config to read here, so this always falls back to
+	// the two-level form.
+	return "https://" + appsites.TeamSiteHost(eventSlug, teamSlug, h.siteDomain, false) + "/"
 }
 
 // These hooks annotate the outer paper collector using resolutions the
@@ -753,10 +760,14 @@ func (h *HackHandler) checkName(w http.ResponseWriter, r *http.Request) {
 
 var errNameCheckUnavailable = errors.New("name check unavailable")
 
-// slugVerdict is the create/check result for an event slug. Empty code means free.
+// slugVerdict is the create/check result for an event slug. Empty code means
+// free. "--" is refused outright (not just the usual shape check): an event
+// slug is also a DNS label in a hosted event's own and team addresses, and
+// TEAM_SITE_FLAT_HOSTS' <team>--<event> single label needs "--" to appear
+// nowhere else in either slug to stay unambiguous.
 func (h *HackHandler) slugVerdict(ctx context.Context, slug string) (code, errMsg string, err error) {
-	if utf8.RuneCountInString(slug) < 3 || !sites.VisitorHandle.MatchString(slug) || !sites.HandleIsLabel(slug) {
-		return "invalid_name", "use 3 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen", nil
+	if utf8.RuneCountInString(slug) < 3 || !sites.VisitorHandle.MatchString(slug) || !sites.HandleIsLabel(slug) || strings.Contains(slug, "--") {
+		return "invalid_name", "use 3 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen, and never two hyphens in a row", nil
 	}
 	if eventNameReserved(slug) {
 		return "name_reserved", "that name is reserved", nil

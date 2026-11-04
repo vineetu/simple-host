@@ -9,12 +9,20 @@ Before anyone can open it:
 
   1. DNS: {{ .Values.host }} and *.{{ .Values.host }} to the load balancer
      in front of the ingress (that one wildcard resolves team sites too).
+{{- if .Values.teamSites.flatHosts }}
+  2. TLS at the load balancer for {{ .Values.host }} and *.{{ .Values.host }}
+     (teamSites.flatHosts covers every event's team sites with that one
+     wildcard — no per-event certificate or ingress rule needed), and
+     X-Forwarded-Proto: https on what it forwards.
+{{- else }}
   2. TLS at the load balancer for {{ .Values.host }}, *.{{ .Values.host }}
      and each event's *.<event>.{{ .Values.host }} (team sites), and
      X-Forwarded-Proto: https on what it forwards.
 {{- if and (not .Values.ingress.events) (not .Values.ingress.catchAll) }}
      Team sites are not routed yet: list the event's slug under
-     ingress.events once it is created, and helm upgrade.
+     ingress.events once it is created, and helm upgrade (or set
+     teamSites.flatHosts instead of listing events one by one).
+{{- end }}
 {{- end }}
 {{- if include "hack.oidcOn" . }}
   3. The identity provider's web client allows this redirect URI:

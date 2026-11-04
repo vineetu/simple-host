@@ -294,7 +294,12 @@ func hackGalleryCards(eventSlug string, cards []model.GalleryCard, teamSiteURL f
 }
 
 // hackGalleryLink is the team site URL when both slugs are single labels and
-// the builder returned an http(s) URL whose host starts with those labels.
+// the builder returned an http(s) URL whose host starts with those labels —
+// either the two-level <team>.<event>. or, under TEAM_SITE_FLAT_HOSTS, the
+// flat <team>--<event>. single label. Accepting either shape here, rather
+// than asking the builder which mode it is in, keeps this a pure sanity
+// check: whatever teamSiteURL built, it must still visibly be this team's
+// site before the gallery links to it.
 func hackGalleryLink(teamSiteURL func(string, string) string, eventSlug, teamSlug string) string {
 	if teamSiteURL == nil || !hackEventLabel(eventSlug) || !hackGallerySlug(teamSlug) {
 		return ""
@@ -304,7 +309,8 @@ func hackGalleryLink(teamSiteURL func(string, string) string, eventSlug, teamSlu
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
 		return ""
 	}
-	if !strings.HasPrefix(strings.ToLower(u.Hostname()), teamSlug+"."+eventSlug+".") {
+	host := strings.ToLower(u.Hostname())
+	if !strings.HasPrefix(host, teamSlug+"."+eventSlug+".") && !strings.HasPrefix(host, teamSlug+"--"+eventSlug+".") {
 		return ""
 	}
 	return raw

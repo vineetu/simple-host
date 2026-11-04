@@ -69,6 +69,17 @@ if grep -qE 'cpu:' <<<"$(sed -n '/limits:/,/requests:/p' <<<"$rendered")"; then 
 path=$(helm template hack "$chart" "${base[@]}" 2>&1)
 if grep -q 'spring-hack' <<<"$path"; then bad "no event wildcard by default"; else ok "no event wildcard by default"; fi
 if grep -q 'kind: NetworkPolicy' <<<"$path"; then bad "network policy off by default"; else ok "network policy off by default"; fi
+if grep -q 'TEAM_SITE_FLAT_HOSTS: "false"' <<<"$path"; then ok "flat hosts off by default"; else bad "flat hosts off by default"; fi
+
+echo "== teamSites.flatHosts =="
+flat=$(helm template hack "$chart" --namespace hack "${base[@]}" --set 'ingress.events={spring-hack}' --set ingress.catchAll=true --set teamSites.flatHosts=true 2>&1) || { bad "flat render"; echo "$flat" | tail -3; }
+hasFlat() { if grep -qE -- "$2" <<<"$flat"; then ok "$1"; else bad "$1"; fi; }
+hasFlat "TEAM_SITE_FLAT_HOSTS on"       'TEAM_SITE_FLAT_HOSTS: "true"'
+hasFlat "ingress apex still present"   'host: "hack.example.com"'
+hasFlat "ingress wildcard still present" 'host: "\*.hack.example.com"'
+hasFlat "TLS still covers the wildcard"  '\*.hack.example.com'
+if grep -q 'spring-hack' <<<"$flat"; then bad "no per-event ingress rule or SAN under flatHosts, even with ingress.events and catchAll set"; else ok "no per-event ingress rule or SAN under flatHosts"; fi
+if grep -q '^    - http:$' <<<"$flat"; then bad "no catch-all rule under flatHosts"; else ok "no catch-all rule under flatHosts"; fi
 
 ext=$(helm template hack "$chart" --set host=hack.example.com --set secrets.existingSecret=mine --set database.existingSecret=pg --set database.existingSecretKey=uri 2>&1)
 if grep -q 'kind: Secret' <<<"$ext"; then bad "existingSecret makes no Secret"; else ok "existingSecret makes no Secret"; fi

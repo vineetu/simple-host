@@ -14,6 +14,14 @@ at `https://<host>/` and create events, each event's page is
 visitor sessions). TLS ends at your load balancer; the pod speaks plain HTTP
 on 8090.
 
+Running many events at once and hitting your load balancer's or
+certificate's per-name limits (prerequisite 3 below)? Set
+`teamSites.flatHosts: true` and a team's site becomes
+`https://<team>--<event>.<host>/` instead — one DNS label, so the same
+`*.<host>` wildcard DNS, certificate and Ingress rule you already have for
+event pages covers every team site too, with no per-event certificate SAN
+or `helm upgrade`. Off by default, matching simple-hack.app.
+
 ## Prerequisites
 
 Have these before `helm install`; the chart cannot make them.
@@ -63,6 +71,15 @@ Have these before `helm install`; the chart cannot make them.
    slug under `ingress.events`. An event created later is one line and a
    `helm upgrade` away (or `ingress.catchAll: true` when the controller is
    this app's alone).
+
+   **`teamSites.flatHosts: true` skips all of that.** A team's site becomes
+   the single label `<team>--<event>.hack.example.com` instead of
+   `<team>.<event>.hack.example.com`, which the `hack.example.com` and
+   `*.hack.example.com` certificate and Ingress rule from the start of this
+   step already cover — no per-event SAN, no `ingress.events` entry, no
+   `helm upgrade` per event. Running against AWS ALB specifically: this is
+   the escape hatch for its per-certificate SAN and per-listener rule
+   limits, which a growing roster of concurrent events runs into otherwise.
 
 4. **An OIDC client at your identity provider** (Entra ID, Okta, Google
    Workspace, Keycloak): a confidential web client, authorization-code
@@ -219,8 +236,8 @@ site passcode and notification secret, and the data is unreadable without it.
 |---|---|
 | The wildcard DNS record | `https://hack.example.com/` works; every event page and team site is unreachable. The platform's home page still hands out those addresses. |
 | A certificate that covers `*.hack.example.com` | Event pages warn or fail in the browser. |
-| The event's `*.<event>.hack.example.com` SAN in that certificate | Team sites warn or fail in the browser; the rest of the event (sign-up, teams, judging) works. |
-| The event's slug under `ingress.events` (or `ingress.catchAll`) | The ingress controller answers `https://<team>.<event>.hack.example.com/` with its default backend (404). Add the slug and `helm upgrade`. |
+| The event's `*.<event>.hack.example.com` SAN in that certificate (`teamSites.flatHosts: false`, the default) | Team sites warn or fail in the browser; the rest of the event (sign-up, teams, judging) works. |
+| The event's slug under `ingress.events` (or `ingress.catchAll`), with `teamSites.flatHosts: false` | The ingress controller answers `https://<team>.<event>.hack.example.com/` with its default backend (404). Add the slug and `helm upgrade`, or turn `teamSites.flatHosts` on instead. |
 | Team sites at `<event>.hack.example.com/<team>/` | Not served, by design: each team is its own origin so no team's page can read another's visitor sessions or storage. |
 | `X-Forwarded-Proto: https` from the proxy | Sign-in works; cookies are set without `Secure`. |
 | A trustworthy `X-Forwarded-For` (or `trustedProxyCIDRs` covering the proxy) | Everyone shares one rate limit, and `SIGNUP_BLOCKED_COUNTRIES` sees the proxy's address. |

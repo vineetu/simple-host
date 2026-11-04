@@ -1978,12 +1978,19 @@ pod of the base image (`ghcr.io/vineetu/simple-host:hack-<release>`, no Caddy, n
 an emptyDir at `/tmp`, a Secret (generated `ADMIN_API_KEY`, `PASSCODE_ENC_KEY`,
 `ANALYTICS_SALT` kept via `lookup`; `DB_DSN`, `OIDC_CLIENT_SECRET`, `RESEND_API_KEY`; or
 `secrets.existingSecret`), a ConfigMap (`EVENTS=hosted`, `PERSON_HOSTS=canonical`,
-`SITE_HOSTS=canonical`, `MIGRATE_ON_START=true`, `TRUSTED_PROXY_CIDRS`), a Service, an
+`SITE_HOSTS=canonical`, `MIGRATE_ON_START=true`, `TRUSTED_PROXY_CIDRS`,
+`TEAM_SITE_FLAT_HOSTS`), a Service, an
 Ingress for `<host>`, `*.<host>` and `*.<event>.<host>` per slug in `ingress.events` (or
 `ingress.catchAll`), an optional NetworkPolicy, probes on `/healthz` and `/readyz`, the
 restricted pod security standard. Team sites stay their own origin
 (`https://<team>.<event>.<host>/`; the event host never serves a team by path, as
-`TestHackM2TeamSitesEndToEnd` asserts). `deploy/kubernetes/manifests/simple-hack.yaml` is
+`TestHackM2TeamSitesEndToEnd` asserts). **`teamSites.flatHosts`** (off by default, chart value
+`teamSites.flatHosts`/env `TEAM_SITE_FLAT_HOSTS`) serves a team's site at the single label
+`https://<team>--<event>.<host>/` instead, so the chart's one `*.<host>` Ingress rule and
+certificate cover every event and team: no per-event `ingress.events` entry or certificate
+SAN, which otherwise runs into a load balancer's or certificate's per-name limits (AWS ALB's
+listener-rule and SAN caps) as events accumulate. Hosted simple-hack.app keeps it off; with it
+off, behaviour is byte-for-byte unchanged. `deploy/kubernetes/manifests/simple-hack.yaml` is
 the rendered bundle (`render.sh`, checked current by `test-chart.sh`), `docs/kubernetes.md` the
 runbook, `deploy/kubernetes/tests/kind-check.sh` + `kind-check.mjs` the release check in a
 throwaway kind cluster (empty database built on start, issued-key sign-in, event, team, published

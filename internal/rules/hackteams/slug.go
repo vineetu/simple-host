@@ -5,7 +5,12 @@ import (
 	"strings"
 )
 
-// DeriveTeamSlug converts a team name to a slug base.
+// DeriveTeamSlug converts a team name to a slug base. It collapses every run
+// of non-alphanumeric characters to a single "-" (the dash guard below), so
+// a derived slug can never contain "--" — the separator
+// TEAM_SITE_FLAT_HOSTS' <team>--<event> single label relies on being
+// unambiguous. TeamSlugCandidate's own "-<n>" suffix preserves that: its
+// root is hyphen-trimmed first, so the suffix never follows another hyphen.
 func DeriveTeamSlug(name string) string {
 	s := strings.ToLower(name)
 	var b strings.Builder

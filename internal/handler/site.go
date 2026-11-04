@@ -146,6 +146,11 @@ type SiteHandler struct {
 	// siteHosts is SITE_HOSTS and siteCertDir SITE_CERT_DIR (sitehost.go).
 	siteHosts   siteHostMode
 	siteCertDir string
+	// teamSiteFlatHosts is TEAM_SITE_FLAT_HOSTS (hack_sites.go): a hosted
+	// event's team site at <team>--<event>.<base> instead of
+	// <team>.<event>.<base>. Off by default; only read through
+	// teamSiteFlatHostsOn, which also requires the hosted-events edition.
+	teamSiteFlatHosts bool
 	// siteBase is SITE_BASE_DOMAIN, baseMove SITE_BASE_MOVE and baseCertDir
 	// SITE_BASE_CERT_DIR (sitebase.go).
 	siteBase    string

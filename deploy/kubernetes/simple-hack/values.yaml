@@ -4,9 +4,11 @@
 
 # The platform's own hostname (set this), for example hack.example.com.
 # Organisers open https://<host>/, an event's page is https://<event>.<host>/,
-# and a team's site is https://<team>.<event>.<host>/ (see ingress.events).
-# DNS for <host> and *.<host> must point at the load balancer in front of
-# the ingress; that one wildcard resolves both levels.
+# and a team's site is https://<team>.<event>.<host>/ (see ingress.events),
+# or, with teamSites.flatHosts true, https://<team>--<event>.<host>/ (see
+# teamSites below — one wildcard then covers every event and team). DNS for
+# <host> and *.<host> must point at the load balancer in front of the
+# ingress; that one wildcard resolves every level either way.
 host: ""
 
 # The image. The chart needs a Simple Hack release of 0.8.14 or later (the
@@ -76,6 +78,19 @@ signIn:
 # label only, so each event needs: its slug under ingress.events (which adds
 # a *.<event>.<host> rule), and that name among the certificate's SANs at
 # whatever terminates TLS. One hackathon is one line and one SAN.
+#
+# flatHosts trades that per-event line for a one-time, one-label change: a
+# team's site becomes https://<team>--<event>.<host>/ instead, one DNS label
+# under <host>, so *.<host>'s existing wildcard DNS, certificate and Ingress
+# rule already cover it — no ingress.events entry, no extra certificate SAN
+# and no Helm upgrade per event. The trade-off: a flat address reads less
+# clearly as "<team> at <event>" than the two-level form, and this only
+# matters once an installation runs enough concurrent events to hit a load
+# balancer's or certificate's per-name SAN/rule limit (the reason this
+# exists: AWS ALB listener-rule and certificate-SAN limits). Off by default,
+# matching simple-hack.app.
+teamSites:
+  flatHosts: false
 
 # The networks the load balancer and the ingress controller connect from.
 # X-Forwarded-For is believed only from these, read right to left past every
@@ -132,12 +147,15 @@ ingress:
   tlsSecretName: ""
   # The events' slugs: each adds a rule (and a TLS host) for *.<event>.<host>,
   # where that event's team sites live. The slug is what the organiser types
-  # when creating the event (https://<event>.<host>/).
+  # when creating the event (https://<event>.<host>/). Not needed, and
+  # ignored, when teamSites.flatHosts is true: *.<host> already covers
+  # <team>--<event>.<host>.
   events: []
   # Instead of listing events: a rule with no host, so every
   # <team>.<event>.<host> reaches the pod. Only when this ingress controller
   # is dedicated to Simple Hack, or orders host rules before host-less ones
-  # (ingress-nginx does). TLS still needs the names.
+  # (ingress-nginx does). TLS still needs the names. Not needed, and ignored,
+  # when teamSites.flatHosts is true.
   catchAll: false
   # Any other hostnames to route here, verbatim.
   extraHosts: []
