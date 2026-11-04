@@ -17,8 +17,8 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 	return sites.New(h.database, h.disk, h.previewAccounts, h.previewTTL, sites.Deps{
 		ContentHost: h.contentHost, SiteDomain: h.siteDomain, PersonalSitesEnabled: h.ed.Identity().PersonalSites,
 		LockSite: h.lockSite,
-		ResponseState: func(site db.Site, version int, preview bool) any {
-			return h.captureSiteResponseState(site, version, preview, true)
+		ResponseState: func(site db.Site, version int, preview, footprint bool) any {
+			return h.captureSiteResponseState(site, version, preview, footprint)
 		},
 		PhotoLimits: func(ctx context.Context, user *db.User) (int64, int64) {
 			limit, override := h.siteLimitFor(ctx, h.database, user)
