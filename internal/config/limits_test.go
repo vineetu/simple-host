@@ -259,7 +259,7 @@ func TestSpanWords(t *testing.T) {
 	}
 }
 
-// Every knob is documented, with its real default, in docs/configuration.md,
+// Every knob is documented, with its real default, in its generated area page,
 // listed in .env.example, passed through by compose.yaml, and kept on a
 // re-run by the installer.
 func TestEveryKnobIsDocumented(t *testing.T) {
@@ -270,18 +270,40 @@ func TestEveryKnobIsDocumented(t *testing.T) {
 		}
 		return string(b)
 	}
-	docs, envEx, compose, install := read("docs/configuration.md"), read(".env.example"), read("compose.yaml"), read("deploy/install/install.sh")
+	envEx, compose, install := read(".env.example"), read("compose.yaml"), read("deploy/install/install.sh")
+	pages := make(map[string]string)
+	for _, group := range SettingGroups {
+		pages[group.ID] = read("docs/advanced/" + group.Page)
+	}
+	settings := make(map[string]Setting)
+	for _, s := range Settings() {
+		settings[s.Name] = s
+	}
 	def := DefaultLimits()
 	for _, k := range Knobs() {
 		v := k.Value(&def)
-		if !strings.Contains(docs, "| `"+k.Env+"` | "+v+" |") {
-			t.Errorf("docs/configuration.md: no row for %s with default %s", k.Env, v)
+		s := settings[k.Env]
+		docs := pages[s.Group]
+		defaultCell := "`" + v + "`"
+		if v == "" {
+			defaultCell = "none"
+		}
+		prefix := "| `" + k.Env + "` | " + defaultCell + " |"
+		var row string
+		for _, line := range strings.Split(docs, "\n") {
+			if strings.HasPrefix(line, prefix) {
+				row = line
+				break
+			}
+		}
+		if row == "" {
+			t.Errorf("docs/advanced (group %s): no row for %s with default %s", s.Group, k.Env, v)
 		}
 		if k.Sensitive {
 			d, _ := parseRate(k.Env, v)
 			loosest := Rate{d.Burst * secLoosen, d.Every / secLoosen}
-			if !strings.Contains(docs, "| `"+k.Env+"` | "+v+" | **"+loosest.String()+"** (security-sensitive) |") {
-				t.Errorf("docs/configuration.md: %s is not marked security-sensitive with loosest %s", k.Env, loosest)
+			if !strings.Contains(row, "loosest `"+loosest.String()+"`") || !strings.Contains(row, "**Security-sensitive.**") {
+				t.Errorf("docs/advanced: %s is not marked security-sensitive with loosest %s", k.Env, loosest)
 			}
 		}
 		if !strings.Contains(envEx, "#"+k.Env+"="+v+"\n") {

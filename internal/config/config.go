@@ -272,7 +272,7 @@ type Config struct {
 	LegacyStorageCutoff time.Time
 
 	// Limits is every operational time and limit (limits.go,
-	// docs/configuration.md). main installs it with SetActive.
+	// docs/advanced/). main installs it with SetActive.
 	Limits Limits
 }
 

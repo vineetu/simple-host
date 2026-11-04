@@ -130,3 +130,47 @@ run `simple-host site-summary-backfill`. For a manual Compose checkout, run
 `docker compose run --rm --no-deps -T app site-summary-backfill` from its directory.
 The old pinned releases do not contain this command; run it after installing
 the new release. New deploys populate summaries automatically.
+
+## Add photos
+
+`PHOTO_MAX_BYTES` sets the maximum bytes per prepared photo (default 1,000,000).
+`PHOTO_MAX_DIMENSION` sets the longest allowed side in pixels (default 2048).
+`PHOTO_MAX_CONCURRENT` bounds photo saves across the process (default 3).
+`PHOTO_BODY_TIMEOUT_SECONDS` sets the body-read deadline at both the owner and
+photo-token entry points (default 60 seconds; positive integers). Unsupported
+response writers continue without a deadline.
+Both signed-in and token saves acquire a slot before reading the request body;
+full capacity returns 429 "Busy, try again in a moment" and `Retry-After: 2`
+without queueing. A slot is held through commit. Each request still allows
+30 photos of 1,000,000 bytes plus bounded multipart overhead by default.
+The Add photos page prepares small WebP or JPEG copies on the device. The server
+validates them without decoding pixels or resizing. Each request takes up to 30
+photos; the normal site upload, retained-version, account, and deploy rate limits
+also apply. Available on hosted and small-box Simple Host; not yet on Simple Hack.
+
+## Upload and import behavior
+
+`MAX_SITES_PER_ACCOUNT` applies to non-admin accounts; exceeding it returns
+403 `site_quota_reached`. Malformed `MAX_SITES_OVERRIDES` or
+`MAX_ARCHIVE_MB_OVERRIDES` entries stop startup.
+
+`MAX_ARCHIVE_MB` caps the upload and its uncompressed live copy, excluding kept
+versions. Archive overrides apply on every deploy path, including admin deploys.
+Existing larger sites can still be rolled back to. `/v1/me` and
+`GET /v1/admin/users` report the account cap as `max_site_mb`; exceeding it
+returns 413 `site_too_large`. JSON and connector deploys carry base64, hence the
+proxy body allowance of 4/3 of the largest override noted in the table.
+
+The upload pipeline and disk are sized for at most 50,000 files. When
+`MAX_ARCHIVE_MB` is set, the effective file cap is the smaller of
+`MAX_FILES_PER_SITE` and one file per 4 KB of that budget.
+
+`create_import_link` creates a link spent by one import. The proxy must accept
+`IMPORT_MAX_UPLOAD_MB` request bodies on `/v1/imports/`. Up to five imports wait
+behind the concurrent conversions; further requests ask the person to try again
+in a few minutes. Downloaded import files include photos missing from the media
+file and theme stylesheets. Export links are reusable and may hold private
+collections, so their lifetime is capped at an hour.
+
+The longest site passcode is 128 characters, independently of the configured
+minimum.

@@ -47,3 +47,9 @@ IDLE_CLEANUP=on
 IDLE_AFTER_DAYS=60
 IDLE_GRACE_DAYS=14
 ```
+
+## Idle activity and names
+
+A deleted site's name stays held until its purge date. Idle activity means
+visits, deploys or saves. The family-site exemption applies when the site's main
+address is under a verified address family of its own account.

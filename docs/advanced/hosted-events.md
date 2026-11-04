@@ -27,3 +27,9 @@ keep one account from flooding the server, and every one is an environment setti
 | `EVENTS` | `off` | `off` / `hosted` | hosted runs this server as a hosted hackathon platform (simple-hack.app): anyone signed in creates an event with its own page at <event>.<SITE_DOMAIN>, and accounts own no personal sites. |
 | `EVENT_NAME_PEER` | none | text | The loopback address (http://127.0.0.1:<port>) of the other server handing out names under the same zone; each asks the other before taking a name. Used with EVENTS=hosted, or with EVENT_DNS_TOKEN (self-host claims); ignored otherwise. |
 <!-- /settings -->
+
+## Claim and application behavior
+
+Re-claiming an event hostname extends its lifetime. The 60-day maximum prevents
+a forgotten claim pointing at a recycled cloud address for months.
+The pending-event application cap returns 409 `event_applications_full`.

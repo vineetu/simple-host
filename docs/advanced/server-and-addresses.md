@@ -160,3 +160,27 @@ No wildcard DNS or extra certificate is required for path-model home selection.
 Person-host installations keep the hosted behavior when configured. A domain
 for a whole personal space has not shipped; existing per-site domains remain.
 Simple Hack accounts own no personal sites, so this feature does not apply.
+
+## MCP Apps in installed copies
+
+The original four `MCP_APP_*` flags are off by default in every package. Set `on` or
+`accounts:alice,bob` in the installation's `.env` or Coolify environment settings,
+then recreate the app container. Host and Hack installer reruns preserve these
+values. Dashboard also needs My sites. Forwarding flags does not enable screens
+for Hack callers; its product gates still apply. Leave site preview off unless
+both the client and the site permit framing. Configured instance hosts determine
+its frame origins; this setting does not change site framing headers.
+
+The Passcode screen is a separate opt-in: pass `MCP_APP_PASSCODE` to the server
+process as `on` or `accounts:alice,bob`. It defaults off and is personal Simple Host
+only. `MCP_PASSCODE_SCREEN_TTL_SECONDS` sets its single-use session lifetime (600
+seconds by default). Installer forwarding for these two settings is not included.
+
+`MCP_APP_MY_SITES` and `MCP_APP_DASHBOARD` are read from the server process
+environment on each request. Both default to `off`; `on` enables all eligible
+connections, and `accounts:alice,bob` limits them to authenticated handles.
+Dashboard requires My sites. These flags apply to Simple Host and Simple Hack,
+including company sign-in. For hosted Hack, set them in simple-hack's own service
+environment. The standalone Hack Compose file forwards them from its `.env`.
+The Hack screen uses existing team and organiser permissions; it offers no photo
+picker or preview even if those separate Host flags are enabled.
