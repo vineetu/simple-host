@@ -23,8 +23,14 @@ func LegacyInvalidParam(params []json.RawMessage) int {
 	return -1
 }
 
+// LegacyQueryRows contains the columns and rows of a legacy query.
+type LegacyQueryRows struct {
+	Columns []string
+	Rows    [][]any
+}
+
 // LegacyQueryResult reads and sizes a prepared legacy SQLite query result.
-func LegacyQueryResult(stmt *sqlite3.Stmt, limit int) (map[string]any, error) {
+func LegacyQueryResult(stmt *sqlite3.Stmt, limit int) (LegacyQueryRows, error) {
 	cols := make([]string, stmt.ColumnCount())
 	for i := range cols {
 		cols[i] = stmt.ColumnName(i)
@@ -34,7 +40,7 @@ func LegacyQueryResult(stmt *sqlite3.Stmt, limit int) (map[string]any, error) {
 	resultBytes := len(encodedCols) + 64
 	for stmt.Step() {
 		if len(rows) >= 500 {
-			return nil, ErrLegacyQueryRows
+			return LegacyQueryRows{}, ErrLegacyQueryRows
 		}
 		row := make([]any, len(cols))
 		for i := range cols {
@@ -42,18 +48,18 @@ func LegacyQueryResult(stmt *sqlite3.Stmt, limit int) (map[string]any, error) {
 		}
 		encoded, err := json.Marshal(row)
 		if err != nil || resultBytes+len(encoded) > limit {
-			return nil, ErrLegacyQuerySize
+			return LegacyQueryRows{}, ErrLegacyQuerySize
 		}
 		resultBytes += len(encoded)
 		rows = append(rows, row)
 	}
 	if err := stmt.Err(); err != nil {
-		return nil, err
+		return LegacyQueryRows{}, err
 	}
 	result := map[string]any{"columns": cols, "rows": rows}
 	encoded, err := json.Marshal(result)
 	if err != nil || len(encoded) > limit {
-		return nil, ErrLegacyQuerySize
+		return LegacyQueryRows{}, ErrLegacyQuerySize
 	}
-	return result, nil
+	return LegacyQueryRows{Columns: cols, Rows: rows}, nil
 }

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"errors"
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
 	"io"
 	"net/http"
@@ -79,41 +78,31 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 		call.Resource.Tables[name] = rules.TableRule{Matrix: rules.AccessMatrix(rule.Matrix), PresetBase: rule.PresetBase}
 	}
 	svc := h.storageRequestSvc(r, c)
-	auth := svc.AuthorizeLegacySQL(r.Context(), call, mode)
-	if auth.Error != nil {
-		if len(auth.Error.Refusals) != 0 {
-			writeStorageRefusals(w, auth.Error.Refusals)
-		} else {
-			writeLegacySQLError(w, auth.Error)
-		}
+	result, err := svc.LegacySQL(r.Context(), appstorage.LegacySQLInput{Call: call, Mode: mode, ReadBody: func() ([]byte, error) { return io.ReadAll(io.LimitReader(r.Body, (64<<10)+1)) }, ResultLimit: storageResultLimitBytes()})
+	if len(result.Refusals) != 0 {
+		writeStorageRefusals(w, result.Refusals)
 	}
-	if !auth.Allowed() {
-		return
-	}
-	var req struct {
-		SQL    string            `json:"sql"`
-		Params []json.RawMessage `json:"params"`
-	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
-	if err := dec.Decode(&req); err != nil || dec.Decode(new(any)) != io.EOF {
-		var tooBig *http.MaxBytesError
-		if errors.As(err, &tooBig) {
-			storageError(w, 400, "sql_request", "the request body is over 64 KB: send a shorter statement, or fewer or smaller params")
-			return
-		}
-		storageError(w, 400, "sql_request", `the body must be one JSON object: {"sql": "one statement", "params": [values for each ?]}`)
-		return
-	}
-	if e := appstorage.ValidateLegacySQL(req.SQL, req.Params); e != nil {
-		storageError(w, 400, e.Code, e.Message)
-		return
-	}
-	result, err := svc.LegacySQL(r.Context(), appstorage.LegacySQLInput{Authorization: auth, SQL: req.SQL, Params: req.Params, ResultLimit: storageResultLimitBytes()})
 	if err != nil {
-		writeLegacySQLError(w, err.(*appstorage.Error))
+		e := err.(*appstorage.Error)
+		if len(e.Refusals) != 0 {
+			writeStorageRefusals(w, e.Refusals)
+		} else {
+			writeLegacySQLError(w, e)
+		}
 		return
 	}
-	writeJSON(w, 200, result)
+	var body map[string]any
+	if result.Query {
+		body = map[string]any{"columns": result.Columns, "rows": result.Rows}
+	} else if result.Schema {
+		body = map[string]any{"changes": result.Changes}
+		if len(result.Notes) > 0 {
+			body["notes"] = result.Notes
+		}
+	} else {
+		body = map[string]any{"changes": result.Changes, "last_insert_id": result.LastInsertID}
+	}
+	writeJSON(w, 200, body)
 }
 
 func bindStorageParam(stmt *sqlite3.Stmt, i int, raw json.RawMessage) error {

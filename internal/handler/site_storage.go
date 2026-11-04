@@ -266,7 +266,7 @@ func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Reques
 	}
 	entries := make([]map[string]any, 0, len(out))
 	for _, item := range out {
-		entry := storageResourceJSON(storageResourceFromRules(item.Resource))
+		entry := storageResourceJSON(fromRulesResource(item.Resource))
 		if item.HasVisitorHistory {
 			entry["visitor_history"] = item.VisitorHistory
 		}
@@ -331,7 +331,7 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	if result.Created {
 		status = 201
 	}
-	body := storageResourceJSON(storageResourceFromRules(result.Resource))
+	body := storageResourceJSON(fromRulesResource(result.Resource))
 	if len(result.Warnings) > 0 {
 		body["warnings"] = result.Warnings
 	}
@@ -625,20 +625,4 @@ func storageVisitorWrite(r *http.Request) bool {
 func storageBusy(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", "1")
 	storageError(w, 503, "storage_busy", "storage is busy; retry shortly")
-}
-
-// storageResourceFromRules converts service data for the existing wire serializer.
-func storageResourceFromRules(x rules.Resource) storageResource {
-	r := storageResource{Name: x.Name, Kind: x.Kind, Read: x.Read, Write: x.Write, SitePasscode: x.SitePasscode, WriteMode: x.WriteMode, PresetBase: x.PresetBase, ApproveFirst: x.ApproveFirst}
-	if x.Access != nil {
-		m := storageAccessMatrix(*x.Access)
-		r.Access = &m
-	}
-	if x.Tables != nil {
-		r.Tables = make(map[string]storageTableRule, len(x.Tables))
-		for name, rule := range x.Tables {
-			r.Tables[name] = storageTableRule{Matrix: storageAccessMatrix(rule.Matrix), PresetBase: rule.PresetBase}
-		}
-	}
-	return r
 }
