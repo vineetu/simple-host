@@ -11,7 +11,6 @@ import (
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/papermetrics"
-	repo "github.com/vsriram/simple-host/internal/repository/storage"
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
 )
 
@@ -156,8 +155,6 @@ func (x storageResource) hasChecked() bool             { return x.rulesResource(
 func (x storageResource) holds(t string) bool          { return x.rulesResource().Holds(t) }
 func (x storageResource) fingerprint() string          { return x.rulesResource().Fingerprint() }
 
-const storageResourceColumns = repo.ResourceColumns
-
 func fromRulesResource(r rules.Resource) storageResource {
 	x := storageResource{Name: r.Name, Kind: r.Kind, Read: r.Read, Write: r.Write, SitePasscode: r.SitePasscode, WriteMode: r.WriteMode, PresetBase: r.PresetBase, ApproveFirst: r.ApproveFirst}
 	if r.Access != nil {
@@ -173,7 +170,7 @@ func fromRulesResource(r rules.Resource) storageResource {
 	return x
 }
 func (h *SiteHandler) loadStorageResource(ctx context.Context, siteID, name string) (storageResource, error) {
-	r, e := repo.LoadResource(ctx, h.database, siteID, name)
+	r, e := h.storageSvc().LoadResource(ctx, appstorage.ResourceReadInput{SiteID: siteID, Name: name})
 	return fromRulesResource(r), e
 }
 
