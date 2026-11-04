@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
-	db "github.com/vsriram/simple-host/internal/db"
 )
 
 // The base domain of people's addresses (owner decision 2026-09-28).
@@ -355,8 +354,8 @@ func (h *SiteHandler) legacyBaseTarget(r *http.Request) (string, int, bool) {
 	// or its address family) goes straight there: one hop, and a 302, since
 	// that address can change.
 	if len(parts) == 2 && h.database != nil && appsites.ValidSiteName.MatchString(parts[0]) {
-		if u, err := db.GetUserByHandle(r.Context(), h.database, parts[1]); err == nil {
-			if site, err := db.GetSiteByUser(r.Context(), h.database, u.ID, parts[0]); err == nil {
+		if u, err := h.accountsSvc().GetUserByHandle(r.Context(), parts[1]); err == nil {
+			if site, err := h.sitesSvc().GetSiteByUser(r.Context(), u.ID, parts[0]); err == nil {
 				if own, has, err := h.siteOwnAddress(r.Context(), site.ID); err == nil && has {
 					return "https://" + strings.ToLower(own.Domain) + escaped + query, http.StatusFound, true
 				}

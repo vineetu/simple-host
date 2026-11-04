@@ -10,7 +10,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Recently deleted (completeness plan, 2026-09-27).
@@ -29,13 +29,13 @@ type deletedSiteResponse struct {
 	CustomDomain string    `json:"custom_domain,omitempty"`
 }
 
-func toDeletedSiteResponse(d db.DeletedSite, retention time.Duration) deletedSiteResponse {
+func toDeletedSiteResponse(d model.DeletedSite, retention time.Duration) deletedSiteResponse {
 	return deletedSiteResponse{Name: d.Name, DeletedAt: d.DeletedAt.UTC(), PurgeAt: d.PurgeAt(retention).UTC(), CustomDomain: d.CustomDomain.String}
 }
 
 // deletedNameMessage is the answer when a name is held by a site in Recently
 // deleted: the owner can restore it, or wait until it is gone.
-func deletedNameMessage(d db.DeletedSite, retention time.Duration) string {
+func deletedNameMessage(d model.DeletedSite, retention time.Duration) string {
 	return "you deleted a site named " + d.Name + " recently; it is in Recently deleted until " +
 		d.PurgeAt(retention).UTC().Format("2 Jan 2006") + ". Restore it, or pick another name"
 }
@@ -43,7 +43,7 @@ func deletedNameMessage(d db.DeletedSite, retention time.Duration) string {
 // deletedNameConflict reports whether the account's name is held by a site in
 // Recently deleted, with the message to show.
 func (h *SiteHandler) deletedNameConflict(ctx context.Context, userID, name string) (string, bool) {
-	d, err := db.GetDeletedSiteByUser(ctx, h.database, userID, name)
+	d, err := h.sitesSvc().GetDeletedSiteByUser(ctx, userID, name)
 	if err != nil {
 		return "", false
 	}
@@ -62,10 +62,6 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	if siteName == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
-		return
-	}
-	if err := sites.ValidateShape(siteName); err != nil {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return
 	}
 	expected, check := r.Context().Value(adminSiteKey{}).(string)
@@ -87,7 +83,7 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *SiteHandler) trashSite(ctx context.Context, site db.Site, also func(tx *sql.Tx) error) error {
+func (h *SiteHandler) trashSite(ctx context.Context, site model.Site, also func(tx *sql.Tx) error) error {
 	return h.lifecycleSvcWithTransaction(also).Trash(ctx, sites.TrashInput{Site: site})
 }
 
@@ -98,7 +94,7 @@ func (h *SiteHandler) listDeletedSites(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
-	list, err := db.ListDeletedSitesByUser(r.Context(), h.database, user.ID)
+	list, err := h.sitesSvc().ListDeletedSitesByUser(r.Context(), user.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -119,10 +115,6 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if err := sites.ValidateShape(siteName); err != nil {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no site with that name in Recently deleted"})
-		return
-	}
 	result, err := h.lifecycleSvc().Restore(r.Context(), sites.RestoreInput{UserID: user.ID, Name: siteName, Handle: user.Handle.String})
 	if err != nil {
 		var e *sites.Error
@@ -151,7 +143,7 @@ func (h *SiteHandler) wakeImageScans(ctx context.Context, siteID string) {
 	h.lifecycleSvc().WakeImageScans(ctx, siteID)
 }
 
-func (h *SiteHandler) restoreTrashedSite(ctx context.Context, d db.DeletedSite, handle string, also func(tx *sql.Tx) error) (db.Site, error) {
+func (h *SiteHandler) restoreTrashedSite(ctx context.Context, d model.DeletedSite, handle string, also func(tx *sql.Tx) error) (model.Site, error) {
 	return h.lifecycleSvcWithTransaction(also).RestoreTrashed(ctx, sites.RestoreTrashedInput{Site: d, Handle: handle})
 }
 

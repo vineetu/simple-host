@@ -8,16 +8,16 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/operations"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 type adminSiteEntry struct {
-	site  db.Site
+	site  model.Site
 	size  operations.SiteUsage
 	views int64
 }
 
-func adminSiteTime(s db.Site) time.Time {
+func adminSiteTime(s model.Site) time.Time {
 	if s.LastDeployedAt.Valid {
 		return s.LastDeployedAt.Time
 	}
@@ -119,7 +119,7 @@ func (h *SiteHandler) adminSites(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, errorResponse{Error: "invalid filter"})
 		return
 	}
-	sites, err := db.ListAllSites(r.Context(), h.database)
+	sites, err := h.siteReporting().SiteListing(r.Context())
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "could not list sites"})
 		return

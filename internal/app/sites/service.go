@@ -23,6 +23,7 @@ import (
 	"github.com/vsriram/simple-host/internal/model"
 	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
+	rules "github.com/vsriram/simple-host/internal/rules/sites"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
 )
@@ -75,7 +76,7 @@ type Deps struct {
 	DeployEnabled           bool
 	NormalizePatch          func(map[string][]byte, []string) (map[string]bool, error)
 	MaxFilesPerSite         int
-	PhotoLimits             func(context.Context, *model.User) (int64, int64)
+	PhotoLimits             func(context.Context, *model.User) (int64, bool)
 	ResponseState           func(model.Site, int, bool, bool) any
 	WebsiteArchiveDefault   int64
 	WebsiteLimit            func(context.Context, *model.User) (int64, bool)
@@ -348,6 +349,15 @@ type RenameInput struct{ UserID, OldName, NewName, Handle string }
 func (s *Service) Rename(ctx context.Context, in RenameInput) (RenameResult, error) {
 	userID, oldName, newName, handle := in.UserID, in.OldName, in.NewName, in.Handle
 	var result RenameResult
+	if err := rules.ValidateShape(newName); err != nil {
+		return result, &Error{Code: "invalid_name", Message: err.Error()}
+	}
+	if err := rules.ValidateReserved(newName); err != nil {
+		return result, &Error{Code: "name_reserved", Message: err.Error()}
+	}
+	if oldName == newName {
+		return result, &Error{Code: "unchanged_name", Message: "new site name must be different"}
+	}
 	if _, err := repo.GetSiteByUser(ctx, s.database, userID, oldName); err != nil {
 		return result, &Error{Code: "site_not_found"}
 	}
@@ -697,6 +707,7 @@ type UpdateInput struct {
 	ExpectedID               string
 	CheckID                  bool
 	Budget                   int64
+	LimitOverride            bool
 	Limit                    int64
 }
 
@@ -720,6 +731,9 @@ type UpdateResult struct {
 
 // Update writes a new version and publishes it when requested.
 func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, error) {
+	if in.LimitOverride {
+		in.Budget = in.Limit
+	}
 	// Keep and photo updates must read and merge while owning both deploy locks.
 	locked := in.Keep || in.Photos != nil
 	if locked {
@@ -729,7 +743,12 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 		defer unlockSite()
 	}
 	if in.Photos != nil {
-		in.Limit, in.Budget = s.deps.PhotoLimits(ctx, in.User)
+		var override bool
+		in.Limit, override = s.deps.PhotoLimits(ctx, in.User)
+		in.Budget = 0
+		if override {
+			in.Budget = in.Limit
+		}
 	}
 	var paths []string
 	if in.Keep || in.Photos != nil {
@@ -1006,13 +1025,18 @@ type PreflightInput struct {
 	User          *model.User
 	Name          string
 	CheckExisting bool
-	ReservedError string
+	CheckName     bool
 	Publish       string
 }
 
 // CreatePreflight checks whether a new site may be uploaded.
 func (s *Service) CreatePreflight(ctx context.Context, in PreflightInput) error {
 	user := in.User
+	if in.CheckName {
+		if err := rules.ValidateShape(in.Name); err != nil {
+			return &Error{Code: "invalid_name", Message: err.Error()}
+		}
+	}
 	if in.CheckExisting {
 		_, err := repo.GetSiteByUser(ctx, s.database, user.ID, in.Name)
 		if err == nil {
@@ -1022,8 +1046,10 @@ func (s *Service) CreatePreflight(ctx context.Context, in PreflightInput) error 
 			return err
 		}
 	}
-	if in.ReservedError != "" {
-		return &Error{Code: "name_reserved", Message: in.ReservedError}
+	if in.CheckName || in.CheckExisting {
+		if err := rules.ValidateReserved(in.Name); err != nil {
+			return &Error{Code: "name_reserved", Message: err.Error()}
+		}
 	}
 	switch strings.ToLower(strings.TrimSpace(in.Publish)) {
 	case "", "true", "1", "yes":

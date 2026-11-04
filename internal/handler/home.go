@@ -12,7 +12,7 @@ import (
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
@@ -26,7 +26,7 @@ func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, errorResponse{Error: "unauthorized"})
 		return
 	}
-	if u.KeyScope == db.KeyScopeDeploy {
+	if u.DeployOnly() {
 		writeJSON(w, 403, errorResponse{Error: auth.DeployOnlyMessage, Code: "deploy_only_key"})
 		return
 	}
@@ -47,7 +47,7 @@ func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 409, errorResponse{Error: "this site depends on the content host"})
 			return
 		}
-		if err := db.SetHomeSite(r.Context(), h.database, u.ID, name); err != nil {
+		if err := h.sitesSvc().SetHomeSite(r.Context(), u.ID, name); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				writeJSON(w, 404, errorResponse{Error: "site not found", Code: "not_found"})
 			} else {
@@ -56,7 +56,7 @@ func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s, has, err := db.HomeSite(r.Context(), h.database, u.ID)
+	s, has, err := h.sitesSvc().HomeSite(r.Context(), u.ID)
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return
@@ -77,12 +77,12 @@ func (h *SiteHandler) isHomeSiteHost(ctx context.Context, siteID, host string) b
 	if !ok {
 		return false
 	}
-	s, has, err := db.HomeSite(ctx, h.database, owner.ID)
+	s, has, err := h.sitesSvc().HomeSite(ctx, owner.ID)
 	return err == nil && has && s.ID == siteID && !s.Deleted && !s.Offline && !s.Suspended()
 }
 
 // homePathExists mirrors file/directory lookup without escaping the site's root.
-func (h *SiteHandler) homePathExists(s db.Site, rel string) bool {
+func (h *SiteHandler) homePathExists(s model.Site, rel string) bool {
 	root, err := os.OpenRoot(h.disk.SiteDir(s.UserID, s.Name) + "/current")
 	if err != nil {
 		return false
@@ -113,8 +113,8 @@ func (h *SiteHandler) homePathExists(s db.Site, rel string) bool {
 	return err == nil && !st.IsDir()
 }
 
-func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user db.User, base string) bool {
-	s, has, err := db.HomeSite(r.Context(), h.database, user.ID)
+func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user model.User, base string) bool {
+	s, has, err := h.sitesSvc().HomeSite(r.Context(), user.ID)
 	if err != nil {
 		h.renderServiceError(w, r)
 		return true
@@ -130,7 +130,7 @@ func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user
 	if !h.homePathExists(s, r.URL.Path) {
 		seg, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
 		if appsites.ValidSiteName.MatchString(seg) {
-			if other, err := db.GetSiteByUser(r.Context(), h.database, user.ID, seg); err == nil {
+			if other, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, seg); err == nil {
 				_, escTail, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
 				if other.ID == s.ID {
 					target := "/" + strings.TrimLeft(escTail, "/")

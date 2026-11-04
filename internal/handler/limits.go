@@ -5,28 +5,29 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // limitSet is the operational limits an instance was built with: a value
-// copy of the edition's config.Limits (edition.Edition.Limits()), held by
+// copy of the edition's edition.Limits (edition.Edition.Limits()), held by
 // every handler that needs to read or state one (SiteHandler, UserHandler,
 // OAuthHandler, ConnectorHandler, HackHandler, APIMetrics). It is embedded,
 // not a named field, so its methods are promoted: a call site that used to
 // read the package-global config.Active() now reads its own handler's own
 // copy (h.authTokenTTL()) instead, with no shared global and no setter.
 type limitSet struct {
-	limits config.Limits
+	limits edition.Limits
 }
 
 // newLimitSet copies l into a limitSet. Construct one from ed.Limits() when
 // building a handler.
-func newLimitSet(l config.Limits) limitSet { return limitSet{limits: l} }
+func newLimitSet(l edition.Limits) limitSet { return limitSet{limits: l} }
 
 // mcpLimits maps the instance snapshot to the connector’s presentation limits.
-func mcpLimits(l config.Limits) mcp.Limits {
+func mcpLimits(l edition.Limits) mcp.Limits {
 	return mcp.Limits{
 		DeletedRetention:     l.DeletedRetention,
 		PreviewLinkTTL:       l.PreviewLinkTTL,
@@ -63,7 +64,7 @@ func (s limitSet) maxSitesPerUser() int { return s.limits.MaxSitesPerAccount }
 // handle change keeps the override), else MAX_SITES_PER_ACCOUNT. Resolved on
 // every call, never cached. A failed alias read falls back to the current
 // handle alone.
-func (s limitSet) maxSitesFor(ctx context.Context, database *sql.DB, user *db.User) int {
+func (s limitSet) maxSitesFor(ctx context.Context, database *sql.DB, user *model.User) int {
 	l := s.limits
 	if l.MaxSitesOverrides == "" || user == nil {
 		return l.MaxSitesPerAccount
@@ -81,7 +82,7 @@ func (s limitSet) maxSitesFor(ctx context.Context, database *sql.DB, user *db.Us
 // override says an entry matched. Without one the unpacked files stay under
 // the instance's own extractor caps (tarball.Extract), which are not derived
 // from MAX_ARCHIVE_MB when it is unset (500 MB total, 100 MB a file).
-func (s limitSet) siteLimitFor(ctx context.Context, database *sql.DB, user *db.User) (limit int64, override bool) {
+func (s limitSet) siteLimitFor(ctx context.Context, database *sql.DB, user *model.User) (limit int64, override bool) {
 	l := s.limits
 	if l.MaxArchiveOverrides == "" || user == nil {
 		return maxSiteArchiveSize, false
@@ -93,18 +94,18 @@ func (s limitSet) siteLimitFor(ctx context.Context, database *sql.DB, user *db.U
 }
 
 // statedSiteMB is a per-site limit as it is reported: in MB, and never above
-// what the extractor will take (config.MaxArchiveCeilingMB), which is where a
+// what the extractor will take (500 MB), which is where a
 // MAX_ARCHIVE_MB above it really stops.
 func statedSiteMB(limit int64) int {
-	if mb := int(limit >> 20); mb < config.MaxArchiveCeilingMB {
+	if mb := int(limit >> 20); mb < 500 {
 		return mb
 	}
-	return config.MaxArchiveCeilingMB
+	return 500
 }
 
 // siteLimitMBOf is siteLimitFor as reported, with the account's earlier
 // handles already read (the admin list reads them all at once).
-func (s limitSet) siteLimitMBOf(u db.User, aliases []string) int {
+func (s limitSet) siteLimitMBOf(u model.User, aliases []string) int {
 	if mb, ok := s.limits.ArchiveOverrideMB(append([]string{u.Handle.String}, aliases...)...); ok {
 		return statedSiteMB(int64(mb) << 20)
 	}
@@ -127,12 +128,8 @@ func (s limitSet) largestSiteLimit() int64 {
 // accountHandles is the account's current handle and then its earlier ones,
 // which is how the per-account overrides are matched. A failed alias read
 // falls back to the current handle alone.
-func accountHandles(ctx context.Context, database *sql.DB, user *db.User) []string {
-	handles := []string{user.Handle.String}
-	if aliases, err := db.ListHandleAliases(ctx, database, user.ID); err == nil {
-		handles = append(handles, aliases...)
-	}
-	return handles
+func accountHandles(ctx context.Context, database *sql.DB, user *model.User) []string {
+	return accounts.New(database).SiteAccountHandles(ctx, user)
 }
 
 func (s limitSet) previewLinkTTL() time.Duration { return s.limits.PreviewLinkTTL }
@@ -168,13 +165,16 @@ func (s limitSet) idleReplyTo() string      { return s.limits.IdleReplyTo }
 func (s limitSet) metricsRetentionDays() int { return s.limits.APIMetricsRetention }
 
 // newRateLimiterFor builds a limiter from a configured rate.
-func newRateLimiterFor(r config.Rate) *rateLimiter {
-	return newRateLimiter(float64(r.Burst), r.PerSecond())
+func newRateLimiterFor(r struct {
+	Burst int
+	Every time.Duration
+}) *rateLimiter {
+	return newRateLimiter(float64(r.Burst), 1/r.Every.Seconds())
 }
 
 // maxSitesOf is maxSitesFor with the account's earlier handles already read
 // (the admin list reads them all at once); nil for an admin, who has no limit.
-func (s limitSet) maxSitesOf(u db.User, aliases []string) any {
+func (s limitSet) maxSitesOf(u model.User, aliases []string) any {
 	if u.IsAdmin {
 		return nil
 	}

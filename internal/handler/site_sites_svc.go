@@ -4,33 +4,32 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/internal/app/operations"
-	db "github.com/vsriram/simple-host/internal/db"
 	"net/http"
 
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
-	rulesstorage "github.com/vsriram/simple-host/internal/rules/storage"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 func (h *SiteHandler) sitesSvc() *sites.Service {
 	return sites.New(h.database, h.disk, h.previewAccounts, h.previewTTL, sites.Deps{
 		ContentHost: h.contentHost, SiteDomain: h.siteDomain, PersonalSitesEnabled: h.ed.Identity().PersonalSites,
 		LockSite: h.lockSite,
-		ResponseState: func(site db.Site, version int, preview, footprint bool) any {
+		ResponseState: func(site model.Site, version int, preview, footprint bool) any {
 			return h.captureSiteResponseState(site, version, preview, footprint)
 		},
-		PhotoLimits: func(ctx context.Context, user *db.User) (int64, int64) {
+		PhotoLimits: func(ctx context.Context, user *model.User) (int64, bool) {
 			limit, override := h.siteLimitFor(ctx, h.database, user)
-			return limit, rulesstorage.ExtractBudget(limit, override)
+			return limit, override
 		},
 		DefaultRetention: keepVersions,
-		CanSetRetention: func(ctx context.Context, user *db.User) bool {
+		CanSetRetention: func(ctx context.Context, user *model.User) bool {
 			return h.limits.CanSetKeepVersions(accountHandles(ctx, h.database, user)...)
 		},
 		MaxFilesPerSite: h.limits.MaxFilesPerSite,
 		NormalizePatch:  normalizeFilePatch,
 
-		MaxSites:   func(ctx context.Context, user *db.User) int { return h.maxSitesFor(ctx, h.database, user) },
+		MaxSites:   func(ctx context.Context, user *model.User) int { return h.maxSitesFor(ctx, h.database, user) },
 		WantMarker: h.wantUnlistedMarker, SiteURL: h.siteURLFor,
 		RenameURL: func(handle, name string) string {
 			url := h.SiteURL(handle, name)
@@ -43,7 +42,7 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 			value, _, err := accountRetention(ctx, h.database, userID, keep, h.limits)
 			return value, err
 		},
-		RetainedFloor: func(versions []db.Version, keep, active, siteKeep int) int {
+		RetainedFloor: func(versions []model.Version, keep, active, siteKeep int) int {
 			floor := retainedFloor(versions, keep)
 			if h.ed.Storage().EventVersionRetention {
 				floor, _ = pruneThreshold(active, effectiveKeepVersions(siteKeep))
@@ -52,15 +51,15 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		},
 		PinnedFloor: h.hackPinnedFloor,
 		TeamKeys:    h.ed.Identity().TeamKeys, TeamSitesReady: h.teamSitesReady,
-		PaperSite: func(ctx context.Context, user *db.User, name string) {
+		PaperSite: func(ctx context.Context, user *model.User, name string) {
 			if h.ed.Identity().PaperMetrics {
 				operations.ResolveHackSite(ctx, user.Team.AccountID, name, user.Team.MemberID, false)
 			}
 		},
-		PaperState: func(ctx context.Context, user *db.User, stage string) {
+		PaperState: func(ctx context.Context, user *model.User, stage string) {
 			operations.ResolveHackEvent(ctx, user.Team.EventSlug, stage, user.Team.MemberID)
 		},
-		NotifyUpdate: func(ctx context.Context, user *db.User, site db.Site, n, prev int, published bool, files map[string][]byte) {
+		NotifyUpdate: func(ctx context.Context, user *model.User, site model.Site, n, prev int, published bool, files map[string][]byte) {
 			if published {
 				h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": n, "previous_version": prev, "via": "deploy"}, 0)
 				if h.ed.Identity().PaperMetrics && user.Team != nil {
@@ -72,21 +71,21 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		NotifyRollback: func(siteID string, version, prev int) {
 			h.emitSiteNotification(siteID, "site.deployed", map[string]any{"version": version, "previous_version": prev, "via": "active_version"}, 0)
 		},
-		Assign: func(ctx context.Context, user *db.User) {
+		Assign: func(ctx context.Context, user *model.User) {
 			assignHandle(ctx, h.database, user.ID, handleSeed(user, h.siteDomain), h.ed.Identity().RandomHandles)
 		},
-		NotifyCreate: func(ctx context.Context, user *db.User, site db.Site, files map[string][]byte) {
+		NotifyCreate: func(ctx context.Context, user *model.User, site model.Site, files map[string][]byte) {
 			if h.ed.Identity().PaperMetrics && user.Team != nil {
 				operations.HackDeploy(ctx)
 			}
 			h.imageScan.EnqueueSiteFiles(site.ID, siteWriterID(user), site.Name, 1, files)
 		},
 		FileCaps: h.fileCapsEnabled(), CapCutoff: h.limits.SiteTotalCapFrom,
-		CapLimits: func(ctx context.Context, user *db.User) (int, int) {
+		CapLimits: func(ctx context.Context, user *model.User) (int, int) {
 			handles := accountHandles(ctx, h.database, user)
 			return h.limits.SiteTotalMBFor(handles...), h.limits.AccountMBFor(handles...)
 		},
-		Retention: func(ctx context.Context, user *db.User, site db.Site) (int, error) {
+		Retention: func(ctx context.Context, user *model.User, site model.Site) (int, error) {
 			keep, _, err := accountRetention(ctx, h.database, user.ID, site.KeepVersions, h.limits)
 			return keep, err
 		}, LockAccount: h.lockAccountFiles, Summarize: ExtractSiteSummary, Conflict: h.deletedNameConflict, Marker: h.syncUnlistedMarker, RequestCert: h.RequestSiteCert, HasLiveFamilies: h.hasLiveFamilies, SyncRedirect: h.syncDomainRedirect, DeployEnabled: h.deployScript != ""})

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/vsriram/simple-host/internal/app/sites"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 func (h *SiteHandler) lifecycleSvc() *sites.Service { return h.lifecycleSvcWithTransaction(nil) }
@@ -14,7 +14,7 @@ func (h *SiteHandler) lifecycleSvc() *sites.Service { return h.lifecycleSvcWithT
 func (h *SiteHandler) lifecycleSvcWithTransaction(also func(*sql.Tx) error) *sites.Service {
 	return sites.New(h.database, h.disk, h.previewAccounts, h.previewTTL, sites.Deps{
 		DeletedTransaction: also,
-		ResponseState: func(site db.Site, version int, preview, footprint bool) any {
+		ResponseState: func(site model.Site, version int, preview, footprint bool) any {
 			return h.captureSiteResponseState(site, version, preview, footprint)
 		},
 		LockSite: h.lockSite, DeletedRetention: h.limits.DeletedRetention,

@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // filterSiteList always sorts (default: newest edited first), and additionally
 // filters and pages the result when a query, date bound, limit or offset
 // parameter is present; the no-argument size is otherwise untouched.
-func filterSiteList(sites []db.Site, params url.Values) ([]db.Site, *errorResponse) {
+func filterSiteList(sites []model.Site, params url.Values) ([]model.Site, *errorResponse) {
 	sorted, orderErr := orderSites(sites, params.Get("order"))
 	if orderErr != nil {
 		return nil, orderErr
@@ -65,7 +65,7 @@ func filterSiteList(sites []db.Site, params url.Values) ([]db.Site, *errorRespon
 		limit = 500
 	}
 	words := strings.Fields(strings.ToLower(params.Get("query")))
-	matches := make([]db.Site, 0, len(sorted))
+	matches := make([]model.Site, 0, len(sorted))
 	for _, site := range sorted {
 		haystack := strings.ToLower(strings.Join([]string{site.Name, site.CustomDomain.String, site.SummaryTitle, site.SummaryDescription, site.SummaryHeadings, site.SummaryText}, " "))
 		match := true
@@ -107,8 +107,8 @@ func filterSiteList(sites []db.Site, params url.Values) ([]db.Site, *errorRespon
 // orderSites sorts a copy of sites by the requested key: "updated" (default,
 // last edited first, ties broken by created descending), "created" (newest
 // created first), or "name" (alphabetical). The input is never mutated.
-func orderSites(sites []db.Site, order string) ([]db.Site, *errorResponse) {
-	sorted := make([]db.Site, len(sites))
+func orderSites(sites []model.Site, order string) ([]model.Site, *errorResponse) {
+	sorted := make([]model.Site, len(sites))
 	copy(sorted, sites)
 	switch order {
 	case "", "updated":

@@ -6,19 +6,16 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-
 	"fmt"
 	"io"
-
 	"net/http"
-
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // exportSite streams one site as a .tar.gz: its files and its saved data.
@@ -48,7 +45,7 @@ func (h *SiteHandler) exportSite(w http.ResponseWriter, r *http.Request) {
 
 // writeExport streams the archive for one site, already authorized. Shared by
 // the keyed route and the short-lived download link (exportlink.go).
-func (h *SiteHandler) writeExport(w http.ResponseWriter, r *http.Request, site db.Site) {
+func (h *SiteHandler) writeExport(w http.ResponseWriter, r *http.Request, site model.Site) {
 	w.Header().Set("Content-Type", "application/gzip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.tar.gz"`, site.Name))
 
@@ -124,7 +121,7 @@ func putBytes(put archivePut, name string, b []byte) error {
 }
 
 // writeSiteTar writes one live site into tw under prefix (writeSiteArchive).
-func (h *SiteHandler) writeSiteTar(ctx context.Context, tw *tar.Writer, prefix string, site db.Site) error {
+func (h *SiteHandler) writeSiteTar(ctx context.Context, tw *tar.Writer, prefix string, site model.Site) error {
 	return h.writeSiteArchive(ctx, tarPut(tw), prefix, site.ID, filepath.Join(h.disk.SiteDir(site.UserID, site.Name), "current"))
 }
 

@@ -16,7 +16,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/mcp"
-	"github.com/vsriram/simple-host/internal/storage"
 )
 
 func importHeaders(w http.ResponseWriter) {
@@ -171,14 +170,14 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 			revoke()
 		}
 	}()
-	dir, err := storage.CreateImportDir()
+	files, err := sites.BeginImportUpload(lim)
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "could not store the upload; try again"})
 		return
 	}
 	defer func() {
 		if !handedOff {
-			storage.RemoveImportDir(dir)
+			files.DiscardUpload()
 		}
 	}()
 	m.Update(link.ID, func(rec *sites.ImportRecord) {
@@ -193,7 +192,6 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, 400, errorResponse{Error: "send files using the import page"})
 		return
 	}
-	files := &sites.ImportFiles{Dir: dir, Limits: lim, Media: map[string]sites.ImportMediaFile{}}
 	theme := link.ThemeURL
 	photos := true
 	count := 0
@@ -247,23 +245,7 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 			reject(errors.New("choose at most 10 files"))
 			return
 		}
-		dst, err := storage.CreateImportFile(dir, "upload-")
-		if err != nil {
-			reject(err)
-			return
-		}
-		_, err = io.Copy(dst, part)
-		closeErr := dst.Close()
-		part.Close()
-		if err != nil {
-			reject(err)
-			return
-		}
-		if closeErr != nil {
-			reject(closeErr)
-			return
-		}
-		if err = files.Unpack(dst.Name()); err != nil {
+		if err := files.ReceiveUpload(part); err != nil {
 			reject(err)
 			return
 		}

@@ -5,22 +5,22 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 	"golang.org/x/net/html"
 )
 
 // ExtractSiteSummary reads only the uploaded index, including an implied body
 // in HTML fragments. Invalid or incomplete HTML is handled by the HTML parser.
-func ExtractSiteSummary(files map[string][]byte) db.SiteSummary {
+func ExtractSiteSummary(files map[string][]byte) model.SiteSummary {
 	data, ok := files["index.html"]
 	if !ok {
-		return db.SiteSummary{}
+		return model.SiteSummary{}
 	}
 	root, _ := html.Parse(bytes.NewReader(data))
 	if root == nil {
-		return db.SiteSummary{}
+		return model.SiteSummary{}
 	}
-	var summary db.SiteSummary
+	var summary model.SiteSummary
 	var headings, visible []string
 	titleFound, descriptionFound := false, false
 	var textContent func(*html.Node) string

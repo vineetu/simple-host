@@ -15,7 +15,7 @@ import (
 	"time"
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 	xhtml "golang.org/x/net/html"
 )
 
@@ -92,9 +92,9 @@ func (h *SiteHandler) showcase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.ed.Routes().HostedEvents && !h.personHostsOn() && showcaseHandleRe.MatchString(handle) && !reservedShowcaseHandles[handle] {
-		user, err := db.GetUserByHandle(r.Context(), h.database, handle)
+		user, err := h.accountsSvc().GetUserByHandle(r.Context(), handle)
 		if err == nil {
-			s, has, err := db.HomeSite(r.Context(), h.database, user.ID)
+			s, has, err := h.sitesSvc().HomeSite(r.Context(), user.ID)
 			if err != nil {
 				h.renderServiceError(w, r)
 				return
@@ -120,10 +120,10 @@ func (h *SiteHandler) redirectHandleAlias(w http.ResponseWriter, r *http.Request
 	if !showcaseHandleRe.MatchString(handle) || reservedShowcaseHandles[handle] {
 		return false
 	}
-	if _, err := db.GetUserByHandle(r.Context(), h.database, handle); err == nil {
+	if _, err := h.accountsSvc().GetUserByHandle(r.Context(), handle); err == nil {
 		return false
 	}
-	current, err := db.ResolveHandleAlias(r.Context(), h.database, handle)
+	current, err := h.accountsSvc().ResolveHandleAlias(r.Context(), handle)
 	if err != nil || current == "" || current == handle {
 		return false
 	}
@@ -150,7 +150,7 @@ func (h *SiteHandler) ownerAppOrStatic(fileServer http.Handler) http.Handler {
 		// The hackathon platform has no person pages (hack_mode.go).
 		if seg != "" && !h.ed.Routes().HostedEvents && !strings.ContainsAny(seg, "/.") &&
 			showcaseHandleRe.MatchString(strings.ToLower(seg)) && !reservedShowcaseHandles[strings.ToLower(seg)] {
-			if _, err := db.GetUserByHandle(r.Context(), h.database, strings.ToLower(seg)); err == nil {
+			if _, err := h.accountsSvc().GetUserByHandle(r.Context(), strings.ToLower(seg)); err == nil {
 				h.renderShowcase(w, r, strings.ToLower(seg))
 				return
 			}
@@ -183,7 +183,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		return
 	}
 
-	user, err := db.GetUserByHandle(r.Context(), h.database, handle)
+	user, err := h.accountsSvc().GetUserByHandle(r.Context(), handle)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			h.renderNotFound(w, r, "/"+handle)
@@ -213,16 +213,16 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 }
 
 // publicShowcaseData is the single public projection used by HTML and the JSON feed.
-func (h *SiteHandler) publicShowcaseData(ctx context.Context, user db.User) (showcaseData, error) {
-	sites, err := db.ListSitesByUser(ctx, h.database, user.ID)
+func (h *SiteHandler) publicShowcaseData(ctx context.Context, user model.User) (showcaseData, error) {
+	sites, err := h.sitesSvc().ListSitesByUser(ctx, user.ID)
 	if err != nil {
 		return showcaseData{}, err
 	}
-	bio, err := db.GetShowcaseBio(ctx, h.database, user.ID)
+	bio, err := h.accountsSvc().GetShowcaseBio(ctx, user.ID)
 	if err != nil {
 		return showcaseData{}, err
 	}
-	prefs, err := db.ShowcasePreferences(ctx, h.database, user.ID)
+	prefs, err := h.sitesSvc().ShowcasePreferences(ctx, user.ID)
 	if err != nil {
 		return showcaseData{}, err
 	}
@@ -245,7 +245,7 @@ func (h *SiteHandler) publicShowcaseData(ctx context.Context, user db.User) (sho
 }
 
 // Metadata comes only from a visible site's deployed index, never a remote fetch.
-func (h *SiteHandler) showcaseMetadata(s db.Site) (title, description string) {
+func (h *SiteHandler) showcaseMetadata(s model.Site) (title, description string) {
 	root, err := os.OpenRoot(h.disk.SiteDir(s.UserID, s.Name) + "/current")
 	if err != nil {
 		return "", ""
@@ -302,7 +302,7 @@ func (h *SiteHandler) showcaseFeed(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, errorResponse{Error: "not found", Code: "not_found"})
 		return
 	}
-	user, err := db.GetUserByHandle(r.Context(), h.database, handle)
+	user, err := h.accountsSvc().GetUserByHandle(r.Context(), handle)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, 404, errorResponse{Error: "not found", Code: "not_found"})
 		return
@@ -382,11 +382,11 @@ func (h *SiteHandler) renamedContentPath(ctx context.Context, uri string) (strin
 	if !showcaseHandleRe.MatchString(handle) || !appsites.ValidSiteName.MatchString(name) {
 		return "", false
 	}
-	user, err := db.GetUserByHandleOrAlias(ctx, h.database, handle)
+	user, err := h.accountsSvc().GetUserByHandleOrAlias(ctx, handle)
 	if err != nil {
 		return "", false
 	}
-	if _, err := db.GetSiteByUser(ctx, h.database, user.ID, name); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := h.sitesSvc().GetSiteByUser(ctx, user.ID, name); !errors.Is(err, sql.ErrNoRows) {
 		return "", false // a real site (a missing file), or a lookup error
 	}
 	rest := ""
@@ -427,7 +427,7 @@ func (h *SiteHandler) renderNotFound(w http.ResponseWriter, r *http.Request, ori
 	if len(segs) >= 1 {
 		handle := strings.ToLower(segs[0])
 		if showcaseHandleRe.MatchString(handle) && !reservedShowcaseHandles[handle] {
-			if _, err := db.GetUserByHandle(r.Context(), h.database, handle); err == nil {
+			if _, err := h.accountsSvc().GetUserByHandle(r.Context(), handle); err == nil {
 				message = "That page isn’t here"
 				subtext = "This site or page doesn’t exist under @" + handle + "."
 				backURL = h.PersonPageURL(handle)

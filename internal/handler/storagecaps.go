@@ -5,29 +5,20 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 const storageTips = "Keep zip files, installers and videos elsewhere and link to them. Remove files you no longer use. Delete old sites you don't need."
 
-func accountRetention(ctx context.Context, database *sql.DB, userID string, siteKeep int, l config.Limits) (keep int, canSet bool, err error) {
-	u, err := db.GetUserByID(ctx, database, userID)
-	if err != nil {
-		return 0, false, err
-	}
-	handles := accountHandles(ctx, database, &u)
-	canSet = l.CanSetKeepVersions(handles...)
-	keep = l.KeepVersionsFor(keepVersions, handles...)
-	if canSet && siteKeep > 0 {
-		keep = siteKeep
-	}
-	return
+func accountRetention(ctx context.Context, database *sql.DB, userID string, siteKeep int, l edition.Limits) (keep int, canSet bool, err error) {
+	return accounts.New(database).SiteRetention(ctx, userID, siteKeep, keepVersions, l)
 }
 
 // retainedFloor uses actual rows, so gaps left by previous pruning do not
 // reduce the count. The live version is kept in addition when it is older.
-func retainedFloor(versions []db.Version, keep int) int {
+func retainedFloor(versions []model.Version, keep int) int {
 	if keep <= 0 || len(versions) <= keep {
 		return 0
 	}
@@ -41,7 +32,7 @@ type accountFileUsage struct {
 	Tips      string `json:"tips"`
 }
 
-func (h *SiteHandler) accountFileUsage(ctx context.Context, user *db.User) (*accountFileUsage, error) {
+func (h *SiteHandler) accountFileUsage(ctx context.Context, user *model.User) (*accountFileUsage, error) {
 	used, err := h.disk.AccountFileBytes(user.ID)
 	if err != nil {
 		return nil, err
