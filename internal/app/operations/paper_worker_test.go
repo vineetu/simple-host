@@ -22,8 +22,8 @@ func TestPaperOffWritesNothing(t *testing.T) {
 	c.Start(context.Background())
 	t.Cleanup(func() { c.Stop(); c.Wait() })
 	collector.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		RecordHackStage(r.Context(), "ignored", "open")
-		HackPhasesChanged(r.Context())
+		papermetrics.RequestRecorder{}.RecordHackStage(r.Context(), "ignored", "open")
+		papermetrics.RequestRecorder{}.HackPhasesChanged(r.Context())
 	})).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
 	if err := collector.RegisterRun(context.Background()); err == nil {
 		t.Fatal("registered disabled run")

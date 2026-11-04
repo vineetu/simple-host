@@ -41,6 +41,7 @@ type Service struct {
 
 // Deps holds collaborators shared by site workflows.
 type Deps struct {
+	PlatformDomains         []string
 	ContentHost, SiteDomain string
 	PersonalSitesEnabled    bool
 	CanSetRetention         func(context.Context, *model.User) bool

@@ -13,7 +13,7 @@ import (
 	"unicode"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -199,7 +199,7 @@ type domainResponse struct {
 }
 
 // domainResponseFor is the API view of a site's binding.
-func (h *SiteHandler) domainResponseFor(info db.SiteDomainInfo) domainResponse {
+func (h *SiteHandler) domainResponseFor(info model.SiteDomainInfo) domainResponse {
 	resp := domainResponse{
 		Domain:         info.Domain,
 		Status:         info.Status,
@@ -283,7 +283,7 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	current, has, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+	current, has, err := h.opsSitesSvc().GetSiteDomainInfo(r.Context(), site.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -295,7 +295,7 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 	}
 	// Back to the earlier address the site still serves at: drop the pending one.
 	if has && current.PreviousDomain == domain {
-		dropped, _, err := db.DropCustomDomain(r.Context(), h.database, site.ID, current.Domain)
+		dropped, _, err := h.opsSitesSvc().DropCustomDomain(r.Context(), site.ID, current.Domain)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
@@ -306,7 +306,7 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		h.syncDomainRedirect(r.Context(), site.ID)
-		info, _, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+		info, _, err := h.opsSitesSvc().GetSiteDomainInfo(r.Context(), site.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
@@ -319,14 +319,14 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 	// (disconnected or lapsed): wait until it has let go, so nobody inherits
 	// a live server and certificate.
 	if fileExists(h.domainCertFile("ready", domain)) {
-		if _, err := db.GetSiteByCustomDomain(r.Context(), h.database, domain); errors.Is(err, sql.ErrNoRows) {
+		if _, err := h.opsSitesSvc().GetSiteByCustomDomain(r.Context(), domain); errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "this domain was just disconnected and is still being released; try again in 10 minutes", Code: "domain_releasing"})
 			return
 		}
 	}
-	holder, replaced, err := db.BindCustomDomain(r.Context(), h.database, site.ID, domain)
+	holder, replaced, err := h.opsSitesSvc().BindCustomDomain(r.Context(), site.ID, domain)
 	if err != nil {
-		if errors.Is(err, db.ErrDomainTaken) {
+		if errors.Is(err, model.ErrDomainTaken) {
 			writeJSON(w, http.StatusConflict, struct {
 				Error string `json:"error"`
 				Code  string `json:"code"`
@@ -358,7 +358,7 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 	// The content-host redirect follows only a proven domain.
 	h.syncDomainRedirect(r.Context(), site.ID)
 
-	info, _, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+	info, _, err := h.opsSitesSvc().GetSiteDomainInfo(r.Context(), site.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -382,7 +382,7 @@ func (h *SiteHandler) getDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
+	site, err := h.opsSitesSvc().GetSiteByUser(r.Context(), user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeSiteNotFound(w, siteName)
@@ -392,7 +392,7 @@ func (h *SiteHandler) getDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info, ok, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+	info, ok, err := h.opsSitesSvc().GetSiteDomainInfo(r.Context(), site.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -405,7 +405,7 @@ func (h *SiteHandler) getDomain(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, h.domainResponseFor(info))
 }
 
-func setDomainTimes(resp *domainResponse, info db.SiteDomainInfo, ttl, maxAge time.Duration) {
+func setDomainTimes(resp *domainResponse, info model.SiteDomainInfo, ttl, maxAge time.Duration) {
 	if info.BoundAt.Valid {
 		t := info.BoundAt.Time
 		resp.BoundAt = &t
@@ -461,7 +461,7 @@ func (h *SiteHandler) deleteDomain(w http.ResponseWriter, r *http.Request) {
 	if q := strings.TrimSpace(r.URL.Query().Get("domain")); q != "" {
 		expected = domainCandidate(q)
 	}
-	dropped, _, err := db.DropCustomDomain(r.Context(), h.database, site.ID, expected)
+	dropped, _, err := h.opsSitesSvc().DropCustomDomain(r.Context(), site.ID, expected)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -521,7 +521,7 @@ func (h *SiteHandler) tlsAsk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.GetSiteByCustomDomain(r.Context(), h.database, domain)
+	_, err = h.opsSitesSvc().GetSiteByCustomDomain(r.Context(), domain)
 	if err != nil {
 		// sql.ErrNoRows or any DB error → deny (never 500 to Caddy on a miss).
 		w.WriteHeader(http.StatusForbidden)
@@ -539,12 +539,12 @@ func (h *SiteHandler) tlsAsk(w http.ResponseWriter, r *http.Request) {
 func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 	handle := strings.TrimSpace(r.PathValue("handle"))
 	name := strings.TrimSpace(r.PathValue("sitename"))
-	user, err := db.GetUserByHandle(r.Context(), h.database, handle)
+	user, err := h.storeAccounts().GetUserByHandle(r.Context(), handle)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name)
+	site, err := h.opsSitesSvc().GetSiteByUser(r.Context(), user.ID, name)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -572,7 +572,7 @@ func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 // releaseDomainFiles is best-effort cleanup after a database release: the
 // released domain stops pointing at the site, and the content-host redirect
 // follows whatever the site now has (an earlier address it got back, or none).
-func (h *SiteHandler) releaseDomainFiles(info db.SiteDomainInfo) {
+func (h *SiteHandler) releaseDomainFiles(info model.SiteDomainInfo) {
 	if err := h.disk.UnbindDomain(info.Domain); err != nil {
 		log.Printf("domain: unbind %s: %v", info.Domain, err)
 	}

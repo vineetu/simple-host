@@ -17,7 +17,8 @@ import (
 	"sync"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Hosted events (EVENTS=hosted, simple-hack.app; docs/designs/simple-hack-platform.md).
@@ -47,19 +48,19 @@ func hackHandle() string {
 
 // SetHackEventPage sets what renders an event's page on its host: fn writes
 // the page and reports true when user is an event's holding account.
-func (h *SiteHandler) SetHackEventPage(fn func(w http.ResponseWriter, r *http.Request, user db.User) bool) {
+func (h *SiteHandler) SetHackEventPage(fn func(w http.ResponseWriter, r *http.Request, user model.User) bool) {
 	h.hackEventPage = fn
 }
 
 // SetHackScreenshot sets what serves GET/HEAD /screenshots/<team> on an event
 // host: fn writes the image and reports true when that team is on the gallery.
-func (h *SiteHandler) SetHackScreenshot(fn func(w http.ResponseWriter, r *http.Request, user db.User, team string) bool) {
+func (h *SiteHandler) SetHackScreenshot(fn func(w http.ResponseWriter, r *http.Request, user model.User, team string) bool) {
 	h.hackScreenshot = fn
 }
 
 // serveHackEventHost answers <event>.<SITE_DOMAIN> in hosted mode. A custom
 // event site stays on this origin; the signed-in app and every API stay apex-only.
-func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request, user db.User, api http.Handler) {
+func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request, user model.User, api http.Handler) {
 	if strings.HasPrefix(r.URL.Path, "/v1/") {
 		if h.hackEventAPIAllowed(r, user) {
 			api.ServeHTTP(w, r)
@@ -73,7 +74,7 @@ func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request,
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	ev, err := db.GetEventByAccount(r.Context(), h.database, user.ID)
+	ev, err := h.storeAccounts().GetEventByAccount(r.Context(), user.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			h.renderHackNotFound(w, r)
@@ -83,7 +84,7 @@ func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if ev.WebsiteMode == "custom" && !ev.TakenDown() {
-		if _, err := db.GetSiteByUser(r.Context(), h.database, ev.AccountID, ev.ID); err == nil {
+		if _, err := h.opsSitesSvc().GetSiteByUser(r.Context(), ev.AccountID, ev.ID); err == nil {
 			h.serveSiteFileRel(w, r, ev.AccountID, ev.ID, r.URL.Path)
 			return
 		} else if !errors.Is(err, sql.ErrNoRows) {
@@ -102,12 +103,12 @@ func (h *SiteHandler) serveHackEventHost(w http.ResponseWriter, r *http.Request,
 
 // Only the custom event website's own storage and visitor sign-in endpoints
 // are served on its origin. Event management remains on the trusted apex.
-func (h *SiteHandler) hackEventAPIAllowed(r *http.Request, owner db.User) bool {
-	ev, err := db.GetEventByAccount(r.Context(), h.database, owner.ID)
+func (h *SiteHandler) hackEventAPIAllowed(r *http.Request, owner model.User) bool {
+	ev, err := h.storeAccounts().GetEventByAccount(r.Context(), owner.ID)
 	if err != nil || ev.WebsiteMode != "custom" || ev.TakenDown() {
 		return false
 	}
-	if _, err := db.GetSiteByUser(r.Context(), h.database, owner.ID, ev.ID); err != nil {
+	if _, err := h.opsSitesSvc().GetSiteByUser(r.Context(), owner.ID, ev.ID); err != nil {
 		return false
 	}
 	p := r.URL.Path
@@ -255,65 +256,10 @@ func DirUsage(dir string) func(ctx context.Context) (int64, error) {
 	}
 }
 
-// HackAccountDeleteBlock says why an account on the hackathon platform cannot
-// be deleted yet ("" when it can). An event's holding account goes only with
-// its event (the admin's Events tab). An organiser of an event still running
-// ends or deletes it first, so no event is left that nobody can manage (an
-// event the platform took down does not hold them). The organiser's name and
-// contact address are blanked on the events that stay.
-func HackAccountDeleteBlock(ctx context.Context, q db.Querier, userID string, holdingAccounts bool) (code, msg string, err error) {
-	if !holdingAccounts {
-		return "", "", nil
-	}
-	var running bool
-	holding, err := HackHoldingAccount(ctx, q, userID, holdingAccounts)
-	if err != nil {
-		return "", "", err
-	}
-	if holding {
-		return "event_account", "this account holds an event; delete the event from the admin Events tab", nil
-	}
-	if err = q.QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM event_members m JOIN events e ON e.id = m.event_id
-		                WHERE m.user_id = $1 AND m.role = 'organiser' AND e.stage <> 'archived'
-		                  AND e.taken_down_at IS NULL)`, userID).Scan(&running); err != nil {
-		return "", "", err
-	}
-	if running {
-		return "organises_events", "you organise an event that has not ended; end it, or delete it while nobody has joined, before deleting the account", nil
-	}
-	// A taken-down event of theirs ends: restoring it later must not bring
-	// back a running event nobody can manage.
-	if _, err = q.ExecContext(ctx, `
-		UPDATE events e SET stage = 'archived', closed_at = COALESCE(e.closed_at, now()), updated_at = now()
-		  FROM event_members m
-		 WHERE m.event_id = e.id AND m.user_id = $1 AND m.role = 'organiser'
-		   AND e.taken_down_at IS NOT NULL AND e.stage <> 'archived'`, userID); err != nil {
-		return "", "", err
-	}
-	if _, err = q.ExecContext(ctx, `
-		UPDATE events e SET organiser_name = '', contact_email = '', updated_at = now()
-		  FROM event_members m
-		 WHERE m.event_id = e.id AND m.user_id = $1 AND m.role = 'organiser'`, userID); err != nil {
-		return "", "", err
-	}
-	// A team this person is alone on goes with them (its code would
-	// otherwise stay live on an empty team).
-	_, err = q.ExecContext(ctx, `
-		DELETE FROM event_teams t USING events e
-		 WHERE e.id = t.event_id
-		   AND t.id IN (SELECT team_id FROM event_members WHERE user_id = $1 AND team_id IS NOT NULL)
-		   AND (SELECT count(*) FROM event_members m WHERE m.team_id = t.id) = 1
-		   AND `+db.TeamKeepableSQL, userID)
-	return "", "", err
+func HackAccountDeleteBlock(ctx context.Context, q accounts.DeletionQueries, userID string, holdingAccounts bool) (string, string, error) {
+	return accounts.CheckHackAccountDeletion(ctx, q, userID, holdingAccounts)
 }
 
-// HackHoldingAccount: userID is an event's holding account (never signs in).
-func HackHoldingAccount(ctx context.Context, q db.Querier, userID string, holdingAccounts bool) (bool, error) {
-	if !holdingAccounts {
-		return false, nil
-	}
-	var held bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM events WHERE account_id::text = lower($1))`, userID).Scan(&held)
-	return held, err
+func HackHoldingAccount(ctx context.Context, q accounts.DeletionQueries, userID string, holdingAccounts bool) (bool, error) {
+	return accounts.HoldingAccount(ctx, q, userID, holdingAccounts)
 }

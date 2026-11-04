@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 type notificationBackend struct{ h *SiteHandler }
@@ -70,52 +70,52 @@ func (h *SiteHandler) notifyChallengeClient(ctx context.Context, owner, raw stri
 	c.resolver = func(context.Context, string) ([]net.IPAddr, error) { return addrs, nil }
 	return c, nil
 }
-func (b notificationBackend) site(ctx context.Context, c mcp.Caller, name, storage, eventSlug string) (db.Site, error) {
+func (b notificationBackend) site(ctx context.Context, c mcp.Caller, name, storage, eventSlug string) (model.Site, error) {
 	if c.DeployOnly || c.Owner == "" {
-		return db.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
+		return model.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 	}
-	user, err := db.GetUserByID(ctx, b.h.database, c.Owner)
+	user, err := b.h.storeAccounts().GetUserByID(ctx, c.Owner)
 	if err != nil || user.Suspended {
-		return db.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
+		return model.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 	}
-	event, err := db.EventAccountFlag(ctx, b.h.database, c.Owner)
+	event, err := b.h.notificationsSvc().EventAccountFlag(ctx, c.Owner)
 	if err != nil {
-		return db.Site{}, err
+		return model.Site{}, err
 	}
 	if event {
-		return db.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
+		return model.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 	}
-	var site db.Site
+	var site model.Site
 	if b.h.ed.Notifications().EventScoped {
 		if c.Mode != mcp.CallerModeEvents {
 			return site, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 		}
 		event := eventSlug
 		if event == "" {
-			grant, e := db.GetOAuthGrantByID(ctx, b.h.database, c.OAuthGrantID)
+			grant, e := b.h.storeAccounts().GetOAuthGrantByID(ctx, c.OAuthGrantID)
 			if e != nil || grant.UserID != c.Owner || !grant.SelectedTeamID.Valid {
 				return site, notifyMCPError(mcp.EventCodeForbidden, "reason", "select_team")
 			}
-			team, e := db.ResolveTeamIdentity(ctx, b.h.database, c.Owner, grant.SelectedTeamID.String)
+			team, e := b.h.storeAccounts().ResolveTeamIdentity(ctx, c.Owner, grant.SelectedTeamID.String)
 			if e != nil || team.TeamSlug != name {
 				return site, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 			}
-			site, err = db.GetSiteByUser(ctx, b.h.database, team.AccountID, name)
+			site, err = b.h.sitesSvc().GetSiteByUser(ctx, team.AccountID, name)
 		} else {
-			site, err = db.HackNotificationSite(ctx, b.h.database, c.Owner, name, event)
+			site, err = b.h.notificationsSvc().HackNotificationSite(ctx, c.Owner, name, event)
 		}
 	} else {
 		if eventSlug != "" {
 			return site, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 		}
-		site, err = db.GetSiteByUser(ctx, b.h.database, c.Owner, name)
+		site, err = b.h.sitesSvc().GetSiteByUser(ctx, c.Owner, name)
 	}
 	if err != nil {
-		return db.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
+		return model.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 	}
 	if storage != "" {
 		if _, err = b.h.loadStorageResource(ctx, site.ID, storage); err != nil {
-			return db.Site{}, notifyMCPError(mcp.EventCodeNotFound, "kind", "storage")
+			return model.Site{}, notifyMCPError(mcp.EventCodeNotFound, "kind", "storage")
 		}
 	}
 	return site, nil
@@ -130,11 +130,11 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		return out, err
 	}
 	if b.h.ed.Notifications().EventScoped {
-		old, e := db.GetNotification(ctx, b.h.database, notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs))
+		old, e := b.h.notificationsSvc().GetNotification(ctx, notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs))
 		if e != nil && !errors.Is(e, sql.ErrNoRows) {
 			return out, e
 		}
-		allowed, e := db.HackNotificationAllowed(ctx, b.h.database, site.ID, c.Owner, old.SiteID != site.ID)
+		allowed, e := b.h.notificationsSvc().HackNotificationAllowed(ctx, site.ID, c.Owner, old.SiteID != site.ID)
 		if e != nil {
 			return out, e
 		}
@@ -167,7 +167,7 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		return out, notifyMCPError(code, "reason", notifyCategory(err))
 	}
 	now := time.Now()
-	n := db.Notification{ID: notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs), SiteID: site.ID, OwnerID: c.Owner, Hack: b.h.ed.Notifications().EventScoped, Source: "mcp", URL: req.URL, Events: []string{req.Name}, Storage: req.Storage, ArgsCanonical: req.CanonicalArgs, Secret: req.Secret, AppName: c.AppName, VerifiedAt: &now}
+	n := model.Notification{ID: notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs), SiteID: site.ID, OwnerID: c.Owner, Hack: b.h.ed.Notifications().EventScoped, Source: "mcp", URL: req.URL, Events: []string{req.Name}, Storage: req.Storage, ArgsCanonical: req.CanonicalArgs, Secret: req.Secret, AppName: c.AppName, VerifiedAt: &now}
 	if c.OAuthGrantID != "" {
 		n.GrantID = &c.OAuthGrantID
 	}
@@ -189,18 +189,18 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		expiry := now.Add(ttl)
 		n.ExpiresAt = &expiry
 	}
-	old, e := db.GetNotification(ctx, b.h.database, n.ID)
+	old, e := b.h.notificationsSvc().GetNotification(ctx, n.ID)
 	if e != nil && !errors.Is(e, sql.ErrNoRows) {
 		return out, e
 	}
 	siteChanged := e == nil && old.SiteID != n.SiteID
 	if siteChanged {
-		if _, err = db.DeleteNotification(ctx, b.h.database, n.ID); err != nil {
+		if _, err = b.h.notificationsSvc().DeleteNotification(ctx, n.ID); err != nil {
 			return out, err
 		}
-		old = db.Notification{}
+		old = model.Notification{}
 	}
-	verified, err := db.RecentlyVerifiedNotification(ctx, b.h.database, c.Owner, req.URL)
+	verified, err := b.h.notificationsSvc().RecentlyVerifiedNotification(ctx, c.Owner, req.URL)
 	if err != nil {
 		return out, err
 	}
@@ -237,8 +237,8 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 		}
 	} else {
 		// A refresh does not extend the proof's 30-day lifetime without a challenge.
-		var verifiedAt time.Time
-		if err = b.h.database.QueryRowContext(ctx, `SELECT max(verified_at) FROM site_notifications WHERE owner_id=$1 AND url=$2 AND source='mcp'`, c.Owner, req.URL).Scan(&verifiedAt); err != nil {
+		verifiedAt, verifyErr := b.h.notificationsSvc().VerifiedAt(ctx, c.Owner, req.URL)
+		if err = verifyErr; err != nil {
 			return out, err
 		}
 		n.VerifiedAt = &verifiedAt
@@ -252,17 +252,17 @@ func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mc
 			return out, notifyMCPError(mcp.EventCodeForbidden, "reason", "site_changed")
 		}
 	}
-	refreshed, truncated, err := db.SaveNotification(ctx, b.h.database, n, b.h.limits.NotifyMaxPerSite, cursor, b.h.limits.NotifyHistoryDays, b.h.notificationSecrets())
-	if errors.Is(err, db.ErrNotificationAccess) {
+	refreshed, truncated, err := b.h.notificationsSvc().SaveNotification(ctx, n, b.h.limits.NotifyMaxPerSite, cursor, b.h.limits.NotifyHistoryDays, b.h.notificationSecrets())
+	if errors.Is(err, model.ErrNotificationAccess) {
 		return out, notifyMCPError(mcp.EventCodeForbidden, "reason", "notification_access_ended")
 	}
-	if errors.Is(err, db.ErrNotificationCap) {
+	if errors.Is(err, model.ErrNotificationCap) {
 		return out, &mcp.EventError{Code: mcp.EventCodeResourceExhausted, Message: "too many subscriptions", Data: map[string]any{"limit": "subscriptions", "max": b.h.limits.NotifyMaxPerSite}}
 	}
 	if err != nil {
 		return out, err
 	}
-	seq, err := db.NotificationCursor(ctx, b.h.database, n.ID, n.SiteID)
+	seq, err := b.h.notificationsSvc().NotificationCursor(ctx, n.ID, n.SiteID)
 	if err != nil {
 		return out, err
 	}
@@ -281,7 +281,7 @@ func (b notificationBackend) Unsubscribe(ctx context.Context, c mcp.Caller, req 
 	if c.Owner == "" || c.DeployOnly {
 		return notifyMCPError(mcp.EventCodeForbidden, "reason", "owner_required")
 	}
-	_, err := db.DeleteNotification(ctx, b.h.database, notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs))
+	_, err := b.h.notificationsSvc().DeleteNotification(ctx, notifyMCPID(c.Owner, c.OAuthGrantID, req.URL, req.Name, req.CanonicalArgs))
 	return err
 }
 
@@ -290,7 +290,5 @@ func (b notificationBackend) NotificationSiteEvent(ctx context.Context, c mcp.Ca
 	if err != nil {
 		return "", err
 	}
-	var slug string
-	err = b.h.database.QueryRowContext(ctx, `SELECT slug FROM events WHERE account_id=$1`, site.UserID).Scan(&slug)
-	return slug, err
+	return b.h.notificationsSvc().SiteEventSlug(ctx, site.UserID)
 }

@@ -6,8 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/app/operations"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Small helpers both the Hack event API (hack.go and friends, which move
@@ -63,7 +62,7 @@ func hackSitesScreenshotPath(p string) (string, bool) {
 // hackSitesPaperUser is hack.go's paperHackUser (moved there from
 // hack_paper_metrics.go), duplicated here for site_storage.go's
 // storage-request telemetry, which is not Hack-event-API code.
-func hackSitesPaperUser(r *http.Request, user *db.User) {
+func hackSitesPaperUser(r *http.Request, user *model.User) {
 	if user == nil {
 		return
 	}
@@ -74,5 +73,5 @@ func hackSitesPaperUser(r *http.Request, user *db.User) {
 	if user.EventWebsite != nil {
 		member = user.EventWebsite.OrganiserID
 	}
-	operations.HackMember(r.Context(), member)
+	paperRecorder(r.Context()).HackMember(r.Context(), member)
 }

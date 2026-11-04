@@ -46,7 +46,7 @@ func GetSiteByCustomDomain(ctx context.Context, database *sql.DB, domain string,
 	if err != nil {
 		return model.SiteDomainInfo{}, err
 	}
-	return previousDomainInfo(info), nil
+	return info.PreviousDomainView(time.Now()), nil
 }
 func GetSiteOwner(ctx context.Context, q Querier, siteID string) (handle, userID, name string, err error) {
 	err = q.QueryRowContext(ctx, `
@@ -82,18 +82,4 @@ func ResolveOldSiteName(ctx context.Context, q Querier, userID, name string) (si
 		 WHERE a.user_id::text = $1 AND a.name = $2
 		   AND s.user_id = a.user_id AND s.deleted_at IS NULL`, userID, name).Scan(&siteID, &current)
 	return siteID, current, err
-}
-
-func previousDomainInfo(info model.SiteDomainInfo) model.SiteDomainInfo {
-	prev := info
-	prev.Domain = info.PreviousDomain
-	prev.Status = "active"
-	prev.LastError = ""
-	prev.CertStatus = "live"
-	prev.FailingSince = sql.NullTime{}
-	if !prev.VerifiedAt.Valid {
-		prev.VerifiedAt = sql.NullTime{Time: time.Now(), Valid: true}
-	}
-	prev.PreviousDomain = ""
-	return prev
 }

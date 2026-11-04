@@ -6,7 +6,8 @@ import (
 	"encoding/base64"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/notifications"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 func (h *SiteHandler) NotificationsReady() bool { return h.passcode.aead != nil }
@@ -42,12 +43,12 @@ func (p *passcodeState) openNotification(id, stored string) (string, error) {
 // hook (cleanup 3.2 slice 3): the moved hack_notifications_test.go seals a
 // notification secret directly the way notify_test.go's own tests do
 // in-package.
-func (h *SiteHandler) NotificationSecretsForTest() db.NotificationSecrets {
+func (h *SiteHandler) NotificationSecretsForTest() model.NotificationSecrets {
 	return h.notificationSecrets()
 }
 
-func (h *SiteHandler) notificationSecrets() db.NotificationSecrets {
-	return db.NotificationSecrets{Seal: h.passcode.sealNotification, Open: h.passcode.openNotification}
+func (h *SiteHandler) notificationSecrets() model.NotificationSecrets {
+	return model.NotificationSecrets{Seal: h.passcode.sealNotification, Open: h.passcode.openNotification}
 }
 
 // SealNotificationSecrets rewrites legacy data only; startup never migrates schema.
@@ -55,5 +56,5 @@ func (h *SiteHandler) SealNotificationSecrets(ctx context.Context, database *sql
 	if !h.NotificationsReady() {
 		return 0, nil
 	}
-	return db.SealNotificationSecrets(ctx, database, h.passcode.sealNotification)
+	return notifications.New(database, nil).SealNotificationSecrets(ctx, h.passcode.sealNotification)
 }

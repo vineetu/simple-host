@@ -10,10 +10,8 @@ import (
 
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/accounts"
-	storeaccounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	"github.com/vsriram/simple-host/internal/repository/sites"
-	storesites "github.com/vsriram/simple-host/internal/repository/sites"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
@@ -131,9 +129,8 @@ func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKe
 	return tx.Commit()
 }
 
-// GetUserByHandle looks up a user by their URL-safe handle.
 func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, error) {
-	return storeaccounts.GetUserByHandle(ctx, db, handle)
+	return accounts.GetUserByHandle(ctx, db, handle)
 }
 
 // GetHandleBySiteName returns the URL-safe handle of the OLDEST owner of a site
@@ -141,7 +138,7 @@ func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, erro
 // serve. Used to 301 a deprecated name-subdomain to its canonical path URL.
 // Returns sql.ErrNoRows if no such site; the handle is "" if the owner has none.
 func GetHandleBySiteName(ctx context.Context, db *sql.DB, name string) (string, error) {
-	return storesites.GetHandleBySiteName(ctx, db, name)
+	return sites.GetHandleBySiteName(ctx, db, name)
 }
 
 // Alias (cleanup 4.1): defined in internal/repository/sqlkit.
@@ -282,43 +279,10 @@ func ListAllUsers(ctx context.Context, db *sql.DB) ([]User, error) { return list
 // ListSiteOwners excludes visitor-only identities from signup statistics.
 func ListSiteOwners(ctx context.Context, db *sql.DB) ([]User, error) { return listUsers(ctx, db, true) }
 func listUsers(ctx context.Context, db *sql.DB, withSites bool) ([]User, error) {
-	filter := ""
 	if withSites {
-		filter = " WHERE EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id)"
+		return accounts.ListSiteOwners(ctx, db)
 	}
-	rows, err := db.QueryContext(ctx, `
-		SELECT id, username, is_admin, created_at, COALESCE(handle, ''), display_name,
-		       suspended_at IS NOT NULL, COALESCE(suspended_reason, ''),
-		       COALESCE(signup_source, ''), COALESCE(signup_agent, ''), COALESCE(signup_method, ''), signup_inferred,
-		       signup_detail
-		FROM users`+filter+`
-		ORDER BY created_at ASC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []User
-	for rows.Next() {
-		var u User
-		var handle string
-		var detail []byte
-		if err := rows.Scan(&u.ID, &u.Username, &u.IsAdmin, &u.CreatedAt, &handle, &u.DisplayName, &u.Suspended, &u.SuspendedReason,
-			&u.Signup.Source, &u.Signup.Agent, &u.Signup.Method, &u.Signup.Inferred, &detail); err != nil {
-			return nil, err
-		}
-		if len(detail) > 0 {
-			var d SignupDetail
-			if json.Unmarshal(detail, &d) == nil {
-				u.Signup.Detail = &d
-			}
-		}
-		if handle != "" {
-			u.Handle = sql.NullString{String: handle, Valid: true}
-		}
-		out = append(out, u)
-	}
-	return out, rows.Err()
+	return accounts.ListAllUsers(ctx, db)
 }
 
 // SetSiteOffline takes a site offline (on) or brings it back (off). Nothing

@@ -5,12 +5,12 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/x509"
-	"database/sql"
 	"encoding/base32"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/app/notifications"
 	"log"
 	"net"
 	"sort"
@@ -20,9 +20,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
@@ -190,7 +189,7 @@ func (h *SiteHandler) storeNotification(c storageCall, name string, data map[str
 func (h *SiteHandler) storeNotificationContext(parent context.Context, c storageCall, name string, data map[string]any) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
-	yes, err := db.HasNotificationsFor(ctx, h.database, c.siteID, name)
+	yes, err := h.notificationsSvc().HasNotificationsFor(ctx, c.siteID, name)
 	if err != nil {
 		h.notifyEngine().emits.Fail("lookup subscriptions", err)
 		return
@@ -203,7 +202,7 @@ func (h *SiteHandler) storeNotificationContext(parent context.Context, c storage
 		log.Printf("notifications: site %s event cap reached, dropped=%d", c.siteID, e.dropped.Add(1))
 		return
 	}
-	site, err := db.GetSiteByID(ctx, h.database, c.siteID)
+	site, err := h.sitesSvc().GetSiteByID(ctx, c.siteID)
 	if err != nil {
 		e.emits.Fail("load event site", err)
 		return
@@ -242,7 +241,7 @@ func (h *SiteHandler) storeNotificationContext(parent context.Context, c storage
 	if err != nil {
 		return
 	}
-	if err = db.EmitSiteEvent(ctx, h.database, c.siteID, notifyEventID(), name, c.resourceName, raw); err != nil {
+	if err = h.notificationsSvc().EmitSiteEvent(ctx, c.siteID, notifyEventID(), name, c.resourceName, raw); err != nil {
 		e.emits.Fail("store event", err)
 		return
 	}
@@ -273,7 +272,7 @@ func (h *SiteHandler) storeSiteNotification(siteID, name string, data map[string
 func (h *SiteHandler) storeSiteNotificationContext(parent context.Context, siteID, name string, data map[string]any, dedupe time.Duration) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
-	yes, err := db.HasNotificationsFor(ctx, h.database, siteID, name)
+	yes, err := h.notificationsSvc().HasNotificationsFor(ctx, siteID, name)
 	if err != nil {
 		h.notifyEngine().emits.Fail("lookup subscriptions", err)
 		return
@@ -281,7 +280,7 @@ func (h *SiteHandler) storeSiteNotificationContext(parent context.Context, siteI
 	if !yes {
 		return
 	}
-	site, err := db.GetSiteByID(ctx, h.database, siteID)
+	site, err := h.sitesSvc().GetSiteByID(ctx, siteID)
 	if err != nil {
 		h.notifyEngine().emits.Fail("load event site", err)
 		return
@@ -291,7 +290,7 @@ func (h *SiteHandler) storeSiteNotificationContext(parent context.Context, siteI
 		return
 	}
 	if dedupe > 0 && visitor != "" {
-		recent, err := db.RecentSiteEvent(ctx, h.database, siteID, name, visitor, dedupe)
+		recent, err := h.notificationsSvc().RecentSiteEvent(ctx, siteID, name, visitor, dedupe)
 		if err != nil || recent {
 			return
 		}
@@ -318,9 +317,9 @@ func (h *SiteHandler) storeSiteNotificationContext(parent context.Context, siteI
 	}
 	stored := true
 	if dedupe > 0 && visitor != "" {
-		stored, err = db.EmitSiteEventOnce(ctx, h.database, siteID, notifyEventID(), name, raw, visitor, dedupe)
+		stored, err = h.notificationsSvc().EmitSiteEventOnce(ctx, siteID, notifyEventID(), name, raw, visitor, dedupe)
 	} else {
-		err = db.EmitSiteEvent(ctx, h.database, siteID, notifyEventID(), name, "", raw)
+		err = h.notificationsSvc().EmitSiteEvent(ctx, siteID, notifyEventID(), name, "", raw)
 	}
 	if err != nil {
 		e.emits.Fail("store event", err)
@@ -400,7 +399,7 @@ func notifyFields(raw json.RawMessage) map[string]any {
 
 // Convert at delivery so REST history and plain webhooks retain their format.
 // Old queued events receive the same projection as newly saved events.
-func (h *SiteHandler) notificationBody(n db.Notification, d db.NotificationDelivery, cursor int64) []byte {
+func (h *SiteHandler) notificationBody(n model.Notification, d model.NotificationDelivery, cursor int64) []byte {
 	if n.Source == "mcp" && !h.ed.Notifications().EventScoped {
 		var data map[string]any
 		decoder := json.NewDecoder(bytes.NewReader(d.Data))
@@ -420,7 +419,7 @@ func (h *SiteHandler) notificationBody(n db.Notification, d db.NotificationDeliv
 	return notifyBody(d, cursor, h.limits.NotifyBodyMaxBytes)
 }
 
-func notifyBody(d db.NotificationDelivery, cursor int64, bodyMax int) []byte {
+func notifyBody(d model.NotificationDelivery, cursor int64, bodyMax int) []byte {
 	body := map[string]any{"eventId": d.EventID, "name": d.Name, "timestamp": d.CreatedAt.UTC().Format(time.RFC3339), "cursor": fmt.Sprintf("c_%d", cursor), "data": d.Data}
 	raw, _ := json.Marshal(body)
 	if len(raw) > bodyMax {
@@ -546,175 +545,30 @@ func (h *SiteHandler) DeliverNotificationForTest(ctx context.Context) bool {
 }
 
 func (h *SiteHandler) deliverNotification(ctx context.Context) bool {
-	l := h.limits
-	e := h.notifyEngine()
-	e.delivery.Attempt()
-	h.notificationPending(ctx)
-	d, err := db.ClaimNotificationDelivery(ctx, h.database, l.NotifyTimeout+30*time.Second, l.NotifyAttempts, l.NotifyHistoryDays, l.NotifySuspendWindow)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false
-	}
-	if err != nil {
-		if ctx.Err() == nil {
-			e.delivery.Fail("claim delivery", err)
-		}
-		return false
-	}
-	return h.processNotification(ctx, d)
+	return h.notificationsSvc().Deliver(ctx, h.ed, h.notificationDeliveryDeps())
 }
-func (h *SiteHandler) processNotification(ctx context.Context, d db.NotificationDelivery) bool {
-	l := h.limits
-	ctx, cancel := context.WithDeadline(ctx, d.LeaseUntil)
-	defer cancel()
-	n, err := db.GetNotification(ctx, h.database, d.SubscriptionID)
-	if err != nil {
-		h.notifyEngine().delivery.Fail("load subscription", err)
-		return true
-	}
-	// A pause or expiry may have happened after the claim.
-	if n.State != "active" || n.ExpiresAt != nil && !n.ExpiresAt.After(time.Now()) {
-		return true
-	}
-	start := time.Now()
-	result := notifyResult{Result: "site_unavailable"}
-	state := "skipped"
-	site, err := db.GetSiteByID(ctx, h.database, n.SiteID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		h.notifyEngine().delivery.Fail("load delivery site", err)
-		return true
-	}
-	allowed := site.UserID == n.OwnerID
-	if err == nil && h.ed.Notifications().EventScoped {
-		allowed, err = db.HackNotificationAllowed(ctx, h.database, n.SiteID, n.OwnerID, false)
-		if err != nil {
-			return true
-		}
-	}
-	if err == nil && !site.Offline && !site.Suspended() && !site.Deleted && allowed {
-		cursor, e := db.NotificationCursor(ctx, h.database, n.ID, n.SiteID)
-		if e != nil {
-			h.notifyEngine().delivery.Fail("load delivery cursor", e)
-			return true
-		}
-		held, err := db.NotificationLeaseHeld(ctx, h.database, d)
-		if err != nil {
-			h.notifyEngine().delivery.Fail("check delivery lease", err)
-		}
-		if err != nil || !held {
-			return true
-		}
-		engine := h.notifyEngine()
-		acquired := engine.acquireOwner(n.OwnerID)
-		if acquired {
-			defer engine.releaseOwner(n.OwnerID)
-		}
-		if !acquired || !engine.perURL.allow(n.URL) {
-			if err := db.DeferNotificationDelivery(ctx, h.database, d); err != nil {
-				engine.delivery.Fail("defer delivery", err)
-			}
-			return true
-		}
-		body := h.notificationBody(n, d, cursor)
-		if body == nil {
-			return true
-		}
-		result = engine.client.send(ctx, n, d.EventID, body)
-		if !result.Delivered {
-			engine.delivery.Fail("send webhook", fmt.Errorf("%s (HTTP %d)", result.Result, result.Status))
-		}
-		state = "failed"
-		if result.Delivered {
-			state = "delivered"
-		} else if d.Attempts < l.NotifyAttempts && result.Status != 410 && result.Status != 413 && result.Result != "refused_address" {
-			state = "pending"
-		}
-	}
-	delays := []time.Duration{30 * time.Second, 2 * time.Minute, 5 * time.Minute, 7 * time.Minute}
-	i := d.Attempts - 1
-	if i >= len(delays) {
-		i = len(delays) - 1
-	}
-	next := time.Now().Add(delays[i])
-	suspended, err := db.FinishNotificationDelivery(ctx, h.database, d, state, result.Result, result.Status, int(time.Since(start).Milliseconds()), next, l.NotifySuspendWindow, l.NotifySuspendAttempts, l.NotifySuspendFailurePercent, l.NotifySuspendAfter)
-	if err != nil {
-		h.notifyEngine().delivery.Fail("finish delivery", err)
-	} else {
-		h.notifyEngine().delivery.Progress()
-		h.notificationPending(ctx)
-	}
-	if suspended {
-		h.notifySuspension(ctx, n)
-	}
-	return true
+func (h *SiteHandler) processNotification(ctx context.Context, d model.NotificationDelivery) bool {
+	return h.notificationsSvc().ProcessDelivery(ctx, d, h.ed, h.notificationDeliveryDeps())
 }
-func (h *SiteHandler) notifySuspension(ctx context.Context, n db.Notification) {
+func (h *SiteHandler) notifySuspension(ctx context.Context, n model.Notification) {
 	mailer, ok := h.mailer.(noticeSender)
-	if !ok {
-		return
-	}
-	to, err := db.GetSiteOwnerEmail(ctx, h.database, n.SiteID)
-	if err != nil || !strings.Contains(to, "@") {
-		return
-	}
-	claimed, err := db.ClaimNotificationEmail(ctx, h.database, n.ID)
-	if err != nil {
-		h.notifyEngine().retention.Fail("claim suspension email", err)
-	}
-	if err != nil || !claimed {
-		return
-	}
-	if err = email.SendNoticeCtx(ctx, mailer, to, "Simple Host notification paused", "Notifications for "+n.Site+" have been suspended after repeated delivery failures. Check the receiver, then resume the subscription in Notifications."); err != nil {
-		h.notifyEngine().retention.Fail("send suspension email", notificationMailError(err))
-		retryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		if _, err := h.database.ExecContext(retryCtx, `UPDATE site_notifications SET suspend_emailed_at=NULL WHERE id=$1`, n.ID); err != nil {
-			h.notifyEngine().retention.Fail("reset suspension email", err)
-		}
-	} else {
-		h.notifyEngine().retention.Progress()
+	if ok {
+		h.notificationsSvc().NotifySuspension(ctx, n, mailer, h.notifyEngine().retention)
 	}
 }
 
 func (h *SiteHandler) sweepNotifications(ctx context.Context) {
-	t := h.notifyEngine().retention
-	t.Attempt()
-	n, err := db.SweepNotificationsCount(ctx, h.database, h.limits.NotifyHistoryDays)
-	if err != nil {
-		t.Fail("sweep history", err)
-	}
-	if n > 0 {
-		t.Progress()
-	}
-	rows, err := h.database.QueryContext(ctx, `SELECT id FROM site_notifications WHERE state='suspended' AND suspend_emailed_at IS NULL`)
-	if err != nil {
-		t.Fail("list suspension emails", err)
-		return
-	}
-	var ids []string
-	for rows.Next() {
-		var id string
-		if rows.Scan(&id) == nil {
-			ids = append(ids, id)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		t.Fail("read suspension emails", err)
-	}
-	rows.Close()
-	for _, id := range ids {
-		if n, err := db.GetNotification(ctx, h.database, id); err == nil {
-			h.notifySuspension(ctx, n)
-		}
-	}
+	mailer, _ := h.mailer.(noticeSender)
+	h.notificationsSvc().SweepSuspensionEmails(ctx, h.limits.NotifyHistoryDays, mailer, h.notifyEngine().retention)
 }
 
 // Hack's organiser website uses an internal UUID for storage; delivery payloads
 // use the event slug and public address, as the website tools do.
-func (h *SiteHandler) notificationSiteInfo(ctx context.Context, site db.Site) (string, string, error) {
+func (h *SiteHandler) notificationSiteInfo(ctx context.Context, site model.Site) (string, string, error) {
 	if !h.ed.Notifications().EventScoped {
 		return site.Name, h.siteURLFor(site), nil
 	}
-	ev, err := db.GetEventByAccount(ctx, h.database, site.UserID)
+	ev, err := h.storeAccounts().GetEventByAccount(ctx, site.UserID)
 	if err != nil {
 		return "", "", err
 	}
@@ -726,7 +580,7 @@ func (h *SiteHandler) notificationSiteInfo(ctx context.Context, site db.Site) (s
 
 func (h *SiteHandler) notificationPending(ctx context.Context) {
 	t := h.notifyEngine().delivery
-	n, err := db.PendingNotificationDeliveries(ctx, h.database)
+	n, err := h.notificationsSvc().PendingNotificationDeliveries(ctx)
 	if err != nil {
 		t.Fail("count pending deliveries", err)
 		return
@@ -754,4 +608,13 @@ func notificationMailError(err error) error {
 		return fmt.Errorf("mail provider returned HTTP %d", status)
 	}
 	return errors.New("mail provider delivery failed")
+}
+
+func (h *SiteHandler) notificationDeliveryDeps() notifications.DeliveryDeps {
+	e := h.notifyEngine()
+	mailer, _ := h.mailer.(noticeSender)
+	return notifications.DeliveryDeps{Tracker: e.delivery, Retention: e.retention, Mailer: mailer, AcquireOwner: e.acquireOwner, ReleaseOwner: e.releaseOwner, AllowURL: e.perURL.allow, Body: h.notificationBody, Pending: h.notificationPending, Send: func(ctx context.Context, n model.Notification, id string, body []byte) notifications.DeliveryResult {
+		result := e.client.send(ctx, n, id, body)
+		return notifications.DeliveryResult{Delivered: result.Delivered, Status: result.Status, Result: result.Result}
+	}}
 }

@@ -112,7 +112,7 @@ func MarkIdleWarned(ctx context.Context, tx *sql.Tx, ex IdleExempt, siteID strin
 // activity since, still eligible (re-checked here, so a Keep, a deploy or a
 // new domain that landed since the list was read rolls the removal back).
 // sql.ErrNoRows when it no longer qualifies.
-func MarkIdleRemoved(ctx context.Context, q *sql.Tx, ex IdleExempt, siteID string, tokenHash []byte, now time.Time, grace time.Duration) error {
+func MarkIdleRemoved(ctx context.Context, q Querier, ex IdleExempt, siteID string, tokenHash []byte, now time.Time, grace time.Duration) error {
 	args := append(ex.args(), siteID, tokenHash, graceSeconds(grace), now)
 	res, err := q.ExecContext(ctx, `UPDATE sites s SET idle_removed_at = now(), idle_token_hash = $4
 		  FROM users u

@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // maxStateOps caps the number of operations per PATCH request.
@@ -104,8 +104,8 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// A retry answers with the document as it is now and its version.
-	claim, handled := h.idemBegin(w, r, siteID, "PATCH state", actor, body, func(prev db.IdempotentResponse) {
-		state, ver, err := db.GetSiteStateByID(r.Context(), h.database, siteID)
+	claim, handled := h.idemBegin(w, r, siteID, "PATCH state", actor, body, func(prev model.LegacyIdempotentResponse) {
+		state, ver, err := h.reporting.SiteState(r.Context(), siteID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
@@ -131,7 +131,7 @@ func (h *SiteHandler) patchSiteState(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, sql.ErrNoRows):
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return
-	case errors.Is(err, db.ErrSiteFull):
+	case errors.Is(err, model.ErrSiteFull):
 		h.writeSiteFull(w)
 		return
 	case err != nil:
@@ -159,29 +159,29 @@ type patchReply struct {
 func (e *patchReply) Error() string { return e.msg }
 
 // patchState applies ops to the document in one locked transaction.
-func (h *SiteHandler) patchState(r *http.Request, siteID string, actor db.Actor, ops []stateOp) (db.StatePatch, int, error) {
-	var out db.StatePatch
-	ver, err := db.PatchSiteState(r.Context(), h.database, siteID, actor, h.siteMaxBytes(), h.savedData.SnapshotEvery, func(cur json.RawMessage) (db.StatePatch, error) {
+func (h *SiteHandler) patchState(r *http.Request, siteID string, actor model.Actor, ops []stateOp) (model.StatePatch, int, error) {
+	var out model.StatePatch
+	ver, err := h.reporting.PatchSiteState(r.Context(), siteID, actor, h.siteMaxBytes(), h.savedData.SnapshotEvery, func(cur json.RawMessage) (model.StatePatch, error) {
 		root, err := stateRootObject(cur)
 		if err != nil {
-			return db.StatePatch{}, &patchReply{http.StatusConflict, "state is not a JSON object; PATCH requires an object root", "not_an_object"}
+			return model.StatePatch{}, &patchReply{http.StatusConflict, "state is not a JSON object; PATCH requires an object root", "not_an_object"}
 		}
 		// Before is decoded separately: the ops change root in place.
 		before, err := decodeJSON(cur)
 		if err != nil {
-			return db.StatePatch{}, err
+			return model.StatePatch{}, err
 		}
 		if err := applyStateOps(root, ops); err != nil {
-			return db.StatePatch{}, &patchReply{http.StatusBadRequest, err.Error(), ""}
+			return model.StatePatch{}, &patchReply{http.StatusBadRequest, err.Error(), ""}
 		}
 		next, err := json.Marshal(root)
 		if err != nil {
-			return db.StatePatch{}, err
+			return model.StatePatch{}, err
 		}
 		if len(next) > maxSiteStateSize {
-			return db.StatePatch{}, &patchReply{http.StatusRequestEntityTooLarge, "resulting state exceeds size limit", "item_too_large"}
+			return model.StatePatch{}, &patchReply{http.StatusRequestEntityTooLarge, "resulting state exceeds size limit", "item_too_large"}
 		}
-		out = db.StatePatch{Before: before, After: root, Next: next}
+		out = model.StatePatch{Before: before, After: root, Next: next}
 		return out, nil
 	})
 	h.boundHistory(r, siteID)

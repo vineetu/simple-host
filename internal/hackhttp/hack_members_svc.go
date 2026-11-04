@@ -5,15 +5,14 @@ import (
 	"net/http"
 
 	"github.com/vsriram/simple-host/internal/app/hack/members"
-	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
 
 func (h *HackHandler) membersSvc() *members.Service {
 	return members.New(h.database, h.archiveEventTx, h.deleteEventTx, func(ctx context.Context, ev model.Event) {
-		operations.RecordHackStage(ctx, ev.ID, ev.Stage, ev.UpdatedAt)
-		operations.HackPhasesChanged(ctx)
+		paperRecorder(ctx).RecordHackStage(ctx, ev.ID, ev.Stage, ev.UpdatedAt)
+		paperRecorder(ctx).HackPhasesChanged(ctx)
 		h.pinDue(ctx, ev.ID)
 		// requestEventCert is a no-op for archived events, as in setStage.
 	}, h.removeEventFiles, h.removeOrphanTeamSites)

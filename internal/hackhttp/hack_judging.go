@@ -15,7 +15,6 @@ import (
 	"time"
 
 	entryapp "github.com/vsriram/simple-host/internal/app/hack/entries"
-	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
@@ -23,7 +22,7 @@ import (
 
 // paperHackTimes moved from hack_paper_metrics.go (cleanup 3.2 slice 1c):
 // used only here, no *SiteHandler dependency.
-func paperHackTimes(r *http.Request) { operations.HackPhasesChanged(r.Context()) }
+func paperHackTimes(r *http.Request) { paperRecorder(r.Context()).HackPhasesChanged(r.Context()) }
 
 // Judging setup: the rubric, how judges are spread, conflicts, and the
 // organiser's dashboard. Scoring, the lock itself, publishing and results

@@ -17,8 +17,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Idle-site cleanup (owner decision 2026-09-27).
@@ -72,7 +71,7 @@ func (h *SiteHandler) SetIdleCleanup(on bool, maxEmails int) {
 // built-in rules: handles (IDLE_CLEANUP_EXEMPT_HANDLES) and the plugin
 // reviewer account (REVIEW_ACCOUNT_EMAIL).
 func (h *SiteHandler) SetIdleExempt(handles []string, reviewerEmail string) {
-	ex := db.IdleExempt{ReviewerEmail: strings.TrimSpace(reviewerEmail), FamilySites: h.limits.IdleExemptFamilySites}
+	ex := sites.IdleExempt{ReviewerEmail: strings.TrimSpace(reviewerEmail), FamilySites: h.limits.IdleExemptFamilySites}
 	for _, hd := range handles {
 		if hd = strings.ToLower(strings.TrimSpace(hd)); hd != "" {
 			ex.Handles = append(ex.Handles, hd)
@@ -94,20 +93,8 @@ type replyNoticeSender interface {
 	SendNoticeReplyTo(toEmail, replyTo, subject, text string) error
 }
 
-// idleEvidenceOK says whether visit data can be trusted to call sites idle,
-// and why not.
 func (h *SiteHandler) idleEvidenceOK(ctx context.Context, now time.Time) (bool, string, time.Time, time.Time, error) {
-	since, last, err := db.IdleEvidence(ctx, h.database)
-	if err != nil {
-		return false, "", since, last, err
-	}
-	switch {
-	case since.IsZero() || since.After(now.Add(-h.idleAfter())):
-		return false, "fewer than " + config.Span(h.idleAfter()) + " of visit records on this server, so nothing can be called idle yet", since, last, nil
-	case last.IsZero() || now.Sub(last) > idleIngestStale:
-		return false, "visit records are not being read (the analytics ingester has not run for six hours), so nothing is called idle", since, last, nil
-	}
-	return true, "", since, last, nil
+	return h.reporting.IdleEvidenceStatus(ctx, now, h.ed)
 }
 
 // StartIdleCleanup runs the cleanup shortly after boot and then every
@@ -125,64 +112,9 @@ func (h *SiteHandler) startIdleCleanup(ctx context.Context) {
 	o.periodicTicker(ctx, 10*time.Minute, idleRunEvery, func(ctx context.Context) { h.runIdleCleanup(ctx, time.Now()) })
 }
 
-// runIdleCleanup is one pass: drop warnings of sites active again, remove
-// sites warned idleGrace ago, warn newly idle sites, within the email cap.
 func (h *SiteHandler) runIdleCleanup(ctx context.Context, now time.Time) {
-	if !h.idleCleanup {
-		return
-	}
 	mailer, ok := h.mailer.(replyNoticeSender)
-	if !ok {
-		sites.ReportWorkerFailure(ctx, "send idle notices", errors.New("no mailer configured"))
-		return
-	}
-	trusted, why, _, _, err := h.idleEvidenceOK(ctx, now)
-	if err != nil {
-		sites.ReportWorkerFailure(ctx, "idle cleanup", err)
-		return
-	}
-	if !trusted {
-		log.Printf("idle-site cleanup: skipped: %s", why)
-		return
-	}
-	if n, err := db.ClearStaleIdleWarnings(ctx, h.database, h.idleExempt); err != nil {
-		sites.ReportWorkerFailure(ctx, "idle cleanup", err)
-		return
-	} else if n > 0 {
-		sites.ReportWorkerProgress(ctx)
-		log.Printf("idle-site cleanup: %d warned site(s) active again", n)
-	}
-	budget := h.idleEmailCap()
-
-	remove, err := db.ListIdleSitesToRemove(ctx, h.database, h.idleExempt, now, h.idleGrace(), budget)
-	if err != nil {
-		sites.ReportWorkerFailure(ctx, "idle cleanup", err)
-		return
-	}
-	for _, s := range remove {
-		if budget <= 0 {
-			break
-		}
-		budget--
-		h.removeIdleSite(ctx, mailer, s, now)
-	}
-
-	if budget <= 0 {
-		log.Printf("idle-site cleanup: email cap reached; the rest wait for the next run")
-		return
-	}
-	warn, err := db.ListIdleSitesToWarn(ctx, h.database, h.idleExempt, now.Add(-h.idleAfter()), budget)
-	if err != nil {
-		sites.ReportWorkerFailure(ctx, "idle cleanup", err)
-		return
-	}
-	for _, s := range warn {
-		if budget <= 0 {
-			break
-		}
-		budget--
-		h.warnIdleSite(ctx, mailer, s, now)
-	}
+	h.reporting.RunIdleCleanup(ctx, now, h.ed, h.idleCleanup, ok, h.idleExempt, h.idleEmailCap(), h.idleArchiveSvc(mailer))
 }
 
 // newIdleToken is a fresh link token and the hash stored for it.
@@ -207,7 +139,7 @@ func (h *SiteHandler) idleLink(action, tok string) string {
 	return h.exportLinkBase() + "/v1/idle/" + action + "#t=" + url.QueryEscape(tok)
 }
 
-func (h *SiteHandler) idleSiteAddress(s db.IdleSite) string {
+func (h *SiteHandler) idleSiteAddress(s sites.IdleSite) string {
 	if u := h.SiteURL(s.OwnerHandle, s.Name); u != "" {
 		return u
 	}
@@ -215,41 +147,41 @@ func (h *SiteHandler) idleSiteAddress(s db.IdleSite) string {
 }
 
 // idleOwnerApp is where the owner signs in to see, keep or download the site.
-func (h *SiteHandler) idleOwnerApp(s db.IdleSite) string {
+func (h *SiteHandler) idleOwnerApp(s sites.IdleSite) string {
 	if s.OwnerHandle != "" {
 		return h.mainSiteURL() + "/" + s.OwnerHandle
 	}
 	return h.exportLinkBase() + "/"
 }
 
-func (h *SiteHandler) warnIdleSite(ctx context.Context, mailer replyNoticeSender, s db.IdleSite, now time.Time) {
+func (h *SiteHandler) warnIdleSite(ctx context.Context, mailer replyNoticeSender, s sites.IdleSite, now time.Time) {
 	h.idleArchiveSvc(mailer).WarnIdleSite(ctx, sites.IdleArchiveInput{Site: sites.IdleSite(s), Now: now})
 }
 
-func (h *SiteHandler) removeIdleSite(ctx context.Context, mailer replyNoticeSender, s db.IdleSite, now time.Time) {
+func (h *SiteHandler) removeIdleSite(ctx context.Context, mailer replyNoticeSender, s sites.IdleSite, now time.Time) {
 	h.idleArchiveSvc(mailer).RemoveIdleSite(ctx, sites.IdleArchiveInput{Site: sites.IdleSite(s), Now: now})
 }
 
 // idleLinkSite resolves a link token to its site, or renders why not.
-func (h *SiteHandler) idleLinkSite(w http.ResponseWriter, r *http.Request) (db.IdleLink, bool) {
+func (h *SiteHandler) idleLinkSite(w http.ResponseWriter, r *http.Request) (model.IdleLink, bool) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	if fragmentLinkGET(h.pipeline(), w, r, h.chromeBase(r), r.URL.Path) {
-		return db.IdleLink{}, false
+		return model.IdleLink{}, false
 	}
 	tok := idleLinkToken(w, r)
 	if len(tok) != 48 {
 		h.idleLinkGone(w, r)
-		return db.IdleLink{}, false
+		return model.IdleLink{}, false
 	}
-	l, err := db.GetIdleLink(r.Context(), h.database, idleTokenHash(tok))
+	l, err := h.reporting.GetIdleLink(r.Context(), idleTokenHash(tok))
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			h.renderServiceError(w, r)
-			return db.IdleLink{}, false
+			return model.IdleLink{}, false
 		}
 		h.idleLinkGone(w, r)
-		return db.IdleLink{}, false
+		return model.IdleLink{}, false
 	}
 	return l, true
 }
@@ -266,7 +198,7 @@ func idleLinkToken(w http.ResponseWriter, r *http.Request) string { return linkT
 
 // idleLinkUsable refuses a link whose site is taken down (or whose owner's
 // account is suspended): it then does nothing until the operator lifts it.
-func (h *SiteHandler) idleLinkUsable(w http.ResponseWriter, r *http.Request, l db.IdleLink) bool {
+func (h *SiteHandler) idleLinkUsable(w http.ResponseWriter, r *http.Request, l model.IdleLink) bool {
 	if l.TakenDown {
 		h.renderMessagePage(w, r, http.StatusForbidden, "This site is taken down",
 			supportText("The link does nothing while the site is taken down. Write to support@simple-host.app if you think this is a mistake."),
@@ -292,16 +224,16 @@ func (h *SiteHandler) idleKeep(w http.ResponseWriter, r *http.Request) {
 	}
 	if linkConfirming(r) {
 		h.pipeline().WriteMessagePage(w, r, h.chromeBase(r), http.StatusOK, "Keep "+html.EscapeString(l.Name)+" online?",
-			"It stays up, and we only ask again if it goes another "+config.Span(h.idleAfter())+" without visitors, a new version or saved data.",
+			"It stays up, and we only ask again if it goes another "+h.ed.Span(h.idleAfter())+" without visitors, a new version or saved data.",
 			"", "", confirmForm("/v1/idle/keep", map[string]string{"t": idleLinkToken(w, r)}, "Keep it online"))
 		return
 	}
-	if err := db.KeepIdleSite(r.Context(), h.database, l.SiteID); err != nil {
+	if err := h.reporting.KeepIdleSite(r.Context(), l.SiteID); err != nil {
 		h.renderServiceError(w, r)
 		return
 	}
 	h.renderMessagePage(w, r, http.StatusOK, "Kept: "+html.EscapeString(l.Name)+" stays online",
-		"Nothing else to do. We will only ask again if it goes another "+config.Span(h.idleAfter())+" without visitors, a new version or saved data.",
+		"Nothing else to do. We will only ask again if it goes another "+h.ed.Span(h.idleAfter())+" without visitors, a new version or saved data.",
 		h.exportLinkBase()+"/", "Go to Simple Host")
 }
 
@@ -328,12 +260,12 @@ func (h *SiteHandler) idleRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	unlock := h.lockSite(l.UserID, l.Name)
 	defer unlock()
-	d, err := db.GetDeletedSiteByUser(r.Context(), h.database, l.UserID, l.Name)
+	d, err := h.opsSitesSvc().GetDeletedSiteByUser(r.Context(), l.UserID, l.Name)
 	if err != nil || d.ID != l.SiteID {
 		h.idleLinkGone(w, r)
 		return
 	}
-	owner, err := db.GetUserByID(r.Context(), h.database, l.UserID)
+	owner, err := h.storeAccounts().GetUserByID(r.Context(), l.UserID)
 	if err != nil {
 		h.renderServiceError(w, r)
 		return
@@ -370,7 +302,7 @@ func (h *SiteHandler) setSiteKeep(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `body must be {"keep": true} or {"keep": false}`})
 		return
 	}
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
+	site, err := h.opsSitesSvc().GetSiteByUser(r.Context(), user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeSiteNotFound(w, siteName)
@@ -382,7 +314,7 @@ func (h *SiteHandler) setSiteKeep(w http.ResponseWriter, r *http.Request) {
 	if refuseSuspendedSite(w, site) {
 		return
 	}
-	if err := db.SetSiteKeep(r.Context(), h.database, site.ID, *req.Keep); err != nil {
+	if err := h.reporting.SetSiteKeep(r.Context(), site.ID, *req.Keep); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
@@ -409,7 +341,7 @@ func (h *SiteHandler) adminIdleSites(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	rows := func(list []db.IdleSite) []idleSiteRow {
+	rows := func(list []sites.IdleSite) []idleSiteRow {
 		out := make([]idleSiteRow, 0, len(list))
 		for _, s := range list {
 			row := idleSiteRow{Site: s.Name, Owner: s.OwnerEmail, LastActivity: s.LastActivity.UTC()}
@@ -422,12 +354,12 @@ func (h *SiteHandler) adminIdleSites(w http.ResponseWriter, r *http.Request) {
 		return out
 	}
 	const show = 500
-	warn, err := db.ListIdleSitesToWarn(r.Context(), h.database, h.idleExempt, now.Add(-h.idleAfter()), show)
+	warn, err := h.reporting.ListIdleSitesToWarn(r.Context(), h.idleExempt, now.Add(-h.idleAfter()), show)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	remove, err := db.ListIdleSitesToRemove(r.Context(), h.database, h.idleExempt, now, h.idleGrace(), show)
+	remove, err := h.reporting.ListIdleSitesToRemove(r.Context(), h.idleExempt, now, h.idleGrace(), show)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return

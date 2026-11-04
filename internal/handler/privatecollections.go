@@ -16,7 +16,6 @@ import (
 	"strings"
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
-	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/model"
 )
@@ -128,7 +127,7 @@ func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (mode
 	if err != nil || !h.sessionValidFor(r, sess, siteID) {
 		return model.VisitorSession{}, false
 	}
-	operations.HackMember(r.Context(), sess.UserID)
+	paperRecorder(r.Context()).HackMember(r.Context(), sess.UserID)
 	return sess, true
 }
 

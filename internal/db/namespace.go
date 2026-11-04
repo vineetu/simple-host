@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/vsriram/simple-host/internal/model"
 	"strings"
 	"time"
 
@@ -23,7 +24,7 @@ import (
 // same name concurrently.
 
 // ErrNameIsAccountAddress means the name is some account's own address.
-var ErrNameIsAccountAddress = errors.New("that name is an account's address")
+var ErrNameIsAccountAddress = model.ErrNameIsAccountAddress
 
 // HandleInUse reports, without taking the namespace lock, whether handle is
 // someone else's: another account's handle or alias (a retired one too), a

@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/app/operations"
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	httpx "github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
@@ -67,7 +66,7 @@ func (h *SiteHandler) storageRequestDeps(r *http.Request, c storageCall) appstor
 		current, err := h.loadStorageResource(ctx, c.siteID, c.resourceName)
 		return err == nil && current.fingerprint() == c.resource.fingerprint()
 	}
-	deps.Committed = operations.HackWriteCommitted
+	deps.Committed = func(ctx context.Context) { paperRecorder(ctx).HackWriteCommitted(ctx) }
 	deps.FilePath = func(_ appstorage.Call, path string) string { return h.storageFilePath(c, path) }
 	deps.FileToken = func(_ appstorage.Call, path string, expires time.Time) string {
 		return h.storageFileToken(c, path, expires)

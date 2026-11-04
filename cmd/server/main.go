@@ -606,7 +606,7 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	if paper != nil {
-		server.Handler = paper.Wrap(server.Handler)
+		server.Handler = paper.Wrap(handler.WithPaperRecorder(hackhttp.WithPaperRecorder(server.Handler, papermetrics.RequestRecorder{}), papermetrics.RequestRecorder{}))
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

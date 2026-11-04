@@ -14,9 +14,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 const (
@@ -140,10 +138,10 @@ func (h *SiteHandler) checkBoundDomainsContext(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, domainPassTimeout)
 	defer cancel()
 
-	if err := db.PruneDomainCertRequests(ctx, h.database); err != nil {
+	if err := h.opsSitesSvc().PruneDomainCertRequests(ctx); err != nil {
 		sites.ReportWorkerFailure(ctx, "prune domain certificate requests", err)
 	}
-	released, err := db.ReleaseExpiredDomains(ctx, h.database, h.limits.DomainUnprovenMaxAge, h.limits.DomainUnprovenTTL)
+	released, err := h.opsSitesSvc().ReleaseExpiredDomains(ctx, h.limits.DomainUnprovenMaxAge, h.limits.DomainUnprovenTTL)
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "release expired domains", err)
 		return
@@ -154,7 +152,7 @@ func (h *SiteHandler) checkBoundDomainsContext(parent context.Context) {
 		log.Printf("domain: released unproven binding %s from %s", info.Domain, info.Name)
 	}
 
-	due, err := db.ListDomainsToCheck(ctx, h.database, domainActiveAge)
+	due, err := h.opsSitesSvc().ListDomainsToCheck(ctx, domainActiveAge)
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "list domains due for checks", err)
 		return
@@ -178,7 +176,7 @@ func (h *SiteHandler) checkBoundDomainsContext(parent context.Context) {
 // its certificate once its ownership record matches and DNS points here,
 // finishes a switch of address once it is verified, and lets a long-failing
 // verified domain go. A taken-down site gets no check and no certificate.
-func (h *SiteHandler) checkDomain(ctx context.Context, d db.BoundDomain, ours map[string]bool) {
+func (h *SiteHandler) checkDomain(ctx context.Context, d model.BoundDomain, ours map[string]bool) {
 	if d.Suspended {
 		h.cancelDomainCert(d.Domain)
 		return
@@ -229,9 +227,9 @@ func (h *SiteHandler) checkDomain(ctx context.Context, d db.BoundDomain, ours ma
 // checkPreviousDomain proves the earlier address a site still serves while its
 // new domain is pending. One that keeps failing for domainLapseAfter is let
 // go: the site stops serving there and the domain is free for whoever holds it.
-func (h *SiteHandler) checkPreviousDomain(ctx context.Context, d db.BoundDomain, ours map[string]bool) {
+func (h *SiteHandler) checkPreviousDomain(ctx context.Context, d model.BoundDomain, ours map[string]bool) {
 	status, _, _ := h.verifyDomain(ctx, d.PreviousDomain, ours)
-	since, err := db.SetPreviousDomainCheck(ctx, h.database, d.SiteID, d.PreviousDomain, status == "active")
+	since, err := h.opsSitesSvc().SetPreviousDomainCheck(ctx, d.SiteID, d.PreviousDomain, status == "active")
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "record previous domain check", err)
 		return
@@ -239,11 +237,11 @@ func (h *SiteHandler) checkPreviousDomain(ctx context.Context, d db.BoundDomain,
 	if !since.Valid || time.Since(since.Time) < h.domainLapseAfter() {
 		return
 	}
-	info, ok, err := db.GetSiteDomainInfo(ctx, h.database, d.SiteID)
+	info, ok, err := h.opsSitesSvc().GetSiteDomainInfo(ctx, d.SiteID)
 	if err != nil || !ok {
 		return
 	}
-	lapsed, err := db.LapsePreviousDomain(ctx, h.database, d.SiteID, d.PreviousDomain)
+	lapsed, err := h.opsSitesSvc().LapsePreviousDomain(ctx, d.SiteID, d.PreviousDomain)
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "lapse previous domain", err)
 		return
@@ -259,8 +257,8 @@ func (h *SiteHandler) checkPreviousDomain(ctx context.Context, d db.BoundDomain,
 }
 
 // applyDomainCheck records one check's verdict and acts on it.
-func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, status, reason, cert string) {
-	check, err := db.SetDomainStatus(ctx, h.database, d.SiteID, d.Domain, status, reason, cert)
+func (h *SiteHandler) applyDomainCheck(ctx context.Context, d model.BoundDomain, status, reason, cert string) {
+	check, err := h.opsSitesSvc().SetDomainStatus(ctx, d.SiteID, d.Domain, status, reason, cert)
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "record domain check", err)
 		return
@@ -295,7 +293,7 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, st
 	}
 	switch {
 	case due:
-		if lapsed, err := db.LapseDomain(ctx, h.database, d.SiteID, d.Domain); err != nil {
+		if lapsed, err := h.opsSitesSvc().LapseDomain(ctx, d.SiteID, d.Domain); err != nil {
 			sites.ReportWorkerFailure(ctx, "lapse domain", err)
 		} else if lapsed {
 			// Released fully: the link goes, so the issuer drops its server and
@@ -316,8 +314,8 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d db.BoundDomain, st
 // domainVerified runs when a custom domain is proven for the first time (or
 // again after a lapse): the site's earlier address is let go (a claimed name
 // stays with the site and redirects here) and old links follow the domain.
-func (h *SiteHandler) domainVerified(ctx context.Context, d db.BoundDomain) {
-	prev, err := db.PromoteDomain(ctx, h.database, d.SiteID)
+func (h *SiteHandler) domainVerified(ctx context.Context, d model.BoundDomain) {
+	prev, err := h.opsSitesSvc().PromoteDomain(ctx, d.SiteID)
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "finish domain switch", err)
 	}
@@ -335,41 +333,11 @@ type noticeSender interface {
 	SendNotice(toEmail, subject, text string) error
 }
 
-// emailDomainFailing tells the owner their domain has stopped working and
-// what happens next. Marked as sent only when it was.
-func (h *SiteHandler) emailDomainFailing(ctx context.Context, d db.BoundDomain, siteName, reason string) {
+func (h *SiteHandler) emailDomainFailing(ctx context.Context, d model.BoundDomain, siteName, reason string) {
 	mailer, ok := h.mailer.(noticeSender)
-	if !ok {
-		return
+	if ok {
+		h.reporting.NotifyDomainFailing(ctx, d, siteName, reason, mailer, h.ed)
 	}
-	to, err := db.GetSiteOwnerEmail(ctx, h.database, d.SiteID)
-	if err != nil || !strings.Contains(to, "@") {
-		return
-	}
-	if reason == "" {
-		reason = "it does not answer over HTTPS"
-	}
-	subject := "Your domain " + d.Domain + " has stopped working"
-	releaseIn := h.domainLapseAfter() - h.domainLapseWarnAfter()
-	releaseAt := time.Now().Add(releaseIn)
-	text := fmt.Sprintf(`Your site %s is connected to https://%s/, and that address has failed every check for %s.
-
-What the last check saw: %s
-
-If you moved the domain or let it lapse on purpose, there is nothing to do. Otherwise, check the domain's DNS records at your registrar (the address record, and the TXT record _simple-host.<domain>).
-
-If it is still failing %s from now, %s is disconnected from the site: the site serves at its own Simple Host address again. Connecting the domain again (by you or whoever holds it then) needs its DNS ownership record (TXT _simple-host.<domain>) once more.
-
-Simple Host
-`, siteName, d.Domain, config.Span(h.domainLapseWarnAfter()), reason, config.Span(releaseIn), d.Domain)
-	if err := email.SendNoticeCtx(ctx, mailer, to, subject, text); err != nil {
-		sites.ReportWorkerFailure(ctx, "send domain failure notice", err)
-		return
-	}
-	if err := db.MarkDomainLapseNotified(ctx, h.database, d.SiteID, d.Domain, releaseAt); err != nil {
-		sites.ReportWorkerFailure(ctx, "mark domain failure notice", err)
-	}
-	log.Printf("domain %s: owner emailed about failing checks", d.Domain)
 }
 
 // SetCustomDomainIPAlso sets the earlier public IPv4s that still count as this
@@ -448,7 +416,7 @@ func (h *SiteHandler) checkDomainNow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName)
+	site, err := h.opsSitesSvc().GetSiteByUser(r.Context(), user.ID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeSiteNotFound(w, siteName)
@@ -466,7 +434,7 @@ func (h *SiteHandler) checkDomainNow(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: "checked a moment ago; try again in half a minute (domains are also checked every few minutes on their own)", Code: "rate_limited"})
 		return
 	}
-	info, ok, err := db.GetSiteDomainInfo(r.Context(), h.database, site.ID)
+	info, ok, err := h.opsSitesSvc().GetSiteDomainInfo(r.Context(), site.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -480,7 +448,7 @@ func (h *SiteHandler) checkDomainNow(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		// The same check, certificate hand-off and switch of address as the
 		// background pass.
-		h.checkDomain(ctx, db.BoundDomainOf(info), h.serverAddrs(ctx))
+		h.checkDomain(ctx, model.BoundDomainOf(info), h.serverAddrs(ctx))
 	}
 	h.getDomain(w, r)
 }
