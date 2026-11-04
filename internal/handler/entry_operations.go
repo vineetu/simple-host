@@ -67,6 +67,11 @@ func (h *SiteHandler) writeEntrySelection(w http.ResponseWriter, in legacy.Entry
 		w.Header()[k] = v
 	}
 	var e *legacy.Error
+	var stageErr *legacy.EntryStageError
+	if errors.As(err, &stageErr) && stageErr.Stage == "preparation" && !errors.As(err, &e) {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return true
+	}
 	if errors.As(err, &e) {
 		switch e.Code {
 		case "site_not_found":
@@ -100,7 +105,11 @@ func (h *SiteHandler) writeEntrySelection(w http.ResponseWriter, in legacy.Entry
 	case errors.As(err, &e):
 		switch e.Code {
 		case "csrf_required":
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
+			if board {
+				writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
+			} else {
+				writeJSON(w, http.StatusForbidden, map[string]string{"code": "csrf_required", "error": "missing CSRF header"})
+			}
 		case "site_not_found":
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		case "invalid_api_key":
