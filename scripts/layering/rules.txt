@@ -55,10 +55,8 @@ hackhttp -> handler test # removal step 5.4: move cross-transport integration fi
 hackhttp -> mcp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 handler -> config production # removal step 5.4: final transport boundary
 handler -> db production # removal step 5.4: site and storage workflows
-handler -> email production # removal step 5.4: final transport boundary
 handler -> hackhttp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 handler -> oauth production # removal step 5.4: final transport boundary
-handler -> rules/storage production # removal step 5.4: site and storage workflows
 handler -> storage production # removal step 5.4: site and storage workflows
 hackhttp -> db test # removal step 5.4: Host fixtures and Hack compatibility aliases
 handler -> db test # removal step 5.4: site and storage workflows

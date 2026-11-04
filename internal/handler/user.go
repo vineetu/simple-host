@@ -18,9 +18,8 @@ import (
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 var validEmail = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
@@ -34,7 +33,8 @@ type UserHandler struct {
 	ed         *edition.Edition
 	limitSet
 	database      *sql.DB
-	mailer        email.Sender
+	accounts      *accounts.Service
+	mailer        signInCodeSender
 	publicBaseURL string
 
 	// Abuse limiters: ipLimiter caps requests per client IP across both auth
@@ -47,7 +47,7 @@ type UserHandler struct {
 
 	// publicPage builds an account's public page address (SiteHandler.PersonPageURL).
 	publicPage func(handle string) string
-	fileUsage  func(context.Context, *db.User) (*accountFileUsage, error)
+	fileUsage  func(context.Context, *model.User) (*accountFileUsage, error)
 	// addressState reports the account's own-address certificate state
 	// (SiteHandler.AddressState).
 	addressState func(handle string) *addressState
@@ -121,31 +121,7 @@ type authChallengeResponse struct {
 	ExpiresIn int    `json:"expires_in_seconds"`
 }
 
-type verifyRequest struct {
-	SSOState string `json:"sso_state"`
-	Email    string `json:"email"`
-	Code     string `json:"code"`
-	Token    string `json:"token"`
-	// Nonce accompanies Token: the browser's nonce whose hash the token was
-	// issued with.
-	Nonce string `json:"nonce"`
-	// Name labels the key this sign-in issues (Keys panel). Optional: a link
-	// or Google sign-in defaults to "dashboard sign-in", a code to "agent sign-in".
-	Name string `json:"name"`
-	// Handle is the address a NEW account takes (ignored when the account
-	// exists). Refused as invalid_handle, handle_reserved or handle_taken
-	// without using up the code, so the caller can try another.
-	Handle *string `json:"handle"`
-	// ChooseHandle: when this sign-in would create the account, create
-	// nothing yet and answer 409 choose_handle with a suggested address; the
-	// caller asks the person and verifies again with Handle.
-	ChooseHandle bool `json:"choose_handle"`
-	// SignupClient: the /mcp consent page sends the client_id of the app
-	// being connected, so an account created there is recorded as made for
-	// that app (users.signup_source). A label only; ignored for an existing
-	// account and for an unknown client.
-	SignupClient string `json:"signup_client"`
-}
+type verifyRequest = accounts.VerifyCodeRequest
 
 type authResponse struct {
 	ID       string `json:"id"`
@@ -156,7 +132,7 @@ type authResponse struct {
 	Handle   string `json:"handle,omitempty"`
 }
 
-func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string, editions ...*edition.Edition) *UserHandler {
+func NewUserHandler(database *sql.DB, service *accounts.Service, mailer signInCodeSender, publicBaseURL string, editions ...*edition.Edition) *UserHandler {
 	var ed *edition.Edition
 	if len(editions) > 0 {
 		ed = editions[0]
@@ -174,11 +150,12 @@ func NewUserHandler(database *sql.DB, mailer email.Sender, publicBaseURL string,
 		limitSet:      newLimitSet(lim),
 		checkLimiter:  checkLimiter,
 		database:      database,
+		accounts:      service,
 		mailer:        mailer,
 		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
 		ipLimiter:     ipLimiter,
 		emailLimiter:  emailLimiter,
-		alerts:        newSignInAlerts(database, mailer, publicBaseURL),
+		alerts:        newSignInAlerts(service, mailer, publicBaseURL),
 	}
 	h.httpCaches.rate("http.user.ipLimiter", ipLimiter, 10*time.Minute, 30*time.Minute)
 	h.httpCaches.rate("http.user.emailLimiter", emailLimiter, 10*time.Minute, 30*time.Minute)
@@ -223,22 +200,17 @@ func (h *UserHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	if err := db.RotateAPIKey(r.Context(), h.database, user.ID, user.KeyHash, newKey, db.KeyNameRotated); errors.Is(err, sql.ErrNoRows) {
-		// The key this request came with was revoked or rotated away meanwhile.
+	err = h.accounts.RotateKey(r.Context(), user.ID, user.KeyHash, newKey)
+	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: auth.InvalidKeyMessage(), Code: "invalid_api_key"})
 		return
-	} else if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	}
+	if errors.Is(err, accounts.ErrDisconnectAfterRotation) {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: err.Error()})
 		return
 	}
-	// Whoever held the old key could have connected an app with it (the
-	// consent screen signs in with the key), and a connection must not
-	// outlive the key it was made with. Rotating is the "my key leaked"
-	// button, so it disconnects every app; the person reconnects the ones
-	// they meant to keep.
-	if err := db.DeleteOAuthGrantsForUser(r.Context(), h.database, user.ID); err != nil {
-		log.Printf("rotate key: disconnect apps user_id=%s: %v", user.ID, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "key rotated, but connected apps could not be disconnected; try again"})
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{
@@ -301,7 +273,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 	// sign-in key gets anyway); the other names Simple Host gives its own
 	// keys stay refused, as in the Keys panel.
 	keyName := strings.TrimSpace(req.Name)
-	if n := strings.ToLower(keyName); n != db.KeyNameDashboard && n != db.KeyNameAgent {
+	if n := strings.ToLower(keyName); n != model.KeyNameDashboard && n != model.KeyNameAgent {
 		var err error
 		if keyName, err = normalizeKeyName(req.Name); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
@@ -311,9 +283,9 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		keyName = n
 	}
 	if keyName == "" {
-		keyName = db.KeyNameAgent
+		keyName = model.KeyNameAgent
 		if req.Token != "" {
-			keyName = db.KeyNameDashboard
+			keyName = model.KeyNameDashboard
 		}
 	}
 
@@ -328,7 +300,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 	}
 	if created {
 		source := signupForVerify(r.Context(), h.database, r, h.publicBaseURL, req.SignupClient, strings.TrimSpace(req.Token) != "")
-		if _, err := db.GetSSOHop(r.Context(), h.database, req.SSOState, false); req.SSOState != "" && err == nil {
+		if _, err := h.accounts.GetSSOHop(r.Context(), req.SSOState, false); req.SSOState != "" && err == nil {
 			source.Source = "visitor_sso"
 		}
 		recordSignup(r.Context(), h.database, user.ID, source)
@@ -336,7 +308,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 
 	// A suspended account gets no new key. It has proved its email, so it is
 	// told why.
-	fresh, err := db.GetUserByID(r.Context(), h.database, user.ID)
+	fresh, err := h.accounts.GetUserByID(r.Context(), user.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -354,9 +326,9 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 	// keys from earlier sign-ins keep working until the person rotates.
 	apiKey, err := auth.GenerateAPIKey()
 	if err == nil {
-		err = db.AddSignInKey(r.Context(), h.database, user.ID, apiKey, keyName)
+		err = h.accounts.AddSignInKey(r.Context(), user.ID, apiKey, keyName)
 	}
-	if errors.Is(err, db.ErrAccountSuspended) {
+	if errors.Is(err, model.ErrAccountSuspended) {
 		// Suspended between the check above and the insert.
 		writeJSON(w, http.StatusForbidden, map[string]string{
 			"error": auth.SuspendedMessage(""), "code": "account_suspended", "reason": "",
@@ -406,13 +378,13 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	fresh, err := db.GetUserByID(r.Context(), h.database, user.ID)
+	fresh, err := h.accounts.GetUserByID(r.Context(), user.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 	user = &fresh
-	alertsOn, err := db.SignInAlertsOn(r.Context(), h.database, user.ID)
+	alertsOn, err := h.accounts.SignInAlertsOn(r.Context(), user.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -448,7 +420,7 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 	if h.addressState != nil && user.Handle.String != "" && h.ed.Identity().PersonalSites {
 		resp.Address = h.addressState(user.Handle.String)
 	}
-	home, hasHome, err := db.HomeSite(r.Context(), h.database, user.ID)
+	home, hasHome, err := h.accounts.HomeSite(r.Context(), user.ID)
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "internal server error"})
 		return

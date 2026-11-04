@@ -282,7 +282,7 @@ func main() {
 	}
 
 	handler.RegisterHealthRoutes(mux, db)
-	userHandler := handler.NewUserHandler(db, mailer, cfg.PublicBaseURL, ed)
+	userHandler := handler.NewUserHandler(db, accountsService, mailer, cfg.PublicBaseURL, ed)
 	userHandler.Register(mux, authMW, noticeMW)
 	siteHandler := handler.NewSiteHandler(ed, hackInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	siteHandler.SetOperationsNetwork(operations.NewNetworkUsage(db, ed))
@@ -355,7 +355,7 @@ func main() {
 	})
 	// Take-down markers on disk follow the database (suspend.go).
 	siteHandler.SyncSuspendMarkers(context.Background())
-	oauthHandler := handler.NewOAuthHandler(db, cfg, ed)
+	oauthHandler := handler.NewOAuthHandler(db, accountsService, cfg, ed)
 	oauthHandler.ShareAssets(siteHandler)
 	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
 	oauthHandler.SetPasscodeCheck(siteHandler.PasscodeLetsIn)

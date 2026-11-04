@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"github.com/vsriram/simple-host/internal/model"
 	"sort"
 	"strings"
 	"time"
@@ -367,29 +368,11 @@ func HandleAliasesByUser(ctx context.Context, database *sql.DB) (map[string][]st
 }
 
 // SignInIdentity is a linked Google or GitHub sign-in.
-type SignInIdentity struct {
-	ID       string
-	Provider string
-	Email    string
-	LinkedAt time.Time
-}
+type SignInIdentity = model.SignInIdentity
 
 // ListSignInIdentities returns the account's linked Google/GitHub sign-ins.
 func ListSignInIdentities(ctx context.Context, database *sql.DB, userID string) ([]SignInIdentity, error) {
-	rows, err := database.QueryContext(ctx, `SELECT id::text, provider, COALESCE(email, ''), created_at FROM oauth_identities WHERE user_id = $1 ORDER BY created_at`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []SignInIdentity
-	for rows.Next() {
-		var s SignInIdentity
-		if err := rows.Scan(&s.ID, &s.Provider, &s.Email, &s.LinkedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, s)
-	}
-	return out, rows.Err()
+	return accounts.ListSignInIdentities(ctx, database, userID)
 }
 
 // UnlinkSignInIdentity removes one of the account's linked Google/GitHub
@@ -404,11 +387,7 @@ func UnlinkSignInIdentity(ctx context.Context, database *sql.DB, userID, id stri
 		return err
 	}
 	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, `DELETE FROM oauth_identities WHERE user_id = $1 AND id::text = $2`, userID, id)
-	if err := oneRow(res, err); err != nil {
-		return err
-	}
-	if err := EndVisitorSessions(ctx, tx, userID); err != nil {
+	if err := accounts.UnlinkSignInIdentityInTx(ctx, tx, userID, id); err != nil {
 		return err
 	}
 	return tx.Commit()

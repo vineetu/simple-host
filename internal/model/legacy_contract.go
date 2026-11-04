@@ -39,7 +39,5 @@ func (e *PrivateItemsError) Error() string { return "the private name holds item
 
 var ErrKindChanged = errors.New("the name's kind changed")
 
-const KeyScopeDeploy = "deploy"
-
 var ErrLegacyEntryTooLarge = errors.New("too large")
 var ErrLegacyEntryNotObject = errors.New("not an object")

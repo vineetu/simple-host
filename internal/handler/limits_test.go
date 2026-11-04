@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -400,7 +401,7 @@ func TestMCPTextFollowsLimits(t *testing.T) {
 // The limiters are built from the RATE_LIMIT_* settings.
 func TestRateLimitsFollowSettings(t *testing.T) {
 	l := withLimits(t, map[string]string{"RATE_LIMIT_SIGNIN_IP": "2,1h", "RATE_LIMIT_SIGNIN_EMAIL": "9,20s"})
-	h := NewUserHandler(nil, nil, "https://simple-host.app", edition.ForKindWithLimits(edition.Host, l))
+	h := NewUserHandler(nil, accountapp.New(nil), nil, "https://simple-host.app", edition.ForKindWithLimits(edition.Host, l))
 	if h.ipLimiter.Capacity != 2 || h.ipLimiter.Rate != 1.0/3600 {
 		t.Errorf("sign-in IP limiter: burst %v, %v/s", h.ipLimiter.Capacity, h.ipLimiter.Rate)
 	}

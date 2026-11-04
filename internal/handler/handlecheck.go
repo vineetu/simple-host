@@ -2,14 +2,10 @@ package handler
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"net/http"
-	"strconv"
 	"strings"
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
-	db "github.com/vsriram/simple-host/internal/db"
 )
 
 // Choosing an address (owner decision 2026-09-28). A handle is also the
@@ -21,21 +17,11 @@ import (
 // address (PATCH /v1/me).
 
 // handleVerdict is why a handle cannot be had. Status 0 means it can.
-type handleVerdict struct {
-	Status  int
-	Code    string
-	Error   string
-	Address string
-}
+type handleVerdict = appsites.HandleVerdict
 
 // handleAddress is how a handle reads as an address: rose.simple-host.app,
 // or the bare handle on an instance without a platform domain.
-func handleAddress(handle string) string {
-	if d := db.PlatformDomain(); d != "" {
-		return handle + "." + d
-	}
-	return handle
-}
+func handleAddress(handle string) string { return appsites.HandleAddress(handle) }
 
 const handleFormatMsg = "Use 1 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen."
 
@@ -43,48 +29,16 @@ const handleFormatMsg = "Use 1 to 39 lowercase letters, numbers or hyphens, not 
 // is the asking account ("" for a new one): its own handle and old handles
 // count as its own. A claim still decides under the namespace lock; this is
 // the early, readable refusal.
-func JudgeHandle(ctx context.Context, q db.Querier, userID, handle string) (handleVerdict, error) {
-	v := handleVerdict{Address: handleAddress(handle)}
-	if !appsites.VisitorHandle.MatchString(handle) || !appsites.HandleIsLabel(handle) {
-		v.Status, v.Code, v.Error = http.StatusBadRequest, "invalid_handle", handleFormatMsg
-		return v, nil
-	}
-	if appsites.LabelReservedForNew(handle) {
-		v.Status, v.Code = http.StatusConflict, "handle_reserved"
-		v.Error = "That address is reserved: " + v.Address + " can't be used. Try another."
-		return v, nil
-	}
-	taken, err := db.HandleInUse(ctx, q, userID, handle)
-	if err != nil {
-		return v, err
-	}
-	if taken {
-		v.Status, v.Code, v.Error = http.StatusConflict, "handle_taken", handleTakenMsg(handle)
-	}
-	return v, nil
+func JudgeHandle(ctx context.Context, q accountQuerier, userID, handle string) (handleVerdict, error) {
+	return appsites.JudgeHandle(ctx, q, userID, handle)
 }
 
-func handleTakenMsg(handle string) string {
-	return "That address is taken: " + handleAddress(handle) + " is already in use. Try another."
-}
+func handleTakenMsg(handle string) string { return appsites.HandleTakenMessage(handle) }
 
 // suggestHandle is the address a new account would have been given
 // (assignHandle's first free candidate), for the sign-up step to prefill.
-func suggestHandle(ctx context.Context, q db.Querier, email string) string {
-	base := sanitizeHandleBase(email)
-	candidates := []string{base}
-	for n := 2; n <= 20; n++ {
-		candidates = append(candidates, base+"-"+strconv.Itoa(n))
-	}
-	var b [4]byte
-	_, _ = rand.Read(b[:])
-	candidates = append(candidates, base+"-"+hex.EncodeToString(b[:]))
-	for _, c := range candidates {
-		if v, err := JudgeHandle(ctx, q, "", c); err == nil && v.Status == 0 {
-			return c
-		}
-	}
-	return ""
+func suggestHandle(ctx context.Context, q accountQuerier, email string) string {
+	return appsites.SuggestHandle(ctx, q, email)
 }
 
 // handleCheck is GET /v1/handles/check?handle=<name>: can this address be
@@ -100,7 +54,7 @@ func (h *UserHandler) handleCheck(w http.ResponseWriter, r *http.Request) {
 	handle := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("handle")))
 	userID, own := "", ""
 	if key := r.Header.Get("X-API-Key"); key != "" {
-		if u, err := db.GetUserByAPIKey(r.Context(), h.database, key, h.limits.KeyIdleExpiry); err == nil {
+		if u, err := h.accounts.GetUserByAPIKey(r.Context(), key, h.limits.KeyIdleExpiry); err == nil {
 			userID, own = u.ID, u.Handle.String
 		}
 	}

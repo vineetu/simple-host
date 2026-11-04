@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -450,7 +451,7 @@ func TestSiteBaseReturnTo(t *testing.T) {
 		t.Fatalf("claim: %d %s", r.status, r.body)
 	}
 	cfg := config.Config{SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain, PublicBaseURL: "https://" + pcSiteDomain}
-	o := NewOAuthHandler(a.database, cfg)
+	o := NewOAuthHandler(a.database, accountapp.New(a.database), cfg)
 	o.SetPersonSiteResolver(a.sites.PersonReturnSite)
 	check := func(raw string, ok bool) {
 		t.Helper()

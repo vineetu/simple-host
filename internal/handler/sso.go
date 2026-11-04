@@ -39,21 +39,18 @@ func ssoCookie(r *http.Request) string {
 	return c.Value
 }
 
-// endBrowserSSO is the dashboard Sign out's part of the browser family: the
-// pass this browser's cookie names, when it is the same person's, loses its
-// parent key, which ends that pass and every site session under it. The key
-// the request came with may be a different one (a failed bootstrap leaves the
-// cookie on an older sign-in). Only /v1/me/sign-out calls it.
-func endBrowserSSO(r *http.Request, database *sql.DB, userID string) error {
+// signOutBrowserPass reads the browser family only on dashboard sign-out.
+func signOutBrowserPass(r *http.Request) string {
 	if r.URL.Path != "/v1/me/sign-out" {
-		return nil
+		return ""
 	}
 	c, err := r.Cookie(ssoCookieName(r))
-	if err != nil || c.Value == "" {
-		return nil
+	if err != nil {
+		return ""
 	}
-	return db.DeleteSSOPassParent(r.Context(), database, db.HashAPIKey(c.Value), userID)
+	return c.Value
 }
+
 func setSSOCookie(w http.ResponseWriter, r *http.Request, value string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{Name: ssoCookieName(r), Value: value, Path: "/", MaxAge: maxAge, HttpOnly: true, Secure: requestIsHTTPS(r), SameSite: http.SameSiteLaxMode})
 }

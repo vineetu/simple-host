@@ -90,12 +90,6 @@ func dropCustomDomain(ctx context.Context, tx *sql.Tx, siteID, expected string, 
 	return dropped, restored, nil
 }
 
-// GetSiteByCustomDomain looks up the site a host serves as its own domain
-// (lowercased match): its bound custom domain, or the earlier proven address
-// it keeps serving at while a new domain is pending. For the latter, Domain is
-// that earlier address and the binding counts as verified. Returns
-// sql.ErrNoRows when none.
-
 // ListDomainsToCheck returns bound domains due for verification: every binding
 // that is not "active" on every pass, plus active ones whose last proof is older
 // than activeAge — an active domain that stops serving has to be able to fall
@@ -378,10 +372,6 @@ func ReleaseExpiredDomains(ctx context.Context, database *sql.DB, maxAge, ttl ti
 	return released, rows.Err()
 }
 
-// GetRetiredName looks host up in legacy_hostnames. sql.ErrNoRows if absent.
-
-// GetSiteOwnerEmail returns the sign-in address of the site's owner.
-
 // ClaimPlatformSubdomain binds a free <name>.<SITE_DOMAIN> address to siteID,
 // verified at once (the platform owns the zone, so there is nothing to prove).
 // First come, first served: any other site holding the name, proven or not,
@@ -465,12 +455,6 @@ func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host 
 	return released, tx.Commit()
 }
 
-// AllowDomainCertRequest records that userID asks for a certificate for
-// domain, unless that would be more than dailyCap
-// (DOMAIN_CERTS_PER_ACCOUNT_DAILY) different domains in the last 24 hours.
-// Asking again for a domain already asked for within the day is always
-// allowed and not counted twice.
-
 // PruneDomainCertRequests forgets requests older than two days.
 func PruneDomainCertRequests(ctx context.Context, database *sql.DB) error {
 	_, err := database.ExecContext(ctx, `DELETE FROM domain_cert_requests WHERE requested_at < now() - interval '2 days'`)
@@ -487,12 +471,6 @@ func DomainBoundToOtherSite(ctx context.Context, q Querier, domain, siteID strin
 		 WHERE id::text <> $2 AND (lower(custom_domain) = lower($1) OR lower(previous_domain) = lower($1)))`, domain, siteID).Scan(&bound)
 	return bound, err
 }
-
-// FamilyLockKey is the advisory-lock key that serializes every bind of a
-// family and of a custom domain under the same registrable domain.
-
-// DomainUnderOtherFamily reports whether domain is (or is under) a verified
-// family of an account other than userID: such a name is that account's.
 
 // platformNameIsHandle reports whether label is an account's handle or an
 // old handle kept as an alias. Callers hold the namespace lock.
@@ -526,6 +504,3 @@ func lockDomainPlatformName(ctx context.Context, tx *sql.Tx, host string, domain
 	_, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, key)
 	return err
 }
-
-// GetSiteOwner returns the owner's handle ("" if none), user id and the
-// site's name for siteID. Returns sql.ErrNoRows for an unknown site.

@@ -302,7 +302,7 @@ func TestRotateWithKeyRevokedMidRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	users := NewUserHandler(a.database, nil, a.srv.URL)
+	users := NewUserHandler(a.database, accountapp.New(a.database), nil, a.srv.URL)
 	h := auth.Middleware("", "", accountapp.New(a.database), 180*24*time.Hour)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := a.database.Exec(`DELETE FROM api_keys WHERE key_hash = $1`, u.KeyHash); err != nil {
 			t.Fatal(err)

@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/base64"
 	"fmt"
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http"
 	"strings"
 	"testing"
@@ -19,7 +20,7 @@ import (
 func TestOutputSchemasMatchRealResults(t *testing.T) {
 	// Person hosts answer (serve), so a version preview has an address.
 	a := newPersonApp(t, "serve")
-	oauth := NewOAuthHandler(a.database, config.Config{PublicBaseURL: a.srv.URL, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain})
+	oauth := NewOAuthHandler(a.database, accountapp.New(a.database), config.Config{PublicBaseURL: a.srv.URL, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain})
 	oauth.SetPersonSiteResolver(a.sites.PersonReturnSite)
 	a.conn.SetVisitorTools(a.sites, oauth)
 	olive, vic := a.newPerson(t, "olive"), a.newPerson(t, "vic")

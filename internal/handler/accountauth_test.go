@@ -1,6 +1,7 @@
 package handler
 
 import (
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,10 +16,10 @@ import (
 // apex routes cross-origin either.
 func TestAccountAuthOnlyOnAppAddress(t *testing.T) {
 	mux := http.NewServeMux()
-	users := NewUserHandler(nil, nil, "https://simple-host.app")
+	users := NewUserHandler(nil, accountapp.New(nil), nil, "https://simple-host.app")
 	identity := func(h http.Handler) http.Handler { return h }
 	users.Register(mux, identity, identity)
-	oauth := NewOAuthHandler(nil, config.Config{PublicBaseURL: "https://simple-host.app"})
+	oauth := NewOAuthHandler(nil, accountapp.New(nil), config.Config{PublicBaseURL: "https://simple-host.app"})
 	oauth.Register(mux)
 	app := CORS(mux)
 
@@ -154,7 +155,7 @@ func TestAccountAuthOnlyOnAppAddress(t *testing.T) {
 
 	// No public base URL configured: nothing is refused.
 	bare := http.NewServeMux()
-	NewUserHandler(nil, nil, "").Register(bare, identity, identity)
+	NewUserHandler(nil, accountapp.New(nil), nil, "").Register(bare, identity, identity)
 	req = httptest.NewRequest("POST", "https://anything.example/v1/auth", strings.NewReader(`{`))
 	rec = httptest.NewRecorder()
 	bare.ServeHTTP(rec, req)

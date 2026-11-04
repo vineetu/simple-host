@@ -2,11 +2,10 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // Signup is where an account came from, recorded once when it is created
@@ -46,23 +45,7 @@ const signupFieldMax = 80
 // while the account has no source yet, so the first record wins and a later
 // sign-in never rewrites it.
 func SetSignup(ctx context.Context, q Querier, userID string, s Signup) error {
-	src := clip(s.Source)
-	if src == "" || userID == "" {
-		return nil
-	}
-	var detail sql.NullString
-	if s.Detail != nil {
-		b, err := json.Marshal(s.Detail)
-		if err != nil {
-			return err
-		}
-		detail = sql.NullString{String: string(b), Valid: true}
-	}
-	_, err := q.ExecContext(ctx, `
-		UPDATE users SET signup_source = $2, signup_agent = NULLIF($3, ''), signup_method = NULLIF($4, ''), signup_detail = $5::jsonb
-		 WHERE id = $1 AND signup_source IS NULL`,
-		userID, src, clip(s.Agent), clip(s.Method), detail)
-	return err
+	return accounts.SetSignup(ctx, q, userID, s)
 }
 
 func clip(s string) string {

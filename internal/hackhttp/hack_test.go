@@ -145,7 +145,7 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(srv.Close)
 	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), ed.Limits().KeyIdleExpiry)
-	users := handler.NewUserHandler(database, email.NewResendSender("", "test@example.com"), srv.URL, ed)
+	users := handler.NewUserHandler(database, accountapp.New(database), email.NewResendSender("", "test@example.com"), srv.URL, ed)
 	users.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
 	h := NewHackHandler(database, srv.URL, "simple-hack.test", ed)
 	h.ShareAssets(handler.NewPages(ed, srv.URL))

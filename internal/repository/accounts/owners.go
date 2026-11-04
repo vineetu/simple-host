@@ -12,5 +12,3 @@ func ListAllUsers(ctx context.Context, db *sql.DB) ([]model.User, error) {
 func ListSiteOwners(ctx context.Context, db *sql.DB) ([]model.User, error) {
 	return ListUsers(ctx, db, true)
 }
-
-// GetUserByHandle looks up a user by their URL-safe handle.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -23,7 +24,7 @@ type visitorFixture struct {
 func newVisitorFixture(t *testing.T) visitorFixture {
 	t.Helper()
 	s := newPresetSite(t)
-	o := NewOAuthHandler(s.a.database, config.Config{PublicBaseURL: s.a.srv.URL, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain})
+	o := NewOAuthHandler(s.a.database, accountapp.New(s.a.database), config.Config{PublicBaseURL: s.a.srv.URL, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain})
 	o.SetPersonSiteResolver(s.a.sites.PersonReturnSite)
 	s.a.conn.SetVisitorTools(s.a.sites, o)
 	// These fixtures use an already verified account, then exercise the real
