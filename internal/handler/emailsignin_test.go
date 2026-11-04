@@ -14,8 +14,9 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/oauth"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // withEmailSignIn flips the package-level EMAIL_SIGNIN switch for the
@@ -84,7 +85,7 @@ func TestVerifyEmailCodeOff_TokenShapeStillWorks(t *testing.T) {
 	linkToken := "link-" + stamp
 	nonce := "nonce-" + stamp
 	nonceHashVal := testNonceHash(nonce)
-	if err := db.CreateAuthToken(ctx, database, address, code, linkToken, time.Now().Add(15*time.Minute), "dashboard", sql.NullString{}, nonceHashVal); err != nil {
+	if err := accountsrepo.CreateAuthToken(ctx, database, address, code, linkToken, time.Now().Add(15*time.Minute), "dashboard", sql.NullString{}, nonceHashVal); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = database.ExecContext(ctx, `DELETE FROM auth_tokens WHERE email = $1`, address) })
@@ -194,7 +195,7 @@ func TestEmailChangeRefusedWhenEmailSignInOff(t *testing.T) {
 	h := &UserHandler{}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/me/email", nil)
-	if !h.emailChangeRefused(rec, req, &db.User{Username: "person@example.com"}) {
+	if !h.emailChangeRefused(rec, req, &model.User{Username: "person@example.com"}) {
 		t.Fatal("expected the email change to be refused")
 	}
 	var body errorResponse

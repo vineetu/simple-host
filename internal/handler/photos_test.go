@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 func photoJPEG(t *testing.T, w, h int) []byte {
@@ -212,7 +212,7 @@ func TestPhotosEndpoint(t *testing.T) {
 	if r.status != 200 || r.json(t)["photos"].([]any)[0].(map[string]any)["path"] != "images/front-3.jpg" {
 		t.Fatalf("existing collision: %d %s", r.status, r.body)
 	}
-	versions, err := db.ListVersionsBySite(context.Background(), a.database, a.siteID(t, p, "home"))
+	versions, err := sitesrepo.ListVersionsBySite(context.Background(), a.database, a.siteID(t, p, "home"))
 	if err != nil || len(versions) != 3 {
 		t.Fatalf("versions: %d %v", len(versions), err)
 	}
@@ -240,7 +240,7 @@ func TestPhotosQuota(t *testing.T) {
 				t.Fatalf("quota: %d %s", r.status, r.body)
 			}
 			uid, _ := a.userID(t, p)
-			site, _ := db.GetSiteByUser(context.Background(), a.database, uid, "home")
+			site, _ := sitesrepo.GetSiteByUser(context.Background(), a.database, uid, "home")
 			if site.ActiveVersion != 1 {
 				t.Fatal("quota refusal changed live version")
 			}
@@ -404,7 +404,7 @@ func TestPhotoReconcile(t *testing.T) {
 			t.Fatalf("unconfirmed: %d %s", r.status, r.body)
 		}
 	}
-	versions, err := db.ListVersionsBySite(context.Background(), a.database, a.siteID(t, p, "home"))
+	versions, err := sitesrepo.ListVersionsBySite(context.Background(), a.database, a.siteID(t, p, "home"))
 	if err != nil || len(versions) != 2 {
 		t.Fatalf("reconciliation wrote a version: %d %v", len(versions), err)
 	}

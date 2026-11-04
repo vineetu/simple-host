@@ -17,7 +17,8 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func keysOf(t *testing.T, a *connectorApp, key string) []map[string]any {
@@ -101,11 +102,11 @@ func TestKeysListCreateRevokeSignOut(t *testing.T) {
 	}
 
 	// A connected app (internal credential) cannot mint, revoke or sign out.
-	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key, 180*24*time.Hour)
+	u, err := accountapp.New(a.database).GetUserByAPIKey(context.Background(), p.key, 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ik, revoke, err := db.IssueInternalKey(u.ID)
+	ik, revoke, err := accountsrepo.IssueInternalKey(u.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +146,7 @@ func TestSignInNamesItsKey(t *testing.T) {
 	verify := func(code string, body map[string]string) string {
 		t.Helper()
 		lt, _ := auth.GenerateAPIKey()
-		if err := db.CreateAuthToken(context.Background(), a.database, ann.email, code, lt, time.Now().Add(time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
+		if err := accountsrepo.CreateAuthToken(context.Background(), a.database, ann.email, code, lt, time.Now().Add(time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
 			t.Fatal(err)
 		}
 		body["email"], body["code"] = ann.email, code
@@ -209,7 +210,7 @@ func TestAdminReissuesKey(t *testing.T) {
 		t.Fatal("old key survived a reissue")
 	}
 	ks := keysOf(t, a, fresh)
-	if len(ks) != 1 || ks[0]["name"] != db.KeyNameEvent || ks[0]["current"] != true {
+	if len(ks) != 1 || ks[0]["name"] != model.KeyNameEvent || ks[0]["current"] != true {
 		t.Fatalf("after reissue: %v", ks)
 	}
 	var event bool
@@ -252,7 +253,7 @@ func TestCreateKeyRacesRevoke(t *testing.T) {
 	a := newConnectorApp(t)
 	p := a.newPerson(t, "mint-race")
 	ctx := context.Background()
-	u, err := db.GetUserByAPIKey(ctx, a.database, p.key, 180*24*time.Hour)
+	u, err := accountapp.New(a.database).GetUserByAPIKey(ctx, p.key, 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,13 +262,13 @@ func TestCreateKeyRacesRevoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback()
-	if _, err := db.DeleteAPIKeyByHash(ctx, tx, u.ID, u.KeyHash); err != nil {
+	if _, err := accountsrepo.DeleteAPIKeyByHash(ctx, tx, u.ID, u.KeyHash); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
 	go func() {
 		plain, _ := auth.GenerateAPIKey()
-		_, err := db.CreateAPIKey(ctx, a.database, u.ID, u.KeyHash, plain, "racer", "", nil, 50, 180*24*time.Hour)
+		_, err := accountapp.New(a.database).CreateKey(ctx, u.ID, u.KeyHash, plain, "racer", "", nil, 50, 180*24*time.Hour)
 		done <- err
 	}()
 	select {
@@ -298,7 +299,7 @@ func TestCreateKeyRacesRevoke(t *testing.T) {
 func TestRotateWithKeyRevokedMidRequest(t *testing.T) {
 	a := newConnectorApp(t)
 	p := a.newPerson(t, "rotate-race")
-	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key, 180*24*time.Hour)
+	u, err := accountapp.New(a.database).GetUserByAPIKey(context.Background(), p.key, 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}

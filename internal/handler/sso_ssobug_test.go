@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // A page with <meta name="referrer" content="no-referrer"> (the owner's
@@ -58,7 +58,7 @@ func TestEstablishOtherBrowserOffersTryAgain(t *testing.T) {
 	host := "one." + h + "." + pcSiteDomain
 	pass := a.ssoPass(t, viewer.key)
 	uid, _ := a.userID(t, viewer)
-	if err := db.RememberSSOConsent(context.Background(), a.database, uid, a.siteID(t, owner, "one")); err != nil {
+	if err := accountsrepo.RememberSSOConsent(context.Background(), a.database, uid, a.siteID(t, owner, "one")); err != nil {
 		t.Fatal(err)
 	}
 	cases := []struct{ name, nonce, want string }{

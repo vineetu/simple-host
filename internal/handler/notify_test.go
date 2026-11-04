@@ -20,10 +20,14 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
+	notifyapp "github.com/vsriram/simple-host/internal/app/notifications"
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	notificationsrepo "github.com/vsriram/simple-host/internal/repository/notifications"
 )
 
 const notifyTestSecret = "whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
@@ -216,7 +220,7 @@ func TestNotifyClientRefusesAddresses(t *testing.T) {
 		}
 		return []net.IPAddr{{IP: net.ParseIP(ip)}}, nil
 	}
-	result := c.send(context.Background(), db.Notification{URL: "https://rebind.example/", Secret: notifyTestSecret}, "evt_test", []byte(`{}`))
+	result := c.send(context.Background(), model.Notification{URL: "https://rebind.example/", Secret: notifyTestSecret}, "evt_test", []byte(`{}`))
 	if result.Result != "refused_address" || calls != 2 {
 		t.Fatalf("rebinding: %s, lookups %d", result.Result, calls)
 	}
@@ -229,7 +233,7 @@ func TestNotifyClientRedirectAndHeaders(t *testing.T) {
 	x := newNotificationReceiver(t)
 	c := x.client()
 	x.setStatus(302)
-	n := db.Notification{ID: "sub_test", URL: x.server.URL, Secret: notifyTestSecret, Source: "owner", AuthHeaderName: "Authorization", AuthHeaderValue: "Bearer receiver"}
+	n := model.Notification{ID: "sub_test", URL: x.server.URL, Secret: notifyTestSecret, Source: "owner", AuthHeaderName: "Authorization", AuthHeaderValue: "Bearer receiver"}
 	result := c.send(context.Background(), n, "evt_redirect", []byte(`{}`))
 	if result.Result != "redirect" || result.Status != 302 {
 		t.Fatal(result.Result)
@@ -381,7 +385,7 @@ func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
 		notificationSQL(t, s, `UPDATE site_event_deliveries SET next_attempt_at=now() WHERE subscription_id=$1`, id)
 		drainNotifications(t, s)
 	}
-	n, err := db.GetNotification(context.Background(), s.a.database, id)
+	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, id)
 	if err != nil || n.State != "suspended" {
 		t.Fatalf("not suspended: %s %v", n.State, err)
 	}
@@ -400,7 +404,7 @@ func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
 	x.setStatus(200)
 	notificationRequest(t, s, "PATCH", "/"+id, map[string]bool{"paused": false}, 200)
 	drainNotifications(t, s)
-	n, err = db.GetNotification(context.Background(), s.a.database, id)
+	n, err = notificationsrepo.GetNotification(context.Background(), s.a.database, id)
 	if err != nil || n.State != "active" || n.LastSuccessAt == nil {
 		t.Fatal("resume did not deliver")
 	}
@@ -497,12 +501,12 @@ func TestNotifyMCPChallengeRefreshReplay(t *testing.T) {
 	if err != nil || !replay.Truncated || replay.RefreshBefore == nil {
 		t.Fatalf("replay: %+v %v", replay, err)
 	}
-	safe, err := db.NotificationCursor(context.Background(), s.a.database, replay.ID, s.sid)
+	safe, err := notificationsrepo.NotificationCursor(context.Background(), s.a.database, replay.ID, s.sid)
 	if err != nil || safe >= seq {
 		t.Fatal("cursor passed a pending delivery")
 	}
 	drainNotifications(t, s)
-	safe, err = db.NotificationCursor(context.Background(), s.a.database, replay.ID, s.sid)
+	safe, err = notificationsrepo.NotificationCursor(context.Background(), s.a.database, replay.ID, s.sid)
 	if err != nil || safe != seq {
 		t.Fatal("cursor did not advance")
 	}
@@ -541,16 +545,16 @@ func TestNotifyLeaseCursorExpiryAndSweep(t *testing.T) {
 	id := subscribeNotification(t, s, x)
 	ctx := context.Background()
 	for i := 0; i < 2; i++ {
-		if err := db.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{"v":1}`)); err != nil {
+		if err := notificationsrepo.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{"v":1}`)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	// Concurrent claimers must get different rows, and a third must find none.
-	claims := make(chan db.NotificationDelivery, 2)
+	claims := make(chan model.NotificationDelivery, 2)
 	errs := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		go func() {
-			d, err := db.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour)
+			d, err := notificationsrepo.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour)
 			claims <- d
 			errs <- err
 		}()
@@ -567,23 +571,23 @@ func TestNotifyLeaseCursorExpiryAndSweep(t *testing.T) {
 	if a.Seq > b.Seq {
 		a, b = b, a
 	}
-	if _, err := db.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := notificationsrepo.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("lease did not hold delivery")
 	}
-	finish := func(d db.NotificationDelivery) {
+	finish := func(d model.NotificationDelivery) {
 		t.Helper()
-		_, err := db.FinishNotificationDelivery(ctx, s.a.database, d, "delivered", "ok", 200, 1, time.Now(), time.Hour, 100, 95, 72*time.Hour)
+		_, err := notificationsrepo.FinishNotificationDelivery(ctx, s.a.database, d, "delivered", "ok", 200, 1, time.Now(), time.Hour, 100, 95, 72*time.Hour)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 	finish(b)
-	cursor, err := db.NotificationCursor(ctx, s.a.database, id, s.sid)
+	cursor, err := notificationsrepo.NotificationCursor(ctx, s.a.database, id, s.sid)
 	if err != nil || cursor >= a.Seq {
 		t.Fatal("cursor passed unresolved earlier event")
 	}
 	notificationSQL(t, s, `UPDATE site_event_deliveries SET lease_until=now()-interval '1 second' WHERE event_seq=$1`, a.Seq)
-	newer, err := db.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour)
+	newer, err := notificationsrepo.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -593,11 +597,11 @@ func TestNotifyLeaseCursorExpiryAndSweep(t *testing.T) {
 		t.Fatal("stale worker overwrote newer lease")
 	}
 	finish(newer)
-	cursor, err = db.NotificationCursor(ctx, s.a.database, id, s.sid)
+	cursor, err = notificationsrepo.NotificationCursor(ctx, s.a.database, id, s.sid)
 	if err != nil || cursor != b.Seq {
 		t.Fatal("watermark did not advance")
 	}
-	if err = db.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
+	if err = notificationsrepo.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
 		t.Fatal(err)
 	}
 	notificationSQL(t, s, `UPDATE site_notifications SET expires_at=now()-interval '1 minute' WHERE id=$1`, id)
@@ -610,14 +614,14 @@ func TestNotifyLeaseCursorExpiryAndSweep(t *testing.T) {
 	}
 	notificationSQL(t, s, `UPDATE site_events SET created_at=now()-interval '8 days' WHERE site_id=$1`, s.sid)
 	notificationSQL(t, s, `UPDATE site_notifications SET expires_at=now()-interval '8 days' WHERE id=$1`, id)
-	if err = db.SweepNotifications(ctx, s.a.database, 7); err != nil {
+	if err = notificationsrepo.SweepNotifications(ctx, s.a.database, 7); err != nil {
 		t.Fatal(err)
 	}
 	var events, deliveries int
 	if err = s.a.database.QueryRow(`SELECT (SELECT count(*) FROM site_events WHERE site_id=$1),(SELECT count(*) FROM site_event_deliveries WHERE subscription_id=$2)`, s.sid, id).Scan(&events, &deliveries); err != nil || events != 0 || deliveries != 0 {
 		t.Fatal("history sweep did not cascade")
 	}
-	if _, err = db.GetNotification(ctx, s.a.database, id); !errors.Is(err, sql.ErrNoRows) {
+	if _, err = notificationsrepo.GetNotification(ctx, s.a.database, id); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("expired subscription not swept")
 	}
 }
@@ -628,7 +632,7 @@ func TestNotifyUnavailableHeldAndEventAccounts(t *testing.T) {
 	ctx := context.Background()
 	emit := func() {
 		t.Helper()
-		if err := db.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
+		if err := notificationsrepo.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -687,11 +691,11 @@ func TestNotifyWindowAndContinuousFailure(t *testing.T) {
 	x.setStatus(500)
 	// Two old failures must age out of the counting window.
 	notificationSQL(t, s, `UPDATE site_notifications SET window_start=now()-interval '2 hours',window_attempts=2,window_failures=2 WHERE id=$1`, id)
-	if err := db.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
+	if err := notificationsrepo.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
 		t.Fatal(err)
 	}
 	drainNotifications(t, s)
-	n, err := db.GetNotification(ctx, s.a.database, id)
+	n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
 	if err != nil || n.State != "active" {
 		t.Fatal("expired failures caused suspension")
 	}
@@ -702,7 +706,7 @@ func TestNotifyWindowAndContinuousFailure(t *testing.T) {
 	notificationSQL(t, s, `UPDATE site_notifications SET failing_since=now()-interval '4 days' WHERE id=$1`, id)
 	notificationSQL(t, s, `UPDATE site_event_deliveries SET next_attempt_at=now() WHERE subscription_id=$1`, id)
 	drainNotifications(t, s)
-	n, err = db.GetNotification(ctx, s.a.database, id)
+	n, err = notificationsrepo.GetNotification(ctx, s.a.database, id)
 	if err != nil || n.State != "suspended" {
 		t.Fatal("continuous failure did not suspend")
 	}
@@ -797,7 +801,7 @@ func TestNotifyMCPRotationTTLAndChallengeLimit(t *testing.T) {
 	x.keys = append(x.keys, secret)
 	x.mu.Unlock()
 	notificationRequest(t, s, "POST", "/"+first.ID+"/test", nil, 409)
-	n, err := db.GetNotification(ctx, s.a.database, first.ID)
+	n, err := notificationsrepo.GetNotification(ctx, s.a.database, first.ID)
 	if err != nil || openedNotification(t, s, n.ID, n.PrevSecret) != notifyTestSecret || openedNotification(t, s, n.ID, n.Secret) != secret {
 		t.Fatal("MCP refresh did not rotate secret")
 	}
@@ -833,7 +837,7 @@ func TestNotifyClientTimeoutAndResponseLimit(t *testing.T) {
 	roots := x509.NewCertPool()
 	roots.AddCert(srv.Certificate())
 	c := notifyClient{allowLoopback: true, roots: roots, timeout: l.NotifyTimeout}
-	n := db.Notification{Secret: notifyTestSecret, URL: srv.URL}
+	n := model.Notification{Secret: notifyTestSecret, URL: srv.URL}
 	result := c.send(context.Background(), n, "msg_verification_size", []byte(`{}`))
 	if !result.Delivered || len(result.body) != 4096 {
 		t.Fatalf("response limit: %s, %d", result.Result, len(result.body))
@@ -852,7 +856,7 @@ func TestNotifyRefusedAddressAndPermanentHTTPDoNotRetry(t *testing.T) {
 	ctx := context.Background()
 	emit := func() {
 		t.Helper()
-		if err := db.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
+		if err := notificationsrepo.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -860,7 +864,7 @@ func TestNotifyRefusedAddressAndPermanentHTTPDoNotRetry(t *testing.T) {
 		x.setStatus(status)
 		emit()
 		drainNotifications(t, s)
-		n, err := db.GetNotification(ctx, s.a.database, id)
+		n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
 		if err != nil || n.State != "active" {
 			t.Fatal("permanent HTTP result changed subscription")
 		}
@@ -885,7 +889,7 @@ func TestNotifyConcurrentSubscriptionCapAndFilters(t *testing.T) {
 	errs := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		go func() {
-			_, _, err := db.SaveNotification(ctx, s.a.database, db.Notification{ID: notifyRandom("sub_", 12), SiteID: s.sid, OwnerID: s.ownerID, Source: "owner", URL: x.server.URL, Events: []string{"record.added"}, Storage: "orders", Secret: notifyTestSecret}, 1, nil, 7, s.a.sites.notificationSecrets())
+			_, _, err := notifyapp.New(s.a.database, nil).SaveNotification(ctx, model.Notification{ID: notifyRandom("sub_", 12), SiteID: s.sid, OwnerID: s.ownerID, Source: "owner", URL: x.server.URL, Events: []string{"record.added"}, Storage: "orders", Secret: notifyTestSecret}, 1, nil, 7, s.a.sites.notificationSecrets())
 			errs <- err
 		}()
 	}
@@ -894,7 +898,7 @@ func TestNotifyConcurrentSubscriptionCapAndFilters(t *testing.T) {
 		err := <-errs
 		if err == nil {
 			accepted++
-		} else if errors.Is(err, db.ErrNotificationCap) {
+		} else if errors.Is(err, model.ErrNotificationCap) {
 			refused++
 		} else {
 			t.Fatal(err)
@@ -904,7 +908,7 @@ func TestNotifyConcurrentSubscriptionCapAndFilters(t *testing.T) {
 		t.Fatal("concurrent cap exceeded")
 	}
 	for _, event := range []struct{ name, storage string }{{"record.added", "other"}, {"record.changed", "orders"}, {"record.added", "orders"}} {
-		if err := db.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), event.name, event.storage, []byte(`{}`)); err != nil {
+		if err := notificationsrepo.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), event.name, event.storage, []byte(`{}`)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -931,7 +935,7 @@ func TestNotifySpecialAddressesAndExactPayloads(t *testing.T) {
 	}
 	for _, key := range []string{"path", "key"} {
 		data := map[string]any{"v": 1, "site": "shop", key: strings.Repeat("é\n", 5000), "fields": map[string]any{"n": json.Number("9007199254740993")}}
-		body := notifyBody(db.NotificationDelivery{EventID: "evt_test", Name: "record.added", Data: storageJSON(data)}, 1, 4096)
+		body := notifyBody(model.NotificationDelivery{EventID: "evt_test", Name: "record.added", Data: storageJSON(data)}, 1, 4096)
 		var payload struct {
 			Data map[string]any `json:"data"`
 		}
@@ -949,21 +953,21 @@ func TestNotifyRefreshPreservesLeaseAndBackoff(t *testing.T) {
 	id := subscribeNotification(t, s, x)
 	ctx := context.Background()
 	for i := 0; i < 2; i++ {
-		if err := db.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "", []byte(`{}`)); err != nil {
+		if err := notificationsrepo.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "", []byte(`{}`)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	d, err := db.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour)
+	d, err := notificationsrepo.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	notificationSQL(t, s, `UPDATE site_event_deliveries SET next_attempt_at=now()+interval '1 hour' WHERE subscription_id=$1`, id)
-	n, err := db.GetNotification(ctx, s.a.database, id)
+	n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	n.Secret = notifyTestSecret
-	if _, _, err = db.SaveNotification(ctx, s.a.database, n, 10, nil, 7, s.a.sites.notificationSecrets()); err != nil {
+	if _, _, err = notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, nil, 7, s.a.sites.notificationSecrets()); err != nil {
 		t.Fatal(err)
 	}
 	var held, deferred bool
@@ -985,12 +989,12 @@ func TestNotifyCrashBudgetAndStaleWorker(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
 	ctx := context.Background()
-	if err := db.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "", []byte(`{}`)); err != nil {
+	if err := notificationsrepo.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "", []byte(`{}`)); err != nil {
 		t.Fatal(err)
 	}
-	var first db.NotificationDelivery
+	var first model.NotificationDelivery
 	for i := 1; i <= 2; i++ {
-		d, err := db.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 2, 7, time.Hour)
+		d, err := notificationsrepo.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 2, 7, time.Hour)
 		if err != nil || d.Attempts != i {
 			t.Fatalf("claim %d: attempts %d, %v", i, d.Attempts, err)
 		}
@@ -1008,7 +1012,7 @@ func TestNotifyCrashBudgetAndStaleWorker(t *testing.T) {
 	if len(x.snapshot()) != 0 {
 		t.Fatal("worker sent after lease deadline")
 	}
-	if _, err := db.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 2, 7, time.Hour); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := notificationsrepo.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 2, 7, time.Hour); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("crashes exceeded send budget")
 	}
 	var attempts, failures int
@@ -1022,21 +1026,21 @@ func TestNotifyHistoryAndDeletedListings(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
 	ctx := context.Background()
-	if err := db.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "", []byte(`{}`)); err != nil {
+	if err := notificationsrepo.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "", []byte(`{}`)); err != nil {
 		t.Fatal(err)
 	}
 	notificationSQL(t, s, `UPDATE site_events SET created_at=now()-interval '8 days' WHERE site_id=$1`, s.sid)
-	if _, err := db.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := notificationsrepo.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("claimed expired history")
 	}
 	notificationSQL(t, s, `DELETE FROM site_event_deliveries WHERE subscription_id=$1`, id)
-	n, err := db.GetNotification(ctx, s.a.database, id)
+	n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	zero := int64(0)
 	n.Secret = notifyTestSecret
-	if _, _, err := db.SaveNotification(ctx, s.a.database, n, 10, &zero, 7, s.a.sites.notificationSecrets()); err != nil {
+	if _, _, err := notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, &zero, 7, s.a.sites.notificationSecrets()); err != nil {
 		t.Fatal(err)
 	}
 	var count int
@@ -1052,7 +1056,7 @@ func TestNotifyHistoryAndDeletedListings(t *testing.T) {
 	}
 	notificationSQL(t, s, `UPDATE sites SET deleted_at=now() WHERE id=$1`, s.sid)
 	for _, site := range []string{"", s.sid} {
-		ns, err := db.ListNotifications(ctx, s.a.database, s.ownerID, site)
+		ns, err := notificationsrepo.ListNotifications(ctx, s.a.database, s.ownerID, site)
 		if err != nil || len(ns) != 0 {
 			t.Fatal("listed deleted site's notifications")
 		}
@@ -1098,13 +1102,13 @@ func TestNotifyMCPValidationAndSiteReplacement(t *testing.T) {
 	if err != nil || next.Refreshed || next.ID != first.ID || len(x.snapshot()) != count+1 {
 		t.Fatalf("new site did not require fresh verification: %v", err)
 	}
-	n, err := db.GetNotification(ctx, s.a.database, next.ID)
+	n, err := notificationsrepo.GetNotification(ctx, s.a.database, next.ID)
 	if err != nil || n.SiteID != replacement {
 		t.Fatal("subscription remained on old site")
 	}
 	n.SiteID = s.sid
 	n.Secret = notifyTestSecret
-	if _, _, err = db.SaveNotification(ctx, s.a.database, n, 10, nil, 7, s.a.sites.notificationSecrets()); !errors.Is(err, db.ErrNotificationSite) {
+	if _, _, err = notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, nil, 7, s.a.sites.notificationSecrets()); !errors.Is(err, model.ErrNotificationSite) {
 		t.Fatal("upsert crossed sites")
 	}
 }
@@ -1192,7 +1196,7 @@ func TestNotifyAcknowledgmentIgnoresBrokenBody(t *testing.T) {
 	roots := x509.NewCertPool()
 	roots.AddCert(srv.Certificate())
 	c := notifyClient{allowLoopback: true, roots: roots}
-	n := db.Notification{URL: srv.URL, Secret: notifyTestSecret}
+	n := model.Notification{URL: srv.URL, Secret: notifyTestSecret}
 	if got := c.send(context.Background(), n, "evt_test", []byte(`{}`)); !got.Delivered {
 		t.Fatal("2xx acknowledgment failed on body read")
 	}
@@ -1250,12 +1254,12 @@ func TestNotifyConnectorDeployScope(t *testing.T) {
 	}
 	a.conn.SetEventsBackend(a.sites.EventsBackend())
 	p := a.newPerson(t, "notify-deploy")
-	u, err := db.GetUserByAPIKey(context.Background(), a.database, p.key, 180*24*time.Hour)
+	u, err := accountapp.New(a.database).GetUserByAPIKey(context.Background(), p.key, 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	key := notifyRandom("test_", 24)
-	if _, err = db.CreateAPIKey(context.Background(), a.database, u.ID, db.HashAPIKey(p.key), key, "deploy", db.KeyScopeDeploy, nil, 50, 180*24*time.Hour); err != nil {
+	if _, err = accountapp.New(a.database).CreateKey(context.Background(), u.ID, accountsrepo.HashAPIKey(p.key), key, "deploy", model.KeyScopeDeploy, nil, 50, 180*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	headers := map[string]string{"X-API-Key": key, "Content-Type": "application/json"}
@@ -1329,7 +1333,7 @@ func TestNotifyMCPAPIKeyTTL(t *testing.T) {
 				} else if result.RefreshBefore == nil || result.RefreshBefore.Before(before.Add(want)) || result.RefreshBefore.After(time.Now().Add(want)) {
 					t.Fatal("refreshBefore does not reflect granted TTL")
 				}
-				n, err := db.GetNotification(context.Background(), s.a.database, result.ID)
+				n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, result.ID)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1374,7 +1378,7 @@ func TestNotifyMCPGrantIdentity(t *testing.T) {
 		}
 	}
 	for i, result := range results {
-		n, err := db.GetNotification(ctx, s.a.database, result.ID)
+		n, err := notificationsrepo.GetNotification(ctx, s.a.database, result.ID)
 		if err != nil || openedNotification(t, s, n.ID, n.Secret) != secrets[i] || n.PrevSecret != "" {
 			t.Fatal("another app replaced a subscription secret")
 		}
@@ -1386,11 +1390,11 @@ func TestNotifyMCPGrantIdentity(t *testing.T) {
 	if err := backend.Unsubscribe(ctx, callers[1], unsub); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.GetNotification(ctx, s.a.database, results[1].ID); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := notificationsrepo.GetNotification(ctx, s.a.database, results[1].ID); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("unsubscribe did not remove its grant's subscription")
 	}
 	for _, i := range []int{0, 2} {
-		if _, err := db.GetNotification(ctx, s.a.database, results[i].ID); err != nil {
+		if _, err := notificationsrepo.GetNotification(ctx, s.a.database, results[i].ID); err != nil {
 			t.Fatal("unsubscribe removed another grant's subscription")
 		}
 	}
@@ -1414,7 +1418,7 @@ func TestNotifyPausedAndExpiredEmission(t *testing.T) {
 				notificationSQL(t, s, `UPDATE site_notifications SET state='active',expires_at=now()-interval '1 second' WHERE id=$1`, id)
 			}
 			want := state == "active" || state == "suspended"
-			yes, err := db.HasNotifications(ctx, s.a.database, s.sid)
+			yes, err := notificationsrepo.HasNotifications(ctx, s.a.database, s.sid)
 			if err != nil || yes != want {
 				t.Fatal("subscription eligibility mismatch")
 			}
@@ -1429,7 +1433,7 @@ func TestNotifyPausedAndExpiredEmission(t *testing.T) {
 				t.Fatal("ineligible subscription spent the event budget")
 			}
 			// The database fan-out must also exclude paused and expired rows.
-			if err := db.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
+			if err := notificationsrepo.EmitSiteEvent(ctx, s.a.database, s.sid, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
 				t.Fatal(err)
 			}
 			if err := s.a.database.QueryRow(`SELECT count(*) FROM site_event_deliveries WHERE subscription_id=$1`, id).Scan(&count); err != nil || want && count != 2 || !want && count != 0 {
@@ -1461,15 +1465,15 @@ func TestNotifyOwnerHeaderAllowlist(t *testing.T) {
 func saveWorkerNotification(t *testing.T, s presetSite, site, owner, url string) string {
 	t.Helper()
 	id := notifyRandom("sub_", 12)
-	n := db.Notification{ID: id, SiteID: site, OwnerID: owner, Source: "owner", URL: url, Events: []string{"record.added"}, Secret: notifyTestSecret}
-	if _, _, err := db.SaveNotification(context.Background(), s.a.database, n, 10, nil, 7, s.a.sites.notificationSecrets()); err != nil {
+	n := model.Notification{ID: id, SiteID: site, OwnerID: owner, Source: "owner", URL: url, Events: []string{"record.added"}, Secret: notifyTestSecret}
+	if _, _, err := notifyapp.New(s.a.database, nil).SaveNotification(context.Background(), n, 10, nil, 7, s.a.sites.notificationSecrets()); err != nil {
 		t.Fatal(err)
 	}
 	return id
 }
 func emitWorkerNotification(t *testing.T, s presetSite, site string) {
 	t.Helper()
-	if err := db.EmitSiteEvent(context.Background(), s.a.database, site, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
+	if err := notificationsrepo.EmitSiteEvent(context.Background(), s.a.database, site, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -1617,24 +1621,24 @@ func TestNotifyDeferredClaimLease(t *testing.T) {
 	id := subscribeNotification(t, s, x)
 	ctx := context.Background()
 	emitWorkerNotification(t, s, s.sid)
-	old, err := db.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour)
+	old, err := notificationsrepo.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	notificationSQL(t, s, `UPDATE site_event_deliveries SET lease_until=now()-interval '1 second' WHERE subscription_id=$1`, id)
-	current, err := db.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour)
+	current, err := notificationsrepo.ClaimNotificationDelivery(ctx, s.a.database, time.Minute, 5, 7, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DeferNotificationDelivery(ctx, s.a.database, old); err != nil {
+	if err := notificationsrepo.DeferNotificationDelivery(ctx, s.a.database, old); err != nil {
 		t.Fatal(err)
 	}
-	held, err := db.NotificationLeaseHeld(ctx, s.a.database, current)
+	held, err := notificationsrepo.NotificationLeaseHeld(ctx, s.a.database, current)
 	if err != nil || !held {
 		t.Fatal("stale deferral released a current lease")
 	}
 	for i := 0; i < 2; i++ {
-		if err := db.DeferNotificationDelivery(ctx, s.a.database, current); err != nil {
+		if err := notificationsrepo.DeferNotificationDelivery(ctx, s.a.database, current); err != nil {
 			t.Fatal(err)
 		}
 	}

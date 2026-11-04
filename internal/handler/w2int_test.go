@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // How the batch-2 features meet: the idle-site cleanup against the offline
@@ -66,7 +67,7 @@ func TestIdleCleanupMeetsOfflineRenameAndPreview(t *testing.T) {
 
 	eligible := func() map[string]bool {
 		t.Helper()
-		list, err := db.ListIdleSitesToWarn(ctx, a.database, db.IdleExempt{}, time.Now().Add(-a.sites.idleAfter()), 0)
+		list, err := sitesrepo.ListIdleSitesToWarn(ctx, a.database, model.IdleExempt{}, time.Now().Add(-a.sites.idleAfter()), 0)
 		if err != nil {
 			t.Fatal(err)
 		}

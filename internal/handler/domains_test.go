@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
 )
 
 func TestDomainResponseDeadline(t *testing.T) {
@@ -28,7 +28,7 @@ func TestDomainResponseDeadline(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := domainResponse{Domain: "www.example.com", Status: tc.status}
-			setDomainTimes(&resp, db.SiteDomainInfo{
+			setDomainTimes(&resp, model.SiteDomainInfo{
 				Status:     tc.status,
 				CertStatus: tc.cert,
 				BoundAt:    sql.NullTime{Time: bound, Valid: true},

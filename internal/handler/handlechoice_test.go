@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // A new account chooses its address at sign-up (owner decision 2026-09-28):
@@ -25,7 +25,7 @@ func TestSignUpChoosesHandle(t *testing.T) {
 	addr := "newbie-" + stamp + "@example.com"
 	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE username = $1`, addr) })
 	lt, _ := auth.GenerateAPIKey()
-	if err := db.CreateAuthToken(context.Background(), a.database, addr, "424242", lt, time.Now().Add(5*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
+	if err := accountsrepo.CreateAuthToken(context.Background(), a.database, addr, "424242", lt, time.Now().Add(5*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
 		t.Fatal(err)
 	}
 	verify := func(body map[string]any) resp {
@@ -70,7 +70,7 @@ func TestSignUpChoosesHandle(t *testing.T) {
 
 	// An existing account: choose_handle and handle change nothing.
 	lt2, _ := auth.GenerateAPIKey()
-	if err := db.CreateAuthToken(context.Background(), a.database, addr, "434343", lt2, time.Now().Add(5*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
+	if err := accountsrepo.CreateAuthToken(context.Background(), a.database, addr, "434343", lt2, time.Now().Add(5*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
 		t.Fatal(err)
 	}
 	r = verify(map[string]any{"email": addr, "code": "434343", "choose_handle": true, "handle": "something-else-" + stamp})

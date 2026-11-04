@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // Same captured-mail and host-routing fixture as visitor_records_browser_test.
@@ -22,8 +22,8 @@ func TestServeSSOBrowser(t *testing.T) {
 	mb := &mailbox{}
 	a := newPrivateAppMailerBase(t, mb, apex)
 	a.sites.SetPersonHosts("canonical")
-	db.SetPlatformDomain(pcSiteDomain)
-	t.Cleanup(func() { db.SetPlatformDomain("") })
+	accountsrepo.SetPlatformDomain(pcSiteDomain)
+	t.Cleanup(func() { accountsrepo.SetPlatformDomain("") })
 	dir := t.TempDir()
 	os.Mkdir(dir+"/ready", 0755)
 	a.sites.SetSiteHosts("canonical", dir)
@@ -67,9 +67,9 @@ func TestServeSSOBrowser(t *testing.T) {
 		w.WriteHeader(204)
 	})
 	a.mux.HandleFunc("POST /_fixture/sweep-pass", func(w http.ResponseWriter, r *http.Request) {
-		_, err := a.database.Exec(`UPDATE sso_passes SET idle_expires_at=now()-interval '1 second' WHERE parent_key_hash=$1`, db.HashAPIKey(r.Header.Get("X-API-Key")))
+		_, err := a.database.Exec(`UPDATE sso_passes SET idle_expires_at=now()-interval '1 second' WHERE parent_key_hash=$1`, accountsrepo.HashAPIKey(r.Header.Get("X-API-Key")))
 		if err == nil {
-			err = db.SweepSSO(r.Context(), a.database)
+			err = accountsrepo.SweepSSO(r.Context(), a.database)
 		}
 		if err != nil {
 			http.Error(w, "sweep fixture", 500)

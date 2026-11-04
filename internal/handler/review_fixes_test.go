@@ -11,7 +11,8 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
@@ -26,7 +27,7 @@ func waitBlocked() { time.Sleep(300 * time.Millisecond) }
 // while the test holds the site's lock, as a delete that finished first.
 func (a *privateApp) deleteBehindLock(t *testing.T, uid, siteID, name string) {
 	t.Helper()
-	if err := db.MarkSiteDeleted(context.Background(), a.database, siteID, 7*24*time.Hour); err != nil {
+	if err := sitesrepo.MarkSiteDeleted(context.Background(), a.database, siteID, 7*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.sites.disk.TrashSite(uid, name, siteID); err != nil {
@@ -69,7 +70,7 @@ func TestDeployAndRollbackAfterDeleteDoNotResurrect(t *testing.T) {
 		if _, err := os.Stat(a.sites.disk.SiteDir(uid, c.site)); !os.IsNotExist(err) {
 			t.Fatalf("%s: site folder came back: %v", c.site, err)
 		}
-		if _, err := db.GetDeletedSiteByUser(context.Background(), a.database, uid, c.site); err != nil {
+		if _, err := sitesrepo.GetDeletedSiteByUser(context.Background(), a.database, uid, c.site); err != nil {
 			t.Fatalf("%s no longer in Recently deleted: %v", c.site, err)
 		}
 	}
@@ -79,7 +80,7 @@ func TestDeployAndRollbackAfterDeleteDoNotResurrect(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback()
-	if err := db.LockSiteForUpdate(context.Background(), tx, a.siteIDAny(t, uid, "shop")); !errors.Is(err, sql.ErrNoRows) {
+	if err := sitesrepo.LockSiteForUpdate(context.Background(), tx, a.siteIDAny(t, uid, "shop")); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("LockSiteForUpdate on a deleted site: %v", err)
 	}
 }
@@ -112,7 +113,7 @@ func TestTakedownFollowsRenameUnderLock(t *testing.T) {
 	if err := a.sites.disk.RenameSite(uid, "shop", "store"); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RenameSite(context.Background(), a.database, siteID, "store", ""); err != nil {
+	if err := sitesrepo.RenameSite(context.Background(), a.database, siteID, "store", ""); err != nil {
 		t.Fatal(err)
 	}
 	unlock()
@@ -152,7 +153,7 @@ func TestPurgeKeepsTakenDownSites(t *testing.T) {
 		}
 	}
 	_ = okey
-	if err := db.SetSiteSuspended(context.Background(), a.database, shopID, "evidence"); err != nil {
+	if err := sitesrepo.SetSiteSuspended(context.Background(), a.database, shopID, "evidence"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.database.Exec(`UPDATE users SET suspended_at = now(), suspended_reason = 'x' WHERE id = $1`, oscarID); err != nil {
@@ -219,7 +220,7 @@ func TestRestoreTakenDownSiteMarksFirst(t *testing.T) {
 	if r := a.at(t, "DELETE", "simple-host.test", "/v1/sites/shop", nil, key); r.status != 204 {
 		t.Fatalf("delete: %d %s", r.status, r.body)
 	}
-	if err := db.SetSiteSuspended(context.Background(), a.database, siteID, "evidence"); err != nil {
+	if err := sitesrepo.SetSiteSuspended(context.Background(), a.database, siteID, "evidence"); err != nil {
 		t.Fatal(err)
 	}
 	trash := a.sites.disk.TrashDir(uid, siteID)
@@ -298,7 +299,7 @@ func TestPreviousDomainLapsesAndStuckBindingExpires(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sites SET domain_cert_status = 'failed', domain_bound_at = now() - interval '8 days' WHERE id = $1`, siteID); err != nil {
 		t.Fatal(err)
 	}
-	released, err := db.ReleaseExpiredDomains(ctx, a.database, 7*24*time.Hour, 24*time.Hour)
+	released, err := sitesrepo.ReleaseExpiredDomains(ctx, a.database, 7*24*time.Hour, 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +318,7 @@ func TestPreviousDomainLapsesAndStuckBindingExpires(t *testing.T) {
 	if r := a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/domain", map[string]string{"domain": second}, key); r.status != 200 {
 		t.Fatalf("rebind second: %d %s", r.status, r.body)
 	}
-	bd := db.BoundDomain{SiteID: siteID, Domain: second, Status: "pending", PreviousDomain: first}
+	bd := model.BoundDomain{SiteID: siteID, Domain: second, Status: "pending", PreviousDomain: first}
 	a.sites.checkPreviousDomain(ctx, bd, map[string]bool{})
 	var since sql.NullTime
 	if err := a.database.QueryRow(`SELECT previous_domain_failing_since FROM sites WHERE id = $1`, siteID).Scan(&since); err != nil || !since.Valid {
@@ -351,7 +352,7 @@ func TestDomainDeleteNamesTheDomain(t *testing.T) {
 	if r := a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/domain", map[string]string{"domain": one}, key); r.status != 200 {
 		t.Fatalf("bind one: %d %s", r.status, r.body)
 	}
-	released, replaced, err := db.BindCustomDomain(context.Background(), a.database, siteID, two)
+	released, replaced, err := sitesrepo.BindCustomDomain(context.Background(), a.database, siteID, two)
 	if err != nil || released != nil || replaced != one {
 		t.Fatalf("bind two: %v %v %q", released, err, replaced)
 	}
@@ -434,7 +435,7 @@ func TestHandleRenameLocksOldNameAndKeepsOthersAliases(t *testing.T) {
 		t.Fatal(err)
 	}
 	tctx, cancel := context.WithTimeout(ctx, time.Second)
-	_, err = db.RenameHandle(tctx, a.database, oliveID, uniq("olnew"))
+	_, err = accountsrepo.RenameHandle(tctx, a.database, oliveID, uniq("olnew"))
 	cancel()
 	hold.Rollback()
 	if err == nil {
@@ -447,9 +448,9 @@ func TestHandleRenameLocksOldNameAndKeepsOthersAliases(t *testing.T) {
 	if _, err := a.database.Exec(`INSERT INTO handle_aliases (handle, user_id) VALUES ($1, $2)`, alias, oscarID); err != nil {
 		t.Fatal(err)
 	}
-	db.SetPlatformDomain("")
-	defer db.SetPlatformDomain(pcSiteDomain)
-	if _, err := db.RenameHandle(ctx, a.database, oliveID, alias); err != nil {
+	accountsrepo.SetPlatformDomain("")
+	defer accountsrepo.SetPlatformDomain(pcSiteDomain)
+	if _, err := accountsrepo.RenameHandle(ctx, a.database, oliveID, alias); err != nil {
 		t.Fatal(err)
 	}
 	var owner string

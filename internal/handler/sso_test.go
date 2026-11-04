@@ -17,8 +17,8 @@ import (
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/oauth"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func newSSOApp(t *testing.T) (*privateApp, string, *OAuthHandler) {
@@ -139,7 +139,7 @@ func TestSSOHopConsentAndRevocation(t *testing.T) {
 	if page := a.ssoHop(t, stateAgain, pass); page.status != 200 {
 		t.Fatal("revoked consent silently reused")
 	}
-	if err := db.RememberSSOConsent(context.Background(), a.database, uid, site); err != nil {
+	if err := accountsrepo.RememberSSOConsent(context.Background(), a.database, uid, site); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.ssoHop(t, state, pass); r.status != 400 {
@@ -156,8 +156,8 @@ func TestSSOHopConsentAndRevocation(t *testing.T) {
 	}
 	for _, raw := range []string{first, second, third} {
 		id, _ := hex.DecodeString(raw)
-		s, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
-		if err != nil || s.SSOPassHash.String != db.HashAPIKey(pass) {
+		s, err := accountsrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
+		if err != nil || s.SSOPassHash.String != accountsrepo.HashAPIKey(pass) {
 			t.Fatalf("parent: %v", err)
 		}
 	}
@@ -173,7 +173,7 @@ func TestSSOHopConsentAndRevocation(t *testing.T) {
 	}
 	for _, raw := range []string{first, second, third} {
 		id, _ := hex.DecodeString(raw)
-		if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
+		if _, err := accountsrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 			t.Fatal("sibling session survived")
 		}
 	}
@@ -192,7 +192,7 @@ func TestSSONonceReplayExpiryAndRedirect(t *testing.T) {
 	pass := a.ssoPass(t, viewer.key)
 	uid, _ := a.userID(t, viewer)
 	site := a.siteID(t, owner, "one")
-	if err := db.RememberSSOConsent(context.Background(), a.database, uid, site); err != nil {
+	if err := accountsrepo.RememberSSOConsent(context.Background(), a.database, uid, site); err != nil {
 		t.Fatal(err)
 	}
 	for _, mode := range []string{"missing", "wrong", "plain", "host", "expired", "revoked"} {
@@ -217,7 +217,7 @@ func TestSSONonceReplayExpiryAndRedirect(t *testing.T) {
 			case "expired":
 				a.database.Exec(`UPDATE visitor_establish_tokens SET expires_at=now()-interval '1 second' WHERE once=$1`, u.Query().Get("once"))
 			case "revoked":
-				a.database.Exec(`DELETE FROM sso_passes WHERE id_hash=$1`, db.HashAPIKey(pass))
+				a.database.Exec(`DELETE FROM sso_passes WHERE id_hash=$1`, accountsrepo.HashAPIKey(pass))
 			}
 			r = a.at(t, "GET", target, u.RequestURI(), nil, headers)
 			if r.status == 302 {
@@ -271,10 +271,10 @@ func TestSSONamedViewerAutoHopAndParentExpiry(t *testing.T) {
 		if _, err := a.database.Exec(q, uid); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass), 180*24*time.Hour); err != sql.ErrNoRows {
+		if _, err := accountsrepo.GetSSOPass(context.Background(), a.database, accountsrepo.HashAPIKey(pass), 180*24*time.Hour); err != sql.ErrNoRows {
 			t.Fatal("expired/suspended pass accepted")
 		}
-		if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
+		if _, err := accountsrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 			t.Fatal("expired/suspended parent accepted on site")
 		}
 		a.database.Exec(`UPDATE sso_passes SET idle_expires_at=now()+interval '1 day' WHERE user_id=$1`, uid)
@@ -285,7 +285,7 @@ func TestSSONamedViewerAutoHopAndParentExpiry(t *testing.T) {
 	if r.status != 204 {
 		t.Fatalf("dashboard logout: %d", r.status)
 	}
-	if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
+	if _, err := accountsrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 		t.Fatal("dashboard logout left a site session")
 	}
 }
@@ -427,11 +427,11 @@ func TestSSOStartGatesAndCookieIsolation(t *testing.T) {
 		t.Fatal("suspended bootstrap")
 	}
 	a.database.Exec(`UPDATE users SET suspended_at=NULL WHERE id=$1`, uid)
-	a.database.Exec(`UPDATE api_keys SET scope='deploy' WHERE key_hash=$1`, db.HashAPIKey(owner.key))
+	a.database.Exec(`UPDATE api_keys SET scope='deploy' WHERE key_hash=$1`, accountsrepo.HashAPIKey(owner.key))
 	if r := a.at(t, "POST", a.appHost(), "/v1/sso/session", nil, map[string]string{"X-API-Key": owner.key, "Origin": "https://" + a.appHost(), "Sec-Fetch-Site": "same-origin"}); r.status != 401 {
 		t.Fatal("deploy key bootstrapped SSO")
 	}
-	a.database.Exec(`UPDATE api_keys SET scope='full' WHERE key_hash=$1`, db.HashAPIKey(owner.key))
+	a.database.Exec(`UPDATE api_keys SET scope='full' WHERE key_hash=$1`, accountsrepo.HashAPIKey(owner.key))
 	o.ipLimiter.Reset(0, 0)
 	if r := a.at(t, "GET", host, start, nil, nil); r.status != 429 {
 		t.Fatalf("IP limiter: %d", r.status)
@@ -475,7 +475,7 @@ func TestSSOProviderAndEmailSignup(t *testing.T) {
 		t.Fatalf("provider verify: %d %s", r.status, r.body)
 	}
 	pass := a.ssoPass(t, r.json(t)["api_key"].(string))
-	p, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass), 180*24*time.Hour)
+	p, err := accountsrepo.GetSSOPass(context.Background(), a.database, accountsrepo.HashAPIKey(pass), 180*24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,7 +489,7 @@ func TestSSOProviderAndEmailSignup(t *testing.T) {
 	if sites != 0 {
 		t.Fatal("visitor got sites")
 	}
-	owners, err := db.ListSiteOwners(context.Background(), a.database)
+	owners, err := accountsrepo.ListSiteOwners(context.Background(), a.database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +536,7 @@ func TestSSOHackEventAndTeamHosts(t *testing.T) {
 	for _, host := range []string{team + "." + event + "." + bridgeTSDomain, event + "." + bridgeTSDomain} {
 		raw, _ := pa.finishSSO(t, host, pass)
 		id, _ := hex.DecodeString(raw)
-		sess, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
+		sess, err := accountsrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
 		if err != nil || sess.Host != host {
 			t.Fatalf("Hack site pass: %v", err)
 		}
@@ -609,7 +609,7 @@ func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := db.AddSignInKey(context.Background(), a.database, uid, key, "dashboard sign-in"); err != nil {
+			if err := accountapp.New(a.database).AddSignInKey(context.Background(), uid, key, "dashboard sign-in"); err != nil {
 				t.Fatal(err)
 			}
 			r := a.at(t, "POST", a.appHost(), "/v1/sso/session", nil, map[string]string{"X-API-Key": key, "Cookie": ssoCookieHost + "=" + pass, "Origin": "https://" + a.appHost(), "Sec-Fetch-Site": "same-origin"})
@@ -617,7 +617,7 @@ func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {
 				t.Fatalf("replace: %d", r.status)
 			}
 			nextPass := responseCookie(t, r, ssoCookieHost)
-			if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass), 180*24*time.Hour); err != sql.ErrNoRows {
+			if _, err := accountsrepo.GetSSOPass(context.Background(), a.database, accountsrepo.HashAPIKey(pass), 180*24*time.Hour); err != sql.ErrNoRows {
 				t.Fatal("old pass survived")
 			}
 			var pendingCount int
@@ -626,7 +626,7 @@ func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {
 			}
 
 			id, _ := hex.DecodeString(oldSession)
-			if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
+			if _, err := accountsrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 				t.Fatalf("old family survived: %v", err)
 			}
 			if r := a.at(t, "GET", a.appHost(), "/v1/me", nil, map[string]string{"X-API-Key": viewer.key}); r.status != 401 {
@@ -638,7 +638,7 @@ func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {
 				t.Fatalf("logout: %d", r.status)
 			}
 			id, _ = hex.DecodeString(newSession)
-			if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
+			if _, err := accountsrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 				t.Fatal("new family survived logout")
 			}
 		})
@@ -669,9 +669,9 @@ func TestSSOSignoutWithoutLiveLocalSession(t *testing.T) {
 			case "no cookie":
 				local = ""
 			case "swept parent":
-				_, err = a.database.Exec(`UPDATE sso_passes SET idle_expires_at=now()-interval '1 second' WHERE id_hash=$1`, db.HashAPIKey(pass))
+				_, err = a.database.Exec(`UPDATE sso_passes SET idle_expires_at=now()-interval '1 second' WHERE id_hash=$1`, accountsrepo.HashAPIKey(pass))
 				if err == nil {
-					err = db.SweepSSO(context.Background(), a.database)
+					err = accountsrepo.SweepSSO(context.Background(), a.database)
 				}
 			case "missing":
 				_, err = a.database.Exec(`DELETE FROM visitor_sessions WHERE id=$1`, id)
@@ -704,7 +704,7 @@ func TestSSOSignoutWithoutLiveLocalSession(t *testing.T) {
 			}
 			if mode != "swept parent" {
 				sid, _ := hex.DecodeString(sibling)
-				if _, err := db.GetVisitorSession(context.Background(), a.database, sid, 180*24*time.Hour); err != nil {
+				if _, err := accountsrepo.GetVisitorSession(context.Background(), a.database, sid, 180*24*time.Hour); err != nil {
 					t.Fatal("GET revoked another browser's family")
 				}
 			}
@@ -730,7 +730,7 @@ func TestSSOSignoutWithoutLiveLocalSession(t *testing.T) {
 				t.Fatal("confirmation replayed")
 			}
 			id, _ = hex.DecodeString(sibling)
-			if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
+			if _, err := accountsrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 				t.Fatal("sibling survived")
 			}
 			if mode != "swept parent" {
@@ -785,7 +785,7 @@ func TestSSOSessionRetainsOnePassPerKey(t *testing.T) {
 		go func() {
 			raw, err := randomHex(32)
 			if err == nil {
-				err = db.ReplaceSSOPass(context.Background(), a.database, db.HashAPIKey(raw), db.HashAPIKey(p.key), "", a.sites.visitorSessionTTL(), a.sites.visitorSessionIdle(), a.sites.limits.KeyIdleExpiry)
+				err = accountsrepo.ReplaceSSOPass(context.Background(), a.database, accountsrepo.HashAPIKey(raw), accountsrepo.HashAPIKey(p.key), "", a.sites.visitorSessionTTL(), a.sites.visitorSessionIdle(), a.sites.limits.KeyIdleExpiry)
 			}
 			errs <- err
 		}()
@@ -796,10 +796,10 @@ func TestSSOSessionRetainsOnePassPerKey(t *testing.T) {
 		}
 	}
 	var n int
-	if err := a.database.QueryRow(`SELECT count(*) FROM sso_passes WHERE parent_key_hash=$1`, db.HashAPIKey(p.key)).Scan(&n); err != nil || n != 1 {
+	if err := a.database.QueryRow(`SELECT count(*) FROM sso_passes WHERE parent_key_hash=$1`, accountsrepo.HashAPIKey(p.key)).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("retained %d passes: %v", n, err)
 	}
-	if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(pass), 180*24*time.Hour); err != sql.ErrNoRows {
+	if _, err := accountsrepo.GetSSOPass(context.Background(), a.database, accountsrepo.HashAPIKey(pass), 180*24*time.Hour); err != sql.ErrNoRows {
 		t.Fatal("replaced pass survived")
 	}
 }
@@ -844,7 +844,7 @@ func TestSSOActivityRefreshesParentIdle(t *testing.T) {
 	pass := a.ssoPass(t, owner.key)
 	raw, _ := a.finishSSO(t, host, pass)
 	id, _ := hex.DecodeString(raw)
-	hash := db.HashAPIKey(pass)
+	hash := accountsrepo.HashAPIKey(pass)
 	for _, surface := range []string{"site", "dashboard"} {
 		t.Run(surface, func(t *testing.T) {
 			// Thirteen days of inactivity, followed by normal use before idle expiry.
@@ -867,7 +867,7 @@ func TestSSOActivityRefreshesParentIdle(t *testing.T) {
 			if !idle.Equal(absolute) || idle.Before(time.Now().Add(4*24*time.Hour)) {
 				t.Fatal("idle was not extended to the absolute cap")
 			}
-			if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != nil {
+			if _, err := accountsrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != nil {
 				t.Fatal("active family expired", err)
 			}
 		})
@@ -875,10 +875,10 @@ func TestSSOActivityRefreshesParentIdle(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sso_passes SET idle_expires_at=now()-interval '1 second' WHERE id_hash=$1`, hash); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.TouchVisitorSession(context.Background(), a.database, id, 14*24*time.Hour); err != nil {
+	if err := accountsrepo.TouchVisitorSession(context.Background(), a.database, id, 14*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
+	if _, err := accountsrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour); err != sql.ErrNoRows {
 		t.Fatal("truly idle family revived")
 	}
 	if r := a.at(t, "GET", host, "/", nil, map[string]string{"Cookie": visitorCookieHost + "=" + raw}); r.status != 302 {

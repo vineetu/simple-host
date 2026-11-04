@@ -11,7 +11,8 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 type replyMailer struct {
@@ -275,13 +276,13 @@ func TestIdleCleanupHardening(t *testing.T) {
 		exec(`UPDATE versions SET created_at = now() - interval '100 days' WHERE site_id = $1`, id)
 		return id
 	}
-	mine := func() map[string]db.IdleSite {
+	mine := func() map[string]model.IdleSite {
 		t.Helper()
-		list, err := db.ListIdleSitesToWarn(ctx, a.database, a.sites.idleExempt, time.Now().Add(-a.sites.idleAfter()), 0)
+		list, err := sitesrepo.ListIdleSitesToWarn(ctx, a.database, a.sites.idleExempt, time.Now().Add(-a.sites.idleAfter()), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		out := map[string]db.IdleSite{}
+		out := map[string]model.IdleSite{}
 		for _, s := range list {
 			if s.UserID == uid {
 				out[s.Name] = s
@@ -319,7 +320,7 @@ func TestIdleCleanupHardening(t *testing.T) {
 	}
 	a.sites.SetIdleExempt(nil, "")
 	// A key's name no longer marks an event account; the flag does.
-	exec(`UPDATE api_keys SET name = $2 WHERE user_id = $1`, uid, db.KeyNameEvent)
+	exec(`UPDATE api_keys SET name = $2 WHERE user_id = $1`, uid, model.KeyNameEvent)
 	if len(mine()) == 0 {
 		t.Fatal("a key named like the event key exempted the account")
 	}
@@ -360,11 +361,11 @@ func TestIdleCleanupHardening(t *testing.T) {
 		t.Fatalf("no keep link: %v", m.sent)
 	}
 	exec(`UPDATE sites SET idle_warned_at = now() - interval '31 days', idle_remove_at = now() - interval '1 day' WHERE id = $1`, plain)
-	remove, err := db.ListIdleSitesToRemove(ctx, a.database, a.sites.idleExempt, time.Now(), a.sites.idleGrace(), 0)
+	remove, err := sitesrepo.ListIdleSitesToRemove(ctx, a.database, a.sites.idleExempt, time.Now(), a.sites.idleGrace(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var target db.IdleSite
+	var target model.IdleSite
 	for _, r := range remove {
 		if r.SiteID == plain {
 			target = r
@@ -373,7 +374,7 @@ func TestIdleCleanupHardening(t *testing.T) {
 	if target.SiteID == "" {
 		t.Fatalf("not due for removal: %v", remove)
 	}
-	if err := db.KeepIdleSite(ctx, a.database, plain); err != nil {
+	if err := sitesrepo.KeepIdleSite(ctx, a.database, plain); err != nil {
 		t.Fatal(err)
 	}
 	n := len(m.sent)

@@ -15,8 +15,9 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 )
 
 // A deploy-only key creates, updates, rolls back and lists sites and makes
@@ -164,7 +165,7 @@ func TestKeyExpiry(t *testing.T) {
 	}
 	fixed, fixedID := mint("thirty days", map[string]any{"expires_in_days": 30})
 	idle, idleID := mint("forgotten", map[string]any{})
-	adminID, err := db.EnsureAdminUser(context.Background(), a.database)
+	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), a.database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +305,7 @@ func TestDeployKeyNeverAdmin(t *testing.T) {
 	setConnectorAppLimits(a, withLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "1"}))
 	boss := a.newPerson(t, "adminci")
 	other := a.newPerson(t, "bystander")
-	if _, err := a.database.Exec(`UPDATE users SET is_admin = true WHERE id = (SELECT user_id FROM api_keys WHERE key_hash = $1)`, db.HashAPIKey(boss.key)); err != nil {
+	if _, err := a.database.Exec(`UPDATE users SET is_admin = true WHERE id = (SELECT user_id FROM api_keys WHERE key_hash = $1)`, accountsrepo.HashAPIKey(boss.key)); err != nil {
 		t.Fatal(err)
 	}
 	files := map[string]any{"files": map[string]string{"index.html": "x"}}
@@ -397,7 +398,7 @@ func TestPutCreateRace(t *testing.T) {
 	}
 	var versions int
 	if err := a.database.QueryRow(`SELECT count(*) FROM versions v JOIN sites s ON s.id = v.site_id
-		JOIN api_keys k ON k.user_id = s.user_id WHERE k.key_hash = $1 AND s.name = 'raced'`, db.HashAPIKey(p.key)).Scan(&versions); err != nil {
+		JOIN api_keys k ON k.user_id = s.user_id WHERE k.key_hash = $1 AND s.name = 'raced'`, accountsrepo.HashAPIKey(p.key)).Scan(&versions); err != nil {
 		t.Fatal(err)
 	}
 	if versions != n {
@@ -441,7 +442,7 @@ func TestExpiredKeysFreeTheCapAndArePurged(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE api_keys SET expires_at = now() - interval '1 day' WHERE id = $1`, recent); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.PurgeExpiredAPIKeys(context.Background(), a.database, 180*24*time.Hour); err != nil {
+	if _, err := accountsrepo.PurgeExpiredAPIKeys(context.Background(), a.database, 180*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	left := map[string]bool{}

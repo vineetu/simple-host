@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func TestSiteHostLabels(t *testing.T) {
@@ -320,7 +320,7 @@ func TestSiteHostsCanonical(t *testing.T) {
 
 	// ---- an old handle kept as an alias follows the account -----------------------------------
 	uid, _ := a.userID(t, olive)
-	if _, err := db.RenameHandle(ctx, a.database, uid, oh+"-new"); err != nil {
+	if _, err := accountsrepo.RenameHandle(ctx, a.database, uid, oh+"-new"); err != nil {
 		t.Fatal(err)
 	}
 	// The new handle has no certificate yet: the working person-path address.

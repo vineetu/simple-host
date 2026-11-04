@@ -11,9 +11,9 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/geoip/geoiptest"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // buildGeo writes a tiny local geo database mapping ip to iso, for a test to
@@ -72,7 +72,7 @@ func TestOAuthCallbackGeoBlock(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		existing, err := db.CreateUser(ctx, a.database, email, key, false)
+		existing, err := accountsrepo.CreateUser(ctx, a.database, email, key, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -83,7 +83,7 @@ func TestOAuthCallbackGeoBlock(t *testing.T) {
 		if r.status != http.StatusForbidden || !strings.Contains(string(r.body), signupBlockedMessage) {
 			t.Fatalf("got %d %q, want 403 with the blocked message", r.status, r.body)
 		}
-		fresh, err := db.GetUserByAPIKey(ctx, a.database, key, 180*24*time.Hour)
+		fresh, err := accountapp.New(a.database).GetUserByAPIKey(ctx, key, 180*24*time.Hour)
 		if err != nil || fresh.ID != existing.ID {
 			t.Fatalf("existing account changed by a refused sign-in attempt: %v %+v", err, fresh)
 		}

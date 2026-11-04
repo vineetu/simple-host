@@ -13,7 +13,7 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -32,8 +32,8 @@ func TestVersionFiles(t *testing.T) {
 		}
 	}
 	created := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-	versions := []db.Version{{VersionNumber: 2, CreatedAt: created}}
-	request := func(path string, listing bool, rows []db.Version, root string) *httptest.ResponseRecorder {
+	versions := []model.Version{{VersionNumber: 2, CreatedAt: created}}
+	request := func(path string, listing bool, rows []model.Version, root string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest("GET", "/", nil)
 		r.SetPathValue("path", path)
 		w := httptest.NewRecorder()
@@ -62,7 +62,7 @@ func TestVersionFiles(t *testing.T) {
 	for _, listing := range []bool{false, true} {
 		for _, c := range []struct {
 			name, root string
-			rows       []db.Version
+			rows       []model.Version
 		}{{"pruned row", dir, nil}, {"missing dir", filepath.Join(dir, "missing"), versions}} {
 			t.Run(c.name, func(t *testing.T) {
 				w := request("index.html", listing, c.rows, c.root)

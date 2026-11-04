@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func TestRequestArrival(t *testing.T) {
@@ -111,8 +112,8 @@ func TestAdminSignupsDrillDown(t *testing.T) {
 	activeID, _ := a.userID(t, active)
 	idleID, _ := a.userID(t, idle)
 	for _, id := range []string{activeID, idleID} {
-		if err := db.SetSignup(ctx, a.database, id, db.Signup{Source: src, Method: "email",
-			Detail: &db.SignupDetail{From: strings.TrimPrefix(src, "from:"), UTMCampaign: "=HYPERLINK(\"x\")", Referrer: "ship.vineetsriram.com", LandedAt: time.Now().Add(-time.Hour)}}); err != nil {
+		if err := accountsrepo.SetSignup(ctx, a.database, id, model.Signup{Source: src, Method: "email",
+			Detail: &model.SignupDetail{From: strings.TrimPrefix(src, "from:"), UTMCampaign: "=HYPERLINK(\"x\")", Referrer: "ship.vineetsriram.com", LandedAt: time.Now().Add(-time.Hour)}}); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 const reviewerTestPassword = "correct horse battery staple"
@@ -213,7 +213,7 @@ func TestReviewerAccountMustNotBeAdmin(t *testing.T) {
 	a := newConnectorApp(t)
 	addr := "reviewer-admin-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
 	key, _ := auth.GenerateAPIKey()
-	u, err := db.CreateUser(context.Background(), a.database, addr, key, true)
+	u, err := accountsrepo.CreateUser(context.Background(), a.database, addr, key, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestReviewerSignInSuspended(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT id FROM users WHERE username = $1`, reviewer).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetUserSuspended(context.Background(), a.database, id, "test"); err != nil {
+	if err := accountsrepo.SetUserSuspended(context.Background(), a.database, id, "test"); err != nil {
 		t.Fatal(err)
 	}
 	r := a.reviewerSignIn(t, reviewer, reviewerTestPassword, nil)

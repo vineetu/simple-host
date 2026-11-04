@@ -13,9 +13,11 @@ import (
 	"testing"
 	"time"
 
+	notifyapp "github.com/vsriram/simple-host/internal/app/notifications"
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
+	model "github.com/vsriram/simple-host/internal/model"
+	notificationsrepo "github.com/vsriram/simple-host/internal/repository/notifications"
 )
 
 func notificationKey(t *testing.T) *SiteHandler {
@@ -137,7 +139,7 @@ func TestNotificationSealedDelivery(t *testing.T) {
 	}
 	x.keys = append(x.keys, second)
 	until := time.Now().Add(time.Hour)
-	n := db.Notification{ID: "sub_sealed", URL: x.server.URL, Source: "owner", PrevSecretUntil: &until, AuthHeaderName: "Authorization"}
+	n := model.Notification{ID: "sub_sealed", URL: x.server.URL, Source: "owner", PrevSecretUntil: &until, AuthHeaderName: "Authorization"}
 	n.Secret, err = h.passcode.sealNotification(n.ID, second)
 	if err != nil {
 		t.Fatal(err)
@@ -191,7 +193,7 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
 	ctx := context.Background()
-	n, err := db.GetNotification(ctx, s.a.database, id)
+	n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +203,7 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 		t.Fatal("new row has previous secret")
 	}
 	notificationRequest(t, s, "POST", "/"+id+"/rotate-secret", nil, 200)
-	n, err = db.GetNotification(ctx, s.a.database, id)
+	n, err = notificationsrepo.GetNotification(ctx, s.a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +219,7 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := db.GetNotification(ctx, s.a.database, result.ID)
+	first, err := notificationsrepo.GetNotification(ctx, s.a.database, result.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +227,7 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 	if _, err = backend.Subscribe(ctx, caller, req); err != nil {
 		t.Fatal(err)
 	}
-	same, err := db.GetNotification(ctx, s.a.database, result.ID)
+	same, err := notificationsrepo.GetNotification(ctx, s.a.database, result.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +241,7 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 	if _, err = backend.Subscribe(ctx, caller, req); err != nil {
 		t.Fatal(err)
 	}
-	changed, err := db.GetNotification(ctx, s.a.database, result.ID)
+	changed, err := notificationsrepo.GetNotification(ctx, s.a.database, result.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +251,7 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 	if _, err = backend.Subscribe(ctx, caller, req); err != nil {
 		t.Fatal(err)
 	}
-	refreshed, err := db.GetNotification(ctx, s.a.database, result.ID)
+	refreshed, err := notificationsrepo.GetNotification(ctx, s.a.database, result.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +265,7 @@ func TestSealNotificationSecretsSweep(t *testing.T) {
 	ctx := context.Background()
 	id := subscribeNotification(t, s, x)
 	untouched := subscribeNotification(t, s, x)
-	before, err := db.GetNotification(ctx, s.a.database, untouched)
+	before, err := notificationsrepo.GetNotification(ctx, s.a.database, untouched)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +274,7 @@ func TestSealNotificationSecretsSweep(t *testing.T) {
 	if err != nil || count != 1 {
 		t.Fatal("sweep did not seal one legacy row")
 	}
-	after, err := db.GetNotification(ctx, s.a.database, id)
+	after, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +288,7 @@ func TestSealNotificationSecretsSweep(t *testing.T) {
 	if openedNotification(t, s, id+":header", after.AuthHeaderValue) != "Bearer legacy" {
 		t.Fatal("sweep changed header")
 	}
-	other, err := db.GetNotification(ctx, s.a.database, untouched)
+	other, err := notificationsrepo.GetNotification(ctx, s.a.database, untouched)
 	if err != nil || other.Secret != before.Secret || other.AuthHeaderValue != before.AuthHeaderValue || other.PrevSecret != "" {
 		t.Fatal("sweep changed sealed or empty fields")
 	}
@@ -314,7 +316,7 @@ func TestSealNotificationSecretsSweep(t *testing.T) {
 	if count, err := s.a.sites.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 1 {
 		t.Fatal("next sweep did not seal the skipped row")
 	}
-	concurrent, err := db.GetNotification(ctx, s.a.database, id)
+	concurrent, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
 	if err != nil || openedNotification(t, s, id+":header", concurrent.AuthHeaderValue) != "concurrent-value" {
 		t.Fatal("sweep lost the concurrent write")
 	}
@@ -326,7 +328,7 @@ func TestSealNotificationSecretsSweep(t *testing.T) {
 	if count, err := s.a.sites.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 1 {
 		t.Fatal("header-only row was not sealed")
 	}
-	final, err := db.GetNotification(ctx, s.a.database, id)
+	final, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
 	if err != nil || final.Secret != after.Secret || final.PrevSecret != "" {
 		t.Fatal("mixed row changed sealed or empty values")
 	}
@@ -354,7 +356,7 @@ func TestNotificationMissingKey(t *testing.T) {
 	}
 	emitWorkerNotification(t, s, s.sid)
 	drainNotifications(t, s)
-	n, err := db.GetNotification(context.Background(), s.a.database, id)
+	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, id)
 	if err != nil || n.LastResult != "secret_unreadable" || len(x.snapshot()) != 0 {
 		t.Fatal("unreadable delivery not recorded safely")
 	}
@@ -417,15 +419,15 @@ func TestNotificationLegacyWrites(t *testing.T) {
 			if operation == "rotate" {
 				notificationRequest(t, s, "POST", "/"+id+"/rotate-secret", nil, 200)
 			} else {
-				n, err := db.GetNotification(ctx, s.a.database, id)
+				n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, _, err := db.SaveNotification(ctx, s.a.database, n, 10, nil, 7, s.a.sites.notificationSecrets()); err != nil {
+				if _, _, err := notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, nil, 7, s.a.sites.notificationSecrets()); err != nil {
 					t.Fatal(err)
 				}
 			}
-			n, err := db.GetNotification(ctx, s.a.database, id)
+			n, err := notificationsrepo.GetNotification(ctx, s.a.database, id)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -453,7 +455,7 @@ func TestNotificationKeyDoesNotEnableSharedOriginPasscodes(t *testing.T) {
 func TestNotificationPurposeBinding(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
-	n, err := db.GetNotification(context.Background(), s.a.database, id)
+	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -487,7 +489,7 @@ func TestNotificationRotateUnreadableSecret(t *testing.T) {
 	if out["previous_valid_until"] != nil {
 		t.Fatal("unreadable previous secret has a grace period")
 	}
-	n, err := db.GetNotification(context.Background(), s.a.database, id)
+	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -531,7 +533,7 @@ func TestNotificationMissingKeyMCPUnsubscribe(t *testing.T) {
 			t.Fatal("keyless unsubscribe failed")
 		}
 	}
-	if _, err := db.GetNotification(context.Background(), s.a.database, sub.ID); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := notificationsrepo.GetNotification(context.Background(), s.a.database, sub.ID); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("keyless unsubscribe did not remove the subscription")
 	}
 }
@@ -546,10 +548,10 @@ func TestSealNotificationSecretsTimeout(t *testing.T) {
 		<-ctx.Done()
 		return s.a.sites.passcode.sealNotification(id, plain)
 	}
-	if count, err := db.SealNotificationSecrets(ctx, s.a.database, seal); err == nil || count != 0 {
+	if count, err := notificationsrepo.SealNotificationSecrets(ctx, s.a.database, seal); err == nil || count != 0 {
 		t.Fatal("expired sweep did not stop")
 	}
-	n, err := db.GetNotification(context.Background(), s.a.database, id)
+	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, id)
 	if err != nil || n.Secret != notifyTestSecret {
 		t.Fatal("expired sweep changed the row")
 	}
@@ -573,7 +575,7 @@ func TestNotificationMCPResubscribeAfterKeyChange(t *testing.T) {
 	if _, err := backend.Subscribe(context.Background(), caller, req); err != nil {
 		t.Fatalf("re-subscribe after a key change failed: %v", err)
 	}
-	n, err := db.GetNotification(context.Background(), s.a.database, sub.ID)
+	n, err := notificationsrepo.GetNotification(context.Background(), s.a.database, sub.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,13 +13,13 @@ import (
 
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
 )
 
 func createRequest(account, method, path, key, body string) *http.Request {
 	r := httptest.NewRequest(method, path, strings.NewReader(body))
 	if account != "" {
-		r = r.WithContext(auth.WithUser(r.Context(), &db.User{ID: account}))
+		r = r.WithContext(auth.WithUser(r.Context(), &model.User{ID: account}))
 	}
 	r.Header.Set("Idempotency-Key", key)
 	return r
@@ -117,7 +117,7 @@ func TestCreateIdempotencyConcurrent(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			r := createRequest("a", "POST", "/v1/sites/demo/files", "key", "body")
-			r = r.WithContext(auth.WithUser(ctx, &db.User{ID: "a"}))
+			r = r.WithContext(auth.WithUser(ctx, &model.User{ID: "a"}))
 			h.ServeHTTP(responses[i], r)
 		}(i)
 	}

@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 func TestHomeSettingServingAndIsolation(t *testing.T) {
@@ -94,7 +96,7 @@ func TestHomeSettingServingAndIsolation(t *testing.T) {
 	}
 	for _, crossHost := range []string{"home." + host, "blog." + host, pcSiteDomain} {
 		req := requestForHomeTest(crossHost)
-		sess := db.VisitorSession{Host: host, SiteID: id, ExpiresAt: time.Now().Add(time.Hour), IdleExpiresAt: time.Now().Add(time.Hour)}
+		sess := model.VisitorSession{Host: host, SiteID: id, ExpiresAt: time.Now().Add(time.Hour), IdleExpiresAt: time.Now().Add(time.Hour)}
 		if a.sites.sessionValidFor(req, sess, id) {
 			t.Fatal("session crossed host")
 		}
@@ -131,7 +133,7 @@ func TestHomeSettingServingAndIsolation(t *testing.T) {
 	}
 	// Deploy scope is enforced both in the route and in the global scope gate.
 	deployKey, _ := auth.GenerateAPIKey()
-	if _, err := a.database.Exec(`INSERT INTO api_keys(key_hash,user_id,scope) VALUES($1,$2,'deploy')`, db.HashAPIKey(deployKey), uid); err != nil {
+	if _, err := a.database.Exec(`INSERT INTO api_keys(key_hash,user_id,scope) VALUES($1,$2,'deploy')`, accountsrepo.HashAPIKey(deployKey), uid); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "PUT", pcSiteDomain, "/v1/me/home", map[string]any{"site": nil}, map[string]string{"X-API-Key": deployKey}); r.status != 403 {
@@ -140,7 +142,7 @@ func TestHomeSettingServingAndIsolation(t *testing.T) {
 	if r := a.at(t, "PATCH", pcSiteDomain, "/v1/sites/home", map[string]any{"name": "renamedhome"}, headers); r.status != 200 {
 		t.Fatalf("rename: %s", r.body)
 	}
-	if s, has, err := db.HomeSite(context.Background(), a.database, uid); err != nil || !has || s.ID != id || s.Name != "renamedhome" {
+	if s, has, err := sitesrepo.HomeSite(context.Background(), a.database, uid); err != nil || !has || s.ID != id || s.Name != "renamedhome" {
 		t.Fatalf("rename lost home: %+v %v", s, err)
 	}
 	if r := a.at(t, "PUT", pcSiteDomain, "/v1/me/home", map[string]any{"site": nil}, headers); r.status != 200 {
@@ -160,20 +162,20 @@ func TestHomeFallbacks(t *testing.T) {
 			a.deploy(t, owner, "home")
 			uid, handle := a.userID(t, owner)
 			name := "home"
-			if err := db.SetHomeSite(context.Background(), a.database, uid, &name); err != nil {
+			if err := sitesrepo.SetHomeSite(context.Background(), a.database, uid, &name); err != nil {
 				t.Fatal(err)
 			}
 			id := a.siteID(t, owner, "home")
 			var err error
 			switch kind {
 			case "offline":
-				err = db.SetSiteOffline(context.Background(), a.database, id, true)
+				err = sitesrepo.SetSiteOffline(context.Background(), a.database, id, true)
 			case "taken-down":
-				err = db.SetSiteSuspended(context.Background(), a.database, id, "test")
+				err = sitesrepo.SetSiteSuspended(context.Background(), a.database, id, "test")
 			case "suspended":
-				err = db.SetUserSuspended(context.Background(), a.database, uid, "test")
+				err = accountsrepo.SetUserSuspended(context.Background(), a.database, uid, "test")
 			case "recently-deleted":
-				err = db.MarkSiteDeleted(context.Background(), a.database, id, 7*24*time.Hour)
+				err = sitesrepo.MarkSiteDeleted(context.Background(), a.database, id, 7*24*time.Hour)
 			case "deleted":
 				_, err = a.database.Exec(`DELETE FROM sites WHERE id=$1`, id)
 			}
@@ -183,7 +185,7 @@ func TestHomeFallbacks(t *testing.T) {
 			if r := a.at(t, "GET", handle+"."+pcSiteDomain, "/", nil, nil); r.status != 200 || !strings.Contains(string(r.body), "SHOWCASE") {
 				t.Fatalf("fallback %s: %d", kind, r.status)
 			}
-			_, has, err := db.HomeSite(context.Background(), a.database, uid)
+			_, has, err := sitesrepo.HomeSite(context.Background(), a.database, uid)
 			want := kind != "recently-deleted" && kind != "deleted"
 			if err != nil || has != want {
 				t.Fatalf("setting retained=%v want=%v %v", has, want, err)
@@ -199,7 +201,7 @@ func TestHomeBaseAndPasscode(t *testing.T) {
 	a.deploy(t, owner, "home")
 	uid, handle := a.userID(t, owner)
 	name := "home"
-	if err := db.SetHomeSite(context.Background(), a.database, uid, &name); err != nil {
+	if err := sitesrepo.SetHomeSite(context.Background(), a.database, uid, &name); err != nil {
 		t.Fatal(err)
 	}
 	a.sites.SetSiteBase("simple-host.alt", "serve", "")
@@ -253,7 +255,7 @@ func TestHomeBaseAndPasscode(t *testing.T) {
 }
 
 func writeTestHomeFile(h *SiteHandler, id, name, content string) error {
-	s, err := db.GetSiteByID(context.Background(), h.database, id)
+	s, err := sitesrepo.GetSiteByID(context.Background(), h.database, id)
 	if err != nil {
 		return err
 	}
@@ -276,7 +278,7 @@ func TestHomePendingCertificateCollisionIsolation(t *testing.T) {
 	a.deploy(t, owner, "other")
 	uid, handle := a.userID(t, owner)
 	name := "home"
-	if err := db.SetHomeSite(context.Background(), a.database, uid, &name); err != nil {
+	if err := sitesrepo.SetHomeSite(context.Background(), a.database, uid, &name); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "GET", handle+"."+pcSiteDomain, "/other/", nil, nil); r.status != 503 || strings.Contains(string(r.body), "<h1>other</h1>") {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -12,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 type visitorFixture struct {
@@ -29,11 +30,11 @@ func newVisitorFixture(t *testing.T) visitorFixture {
 	s.a.conn.SetVisitorTools(s.a.sites, o)
 	// These fixtures use an already verified account, then exercise the real
 	// OAuth authorization and MCP boundary as a different person from the owner.
-	u, err := db.GetUserByID(context.Background(), s.a.database, s.ids["bob"])
+	u, err := accountsrepo.GetUserByID(context.Background(), s.a.database, s.ids["bob"])
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, undo, err := db.IssueInternalKey(u.ID)
+	key, undo, err := accountsrepo.IssueInternalKey(u.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +70,7 @@ func (f visitorFixture) args(kind, resource string) map[string]any {
 }
 func (f visitorFixture) named(t *testing.T) {
 	t.Helper()
-	u, err := db.GetUserByID(context.Background(), f.a.database, f.ids["bob"])
+	u, err := accountsrepo.GetUserByID(context.Background(), f.a.database, f.ids["bob"])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +213,7 @@ func TestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
 	f.call(t, "visitor_add_entry", args, "daily limit of 2")
 	// A second app shares the same person's cap.
 	client = f.a.registerClient(t, testRedirect)
-	key, undo, err := db.IssueInternalKey(f.ids["bob"])
+	key, undo, err := accountsrepo.IssueInternalKey(f.ids["bob"])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +268,7 @@ func TestVisitorPassCannotCrossSitesOrBecomeOwner(t *testing.T) {
 	}
 	f.a.deploy(t, f.owner, "other")
 	otherID := f.a.siteID(t, f.owner, "other")
-	pass, undo, err := db.IssueInternalVisitorKey(db.InternalVisitorPass{UserID: f.ownerID, SiteID: f.sid, Host: f.host, AppName: "ChatGPT"})
+	pass, undo, err := accountsrepo.IssueInternalVisitorKey(accountsrepo.InternalVisitorPass{UserID: f.ownerID, SiteID: f.sid, Host: f.host, AppName: "ChatGPT"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,11 +368,11 @@ func TestVisitorMCPCommentsOfflineAndVisitorLimits(t *testing.T) {
 	args["action"] = "delete"
 	args["id"] = id
 	f.call(t, "visitor_change_entry", args, "add_only")
-	if err := db.SetSiteOffline(context.Background(), f.a.database, f.sid, true); err != nil {
+	if err := sitesrepo.SetSiteOffline(context.Background(), f.a.database, f.sid, true); err != nil {
 		t.Fatal(err)
 	}
 	f.call(t, "visitor_read_site", map[string]any{"address": "https://" + f.host}, "site_offline")
-	if err := db.SetSiteOffline(context.Background(), f.a.database, f.sid, false); err != nil {
+	if err := sitesrepo.SetSiteOffline(context.Background(), f.a.database, f.sid, false); err != nil {
 		t.Fatal(err)
 	}
 	f.a.sites.storageVisitorLimiter = newRateLimiter(1, 0)

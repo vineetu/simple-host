@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // Download my data (GET /v1/me/export.zip) and Delete my account
@@ -181,7 +181,7 @@ func TestAccountExport(t *testing.T) {
 		t.Error("the owner's export holds the visitor's account email")
 	}
 	// A connected app acting for Olive cannot pull the whole account.
-	ik, revoke, ierr := db.IssueInternalKey(oid)
+	ik, revoke, ierr := accountsrepo.IssueInternalKey(oid)
 	if ierr != nil {
 		t.Fatal(ierr)
 	}
@@ -202,7 +202,7 @@ func TestAccountExport(t *testing.T) {
 	for name, body := range files {
 		whole += name + body
 	}
-	if strings.Contains(whole, olive.key) || strings.Contains(whole, db.HashAPIKey(olive.key)) || strings.Contains(whole, strings.TrimPrefix(olive.key, "shk_")) {
+	if strings.Contains(whole, olive.key) || strings.Contains(whole, accountsrepo.HashAPIKey(olive.key)) || strings.Contains(whole, strings.TrimPrefix(olive.key, "shk_")) {
 		t.Error("the export holds the API key or its hash")
 	}
 
@@ -328,7 +328,7 @@ func TestDeleteMyAccount(t *testing.T) {
 		t.Errorf("admin: %d %s", r.status, r.body)
 	}
 	// A connected app acting for her (an internal key) cannot delete the account.
-	ik, revoke, ierr := db.IssueInternalKey(oid)
+	ik, revoke, ierr := accountsrepo.IssueInternalKey(oid)
 	if ierr != nil {
 		t.Fatal(ierr)
 	}

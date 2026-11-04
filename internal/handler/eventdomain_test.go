@@ -13,8 +13,8 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	model "github.com/vsriram/simple-host/internal/model"
 )
 
 type eventTestDNS struct {
@@ -55,7 +55,7 @@ func TestEventDomainWorkflow(t *testing.T) {
 	lim := edition.ForKind(edition.Host).Limits()
 	svc := sites.New(a.database, nil, nil, 0, sites.Deps{EventDNS: dns, EventProbe: sites.NewEventProbe(&http.Client{Transport: eventProbeTransport{}}), EventDomains: domains, EventTTL: lim.EventTTL, EventMaxClaims: lim.EventMaxClaims})
 	h := NewEventDomainHandler(svc, domains)
-	request := func(method, path, body string, user *db.User) *httptest.ResponseRecorder {
+	request := func(method, path, body string, user *model.User) *httptest.ResponseRecorder {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
 		r = r.WithContext(auth.WithUser(r.Context(), user))
@@ -71,7 +71,7 @@ func TestEventDomainWorkflow(t *testing.T) {
 		}
 		return w
 	}
-	owner := &db.User{ID: uid}
+	owner := &model.User{ID: uid}
 	claim := func() *httptest.ResponseRecorder {
 		return request("POST", "/v1/events", `{"name":"meetup","ip":"8.8.8.8"}`, owner)
 	}
@@ -93,7 +93,7 @@ func TestEventDomainWorkflow(t *testing.T) {
 	if !reflect.DeepEqual(dns.deleted, []string{"record-1", "record-2"}) {
 		t.Fatalf("renew cleanup: %v", dns.deleted)
 	}
-	if w := request("DELETE", "/v1/events/meetup", "", &db.User{ID: "another-user"}); w.Code != 404 || w.Body.String() != "{\"error\":\"not found\"}\n" {
+	if w := request("DELETE", "/v1/events/meetup", "", &model.User{ID: "another-user"}); w.Code != 404 || w.Body.String() != "{\"error\":\"not found\"}\n" {
 		t.Fatalf("non-owner: %d %s", w.Code, w.Body.String())
 	}
 	if w := request("DELETE", "/v1/events/meetup", "", owner); w.Code != 204 {

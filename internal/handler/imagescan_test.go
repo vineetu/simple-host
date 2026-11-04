@@ -21,9 +21,12 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/operations"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	eventsrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	opsrepo "github.com/vsriram/simple-host/internal/repository/operations"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
+	sqlkit "github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -295,7 +298,7 @@ func TestImageScanDeployMatch(t *testing.T) {
 		}
 	}
 	// Taken down with the generic reason; marker on disk.
-	site, err := db.GetSiteByID(context.Background(), a.database, siteID)
+	site, err := sitesrepo.GetSiteByID(context.Background(), a.database, siteID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -440,7 +443,7 @@ func TestImageScanStorageFile(t *testing.T) {
 	if m.Kind != "storage_file" || m.ResourceName != "photos" || m.Path != "pics/bad.png" || !m.TakenDown {
 		t.Fatalf("match row: %+v", m)
 	}
-	if site, _ := db.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
+	if site, _ := sitesrepo.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
 		t.Fatal("site not taken down")
 	}
 	if !a.sites.disk.IsSuspended(uid, "gallery") {
@@ -476,7 +479,7 @@ func TestImageScanEventIcon(t *testing.T) {
 	if r := a.createEvent(t, ada, slug, nil); r.status != http.StatusCreated {
 		t.Fatalf("create event: %d %s", r.status, r.body)
 	}
-	ev, err := db.GetEventBySlug(context.Background(), a.database, slug)
+	ev, err := eventsrepo.GetEventBySlug(context.Background(), a.database, slug)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -484,7 +487,7 @@ func TestImageScanEventIcon(t *testing.T) {
 	matcher.mu.Lock()
 	matcher.matches[operations.ImageHash(icon)] = operations.ScanMatch{IsMatch: true, TrackingID: "t-icon", Source: "IWF"}
 	matcher.mu.Unlock()
-	if err := db.SetEventIcon(context.Background(), a.database, ev.ID, "image/png", icon); err != nil {
+	if err := eventsrepo.SetEventIcon(context.Background(), a.database, ev.ID, "image/png", icon); err != nil {
 		t.Fatal(err)
 	}
 	var adaID string
@@ -496,17 +499,17 @@ func TestImageScanEventIcon(t *testing.T) {
 	if n := s.RunOnce(context.Background()); n != 1 {
 		t.Fatalf("RunOnce handled %d", n)
 	}
-	if typ, body, err := db.GetEventIcon(context.Background(), a.database, ev.ID); err != nil || typ != "" || len(body) != 0 {
+	if typ, body, err := eventsrepo.GetEventIcon(context.Background(), a.database, ev.ID); err != nil || typ != "" || len(body) != 0 {
 		t.Fatalf("icon not cleared: %q %d %v", typ, len(body), err)
 	}
-	after, err := db.GetEventByID(context.Background(), a.database, ev.ID)
+	after, err := eventsrepo.GetEventByID(context.Background(), a.database, ev.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !after.TakenDown() || after.TakenDownReason != operations.ImageScanTakeDownMsg {
 		t.Fatalf("event not taken down: %+v", after.TakenDownAt)
 	}
-	if susp, _ := db.UserSuspended(context.Background(), a.database, ev.AccountID); !susp {
+	if susp, _ := accountsrepo.UserSuspended(context.Background(), a.database, ev.AccountID); !susp {
 		t.Fatal("holding account not suspended with the event")
 	}
 	matches, err := opsrepo.ListImageMatches(context.Background(), a.database, 10)
@@ -569,7 +572,7 @@ func TestImageScanRetry(t *testing.T) {
 	if v := hashVerdict(t, a, operations.ImageHash(pic)); v != "skipped" {
 		t.Fatalf("verdict %q, want skipped", v)
 	}
-	if site, _ := db.GetSiteByID(context.Background(), a.database, siteID); site.SiteSuspended {
+	if site, _ := sitesrepo.GetSiteByID(context.Background(), a.database, siteID); site.SiteSuspended {
 		t.Fatal("site taken down without a match")
 	}
 }
@@ -782,7 +785,7 @@ func TestImageScanRestore(t *testing.T) {
 	if m := latestMatch(t, a, siteID); m.Version != 1 || !m.TakenDown {
 		t.Fatalf("match row: %+v", m)
 	}
-	if site, _ := db.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
+	if site, _ := sitesrepo.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
 		t.Fatal("restored site not taken down")
 	}
 	if !a.sites.disk.IsSuspended(uid, "comeback") {
@@ -853,7 +856,7 @@ func TestImageScanEvidenceFailure(t *testing.T) {
 			t.Fatalf("%s/bad.png was not kept: %v", v, err)
 		}
 	}
-	if site, _ := db.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
+	if site, _ := sitesrepo.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
 		t.Fatal("site not taken down")
 	}
 	if !a.sites.disk.IsSuspended(uid, "nocopy") {
@@ -1056,7 +1059,7 @@ func TestImageScanEvidenceFolderExists(t *testing.T) {
 	if got, err := os.ReadFile(filepath.Join(a.sites.disk.SiteDir(uid, "taken"), "current", "bad.png")); err != nil || !bytes.Equal(got, bad) {
 		t.Fatalf("file not kept: %v", err)
 	}
-	if site, _ := db.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
+	if site, _ := sitesrepo.GetSiteByID(context.Background(), a.database, siteID); !site.SiteSuspended {
 		t.Fatal("site not taken down")
 	}
 	if sent := f.mailer.sent(); len(sent) != 1 || !strings.Contains(sent[0], "evidence copy: FAILED") || !strings.Contains(sent[0], "file was kept") {
@@ -1131,7 +1134,7 @@ func TestImageScanRenameWindow(t *testing.T) {
 		t.Error("the worker ran inside the rename's window")
 	case <-time.After(300 * time.Millisecond):
 	}
-	if err := db.RenameSite(context.Background(), a.database, siteID, "after", ""); err != nil {
+	if err := sitesrepo.RenameSite(context.Background(), a.database, siteID, "after", ""); err != nil {
 		unlock()
 		t.Fatal(err)
 	}
@@ -1173,7 +1176,7 @@ func TestImageScanReportSaveFails(t *testing.T) {
 	ctx := context.Background()
 	m := latestMatch(t, a, a.siteID(t, olive, "nosave"))
 	saves := 0
-	f.scan.SaveReport = func(context.Context, db.Querier, int64, string, string, string) error {
+	f.scan.SaveReport = func(context.Context, sqlkit.Querier, int64, string, string, string) error {
 		saves++
 		return errors.New("database down")
 	}
@@ -1199,7 +1202,7 @@ func TestImageScanReportSaveFails(t *testing.T) {
 	// whatever its context; a retry on the caller's context would fail too
 	// when that context has ended.
 	flaky := 0
-	f.scan.SaveReport = func(ctx context.Context, q db.Querier, id int64, st, rid, e string) error {
+	f.scan.SaveReport = func(ctx context.Context, q sqlkit.Querier, id int64, st, rid, e string) error {
 		flaky++
 		if flaky == 1 {
 			return errors.New("database blip")

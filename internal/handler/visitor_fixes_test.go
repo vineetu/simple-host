@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 )
 
 func visitorJSON(t *testing.T, v any) string {
@@ -77,11 +79,11 @@ func TestVisitorStorageHistorySeparated(t *testing.T) {
 	if bad || strings.Contains(text, email) || !strings.Contains(text, "via ChatGPT") {
 		t.Fatalf("storage history: %s", text)
 	}
-	list, err := db.ListHistory(context.Background(), f.a.database, f.sid, db.HistoryList, "notes", 20, 0)
+	list, err := legacyrepo.ListHistory(context.Background(), f.a.database, f.sid, model.HistoryList, "notes", 20, 0)
 	if err != nil || len(list) != 1 || list[0].By != email {
 		t.Fatalf("collection history changed: %+v %v", list, err)
 	}
-	storage, err := db.ListHistory(context.Background(), f.a.database, f.sid, db.HistoryStorage, "notes", 20, 0)
+	storage, err := legacyrepo.ListHistory(context.Background(), f.a.database, f.sid, model.HistoryStorage, "notes", 20, 0)
 	if err != nil || len(storage) != 1 || storage[0].Op != "add kv" {
 		t.Fatalf("storage history: %+v %v", storage, err)
 	}
@@ -320,7 +322,7 @@ func TestVisitorPageTruncationAndUppercaseText(t *testing.T) {
 
 func TestVisitorConnectionLastSite(t *testing.T) {
 	f := newVisitorFixture(t)
-	key, undo, err := db.IssueInternalKey(f.ids["bob"])
+	key, undo, err := accountsrepo.IssueInternalKey(f.ids["bob"])
 	if err != nil {
 		t.Fatal(err)
 	}

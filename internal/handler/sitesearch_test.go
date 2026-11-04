@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 func TestListSitesSearch(t *testing.T) {
@@ -102,7 +103,7 @@ func TestListSitesSearch(t *testing.T) {
 			}
 			if tt.query == "" {
 				// Rebuild the old response projection, allowing only the new summary.
-				loaded, err := db.ListSitesByUser(context.Background(), a.database, userID)
+				loaded, err := sitesrepo.ListSitesByUser(context.Background(), a.database, userID)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -146,7 +147,7 @@ func TestListSitesSearch(t *testing.T) {
 		t.Fatalf("domain search: %d %s", r.status, r.body)
 	}
 	// Exercise the admin SELECT's separate scan order too.
-	all, err := db.ListAllSites(context.Background(), a.database)
+	all, err := sitesrepo.ListAllSites(context.Background(), a.database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +220,7 @@ func TestSiteSummaryDeployUpdates(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT updated_at FROM sites WHERE id=$1`, id).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpdateSiteSummary(context.Background(), a.database, id, db.SiteSummary{Title: "Backfilled"}); err != nil {
+	if err := sitesrepo.UpdateSiteSummary(context.Background(), a.database, id, model.SiteSummary{Title: "Backfilled"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.database.QueryRow(`SELECT updated_at FROM sites WHERE id=$1`, id).Scan(&after); err != nil {
@@ -246,7 +247,7 @@ func TestUpdateSiteSummaryIfUnset(t *testing.T) {
 
 	// A late backfill write for a site the deploy hook already summarised
 	// must not overwrite it.
-	if err := db.UpdateSiteSummaryIfUnset(context.Background(), a.database, id, db.SiteSummary{Title: "Stale backfill read"}); err != nil {
+	if err := sitesrepo.UpdateSiteSummaryIfUnset(context.Background(), a.database, id, model.SiteSummary{Title: "Stale backfill read"}); err != nil {
 		t.Fatal(err)
 	}
 	var got string
@@ -261,7 +262,7 @@ func TestUpdateSiteSummaryIfUnset(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sites SET summary_title=NULL WHERE id=$1`, id); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpdateSiteSummaryIfUnset(context.Background(), a.database, id, db.SiteSummary{Title: "Backfilled"}); err != nil {
+	if err := sitesrepo.UpdateSiteSummaryIfUnset(context.Background(), a.database, id, model.SiteSummary{Title: "Backfilled"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.database.QueryRow(`SELECT summary_title FROM sites WHERE id=$1`, id).Scan(&got); err != nil {
@@ -310,7 +311,7 @@ func TestListSitesAdminScope(t *testing.T) {
 // SIM-189's search relevance, unrelated to this sort) must not reorder it.
 func TestSiteSearchSortByUpdatedAtOnly(t *testing.T) {
 	now := time.Now()
-	sites := []db.Site{{Name: "fallback", UpdatedAt: now}, {Name: "active", UpdatedAt: now.Add(time.Hour)}}
+	sites := []model.Site{{Name: "fallback", UpdatedAt: now}, {Name: "active", UpdatedAt: now.Add(time.Hour)}}
 	sites[1].LastDeployedAt.Valid = true
 	sites[1].LastDeployedAt.Time = now.Add(-time.Hour)
 	got, err := filterSiteList(sites, url.Values{"query": {""}})

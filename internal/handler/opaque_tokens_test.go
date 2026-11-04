@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/hackhttp"
 	httpx "github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/mcp"
+	model "github.com/vsriram/simple-host/internal/model"
 )
 
 const opaqueOwner = "1b4e28ba-2fa1-11d2-883f-0016d3cca427"
@@ -127,9 +127,9 @@ func TestMCPNotificationVisitorReferences(t *testing.T) {
 	for _, name := range []string{"record.added", "record.changed", "file.uploaded"} {
 		for _, visitor := range []any{opaqueOwner, nil} {
 			raw, _ := json.Marshal(map[string]any{"visitor": visitor, "site": "blog", "fields": map[string]any{"item": "cake", "number": json.Number("9007199254740993")}})
-			d := db.NotificationDelivery{EventID: "evt_test", Name: name, Data: raw}
+			d := model.NotificationDelivery{EventID: "evt_test", Name: name, Data: raw}
 			for _, source := range []string{"mcp", "webhook"} {
-				body := h.notificationBody(db.Notification{Source: source, SiteID: opaqueSite}, d, 1)
+				body := h.notificationBody(model.Notification{Source: source, SiteID: opaqueSite}, d, 1)
 				var payload struct {
 					Data map[string]any `json:"data"`
 				}
@@ -164,7 +164,7 @@ func TestMCPNotificationVisitorReferences(t *testing.T) {
 	}
 	h.ed = edition.ForKind(edition.Hack)
 	raw, _ := json.Marshal(map[string]any{"visitor": opaqueOwner})
-	body := h.notificationBody(db.Notification{Source: "mcp", SiteID: opaqueSite}, db.NotificationDelivery{Data: raw}, 1)
+	body := h.notificationBody(model.Notification{Source: "mcp", SiteID: opaqueSite}, model.NotificationDelivery{Data: raw}, 1)
 	if !bytes.Contains(body, []byte(opaqueOwner)) {
 		t.Fatal("Hack notification changed")
 	}

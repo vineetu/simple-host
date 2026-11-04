@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	model "github.com/vsriram/simple-host/internal/model"
 )
 
 // Named arrivals keep the landing film and carry attribution without cookies.
@@ -53,18 +53,18 @@ func TestNamedSourceArrival(t *testing.T) {
 
 func TestNamedSourceSignupSource(t *testing.T) {
 	r := httptest.NewRequest("POST", "/v1/auth/verify", nil)
-	if s := websiteSignup(r, "email"); s.Source != db.SignupWebsite {
+	if s := websiteSignup(r, "email"); s.Source != model.SignupWebsite {
 		t.Fatalf("plain website sign-up: %q", s.Source)
 	}
 	r = httptest.NewRequest("POST", "/v1/auth/verify?from=something-else", nil)
-	if s := websiteSignup(r, "email"); s.Source != db.SignupFromPrefix+"something-else" {
+	if s := websiteSignup(r, "email"); s.Source != model.SignupFromPrefix+"something-else" {
 		t.Fatalf("unnamed arrival value: %q", s.Source)
 	}
 
 	for fromValue, wantSource := range map[string]string{
-		"artifact-hub": db.SignupArtifactHub,
-		"vercel-ship":  db.SignupVercelShip,
-		"agentcon":     db.SignupAgentCon,
+		"artifact-hub": model.SignupArtifactHub,
+		"vercel-ship":  model.SignupVercelShip,
+		"agentcon":     model.SignupAgentCon,
 	} {
 		r := httptest.NewRequest("POST", "/v1/auth/verify", nil)
 		r.URL.RawQuery = "from=" + fromValue

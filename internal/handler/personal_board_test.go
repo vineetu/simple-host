@@ -2,13 +2,20 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	legacyapp "github.com/vsriram/simple-host/internal/app/legacy"
+	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // Saved data, steps 3 and 4: Personal (personal.go) and Shared board
@@ -100,7 +107,7 @@ func TestPersonalOnlyItsPerson(t *testing.T) {
 		t.Fatalf("summary: %v", summary)
 	}
 	// The site's export carries nobody's record but the owner's own.
-	items, err := db.ListExportItems(context.Background(), s.a.database, s.shopID)
+	items, err := sitesrepo.ListExportItems(context.Background(), s.a.database, s.shopID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +237,7 @@ func TestPersonalLimitsHistoryAndErase(t *testing.T) {
 
 	// The visitor's "Download my data" has it; deleting their account erases it.
 	vicID, _ := s.a.userID(t, s.vic)
-	subs, err := db.ListSubmissionsElsewhere(context.Background(), s.a.database, vicID)
+	subs, err := legacyrepo.ListSubmissionsElsewhere(context.Background(), s.a.database, vicID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,19 +248,8 @@ func TestPersonalLimitsHistoryAndErase(t *testing.T) {
 	if !found {
 		t.Fatalf("export lacks the record: %+v", subs)
 	}
-	tx, err := s.a.database.Begin()
+	err = eraseFixtureAccount(context.Background(), s.a.sites, vicID)
 	if err != nil {
-		t.Fatal(err)
-	}
-	acct, err := db.LockAccountForDelete(context.Background(), tx, vicID)
-	if err == nil {
-		_, err = db.EraseAccount(context.Background(), tx, acct)
-	}
-	if err != nil {
-		_ = tx.Rollback()
-		t.Fatal(err)
-	}
-	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
 	var left, hist2 int
@@ -464,17 +460,17 @@ func TestPersonalReviewFixes(t *testing.T) {
 	}
 	// The kind change re-checks under the lock: records never change hands.
 	ctx := context.Background()
-	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "habits", db.KindEntries, true, false, db.NotifyOff, false); err != db.ErrNameHasRows {
+	if err := legacyapp.New(s.a.database, time.Time{}, legacyapp.Deps{}).DeclareDataLocked(ctx, s.shopID, "habits", model.KindEntries, true, false, model.NotifyOff, false); err != model.ErrNameHasRows {
 		t.Fatalf("Personal with records to entries: %v", err)
 	}
 	s.declare(t, "notes", map[string]any{"kind": "entries", "visibility": "public"})
 	if r := s.visitor(t, "POST", "/v1/sites/shop/data/notes", map[string]any{"n": 1}); r.status != 201 {
 		t.Fatalf("note: %d %s", r.status, r.body)
 	}
-	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "notes", db.KindPersonal, false, false, db.NotifyOff, false); err != db.ErrNameHasRows {
+	if err := legacyapp.New(s.a.database, time.Time{}, legacyapp.Deps{}).DeclareDataLocked(ctx, s.shopID, "notes", model.KindPersonal, false, false, model.NotifyOff, false); err != model.ErrNameHasRows {
 		t.Fatalf("entries with items to Personal: %v", err)
 	}
-	if err := db.DeclareDataLocked(ctx, s.a.database, s.shopID, "fresh", db.KindPersonal, false, false, db.NotifyOff, false); err != nil {
+	if err := legacyapp.New(s.a.database, time.Time{}, legacyapp.Deps{}).DeclareDataLocked(ctx, s.shopID, "fresh", model.KindPersonal, false, false, model.NotifyOff, false); err != nil {
 		t.Fatalf("an unused name to Personal: %v", err)
 	}
 	// The owner clears; vic then deletes theirs; the owner's Restore brings
@@ -562,4 +558,18 @@ func TestBoardReviewFixes(t *testing.T) {
 	if r := s.owner(t, "POST", "/v1/sites/shop/collections/todo/history/"+hid+"/restore", nil); r.status != 200 {
 		t.Fatalf("history restore with room: %d %s", r.status, r.body)
 	}
+}
+
+// eraseFixtureAccount exercises the account erasure workflow through its HTTP
+// owner, including the transaction and saved-data lock order.
+func eraseFixtureAccount(ctx context.Context, h *SiteHandler, id string) error {
+	r := httptest.NewRequest(http.MethodDelete, "/v1/admin/users/"+id, nil)
+	r.SetPathValue("id", id)
+	r = r.WithContext(auth.WithUser(ctx, &model.User{IsAdmin: true}))
+	w := httptest.NewRecorder()
+	h.deleteAccount(w, r)
+	if w.Code != http.StatusNoContent {
+		return fmt.Errorf("erase account: %d %s", w.Code, w.Body.String())
+	}
+	return nil
 }

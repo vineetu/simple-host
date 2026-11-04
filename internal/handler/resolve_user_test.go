@@ -10,9 +10,10 @@ import (
 
 	_ "github.com/lib/pq"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/oauth"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func TestRedactEmail(t *testing.T) {
@@ -47,7 +48,7 @@ func TestResolveUserMatching(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	existing, err := db.CreateUser(ctx, database, existingEmail, key, false)
+	existing, err := accountsrepo.CreateUser(ctx, database, existingEmail, key, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +74,7 @@ func TestResolveUserMatching(t *testing.T) {
 	if linked.ID != existing.ID {
 		t.Fatalf("linked %+v, want existing id", linked)
 	}
-	if u, err := db.GetUserByAPIKey(ctx, database, key, 180*24*time.Hour); err != nil || u.ID != existing.ID {
+	if u, err := accountapp.New(database).GetUserByAPIKey(ctx, key, 180*24*time.Hour); err != nil || u.ID != existing.ID {
 		t.Fatalf("existing key after link: %v %+v", err, u)
 	}
 

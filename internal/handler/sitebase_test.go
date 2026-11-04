@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,9 +14,11 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // The split-domain matrix (docs/history/site-base-domain-move.md, test plan):
@@ -93,8 +94,8 @@ func newBaseApp(t *testing.T, move string) (*privateApp, string, string) {
 		}
 	}
 	a.sites.SetSiteBase(sbBase, move, baseDir)
-	db.SetPlatformDomains(a.sites.HandoutBase(), a.sites.ServedBases()...)
-	t.Cleanup(func() { db.SetPlatformDomain("") })
+	accountsrepo.SetPlatformDomains(a.sites.HandoutBase(), a.sites.ServedBases()...)
+	t.Cleanup(func() { accountsrepo.SetPlatformDomain("") })
 	return a, dir, baseDir
 }
 
@@ -341,7 +342,7 @@ func TestSiteBaseMatrix(t *testing.T) {
 				}
 			}
 			// One namespace: the name is taken under either base, as a handle too.
-			if taken, err := db.HandleInUse(context.Background(), a.database, "", free); err != nil || !taken {
+			if taken, err := accountsrepo.HandleInUse(context.Background(), a.database, "", free); err != nil || !taken {
 				t.Fatalf("claimed name free as a handle: %v %v", taken, err)
 			}
 			r = a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/domain", map[string]string{"domain": free + "." + pcSiteDomain}, map[string]string{"X-API-Key": oscar.key})
@@ -407,7 +408,7 @@ func TestSiteBaseOrigins(t *testing.T) {
 	}
 	homeOwner, _ := a.userID(t, olive)
 	name := "shop"
-	if err := db.SetHomeSite(ctx, a.database, homeOwner, &name); err != nil {
+	if err := sitesrepo.SetHomeSite(ctx, a.database, homeOwner, &name); err != nil {
 		t.Fatal(err)
 	}
 	for _, host := range []string{oh + "." + pcSiteDomain, oh + "." + sbBase} {
@@ -508,7 +509,7 @@ func TestSiteBaseDefaultsUnchanged(t *testing.T) {
 		a, dir := newSiteApp(t, "canonical")
 		baseDir := t.TempDir()
 		setup(a, baseDir)
-		db.SetPlatformDomains(a.sites.HandoutBase(), a.sites.ServedBases()...)
+		accountsrepo.SetPlatformDomains(a.sites.HandoutBase(), a.sites.ServedBases()...)
 		olive := a.newPerson(t, "olive")
 		a.deploy(t, olive, "shop")
 		a.deploy(t, olive, "blog")
@@ -576,7 +577,7 @@ func TestMoveSiteBase(t *testing.T) {
 	// Domains of this run only, so other tests' names are never moved.
 	n0 := fmt.Sprint(time.Now().UnixNano() % 1e9)
 	from, to := "from"+n0+".test", "to"+n0+".test"
-	db.SetPlatformDomains(to, from)
+	accountsrepo.SetPlatformDomains(to, from)
 	olive := a.newPerson(t, "olive")
 	for _, s := range []string{"one", "two", "three", "four"} {
 		a.deploy(t, olive, s)
@@ -600,10 +601,10 @@ func TestMoveSiteBase(t *testing.T) {
 	if _, err := a.database.Exec(`INSERT INTO legacy_hostnames (hostname, site_id, user_id) VALUES ($1, NULL, $2)`, "gone"+n+"."+from, uid); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.GetSiteByCustomDomain(ctx, a.database, "mv"+n+"."+to); err != nil {
+	if _, err := sitesrepo.GetSiteByCustomDomain(ctx, a.database, "mv"+n+"."+to, accountsrepo.HostForms("mv"+n+"."+to)); err != nil {
 		t.Fatalf("lookup of the new form before the move: %v", err)
 	}
-	dry, err := db.MoveSiteBase(ctx, a.database, from, to, LabelReserved, false)
+	dry, err := sitesrepo.MoveSiteBase(ctx, a.database, from, to, LabelReserved, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -615,7 +616,7 @@ func TestMoveSiteBase(t *testing.T) {
 	if cur != "mv"+n+"."+from {
 		t.Fatalf("dry run wrote: %s", cur)
 	}
-	got, err := db.MoveSiteBase(ctx, a.database, from, to, LabelReserved, true)
+	got, err := sitesrepo.MoveSiteBase(ctx, a.database, from, to, LabelReserved, true)
 	if err != nil || got.CustomDomains != dry.CustomDomains || got.RetiredNames != dry.RetiredNames {
 		t.Fatalf("apply: %+v %v (dry %+v)", got, err, dry)
 	}
@@ -632,17 +633,17 @@ func TestMoveSiteBase(t *testing.T) {
 	if prev != "old"+n+"."+to {
 		t.Errorf("previous: %s", prev)
 	}
-	if _, err := db.GetRetiredName(ctx, a.database, "gone"+n+"."+from); err != nil {
+	if _, err := sitesrepo.GetRetiredName(ctx, a.database, "gone"+n+"."+from, accountsrepo.HostForms("gone"+n+"."+from)); err != nil {
 		t.Errorf("retired name under the old form: %v", err)
 	}
-	if _, err := db.GetSiteByCustomDomain(ctx, a.database, "mv"+n+"."+from); err != nil {
+	if _, err := sitesrepo.GetSiteByCustomDomain(ctx, a.database, "mv"+n+"."+from, accountsrepo.HostForms("mv"+n+"."+from)); err != nil {
 		t.Errorf("lookup of the old form after the move: %v", err)
 	}
-	again, err := db.MoveSiteBase(ctx, a.database, from, to, LabelReserved, true)
+	again, err := sitesrepo.MoveSiteBase(ctx, a.database, from, to, LabelReserved, true)
 	if err != nil || again.CustomDomains+again.PreviousDomains+again.RetiredNames != 0 {
 		t.Fatalf("second run: %+v %v", again, err)
 	}
-	if _, err := db.MoveSiteBase(ctx, a.database, from, from, nil, false); err == nil {
+	if _, err := sitesrepo.MoveSiteBase(ctx, a.database, from, from, nil, false); err == nil {
 		t.Fatal("same domain accepted")
 	}
 }

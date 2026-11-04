@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // Address families (familyhost.go, familyapi.go). Needs DB_DSN.
@@ -70,7 +71,7 @@ func newFamilyApp(t *testing.T) (*privateApp, string, string, *familyDNS) {
 // liveFamily connects *.<suffix> for p and brings it all the way to live:
 // the TXT record, the check, the operator's certificate and the issuer's
 // ready marker.
-func (a *privateApp) liveFamily(t *testing.T, famDir string, dns *familyDNS, p person, suffix, prefix string, canonical bool, rank int) db.AddressFamily {
+func (a *privateApp) liveFamily(t *testing.T, famDir string, dns *familyDNS, p person, suffix, prefix string, canonical bool, rank int) model.AddressFamily {
 	t.Helper()
 	r := a.at(t, "POST", pcSiteDomain, "/v1/me/address-families",
 		map[string]any{"suffix": "*." + suffix, "site_prefix": prefix, "canonical": canonical, "rank": rank},
@@ -79,7 +80,7 @@ func (a *privateApp) liveFamily(t *testing.T, famDir string, dns *familyDNS, p p
 		t.Fatalf("connect *.%s: %d %s", suffix, r.status, r.body)
 	}
 	id := r.json(t)["id"].(string)
-	f, err := db.GetFamilyByID(context.Background(), a.database, id)
+	f, err := sitesrepo.GetFamilyByID(context.Background(), a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +90,7 @@ func (a *privateApp) liveFamily(t *testing.T, famDir string, dns *familyDNS, p p
 		map[string]string{"cert_mode": "wildcard", "cert_name": suffix}, map[string]string{"X-API-Key": a.admin}); r.status != 200 {
 		t.Fatalf("cert: %d %s", r.status, r.body)
 	}
-	f, _ = db.GetFamilyByID(context.Background(), a.database, id)
+	f, _ = sitesrepo.GetFamilyByID(context.Background(), a.database, id)
 	if !f.VerifiedAt.Valid {
 		t.Fatalf("*.%s not verified: %+v", suffix, f)
 	}
@@ -510,19 +511,19 @@ func TestFamilyLifecycle(t *testing.T) {
 	ctx := context.Background()
 	ours := a.sites.serverAddrs(ctx)
 
-	mk := func(p person, suffix string) db.AddressFamily {
+	mk := func(p person, suffix string) model.AddressFamily {
 		r := a.at(t, "POST", pcSiteDomain, "/v1/me/address-families", map[string]string{"suffix": suffix}, map[string]string{"X-API-Key": p.key})
 		if r.status != http.StatusCreated {
 			t.Fatalf("connect %s: %d %s", suffix, r.status, r.body)
 		}
-		f, _ := db.GetFamilyByID(ctx, a.database, r.json(t)["id"].(string))
+		f, _ := sitesrepo.GetFamilyByID(ctx, a.database, r.json(t)["id"].(string))
 		return f
 	}
 	fo := mk(olive, "*.race.test")
 	fs := mk(oscar, "*.race.test") // both may wait on it
 	// No TXT yet: pending with the reason.
 	a.sites.checkFamily(ctx, fo, ours)
-	fo, _ = db.GetFamilyByID(ctx, a.database, fo.ID)
+	fo, _ = sitesrepo.GetFamilyByID(ctx, a.database, fo.ID)
 	if fo.VerifiedAt.Valid || !strings.Contains(fo.LastError, "_simple-host.race.test") {
 		t.Fatalf("no TXT: %+v", fo)
 	}
@@ -530,33 +531,33 @@ func TestFamilyLifecycle(t *testing.T) {
 	dns.txt["_simple-host.race.test"] = fo.Token
 	dns.away["*.race.test"] = "192.0.2.50"
 	a.sites.checkFamily(ctx, fo, ours)
-	fo, _ = db.GetFamilyByID(ctx, a.database, fo.ID)
+	fo, _ = sitesrepo.GetFamilyByID(ctx, a.database, fo.ID)
 	if fo.VerifiedAt.Valid || !strings.Contains(fo.LastError, "not this server") {
 		t.Fatalf("wildcard elsewhere: %+v", fo)
 	}
 	delete(dns.away, "*.race.test")
 	a.sites.checkFamily(ctx, fo, ours)
-	fo, _ = db.GetFamilyByID(ctx, a.database, fo.ID)
+	fo, _ = sitesrepo.GetFamilyByID(ctx, a.database, fo.ID)
 	if !fo.VerifiedAt.Valid || fo.Status != "active" {
 		t.Fatalf("verified: %+v", fo)
 	}
-	if _, err := db.GetFamilyByID(ctx, a.database, fs.ID); err == nil {
+	if _, err := sitesrepo.GetFamilyByID(ctx, a.database, fs.ID); err == nil {
 		t.Fatal("the other account's pending family was not let go")
 	}
 
 	// Failing: the clock starts; past the lapse it is let go.
 	delete(dns.txt, "_simple-host.race.test")
 	a.sites.checkFamily(ctx, fo, ours)
-	fo, _ = db.GetFamilyByID(ctx, a.database, fo.ID)
+	fo, _ = sitesrepo.GetFamilyByID(ctx, a.database, fo.ID)
 	if fo.Status != "failing" || !fo.FailingSince.Valid || !fo.VerifiedAt.Valid {
 		t.Fatalf("failing: %+v", fo)
 	}
 	if _, err := a.database.Exec(`UPDATE address_families SET failing_since = now() - interval '100 hours' WHERE id = $1`, fo.ID); err != nil {
 		t.Fatal(err)
 	}
-	fo, _ = db.GetFamilyByID(ctx, a.database, fo.ID)
+	fo, _ = sitesrepo.GetFamilyByID(ctx, a.database, fo.ID)
 	a.sites.checkFamily(ctx, fo, ours)
-	if _, err := db.GetFamilyByID(ctx, a.database, fo.ID); err == nil {
+	if _, err := sitesrepo.GetFamilyByID(ctx, a.database, fo.ID); err == nil {
 		t.Fatal("lapsed family kept")
 	}
 	if a.sites.disk.FamilyLinkTarget("race.test") != "" {
@@ -573,9 +574,9 @@ func TestFamilyLifecycle(t *testing.T) {
 	if r.status != http.StatusCreated || r.json(t)["proof_exempt"] != true || r.json(t)["dns_txt"] != nil {
 		t.Fatalf("admin create: %d %s", r.status, r.body)
 	}
-	fe, _ := db.GetFamilyByID(ctx, a.database, r.json(t)["id"].(string))
+	fe, _ := sitesrepo.GetFamilyByID(ctx, a.database, r.json(t)["id"].(string))
 	a.sites.checkFamily(ctx, fe, ours)
-	fe, _ = db.GetFamilyByID(ctx, a.database, fe.ID)
+	fe, _ = sitesrepo.GetFamilyByID(ctx, a.database, fe.ID)
 	if !fe.VerifiedAt.Valid {
 		t.Fatalf("exempt family not verified: %+v", fe)
 	}
@@ -595,7 +596,7 @@ func TestFamilyLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.sites.checkFamilies(ctx)
-	if _, err := db.GetFamilyByID(ctx, a.database, fp.ID); err == nil {
+	if _, err := sitesrepo.GetFamilyByID(ctx, a.database, fp.ID); err == nil {
 		t.Fatal("unproven family kept")
 	}
 	// The admin list shows every family with its owner.
@@ -797,10 +798,10 @@ func TestFamilyPendingDomainDoesNotBlock(t *testing.T) {
 	if r.status != http.StatusCreated {
 		t.Fatalf("olive blocked by a pending domain: %d %s", r.status, r.body)
 	}
-	f, _ := db.GetFamilyByID(ctx, a.database, r.json(t)["id"].(string))
+	f, _ := sitesrepo.GetFamilyByID(ctx, a.database, r.json(t)["id"].(string))
 	dns.txt["_simple-host.block.test"] = f.Token
 	a.sites.checkFamily(ctx, f, a.sites.serverAddrs(ctx))
-	if f, _ = db.GetFamilyByID(ctx, a.database, f.ID); !f.VerifiedAt.Valid {
+	if f, _ = sitesrepo.GetFamilyByID(ctx, a.database, f.ID); !f.VerifiedAt.Valid {
 		t.Fatalf("not verified past a pending domain: %+v", f)
 	}
 	// A proven domain of another account does hold a name.

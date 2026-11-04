@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // Claude review of the SSO red-team fixes and SIM-348 (2026-10-30). Needs DB_DSN.
@@ -33,7 +34,7 @@ func newReviewEnv(t *testing.T, consent bool) reviewEnv {
 	uid, _ := a.userID(t, viewer)
 	pass := a.ssoPass(t, viewer.key)
 	if consent {
-		if err := db.RememberSSOConsent(context.Background(), a.database, uid, site); err != nil {
+		if err := accountsrepo.RememberSSOConsent(context.Background(), a.database, uid, site); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -88,7 +89,7 @@ func TestDashboardSignOutEndsCookieFamily(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AddSignInKey(context.Background(), e.a.database, e.uid, k2, "dashboard sign-in"); err != nil {
+	if err := accountapp.New(e.a.database).AddSignInKey(context.Background(), e.uid, k2, "dashboard sign-in"); err != nil {
 		t.Fatal(err)
 	}
 	r := e.a.at(t, "POST", e.a.appHost(), "/v1/me/sign-out", nil, map[string]string{"X-API-Key": k2, "Cookie": ssoCookieHost + "=" + e.pass, "Origin": "https://" + e.a.appHost(), "Sec-Fetch-Site": "same-origin"})
@@ -96,7 +97,7 @@ func TestDashboardSignOutEndsCookieFamily(t *testing.T) {
 		t.Fatalf("sign-out: %d %s", r.status, r.body)
 	}
 	id, _ := hex.DecodeString(sessA)
-	if _, err := db.GetVisitorSession(context.Background(), e.a.database, id, 180*24*time.Hour); err == nil {
+	if _, err := accountsrepo.GetVisitorSession(context.Background(), e.a.database, id, 180*24*time.Hour); err == nil {
 		t.Fatal("site session from the browser's pass survived dashboard sign-out")
 	}
 	if me := e.a.at(t, "GET", e.a.appHost(), "/v1/me", nil, map[string]string{"X-API-Key": e.viewer.key}); me.status != 401 {

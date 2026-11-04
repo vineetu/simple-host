@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 const signupApex = "simple-host.test"
@@ -24,7 +25,7 @@ func newSignupAddr(t *testing.T, a *privateApp, label string) (addr, code string
 	addr = label + "-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
 	code = "515151"
 	lt, _ := auth.GenerateAPIKey()
-	if err := db.CreateAuthToken(context.Background(), a.database, addr, code, lt, time.Now().Add(5*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
+	if err := accountsrepo.CreateAuthToken(context.Background(), a.database, addr, code, lt, time.Now().Add(5*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE username = $1`, addr) })
@@ -112,7 +113,7 @@ func TestSignupSourceRecordedAtCreation(t *testing.T) {
 	// An account from before tracking signs in again as an agent: still NULL.
 	old := a.newPerson(t, "su-old")
 	lt, _ := auth.GenerateAPIKey()
-	if err := db.CreateAuthToken(context.Background(), a.database, old.email, "626262", lt, time.Now().Add(5*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
+	if err := accountsrepo.CreateAuthToken(context.Background(), a.database, old.email, "626262", lt, time.Now().Add(5*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "POST", a.appHost(), "/v1/auth/verify", map[string]any{"email": old.email, "code": "626262"}, map[string]string{"User-Agent": "curl/8"}); r.status != 200 || r.json(t)["created"] == true {
@@ -123,8 +124,8 @@ func TestSignupSourceRecordedAtCreation(t *testing.T) {
 	}
 	// SetSignup never overwrites a recorded source.
 	id, _ := a.userID(t, old)
-	_ = db.SetSignup(context.Background(), a.database, id, db.Signup{Source: "website", Method: "email"})
-	_ = db.SetSignup(context.Background(), a.database, id, db.Signup{Source: "agent", Agent: "curl"})
+	_ = accountsrepo.SetSignup(context.Background(), a.database, id, model.Signup{Source: "website", Method: "email"})
+	_ = accountsrepo.SetSignup(context.Background(), a.database, id, model.Signup{Source: "agent", Agent: "curl"})
 	if got := signupOf(t, a, old.email); got.source.String != "website" || got.agent.Valid {
 		t.Fatalf("second SetSignup rewrote the source: %+v", got)
 	}
@@ -394,14 +395,14 @@ func TestSignupBackfillMigration(t *testing.T) {
 	}
 	google, conn, plain, issued := mk("bfg"), mk("bfc"), mk("bfp"), mk("bfi")
 	client := a.registerNamedClient(t, "Grok")
-	if _, err := db.InsertOAuthIdentity(ctx, a.database, google, "google", "g-"+google, "x@example.com", true); err != nil {
+	if _, err := accountsrepo.InsertOAuthIdentity(ctx, a.database, google, "google", "g-"+google, "x@example.com", true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.InsertOAuthGrant(ctx, a.database, conn, client, "sites", "https://x/mcp", ""); err != nil {
+	if _, err := accountsrepo.InsertOAuthGrant(ctx, a.database, conn, client, "sites", "https://x/mcp", ""); err != nil {
 		t.Fatal(err)
 	}
 	// A Google identity linked a day later is not a Google sign-up.
-	if _, err := db.InsertOAuthIdentity(ctx, a.database, plain, "google", "g-"+plain, "y@example.com", true); err != nil {
+	if _, err := accountsrepo.InsertOAuthIdentity(ctx, a.database, plain, "google", "g-"+plain, "y@example.com", true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.database.Exec(`UPDATE oauth_identities SET created_at = now() + interval '1 day' WHERE user_id = $1`, plain); err != nil {

@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // The certificate hand-off with the root issuer, file by file.
 func TestDomainCertProgress(t *testing.T) {
 	h := &SiteHandler{}
-	d := db.BoundDomain{Domain: "shop.example.com", UserID: "u", Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
+	d := model.BoundDomain{Domain: "shop.example.com", UserID: "u", Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
 	if st, _ := h.domainCertProgress(context.Background(), d); st != "issuing" {
 		t.Fatalf("no hand-off dir: %q (the operator issues by hand)", st)
 	}
@@ -84,9 +85,9 @@ func uniq(prefix string) string {
 	return prefix + strconv.FormatInt(time.Now().UnixNano(), 36)
 }
 
-func (a *privateApp) domainInfo(t *testing.T, siteID string) db.SiteDomainInfo {
+func (a *privateApp) domainInfo(t *testing.T, siteID string) model.SiteDomainInfo {
 	t.Helper()
-	info, _, err := db.GetSiteDomainInfo(context.Background(), a.database, siteID)
+	info, _, err := sitesrepo.GetSiteDomainInfo(context.Background(), a.database, siteID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +111,7 @@ func (a *privateApp) redirectMarker(t *testing.T, p person, site string) string 
 func (a *privateApp) verify(t *testing.T, siteID, domain string) {
 	t.Helper()
 	info := a.domainInfo(t, siteID)
-	a.sites.applyDomainCheck(context.Background(), db.BoundDomain{
+	a.sites.applyDomainCheck(context.Background(), model.BoundDomain{
 		SiteID: siteID, Domain: domain, Status: info.Status, Verified: info.VerifiedAt.Valid, PreviousDomain: info.PreviousDomain,
 	}, "active", "", "live")
 }
@@ -225,7 +226,7 @@ func TestPendingDomainGivesBackTheEarlierAddress(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sites SET domain_bound_at = now() - interval '25 hours' WHERE id = $1`, blogID); err != nil {
 		t.Fatal(err)
 	}
-	released, err := db.ReleaseExpiredDomains(ctx, a.database, 7*24*time.Hour, 24*time.Hour)
+	released, err := sitesrepo.ReleaseExpiredDomains(ctx, a.database, 7*24*time.Hour, 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +241,7 @@ func TestPendingDomainGivesBackTheEarlierAddress(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sites SET domain_cert_status = 'pending' WHERE id = $1`, shopID); err != nil {
 		t.Fatal(err)
 	}
-	released, err = db.ReleaseExpiredDomains(ctx, a.database, 7*24*time.Hour, 24*time.Hour)
+	released, err = sitesrepo.ReleaseExpiredDomains(ctx, a.database, 7*24*time.Hour, 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +274,7 @@ func TestLapsedDomainLetsGo(t *testing.T) {
 	dom := uniq("shop") + ".example.test"
 	a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/domain", map[string]string{"domain": dom}, map[string]string{"X-API-Key": olive.key})
 	a.verify(t, shopID, dom)
-	failing := db.BoundDomain{SiteID: shopID, Domain: dom, Status: "active", Verified: true}
+	failing := model.BoundDomain{SiteID: shopID, Domain: dom, Status: "active", Verified: true}
 	ctx := context.Background()
 
 	a.sites.applyDomainCheck(ctx, failing, "pending", "resolves to 192.0.2.9, not to this server", "pending")
@@ -301,7 +302,7 @@ func TestLapsedDomainLetsGo(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.sites.applyDomainCheck(ctx, failing, "pending", "resolves to 192.0.2.9, not to this server", "pending")
-	if info, has, _ := db.GetSiteDomainInfo(ctx, a.database, shopID); has {
+	if info, has, _ := sitesrepo.GetSiteDomainInfo(ctx, a.database, shopID); has {
 		t.Fatalf("lapsed domain still bound: %+v", info)
 	}
 	if _, err := os.Lstat(filepath.Join(a.sites.disk.DataDir(), "domains", dom)); !os.IsNotExist(err) {

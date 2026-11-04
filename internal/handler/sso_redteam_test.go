@@ -11,7 +11,8 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 func TestSSORedteamNavigation(t *testing.T) {
@@ -25,7 +26,7 @@ func TestSSORedteamNavigation(t *testing.T) {
 	pass := a.ssoPass(t, viewer.key)
 	uid, _ := a.userID(t, viewer)
 	site := a.siteID(t, owner, "site")
-	if err := db.RememberSSOConsent(context.Background(), a.database, uid, site); err != nil {
+	if err := accountsrepo.RememberSSOConsent(context.Background(), a.database, uid, site); err != nil {
 		t.Fatal(err)
 	}
 	state, _ := a.ssoStartAt(t, host)
@@ -124,7 +125,7 @@ func TestSSORedteamListedConsentAndPending(t *testing.T) {
 			case "abandon":
 				a.database.Exec(`UPDATE visitor_sessions SET expires_at=now()-interval '1 second' WHERE user_id=$1`, uid)
 				a.database.Exec(`UPDATE visitor_establish_tokens SET expires_at=now()-interval '1 second' WHERE once=$1`, u.Query().Get("once"))
-				if n, err := db.SweepVisitorAuthCount(context.Background(), a.database); err != nil || n < 2 {
+				if n, err := accountsrepo.SweepVisitorAuthCount(context.Background(), a.database); err != nil || n < 2 {
 					t.Fatalf("expired handoff/session cleanup: removed=%d err=%v", n, err)
 				}
 				check(0, 0)
@@ -137,7 +138,7 @@ func TestSSORedteamListedConsentAndPending(t *testing.T) {
 				}
 				check(1, 1)
 				id, _ := hex.DecodeString(responseCookie(t, done, visitorCookieHost))
-				sess, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
+				sess, err := accountsrepo.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
 				if err != nil || time.Until(sess.ExpiresAt) < time.Hour {
 					t.Fatal("pending session not promoted", err)
 				}
@@ -164,7 +165,7 @@ func TestSSORedteamPendingCap(t *testing.T) {
 	host := "site." + handle + "." + pcSiteDomain
 	site := a.siteID(t, owner, "site")
 	pass := a.ssoPass(t, owner.key)
-	if err := db.RememberSSOConsent(context.Background(), a.database, uid, site); err != nil {
+	if err := accountsrepo.RememberSSOConsent(context.Background(), a.database, uid, site); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 9; i++ {
@@ -193,7 +194,7 @@ func TestVisitorRedteamPasscodeIsolation(t *testing.T) {
 	if r := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, f.key); r.status != 200 {
 		t.Fatal(r.status)
 	}
-	row, err := db.GetSitePasscode(context.Background(), f.a.database, f.sid)
+	row, err := sitesrepo.GetSitePasscode(context.Background(), f.a.database, f.sid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +203,7 @@ func TestVisitorRedteamPasscodeIsolation(t *testing.T) {
 		req := httptest.NewRequest("POST", "https://"+f.host+"/", nil)
 		req.Header.Set("X-Forwarded-For", "192.0.2.1")
 		if user != "" {
-			pass, undo, err := db.IssueInternalVisitorKey(db.InternalVisitorPass{UserID: user, SiteID: f.sid, Host: f.host})
+			pass, undo, err := accountsrepo.IssueInternalVisitorKey(accountsrepo.InternalVisitorPass{UserID: user, SiteID: f.sid, Host: f.host})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -318,7 +319,7 @@ func TestSSORedteamSignoutCascadeOnlyOnce(t *testing.T) {
 	if page.status != 200 || !strings.Contains(string(page.body), "Sign out of Simple Host on this browser?") {
 		t.Fatal("stale site did not require confirmation")
 	}
-	if _, err := db.GetSSOPass(context.Background(), a.database, db.HashAPIKey(nextPass), 180*24*time.Hour); err != nil {
+	if _, err := accountsrepo.GetSSOPass(context.Background(), a.database, accountsrepo.HashAPIKey(nextPass), 180*24*time.Hour); err != nil {
 		t.Fatal("stale site revoked new family")
 	}
 }

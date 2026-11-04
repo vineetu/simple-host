@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
 )
 
 func TestDomainPartner(t *testing.T) {
@@ -41,11 +41,11 @@ func TestDomainPartnerHandOff(t *testing.T) {
 		}
 	}
 	h.SetDomainCerts(dir)
-	d := db.BoundDomain{Domain: "brand.com", UserID: "u", Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
+	d := model.BoundDomain{Domain: "brand.com", UserID: "u", Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
 	if body := domainCertRequestBody(d, domainPartner(d.Domain)); !strings.HasSuffix(body, "\nwww.brand.com\n") {
 		t.Fatalf("request body: %q", body)
 	}
-	if body := domainCertRequestBody(db.BoundDomain{Domain: "shop.brand.com", UserID: "u", Name: "s", Token: d.Token}, ""); strings.Count(body, "\n") != 2 {
+	if body := domainCertRequestBody(model.BoundDomain{Domain: "shop.brand.com", UserID: "u", Name: "s", Token: d.Token}, ""); strings.Count(body, "\n") != 2 {
 		t.Fatalf("no partner for a subdomain: %q", body)
 	}
 
@@ -116,7 +116,7 @@ func TestDomainPartnerBoundElsewhere(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sites SET custom_domain = $2 WHERE id = $1`, shop, apex); err != nil {
 		t.Fatal(err)
 	}
-	d := db.BoundDomain{SiteID: shop, Domain: apex, UserID: "u", Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
+	d := model.BoundDomain{SiteID: shop, Domain: apex, UserID: "u", Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
 	if got := a.sites.requestablePartner(ctx, d); got != "www."+apex {
 		t.Fatalf("free partner: %q", got)
 	}

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 )
 
 // Saved data, step 1 (saveddata.go). Needs DB_DSN (db/schema.sql applied).
@@ -432,7 +432,7 @@ func TestHistoryThinningKeepsOnePerDay(t *testing.T) {
 	a.database.QueryRow(`SELECT min(id) FROM data_history WHERE site_id = $1 AND created_at > now() - interval '1 hour'`, s.shopID).Scan(&firstToday)
 	a.database.QueryRow(`SELECT min(id) FROM data_history WHERE site_id = $1 AND created_at < now() - interval '1 hour'`, s.shopID).Scan(&firstYesterday)
 	// A cap far below what is held: only the first of each day survives.
-	if _, err := db.ThinSiteHistory(context.Background(), a.database, s.shopID, 1); err != nil {
+	if _, err := legacyrepo.ThinSiteHistory(context.Background(), a.database, s.shopID, 1); err != nil {
 		t.Fatal(err)
 	}
 	rows, _ := a.database.Query(`SELECT id FROM data_history WHERE site_id = $1 ORDER BY id`, s.shopID)

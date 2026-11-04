@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
+	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 func TestVisitorStructuralAccountSubstrings(t *testing.T) {
@@ -194,11 +194,11 @@ func TestVisitorResourceExistenceGated(t *testing.T) {
 		}
 	}
 	check("site_private", "")
-	if err := db.SetSiteOffline(context.Background(), f.a.database, f.sid, true); err != nil {
+	if err := sitesrepo.SetSiteOffline(context.Background(), f.a.database, f.sid, true); err != nil {
 		t.Fatal(err)
 	}
 	check("site_offline", "")
-	if err := db.SetSiteOffline(context.Background(), f.a.database, f.sid, false); err != nil {
+	if err := sitesrepo.SetSiteOffline(context.Background(), f.a.database, f.sid, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.a.database.Exec(`UPDATE sites SET access='anyone' WHERE id=$1`, f.sid); err != nil {

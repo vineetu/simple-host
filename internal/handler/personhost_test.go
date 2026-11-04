@@ -6,16 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func newPersonApp(t *testing.T, mode string, eds ...*edition.Edition) *privateApp {
 	t.Helper()
 	a := newPrivateApp(t, eds...)
 	a.sites.SetPersonHosts(mode)
-	db.SetPlatformDomain(pcSiteDomain)
-	t.Cleanup(func() { db.SetPlatformDomain("") })
+	accountsrepo.SetPlatformDomain(pcSiteDomain)
+	t.Cleanup(func() { accountsrepo.SetPlatformDomain("") })
 	return a
 }
 
@@ -245,7 +245,7 @@ func TestPersonHostsServeAndCanonical(t *testing.T) {
 
 	// ---- an old handle kept as an alias follows the account ------------------------------
 	uid, _ := a.userID(t, olive)
-	if _, err := db.RenameHandle(context.Background(), a.database, uid, oh+"-new"); err != nil {
+	if _, err := accountsrepo.RenameHandle(context.Background(), a.database, uid, oh+"-new"); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "GET", host, "/shop/x?y=1", nil, nil); r.status != http.StatusMovedPermanently || r.header.Get("Location") != "https://"+oh+"-new."+pcSiteDomain+"/shop/x?y=1" {
