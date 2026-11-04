@@ -18,6 +18,7 @@ type Adapter struct {
 
 // Deps contains configuration shared by legacy operations.
 type Deps struct {
+	CSVSafe                        func(string) string
 	MaxEntries, WatchItemKB        func() int
 	MaxBytes                       func() int64
 	BoundPersonalHistory           func(context.Context, string)

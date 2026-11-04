@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/csv"
@@ -34,7 +35,6 @@ const (
 	maxCollectionItemSize = 64 * 1024
 )
 
-// TODO(4.3): consolidate append without moving idempotency release ahead of the response.
 func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	coll := strings.TrimSpace(r.PathValue("coll"))
@@ -42,7 +42,7 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	result, err := h.legacyCollectionAppendSvc(r).AppendCollection(r.Context(), legacy.AppendCollectionInput{
 		Gate: gate, IdempotencyKey: r.Header.Get("Idempotency-Key"), SuccessStatus: http.StatusCreated,
 		ActorFacts: legacy.CollectionWriteActor{SiteName: siteName, Key: r.Header.Get("X-API-Key"), Mode: h.writeAuthMode, Cookie: h.sessionCookieFor(r), Preview: previewReferer(r), ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), Canonical: h.personHostsCanonical(), VisitorPass: r.Header.Get(visitorPassHeader) != "", CSRF: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue},
-		ReadBody: func(branch string, set db.DataSettings) ([]byte, bool, error) {
+		DecodeBody: func(branch string, set db.DataSettings) (legacy.CollectionBody, error) {
 			size := legacy.EntryMaxBytes(set, h.savedData.EntryMaxKB, maxCollectionItemSize)
 			if branch == "board" {
 				size = h.boardItemMax()
@@ -53,7 +53,7 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 			}
 			body, err := io.ReadAll(reader)
 			var maxErr *http.MaxBytesError
-			return body, errors.As(err, &maxErr), err
+			return decodeLegacyBody(body, branch, errors.As(err, &maxErr), err)
 		},
 	})
 	for key, values := range result.Headers {
@@ -156,6 +156,9 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		case "invalid_json":
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: idemErr.Message, Code: "invalid_json"})
 			return
+		case "idempotency_internal":
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
 		case "invalid_idempotency_key":
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Idempotency-Key is at most 255 characters", Code: "invalid_idempotency_key"})
 			return
@@ -236,7 +239,11 @@ func (h *SiteHandler) writeSpecialCollection(w http.ResponseWriter, set db.DataS
 			writeJSON(w, http.StatusForbidden, errorResponse{Error: "only the site owner can change page info", Code: "owner_only"})
 			return
 		case "csrf_required":
-			writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
+			if board {
+				writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
+			} else {
+				writeJSON(w, http.StatusForbidden, map[string]string{"error": "missing CSRF header", "code": "csrf_required"})
+			}
 			return
 		case "account_suspended":
 			writeAccountSuspended(w)
@@ -262,6 +269,9 @@ func (h *SiteHandler) writeSpecialCollection(w http.ResponseWriter, set db.DataS
 			return
 		case "invalid_json":
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: opErr.Message, Code: "invalid_json"})
+			return
+		case "idempotency_internal":
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		case "invalid_idempotency_key":
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Idempotency-Key is at most 255 characters", Code: "invalid_idempotency_key"})
@@ -521,9 +531,13 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 	}
 
 	n := 0
-	err = h.legacySvc().ForEachCollectionCSVRow(r.Context(), siteID, coll, keys, csvSafe, func(row []string) error {
-		if err := cw.Write(row); err != nil {
-			return err
+	for row, rowErr := range h.legacySvc().CollectionCSVRows(r.Context(), legacy.CollectionCSVInput{SiteID: siteID, Collection: coll, Keys: keys}) {
+		if rowErr != nil {
+			err = rowErr
+			break
+		}
+		if err = cw.Write(row); err != nil {
+			break
 		}
 		n++
 		if n%256 == 0 {
@@ -532,8 +546,7 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 				f.Flush()
 			}
 		}
-		return nil
-	})
+	}
 	cw.Flush()
 	if err != nil {
 		// Headers already sent; nothing left to report to the client.
@@ -554,3 +567,38 @@ func jsonCSVCell(raw json.RawMessage) string {
 
 // csvSafe moved to internal/httpx (httpx.CSVSafe); see the alias in
 // internal/handler/httpx_forward.go.
+
+// decodeLegacyBody retains each route's wire validation after its authorization checks.
+func decodeLegacyBody(raw []byte, branch string, tooLarge bool, readErr error) (legacy.CollectionBody, error) {
+	out := legacy.CollectionBody{Raw: raw}
+	if readErr != nil {
+		code := "invalid_request_body"
+		if branch == "private" {
+			code = "private_not_object"
+		}
+		if tooLarge {
+			code = "item_too_large"
+			if branch == "board" {
+				code = "board_item_too_large"
+			}
+			if branch == "personal" {
+				code = "personal_item_too_large"
+			}
+		}
+		return out, &legacy.Error{Code: code}
+	}
+	if branch == "public" {
+		if len(raw) == 0 || !json.Valid(raw) {
+			return out, &legacy.Error{Code: "invalid_collection_body", Message: "body must be a JSON value"}
+		}
+	} else {
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		if err := dec.Decode(&out.Fields); err != nil || out.Fields == nil || dec.More() {
+			return out, &legacy.Error{Code: branch + "_not_object"}
+		}
+	}
+	if !jsonStorable(raw) {
+		return out, &legacy.Error{Code: "invalid_json", Message: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`}
+	}
+	return out, nil
+}

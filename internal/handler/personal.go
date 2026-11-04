@@ -197,11 +197,11 @@ func (h *SiteHandler) putPersonal(w http.ResponseWriter, r *http.Request, siteID
 	result, err := h.legacyPersonalPutSvc(r).PutPersonal(r.Context(), legacy.PutPersonalInput{
 		SiteID: siteID, Name: name, Key: r.Header.Get("X-API-Key"), IdempotencyKey: r.Header.Get("Idempotency-Key"), SuccessStatus: http.StatusOK,
 		ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), Preview: previewReferer(r), VisitorPass: r.Header.Get(visitorPassHeader) != "", CSRF: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue,
-		ReadBody: func() ([]byte, bool, error) {
+		DecodeBody: func() (legacy.CollectionBody, error) {
 			reader := http.MaxBytesReader(nil, r.Body, int64(h.savedData.PersonalMaxKB)<<10)
 			body, err := io.ReadAll(reader)
 			var maxErr *http.MaxBytesError
-			return body, errors.As(err, &maxErr), err
+			return decodeLegacyBody(body, "personal", errors.As(err, &maxErr), err)
 		},
 	})
 	for key, values := range result.Headers {
@@ -368,6 +368,9 @@ func (h *SiteHandler) writePersonalRequestError(w http.ResponseWriter, siteName,
 		return true
 	case "visitor_auth_required":
 		writeVisitorAuthRequired(w)
+		return true
+	case "not_allowed_to_save":
+		writeNotAllowedToSave(w)
 		return true
 	case "account_suspended":
 		writeAccountSuspended(w)

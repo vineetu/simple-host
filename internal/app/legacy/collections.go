@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"iter"
 	"log"
 	"regexp"
 	"strconv"
@@ -84,16 +85,6 @@ func (a *Adapter) prepareCollectionAppend(ctx context.Context, in CollectionGate
 	return id, set, err
 }
 
-func (a *Adapter) validateCollectionBody(body []byte) error {
-	if len(body) == 0 || !json.Valid(body) {
-		return &Error{Code: "invalid_collection_body", Message: "body must be a JSON value"}
-	}
-	if !a.deps.CollectionJSONStorable(body) {
-		return &Error{Code: "invalid_json", Message: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`}
-	}
-	return nil
-}
-
 // authorizeCollectionSubmitter applies the declared-submission identity rule.
 func (a *Adapter) authorizeCollectionSubmitter(_ context.Context, set db.DataSettings, actor db.Actor) error {
 	if set.Kind == db.KindEntries && actor.Kind == "anonymous" {
@@ -152,15 +143,6 @@ func EntryMaxBytes(set db.DataSettings, entryMaxKB int, listMaxBytes int64) int6
 
 // ErrPersonalList indicates that personal records cannot be read as a list.
 var ErrPersonalList = errors.New("personal records cannot be read as a list")
-
-// CollectionPrivateReadAllowed decides whether a private list can be read
-// before checking the browser's owner session.
-func CollectionPrivateReadAllowed(ownerKey, sharedHost, originless bool) bool {
-	if ownerKey {
-		return !sharedHost
-	}
-	return !originless
-}
 
 // CollectionReadSettingsInput identifies the list and whether its owner is reading.
 type CollectionReadSettingsInput struct {
@@ -535,7 +517,7 @@ func (a *Adapter) ClaimWrite(ctx context.Context, siteID, route, actorID, key st
 	bodySum := sha256.Sum256(body)
 	claimed, prev, err := legacy.ClaimIdempotencyKey(ctx, a.database, sum[:], siteID, bodySum[:], 2*time.Minute)
 	if err != nil {
-		return nil, prev, "", err
+		return nil, prev, "", &Error{Code: "idempotency_internal"}
 	}
 	if claimed {
 		return sum[:], prev, "claimed", nil
@@ -850,12 +832,18 @@ func (a *Adapter) authorizeCollectionSaver(ctx context.Context, siteID string, a
 	return nil
 }
 
+// CollectionBody contains a handler-decoded item and its original bytes.
+type CollectionBody struct {
+	Raw    []byte
+	Fields map[string]json.RawMessage
+}
+
 // AppendWriteInput contains the authorized collection write and idempotency facts.
 type AppendWriteInput struct {
 	AppendInput
 	IdempotencyKey string
 	SuccessStatus  int
-	ReadBody       func() ([]byte, bool, error)
+	DecodeBody     func() (CollectionBody, error)
 	ActorFacts     CollectionWriteActor
 }
 
@@ -894,19 +882,11 @@ func (a *Adapter) appendCollectionWrite(ctx context.Context, in AppendWriteInput
 			in.Actor.Email = email
 		}
 	}
-	if in.ReadBody != nil {
-		var tooLarge bool
-		in.Body, tooLarge, err = in.ReadBody()
-		if err != nil {
-			if tooLarge {
-				return out, &Error{Code: "item_too_large"}
-			}
-			return out, &Error{Code: "invalid_request_body"}
-		}
-	}
-	if err := a.validateCollectionBody(in.Body); err != nil {
+	body, err := in.DecodeBody()
+	if err != nil {
 		return out, err
 	}
+	in.Body = body.Raw
 	key := strings.TrimSpace(in.IdempotencyKey)
 	if len(key) > 255 {
 		return out, &Error{Code: "invalid_idempotency_key"}
@@ -1043,21 +1023,11 @@ func (a *Adapter) appendBoard(ctx context.Context, in AppendWriteInput) (out App
 			actor.Email = email
 		}
 	}
-	raw, tooLarge, err := in.ReadBody()
+	decoded, err := in.DecodeBody()
 	if err != nil {
-		if tooLarge {
-			return out, &Error{Code: "board_item_too_large"}
-		}
-		return out, &Error{Code: "invalid_request_body"}
+		return out, err
 	}
-	var obj map[string]json.RawMessage
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	if err := dec.Decode(&obj); err != nil || obj == nil || dec.More() {
-		return out, &Error{Code: "board_not_object"}
-	}
-	if !a.deps.CollectionJSONStorable(raw) {
-		return out, &Error{Code: "invalid_json", Message: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`}
-	}
+	raw, obj := decoded.Raw, decoded.Fields
 	body := json.RawMessage(bytes.TrimSpace(raw))
 	stamped := false
 	for _, key := range []string{"_submitted_by", "_submitted_at"} {
@@ -1199,23 +1169,11 @@ func (a *Adapter) appendPrivate(ctx context.Context, in AppendWriteInput) (out A
 			return out, &Error{Code: "not_allowed_to_save"}
 		}
 	}
-	raw, tooLarge, err := in.ReadBody()
-	var fields map[string]json.RawMessage
-	if err == nil {
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		if err = dec.Decode(&fields); err == nil && (fields == nil || dec.More()) {
-			err = errors.New("not one object")
-		}
-	}
+	decoded, err := in.DecodeBody()
 	if err != nil {
-		if tooLarge {
-			return out, &Error{Code: "item_too_large"}
-		}
-		return out, &Error{Code: "private_not_object"}
+		return out, err
 	}
-	if !a.deps.CollectionJSONStorable(raw) {
-		return out, &Error{Code: "invalid_json", Message: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`}
-	}
+	raw, fields := decoded.Raw, decoded.Fields
 	key := strings.TrimSpace(in.IdempotencyKey)
 	if len(key) > 255 {
 		return out, &Error{Code: "invalid_idempotency_key"}
@@ -1283,7 +1241,7 @@ type AppendCollectionInput struct {
 	ActorFacts     CollectionWriteActor
 	IdempotencyKey string
 	SuccessStatus  int
-	ReadBody       func(string, db.DataSettings) ([]byte, bool, error)
+	DecodeBody     func(string, db.DataSettings) (CollectionBody, error)
 }
 
 // AppendCollectionResult reports the reached response state and saved item.
@@ -1315,7 +1273,7 @@ func (a *Adapter) AppendCollection(ctx context.Context, in AppendCollectionInput
 			out.Branch = "private"
 			out.PrivateCache = true
 		}
-		write := AppendWriteInput{AppendInput: AppendInput{SiteID: siteID, Settings: set}, ActorFacts: in.ActorFacts, IdempotencyKey: in.IdempotencyKey, SuccessStatus: in.SuccessStatus, ReadBody: func() ([]byte, bool, error) { return in.ReadBody(out.Branch, set) }}
+		write := AppendWriteInput{AppendInput: AppendInput{SiteID: siteID, Settings: set}, ActorFacts: in.ActorFacts, IdempotencyKey: in.IdempotencyKey, SuccessStatus: in.SuccessStatus, DecodeBody: func() (CollectionBody, error) { return in.DecodeBody(out.Branch, set) }}
 		switch out.Branch {
 		case "board":
 			out.AppendWriteResult, err = a.appendBoard(ctx, write)
@@ -1347,16 +1305,26 @@ func (a *Adapter) CollectionExportKeys(ctx context.Context, siteID, coll string)
 	return keys, true, err
 }
 
-// forEachCollectionItem walks the live items of an owner export.
-func (a *Adapter) forEachCollectionItem(ctx context.Context, siteID, coll string, fn func(db.CollectionItem) error) error {
-	return legacy.ForEachCollectionItemByID(ctx, a.database, siteID, coll, fn)
+// CollectionCSVInput identifies the collection and columns to export.
+type CollectionCSVInput struct {
+	SiteID, Collection string
+	Keys               []string
 }
 
-// ForEachCollectionCSVRow reads and shapes each row of a collection export.
-func (a *Adapter) ForEachCollectionCSVRow(ctx context.Context, siteID, coll string, keys []string, safe func(string) string, fn func([]string) error) error {
-	return a.forEachCollectionItem(ctx, siteID, coll, func(it db.CollectionItem) error {
-		return fn(CollectionCSVRow(it, keys, safe))
-	})
+// CollectionCSVRows yields export row values, closing the query when iteration stops.
+func (a *Adapter) CollectionCSVRows(ctx context.Context, in CollectionCSVInput) iter.Seq2[[]string, error] {
+	return func(yield func([]string, error) bool) {
+		stopped := errors.New("export iteration stopped")
+		err := legacy.ForEachCollectionItemByID(ctx, a.database, in.SiteID, in.Collection, func(it db.CollectionItem) error {
+			if !yield(CollectionCSVRow(it, in.Keys, a.deps.CSVSafe), nil) {
+				return stopped
+			}
+			return nil
+		})
+		if err != nil && err != stopped {
+			yield(nil, err)
+		}
+	}
 }
 
 // CollectionCSVRow shapes one item for an owner CSV export.
