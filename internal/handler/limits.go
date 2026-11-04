@@ -85,12 +85,12 @@ func (s limitSet) maxSitesFor(ctx context.Context, database *sql.DB, user *model
 func (s limitSet) siteLimitFor(ctx context.Context, database *sql.DB, user *model.User) (limit int64, override bool) {
 	l := s.limits
 	if l.MaxArchiveOverrides == "" || user == nil {
-		return maxSiteArchiveSize, false
+		return uploadLimits.Body, false
 	}
 	if mb, ok := l.ArchiveOverrideMB(accountHandles(ctx, database, user)...); ok {
 		return int64(mb) << 20, true
 	}
-	return maxSiteArchiveSize, false
+	return uploadLimits.Body, false
 }
 
 // statedSiteMB is a per-site limit as it is reported: in MB, and never above
@@ -109,14 +109,14 @@ func (s limitSet) siteLimitMBOf(u model.User, aliases []string) int {
 	if mb, ok := s.limits.ArchiveOverrideMB(append([]string{u.Handle.String}, aliases...)...); ok {
 		return statedSiteMB(int64(mb) << 20)
 	}
-	return statedSiteMB(maxSiteArchiveSize)
+	return statedSiteMB(uploadLimits.Body)
 }
 
 // largestSiteLimit is the largest per-site cap any account has (MAX_ARCHIVE_MB
 // or an override above it), for caps that sit in front of the account being
 // known, like the connector's message size.
 func (s limitSet) largestSiteLimit() int64 {
-	max := maxSiteArchiveSize
+	max := uploadLimits.Body
 	for _, mb := range s.limits.ArchiveOverrides() {
 		if b := int64(mb) << 20; b > max {
 			max = b

@@ -355,7 +355,7 @@ var archivePhrases = []struct {
 }
 
 // archiveMBInForce is the upload cap this server enforces, in MB.
-func archiveMBInForce() int { return int(maxSiteArchiveSize >> 20) }
+func archiveMBInForce() int { return int(uploadLimits.Body >> 20) }
 
 // limitKB words a size in KB: "16 KB", "1 MB" (whole megabytes).
 func limitKB(kb int) string {

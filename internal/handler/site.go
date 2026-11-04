@@ -28,7 +28,7 @@ import (
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
-// maxSiteArchiveSize caps the upload body. Default 100 MB; override with
+// uploadLimits.Body caps the upload body. Default 100 MB; override with
 // MAX_ARCHIVE_MB on an instance you run yourself (a hosted instance has other
 // people's disk to protect, your own does not).
 //
@@ -42,7 +42,7 @@ import (
 // before Go ever sees it. Lowering it goes through SetSiteLimit, which moves
 // the extractor's uncompressed caps with it; setting this variable on its own
 // would bound compressed bytes and nothing else.
-var maxSiteArchiveSize int64 = 100 << 20
+var uploadLimits = sites.UploadLimits{Body: 100 << 20}
 
 const maxSiteStateSize = 1 << 20
 

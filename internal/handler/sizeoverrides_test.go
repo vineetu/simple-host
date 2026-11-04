@@ -9,17 +9,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/config"
 )
 
 // withSiteLimit sets MAX_ARCHIVE_MB for one test and puts it back.
 func withSiteLimit(t *testing.T, mb int) {
 	t.Helper()
-	old := SiteLimit()
-	restore := sites.SnapshotArchiveLimits()
+	restore := uploadLimits.Snapshot()
 	SetSiteLimit(int64(mb) << 20)
-	t.Cleanup(func() { restore(); maxSiteArchiveSize = old })
+	t.Cleanup(restore)
 }
 
 // tarGzOf is a gzipped tar holding index.html plus a file of n zero bytes:
@@ -242,10 +240,9 @@ func TestArchiveNoOverrideKeepsInstanceUnpackCaps(t *testing.T) {
 	a := newPersonApp(t, "serve")
 	olive, oscar := a.newPerson(t, "olive"), a.newPerson(t, "oscar")
 	_, oliveHandle := a.userID(t, olive)
-	restore := sites.SnapshotArchiveLimits()
-	old := maxSiteArchiveSize
-	maxSiteArchiveSize = 1 << 20 // the body cap alone, as if SetSiteLimit never ran
-	t.Cleanup(func() { restore(); maxSiteArchiveSize = old })
+	restore := uploadLimits.Snapshot()
+	uploadLimits.Body = 1 << 20 // the body cap alone, as if SetSiteLimit never ran
+	t.Cleanup(restore)
 	setAppLimits(a, withLimits(t, map[string]string{"MAX_ARCHIVE_MB_OVERRIDES": oliveHandle + ":1"}))
 
 	body := tarGzOf(t, 3<<20/2) // a few KB compressed, 1.5 MB unpacked
