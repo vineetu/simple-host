@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/csv"
@@ -9,12 +10,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -24,7 +25,11 @@ import (
 // are paginated — so it stays cheap as the list grows. Same Origin gate and
 // rate limit as state.
 
-var validCollectionName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+type collectionNameValidator struct{}
+
+func (collectionNameValidator) MatchString(name string) bool { return legacy.ValidCollectionName(name) }
+
+var validCollectionName collectionNameValidator
 
 const (
 	maxCollectionItemSize = 64 * 1024
@@ -33,114 +38,137 @@ const (
 func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	coll := strings.TrimSpace(r.PathValue("coll"))
-	// The site's own pages (Origin), or an agent with the owner's key (as on
-	// the /data routes): the write path checks the key is the owner's.
-	if keyWithoutPage(r) {
-		if siteName == "" || !validCollectionName.MatchString(coll) {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid site or collection name"})
-			return
-		}
-	} else if !h.collectionGate(w, r, siteName, coll) {
-		return
-	}
-
-	// Resolve name -> site_id once; collection ops key by id.
-	siteID, err := h.resolveWriteSiteID(r, siteName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	// The name's kind (kinds.go): Page info takes no items; a name nobody
-	// declared is Shared (or, with SAVED_DATA_DEFAULT_KIND=declare_first on a
-	// site made after the kinds, takes nothing).
-	set, ok := h.dataSettings(w, r, siteID, coll)
-	if !ok || !h.appendAllowed(w, set, siteName) {
-		return
-	}
-	// A Shared board has its own write rule (board.go).
-	if set.Kind == db.KindBoard {
-		h.appendBoard(w, r, siteID, set)
-		return
-	}
-	// A private list has its own, stricter write rule (privatecollections.go);
-	// it never falls back to the public-write gate below.
-	if set.Private {
-		h.appendPrivate(w, r, siteID, siteName, set)
-		return
-	}
-	actor, ok := h.visitorWriteOK(w, r, siteID, siteName, writeRouteCollectionPost, coll)
-	if !ok {
-		return
-	}
-	// Declared Submissions come from a signed-in visitor, always: one per
-	// person and the block list need someone to count and to block. (A
-	// Shared name keeps taking what the site's write mode lets through.)
-	if set.Kind == db.KindEntries && actor.Kind == actorAnonymous {
-		writeVisitorAuthRequired(w)
-		return
-	}
-	// Items added without the owner's key: SAVED_DATA_APPEND_PER_MIN per address.
-	if isVisitorActor(actor) && !h.allowAppend(w, r) {
-		return
-	}
-	actor = h.withAuthorEmail(r.Context(), actor)
-
-	r.Body = http.MaxBytesReader(w, r.Body, h.entryMaxBytes(set))
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
-			return
-		}
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
-		return
-	}
-	if len(body) == 0 || !json.Valid(body) {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "body must be a JSON value"})
-		return
-	}
-	if !storableJSON(w, body) {
-		return
-	}
-	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
-	if len(key) > maxIdempotencyKey {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Idempotency-Key is at most 255 characters", Code: "invalid_idempotency_key"})
-		return
-	}
-	// Who sent it is kept with the item (the owner sees it; public reads
-	// never do). Nothing in the item itself changes.
-	result, err := h.legacySvc().AppendCollectionOnce(r.Context(), legacy.AppendInput{
-		SiteID: siteID, Settings: set, Body: body, Actor: actor, Key: key,
-		Visitor: isVisitorActor(actor), SuccessStatus: http.StatusCreated,
+	gate := legacy.CollectionGateInput{SiteName: siteName, Collection: coll, KeyWithoutPage: keyWithoutPage(r), DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst}
+	result, err := h.legacyCollectionAppendSvc(r).AppendCollection(r.Context(), legacy.AppendCollectionInput{
+		Gate: gate, IdempotencyKey: r.Header.Get("Idempotency-Key"), SuccessStatus: http.StatusCreated,
+		ActorFacts: legacy.CollectionWriteActor{SiteName: siteName, Key: r.Header.Get("X-API-Key"), Mode: h.writeAuthMode, Cookie: h.sessionCookieFor(r), Preview: previewReferer(r), ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), Canonical: h.personHostsCanonical(), VisitorPass: r.Header.Get(visitorPassHeader) != "", CSRF: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue},
+		DecodeBody: func(branch string, set db.DataSettings) (legacy.CollectionBody, error) {
+			size := legacy.EntryMaxBytes(set, h.savedData.EntryMaxKB, maxCollectionItemSize)
+			if branch == "board" {
+				size = h.boardItemMax()
+			}
+			reader := http.MaxBytesReader(nil, r.Body, size)
+			if branch == "public" {
+				r.Body = reader
+			}
+			body, err := io.ReadAll(reader)
+			var maxErr *http.MaxBytesError
+			return decodeLegacyBody(body, branch, errors.As(err, &maxErr), err)
+		},
 	})
-	if result.Release != nil {
-		defer result.Release()
+	for key, values := range result.Headers {
+		w.Header()[key] = values
 	}
-	var claimErr *legacy.ClaimError
-	if errors.As(err, &claimErr) {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	if result.PrivateCache {
+		w.Header().Set("Cache-Control", "private, no-store")
+	}
+	set := result.Settings
+	if result.Branch == "" {
+		var opErr *legacy.Error
+		if errors.As(err, &opErr) {
+			switch opErr.Code {
+			case "origin_not_allowed":
+				writeOriginRefused(w)
+			case "append_content":
+				writeWrongKind(w, set.Name, set.Kind, "only the owner saves it, as a whole document with PUT /v1/sites/"+siteName+"/data/"+set.Name)
+			case "append_personal":
+				writeWrongKind(w, set.Name, set.Kind, "each signed-in visitor saves their own record with PUT or PATCH /v1/sites/"+siteName+"/data/"+set.Name+" (SH.data(name, 'personal').set)")
+			case "declare_first":
+				writeDeclareFirst(w, siteName, set.Name)
+			default:
+				writeJSON(w, http.StatusBadRequest, errorResponse{Error: opErr.Message})
+			}
+		} else if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		} else {
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		}
 		return
 	}
-	switch result.State {
-	case "reused":
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "this Idempotency-Key was already used for a different request; use a new key for a new write", Code: "idempotency_key_reused"})
+	if result.Branch != "public" {
+		h.writeSpecialCollection(w, set, result.AppendWriteResult, err, result.Branch == "board")
 		return
-	case "pending":
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "a request with this Idempotency-Key is still being saved; retry in a moment", Code: "idempotency_in_progress"})
-		return
-	case "replay":
+	}
+	if result.Replayed {
 		w.Header().Set("Idempotent-Replayed", "true")
 		if result.ReplayFound {
-			writeJSON(w, result.Previous.Status, result.Item)
+			writeJSON(w, result.ReplayStatus, result.Item)
 		} else {
-			writeJSON(w, result.Previous.Status, map[string]int64{"id": result.Previous.Ref})
+			writeJSON(w, result.ReplayStatus, map[string]int64{"id": result.ReplayRef})
 		}
 		return
+	}
+	var idemErr *legacy.Error
+	if errors.As(err, &idemErr) {
+		switch idemErr.Code {
+		case "site_not_found":
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		case "site_suspended":
+			writeSiteSuspended(w, idemErr.Message)
+			return
+		case "site_offline":
+			writeSiteOffline(w)
+			return
+		case "preview_read_only":
+			writePreviewReadOnly(w)
+			return
+		case "use_custom_domain":
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "this site saves on its own domain", "code": "use_custom_domain", "domain": idemErr.Message})
+			return
+		case "visitor_pass_forbidden":
+			storageError(w, http.StatusForbidden, "forbidden", "visitor pass does not cover this site")
+			return
+		case "csrf_required":
+			writeJSON(w, http.StatusForbidden, struct {
+				Error string `json:"error"`
+				Code  string `json:"code"`
+			}{Error: "missing CSRF header", Code: "csrf_required"})
+			return
+		case "invalid_api_key":
+			writeJSON(w, http.StatusUnauthorized, struct {
+				Error string `json:"error"`
+				Code  string `json:"code"`
+			}{Error: "invalid API key", Code: "invalid_api_key"})
+			return
+		case "account_suspended":
+			writeAccountSuspended(w)
+			return
+		case "not_allowed_to_save":
+			writeNotAllowedToSave(w)
+			return
+		case "visitor_auth_required":
+			writeVisitorAuthRequired(w)
+			return
+		case "rate_limited":
+			tooManyRequests(w)
+			return
+		case "item_too_large":
+			signalLegacyBodyTooLarge(w)
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
+			return
+		case "invalid_request_body":
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
+			return
+		case "invalid_collection_body":
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: idemErr.Message})
+			return
+		case "invalid_json":
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: idemErr.Message, Code: "invalid_json"})
+			return
+		case "idempotency_internal":
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		case "invalid_idempotency_key":
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Idempotency-Key is at most 255 characters", Code: "invalid_idempotency_key"})
+			return
+		case "idempotency_key_reused":
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "this Idempotency-Key was already used for a different request; use a new key for a new write", Code: "idempotency_key_reused"})
+			return
+		case "idempotency_in_progress":
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "a request with this Idempotency-Key is still being saved; retry in a moment", Code: "idempotency_in_progress"})
+			return
+		}
 	}
 	item, have := result.Item, result.Have
 	var quotaErr *legacy.AppendQuotaError
@@ -152,11 +180,130 @@ func (h *SiteHandler) appendCollection(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	item, ok = h.entryResult(w, set, item, have, err)
+	item, ok := h.entryResult(w, set, item, have, err)
 	if !ok {
 		return
 	}
 	writeJSON(w, http.StatusCreated, item)
+}
+
+// writeSpecialCollection maps private and board adapter results to wire responses.
+func (h *SiteHandler) writeSpecialCollection(w http.ResponseWriter, set db.DataSettings, result legacy.AppendWriteResult, err error, board bool) {
+	if result.Replayed {
+		w.Header().Set("Idempotent-Replayed", "true")
+		if result.ReplayFound {
+			writeJSON(w, result.ReplayStatus, result.Item)
+		} else {
+			writeJSON(w, result.ReplayStatus, map[string]int64{"id": result.ReplayRef})
+		}
+		return
+	}
+	var opErr *legacy.Error
+	if errors.As(err, &opErr) {
+		switch opErr.Code {
+		case "use_custom_domain":
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "this site saves on its own domain", "code": "use_custom_domain", "domain": opErr.Message})
+			return
+		case "private_visitor_only":
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "this list is private: only visitors signed in on the site's own domain can add to it; API keys cannot", "code": "private_visitor_only"})
+			return
+		case "private_needs_own_domain":
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "this list is private: it takes submissions only on the site's own address, from a signed-in visitor", "code": "private_needs_own_domain"})
+			return
+		case "private_not_object":
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "a private list takes one JSON object per item"})
+			return
+		case "item_too_large":
+			signalLegacyBodyTooLarge(w)
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "item too large", Code: "item_too_large"})
+			return
+		case "invalid_item":
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid item"})
+			return
+		case "site_not_found":
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+			return
+		case "site_suspended":
+			writeSiteSuspended(w, opErr.Message)
+			return
+		case "site_offline":
+			writeSiteOffline(w)
+			return
+		case "preview_read_only":
+			writePreviewReadOnly(w)
+			return
+		case "invalid_api_key":
+			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key", Code: "invalid_api_key"})
+			return
+		case "owner_only":
+			writeJSON(w, http.StatusForbidden, errorResponse{Error: "only the site owner can change page info", Code: "owner_only"})
+			return
+		case "csrf_required":
+			if board {
+				writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
+			} else {
+				writeJSON(w, http.StatusForbidden, map[string]string{"error": "missing CSRF header", "code": "csrf_required"})
+			}
+			return
+		case "account_suspended":
+			writeAccountSuspended(w)
+			return
+		case "visitor_auth_required":
+			writeVisitorAuthRequired(w)
+			return
+		case "not_allowed_to_save":
+			writeNotAllowedToSave(w)
+			return
+		case "rate_limited":
+			tooManyRequests(w)
+			return
+		case "board_item_too_large":
+			signalLegacyBodyTooLarge(w)
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: fmt.Sprintf("a board item is at most %d KB", h.savedData.BoardItemMaxKB), Code: "item_too_large"})
+			return
+		case "invalid_request_body":
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
+			return
+		case "board_not_object":
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: `a board item is one JSON object, e.g. {"text": "milk", "done": false}`, Code: "not_an_object"})
+			return
+		case "invalid_json":
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: opErr.Message, Code: "invalid_json"})
+			return
+		case "idempotency_internal":
+			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			return
+		case "invalid_idempotency_key":
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Idempotency-Key is at most 255 characters", Code: "invalid_idempotency_key"})
+			return
+		case "idempotency_key_reused":
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "this Idempotency-Key was already used for a different request; use a new key for a new write", Code: "idempotency_key_reused"})
+			return
+		case "idempotency_in_progress":
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "a request with this Idempotency-Key is still being saved; retry in a moment", Code: "idempotency_in_progress"})
+			return
+		}
+	}
+	var quotaErr *legacy.AppendQuotaError
+	if !board && !errors.As(err, &quotaErr) {
+		item, ok := h.entryResult(w, set, result.Item, result.Have, err)
+		if ok {
+			writeJSON(w, http.StatusCreated, item)
+		}
+		return
+	}
+	switch {
+	case errors.As(err, &quotaErr) && quotaErr.Full:
+		h.writeSiteFull(w)
+	case errors.Is(err, db.ErrNameFull):
+		h.writeBoardFull(w)
+	case errors.Is(err, sql.ErrNoRows), errors.Is(err, db.ErrKindChanged):
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q is not a board any more", set.Name), Code: "wrong_kind"})
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+	default:
+		writeJSON(w, http.StatusCreated, result.Item)
+	}
 }
 
 // watchItemSize counts a list item larger than SAVED_DATA_WATCH_ITEM_KB.
@@ -167,94 +314,62 @@ func (h *SiteHandler) watchItemSize(ctx context.Context, siteID string, size int
 func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	coll := strings.TrimSpace(r.PathValue("coll"))
-	if err := h.legacySvc().AuthorizeCollectionGate(r.Context(), legacy.CollectionGateInput{SiteName: siteName, Collection: coll, OriginAllowed: true}); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
-		return
-	}
-	// Owner (or admin) API key is an alternative to the Origin gate so the
-	// dashboard can read a collection (a keyed POST with no page skips the
-	// gate too, in appendCollection). When the key matches, resolve the
-	// site by owner (not the legacy oldest-name lookup) so two same-named
-	// sites cannot leak each other's rows.
-	var siteID string
-	ownerKey := false
-	// A read naming no page (no Origin, no Referer) skips the Origin gate:
-	// public lists are public. Private lists still refuse it below.
 	originless := noBrowserOrigin(r)
-	if id, ok := h.ownerSiteIDFromKey(r, siteName); ok {
-		siteID, ownerKey = id, true
-	} else if !originless && !h.collectionGate(w, r, siteName, coll) {
-		return
-	} else {
-		var err error
-		siteID, err = h.resolveSiteID(r, siteName)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-				return
-			}
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
+	in := legacy.CollectionListSiteInput{OwnerKeyInput: legacy.OwnerKeyInput{SiteName: siteName, APIKey: r.Header.Get("X-API-Key"), Handle: r.PathValue("handle")}, Collection: coll, Originless: originless}
+	in.ScopedSiteID, in.Scoped = r.Context().Value(adminSiteKey{}).(string)
+	page, err := h.legacyCollectionReadSvc(r).ReadCollection(r.Context(), legacy.ReadCollectionInput{
+		CollectionListSiteInput: in,
+		CollectionReadViewInput: legacy.CollectionReadViewInput{
+			SharedHost: strings.EqualFold(requestHostName(r), h.contentHost), Originless: originless,
+			VisitorPass: r.Header.Get(visitorPassHeader) != "", HasStrictCookie: strictVisitorCookie(r) != ""},
+		Limit: r.URL.Query().Get("limit"), Before: r.URL.Query().Get("before"),
+	})
+	for key, values := range page.Headers {
+		w.Header()[key] = values
 	}
-	if adminSiteMismatch(r, siteID) {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-		return
+	if page.Private {
+		w.Header().Set("Cache-Control", "private, no-store")
 	}
-	if !h.allowRead(w, r, siteID) {
-		return
+	if page.Author {
+		w.Header().Set("Cache-Control", "private, no-store")
+		w.Header().Add("Vary", "Cookie")
+		w.Header().Add("Vary", "X-API-Key")
 	}
-	// A taken-down site serves nothing to the public; its owner's key (and the
-	// admin's) still reads, so the owner can take their data with them.
-	if !ownerKey && (h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID)) {
-		return
-	}
-
-	// Private list: the owner's key reads everything (except through the
-	// shared host, where private lists do not exist); a browser needs the
-	// owner's or a submitter's visitor session on the site's own domain.
-	set, err := h.legacySvc().ListCollectionSettings(r.Context(), siteID, coll)
-	// Personal records are read only by their own person, one each, with
-	// GET .../data/{name}: never as a list, by anyone (the owner included).
 	if errors.Is(err, legacy.ErrPersonalList) {
 		writePersonalOnly(w, coll)
 		return
 	}
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	private := set.Private
-	if private {
-		w.Header().Set("Cache-Control", "private, no-store")
-		if ownerKey {
-			if strings.EqualFold(requestHostName(r), h.contentHost) {
+		var opErr *legacy.Error
+		if errors.As(err, &opErr) {
+			switch opErr.Code {
+			case "site_not_found":
+				writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+				return
+			case "site_suspended":
+				writeSiteSuspended(w, opErr.Message)
+				return
+			case "site_offline":
+				writeSiteOffline(w)
+				return
+			case "origin_not_allowed":
+				writeOriginRefused(w)
+				return
+			case "rate_limited":
+				tooManyRequests(w)
+				return
+			case "site_name_required", "invalid_collection":
+				writeJSON(w, http.StatusBadRequest, errorResponse{Error: opErr.Message})
+				return
+			case "private_not_found":
 				writePrivateNotFound(w)
 				return
 			}
-		} else if originless {
-			writePrivateNotFound(w)
-			return
-		} else if !h.ownerBrowserRead(w, r, siteID) {
-			return
 		}
-	}
-
-	// Who sent each item: the owner's key (or the admin's), or the owner
-	// signed in on the site's own address, only.
-	withAuthor := ownerKey || h.ownerBrowserView(r, siteID)
-	if withAuthor {
-		// The answer carries who sent each item: never kept by a shared
-		// cache or served to anyone else.
-		w.Header().Set("Cache-Control", "private, no-store")
-		w.Header().Add("Vary", "Cookie")
-		w.Header().Add("Vary", "X-API-Key")
-	}
-	items, next, err := h.legacySvc().ListCollection(r.Context(), legacy.CollectionListInput{SiteID: siteID, Collection: coll, Limit: r.URL.Query().Get("limit"), Before: r.URL.Query().Get("before"), WithAuthor: withAuthor, Settings: set})
-	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	set, private, items, next := page.Settings, page.Private, page.Items, page.Next
 	board := set.Kind == db.KindBoard
 	resp := map[string]any{"items": items, "next": next}
 	if private {
@@ -270,9 +385,9 @@ func (h *SiteHandler) listCollection(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SiteHandler) optionsCollection(w http.ResponseWriter, r *http.Request) {
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	originAllowed := siteName != "" && h.authorizeStateOrigin(w, r, siteName)
-	if err := h.legacySvc().CollectionOptions(r.Context(), legacy.CollectionOptionsInput{SiteName: r.PathValue("sitename"), OriginAllowed: originAllowed}); err != nil {
+	name := strings.TrimSpace(r.PathValue("sitename"))
+	allowed := name != "" && h.authorizeStateOrigin(w, r, name)
+	if err := h.legacySvc().CollectionOptions(r.Context(), legacy.CollectionOptionsInput{SiteName: name, OriginAllowed: allowed}); err != nil {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -285,13 +400,15 @@ func (h *SiteHandler) optionsCollection(w http.ResponseWriter, r *http.Request) 
 // collectionGate applies the shared checks: valid name and Origin gate. Writes
 // the error response and returns false when blocked.
 func (h *SiteHandler) collectionGate(w http.ResponseWriter, r *http.Request, siteName, coll string) bool {
-	// Origin authorization sets CORS headers, so retain its original position
-	// after the name checks while the adapter makes the authorization decision.
-	originAllowed := false
-	if siteName != "" && validCollectionName.MatchString(coll) {
-		originAllowed = h.authorizeStateOrigin(w, r, siteName)
+	return h.authorizeCollectionGate(w, r, legacy.CollectionGateInput{SiteName: siteName, Collection: coll})
+}
+
+func (h *SiteHandler) authorizeCollectionGate(w http.ResponseWriter, r *http.Request, in legacy.CollectionGateInput) bool {
+	// Origin authorization sets CORS headers and must follow name validation.
+	if in.SiteName != "" && legacy.ValidCollectionName(in.Collection) && !in.KeyWithoutPage {
+		in.OriginAllowed = h.authorizeStateOrigin(w, r, in.SiteName)
 	}
-	err := h.legacySvc().AuthorizeCollectionGate(r.Context(), legacy.CollectionGateInput{SiteName: siteName, Collection: coll, OriginAllowed: originAllowed})
+	err := h.legacySvc().AuthorizeCollectionGate(r.Context(), in)
 	if err != nil {
 		opErr := err.(*legacy.Error)
 		if opErr.Code == "origin_not_allowed" {
@@ -331,7 +448,7 @@ func (h *SiteHandler) ownedSiteID(r *http.Request, user *db.User, siteName strin
 // inventory of what the site has saved.
 func (h *SiteHandler) listSiteCollections(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
-	in := legacy.OwnedSiteInput{SiteName: r.PathValue("sitename")}
+	in := legacy.ListSiteCollectionsInput{SiteName: r.PathValue("sitename")}
 	if user != nil {
 		in.SignedIn, in.UserID, in.Admin = true, user.ID, user.IsAdmin
 	}
@@ -414,10 +531,13 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 	}
 
 	n := 0
-	err = h.legacySvc().ForEachCollectionItem(r.Context(), siteID, coll, func(it db.CollectionItem) error {
-		row := legacy.CollectionCSVRow(it, keys, csvSafe)
-		if err := cw.Write(row); err != nil {
-			return err
+	for row, rowErr := range h.legacySvc().CollectionCSVRows(r.Context(), legacy.CollectionCSVInput{SiteID: siteID, Collection: coll, Keys: keys}) {
+		if rowErr != nil {
+			err = rowErr
+			break
+		}
+		if err = cw.Write(row); err != nil {
+			break
 		}
 		n++
 		if n%256 == 0 {
@@ -426,8 +546,7 @@ func (h *SiteHandler) exportCollectionCSV(w http.ResponseWriter, r *http.Request
 				f.Flush()
 			}
 		}
-		return nil
-	})
+	}
 	cw.Flush()
 	if err != nil {
 		// Headers already sent; nothing left to report to the client.
@@ -448,3 +567,38 @@ func jsonCSVCell(raw json.RawMessage) string {
 
 // csvSafe moved to internal/httpx (httpx.CSVSafe); see the alias in
 // internal/handler/httpx_forward.go.
+
+// decodeLegacyBody retains each route's wire validation after its authorization checks.
+func decodeLegacyBody(raw []byte, branch string, tooLarge bool, readErr error) (legacy.CollectionBody, error) {
+	out := legacy.CollectionBody{Raw: raw}
+	if readErr != nil {
+		code := "invalid_request_body"
+		if branch == "private" {
+			code = "private_not_object"
+		}
+		if tooLarge {
+			code = "item_too_large"
+			if branch == "board" {
+				code = "board_item_too_large"
+			}
+			if branch == "personal" {
+				code = "personal_item_too_large"
+			}
+		}
+		return out, &legacy.Error{Code: code}
+	}
+	if branch == "public" {
+		if len(raw) == 0 || !json.Valid(raw) {
+			return out, &legacy.Error{Code: "invalid_collection_body", Message: "body must be a JSON value"}
+		}
+	} else {
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		if err := dec.Decode(&out.Fields); err != nil || out.Fields == nil || dec.More() {
+			return out, &legacy.Error{Code: branch + "_not_object"}
+		}
+	}
+	if !jsonStorable(raw) {
+		return out, &legacy.Error{Code: "invalid_json", Message: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`}
+	}
+	return out, nil
+}

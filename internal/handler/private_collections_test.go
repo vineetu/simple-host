@@ -356,7 +356,7 @@ func TestPrivateCollectionsEndToEnd(t *testing.T) {
 	if r := a.at(t, "POST", dom, orders, map[string]string{"name": "anon"}, browser(dom, "")); r.status != 401 || r.json(t)["code"] != "visitor_auth_required" {
 		t.Fatalf("anonymous submit: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "POST", dom, orders, map[string]string{"name": "x"}, browser(dom, vicCookie, "X-SH-CSRF", "")); r.status != 403 || r.json(t)["code"] != "csrf_required" {
+	if r := a.at(t, "POST", dom, orders, map[string]string{"name": "x"}, browser(dom, vicCookie, "X-SH-CSRF", "")); r.status != 403 || string(r.body) != "{\"code\":\"csrf_required\",\"error\":\"missing CSRF header\"}\n" {
 		t.Fatalf("no csrf: %d %s", r.status, r.body)
 	}
 	// A page on a sibling host (same-site to the browser) cannot ride the cookie.

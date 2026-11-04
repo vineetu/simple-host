@@ -6,14 +6,16 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 	repository "github.com/vsriram/simple-host/internal/repository/storage"
 	mechanics "github.com/vsriram/simple-host/internal/storage"
 )
@@ -41,7 +43,7 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	if err != nil {
 		return FilePutResult{}, nil, &Error{Code: "invalid_file", Message: "file too large; shrink photos to about 1600 px WebP"}
 	}
-	ctx, unlock, err := s.WriteLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
 		return FilePutResult{}, nil, err
 	}
@@ -122,7 +124,7 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	s.deps.ScanFile(call, in.Path, body)
 	s.deps.MarkChanged()
 	unlock()
-	result := FilePutResult{Bytes: len(body), ContentType: http.DetectContentType(body)}
+	result := FilePutResult{Bytes: len(body), ContentType: mechanics.DetectContentType(body)}
 	s.deps.Notify(call, "file.uploaded", map[string]any{"path": in.Path, "size": result.Bytes, "content_type": result.ContentType})
 	return result, auth, nil
 }
@@ -169,7 +171,7 @@ func (s *Service) DeleteFile(ctx context.Context, in FileDeleteInput) (*Error, e
 			return auth, nil
 		}
 	}
-	ctx, unlock, err := s.WriteLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
 		return auth, err
 	}
@@ -303,7 +305,7 @@ func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, 
 			n, _ := f.Read(b[:])
 			f.Close()
 			mine := true
-			out = append(out, FileItem{Path: p, Bytes: fi.Size(), ContentType: http.DetectContentType(b[:n]), Mine: &mine})
+			out = append(out, FileItem{Path: p, Bytes: fi.Size(), ContentType: mechanics.DetectContentType(b[:n]), Mine: &mine})
 			return true, nil
 		})
 		if e != nil {
@@ -349,7 +351,7 @@ func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, 
 		var b [512]byte
 		n, _ := f.Read(b[:])
 		f.Close()
-		out = append(out, FileItem{Path: p, Bytes: fi.Size(), ContentType: http.DetectContentType(b[:n])})
+		out = append(out, FileItem{Path: p, Bytes: fi.Size(), ContentType: mechanics.DetectContentType(b[:n])})
 		if len(out) >= in.Limit+1 {
 			return io.EOF
 		}
@@ -402,7 +404,7 @@ func (s *Service) DownloadFile(ctx context.Context, token string) (*os.File, os.
 	if err != nil || ee != nil || time.Now().Unix() > expiry || expiry > time.Now().Add(10*time.Minute).Unix()+1 || !mechanics.ValidObjectPath(string(p)) {
 		return invalid()
 	}
-	site, err := db.GetSiteByID(ctx, s.db, siteID)
+	site, err := siterepo.GetSiteByID(ctx, s.db, siteID)
 	if err != nil || site.Deleted || site.UserID != ownerID || site.OwnerSuspended || site.SiteSuspended {
 		return invalid()
 	}
@@ -422,7 +424,7 @@ func (s *Service) DownloadFile(ctx context.Context, token string) (*os.File, os.
 	return f, fi, string(p), err
 }
 
-func (s *Service) fileLinkScopeCurrent(ctx context.Context, site db.Site, scope string) bool {
+func (s *Service) fileLinkScopeCurrent(ctx context.Context, site model.Site, scope string) bool {
 	if scope == "admin" {
 		return true
 	}
@@ -436,14 +438,14 @@ func (s *Service) fileLinkScopeCurrent(ctx context.Context, site db.Site, scope 
 	}
 	switch kind {
 	case "team":
-		team, err := db.ResolveTeamIdentity(ctx, s.db, memberID, id)
+		team, err := teamrepo.ResolveTeamIdentity(ctx, s.db, memberID, id)
 		return err == nil && team.AccountID == site.UserID && team.TeamSlug == site.Name
 	case "event":
-		ev, err := db.GetEventByAccount(ctx, s.db, site.UserID)
+		ev, err := eventrepo.GetEventByAccount(ctx, s.db, site.UserID)
 		if err != nil || ev.ID != id || site.Name != ev.ID || ev.TakenDown() {
 			return false
 		}
-		member, err := db.GetEventMember(ctx, s.db, ev.ID, memberID)
+		member, err := eventrepo.GetEventMember(ctx, s.db, ev.ID, memberID)
 		return err == nil && member.Role == "organiser"
 	}
 	return false

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	"fmt"
@@ -52,16 +51,14 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 			return floor
 		},
 		PinnedFloor: h.hackPinnedFloor,
-		CreateGate: func(ctx context.Context, tx *sql.Tx, user *db.User, name string) error {
-			decision := h.hackTeamTxDecision(ctx, tx, user, name, func() {
-				if h.ed.Identity().PaperMetrics {
-					papermetrics.ResolveHackSite(ctx, user.Team.AccountID, name, user.Team.MemberID, false)
-				}
-			}, func(stage string) { papermetrics.ResolveHackEvent(ctx, user.Team.EventSlug, stage, user.Team.MemberID) })
-			if decision != nil {
-				return decision
+		TeamKeys:    h.ed.Identity().TeamKeys, TeamSitesReady: h.teamSitesReady,
+		PaperSite: func(ctx context.Context, user *db.User, name string) {
+			if h.ed.Identity().PaperMetrics {
+				papermetrics.ResolveHackSite(ctx, user.Team.AccountID, name, user.Team.MemberID, false)
 			}
-			return nil
+		},
+		PaperState: func(ctx context.Context, user *db.User, stage string) {
+			papermetrics.ResolveHackEvent(ctx, user.Team.EventSlug, stage, user.Team.MemberID)
 		},
 		NotifyUpdate: func(ctx context.Context, user *db.User, site db.Site, n, prev int, published bool, files map[string][]byte) {
 			if published {

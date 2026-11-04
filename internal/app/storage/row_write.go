@@ -19,7 +19,7 @@ import (
 // already-authorized insert. Idempotency replay must still happen after
 // authorization and before this workflow starts.
 func (s *Service) addTableRowLocked(ctx context.Context, c Call, in TableInput, filter string) (int64, error) {
-	ctx, unlock, err := s.WriteLock(ctx, c.OwnerID+"/"+c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, c.OwnerID+"/"+c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
 		return 0, err
 	}
@@ -129,7 +129,7 @@ func (s *Service) finishTableWrite(conn *sqlite3.Conn, c Call, commit func() err
 		}
 		return &Error{Code: "invalid_rows", Message: "cannot commit the change"}
 	}
-	if _, _, err := conn.WALCheckpoint("main", sqlite3.CHECKPOINT_TRUNCATE); err != nil {
+	if err := runtime.CheckpointRows(conn); err != nil {
 		log.Printf("storage: site %s %s: checkpoint after commit: %v", c.SiteID, c.ResourceName, err)
 	}
 	if s.deps.Committed != nil {
@@ -149,34 +149,69 @@ func beginTableWrite(conn *sqlite3.Conn) (func() error, func(), error) {
 	return commit, rollback, nil
 }
 
-// TableAdd authorizes before entering the request's idempotency boundary.
-// The callback decodes the request only on a cache miss.
+// TableAdd performs an authorized row insert.
 func (s *Service) TableAdd(ctx context.Context, in TableInput) (TableResult, error) {
-	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "add")
-	if !allowed {
-		return TableResult{Authorization: auth}, nil
+	if !in.Authorized.Allowed() || in.Authorized.table != in.Table || in.Authorized.action != "add" {
+		return TableResult{Authorization: in.Authorized.Authorization}, nil
 	}
-	s.deps.TableWriteRequest(c, auth, func(values map[string]json.RawMessage) (TableResult, error) {
-		in.Values = values
-		id, err := s.addTableRowLocked(ctx, c, in, filter)
-		if err != nil {
-			return TableResult{}, err
+	c, filter := in.Authorized.call, in.Authorized.filter
+	id, err := s.addTableRowLocked(ctx, c, in, filter)
+	if err != nil {
+		return TableResult{}, err
+	}
+	return TableResult{Body: map[string]any{"changes": 1, "last_insert_id": id}, Notify: s.rowNotification(c, in.Table, "record.added", "", id, in.Values)}, nil
+}
+
+// InsertActor supplies the caller facts needed for server-owned columns.
+type InsertActor struct {
+	Owner, OwnerOnSite, Hold bool
+	StampID                  string
+}
+
+// stampInsertValues fills server-owned values for an insert.
+func stampInsertValues(cols map[string]string, values map[string]json.RawMessage, actor InsertActor) {
+	owner, ownerOnSite, hold, stampID := actor.Owner, actor.OwnerOnSite, actor.Hold, actor.StampID
+	encode := func(v any) json.RawMessage { b, _ := json.Marshal(v); return b }
+	if !owner {
+		delete(values, "visitor_id")
+		delete(values, "created_at")
+		delete(values, "updated_at")
+		if _, ok := cols["visitor_id"]; ok {
+			values["visitor_id"] = encode(stampID)
+			if stampID == "" {
+				values["visitor_id"] = json.RawMessage("null")
+			}
 		}
-		return TableResult{Body: map[string]any{"changes": 1, "last_insert_id": id}, Notify: s.rowNotification(c, in.Table, "record.added", "", id, values)}, nil
-	})
-	return TableResult{}, nil
+		if _, ok := cols["created_at"]; ok {
+			values["created_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
+		}
+		if hold {
+			values["approved_at"] = json.RawMessage("null")
+			if ownerOnSite {
+				values["approved_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
+			}
+		}
+	} else if _, set := values["approved_at"]; hold && !set {
+		values["approved_at"] = encode(time.Now().UTC().Format(time.RFC3339Nano))
+	}
 }
 
 // addTableRow keeps the insert, reference check and commit in one transaction.
 // Its caller must have authorized the operation and acquired the site lock.
 func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta rowMetadata) (int64, error) {
-	query, params, err := runtime.PrepareInsert(conn, in.Table, meta.rowid, meta.cols, in.Values, runtime.InsertActor{
-		Owner: c.Owner, OwnerOnSite: c.OwnerOnSite, Hold: meta.hold, StampID: StampID(c.Owner, c.VisitorID),
-	})
-	if err != nil {
-		if errors.Is(err, runtime.ErrInsertSuppliesID) {
+	// Check IDs before stamping, as the original workflow did.
+	if !c.Owner {
+		supplied, err := runtime.InsertSuppliesID(conn, in.Table, in.Values)
+		if err != nil {
+			return 0, &Error{Code: "invalid_rows", Message: "invalid row request"}
+		}
+		if supplied {
 			return 0, &Error{Code: "invalid_rows", Message: "the server assigns ids"}
 		}
+	}
+	stampInsertValues(meta.cols, in.Values, InsertActor{Owner: c.Owner, OwnerOnSite: c.OwnerOnSite, Hold: meta.hold, StampID: StampID(c.Owner, c.VisitorID)})
+	query, params, err := runtime.PrepareInsert(in.Table, meta.rowid, meta.cols, in.Values, !c.Owner)
+	if err != nil {
 		return 0, &Error{Code: "invalid_rows", Message: "invalid row request"}
 	}
 	commit, rollback, err := beginTableWrite(conn)
@@ -199,96 +234,69 @@ func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta ro
 
 // TableEdit authorizes and performs the complete row update.
 func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, error) {
-	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "edit")
-	if !allowed {
-		return TableResult{Authorization: auth}, nil
+	if !in.Authorized.Allowed() || in.Authorized.table != in.Table || in.Authorized.action != "edit" {
+		return TableResult{Authorization: in.Authorized.Authorization}, nil
 	}
-	s.deps.TableWriteRequest(c, auth, func(values map[string]json.RawMessage) (TableResult, error) {
-		ctx, unlock, err := s.WriteLock(ctx, c.OwnerID+"/"+c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
-		if err != nil {
-			return TableResult{}, err
+	c, filter := in.Authorized.call, in.Authorized.filter
+	values := in.Values
+	ctx, unlock, err := s.writeLock(ctx, c.OwnerID+"/"+c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	if err != nil {
+		return TableResult{}, err
+	}
+	defer unlock()
+	c.Context = ctx
+	conn, done, err := s.openTableConn(ctx, c, true)
+	if err != nil {
+		return TableResult{}, err
+	}
+	defer done()
+	meta, err := tableMetadata(conn, c, in.Table, filter)
+	if err != nil {
+		return TableResult{}, err
+	}
+	pk, err := runtime.PrimaryKeyColumns(conn, in.Table)
+	if err != nil {
+		return TableResult{}, &Error{Code: "invalid_rows", Message: "invalid row request"}
+	}
+	names := make([]string, 0, len(values))
+	for name := range values {
+		lower := strings.ToLower(name)
+		if lower == "visitor_id" || lower == "created_at" || lower == "updated_at" || lower == "rowid" || lower == "_rowid_" || lower == "oid" || pk[name] || meta.hold && !c.Owner && !c.OwnerOnSite && strings.EqualFold(name, "approved_at") {
+			return TableResult{}, &Error{Code: "server_column", Message: "id, visitor_id, created_at, and updated_at are set by the server"}
 		}
-		defer unlock()
-		c.Context = ctx
-		conn, done, err := s.openTableConn(ctx, c, true)
-		if err != nil {
-			return TableResult{}, err
-		}
-		defer done()
-		meta, err := tableMetadata(conn, c, in.Table, filter)
-		if err != nil {
-			return TableResult{}, err
-		}
-		pk := map[string]bool{}
-		info, _, err := conn.Prepare("PRAGMA table_info(" + runtime.Quote(in.Table) + ")")
-		if err != nil {
+		if _, ok := meta.cols[name]; !ok {
 			return TableResult{}, &Error{Code: "invalid_rows", Message: "invalid row request"}
 		}
-		for info.Step() {
-			if info.ColumnInt(5) > 0 {
-				pk[info.ColumnText(1)] = true
-			}
-		}
-		info.Close()
-		names := make([]string, 0, len(values))
-		for name := range values {
-			lower := strings.ToLower(name)
-			if lower == "visitor_id" || lower == "created_at" || lower == "updated_at" || lower == "rowid" || lower == "_rowid_" || lower == "oid" || pk[name] || meta.hold && !c.Owner && !c.OwnerOnSite && strings.EqualFold(name, "approved_at") {
-				return TableResult{}, &Error{Code: "server_column", Message: "id, visitor_id, created_at, and updated_at are set by the server"}
-			}
-			if _, ok := meta.cols[name]; !ok {
-				return TableResult{}, &Error{Code: "invalid_rows", Message: "invalid row request"}
-			}
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		sets := []string{}
-		params := []json.RawMessage{}
-		for _, name := range names {
-			sets = append(sets, runtime.Quote(name)+" = ?")
-			params = append(params, values[name])
-		}
-		if _, ok := meta.cols["updated_at"]; ok {
-			sets = append(sets, `"updated_at" = ?`)
-			values["updated_at"] = rowJSON(time.Now().UTC().Format(time.RFC3339Nano))
-			params = append(params, values["updated_at"])
-		}
-		query := "UPDATE OR ABORT " + runtime.Quote(in.Table) + " SET " + strings.Join(sets, ", ") + " WHERE " + meta.rowid + " = ?"
-		if c.Owner {
-			query = "UPDATE " + runtime.Quote(in.Table) + " SET " + strings.Join(sets, ", ") + " WHERE " + meta.rowid + " = ?"
-		}
-		params = append(params, rowJSON(in.ID))
-		if filter != "" {
-			query += " AND visitor_id = ?"
-			params = append(params, rowJSON(filter))
-		}
-		if meta.hold && !c.Owner && !c.OwnerOnSite {
-			query += " AND approved_at IS NOT NULL"
-		}
-		commit, rollback, err := beginTableWrite(conn)
-		if err != nil {
-			return TableResult{}, err
-		}
-		defer rollback()
-		before := conn.TotalChanges()
-		if _, err = runTableWrite(conn, in.Table, c.Owner, sqlite3.AUTH_UPDATE, query, params, false); err != nil {
-			return TableResult{}, err
-		}
-		if conn.Changes() == 0 {
-			return TableResult{}, &Error{Code: "row_not_found", Message: "row not found"}
-		}
-		if !c.Owner && conn.TotalChanges()-before != 1 {
-			return TableResult{}, &Error{Code: "forbidden", Message: "this change would touch other rows; pages cannot make it, only the owner's tools"}
-		}
-		if err = checkRowReferences(conn, c, in.Table, meta.rowid, in.ID); err != nil {
-			return TableResult{}, err
-		}
-		if err = s.finishTableWrite(conn, c, commit); err != nil {
-			return TableResult{}, err
-		}
-		return TableResult{Body: map[string]any{"changes": 1}, Notify: s.rowNotification(c, in.Table, "record.changed", "edited", in.ID, values)}, nil
-	})
-	return TableResult{}, nil
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if _, ok := meta.cols["updated_at"]; ok {
+		names = append(names, "updated_at")
+		values["updated_at"] = rowJSON(time.Now().UTC().Format(time.RFC3339Nano))
+	}
+	query, params := runtime.RowUpdateStatement(in.Table, meta.rowid, names, values, rowJSON(in.ID), filter, c.Owner, meta.hold && !c.Owner && !c.OwnerOnSite)
+	commit, rollback, err := beginTableWrite(conn)
+	if err != nil {
+		return TableResult{}, err
+	}
+	defer rollback()
+	before := conn.TotalChanges()
+	if _, err = runTableWrite(conn, in.Table, c.Owner, sqlite3.AUTH_UPDATE, query, params, false); err != nil {
+		return TableResult{}, err
+	}
+	if conn.Changes() == 0 {
+		return TableResult{}, &Error{Code: "row_not_found", Message: "row not found"}
+	}
+	if !c.Owner && conn.TotalChanges()-before != 1 {
+		return TableResult{}, &Error{Code: "forbidden", Message: "this change would touch other rows; pages cannot make it, only the owner's tools"}
+	}
+	if err = checkRowReferences(conn, c, in.Table, meta.rowid, in.ID); err != nil {
+		return TableResult{}, err
+	}
+	if err = s.finishTableWrite(conn, c, commit); err != nil {
+		return TableResult{}, err
+	}
+	return TableResult{Body: map[string]any{"changes": 1}, Notify: s.rowNotification(c, in.Table, "record.changed", "edited", in.ID, values)}, nil
 }
 
 func (s *Service) rowNotification(c Call, table, name, change string, id int64, values map[string]json.RawMessage) func() {
@@ -321,57 +329,46 @@ func (s *Service) rowNotification(c Call, table, name, change string, id int64, 
 
 // TableRemove authorizes and removes one visible row in a single workflow.
 func (s *Service) TableRemove(ctx context.Context, in TableInput) (TableResult, error) {
-	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "delete")
-	if !allowed {
-		return TableResult{Authorization: auth}, nil
+	if !in.Authorized.Allowed() || in.Authorized.table != in.Table || in.Authorized.action != "delete" {
+		return TableResult{Authorization: in.Authorized.Authorization}, nil
 	}
-	s.deps.TableWriteRequest(c, auth, func(_ map[string]json.RawMessage) (TableResult, error) {
-		var out TableResult
-		ctx, unlock, err := s.WriteLock(ctx, c.OwnerID+"/"+c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
-		if err != nil {
-			return out, err
-		}
-		defer unlock()
-		c.Context = ctx
-		conn, done, err := s.openTableConn(ctx, c, true)
-		if err != nil {
-			return out, err
-		}
-		defer done()
-		meta, err := tableMetadata(conn, c, in.Table, filter)
-		if err != nil {
-			return out, err
-		}
-		query := "DELETE FROM " + runtime.Quote(in.Table) + " WHERE " + meta.rowid + " = ?"
-		params := []json.RawMessage{rowJSON(in.ID)}
-		if filter != "" {
-			query += " AND visitor_id = ?"
-			params = append(params, rowJSON(filter))
-		}
-		if meta.hold && !c.Owner && !c.OwnerOnSite {
-			query += " AND approved_at IS NOT NULL"
-		}
-		commit, rollback, err := beginTableWrite(conn)
-		if err != nil {
-			return out, err
-		}
-		defer rollback()
-		before := conn.TotalChanges()
-		if _, err = runTableWrite(conn, in.Table, c.Owner, sqlite3.AUTH_DELETE, query, params, false); err != nil {
-			return out, err
-		}
-		if conn.Changes() == 0 {
-			return out, &Error{Code: "row_not_found", Message: "row not found"}
-		}
-		if !c.Owner && conn.TotalChanges()-before != 1 {
-			return out, &Error{Code: "forbidden", Message: "this change would touch other rows; pages cannot make it, only the owner's tools"}
-		}
-		if err = s.finishTableWrite(conn, c, commit); err != nil {
-			return out, err
-		}
-		out.Body = map[string]any{"deleted": true}
-		out.Notify = s.rowNotification(c, in.Table, "record.changed", "deleted", in.ID, nil)
-		return out, nil
-	})
-	return TableResult{}, nil
+	c, filter := in.Authorized.call, in.Authorized.filter
+	var out TableResult
+	ctx, unlock, err := s.writeLock(ctx, c.OwnerID+"/"+c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	if err != nil {
+		return out, err
+	}
+	defer unlock()
+	c.Context = ctx
+	conn, done, err := s.openTableConn(ctx, c, true)
+	if err != nil {
+		return out, err
+	}
+	defer done()
+	meta, err := tableMetadata(conn, c, in.Table, filter)
+	if err != nil {
+		return out, err
+	}
+	query, params := runtime.RowDeleteStatement(in.Table, meta.rowid, rowJSON(in.ID), filter, meta.hold && !c.Owner && !c.OwnerOnSite)
+	commit, rollback, err := beginTableWrite(conn)
+	if err != nil {
+		return out, err
+	}
+	defer rollback()
+	before := conn.TotalChanges()
+	if _, err = runTableWrite(conn, in.Table, c.Owner, sqlite3.AUTH_DELETE, query, params, false); err != nil {
+		return out, err
+	}
+	if conn.Changes() == 0 {
+		return out, &Error{Code: "row_not_found", Message: "row not found"}
+	}
+	if !c.Owner && conn.TotalChanges()-before != 1 {
+		return out, &Error{Code: "forbidden", Message: "this change would touch other rows; pages cannot make it, only the owner's tools"}
+	}
+	if err = s.finishTableWrite(conn, c, commit); err != nil {
+		return out, err
+	}
+	out.Body = map[string]any{"deleted": true}
+	out.Notify = s.rowNotification(c, in.Table, "record.changed", "deleted", in.ID, nil)
+	return out, nil
 }

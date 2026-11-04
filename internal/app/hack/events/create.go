@@ -6,8 +6,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
 	model "github.com/vsriram/simple-host/internal/model"
+	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
@@ -49,18 +49,18 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
-	holding, err := db.CreateUser(ctx, tx, "event+"+eventID+"@events.invalid", "", false)
+	holding, err := accounts.CreateUser(ctx, tx, "event+"+eventID+"@events.invalid", "", false)
 	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
-	claimed, err := db.ClaimHandle(ctx, tx, holding.ID, slug)
+	claimed, err := accounts.ClaimHandle(ctx, tx, holding.ID, slug)
 	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
 	if !claimed {
 		return model.Event{}, model.EventMember{}, &Error{"name_taken", "that name is already in use"}
 	}
-	if err := db.MarkEventAccount(ctx, tx, holding.ID); err != nil {
+	if err := accounts.MarkEventAccount(ctx, tx, holding.ID); err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
 

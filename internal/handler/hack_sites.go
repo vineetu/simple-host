@@ -40,61 +40,6 @@ func (h *SiteHandler) hackNoPersonalSites(w http.ResponseWriter, user *db.User) 
 	return false
 }
 
-func (h *SiteHandler) hackTeamTxDecision(ctx context.Context, tx *sql.Tx, user *db.User, siteName string, paperSite func(), paperState func(string)) *sites.GateError {
-	if h.ed.Identity().TeamKeys && user.EventWebsite != nil {
-		id := user.EventWebsite
-		if siteName != id.EventID || user.ID == "" {
-			return &sites.GateError{Code: "event_not_found", Message: "event not found"}
-		}
-		var role, stage string
-		var takenDown bool
-		err := tx.QueryRowContext(ctx, `SELECT m.role, e.stage, e.taken_down_at IS NOT NULL
-			FROM events e JOIN event_members m ON m.event_id = e.id
-			WHERE e.id = $1 AND e.slug = $2 AND e.account_id = $3 AND m.user_id = $4
-			FOR SHARE OF e, m`, id.EventID, id.EventSlug, user.ID, id.OrganiserID).Scan(&role, &stage, &takenDown)
-		if err != nil || role != "organiser" {
-			return &sites.GateError{Code: "event_not_found", Message: "event not found"}
-		}
-		if takenDown {
-			return &sites.GateError{Code: "event_taken_down", Message: "this event has been taken down"}
-		}
-		if stage == "archived" {
-			return &sites.GateError{Code: "event_closed", Message: "this event has ended"}
-		}
-		return nil
-	}
-	if !h.ed.Identity().TeamKeys || user.Team == nil {
-		return nil
-	}
-	if !strings.EqualFold(siteName, user.Team.TeamSlug) {
-		return &sites.GateError{Message: "this team key works on your team's site only: " + user.Team.TeamSlug, Code: "team_site_only"}
-	}
-	var memberID string
-	if err := tx.QueryRowContext(ctx, `SELECT user_id FROM event_members WHERE user_id = $1 AND team_id = $2 AND role = 'participant' AND approval_status = 'approved' FOR SHARE`, user.Team.MemberID, user.Team.TeamID).Scan(&memberID); err != nil {
-		return &sites.GateError{Code: "event_not_found", Message: "event not found"}
-	}
-	paperSite()
-	st, err := db.TeamWriteStateFor(ctx, tx, user.Team.TeamID, true)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return &sites.GateError{Message: "this team key stopped working: its team is gone", Code: "team_key_inactive"}
-		}
-		return &sites.GateError{Message: "internal server error"}
-	}
-	paperState(st.Stage)
-	if code := st.WriteRefusal(); code != "" {
-		_, msg := auth.TeamRefusal(code)
-		return &sites.GateError{Message: msg, Code: code}
-	}
-	if !h.teamSitesReady(user.Handle.String) {
-		if !st.EventTakenDown && (st.Stage == "open" || st.Stage == "building" || st.Stage == "closed") {
-			h.RequestSiteCert(user.Handle.String)
-		}
-		return &sites.GateError{Message: "your event's team addresses are still being set up; try again in a few minutes", Code: "team_sites_not_ready"}
-	}
-	return nil
-}
-
 // teamSitesReady: *.<event>.<SITE_DOMAIN> is served with its certificate. A
 // pure check: certificates are asked for only for events that are open,
 // building or closed (HackHandler.requestEventCert, the sweep, a deploy),
@@ -115,7 +60,7 @@ func (h *SiteHandler) TeamSiteURL(eventSlug, teamSlug string) string {
 
 // PublishEventWebsite sends an organiser's upload through the same validated,
 // versioned deploy path as a team site. The holding account is visible only to
-// this scoped internal request; hackTeamTxDecision rechecks membership at commit.
+// this scoped internal request; the transaction gate rechecks membership at commit.
 func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request, ev db.Event, organiserID string, files bool) {
 	if r.URL.Query().Get("publish") == "false" {
 		writeHackErr(w, http.StatusBadRequest, "invalid_request", "event website uploads go live when published")
@@ -175,11 +120,6 @@ func (h *SiteHandler) TeamPreviewLink(ctx context.Context, accountID, eventSlug,
 	return h.previewLink(site, n)
 }
 
-// hackOrganiserTakedownPrefix starts the take-down reason an organiser's
-// take-down puts on a team's site; the organiser can undo only those, never
-// the platform admin's.
-const hackOrganiserTakedownPrefix = "Taken down by the event organiser"
-
 // ErrNotOrganiserTakedown moved to model.ErrNotOrganiserTakedown (cleanup
 // 3.2 slice 1c); alias kept so this file's own callers are unchanged.
 //
@@ -204,59 +144,9 @@ func (h *SiteHandler) TeamPreviewLinkFor(site db.Site, eventSlug string, n int) 
 // every address shows the take-down page and saves stop. One transaction,
 // site row before team row (the order a deploy takes them).
 func (h *SiteHandler) SetTeamSiteTakenDown(ctx context.Context, accountID, teamID, teamSlug string, on bool, reason string) error {
-	unlock := h.lockSite(accountID, teamSlug)
-	defer unlock()
-	tx, err := h.database.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	var siteID, current string
-	err = tx.QueryRowContext(ctx, `
-		SELECT id, COALESCE(suspended_reason, '') FROM sites
-		 WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL FOR UPDATE`, accountID, teamSlug).Scan(&siteID, &current)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	if siteID != "" {
-		switch {
-		case on:
-			full := hackOrganiserTakedownPrefix
-			if reason != "" {
-				full += ": " + reason
-			}
-			if current == "" || strings.HasPrefix(current, hackOrganiserTakedownPrefix) {
-				if err := db.SetSiteSuspended(ctx, tx, siteID, full); err != nil {
-					return err
-				}
-			}
-		case current != "" && !strings.HasPrefix(current, hackOrganiserTakedownPrefix):
-			return ErrNotOrganiserTakedown
-		case current != "":
-			if err := db.SetSiteSuspended(ctx, tx, siteID, ""); err != nil {
-				return err
-			}
-		}
-	}
-	if on {
-		_, err = tx.ExecContext(ctx, `UPDATE event_teams SET site_taken_down_at = COALESCE(site_taken_down_at, now()), site_taken_down_reason = $2 WHERE id = $1`, teamID, reason)
-	} else {
-		_, err = tx.ExecContext(ctx, `UPDATE event_teams SET site_taken_down_at = NULL, site_taken_down_reason = '' WHERE id = $1`, teamID)
-	}
-	if err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	if siteID != "" {
-		fresh, err := db.GetSiteByID(ctx, h.database, siteID)
-		if err != nil {
-			return err
-		}
-		return h.syncSiteMarker(fresh)
-	}
-	return nil
+	return h.sitesSvc().SetTeamSiteTakenDown(ctx, sites.TeamSiteTakedownInput{
+		AccountID: accountID, TeamID: teamID, TeamSlug: teamSlug, On: on, Reason: reason,
+	})
 }
 
 // TrashTeamSite moves the holding account's site of that name to Recently

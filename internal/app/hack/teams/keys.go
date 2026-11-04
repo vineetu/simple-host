@@ -6,11 +6,11 @@ import (
 	"errors"
 	"log"
 
-	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
 	model "github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // MintTeamKey replaces a participant's key under the event and member locks.
@@ -201,12 +201,12 @@ type TeamList struct {
 	States   map[string]model.TeamWriteState
 	Members  map[string][]model.EventPerson
 	Versions map[string]bool
-	Sites    map[string]db.Site
+	Sites    map[string]model.Site
 }
 
 // LoadTeamList reads the batched data for event team listings.
 func (s *Service) LoadTeamList(ctx context.Context, ev model.Event) (TeamList, error) {
-	tl := TeamList{Sites: map[string]db.Site{}, Versions: map[string]bool{}, Members: map[string][]model.EventPerson{}}
+	tl := TeamList{Sites: map[string]model.Site{}, Versions: map[string]bool{}, Members: map[string][]model.EventPerson{}}
 	people, err := eventrepo.ListEventPeople(ctx, s.db, ev.ID)
 	if err != nil {
 		return tl, err
@@ -219,7 +219,7 @@ func (s *Service) LoadTeamList(ctx context.Context, ev model.Event) (TeamList, e
 	if tl.States, err = hackteams.TeamWriteStatesForEvent(ctx, s.db, ev.ID); err != nil {
 		return tl, err
 	}
-	sites, err := db.ListSitesByUser(ctx, s.db, ev.AccountID)
+	sites, err := siterepo.ListSitesByUser(ctx, s.db, ev.AccountID)
 	if err != nil {
 		return tl, err
 	}
@@ -281,7 +281,7 @@ func (s *Service) RemoveOrphanTeamSites(ctx context.Context, ev model.Event, tra
 	if trash == nil {
 		return
 	}
-	orphans, err := db.OrphanTeamSites(ctx, s.db, ev.AccountID)
+	orphans, err := hackteams.OrphanTeamSites(ctx, s.db, ev.AccountID)
 	if err != nil {
 		log.Printf("hack: orphan sites: %v", err)
 		return
@@ -294,8 +294,8 @@ func (s *Service) RemoveOrphanTeamSites(ctx context.Context, ev model.Event, tra
 }
 
 // ActiveSiteVersion reads the active version.
-func (s *Service) ActiveSiteVersion(ctx context.Context, siteID string) (db.Version, error) {
-	return db.GetActiveSiteVersion(ctx, s.db, siteID)
+func (s *Service) ActiveSiteVersion(ctx context.Context, siteID string) (model.Version, error) {
+	return siterepo.GetActiveSiteVersion(ctx, s.db, siteID)
 }
 
 // TeamSiteChanger updates the site's organiser takedown state.

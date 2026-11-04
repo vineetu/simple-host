@@ -65,7 +65,7 @@ func (h *HackHandler) contentView(ctx context.Context, a hackAccess, c hackConte
 
 func (h *HackHandler) registerContent(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("PUT /v1/hack/events/{slug}/announcements/{announcement}", wrap(h.changeAnnouncement))
-	mux.Handle(http.MethodDelete+" /v1/hack/events/{slug}/announcements/{announcement}", wrap(h.changeAnnouncement))
+	mux.Handle("DELETE /v1/hack/events/{slug}/announcements/{announcement}", wrap(h.changeAnnouncement))
 	mux.Handle("GET /v1/hack/events/{slug}/content", wrap(h.getContent))
 	mux.Handle("PUT /v1/hack/events/{slug}/content", wrap(h.putContent))
 	mux.Handle("GET /v1/hack/events/{slug}/announcements", wrap(h.getAnnouncements))

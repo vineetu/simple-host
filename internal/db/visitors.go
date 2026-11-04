@@ -211,35 +211,9 @@ func GetVisitorSession(ctx context.Context, q Querier, id []byte, keyIdle time.D
 	return s, err
 }
 
-// TouchVisitorSession slides idle_expires_at to min(now + idle, expires_at)
-// (idle: VISITOR_SESSION_IDLE_DAYS), and refreshes a live parent pass within
-// its own absolute expiry. An already idle family is never revived.
-func TouchVisitorSession(ctx context.Context, q Querier, id []byte, idle time.Duration) error {
-	_, err := q.ExecContext(ctx, `
-		WITH touched AS (UPDATE visitor_sessions
-		SET last_seen_at = now(),
-		    idle_expires_at = LEAST(now() + ($2 * interval '1 second'), expires_at)
-		WHERE id = $1
-		  AND expires_at > now()
-		  AND idle_expires_at > now() RETURNING sso_pass_hash)
-		UPDATE sso_passes SET idle_expires_at=LEAST(expires_at, now()+($2 * interval '1 second'))
-		WHERE id_hash IN (SELECT sso_pass_hash FROM touched) AND idle_expires_at>now() AND expires_at>now()`, id, int64(idle.Seconds()))
-	return err
-}
-
 // DeleteVisitorSession removes one session row. Missing rows are not an error.
 func DeleteVisitorSession(ctx context.Context, q Querier, id []byte) error {
 	_, err := q.ExecContext(ctx, `DELETE FROM visitor_sessions WHERE id = $1`, id)
-	return err
-}
-
-// EndVisitorSessions signs the account out of every site it is signed in to
-// as a visitor, its own sites included (where such a session carries the
-// owner's powers over saved data). Every "get an intruder out" lever calls
-// it: Sign out everywhere, email-change completion and undo, the admin's new
-// key, removing a Google or GitHub sign-in, and suspension.
-func EndVisitorSessions(ctx context.Context, q Querier, userID string) error {
-	_, err := q.ExecContext(ctx, `DELETE FROM visitor_sessions WHERE user_id = $1`, userID)
 	return err
 }
 

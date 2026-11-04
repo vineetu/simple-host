@@ -6,7 +6,6 @@ import (
 	"errors"
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	runtime "github.com/vsriram/simple-host/internal/storage"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -15,50 +14,15 @@ import (
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
 )
 
-func resourceAccessJSON(m rules.AccessMatrix, base string, legacy bool) map[string]any {
-	out := map[string]any{"access": m}
-	name := rules.PresetName(m)
-	switch {
-	case legacy:
-		out["preset"] = "legacy"
-	case name == "custom":
-		out["preset"] = "custom"
-		if base != "" && base != "custom" {
-			out["based_on"] = base
-		}
-	default:
-		out["preset"] = name
-	}
-	return out
-}
-
-func resourceJSON(x rules.Resource) map[string]any {
-	m := x.Matrix()
-	out := resourceAccessJSON(m, x.PresetBase, x.Legacy())
-	out["name"], out["kind"], out["site_passcode"] = x.Name, x.Kind, x.SitePasscode
-	if x.Access == nil {
-		out["read"], out["write"], out["write_mode"] = x.Read, x.Write, x.WriteMode
-	} else if read, write, mode, ok := rules.OldFields(m); ok {
-		out["read"], out["write"], out["write_mode"] = read, write, mode
-	} else {
-		out["read"] = m.Read
-	}
-	if x.Kind == "sqlite" {
-		out["approve_first"] = x.ApproveFirst
-		tables := map[string]any{}
-		for name, rule := range x.Tables {
-			tables[name] = resourceAccessJSON(rule.Matrix, rule.PresetBase, false)
-		}
-		out["tables"] = tables
-	}
-	if x.Legacy() {
-		out["legacy_note"] = "saved before presets; it keeps its old rules until you set a preset on it"
-	}
-	return out
+// ResourceListing contains a resource and optional legacy visitor history.
+type ResourceListing struct {
+	Resource          rules.Resource
+	VisitorHistory    any
+	HasVisitorHistory bool
 }
 
 // ListStorageResources constructs the owner's resource listing in query order.
-func (s *Service) ListStorageResources(ctx context.Context, call Call) ([]map[string]any, error) {
+func (s *Service) ListStorageResources(ctx context.Context, call Call) ([]ResourceListing, error) {
 	if !call.Owner {
 		return nil, &Error{Code: "forbidden", Message: "owner credential required"}
 	}
@@ -66,15 +30,16 @@ func (s *Service) ListStorageResources(ctx context.Context, call Call) ([]map[st
 	if err != nil {
 		return nil, err
 	}
-	out := []map[string]any{}
+	out := []ResourceListing{}
 	for _, x := range list {
-		entry := resourceJSON(x)
+		entry := ResourceListing{Resource: x}
 		if s.deps.LegacyRoutes {
 			history, err := s.deps.ResourceHistory(ctx, call.SiteID, x.Name)
 			if err != nil {
 				return nil, err
 			}
-			entry["visitor_history"] = history
+			entry.VisitorHistory = history
+			entry.HasVisitorHistory = true
 		}
 		out = append(out, entry)
 	}
@@ -93,8 +58,9 @@ type ResourceInput struct {
 
 // ResourceResult holds the configured resource response.
 type ResourceResult struct {
-	Body    map[string]any
-	Created bool
+	Resource rules.Resource
+	Warnings []string
+	Created  bool
 }
 
 var resourceTableNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
@@ -113,7 +79,7 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 	if !call.Owner {
 		return ResourceResult{}, &Error{Code: "forbidden", Message: "owner credential required"}
 	}
-	ctx, unlock, err := s.WriteLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, nil)
+	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, nil)
 	if err != nil {
 		return ResourceResult{}, err
 	}
@@ -285,12 +251,10 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 	}
 
 	unlock()
-	out := resourceJSON(x)
 	if len(warnings) > 0 {
 		sort.Strings(warnings)
-		out["warnings"] = warnings
 	}
-	return ResourceResult{Body: out, Created: !exists}, nil
+	return ResourceResult{Resource: x, Warnings: warnings, Created: !exists}, nil
 }
 
 // DeleteStorageResource removes a resource and its staged runtime files.
@@ -298,7 +262,7 @@ func (s *Service) DeleteStorageResource(ctx context.Context, call Call) error {
 	if !call.Owner {
 		return &Error{Code: "forbidden", Message: "owner credential required"}
 	}
-	ctx, unlock, err := s.WriteLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
 		return err
 	}
@@ -322,7 +286,7 @@ func (s *Service) DeleteStorageResource(ctx context.Context, call Call) error {
 		return &Error{Code: "internal_error", Message: "internal server error"}
 	}
 	if staged != "" {
-		if err = os.RemoveAll(staged); err != nil {
+		if err = runtime.RemoveStagedRuntime(staged); err != nil {
 			return &Error{Code: "internal_error", Message: "resource removed but staging cleanup failed"}
 		}
 	}

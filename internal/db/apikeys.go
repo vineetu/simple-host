@@ -230,14 +230,6 @@ func DeleteAPIKeyByHash(ctx context.Context, q Querier, userID, keyHash string) 
 	return n > 0, err
 }
 
-// MarkEventAccount records that an organiser made (or reissued) this account
-// for an event (users.event_account): no sign-in alerts, no email change, no
-// idle cleanup. Only the admin's routes call it; a key's name never does.
-func MarkEventAccount(ctx context.Context, q Querier, userID string) error {
-	_, err := q.ExecContext(ctx, `UPDATE users SET event_account = TRUE WHERE id = $1`, userID)
-	return err
-}
-
 // ReservedKeyName reports whether name is one the service gives its own keys
 // (case-insensitive, after trimming). A typed key name may not be one, so a
 // name never reads like something the service made.

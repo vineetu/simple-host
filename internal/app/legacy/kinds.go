@@ -147,12 +147,12 @@ func (a *Adapter) UpdateEntry(ctx context.Context, in UpdateEntryInput) (db.Coll
 	if err := repo.RecordHistory(ctx, tx, in.SiteID, db.HistoryList, in.Name, &in.ID, db.OpEdit, cur.Data, actor); err != nil {
 		return db.CollectionItem{}, set, err
 	}
-	if len(it.Data) > len(cur.Data) && a.deps.MaxBytes > 0 {
+	if len(it.Data) > len(cur.Data) && a.deps.MaxBytes() > 0 {
 		used, err := repo.SiteDataUsage(ctx, tx, in.SiteID)
 		if err != nil {
 			return db.CollectionItem{}, set, err
 		}
-		if used > a.deps.MaxBytes {
+		if used > a.deps.MaxBytes() {
 			return db.CollectionItem{}, set, db.ErrSiteFull
 		}
 	}
@@ -921,8 +921,8 @@ func (a *Adapter) readDataList(ctx context.Context, in DataReadInput) (DataReadR
 			return result, &Error{Code: "site_offline"}
 		}
 	}
-	set, err := a.ListCollectionSettings(ctx, siteID, in.Name)
-	if errors.Is(err, ErrPersonalList) {
+	set, err := a.collectionSettings(ctx, siteID, in.Name)
+	if err == nil && set.Kind == db.KindPersonal {
 		return result, &Error{Code: "personal_only"}
 	}
 	if err != nil {
@@ -950,7 +950,7 @@ func (a *Adapter) readDataList(ctx context.Context, in DataReadInput) (DataReadR
 	if result.WithAuthor {
 		result.PrivateCache = true
 	}
-	result.Items, result.Next, err = a.ListCollection(ctx, CollectionListInput{SiteID: siteID, Collection: in.Name, Limit: in.Limit, Before: in.Before, WithAuthor: result.WithAuthor, Settings: set})
+	result.Items, result.Next, err = a.listCollection(ctx, CollectionListInput{SiteID: siteID, Collection: in.Name, Limit: in.Limit, Before: in.Before, WithAuthor: result.WithAuthor, Settings: set})
 	result.Board = set.Kind == db.KindBoard
 	if err != nil {
 		return result, &Error{Code: "internal", Message: err.Error()}

@@ -2,15 +2,13 @@ package db
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"github.com/vsriram/simple-host/internal/model"
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
@@ -19,44 +17,6 @@ import (
 // expected version no longer matches the stored one (a concurrent write landed
 // in between). Callers should re-read and retry.
 var ErrStateVersionConflict = errors.New("state version conflict")
-
-// CreateUser inserts an account. When apiKey is not empty it also becomes one
-// of the account's keys; only its SHA-256 is stored (see api_keys).
-func CreateUser(ctx context.Context, q Querier, username, apiKey string, isAdmin bool) (User, error) {
-	const query = `
-		WITH u AS (
-			INSERT INTO users (username, is_admin)
-			VALUES ($1, $3)
-			RETURNING id, username, is_admin, created_at, handle, display_name
-		), k AS (
-			INSERT INTO api_keys (key_hash, user_id)
-			SELECT $2, id FROM u WHERE $2 <> ''
-		)
-		SELECT id, username, is_admin, created_at, handle, display_name FROM u
-	`
-	keyHash := ""
-	if apiKey != "" {
-		keyHash = HashAPIKey(apiKey)
-	}
-
-	var user User
-	err := q.QueryRowContext(ctx, query, username, keyHash, isAdmin).Scan(
-		&user.ID,
-		&user.Username,
-		&user.IsAdmin,
-		&user.CreatedAt,
-		&user.Handle,
-		&user.DisplayName,
-	)
-	return user, err
-}
-
-// HashAPIKey is how an account key is stored and looked up: hex SHA-256.
-// A fast hash is right here because keys are 256 random bits, not passwords.
-func HashAPIKey(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(sum[:])
-}
 
 // AddAPIKey stores one more key for an account under name (see the Key*
 // names). Every sign-in hands out a new key this way, because a stored hash
@@ -197,52 +157,6 @@ func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKe
 	return tx.Commit()
 }
 
-func GetUserByUsername(ctx context.Context, q Querier, username string) (User, error) {
-	const query = `
-		SELECT id, username, is_admin, created_at, handle, display_name,
-		       suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
-		FROM users
-		WHERE username = $1
-	`
-
-	var user User
-	err := q.QueryRowContext(ctx, query, username).Scan(
-		&user.ID,
-		&user.Username,
-		&user.IsAdmin,
-		&user.CreatedAt,
-		&user.Handle,
-		&user.DisplayName,
-		&user.Suspended,
-		&user.SuspendedReason,
-	)
-	return user, err
-}
-
-// GetUserByID loads a users row by primary key, including whether the
-// operator has suspended it (callers that authenticate must check Suspended).
-func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
-	const query = `
-		SELECT id, username, is_admin, created_at, handle, display_name,
-		       suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
-		FROM users
-		WHERE id = $1
-	`
-
-	var user User
-	err := q.QueryRowContext(ctx, query, id).Scan(
-		&user.ID,
-		&user.Username,
-		&user.IsAdmin,
-		&user.CreatedAt,
-		&user.Handle,
-		&user.DisplayName,
-		&user.Suspended,
-		&user.SuspendedReason,
-	)
-	return user, err
-}
-
 // GetUserByHandle looks up a user by their URL-safe handle.
 func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, error) {
 	const query = `
@@ -278,93 +192,6 @@ func GetHandleBySiteName(ctx context.Context, db *sql.DB, name string) (string, 
 	var handle string
 	err := db.QueryRowContext(ctx, query, name).Scan(&handle)
 	return handle, err
-}
-
-// ClaimHandle atomically sets a user's handle iff still unset. Returns (true,nil) on
-// success, (false,nil) if the handle is taken (unique violation) so the caller can try
-// the next candidate, (false,err) on other errors.
-func ClaimHandle(ctx context.Context, q Querier, userID, handle string) (bool, error) {
-	// The handle is also the account's address, <handle>.<SITE_DOMAIN>: it
-	// must not land on a name a site has claimed or a retired name-subdomain.
-	if currentPlatformDomain() != "" {
-		switch qq := q.(type) {
-		case *sql.Tx:
-			ok, err := HandleAvailable(ctx, qq, userID, handle)
-			if err != nil || !ok {
-				return false, err
-			}
-		case *sql.DB:
-			tx, err := qq.BeginTx(ctx, nil)
-			if err != nil {
-				return false, err
-			}
-			defer tx.Rollback()
-			ok, err := HandleAvailable(ctx, tx, userID, handle)
-			if err != nil || !ok {
-				return false, err
-			}
-			claimed, err := claimHandleIn(ctx, tx, userID, handle)
-			if err != nil || !claimed {
-				return false, err
-			}
-			return true, tx.Commit()
-		}
-	}
-	return claimHandleIn(ctx, q, userID, handle)
-}
-
-func claimHandleIn(ctx context.Context, q Querier, userID, handle string) (bool, error) {
-	const query = `
-		UPDATE users
-		SET handle = $2, handle_changed_at = now()
-		WHERE id = $1 AND handle IS NULL
-	`
-	// A collision must not abort the signup/bulk transaction before the next candidate.
-	tx, inTx := q.(*sql.Tx)
-	if inTx {
-		if _, err := tx.ExecContext(ctx, "SAVEPOINT claim_handle"); err != nil {
-			return false, err
-		}
-	}
-	res, err := q.ExecContext(ctx, query, userID, handle)
-	if err != nil {
-		if isUniqueViolation(err) {
-			if inTx {
-				if _, rollbackErr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT claim_handle"); rollbackErr != nil {
-					return false, rollbackErr
-				}
-				if _, releaseErr := tx.ExecContext(ctx, "RELEASE SAVEPOINT claim_handle"); releaseErr != nil {
-					return false, releaseErr
-				}
-			}
-			return false, nil
-		}
-		return false, err
-	}
-	if inTx {
-		if _, err := tx.ExecContext(ctx, "RELEASE SAVEPOINT claim_handle"); err != nil {
-			return false, err
-		}
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-	if n == 0 {
-		// Already had a handle, or user id not found.
-		return false, nil
-	}
-	return true, nil
-}
-
-// isUniqueViolation detects a Postgres unique-constraint violation (SQLSTATE 23505).
-func isUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	// lib/pq and pgx both surface the SQLSTATE in the error text as "23505".
-	msg := err.Error()
-	return strings.Contains(msg, "23505") || strings.Contains(strings.ToLower(msg), "unique")
 }
 
 // Alias (cleanup 4.1): defined in internal/repository/sqlkit.
@@ -510,43 +337,6 @@ func SiteCreatedAt(ctx context.Context, q Querier, id string) (time.Time, string
 	return at, name, err
 }
 
-func GetSiteByUser(ctx context.Context, db *sql.DB, userID, name string) (Site, error) {
-	const query = `
-		SELECT id, user_id, name, active_version, COALESCE(site_url, ''), created_at, updated_at, custom_domain, domain_status, visibility,
-		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id),
-		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
-		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
-		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), ''),
-		       sites.offline_at IS NOT NULL, sites.keep_versions, sites.passcode_enc IS NOT NULL, sites.access = 'specific'
-		FROM sites
-		WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL
-	`
-
-	var site Site
-	err := db.QueryRowContext(ctx, query, userID, name).Scan(
-		&site.ID,
-		&site.UserID,
-		&site.Name,
-		&site.ActiveVersion,
-		&site.SiteURL,
-		&site.CreatedAt,
-		&site.UpdatedAt,
-		&site.CustomDomain,
-		&site.DomainStatus,
-		&site.Visibility,
-		&site.OwnerHandle,
-		&site.SiteSuspended,
-		&site.SiteSuspendedReason,
-		&site.OwnerSuspended,
-		&site.OwnerSuspendedReason,
-		&site.Offline,
-		&site.KeepVersions,
-		&site.Passcode,
-		&site.NamedViewers,
-	)
-	return site, err
-}
-
 func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 	const query = `
 		SELECT s.id, s.user_id, s.name, s.active_version, COALESCE(s.site_url, ''), s.created_at, s.updated_at, s.custom_domain, s.domain_status, s.visibility, u.username, COALESCE(u.handle, ''),
@@ -656,29 +446,6 @@ func listUsers(ctx context.Context, db *sql.DB, withSites bool) ([]User, error) 
 	return out, rows.Err()
 }
 
-func ListSitesByUser(ctx context.Context, db *sql.DB, userID string) ([]Site, error) {
-	const query = `
-		SELECT id, user_id, name, active_version, COALESCE(site_url, ''), created_at, updated_at, custom_domain, domain_status, visibility,
-		       (SELECT COALESCE(u.handle, '') FROM users u WHERE u.id = sites.user_id),
-		       domain_last_error, domain_bound_at, domain_verified_at, COALESCE(previous_domain, ''), COALESCE(domain_cert_status, ''), COALESCE(domain_token, ''),
-		       (SELECT max(v.created_at) FROM versions v WHERE v.site_id = sites.id AND v.status = 'active'),
-		       sites.suspended_at IS NOT NULL, COALESCE(sites.suspended_reason, ''),
-		       COALESCE((SELECT su.suspended_at IS NOT NULL FROM users su WHERE su.id = sites.user_id), false),
-		       COALESCE((SELECT su.suspended_reason FROM users su WHERE su.id = sites.user_id AND su.suspended_at IS NOT NULL), ''),
-		       sites.offline_at IS NOT NULL, sites.keep_versions, sites.passcode_enc IS NOT NULL, sites.access = 'specific',
-		       COALESCE(summary_title, ''), COALESCE(summary_description, ''), COALESCE(summary_headings, ''), COALESCE(summary_text, '')
-		FROM sites
-		WHERE user_id = $1 AND deleted_at IS NULL
-		ORDER BY updated_at DESC, created_at DESC, name ASC
-	`
-
-	rows, err := db.QueryContext(ctx, query, userID)
-	if err != nil {
-		return nil, err
-	}
-	return scanSiteRows(rows)
-}
-
 // SetSiteOffline takes a site offline (on) or brings it back (off). Nothing
 // else about the site changes. sql.ErrNoRows for an unknown or deleted site.
 func SetSiteOffline(ctx context.Context, q Querier, siteID string, on bool) error {
@@ -701,55 +468,6 @@ func SiteOffline(ctx context.Context, q Querier, siteID string) (bool, error) {
 	var off bool
 	err := q.QueryRowContext(ctx, `SELECT offline_at IS NOT NULL FROM sites WHERE id::text = $1`, siteID).Scan(&off)
 	return off, err
-}
-
-func scanSiteRows(rows *sql.Rows) ([]Site, error) {
-	defer rows.Close()
-
-	var sites []Site
-	for rows.Next() {
-		var site Site
-
-		if err := rows.Scan(
-			&site.ID,
-			&site.UserID,
-			&site.Name,
-			&site.ActiveVersion,
-			&site.SiteURL,
-			&site.CreatedAt,
-			&site.UpdatedAt,
-			&site.CustomDomain,
-			&site.DomainStatus,
-			&site.Visibility,
-			&site.OwnerHandle,
-			&site.DomainLastError,
-			&site.DomainBoundAt,
-			&site.DomainVerifiedAt,
-			&site.PreviousDomain,
-			&site.DomainCertStatus,
-			&site.DomainToken,
-			&site.LastDeployedAt,
-			&site.SiteSuspended,
-			&site.SiteSuspendedReason,
-			&site.OwnerSuspended,
-			&site.OwnerSuspendedReason,
-			&site.Offline,
-			&site.KeepVersions,
-			&site.Passcode,
-			&site.NamedViewers,
-			&site.SummaryTitle, &site.SummaryDescription, &site.SummaryHeadings, &site.SummaryText,
-		); err != nil {
-			return nil, err
-		}
-
-		sites = append(sites, site)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return sites, nil
 }
 
 // CreateAuthToken inserts a new verification token row.
@@ -1038,26 +756,4 @@ func SetSiteStateByID(ctx context.Context, q Querier, siteID string, state json.
 		return 0, err
 	}
 	return version, nil
-}
-
-func GetActiveSiteVersion(ctx context.Context, db *sql.DB, siteID string) (Version, error) {
-	const query = `
-		SELECT v.id, v.site_id, v.version_number, v.disk_path, v.status, v.created_at
-		FROM versions v
-		INNER JOIN sites s ON s.id = v.site_id
-		WHERE v.site_id = $1
-		  AND v.version_number = s.active_version
-		  AND v.status = 'active'
-	`
-
-	var version Version
-	err := db.QueryRowContext(ctx, query, siteID).Scan(
-		&version.ID,
-		&version.SiteID,
-		&version.VersionNumber,
-		&version.DiskPath,
-		&version.Status,
-		&version.CreatedAt,
-	)
-	return version, err
 }
