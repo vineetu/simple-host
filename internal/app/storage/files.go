@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -122,7 +121,7 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	s.deps.ScanFile(call, in.Path, body)
 	s.deps.MarkChanged()
 	unlock()
-	result := FilePutResult{Bytes: len(body), ContentType: http.DetectContentType(body)}
+	result := FilePutResult{Bytes: len(body), ContentType: mechanics.DetectContentType(body)}
 	s.deps.Notify(call, "file.uploaded", map[string]any{"path": in.Path, "size": result.Bytes, "content_type": result.ContentType})
 	return result, auth, nil
 }
@@ -303,7 +302,7 @@ func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, 
 			n, _ := f.Read(b[:])
 			f.Close()
 			mine := true
-			out = append(out, FileItem{Path: p, Bytes: fi.Size(), ContentType: http.DetectContentType(b[:n]), Mine: &mine})
+			out = append(out, FileItem{Path: p, Bytes: fi.Size(), ContentType: mechanics.DetectContentType(b[:n]), Mine: &mine})
 			return true, nil
 		})
 		if e != nil {
@@ -349,7 +348,7 @@ func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, 
 		var b [512]byte
 		n, _ := f.Read(b[:])
 		f.Close()
-		out = append(out, FileItem{Path: p, Bytes: fi.Size(), ContentType: http.DetectContentType(b[:n])})
+		out = append(out, FileItem{Path: p, Bytes: fi.Size(), ContentType: mechanics.DetectContentType(b[:n])})
 		if len(out) >= in.Limit+1 {
 			return io.EOF
 		}
