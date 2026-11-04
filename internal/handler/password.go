@@ -50,7 +50,17 @@ func (h *UserHandler) passwordSignIn(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, errorResponse{Error: "invalid request body"})
 		return
 	}
+	if _, err := signInKeyName(verifyRequest{Name: req.Name}); err != nil {
+		writeJSON(w, 400, errorResponse{Error: err.Error()})
+		return
+	}
 	login, ip := accounts.NormalizeLogin(req.Login), clientIP(r)
+	if _, blocked := h.geoBlock.BlockedCountry(ip); blocked {
+		writeJSON(w, http.StatusForbidden, signupBlockedError)
+		return
+	}
+	// Every attempt spends the per-IP budget (each one costs an argon2 hash);
+	// only the per-login budget is given back when the password was right.
 	if !h.passwordIPLimiter.allowHTTP(w, ip) {
 		tooManyRequests(w)
 		return
@@ -63,7 +73,6 @@ func (h *UserHandler) passwordSignIn(w http.ResponseWriter, r *http.Request) {
 	user, err := h.accounts.PasswordSignIn(r.Context(), login, req.Password, req.NewPassword)
 	var failure *accounts.LifecycleError
 	if !errors.As(err, &failure) || failure.Code != "bad_credentials" {
-		h.passwordIPLimiter.Refund(ip)
 		h.passwordLoginLimiter.Refund(login)
 	}
 	if writeLifecycleFailure(w, err) {

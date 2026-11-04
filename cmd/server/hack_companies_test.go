@@ -39,20 +39,22 @@ func TestHackCompaniesPage(t *testing.T) {
 	}
 }
 
-// TestHackHomeLinksToCompanies: the home page (both the canonical video home
-// and the self-hosted drawn-film home) carries a plain link to /companies,
-// and the shared footer does too.
+// TestHackHomeLinksToCompanies: the hosted home page and footer link to
+// /companies; a self-hosted install's do not.
 func TestHackHomeLinksToCompanies(t *testing.T) {
 	for _, base := range []string{"https://simple-hack.app", "https://hack.example.org"} {
 		mux := hackHomeTestMux(t, base)
 		host := strings.TrimPrefix(base, "https://")
 		rec := get(t, mux, host, "/")
 		body := rec.Body.String()
-		if !strings.Contains(body, `href="/companies"`) {
-			t.Errorf("%s home page does not link to /companies", base)
+		// The companies page pitches running Simple Hack on your own server:
+		// only the hosted service links to it (owner, 2026-11-04).
+		hosted := base == "https://simple-hack.app"
+		if got := strings.Contains(body, `href="/companies"`); got != hosted {
+			t.Errorf("%s home page links to /companies = %v, want %v", base, got, hosted)
 		}
-		if !strings.Contains(body, "For companies") {
-			t.Errorf("%s home page missing the \"For companies\" link text", base)
+		if got := strings.Contains(body, "For companies"); got != hosted {
+			t.Errorf("%s home page \"For companies\" link text = %v, want %v", base, got, hosted)
 		}
 	}
 }

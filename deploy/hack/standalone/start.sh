@@ -11,7 +11,7 @@ if [ "$#" -gt 0 ]; then exec simple-host "$@"; fi
 : "${SITE_DOMAIN:?}"
 # Resend is only required when there is no other way to sign in: company
 # sign-in (OIDC_ISSUER + OIDC_CLIENT_ID + OIDC_CLIENT_SECRET) does not need it.
-if [ "${PASSWORD_SIGNIN:-on}" != "on" ] && { [ -z "${OIDC_ISSUER:-}" ] || [ -z "${OIDC_CLIENT_ID:-}" ] || [ -z "${OIDC_CLIENT_SECRET:-}" ]; }; then
+if [ "${PASSWORD_SIGNIN:-off}" != "on" ] && { [ -z "${OIDC_ISSUER:-}" ] || [ -z "${OIDC_CLIENT_ID:-}" ] || [ -z "${OIDC_CLIENT_SECRET:-}" ]; }; then
   : "${RESEND_API_KEY:?Set RESEND_API_KEY and MAIL_FROM, or configure OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET for company sign-in.}"
   : "${MAIL_FROM:?Set RESEND_API_KEY and MAIL_FROM, or configure OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET for company sign-in.}"
 fi

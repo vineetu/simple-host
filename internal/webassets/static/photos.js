@@ -85,6 +85,13 @@
     card = window.SHSignIn.mount($('signin'), {
       skin: 'ink', title: 'Sign in to add photos', product: 'Simple Host',
       providers: providers.providers || [], oidcLabel: providers.oidc_label || '', emailEnabled: providers.email_enabled !== false,
+      password: providers.password,
+      onPasswordSuccess: async data => {
+        apiKey = data.api_key;
+        localStorage.setItem('apiKey', apiKey);
+        await loadSites();
+        return data;
+      },
       // Typed codes complete on this URL. Provider returns use the dashboard's
       // existing nonce-checked flow, then return to this exact photo selection.
       requestCode: async email => {

@@ -181,7 +181,10 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 			if err := old.ExecuteTemplate(&want, name, d); err != nil {
 				t.Fatalf("baseline %s %+v: %v", name, d, err)
 			}
-			if got.String() != want.String() {
+			// The 2026-11-04 hosted-only markers wrap footer links; as the hosted
+			// service renders them (markers dropped) the partials are unchanged.
+			gotHosted := strings.NewReplacer("<!--sh:hosted-->", "", "<!--/sh:hosted-->", "").Replace(got.String())
+			if gotHosted != want.String() {
 				t.Errorf("%s mismatch for %+v\n--- got ---\n%s\n--- want ---\n%s", name, d, got.String(), want.String())
 			}
 		}
