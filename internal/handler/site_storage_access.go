@@ -79,8 +79,6 @@ func (q storageAccessRequest) matrix() (storageAccessMatrix, string, string, str
 
 var storageTableNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 
-const storageTablesMax = 50
-
 // storageAccessJSON is a matrix's preset label and fields for a response.
 func storageAccessJSON(m storageAccessMatrix, base string, legacy bool) map[string]any {
 	out := map[string]any{"access": m}
@@ -174,24 +172,9 @@ func fromRulesResource(r rules.Resource) storageResource {
 	}
 	return x
 }
-func scanStorageResource(scan func(...any) error) (storageResource, error) {
-	r, e := repo.ScanResource(scan)
-	return fromRulesResource(r), e
-}
 func (h *SiteHandler) loadStorageResource(ctx context.Context, siteID, name string) (storageResource, error) {
 	r, e := repo.LoadResource(ctx, h.database, siteID, name)
 	return fromRulesResource(r), e
-}
-func (h *SiteHandler) loadStorageTables(ctx context.Context, siteID, name string) (map[string]storageTableRule, error) {
-	t, e := repo.LoadTables(ctx, h.database, siteID, name)
-	if t == nil {
-		return nil, e
-	}
-	out := make(map[string]storageTableRule, len(t))
-	for n, v := range t {
-		out[n] = storageTableRule{Matrix: storageAccessMatrix(v.Matrix), PresetBase: v.PresetBase}
-	}
-	return out, e
 }
 
 // storageOwnerOnSite reports whether a visitor session is the site's owner

@@ -83,6 +83,7 @@ func (s *Service) ListStorageResources(ctx context.Context, call Call) ([]map[st
 
 // ResourceInput holds the decoded resource configuration.
 type ResourceInput struct {
+	Call       Call
 	Name, Kind string
 	rules.AccessRequest
 	Write, WriteMode, SitePasscode string
@@ -107,7 +108,11 @@ func accessResourceError(rule, hint string) *Error {
 }
 
 // PutStorageResource updates a resource while holding the site write lock.
-func (s *Service) PutStorageResource(ctx context.Context, call Call, in ResourceInput) (ResourceResult, error) {
+func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (ResourceResult, error) {
+	call := in.Call
+	if !call.Owner {
+		return ResourceResult{}, &Error{Code: "forbidden", Message: "owner credential required"}
+	}
 	ctx, unlock, err := s.WriteLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, nil)
 	if err != nil {
 		return ResourceResult{}, err
@@ -290,6 +295,9 @@ func (s *Service) PutStorageResource(ctx context.Context, call Call, in Resource
 
 // DeleteStorageResource removes a resource and its staged runtime files.
 func (s *Service) DeleteStorageResource(ctx context.Context, call Call) error {
+	if !call.Owner {
+		return &Error{Code: "forbidden", Message: "owner credential required"}
+	}
 	ctx, unlock, err := s.WriteLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
 		return err

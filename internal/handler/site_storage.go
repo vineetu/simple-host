@@ -293,7 +293,8 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	call := h.storageServiceCall(c)
-	result, err := h.storageRequestSvc(r, c).PutStorageResource(r.Context(), call, appstorage.ResourceInput{
+	result, err := h.storageRequestSvc(r, c).PutStorageResource(r.Context(), appstorage.ResourceInput{
+		Call: call,
 		Name: name, Kind: req.Kind, AccessRequest: req.AccessRequest, Write: req.Write, WriteMode: req.WriteMode, SitePasscode: req.SitePasscode, Tables: req.Tables, ApproveFirst: req.ApproveFirst,
 	})
 	if err != nil {
@@ -305,6 +306,8 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		switch e.Code {
 		case "storage_busy":
 			storageBusy(w)
+		case "forbidden":
+			storageError(w, 403, e.Code, e.Message)
 		case "resource_kind_conflict", "tables_present":
 			storageError(w, 409, e.Code, e.Message)
 		case "site_full":
@@ -370,6 +373,10 @@ func (h *SiteHandler) getStorageUsage(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.storageSvc().GetStorageUsage(r.Context(), h.storageServiceCall(c))
 	if err != nil {
+		if e, ok := err.(*appstorage.Error); ok && e.Code == "forbidden" {
+			storageError(w, 403, e.Code, e.Message)
+			return
+		}
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
@@ -392,6 +399,8 @@ func (h *SiteHandler) deleteStorageResource(w http.ResponseWriter, r *http.Reque
 			storageBusy(w)
 		case "resource_changed":
 			storageError(w, 409, e.Code, e.Message)
+		case "forbidden":
+			storageError(w, 403, e.Code, e.Message)
 		default:
 			storageError(w, 500, e.Code, e.Message)
 		}

@@ -118,6 +118,9 @@ func (s *Service) FilesRemaining(u Usage) int64 {
 
 // GetStorageUsage prepares the owner's storage usage report.
 func (s *Service) GetStorageUsage(ctx context.Context, call Call) (map[string]any, error) {
+	if !call.Owner {
+		return nil, &Error{Code: "forbidden", Message: "owner credential required"}
+	}
 	u, err := s.MeasureSiteStorage(ctx, call.SiteID, call.RuntimeDir)
 	if err != nil {
 		return nil, err

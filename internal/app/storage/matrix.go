@@ -34,10 +34,9 @@ func (s *Service) prepareResourceMatrix(ctx context.Context, call Call, resource
 	defer release()
 	existing, err = runtime.PrepareMatrixDatabase(ctx, path, s.deps.SQLiteMaxMemory, SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool), s.BudgetUsed(usage), fi.Size(), requireEmpty, clearIDs, resource.OwnTables(), resource.Holds, func(err error) {
 		log.Printf("storage: site %s %s: checkpoint after preset: %v", call.SiteID, resource.Name, err)
-	})
+	}, s.deps.MarkChanged)
 	if err != nil {
 		return existing, err
 	}
-	s.deps.MarkChanged()
 	return existing, nil
 }

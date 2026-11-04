@@ -9,7 +9,7 @@ import (
 )
 
 // PrepareMatrixDatabase applies the SQLite changes needed for a resource matrix.
-func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, used, fileSize int64, requireEmpty, clearIDs bool, ownTables, holdTables func(string) bool, checkpoint func(error)) (map[string]bool, error) {
+func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, used, fileSize int64, requireEmpty, clearIDs bool, ownTables, holdTables func(string) bool, checkpoint func(error), markChanged func()) (map[string]bool, error) {
 	existing := map[string]bool{}
 	conn, err := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, maxMemory), path)
 	if err != nil {
@@ -92,5 +92,6 @@ func PrepareMatrixDatabase(ctx context.Context, path string, maxMemory, limit, u
 	if _, _, err = conn.WALCheckpoint("main", sqlite3.CHECKPOINT_TRUNCATE); err != nil {
 		checkpoint(err)
 	}
+	markChanged()
 	return existing, nil
 }

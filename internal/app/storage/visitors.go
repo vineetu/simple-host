@@ -10,8 +10,8 @@ import (
 
 // VisitorsInput identifies the site's requested visitors.
 type VisitorsInput struct {
-	SiteID string
-	IDs    []string
+	Call Call
+	IDs  []string
 }
 
 // Visitor is a resolved visitor identity.
@@ -22,7 +22,10 @@ type Visitor struct {
 
 // Visitors resolves identities only for visitors who signed in on the site.
 func (s *Service) Visitors(ctx context.Context, in VisitorsInput) ([]Visitor, error) {
-	wrote, err := repository.SignedInAmong(ctx, s.db, in.SiteID, in.IDs)
+	if !in.Call.Owner {
+		return nil, &Error{Code: "forbidden", Message: "owner credential required"}
+	}
+	wrote, err := repository.SignedInAmong(ctx, s.db, in.Call.SiteID, in.IDs)
 	if err != nil {
 		return nil, err
 	}
