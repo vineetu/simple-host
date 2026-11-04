@@ -27,3 +27,14 @@ func LockSiteTakedown(ctx context.Context, tx *sql.Tx, accountID, teamSlug strin
 		 WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL FOR UPDATE`, accountID, teamSlug).Scan(&siteID, &reason)
 	return
 }
+
+// SetTeamSiteTakedown records or clears the team's site takedown.
+func SetTeamSiteTakedown(ctx context.Context, tx *sql.Tx, teamID string, on bool, reason string) error {
+	var err error
+	if on {
+		_, err = tx.ExecContext(ctx, `UPDATE event_teams SET site_taken_down_at = COALESCE(site_taken_down_at, now()), site_taken_down_reason = $2 WHERE id = $1`, teamID, reason)
+	} else {
+		_, err = tx.ExecContext(ctx, `UPDATE event_teams SET site_taken_down_at = NULL, site_taken_down_reason = '' WHERE id = $1`, teamID)
+	}
+	return err
+}

@@ -89,7 +89,7 @@ The following is the final production allowlist. Paths are relative to `internal
 | `cmd/server` | `/**` except `testdb`, `geoip/geoiptest` |
 | `{handler,hackhttp}` | `app/**`, `auth`, `httpx`, `edition`, `model`, `webassets`, `buildinfo`, `workers` |
 | `handler` | `mcp` (connector transport composition only) |
-| `auth` | `app/accounts`, `httpx`, `edition`, `model`, `rules/auth` |
+| `auth` | `app/accounts`, `httpx`, `edition`, `model`, `rules/auth`, `rules/sites` |
 | `mcp` | `app/**`, `edition`, `model`, `httpx`, `buildinfo`, `brain`, `webassets`, `workers` |
 | `httpx` | `app/errors`, `model`, `edition` |
 | `app/{accounts,sites,storage,legacy,notifications,operations}`, `app/hack/{events,entries}` | `app/errors`, `model`, `edition`, `workers`, `repository/sqlkit` |

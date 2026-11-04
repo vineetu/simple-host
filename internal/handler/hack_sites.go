@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
-	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // Team sites on the hackathon platform (EVENTS=hosted, M2;
@@ -120,11 +120,6 @@ func (h *SiteHandler) TeamPreviewLink(ctx context.Context, accountID, eventSlug,
 	return h.previewLink(site, n)
 }
 
-// hackOrganiserTakedownPrefix starts the take-down reason an organiser's
-// take-down puts on a team's site; the organiser can undo only those, never
-// the platform admin's.
-const hackOrganiserTakedownPrefix = "Taken down by the event organiser"
-
 // ErrNotOrganiserTakedown moved to model.ErrNotOrganiserTakedown (cleanup
 // 3.2 slice 1c); alias kept so this file's own callers are unchanged.
 //
@@ -149,56 +144,9 @@ func (h *SiteHandler) TeamPreviewLinkFor(site db.Site, eventSlug string, n int) 
 // every address shows the take-down page and saves stop. One transaction,
 // site row before team row (the order a deploy takes them).
 func (h *SiteHandler) SetTeamSiteTakenDown(ctx context.Context, accountID, teamID, teamSlug string, on bool, reason string) error {
-	unlock := h.lockSite(accountID, teamSlug)
-	defer unlock()
-	tx, err := h.database.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	siteID, current, err := siterepo.LockSiteTakedown(ctx, tx, accountID, teamSlug)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	if siteID != "" {
-		switch {
-		case on:
-			full := hackOrganiserTakedownPrefix
-			if reason != "" {
-				full += ": " + reason
-			}
-			if current == "" || strings.HasPrefix(current, hackOrganiserTakedownPrefix) {
-				if err := db.SetSiteSuspended(ctx, tx, siteID, full); err != nil {
-					return err
-				}
-			}
-		case current != "" && !strings.HasPrefix(current, hackOrganiserTakedownPrefix):
-			return ErrNotOrganiserTakedown
-		case current != "":
-			if err := db.SetSiteSuspended(ctx, tx, siteID, ""); err != nil {
-				return err
-			}
-		}
-	}
-	if on {
-		_, err = tx.ExecContext(ctx, `UPDATE event_teams SET site_taken_down_at = COALESCE(site_taken_down_at, now()), site_taken_down_reason = $2 WHERE id = $1`, teamID, reason)
-	} else {
-		_, err = tx.ExecContext(ctx, `UPDATE event_teams SET site_taken_down_at = NULL, site_taken_down_reason = '' WHERE id = $1`, teamID)
-	}
-	if err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	if siteID != "" {
-		fresh, err := db.GetSiteByID(ctx, h.database, siteID)
-		if err != nil {
-			return err
-		}
-		return h.syncSiteMarker(fresh)
-	}
-	return nil
+	return h.sitesSvc().SetTeamSiteTakenDown(ctx, sites.TeamSiteTakedownInput{
+		AccountID: accountID, TeamID: teamID, TeamSlug: teamSlug, On: on, Reason: reason,
+	})
 }
 
 // TrashTeamSite moves the holding account's site of that name to Recently

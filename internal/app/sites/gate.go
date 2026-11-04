@@ -6,9 +6,9 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
+	siterules "github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 func (s *Service) createGate(ctx context.Context, tx *sql.Tx, user *db.User, siteName string) *GateError {
@@ -48,7 +48,7 @@ func (s *Service) createGate(ctx context.Context, tx *sql.Tx, user *db.User, sit
 	}
 	s.deps.PaperState(ctx, user, st.Stage)
 	if code := st.WriteRefusal(); code != "" {
-		_, msg := auth.TeamRefusal(code)
+		msg := siterules.TeamRefusalMessage(code)
 		return &GateError{Message: msg, Code: code}
 	}
 	if !s.deps.TeamSitesReady(user.Handle.String) {
