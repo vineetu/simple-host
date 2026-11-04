@@ -290,7 +290,11 @@ func parseDoc(p, repo, text string) Doc {
 	cur := Section{ID: "top", Level: 0}
 	var body []string
 	inFence := false
-	fenceMarker := ""
+	// featureFence tracks fences by CommonMark rules (``` or ~~~, closed by the
+	// same marker) only to keep literal anchors in examples; heading parsing
+	// keeps the plain ``` toggle above, unchanged for every other document.
+	featureFence := ""
+	isFeatures := path.Base(p) == "FEATURES.md"
 	flush := func() {
 		cur.Text = strings.TrimSpace(strings.Join(body, "\n"))
 		if cur.Text != "" || cur.Heading != "" {
@@ -301,21 +305,25 @@ func parseDoc(p, repo, text string) Doc {
 	isMarkdown := strings.HasSuffix(p, ".md")
 	for _, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			n := 0
-			for n < len(trimmed) && trimmed[n] == trimmed[0] {
-				n++
-			}
-			if !inFence {
-				fenceMarker = trimmed[:n]
-				inFence = true
-			} else if trimmed[0] == fenceMarker[0] && n >= len(fenceMarker) && strings.TrimSpace(trimmed[n:]) == "" {
-				inFence = false
-			}
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
 		}
-		// Stable feature IDs are metadata, not owner-facing headings or prose.
-		if path.Base(p) == "FEATURES.md" && !inFence {
-			line = featureAnchor.ReplaceAllString(line, "")
+		if isFeatures {
+			if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+				n := 0
+				for n < len(trimmed) && trimmed[n] == trimmed[0] {
+					n++
+				}
+				if featureFence == "" {
+					featureFence = trimmed[:n]
+				} else if trimmed[0] == featureFence[0] && n >= len(featureFence) && strings.TrimSpace(trimmed[n:]) == "" {
+					featureFence = ""
+				}
+			}
+			// Stable feature IDs are metadata, not owner-facing headings or prose.
+			if featureFence == "" {
+				line = featureAnchor.ReplaceAllString(line, "")
+			}
 		}
 		if m := headingLine.FindStringSubmatch(line); isMarkdown && m != nil && !inFence {
 			flush()
