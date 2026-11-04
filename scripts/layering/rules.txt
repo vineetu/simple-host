@@ -34,7 +34,7 @@ geoip -> workers
 @/cmd/analytics-rebuild -> analytics config
 @/cmd/ip-country-load -> -
 @/scripts/layering -> -
-@/scripts/mcpinventory -> mcp
+@/scripts/inventory -> mcp
 mcp/apps/gentool -> mcp/apps/bundlegen
 [test]
 /** -> testdb geoip/geoiptest

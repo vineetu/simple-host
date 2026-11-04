@@ -20,10 +20,9 @@ fail=0
 
 # Registered /v1 routes from the Go source (method+path), minus OPTIONS preflight
 #. Setup operations are accounted for as internal.
-routes=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/[^"]+"' internal/ cmd/ \
-  | sed -E 's/.*"([A-Z]+) (\/v1\/[^"]+)"/\1 \2/' \
-  | grep -vE '^OPTIONS ' \
-  | awk '{print $2}' | sed -E 's/\{([[:alnum:]_]+)\.\.\.\}/{\1}/g' | sort -u)
+routes=$(go run ./scripts/inventory routes \
+  | awk -F '\t' '$1 != "OPTIONS" && $2 ~ /^\/v1\// {print $2}' \
+  | sed -E 's/\{([[:alnum:]_]+)\.\.\.\}/{\1}/g' | sort -u)
 
 # Paths documented in openapi.yaml (top-level keys under paths:).
 documented=$(grep -oE '^  /v1/[^:]+:' "$OPENAPI" | sed -E 's/^  (\/v1\/[^:]+):/\1/' | sort -u)

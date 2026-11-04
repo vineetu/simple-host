@@ -1,0 +1,6242 @@
+{
+  "routes": [
+    {
+      "method": "ANY",
+      "path": "/",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/setup.go:60",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/brain/mcp",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/brain.go:63",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/mcp",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:302",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/admin/address-families/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:960",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/admin/hack/events/{slug}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:532",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/admin/sites/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/adminsite.go:35",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/admin/sites/{id}/domain",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/adminsite.go:34",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/admin/sites/{id}/lock",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/adminsite.go:39",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/admin/sites/{id}/versions/{version}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/adminsite.go:41",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/admin/users/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:503",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/events/{name}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/eventdomain.go:76",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:496",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/announcements/{announcement}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_content.go:68",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/conflicts/{team_id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:42",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/entry/screenshot",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:49",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/icon",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_icons.go:32",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/judging/former-judges/{user_id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:44",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/key",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_keys.go:29",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/organiser-invite",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:23",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/organisers/{user_id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:24",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/people/{user_id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:498",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/people/{user_id}/key",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_keys.go:30",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/requests/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:506",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/team/members/{user_id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:507",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/teams/{team}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:514",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/teams/{team}/members/{user_id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:513",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/website/notifications/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:30",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_websites.go:35",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/me",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:514",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/me/address-families/{suffix}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:953",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/me/connections/{client_id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:316",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/me/identities/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:204",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/me/keys/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:198",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:490",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/collections/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:660",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/collections/{coll}/deleted",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:671",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/collections/{coll}/deleted/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:672",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/collections/{coll}/items/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:657",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:721",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/data/{coll}/items/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:712",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/domain",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:598",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/history",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:676",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/lock",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:629",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/notifications/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:23",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:475",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:463",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/storage/resources/{name}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:459",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:469",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/versions/{version}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:546",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/viewers/{email}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:640",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sso/consents/{site}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:195",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:661",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:683",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:684",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:659",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:740",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:733",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/u/{handle}/sites/{sitename}/history",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:688",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:244",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/agent-card.json",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/agentcard.go:38",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/ai-catalog.json",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/mcpservercard.go:65",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/api-catalog",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:143",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/ard.json",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:142",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/mcp/server-card.json",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/mcpservercard.go:63",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/muse-client.json",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:287",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/oauth-authorization-server",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:284",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/oauth-authorization-server/brain/mcp",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/brain.go:59",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/oauth-authorization-server/mcp",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:286",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/oauth-protected-resource",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:282",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/oauth-protected-resource/brain/mcp",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/brain.go:58",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/oauth-protected-resource/mcp",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:283",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/openai-apps-challenge",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/openaichallenge.go:15",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/skills/index.json",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/skillshub.go:315",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/skills/{name}/SKILL.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/skillshub.go:316",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/skills/{name}/references/{file}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/skillshub.go:317",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/account",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:174",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/{sitename}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:209",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/apple-touch-icon.png",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:137",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/auth.js",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:122",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/auth.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:74",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/brain/mcp",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/brain.go:62",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/companies",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_companies.go:15",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/costs",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:195",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/dashboard",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:218",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/dashboard",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:223",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/demo/join",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_watch.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/demo/judge",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_watch.go:66",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/directory",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_home.go:54",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/docs.html",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:130",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/e/{slug}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_public.go:42",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/e/{slug}/apply",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/e/{slug}/judge",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:66",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/e/{slug}/manage",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/e/{slug}/screenshots/{team}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_public.go:52",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/e/{slug}/team",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/e/{slug}/vote",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:46",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/e/{slug}/voting-settings",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:47",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/enterprise",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:184",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/enterprise/architecture",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:186",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/enterprise/brief",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:185",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/events",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/events/new",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/favicon-32.png",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:137",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.ico",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:137",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.svg",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:137",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/features",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:178",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/film/{file}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:151",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/fonts/{file...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/setup.go:65",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/get-started",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:19",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/hack-skills.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:21",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/hackathons",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:187",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/healthz",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/health.go:15",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/host-ink.css",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/setup.go:64",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/import/{token}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:305",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/index.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_home.go:32",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/index.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:221",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/install.html",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:122",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/install.html",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:129",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/install.ps1",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:169",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/install.sh",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:168",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/domain-redirect/{handle}/{sitename}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:605",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/domain-redirect/{handle}/{sitename}/{rest...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:606",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/family/{rest...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:961",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/names/taken",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/hack_mode.go:148",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/notfound",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:615",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/offline",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:620",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/passcode/{rest...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:623",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/showcase/{handle}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:610",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/site-redirect/{handle}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:612",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/site-redirect/{handle}/{sitename}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:613",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/site-redirect/{handle}/{sitename}/{rest...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:614",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/suspended",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:618",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/internal/tls-ask",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:604",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/join/{code}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/judge/{code}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/llms.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_home.go:33",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/llms.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:222",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/llms.txt",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:122",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/mcp",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:302",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/mcp/server-card",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/mcpservercard.go:64",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/oauth/authorize",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:290",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/openapi.json",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:126",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/openapi.yaml",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:126",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/organiser/{code}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/photo-codecs/v3/{file}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/photos_ui.go:32",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/photos",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/photos_ui.go:14",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/plugin.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:165",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/pricing",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:182",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/readyz",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/health.go:16",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/recipes/{topic}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:77",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/report",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:201",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/robots.txt",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:140",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/setup",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:191",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/setup/{$}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:192",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/signin",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/signin.js",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:122",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.0.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:23",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.1.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:23",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.10.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.11.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.12.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.13.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.2.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:23",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.3.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:23",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.4.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:23",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.5.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:23",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.6.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.7.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.8.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/simple-hack-skills-only-0.2.9.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/sitemap.xml",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:141",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/skills",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_get_started.go:20",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/skills.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:144",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/skills/connect-domain",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:159",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/connect-domain.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:156",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/connect-domain/SKILL.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:157",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/connect-domain/references/{file}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:160",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/join-hackathon",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:159",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/join-hackathon.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:156",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/join-hackathon/SKILL.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:157",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/join-hackathon/references/{file}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:160",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/judge-hackathon",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:159",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/judge-hackathon.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:156",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/judge-hackathon/SKILL.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:157",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/judge-hackathon/references/{file}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:160",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/run-hackathon",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:159",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/run-hackathon.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:156",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/run-hackathon/SKILL.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:157",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/run-hackathon/references/{file}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:160",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/version",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:147",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/skills/website-deploy",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:159",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/website-deploy-builder",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:159",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/website-deploy-builder.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:156",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/website-deploy-builder/SKILL.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:157",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/website-deploy-builder/references/{file}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:160",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/website-deploy.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:156",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/website-deploy/SKILL.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:157",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/skills/website-deploy/references/{file}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:160",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/support",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:199",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/team/{code}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_ui.go:61",
+      "package": "internal/hackhttp",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
+      "path": "/terms",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:198",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/address-families",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:955",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/api-analytics",
+      "feature_id": "UNPLACED",
+      "source": "cmd/server/main.go:536",
+      "package": "cmd/server",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/data-watch",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:690",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/export.tar.gz",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:530",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/growth",
+      "feature_id": "UNPLACED",
+      "source": "cmd/server/main.go:537",
+      "package": "cmd/server",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/hack/events",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:528",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/idle-sites",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:564",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/image-scan",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:692",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/paper-metrics",
+      "feature_id": "UNPLACED",
+      "source": "cmd/server/main.go:554",
+      "package": "cmd/server",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/signups",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:518",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/signups.csv",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:519",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/sites",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:515",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/sites/{id}/collections",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/adminsite.go:30",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/sites/{id}/collections/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/adminsite.go:31",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/sites/{id}/collections/{coll}/export.csv",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/adminsite.go:32",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/sites/{id}/versions",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/adminsite.go:28",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/usage",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:532",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/users",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:517",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/analytics/sites",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:556",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/auth/oauth/providers",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/oauth.go:194",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/auth/oauth/{provider}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/oauth.go:200",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/auth/oauth/{provider}/callback",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/oauth.go:199",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/brain",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/brain.go:64",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/data-notify/stop",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:705",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/events",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/eventdomain.go:74",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/export",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:539",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/archive",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:35",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/demo",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_watch.go:52",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/directory",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:479",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:489",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:492",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/announcements",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_content.go:71",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/applications",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_registration.go:14",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/apply",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_registration.go:19",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/assignments",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging_options.go:20",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/conflicts",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:40",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/content",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_content.go:69",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/entries",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:53",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/entry",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:43",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/entry-rules",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:50",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/entry/screenshot",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:47",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/export/entries.csv",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:30",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/export/participants.csv",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/export/projects.tar.gz",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:31",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/export/results.csv",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:55",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/export/scores.csv",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:54",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/export/teams.csv",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:29",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/icon",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_icons.go:30",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/judge/queue",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:47",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/judge/scores/{team}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:48",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/judging/dashboard",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:43",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/judging/panels",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging_options.go:22",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/judging/preview",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging_options.go:24",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/judging/settings",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:37",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/key",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_keys.go:27",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/leave",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_leave.go:27",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/my-results",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:53",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/my-vote",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:487",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/people",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:497",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/public",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:480",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/registration",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_registration.go:12",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/results",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:52",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/rubric",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:35",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/site",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_keys.go:26",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/team/export.tar.gz",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:32",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/teams",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:499",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/teams/open",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:500",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/teams/{team}/screenshot",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:52",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/tracks",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_registration.go:16",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/usage",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:36",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/vote",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:486",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/voting",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:483",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/website",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_websites.go:27",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/website/notifications",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:27",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/website/notifications/{id}/deliveries",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:33",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_websites.go:31",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/join/{code}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:524",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/judge/{code}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:526",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/my-teams",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_keys.go:34",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/names/{slug}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:491",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/organiser/{code}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:25",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/preferences",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_preferences.go:13",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/team-links/{code}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:523",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/todos",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_notices.go:21",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/handles/check",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:191",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/idle/keep",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:567",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/idle/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:569",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/imports/status/{import_id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:307",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:192",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/address-families",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:950",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/address-families/{suffix}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:951",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/bio",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:494",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/connections",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:315",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/deleted-sites",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:500",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/email/undo",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:201",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/export.tar.gz",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:513",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/export.zip",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:511",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/home",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:498",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/identities",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:203",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/me/keys",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:196",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/notifications",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:19",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/photo-links",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:310",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/setup/dns-check",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/setup.go:69",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/setup/state",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/setup.go:66",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:501",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/access",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:637",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/analytics",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:549",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/analytics/geo",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:550",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/analytics/top",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:553",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/collections",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:648",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/collections/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:747",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/collections/{coll}/deleted",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:668",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/collections/{coll}/export.csv",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:649",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/collections/{coll}/history",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:665",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/collections/{coll}/history/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:666",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/data",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:698",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:707",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/data/{coll}/history",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:722",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/data/{coll}/history/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:723",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/data/{coll}/kind",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:708",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/domain",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:597",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/export.tar.gz",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:535",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/lock",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:627",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/me",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:751",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/notifications",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:20",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/notifications/{id}/deliveries",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:26",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/savers",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:700",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/showcase",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:496",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/state",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:757",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/state/history",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:673",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/state/history/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:674",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/storage/files/{name}/objects",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:472",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:473",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/storage/kv/{name}/keys",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:460",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:461",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/storage/resources",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:455",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:466",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:467",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/storage/usage",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:456",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/storage/visitors",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:457",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/versions",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:540",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/versions/{version}/files",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:541",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/versions/{version}/files/{path...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:542",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/skills",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/skillshub.go:308",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/skills/{name}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/skillshub.go:309",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/skills/{name}/SKILL.md",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/skillshub.go:312",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/skills/{name}/references/{file}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/skillshub.go:313",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sso/hop",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/sso.go:78",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sso/signed-out",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/sso.go:81",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sso/start",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/sso.go:77",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/storage-download",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:477",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/turnstile/frame",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:483",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/showcase.json",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:493",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:764",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:680",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/history",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:677",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:678",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:728",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:741",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:742",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/kind",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:729",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/me",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:768",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/state",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:774",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/state/history",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:685",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/u/{handle}/sites/{sitename}/state/history/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:686",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/visitor/establish",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:783",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/visitor/oauth/{provider}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/oauth.go:203",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/watch",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_watch.go:19",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/{$}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_home.go:34",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/{$}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:224",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/hack/events/{slug}/public",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:481",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/collections/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:749",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:714",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/data/{coll}/history",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:725",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/data/{coll}/history/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:726",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/data/{coll}/history/{id}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:727",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/data/{coll}/items/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:716",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/data/{coll}/items/{id}/undo",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:717",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/data/{coll}/kind",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:715",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/me",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:752",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/state",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:760",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/visitor/auth",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:754",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/sites/{sitename}/visitor/auth/verify",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:756",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:766",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:735",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:744",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:745",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:746",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:737",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:738",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/kind",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:736",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/me",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:769",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/state",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:777",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:771",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth/verify",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:773",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/hack/events/{slug}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:493",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/hack/events/{slug}/directory",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:485",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/hack/events/{slug}/judging/settings",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:38",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/hack/events/{slug}/results",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:51",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/hack/events/{slug}/team",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:516",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/hack/events/{slug}/teams/{team}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:27",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/hack/events/{slug}/website",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_websites.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/hack/events/{slug}/website/notifications/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:29",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_websites.go:34",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/hack/preferences",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_preferences.go:14",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/me",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:505",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/me/address-families/{suffix}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:952",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/sites/{sitename}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:491",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/sites/{sitename}/collections/{coll}/items/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:656",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:720",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/sites/{sitename}/data/{coll}/items/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:711",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/sites/{sitename}/notifications/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:22",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/sites/{sitename}/state",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:759",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:468",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:658",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:739",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:732",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/u/{handle}/sites/{sitename}/state",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:776",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:243",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/brain/mcp",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/brain.go:61",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/mcp",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:302",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "POST",
+      "path": "/oauth/authorize/decision",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:291",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/oauth/register",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:289",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/oauth/reviewer-signin",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:294",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/oauth/revoke",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:296",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/oauth/token",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:295",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/report",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/ui.go:202",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/address-families/{id}/check",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:959",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/hack/events/{slug}/keep-sites",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:530",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/hack/events/{slug}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:531",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/hack/events/{slug}/takedown",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:529",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/image-scan/{id}/report",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:693",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/sites/{id}/domain",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/adminsite.go:33",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/sites/{id}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:523",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/sites/{id}/suspend",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:522",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/sites/{id}/versions/{version}/preview-link",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/adminsite.go:40",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/users",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:502",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/users/{id}/address-families",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:956",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/users/{id}/enable",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:525",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/users/{id}/key",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:504",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/users/{id}/suspend",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:524",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/auth",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:189",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/auth/verify",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:190",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/brain/{tool}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/brain.go:65",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/data-notify/stop",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:706",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/events",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/eventdomain.go:75",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:490",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/announcements",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_content.go:72",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/applications/{user_id}/decision",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_registration.go:15",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/apply",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_registration.go:20",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/assignments/generate",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:39",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/codes/{kind}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:495",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/conflicts",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:41",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/entry/submit",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:45",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/entry/unsubmit",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:46",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/export/own-team-link",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:34",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/export/projects-link",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:33",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/judging/lock",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:45",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/judging/unlock",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:46",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/key",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_keys.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/leave",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_leave.go:28",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/notices/seen",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_notices.go:22",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/organiser-invite",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:22",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/requests/{id}/{action}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:505",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/results/publish",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:50",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/stage",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:494",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/team/invites",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:504",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/team/link",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:519",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/teams",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:509",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/teams/fill",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:508",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/teams/join",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:510",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/teams/leave",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:511",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/teams/{team}/entry/exclude",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:54",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/teams/{team}/entry/include",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:55",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/teams/{team}/link",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:522",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/teams/{team}/members",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:512",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/teams/{team}/requests",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:503",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/teams/{team}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_keys.go:33",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/teams/{team}/takedown",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_keys.go:32",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/website/notifications",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:28",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/website/notifications/{id}/rotate-secret",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:32",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/website/notifications/{id}/test",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:31",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_websites.go:33",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/join/{code}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:525",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/judge/{code}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:527",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hack/organiser/{code}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_administration.go:26",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/idle/keep",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:568",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/idle/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:570",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/imports/{token}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:306",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/me/address-families",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:949",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/me/address-families/{suffix}/check",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:954",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/me/api-key/rotate",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:193",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/me/email",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:199",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/me/email/undo",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:202",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/me/email/verify",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:200",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/me/keys",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:197",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/me/sign-out",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/user.go:194",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/photo-links",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:311",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/setup/finish",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/setup.go:71",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/setup/free-name",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/setup.go:70",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/setup/own-domain",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/setup.go:68",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/setup/verify",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/setup.go:67",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/site-signin",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:641",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/site-signout",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:642",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/site-unlock",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:634",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:484",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/collections/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:748",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/collections/{coll}/deleted/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:669",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/collections/{coll}/history/{id}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:667",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/collections/{coll}/items/{id}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:670",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:709",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/data/{coll}/history/{id}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:724",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/data/{coll}/items/{id}/undo",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:713",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/domain",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:596",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/domain/check",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:601",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/export-link",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:538",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/files",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:575",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/lock/sign-out-everyone",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:630",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/notifications",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:21",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/notifications/{id}/rotate-secret",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:25",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/notifications/{id}/test",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/notify_routes.go:24",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/photos",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:578",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:492",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/savers/block",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:702",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/state/history/{id}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:675",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/storage/files/{name}/download-link",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:476",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/storage/sqlite/{name}/execute",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:470",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/storage/sqlite/{name}/query",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:464",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/storage/sqlite/{name}/schema",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:471",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:465",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/versions/{version}/preview-link",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:548",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/viewers",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:639",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/visitor/auth",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:753",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sites/{sitename}/visitor/auth/verify",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:755",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sso/consent",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/sso.go:79",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sso/session",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/sso.go:80",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sso/signed-out",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/sso.go:82",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:765",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/deleted/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:681",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/history/{id}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:679",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/u/{handle}/sites/{sitename}/collections/{coll}/items/{id}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:682",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:730",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/history/{id}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:743",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}/items/{id}/undo",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:734",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/u/{handle}/sites/{sitename}/state/history/{id}/restore",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:687",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:770",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth/verify",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:772",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/uploads/{token}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:313",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/visitor/logout",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:784",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/admin/address-families/{id}/cert-mode",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:957",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/admin/address-families/{id}/proof-exempt",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/familyapi.go:958",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/admin/sites/{id}/active-version",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/adminsite.go:29",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/announcements/{announcement}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_content.go:67",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/assignments",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging_options.go:21",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/content",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_content.go:70",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/entry",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:44",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/entry-rules",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:51",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/entry/screenshot",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_entries.go:48",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/icon",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_icons.go:31",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/judge/scores/{team}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:49",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/judging/panels",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging_options.go:23",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/me/looking",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:502",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/registration",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_registration.go:13",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/rubric",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_judging.go:36",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/site",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_keys.go:25",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/team/finding",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:501",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/team/lock",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:517",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/team/members/{user_id}/admin",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:518",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/team/track",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_registration.go:18",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/teams/{team}/deadline",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_keys.go:31",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/teams/{team}/lock",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:520",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/teams/{team}/members/{user_id}/admin",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:521",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/tracks",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_registration.go:17",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/vote",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:488",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/voting",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack.go:484",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/website",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_websites.go:29",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/website/files",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_websites.go:30",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/website/storage/{rest...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/hackhttp/hack_websites.go:32",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/me/bio",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:495",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/me/home",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:499",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:485",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/access",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:638",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/active-version",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:543",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/allow-anonymous-writes",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:592",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/allowed-origins",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:591",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/collections/{coll}/privacy",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:652",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:710",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/data/{coll}/kind",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:699",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/files",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:576",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/keep",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:560",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/keep-versions",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:563",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/lock",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:628",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/savers",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:701",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/showcase",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:497",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/state",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:758",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:474",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:462",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/storage/resources/{name}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:458",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/visibility",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:557",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/u/{handle}/sites/{sitename}/data/{coll}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:731",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/u/{handle}/sites/{sitename}/state",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/site.go:775",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/uploads/{token}",
+      "feature_id": "UNPLACED",
+      "source": "internal/handler/connector.go:312",
+      "package": "internal/handler",
+      "dynamic": false
+    }
+  ],
+  "tools": [
+    {
+      "name": "hack_accept_organiser_invite",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_accept_team_request",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_create_organiser_invite",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_applications",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_assignments",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_conflicts",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_judge_queue",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_judge_scores",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_judging_dashboard",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_judging_settings",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_my_conflicts",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_people",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_registration",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_rubric",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_get_teams",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_regenerate_code",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_app_set_event_stage",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_application_status",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_apply_to_event",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_ask_to_join",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_check_event_name",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_choose_track",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_clear_event_icon",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_create_event",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_create_organiser_invite",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_create_team",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_create_team_key",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_decide_application",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_declare_my_conflict",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_decline_team_request",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_delete_announcement",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_delete_entry_screenshot",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_delete_event",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_delete_former_judge_scores",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_delete_team",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_dismiss_notices",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_edit_announcement",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_delete_file",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_delete_kv",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_delete_resource",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_file_download_link",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_get_kv",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_get_usage",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_list_file_objects",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_list_kv_keys",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_list_resources",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_put_file",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_put_kv",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_set_resource",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_sql_execute",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_sql_query",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_event_storage_sql_schema",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_export_entries",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_export_own_team_archive",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_export_participants",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_export_projects_archive",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_export_results",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_export_scores",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_export_teams",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_fill_teams",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_generate_assignments",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_announcements",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_applications",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_assignments",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_conflicts",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_content",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_directory",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_entries",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_entry",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_entry_rules",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_entry_screenshot",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_event",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_event_website",
+      "family": "sites",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_judge_queue",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_judge_scores",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_judging_dashboard",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_judging_settings",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_my_conflicts",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_my_results",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_my_teams",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_my_todos",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_my_vote",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_page_recipe",
+      "family": "storage",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_panels",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_people",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_preferences",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_public_event",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_public_results",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_registration",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_rubric",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_team_key",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_team_screenshot",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_team_status",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_teams",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_tracks",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_usage",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_voting",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_get_voting_settings",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_invite_to_team",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_join_event",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_join_judge",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_join_team",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_leave_event",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_leave_team",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_list_events",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_list_open_teams",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_lock_judging",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_lock_my_team",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_lock_team",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_move_member",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_new_my_team_link",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_new_team_link",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_post_announcement",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_preview_application",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_preview_join",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_preview_judge",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_preview_judging_assignments",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_preview_leave_event",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_preview_organiser_invite",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_preview_team_link",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_publish_event_website",
+      "family": "sites",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_publish_results",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_regenerate_code",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_remove_judge_conflict",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_remove_my_conflict",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_remove_organiser",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_remove_person",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_remove_team_member",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_remove_teammate",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_rename_team",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_restore_team_site",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_revoke_organiser_invite",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_revoke_person_key",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_revoke_team_key",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_score_team",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_select_team",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_assignments",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_content",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_directory_listing",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_email_updates",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_entry_excluded",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_entry_rules",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_entry_screenshot",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_event_icon",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_event_stage",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_event_website_mode",
+      "family": "sites",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_judge_conflict",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_judging_settings",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_looking",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_panels",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_preferences",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_registration",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_results_view",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_rubric",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_team_admin",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_team_deadline",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_teammate_admin",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_tracks",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_set_voting_settings",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_show_judge",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_show_organiser",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_submit_entry",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_take_down_team_site",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_unlock_judging",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_unsubmit_entry",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_update_entry",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_update_event",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_update_my_team",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_vote",
+      "family": "hack-entries",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "hack_withdraw_team_request",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "list_notifications",
+      "family": "notifications",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "remove_notification",
+      "family": "notifications",
+      "edition": "hack",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "connect_domain",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "create_import_link",
+      "family": "imports",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "create_site",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "create_upload_link",
+      "family": "imports",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "delete_site",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "discard_version",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "domain_status",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "export_site",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "find_tools",
+      "family": "discovery",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "get_import_report",
+      "family": "imports",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "get_page_recipe",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "get_site",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "get_site_passcode",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "grant_site_viewer",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "keep_site",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "list_deleted_sites",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "list_notifications",
+      "family": "notifications",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "list_site_viewers",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "list_sites",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "list_versions",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "preview_version",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "read_site_file",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "remove_domain",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "remove_notification",
+      "family": "notifications",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "remove_site_passcode",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "rename_site",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "restore_site",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "revoke_site_viewer",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "rollback_site",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "run_tool",
+      "family": "discovery",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "set_bio",
+      "family": "accounts",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "set_home_page",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "set_keep_versions",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "set_showcase_site",
+      "family": "accounts",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "set_site_access",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "set_site_offline",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "set_site_passcode",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "set_visibility",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "sign_out_site_visitors",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "site_analytics",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_delete_file",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_delete_kv",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_delete_resource",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_file_download_link",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_get_kv",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_get_usage",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_list_file_objects",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_list_kv_keys",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_list_resources",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_put_file",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_put_kv",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_set_resource",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_sql_execute",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_sql_query",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_sql_schema",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "storage_visitor_emails",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "update_site",
+      "family": "sites",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "visitor_add_entry",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "visitor_change_entry",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "visitor_read_site",
+      "family": "storage",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "who_am_i",
+      "family": "accounts",
+      "edition": "host",
+      "feature_id": "UNPLACED"
+    },
+    {
+      "name": "passcode_screen",
+      "family": "access",
+      "edition": "screen",
+      "feature_id": "UNPLACED"
+    }
+  ]
+}
