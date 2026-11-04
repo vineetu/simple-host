@@ -1,3 +1,4 @@
+// famHackEvents supplies the Hack identity tool used by personal connections.
 package mcp
 
 import (

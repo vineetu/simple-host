@@ -1,9 +1,8 @@
+// famHackEvents member declarations and shared member REST adapters.
 package mcp
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,9 +12,12 @@ import (
 // HackMemberTools exposes participant and judge REST actions to a personal
 // event connection. The REST handlers remain the authority for every rule.
 func HackMemberTools() []Tool {
+	return append(hackMemberEventTools(), hackMemberEntryTools()...)
+}
+
+func hackMemberEventTools() []Tool {
 	slug := map[string]any{"slug": str("Event name.")}
 	code := map[string]any{"code": str("Code from the join or judge link.")}
-	teamID := map[string]any{"team_id": str("Team ID from the judge queue.")}
 	with := func(base map[string]any, fields map[string]any) map[string]any {
 		p := map[string]any{}
 		for k, v := range base {
@@ -26,7 +28,7 @@ func HackMemberTools() []Tool {
 		}
 		return p
 	}
-	list := []Tool{
+	return []Tool{
 		memberTool("hack_list_open_teams", "List team finding", "Read every unlocked team (each with a full flag), opted-in solo participants and your pending requests and invites. Approved participant or organiser only.", "GET", "/v1/hack/events/{slug}/teams/open", object(with(slug, map[string]any{}), "slug"), nil, readOnly()),
 		memberTool("hack_ask_to_join", "Ask to join a team", "Ask the person before sending a join request. An existing invite joins them immediately; a repeated request stays pending. Refused when the team is locked.", "POST", "/v1/hack/events/{slug}/teams/{team}/requests", object(with(slug, map[string]any{"team": str("Team slug.")}), "slug", "team"), nil, writes(true, false, false)),
 		memberTool("hack_invite_to_team", "Invite a solo participant", "Invite a listed solo participant to your team. Ask first. An existing request joins them immediately; a repeated invite stays pending. Refused when the team is locked.", "POST", "/v1/hack/events/{slug}/team/invites", object(with(slug, map[string]any{"user_id": str("Solo participant ID.")}), "slug", "user_id"), []string{"user_id"}, writes(true, false, false)),
@@ -57,40 +59,13 @@ func HackMemberTools() []Tool {
 		memberTool("hack_join_team", "Join a team", "Join a team with its code or team link. Ask the person before joining. Refused when the team is locked or full.", http.MethodPost, "/v1/hack/events/{slug}/teams/join", object(with(slug, map[string]any{"code": str("Team code, or the whole team link.")}), "slug", "code"), []string{"code"}, writes(false, false, false)),
 		memberTool("hack_leave_team", "Leave my team", "Leave the current team. Confirm first: the team's access and membership change.", http.MethodPost, "/v1/hack/events/{slug}/teams/leave", object(slug, "slug"), nil, writes(true, false, false)),
 		memberTool("hack_choose_track", "Choose my team's track", "Choose a listed track for the current team; an empty track clears the choice. Confirm with the team first.", http.MethodPut, "/v1/hack/events/{slug}/team/track", object(with(slug, map[string]any{"track": str("Track slug, or empty to clear.")}), "slug", "track"), []string{"track"}, writes(true, true, false)),
-		memberTool("hack_get_entry", "Read my team's entry", "Read the entry, the event's entry rules, completeness, submit status, the Home progress checklist and entry deadline.", http.MethodGet, "/v1/hack/events/{slug}/entry", object(slug, "slug"), nil, readOnly()),
-		memberTool("hack_update_entry", "Update my team's entry", "Set only the entry fields supplied. Empty strings clear fields. tagline is the one-line solution shown on the summary card; description is the longer write-up. Saving a draft never checks or changes completeness and never submits it -- call hack_submit_entry when it's ready. tools lists what was used, up to 10 items, each 1-30 characters, case-insensitive duplicates dropped. maturity is how far along it is: working, partial, concept, or empty to clear. track sets the team's chosen track by its slug, or clears it with an empty string. A save on an already-submitted entry that would make it incomplete is refused with `missing`. Ask before overwriting team text.", http.MethodPut, "/v1/hack/events/{slug}/entry", object(with(slug, map[string]any{
-			"title":       str("Project title."),
-			"tagline":     str("Short summary: the one-line solution."),
-			"description": str("Project description."),
-			"video_url":   str("Video URL."),
-			"code_url":    str("Code URL."),
-			"problem":     str("The problem it solves, up to 140 characters."),
-			"audience":    str("Who it's for, up to 100 characters."),
-			"tools":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "What was used: up to 10 items, each 1 to 30 characters."},
-			"maturity":    map[string]any{"type": "string", "enum": []string{"", "working", "partial", "concept"}, "description": "How far along it is, or empty to clear."},
-			"track":       str("Track slug to set the team's chosen track, or empty to clear it."),
-			"updated_at":  str("updated_at from the entry you read, or empty for a new entry. A conflict returns the newer entry; ask before retrying."),
-		}), "slug"), []string{"title", "tagline", "description", "video_url", "code_url", "problem", "audience", "tools", "maturity", "track", "updated_at"}, writes(true, true, true)),
-		memberTool("hack_submit_entry", "Submit my team's entry", "Move the entry from draft to submitted. Refused with `missing` (422 entry_incomplete, \"Add these first: ...\") when a required field or the show-your-work evidence is missing. Idempotent: submitting an already-submitted entry just keeps it submitted. A complete draft is also auto-submitted on its own at the deadline; an incomplete one stays a draft, is still judged, and is flagged Incomplete -- organisers can exclude it by hand with hack_set_entry_excluded.", http.MethodPost, "/v1/hack/events/{slug}/entry/submit", object(with(slug, map[string]any{"updated_at": str("updated_at from the entry you read, optional. A conflict (a teammate changed it) returns the newer entry; ask before retrying.")}), "slug"), []string{"updated_at"}, writes(false, true, false)),
-		memberTool("hack_unsubmit_entry", "Unsubmit my team's entry", "Put a submitted entry back to draft. Works only before the deadline; refused once it has passed. Reversible: call hack_submit_entry again anytime before the deadline.", http.MethodPost, "/v1/hack/events/{slug}/entry/unsubmit", object(slug, "slug"), nil, writes(false, true, false)),
-		memberTool("hack_delete_entry_screenshot", "Remove my entry screenshot", "Remove the team's entry screenshot. Confirm first.", http.MethodDelete, "/v1/hack/events/{slug}/entry/screenshot", object(slug, "slug"), nil, writes(true, true, true)),
 		memberTool("hack_get_team_status", "Read my team status", "Read this participant's team (its link, admins and whether you are one, and whether it is locked), site status, track and deadline. Records any due submission deadline pins.", http.MethodGet, "/v1/hack/events/{slug}", object(slug, "slug"), nil, writes(false, true, false)),
 		memberTool("hack_get_my_teams", "Read my teams and sites", "List current teams and their site addresses for this person.", http.MethodGet, "/v1/hack/my-teams", noArgs(), nil, readOnly()),
 		memberTool("hack_get_my_todos", "Read what waits on me", "List what waits on this person in every event they are in: join requests for a team they admin, invites, applications waiting for an organiser, and news such as an application answer, a team site taken down, a deadline extension or being made team admin. Each item has the same text the website shows. Also says whether they get these by email. Start here when the person asks what needs them.", http.MethodGet, "/v1/hack/todos", noArgs(), nil, readOnly()),
 		memberTool("hack_dismiss_notices", "Dismiss news lines", "Mark this person's own news lines in one event as seen, the given ids from hack_get_my_todos or every line when ids is left out. Live to-dos (requests, invites, applications) cannot be dismissed, only answered. Ask first.", http.MethodPost, "/v1/hack/events/{slug}/notices/seen", object(with(slug, map[string]any{"ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Notice ids (the id of an item with dismissable true). Leave out to dismiss every news line in the event."}}), "slug"), []string{"ids"}, writes(false, true, false)),
 		memberTool("hack_set_email_updates", "Turn emails about what waits on me on or off", "Turn on or off the emails about join requests, invites, application answers and changes to the person's team or its site (organisers also hear about new applications). At most one email of each kind every 15 minutes. An account without an email address never gets any. Ask first.", http.MethodPatch, "/v1/hack/preferences", object(map[string]any{"email_updates": map[string]any{"type": "boolean"}}, "email_updates"), []string{"email_updates"}, writes(false, true, false)),
-		memberTool("hack_get_voting", "Read voting options", "Read voting status, eligible teams and published vote ranking when available.", http.MethodGet, "/v1/hack/events/{slug}/vote", object(slug, "slug"), nil, hackPublicReadOnly()),
-		memberTool("hack_get_my_vote", "Read my vote", "Read this person's current vote.", http.MethodGet, "/v1/hack/events/{slug}/my-vote", object(slug, "slug"), nil, readOnly()),
-		memberTool("hack_vote", "Cast or change my vote", "Vote for an eligible team. This can replace the person's previous vote. Confirm their choice first.", http.MethodPut, "/v1/hack/events/{slug}/vote", object(with(slug, map[string]any{"team": str("Team slug from voting options.")}), "slug", "team"), []string{"team"}, writes(true, true, true)),
-		memberTool("hack_get_my_results", "Read my team's results", "Read this participant's published result and judge comments.", http.MethodGet, "/v1/hack/events/{slug}/my-results", object(slug, "slug"), nil, readOnly()),
 		memberTool("hack_preview_judge", "Read a judge join link", "Read the event and code of conduct before joining as a judge.", http.MethodGet, "/v1/hack/judge/{code}", object(code, "code"), nil, readOnly()),
 		memberTool("hack_join_judge", "Join as a judge", "Join as a judge. Ask the person to accept the displayed code of conduct first.", http.MethodPost, "/v1/hack/judge/{code}", object(with(code, map[string]any{"accept_coc": map[string]any{"type": "boolean", "description": "true once the person has read the code of conduct shown by the preview tool and agreed to it."}, "display_name": str("Name shown to others.")}), "code", "accept_coc", "display_name"), []string{"accept_coc", "display_name"}, writes(false, false, false)),
-		memberTool("hack_get_judge_queue", "Read my judging queue", "List eligible entries, entry, pinned website link, conflicts and scoring status. Records any due submission deadline pins.", http.MethodGet, "/v1/hack/events/{slug}/judge/queue", object(slug, "slug"), nil, writes(false, true, false)),
-		memberTool("hack_get_judge_scores", "Read my scores for a team", "Read this judge's scores and comment for one queue team.", http.MethodGet, "/v1/hack/events/{slug}/judge/scores/{team_id}", object(with(slug, teamID), "slug", "team_id"), nil, readOnly()),
-		memberTool("hack_score_team", "Score a team", "Save one or more criterion scores and optionally a comment. Confirm the scores with the judge before saving.", http.MethodPut, "/v1/hack/events/{slug}/judge/scores/{team_id}", object(with(with(slug, teamID), map[string]any{"scores": map[string]any{"type": "array", "description": "One entry per criterion being scored: its criterion_id from the rubric and the points.", "items": object(map[string]any{"criterion_id": str("Criterion ID from rubric."), "points": map[string]any{"type": "integer", "description": "Points for this criterion, from 0 to its max_points in the rubric."}}, "criterion_id", "points")}, "comment": str("Judge comment; an empty string clears it.")}), "slug", "team_id"), []string{"scores", "comment"}, writes(true, true, false)),
-		memberTool("hack_get_my_conflicts", "Read my conflicts", "List this judge's declared conflicts.", http.MethodGet, "/v1/hack/events/{slug}/conflicts", object(slug, "slug"), nil, readOnly()),
-		memberTool("hack_declare_my_conflict", "Declare a conflict", "Declare that this judge has a conflict with a team; scores for it will be unavailable. Confirm first.", http.MethodPost, "/v1/hack/events/{slug}/conflicts", object(with(slug, teamID), "slug", "team_id"), []string{"team_id"}, writes(true, true, false)),
-		memberTool("hack_remove_my_conflict", "Remove my conflict", "Remove this judge's conflict with a team. Confirm first.", http.MethodDelete, "/v1/hack/events/{slug}/conflicts/{team_id}", object(with(slug, teamID), "slug", "team_id"), nil, writes(true, true, false)),
 		memberTool("hack_preview_leave_event", "Check what leaving an event does", "Read what leaving would do for this person before asking them: their case (participant, applicant, judge, co_organiser, creator, last_organiser), whether it is blocked and why, whether their team would be deleted (empty, before its deadline) or instead kept exactly as it is -- entry, site and scores untouched, just taken off its member list -- once past the team's deadline or the event is closed, judging or results, scores that stay, who can take over, and the end or delete choice for the only organiser.", http.MethodGet, "/v1/hack/events/{slug}/leave", object(slug, "slug"), nil, readOnly()),
 		memberTool("hack_leave_event", "Leave an event", "Destructive, for the signed-in person only. Call hack_preview_leave_event first, tell the person exactly what happens (team deleted if it would be left empty before its deadline; otherwise, once past the deadline or the event closed/judging/results, the team stays with its entry, site and scores untouched and the person just comes off its member list; access lost; event ended or deleted) and ask them before calling. confirm is the event's address name. The event creator sends successor_user_id from the preview. The only organiser sends close: end or delete, chosen by the person. Not possible on an ended event.", http.MethodPost, "/v1/hack/events/{slug}/leave", object(with(slug, map[string]any{
 			"confirm":           str("The event's address name, sent only after the person agreed to leave."),
@@ -98,9 +73,6 @@ func HackMemberTools() []Tool {
 			"close":             map[string]any{"type": "string", "enum": []string{"end", "delete"}, "description": "Only organiser: end keeps the page and results, delete removes everything. Ask the person."},
 		}), "slug", "confirm"), []string{"confirm", "successor_user_id", "close"}, writes(true, false, true)),
 	}
-	list = append(list, memberScreenshotTool("hack_get_entry_screenshot", http.MethodGet, "Read my team's screenshot", readOnly()))
-	list = append(list, memberScreenshotTool("hack_set_entry_screenshot", http.MethodPut, "Upload my team's screenshot. Ask the person before replacing the current image.", writes(true, true, true)))
-	return list
 }
 
 func memberTool(name, title, description, method, path string, input map[string]any, bodyKeys []string, annotations map[string]any) Tool {
@@ -145,46 +117,6 @@ func memberTool(name, title, description, method, path string, input map[string]
 			return output{}, fmt.Errorf("%s: server returned invalid JSON", name)
 		}
 		minimiseHackMemberResult(name, c.caller.accountUserID(), out)
-		return output{Text: jsonText(out), Structured: out}, nil
-	}}
-}
-
-func memberScreenshotTool(name, method, description string, annotations map[string]any) Tool {
-	props := map[string]any{"slug": str("Event name.")}
-	req := []string{"slug"}
-	if method == http.MethodPut {
-		props["base64"] = str("Base64 encoded PNG, JPEG or WebP, at most 2 MB decoded.")
-		req = append(req, "base64")
-	}
-	return Tool{Name: name, Title: description, Description: description, InputSchema: object(props, req...), OutputSchema: map[string]any{"type": "object", "additionalProperties": true}, Annotations: annotations, run: func(c *call, args map[string]any) (output, error) {
-		slug, err := eventSlug(args)
-		if err != nil {
-			return output{}, err
-		}
-		path := "/v1/hack/events/" + url.PathEscape(slug) + "/entry/screenshot"
-		var raw []byte
-		if method == http.MethodPut {
-			b64, err := stringArg(args, "base64")
-			if err != nil {
-				return output{}, err
-			}
-			raw, err = base64.StdEncoding.DecodeString(b64)
-			if err != nil {
-				return output{}, errors.New("base64 must encode an image")
-			}
-		}
-		res := c.do(method, path, raw, nil)
-		if !res.ok() {
-			return output{}, hackRestError(name, res)
-		}
-		if method == http.MethodGet {
-			out := map[string]any{"base64": base64.StdEncoding.EncodeToString(res.body), "content_type": res.header.Get("Content-Type")}
-			return output{Text: jsonText(out), Structured: out}, nil
-		}
-		var out map[string]any
-		if err := json.Unmarshal(res.body, &out); err != nil || out == nil {
-			return output{}, fmt.Errorf("%s: server returned invalid JSON", name)
-		}
 		return output{Text: jsonText(out), Structured: out}, nil
 	}}
 }

@@ -1,3 +1,4 @@
+// famSites declares Hack website tools and shared web REST adapters.
 package mcp
 
 import (
@@ -9,10 +10,10 @@ import (
 	"net/url"
 )
 
-// HackWebTools forwards website, icon and account preference actions to the
+// hackWebTools forwards website actions to the
 // hosted REST API. The REST handlers remain responsible for permissions and
 // validation; custom event hosts never receive a credential from these tools.
-func HackWebTools() []Tool {
+func hackWebTools() []Tool {
 	slug := map[string]any{"slug": str("Event name.")}
 	generic := map[string]any{"type": "object", "additionalProperties": true}
 	return []Tool{
@@ -118,95 +119,6 @@ func HackWebTools() []Tool {
 				}
 				raw, _ := json.Marshal(map[string]string{"mode": mode})
 				return hackWebJSON(c, "hack_set_event_website_mode", http.MethodPatch, path, raw, nil)
-			},
-		},
-		{
-			Name: "hack_set_event_icon", Title: "Set event icon",
-			Description:  "Set the event icon from base64 PNG, JPEG or WebP bytes. The server checks actual image type and its configured size limit. Ask before replacing the icon. Organiser only.",
-			InputSchema:  object(map[string]any{"slug": slug["slug"], "content_type": map[string]any{"type": "string", "enum": []string{"image/png", "image/jpeg", "image/webp"}, "description": "The image's MIME type."}, "image_base64": str("Base64-encoded image bytes, without a data: prefix.")}, "slug", "content_type", "image_base64"),
-			OutputSchema: generic, Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				path, err := hackWebPath(args, "/icon")
-				if err != nil {
-					return output{}, err
-				}
-				typ, err := stringArg(args, "content_type")
-				if err != nil {
-					return output{}, err
-				}
-				encoded, err := stringArg(args, "image_base64")
-				if err != nil {
-					return output{}, err
-				}
-				if len(encoded) > base64.StdEncoding.EncodedLen(4<<20) {
-					return output{}, errors.New("image_base64 exceeds the maximum allowed image size")
-				}
-				body, err := base64.StdEncoding.DecodeString(encoded)
-				if err != nil {
-					return output{}, errors.New("image_base64 must be valid base64 image bytes")
-				}
-				if typ != "image/png" && typ != "image/jpeg" && typ != "image/webp" {
-					return output{}, errors.New("content_type must be image/png, image/jpeg or image/webp")
-				}
-				return hackWebJSON(c, "hack_set_event_icon", http.MethodPut, path, body, map[string]string{"Content-Type": typ})
-			},
-		},
-		{
-			Name: "hack_clear_event_icon", Title: "Clear event icon",
-			Description: "Remove the uploaded event icon and restore its generated initial icon. Ask the organiser first. Organiser only.",
-			InputSchema: object(slug, "slug"), OutputSchema: generic, Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				path, err := hackWebPath(args, "/icon")
-				if err != nil {
-					return output{}, err
-				}
-				return hackWebJSON(c, "hack_clear_event_icon", http.MethodDelete, path, nil, nil)
-			},
-		},
-		{
-			Name: "hack_get_public_event", Title: "Read public event data",
-			Description: "Read the credentialless public event feed, including eligible gallery, published results and closed vote ranking. No private codes or contact email are returned.",
-			InputSchema: object(slug, "slug"), OutputSchema: generic, Annotations: hackPublicReadOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				path, err := hackWebPath(args, "/public")
-				if err != nil {
-					return output{}, err
-				}
-				return hackWebJSON(c, "hack_get_public_event", http.MethodGet, path, nil, nil)
-			},
-		},
-		{
-			Name: "hack_get_preferences", Title: "Read my Simple Hack preferences",
-			Description: "Read this account's theme and completed organiser/judge walkthrough flags.",
-			InputSchema: noArgs(), OutputSchema: generic, Annotations: readOnly(),
-			run: func(c *call, _ map[string]any) (output, error) {
-				return hackWebJSON(c, "hack_get_preferences", http.MethodGet, "/v1/hack/preferences", nil, nil)
-			},
-		},
-		{
-			Name: "hack_set_preferences", Title: "Set my Simple Hack preferences",
-			Description:  "Set this account's theme (system, light or dark) and/or whether each walkthrough is complete. Sends only supplied fields.",
-			InputSchema:  object(map[string]any{"theme": map[string]any{"type": "string", "enum": []string{"system", "light", "dark"}, "description": "Colour theme for the person's Simple Hack pages: system follows their device."}, "organiser_walkthrough_done": map[string]any{"type": "boolean", "description": "true marks the organiser walkthrough as seen, so it stops showing."}, "judge_walkthrough_done": map[string]any{"type": "boolean", "description": "true marks the judge walkthrough as seen, so it stops showing."}}),
-			OutputSchema: generic, Annotations: writes(true, true, false),
-			run: func(c *call, args map[string]any) (output, error) {
-				body := map[string]any{}
-				if theme, ok := args["theme"]; ok {
-					body["theme"] = theme
-				}
-				if done, ok := args["organiser_walkthrough_done"]; ok {
-					body["organiser_walkthrough_done"] = done
-				}
-				if done, ok := args["judge_walkthrough_done"]; ok {
-					body["judge_walkthrough_done"] = done
-				}
-				if len(body) == 0 {
-					return output{}, errors.New("set at least one preference")
-				}
-				raw, err := json.Marshal(body)
-				if err != nil {
-					return output{}, err
-				}
-				return hackWebJSON(c, "hack_set_preferences", http.MethodPatch, "/v1/hack/preferences", raw, nil)
 			},
 		},
 	}

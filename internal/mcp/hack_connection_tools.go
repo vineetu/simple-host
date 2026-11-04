@@ -1,10 +1,11 @@
+// famHackEvents connection selection.
 package mcp
 
 import "errors"
 
-// HackConnectionTools controls the selected site for a hosted personal OAuth
+// hackConnectionTools controls the selected site for a hosted personal OAuth
 // connection. Event actions continue to use the person's own identity.
-func HackConnectionTools() []Tool {
+func hackConnectionTools() []Tool {
 	return []Tool{{
 		Name:        "hack_select_team",
 		Title:       "Choose my team's site",

@@ -1,3 +1,4 @@
+// famHackAppOnly registers the organiser screen alongside its app resources.
 package mcp
 
 import (

@@ -1,7 +1,16 @@
 package mcp
 
 // hackFamilies returns the Simple Hack tool families in registration order.
-// TODO(4.4): split into one registrar per family.
 func hackFamilies() []familyTools {
-	return []familyTools{{family: famHackEvents, tools: HackTools()}}
+	families := []familyTools{
+		{family: famHackEvents, tools: hackEventTools()},
+		{family: famHackEntries, tools: hackEntryTools()},
+		{family: famStorage, tools: hackStorageTools()},
+		{family: famSites, tools: hackWebTools()},
+	}
+	var base []Tool
+	for _, family := range families {
+		base = append(base, family.tools...)
+	}
+	return append(families, familyTools{family: famHackAppOnly, tools: hackAppFamilyTools(base)})
 }
