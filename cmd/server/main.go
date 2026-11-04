@@ -603,27 +603,48 @@ func main() {
 	// The signal drains HTTP before it is allowed to cancel background work.
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
-	workerSet := startWorkers(workerCtx, workerDependencies{site: siteHandler, user: userHandler, oauth: oauthHandler, connector: connector, hack: hackEvents, image: imageScan, paper: paper, metrics: apiMetrics, geo: geo, analytics: ingester, eventDomains: eventDomains, hackSweep: hackSweep})
+	workerSet := registerWorkers(workerDependencies{site: siteHandler, user: userHandler, oauth: oauthHandler, connector: connector, hack: hackEvents, image: imageScan, paper: paper, metrics: apiMetrics, geo: geo, analytics: ingester, eventDomains: eventDomains, hackSweep: hackSweep})
+	// Startup must finish its initial cache/retention work before serving,
+	// but a signal must still interrupt a blocked initial database query.
+	startupDone := make(chan struct{})
+	startupWatcherDone := make(chan struct{})
+	go func() {
+		defer close(startupWatcherDone)
+		select {
+		case <-ctx.Done():
+			cancelWorkers()
+		case <-startupDone:
+		}
+	}()
+	workerSet.Start(workerCtx)
+	close(startupDone)
+	<-startupWatcherDone
+
 	siteHandler.SetWorkerStatus(workerSet.Status)
 
 	serverErr := make(chan error, 1)
 
-	go func() {
-		log.Printf("listening on %s", server.Addr)
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serverErr <- err
-		}
-		close(serverErr)
-	}()
+	if ctx.Err() == nil {
+		go func() {
+			log.Printf("listening on %s", server.Addr)
+			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serverErr <- err
+			}
+			close(serverErr)
+		}()
 
-	select {
-	case err := <-serverErr:
-		if err != nil {
-			exitCode = 1
-			log.Printf("server error: %v", err)
+		select {
+		case err := <-serverErr:
+			if err != nil {
+				exitCode = 1
+				log.Printf("server error: %v", err)
+			}
+		case <-ctx.Done():
+			stop()
 		}
-	case <-ctx.Done():
-		stop()
+
+	} else {
+		log.Print("startup interrupted by signal; stopping background workers")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

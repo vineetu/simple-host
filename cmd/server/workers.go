@@ -27,8 +27,9 @@ type workerDependencies struct {
 	hackSweep    func(context.Context)
 }
 
-// startWorkers is the single registry of process background owners.
-func startWorkers(ctx context.Context, d workerDependencies) *workers.Set {
+// registerWorkers is the single registry of process background owners.
+// Retain every owner before any potentially blocking Start call.
+func registerWorkers(d workerDependencies) *workers.Set {
 	s := &workers.Set{}
 	s.Add(d.site.HTTPCaches())
 	s.Add(d.user.HTTPCaches())
@@ -74,6 +75,5 @@ func startWorkers(ctx context.Context, d workerDependencies) *workers.Set {
 	} else {
 		s.AddDisabled("operations.paper_metrics")
 	}
-	s.Start(ctx)
 	return s
 }
