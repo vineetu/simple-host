@@ -96,3 +96,53 @@ admin API with its lineage (`POST /v1/admin/users/{id}/address-families`
 `"proof_exempt":true` if you already run its DNS). Once it is verified, the issuer reports
 "already served here" until `deploy/prod/family-adopt.sh <domain> --old <vhost>` (dry run; then
 `--apply`) swaps the hand-made server for the managed one; `--rollback --apply` puts it back.
+
+## Certificate issuers (root scripts)
+
+The two root certificate issuers in `deploy/` are not part of the service's environment. Each
+reads its own conf file, sourced as shell, which is where their limits are changed; the file is
+optional and unset values keep the script's defaults.
+
+`/etc/simple-host-domain-certs.conf` (custom domains, `deploy/domain-certs/issue.sh`):
+
+| Variable | Default | What it controls |
+|---|---|---|
+| `DAILY` | 50 | New custom-domain certificates per rolling 24 hours, for the whole server. |
+| `PER_RUN` | 10 | Certificates one run may request. |
+| `RETRY_AFTER` | 21600 | Seconds before a failed domain is tried again. |
+
+The per-account cap the app enforces (`DOMAIN_CERTS_PER_ACCOUNT_DAILY`) is separate from, and
+normally well under, this server-wide `DAILY`.
+
+`/etc/simple-host-site-certs.conf` (per-person `*.<handle>` addresses, `deploy/site-certs/issue.sh`):
+
+| Variable | Default | What it controls |
+|---|---|---|
+| `BUDGET` | 40 | New certificates per rolling 7 days. Let's Encrypt allows 50 per registered domain per week; keep it at or under 50. |
+| `DAILY` | 12 | New certificates per rolling 24 hours. |
+| `PER_RUN` | 6 | Certificates one run may request. |
+| `RETRY_AFTER` | 21600 | Seconds before a failed handle is tried again. |
+
+The site-certs issuer writes the limits in force to `$SITE_CERT_DIR/limits`, and the app reads
+them from there for the waiting-time estimate it shows, so nothing else needs changing. How
+often each issuer runs is its systemd timer (`simple-host-*-certs.timer`, every 10 minutes);
+change it with a drop-in (`systemctl edit`).
+
+## Checks and certificate hand-off
+
+`DOMAIN_UNPROVEN_MAX_DAYS` must not be shorter than `DOMAIN_UNPROVEN_HOURS`.
+Domain and address-family certificate daily caps use rolling days. Pending
+address families serve nothing while waiting for the wildcard and TXT records.
+`www.<family>` belongs to the customer; reserved labels never name a site.
+Every family change refreshes the working-family cache immediately.
+Per-site-name family certificates are for a later per-host release; wildcard
+families need none.
+
+`SITE_CERT_DIR`, `DOMAIN_CERT_DIR` and `ADDRESS_FAMILY_CERT_DIR` hand off to
+`deploy/site-certs/`, `deploy/domain-certs/` and `deploy/family-certs/` respectively.
+The alternate-base issuer uses `deploy/site-certs/simple-host-site-certs-site.*`.
+When the move is on and `SITE_BASE_DOMAIN` differs from `SITE_DOMAIN`, startup
+fails without `SITE_BASE_CERT_DIR` or its `ready/` and `requests/` directories;
+the app never creates those directories. The hosted move was paused on
+2026-10-09, to revisit about 2026-11-09; see the
+[historical plan](../history/site-base-domain-move.md).

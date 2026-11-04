@@ -11,7 +11,7 @@ import (
 )
 
 // Limits holds every operational time and limit an operator can change per
-// install (docs/configuration.md lists them). Each one is read from its env
+// install (docs/advanced/ lists them). Each one is read from its env
 // var once, in Load, and checked against a range; a bad value stops the server
 // at startup with a message naming the variable. Unset means today's value, so
 // an install that sets none of them behaves exactly as before.
@@ -692,7 +692,7 @@ func formatOverrides(m map[string]int) string {
 // familyLabelShape is one DNS label (ADDRESS_FAMILY_RESERVED_LABELS).
 var familyLabelShape = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
-// Knobs lists every setting, in the order docs/configuration.md gives them.
+// Knobs lists operational settings; docs/advanced/ groups their reference by area.
 func Knobs() []Knob {
 	m, h, d := time.Minute, time.Hour, day
 	return []Knob{

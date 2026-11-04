@@ -99,3 +99,15 @@ personal identifiers before storage. No local email, URL, credential-content, or
 personal-data pattern matching is used. Arbitrary prose, SQL aliases, and user-defined
 fields outside this inventory rely on that server-side redaction. The local tests verify
 what is posted, not AgentCat's storage or project configuration.
+
+## Network and page counts
+
+The admin Overview shows the box's bytes in and out this month from the main
+interface's kernel counters, sampled into the database, and website bytes sent
+from the analytics log's ninth field (`$bytes_sent`). Traffic rows follow
+`ANALYTICS_RETENTION_DAYS`. Setting `NETWORK_MONTHLY_ALLOWANCE_GB=0` also disables
+the alert. The daily alert script is `deploy/prod/sh-network-watch.sh`.
+
+Top-page paths are normalized before counting: percent escapes decoded once,
+`//` collapsed, query and fragment dropped. The referrer-domain cap bounds
+referrer spam. Local location files are DB-IP Lite databases.

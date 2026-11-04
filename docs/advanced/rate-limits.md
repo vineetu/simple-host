@@ -9,6 +9,18 @@ description says otherwise.
 stricter freely but at most four times looser than the default; anything looser stops the server
 at startup. The others may be set to anything, with a startup warning past ten times looser.
 
+Burst must be 1–100,000 and `<every>` 1ms–24h, within any stricter security
+ceiling. Security-sensitive limits also include email codes, site passcode tries
+and spam-checked posts. Their burst may be at most four times the default and
+`<every>` at least a quarter of it; startup errors name the ceiling. Other limits
+log `WARNING` beyond ten times looser. Unknown `RATE_LIMIT_*` names are ignored
+with a startup `WARNING`.
+
+`RATE_LIMIT_SITE_OPS` also covers account deletion; `RATE_LIMIT_EXPORT` includes
+link downloads. `RATE_LIMIT_EVENT_APPLY_USER` permits five applications an hour
+by default. Visitor OAuth limits cover both starts and callbacks. Passcode
+limits trigger the [site lockout periods](sites-and-versions.md).
+
 <!-- settings:type=rate -->
 | Setting | Default | Allowed | What it does |
 |---|---|---|---|

@@ -138,8 +138,8 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ./simple-host ./cmd/server
 https://simple-host.app/setup?product=small-box writes the install command and `.env` for a small
 box. Its questions, client-side validation, generated settings and install commands run in your
 browser. It never asks for a password or key and sends none of your choices to a model. Every setting, by area with recipes (stricter sign-in,
-shorter retention, a small hackathon box): [docs/advanced/](docs/advanced/README.md). The full
-reference: [docs/configuration.md](docs/configuration.md).
+shorter retention, a small hackathon box): [docs/advanced/](docs/advanced/README.md).
+Start with the [configuration entry](docs/configuration.md).
 
 ## API
 

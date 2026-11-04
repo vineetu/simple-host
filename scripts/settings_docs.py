@@ -8,8 +8,6 @@ docs/advanced/settings.json is generated from the code (`simple-host settings
 
   * fills every settings table in docs/advanced/*.md from it, between
     <!-- settings:group=<id> --> (or settings:type=<type>) and <!-- /settings -->;
-  * checks docs/configuration.md names every setting and states the same
-    default (and range, where its row gives one), and names nothing else;
   * hosted repo: checks every setting offered on a small box is passed through
     compose.yaml and kept by deploy/install/install.sh, and keeps the setup
     helper's copies (internal/handler/static/setup/*.json) equal to the
@@ -51,7 +49,6 @@ def write_or_check(path, new):
 
 doc = json.loads(read("docs/advanced/settings.json"))
 settings = doc["settings"]
-by_name = {s["name"]: s for s in settings}
 
 
 def allowed(s):
@@ -117,36 +114,6 @@ for g in doc["groups"]:
 for s in settings:
     if s["name"] not in covered:
         errors.append(f"{s['name']} is in no docs/advanced table (add <!-- settings:group={s['group']} --> to its page)")
-
-# docs/configuration.md is the full reference: every setting, the same default.
-conf = read("docs/configuration.md")
-rows, section = {}, ""
-for line in conf.splitlines():
-    if line.startswith("#"):
-        section = line
-        continue
-    m = re.match(r"^\| `([A-Z][A-Z0-9_]+)`(?:, `[A-Z0-9_]+`)* \|", line)
-    if m and not re.search(r"Removed|Certificate issuers", section):
-        for n in re.findall(r"`([A-Z][A-Z0-9_]+)`", line.split("|")[1]):
-            rows[n] = line
-for s in settings:
-    row = rows.get(s["name"])
-    if row is None:
-        errors.append(f"docs/configuration.md has no table row for {s['name']}")
-        continue
-    d = s["default"]
-    cols = [c.strip() for c in row.split("|")[2:]]
-    if d and not d.startswith("<") and f"`{d}`" not in row and d not in cols:
-        errors.append(f"docs/configuration.md: {s['name']} default is {d!r} in code but the row says otherwise")
-    lo, hi = s.get("min"), s.get("max")
-    if isinstance(lo, int) and isinstance(hi, int) and re.search(r"\| \d[\d,]*–\d", row):
-        if f"| {lo}–{hi} |" not in row:
-            errors.append(f"docs/configuration.md: {s['name']} range is {lo}–{hi} in code but the row says otherwise")
-    if s.get("loosest") and s["loosest"] not in row:
-        errors.append(f"docs/configuration.md: {s['name']} loosest value is {s['loosest']} in code but the row says otherwise")
-for n in rows:
-    if n not in by_name:
-        errors.append(f"docs/configuration.md has a row for {n}, which the server does not read")
 
 # Hosted: what the setup helper offers for a small box must work there.
 if os.path.exists(os.path.join(ROOT, "compose.yaml")):

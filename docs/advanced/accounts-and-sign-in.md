@@ -76,3 +76,23 @@ OAUTH_REFRESH_TTL_DAYS=30
 **Google sign-in only on a small box.** Create an OAuth client (type "Web application") with the
 redirect URI above, set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`, and leave
 `RESEND_API_KEY` empty.
+
+## Key and session behavior
+
+`POST /v1/me/keys` returns 409 `key_limit` at `MAX_KEYS_PER_ACCOUNT`; sign-in keys
+are not refused. Idle keys return 401 `key_expired_idle`, asking for a new key.
+For keys that predate idle expiry, the idle clock starts on the day it shipped.
+A Keys-panel key may also carry a fixed expiry (`expires_in_days`). Lowering
+`KEY_IDLE_EXPIRY_DAYS` applies immediately to every key, including ones already
+unused beyond the new limit. Expired keys (idle or fixed expiry) do not count
+toward the key cap and are deleted 30 days after expiry.
+
+A handle change before `HANDLE_RENAME_EVERY_DAYS` returns 429 with
+`next_change_after`. `VISITOR_SESSION_DAYS` also sets the session cookie's max
+age. Each use slides the idle expiry, never beyond the absolute lifetime.
+Each OAuth refresh issues a new refresh token.
+
+Setting only one Google OAuth credential is treated as off. Country sign-in
+restrictions apply to both new and existing accounts. The plugin reviewer
+password flow is implemented in `internal/handler/reviewer.go`.
+The admin is a real account, upserted from `ADMIN_API_KEY` at boot.

@@ -143,3 +143,65 @@ cd /opt/simple-host && sudo docker compose up -d
 
 3. The boot log says `spam check: Turnstile on`. Your sites, Manage, Storage now offers Comments.
    Under systemd, prefer `TURNSTILE_SECRET_FILE` with a credential over the plain secret.
+
+## Spam-check credentials
+
+Without the Turnstile site key and secret, the comments preset is refused with
+400 `spam_check_unavailable`. Its frame is `/v1/turnstile/frame` on
+`PUBLIC_BASE_URL`, whatever address the site uses. An unreadable
+`TURNSTILE_SECRET_FILE` turns the check off. A systemd credential can supply it:
+`LoadCredential=turnstile-secret:/etc/simple-host-secrets/turnstile-secret` and
+`Environment=TURNSTILE_SECRET_FILE=%d/turnstile-secret`.
+
+## Legacy saved-data behavior
+
+`SAVED_DATA_UNDO_DAYS` applies to data already kept: shortening it removes older
+history and Recently deleted items at the next sweep, unlike the stored promises
+for site deletion and domain release.
+
+The site owner restores history and deleted items. History thinning keeps each
+item's first change of every day; it runs when a write crosses the cap (at most
+once a second per site) and in the sweep. The live-data cap excludes history and
+Recently deleted. Writes that grow it beyond the cap return 507 `site_full`;
+writes that do not grow it still succeed. Changes made with ops store only the
+change, with a full snapshot on the first change each day as well as at
+`SAVED_DATA_SNAPSHOT_EVERY`.
+
+`GET /v1/admin/data-watch` reports the watch window. `SAVED_DATA_WATCH_KEEP_DAYS`
+must not be shorter than `SAVED_DATA_WATCH_DAYS`. Retries use `Idempotency-Key`.
+Owner-key and connector reads are limited per account rather than per address.
+
+Page info (`content`), Personal (`mine`) and Shared board (`board`) oversized
+items return 413 `item_too_large`. The corresponding name caps, including
+Submissions (`entries`), return 409 `too_many_names`. Submissions and Shared
+board live-item caps return 409 `list_full`. Older Submissions entries up to
+64 KB are kept. The Personal people cap counts Recently deleted records;
+a new person's first save beyond it returns 409 `people_full`, while existing
+people keep saving. The per-person board write cap returns 429 and adds to
+`SAVED_DATA_APPEND_PER_MIN`, so one account on many addresses goes no faster.
+
+Undeclared names in `declare_first` mode return 409 `declare_first` until the
+owner declares Page info or Submissions. Sites predating
+`sd2-saved-data-kinds.sql` stay Shared; every later site follows the current
+setting, so switching it changes all those sites. Shared keeps older skills and
+uploaded pages working. The "Email me: each" interval also sets how often due
+emails are checked.
+
+## Notification delivery behavior
+
+The subscription cap counts agents and the dashboard together. Visitor events
+over the per-minute cap are not sent. Per-URL delivery limiting uses an in-memory
+token bucket with a one-attempt burst across all sites and subscriptions.
+Attempts are spread over about 15 minutes; 410 and 413 responses are never retried.
+Truncated string fields are listed under `truncated`. Oversized bodies omit
+fields, then cut visitor-controlled paths and keys to 256 bytes if needed.
+`NOTIFY_DEFAULT_TTL_HOURS` is also the maximum granted without an OAuth grant.
+
+## Image matching
+
+See [Image matching](../image-matching.md) for PhotoDNA. These settings are
+forwarded by server (systemd) installs; Docker Compose does not pass them through
+yet. Without all three report identity fields, matches are recorded with report
+status off; the admin Report button appears once they are set. Evidence paths
+resolve symlinks, must be outside served paths and writable by the service
+(`ReadWritePaths` on a hardened unit). Exclude evidence from your own backups.
