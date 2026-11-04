@@ -2413,7 +2413,7 @@
         ],
         "operationId": "changeOwnPassword",
         "summary": "Change your own password",
-        "description": "Available only when PASSWORD_SIGNIN=on, for an account that already has a password (404 for one that does not). current_password is verified against the same limiters as sign-in (passwordLoginLimiter, keyed by the normalized username, and passwordIPLimiter); a wrong current password counts against both and refunds neither. new_password must be 8-256 characters and differ from current_password. Does not revoke keys, sessions or connector tokens; every other sign-in stays valid.",
+        "description": "Available only when PASSWORD_SIGNIN=on, for an account that already has a password (404 for one that does not). current_password is verified against the same limiters as sign-in (passwordLoginLimiter, keyed by the normalized username, and passwordIPLimiter); a wrong current password counts against both and refunds neither, and answers 403 (not 401, which the dashboard and Hack account screens read as an expired key and sign the browser out). new_password must be 8-256 characters and differ from current_password. Only a real account API key may call this; a connector's OAuth access token, even one otherwise valid for the REST API, is refused. Does not revoke keys, sessions or connector tokens; every other sign-in stays valid.",
         "security": [
           {
             "apiKey": []
@@ -2453,7 +2453,10 @@
             "description": "invalid_password (too short, or same as current_password)"
           },
           "401": {
-            "description": "Wrong current password (bad_credentials), or missing/invalid API key"
+            "description": "Missing or invalid API key"
+          },
+          "403": {
+            "description": "Wrong current password (code bad_credentials), or a connector access token (code connector_not_allowed): sign in with an account API key instead."
           },
           "404": {
             "description": "not found: PASSWORD_SIGNIN is off, or this account has no password"

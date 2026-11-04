@@ -1367,11 +1367,26 @@ func (h *ConnectorHandler) BearerAuth(next http.Handler) http.Handler {
 			return
 		}
 		defer revoke()
-		r2 := r.Clone(r.Context())
+		// Marked so a route that must refuse a connected app (changing the
+		// account's own password) can tell this in-process key apart from
+		// one the person actually typed in (isConnectorRequest).
+		r2 := r.Clone(context.WithValue(r.Context(), connectorTokenKey{}, true))
 		r2.Header.Del("Authorization")
 		r2.Header.Set("X-API-Key", key)
 		next.ServeHTTP(w, r2)
 	})
+}
+
+// connectorTokenKey marks a request whose X-API-Key was minted in process
+// from a connector's OAuth access token (BearerAuth above), not sent by the
+// person. isConnectorRequest reads it; checked by routes a connected app
+// must never reach even though it otherwise carries the person's full REST
+// permissions, such as changing the account's own password.
+type connectorTokenKey struct{}
+
+func isConnectorRequest(ctx context.Context) bool {
+	v, _ := ctx.Value(connectorTokenKey{}).(bool)
+	return v
 }
 
 // ---- /mcp -------------------------------------------------------------------------------

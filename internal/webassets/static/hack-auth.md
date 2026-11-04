@@ -29,8 +29,10 @@ Omit `password` to generate a temporary one. Admin usernames may be emails; admi
 cannot be reset here. All password routes return 404 when `PASSWORD_SIGNIN=off`;
 sign-up also returns 404 when `PASSWORD_SELF_SIGNUP=off`. Hosted services leave password sign-in off.
 A signed-in password account changes its own password with `POST /v1/me/password`
-`{current_password,new_password}` (own API key); `GET /v1/me` adds `has_password` while
-`PASSWORD_SIGNIN=on`. Wrong `current_password` returns 401 `bad_credentials` on the same
+`{current_password,new_password}`, using an own account API key only: a connector's OAuth
+access token is refused with 403 `connector_not_allowed`, even one otherwise valid for the
+REST API. `GET /v1/me` adds `has_password` while `PASSWORD_SIGNIN=on`. Wrong `current_password`
+returns 403 (not 401, which both UIs read as an expired key) `bad_credentials` on the same
 limiters as sign-in; a `new_password` too short or equal to the current one returns 400
 `invalid_password`. Success is 204 and does not revoke any key, session or connector token.
 

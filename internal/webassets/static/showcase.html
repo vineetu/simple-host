@@ -956,6 +956,29 @@
       </div>
       <!-- ==== end Sign-in ==== -->
 
+      <!-- ==== Password (w2/account) ====
+           Shown only when has_password is true (GET /v1/me, PASSWORD_SIGNIN
+           on for this self-hosted install). Self-contained like Sign-in
+           above: markup here, the matching script block at the end of the
+           page. Owner-only. Does not sign out any other key or session. -->
+      <div class="section" id="owner-password" hidden>
+        <div class="section-num"><h2>Password</h2><span class="line"></span></div>
+        <div class="conn-row">
+          <span><b>Change your password</b><small>At least 8 characters. Your other keys and sessions are not affected.</small></span>
+        </div>
+        <form class="signin-form" id="password-form">
+          <label for="password-current">Current password</label>
+          <input type="password" id="password-current" autocomplete="current-password">
+          <label for="password-new">New password</label>
+          <input type="password" id="password-new" autocomplete="new-password" minlength="8">
+          <label for="password-confirm">Confirm new password</label>
+          <input type="password" id="password-confirm" autocomplete="new-password" minlength="8">
+          <button type="submit" class="btn btn-primary btn-small" id="password-save">Change password</button>
+        </form>
+        <p class="addr-msg" id="password-msg" aria-live="polite" hidden></p>
+      </div>
+      <!-- ==== end Password ==== -->
+
       <!-- Analytics view (dedicated screen) -->
       <div class="section" id="owner-analytics-view" hidden>
         <div class="section-num"><h2>Analytics</h2><span class="line"></span></div>
@@ -4852,6 +4875,9 @@ function parseAnalyticsSummary(data) {
       var currentInput = document.getElementById('signin-current-input');
       var alerts = document.getElementById('signin-alerts');
       var identities = document.getElementById('signin-identities');
+      var pwBox = document.getElementById('owner-password');
+      var pwForm = document.getElementById('password-form');
+      var pwMsg = document.getElementById('password-msg');
       function show(which) {
         row.hidden = which !== 'row';
         emailForm.hidden = which !== 'email';
@@ -4928,6 +4954,50 @@ function parseAnalyticsSummary(data) {
           }).join('');
         } catch (e) {}
       }
+      // Password (POST /v1/me/password): current + new, "twice" matched
+      // here before the request goes out. Never signs this browser out.
+      pwForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var cur = document.getElementById('password-current');
+        var next = document.getElementById('password-new');
+        var confirm = document.getElementById('password-confirm');
+        pwMsg.hidden = true;
+        pwMsg.className = 'addr-msg';
+        if (next.value.length < 8) {
+          pwMsg.textContent = 'New password must be at least 8 characters.';
+          pwMsg.className = 'addr-msg bad';
+          pwMsg.hidden = false;
+          return;
+        }
+        if (next.value !== confirm.value) {
+          pwMsg.textContent = 'New passwords do not match.';
+          pwMsg.className = 'addr-msg bad';
+          pwMsg.hidden = false;
+          return;
+        }
+        var btn = document.getElementById('password-save');
+        btn.disabled = true;
+        try {
+          var r = await send('POST', '/v1/me/password', { current_password: cur.value, new_password: next.value });
+          if (!r.ok) {
+            pwMsg.textContent = (r.data && r.data.error) || 'Could not change password.';
+            pwMsg.className = 'addr-msg bad';
+            pwMsg.hidden = false;
+            return;
+          }
+          cur.value = ''; next.value = ''; confirm.value = '';
+          pwMsg.textContent = 'Password changed.';
+          pwMsg.className = 'addr-msg';
+          pwMsg.hidden = false;
+          toast('Password changed', 'success');
+        } catch (err) {
+          pwMsg.textContent = 'Could not change password.';
+          pwMsg.className = 'addr-msg bad';
+          pwMsg.hidden = false;
+        } finally {
+          btn.disabled = false;
+        }
+      });
       identities.addEventListener('click', async function (e) {
         var btn = e.target.closest('[data-unlink]');
         if (!btn) return;
@@ -4964,6 +5034,7 @@ function parseAnalyticsSummary(data) {
           document.getElementById('signin-email').textContent = me.username;
           alerts.checked = me.signin_alerts !== false;
           box.hidden = false;
+          if (pwBox) pwBox.hidden = !(me.has_password === true);
           loadIdentities();
         } catch (e) {}
       }

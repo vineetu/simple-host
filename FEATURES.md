@@ -786,12 +786,17 @@ two calls at a time; sign-in verifies before locking and rejects a password chan
 answer 404 and no password UI appears. No TOTP, leaked-password checks or passkeys.
 A signed-in password account changes its own password from the Account page (2026-11-04):
 `POST /v1/me/password` `{current_password,new_password}`, authenticated with the account's own
-API key, counted on the same `passwordLoginLimiter`/`passwordIPLimiter` as sign-in (wrong
-`current_password` is 401 `bad_credentials`); `new_password` follows the same 8–256 rule and must
-differ from the current one (400 `invalid_password`). An account with no password row is 404.
-Success stores a new hash (`must_change=false`) and touches no key, session or connector token.
-`GET /v1/me` adds `has_password` only while `PASSWORD_SIGNIN=on`, so hosted responses stay
-byte-identical; the dashboard and Hack account screens show a Password card only then.
+API key only — a connector's OAuth access token is refused with 403 `connector_not_allowed`, even
+one otherwise valid for the whole REST API — counted on the same `passwordLoginLimiter`/
+`passwordIPLimiter` as sign-in (wrong `current_password`, or one that fails the same length check
+sign-in applies, is 403 `bad_credentials`: 403, not 401, because the dashboard and Hack account
+screens read any 401 on a signed-in request as an expired key and sign the browser out);
+`new_password` follows the same 8–256 rule and must differ from the current one (400
+`invalid_password`). An account with no password row is 404. Success stores a new hash
+(`must_change=false`) and touches no key, session or connector token. `GET /v1/me` adds
+`has_password` only while `PASSWORD_SIGNIN=on`, so hosted responses stay byte-identical; the
+dashboard (`index.html`), the Host account page (`showcase.html`, the normal `/<handle>` page)
+and the Hack account screen show a Password card only then.
 Self-host marketing is shown only on simple-host.app and simple-hack.app using existing hosted
 blocks, including landing pages, features and navigation; the routes remain available.
 

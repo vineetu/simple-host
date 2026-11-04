@@ -20,6 +20,15 @@ func NormalizeLogin(login string) string { return strings.ToLower(strings.TrimSp
 func badCredentials() error {
 	return lifecycleFail(401, "Wrong username or password.", "bad_credentials")
 }
+
+// changePasswordBadCredentials is ChangePassword's "wrong current password":
+// same bad_credentials code (so the handler's limiter-refund rule still
+// matches it) but 403, not 401 -- the dashboard and Hack account screens
+// treat any 401 on a signed-in request as an expired key and sign the
+// browser out, which a mistyped current password must not do.
+func changePasswordBadCredentials() error {
+	return lifecycleFail(403, "Wrong username or password.", "bad_credentials")
+}
 func (s *Service) PasswordSignIn(ctx context.Context, login, password, newPassword string) (model.User, error) {
 	user, hash, _, err := repo.PasswordAccount(ctx, s.database, NormalizeLogin(login))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -99,8 +108,9 @@ func (s *Service) ChangePassword(ctx context.Context, userID, current, next stri
 	if len(bounded) > 1024 {
 		bounded = bounded[:1024]
 	}
-	if !verifyPassword(bounded, hash) {
-		return badCredentials()
+	matches := verifyPassword(bounded, hash)
+	if !matches || validPassword(current) != nil {
+		return changePasswordBadCredentials()
 	}
 	if err := validPassword(next); err != nil {
 		return err
@@ -119,7 +129,7 @@ func (s *Service) ChangePassword(ctx context.Context, userID, current, next stri
 	defer tx.Rollback()
 	lockedHash, _, err := repo.LockPassword(ctx, tx, userID)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && lockedHash != hash {
-		return badCredentials()
+		return changePasswordBadCredentials()
 	}
 	if err != nil {
 		return err

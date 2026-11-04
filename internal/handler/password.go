@@ -99,6 +99,13 @@ func (h *UserHandler) changePassword(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
+	if isConnectorRequest(r.Context()) {
+		// A connected app's access token otherwise carries the person's full
+		// REST permissions (BearerAuth), but changing the password itself
+		// must come from the person signed in with their own account key.
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: "Sign in on this site to change your password.", Code: "connector_not_allowed"})
+		return
+	}
 	var req struct {
 		CurrentPassword string `json:"current_password"`
 		NewPassword     string `json:"new_password"`

@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -120,11 +121,32 @@ func TestChangeOwnPassword(t *testing.T) {
 		t.Fatalf("has_password: %d %s", r.status, r.body)
 	}
 
-	// Wrong current password: 401, counted on the same limiter as sign-in,
-	// and the key used to ask is untouched.
+	// Wrong current password: 403 (not 401, which both UIs read as an
+	// expired key and sign the browser out), counted on the same limiter as
+	// sign-in, and the key used to ask is untouched.
 	wrong := post("/v1/me/password", map[string]string{"current_password": "not it", "new_password": "second password"}, key)
-	if wrong.status != 401 || wrong.json(t)["code"] != "bad_credentials" {
+	if wrong.status != 403 || wrong.json(t)["code"] != "bad_credentials" {
 		t.Fatalf("wrong current password: %d %s", wrong.status, wrong.body)
+	}
+
+	// A connector access token carries this account's full REST permissions
+	// (BearerAuth) but must never be able to change the password itself.
+	redirect := "https://client.example/callback"
+	client := a.registerClient(t, redirect)
+	verifier, challenge := newVerifier()
+	code := codeFrom(t, a.consent(t, authorizeQuery(client, redirect, challenge), key, "allow"))
+	tok := a.form(t, "/oauth/token", url.Values{
+		"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirect},
+		"client_id": {client}, "code_verifier": {verifier},
+	}, nil)
+	if tok.status != 200 {
+		t.Fatalf("token: %d %s", tok.status, tok.body)
+	}
+	access := tok.json(t)["access_token"].(string)
+	connectorTry := a.do(t, "POST", "/v1/me/password", jsonBody(map[string]string{"current_password": "first password", "new_password": "second password"}),
+		map[string]string{"Content-Type": "application/json", "Authorization": "Bearer " + access})
+	if connectorTry.status != 403 || connectorTry.json(t)["code"] != "connector_not_allowed" {
+		t.Fatalf("connector token changed password: %d %s", connectorTry.status, connectorTry.body)
 	}
 
 	// Correct current password and a valid new one: success.

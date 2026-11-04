@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-04: Change-own-password review fixes: `POST /v1/me/password` now refuses a connector's OAuth access token (403 `connector_not_allowed`), even one otherwise valid for the REST API, and answers a wrong current password with 403 instead of 401 (the dashboard and Hack account screens read any 401 as an expired key and sign the browser out). The current password is also rejected as `bad_credentials` when it fails the same length check as sign-in, not just on a failed hash match. The Host account page (`showcase.html`, the normal `/<handle>` page, not only the apex dashboard) gets the same Password card as `index.html`. No migration.
+
 2026-11-04: A signed-in password account can change its own password from the Account page (`POST /v1/me/password`, current password plus a new one typed twice in the browser). It is counted on the same sign-in limiters as a wrong password, and never revokes any other key, session or connector token. `GET /v1/me` adds `has_password` only when `PASSWORD_SIGNIN` is on. No migration.
 
 2026-11-04: Hosted events on Kubernetes can turn on `TEAM_SITE_FLAT_HOSTS` (chart value `teamSites.flatHosts`, off by default) to serve a team's site at `<team>--<event>.<host>` instead of `<team>.<event>.<host>`, so one wildcard certificate and Ingress rule cover every event and team instead of one per event. Hosted simple-hack.app keeps it off, unchanged. Event and team slugs may no longer contain "--".
