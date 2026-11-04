@@ -19,7 +19,7 @@ func TestLegacyWithdrawalRestorable(t *testing.T) {
 		{"delete", "b", "a", time.Hour, false},
 		{"delete", "a", "a", time.Second, false},
 	} {
-		if got := LegacyWithdrawalRestorable(tc.op, tc.actor, tc.user, at, tc.window); got != tc.want {
+		if got := LegacyWithdrawalRestorable(tc.op, tc.actor, tc.user, at, time.Now(), tc.window); got != tc.want {
 			t.Errorf("LegacyWithdrawalRestorable(%q, %q, %q, %v) = %v", tc.op, tc.actor, tc.user, tc.window, got)
 		}
 	}

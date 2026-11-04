@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -61,10 +62,11 @@ func isVisitorActor(a db.Actor) bool { return a.Kind == actorVisitor || a.Kind =
 // SetSavedData applies the SAVED_DATA_* knobs. Call before serving.
 func (h *SiteHandler) SetSavedData(c config.SavedData) {
 	h.savedData = c
-	h.readLimiter = newRateLimiter(float64(c.ReadBurst), float64(c.ReadPerSec))
-	h.appendLimiter = newRateLimiter(float64(c.AppendBurst), float64(c.AppendPerMin)/60)
-	h.boardLimiter = newRateLimiter(float64(c.BoardWritesPerMin), float64(c.BoardWritesPerMin)/60)
-	h.thinLimiter = newRateLimiter(1, 1)
+	limits := h.legacySvc().ConfigureSavedData(context.Background(), legacy.SavedDataLimitsInput{ReadBurst: c.ReadBurst, ReadPerSec: c.ReadPerSec, AppendBurst: c.AppendBurst, AppendPerMin: c.AppendPerMin, BoardWritesPerMin: c.BoardWritesPerMin})
+	h.readLimiter = newRateLimiter(limits.Read.Capacity, limits.Read.PerSecond)
+	h.appendLimiter = newRateLimiter(limits.Append.Capacity, limits.Append.PerSecond)
+	h.boardLimiter = newRateLimiter(limits.Board.Capacity, limits.Board.PerSecond)
+	h.thinLimiter = newRateLimiter(limits.Thin.Capacity, limits.Thin.PerSecond)
 }
 
 // boundHistory keeps a site's history near SAVED_DATA_HISTORY_MAX_MB between
@@ -76,44 +78,28 @@ func (h *SiteHandler) boundHistory(r *http.Request, siteID string) {
 	h.boundHistoryContext(r.Context(), siteID)
 }
 
+func (h *SiteHandler) historySvc() *legacy.Adapter {
+	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
+		HistoryThinStuck:   &h.thinStuck,
+		HistoryThinAllowed: func(siteID string) bool { return h.thinLimiter == nil || h.thinLimiter.allow(siteID) },
+	})
+}
+
 func (h *SiteHandler) boundHistoryContext(ctx context.Context, siteID string) {
 	capBytes := int64(h.savedData.HistoryMaxMB) << 20
-	ctx = context.WithoutCancel(ctx)
-	size, err := db.HistoryBytes(ctx, h.database, siteID)
-	if err != nil || size <= capBytes || h.thinPointless(siteID, size, capBytes) || (h.thinLimiter != nil && !h.thinLimiter.allow(siteID)) {
-		return
-	}
-	h.thin(ctx, siteID, capBytes)
+	h.historySvc().BoundHistory(ctx, legacy.HistoryThinInput{SiteID: siteID, CapBytes: capBytes})
 }
 
-// thinMargin is how much a site's history grows past the size it was left at
-// by a thin that could not bring it under the cap before thinning runs again:
-// a sixteenth of the cap, at least 64 KB.
-func thinMargin(capBytes int64) int64 { return max(capBytes/16, 64<<10) }
+// thinMargin is the growth needed before an ineffective thin is retried.
+func thinMargin(capBytes int64) int64 { return storagerules.LegacyHistoryThinMargin(capBytes) }
 
-// thinPointless: the last thin of siteID left it over the cap (the per-day
-// copies that thinning keeps hold more than the cap) and it has not grown by
-// thinMargin since, so thinning again would sort its whole history to delete
-// little or nothing.
+// thinPointless reports whether the last over-cap thin is still current.
 func (h *SiteHandler) thinPointless(siteID string, size, capBytes int64) bool {
 	v, ok := h.thinStuck.Load(siteID)
-	return ok && size < v.(int64)+thinMargin(capBytes)
-}
-
-// thin thins siteID's history to capBytes and notes whether it stayed over
-// (thinPointless). Returns how many changes went.
-func (h *SiteHandler) thin(ctx context.Context, siteID string, capBytes int64) int64 {
-	n, err := db.ThinSiteHistory(ctx, h.database, siteID, capBytes)
-	if err != nil {
-		log.Printf("saved-data thin site_id=%s: %v", siteID, err)
-		return 0
+	if !ok {
+		return false
 	}
-	if size, err := db.HistoryBytes(ctx, h.database, siteID); err == nil && size > capBytes {
-		h.thinStuck.Store(siteID, size)
-	} else {
-		h.thinStuck.Delete(siteID)
-	}
-	return n
+	return storagerules.LegacyHistoryThinPointless(size, v.(int64), capBytes, true)
 }
 
 // siteMaxBytes is SAVED_DATA_SITE_MAX_MB in bytes.
@@ -172,7 +158,7 @@ func (h *SiteHandler) watch(ctx context.Context, siteID, metric string, n int64)
 // counted) by growth bytes past SAVED_DATA_SITE_MAX_MB. A write that does not
 // grow it always goes through. One row read (sites.data_bytes).
 func (h *SiteHandler) siteHasRoom(w http.ResponseWriter, r *http.Request, siteID string, growth int64) bool {
-	ok, err := db.HasRoom(r.Context(), h.database, siteID, growth, h.siteMaxBytes())
+	ok, err := h.legacySvc().SiteHasRoom(r.Context(), legacy.SiteRoomInput{SiteID: siteID, Growth: growth, MaxBytes: h.siteMaxBytes()})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return false
@@ -204,18 +190,18 @@ func (h *SiteHandler) allowRead(w http.ResponseWriter, r *http.Request, siteID s
 	return false
 }
 
+func (h *SiteHandler) readBucketSvc() *legacy.Adapter {
+	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{VisitorResolveKey: h.resolveWriterKey})
+}
+
 func (h *SiteHandler) readBucket(r *http.Request, siteID string) string {
-	if key := r.Header.Get("X-API-Key"); key != "" {
-		if u, ok, err := h.resolveWriterKey(r.Context(), key); err == nil && ok {
-			return "user:" + u.ID
-		}
-	}
-	return "site:" + siteID + "|" + clientIP(r)
+	return h.readBucketSvc().ReadBucket(r.Context(), legacy.ReadBucketInput{SiteID: siteID, APIKey: r.Header.Get("X-API-Key"), ClientIP: clientIP(r)})
 }
 
 // allowAppend is the per-address limit on list items added without the
 // owner's key (SAVED_DATA_APPEND_PER_MIN, SAVED_DATA_APPEND_BURST). Writes
 // the 429 when refused.
+// TODO(4.3): move this limit into each complete caller workflow in the adapter.
 func (h *SiteHandler) allowAppend(w http.ResponseWriter, r *http.Request) bool {
 	if h.appendLimiter != nil && !h.appendLimiter.allowHTTP(w, clientIP(r)) {
 		tooManyRequests(w)
@@ -334,76 +320,31 @@ func (h *SiteHandler) StartSavedDataSweep(ctx context.Context) {
 }
 
 func (h *SiteHandler) sweepSavedData(ctx context.Context) {
-	for _, rl := range []*rateLimiter{h.readLimiter, h.appendLimiter, h.boardLimiter, h.thinLimiter} {
-		if rl != nil {
-			rl.evictIdle(10 * time.Minute)
-		}
-	}
-	hist, items, err := db.PurgeSavedData(ctx, h.database, h.savedData.UndoDays)
-	if err != nil {
-		log.Printf("saved-data sweep: %v", err)
-		return
-	}
-	idem, err := db.PurgeIdempotencyKeys(ctx, h.database, time.Duration(h.savedData.IdempotencyHours)*time.Hour, h.savedData.IdempotencyMaxPerSite)
-	if err != nil {
-		log.Printf("saved-data sweep (idempotency): %v", err)
-	}
-	watch, err := db.PurgeDataWatch(ctx, h.database, h.savedData.WatchKeepDays)
-	if err != nil {
-		log.Printf("saved-data sweep (watch): %v", err)
-	}
-	capBytes := int64(h.savedData.HistoryMaxMB) << 20
-	sites, err := db.SitesOverHistoryCap(ctx, h.database, capBytes)
-	if err != nil {
-		log.Printf("saved-data sweep (cap): %v", err)
-	}
-	var thinned int64
-	over := make(map[string]bool, len(sites))
-	for _, id := range sites {
-		over[id] = true
-		size, err := db.HistoryBytes(ctx, h.database, id)
-		if err != nil || h.thinPointless(id, size, capBytes) {
-			continue
-		}
-		thinned += h.thin(ctx, id, capBytes)
-	}
-	h.thinStuck.Range(func(k, _ any) bool {
-		if !over[k.(string)] {
-			h.thinStuck.Delete(k)
-		}
-		return true
+	svc := legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
+		HistoryThinStuck:   &h.thinStuck,
+		HistoryThinAllowed: func(siteID string) bool { return h.thinLimiter == nil || h.thinLimiter.allow(siteID) },
+		SweepEvict: func() {
+			for _, rl := range []*rateLimiter{h.readLimiter, h.appendLimiter, h.boardLimiter, h.thinLimiter} {
+				if rl != nil {
+					rl.evictIdle(10 * time.Minute)
+				}
+			}
+		},
 	})
-	if hist+items+idem+thinned+watch > 0 {
-		log.Printf("saved-data sweep: history=%d deleted_items=%d idempotency=%d thinned=%d watch=%d", hist, items, idem, thinned, watch)
-	}
+	svc.SweepSavedData(ctx, legacy.SweepSavedDataInput{UndoDays: h.savedData.UndoDays, IdempotencyHours: h.savedData.IdempotencyHours, IdempotencyMaxPerSite: h.savedData.IdempotencyMaxPerSite, WatchKeepDays: h.savedData.WatchKeepDays, HistoryCapBytes: int64(h.savedData.HistoryMaxMB) << 20})
 }
 
 // ---- owner routes: history, Recently deleted, restore, delete for good ----------
 
-const (
-	defaultHistoryPage = 50
-	maxHistoryPage     = 200
-)
-
 // pageLimit reads ?limit.
 func pageLimit(r *http.Request) int {
-	limit := defaultHistoryPage
-	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 {
-		limit = v
-	}
-	if limit > maxHistoryPage {
-		limit = maxHistoryPage
-	}
+	limit, _ := storagerules.LegacyHistoryPage(r.URL.Query().Get("limit"), "")
 	return limit
 }
 
 // pageArgs reads ?limit and ?before (a change id).
 func pageArgs(r *http.Request) (int, int64) {
-	var before int64
-	if v, err := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64); err == nil && v > 0 {
-		before = v
-	}
-	return pageLimit(r), before
+	return storagerules.LegacyHistoryPage(r.URL.Query().Get("limit"), r.URL.Query().Get("before"))
 }
 
 // deletedCursor is Recently deleted's `next`/`before`: "<deleted_at in unix
@@ -477,11 +418,7 @@ func pathID(r *http.Request, name string) (int64, bool) {
 }
 
 func historyNext(entries []db.HistoryEntry, limit int) *int64 {
-	if len(entries) < limit || len(entries) == 0 {
-		return nil
-	}
-	n := entries[len(entries)-1].ID
-	return &n
+	return storagerules.LegacyHistoryNext(entries, limit)
 }
 
 // listDataHistory is GET /v1/sites/{s}/state/history and

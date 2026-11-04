@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/legacy"
 )
 
@@ -50,20 +51,10 @@ var ErrSiteFull = errors.New("site saved data is full")
 // owner, in place of the admin account's address.
 const OperatorLabel = "Simple Host (operator)"
 
-// byExpr is who made a history change, as the owner sees it.
-const byExpr = `CASE WHEN actor_kind = 'admin' THEN '` + OperatorLabel + `' ELSE COALESCE(actor_email, '') END || CASE WHEN actor_app <> '' THEN ' via ' || actor_app ELSE '' END`
-
 // rowsQuerier is a *sql.DB or a *sql.Tx.
 type rowsQuerier interface {
 	Querier
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}
-
-func nullIfEmpty(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
 }
 
 // ---- the per-site size ------------------------------------------------------
@@ -101,28 +92,14 @@ func roomAfter(ctx context.Context, q Querier, siteID string, maxBytes int64) er
 // lockState reads the document, its version and its stored size with the
 // site row locked.
 func lockState(ctx context.Context, q Querier, siteID string) (json.RawMessage, int, int64, error) {
-	var state []byte
-	var version int
-	var size int64
-	err := q.QueryRowContext(ctx, `
-		SELECT COALESCE(state, 'null'::jsonb), state_version, state_bytes FROM sites WHERE id = $1 FOR UPDATE`, siteID).
-		Scan(&state, &version, &size)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return json.RawMessage(state), version, size, nil
+	return legacy.LockState(ctx, q, siteID)
 }
 
 // setStateWithin writes the document (row locked by lockState) and returns
 // ErrSiteFull when the document grew and the site is now past maxBytes. The
 // caller rolls back on error.
 func setStateWithin(ctx context.Context, q Querier, siteID string, state json.RawMessage, oldSize, maxBytes int64) (int, error) {
-	var version int
-	var size, total int64
-	err := q.QueryRowContext(ctx, `
-		UPDATE sites SET state = $2::jsonb, state_version = state_version + 1, updated_at = now()
-		 WHERE id = $1
-		RETURNING state_version, state_bytes, data_bytes`, siteID, string(state)).Scan(&version, &size, &total)
+	version, size, total, err := legacy.UpdateLockedState(ctx, q, siteID, state)
 	if err != nil {
 		return 0, err
 	}
@@ -136,7 +113,7 @@ func setStateWithin(ctx context.Context, q Querier, siteID string, state json.Ra
 
 // HistoryEntry is one change, newest first in lists. Value is the saved data
 // as it was just before the change (only filled when one entry is read).
-type HistoryEntry = legacy.HistoryEntry
+type HistoryEntry = model.HistoryEntry
 
 func recordHistory(ctx context.Context, q Querier, siteID, kind, name string, itemID *int64, op string, prev json.RawMessage, a Actor) error {
 	return legacy.RecordHistory(ctx, q, siteID, kind, name, itemID, op, prev, a)
@@ -228,13 +205,7 @@ func recordStatePatch(ctx context.Context, tx *sql.Tx, siteID string, prev json.
 	}
 	full := len(diff)*2 >= len(prev)
 	if !full {
-		var fullToday, fullRecent bool
-		err := tx.QueryRowContext(ctx, `
-			SELECT COALESCE(bool_or(is_full AND today), false), COALESCE(bool_or(is_full), false) FROM (
-				SELECT prev IS NOT NULL AS is_full,
-				       (created_at AT TIME ZONE 'UTC')::date = (now() AT TIME ZONE 'UTC')::date AS today
-				  FROM data_history WHERE site_id = $1 AND kind = 'state' AND name = ''
-				 ORDER BY id DESC LIMIT $2) t`, siteID, snapshotEvery).Scan(&fullToday, &fullRecent)
+		fullToday, fullRecent, err := legacy.FullStateSnapshots(ctx, tx, siteID, snapshotEvery)
 		if err != nil {
 			return err
 		}
@@ -243,10 +214,7 @@ func recordStatePatch(ctx context.Context, tx *sql.Tx, siteID string, prev json.
 	if full {
 		return recordHistory(ctx, tx, siteID, HistoryState, "", nil, OpChange, prev, a)
 	}
-	_, err = tx.ExecContext(ctx, `
-		INSERT INTO data_history (site_id, kind, name, op, diff, actor_id, actor_kind, actor_email)
-		VALUES ($1, 'state', '', $2, $3::jsonb, $4, $5, $6)`,
-		siteID, OpChange, string(diff), nullIfEmpty(a.ID), a.Kind, nullIfEmpty(a.Email))
+	err = legacy.InsertStateDiff(ctx, tx, siteID, OpChange, diff, a)
 	return err
 }
 
@@ -255,42 +223,35 @@ func recordStatePatch(ctx context.Context, tx *sql.Tx, siteID string, prev json.
 // document) with each newer reverse diff applied, newest first. q must give
 // one consistent view (the site row locked, or a snapshot).
 func stateBefore(ctx context.Context, q rowsQuerier, siteID string, id int64) (json.RawMessage, error) {
-	var hasPrev, hasDiff bool
-	if err := q.QueryRowContext(ctx, `
-		SELECT prev IS NOT NULL, diff IS NOT NULL FROM data_history
-		 WHERE id = $1 AND site_id = $2 AND kind = 'state' AND name = ''`, id, siteID).Scan(&hasPrev, &hasDiff); err != nil {
+	hasPrev, hasDiff, err := legacy.HistoryValueFlags(ctx, q, siteID, id)
+	if err != nil {
 		return nil, err
 	}
 	if !hasPrev && !hasDiff {
 		return nil, ErrNoEarlierValue
 	}
-	var fullID sql.NullInt64
-	if err := q.QueryRowContext(ctx, `
-		SELECT min(id) FROM data_history
-		 WHERE site_id = $1 AND kind = 'state' AND name = '' AND id >= $2 AND prev IS NOT NULL`, siteID, id).Scan(&fullID); err != nil {
+	fullID, err := legacy.NextFullHistoryID(ctx, q, siteID, id)
+	if err != nil {
 		return nil, err
 	}
 	var base []byte
 	upper := int64(1<<63 - 1)
 	if fullID.Valid {
-		if err := q.QueryRowContext(ctx, `SELECT prev FROM data_history WHERE id = $1`, fullID.Int64).Scan(&base); err != nil {
+		if err := legacy.FullHistoryValue(ctx, q, fullID.Int64, &base); err != nil {
 			return nil, err
 		}
 		if fullID.Int64 == id {
 			return json.RawMessage(base), nil
 		}
 		upper = fullID.Int64
-	} else if err := q.QueryRowContext(ctx, `SELECT COALESCE(state, 'null'::jsonb) FROM sites WHERE id = $1`, siteID).Scan(&base); err != nil {
+	} else if err := legacy.CurrentStateValue(ctx, q, siteID, &base); err != nil {
 		return nil, err
 	}
 	doc, err := decodeNumbers(base)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := q.QueryContext(ctx, `
-		SELECT diff FROM data_history
-		 WHERE site_id = $1 AND kind = 'state' AND name = '' AND id >= $2 AND id < $3
-		 ORDER BY id DESC`, siteID, id, upper)
+	rows, err := legacy.HistoryDiffRows(ctx, q, siteID, id, upper)
 	if err != nil {
 		return nil, err
 	}
@@ -318,31 +279,7 @@ func stateBefore(ctx context.Context, q rowsQuerier, siteID string, id int64) (j
 // ListHistory returns one target's changes newest first: the document
 // (kind state) or every item of one list (kind list). before > 0 pages back.
 func ListHistory(ctx context.Context, database *sql.DB, siteID, kind, name string, limit int, before int64) ([]HistoryEntry, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT id, item_id, op, `+byExpr+`, actor_kind, created_at,
-		       COALESCE(octet_length(prev::text), octet_length(diff::text), 0)
-		  FROM data_history
-		 WHERE site_id = $1 AND kind = $2 AND name = $3 AND ($4::bigint = 0 OR id < $4)
-		 ORDER BY id DESC
-		 LIMIT $5`, siteID, kind, name, before, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := make([]HistoryEntry, 0)
-	for rows.Next() {
-		var e HistoryEntry
-		var item sql.NullInt64
-		if err := rows.Scan(&e.ID, &item, &e.Op, &e.By, &e.ByKind, &e.At, &e.Size); err != nil {
-			return nil, err
-		}
-		if item.Valid {
-			v := item.Int64
-			e.ItemID = &v
-		}
-		out = append(out, e)
-	}
-	return out, rows.Err()
+	return legacy.ListHistory(ctx, database, siteID, kind, name, limit, before)
 }
 
 // GetHistoryEntry reads one change with its earlier value (the document's is
@@ -350,21 +287,9 @@ func ListHistory(ctx context.Context, database *sql.DB, siteID, kind, name strin
 // is not this target's. q must give one consistent view: a transaction
 // holding the site row, or ReadHistoryEntry's snapshot.
 func GetHistoryEntry(ctx context.Context, q rowsQuerier, siteID, kind, name string, id int64) (HistoryEntry, error) {
-	var e HistoryEntry
-	var item sql.NullInt64
-	var prev []byte
-	err := q.QueryRowContext(ctx, `
-		SELECT id, item_id, op, `+byExpr+`, actor_kind, created_at,
-		       COALESCE(octet_length(prev::text), octet_length(diff::text), 0), prev
-		  FROM data_history
-		 WHERE id = $1 AND site_id = $2 AND kind = $3 AND name = $4`, id, siteID, kind, name).
-		Scan(&e.ID, &item, &e.Op, &e.By, &e.ByKind, &e.At, &e.Size, &prev)
+	e, prev, err := legacy.HistoryRecord(ctx, q, siteID, kind, name, id)
 	if err != nil {
 		return e, err
-	}
-	if item.Valid {
-		v := item.Int64
-		e.ItemID = &v
 	}
 	switch {
 	case prev != nil:
@@ -418,7 +343,7 @@ func RestoreStateVersion(ctx context.Context, database *sql.DB, siteID string, i
 		return nil, 0, err
 	}
 	var stored []byte
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(state, 'null'::jsonb) FROM sites WHERE id = $1`, siteID).Scan(&stored); err != nil {
+	if err := legacy.CurrentStateValue(ctx, tx, siteID, &stored); err != nil {
 		return nil, 0, err
 	}
 	return json.RawMessage(stored), ver, tx.Commit()
@@ -455,18 +380,7 @@ func SoftDeleteItem(ctx context.Context, database *sql.DB, siteID, collection st
 // SoftClearCollection marks every live item of one list deleted and returns
 // how many. The list's private/public setting stays.
 func SoftClearCollection(ctx context.Context, database *sql.DB, siteID, collection string, a Actor) (int64, error) {
-	var n int64
-	err := database.QueryRowContext(ctx, `
-		WITH gone AS (
-			UPDATE collection_items SET deleted_at = now()
-			 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NULL
-			RETURNING id
-		), hist AS (
-			INSERT INTO data_history (site_id, kind, name, item_id, op, actor_id, actor_kind, actor_email)
-			SELECT $1, 'list', $2, id, 'clear', $3, $4, $5 FROM gone
-		)
-		SELECT count(*) FROM gone`, siteID, collection, nullIfEmpty(a.ID), a.Kind, nullIfEmpty(a.Email)).Scan(&n)
-	return n, err
+	return legacy.SoftClearCollection(ctx, database, siteID, collection, a)
 }
 
 // UndeleteItems brings back one deleted item (id > 0) or every deleted item
@@ -488,20 +402,7 @@ func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection str
 	if err != nil {
 		return 0, err
 	}
-	var n int64
-	err = tx.QueryRowContext(ctx, `
-		WITH back AS (
-			UPDATE collection_items SET deleted_at = NULL
-			 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3::bigint = 0 OR id = $3)
-			   AND (NOT $7 OR (SELECT h.op FROM data_history h WHERE h.item_id = collection_items.id
-			                    ORDER BY h.id DESC LIMIT 1) = 'clear')
-			   AND ($8 = 0 OR deleted_at >= now() - make_interval(secs => $8))
-			RETURNING id
-		), hist AS (
-			INSERT INTO data_history (site_id, kind, name, item_id, op, actor_id, actor_kind, actor_email)
-			SELECT $1, 'list', $2, id, 'undelete', $4, $5, $6 FROM back
-		)
-		SELECT count(*) FROM back`, siteID, collection, id, nullIfEmpty(a.ID), a.Kind, nullIfEmpty(a.Email), onlyCleared, int64(within.Seconds())).Scan(&n)
+	n, err := legacy.UndeleteItems(ctx, tx, siteID, collection, id, a, onlyCleared, within)
 	if err != nil {
 		return 0, err
 	}
@@ -527,13 +428,7 @@ var ErrOneDocument = errors.New("page info holds one document")
 // restore and an add (or a change of kind) cannot interleave, and returns
 // its kind ("" when undeclared).
 func lockNameFor(ctx context.Context, tx *sql.Tx, siteID, name string) (string, error) {
-	var kind string
-	err := tx.QueryRowContext(ctx, `
-		SELECT COALESCE(kind, '') FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&kind)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	}
-	return kind, err
+	return legacy.LockHistoryName(ctx, tx, siteID, name)
 }
 
 // oneDocument is ErrOneDocument when a Page info name (kind content) now
@@ -592,18 +487,15 @@ func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collectio
 		return CollectionItem{}, sql.ErrNoRows
 	}
 	itemID := *e.ItemID
-	var cur json.RawMessage
-	var deleted sql.NullTime
-	if err := tx.QueryRowContext(ctx, `
-		SELECT data, deleted_at FROM collection_items
-		 WHERE id = $1 AND site_id = $2 AND collection = $3 FOR UPDATE`, itemID, siteID, collection).Scan(&cur, &deleted); err != nil {
+	cur, deleted, err := legacy.LockHistoryItem(ctx, tx, itemID, siteID, collection)
+	if err != nil {
 		return CollectionItem{}, err
 	}
 	grew := false
 	switch {
 	case e.Op == OpDelete || e.Op == OpClear:
 		if deleted.Valid {
-			if _, err := tx.ExecContext(ctx, `UPDATE collection_items SET deleted_at = NULL WHERE id = $1`, itemID); err != nil {
+			if err := legacy.UndeleteHistoryItem(ctx, tx, itemID); err != nil {
 				return CollectionItem{}, err
 			}
 			if err := recordHistory(ctx, tx, siteID, HistoryList, collection, &itemID, OpUndelete, nil, a); err != nil {
@@ -614,7 +506,7 @@ func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collectio
 	case e.Value == nil:
 		return CollectionItem{}, ErrNoEarlierValue
 	default:
-		if _, err := tx.ExecContext(ctx, `UPDATE collection_items SET data = $2::jsonb, deleted_at = NULL, version = version + 1 WHERE id = $1`, itemID, string(e.Value)); err != nil {
+		if err := legacy.RestoreHistoryItem(ctx, tx, itemID, e.Value); err != nil {
 			return CollectionItem{}, err
 		}
 		if err := recordHistory(ctx, tx, siteID, HistoryList, collection, &itemID, OpRestore, cur, a); err != nil {
@@ -635,8 +527,8 @@ func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collectio
 			return CollectionItem{}, err
 		}
 	}
-	var it CollectionItem
-	if err := tx.QueryRowContext(ctx, `SELECT id, data, created_at, version FROM collection_items WHERE id = $1`, itemID).Scan(&it.ID, &it.Data, &it.CreatedAt, &it.Version); err != nil {
+	it, err := legacy.HistoryItem(ctx, tx, itemID)
+	if err != nil {
 		return CollectionItem{}, err
 	}
 	return it, tx.Commit()
@@ -648,24 +540,14 @@ func RestoreItemVersion(ctx context.Context, database *sql.DB, siteID, collectio
 // (id > 0) or all of them (id == 0), with their history. Live items are never
 // touched. Returns how many went.
 func PurgeDeletedItems(ctx context.Context, database *sql.DB, siteID, collection string, id int64) (int64, error) {
-	res, err := database.ExecContext(ctx, `
-		DELETE FROM collection_items
-		 WHERE site_id = $1 AND collection = $2 AND deleted_at IS NOT NULL AND ($3::bigint = 0 OR id = $3)`, siteID, collection, id)
-	if err != nil {
-		return 0, err
-	}
-	return res.RowsAffected()
+	return legacy.PurgeDeletedItems(ctx, database, siteID, collection, id)
 }
 
 // ClearSiteHistory removes, for good, every earlier version of a site's saved
 // data and list items. The data itself and Recently deleted stay. Returns how
 // many changes went.
 func ClearSiteHistory(ctx context.Context, database *sql.DB, siteID string) (int64, error) {
-	res, err := database.ExecContext(ctx, `DELETE FROM data_history WHERE site_id = $1`, siteID)
-	if err != nil {
-		return 0, err
-	}
-	return res.RowsAffected()
+	return legacy.ClearSiteHistory(ctx, database, siteID)
 }
 
 // ---- keeping history bounded -------------------------------------------------
@@ -677,30 +559,18 @@ func ClearSiteHistory(ctx context.Context, database *sql.DB, siteID string) (int
 // created_at (its transaction's start) can be out of id order when two writes
 // waited on the same row lock.
 func PurgeSavedData(ctx context.Context, database *sql.DB, undoDays int) (history, items int64, err error) {
-	res, err := database.ExecContext(ctx, `
-		DELETE FROM collection_items WHERE deleted_at IS NOT NULL AND deleted_at < now() - make_interval(days => $1)`, undoDays)
+	res, err := legacy.PurgeOldDeletedItems(ctx, database, undoDays)
 	if err != nil {
 		return 0, 0, err
 	}
 	items, _ = res.RowsAffected()
-	res, err = database.ExecContext(ctx, `
-		DELETE FROM data_history h
-		 WHERE h.created_at < now() - make_interval(days => $1)
-		   AND (h.kind <> 'state' OR NOT EXISTS (
-		        SELECT 1 FROM data_history k
-		         WHERE k.site_id = h.site_id AND k.kind = 'state' AND k.name = h.name
-		           AND k.id < h.id AND k.created_at >= now() - make_interval(days => $1)))`, undoDays)
+	res, err = legacy.PurgeOldHistory(ctx, database, undoDays)
 	if err != nil {
 		return 0, items, err
 	}
 	history, _ = res.RowsAffected()
 	return history, items, nil
 }
-
-// historySize is what one history row holds: the text of its value or diff,
-// the same measure the sites.history_bytes trigger keeps
-// (sd1-saved-data-safety3-history-bytes.sql).
-const historySize = `COALESCE(octet_length(prev::text), octet_length(diff::text), 0)`
 
 // HistoryBytes is a site's history size (sites.history_bytes); 0 when the
 // site is gone.
@@ -722,26 +592,7 @@ func SitesOverHistoryCap(ctx context.Context, database *sql.DB, capBytes int64) 
 // back) take no space and stay as the record of who did it. Returns how many
 // rows went.
 func ThinSiteHistory(ctx context.Context, database *sql.DB, siteID string, capBytes int64) (int64, error) {
-	res, err := database.ExecContext(ctx, `
-		DELETE FROM data_history WHERE id IN (
-			SELECT id FROM (
-				SELECT id, keeper, sz,
-				       sum(sz) OVER (ORDER BY keeper DESC, id DESC ROWS UNBOUNDED PRECEDING) AS running
-				  FROM (
-					SELECT id, `+historySize+` AS sz,
-					       (kind <> 'state' OR prev IS NOT NULL) AND row_number() OVER (
-					         PARTITION BY kind, name, item_id, (created_at AT TIME ZONE 'UTC')::date,
-					                      (kind <> 'state' OR prev IS NOT NULL)
-					         ORDER BY id) = 1 AS keeper
-					  FROM data_history WHERE site_id = $1
-				  ) s
-			) t
-			WHERE NOT keeper AND sz > 0 AND running > $2
-		)`, siteID, capBytes)
-	if err != nil {
-		return 0, err
-	}
-	return res.RowsAffected()
+	return legacy.ThinSiteHistory(ctx, database, siteID, capBytes)
 }
 
 // ---- what a person did on other people's sites (Download my data) -------------
@@ -749,39 +600,10 @@ func ThinSiteHistory(ctx context.Context, database *sql.DB, siteID string, capBy
 // ChangeElsewhere is one change this person made to saved data on a site
 // that is not theirs, while signed in there: where, what, when. Never the
 // value (that is the site owner's data).
-type ChangeElsewhere struct {
-	SiteID string
-	Kind   string
-	Name   string
-	ItemID *int64
-	Op     string
-	At     time.Time
-}
+type ChangeElsewhere = model.ChangeElsewhere
 
 // ListChangesElsewhere returns every recorded change this person made to
 // other people's saved data, oldest first.
 func ListChangesElsewhere(ctx context.Context, database *sql.DB, userID string) ([]ChangeElsewhere, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT h.site_id::text, h.kind, h.name, h.item_id, h.op, h.created_at
-		  FROM data_history h JOIN sites s ON s.id = h.site_id
-		 WHERE h.actor_id = $1 AND s.user_id IS DISTINCT FROM $1
-		 ORDER BY h.created_at, h.id`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []ChangeElsewhere
-	for rows.Next() {
-		var c ChangeElsewhere
-		var item sql.NullInt64
-		if err := rows.Scan(&c.SiteID, &c.Kind, &c.Name, &item, &c.Op, &c.At); err != nil {
-			return nil, err
-		}
-		if item.Valid {
-			v := item.Int64
-			c.ItemID = &v
-		}
-		out = append(out, c)
-	}
-	return out, rows.Err()
+	return legacy.ListChangesElsewhere(ctx, database, userID)
 }

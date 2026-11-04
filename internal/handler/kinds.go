@@ -232,15 +232,77 @@ func (h *SiteHandler) personSaverOK(w http.ResponseWriter, r *http.Request, site
 
 // visitorWriteOK is the gate every page write passes (visitorWriteGate), then
 // the site's who-may-save setting for anyone writing without the owner's key.
+func (h *SiteHandler) visitorWriteSvc(r *http.Request, in legacy.VisitorWriteInput) *legacy.Adapter {
+	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
+		VisitorOwnerKeyWrite:   func(owner string) bool { return h.ownerKeyWrite(r, owner) },
+		VisitorDomainElsewhere: func(site string) (string, bool) { return h.livesOnDomainElsewhere(r, site) },
+		VisitorOwnAddress:      h.siteOwnAddress,
+		VisitorInternalSession: func(site string) (db.VisitorSession, bool) { return h.internalVisitorSession(r, site) },
+		VisitorResolveKey:      h.resolveWriterKey,
+		VisitorKeyActor:        func(owner string) db.Actor { return h.keyActor(r, owner) },
+		VisitorSessionCookie:   func() string { return h.sessionCookieFor(r) },
+		VisitorSessionValid:    func(sess db.VisitorSession, site string) bool { return h.sessionValidFor(r, sess, site) },
+		VisitorLog: func(mode, outcome string) {
+			h.logAnonWrite(r, in.SiteID, in.SiteName, in.Route, in.Collection, mode, outcome)
+		},
+		VisitorLogKey: func(user string, allowed bool) {
+			if allowed {
+				log.Printf("key_write user_id=%s site_id=%s name=%s route=%s collection=%s", user, in.SiteID, in.SiteName, in.Route, in.Collection)
+			} else {
+				log.Printf("key_write_refused user_id=%s site_id=%s name=%s route=%s collection=%s", user, in.SiteID, in.SiteName, in.Route, in.Collection)
+			}
+		},
+	})
+}
+
 func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) (db.Actor, bool) {
-	a, ok := h.visitorWriteGate(w, r, siteID, siteName, route, collection)
-	if !ok || !isVisitorActor(a) {
-		return a, ok
+	in := legacy.VisitorWriteInput{
+		SiteID: siteID, SiteName: siteName, Route: route, Collection: collection,
+		Mode: h.writeAuthMode, Key: r.Header.Get("X-API-Key"),
+		Preview: previewReferer(r), ContentHost: strings.EqualFold(requestHostName(r), h.contentHost),
+		Canonical: h.personHostsCanonical(), VisitorPass: r.Header.Get(visitorPassHeader) != "",
+		CSRFValid:   r.Header.Get(visitorCSRFHeader) == visitorCSRFValue,
+		SessionIdle: h.limits.VisitorSessionIdle, KeyIdle: h.limits.KeyIdleExpiry,
 	}
-	if !h.personSaverOK(w, r, siteID, a.ID) {
-		return a, false
+	actor, err := h.visitorWriteSvc(r, in).VisitorWrite(r.Context(), in)
+	var e *legacy.Error
+	switch {
+	case err == nil:
+		return actor, true
+	case errors.As(err, &e) && e.Code == "site_not_found":
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+	case errors.As(err, &e) && e.Code == "site_suspended":
+		writeSiteSuspended(w, e.Message)
+	case errors.As(err, &e) && e.Code == "site_offline":
+		writeSiteOffline(w)
+	case errors.As(err, &e) && e.Code == "preview_read_only":
+		writePreviewReadOnly(w)
+	case errors.As(err, &e) && e.Code == "use_custom_domain":
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "this site saves on its own domain", "code": "use_custom_domain", "domain": e.Message})
+	case errors.As(err, &e) && e.Code == "visitor_pass_forbidden":
+		storageError(w, http.StatusForbidden, "forbidden", "visitor pass does not cover this site")
+	case errors.As(err, &e) && e.Code == "pass_csrf_required":
+		storageError(w, http.StatusForbidden, "csrf_required", "missing CSRF header")
+	case errors.As(err, &e) && e.Code == "invalid_api_key":
+		writeJSON(w, http.StatusUnauthorized, struct {
+			Error string `json:"error"`
+			Code  string `json:"code"`
+		}{Error: "invalid API key", Code: "invalid_api_key"})
+	case errors.As(err, &e) && e.Code == "account_suspended":
+		writeAccountSuspended(w)
+	case errors.As(err, &e) && e.Code == "csrf_required":
+		writeJSON(w, http.StatusForbidden, struct {
+			Error string `json:"error"`
+			Code  string `json:"code"`
+		}{Error: "missing CSRF header", Code: "csrf_required"})
+	case errors.As(err, &e) && e.Code == "visitor_auth_required":
+		writeVisitorAuthRequired(w)
+	case errors.As(err, &e) && e.Code == "not_allowed_to_save":
+		writeNotAllowedToSave(w)
+	default:
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 	}
-	return a, true
+	return actor, false
 }
 
 // ---- the page-facing routes -----------------------------------------------------
@@ -251,7 +313,7 @@ func (h *SiteHandler) visitorWriteOK(w http.ResponseWriter, r *http.Request, sit
 // first. Applies the read limit (unless the caller hands the read to a
 // handler that counts it itself) and, for anyone but the owner, taken-down
 // and offline. Writes the answer on failure.
-func (h *SiteHandler) readSite(w http.ResponseWriter, r *http.Request, siteName, name string, countRead bool) (siteID string, ownerKey, ok bool) {
+func (h *SiteHandler) readSitePrelude(w http.ResponseWriter, r *http.Request, siteName, name string, countRead bool) (siteID string, ownerKey, ok bool) {
 	if siteName == "" || !validCollectionName.MatchString(name) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid site or data name"})
 		return "", false, false
@@ -275,6 +337,14 @@ func (h *SiteHandler) readSite(w http.ResponseWriter, r *http.Request, siteName,
 	if countRead && !h.allowRead(w, r, siteID) {
 		return "", false, false
 	}
+	return siteID, ownerKey, true
+}
+
+func (h *SiteHandler) readSite(w http.ResponseWriter, r *http.Request, siteName, name string, countRead bool) (string, bool, bool) {
+	siteID, ownerKey, ok := h.readSitePrelude(w, r, siteName, name, countRead)
+	if !ok {
+		return "", false, false
+	}
 	if !ownerKey && (h.refuseSuspendedSiteID(w, r, siteID) || h.refuseOffline(w, r, siteID)) {
 		return "", false, false
 	}
@@ -287,21 +357,56 @@ func (h *SiteHandler) readSite(w http.ResponseWriter, r *http.Request, siteName,
 func (h *SiteHandler) getDataKind(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	name := strings.TrimSpace(r.PathValue("coll"))
-	siteID, _, ok := h.readSite(w, r, siteName, name, true)
-	if !ok {
+	headers := http.Header{}
+	svc := legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
+		KindOwnerSite:     func(name string) (string, bool) { return h.ownerSiteIDFromKey(r, name) },
+		KindOriginAllowed: func(name string) bool { return h.authorizeStateOrigin(&dataReadHeaders{headers}, r, name) },
+		KindResolveSite:   func(name string) (string, error) { return h.resolveSiteID(r, name) },
+		KindReadLimit: func(id string) bool {
+			return h.readLimiter == nil || h.readLimiter.allowHTTP(&dataReadHeaders{headers}, h.readBucket(r, id))
+		},
+	})
+	kind, err := svc.GetDataKind(r.Context(), legacy.GetDataKindInput{SiteName: siteName, Name: name, ValidName: validCollectionName.MatchString(name), Originless: noBrowserOrigin(r), DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst})
+	for key, values := range headers {
+		w.Header()[key] = values
+	}
+	var serviceErr *legacy.Error
+	if errors.As(err, &serviceErr) && serviceErr.Code == "invalid_site_or_name" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid site or data name"})
 		return
 	}
-	set, ok := h.dataSettings(w, r, siteID, name)
-	if !ok {
+	if errors.As(err, &serviceErr) && serviceErr.Code == "origin_not_allowed" {
+		writeOriginRefused(w)
 		return
 	}
+	if errors.As(err, &serviceErr) && serviceErr.Code == "rate_limited" {
+		tooManyRequests(w)
+		return
+	}
+	if errors.As(err, &serviceErr) && serviceErr.Code == "site_suspended" {
+		writeSiteSuspended(w, serviceErr.Message)
+		return
+	}
+	if errors.As(err, &serviceErr) && serviceErr.Code == "site_offline" {
+		writeSiteOffline(w)
+		return
+	}
+	if errors.Is(err, sql.ErrNoRows) || (errors.As(err, &serviceErr) && serviceErr.Code == "site_not_found") {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	set := kind.Settings
 	resp := map[string]any{"name": name, "declared": set.Kind != "", "kind": nil, "label": nameLabel(set.Kind, set.Private, set.Shared)}
 	if set.Kind != "" {
 		resp["kind"] = set.Kind
 	}
-	if entriesLike(set) {
+	if kind.EntriesLike {
 		resp["visibility"] = visibilityWord(set.Private)
-		resp["one_per_person"] = set.OnePerPerson && set.Kind == db.KindEntries
+		resp["one_per_person"] = kind.OnePerPerson
 	}
 	if set.Kind == "" {
 		resp["accepts_saves"] = set.Shared
@@ -329,57 +434,128 @@ func (h *SiteHandler) getData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// A list read is counted by listCollection itself; everything else here.
-	siteID, ownerKey, ok := h.readSite(w, r, siteName, name, false)
-	if !ok {
-		return
-	}
-	set, ok := h.dataSettings(w, r, siteID, name)
-	if !ok {
-		return
-	}
-	if (set.Kind == db.KindContent || !listLike(set) || q.Get("count") != "") && !h.allowRead(w, r, siteID) {
-		return
-	}
-	switch {
-	case set.Kind == db.KindPersonal:
-		h.getPersonal(w, r, siteID, name, ownerKey)
-	case set.Kind == db.KindContent:
-		doc, found, err := db.GetContent(r.Context(), h.database, siteID, name)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		resp := map[string]any{"name": name, "kind": db.KindContent, "data": nil}
-		if found {
-			// The server's own stamp of who sent an entry is the owner's to
-			// read, whatever the document once was.
-			if ownerKey || h.ownerBrowserView(r, siteID) {
-				w.Header().Set("Cache-Control", "private, no-store")
-				resp["data"] = doc.Data
-			} else {
-				resp["data"] = withoutSubmitter(doc.Data)
+	headers := http.Header{}
+	svc := legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
+		KindOwnerSite:      func(name string) (string, bool) { return h.ownerSiteIDFromKey(r, name) },
+		KindOriginAllowed:  func(name string) bool { return h.authorizeStateOrigin(&dataReadHeaders{headers}, r, name) },
+		KindResolveSite:    func(name string) (string, error) { return h.resolveSiteID(r, name) },
+		DataOwnerBrowser:   func(id string) bool { return h.ownerBrowserView(r, id) },
+		ResolveMineSession: func(id string) (db.VisitorSession, bool) { return h.strictVisitorSession(r, id) },
+		DataAdminMismatch:  func(id string) bool { return adminSiteMismatch(r, id) },
+		DataPrivateRead: func(ctx context.Context, id string) (db.VisitorSession, error) {
+			if strings.EqualFold(requestHostName(r), h.contentHost) {
+				return db.VisitorSession{}, &legacy.Error{Code: "private_not_found"}
 			}
-			resp["saved_at"] = doc.CreatedAt
+			info, here, err := h.onOwnDomain(r, id)
+			if err != nil {
+				return db.VisitorSession{}, err
+			}
+			if !here {
+				return db.VisitorSession{}, &legacy.Error{Code: "private_not_found"}
+			}
+			sess, ok := h.strictVisitorSession(r, id)
+			if !ok || sess.UserID != info.OwnerID || r.Header.Get(visitorPassHeader) != "" {
+				return db.VisitorSession{}, &legacy.Error{Code: "private_not_found"}
+			}
+			return sess, nil
+		},
+		DataReadLimit: func(id string) bool {
+			return h.readLimiter == nil || h.readLimiter.allowHTTP(&dataReadHeaders{headers}, h.readBucket(r, id))
+		},
+	})
+	result, err := svc.ReadData(r.Context(), legacy.DataReadInput{GetDataKindInput: legacy.GetDataKindInput{SiteName: siteName, Name: name, ValidName: validCollectionName.MatchString(name), Originless: noBrowserOrigin(r), DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst}, Count: q.Get("count") != "", ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), Access: legacy.VisitorAccessInput{Idle: h.limits.VisitorSessionIdle}, Limit: q.Get("limit"), Before: q.Get("before")})
+	for key, values := range headers {
+		w.Header()[key] = values
+	}
+	if result.PrivateCache {
+		w.Header().Set("Cache-Control", "private, no-store")
+	}
+	if result.WithAuthor {
+		w.Header().Add("Vary", "Cookie")
+		w.Header().Add("Vary", "X-API-Key")
+	}
+	var serviceErr *legacy.Error
+	switch {
+	case errors.As(err, &serviceErr) && serviceErr.Code == "invalid_site_or_name":
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid site or data name"})
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "origin_not_allowed":
+		writeOriginRefused(w)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "personal_only":
+		writePersonalOnly(w, name)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "visitor_auth_required":
+		writeVisitorAuthRequired(w)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "account_suspended":
+		writeAccountSuspended(w)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "site_suspended":
+		writeSiteSuspended(w, serviceErr.Message)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "site_offline":
+		writeSiteOffline(w)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "rate_limited":
+		tooManyRequests(w)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "private_not_found":
+		writePrivateNotFound(w)
+		return
+	case errors.Is(err, sql.ErrNoRows) || (errors.As(err, &serviceErr) && serviceErr.Code == "site_not_found"):
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+		return
+	case err != nil:
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
+	switch result.Route {
+	case storagerules.LegacyDataPersonal:
+		if result.PersonalCount {
+			if result.PersonalFew {
+				writeJSON(w, http.StatusOK, map[string]any{"name": name, "count": 0, "few": true})
+			} else {
+				writeJSON(w, http.StatusOK, map[string]any{"name": name, "count": result.Count})
+			}
+		} else {
+			writeJSONETag(w, r, personalBody(name, result.Document, result.Found))
+		}
+	case storagerules.LegacyDataContent:
+		resp := map[string]any{"name": name, "kind": db.KindContent, "data": nil}
+		if result.Found {
+			if result.OwnerView {
+				resp["data"] = result.Document.Data
+			} else {
+				resp["data"] = withoutSubmitter(result.Document.Data)
+			}
+			resp["saved_at"] = result.Document.CreatedAt
 		}
 		writeJSON(w, http.StatusOK, resp)
-	case !listLike(set):
+	case storagerules.LegacyDataUndeclared:
 		writeDeclareFirst(w, siteName, name)
-	case q.Get("count") != "":
-		if set.Private && !ownerKey && !h.ownerBrowserView(r, siteID) {
-			w.Header().Set("Cache-Control", "private, no-store")
-			writePrivateNotFound(w)
-			return
-		}
-		n, err := db.CountLiveItems(r.Context(), h.database, siteID, name)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"name": name, "count": n})
+	case storagerules.LegacyDataCount:
+		writeJSON(w, http.StatusOK, map[string]any{"name": name, "count": result.Count})
 	default:
-		h.listCollection(w, r)
+		resp := map[string]any{"items": result.Items, "next": result.Next}
+		if result.Private {
+			resp["private"] = true
+		}
+		if result.Board {
+			resp["kind"] = db.KindBoard
+			writeJSONETag(w, r, resp)
+			return
+		}
+		writeJSON(w, http.StatusOK, resp)
 	}
 }
+
+// dataReadHeaders collects rate-limit headers until the adapter returns.
+type dataReadHeaders struct{ header http.Header }
+
+func (h *dataReadHeaders) Header() http.Header       { return h.header }
+func (h *dataReadHeaders) Write([]byte) (int, error) { panic("unexpected write") }
+func (h *dataReadHeaders) WriteHeader(int)           { panic("unexpected status") }
 
 // visitorOnSite is the visitor signed in to siteID on its own address, from a
 // page there (the __Host- cookie, same origin), with the CSRF header when
@@ -413,6 +589,16 @@ func (h *SiteHandler) visitorOnSite(w http.ResponseWriter, r *http.Request, site
 	return sess, true
 }
 
+func (h *SiteHandler) mineSvc(r *http.Request, headers http.Header) *legacy.Adapter {
+	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
+		ResolveMineSession: func(id string) (db.VisitorSession, bool) { return h.strictVisitorSession(r, id) },
+		MineResolveSite:    func(name string) (string, error) { return h.resolveSiteID(r, name) },
+		MineReadLimit: func(id string) bool {
+			return h.readLimiter == nil || h.readLimiter.allowHTTP(&dataReadHeaders{headers}, h.readBucket(r, id))
+		},
+	})
+}
+
 // listMine is GET .../data/{name}?mine=1: the signed-in visitor's own live
 // entries, newest first (?limit, ?before as for lists).
 func (h *SiteHandler) listMine(w http.ResponseWriter, r *http.Request, siteName, name string) {
@@ -421,42 +607,45 @@ func (h *SiteHandler) listMine(w http.ResponseWriter, r *http.Request, siteName,
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid site or data name"})
 		return
 	}
-	siteID, err := h.resolveSiteID(r, siteName)
-	if err != nil {
+	limit, before := pageArgs(r)
+	headers := http.Header{}
+	result, err := h.mineSvc(r, headers).ListMine(r.Context(), legacy.ListMineInput{
+		SiteName: siteName, Name: name, DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst,
+		ContentHost: strings.EqualFold(requestHostName(r), h.contentHost),
+		Access:      legacy.VisitorAccessInput{Idle: h.limits.VisitorSessionIdle}, Limit: limit, Before: before,
+	})
+	for key, values := range headers {
+		w.Header()[key] = values
+	}
+	var serviceErr *legacy.Error
+	switch {
+	case errors.As(err, &serviceErr) && serviceErr.Code == "rate_limited":
+		tooManyRequests(w)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "site_suspended":
+		writeSiteSuspended(w, serviceErr.Message)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "visitor_auth_required":
+		writeVisitorAuthRequired(w)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "account_suspended":
+		writeAccountSuspended(w)
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "wrong_kind":
+		if result.Settings.Kind == db.KindContent || result.Settings.Kind == db.KindPersonal {
+			writeWrongKind(w, name, result.Settings.Kind, "read it with GET /v1/sites/"+siteName+"/data/"+name)
+		} else {
+			writeDeclareFirst(w, siteName, name)
+		}
+		return
+	case errors.As(err, &serviceErr) && serviceErr.Code == "site_not_found":
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return
-	}
-	if !h.allowRead(w, r, siteID) || h.refuseSuspendedSiteID(w, r, siteID) {
-		return
-	}
-	sess, ok := h.visitorOnSite(w, r, siteID, false)
-	if !ok {
-		return
-	}
-	set, ok := h.dataSettings(w, r, siteID, name)
-	if !ok {
-		return
-	}
-	if !listLike(set) {
-		if set.Kind == db.KindContent || set.Kind == db.KindPersonal {
-			writeWrongKind(w, name, set.Kind, "read it with GET /v1/sites/"+siteName+"/data/"+name)
-			return
-		}
-		writeDeclareFirst(w, siteName, name)
-		return
-	}
-	limit, before := pageArgs(r)
-	items, err := db.ListOwnEntries(r.Context(), h.database, siteID, name, sess.UserID, limit, before)
-	if err != nil {
+	case err != nil:
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	var next *int64
-	if len(items) == limit && limit > 0 {
-		n := items[len(items)-1].ID
-		next = &n
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items, "next": next, "mine": true})
+	writeJSON(w, http.StatusOK, map[string]any{"items": result.Items, "next": result.Next, "mine": true})
 }
 
 // isOwnerRequest: the request carries a key (the item routes send those to
@@ -469,6 +658,59 @@ func (h *SiteHandler) isOwnerRequest(r *http.Request, siteID string) bool {
 // putContent is PUT /v1/sites/{s}/data/{name}: the owner replaces a Page info
 // document (one JSON object, at most SAVED_DATA_CONTENT_MAX_KB). The earlier
 // document goes to the name's history.
+func (h *SiteHandler) contentSvc(r *http.Request, headers http.Header) *legacy.Adapter {
+	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
+		ContentSiteMaxBytes: h.siteMaxBytes, BoundHistory: h.boundHistoryContext,
+		ContentDeclareFirst: func() bool { return h.savedData.DefaultKind == config.DefaultKindDeclareFirst },
+		VisitorResolveKey:   h.resolveWriterKey,
+		ContentOwnerBrowser: func(siteID string) bool { return h.ownerBrowserView(r, siteID) },
+		ContentAuthor:       h.withAuthorEmail,
+		PersonalSession:     func(id string) (db.VisitorSession, bool) { return h.strictVisitorSession(r, id) },
+		PersonalWriteLimit: func() bool {
+			return h.appendLimiter == nil || h.appendLimiter.allowHTTP(&dataReadHeaders{headers}, clientIP(r))
+		},
+		PersonalReadBody: func() ([]byte, []byte, error) {
+			raw, err := io.ReadAll(http.MaxBytesReader(nil, r.Body, int64(h.savedData.PersonalMaxKB)<<10))
+			if err != nil {
+				var maxErr *http.MaxBytesError
+				if errors.As(err, &maxErr) {
+					return nil, nil, &legacy.Error{Code: "personal_too_large"}
+				}
+				return nil, nil, &legacy.Error{Code: "invalid_body"}
+			}
+			var obj map[string]json.RawMessage
+			dec := json.NewDecoder(bytes.NewReader(raw))
+			if err := dec.Decode(&obj); err != nil || obj == nil || dec.More() {
+				return nil, nil, &legacy.Error{Code: "personal_not_object"}
+			}
+			if !jsonStorable(raw) {
+				return nil, nil, &legacy.Error{Code: "invalid_json"}
+			}
+			return raw, bytes.TrimSpace(raw), nil
+		},
+		ContentBody: func() ([]byte, error) {
+			maxBytes := int64(h.savedData.ContentMaxKB) << 10
+			raw, err := io.ReadAll(http.MaxBytesReader(nil, r.Body, maxBytes))
+			if err != nil {
+				var maxErr *http.MaxBytesError
+				if errors.As(err, &maxErr) {
+					return nil, &legacy.Error{Code: "content_too_large"}
+				}
+				return nil, &legacy.Error{Code: "invalid_body"}
+			}
+			var obj map[string]json.RawMessage
+			dec := json.NewDecoder(bytes.NewReader(raw))
+			if err := dec.Decode(&obj); err != nil || obj == nil || dec.More() {
+				return nil, &legacy.Error{Code: "content_not_object"}
+			}
+			if !jsonStorable(raw) {
+				return nil, &legacy.Error{Code: "invalid_json"}
+			}
+			return bytes.TrimSpace(raw), nil
+		},
+	})
+}
+
 func (h *SiteHandler) putContent(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
@@ -488,61 +730,93 @@ func (h *SiteHandler) putContent(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return
 	}
-	if h.refuseSuspendedSiteID(w, r, siteID) {
-		return
+	headers := http.Header{}
+	result, err := h.contentSvc(r, headers).PutData(r.Context(), legacy.PutDataInput{PutContentInput: legacy.PutContentInput{
+		SiteID: siteID, Name: name, Key: r.Header.Get("X-API-Key"),
+		CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue,
+	}, Preview: previewReferer(r), ContentHost: strings.EqualFold(requestHostName(r), h.contentHost), VisitorPass: r.Header.Get(visitorPassHeader) != "", Access: legacy.VisitorAccessInput{NeedCSRF: true, CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, Idle: h.limits.VisitorSessionIdle}, IdempotencyKey: r.Header.Get("Idempotency-Key"), PersonalPeopleMax: h.savedData.PersonalPeopleMax})
+	for key, values := range headers {
+		w.Header()[key] = values
 	}
-	set, ok := h.dataSettings(w, r, siteID, name)
-	if !ok {
-		return
+	if result.Replayed {
+		w.Header().Set("Idempotent-Replayed", "true")
 	}
-	switch set.Kind {
-	case db.KindContent:
-	case db.KindPersonal:
-		h.putPersonal(w, r, siteID, name)
-		return
-	case db.KindEntries, db.KindBoard:
-		writeWrongKind(w, name, set.Kind, "add items with POST /v1/sites/"+siteName+"/data/"+name+"; only the owner empties it, with DELETE /v1/sites/"+siteName+"/collections/"+name)
-		return
-	default:
+	var serviceErr *legacy.Error
+	switch {
+	case errors.As(err, &serviceErr) && serviceErr.Code == "site_suspended":
+		writeSiteSuspended(w, serviceErr.Message)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "personal_only":
+		writePersonalOnly(w, name)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "site_offline":
+		writeSiteOffline(w)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "preview_read_only":
+		writePreviewReadOnly(w)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "visitor_auth_required":
+		writeVisitorAuthRequired(w)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "account_suspended":
+		writeAccountSuspended(w)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "not_allowed_to_save":
+		writeNotAllowedToSave(w)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "rate_limited":
+		tooManyRequests(w)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "personal_too_large":
+		_, _ = http.MaxBytesReader(w, io.NopCloser(strings.NewReader("x")), 0).Read(make([]byte, 1))
+		rep := h.personalTooLarge()
+		writeJSON(w, rep.status, errorResponse{Error: rep.msg, Code: rep.code})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "personal_not_object":
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "a personal record is one JSON object, e.g. {\"streak\": 3}", Code: "not_an_object"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "invalid_idempotency_key":
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "Idempotency-Key is at most 255 characters", Code: "invalid_idempotency_key"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "idempotency_key_reused":
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "this Idempotency-Key was already used for a different request; use a new key for a new write", Code: "idempotency_key_reused"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "idempotency_in_progress":
+		writeJSON(w, http.StatusConflict, errorResponse{Error: "a request with this Idempotency-Key is still being saved; retry in a moment", Code: "idempotency_in_progress"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "content_wrong_kind":
+		writeWrongKind(w, name, serviceErr.Message, "add items with POST /v1/sites/"+siteName+"/data/"+name+"; only the owner empties it, with DELETE /v1/sites/"+siteName+"/collections/"+name)
+	case errors.As(err, &serviceErr) && serviceErr.Code == "content_declare_first":
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Error: fmt.Sprintf("%q is not page info yet: declare it first with PUT /v1/sites/%s/data/%s/kind and {\"kind\": \"content\"}, then save it here", name, siteName, name),
 			Code:  "declare_first",
 		})
-		return
-	}
-	actor, ok := h.contentWriter(w, r, siteID)
-	if !ok {
-		return
-	}
-	maxBytes := int64(h.savedData.ContentMaxKB) << 10
-	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBytes))
-	if err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: fmt.Sprintf("page info is at most %d KB", h.savedData.ContentMaxKB), Code: "item_too_large"})
-			return
-		}
+	case errors.As(err, &serviceErr) && serviceErr.Code == "site_not_found":
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "invalid_api_key":
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "invalid API key", Code: "invalid_api_key"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "csrf_required":
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: "missing CSRF header", Code: "csrf_required"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "owner_only":
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: "only the site owner can change page info", Code: "owner_only"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "content_too_large":
+		// MaxBytesReader marks an HTTP/1 response for connection close when a body exceeds the limit.
+		_, _ = http.MaxBytesReader(w, io.NopCloser(strings.NewReader("x")), 0).Read(make([]byte, 1))
+		writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: fmt.Sprintf("page info is at most %d KB", h.savedData.ContentMaxKB), Code: "item_too_large"})
+	case errors.As(err, &serviceErr) && serviceErr.Code == "invalid_body":
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
-		return
-	}
-	var obj map[string]json.RawMessage
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	if err := dec.Decode(&obj); err != nil || obj == nil || dec.More() {
+	case errors.As(err, &serviceErr) && serviceErr.Code == "content_not_object":
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "page info is one JSON object, e.g. {\"items\": [...]}", Code: "not_an_object"})
-		return
-	}
-	if !storableJSON(w, raw) {
-		return
-	}
-	doc, err := db.PutContent(r.Context(), h.database, siteID, name, json.RawMessage(bytes.TrimSpace(raw)), actor, h.siteMaxBytes())
-	h.boundHistory(r, siteID)
-	switch {
+	case errors.As(err, &serviceErr) && serviceErr.Code == "invalid_json":
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`, Code: "invalid_json"})
+	case result.Personal && errors.Is(err, sql.ErrNoRows):
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q is not Personal any more", name), Code: "wrong_kind"})
+	case errors.Is(err, db.ErrPeopleFull):
+		writeJSON(w, http.StatusConflict, errorResponse{Error: fmt.Sprintf("%q already keeps a record for %d people, the most one Personal name holds, so it takes no one new; ask the site owner", name, h.savedData.PersonalPeopleMax), Code: "people_full"})
 	case errors.Is(err, db.ErrSiteFull):
 		h.writeSiteFull(w)
 	case err != nil:
+		if result.Personal && result.SaveAttempted {
+			log.Printf("personal save site_id=%s name=%s: %v", siteID, name, err)
+		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 	default:
-		writeJSON(w, http.StatusOK, map[string]any{"name": name, "kind": db.KindContent, "data": doc.Data, "saved_at": doc.CreatedAt})
+		if result.Personal {
+			status := http.StatusOK
+			if result.Replayed {
+				status = result.ReplayStatus
+			}
+			writeJSON(w, status, personalBody(name, result.Item, result.Found))
+		} else {
+			writeJSON(w, http.StatusOK, map[string]any{"name": name, "kind": db.KindContent, "data": result.Item.Data, "saved_at": result.Item.CreatedAt})
+		}
 	}
 }
 
@@ -654,24 +928,15 @@ func (h *SiteHandler) updateEntry(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.PathValue("coll"))
 	id, valid := pathID(r, "id")
 	entryLimit := int64(h.savedData.EntryMaxKB) << 10
-	entryReader := http.MaxBytesReader(w, r.Body, entryLimit)
-	listReader := http.MaxBytesReader(w, r.Body, maxCollectionItemSize)
-	readPatch := func(maxBytes int64) ([]byte, error) {
-		reader := listReader
-		if maxBytes == entryLimit {
-			reader = entryReader
-		}
-		raw, err := io.ReadAll(reader)
-		if err != nil {
-			var maxErr *http.MaxBytesError
-			if errors.As(err, &maxErr) {
-				return nil, &legacy.Error{Code: "item_too_large"}
-			}
-			return nil, &legacy.Error{Code: "invalid_patch"}
-		}
-		return raw, nil
+	readLimit := int64(maxCollectionItemSize)
+	if entryLimit > readLimit {
+		readLimit = entryLimit
 	}
-	item, set, err := h.legacySvc().UpdateEntry(r.Context(), legacy.UpdateEntryInput{SiteID: siteID, Name: name, VisitorAccess: legacy.VisitorAccessInput{UserID: sess.UserID, SessionID: sess.ID, NeedCSRF: true, CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, Idle: h.limits.VisitorSessionIdle}, ID: id, ValidID: valid, DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst, VisitorPass: r.Header.Get(visitorPassHeader) != "", EntryMaxKB: h.savedData.EntryMaxKB, ListMaxBytes: maxCollectionItemSize, ReadPatch: readPatch})
+	raw, readErr := io.ReadAll(http.MaxBytesReader(w, r.Body, readLimit))
+	var maxErr *http.MaxBytesError
+	tooLarge := errors.As(readErr, &maxErr)
+	patch, patchValid := storagerules.DecodeLegacyEntryPatch(raw)
+	item, set, err := h.legacySvc().UpdateEntry(r.Context(), legacy.UpdateEntryInput{SiteID: siteID, Name: name, VisitorAccess: legacy.VisitorAccessInput{UserID: sess.UserID, SessionID: sess.ID, NeedCSRF: true, CSRFValid: r.Header.Get(visitorCSRFHeader) == visitorCSRFValue, Idle: h.limits.VisitorSessionIdle}, ID: id, ValidID: valid, DeclareFirst: h.savedData.DefaultKind == config.DefaultKindDeclareFirst, VisitorPass: r.Header.Get(visitorPassHeader) != "", EntryMaxKB: h.savedData.EntryMaxKB, ListMaxBytes: maxCollectionItemSize, Patch: raw, DecodedPatch: patch, PatchValid: patchValid, PatchReadError: readErr != nil, PatchTooLarge: tooLarge})
 	var serviceErr *legacy.Error
 	switch {
 	case errors.As(err, &serviceErr) && serviceErr.Code == "account_suspended":
@@ -1370,7 +1635,7 @@ func (h *SiteHandler) putSavers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s := db.Savers{Mode: req.Mode, Allow: allow, Block: req.Block}
-	if err := db.SetSavers(r.Context(), h.database, siteID, s); err != nil {
+	if err := h.legacySvc().SetSavers(r.Context(), legacy.SetSaversInput{SiteID: siteID, Savers: s}); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}

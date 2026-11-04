@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/legacy"
 	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
 )
@@ -175,10 +176,8 @@ func SetCollectionPrivateLocked(ctx context.Context, database *sql.DB, siteID, n
 	return tx.Commit()
 }
 
-// CountKindNames is how many names on the site are declared kind, other
-
 // BaseEmail normalizes an address for block lists.
-func BaseEmail(email string) string { return legacy.BaseEmail(email) }
+func BaseEmail(email string) string { return storagerules.BaseEmail(email) }
 
 // ---- Page info (content) --------------------------------------------------------
 
@@ -186,45 +185,6 @@ func BaseEmail(email string) string { return legacy.BaseEmail(email) }
 // nothing was saved yet.
 func GetContent(ctx context.Context, q Querier, siteID, name string) (CollectionItem, bool, error) {
 	return legacy.GetContent(ctx, q, siteID, name)
-}
-
-// PutContent replaces the name's document with data: the earlier one goes to
-// history (undo). The declaration row is locked so two first saves cannot
-// make two documents. ErrSiteFull when it would grow the site past maxBytes.
-func PutContent(ctx context.Context, database *sql.DB, siteID, name string, data json.RawMessage, a Actor, maxBytes int64) (CollectionItem, error) {
-	tx, err := database.BeginTx(ctx, nil)
-	if err != nil {
-		return CollectionItem{}, err
-	}
-	defer tx.Rollback()
-	if err := legacy.LockContentDeclaration(ctx, tx, siteID, name); err != nil {
-		return CollectionItem{}, err
-	}
-	cur, found, err := GetContent(ctx, tx, siteID, name)
-	if err != nil {
-		return CollectionItem{}, err
-	}
-	var it CollectionItem
-	if found {
-		it, err = legacy.UpdateContent(ctx, tx, cur.ID, data, a)
-		if err != nil {
-			return CollectionItem{}, err
-		}
-		if err := recordHistory(ctx, tx, siteID, HistoryList, name, &cur.ID, OpEdit, cur.Data, a); err != nil {
-			return CollectionItem{}, err
-		}
-	} else {
-		it, err = legacy.InsertContent(ctx, tx, siteID, name, data, a)
-		if err != nil {
-			return CollectionItem{}, err
-		}
-	}
-	if !found || len(it.Data) > len(cur.Data) {
-		if err := roomAfter(ctx, tx, siteID, maxBytes); err != nil {
-			return CollectionItem{}, err
-		}
-	}
-	return it, tx.Commit()
 }
 
 // ---- Submissions (entries) ------------------------------------------------------
@@ -287,7 +247,7 @@ func ListOwnEntries(ctx context.Context, database *sql.DB, siteID, name, userID 
 
 // ItemAuthor is who sent one item of a name and whether it is deleted.
 // sql.ErrNoRows when the name has no such item.
-type ItemAuthor = legacy.ItemAuthor
+type ItemAuthor = model.ItemAuthor
 
 // GetItemAuthor reads the stamped author of an item.
 func GetItemAuthor(ctx context.Context, q Querier, siteID, name string, id int64) (ItemAuthor, error) {
@@ -355,9 +315,6 @@ func UndoOwnWithdrawal(ctx context.Context, database *sql.DB, siteID, name strin
 	}
 	return it, true, tx.Commit()
 }
-
-// NameHasRows reports whether name holds any item at all, live or in
-// Recently deleted (a name that holds data cannot become Personal, and a
 
 // ---- Personal (mine) --------------------------------------------------------------
 
@@ -474,16 +431,11 @@ func ListItemHistory(ctx context.Context, database *sql.DB, siteID, name string,
 // ---- who may save ---------------------------------------------------------------
 
 // Savers is a site's who-may-save setting.
-type Savers = legacy.Savers
+type Savers = model.Savers
 
 // GetSavers reads the site's who-may-save setting.
 func GetSavers(ctx context.Context, database *sql.DB, siteID string) (Savers, error) {
 	return legacy.GetSavers(ctx, database, siteID)
-}
-
-// SetSavers replaces the site's who-may-save setting.
-func SetSavers(ctx context.Context, database *sql.DB, siteID string, s Savers) error {
-	return legacy.SetSavers(ctx, database, siteID, s)
 }
 
 // AddBlocked adds a pattern to the site's block list.
@@ -491,15 +443,10 @@ func AddBlocked(ctx context.Context, database *sql.DB, siteID, pattern string) (
 	return legacy.AddBlocked(ctx, database, siteID, pattern)
 }
 
-// SaverAllowed determines whether an email may save.
-func SaverAllowed(ctx context.Context, database *sql.DB, siteID, email string) (bool, error) {
-	return legacy.SaverAllowed(ctx, database, siteID, email)
-}
-
 // ---- email on new submissions ---------------------------------------------------
 
 // NotifyDue is one name whose owner should be emailed about new entries.
-type NotifyDue = legacy.NotifyDue
+type NotifyDue = model.NotifyDue
 
 // DueNotifications lists names with pending submission emails.
 func DueNotifications(ctx context.Context, database *sql.DB, each, daily time.Duration) ([]NotifyDue, error) {

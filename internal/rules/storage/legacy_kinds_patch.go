@@ -18,8 +18,8 @@ func LegacyEntryOwned(submittedBy, userID string, deleted, requireLive bool) boo
 }
 
 // LegacyWithdrawalRestorable reports whether the latest change permits undo.
-func LegacyWithdrawalRestorable(op, actor, userID string, at time.Time, window time.Duration) bool {
-	return op == "delete" && actor == userID && time.Since(at) <= window
+func LegacyWithdrawalRestorable(op, actor, userID string, at, now time.Time, window time.Duration) bool {
+	return op == "delete" && actor == userID && now.Sub(at) <= window
 }
 
 // ErrLegacyEntryTooLarge indicates that a patch grew an entry beyond its limit.

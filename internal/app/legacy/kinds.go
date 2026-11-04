@@ -3,7 +3,10 @@ package legacy
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"log"
 	"strings"
 	"time"
 
@@ -11,31 +14,6 @@ import (
 	repo "github.com/vsriram/simple-host/internal/repository/legacy"
 	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
 )
-
-// ListMineInput identifies a visitor and the requested page of their entries.
-type ListMineInput struct {
-	SiteID, Name string
-	Access       VisitorAccessInput
-	DeclareFirst bool
-	Limit        int
-	Before       int64
-}
-
-// ListMine checks visitor access and returns their entries for a list name.
-func (a *Adapter) ListMine(ctx context.Context, in ListMineInput) ([]db.CollectionItem, db.DataSettings, error) {
-	if err := a.CheckVisitorAccess(ctx, in.Access); err != nil {
-		return nil, db.DataSettings{}, err
-	}
-	set, err := a.WriteCollectionSettings(ctx, in.SiteID, in.Name, in.DeclareFirst)
-	if err != nil {
-		return nil, set, err
-	}
-	if !storagerules.LegacyEntriesLike(set.Kind, set.Shared) && set.Kind != db.KindBoard {
-		return nil, set, &Error{Code: "wrong_kind"}
-	}
-	items, err := repo.ListOwnEntries(ctx, a.database, in.SiteID, in.Name, in.Access.UserID, in.Limit, in.Before)
-	return items, set, err
-}
 
 // VisitorAccessInput contains the session and request facts for a visitor write.
 type VisitorAccessInput struct {
@@ -68,7 +46,7 @@ type SaverInput struct {
 
 // SaverAllowed checks whether an email may save on a site.
 func (a *Adapter) SaverAllowed(ctx context.Context, in SaverInput) (bool, error) {
-	return repo.SaverAllowed(ctx, a.database, in.SiteID, in.Email)
+	return a.saverAllowed(ctx, in.SiteID, in.Email)
 }
 
 // PersonSaverInput identifies a visitor and whether an internal pass is used.
@@ -90,7 +68,7 @@ func (a *Adapter) PersonSaverAllowed(ctx context.Context, in PersonSaverInput) (
 			return false, &Error{Code: "missing_email"}
 		}
 	}
-	ok, err := repo.SaverAllowed(ctx, a.database, in.SiteID, email)
+	ok, err := a.saverAllowed(ctx, in.SiteID, email)
 	if err != nil || ok {
 		return ok, err
 	}
@@ -104,13 +82,15 @@ func (a *Adapter) PersonSaverAllowed(ctx context.Context, in PersonSaverInput) (
 
 // UpdateEntryInput contains the validated patch for a visitor's entry.
 type UpdateEntryInput struct {
-	SiteID, Name                       string
-	VisitorAccess                      VisitorAccessInput
-	ID                                 int64
-	ValidID, DeclareFirst, VisitorPass bool
-	EntryMaxKB                         int
-	ListMaxBytes                       int64
-	ReadPatch                          func(int64) ([]byte, error)
+	SiteID, Name                              string
+	VisitorAccess                             VisitorAccessInput
+	ID                                        int64
+	ValidID, DeclareFirst, VisitorPass        bool
+	EntryMaxKB                                int
+	ListMaxBytes                              int64
+	Patch                                     []byte
+	DecodedPatch                              map[string]json.RawMessage
+	PatchValid, PatchReadError, PatchTooLarge bool
 }
 
 // UpdateEntry applies a visitor patch and records its previous value.
@@ -129,12 +109,15 @@ func (a *Adapter) UpdateEntry(ctx context.Context, in UpdateEntryInput) (db.Coll
 		return db.CollectionItem{}, set, err
 	}
 	maxBytes := EntryMaxBytes(set, in.EntryMaxKB, in.ListMaxBytes)
-	raw, err := in.ReadPatch(maxBytes)
-	if err != nil {
-		return db.CollectionItem{}, set, err
+	raw := in.Patch
+	if in.PatchTooLarge || int64(len(raw)) > maxBytes {
+		return db.CollectionItem{}, set, &Error{Code: "item_too_large"}
 	}
-	patch, ok := storagerules.DecodeLegacyEntryPatch(raw)
-	if !ok {
+	if in.PatchReadError {
+		return db.CollectionItem{}, set, &Error{Code: "invalid_patch"}
+	}
+	patch := in.DecodedPatch
+	if !in.PatchValid {
 		return db.CollectionItem{}, set, &Error{Code: "invalid_patch"}
 	}
 	if !storagerules.LegacyJSONStorable(raw) {
@@ -337,7 +320,7 @@ func (a *Adapter) UndoEntry(ctx context.Context, in UndoEntryInput) (db.Collecti
 	if err != nil {
 		return db.CollectionItem{}, false, set, err
 	}
-	if !storagerules.LegacyWithdrawalRestorable(op.String, actor.String, in.VisitorAccess.UserID, at, in.Window) {
+	if !storagerules.LegacyWithdrawalRestorable(op.String, actor.String, in.VisitorAccess.UserID, at, time.Now(), in.Window) {
 		return db.CollectionItem{}, false, set, nil
 	}
 	if declared && onePerPerson {
@@ -375,4 +358,783 @@ func (a *Adapter) UndoEntry(ctx context.Context, in UndoEntryInput) (db.Collecti
 		}
 	}
 	return it, true, set, tx.Commit()
+}
+
+// SetSaversInput identifies the site and its new saver settings.
+type SetSaversInput struct {
+	SiteID string
+	Savers db.Savers
+}
+
+// SetSavers replaces a site's saver settings in one transaction.
+func (a *Adapter) SetSavers(ctx context.Context, in SetSaversInput) error {
+	tx, err := a.database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := repo.SetSavers(ctx, tx, in.SiteID, in.Savers); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// saverAllowed determines whether an email may save.
+func (a *Adapter) saverAllowed(ctx context.Context, siteID, email string) (bool, error) {
+	mode, any, err := repo.SaverMode(ctx, a.database, siteID)
+	if err != nil {
+		return false, err
+	}
+	if !any {
+		return mode != "listed", nil
+	}
+	email, keys, blockKeys := storagerules.LegacySaverKeys(email)
+	if email == "" {
+		return mode != "listed", nil
+	}
+	blocked, allowed, err := repo.SaverMatches(ctx, a.database, siteID, keys, blockKeys)
+	if err != nil {
+		return false, err
+	}
+	if blocked {
+		return false, nil
+	}
+	return mode != "listed" || allowed, nil
+}
+
+// PutContentInput contains a page-info document and its author.
+type PutContentInput struct {
+	SiteID, Name string
+	Key          string
+	CSRFValid    bool
+}
+
+// PutDataInput contains request facts for either kind of document write.
+type PutDataInput struct {
+	PutContentInput
+	Preview, ContentHost, VisitorPass bool
+	Access                            VisitorAccessInput
+	IdempotencyKey                    string
+	PersonalPeopleMax                 int
+}
+
+// PutDataResult contains the saved document or replayed Personal record.
+type PutDataResult struct {
+	Item                                     db.CollectionItem
+	Personal, Found, Replayed, SaveAttempted bool
+	ReplayStatus                             int
+}
+
+// PutData writes a page-info document or a visitor's Personal record.
+func (a *Adapter) PutData(ctx context.Context, in PutDataInput) (PutDataResult, error) {
+	item, err := a.putContent(ctx, in.PutContentInput)
+	var opErr *Error
+	if !errors.As(err, &opErr) || opErr.Code != "content_personal" {
+		return PutDataResult{Item: item}, err
+	}
+	return a.putPersonalData(ctx, in)
+}
+
+func (a *Adapter) putPersonalData(ctx context.Context, in PutDataInput) (result PutDataResult, err error) {
+	result.Personal = true
+	if in.Key != "" {
+		return result, &Error{Code: "personal_only"}
+	}
+	offline, err := db.SiteOffline(ctx, a.database, in.SiteID)
+	if err != nil {
+		return result, &Error{Code: "internal", Message: err.Error()}
+	}
+	if offline {
+		return result, &Error{Code: "site_offline"}
+	}
+	if in.Preview {
+		return result, &Error{Code: "preview_read_only"}
+	}
+	if in.ContentHost {
+		return result, &Error{Code: "visitor_auth_required"}
+	}
+	sess, ok := a.deps.PersonalSession(in.SiteID)
+	if !ok {
+		return result, &Error{Code: "visitor_auth_required"}
+	}
+	in.Access.UserID, in.Access.SessionID = sess.UserID, sess.ID
+	if err := a.CheckVisitorAccess(ctx, in.Access); err != nil {
+		return result, err
+	}
+	ok, err = a.PersonSaverAllowed(ctx, PersonSaverInput{SiteID: in.SiteID, UserID: sess.UserID, VisitorPass: in.VisitorPass})
+	if err != nil {
+		return result, &Error{Code: "internal", Message: err.Error()}
+	}
+	if !ok {
+		return result, &Error{Code: "not_allowed_to_save"}
+	}
+	if !a.deps.PersonalWriteLimit() {
+		return result, &Error{Code: "rate_limited"}
+	}
+	actor := a.deps.ContentAuthor(ctx, db.Actor{ID: sess.UserID, Kind: "visitor"})
+	raw, doc, err := a.deps.PersonalReadBody()
+	if err != nil {
+		return result, err
+	}
+	key := strings.TrimSpace(in.IdempotencyKey)
+	if len(key) > 255 {
+		return result, &Error{Code: "invalid_idempotency_key"}
+	}
+	var scope []byte
+	if key != "" && actor.ID != "" {
+		var previous db.IdempotentResponse
+		var state string
+		scope, previous, state, err = a.ClaimWrite(ctx, in.SiteID, "PUT data/"+in.Name, actor.ID, key, raw)
+		if err != nil {
+			return result, &Error{Code: "internal", Message: err.Error()}
+		}
+		switch state {
+		case "reused":
+			return result, &Error{Code: "idempotency_key_reused"}
+		case "pending":
+			return result, &Error{Code: "idempotency_in_progress"}
+		case "replay":
+			result.Replayed, result.ReplayStatus = true, previous.Status
+			result.Item, result.Found, err = repo.GetPersonal(ctx, a.database, in.SiteID, in.Name, actor.ID)
+			if err != nil {
+				return result, &Error{Code: "internal", Message: err.Error()}
+			}
+			return result, err
+		}
+	}
+	saved := false
+	if scope != nil {
+		defer func() {
+			if !saved {
+				if e := a.ReleaseIdempotencyKey(context.WithoutCancel(ctx), scope); e != nil {
+					log.Printf("idempotency release: %v", e)
+				}
+			}
+		}()
+	}
+	result.SaveAttempted = true
+	result.Item, err = a.savePersonalDocument(ctx, in, actor, doc, a.deps.ContentSiteMaxBytes())
+	a.deps.BoundHistory(ctx, in.SiteID)
+	if err != nil {
+		return result, err
+	}
+	result.Found = true
+	if scope != nil {
+		// Keep it even if the caller has gone: that is the retry case.
+		if e := a.SaveIdempotentResponse(context.WithoutCancel(ctx), scope, 200, "", result.Item.ID); e != nil {
+			log.Printf("idempotency save: %v", e)
+		}
+	}
+	saved = true
+	return result, nil
+}
+
+func (a *Adapter) savePersonalDocument(ctx context.Context, in PutDataInput, actor db.Actor, doc json.RawMessage, maxBytes int64) (db.CollectionItem, error) {
+	if actor.ID == "" {
+		return db.CollectionItem{}, errors.New("a personal record needs a signed-in person")
+	}
+	tx, err := a.database.BeginTx(ctx, nil)
+	if err != nil {
+		return db.CollectionItem{}, err
+	}
+	defer tx.Rollback()
+	if err := repo.LockPersonalDeclaration(ctx, tx, in.SiteID, in.Name); err != nil {
+		return db.CollectionItem{}, err
+	}
+	id, old, deleted, err := repo.LockPersonalItem(ctx, tx, in.SiteID, in.Name, actor.ID)
+	found := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return db.CollectionItem{}, err
+	}
+	var it db.CollectionItem
+	if found {
+		it, err = repo.UpdatePersonalItem(ctx, tx, id, doc, actor.Email)
+		if err != nil {
+			return db.CollectionItem{}, err
+		}
+		if err := repo.RecordHistory(ctx, tx, in.SiteID, db.HistoryList, in.Name, &id, db.OpEdit, old, actor); err != nil {
+			return db.CollectionItem{}, err
+		}
+	} else {
+		if in.PersonalPeopleMax > 0 {
+			n, err := repo.CountPersonalItems(ctx, tx, in.SiteID, in.Name, in.PersonalPeopleMax)
+			if err != nil {
+				return db.CollectionItem{}, err
+			}
+			if n >= in.PersonalPeopleMax {
+				return db.CollectionItem{}, db.ErrPeopleFull
+			}
+		}
+		it, err = repo.InsertPersonalItem(ctx, tx, in.SiteID, in.Name, doc, actor)
+		if err != nil {
+			return db.CollectionItem{}, err
+		}
+	}
+	if !found || deleted.Valid || len(it.Data) > len(old) {
+		if maxBytes > 0 {
+			used, err := repo.SiteDataUsage(ctx, tx, in.SiteID)
+			if err != nil {
+				return db.CollectionItem{}, err
+			}
+			if used > maxBytes {
+				return db.CollectionItem{}, db.ErrSiteFull
+			}
+		}
+	}
+	return it, tx.Commit()
+}
+
+// putContent stores a page-info document and bounds its history afterward.
+func (a *Adapter) putContent(ctx context.Context, in PutContentInput) (db.CollectionItem, error) {
+	suspended, reason, err := db.SiteSuspension(ctx, a.database, in.SiteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return db.CollectionItem{}, &Error{Code: "site_not_found"}
+	}
+	if err != nil {
+		return db.CollectionItem{}, err
+	}
+	if suspended {
+		return db.CollectionItem{}, &Error{Code: "site_suspended", Message: reason}
+	}
+
+	set, err := a.WriteCollectionSettings(ctx, in.SiteID, in.Name, a.deps.ContentDeclareFirst())
+	if errors.Is(err, sql.ErrNoRows) {
+		return db.CollectionItem{}, &Error{Code: "site_not_found"}
+	}
+	if err != nil {
+		return db.CollectionItem{}, err
+	}
+	switch set.Kind {
+	case db.KindContent:
+	case db.KindPersonal:
+		return db.CollectionItem{}, &Error{Code: "content_personal"}
+	case db.KindEntries, db.KindBoard:
+		return db.CollectionItem{}, &Error{Code: "content_wrong_kind", Message: set.Kind}
+	default:
+		return db.CollectionItem{}, &Error{Code: "content_declare_first"}
+	}
+
+	ownerID, _, err := db.GetSiteWriteGate(ctx, a.database, in.SiteID)
+	if err != nil {
+		return db.CollectionItem{}, &Error{Code: "site_not_found"}
+	}
+	var actor db.Actor
+	if in.Key != "" {
+		u, ok, err := a.deps.VisitorResolveKey(ctx, in.Key)
+		if err != nil {
+			return db.CollectionItem{}, err
+		}
+		if !ok {
+			return db.CollectionItem{}, &Error{Code: "invalid_api_key"}
+		}
+		if !u.IsAdmin && u.ID != ownerID {
+			return db.CollectionItem{}, &Error{Code: "site_not_found"}
+		}
+		actor = db.Actor{ID: u.ID, Kind: "owner"}
+		if u.ID != ownerID {
+			actor.Kind = "admin"
+		}
+	} else if a.deps.ContentOwnerBrowser(in.SiteID) {
+		if !in.CSRFValid {
+			return db.CollectionItem{}, &Error{Code: "csrf_required"}
+		}
+		actor = db.Actor{ID: ownerID, Kind: "owner"}
+	} else {
+		return db.CollectionItem{}, &Error{Code: "owner_only"}
+	}
+	actor = a.deps.ContentAuthor(ctx, actor)
+	data, err := a.deps.ContentBody()
+	if err != nil {
+		return db.CollectionItem{}, err
+	}
+	maxBytes := a.deps.ContentSiteMaxBytes()
+	if a.deps.BoundHistory != nil {
+		defer a.deps.BoundHistory(ctx, in.SiteID)
+	}
+	tx, err := a.database.BeginTx(ctx, nil)
+	if err != nil {
+		return db.CollectionItem{}, err
+	}
+	defer tx.Rollback()
+	if err := repo.LockContentForPut(ctx, tx, in.SiteID, in.Name); err != nil {
+		return db.CollectionItem{}, err
+	}
+	cur, found, err := repo.GetContent(ctx, tx, in.SiteID, in.Name)
+	if err != nil {
+		return db.CollectionItem{}, err
+	}
+	var it db.CollectionItem
+	if found {
+		it, err = repo.UpdateContent(ctx, tx, cur.ID, data, actor)
+		if err != nil {
+			return db.CollectionItem{}, err
+		}
+		if err := repo.RecordHistory(ctx, tx, in.SiteID, db.HistoryList, in.Name, &cur.ID, db.OpEdit, cur.Data, actor); err != nil {
+			return db.CollectionItem{}, err
+		}
+	} else {
+		it, err = repo.InsertContent(ctx, tx, in.SiteID, in.Name, data, actor)
+		if err != nil {
+			return db.CollectionItem{}, err
+		}
+	}
+	if (!found || len(it.Data) > len(cur.Data)) && maxBytes > 0 {
+		used, err := repo.SiteDataUsage(ctx, tx, in.SiteID)
+		if err != nil {
+			return db.CollectionItem{}, err
+		}
+		if used > maxBytes {
+			return db.CollectionItem{}, db.ErrSiteFull
+		}
+	}
+	return it, tx.Commit()
+}
+
+// ListMineInput identifies a visitor and a page of their entries.
+type ListMineInput struct {
+	SiteName, Name string
+	Access         VisitorAccessInput
+	ContentHost    bool
+	DeclareFirst   bool
+	Limit          int
+	Before         int64
+}
+
+// ListMineResult holds a page of a visitor's entries and its continuation.
+type ListMineResult struct {
+	Items    []db.CollectionItem
+	Next     *int64
+	Settings db.DataSettings
+}
+
+// ListMine checks visitor access and reads the visitor's entries.
+func (a *Adapter) ListMine(ctx context.Context, in ListMineInput) (ListMineResult, error) {
+	siteID, err := a.deps.MineResolveSite(in.SiteName)
+	if err != nil {
+		return ListMineResult{}, &Error{Code: "site_not_found"}
+	}
+	if !a.deps.MineReadLimit(siteID) {
+		return ListMineResult{}, &Error{Code: "rate_limited"}
+	}
+	suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ListMineResult{}, &Error{Code: "site_not_found"}
+	}
+	if err != nil {
+		return ListMineResult{}, err
+	}
+	if suspended {
+		return ListMineResult{}, &Error{Code: "site_suspended", Message: reason}
+	}
+	if in.ContentHost {
+		return ListMineResult{}, &Error{Code: "visitor_auth_required"}
+	}
+	sess, ok := a.deps.ResolveMineSession(siteID)
+	if !ok {
+		return ListMineResult{}, &Error{Code: "visitor_auth_required"}
+	}
+	in.Access.UserID, in.Access.SessionID = sess.UserID, sess.ID
+	if err := a.CheckVisitorAccess(ctx, in.Access); err != nil {
+		return ListMineResult{}, err
+	}
+	set, err := a.WriteCollectionSettings(ctx, siteID, in.Name, in.DeclareFirst)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ListMineResult{Settings: set}, &Error{Code: "site_not_found"}
+	}
+	if err != nil {
+		return ListMineResult{Settings: set}, err
+	}
+	if !storagerules.LegacyEntriesLike(set.Kind, set.Shared) && set.Kind != db.KindBoard {
+		return ListMineResult{Settings: set}, &Error{Code: "wrong_kind"}
+	}
+	items, err := repo.ListOwnEntries(ctx, a.database, siteID, in.Name, in.Access.UserID, in.Limit, in.Before)
+	result := ListMineResult{Items: items, Settings: set}
+	if len(items) == in.Limit && in.Limit > 0 {
+		n := items[len(items)-1].ID
+		result.Next = &n
+	}
+	return result, err
+}
+
+// DataKindInput identifies the declaration to describe.
+type DataKindInput struct {
+	SiteID, Name string
+	OwnerKey     bool
+	DeclareFirst bool
+}
+
+// GetDataKindInput contains request facts for a declaration read.
+type GetDataKindInput struct {
+	SiteName, Name                      string
+	ValidName, Originless, DeclareFirst bool
+}
+
+// GetDataKind resolves and authorizes the page-facing declaration read.
+func (a *Adapter) GetDataKind(ctx context.Context, in GetDataKindInput) (DataKindResult, error) {
+	siteID, ownerKey, err := a.resolveDataReadSite(in)
+	if err != nil {
+		return DataKindResult{}, err
+	}
+	if !a.deps.KindReadLimit(siteID) {
+		return DataKindResult{}, &Error{Code: "rate_limited"}
+	}
+	return a.DataKind(ctx, DataKindInput{SiteID: siteID, Name: in.Name, OwnerKey: ownerKey, DeclareFirst: in.DeclareFirst})
+}
+
+func (a *Adapter) resolveDataReadSite(in GetDataKindInput) (string, bool, error) {
+	if in.SiteName == "" || !in.ValidName {
+		return "", false, &Error{Code: "invalid_site_or_name"}
+	}
+	siteID, ownerKey := a.deps.KindOwnerSite(in.SiteName)
+	if !ownerKey {
+		if !in.Originless && !a.deps.KindOriginAllowed(in.SiteName) {
+			return "", false, &Error{Code: "origin_not_allowed"}
+		}
+		var err error
+		siteID, err = a.deps.KindResolveSite(in.SiteName)
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", false, &Error{Code: "site_not_found"}
+		}
+		if err != nil {
+			return "", false, err
+		}
+	}
+	return siteID, ownerKey, nil
+}
+
+// DataKindResult contains the declaration facts shown to readers.
+type DataKindResult struct {
+	Settings     db.DataSettings
+	EntriesLike  bool
+	OnePerPerson bool
+}
+
+// DataReadInput identifies a page-facing data read.
+type DataReadInput struct {
+	GetDataKindInput
+	Count, ContentHost bool
+	Access             VisitorAccessInput
+	Limit, Before      string
+}
+
+// DataReadResult contains the selected route and any data it read.
+type DataReadResult struct {
+	SiteID                         string
+	OwnerKey                       bool
+	Route                          storagerules.LegacyDataRoute
+	Document                       db.CollectionItem
+	Found, OwnerView, PrivateCache bool
+	PersonalCount, PersonalFew     bool
+	Items                          []db.CollectionItem
+	Next                           *int64
+	Private, Board, WithAuthor     bool
+	Count                          int64
+}
+
+// ReadData checks the declaration and reads page-info or count data.
+func (a *Adapter) ReadData(ctx context.Context, in DataReadInput) (DataReadResult, error) {
+	siteID, ownerKey, err := a.resolveDataReadSite(in.GetDataKindInput)
+	if err != nil {
+		return DataReadResult{}, err
+	}
+	kind, err := a.DataKind(ctx, DataKindInput{SiteID: siteID, Name: in.Name, OwnerKey: ownerKey, DeclareFirst: in.DeclareFirst})
+	if err != nil {
+		return DataReadResult{}, err
+	}
+	set := kind.Settings
+	if storagerules.LegacyDataReadLimited(set.Kind, set.Shared, in.Count) && !a.deps.DataReadLimit(siteID) {
+		return DataReadResult{}, &Error{Code: "rate_limited"}
+	}
+	result := DataReadResult{SiteID: siteID, OwnerKey: ownerKey, Route: storagerules.LegacyDataReadRoute(set.Kind, set.Shared, in.Count)}
+	switch result.Route {
+	case storagerules.LegacyDataList:
+		return a.readDataList(ctx, in)
+	case storagerules.LegacyDataPersonal:
+		result.PrivateCache = true
+		if ownerKey || a.deps.DataOwnerBrowser(siteID) {
+			if in.Count {
+				result.PersonalCount = true
+				result.Count, err = repo.CountLiveItems(ctx, a.database, siteID, in.Name)
+				result.PersonalFew = result.Count > 0 && result.Count < db.PersonalFewMax
+				return result, err
+			}
+			if ownerKey {
+				return result, &Error{Code: "personal_only"}
+			}
+		}
+		if in.ContentHost {
+			return result, &Error{Code: "visitor_auth_required"}
+		}
+		sess, ok := a.deps.ResolveMineSession(siteID)
+		if !ok {
+			return result, &Error{Code: "visitor_auth_required"}
+		}
+		in.Access.UserID, in.Access.SessionID = sess.UserID, sess.ID
+		if err := a.CheckVisitorAccess(ctx, in.Access); err != nil {
+			return result, err
+		}
+		result.Document, result.Found, err = repo.GetPersonal(ctx, a.database, siteID, in.Name, sess.UserID)
+	case storagerules.LegacyDataContent:
+		result.Document, result.Found, err = repo.GetContent(ctx, a.database, siteID, in.Name)
+		if err == nil && result.Found {
+			result.OwnerView = ownerKey || a.deps.DataOwnerBrowser(siteID)
+			result.PrivateCache = result.OwnerView
+		}
+	case storagerules.LegacyDataCount:
+		if set.Private && !ownerKey && !a.deps.DataOwnerBrowser(siteID) {
+			result.PrivateCache = true
+			return result, &Error{Code: "private_not_found"}
+		}
+		result.Count, err = repo.CountLiveItems(ctx, a.database, siteID, in.Name)
+	}
+	return result, err
+}
+
+func (a *Adapter) readDataList(ctx context.Context, in DataReadInput) (DataReadResult, error) {
+	result := DataReadResult{Route: storagerules.LegacyDataList}
+	siteID, ownerKey, err := a.resolveDataReadSite(in.GetDataKindInput)
+	if err != nil {
+		return result, err
+	}
+	if a.deps.DataAdminMismatch(siteID) {
+		return result, &Error{Code: "site_not_found"}
+	}
+	if !a.deps.DataReadLimit(siteID) {
+		return result, &Error{Code: "rate_limited"}
+	}
+	if !ownerKey {
+		suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return result, &Error{Code: "site_not_found"}
+		}
+		if err != nil {
+			return result, &Error{Code: "internal", Message: err.Error()}
+		}
+		if suspended {
+			return result, &Error{Code: "site_suspended", Message: reason}
+		}
+		offline, err := db.SiteOffline(ctx, a.database, siteID)
+		if err != nil {
+			return result, &Error{Code: "internal", Message: err.Error()}
+		}
+		if offline {
+			return result, &Error{Code: "site_offline"}
+		}
+	}
+	set, err := a.ListCollectionSettings(ctx, siteID, in.Name)
+	if errors.Is(err, ErrPersonalList) {
+		return result, &Error{Code: "personal_only"}
+	}
+	if err != nil {
+		return result, &Error{Code: "internal", Message: err.Error()}
+	}
+	result.Private = set.Private
+	if set.Private {
+		result.PrivateCache = true
+		if (ownerKey && in.ContentHost) || (!ownerKey && in.Originless) {
+			return result, &Error{Code: "private_not_found"}
+		}
+		if !ownerKey {
+			sess, err := a.deps.DataPrivateRead(ctx, siteID)
+			if err != nil {
+				var opErr *Error
+				if errors.As(err, &opErr) {
+					return result, err
+				}
+				return result, &Error{Code: "internal", Message: err.Error()}
+			}
+			_ = db.TouchVisitorSession(ctx, a.database, sess.ID, in.Access.Idle)
+		}
+	}
+	result.WithAuthor = ownerKey || a.deps.DataOwnerBrowser(siteID)
+	if result.WithAuthor {
+		result.PrivateCache = true
+	}
+	result.Items, result.Next, err = a.ListCollection(ctx, CollectionListInput{SiteID: siteID, Collection: in.Name, Limit: in.Limit, Before: in.Before, WithAuthor: result.WithAuthor, Settings: set})
+	result.Board = set.Kind == db.KindBoard
+	if err != nil {
+		return result, &Error{Code: "internal", Message: err.Error()}
+	}
+	return result, nil
+}
+
+// DataKind reads a declaration and derives its public kind facts.
+func (a *Adapter) DataKind(ctx context.Context, in DataKindInput) (DataKindResult, error) {
+	if !in.OwnerKey {
+		suspended, reason, err := db.SiteSuspension(ctx, a.database, in.SiteID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return DataKindResult{}, &Error{Code: "site_not_found"}
+		}
+		if err != nil {
+			return DataKindResult{}, &Error{Code: "internal", Message: err.Error()}
+		}
+		if suspended {
+			return DataKindResult{}, &Error{Code: "site_suspended", Message: reason}
+		}
+		offline, err := db.SiteOffline(ctx, a.database, in.SiteID)
+		if err != nil {
+			return DataKindResult{}, &Error{Code: "internal", Message: err.Error()}
+		}
+		if offline {
+			return DataKindResult{}, &Error{Code: "site_offline"}
+		}
+	}
+	set, err := a.WriteCollectionSettings(ctx, in.SiteID, in.Name, in.DeclareFirst)
+	if err != nil {
+		return DataKindResult{}, err
+	}
+	return DataKindResult{
+		Settings:     set,
+		EntriesLike:  storagerules.LegacyEntriesLike(set.Kind, set.Shared),
+		OnePerPerson: set.OnePerPerson && set.Kind == db.KindEntries,
+	}, nil
+}
+
+// VisitorWriteInput contains request facts for a visitor write.
+type VisitorWriteInput struct {
+	SiteID, SiteName, Route, Collection, Mode, Key          string
+	Preview, ContentHost, Canonical, VisitorPass, CSRFValid bool
+	SessionIdle, KeyIdle                                    time.Duration
+}
+
+// VisitorWrite authorizes a page write and checks the site's saver policy.
+func (a *Adapter) VisitorWrite(ctx context.Context, in VisitorWriteInput) (db.Actor, error) {
+	anon := db.Actor{Kind: "anonymous"}
+	ownerID, allowAnon, err := db.GetSiteWriteGate(ctx, a.database, in.SiteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return anon, &Error{Code: "site_not_found"}
+	}
+	if err != nil {
+		return anon, err
+	}
+	suspended, reason, err := db.SiteSuspension(ctx, a.database, in.SiteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return anon, &Error{Code: "site_not_found"}
+	}
+	if err != nil {
+		return anon, err
+	}
+	if suspended {
+		return anon, &Error{Code: "site_suspended", Message: reason}
+	}
+	off, err := db.SiteOffline(ctx, a.database, in.SiteID)
+	if err != nil {
+		return anon, err
+	}
+	if off && !a.deps.VisitorOwnerKeyWrite(ownerID) {
+		return anon, &Error{Code: "site_offline"}
+	}
+	if in.Preview && in.Key == "" {
+		return anon, &Error{Code: "preview_read_only"}
+	}
+	mode := in.Mode
+	if mode == "" {
+		mode = "log"
+	}
+	domain, elsewhere := a.deps.VisitorDomainElsewhere(in.SiteID)
+	if elsewhere {
+		a.deps.VisitorLog(mode, "use_custom_domain")
+		if mode == "on" && !allowAnon {
+			return anon, &Error{Code: "use_custom_domain", Message: domain}
+		}
+		return a.visitorSaver(ctx, in, a.deps.VisitorKeyActor(ownerID))
+	}
+	if in.ContentHost {
+		if info, ok, _ := db.GetSiteDomainInfo(ctx, a.database, in.SiteID); ok && info.Domain != "" {
+			if own, has, _ := a.deps.VisitorOwnAddress(ctx, in.SiteID); has {
+				info.Domain = own.Domain
+			}
+			a.deps.VisitorLog(mode, "use_custom_domain")
+			if mode == "on" && !allowAnon {
+				return anon, &Error{Code: "use_custom_domain", Message: info.Domain}
+			}
+			return a.visitorSaver(ctx, in, a.deps.VisitorKeyActor(ownerID))
+		}
+	}
+	if in.VisitorPass {
+		sess, ok := a.deps.VisitorInternalSession(in.SiteID)
+		if !ok {
+			return anon, &Error{Code: "visitor_pass_forbidden"}
+		}
+		if !in.CSRFValid {
+			return anon, &Error{Code: "pass_csrf_required"}
+		}
+		return a.visitorSaver(ctx, in, db.Actor{ID: sess.UserID, Kind: "visitor"})
+	}
+	if in.Key != "" {
+		u, ok, err := a.deps.VisitorResolveKey(ctx, in.Key)
+		if err != nil {
+			return anon, err
+		}
+		if ok && !u.IsAdmin && u.ID != ownerID {
+			a.deps.VisitorLogKey(u.ID, false)
+			return anon, &Error{Code: "site_not_found"}
+		}
+		if ok {
+			a.deps.VisitorLogKey(u.ID, true)
+			if u.IsAdmin && u.ID != ownerID {
+				return a.visitorSaver(ctx, in, db.Actor{ID: u.ID, Kind: "admin"})
+			}
+			return a.visitorSaver(ctx, in, db.Actor{ID: u.ID, Kind: "owner"})
+		}
+		return anon, &Error{Code: "invalid_api_key"}
+	}
+	if mode == "off" {
+		return a.visitorSaver(ctx, in, anon)
+	}
+	if in.ContentHost && !in.Canonical {
+		a.deps.VisitorLog(mode, "public_host")
+		return a.visitorSaver(ctx, in, anon)
+	}
+	if raw := a.deps.VisitorSessionCookie(); raw != "" && !in.ContentHost {
+		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
+			sess, sessErr := db.GetVisitorSession(ctx, a.database, id, in.KeyIdle)
+			if sessErr == nil && a.deps.VisitorSessionValid(sess, in.SiteID) {
+				susp, err := db.UserSuspended(ctx, a.database, sess.UserID)
+				if err != nil {
+					return anon, err
+				}
+				if susp {
+					return anon, &Error{Code: "account_suspended"}
+				}
+				if in.CSRFValid {
+					_ = db.TouchVisitorSession(ctx, a.database, id, in.SessionIdle)
+					if sess.UserID == ownerID {
+						return a.visitorSaver(ctx, in, db.Actor{ID: sess.UserID, Kind: "owner"})
+					}
+					return a.visitorSaver(ctx, in, db.Actor{ID: sess.UserID, Kind: "visitor"})
+				}
+				if mode == "on" {
+					return anon, &Error{Code: "csrf_required"}
+				}
+			}
+		}
+	}
+	outcome := "allowed"
+	if mode == "on" {
+		if allowAnon {
+			outcome = "overridden"
+		} else {
+			outcome = "rejected"
+		}
+	}
+	a.deps.VisitorLog(mode, outcome)
+	if outcome == "rejected" {
+		return anon, &Error{Code: "visitor_auth_required"}
+	}
+	return a.visitorSaver(ctx, in, anon)
+}
+
+func (a *Adapter) visitorSaver(ctx context.Context, in VisitorWriteInput, actor db.Actor) (db.Actor, error) {
+	if actor.Kind != "visitor" && actor.Kind != "anonymous" {
+		return actor, nil
+	}
+	ok, err := a.PersonSaverAllowed(ctx, PersonSaverInput{SiteID: in.SiteID, UserID: actor.ID, VisitorPass: in.VisitorPass})
+	if err != nil {
+		return actor, err
+	}
+	if !ok {
+		return actor, &Error{Code: "not_allowed_to_save"}
+	}
+	return actor, nil
 }

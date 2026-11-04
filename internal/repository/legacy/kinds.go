@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/lib/pq"
-	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/model"
@@ -98,12 +97,8 @@ func PersonalItemID(ctx context.Context, q sqlkit.Querier, siteID, name, userID 
 	return id, err
 }
 
-// ItemAuthor identifies an entry author and deletion time.
-type ItemAuthor struct {
-	SubmittedBy string
-	Email       string
-	DeletedAt   *time.Time
-}
+// ItemAuthor is a shared legacy record.
+type ItemAuthor = model.ItemAuthor
 
 // GetItemAuthor reads the stamped author of an item.
 func GetItemAuthor(ctx context.Context, q sqlkit.Querier, siteID, name string, id int64) (ItemAuthor, error) {
@@ -129,24 +124,8 @@ func GetItemAuthor(ctx context.Context, q sqlkit.Querier, siteID, name string, i
 	return a, nil
 }
 
-// NotifyDue is one name whose owner should be emailed about new entries.
-type NotifyDue struct {
-	SiteID   string
-	SiteName string
-	Handle   string
-	OwnerID  string
-	Name     string
-	Notify   string
-	Since    time.Time
-	// SentAt is notify_sent_at as read (nil before the first email): the
-	// claim compares against it.
-	SentAt     *time.Time
-	Count      int64
-	CheckUntil time.Time
-	// LastID is the newest entry counted; the claim records it, and the
-	// next email counts only entries after it.
-	LastID int64
-}
+// NotifyDue is a shared legacy record.
+type NotifyDue = model.NotifyDue
 
 // DueNotifications lists every name with notify each or daily whose interval
 // has passed and that has new entries from people other than the owner since
@@ -224,28 +203,8 @@ func SetNotify(ctx context.Context, database *sql.DB, siteID, name, notify strin
 	return n > 0, err
 }
 
-// BaseEmail is the address one person is known by for block lists and one
-// entry per person: lower case, with a "+tag" dropped from the part before
-// the @ (ann+2@example.com is ann@example.com). "" stays "".
-func BaseEmail(email string) string {
-	email = strings.ToLower(strings.TrimSpace(email))
-	at := strings.LastIndex(email, "@")
-	if at < 0 {
-		return email
-	}
-	local := email[:at]
-	if plus := strings.Index(local, "+"); plus > 0 {
-		local = local[:plus]
-	}
-	return local + email[at:]
-}
-
-// Savers is a site's who-may-save setting.
-type Savers struct {
-	Mode  string   `json:"mode"`
-	Allow []string `json:"allow"`
-	Block []string `json:"block"`
-}
+// Savers is a shared legacy record.
+type Savers = model.Savers
 
 // GetSavers reads a site's who-may-save setting (sorted lists).
 func GetSavers(ctx context.Context, database *sql.DB, siteID string) (Savers, error) {
@@ -274,12 +233,7 @@ func GetSavers(ctx context.Context, database *sql.DB, siteID string) (Savers, er
 
 // SetSavers replaces a site's who-may-save setting. Patterns are already
 // normalised by the caller.
-func SetSavers(ctx context.Context, database *sql.DB, siteID string, s Savers) error {
-	tx, err := database.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+func SetSavers(ctx context.Context, tx *sql.Tx, siteID string, s Savers) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE sites SET savers_mode = $2 WHERE id = $1`, siteID, s.Mode); err != nil {
 		return err
 	}
@@ -296,7 +250,7 @@ func SetSavers(ctx context.Context, database *sql.DB, siteID string, s Savers) e
 			return err
 		}
 	}
-	return tx.Commit()
+	return nil
 }
 
 // AddBlocked adds one pattern to a site's block list, and returns how many
@@ -311,51 +265,20 @@ func AddBlocked(ctx context.Context, database *sql.DB, siteID, pattern string) (
 	return n, err
 }
 
-// SaverAllowed decides whether the person with this verified email may save
-// on the site: never when the address or its domain is blocked; with mode
-// listed, only when the address or its domain is on the allow list. The
-// block list matches the address with its +tag dropped too (BaseEmail); the
-// allow list only the address as it is. A domain entry matches addresses at
-// exactly that domain (not its subdomains), by the address a sign-in
-// verified (Google's or an emailed code's). A site
-// with the default setting and no block list costs one row read. An empty
-// email (nobody signed in) is refused only by a listed site.
-func SaverAllowed(ctx context.Context, database *sql.DB, siteID, email string) (bool, error) {
-	var mode string
-	var any bool
-	err := database.QueryRowContext(ctx, `
+// SaverMode reads the site's saver mode and whether any patterns exist.
+func SaverMode(ctx context.Context, database *sql.DB, siteID string) (mode string, any bool, err error) {
+	err = database.QueryRowContext(ctx, `
 		SELECT savers_mode, EXISTS(SELECT 1 FROM site_savers WHERE site_id = $1) FROM sites WHERE id = $1`, siteID).Scan(&mode, &any)
-	if err != nil {
-		return false, err
-	}
-	if !any {
-		return mode != "listed", nil
-	}
-	email = strings.ToLower(strings.TrimSpace(email))
-	if email == "" {
-		return mode != "listed", nil
-	}
-	keys := []string{email}
-	if at := strings.LastIndex(email, "@"); at >= 0 {
-		keys = append(keys, email[at:])
-	}
-	// A block also covers the address with any +tag (ann+2@ is ann@).
-	blockKeys := keys
-	if base := BaseEmail(email); base != email {
-		blockKeys = append([]string{base}, keys...)
-	}
-	var blocked, allowed bool
+	return
+}
+
+// SaverMatches checks the allow and block patterns.
+func SaverMatches(ctx context.Context, database *sql.DB, siteID string, keys, blockKeys []string) (blocked, allowed bool, err error) {
 	err = database.QueryRowContext(ctx, `
 		SELECT EXISTS(SELECT 1 FROM site_savers WHERE site_id = $1 AND list = 'block' AND pattern = ANY($3)),
 		       EXISTS(SELECT 1 FROM site_savers WHERE site_id = $1 AND list = 'allow' AND pattern = ANY($2))`,
 		siteID, pq.Array(keys), pq.Array(blockKeys)).Scan(&blocked, &allowed)
-	if err != nil {
-		return false, err
-	}
-	if blocked {
-		return false, nil
-	}
-	return mode != "listed" || allowed, nil
+	return
 }
 
 // UpdatePrivate updates a declaration's visibility under its lock.
@@ -370,6 +293,13 @@ func LockContentDeclaration(ctx context.Context, tx *sql.Tx, siteID, name string
 	var one int
 	return tx.QueryRowContext(ctx, `
 			SELECT 1 FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&one)
+}
+
+// LockContentForPut locks a declaration before replacing its content.
+func LockContentForPut(ctx context.Context, tx *sql.Tx, siteID, name string) error {
+	var one int
+	return tx.QueryRowContext(ctx, `
+		SELECT 1 FROM collection_settings WHERE site_id = $1 AND collection = $2 FOR UPDATE`, siteID, name).Scan(&one)
 }
 
 // LockWithdrawal reads and locks a withdrawn item and its latest history.
@@ -469,17 +399,8 @@ func LockClearedPersonal(ctx context.Context, tx *sql.Tx, siteID, name, userID s
 	return
 }
 
-// HistoryEntry is one change, newest first in lists.
-type HistoryEntry struct {
-	ID     int64           `json:"id"`
-	ItemID *int64          `json:"item_id,omitempty"`
-	Op     string          `json:"op"`
-	By     string          `json:"by,omitempty"`
-	ByKind string          `json:"by_kind"`
-	At     time.Time       `json:"at"`
-	Size   int64           `json:"size"`
-	Value  json.RawMessage `json:"value,omitempty"`
-}
+// HistoryEntry is a shared legacy record.
+type HistoryEntry = model.HistoryEntry
 
 const historyByExpr = `CASE WHEN actor_kind = 'admin' THEN 'Simple Host (operator)' ELSE COALESCE(actor_email, '') END || CASE WHEN actor_app <> '' THEN ' via ' || actor_app ELSE '' END`
 
