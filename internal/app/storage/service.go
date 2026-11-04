@@ -7,13 +7,12 @@ import (
 	"time"
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
-	runtime "github.com/vsriram/simple-host/internal/storage"
 )
 
 // Deps holds the storage service configuration.
 type Deps struct {
 	VisitorEmail                             func(context.Context, string) (string, error)
-	Disk                                     *runtime.DiskStorage
+	Disk                                     interface{ SiteDir(string, string) string }
 	SpamCheckAvailable                       bool
 	SQLitePath                               string
 	SQLiteGate                               *SQLiteGate

@@ -24,7 +24,6 @@ import (
 	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
 	rules "github.com/vsriram/simple-host/internal/rules/sites"
-	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
 )
 
@@ -34,7 +33,7 @@ type Service struct {
 	eventSweep *eventDNSState
 
 	database        *sql.DB
-	disk            *storage.DiskStorage
+	disk            Disk
 	previewAccounts map[string]bool
 	previewTTL      time.Duration
 	deps            Deps
@@ -248,7 +247,7 @@ func createConflict(in CreateInput, site model.Site, msg string, held bool) (Cre
 }
 
 // New constructs a site lifecycle service using the instance's shared locks.
-func New(database *sql.DB, disk *storage.DiskStorage, previewAccounts map[string]bool, previewTTL time.Duration, deps Deps) *Service {
+func New(database *sql.DB, disk Disk, previewAccounts map[string]bool, previewTTL time.Duration, deps Deps) *Service {
 	return &Service{accounts: accountapp.New(database), eventSweep: &eventDNSState{}, database: database, disk: disk, previewAccounts: previewAccounts, previewTTL: previewTTL, deps: deps}
 }
 

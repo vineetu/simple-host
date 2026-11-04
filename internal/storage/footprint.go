@@ -5,22 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/vsriram/simple-host/internal/model"
 )
 
-// FileFootprint counts deploy files only: current and vN trees. Backend
-// resources, markers and saved data have separate allowances.
-type FileFootprint struct {
-	Live     int64
-	Versions map[int]int64
-}
+// FileFootprint is the shared deploy-file measurement.
+type FileFootprint = model.FileFootprint
 
-func (f FileFootprint) Total() int64 {
-	n := f.Live
-	for _, b := range f.Versions {
-		n += b
-	}
-	return n
-}
 func treeBytes(path string) (int64, error) {
 	var n int64
 	err := filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
