@@ -23,6 +23,17 @@ type Deps struct {
 	AdminAPIKey                    string
 	KeyIdleExpiry                  time.Duration
 	ResolveNamedSite               func(context.Context, string) (string, error)
+	ResolveWriteSite               func(context.Context, string) (string, error)
+	AuthorizeCollectionOrigin      func(string) bool
+	CollectionReadAllowed          func(string, bool) bool
+	CollectionPrivateRead          func(string, bool) error
+	CollectionAuthorView           func(string, bool) bool
+	CollectionAppendBoard          func(string, db.DataSettings)
+	CollectionAppendPrivate        func(string, db.DataSettings)
+	CollectionAppendActor          func(string, db.DataSettings) (db.Actor, bool)
+	CollectionAppendPrepare        func(string, db.DataSettings, db.Actor) (AppendInput, bool)
+	CollectionAppendRespond        func(db.DataSettings, AppendResult, error)
+	CollectionJSONStorable         func([]byte) bool
 }
 
 // New constructs an adapter for the given database and legacy cutoff.

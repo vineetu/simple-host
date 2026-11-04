@@ -26,7 +26,8 @@ type CollectionOptionsInput struct {
 
 // CollectionOptions authorizes a collection preflight request.
 func (a *Adapter) CollectionOptions(_ context.Context, in CollectionOptionsInput) error {
-	if strings.TrimSpace(in.SiteName) == "" || !in.OriginAllowed {
+	name := strings.TrimSpace(in.SiteName)
+	if name == "" || !in.OriginAllowed {
 		return &Error{Code: "origin_not_allowed", Message: "origin not allowed"}
 	}
 	return nil
@@ -34,22 +35,118 @@ func (a *Adapter) CollectionOptions(_ context.Context, in CollectionOptionsInput
 
 var collectionNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
+// ValidCollectionName reports whether a collection name is valid.
+func ValidCollectionName(name string) bool { return collectionNamePattern.MatchString(name) }
+
 // CollectionGateInput contains the request facts for a collection origin gate.
 type CollectionGateInput struct {
 	SiteName, Collection string
 	OriginAllowed        bool
+	KeyWithoutPage       bool
+	DeclareFirst         bool
 }
 
 // AuthorizeCollectionGate validates and authorizes a collection request.
 func (a *Adapter) AuthorizeCollectionGate(_ context.Context, in CollectionGateInput) error {
-	if in.SiteName == "" {
+	if err := validateCollectionTarget(in.SiteName, in.Collection); err != nil {
+		if in.KeyWithoutPage {
+			return &Error{Code: "invalid_site_or_collection", Message: "invalid site or collection name"}
+		}
+		return err
+	}
+	originAllowed := in.OriginAllowed
+	if !in.KeyWithoutPage && a.deps.AuthorizeCollectionOrigin != nil {
+		originAllowed = a.deps.AuthorizeCollectionOrigin(in.SiteName)
+	}
+	if !in.KeyWithoutPage && !originAllowed {
+		return &Error{Code: "origin_not_allowed", Message: "origin not allowed"}
+	}
+	return nil
+}
+
+// prepareCollectionAppend applies the write gate and reads the declaration.
+func (a *Adapter) prepareCollectionAppend(ctx context.Context, in CollectionGateInput) (string, db.DataSettings, error) {
+	if err := a.AuthorizeCollectionGate(ctx, in); err != nil {
+		return "", db.DataSettings{}, err
+	}
+	id, err := a.deps.ResolveWriteSite(ctx, in.SiteName)
+	if err != nil {
+		return "", db.DataSettings{}, err
+	}
+	set, err := a.WriteCollectionSettings(ctx, id, in.Collection, in.DeclareFirst)
+	if err == nil {
+		switch {
+		case set.Kind == db.KindContent:
+			err = &Error{Code: "append_content"}
+		case set.Kind == db.KindPersonal:
+			err = &Error{Code: "append_personal"}
+		case set.Kind == "" && !set.Shared:
+			err = &Error{Code: "declare_first"}
+		}
+	}
+	return id, set, err
+}
+
+// AppendCollection runs the full append sequence, including transport callbacks at
+// the points where request handling and response writing must occur.
+func (a *Adapter) AppendCollection(ctx context.Context, in CollectionGateInput) (db.DataSettings, error) {
+	siteID, set, err := a.prepareCollectionAppend(ctx, in)
+	if err != nil {
+		return set, err
+	}
+	// Boards and private lists use their own write paths before the public gate.
+	if set.Kind == db.KindBoard {
+		a.deps.CollectionAppendBoard(siteID, set)
+		return set, nil
+	}
+	if set.Private {
+		a.deps.CollectionAppendPrivate(siteID, set)
+		return set, nil
+	}
+	actor, ok := a.deps.CollectionAppendActor(siteID, set)
+	if !ok {
+		return set, nil
+	}
+	// Declared submissions require a signed-in visitor before rate limiting
+	// or reading the request body.
+	if err := a.authorizeCollectionSubmitter(ctx, set, actor); err != nil {
+		return set, err
+	}
+	input, ok := a.deps.CollectionAppendPrepare(siteID, set, actor)
+	if !ok {
+		return set, nil
+	}
+	if err := a.validateCollectionBody(input.Body); err != nil {
+		return set, err
+	}
+	a.appendCollectionOnce(ctx, input)
+	return set, nil
+}
+
+func (a *Adapter) validateCollectionBody(body []byte) error {
+	if len(body) == 0 || !json.Valid(body) {
+		return &Error{Code: "invalid_collection_body", Message: "body must be a JSON value"}
+	}
+	if !a.deps.CollectionJSONStorable(body) {
+		return &Error{Code: "invalid_json", Message: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`}
+	}
+	return nil
+}
+
+// authorizeCollectionSubmitter applies the declared-submission identity rule.
+func (a *Adapter) authorizeCollectionSubmitter(_ context.Context, set db.DataSettings, actor db.Actor) error {
+	if set.Kind == db.KindEntries && actor.Kind == "anonymous" {
+		return &Error{Code: "visitor_auth_required"}
+	}
+	return nil
+}
+
+func validateCollectionTarget(siteName, collection string) error {
+	if siteName == "" {
 		return &Error{Code: "site_name_required", Message: "site name is required"}
 	}
-	if !collectionNamePattern.MatchString(in.Collection) {
+	if !ValidCollectionName(collection) {
 		return &Error{Code: "invalid_collection", Message: "invalid collection name"}
-	}
-	if !in.OriginAllowed {
-		return &Error{Code: "origin_not_allowed", Message: "origin not allowed"}
 	}
 	return nil
 }
@@ -95,8 +192,17 @@ func EntryMaxBytes(set db.DataSettings, entryMaxKB int, listMaxBytes int64) int6
 // ErrPersonalList indicates that personal records cannot be read as a list.
 var ErrPersonalList = errors.New("personal records cannot be read as a list")
 
-// ListCollectionSettings reads the declaration and excludes personal records.
-func (a *Adapter) ListCollectionSettings(ctx context.Context, siteID, coll string) (db.DataSettings, error) {
+// CollectionPrivateReadAllowed decides whether a private list can be read
+// before checking the browser's owner session.
+func CollectionPrivateReadAllowed(ownerKey, sharedHost, originless bool) bool {
+	if ownerKey {
+		return !sharedHost
+	}
+	return !originless
+}
+
+// listCollectionSettings reads the declaration and excludes personal records.
+func (a *Adapter) listCollectionSettings(ctx context.Context, siteID, coll string) (db.DataSettings, error) {
 	set, err := a.collectionSettings(ctx, siteID, coll)
 	if err != nil {
 		return set, err
@@ -115,7 +221,7 @@ type CollectionListInput struct {
 }
 
 // ListCollection reads and shapes a collection page for its caller.
-func (a *Adapter) ListCollection(ctx context.Context, in CollectionListInput) ([]db.CollectionItem, *int64, error) {
+func (a *Adapter) listCollection(ctx context.Context, in CollectionListInput) ([]db.CollectionItem, *int64, error) {
 	siteID, coll, withAuthor, set := in.SiteID, in.Collection, in.WithAuthor, in.Settings
 	limit, before := collectionPage(in.Limit, in.Before)
 	items, err := legacy.ListCollectionItemsByID(ctx, a.database, siteID, coll, limit, before, withAuthor)
@@ -136,6 +242,75 @@ func (a *Adapter) ListCollection(ctx context.Context, in CollectionListInput) ([
 		}
 	}
 	return items, next, nil
+}
+
+// CollectionPageRequest contains the request facts for a complete list read.
+type CollectionPageRequest struct {
+	CollectionListSiteInput
+	Limit, Before string
+	SharedHost    bool
+}
+
+// CollectionPageResult is the page and declaration selected for a list read.
+type CollectionPageResult struct {
+	Items        []db.CollectionItem
+	Next         *int64
+	Settings     db.DataSettings
+	PrivateCache bool
+	AuthorView   bool
+}
+
+// ReadCollection performs site selection, read checks and the page query in order.
+func (a *Adapter) ReadCollection(ctx context.Context, in CollectionPageRequest) (CollectionPageResult, error) {
+	var out CollectionPageResult
+	in.SiteName = strings.TrimSpace(in.SiteName)
+	in.Collection = strings.TrimSpace(in.Collection)
+	siteID, owner, err := a.collectionListSite(ctx, in.CollectionListSiteInput)
+	if err != nil {
+		return out, err
+	}
+	if !a.deps.CollectionReadAllowed(siteID, owner) {
+		return out, &Error{Code: "read_limited"}
+	}
+	if !owner {
+		suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+		if err != nil {
+			return out, err
+		}
+		if suspended {
+			return out, &Error{Code: "site_suspended", Message: reason}
+		}
+		offline, err := db.SiteOffline(ctx, a.database, siteID)
+		if err != nil {
+			return out, &Error{Code: "internal", Message: err.Error()}
+		}
+		if offline {
+			return out, &Error{Code: "site_offline"}
+		}
+	}
+	out.Settings, err = a.listCollectionSettings(ctx, siteID, in.Collection)
+	if errors.Is(err, ErrPersonalList) {
+		return out, err
+	}
+	if err != nil {
+		return out, &Error{Code: "internal", Message: err.Error()}
+	}
+	if out.Settings.Private {
+		out.PrivateCache = true
+		if !CollectionPrivateReadAllowed(owner, in.SharedHost, in.Originless) {
+			return out, &Error{Code: "private_not_found"}
+		}
+		if err := a.deps.CollectionPrivateRead(siteID, owner); err != nil {
+			return out, err
+		}
+	}
+	withAuthor := a.deps.CollectionAuthorView(siteID, owner)
+	out.AuthorView = withAuthor
+	out.Items, out.Next, err = a.listCollection(ctx, CollectionListInput{SiteID: siteID, Collection: in.Collection, Limit: in.Limit, Before: in.Before, WithAuthor: withAuthor, Settings: out.Settings})
+	if err != nil {
+		return out, &Error{Code: "internal", Message: err.Error()}
+	}
+	return out, nil
 }
 
 // WithoutSubmitter removes the private submitter stamp from an item.
@@ -222,13 +397,50 @@ func (a *Adapter) OwnerSiteFromKey(ctx context.Context, in OwnerKeyInput) (strin
 	return id, err == nil
 }
 
+// CollectionListSiteInput contains the request facts needed to select a list's site.
+type CollectionListSiteInput struct {
+	OwnerKeyInput
+	Collection string
+	Originless bool
+}
+
+// CollectionListSite selects the owner-key site or applies the public origin gate.
+func (a *Adapter) collectionListSite(ctx context.Context, in CollectionListSiteInput) (string, bool, error) {
+	if err := validateCollectionTarget(in.SiteName, in.Collection); err != nil {
+		return "", false, err
+	}
+	id, owner := a.OwnerSiteFromKey(ctx, in.OwnerKeyInput)
+	if !owner {
+		if !in.Originless {
+			if err := a.AuthorizeCollectionGate(ctx, CollectionGateInput{SiteName: in.SiteName, Collection: in.Collection}); err != nil {
+				return "", false, err
+			}
+		}
+		var err error
+		id, err = a.deps.ResolveNamedSite(ctx, in.SiteName)
+		if err != nil {
+			return "", false, err
+		}
+	}
+	if in.Scoped && in.ScopedSiteID != id {
+		return "", false, sql.ErrNoRows
+	}
+	return id, owner, nil
+}
+
 // Error describes a legacy operation failure without transport status codes.
 type Error struct{ Code, Message string }
 
 func (e *Error) Error() string { return e.Message }
 
+// ListSiteCollectionsInput contains the actor and site for an owner inventory.
+type ListSiteCollectionsInput struct {
+	SiteName, UserID, ScopedSiteID string
+	SignedIn, Admin, Scoped        bool
+}
+
 // ListSiteCollections authorizes and returns the owner inventory.
-func (a *Adapter) ListSiteCollections(ctx context.Context, in OwnedSiteInput) ([]db.CollectionSummary, error) {
+func (a *Adapter) ListSiteCollections(ctx context.Context, in ListSiteCollectionsInput) ([]db.CollectionSummary, error) {
 	if !in.SignedIn {
 		return nil, &Error{Code: "unauthorized", Message: "unauthorized"}
 	}
@@ -236,7 +448,7 @@ func (a *Adapter) ListSiteCollections(ctx context.Context, in OwnedSiteInput) ([
 	if in.SiteName == "" {
 		return nil, &Error{Code: "site_name_required", Message: "site name is required"}
 	}
-	siteID, err := a.OwnedSiteID(ctx, in)
+	siteID, err := a.OwnedSiteID(ctx, OwnedSiteInput(in))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, &Error{Code: "site_not_found", Message: "site not found"}
 	}
@@ -372,7 +584,6 @@ func (e *ClaimError) Error() string { return e.Err.Error() }
 
 // AppendResult contains an append or an idempotent replay.
 type AppendResult struct {
-	Release     func()
 	Item        db.CollectionItem
 	Have        int64
 	State       string
@@ -386,77 +597,80 @@ type AppendInput struct {
 	Settings      db.DataSettings
 	Body          []byte
 	Actor         db.Actor
-	Visitor       bool
 	SuccessStatus int
 }
 
-// AppendCollectionOnce reserves a retry key and runs the collection append.
-func (a *Adapter) AppendCollectionOnce(ctx context.Context, in AppendInput) (result AppendResult, err error) {
+// appendCollectionOnce reserves a retry key and runs the collection append.
+func (a *Adapter) appendCollectionOnce(ctx context.Context, in AppendInput) (result AppendResult, err error) {
 	siteID, set, body, actor, key := in.SiteID, in.Settings, in.Body, in.Actor, in.Key
 	var scope []byte
-	if key != "" && actor.ID != "" {
-		var state string
-		scope, result.Previous, state, err = a.ClaimWrite(ctx, siteID, "POST collections/"+set.Name, actor.ID, key, body)
-		if err != nil {
-			return result, &ClaimError{Err: err}
-		}
-		if state != "claimed" {
-			result.State = state
-			if state == "replay" {
-				result.Item, err = a.ReplayCollectionItem(ctx, siteID, set.Name, result.Previous.Ref)
-				result.ReplayFound = err == nil
-				err = nil
-			}
-			return result, nil
-		}
-	}
 	saved := false
-	if scope != nil {
-		defer func() {
-			if !saved {
-				result.Release = func() {
-					if releaseErr := a.ReleaseIdempotencyKey(context.WithoutCancel(ctx), scope); releaseErr != nil {
-						log.Printf("idempotency release: %v", releaseErr)
-					}
-				}
+	completed := false
+	defer func() {
+		if completed && scope != nil && !saved {
+			if releaseErr := legacy.ReleaseIdempotencyKey(context.WithoutCancel(ctx), a.database, scope); releaseErr != nil {
+				log.Printf("idempotency release: %v", releaseErr)
 			}
-		}()
-	}
-
-	visitor := in.Visitor
-	maxEntries, watchItemKB, maxBytes := a.deps.MaxEntries, a.deps.WatchItemKB, a.deps.MaxBytes
-	newListMetric, largeItemMetric, successStatus := a.deps.NewListMetric, a.deps.LargeItemMetric, in.SuccessStatus
-	ok, err := a.collectionHasRoom(ctx, siteID, int64(len(body)), maxBytes)
-	if err != nil {
-		return result, &AppendQuotaError{}
-	}
-	if !ok {
-		return result, &AppendQuotaError{Full: true}
-	}
-	newName := false
-	if visitor {
-		if used, err := legacy.CollectionNameUsed(ctx, a.database, siteID, set.Name); err == nil && !used {
-			newName = true
 		}
-	}
-	item, have, err := a.SaveEntry(ctx, SaveEntryInput{SiteID: siteID, Settings: set, Body: body, Actor: actor, MaxEntries: maxEntries})
-	if err != nil {
+	}()
+	result, err = func() (result AppendResult, err error) {
+		if len(key) > 255 {
+			return result, &Error{Code: "invalid_idempotency_key", Message: "Idempotency-Key is at most 255 characters"}
+		}
+		if key != "" && actor.ID != "" {
+			var state string
+			scope, result.Previous, state, err = a.ClaimWrite(ctx, siteID, "POST collections/"+set.Name, actor.ID, key, body)
+			if err != nil {
+				return result, &ClaimError{Err: err}
+			}
+			if state != "claimed" {
+				result.State = state
+				if state == "replay" {
+					result.Item, err = a.ReplayCollectionItem(ctx, siteID, set.Name, result.Previous.Ref)
+					result.ReplayFound = err == nil
+					err = nil
+				}
+				return result, nil
+			}
+		}
+		visitor := actor.Kind == "visitor" || actor.Kind == "anonymous"
+		maxEntries, watchItemKB, maxBytes := a.deps.MaxEntries, a.deps.WatchItemKB, a.deps.MaxBytes
+		newListMetric, largeItemMetric, successStatus := a.deps.NewListMetric, a.deps.LargeItemMetric, in.SuccessStatus
+		ok, err := a.collectionHasRoom(ctx, siteID, int64(len(body)), maxBytes)
+		if err != nil {
+			return result, &AppendQuotaError{}
+		}
+		if !ok {
+			return result, &AppendQuotaError{Full: true}
+		}
+		newName := false
+		if visitor {
+			if used, err := legacy.CollectionNameUsed(ctx, a.database, siteID, set.Name); err == nil && !used {
+				newName = true
+			}
+		}
+		item, have, err := a.SaveEntry(ctx, SaveEntryInput{SiteID: siteID, Settings: set, Body: body, Actor: actor, MaxEntries: maxEntries})
+		if err != nil {
+			result.Item, result.Have = item, have
+			return result, err
+		}
+		if newName {
+			a.Watch(ctx, siteID, newListMetric, 1)
+		}
+		a.WatchItemSize(ctx, siteID, len(body), watchItemKB, largeItemMetric)
+		if scope != nil {
+			// Keep it even if the caller has gone: that is the retry case.
+			if err := legacy.SaveIdempotentResponse(context.WithoutCancel(ctx), a.database, scope, successStatus, "", item.ID); err != nil {
+				log.Printf("idempotency save: %v", err)
+			}
+		}
 		result.Item, result.Have = item, have
-		return result, err
-	}
-	if newName {
-		a.Watch(ctx, siteID, newListMetric, 1)
-	}
-	a.WatchItemSize(ctx, siteID, len(body), watchItemKB, largeItemMetric)
-	if scope != nil {
-		// Keep it even if the caller has gone: that is the retry case.
-		if err := a.SaveIdempotentResponse(context.WithoutCancel(ctx), scope, successStatus, "", item.ID); err != nil {
-			log.Printf("idempotency save: %v", err)
-		}
-	}
-	result.Item, result.Have = item, have
-	saved = true
-	return result, nil
+		saved = true
+		return result, nil
+	}()
+	completed = true
+	a.deps.CollectionAppendRespond(set, result, err)
+	return result, err
 }
 
 // IsCollectionPrivate reads the collection's privacy setting.
@@ -474,9 +688,16 @@ func (a *Adapter) CollectionExportKeys(ctx context.Context, siteID, coll string)
 	return keys, true, err
 }
 
-// ForEachCollectionItem walks the live items of an owner export.
-func (a *Adapter) ForEachCollectionItem(ctx context.Context, siteID, coll string, fn func(db.CollectionItem) error) error {
+// forEachCollectionItem walks the live items of an owner export.
+func (a *Adapter) forEachCollectionItem(ctx context.Context, siteID, coll string, fn func(db.CollectionItem) error) error {
 	return legacy.ForEachCollectionItemByID(ctx, a.database, siteID, coll, fn)
+}
+
+// ForEachCollectionCSVRow reads and shapes each row of a collection export.
+func (a *Adapter) ForEachCollectionCSVRow(ctx context.Context, siteID, coll string, keys []string, safe func(string) string, fn func([]string) error) error {
+	return a.forEachCollectionItem(ctx, siteID, coll, func(it db.CollectionItem) error {
+		return fn(CollectionCSVRow(it, keys, safe))
+	})
 }
 
 // CollectionCSVRow shapes one item for an owner CSV export.
