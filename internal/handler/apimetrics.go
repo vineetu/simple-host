@@ -43,8 +43,9 @@ import (
 // applies to every row and nothing outlives the 30-day IP retention. If the
 // database files are missing, the columns are simply blank.
 type APIMetrics struct {
-	runner  *workers.Runner
-	tracker *workers.Tracker
+	workerOnce sync.Once
+	runner     *workers.Runner
+	tracker    *workers.Tracker
 	limitSet
 	db  *sql.DB
 	geo *geoip.DB // nil = no geo at all (blank columns)
@@ -227,11 +228,22 @@ func (m *APIMetrics) recordSelf(route string, status int) {
 	m.growth[growthKey{growthDimSource, growthKeySelf}]++
 }
 
-func (m *APIMetrics) Start(ctx context.Context) { m.runner.Go(ctx, m.flushLoop) }
-
-func (m *APIMetrics) Stop()                    { m.runner.Stop() }
-func (m *APIMetrics) Wait()                    { m.runner.Wait() }
-func (m *APIMetrics) Status() []workers.Status { return m.runner.Status() }
+// Growth backfill tools also construct APIMetrics without starting a worker.
+// Initialize their tracker lazily so explicit flushes share the same reporting.
+func (m *APIMetrics) initWorker() {
+	m.workerOnce.Do(func() {
+		if m.tracker == nil {
+			m.tracker = workers.NewTracker("operations.api_metrics")
+		}
+		if m.runner == nil {
+			m.runner = workers.NewRunner(m.tracker)
+		}
+	})
+}
+func (m *APIMetrics) Start(ctx context.Context) { m.initWorker(); m.runner.Go(ctx, m.flushLoop) }
+func (m *APIMetrics) Stop()                     { m.initWorker(); m.runner.Stop() }
+func (m *APIMetrics) Wait()                     { m.initWorker(); m.runner.Wait() }
+func (m *APIMetrics) Status() []workers.Status  { m.initWorker(); return m.runner.Status() }
 
 func (m *APIMetrics) flushLoop(ctx context.Context) {
 	m.tracker.Attempt()
@@ -268,6 +280,7 @@ func (m *APIMetrics) flushLoop(ctx context.Context) {
 
 func (m *APIMetrics) flush() { m.flushContext(context.Background()) }
 func (m *APIMetrics) flushContext(ctx context.Context) {
+	m.initWorker()
 	m.tracker.Attempt()
 	m.flushMu.Lock()
 	defer m.flushMu.Unlock()
@@ -331,6 +344,7 @@ func (m *APIMetrics) flushContext(ctx context.Context) {
 
 func (m *APIMetrics) pruneOld() { m.pruneOldContext(context.Background()) }
 func (m *APIMetrics) pruneOldContext(ctx context.Context) {
+	m.initWorker()
 	m.tracker.Attempt()
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
