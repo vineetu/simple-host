@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/accounts"
+	rules "github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // HandleStore is the account/transaction reader used by handle assignment and availability.
@@ -81,12 +84,12 @@ func AssignHandle(ctx context.Context, q HandleStore, userID, email string, rand
 
 	// Candidates: base, base-2 … base-20, then base-<first8(userID)>.
 	candidates := make([]string, 0, 22)
-	if !LabelReservedForNew(base) {
+	if !rules.LabelReservedForNew(base) {
 		candidates = append(candidates, base)
 	}
 	for n := 2; n <= 20; n++ {
 		c := base + "-" + strconv.Itoa(n)
-		if !LabelReservedForNew(c) {
+		if !rules.LabelReservedForNew(c) {
 			candidates = append(candidates, c)
 		}
 	}
@@ -95,7 +98,7 @@ func AssignHandle(ctx context.Context, q HandleStore, userID, email string, rand
 		suffix = suffix[:8]
 	}
 	fallback := base + "-" + suffix
-	if !LabelReservedForNew(fallback) {
+	if !rules.LabelReservedForNew(fallback) {
 		candidates = append(candidates, fallback)
 	}
 
@@ -125,11 +128,11 @@ func HandleTakenMessage(handle string) string {
 
 func JudgeHandle(ctx context.Context, q HandleStore, userID, handle string) (HandleVerdict, error) {
 	v := HandleVerdict{Address: HandleAddress(handle)}
-	if !VisitorHandle.MatchString(handle) || !HandleIsLabel(handle) {
+	if !rules.VisitorHandle.MatchString(handle) || !rules.HandleIsLabel(handle) {
 		v.Status, v.Code, v.Error = http.StatusBadRequest, "invalid_handle", handleFormatMsg
 		return v, nil
 	}
-	if LabelReservedForNew(handle) {
+	if rules.LabelReservedForNew(handle) {
 		v.Status, v.Code = http.StatusConflict, "handle_reserved"
 		v.Error = "That address is reserved: " + v.Address + " can't be used. Try another."
 		return v, nil
@@ -169,4 +172,30 @@ func randomAccountHandle() string {
 	var b [5]byte
 	_, _ = rand.Read(b[:])
 	return "u-" + hex.EncodeToString(b[:])
+}
+
+// ErrReservedHandle is the refusal shared by new-handle entry points.
+var ErrReservedHandle = errors.New("this name is reserved; pick another")
+
+// CheckNewHandle applies both address shape and new-claim reservation policy.
+func CheckNewHandle(handle string) error {
+	if !rules.VisitorHandle.MatchString(handle) || !rules.HandleIsLabel(handle) {
+		return errors.New("handle must contain 1 to 39 lowercase letters, digits or hyphens (not at the start or end) and must not be reserved")
+	}
+	if rules.LabelReservedForNew(handle) {
+		return ErrReservedHandle
+	}
+	return nil
+}
+
+// BulkAccountNames checks the prefix before producing the requested account names.
+func BulkAccountNames(prefix string, count int) ([]string, error) {
+	if !rules.VisitorHandle.MatchString(prefix) {
+		return nil, errors.New("prefix must contain 1 to 39 lowercase letters, digits or hyphens")
+	}
+	names := make([]string, count)
+	for i := range names {
+		names[i] = fmt.Sprintf("%s-%02d", prefix, i+1)
+	}
+	return names, nil
 }

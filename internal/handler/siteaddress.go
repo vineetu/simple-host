@@ -139,7 +139,7 @@ func (h *SiteHandler) computeAddressState(handle string, now time.Time) *address
 // siteAddressStateFor is the state to show on one site: only while that site
 // is still handed out at its interim address.
 func (h *SiteHandler) siteAddressStateFor(handle, name string) *addressState {
-	if handle == "" || !h.personAddressFor(handle, name) || !appsites.ValidSiteName.MatchString(name) || strings.HasPrefix(name, "xn--") {
+	if handle == "" || appsites.SiteHostAddress(handle, name, h.handoutBase(), true, h.personAddressFor(handle, name), true) == "" {
 		return nil
 	}
 	st := h.siteAddressState(handle)

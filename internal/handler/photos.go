@@ -93,18 +93,17 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 	defer rc.SetReadDeadline(time.Time{})
 	user := auth.GetUser(r.Context())
 	name := r.PathValue("sitename")
-	if err := sites.ValidateShape(name); err != nil {
-		writeJSON(w, 400, errorResponse{Error: "Invalid site name."})
-		return
-	}
-	if _, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, name); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+	if _, err := h.sitesSvc().PhotoTarget(r.Context(), user.ID, name); err != nil {
+		if e, ok := err.(*sites.Error); ok && e.Code == "invalid_name" {
+			writeJSON(w, 400, errorResponse{Error: e.Error()})
+		} else if errors.Is(err, sql.ErrNoRows) {
 			writeDeploySiteNotFound(w, r, name)
 		} else {
 			writeJSON(w, 500, errorResponse{Error: "Could not read this site."})
 		}
 		return
 	}
+
 	cap := int64(photoLimit("PHOTO_MAX_BYTES", 1000000))
 	bodyCap := photoCountLimit*(cap+4096) + 4096
 	if r.ContentLength > bodyCap {

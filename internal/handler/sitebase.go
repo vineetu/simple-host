@@ -92,7 +92,9 @@ func (h *SiteHandler) HandoutBase() string { return h.handoutBase() }
 
 // LabelReserved reports whether label is reserved in the shared namespace
 // (for the move-site-base command).
-func LabelReserved(label string) bool { return appsites.LabelReserved(label) }
+func LabelReserved(label string) bool {
+	return appsites.PlatformHostTarget(label+".base", "base", "target") != ""
+}
 
 // SameUserHost is sameUserHost for the OAuth return_to check.
 func (h *SiteHandler) SameUserHost(a, b string) bool { return h.sameUserHost(a, b) }
@@ -195,17 +197,7 @@ func (h *SiteHandler) twinHost(host string) string {
 		if !strings.HasSuffix(host, "."+p[0]) {
 			continue
 		}
-		labels := strings.TrimSuffix(host, "."+p[0])
-		parts := strings.Split(labels, ".")
-		switch {
-		case labels == "" || len(parts) > 2:
-			return ""
-		case len(parts) == 1 && (parts[0] == "www" || appsites.LabelReserved(parts[0])):
-			return ""
-		case len(parts) == 2 && (parts[0] == "" || appsites.LabelReserved(parts[1])):
-			return ""
-		}
-		return labels + "." + p[1]
+		return appsites.TwinHost(host, p[0], p[1])
 	}
 	return ""
 }
@@ -294,7 +286,7 @@ func (h *SiteHandler) SiteBaseHosts(next http.Handler) http.Handler {
 			http.Redirect(w, r, "https://"+strings.ToLower(h.siteDomain)+"/", http.StatusMovedPermanently)
 			return
 		}
-		if label, ok := platformSubdomainLabel(host, base); ok && appsites.LabelReserved(label) {
+		if appsites.PlatformHostTarget(host, base, strings.ToLower(h.siteDomain)) != "" {
 			http.Redirect(w, r, "https://"+strings.ToLower(h.siteDomain)+"/", http.StatusMovedPermanently)
 			return
 		}
@@ -328,20 +320,11 @@ func (h *SiteHandler) legacyBaseTarget(r *http.Request) (string, int, bool) {
 		strings.EqualFold(host, strings.TrimSuffix(h.cnameTarget, ".")) {
 		return "", 0, false
 	}
-	labels := strings.TrimSuffix(host, "."+legacy)
-	parts := strings.Split(labels, ".")
-	switch len(parts) {
-	case 1:
-		if parts[0] == "" || parts[0] == "www" || appsites.LabelReserved(parts[0]) {
-			return "", 0, false
-		}
-	case 2:
-		if parts[0] == "" || !handleAddressable(parts[1]) {
-			return "", 0, false
-		}
-	default:
+	parts, ok := appsites.LegacyBaseLabels(host, legacy)
+	if !ok {
 		return "", 0, false
 	}
+	labels := strings.Join(parts, ".")
 	escaped := r.URL.EscapedPath()
 	if !strings.HasPrefix(escaped, "/") {
 		escaped = "/" + escaped
@@ -353,9 +336,9 @@ func (h *SiteHandler) legacyBaseTarget(r *http.Request) (string, int, bool) {
 	// A site whose main address is not a Simple Host one (its own domain,
 	// or its address family) goes straight there: one hop, and a 302, since
 	// that address can change.
-	if len(parts) == 2 && h.database != nil && appsites.ValidSiteName.MatchString(parts[0]) {
-		if u, err := h.storeAccounts().GetUserByHandle(r.Context(), parts[1]); err == nil {
-			if site, err := h.sitesSvc().GetSiteByUser(r.Context(), u.ID, parts[0]); err == nil {
+	if len(parts) == 2 && h.database != nil {
+		if u, err := h.sitesSvc().HostOwner(r.Context(), parts[1], parts[0]); err == nil {
+			if site, err := h.sitesSvc().AddressedSite(r.Context(), u.ID, parts[0]); err == nil {
 				if own, has, err := h.siteOwnAddress(r.Context(), site.ID); err == nil && has {
 					return "https://" + strings.ToLower(own.Domain) + escaped + query, http.StatusFound, true
 				}

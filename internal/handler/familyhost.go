@@ -63,9 +63,6 @@ type familyIndex struct {
 	released map[string]bool
 }
 
-// familyLabelRE is one DNS label.
-var familyLabelRE = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
-
 // familyCertNameRE is a certbot lineage name (the operator's certificate).
 var familyCertNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,252}$`)
 
@@ -283,15 +280,7 @@ func (h *SiteHandler) isFamilyHostName(host string) bool {
 // familyLabelOK: label may name a site under f: one DNS label, not an
 // internationalised one, not reserved, and <prefix><label> is a site name.
 func familyLabelOK(f model.AddressFamily, label string, l edition.Limits) bool {
-	if !familyLabelRE.MatchString(label) || strings.HasPrefix(label, "xn--") {
-		return false
-	}
-	for _, r := range l.ReservedFamilyLabels() {
-		if label == r {
-			return false
-		}
-	}
-	return sites.ValidSiteName.MatchString(f.SitePrefix + label)
+	return sites.FamilyLabelOK(f, label, l)
 }
 
 // familyMatch is what a family host names.

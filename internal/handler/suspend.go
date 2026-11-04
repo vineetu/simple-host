@@ -27,9 +27,6 @@ import (
 
 const maxSuspendReason = 300
 
-// appsites.UUIDShape moved to internal/rules/sites (sites.UUIDShape); see the
-// lowercase alias in internal/handler/sites_forward.go.
-
 // takedownPage is what every address of a suspended site answers. Plain on
 // purpose: it is served on the site's own origins (custom domains included),
 // so it loads nothing and names no one.
@@ -305,17 +302,17 @@ func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
 			}
 		}
 		id := strings.ToLower(strings.TrimSpace(r.PathValue("id")))
-		if !appsites.UUIDShape.MatchString(id) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
+		if err := h.sitesSvc().SuspensionGate(r.Context(), id, h.ed.Identity().HoldingAccounts); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
+			} else if e, ok := err.(*appsites.Error); ok && e.Code == "event_account" {
+				writeJSON(w, http.StatusConflict, errorResponse{Error: e.Error(), Code: e.Code})
+			} else {
+				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+			}
 			return
 		}
-		if held, herr := HackHoldingAccount(r.Context(), h.database, id, h.ed.Identity().HoldingAccounts); herr != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		} else if held {
-			writeJSON(w, http.StatusConflict, errorResponse{Error: "this account holds an event; take the event down or restore it from the admin Events tab", Code: "event_account"})
-			return
-		}
+
 		target, err := db.GetUserByID(r.Context(), h.database, id)
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})

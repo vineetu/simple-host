@@ -68,29 +68,14 @@ func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 	if req.Prefix != nil {
 		prefix = strings.TrimSpace(*req.Prefix)
 	}
-	if !appsites.VisitorHandle.MatchString(prefix) {
-		return nil, errors.New("prefix must contain 1 to 39 lowercase letters, digits or hyphens")
-	}
-	names := make([]string, *req.Count)
-	for i := range names {
-		names[i] = fmt.Sprintf("%s-%02d", prefix, i+1)
-	}
-	return names, nil
+	return appsites.BulkAccountNames(prefix, *req.Count)
 }
 
-func validateHandle(handle string) error {
-	if !appsites.VisitorHandle.MatchString(handle) || !appsites.HandleIsLabel(handle) {
-		return errors.New("handle must contain 1 to 39 lowercase letters, digits or hyphens (not at the start or end) and must not be reserved")
-	}
-	if appsites.LabelReservedForNew(handle) {
-		return errReservedName
-	}
-	return nil
-}
+func validateHandle(handle string) error { return appsites.CheckNewHandle(handle) }
 
 // errReservedName: a new handle, claimed name or site name that is reserved
-// (appsites.LabelReservedForNew, reservedNewSiteNames).
-var errReservedName = errors.New("this name is reserved; pick another")
+// (the new-claim policy in app/sites).
+var errReservedName = appsites.ErrReservedHandle
 
 func normalizeDisplayName(name string) (string, error) {
 	name = strings.TrimSpace(name)

@@ -55,7 +55,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 			return
 		}
 		label := strings.TrimSuffix(host, suffix)
-		if label == "" || strings.Contains(label, ".") || appsites.LabelReserved(label) {
+		if label == "" || strings.Contains(label, ".") || appsites.PlatformHostTarget(label+".base", "base", "target") != "" {
 			next.ServeHTTP(w, r) // a reserved platform label, or a multi-label host (e.g. *.lab)
 			return
 		}

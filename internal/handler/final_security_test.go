@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -253,16 +252,6 @@ func TestReservedNewNames(t *testing.T) {
 	for _, n := range []string{"support", "info", "hello", "billing", "simple-host", "no-reply", "verify", "staging"} {
 		if err := validateHandle(n); err == nil || err.Error() != "this name is reserved; pick another" {
 			t.Errorf("handle %q: %v", n, err)
-		}
-	}
-	for _, n := range []string{"support", "admin", "login", "simplehack"} {
-		if appsites.ValidateReserved(n) == nil {
-			t.Errorf("site %q allowed", n)
-		}
-	}
-	for _, n := range []string{"blog", "docs", "team", "test", "my-shop"} {
-		if err := appsites.ValidateReserved(n); err != nil {
-			t.Errorf("site %q refused: %v", n, err)
 		}
 	}
 	if err := validateHandle("olive-shop"); err != nil {

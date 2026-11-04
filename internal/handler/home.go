@@ -39,7 +39,7 @@ func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var name *string
-		if json.Unmarshal(body["site"], &name) != nil || (name != nil && !appsites.ValidSiteName.MatchString(*name)) {
+		if json.Unmarshal(body["site"], &name) != nil {
 			writeJSON(w, 400, errorResponse{Error: "send site as a name or null"})
 			return
 		}
@@ -48,7 +48,9 @@ func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.sitesSvc().SetHomeSite(r.Context(), u.ID, name); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			if e, ok := err.(*appsites.Error); ok && e.Code == "invalid_name" {
+				writeJSON(w, 400, errorResponse{Error: e.Error()})
+			} else if errors.Is(err, sql.ErrNoRows) {
 				writeJSON(w, 404, errorResponse{Error: "site not found", Code: "not_found"})
 			} else {
 				writeJSON(w, 500, errorResponse{Error: "internal server error"})
@@ -129,32 +131,30 @@ func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user
 	}
 	if !h.homePathExists(s, r.URL.Path) {
 		seg, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
-		if appsites.ValidSiteName.MatchString(seg) {
-			if other, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, seg); err == nil {
-				_, escTail, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
-				if other.ID == s.ID {
-					target := "/" + strings.TrimLeft(escTail, "/")
-					if r.URL.RawQuery != "" {
-						target += "?" + r.URL.RawQuery
-					}
-					http.Redirect(w, r, target, http.StatusFound)
-					return true
-				}
-				if !h.siteHostCanonicalOn(user.Handle.String, other.Name, base) {
-					if _, has, err := h.siteOwnAddress(r.Context(), other.ID); err == nil && !has {
-						// Serving another site's old path here would give it the home's origin.
-						// Never redirect to an unissued TLS name or back to this same path.
-						h.renderServiceError(w, r)
-						return true
-					}
-				}
-				target := h.siteAddressWithPathOn(user.Handle.String, other.Name, "/"+strings.TrimLeft(escTail, "/"), base)
+		if other, err := h.sitesSvc().AddressedSite(r.Context(), user.ID, seg); err == nil {
+			_, escTail, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
+			if other.ID == s.ID {
+				target := "/" + strings.TrimLeft(escTail, "/")
 				if r.URL.RawQuery != "" {
 					target += "?" + r.URL.RawQuery
 				}
 				http.Redirect(w, r, target, http.StatusFound)
 				return true
 			}
+			if !h.siteHostCanonicalOn(user.Handle.String, other.Name, base) {
+				if _, has, err := h.siteOwnAddress(r.Context(), other.ID); err == nil && !has {
+					// Serving another site's old path here would give it the home's origin.
+					// Never redirect to an unissued TLS name or back to this same path.
+					h.renderServiceError(w, r)
+					return true
+				}
+			}
+			target := h.siteAddressWithPathOn(user.Handle.String, other.Name, "/"+strings.TrimLeft(escTail, "/"), base)
+			if r.URL.RawQuery != "" {
+				target += "?" + r.URL.RawQuery
+			}
+			http.Redirect(w, r, target, http.StatusFound)
+			return true
 		}
 	}
 	h.serveSiteFile(w, r, s.UserID, s.Name, r.URL.Path, r.URL.EscapedPath())

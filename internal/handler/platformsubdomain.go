@@ -29,12 +29,6 @@ import (
 // private collections. Names nobody has claimed keep the legacy 301 to the path
 // URL (LegacyHostRedirect).
 
-// reservedSubdomainLabels, appsites.ReservedSubdomainSet, appsites.LabelReserved,
-// reservedNewNames, reservedNewSiteNames and appsites.LabelReservedForNew moved to
-// internal/rules/sites (cleanup 3.2): see sites.ReservedSubdomainSet,
-// sites.LabelReserved and sites.LabelReservedForNew. Transitional lowercase
-// aliases live in internal/handler/sites_forward.go.
-
 // platformSubdomainLabel reports whether host is exactly one DNS label under
 // siteDomain (e.g. "clay" for clay.simple-host.app) and returns that label.
 // Multi-label hosts (x.lab.simple-host.app), the apex and non-platform hosts
@@ -67,7 +61,7 @@ func (h *SiteHandler) isPlatformSubdomainHost(host string) bool {
 	return true
 }
 
-var errSubdomainReserved = errors.New("that name is reserved; pick another")
+var errSubdomainReserved = appsites.ErrSubdomainReserved
 
 // claimableSubdomain validates a requested <label>.<siteDomain>: one DNS label,
 // letters/digits/hyphens, no leading or trailing hyphen, not reserved, and not
@@ -81,22 +75,7 @@ func (h *SiteHandler) claimableSubdomain(host string) (string, error) {
 	if !ok {
 		return "", errors.New("a free address is one name under " + base + ", e.g. my-shop." + base)
 	}
-	if !labelRE.MatchString(label) || label[0] == '-' || label[len(label)-1] == '-' {
-		return "", errors.New("the name may use lowercase letters, numbers and hyphens (not at the start or end), up to 63 characters")
-	}
-	if strings.HasPrefix(label, "xn--") {
-		return "", errors.New("internationalised names are not supported")
-	}
-	full := label + "." + base
-	if appsites.LabelReservedForNew(label) {
-		return "", errSubdomainReserved
-	}
-	for _, b := range []string{base, strings.ToLower(h.siteDomain)} {
-		if strings.EqualFold(label+"."+b, h.contentHost) || strings.EqualFold(label+"."+b, h.cnameTarget) {
-			return "", errSubdomainReserved
-		}
-	}
-	return full, nil
+	return appsites.ClaimPlatformAddress(label, base, h.siteDomain, h.contentHost, h.cnameTarget)
 }
 
 // bindPlatformSubdomain claims <label>.<siteDomain> for site: verified at once,
