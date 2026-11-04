@@ -40,6 +40,13 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 {handler,hackhttp,auth,mcp} -> config repository/** storage sitelocks email
 mcp -> mcp/apps/bundlegen
 [transitional]
+app/legacy -> db production # removal step 4.3: legacy adapter still reads Host sites, settings and actors through db
+app/sites -> db production # removal step 4.3: Host users and handles until the accounts repository
+app/sites -> db test # removal step 4.3: Host fixtures
+app/storage -> db production # removal step 4.3: Host site and visitor-session lookups
+db -> repository/legacy production # removal step 4.3: legacy SQL forwarders for remaining callers
+db -> repository/sites production # removal step 4.3: site/version SQL forwarders for remaining callers
+handler -> repository/storage production # removal step 4.3: storage resource reads move into app/storage
 app/hack/events -> db production # removal step 4.3: Host accounts, handles and API key hashing
 app/hack/teams -> db production # removal step 4.3: Host sites and versions, and OrphanTeamSites (scans Host Site rows)
 db -> repository/hackevents production # removal step 4.3: event aliases, account cleanup and notification locks
