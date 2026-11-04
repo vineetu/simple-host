@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/netusage"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // Network use on the admin page's Overview: what the web server sent for
@@ -39,18 +40,32 @@ func inContainer() bool {
 }
 
 // StartNetworkUsage samples the counters every NETWORK_SAMPLE_MINUTES.
-func (h *SiteHandler) StartNetworkUsage(ctx context.Context) {
+// NetworkUsageWorker is nil when network accounting is disabled.
+func (h *SiteHandler) NetworkUsageWorker() workers.Owner {
 	if h.netUsage == nil {
-		return
+		return nil
 	}
-	every := h.limits.NetworkSample
-	iface, err := h.netUsage.Interface()
+	return &networkUsageWorker{h: h, Owner: h.netUsage.Worker(h.limits.NetworkSample)}
+}
+
+type networkUsageWorker struct {
+	workers.Owner
+	h *SiteHandler
+}
+
+func (w *networkUsageWorker) Start(ctx context.Context) {
+	iface, err := w.h.netUsage.Interface()
 	if err != nil {
 		log.Printf("network usage: %v", err)
 		return
 	}
-	log.Printf("network usage: counting %s every %s", iface, every)
-	h.netUsage.Start(ctx, every)
+	log.Printf("network usage: counting %s every %s", iface, w.h.limits.NetworkSample)
+	w.Owner.Start(ctx)
+}
+func (h *SiteHandler) StartNetworkUsage(ctx context.Context) {
+	if w := h.NetworkUsageWorker(); w != nil {
+		w.Start(ctx)
+	}
 }
 
 type trafficFigure struct {

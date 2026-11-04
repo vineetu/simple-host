@@ -18,6 +18,7 @@
 package geoip
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"log"
@@ -29,6 +30,7 @@ import (
 	"time"
 
 	"github.com/oschwald/maxminddb-golang/v2"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // File names inside the directory. These are the names DB-IP's downloads
@@ -49,7 +51,9 @@ type Info struct {
 // DB holds the two readers and reloads them when their files change.
 // The zero value is not usable; call Open.
 type DB struct {
-	dir string
+	runner  *workers.Runner
+	tracker *workers.Tracker
+	dir     string
 
 	mu   sync.RWMutex // held for reading across a lookup, for writing across a swap
 	city *slot
@@ -74,7 +78,8 @@ type fileStamp struct {
 // Open loads whatever databases are present in dir. It never fails: a missing
 // directory or file just means blank lookups until the file appears.
 func Open(dir string) *DB {
-	d := &DB{
+	t := workers.NewTracker("operations.geoip_watch")
+	d := &DB{runner: workers.NewRunner(t), tracker: t,
 		dir:  dir,
 		city: &slot{name: CityFile},
 		asn:  &slot{name: ASNFile},
@@ -89,15 +94,33 @@ func (d *DB) Dir() string { return d.dir }
 // Watch polls the files every interval and reopens any that changed. The
 // refresh script replaces files by rename, which changes size/mtime; polling a
 // stat once a minute costs nothing and needs no inotify dependency.
-func (d *DB) Watch(interval time.Duration) {
-	go func() {
-		t := time.NewTicker(interval)
-		defer t.Stop()
-		for range t.C {
-			d.Reload()
-		}
-	}()
+func (d *DB) Watch(interval time.Duration) { d.WatchWorker(interval).Start(context.Background()) }
+
+type watchWorker struct {
+	*DB
+	interval time.Duration
 }
+
+func (d *DB) WatchWorker(interval time.Duration) workers.Owner { return &watchWorker{d, interval} }
+func (w *watchWorker) Start(ctx context.Context) {
+	w.runner.Go(ctx, func(ctx context.Context) {
+		tick := time.NewTicker(w.interval)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				w.tracker.Attempt()
+				w.Reload()
+			}
+		}
+	})
+}
+
+func (d *DB) Stop()                    { d.runner.Stop() }
+func (d *DB) Wait()                    { d.runner.Wait() }
+func (d *DB) Status() []workers.Status { return d.runner.Status() }
 
 // Reload checks both files and reopens any whose on-disk identity changed.
 // A new file that fails to open leaves the previous reader in place.
@@ -136,6 +159,7 @@ func (d *DB) reloadSlot(s *slot) {
 		if old != nil {
 			_ = old.Close()
 		}
+		d.tracker.Fail("stat database", err)
 		msg := "missing"
 		if !errors.Is(err, fs.ErrNotExist) {
 			msg = err.Error()
@@ -146,6 +170,7 @@ func (d *DB) reloadSlot(s *slot) {
 
 	r, err := maxminddb.Open(path)
 	if err != nil {
+		d.tracker.Fail("open database", err)
 		d.mu.Lock()
 		s.stamp = now // do not retry the same broken file every tick
 		d.mu.Unlock()
@@ -159,6 +184,7 @@ func (d *DB) reloadSlot(s *slot) {
 	if old != nil {
 		_ = old.Close() // safe: no lookup holds the read lock any more
 	}
+	d.tracker.Progress()
 	s.state = "ok"
 	log.Printf("geoip: loaded %s (%s, built %s)", path, r.Metadata.DatabaseType,
 		r.Metadata.BuildTime().UTC().Format("2006-01-02"))
@@ -211,6 +237,8 @@ func (d *DB) Lookup(ip string) Info {
 
 // Close releases both readers.
 func (d *DB) Close() {
+	d.Stop()
+	d.Wait()
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	for _, s := range []*slot{d.city, d.asn} {
