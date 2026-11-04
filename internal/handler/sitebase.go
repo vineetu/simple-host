@@ -90,12 +90,6 @@ func (h *SiteHandler) handoutBase() string {
 // HandoutBase is handoutBase for main (the namespace and analytics wiring).
 func (h *SiteHandler) HandoutBase() string { return h.handoutBase() }
 
-// LabelReserved reports whether label is reserved in the shared namespace
-// (for the move-site-base command).
-func LabelReserved(label string) bool {
-	return appsites.PlatformHostTarget(label+".base", "base", "target") != ""
-}
-
 // SameUserHost is sameUserHost for the OAuth return_to check.
 func (h *SiteHandler) SameUserHost(a, b string) bool { return h.sameUserHost(a, b) }
 

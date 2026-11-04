@@ -35,10 +35,10 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 		if i := strings.IndexByte(host, ':'); i >= 0 {
 			host = host[:i]
 		}
-		suffix := "." + siteDomain
+		base := siteDomain
 		for _, b := range h.servedBases() {
 			if strings.HasSuffix(host, "."+b) {
-				suffix = "." + b
+				base = b
 				break
 			}
 		}
@@ -50,12 +50,12 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 			return
 		}
 		// Not a name-subdomain of ours → leave it alone.
-		if siteDomain == "" || host == contentHost || host == siteDomain || !strings.HasSuffix(host, suffix) {
+		if siteDomain == "" || host == contentHost || host == siteDomain || !strings.HasSuffix(host, "."+base) {
 			next.ServeHTTP(w, r)
 			return
 		}
-		label := strings.TrimSuffix(host, suffix)
-		if label == "" || strings.Contains(label, ".") || appsites.PlatformHostTarget(label+".base", "base", "target") != "" {
+		label, ok := appsites.LegacyHostLabel(host, base)
+		if !ok {
 			next.ServeHTTP(w, r) // a reserved platform label, or a multi-label host (e.g. *.lab)
 			return
 		}

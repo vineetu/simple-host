@@ -604,7 +604,7 @@ func TestMoveSiteBase(t *testing.T) {
 	if _, err := sitesrepo.GetSiteByCustomDomain(ctx, a.database, "mv"+n+"."+to, accountsrepo.HostForms("mv"+n+"."+to)); err != nil {
 		t.Fatalf("lookup of the new form before the move: %v", err)
 	}
-	dry, err := sitesrepo.MoveSiteBase(ctx, a.database, from, to, LabelReserved, false)
+	dry, err := a.sites.sitesSvc().MoveSiteBase(ctx, from, to, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -616,7 +616,7 @@ func TestMoveSiteBase(t *testing.T) {
 	if cur != "mv"+n+"."+from {
 		t.Fatalf("dry run wrote: %s", cur)
 	}
-	got, err := sitesrepo.MoveSiteBase(ctx, a.database, from, to, LabelReserved, true)
+	got, err := a.sites.sitesSvc().MoveSiteBase(ctx, from, to, true)
 	if err != nil || got.CustomDomains != dry.CustomDomains || got.RetiredNames != dry.RetiredNames {
 		t.Fatalf("apply: %+v %v (dry %+v)", got, err, dry)
 	}
@@ -639,11 +639,11 @@ func TestMoveSiteBase(t *testing.T) {
 	if _, err := sitesrepo.GetSiteByCustomDomain(ctx, a.database, "mv"+n+"."+from, accountsrepo.HostForms("mv"+n+"."+from)); err != nil {
 		t.Errorf("lookup of the old form after the move: %v", err)
 	}
-	again, err := sitesrepo.MoveSiteBase(ctx, a.database, from, to, LabelReserved, true)
+	again, err := a.sites.sitesSvc().MoveSiteBase(ctx, from, to, true)
 	if err != nil || again.CustomDomains+again.PreviousDomains+again.RetiredNames != 0 {
 		t.Fatalf("second run: %+v %v", again, err)
 	}
-	if _, err := sitesrepo.MoveSiteBase(ctx, a.database, from, from, nil, false); err == nil {
+	if _, err := a.sites.sitesSvc().MoveSiteBase(ctx, from, from, false); err == nil {
 		t.Fatal("same domain accepted")
 	}
 }

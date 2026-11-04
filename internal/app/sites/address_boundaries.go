@@ -116,6 +116,19 @@ func PlatformHostTarget(host, base, target string) string {
 	return target
 }
 
+// LegacyHostLabel selects the single-label legacy address routed by the host.
+// Inputs are hostnames already decoded at the transport boundary.
+func LegacyHostLabel(host, base string) (string, bool) {
+	if !strings.HasSuffix(host, "."+base) {
+		return "", false
+	}
+	label := strings.TrimSuffix(host, "."+base)
+	if label == "" || strings.Contains(label, ".") || rules.LabelReserved(label) {
+		return "", false
+	}
+	return label, true
+}
+
 // LegacyBaseLabels selects a user's one- or two-label address for a base move.
 func LegacyBaseLabels(host, base string) ([]string, bool) {
 	labels := strings.TrimSuffix(host, "."+base)

@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	dbpkg "github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/handler"
 )
 
 const moveSiteBaseUsage = `usage: simple-host move-site-base --from DOMAIN --to DOMAIN [--apply]
@@ -52,7 +52,8 @@ func runMoveSiteBaseCommand(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	rep, err := dbpkg.MoveSiteBase(ctx, database, *from, *to, handler.LabelReserved, *apply)
+	sites := appsites.New(database, nil, nil, 0, appsites.Deps{})
+	rep, err := sites.MoveSiteBase(ctx, *from, *to, *apply)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
