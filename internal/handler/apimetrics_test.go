@@ -2,181 +2,46 @@ package handler
 
 import (
 	"context"
-	"errors"
-	"go/ast"
-	"go/parser"
-	"go/token"
+	"database/sql"
+	"encoding/json"
+	"github.com/vsriram/simple-host/internal/app/operations"
+	"github.com/vsriram/simple-host/internal/auth"
+	"github.com/vsriram/simple-host/internal/db"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"sync/atomic"
+	"os"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/geoip"
-	"github.com/vsriram/simple-host/internal/geoip/geoiptest"
+	"time"
 )
 
-func TestLocateLocalDB(t *testing.T) {
-	dir := t.TempDir()
-	if err := geoiptest.Write(filepath.Join(dir, geoip.CityFile), "DBIP-City-Lite", map[string]geoiptest.Record{
-		"8.8.8.0/24": geoiptest.CityRecord("Mountain View", "United States"),
-	}); err != nil {
-		t.Fatal(err)
+func growthTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	dsn := os.Getenv("DB_DSN")
+	if dsn == "" {
+		t.Skip("DB_DSN unset")
 	}
-	if err := geoiptest.Write(filepath.Join(dir, geoip.ASNFile), "DBIP-ASN-Lite", map[string]geoiptest.Record{
-		"8.8.8.0/24": geoiptest.ASNRecord(15169, "Google LLC"),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	geo := geoip.Open(dir)
-	defer geo.Close()
-	m := &APIMetrics{geo: geo}
-
-	cases := []struct{ ip, where, org string }{
-		{"8.8.8.8", "Mountain View, United States", "Google LLC"},
-		{"127.0.0.1", "this box", "local"},
-		{"10.1.2.3", "this box", "local"},
-		{"::1", "this box", "local"},
-		{"fe80::1", "this box", "local"},
-		{"1.1.1.1", "", ""},
-	}
-	for _, c := range cases {
-		where, org := m.locate(c.ip)
-		if where != c.where || org != c.org {
-			t.Errorf("locate(%q) = %q, %q; want %q, %q", c.ip, where, org, c.where, c.org)
-		}
-	}
-}
-
-// With no database files, public IPs come back blank — and nothing tries the
-// network to fill the gap. Any HTTP request made while resolving fails the test.
-func TestLocateMissingDBNoNetwork(t *testing.T) {
-	var calls atomic.Int32
-	orig := http.DefaultTransport
-	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		calls.Add(1)
-		return nil, errors.New("network disabled in test: " + r.URL.String())
-	})
-	defer func() { http.DefaultTransport = orig }()
-
-	geo := geoip.Open(filepath.Join(t.TempDir(), "missing"))
-	defer geo.Close()
-	for _, m := range []*APIMetrics{{geo: geo}, {geo: nil}} {
-		for _, ip := range []string{"8.8.8.8", "1.1.1.1", "2606:4700:4700::1111"} {
-			if where, org := m.locate(ip); where != "" || org != "" {
-				t.Errorf("locate(%q) with no DB = %q, %q; want blank", ip, where, org)
-			}
-		}
-		if where, _ := m.locate("127.0.0.1"); where != "this box" {
-			t.Errorf("private IP with no DB = %q, want \"this box\"", where)
-		}
-	}
-	if n := calls.Load(); n != 0 {
-		t.Fatalf("%d HTTP request(s) made while resolving caller IPs", n)
-	}
-}
-
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
-
-// Caller IPs must never be sent to a third party. This fails if apimetrics.go
-// grows any outbound HTTP/network call or any absolute URL again (the old
-// ip-api.com lookup was exactly that).
-func TestAPIMetricsMakesNoOutboundCalls(t *testing.T) {
-	for _, file := range []string{"apimetrics.go", "apigrowth.go"} {
-		checkNoOutboundCalls(t, file)
-	}
-}
-
-func checkNoOutboundCalls(t *testing.T, file string) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, file, nil, 0)
+	database, err := sql.Open("postgres", dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, imp := range f.Imports {
-		p, _ := strconv.Unquote(imp.Path.Value)
-		if p == "net/http/httputil" || p == "net/rpc" || strings.HasPrefix(p, "golang.org/x/net") {
-			t.Errorf("%s imports %s", file, p)
-		}
+	t.Cleanup(func() { database.Close() })
+	if err := database.Ping(); err != nil {
+		t.Skipf("postgres not reachable: %v", err)
 	}
-	banned := map[string]bool{
-		// net/http client surface. (http.Handler, ResponseWriter, Request as a
-		// server-side parameter etc. are fine.)
-		"Client": true, "DefaultClient": true, "NewRequest": true, "NewRequestWithContext": true,
-		"Get": true, "Post": true, "PostForm": true, "Head": true, "Transport": true, "DefaultTransport": true,
-		// net dialing.
-		"Dial": true, "DialTimeout": true, "DialTCP": true, "DialUDP": true, "Dialer": true,
-		"LookupHost": true, "LookupIP": true, "LookupAddr": true,
+	if err := db.VerifySchema(context.Background(), database); err != nil {
+		t.Fatalf("test database is behind the schema: %v", err)
 	}
-	ast.Inspect(f, func(n ast.Node) bool {
-		switch x := n.(type) {
-		case *ast.SelectorExpr:
-			if id, ok := x.X.(*ast.Ident); ok && (id.Name == "http" || id.Name == "net") && banned[x.Sel.Name] {
-				t.Errorf("%s: %s.%s — apimetrics must not make outbound calls", fset.Position(x.Pos()), id.Name, x.Sel.Name)
-			}
-		case *ast.BasicLit:
-			if x.Kind == token.STRING {
-				s := strings.ToLower(x.Value)
-				if strings.Contains(s, "http://") || strings.Contains(s, "https://") || strings.Contains(s, "ip-api") {
-					t.Errorf("%s: external URL literal %s in %s", fset.Position(x.Pos()), x.Value, file)
-				}
+	clear := func() {
+		for _, q := range []string{`DELETE FROM api_growth_daily`, `DELETE FROM api_request_daily`, `DELETE FROM api_ip_daily`, `DELETE FROM api_self_daily`} {
+			if _, err := database.Exec(q); err != nil {
+				t.Fatal(err)
 			}
 		}
-		return true
-	})
+	}
+	clear()
+	t.Cleanup(clear)
+	return database
 }
-
-func TestTruncateIP(t *testing.T) {
-	for in, want := range map[string]string{
-		"203.0.113.77":         "203.0.113.0",
-		"2001:db8:1:2:3:4:5:6": "2001:db8:1::",
-		"::ffff:198.51.100.9":  "198.51.100.0",
-		"127.0.0.1":            "127.0.0.1",
-		"::1":                  "::1",
-		"10.1.2.3":             "10.1.2.0",
-		"not-an-ip":            "not-an-ip",
-	} {
-		if got := truncateIP(in); got != want {
-			t.Errorf("truncateIP(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
-// flushLoop must prune before waiting on its 6-hour ticker. Restarts more
-// often than that would otherwise starve the prune and keep shortened IPs past
-// the 30 days the privacy page promises (seen on 2026-09-26: rows 31 days old).
-func TestAPIMetricsPrunesAtStartup(t *testing.T) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "apimetrics.go", nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, d := range f.Decls {
-		fn, ok := d.(*ast.FuncDecl)
-		if !ok || fn.Name.Name != "flushLoop" {
-			continue
-		}
-		for _, st := range fn.Body.List {
-			if _, isFor := st.(*ast.ForStmt); isFor {
-				break
-			}
-			if es, ok := st.(*ast.ExprStmt); ok {
-				if call, ok := es.X.(*ast.CallExpr); ok {
-					if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "pruneOldContext" {
-						return
-					}
-				}
-			}
-		}
-		t.Fatal("flushLoop does not call pruneOldContext before its loop")
-	}
-	t.Fatal("flushLoop not found")
-}
-
 func TestIsAPIRoute(t *testing.T) {
 	for p, want := range map[string]bool{
 		"GET /v1/sites/{sitename}/versions": true,
@@ -196,15 +61,12 @@ func TestIsAPIRoute(t *testing.T) {
 	}
 }
 
-// Requests that match no API route are not API calls; calls from this server
-// (loopback, its own public address) are counted apart, a private address is
-// a real caller; a request a
-// middleware cloned before the mux still gets its real route.
 func TestAPIMetricsWrapCountsOnlyOutsideAPICalls(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/sites/{sitename}/versions", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNotFound) })
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) { http.NotFound(w, r) })
-	m := &APIMetrics{routes: map[routeKey]int64{}, self: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
+	database := growthTestDB(t)
+	m := NewAPIMetrics(operations.NewAPIMetrics(database, nil))
 	m.SetRouting(mux, "147.224.49.228")
 	// A middleware that clones the request (as the connector's bearer
 	// exchange does), so the outer request never sees the pattern.
@@ -224,68 +86,145 @@ func TestAPIMetricsWrapCountsOnlyOutsideAPICalls(t *testing.T) {
 	call("GET", "/v1/sites/blog/versions", "::1")
 	call("GET", "/v1/sites/blog/versions", "10.0.0.5")
 
-	want := routeKey{"GET /v1/sites/{sitename}/versions", 404}
-	if len(m.routes) != 1 || m.routes[want] != 2 {
-		t.Errorf("routes = %v, want only %v twice", m.routes, want)
+	sum, err := m.Summary(context.Background())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(m.self) != 1 || m.self[want] != 3 {
-		t.Errorf("self = %v, want %v three times", m.self, want)
+	if sum.CallsToday != 2 || sum.SelfToday != 3 || sum.IPsToday != 2 {
+		t.Fatalf("summary: %+v", sum)
 	}
-	if len(m.ips) != 2 || m.ips["8.8.8.0"] == nil || m.ips["10.0.0.0"] == nil {
-		t.Errorf("ips = %v, want the two outside callers", m.ips)
+	var n int64
+	if err := database.QueryRow(`SELECT calls FROM api_growth_daily WHERE day=CURRENT_DATE AND dim='source' AND key='self'`).Scan(&n); err != nil || n != 3 {
+		t.Fatalf("self calls=%d err=%v", n, err)
 	}
-	if m.growth[growthKey{growthDimSource, growthKeySelf}] != 3 || m.growth[growthKey{growthDimGroup, "deploy"}] != 2 || m.growth[growthKey{growthDimCountry, unknownCountry}] != 2 {
-		t.Errorf("growth = %v", m.growth)
-	}
+
 }
 
 func TestUploadMetricsUsePattern(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("PUT /v1/uploads/{token}", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNotFound) })
-	m := &APIMetrics{routes: map[routeKey]int64{}, self: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
+	database := growthTestDB(t)
+	m := NewAPIMetrics(operations.NewAPIMetrics(database, nil))
 	m.SetRouting(mux)
 	r := httptest.NewRequest("PUT", "/v1/uploads/private-test-token", nil)
 	r.RemoteAddr = "203.0.113.8:1234"
 	m.Wrap(mux).ServeHTTP(httptest.NewRecorder(), r)
 	pattern := "PUT /v1/uploads/{token}"
-	if len(m.routes) != 1 || m.routes[routeKey{pattern, 404}] != 1 {
-		t.Fatal("upload pattern missing")
+	sum, err := m.Summary(context.Background())
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, agg := range m.ips {
-		if agg.lastRoute != pattern {
+	if len(sum.Routes) != 1 || sum.Routes[0].Route != pattern || sum.Routes[0].Today != 1 {
+		t.Fatalf("upload routes: %+v", sum.Routes)
+	}
+	for _, ip := range sum.IPs {
+		if ip.LastPath != pattern {
 			t.Fatal("token recorded in metrics")
 		}
 	}
-}
 
-// The constructor must be inert, and shutdown must persist the final buffered
-// request without requiring a timer tick or leaving a goroutine behind.
-func TestAPIMetricsStopFlushesBuffer(t *testing.T) {
+}
+func TestAdminGrowthEndpoint(t *testing.T) {
 	database := growthTestDB(t)
-	m := NewAPIMetrics(database, nil)
-	if m.Status()[0].Running {
-		t.Fatal("constructor started a worker")
+	m := NewAPIMetrics(operations.NewAPIGrowthBackfiller(database, nil))
+	var today time.Time
+	if err := database.QueryRow(`SELECT CURRENT_DATE`).Scan(&today); err != nil {
+		t.Fatal(err)
 	}
-	m.record("GET /v1/sites", 200, "203.0.113.0", "XX")
-	m.recordSelf("GET /v1/sites", 200)
-	m.Start(context.Background())
-	t.Cleanup(func() { m.Stop(); m.Wait() })
-	m.Stop()
-	m.Wait()
-	for _, table := range []string{"api_request_daily", "api_self_daily", "api_ip_daily"} {
-		var n int64
-		if err := database.QueryRow("SELECT COALESCE(SUM(calls),0) FROM " + table).Scan(&n); err != nil || n != 1 {
-			t.Fatalf("%s calls=%d err=%v", table, n, err)
+	d := func(back int) string { return today.AddDate(0, 0, -back).Format("2006-01-02") }
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := database.Exec(q, args...); err != nil {
+			t.Fatal(err)
 		}
 	}
-	if m.Status()[0].Running || m.Status()[0].LastProgress == nil {
-		t.Fatalf("stopped status: %+v", m.Status())
+	// Current 7 days: 10 today, 30 six days ago. Previous 7 days: 20 + 5.
+	// Eight days before that is outside both and must not count.
+	for _, r := range []struct {
+		back     int
+		dim, key string
+		n        int64
+	}{
+		{0, "group", "deploy", 6}, {0, "group", "connector", 4}, {0, "country", "US", 7}, {0, "country", "XX", 3},
+		{6, "group", "data", 30}, {6, "country", "JP", 30},
+		{7, "group", "deploy", 20}, {13, "group", "auth", 5},
+		{14, "group", "deploy", 99}, {14, "country", "US", 99},
+	} {
+		exec(`INSERT INTO api_growth_daily (day, dim, key, calls) VALUES ($1::date, $2, $3, $4)`, d(r.back), r.dim, r.key, r.n)
 	}
-	// Stop and Wait are safe to repeat and must not flush the same counts twice.
-	m.Stop()
-	m.Wait()
-	var n int64
-	if err := database.QueryRow(`SELECT SUM(calls) FROM api_request_daily`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("repeat stop calls=%d err=%v", n, err)
+	// Accounts and sites, marked so the test counts only its own rows.
+	var before7, before14 int64
+	database.QueryRow(`SELECT COUNT(*) FROM users WHERE EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id) AND created_at >= $1::date`, d(6)).Scan(&before7)
+	database.QueryRow(`SELECT COUNT(*) FROM users WHERE EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id) AND created_at >= $1::date AND created_at < $2::date`, d(13), d(6)).Scan(&before14)
+	var uid string
+	if err := database.QueryRow(`INSERT INTO users (username, created_at) VALUES ('growth-t1', $1::date + interval '3 hours') RETURNING id`, d(2)).Scan(&uid); err != nil {
+		t.Fatal(err)
+	}
+	exec(`INSERT INTO users (username, created_at) VALUES ('growth-t2', $1::date + interval '1 hour')`, d(9))
+	exec(`INSERT INTO sites(user_id,name) SELECT id,'growth-site' FROM users WHERE username IN ('growth-t1','growth-t2')`)
+	t.Cleanup(func() { database.Exec(`DELETE FROM users WHERE username IN ('growth-t1', 'growth-t2')`) })
+
+	call := func(user *db.User, q string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("GET", "/v1/admin/growth"+q, nil)
+		if user != nil {
+			r = r.WithContext(auth.WithUser(r.Context(), user))
+		}
+		w := httptest.NewRecorder()
+		m.AdminGrowth(w, r)
+		return w
+	}
+	if w := call(nil, ""); w.Code != http.StatusUnauthorized {
+		t.Errorf("anonymous: %d", w.Code)
+	}
+	if w := call(&db.User{ID: uid}, ""); w.Code != http.StatusNotFound {
+		t.Errorf("non-admin: %d", w.Code)
+	}
+	admin := &db.User{ID: uid, IsAdmin: true}
+	if w := call(admin, "?range=3y"); w.Code != http.StatusBadRequest {
+		t.Errorf("bad range: %d", w.Code)
+	}
+	w := call(admin, "?range=7d")
+	if w.Code != http.StatusOK {
+		t.Fatalf("7d: %d %s", w.Code, w.Body)
+	}
+	var out operations.GrowthResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.From != d(6) || out.To != d(0) || len(out.Dates) != 7 || out.Days != 7 {
+		t.Errorf("window %s..%s (%d dates)", out.From, out.To, len(out.Dates))
+	}
+	if out.API.Total != 40 || out.API.Previous != 25 {
+		t.Errorf("api total %d prev %d, want 40 / 25", out.API.Total, out.API.Previous)
+	}
+	if out.API.ChangePct == nil || *out.API.ChangePct != 60 {
+		t.Errorf("api change %v, want 60", out.API.ChangePct)
+	}
+	if out.API.Daily[6] != 10 || out.API.Daily[0] != 30 || out.API.Groups["connector"][6] != 4 || out.API.Groups["data"][0] != 30 {
+		t.Errorf("api daily %v groups %v", out.API.Daily, out.API.Groups)
+	}
+	if len(out.Countries) != 2 || out.Countries[0].Code != "JP" || out.Countries[0].Calls != 30 || out.Countries[0].Name != "Japan" || out.Countries[1].Calls != 7 || out.UnknownCalls != 3 {
+		t.Errorf("countries %+v unknown %d", out.Countries, out.UnknownCalls)
+	}
+	if out.TrackingSince == nil || *out.TrackingSince != d(14) {
+		t.Errorf("tracking since %v", out.TrackingSince)
+	}
+	if out.Users.Total != before7+1 || out.Users.Previous != before14+1 || out.Users.Daily[4] < 1 {
+		t.Errorf("users total %d prev %d daily %v", out.Users.Total, out.Users.Previous, out.Users.Daily)
+	}
+
+	// 14 days: the previous period starts before counting did, so no change.
+	w = call(admin, "?range=14d")
+	json.Unmarshal(w.Body.Bytes(), &out)
+	if out.API.Total != 65 || out.API.ChangePct != nil {
+		t.Errorf("14d total %d change %v, want 65 / nil", out.API.Total, out.API.ChangePct)
+	}
+
+	// Cached for a minute: a new row does not show until then.
+	exec(`INSERT INTO api_growth_daily (day, dim, key, calls) VALUES ($1::date, 'group', 'other', 1000)`, d(0))
+	w = call(admin, "?range=7d")
+	json.Unmarshal(w.Body.Bytes(), &out)
+	if out.API.Total != 40 {
+		t.Errorf("cached total %d, want 40", out.API.Total)
 	}
 }

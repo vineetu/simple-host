@@ -107,6 +107,7 @@ func newBridgeTeamApp(t *testing.T) *bridgeTeamApp {
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.sites = NewSiteHandler(ed, "", database, disk, bridgeTSDomain, "sites."+bridgeTSDomain, "cname."+bridgeTSDomain, "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	a.sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
+	a.sites.SetOperationsReporting(operations.NewReporting(database))
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.sites.WaitNotifications)
 	a.sites.SetPersonHosts("canonical")

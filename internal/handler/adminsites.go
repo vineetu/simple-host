@@ -133,7 +133,7 @@ func (h *SiteHandler) adminSites(w http.ResponseWriter, r *http.Request) {
 	for _, s := range usage.All {
 		sizes[s.UserID+"/"+s.Name] = s
 	}
-	views, err := db.AdminSiteViews(r.Context(), h.database, time.Now().UTC().Add(-30*24*time.Hour))
+	views, err := h.reporting.AdminSiteViews(r.Context(), time.Now().UTC().Add(-30*24*time.Hour))
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "could not read views"})
 		return

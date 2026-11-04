@@ -313,6 +313,7 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	app.users = users
 	sites := NewSiteHandler(ed, "", database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, "on", adminID, mailer, users.EmailLimiter())
 	sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
+	sites.SetOperationsReporting(operations.NewReporting(database))
 	app.sites = sites
 	t.Cleanup(sites.WaitNotifications)
 	sites.Register(mux, authMW, noticeMW)

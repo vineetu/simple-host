@@ -48,11 +48,7 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, errorResponse{Error: "could not read this server's disk"})
 		return
 	}
-	var accounts int
-	if err := h.database.QueryRowContext(r.Context(),
-		`SELECT count(*) FROM users u WHERE NOT is_admin AND EXISTS (SELECT 1 FROM sites s WHERE s.user_id=u.id)`).Scan(&accounts); err != nil {
-		accounts = -1 // reported as unknown rather than as zero
-	}
+	accounts := h.reporting.AccountCount(r.Context())
 	out := map[string]any{
 		"disk_bytes":      usage.DiskBytes,
 		"disk_free_bytes": usage.DiskFreeBytes,

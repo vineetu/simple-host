@@ -20,9 +20,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/operations"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/imagescan"
+	opsrepo "github.com/vsriram/simple-host/internal/repository/operations"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -43,7 +44,7 @@ func testPNG(t *testing.T) []byte {
 	if err := png.Encode(&buf, img); err != nil {
 		t.Fatal(err)
 	}
-	if len(buf.Bytes()) < imageScanMinBytes {
+	if len(buf.Bytes()) < operations.ImageScanMinBytes {
 		t.Fatalf("test PNG too small: %d bytes", buf.Len())
 	}
 	return buf.Bytes()
@@ -51,23 +52,23 @@ func testPNG(t *testing.T) []byte {
 
 type fakeMatcher struct {
 	mu      sync.Mutex
-	matches map[string]imagescan.Match // by SHA-256 of the original bytes
+	matches map[string]operations.ScanMatch // by SHA-256 of the original bytes
 	calls   []string
 	err     error
 }
 
 func (f *fakeMatcher) Name() string { return "fake" }
-func (f *fakeMatcher) Match(_ context.Context, img *imagescan.Image) (imagescan.Match, error) {
+func (f *fakeMatcher) Match(_ context.Context, img *operations.ScanImage) (operations.ScanMatch, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, img.SHA256)
 	if f.err != nil {
-		return imagescan.Match{}, f.err
+		return operations.ScanMatch{}, f.err
 	}
 	if m, ok := f.matches[img.SHA256]; ok {
 		return m, nil
 	}
-	return imagescan.Match{TrackingID: "t-clean"}, nil
+	return operations.ScanMatch{TrackingID: "t-clean"}, nil
 }
 func (f *fakeMatcher) callCount() int {
 	f.mu.Lock()
@@ -77,18 +78,18 @@ func (f *fakeMatcher) callCount() int {
 
 type fakeReporter struct {
 	mu      sync.Mutex
-	reports []imagescan.Report
+	reports []operations.ScanReport
 	err     error
 }
 
-func (f *fakeReporter) Report(_ context.Context, in imagescan.Report) (imagescan.ReportResult, error) {
+func (f *fakeReporter) Report(_ context.Context, in operations.ScanReport) (operations.ScanReportResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
-		return imagescan.ReportResult{}, f.err
+		return operations.ScanReportResult{}, f.err
 	}
 	f.reports = append(f.reports, in)
-	return imagescan.ReportResult{ReportID: "RPT-TEST-1"}, nil
+	return operations.ScanReportResult{ReportID: "RPT-TEST-1"}, nil
 }
 
 type fakeNoticeMailer struct {
@@ -110,12 +111,12 @@ func (f *fakeNoticeMailer) sent() []string {
 }
 
 // fakePrepare stands in for imagescan.Prepare: the bytes as they are.
-func fakePrepare(raw []byte, _ imagescan.PrepareOptions) (*imagescan.Image, string, error) {
-	ct, ok := imageCandidate(raw)
+func fakePrepare(raw []byte, _ operations.ScanPrepareOptions) (*operations.ScanImage, string, error) {
+	ct, ok := operations.ImageCandidate(raw)
 	if !ok {
 		return nil, "not an image", nil
 	}
-	return &imagescan.Image{Data: raw, ContentType: ct, Width: 24, Height: 24, SHA256: sha256Hex(raw)}, "", nil
+	return &operations.ScanImage{Data: raw, ContentType: ct, Width: 24, Height: 24, SHA256: operations.ImageHash(raw)}, "", nil
 }
 
 // scanFixture is an ImageScan with fakes, and a way to wait for the
@@ -136,17 +137,17 @@ func newImageScanFixture(t *testing.T, a *privateApp, disk *storage.DiskStorage)
 
 func newImageScanFixtureDB(t *testing.T, database *sql.DB, disk *storage.DiskStorage) *scanFixture {
 	t.Helper()
-	f := &scanFixture{matcher: &fakeMatcher{matches: map[string]imagescan.Match{}}, reporter: &fakeReporter{}, mailer: &fakeNoticeMailer{}, evidence: t.TempDir()}
+	f := &scanFixture{matcher: &fakeMatcher{matches: map[string]operations.ScanMatch{}}, reporter: &fakeReporter{}, mailer: &fakeNoticeMailer{}, evidence: t.TempDir()}
 	t.Cleanup(f.runs.Wait)
-	f.scan = NewImageScan(database, disk, f.matcher, f.reporter, f.mailer, ImageScanConfig{
+	f.scan = operations.NewImageScan(database, disk, f.matcher, f.reporter, f.mailer, ImageScanConfig{
 		EvidenceDir: f.evidence, AlertEmail: "alerts@example.com", ReportOrg: "Test Org", ReportName: "Tester",
 		ReportEmail: "reports@example.com", PublicBaseURL: "https://host.test",
 	})
 	if f.scan == nil {
 		t.Fatal("NewImageScan returned nil with a matcher")
 	}
-	f.scan.prepare = fakePrepare
-	f.scan.run = func(fn func()) {
+	f.scan.Prepare = fakePrepare
+	f.scan.Dispatch = func(fn func()) {
 		f.runs.Add(1)
 		go func() {
 			defer f.runs.Done()
@@ -161,7 +162,7 @@ func (f *scanFixture) wait() { f.runs.Wait() }
 func (f *scanFixture) markMatch(sha string) {
 	f.matcher.mu.Lock()
 	defer f.matcher.mu.Unlock()
-	f.matcher.matches[sha] = imagescan.Match{IsMatch: true, TrackingID: "t-match", Source: "NCMEC", Violations: []string{"A1", "B2"}, Raw: json.RawMessage(`{"IsMatch":true}`)}
+	f.matcher.matches[sha] = operations.ScanMatch{IsMatch: true, TrackingID: "t-match", Source: "NCMEC", Violations: []string{"A1", "B2"}, Raw: json.RawMessage(`{"IsMatch":true}`)}
 }
 
 func deployWithImages(t *testing.T, a *privateApp, p person, site string, files map[string][]byte) {
@@ -200,9 +201,9 @@ func hashVerdict(t *testing.T, a *privateApp, sha string) string {
 	return v
 }
 
-func latestMatch(t *testing.T, a *privateApp, siteID string) db.ImageMatch {
+func latestMatch(t *testing.T, a *privateApp, siteID string) opsrepo.ImageMatch {
 	t.Helper()
-	rows, err := db.ListImageMatches(context.Background(), a.database, 50)
+	rows, err := opsrepo.ListImageMatches(context.Background(), a.database, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +213,7 @@ func latestMatch(t *testing.T, a *privateApp, siteID string) db.ImageMatch {
 		}
 	}
 	t.Fatalf("no match row for site %s", siteID)
-	return db.ImageMatch{}
+	return opsrepo.ImageMatch{}
 }
 
 // 1. A deploy with a matched PNG, a clean PNG and an SVG.
@@ -223,7 +224,7 @@ func TestImageScanDeployMatch(t *testing.T) {
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
 	bad, good := testPNG(t), testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">` + strings.Repeat("<rect width='10' height='10'/>", 20) + `</svg>`)
 	deployWithImages(t, a, olive, "shop", map[string][]byte{"img/bad.png": bad, "img/good.png": good, "logo.svg": svg})
 	f.wait()
@@ -238,13 +239,13 @@ func TestImageScanDeployMatch(t *testing.T) {
 	if n := queueCount(t, a, siteID); n != 0 {
 		t.Fatalf("queue after the pass: %d rows", n)
 	}
-	if v := hashVerdict(t, a, sha256Hex(bad)); v != "match" {
+	if v := hashVerdict(t, a, operations.ImageHash(bad)); v != "match" {
 		t.Fatalf("bad hash verdict %q", v)
 	}
-	if v := hashVerdict(t, a, sha256Hex(good)); v != "clean" {
+	if v := hashVerdict(t, a, operations.ImageHash(good)); v != "clean" {
 		t.Fatalf("good hash verdict %q", v)
 	}
-	if v := hashVerdict(t, a, sha256Hex(svg)); v != "" {
+	if v := hashVerdict(t, a, operations.ImageHash(svg)); v != "" {
 		t.Fatalf("svg has a verdict %q", v)
 	}
 	m := latestMatch(t, a, siteID)
@@ -298,7 +299,7 @@ func TestImageScanDeployMatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !site.SiteSuspended || site.SiteSuspendedReason != imageScanTakeDownMsg {
+	if !site.SiteSuspended || site.SiteSuspendedReason != operations.ImageScanTakeDownMsg {
 		t.Fatalf("site not taken down: %+v", site)
 	}
 	if !a.sites.disk.IsSuspended(uid, "shop") {
@@ -364,12 +365,12 @@ func TestImageScanDeployMatch(t *testing.T) {
 		t.Fatalf("non-admin GET: %d", r.status)
 	}
 	// No reporter: 503.
-	saved := f.scan.reporter
-	f.scan.reporter = nil
+	saved := f.scan.Reporter
+	f.scan.Reporter = nil
 	if r := a.at(t, "POST", pcSiteDomain, "/v1/admin/image-scan/"+id64(m.ID)+"/report", nil, admin); r.status != http.StatusServiceUnavailable || r.json(t)["code"] != "report_unavailable" {
 		t.Fatalf("report without a reporter: %d %s", r.status, r.body)
 	}
-	f.scan.reporter = saved
+	f.scan.Reporter = saved
 	r = a.at(t, "POST", pcSiteDomain, "/v1/admin/image-scan/"+id64(m.ID)+"/report", nil, admin)
 	if r.status != 200 || r.json(t)["report_id"] != "RPT-TEST-1" {
 		t.Fatalf("report: %d %s", r.status, r.body)
@@ -377,7 +378,7 @@ func TestImageScanDeployMatch(t *testing.T) {
 	if len(f.reporter.reports) != 1 || f.reporter.reports[0].OrgName != "Test Org" || len(f.reporter.reports[0].Files) != 1 || f.reporter.reports[0].Files[0].Name != "bad.png" || !bytes.Equal(f.reporter.reports[0].Files[0].Data, bad) || f.reporter.reports[0].Files[0].Metadata["match_id"] != id64(m.ID) {
 		t.Fatalf("report sent: %+v", f.reporter.reports)
 	}
-	if got, _ := db.GetImageMatch(context.Background(), a.database, m.ID); got.ReportStatus != "filed" || got.ReportID != "RPT-TEST-1" || !got.ReportedAt.Valid {
+	if got, _ := opsrepo.GetImageMatch(context.Background(), a.database, m.ID); got.ReportStatus != "filed" || got.ReportID != "RPT-TEST-1" || !got.ReportedAt.Valid {
 		t.Fatalf("after report: %+v", got)
 	}
 	if r := a.at(t, "POST", pcSiteDomain, "/v1/admin/image-scan/"+id64(m.ID)+"/report", nil, admin); r.status != http.StatusConflict || r.json(t)["code"] != "already_reported" {
@@ -391,7 +392,7 @@ func TestImageScanDeployMatch(t *testing.T) {
 	if r := a.at(t, "POST", pcSiteDomain, "/v1/admin/image-scan/"+id64(m2.ID)+"/report", nil, admin); r.status != http.StatusBadGateway || r.json(t)["code"] != "report_failed" {
 		t.Fatalf("failed report: %d %s", r.status, r.body)
 	}
-	if got, _ := db.GetImageMatch(context.Background(), a.database, m2.ID); got.ReportStatus != "failed" || got.ReportError != "report: provider rejected request or returned an invalid response" {
+	if got, _ := opsrepo.GetImageMatch(context.Background(), a.database, m2.ID); got.ReportStatus != "failed" || got.ReportError != "report: provider rejected request or returned an invalid response" {
 		t.Fatalf("after failed report: %+v", got)
 	}
 	f.reporter.err = nil
@@ -413,7 +414,7 @@ func TestImageScanStorageFile(t *testing.T) {
 		t.Fatalf("files resource: %d %s", r.status, r.body)
 	}
 	bad := testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/gallery/storage/files/photos/objects/pics/bad.png", string(bad), map[string]string{"X-API-Key": olive.key, "Content-Type": "image/png"}); r.status != 200 {
 		t.Fatalf("put object: %d %s", r.status, r.body)
 	}
@@ -455,13 +456,13 @@ func TestImageScanEventIcon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	matcher := &fakeMatcher{matches: map[string]imagescan.Match{}}
+	matcher := &fakeMatcher{matches: map[string]operations.ScanMatch{}}
 	mailer := &fakeNoticeMailer{}
-	s := NewImageScan(a.database, disk, matcher, nil, mailer, ImageScanConfig{EvidenceDir: t.TempDir(), AlertEmail: "alerts@example.com"})
-	s.prepare = fakePrepare
+	s := operations.NewImageScan(a.database, disk, matcher, nil, mailer, ImageScanConfig{EvidenceDir: t.TempDir(), AlertEmail: "alerts@example.com"})
+	s.Prepare = fakePrepare
 	var runs sync.WaitGroup
 	t.Cleanup(runs.Wait)
-	s.run = func(fn func()) {
+	s.Dispatch = func(fn func()) {
 		runs.Add(1)
 		go func() {
 			defer runs.Done()
@@ -481,7 +482,7 @@ func TestImageScanEventIcon(t *testing.T) {
 	}
 	icon := testPNG(t)
 	matcher.mu.Lock()
-	matcher.matches[sha256Hex(icon)] = imagescan.Match{IsMatch: true, TrackingID: "t-icon", Source: "IWF"}
+	matcher.matches[operations.ImageHash(icon)] = operations.ScanMatch{IsMatch: true, TrackingID: "t-icon", Source: "IWF"}
 	matcher.mu.Unlock()
 	if err := db.SetEventIcon(context.Background(), a.database, ev.ID, "image/png", icon); err != nil {
 		t.Fatal(err)
@@ -502,13 +503,13 @@ func TestImageScanEventIcon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !after.TakenDown() || after.TakenDownReason != imageScanTakeDownMsg {
+	if !after.TakenDown() || after.TakenDownReason != operations.ImageScanTakeDownMsg {
 		t.Fatalf("event not taken down: %+v", after.TakenDownAt)
 	}
 	if susp, _ := db.UserSuspended(context.Background(), a.database, ev.AccountID); !susp {
 		t.Fatal("holding account not suspended with the event")
 	}
-	matches, err := db.ListImageMatches(context.Background(), a.database, 10)
+	matches, err := opsrepo.ListImageMatches(context.Background(), a.database, 10)
 	if err != nil || len(matches) == 0 || matches[0].Kind != "event_icon" || matches[0].EventSlug != slug || matches[0].ReportStatus != "off" || !matches[0].TakenDown {
 		t.Fatalf("match row: %+v %v", matches, err)
 	}
@@ -516,7 +517,7 @@ func TestImageScanEventIcon(t *testing.T) {
 		t.Fatalf("alert: %v", sent)
 	}
 	// The report names the organiser who uploaded the icon.
-	if who := s.reporteeOf(context.Background(), matches[0]); !strings.Contains(who, ada.email) {
+	if who := s.ReporteeOf(context.Background(), matches[0]); !strings.Contains(who, ada.email) {
 		t.Fatalf("reportee %q, want the uploader %s", who, ada.email)
 	}
 }
@@ -530,7 +531,7 @@ func TestImageScanRetry(t *testing.T) {
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
 	pic := testPNG(t)
-	f.matcher.err = imagescan.ErrRetryable
+	f.matcher.err = operations.ScanErrRetryable
 	deployWithImages(t, a, olive, "retry", map[string][]byte{"pic.png": pic})
 	f.wait()
 	siteID := a.siteID(t, olive, "retry")
@@ -560,12 +561,12 @@ func TestImageScanRetry(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE image_scan_queue SET next_attempt_at = now() WHERE site_id::text = $1`, siteID); err != nil {
 		t.Fatal(err)
 	}
-	f.matcher.err = imagescan.ErrUnsupported
+	f.matcher.err = operations.ScanErrUnsupported
 	f.scan.RunOnce(context.Background())
 	if n := queueCount(t, a, siteID); n != 0 {
 		t.Fatalf("unsupported image still queued: %d", n)
 	}
-	if v := hashVerdict(t, a, sha256Hex(pic)); v != "skipped" {
+	if v := hashVerdict(t, a, operations.ImageHash(pic)); v != "skipped" {
 		t.Fatalf("verdict %q, want skipped", v)
 	}
 	if site, _ := db.GetSiteByID(context.Background(), a.database, siteID); site.SiteSuspended {
@@ -575,7 +576,7 @@ func TestImageScanRetry(t *testing.T) {
 
 // 7. Off: nil everywhere, deploys unchanged, nothing queued.
 func TestImageScanDisabled(t *testing.T) {
-	if s := NewImageScan(nil, nil, nil, nil, nil, ImageScanConfig{}); s != nil {
+	if s := operations.NewImageScan(nil, nil, nil, nil, nil, ImageScanConfig{}); s != nil {
 		t.Fatal("NewImageScan with no matcher is not nil")
 	}
 	var s *ImageScan
@@ -633,16 +634,16 @@ func TestImageScanPrivacyItem(t *testing.T) {
 }
 
 func TestImageCandidate(t *testing.T) {
-	if _, ok := imageCandidate([]byte("<svg xmlns='http://www.w3.org/2000/svg'>" + strings.Repeat(" ", 300) + "</svg>")); ok {
+	if _, ok := operations.ImageCandidate([]byte("<svg xmlns='http://www.w3.org/2000/svg'>" + strings.Repeat(" ", 300) + "</svg>")); ok {
 		t.Fatal("svg accepted")
 	}
-	if _, ok := imageCandidate(testPNG(t)[:100]); ok {
+	if _, ok := operations.ImageCandidate(testPNG(t)[:100]); ok {
 		t.Fatal("tiny image accepted")
 	}
-	if ct, ok := imageCandidate(testPNG(t)); !ok || ct != "image/png" {
+	if ct, ok := operations.ImageCandidate(testPNG(t)); !ok || ct != "image/png" {
 		t.Fatalf("png refused: %q %v", ct, ok)
 	}
-	if _, ok := imageCandidate(append([]byte("\x00\x00\x01\x00"), make([]byte, 400)...)); ok {
+	if _, ok := operations.ImageCandidate(append([]byte("\x00\x00\x01\x00"), make([]byte, 400)...)); ok {
 		t.Fatal("ico accepted")
 	}
 }
@@ -666,7 +667,7 @@ func TestImageScanVersionDedup(t *testing.T) {
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
 	bad := testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	deployWithImages(t, a, olive, "keep1", map[string][]byte{"bad.png": bad})
 	f.wait()
 	siteID := a.siteID(t, olive, "keep1")
@@ -708,7 +709,7 @@ func TestImageScanRestore(t *testing.T) {
 	olive := a.newPerson(t, "olive")
 	okey := map[string]string{"X-API-Key": olive.key}
 	bad, clean := testPNG(t), testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	deployWithImages(t, a, olive, "comeback", map[string][]byte{"img/bad.png": bad})
 	f.wait()
 	deployWithImages(t, a, olive, "comeback", map[string][]byte{"img/bad.png": clean})
@@ -796,7 +797,7 @@ func TestImageScanGiveUp(t *testing.T) {
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
-	f.matcher.err = imagescan.ErrRetryable
+	f.matcher.err = operations.ScanErrRetryable
 	deployWithImages(t, a, olive, "stuck", map[string][]byte{"pic.png": testPNG(t)})
 	f.wait()
 	siteID := a.siteID(t, olive, "stuck")
@@ -841,7 +842,7 @@ func TestImageScanEvidenceFailure(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(f.evidence, 0o700) })
 	olive := a.newPerson(t, "olive")
 	bad := testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	deployWithImages(t, a, olive, "nocopy", map[string][]byte{"bad.png": bad})
 	f.wait()
 	f.scan.RunOnce(context.Background())
@@ -875,7 +876,7 @@ func TestImageScanOnlyMatchedBytes(t *testing.T) {
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
 	bad, benign := testPNG(t), testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	deployWithImages(t, a, olive, "swap", map[string][]byte{"img/bad.png": bad})
 	f.wait()
 	deployWithImages(t, a, olive, "swap", map[string][]byte{"img/bad.png": benign})
@@ -894,31 +895,6 @@ func TestImageScanOnlyMatchedBytes(t *testing.T) {
 }
 
 // 2.9: an evidence folder reached through a symlink into a site is refused.
-func TestImageScanEvidenceSymlink(t *testing.T) {
-	data := t.TempDir()
-	disk, err := storage.NewDiskStorage(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	siteDir := disk.SiteDir("u1", "s1")
-	if err := os.MkdirAll(siteDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	link := filepath.Join(t.TempDir(), "evidence-link")
-	if err := os.Symlink(siteDir, link); err != nil {
-		t.Fatal(err)
-	}
-	for _, dir := range []string{link, filepath.Join(link, "not-yet")} {
-		s := &ImageScan{disk: disk, cfg: ImageScanConfig{EvidenceDir: dir}}
-		if why := s.evidenceDirRefused(); why == "" {
-			t.Fatalf("%s accepted", dir)
-		}
-	}
-	s := &ImageScan{disk: disk, cfg: ImageScanConfig{EvidenceDir: filepath.Join(data, ".evidence")}}
-	if why := s.evidenceDirRefused(); why != "" {
-		t.Fatalf("default refused: %s", why)
-	}
-}
 
 // 2.11: two sites queue the same bytes; the service is asked once.
 func TestImageScanWorkerHashCache(t *testing.T) {
@@ -928,7 +904,7 @@ func TestImageScanWorkerHashCache(t *testing.T) {
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
 	bad := testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	deployWithImages(t, a, olive, "first", map[string][]byte{"a.png": bad})
 	deployWithImages(t, a, olive, "second", map[string][]byte{"b.png": bad})
 	f.wait()
@@ -952,11 +928,11 @@ func TestImageScanAutoReport(t *testing.T) {
 	isolateQueueTest(t)
 	a, _ := newSiteApp(t, "canonical")
 	f := newImageScanFixture(t, a, a.sites.disk)
-	f.scan.cfg.AutoReport = true
+	f.scan.Config.AutoReport = true
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
 	bad := testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	deployWithImages(t, a, olive, "auto", map[string][]byte{"bad.png": bad})
 	f.wait()
 	f.scan.RunOnce(context.Background())
@@ -977,9 +953,9 @@ func TestImageScanAutoReport(t *testing.T) {
 		t.Fatalf("record.json: %s", b)
 	}
 	// Reports not configured: the match is 'off' and the route still files it once configured.
-	f.scan.cfg.ReportName = ""
+	f.scan.Config.ReportName = ""
 	other := testPNG(t)
-	f.markMatch(sha256Hex(other))
+	f.markMatch(operations.ImageHash(other))
 	deployWithImages(t, a, olive, "auto2", map[string][]byte{"x.png": other})
 	f.wait()
 	f.scan.RunOnce(context.Background())
@@ -987,23 +963,13 @@ func TestImageScanAutoReport(t *testing.T) {
 	if m2.ReportStatus != "off" {
 		t.Fatalf("unconfigured match status %q", m2.ReportStatus)
 	}
-	f.scan.cfg.ReportName = "Tester"
+	f.scan.Config.ReportName = "Tester"
 	if r := a.at(t, "POST", pcSiteDomain, "/v1/admin/image-scan/"+id64(m2.ID)+"/report", nil, map[string]string{"X-API-Key": a.admin}); r.status != 200 {
 		t.Fatalf("report of an 'off' match: %d %s", r.status, r.body)
 	}
 }
 
 // 2.17: a reply cut at the cap is kept as a JSON string.
-func TestImageScanRawJSON(t *testing.T) {
-	if got := rawJSON(json.RawMessage(`{"IsMatch":true}`)); string(got) != `{"IsMatch":true}` {
-		t.Fatalf("valid reply changed: %s", got)
-	}
-	got := rawJSON(json.RawMessage(`{"IsMatch":tr`))
-	var s string
-	if !json.Valid(got) || json.Unmarshal(got, &s) != nil || s != `{"IsMatch":tr` {
-		t.Fatalf("cut reply: %s", got)
-	}
-}
 
 // A1 and A2: a files-storage upload names who wrote it (the owner, or an
 // anonymous visitor, never the owner in their place), and the match keeps
@@ -1016,8 +982,8 @@ func TestImageScanStorageUploader(t *testing.T) {
 	a.sites.SetImageScan(f.scan)
 	ps.must(t, "PUT", "/resources/drop", map[string]string{"kind": "files", "preset": "inbox"}, ps.key, 201)
 	anonPic, ownerPic := testPNG(t), testPNG(t)
-	f.markMatch(sha256Hex(anonPic))
-	f.markMatch(sha256Hex(ownerPic))
+	f.markMatch(operations.ImageHash(anonPic))
+	f.markMatch(operations.ImageHash(ownerPic))
 	anon := map[string]string{"Content-Type": "image/png"}
 	for k, v := range ps.callers["anon"] {
 		anon[k] = v
@@ -1026,11 +992,11 @@ func TestImageScanStorageUploader(t *testing.T) {
 	ps.must(t, "PUT", "/files/drop/objects/owner.png", string(ownerPic), map[string]string{"X-API-Key": ps.owner.key, "Content-Type": "image/png"}, 200)
 	f.wait()
 	f.scan.RunOnce(context.Background())
-	rows, err := db.ListImageMatches(context.Background(), a.database, 50)
+	rows, err := opsrepo.ListImageMatches(context.Background(), a.database, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
-	byPath := map[string]db.ImageMatch{}
+	byPath := map[string]opsrepo.ImageMatch{}
 	for _, m := range rows {
 		if m.SiteID == ps.sid {
 			byPath[m.Path] = m
@@ -1074,7 +1040,7 @@ func TestImageScanEvidenceFolderExists(t *testing.T) {
 	}
 	olive := a.newPerson(t, "olive")
 	bad := testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	deployWithImages(t, a, olive, "taken", map[string][]byte{"bad.png": bad})
 	f.wait()
 	f.scan.RunOnce(context.Background())
@@ -1124,7 +1090,7 @@ func TestRemoveFileEverywhereSymlinkedDir(t *testing.T) {
 	if err := os.WriteFile(inside, bad, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := disk.RemoveFileEverywhere("u1", "s1", "img/bad.png", sha256Hex(bad)); err != nil {
+	if err := disk.RemoveFileEverywhere("u1", "s1", "img/bad.png", operations.ImageHash(bad)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(outside, "bad.png")); err != nil {
@@ -1145,7 +1111,7 @@ func TestImageScanRenameWindow(t *testing.T) {
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
 	bad := testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	deployWithImages(t, a, olive, "before", map[string][]byte{"bad.png": bad})
 	f.wait()
 	uid, _ := a.userID(t, olive)
@@ -1198,8 +1164,8 @@ func TestImageScanReportSaveFails(t *testing.T) {
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
 	bad, other := testPNG(t), testPNG(t)
-	f.markMatch(sha256Hex(bad))
-	f.markMatch(sha256Hex(other))
+	f.markMatch(operations.ImageHash(bad))
+	f.markMatch(operations.ImageHash(other))
 	deployWithImages(t, a, olive, "nosave", map[string][]byte{"bad.png": bad})
 	deployWithImages(t, a, olive, "flaky", map[string][]byte{"other.png": other})
 	f.wait()
@@ -1207,23 +1173,23 @@ func TestImageScanReportSaveFails(t *testing.T) {
 	ctx := context.Background()
 	m := latestMatch(t, a, a.siteID(t, olive, "nosave"))
 	saves := 0
-	f.scan.saveReport = func(context.Context, db.Querier, int64, string, string, string) error {
+	f.scan.SaveReport = func(context.Context, db.Querier, int64, string, string, string) error {
 		saves++
 		return errors.New("database down")
 	}
-	_, _, err := f.scan.fileReport(ctx, m.ID)
-	var saveErr *reportSaveError
+	_, _, err := f.scan.FileReport(ctx, m.ID)
+	var saveErr *operations.ReportSaveError
 	if !errors.As(err, &saveErr) {
 		t.Fatalf("first report: %v", err)
 	}
-	if saves != imageReportSaveTries {
-		t.Fatalf("save tried %d times, want %d", saves, imageReportSaveTries)
+	if saves != operations.ImageReportSaveTries {
+		t.Fatalf("save tried %d times, want %d", saves, operations.ImageReportSaveTries)
 	}
-	if got, _ := db.GetImageMatch(ctx, a.database, m.ID); got.ReportStatus == "filed" {
+	if got, _ := opsrepo.GetImageMatch(ctx, a.database, m.ID); got.ReportStatus == "filed" {
 		t.Fatalf("status saved through a failing save: %+v", got)
 	}
-	rid, _, err := f.scan.fileReport(ctx, m.ID)
-	if !errors.Is(err, errReportAlreadyFiled) || rid != "RPT-TEST-1" {
+	rid, _, err := f.scan.FileReport(ctx, m.ID)
+	if !errors.Is(err, operations.ErrReportAlreadyFiled) || rid != "RPT-TEST-1" {
 		t.Fatalf("second report: %q %v", rid, err)
 	}
 	if n := len(f.reporter.reports); n != 1 {
@@ -1233,21 +1199,21 @@ func TestImageScanReportSaveFails(t *testing.T) {
 	// whatever its context; a retry on the caller's context would fail too
 	// when that context has ended.
 	flaky := 0
-	f.scan.saveReport = func(ctx context.Context, q db.Querier, id int64, st, rid, e string) error {
+	f.scan.SaveReport = func(ctx context.Context, q db.Querier, id int64, st, rid, e string) error {
 		flaky++
 		if flaky == 1 {
 			return errors.New("database blip")
 		}
-		return db.SetImageMatchReport(ctx, q, id, st, rid, e)
+		return opsrepo.SetImageMatchReport(ctx, q, id, st, rid, e)
 	}
 	m2 := latestMatch(t, a, a.siteID(t, olive, "flaky"))
-	if _, _, err := f.scan.fileReport(ctx, m2.ID); err != nil {
+	if _, _, err := f.scan.FileReport(ctx, m2.ID); err != nil {
 		t.Fatalf("report with one failed save: %v", err)
 	}
 	if flaky != 2 {
 		t.Fatalf("save called %d times, want a failure then a success", flaky)
 	}
-	if got, _ := db.GetImageMatch(ctx, a.database, m2.ID); got.ReportStatus != "filed" || got.ReportID != "RPT-TEST-1" {
+	if got, _ := opsrepo.GetImageMatch(ctx, a.database, m2.ID); got.ReportStatus != "filed" || got.ReportID != "RPT-TEST-1" {
 		t.Fatalf("after a retried save: %+v", got)
 	}
 	// The caller's request has ended: the retry still lands.
@@ -1257,10 +1223,10 @@ func TestImageScanReportSaveFails(t *testing.T) {
 	flaky = 0
 	gone, cancel := context.WithCancel(ctx)
 	cancel()
-	if err := f.scan.saveFiled(gone, m2.ID, "RPT-ENDED"); err != nil {
+	if err := f.scan.SaveFiled(gone, m2.ID, "RPT-ENDED"); err != nil {
 		t.Fatalf("save after the caller ended: %v", err)
 	}
-	if got, _ := db.GetImageMatch(ctx, a.database, m2.ID); flaky != 2 || got.ReportStatus != "filed" || got.ReportID != "RPT-ENDED" {
+	if got, _ := opsrepo.GetImageMatch(ctx, a.database, m2.ID); flaky != 2 || got.ReportStatus != "filed" || got.ReportID != "RPT-ENDED" {
 		t.Fatalf("after the caller ended: calls %d, %+v", flaky, got)
 	}
 }
@@ -1280,8 +1246,8 @@ func TestImageScanHackUploader(t *testing.T) {
 	key := a.teamKey(t, slug, p1)
 	markReady(t, a.certDir, slug)
 	deployed, stored := testPNG(t), testPNG(t)
-	f.markMatch(sha256Hex(deployed))
-	f.markMatch(sha256Hex(stored))
+	f.markMatch(operations.ImageHash(deployed))
+	f.markMatch(operations.ImageHash(stored))
 	body := map[string]any{"files": map[string]string{"index.html": "<h1>alpha</h1>"},
 		"files_base64": map[string]string{"img/bad.png": base64.StdEncoding.EncodeToString(deployed)}}
 	if r := a.api(t, "PUT", "/v1/sites/"+team+"/files?create=1", body, key); r.status != http.StatusCreated && r.status != http.StatusOK {
@@ -1292,29 +1258,29 @@ func TestImageScanHackUploader(t *testing.T) {
 	f.wait()
 	f.scan.RunOnce(context.Background())
 	member := a.uid(t, p1)
-	rows, err := db.ListImageMatches(context.Background(), a.database, 50)
+	rows, err := opsrepo.ListImageMatches(context.Background(), a.database, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bySHA := map[string]db.ImageMatch{}
+	bySHA := map[string]opsrepo.ImageMatch{}
 	for _, m := range rows {
 		bySHA[m.SHA256] = m
 	}
-	site, obj := bySHA[sha256Hex(deployed)], bySHA[sha256Hex(stored)]
+	site, obj := bySHA[operations.ImageHash(deployed)], bySHA[operations.ImageHash(stored)]
 	if site.Kind != "site_file" || site.WriterID != member {
 		t.Fatalf("deploy match writer %q, want the member %s: %+v", site.WriterID, member, site)
 	}
 	if obj.Kind != "storage_file" || obj.WriterID != "user:"+member {
 		t.Fatalf("storage match writer %q, want user:%s: %+v", obj.WriterID, member, obj)
 	}
-	for _, m := range []db.ImageMatch{site, obj} {
+	for _, m := range []opsrepo.ImageMatch{site, obj} {
 		if !strings.Contains(m.Uploader, p1.email) || strings.Contains(m.Uploader, holdingAccountSuffix) {
 			t.Fatalf("%s: uploader %q, want %s", m.Kind, m.Uploader, p1.email)
 		}
 		if !strings.HasSuffix(m.OwnerEmail, holdingAccountSuffix) {
 			t.Fatalf("%s: owner %q is not the holding account; the test proves nothing", m.Kind, m.OwnerEmail)
 		}
-		if _, _, err := f.scan.fileReport(context.Background(), m.ID); err != nil {
+		if _, _, err := f.scan.FileReport(context.Background(), m.ID); err != nil {
 			t.Fatalf("%s report: %v", m.Kind, err)
 		}
 	}
@@ -1338,7 +1304,7 @@ func TestImageScanRecordedValues(t *testing.T) {
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
 	bad := testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	deployWithImages(t, a, olive, "recorded", map[string][]byte{"bad.png": bad})
 	f.wait()
 	f.scan.RunOnce(context.Background())
@@ -1356,13 +1322,13 @@ func TestImageScanRecordedValues(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE sites SET name = 'renamed' WHERE id = $1`, siteID); err != nil {
 		t.Fatal(err)
 	}
-	if now := f.scan.reporteeOf(ctx, m); now == m.Uploader {
+	if now := f.scan.ReporteeOf(ctx, m); now == m.Uploader {
 		t.Fatalf("the uploader did not change (%q); the test proves nothing", now)
 	}
-	if now := f.scan.addressOf(ctx, m); now == m.Address {
+	if now := f.scan.AddressOf(ctx, m); now == m.Address {
 		t.Fatalf("the address did not change (%q); the test proves nothing", now)
 	}
-	if _, _, err := f.scan.fileReport(ctx, m.ID); err != nil {
+	if _, _, err := f.scan.FileReport(ctx, m.ID); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.reporter.reports) != 1 {
@@ -1471,7 +1437,7 @@ func TestImageScanPostponeAfterRestore(t *testing.T) {
 		return d
 	}
 	// While deleted the postpone works.
-	if err := db.PostponeImageScan(ctx, a.database, id, imageScanDeletedWait); err != nil {
+	if err := opsrepo.PostponeImageScan(ctx, a.database, id, operations.ImageScanDeletedWait); err != nil {
 		t.Fatal(err)
 	}
 	if due() {
@@ -1484,7 +1450,7 @@ func TestImageScanPostponeAfterRestore(t *testing.T) {
 	if !due() {
 		t.Fatal("restore did not make the job due")
 	}
-	if err := db.PostponeImageScan(ctx, a.database, id, imageScanDeletedWait); err != nil {
+	if err := opsrepo.PostponeImageScan(ctx, a.database, id, operations.ImageScanDeletedWait); err != nil {
 		t.Fatal(err)
 	}
 	if !due() {
@@ -1515,16 +1481,16 @@ func TestImageScanRecordKeepsFiledReport(t *testing.T) {
 	a.sites.SetImageScan(f.scan)
 	olive := a.newPerson(t, "olive")
 	bad := testPNG(t)
-	f.markMatch(sha256Hex(bad))
+	f.markMatch(operations.ImageHash(bad))
 	deployWithImages(t, a, olive, "clicked", map[string][]byte{"bad.png": bad})
 	f.wait()
 	siteID := a.siteID(t, olive, "clicked")
 	ctx := context.Background()
 	var filedErr error
 	filed := false
-	f.scan.mailer = &hookMailer{hook: func() {
+	f.scan.Mailer = &hookMailer{hook: func() {
 		m := latestMatch(t, a, siteID)
-		_, _, filedErr = f.scan.fileReport(ctx, m.ID)
+		_, _, filedErr = f.scan.FileReport(ctx, m.ID)
 		filed = true
 	}}
 	f.scan.RunOnce(ctx)
@@ -1550,17 +1516,6 @@ func TestImageScanRecordKeepsFiledReport(t *testing.T) {
 
 // Pass 3b, item 5: with no uploader on record on an event's site, the
 // report names nobody, not the event's holding account.
-func TestImageScanReporteeNoHoldingAccount(t *testing.T) {
-	s := &ImageScan{}
-	m := db.ImageMatch{Kind: "site_file", OwnerHandle: "ev-holding", OwnerEmail: "ev-holding" + holdingAccountSuffix}
-	if got := s.reporteeOf(context.Background(), m); got != "uploader not recorded" {
-		t.Fatalf("reportee %q, want %q", got, "uploader not recorded")
-	}
-	m = db.ImageMatch{Kind: "storage_file", WriterID: "owner", OwnerHandle: "ev-holding", OwnerEmail: "ev-holding" + holdingAccountSuffix}
-	if got := s.reporteeOf(context.Background(), m); got != "uploader not recorded" {
-		t.Fatalf("owner write: reportee %q, want %q", got, "uploader not recorded")
-	}
-}
 
 // Pass 3b, item 6: an organiser's publish of the event website and an
 // organiser's event-storage upload record the organiser.
@@ -1573,8 +1528,8 @@ func TestImageScanHackOrganiserUploader(t *testing.T) {
 	slug := a.makeEvent(t, org)
 	markReady(t, a.certDir, slug)
 	deployed, stored := testPNG(t), testPNG(t)
-	f.markMatch(sha256Hex(deployed))
-	f.markMatch(sha256Hex(stored))
+	f.markMatch(operations.ImageHash(deployed))
+	f.markMatch(operations.ImageHash(stored))
 	ev := "/v1/hack/events/" + slug + "/website"
 	body := map[string]any{"files": map[string]string{"index.html": "<h1>event</h1>"},
 		"files_base64": map[string]string{"img/bad.png": base64.StdEncoding.EncodeToString(deployed)}}
@@ -1584,22 +1539,22 @@ func TestImageScanHackOrganiserUploader(t *testing.T) {
 	f.wait()
 	f.scan.RunOnce(context.Background())
 	organiser := a.uid(t, org)
-	rows, err := db.ListImageMatches(context.Background(), a.database, 50)
+	rows, err := opsrepo.ListImageMatches(context.Background(), a.database, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bySHA := map[string]db.ImageMatch{}
+	bySHA := map[string]opsrepo.ImageMatch{}
 	for _, m := range rows {
 		bySHA[m.SHA256] = m
 	}
-	site, obj := bySHA[sha256Hex(deployed)], bySHA[sha256Hex(stored)]
+	site, obj := bySHA[operations.ImageHash(deployed)], bySHA[operations.ImageHash(stored)]
 	if site.Kind != "site_file" || site.WriterID != organiser {
 		t.Fatalf("publish match writer %q, want the organiser %s: %+v", site.WriterID, organiser, site)
 	}
 	if obj.Kind != "storage_file" || obj.WriterID != "user:"+organiser {
 		t.Fatalf("storage match writer %q, want user:%s: %+v", obj.WriterID, organiser, obj)
 	}
-	for _, m := range []db.ImageMatch{site, obj} {
+	for _, m := range []opsrepo.ImageMatch{site, obj} {
 		if !strings.HasSuffix(m.OwnerEmail, holdingAccountSuffix) {
 			t.Fatalf("%s: owner %q is not the holding account; the test proves nothing", m.Kind, m.OwnerEmail)
 		}
@@ -1627,8 +1582,8 @@ func TestImageScanHackUploaderExistingSite(t *testing.T) {
 		t.Fatalf("team create: %d %s", r.status, r.body)
 	}
 	published, unpublished := testPNG(t), testPNG(t)
-	f.markMatch(sha256Hex(published))
-	f.markMatch(sha256Hex(unpublished))
+	f.markMatch(operations.ImageHash(published))
+	f.markMatch(operations.ImageHash(unpublished))
 	deploy := func(query string, img []byte) {
 		t.Helper()
 		body := map[string]any{"files": map[string]string{"index.html": "<h1>alpha</h1>"},
@@ -1650,7 +1605,7 @@ func TestImageScanHackUploaderExistingSite(t *testing.T) {
 	}
 	for name, img := range map[string][]byte{"publish=false": unpublished, "published": published} {
 		var writer string
-		if err := a.database.QueryRow(`SELECT writer_id FROM image_scan_queue WHERE sha256 = $1`, sha256Hex(img)).Scan(&writer); err != nil {
+		if err := a.database.QueryRow(`SELECT writer_id FROM image_scan_queue WHERE sha256 = $1`, operations.ImageHash(img)).Scan(&writer); err != nil {
 			t.Fatalf("%s: queued job: %v", name, err)
 		}
 		if writer != member {
@@ -1672,15 +1627,15 @@ func TestImageScanPostponeUnderLock(t *testing.T) {
 	f.wait()
 	siteID := a.siteID(t, olive, "locked")
 	ctx := context.Background()
-	j := db.ImageScanJob{Kind: "site_file", SiteID: siteID}
+	j := opsrepo.ImageScanJob{Kind: "site_file", SiteID: siteID}
 	if err := a.database.QueryRow(`SELECT id, version, path, sha256 FROM image_scan_queue WHERE site_id = $1`, siteID).Scan(&j.ID, &j.Version, &j.Path, &j.SHA256); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "DELETE", pcSiteDomain, "/v1/sites/locked", nil, okey); r.status != http.StatusNoContent {
 		t.Fatalf("delete: %d %s", r.status, r.body)
 	}
-	if _, err := f.scan.loadJobBytes(ctx, j); !errors.Is(err, errImageScanSiteDeleted) {
-		t.Fatalf("loadJobBytes: %v, want errImageScanSiteDeleted", err)
+	if _, err := f.scan.LoadJobBytes(ctx, j); !errors.Is(err, operations.ErrImageScanSiteDeleted) {
+		t.Fatalf("loadJobBytes: %v, want operations.ErrImageScanSiteDeleted", err)
 	}
 	var due bool
 	if err := a.database.QueryRow(`SELECT next_attempt_at <= now() FROM image_scan_queue WHERE id = $1`, j.ID).Scan(&due); err != nil {
@@ -1716,3 +1671,5 @@ func TestImageScanWakeCancelledContext(t *testing.T) {
 		t.Fatal("a cancelled request context stopped the wake")
 	}
 }
+
+const holdingAccountSuffix = "@events.invalid"

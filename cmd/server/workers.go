@@ -4,11 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/analytics"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/hackhttp"
 	"github.com/vsriram/simple-host/internal/handler"
-	"github.com/vsriram/simple-host/internal/papermetrics"
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
@@ -18,11 +17,11 @@ type workerDependencies struct {
 	oauth        *handler.OAuthHandler
 	connector    *handler.ConnectorHandler
 	hack         *hackhttp.HackHandler
-	image        *handler.ImageScan
-	paper        *papermetrics.Collector
-	metrics      *handler.APIMetrics
+	image        *operations.ImageScan
+	paper        *operations.PaperMetrics
+	metrics      *operations.APIMetrics
 	geo          *geoip.DB
-	analytics    *analytics.Ingester
+	analytics    *operations.AnalyticsIngest
 	eventDomains *handler.EventDomainHandler
 	hackSweep    func(context.Context)
 }
@@ -52,7 +51,7 @@ func registerWorkers(d workerDependencies) *workers.Set {
 	s.Add(d.geo.WatchWorker(time.Minute))
 	s.Add(d.metrics)
 	if d.analytics != nil {
-		s.Add(d.analytics.Worker(5 * time.Minute))
+		s.Add(d.analytics)
 	} else {
 		s.AddDisabled("operations.analytics_ingest")
 	}

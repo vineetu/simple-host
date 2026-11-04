@@ -1,4 +1,4 @@
-package db
+package operations
 
 import (
 	"context"
@@ -37,25 +37,25 @@ func TestPersonViewsBySite(t *testing.T) {
 	}
 	ctx := context.Background()
 	stamp := time.Now().Format("20060102150405.000000000")
-	u, err := CreateUser(ctx, database, "views-"+stamp+"@example.com", "shk_views_"+stamp, false)
+	u, err := analyticsTestUser(ctx, database, "views-"+stamp+"@example.com", "shk_views_"+stamp, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = database.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, u.ID) })
-	other, err := CreateUser(ctx, database, "views-other-"+stamp+"@example.com", "shk_views_other_"+stamp, false)
+	other, err := analyticsTestUser(ctx, database, "views-other-"+stamp+"@example.com", "shk_views_other_"+stamp, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = database.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, other.ID) })
-	site, err := CreateSite(ctx, database, u.ID, "shop", "https://example.test/shop/", nil)
+	site, err := analyticsTestSite(ctx, database, u.ID, "shop", "https://example.test/shop/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	quiet, err := CreateSite(ctx, database, u.ID, "quiet", "https://example.test/quiet/", nil)
+	quiet, err := analyticsTestSite(ctx, database, u.ID, "quiet", "https://example.test/quiet/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	theirs, err := CreateSite(ctx, database, other.ID, "theirs", "https://example.test/theirs/", nil)
+	theirs, err := analyticsTestSite(ctx, database, other.ID, "theirs", "https://example.test/theirs/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,4 +101,15 @@ func TestPersonViewsBySite(t *testing.T) {
 	if want := (SiteViews{People7Days: 5, People30Days: 12}); all[site.ID] != want {
 		t.Errorf("all sites, shop: %+v, want %+v", all[site.ID], want)
 	}
+}
+
+func analyticsTestUser(ctx context.Context, database *sql.DB, email, key string, admin bool) (struct{ ID string }, error) {
+	var u struct{ ID string }
+	err := database.QueryRowContext(ctx, `INSERT INTO users(username,is_admin) VALUES($1,$2) RETURNING id`, email, admin).Scan(&u.ID)
+	return u, err
+}
+func analyticsTestSite(ctx context.Context, database *sql.DB, userID, name, url string, _ any) (struct{ ID string }, error) {
+	var s struct{ ID string }
+	err := database.QueryRowContext(ctx, `INSERT INTO sites(user_id,name,site_url) VALUES($1,$2,$3) RETURNING id`, userID, name, url).Scan(&s.ID)
+	return s, err
 }

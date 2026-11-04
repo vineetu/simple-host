@@ -1,4 +1,4 @@
-package handler
+package operations
 
 import (
 	"context"
@@ -6,8 +6,12 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
+	"github.com/vsriram/simple-host/internal/edition"
+	"github.com/vsriram/simple-host/internal/model"
+	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
+	repo "github.com/vsriram/simple-host/internal/repository/operations"
+	db "github.com/vsriram/simple-host/internal/repository/sites"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -15,7 +19,8 @@ import (
 // only non-deleted sites outside KEEP_VERSIONS_SELF_SET, and uses the same
 // rows-first, folders-second path as deploys. l is the instance's limits
 // snapshot (config.LoadLimits), since this runs outside any server edition.
-func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk *storage.DiskStorage, l config.Limits, apply bool, out io.Writer) error {
+func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk *storage.DiskStorage, ed *edition.Edition, keepVersions int, apply bool, out io.Writer) error {
+	l := ed.Limits()
 	if l.KeepVersionsSelfSet == "" || keepVersions <= 0 {
 		return fmt.Errorf("cleanup requires KEEP_VERSIONS_SELF_SET and a positive KEEP_VERSIONS")
 	}
@@ -23,15 +28,45 @@ func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk *storage.Dis
 	if err != nil {
 		return err
 	}
-	h := &SiteHandler{limitSet: newLimitSet(l), database: database, disk: disk}
+
+	floorOf := func(versions []model.Version, keep int) int {
+		if keep <= 0 || len(versions) <= keep {
+			return 0
+		}
+		return versions[keep-1].VersionNumber
+	}
+	handlesOf := func(ctx context.Context, u *model.User) []string {
+		handles := []string{u.Handle.String}
+		if aliases, err := repo.OperatorHandleAliases(ctx, database, u.ID); err == nil {
+			handles = append(handles, aliases...)
+		}
+		return handles
+	}
+	pruner := appsites.New(database, disk, nil, 0, appsites.Deps{
+		AccountRetention: func(ctx context.Context, id string, siteKeep int) (int, error) {
+			u, err := accounts.GetUserByID(ctx, database, id)
+			if err != nil {
+				return 0, err
+			}
+			handles := handlesOf(ctx, &u)
+			keep := l.KeepVersionsFor(keepVersions, handles...)
+			if l.CanSetKeepVersions(handles...) && siteKeep > 0 {
+				keep = siteKeep
+			}
+			return keep, nil
+		},
+		RetainedFloor: func(versions []model.Version, keep, active, siteKeep int) int { return floorOf(versions, keep) },
+		PinnedFloor:   func(_ context.Context, _, _ string, floor int) int { return floor },
+	})
+
 	var freed int64
 	fmt.Fprintln(out, "account\tsite\tversions removed\tMB freed")
 	for _, site := range sites {
-		user, err := db.GetUserByID(ctx, database, site.UserID)
+		user, err := accounts.GetUserByID(ctx, database, site.UserID)
 		if err != nil {
 			return err
 		}
-		if l.CanSetKeepVersions(accountHandles(ctx, database, &user)...) {
+		if l.CanSetKeepVersions(handlesOf(ctx, &user)...) {
 			continue
 		}
 		// Keep the site locked in the DB while previewing and pruning: a rollback
@@ -57,7 +92,7 @@ func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk *storage.Dis
 			tx.Rollback()
 			return err
 		}
-		floor := retainedFloor(versions, keepVersions)
+		floor := floorOf(versions, keepVersions)
 		f, err := disk.SiteFootprint(site.UserID, site.Name)
 		if err != nil {
 			tx.Rollback()
@@ -72,11 +107,11 @@ func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk *storage.Dis
 			}
 		}
 		if apply {
-			if _, err = tx.ExecContext(ctx, `UPDATE sites SET keep_versions=0 WHERE id=$1`, site.ID); err != nil {
+			if _, err = repo.ResetFixedRetention(ctx, tx, site.ID); err != nil {
 				tx.Rollback()
 				return err
 			}
-			removed := h.pruneVersions(ctx, site.ID, site.UserID, site.Name, active, 0)
+			removed := pruner.PruneVersions(ctx, appsites.PruneInput{SiteID: site.ID, UserID: site.UserID, SiteName: site.Name, ActiveVersion: active})
 			if len(removed) != len(remove) {
 				tx.Rollback()
 				return fmt.Errorf("prune %s: expected %d removed rows, got %d", site.Name, len(remove), len(removed))

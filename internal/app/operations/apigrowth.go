@@ -1,4 +1,4 @@
-package handler
+package operations
 
 import (
 	"bufio"
@@ -6,20 +6,17 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	repo "github.com/vsriram/simple-host/internal/repository/operations"
 	"io"
-	"log"
 	"math"
-	"net/http"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
-
 	"github.com/vsriram/simple-host/internal/analytics"
-	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/geoip"
 )
@@ -148,17 +145,7 @@ func flushGrowth(ctx context.Context, q interface {
 		keys = append(keys, k.key)
 		calls = append(calls, n)
 	}
-	dayExpr := "CURRENT_DATE"
-	args := []any{pq.Array(dims), pq.Array(keys), pq.Array(calls)}
-	if day != "" {
-		dayExpr = "$4::date"
-		args = append(args, day)
-	}
-	_, err := q.ExecContext(ctx, `
-		INSERT INTO api_growth_daily (day, dim, key, calls)
-		SELECT `+dayExpr+`, d, k, c FROM unnest($1::text[], $2::text[], $3::bigint[]) AS t(d, k, c)
-		ON CONFLICT (day, dim, key) DO UPDATE SET calls = api_growth_daily.calls + EXCLUDED.calls`, args...)
-	return err
+	return repo.FlushGrowth(ctx, q, day, dims, keys, calls)
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +159,7 @@ func NewAPIGrowthBackfiller(db *sql.DB, geo *geoip.DB, editions ...*edition.Edit
 	if len(editions) > 0 {
 		ed = editions[0]
 	}
-	return &APIMetrics{limitSet: newLimitSet(ed.Limits()), db: db, geo: geo, routes: map[routeKey]int64{}, self: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
+	return &APIMetrics{ed: ed, db: db, geo: geo, routes: map[routeKey]int64{}, self: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
 }
 
 // BackfillGrowth fills api_growth_daily from the API traffic tables for every
@@ -195,66 +182,33 @@ func (m *APIMetrics) BackfillGrowth(ctx context.Context) (added int64, err error
 	}
 	src := map[dk]int64{}
 
-	rows, err := m.db.QueryContext(ctx, `SELECT day::text, route, SUM(calls) FROM api_request_daily GROUP BY day, route`)
+	counts, err := repo.APIRequestCounts(ctx, m.db)
 	if err != nil {
 		return 0, fmt.Errorf("read api_request_daily: %w", err)
 	}
-	for rows.Next() {
-		var day, route string
-		var n int64
-		if err := rows.Scan(&day, &route, &n); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		src[dk{day, growthKey{growthDimGroup, apiRouteGroup(route)}}] += n
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return 0, err
+	for _, c := range counts {
+		src[dk{c.Day, growthKey{growthDimGroup, apiRouteGroup(c.Key)}}] += c.Calls
 	}
 
-	rows, err = m.db.QueryContext(ctx, `SELECT day::text, ip, SUM(calls) FROM api_ip_daily GROUP BY day, ip`)
+	counts, err = repo.APIIPCounts(ctx, m.db)
 	if err != nil {
 		return 0, fmt.Errorf("read api_ip_daily: %w", err)
 	}
-	for rows.Next() {
-		var day, ip string
-		var n int64
-		if err := rows.Scan(&day, &ip, &n); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		src[dk{day, growthKey{growthDimCountry, m.countryOf(ip)}}] += n
+	for _, c := range counts {
+		src[dk{c.Day, growthKey{growthDimCountry, m.countryOf(c.Key)}}] += c.Calls
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
+
 	if len(src) == 0 {
 		return 0, nil
 	}
 
 	have := map[dk]int64{}
-	rows, err = m.db.QueryContext(ctx, `
-		SELECT day::text, dim, key, calls FROM api_growth_daily
-		WHERE day >= (SELECT LEAST(
-			(SELECT MIN(day) FROM api_request_daily),
-			(SELECT MIN(day) FROM api_ip_daily)))`)
+	existing, err := repo.ExistingGrowth(ctx, m.db)
 	if err != nil {
 		return 0, fmt.Errorf("read api_growth_daily: %w", err)
 	}
-	for rows.Next() {
-		var k dk
-		var n int64
-		if err := rows.Scan(&k.day, &k.dim, &k.key, &n); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		have[k] = n
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return 0, err
+	for _, c := range existing {
+		have[dk{c.Day, growthKey{c.Dim, c.Key}}] = c.Calls
 	}
 
 	byDay := map[string]map[growthKey]int64{}
@@ -304,18 +258,10 @@ func (m *APIMetrics) BackfillGrowthFromLogs(ctx context.Context, paths []string)
 
 	m.flushMu.Lock()
 	defer m.flushMu.Unlock()
-	covered := map[string]bool{}
-	rows, err := m.db.QueryContext(ctx, `SELECT DISTINCT day::text FROM api_growth_daily WHERE dim = $1 AND key = 'connector' AND calls > 0`, growthDimGroup)
+	covered, err := repo.ConnectorDays(ctx, m.db)
 	if err != nil {
 		return 0, err
 	}
-	for rows.Next() {
-		var d string
-		if rows.Scan(&d) == nil {
-			covered[d] = true
-		}
-	}
-	rows.Close()
 
 	tx, err := m.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -492,42 +438,27 @@ type growthCacheEntry struct {
 // /v1/admin/api-analytics (a signed-in non-admin gets 404). Every number comes
 // from day-granular aggregates plus two GROUP BYs over users and sites, and
 // each range's answer is cached for a minute.
-func (m *APIMetrics) AdminGrowth(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	if user == nil {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
-		return
-	}
-	if !user.IsAdmin {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
-		return
-	}
-	rng := r.URL.Query().Get("range")
+var ErrGrowthRange = errors.New("range must be one of 7d, 14d, 30d, 6m")
+
+func (m *APIMetrics) Growth(ctx context.Context, rng string) ([]byte, error) {
 	if rng == "" {
 		rng = "30d"
 	}
 	days, ok := growthRanges[rng]
 	if !ok {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "range must be one of 7d, 14d, 30d, 6m"})
-		return
+		return nil, ErrGrowthRange
 	}
-
 	m.cacheMu.Lock()
 	if e, ok := m.cache[rng]; ok && time.Since(e.at) < growthCacheTTL {
 		m.cacheMu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(e.body)
-		return
+		return e.body, nil
 	}
 	m.cacheMu.Unlock()
 
 	m.flush() // fold in the calls of the last few seconds
-	out, err := m.growthReport(r.Context(), rng, days)
+	out, err := m.growthReport(ctx, rng, days)
 	if err != nil {
-		log.Printf("api growth: %v", err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "growth query failed"})
-		return
+		return nil, err
 	}
 	body, _ := json.Marshal(out)
 	m.cacheMu.Lock()
@@ -536,16 +467,14 @@ func (m *APIMetrics) AdminGrowth(w http.ResponseWriter, r *http.Request) {
 	}
 	m.cache[rng] = growthCacheEntry{at: time.Now(), body: body}
 	m.cacheMu.Unlock()
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Write(body)
+	return body, nil
 }
 
 // growthReport builds one range's answer. "Today" is the database's CURRENT_DATE,
 // the same clock every counter is written with.
 func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*growthResponse, error) {
-	var today time.Time
-	if err := m.db.QueryRowContext(ctx, `SELECT CURRENT_DATE`).Scan(&today); err != nil {
+	today, err := repo.APIToday(ctx, m.db)
+	if err != nil {
 		return nil, err
 	}
 	win := newGrowthWindow(today, days)
@@ -557,7 +486,7 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 		Range: rng, Days: days,
 		From: win.dates[0], To: win.dates[len(win.dates)-1],
 		Dates: win.dates, GroupOrder: growthGroups,
-		Retention:   m.limits.APIGrowthRetention,
+		Retention:   m.ed.Limits().APIGrowthRetention,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		API:         growthSeries{Daily: make([]int64, days), Groups: map[string][]int64{}},
 		Users:       growthSeries{Daily: make([]int64, days)},
@@ -570,8 +499,8 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 	prevFrom, to := win.PrevFrom.Format("2006-01-02"), win.To.Format("2006-01-02")
 	from := win.From.Format("2006-01-02")
 
-	var since sql.NullString
-	if err := m.db.QueryRowContext(ctx, `SELECT MIN(day)::text FROM api_growth_daily`).Scan(&since); err != nil {
+	since, err := repo.GrowthSince(ctx, m.db)
+	if err != nil {
 		return nil, err
 	}
 	if since.Valid {
@@ -579,19 +508,12 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 	}
 
 	// Calls by kind, per day, over both periods.
-	rows, err := m.db.QueryContext(ctx, `
-		SELECT day::text, key, calls FROM api_growth_daily
-		WHERE dim = $1 AND day BETWEEN $2::date AND $3::date`, growthDimGroup, prevFrom, to)
+	counts, err := repo.GrowthGroups(ctx, m.db, prevFrom, to)
 	if err != nil {
 		return nil, err
 	}
-	for rows.Next() {
-		var day, key string
-		var n int64
-		if err := rows.Scan(&day, &key, &n); err != nil {
-			rows.Close()
-			return nil, err
-		}
+	for _, c := range counts {
+		day, key, n := c.Day, c.Key, c.Calls
 		i, cur := idx[day]
 		if !cur {
 			out.API.Previous += n
@@ -604,28 +526,17 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 		out.API.Daily[i] += n
 		out.API.Total += n
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
 	// Only compare with a previous period that was counted from its first day.
 	apiComparable := since.Valid && since.String <= prevFrom
 	out.API.ChangePct = changePct(out.API.Total, out.API.Previous, apiComparable)
 
 	// Calls by country over the current period.
-	rows, err = m.db.QueryContext(ctx, `
-		SELECT key, SUM(calls) FROM api_growth_daily
-		WHERE dim = $1 AND day BETWEEN $2::date AND $3::date
-		GROUP BY key ORDER BY SUM(calls) DESC, key`, growthDimCountry, from, to)
+	counts, err = repo.GrowthCountries(ctx, m.db, from, to)
 	if err != nil {
 		return nil, err
 	}
-	for rows.Next() {
-		var c growthCountry
-		if err := rows.Scan(&c.Code, &c.Calls); err != nil {
-			rows.Close()
-			return nil, err
-		}
+	for _, row := range counts {
+		c := growthCountry{Code: row.Key, Calls: row.Calls}
 		if c.Code == unknownCountry {
 			out.UnknownCalls += c.Calls
 			continue
@@ -633,16 +544,9 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 		c.Name = analytics.CountryName(c.Code)
 		out.Countries = append(out.Countries, c)
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
 	// Calls from this server itself over the current period, shown apart.
-	if err := m.db.QueryRowContext(ctx, `
-		SELECT COALESCE(SUM(calls), 0) FROM api_growth_daily
-		WHERE dim = $1 AND key = $2 AND day BETWEEN $3::date AND $4::date`,
-		growthDimSource, growthKeySelf, from, to).Scan(&out.SelfCalls); err != nil {
+	out.SelfCalls, err = repo.GrowthSelf(ctx, m.db, from, to)
+	if err != nil {
 		return nil, err
 	}
 
@@ -652,24 +556,12 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 		table string
 		s     *growthSeries
 	}{{"users", &out.Users}, {"sites", &out.Sites}} {
-		filter := ""
-		if q.table == "users" {
-			filter = " AND EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id)"
-		}
-		rows, err := m.db.QueryContext(ctx, `
-            SELECT created_at::date::text, COUNT(*) FROM `+q.table+`
-			WHERE created_at >= $1::date AND created_at < $2::date + 1`+filter+`
-			GROUP BY 1`, prevFrom, to)
+		counts, err := repo.GrowthCreated(ctx, m.db, q.table, prevFrom, to)
 		if err != nil {
 			return nil, err
 		}
-		for rows.Next() {
-			var day string
-			var n int64
-			if err := rows.Scan(&day, &n); err != nil {
-				rows.Close()
-				return nil, err
-			}
+		for _, c := range counts {
+			day, n := c.Day, c.Calls
 			if i, cur := idx[day]; cur {
 				q.s.Daily[i] += n
 				q.s.Total += n
@@ -677,12 +569,11 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 				q.s.Previous += n
 			}
 		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
 		q.s.ChangePct = changePct(q.s.Total, q.s.Previous, true)
 	}
 	sort.SliceStable(out.Countries, func(i, j int) bool { return out.Countries[i].Calls > out.Countries[j].Calls })
 	return out, nil
 }
+
+// GrowthResponse is the operator growth report.
+type GrowthResponse = growthResponse

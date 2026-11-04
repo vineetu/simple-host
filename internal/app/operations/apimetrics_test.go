@@ -1,0 +1,199 @@
+package operations
+
+import (
+	"context"
+	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"net/http"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"testing"
+
+	"github.com/vsriram/simple-host/internal/geoip"
+	"github.com/vsriram/simple-host/internal/geoip/geoiptest"
+)
+
+func TestLocateLocalDB(t *testing.T) {
+	dir := t.TempDir()
+	if err := geoiptest.Write(filepath.Join(dir, geoip.CityFile), "DBIP-City-Lite", map[string]geoiptest.Record{
+		"8.8.8.0/24": geoiptest.CityRecord("Mountain View", "United States"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := geoiptest.Write(filepath.Join(dir, geoip.ASNFile), "DBIP-ASN-Lite", map[string]geoiptest.Record{
+		"8.8.8.0/24": geoiptest.ASNRecord(15169, "Google LLC"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	geo := geoip.Open(dir)
+	defer geo.Close()
+	m := &APIMetrics{geo: geo}
+
+	cases := []struct{ ip, where, org string }{
+		{"8.8.8.8", "Mountain View, United States", "Google LLC"},
+		{"127.0.0.1", "this box", "local"},
+		{"10.1.2.3", "this box", "local"},
+		{"::1", "this box", "local"},
+		{"fe80::1", "this box", "local"},
+		{"1.1.1.1", "", ""},
+	}
+	for _, c := range cases {
+		where, org := m.locate(c.ip)
+		if where != c.where || org != c.org {
+			t.Errorf("locate(%q) = %q, %q; want %q, %q", c.ip, where, org, c.where, c.org)
+		}
+	}
+}
+
+func TestLocateMissingDBNoNetwork(t *testing.T) {
+	var calls atomic.Int32
+	orig := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		return nil, errors.New("network disabled in test: " + r.URL.String())
+	})
+	defer func() { http.DefaultTransport = orig }()
+
+	geo := geoip.Open(filepath.Join(t.TempDir(), "missing"))
+	defer geo.Close()
+	for _, m := range []*APIMetrics{{geo: geo}, {geo: nil}} {
+		for _, ip := range []string{"8.8.8.8", "1.1.1.1", "2606:4700:4700::1111"} {
+			if where, org := m.locate(ip); where != "" || org != "" {
+				t.Errorf("locate(%q) with no DB = %q, %q; want blank", ip, where, org)
+			}
+		}
+		if where, _ := m.locate("127.0.0.1"); where != "this box" {
+			t.Errorf("private IP with no DB = %q, want \"this box\"", where)
+		}
+	}
+	if n := calls.Load(); n != 0 {
+		t.Fatalf("%d HTTP request(s) made while resolving caller IPs", n)
+	}
+}
+
+func TestAPIMetricsMakesNoOutboundCalls(t *testing.T) {
+	for _, file := range []string{"apimetrics.go", "apigrowth.go"} {
+		checkNoOutboundCalls(t, file)
+	}
+}
+
+func checkNoOutboundCalls(t *testing.T, file string) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, imp := range f.Imports {
+		p, _ := strconv.Unquote(imp.Path.Value)
+		if p == "net/http/httputil" || p == "net/rpc" || strings.HasPrefix(p, "golang.org/x/net") {
+			t.Errorf("%s imports %s", file, p)
+		}
+	}
+	banned := map[string]bool{
+		// net/http client surface. (http.Handler, ResponseWriter, Request as a
+		// server-side parameter etc. are fine.)
+		"Client": true, "DefaultClient": true, "NewRequest": true, "NewRequestWithContext": true,
+		"Get": true, "Post": true, "PostForm": true, "Head": true, "Transport": true, "DefaultTransport": true,
+		// net dialing.
+		"Dial": true, "DialTimeout": true, "DialTCP": true, "DialUDP": true, "Dialer": true,
+		"LookupHost": true, "LookupIP": true, "LookupAddr": true,
+	}
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.SelectorExpr:
+			if id, ok := x.X.(*ast.Ident); ok && (id.Name == "http" || id.Name == "net") && banned[x.Sel.Name] {
+				t.Errorf("%s: %s.%s — apimetrics must not make outbound calls", fset.Position(x.Pos()), id.Name, x.Sel.Name)
+			}
+		case *ast.BasicLit:
+			if x.Kind == token.STRING {
+				s := strings.ToLower(x.Value)
+				if strings.Contains(s, "http://") || strings.Contains(s, "https://") || strings.Contains(s, "ip-api") {
+					t.Errorf("%s: external URL literal %s in %s", fset.Position(x.Pos()), x.Value, file)
+				}
+			}
+		}
+		return true
+	})
+}
+
+func TestTruncateIP(t *testing.T) {
+	for in, want := range map[string]string{
+		"203.0.113.77":         "203.0.113.0",
+		"2001:db8:1:2:3:4:5:6": "2001:db8:1::",
+		"::ffff:198.51.100.9":  "198.51.100.0",
+		"127.0.0.1":            "127.0.0.1",
+		"::1":                  "::1",
+		"10.1.2.3":             "10.1.2.0",
+		"not-an-ip":            "not-an-ip",
+	} {
+		if got := truncateIP(in); got != want {
+			t.Errorf("truncateIP(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestAPIMetricsPrunesAtStartup(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "apimetrics.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range f.Decls {
+		fn, ok := d.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "flushLoop" {
+			continue
+		}
+		for _, st := range fn.Body.List {
+			if _, isFor := st.(*ast.ForStmt); isFor {
+				break
+			}
+			if es, ok := st.(*ast.ExprStmt); ok {
+				if call, ok := es.X.(*ast.CallExpr); ok {
+					if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "pruneOldContext" {
+						return
+					}
+				}
+			}
+		}
+		t.Fatal("flushLoop does not call pruneOldContext before its loop")
+	}
+	t.Fatal("flushLoop not found")
+}
+
+func TestAPIMetricsStopFlushesBuffer(t *testing.T) {
+	database := growthTestDB(t)
+	m := NewAPIMetrics(database, nil)
+	if m.Status()[0].Running {
+		t.Fatal("constructor started a worker")
+	}
+	m.record("GET /v1/sites", 200, "203.0.113.0", "XX")
+	m.recordSelf("GET /v1/sites", 200)
+	m.Start(context.Background())
+	t.Cleanup(func() { m.Stop(); m.Wait() })
+	m.Stop()
+	m.Wait()
+	for _, table := range []string{"api_request_daily", "api_self_daily", "api_ip_daily"} {
+		var n int64
+		if err := database.QueryRow("SELECT COALESCE(SUM(calls),0) FROM " + table).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("%s calls=%d err=%v", table, n, err)
+		}
+	}
+	if m.Status()[0].Running || m.Status()[0].LastProgress == nil {
+		t.Fatalf("stopped status: %+v", m.Status())
+	}
+	// Stop and Wait are safe to repeat and must not flush the same counts twice.
+	m.Stop()
+	m.Wait()
+	var n int64
+	if err := database.QueryRow(`SELECT SUM(calls) FROM api_request_daily`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("repeat stop calls=%d err=%v", n, err)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

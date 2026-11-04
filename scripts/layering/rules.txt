@@ -67,7 +67,6 @@ hackhttp -> email production # removal step 5.4: final transport boundary
 hackhttp -> handler test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 hackhttp -> mcp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 handler -> @/hack-toolkit production # removal step 5.4: webassets extraction
-handler -> analytics production # removal step 5.4: worker lifecycle and operations
 handler -> brain production # removal step 5.4: final transport boundary
 handler -> config production # removal step 5.4: final transport boundary
 handler -> db production # removal step 5.4: site and storage workflows
@@ -75,7 +74,6 @@ handler -> email production # removal step 5.4: final transport boundary
 handler -> eventdns production # removal step 5.4: site and storage workflows
 handler -> geoip production # removal step 5.4: worker lifecycle and operations
 handler -> hackhttp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
-handler -> imagescan production # removal step 5.4: worker lifecycle and operations
 handler -> oauth production # removal step 5.4: final transport boundary
 handler -> rules/auth production # removal step 5.4: site and storage workflows
 handler -> rules/sites production # removal step 5.4: site and storage workflows
@@ -89,11 +87,9 @@ hackhttp -> db test # removal step 5.4: Host fixtures and Hack compatibility ali
 hackhttp -> rules/auth test # removal step 5.4: site and storage workflows
 hackhttp -> rules/hackevents test # removal step 5.4: event rule tests
 hackhttp -> rules/hackentries test # removal step 5.4: rubric test fixtures
-handler -> analytics test # removal step 5.4: worker lifecycle and operations
 handler -> brain test # removal step 5.4: final transport boundary
 handler -> db test # removal step 5.4: site and storage workflows
 handler -> geoip test # removal step 5.4: worker lifecycle and operations
-handler -> imagescan test # removal step 5.4: worker lifecycle and operations
 handler -> oauth test # removal step 5.4: final transport boundary
 handler -> tarball test # removal step 5.4: site and storage workflows
 handler -> wpimport test # removal step 5.4: site and storage workflows

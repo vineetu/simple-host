@@ -23,7 +23,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -51,8 +50,6 @@ var assetExt = map[string]struct{}{
 
 // Ingester tails an nginx analytics log and upserts daily aggregates.
 type Ingester struct {
-	startOnce   sync.Once
-	runner      *workers.Runner
 	tracker     *workers.Tracker
 	db          *sql.DB
 	logPath     string
@@ -82,7 +79,7 @@ const otherItem = "(other)"
 // (ADMIN_API_KEY); contentHost and siteDomain drive host→site attribution.
 func NewIngester(db *sql.DB, logPath, saltSecret, contentHost, siteDomain string) *Ingester {
 	t := workers.NewTracker("operations.analytics_ingest")
-	return &Ingester{runner: workers.NewRunner(t), tracker: t,
+	return &Ingester{tracker: t,
 		db:            db,
 		logPath:       logPath,
 		salt:          visitorSalt(saltSecret),
@@ -145,57 +142,11 @@ func (i *Ingester) WithSalt(salt string) *Ingester {
 	return i
 }
 
-// Worker adapts the interval to the ingester's shared lifecycle. Start is
-// guarded on the Ingester, including across compatibility calls and wrappers.
-// Production uses five minutes.
-func (i *Ingester) Worker(interval time.Duration) workers.Owner {
-	return &ingestWorker{Ingester: i, interval: interval}
-}
+// RunOnce ingests the next bounded log chunk.
+func (i *Ingester) RunOnce(ctx context.Context) error { return i.runOnce(ctx) }
 
-type ingestWorker struct {
-	*Ingester
-	interval time.Duration
-}
-
-func (w *ingestWorker) Start(ctx context.Context) {
-	w.startOnce.Do(func() {
-		w.runner.Go(ctx, func(ctx context.Context) {
-			timer := time.NewTimer(0)
-			defer timer.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-timer.C:
-				}
-				if ctx.Err() != nil {
-					return
-				}
-				func() {
-					w.tracker.Attempt()
-					defer func() {
-						if rec := recover(); rec != nil {
-							w.tracker.Fail("ingest panic", fmt.Errorf("%v", rec))
-						}
-					}()
-					ctx, cancel := context.WithTimeout(ctx, runTimeout)
-					defer cancel()
-					if err := w.runOnce(ctx); err != nil {
-						w.tracker.Fail("ingest", err)
-					}
-				}()
-				timer.Reset(w.interval)
-			}
-		})
-	})
-}
-
-// Start is the compatibility entry point. Retain Worker in server startup.
-func (i *Ingester) Start(interval time.Duration) { i.Worker(interval).Start(context.Background()) }
-
-func (i *Ingester) Stop()                    { i.runner.Stop() }
-func (i *Ingester) Wait()                    { i.runner.Wait() }
-func (i *Ingester) Status() []workers.Status { return i.runner.Status() }
+// ProgressTracker is shared with the owning operations loop.
+func (i *Ingester) ProgressTracker() *workers.Tracker { return i.tracker }
 
 // bucketKey identifies one aggregate row: a site, a UTC hour, and who was asking.
 type bucketKey struct {

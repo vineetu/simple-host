@@ -128,7 +128,8 @@ The following packages exist today (verified with `go list ./internal/...`):
 | `model` | Shared records without SQL or transport |
 | `storage` | Deployment trees, symlinks/markers, runtime files and per-site SQLite mechanics |
 | `edition`, `config` | Injected fixed product policy; environment parsing and settings catalog |
-| `analytics`, `netusage`, `papermetrics` | Access-log aggregation, network sampling and research metrics |
+| `app/operations`, `repository/operations` | Operator reports, API aggregation/retention, measurement and scan lifecycle; report and scan SQL |
+| `analytics`, `netusage`, `papermetrics` | Access-log, network-counter and research measurement mechanisms |
 | `email`, `eventdns`, `oauth`, `imagescan` | Provider clients |
 | `geoip`, `capacity`, `tarball`, `wpimport` | Local country lookup, disk capacity, archives and WordPress import |
 | `brain`, `buildinfo` | Product-knowledge bundle support; stamped version/commit/build time |
@@ -168,7 +169,7 @@ MCP Apps are mapped in [frontend](docs/architecture/frontend.md). Hosted Hack on
 
 - Visitor analytics use local country lookup and salted visitor hashes, without injected page
   analytics. Logs exclude query strings (`deploy/prod/nginx-analytics-logformat.conf`); API metrics
-  truncate IPs to /24 or /48 (`internal/analytics`, `handler/apimetrics.go:truncateIP`).
+  truncate IPs to /24 or /48 (`internal/analytics`, `app/operations/apimetrics.go:truncateIP`).
 - Account middleware reads keys, not visitor cookies (`auth/middleware.go:Middleware`). Hosted
   pages use site-scoped visitor identity; do not embed an owner's key in a hosted page.
 - Site gates include suspension/offline, passcodes or named viewers; unlisted is listing/robots
@@ -185,7 +186,7 @@ MCP Apps are mapped in [frontend](docs/architecture/frontend.md). Hosted Hack on
 - `openapi.yaml` is the source contract; JSON is generated. Served specs filter `x-audience`
   operations and unused components (`handler/hack_assets.go:publicOpenAPISpec`).
 - Deployment versions and runtime saved files are distinct. `storage/disk.go` is not the only
-  writer under a site directory (`storage/runtime_files.go`, `handler/imagescan.go`).
+  writer under a site directory (`storage/runtime_files.go`, `app/operations/imagescan.go`).
 - `index.html` and `showcase.html` inline the same analytics parser; showcase also runs on the
   content host. Keep both copies generated (`scripts/inline-analytics-parser.sh`).
 - The analytics tail tracks inode/offset: rotate with `create` and `delaycompress`, never

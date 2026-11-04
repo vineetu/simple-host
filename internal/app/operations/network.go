@@ -3,6 +3,7 @@ package operations
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/vsriram/simple-host/internal/edition"
 	repo "github.com/vsriram/simple-host/internal/repository/operations"
 	"log"
@@ -49,15 +50,16 @@ func (h *NetworkUsage) NetworkUsageWorker() workers.Owner {
 		return nil
 	}
 	h.workerOnce.Do(func() {
-		h.worker = &networkUsageWorker{h: h, Owner: h.netUsage.Worker(h.ed.Limits().NetworkSample)}
+		h.worker = &networkUsageWorker{h: h, runner: workers.NewRunner(h.netUsage.ProgressTracker()), tracker: h.netUsage.ProgressTracker()}
 	})
 	return h.worker
 }
 
 type networkUsageWorker struct {
 	startOnce sync.Once
-	workers.Owner
-	h *NetworkUsage
+	runner    *workers.Runner
+	tracker   *workers.Tracker
+	h         *NetworkUsage
 }
 
 func (w *networkUsageWorker) Start(ctx context.Context) {
@@ -68,7 +70,30 @@ func (w *networkUsageWorker) Start(ctx context.Context) {
 			return
 		}
 		log.Printf("network usage: counting %s every %s", iface, w.h.ed.Limits().NetworkSample)
-		w.Owner.Start(ctx)
+		w.runner.Go(ctx, func(ctx context.Context) {
+			t := time.NewTicker(w.h.ed.Limits().NetworkSample)
+			defer t.Stop()
+			for {
+				w.tracker.Attempt()
+				func() {
+					defer func() {
+						if rec := recover(); rec != nil {
+							w.tracker.Fail("sample panic", fmt.Errorf("%v", rec))
+						}
+					}()
+					c, cancel := context.WithTimeout(ctx, 30*time.Second)
+					defer cancel()
+					if err := w.h.netUsage.Sample(c); err != nil {
+						w.tracker.Fail("sample", err)
+					}
+				}()
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+				}
+			}
+		})
 	})
 }
 func (h *NetworkUsage) StartNetworkUsage(ctx context.Context) {
@@ -117,3 +142,7 @@ type NetworkUsage struct {
 func NewNetworkUsage(database *sql.DB, ed *edition.Edition) *NetworkUsage {
 	return &NetworkUsage{database: database, ed: ed}
 }
+
+func (w *networkUsageWorker) Stop()                    { w.runner.Stop() }
+func (w *networkUsageWorker) Wait()                    { w.runner.Wait() }
+func (w *networkUsageWorker) Status() []workers.Status { return w.runner.Status() }

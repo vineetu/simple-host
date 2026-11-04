@@ -1,4 +1,4 @@
-package db
+package operations
 
 import (
 	"context"
@@ -8,7 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/repository/sites"
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
 // Image matching (SIM-200): the hash cache, the work queue and the record of
@@ -16,72 +17,9 @@ import (
 // key, so a record outlives whatever it was found on. Nothing here holds an
 // image; the evidence copy lives on disk under the handler's evidence dir.
 
-// ImageScanJob is one queued check.
-type ImageScanJob struct {
-	ID           int64
-	Kind         string // site_file, storage_file, event_icon, entry_screenshot
-	SiteID       string
-	EventID      string
-	TeamID       string
-	Version      int
-	ResourceName string
-	Path         string
-	WriterID     string
-	SHA256       string
-	Bytes        int64
-	Attempts     int
-	LastError    string
-	CreatedAt    time.Time
-}
-
-// ImageMatch is one image_scan_matches row.
-type ImageMatch struct {
-	ID           int64
-	Kind         string
-	SiteID       string
-	SiteName     string
-	OwnerID      string
-	OwnerHandle  string
-	OwnerEmail   string
-	EventID      string
-	EventSlug    string
-	TeamID       string
-	Version      int
-	ResourceName string
-	Path         string
-	WriterID     string
-	SHA256       string
-	Bytes        int64
-	ContentType  string
-	Provider     string
-	TrackingID   string
-	Source       string
-	Violations   string
-	Raw          json.RawMessage
-	EvidencePath string
-	UploadedAt   time.Time
-	DetectedAt   time.Time
-	TakenDown    bool
-	AlertedAt    sql.NullTime
-	ReportStatus string
-	ReportID     string
-	ReportedAt   sql.NullTime
-	ReportError  string
-	// Uploader and Address are who uploaded the file and where it was
-	// served, as they stood when the match was found.
-	Uploader string
-	Address  string
-}
-
-// ImageScanQueueCounts is the queue at a glance.
-type ImageScanQueueCounts struct {
-	Pending  int // due now
-	Retrying int // tried at least once, still to be tried again
-	GaveUp   int // stopped after the last allowed attempt
-	// SiteDeleted is waiting because its site is in Recently deleted: it
-	// runs after a restore and is dropped at the purge.
-	SiteDeleted int
-}
+type ImageScanJob = model.ImageScanJob
+type ImageMatch = model.ImageMatch
+type ImageScanQueueCounts = model.ImageScanQueueCounts
 
 // Lease length while a worker holds a job, and the retry ceiling.
 const (
@@ -104,7 +42,7 @@ func nullVersion(n int) any {
 }
 
 // LookupImageHash answers the cached verdict for these bytes.
-func LookupImageHash(ctx context.Context, q Querier, sha string) (verdict, trackingID string, found bool, err error) {
+func LookupImageHash(ctx context.Context, q sqlkit.Querier, sha string) (verdict, trackingID string, found bool, err error) {
 	err = q.QueryRowContext(ctx, `SELECT verdict, tracking_id FROM image_scan_hashes WHERE sha256 = $1`, sha).Scan(&verdict, &trackingID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", false, nil
@@ -116,7 +54,7 @@ func LookupImageHash(ctx context.Context, q Querier, sha string) (verdict, track
 }
 
 // RecordImageHash stores or replaces the verdict for these bytes.
-func RecordImageHash(ctx context.Context, q Querier, sha, verdict, provider, trackingID, detail string) error {
+func RecordImageHash(ctx context.Context, q sqlkit.Querier, sha, verdict, provider, trackingID, detail string) error {
 	_, err := q.ExecContext(ctx, `
 		INSERT INTO image_scan_hashes (sha256, verdict, provider, tracking_id, detail, checked_at)
 		VALUES ($1, $2, $3, $4, $5, now())
@@ -132,7 +70,7 @@ func RecordImageHash(ctx context.Context, q Querier, sha, verdict, provider, tra
 // the re-upload's writer and time (a report names who uploaded it last and
 // when). Returns whether
 // a row was inserted or made due.
-func EnqueueImageScan(ctx context.Context, q Querier, j ImageScanJob) (bool, error) {
+func EnqueueImageScan(ctx context.Context, q sqlkit.Querier, j ImageScanJob) (bool, error) {
 	const same = `kind = $1 AND site_id IS NOT DISTINCT FROM $2::uuid AND event_id IS NOT DISTINCT FROM $3::uuid
 		   AND team_id IS NOT DISTINCT FROM $4::uuid AND resource_name = $5 AND path = $6 AND sha256 = $7
 		   AND version IS NOT DISTINCT FROM $8::integer`
@@ -219,7 +157,7 @@ func ClaimImageScans(ctx context.Context, database *sql.DB, limit int) ([]ImageS
 
 // DeferImageScan records a failed attempt and schedules the next one: one
 // minute after the first, doubled per attempt, six hours at most.
-func DeferImageScan(ctx context.Context, q Querier, id int64, errText string, attempts int) error {
+func DeferImageScan(ctx context.Context, q sqlkit.Querier, id int64, errText string, attempts int) error {
 	wait := time.Minute
 	for i := 1; i < attempts && wait < imageScanMaxBackoff; i++ {
 		wait *= 2
@@ -235,7 +173,7 @@ func DeferImageScan(ctx context.Context, q Querier, id int64, errText string, at
 
 // GiveUpImageScan records the last failed attempt and parks the job for
 // good (next_attempt_at 'infinity'): it stays listed, never claimed again.
-func GiveUpImageScan(ctx context.Context, q Querier, id int64, errText string, attempts int) error {
+func GiveUpImageScan(ctx context.Context, q sqlkit.Querier, id int64, errText string, attempts int) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE image_scan_queue SET attempts = $2, last_error = $3, next_attempt_at = 'infinity'
 		 WHERE id = $1`, id, attempts, errText)
@@ -246,7 +184,7 @@ func GiveUpImageScan(ctx context.Context, q Querier, id int64, errText string, a
 // attempt (a site in Recently deleted waits for a restore or the purge).
 // Only while the site is still deleted: a restore in between has already
 // made the job due (WakeImageScans), and that stands.
-func PostponeImageScan(ctx context.Context, q Querier, id int64, d time.Duration) error {
+func PostponeImageScan(ctx context.Context, q sqlkit.Querier, id int64, d time.Duration) error {
 	_, err := q.ExecContext(ctx, `UPDATE image_scan_queue SET next_attempt_at = now() + $2 * interval '1 second'
 		 WHERE id = $1 AND EXISTS (SELECT 1 FROM sites WHERE id = image_scan_queue.site_id AND deleted_at IS NOT NULL)`,
 		id, int(d.Seconds()))
@@ -254,21 +192,18 @@ func PostponeImageScan(ctx context.Context, q Querier, id int64, d time.Duration
 }
 
 // DeleteImageScan removes a finished job.
-func DeleteImageScan(ctx context.Context, q Querier, id int64) error {
+func DeleteImageScan(ctx context.Context, q sqlkit.Querier, id int64) error {
 	_, err := q.ExecContext(ctx, `DELETE FROM image_scan_queue WHERE id = $1`, id)
 	return err
 }
 
 // WakeImageScans makes a restored site's waiting jobs due now (not the ones
 // given up for good).
-func WakeImageScans(ctx context.Context, q Querier, siteID string) error {
-	return sites.WakeImageScans(ctx, q, siteID)
-}
 
 // ImageScanQueueCountsNow reports what is due, what is on a retry, what was
 // given up, and what waits on a site in Recently deleted. A job waiting on
 // a deleted site counts there only, not as due or retrying.
-func ImageScanQueueCountsNow(ctx context.Context, q Querier) (ImageScanQueueCounts, error) {
+func ImageScanQueueCountsNow(ctx context.Context, q sqlkit.Querier) (ImageScanQueueCounts, error) {
 	var c ImageScanQueueCounts
 	err := q.QueryRowContext(ctx, `
 		SELECT count(*) FILTER (WHERE q.next_attempt_at <= now() AND s.deleted_at IS NULL),
@@ -280,7 +215,7 @@ func ImageScanQueueCountsNow(ctx context.Context, q Querier) (ImageScanQueueCoun
 }
 
 // InsertImageMatch records a match and returns its id.
-func InsertImageMatch(ctx context.Context, q Querier, m ImageMatch) (int64, error) {
+func InsertImageMatch(ctx context.Context, q sqlkit.Querier, m ImageMatch) (int64, error) {
 	var raw any
 	if len(m.Raw) > 0 && json.Valid(m.Raw) {
 		raw = string(m.Raw)
@@ -337,7 +272,7 @@ func scanImageMatch(row imageMatchScanner) (ImageMatch, error) {
 
 // ListImageMatches is every match whose report is still open (pending,
 // failed, or off) plus the newest limit matches, newest first.
-func ListImageMatches(ctx context.Context, q Querier, limit int) ([]ImageMatch, error) {
+func ListImageMatches(ctx context.Context, q sqlkit.Querier, limit int) ([]ImageMatch, error) {
 	rows, err := queryContext(ctx, q, `SELECT `+imageMatchColumns+` FROM image_scan_matches
 		 WHERE report_status IN ('pending', 'failed', 'off')
 		    OR id IN (SELECT id FROM image_scan_matches ORDER BY detected_at DESC, id DESC LIMIT $1)
@@ -358,31 +293,31 @@ func ListImageMatches(ctx context.Context, q Querier, limit int) ([]ImageMatch, 
 }
 
 // GetImageMatch loads one match. sql.ErrNoRows for an unknown id.
-func GetImageMatch(ctx context.Context, q Querier, id int64) (ImageMatch, error) {
+func GetImageMatch(ctx context.Context, q sqlkit.Querier, id int64) (ImageMatch, error) {
 	return scanImageMatch(q.QueryRowContext(ctx, `SELECT `+imageMatchColumns+` FROM image_scan_matches WHERE id = $1`, id))
 }
 
 // SetImageMatchEvidence records where the quarantined copy went.
-func SetImageMatchEvidence(ctx context.Context, q Querier, id int64, path string) error {
+func SetImageMatchEvidence(ctx context.Context, q sqlkit.Querier, id int64, path string) error {
 	_, err := q.ExecContext(ctx, `UPDATE image_scan_matches SET evidence_path = $2 WHERE id = $1`, id, path)
 	return err
 }
 
 // SetImageMatchTakenDown marks the site or event as taken down for this match.
-func SetImageMatchTakenDown(ctx context.Context, q Querier, id int64) error {
+func SetImageMatchTakenDown(ctx context.Context, q sqlkit.Querier, id int64) error {
 	_, err := q.ExecContext(ctx, `UPDATE image_scan_matches SET taken_down = true WHERE id = $1`, id)
 	return err
 }
 
 // SetImageMatchAlerted stamps the alert email as sent.
-func SetImageMatchAlerted(ctx context.Context, q Querier, id int64) error {
+func SetImageMatchAlerted(ctx context.Context, q sqlkit.Querier, id int64) error {
 	_, err := q.ExecContext(ctx, `UPDATE image_scan_matches SET alerted_at = now() WHERE id = $1`, id)
 	return err
 }
 
 // SetImageMatchReport records the outcome of filing the report. 'filed'
 // stamps reported_at; any status keeps the error text given.
-func SetImageMatchReport(ctx context.Context, q Querier, id int64, status, reportID, errText string) error {
+func SetImageMatchReport(ctx context.Context, q sqlkit.Querier, id int64, status, reportID, errText string) error {
 	switch status {
 	case "pending", "filed", "failed", "off":
 	default:
@@ -397,7 +332,7 @@ func SetImageMatchReport(ctx context.Context, q Querier, id int64, status, repor
 
 // ClearEventIcon removes an event's icon (the image bytes and their type),
 // only while the stored bytes still hash to sha. Reports whether it did.
-func ClearEventIcon(ctx context.Context, q Querier, eventID, sha string) (bool, error) {
+func ClearEventIcon(ctx context.Context, q sqlkit.Querier, eventID, sha string) (bool, error) {
 	res, err := q.ExecContext(ctx, `UPDATE events SET icon_media_type = '', icon_bytes = NULL, updated_at = now()
 		 WHERE id = $1 AND icon_bytes IS NOT NULL AND encode(sha256(icon_bytes), 'hex') = $2`, eventID, sha)
 	if err != nil {
@@ -410,7 +345,7 @@ func ClearEventIcon(ctx context.Context, q Querier, eventID, sha string) (bool, 
 // ClearEventScreenshot removes a team's entry screenshot, only while the
 // stored bytes still hash to sha, and leaves the entry text and its last
 // writer as they are. Reports whether it did.
-func ClearEventScreenshot(ctx context.Context, q Querier, teamID, sha string) (bool, error) {
+func ClearEventScreenshot(ctx context.Context, q sqlkit.Querier, teamID, sha string) (bool, error) {
 	res, err := q.ExecContext(ctx, `UPDATE event_entries SET screenshot = NULL, screenshot_type = ''
 		 WHERE team_id = $1 AND screenshot IS NOT NULL AND encode(sha256(screenshot), 'hex') = $2`, teamID, sha)
 	if err != nil {
@@ -422,7 +357,22 @@ func ClearEventScreenshot(ctx context.Context, q Querier, teamID, sha string) (b
 
 // DeleteStorageFileRow drops a files-storage object's row after its bytes
 // are removed from disk.
-func DeleteStorageFileRow(ctx context.Context, q Querier, siteID, resourceName, path string) error {
+func DeleteStorageFileRow(ctx context.Context, q sqlkit.Querier, siteID, resourceName, path string) error {
 	_, err := q.ExecContext(ctx, `DELETE FROM site_storage_files WHERE site_id = $1 AND resource_name = $2 AND path = $3`, siteID, resourceName, path)
 	return err
+}
+
+func PendingImageScans(ctx context.Context, db *sql.DB, n *int64) error {
+	return db.QueryRowContext(ctx, `SELECT count(*) FROM image_scan_queue WHERE next_attempt_at < 'infinity'`).Scan(n)
+}
+
+func queryContext(ctx context.Context, q sqlkit.Querier, query string, args ...any) (*sql.Rows, error) {
+	switch t := q.(type) {
+	case *sql.DB:
+		return t.QueryContext(ctx, query, args...)
+	case *sql.Tx:
+		return t.QueryContext(ctx, query, args...)
+	default:
+		return nil, fmt.Errorf("db: querier does not support QueryContext")
+	}
 }

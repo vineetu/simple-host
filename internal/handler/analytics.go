@@ -5,11 +5,10 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 
-	"github.com/vsriram/simple-host/internal/analytics"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // getSiteAnalytics serves GET /v1/sites/{sitename}/analytics?days=30[&owner=<handle>]
@@ -33,7 +32,7 @@ func (h *SiteHandler) getSiteAnalytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats, err := db.GetSiteAnalytics(r.Context(), h.database, site.ID, days)
+	stats, err := h.reporting.SiteAnalytics(r.Context(), site.ID, days)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -45,11 +44,7 @@ func (h *SiteHandler) getSiteAnalytics(w http.ResponseWriter, r *http.Request) {
 // countryStat is one row of the geo endpoint. The display name is resolved on
 // the way out rather than stored, so refreshing the IP dataset never means
 // rewriting aggregates.
-type countryStat struct {
-	Country     string `json:"country"`
-	CountryName string `json:"country_name"`
-	db.Split
-}
+type countryStat = operations.CountryStat
 
 // getSiteGeoAnalytics serves GET /v1/sites/{sitename}/analytics/geo?days=30
 // Owner-scoped like getSiteAnalytics. Countries come back ordered by real
@@ -73,20 +68,13 @@ func (h *SiteHandler) getSiteGeoAnalytics(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	rows, err := db.GetSiteGeo(r.Context(), h.database, site.ID, days)
+	rows, err := h.reporting.SiteGeo(r.Context(), site.ID, days)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
 
-	countries := make([]countryStat, 0, len(rows))
-	for _, c := range rows {
-		countries = append(countries, countryStat{
-			Country:     c.Country,
-			CountryName: analytics.CountryName(c.Country),
-			Split:       c.Split,
-		})
-	}
+	countries := rows
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"range_days": days,
@@ -113,7 +101,7 @@ func (h *SiteHandler) getSiteTopAnalytics(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	pages, refs, err := db.GetSiteTop(r.Context(), h.database, site.ID, days)
+	pages, refs, err := h.reporting.SiteTop(r.Context(), site.ID, days)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -131,33 +119,15 @@ func (h *SiteHandler) getSiteTopAnalytics(w http.ResponseWriter, r *http.Request
 // owner is honoured for the platform admin only; for everyone else it is the
 // same 404 as a site that does not exist, so the parameter cannot be used to
 // learn which handles or sites exist.
-func (h *SiteHandler) analyticsSite(w http.ResponseWriter, r *http.Request, user *db.User) (db.Site, bool) {
-	ownerID := user.ID
-	if owner := strings.TrimSpace(r.URL.Query().Get("owner")); owner != "" && !strings.EqualFold(owner, user.Handle.String) {
-		if !user.IsAdmin {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return db.Site{}, false
-		}
-		u, err := db.GetUserByHandle(r.Context(), h.database, owner)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-				return db.Site{}, false
-			}
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return db.Site{}, false
-		}
-		ownerID = u.ID
-	}
-
-	site, err := db.GetSiteByUser(r.Context(), h.database, ownerID, r.PathValue("sitename"))
+func (h *SiteHandler) analyticsSite(w http.ResponseWriter, r *http.Request, user *model.User) (model.Site, bool) {
+	site, err := h.reporting.AnalyticsSite(r.Context(), user, r.URL.Query().Get("owner"), r.PathValue("sitename"))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return db.Site{}, false
+			return model.Site{}, false
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return db.Site{}, false
+		return model.Site{}, false
 	}
 	return site, true
 }
@@ -203,7 +173,7 @@ func (h *SiteHandler) getAnalyticsSummary(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	summary, err := db.GetAnalyticsSummary(r.Context(), h.database, user.ID, days, allSites)
+	summary, err := h.reporting.AnalyticsSummary(r.Context(), user.ID, days, allSites)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -214,3 +184,5 @@ func (h *SiteHandler) getAnalyticsSummary(w http.ResponseWriter, r *http.Request
 		"sites":      summary,
 	})
 }
+
+func (h *SiteHandler) SetOperationsReporting(s *operations.Reporting) { h.reporting = s }

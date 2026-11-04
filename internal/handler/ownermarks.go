@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/analytics"
+	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/app/sites"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
-// Owner visit marks (SIM-151, 2026-11-02; internal/analytics/ownermarks.go).
+// Owner visit marks (SIM-151, 2026-11-02; internal/app/operations/ownermarks.go).
 // The server notes the address an account is seen signed in from so the
 // ingester can file that account's own visits to its sites as class 'owner'
 // and leave them out of People. Best effort throughout: a failed mark is
@@ -18,7 +18,7 @@ import (
 
 // SetOwnerMarks turns mark writing on. Left unset (an install without the
 // analytics log) nothing is written.
-func (h *SiteHandler) SetOwnerMarks(m *analytics.OwnerMarks) { h.ownerMarks = m }
+func (h *SiteHandler) SetOwnerMarks(m *operations.OwnerMarks) { h.ownerMarks = m }
 
 // noteOwnerBrowser marks the caller's address when the request is the owner's
 // own browser on the apex: the dashboard and the owner app fetch the site
@@ -27,7 +27,7 @@ func (h *SiteHandler) SetOwnerMarks(m *analytics.OwnerMarks) { h.ownerMarks = m 
 // SDKs and the connector's internal calls never send it, so an agent reading
 // the list on the owner's behalf from some other machine marks nothing. A
 // team credential is the team's, not a person's, and is never marked.
-func (h *SiteHandler) noteOwnerBrowser(r *http.Request, user *db.User) {
+func (h *SiteHandler) noteOwnerBrowser(r *http.Request, user *model.User) {
 	if h.ownerMarks == nil || user == nil || user.Team != nil {
 		return
 	}
