@@ -126,10 +126,10 @@ stateDiagram-v2
     [*] --> open: create team
     open --> locked: admin / organiser locks
     locked --> open: unlock, unless kept_after_leave
-    open --> deleted: delete / empty before freeze
-    locked --> deleted: delete / empty before freeze
-    open --> kept_locked: frozen team's final member leaves event
-    locked --> kept_locked: frozen team's final member leaves event
+    open --> deleted: explicit delete / empty and deletable
+    locked --> deleted: explicit delete / empty and deletable
+    open --> kept_locked: final member leaves event, retention applies
+    locked --> kept_locked: final member leaves event, retention applies
     kept_locked --> deleted: explicit deletion
 ```
 
@@ -258,7 +258,12 @@ actor's team or score. Every cell also obeys the operation's stage/deadline chec
 | Event settings, stages, registration decisions, announcements | yes | — | — | — | — | `hackhttp/hack.go`, `setStage`; `hack_registration.go`; `hack_content.go`: `loadMember(..., "organiser")` |
 | Apply / join by shared code | existing role unchanged | existing role unchanged | same | same | signed-in applicant | `app/hack/members/apply.go`, `Apply`; `app/hack/events/join.go`, `JoinByCode` |
 | Create/join/leave team | — | own | own | — | — | `hackhttp/hack_teams.go`; `app/hack/teams/membership.go`, `JoinTeam`, `LeaveTeam` |
-| Rename, lock, rotate link, manage admins/requests | any team | — | own | — | — | `hackhttp/hack_teams_admin.go`; `app/hack/teams/admin.go`, `participantTeam`; `finding.go` |
+| Rename, lock, rotate link, manage admins | any team | — | own | — | — | `hackhttp/hack_teams_admin.go`; `app/hack/teams/admin.go`, `participantTeam` |
+| Request to join | — | self, no team | — | — | — | `repository/hackteams/fill.go`, `NewTeamRequest` |
+| Withdraw join request | — | requester only | requester only | — | — | `repository/hackteams/fill.go`, `ResolveTeamRequest` |
+| Accept/decline join request | — | — | own team | — | — | `repository/hackteams/fill.go`, `ResolveTeamRequest`: team admin, no organiser override |
+| Send/cancel invitation | — | own team | own team | — | — | `repository/hackteams/fill.go`, `NewTeamRequest`, `ResolveTeamRequest`: any approved teammate |
+| Accept/decline invitation | — | invitee only | invitee only | — | — | `repository/hackteams/fill.go`, `ResolveTeamRequest`: invitee; acceptance also checks joining eligibility |
 | Place/remove people; delete team | yes | — | own member removal | — | — | `hackhttp/hack_teams.go`, `hack_finding.go`; `app/hack/teams/organiser.go`, `RemoveTeamMember` |
 | Edit/submit/unsubmit entry, screenshot | — | own | own | — | — | `hackhttp/hack_entries.go`, `entryWrite`; `app/hack/entries/entry.go`, `Write` |
 | Exclude/include entry, rubric/assignments/lock/publish | yes | — | — | — | — | `hackhttp/hack_entries.go`, `setEntryExcluded`; `hack_judging.go`: organiser role gate |
@@ -271,7 +276,9 @@ actor's team or score. Every cell also obeys the operation's stage/deadline chec
 `hackhttp/hack.go`, `loadMember`, rejects non-approved participants on writes and
 role-specific reads, rejects taken-down-event writes, and hides wrong roles as
 not-found. A platform admin without membership gets read-only organiser access;
-that does not grant participant writes or judging identity.
+that does not grant participant writes or judging identity. Request/invitation
+operations also require team finding enabled and an `open` or `building` stage
+(`hackhttp/hack_finding.go`, `findingAccess`).
 
 ## Holding account, departures and side effects
 
@@ -285,10 +292,16 @@ finishes (`PinDueTeams`, `pinTeam`); filesystem work is outside that pin transac
 
 `app/hack/members/leave.go`, `Leave`, locks the event and commits membership removal,
 creator handover or last-organiser closure, former-judge bookkeeping and key
-revocation together. Before the deadline, empty teams are deleted; after freezing,
-self-leave preserves the empty team and marks it `kept_after_leave`, locked forever.
-Scores and votes survive self-leave. Pending requests, unsent announcement/receipt
-mail and the leaver's notice rows are removed (`repository/hackevents/leave.go`,
+revocation together. Empty-team deletion uses `TeamKeepableSQL`, not submission
+freeze: it deletes an unpinned team whose effective deadline is absent or future
+(`repository/hackevents/leave.go`, `TeamKeepableSQL`;
+`repository/hackteams/teams.go`, `DeleteTeamIfEmpty`). Otherwise self-leave retains
+the empty team and marks it `kept_after_leave`, locked forever (`LeaveMembership`,
+`MarkTeamKeptAfterLeave`). A team in Judging with a future extension is frozen
+but can still be deleted if the separate pin operation has not completed.
+The diagram's “deletable” and “retention applies” labels refer to this predicate.
+Retained teams keep their scores and votes. Pending requests, unsent
+announcement/receipt mail and the leaver's notice rows are removed (`repository/hackevents/leave.go`,
 `LeaveMembership`). Departed judges retain only their frozen
 counted-team set, with live conflicts still applied (`repository/hackevents/leave.go`,
 `RecordFormerJudge`; `repository/hackentries/options.go`, `EligibleJudgeTeams`).
@@ -315,7 +328,8 @@ scores; site trashing follows commit (`app/hack/teams/membership.go`, `DeleteTea
 | Voting | `entries/voting.go`, `CastVote`: fresh window, eligibility and vote together; `SaveVotingSettings` removes ineligible votes with confirmation in its settings transaction. |
 | Published results | `entries/results.go`, `PublishResults`: calculated snapshot and upsert together; post-commit callback records phase telemetry. |
 | Announcement | `events/content.go`, `PostAnnouncement`: announcement and requested mail queue together via repository `CreateEventAnnouncement`. |
-| Event removal / ending | `events/create.go`, `DeleteEvent`, `ArchiveEventTx`; `members/leave.go`, `Leave`: database workflow plus separate file cleanup / after-end work. |
+| Event deletion | `events/create.go`, `DeleteEventTx`: calls team-site trash before deleting the event/account and before the outer transaction commits; `hackhttp/hack.go`, `deleteEvent`: removes remaining event files after commit. A later database failure does not roll back earlier trash operations. |
+| Event ending | `events/create.go`, `ArchiveEventTx`: database stage/settling transaction; `members/leave.go`, `Leave`: last-organiser end commits before `afterEnd` work. |
 
 Paths in this table are under `internal/app/hack/` unless qualified.
 Hack action notices use `repository/hackevents/notice_delivery.go`, `NotifyUsers`,
