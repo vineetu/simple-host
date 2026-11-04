@@ -2,6 +2,7 @@ package legacy
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -16,37 +17,49 @@ type SweepSavedDataInput struct {
 }
 
 // SweepSavedData performs one saved-data cleanup tick.
-func (a *Adapter) SweepSavedData(ctx context.Context, in SweepSavedDataInput) {
+func (a *Adapter) SweepSavedData(ctx context.Context, in SweepSavedDataInput) (removed int64, firstErr error) {
+	record := func(op string, err error) {
+		if err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("%s: %w", op, err)
+		}
+	}
 	a.deps.SweepEvict()
 	res, err := repo.PurgeOldDeletedItems(ctx, a.database, in.UndoDays)
 	if err != nil {
 		log.Printf("saved-data sweep: %v", err)
-		return
+		return removed, err
 	}
 	items, _ := res.RowsAffected()
+	removed += items
 	res, err = repo.PurgeOldHistory(ctx, a.database, in.UndoDays)
 	if err != nil {
 		log.Printf("saved-data sweep: %v", err)
-		return
+		return removed, err
 	}
 	hist, _ := res.RowsAffected()
+	removed += hist
 	idem, err := repo.PurgeIdempotencyKeys(ctx, a.database, time.Duration(in.IdempotencyHours)*time.Hour, in.IdempotencyMaxPerSite)
 	if err != nil {
 		log.Printf("saved-data sweep (idempotency): %v", err)
+		record("idempotency", err)
 	}
 	watch, err := repo.PurgeDataWatch(ctx, a.database, in.WatchKeepDays)
 	if err != nil {
 		log.Printf("saved-data sweep (watch): %v", err)
+		record("watch", err)
 	}
 	sites, err := repo.SitesOverHistoryCap(ctx, a.database, in.HistoryCapBytes)
 	if err != nil {
 		log.Printf("saved-data sweep (cap): %v", err)
+		record("cap", err)
 	}
 	var thinned int64
 	over := make(map[string]bool, len(sites))
 	for _, id := range sites {
 		over[id] = true
-		thinned += a.ThinHistoryIfUseful(ctx, HistoryThinInput{SiteID: id, CapBytes: in.HistoryCapBytes})
+		n, err := a.thinHistoryIfUseful(ctx, HistoryThinInput{SiteID: id, CapBytes: in.HistoryCapBytes})
+		thinned += n
+		record("thin history", err)
 	}
 	a.deps.HistoryThinStuck.Range(func(k, _ any) bool {
 		if !over[k.(string)] {
@@ -57,6 +70,7 @@ func (a *Adapter) SweepSavedData(ctx context.Context, in SweepSavedDataInput) {
 	if hist+items+idem+thinned+watch > 0 {
 		log.Printf("saved-data sweep: history=%d deleted_items=%d idempotency=%d thinned=%d watch=%d", hist, items, idem, thinned, watch)
 	}
+	return removed + idem + watch + thinned, firstErr
 }
 
 // SavedDataLimitsInput holds the configured saved-data rate limits.
@@ -99,26 +113,36 @@ func (a *Adapter) historyThinPointless(siteID string, size, capBytes int64) bool
 }
 
 func (a *Adapter) thinHistory(ctx context.Context, in HistoryThinInput) int64 {
+	n, _ := a.thinHistoryResult(ctx, in)
+	return n
+}
+
+func (a *Adapter) thinHistoryResult(ctx context.Context, in HistoryThinInput) (int64, error) {
 	n, err := repo.ThinSiteHistory(ctx, a.database, in.SiteID, in.CapBytes)
 	if err != nil {
 		log.Printf("saved-data thin site_id=%s: %v", in.SiteID, err)
-		return 0
+		return 0, err
 	}
-	if size, err := repo.HistoryBytes(ctx, a.database, in.SiteID); err == nil && size > in.CapBytes {
+	size, err := repo.HistoryBytes(ctx, a.database, in.SiteID)
+	if err == nil && size > in.CapBytes {
 		a.deps.HistoryThinStuck.Store(in.SiteID, size)
 	} else {
 		a.deps.HistoryThinStuck.Delete(in.SiteID)
 	}
-	return n
+	return n, err
 }
 
 // ThinHistoryIfUseful thins a site's history unless a recent thin was ineffective.
 func (a *Adapter) ThinHistoryIfUseful(ctx context.Context, in HistoryThinInput) int64 {
+	n, _ := a.thinHistoryIfUseful(ctx, in)
+	return n
+}
+func (a *Adapter) thinHistoryIfUseful(ctx context.Context, in HistoryThinInput) (int64, error) {
 	size, err := repo.HistoryBytes(ctx, a.database, in.SiteID)
 	if err != nil || a.historyThinPointless(in.SiteID, size, in.CapBytes) {
-		return 0
+		return 0, err
 	}
-	return a.thinHistory(ctx, in)
+	return a.thinHistoryResult(ctx, in)
 }
 
 // BoundHistory thins an over-cap site's history after a write when allowed.

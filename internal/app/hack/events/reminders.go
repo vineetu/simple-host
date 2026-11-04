@@ -27,33 +27,48 @@ import (
 
 // QueueEntryReminders claims each due team once per reminder per deadline,
 // then queues its members in the same transaction.
-func (s *Service) QueueEntryReminders(ctx context.Context) {
+func (s *Service) QueueEntryReminders(ctx context.Context) (written int64, firstErr error) {
 	due, err := eventrepo.DueEntryReminders(ctx, s.db)
 	if err != nil {
 		log.Printf("hack: entry reminders: %v", err)
-		return
+		return 0, err
 	}
 	for _, r := range due {
-		if err := s.queueEntryReminder(ctx, r); err != nil {
+		n, err := s.queueEntryReminder(ctx, r)
+		written += n
+		if err != nil {
 			log.Printf("hack: entry reminder %s: %v", r.TeamID, err)
+			if firstErr == nil {
+				firstErr = err
+			}
 		}
 	}
+	return
 }
 
-func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder) error {
+func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer tx.Rollback()
 	claimed, err := eventrepo.ClaimEntryReminder(ctx, tx, r)
 	if err != nil || !claimed {
-		return err
+		return 0, err
 	}
-	if err := eventrepo.NotifyTeamMembers(ctx, tx, r.EventID, r.TeamID, eventrepo.NoticeEntryReminder, r.Kind, ""); err != nil {
-		return err
+	ids, err := eventrepo.TeamMemberIDs(ctx, tx, r.EventID, r.TeamID, "")
+	if err != nil {
+		return 0, err
 	}
-	return tx.Commit()
+	n, err := eventrepo.NotifyUsersCount(ctx, tx, r.EventID, eventrepo.NoticeEntryReminder, r.TeamID, "", r.Kind, ids...)
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	// The durable reminder claim is also a write when there are no emailable members.
+	return n + 1, nil
 }
 
 // EntryEvaluator evaluates an entry using the existing entry service.

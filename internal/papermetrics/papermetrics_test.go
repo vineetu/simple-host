@@ -154,11 +154,23 @@ func TestCollectAndExport(t *testing.T) {
 	}
 
 	c := New(d, dir, "simple-host.app")
+	c.flush(ctx)
+	if c.tracker.Snapshot().LastProgress != nil {
+		t.Fatal("empty flush reported progress")
+	}
 	h := c.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) }))
 	for i := 0; i < 10; i++ {
 		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "http://menu.p.simple-host.app/", nil))
 	}
 	c.flush(ctx)
+	if c.tracker.Snapshot().LastProgress == nil {
+		t.Fatal("committed flush did not report progress")
+	}
+	before := c.tracker.Snapshot().LastProgress
+	c.flush(ctx)
+	if !c.tracker.Snapshot().LastProgress.Equal(*before) {
+		t.Fatal("empty flush advanced progress")
+	}
 	c.takeSample(ctx)
 	c.lastSample.at = c.lastSample.at.Add(-time.Minute) // a second sample needs a gap
 	c.takeSample(ctx)
@@ -170,8 +182,12 @@ func TestCollectAndExport(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Both snapshots are once only.
+	before = c.tracker.Snapshot().LastProgress
 	if err := c.weeklyFootprint(ctx, now); err != nil {
 		t.Fatal(err)
+	}
+	if !c.tracker.Snapshot().LastProgress.Equal(*before) {
+		t.Fatal("existing footprint advanced progress")
 	}
 	var n int
 	d.QueryRow(`SELECT count(*) FROM paper_site_footprint`).Scan(&n)

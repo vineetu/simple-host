@@ -278,8 +278,12 @@ func (w *connectorSweepWorker) Start(ctx context.Context) {
 			w.tracker.Attempt()
 			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			defer cancel()
-			if err := db.SweepOAuth(ctx, h.database, h.limits.OAuthUnusedClientAge); err != nil {
+			n, err := db.SweepOAuth(ctx, h.database, h.limits.OAuthUnusedClientAge)
+			if err != nil {
 				w.tracker.Fail("sweep OAuth", err)
+			}
+			if n > 0 {
+				w.tracker.Progress()
 			}
 			if n, err := db.PurgeExpiredAPIKeys(ctx, h.database, h.limits.KeyIdleExpiry); err != nil {
 				w.tracker.Fail("purge expired API keys", err)

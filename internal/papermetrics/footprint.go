@@ -34,7 +34,12 @@ func weekStart(t time.Time) time.Time {
 
 // weeklyFootprint writes one anonymous row per live site for this week,
 // once. The disk walk is the same one the admin page's usage report does.
-func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) error {
+func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultErr error) {
+	defer func() {
+		if resultErr != nil {
+			c.tracker.Fail("weeklyFootprint", resultErr)
+		}
+	}()
 	if c.dataDir == "" {
 		return nil
 	}
@@ -75,13 +80,14 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) error {
 
 	c.walkFootprints(sites)
 
+	var written int64
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck
 	for _, f := range sites {
-		if _, err := tx.ExecContext(ctx, `
+		if _, err := c.execMetric(ctx, tx, &written, `
 			INSERT INTO paper_site_footprint (week, versions, live_files, live_bytes, total_bytes,
 				html_bytes, js_bytes, css_bytes, media_bytes, other_bytes,
 				sqlite_bytes, file_store_bytes, kv_bytes, kv_rows, legacy_rows, views_30d, age_days, days_since_update)
@@ -92,7 +98,7 @@ func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) error {
 			return fmt.Errorf("insert footprint: %w", err)
 		}
 	}
-	if err := tx.Commit(); err != nil {
+	if err := c.commitMetrics(tx, written); err != nil {
 		return err
 	}
 	log.Printf("paper metrics: footprint for week of %s, %d sites", week, len(sites))

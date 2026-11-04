@@ -325,7 +325,8 @@ func ListOAuthConnections(ctx context.Context, database *sql.DB, userID string) 
 // a replay is still recognised as one), expired tokens, grants with no token
 // left, and registrations that never led to a connection (older than
 // unusedClientAge, OAUTH_UNUSED_CLIENT_DAYS).
-func SweepOAuth(ctx context.Context, database *sql.DB, unusedClientAge time.Duration) error {
+func SweepOAuth(ctx context.Context, database *sql.DB, unusedClientAge time.Duration) (int64, error) {
+	var removed int64
 	for _, stmt := range []string{
 		`DELETE FROM oauth_codes WHERE expires_at < now() - interval '1 day'`,
 		`DELETE FROM oauth_tokens WHERE expires_at < now() - interval '1 day'`,
@@ -341,11 +342,17 @@ func SweepOAuth(ctx context.Context, database *sql.DB, unusedClientAge time.Dura
 		if strings.Contains(stmt, "$1") {
 			args = append(args, int64(unusedClientAge.Seconds()))
 		}
-		if _, err := database.ExecContext(ctx, stmt, args...); err != nil {
-			return err
+		res, err := database.ExecContext(ctx, stmt, args...)
+		if err != nil {
+			return removed, err
+		}
+		n, err := res.RowsAffected()
+		removed += n
+		if err != nil {
+			return removed, err
 		}
 	}
-	return nil
+	return removed, nil
 }
 
 // UpsertBuiltinOAuthClient creates or refreshes a public client the server

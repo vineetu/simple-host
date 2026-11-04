@@ -68,15 +68,17 @@ func (c *Collector) flush(ctx context.Context) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
+	var written int64
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
+		c.tracker.Fail("paper metrics flush", err)
 		log.Printf("paper metrics flush: %v", err)
 		return
 	}
 	defer tx.Rollback() //nolint:errcheck
 	bounds := BucketBounds()
 	for _, r := range rows {
-		if _, err := tx.ExecContext(ctx, `
+		if _, err := c.execMetric(ctx, tx, &written, `
 			INSERT INTO paper_class_daily (day, class, requests, server_errors, total_us, bytes_out)
 			VALUES ($1, $2, $3, $4, $5, $6)
 			ON CONFLICT (day, class) DO UPDATE SET
@@ -85,6 +87,7 @@ func (c *Collector) flush(ctx context.Context) {
 				total_us = paper_class_daily.total_us + EXCLUDED.total_us,
 				bytes_out = paper_class_daily.bytes_out + EXCLUDED.bytes_out`,
 			day, r.class, r.requests, r.errors, r.totalUS, r.by); err != nil {
+			c.tracker.Fail("paper metrics flush", err)
 			log.Printf("paper metrics flush: %v", err)
 			return
 		}
@@ -92,16 +95,18 @@ func (c *Collector) flush(ctx context.Context) {
 			if n == 0 {
 				continue
 			}
-			if _, err := tx.ExecContext(ctx, `
+			if _, err := c.execMetric(ctx, tx, &written, `
 				INSERT INTO paper_latency_daily (day, class, le_us, requests) VALUES ($1, $2, $3, $4)
 				ON CONFLICT (day, class, le_us) DO UPDATE SET requests = paper_latency_daily.requests + EXCLUDED.requests`,
 				day, r.class, bounds[b], n); err != nil {
+				c.tracker.Fail("paper metrics flush", err)
 				log.Printf("paper metrics flush: %v", err)
 				return
 			}
 		}
 	}
-	if err := tx.Commit(); err != nil {
+	if err := c.commitMetrics(tx, written); err != nil {
+		c.tracker.Fail("paper metrics flush", err)
 		log.Printf("paper metrics flush: %v", err)
 	}
 }
@@ -146,7 +151,7 @@ func (c *Collector) takeSample(ctx context.Context) {
 	pgRSS, nginxRSS := rssOf("postgres"), rssOf("nginx")
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	if _, err := c.db.ExecContext(ctx, `
+	if _, err := c.execMetric(ctx, c.db, nil, `
 		INSERT INTO paper_process_sample
 			(at, started_at, proc_cpu_cores, proc_rss_bytes, go_heap_bytes, goroutines, open_fds,
 			 pg_rss_bytes, nginx_rss_bytes, box_cpu_cores, box_cpus, box_mem_total_bytes, box_mem_avail_bytes, load1)
@@ -154,6 +159,7 @@ func (c *Collector) takeSample(ctx context.Context) {
 		ON CONFLICT (at) DO NOTHING`,
 		now.at, c.started.UTC(), procCPU, selfRSS(), int64(ms.HeapAlloc), runtime.NumGoroutine(), openFDs(),
 		pgRSS, nginxRSS, boxBusy, runtime.NumCPU(), memInfo("MemTotal"), memInfo("MemAvailable"), load1()); err != nil {
+		c.tracker.Fail("paper metrics sample", err)
 		log.Printf("paper metrics sample: %v", err)
 	}
 }
@@ -250,7 +256,12 @@ func load1() float64 {
 // Each metric is one query against current state; a failing query skips
 // only its own metric, so a schema difference on another instance (Simple
 // Hack, a small box) costs a number, not the snapshot.
-func (c *Collector) dailySnapshot(ctx context.Context, now time.Time) error {
+func (c *Collector) dailySnapshot(ctx context.Context, now time.Time) (resultErr error) {
+	defer func() {
+		if resultErr != nil {
+			c.tracker.Fail("dailySnapshot", resultErr)
+		}
+	}()
 	day := now.AddDate(0, 0, -1).Format("2006-01-02")
 	var done bool
 	if err := c.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM paper_daily WHERE day = $1)`, day).Scan(&done); err != nil {
@@ -271,6 +282,7 @@ func (c *Collector) dailySnapshot(ctx context.Context, now time.Time) error {
 			args = append(args, day)
 		}
 		if err := c.db.QueryRowContext(ctx, m.query, args...).Scan(&v); err != nil {
+			c.tracker.Fail("daily metric "+m.name, err)
 			log.Printf("paper metrics daily %s: %v", m.name, err)
 			continue
 		}
@@ -280,28 +292,32 @@ func (c *Collector) dailySnapshot(ctx context.Context, now time.Time) error {
 		if c.hack != nil && (strings.HasPrefix(m.name, "hack_") || m.name == "paper_tables_bytes") {
 			run, err := c.ensureRun(ctx)
 			if err != nil {
+				c.tracker.Fail("paper metrics Hack daily run", err)
 				log.Printf("paper metrics Hack daily run: %v", err)
 				continue
 			}
+			var written int64
 			tx, err := c.db.BeginTx(ctx, nil)
 			if err != nil {
+				c.tracker.Fail("paper metrics Hack daily", err)
 				log.Printf("paper metrics Hack daily: %v", err)
 				continue
 			}
-			_, err = tx.ExecContext(ctx, `INSERT INTO paper_hack_daily(run_id,day,metric,value) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, run, day, m.name, v.Float64)
+			_, err = c.execMetric(ctx, tx, &written, `INSERT INTO paper_hack_daily(run_id,day,metric,value) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, run, day, m.name, v.Float64)
 			if err == nil {
-				_, err = tx.ExecContext(ctx, `INSERT INTO paper_daily(day,metric,value) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, day, m.name, v.Float64)
+				_, err = c.execMetric(ctx, tx, &written, `INSERT INTO paper_daily(day,metric,value) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, day, m.name, v.Float64)
 			}
 			if err == nil {
-				err = tx.Commit()
+				err = c.commitMetrics(tx, written)
 			} else {
 				_ = tx.Rollback()
 			}
 			if err != nil {
+				c.tracker.Fail("paper metrics Hack daily", err)
 				log.Printf("paper metrics Hack daily: %v", err)
 				continue
 			}
-		} else if _, err := c.db.ExecContext(ctx, `INSERT INTO paper_daily(day,metric,value) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, day, m.name, v.Float64); err != nil {
+		} else if _, err := c.execMetric(ctx, c.db, nil, `INSERT INTO paper_daily(day,metric,value) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, day, m.name, v.Float64); err != nil {
 			return err
 		}
 
