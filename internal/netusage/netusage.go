@@ -17,11 +17,12 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // Paths are variables so tests can point them at fixtures.
@@ -39,33 +40,37 @@ type Counters struct {
 
 // Sampler adds counter growth to net_usage_daily.
 type Sampler struct {
-	db    *sql.DB
-	iface string // "" picks the interface of the default route on each sample
-	now   func() time.Time
+	runner  *workers.Runner
+	tracker *workers.Tracker
+	db      *sql.DB
+	iface   string // "" picks the interface of the default route on each sample
+	now     func() time.Time
 }
 
 // New builds a sampler. iface is NETWORK_INTERFACE; empty means the interface
 // the default route leaves by.
 func New(db *sql.DB, iface string) *Sampler {
-	return &Sampler{db: db, iface: strings.TrimSpace(iface), now: time.Now}
+	t := workers.NewTracker("operations.network_usage")
+	return &Sampler{runner: workers.NewRunner(t), tracker: t, db: db, iface: strings.TrimSpace(iface), now: time.Now}
 }
 
 // Start samples now and then every interval until ctx ends.
 func (s *Sampler) Start(ctx context.Context, interval time.Duration) {
-	go func() {
+	s.runner.Go(ctx, func(ctx context.Context) {
 		t := time.NewTicker(interval)
 		defer t.Stop()
 		for {
+			s.tracker.Attempt()
 			func() {
 				defer func() {
 					if rec := recover(); rec != nil {
-						log.Printf("network usage sample panic: %v", rec)
+						s.tracker.Fail("sample panic", fmt.Errorf("%v", rec))
 					}
 				}()
 				c, cancel := context.WithTimeout(ctx, 30*time.Second)
 				defer cancel()
 				if err := s.Sample(c); err != nil {
-					log.Printf("network usage sample: %v", err)
+					s.tracker.Fail("sample", err)
 				}
 			}()
 			select {
@@ -74,7 +79,7 @@ func (s *Sampler) Start(ctx context.Context, interval time.Duration) {
 			case <-t.C:
 			}
 		}
-	}()
+	})
 }
 
 // Interface is the interface this sampler reads.
@@ -82,7 +87,11 @@ func (s *Sampler) Interface() (string, error) {
 	if s.iface != "" {
 		return s.iface, nil
 	}
-	return DefaultInterface()
+	iface, err := DefaultInterface()
+	if err != nil {
+		s.tracker.Fail("select network interface", err)
+	}
+	return iface, err
 }
 
 // Sample reads the counters once and adds their growth since the previous
@@ -139,7 +148,11 @@ func (s *Sampler) Sample(ctx context.Context) error {
 			return err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.tracker.Progress()
+	return nil
 }
 
 // Growth is how much the counters grew from prev to cur. On the same boot a
@@ -308,3 +321,15 @@ func bootTime() (time.Time, bool) {
 	}
 	return time.Time{}, false
 }
+
+func (s *Sampler) Stop()                    { s.runner.Stop() }
+func (s *Sampler) Wait()                    { s.runner.Wait() }
+func (s *Sampler) Status() []workers.Status { return s.runner.Status() }
+
+type samplerWorker struct {
+	*Sampler
+	interval time.Duration
+}
+
+func (s *Sampler) Worker(interval time.Duration) workers.Owner { return &samplerWorker{s, interval} }
+func (w *samplerWorker) Start(ctx context.Context)             { w.Sampler.Start(ctx, w.interval) }

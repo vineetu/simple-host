@@ -1359,7 +1359,7 @@ func TestImageScanRecordedValues(t *testing.T) {
 	if now := f.scan.reporteeOf(ctx, m); now == m.Uploader {
 		t.Fatalf("the uploader did not change (%q); the test proves nothing", now)
 	}
-	if now := f.scan.addressOf(m); now == m.Address {
+	if now := f.scan.addressOf(ctx, m); now == m.Address {
 		t.Fatalf("the address did not change (%q); the test proves nothing", now)
 	}
 	if _, _, err := f.scan.fileReport(ctx, m.ID); err != nil {

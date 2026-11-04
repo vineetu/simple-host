@@ -25,6 +25,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 const (
@@ -48,6 +50,8 @@ var assetExt = map[string]struct{}{
 
 // Ingester tails an nginx analytics log and upserts daily aggregates.
 type Ingester struct {
+	runner      *workers.Runner
+	tracker     *workers.Tracker
 	db          *sql.DB
 	logPath     string
 	salt        string // visitor ip_hash salt, used verbatim (see visitorSalt)
@@ -75,7 +79,8 @@ const otherItem = "(other)"
 // NewIngester builds an ingester. saltSecret should be a stable server secret
 // (ADMIN_API_KEY); contentHost and siteDomain drive host→site attribution.
 func NewIngester(db *sql.DB, logPath, saltSecret, contentHost, siteDomain string) *Ingester {
-	return &Ingester{
+	t := workers.NewTracker("operations.analytics_ingest")
+	return &Ingester{runner: workers.NewRunner(t), tracker: t,
 		db:            db,
 		logPath:       logPath,
 		salt:          visitorSalt(saltSecret),
@@ -138,27 +143,40 @@ func (i *Ingester) WithSalt(salt string) *Ingester {
 	return i
 }
 
-// Start launches the background ingest loop. A panic in any run is recovered
-// and logged; the process is never crashed by the ingester.
-func (i *Ingester) Start(interval time.Duration) {
-	go func() {
-		for {
-			func() {
-				defer func() {
-					if rec := recover(); rec != nil {
-						log.Printf("analytics ingest panic: %v", rec)
-					}
-				}()
-				ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
-				defer cancel()
-				if err := i.runOnce(ctx); err != nil {
-					log.Printf("analytics ingest: %v", err)
+// Worker returns the retained lifecycle owner. Production uses five minutes.
+func (i *Ingester) Worker(interval time.Duration) workers.Owner {
+	return &ingestWorker{Ingester: i, interval: interval}
+}
+
+type ingestWorker struct {
+	*Ingester
+	interval time.Duration
+}
+
+func (w *ingestWorker) Start(ctx context.Context) {
+	w.runner.Go(ctx, func(ctx context.Context) {
+		workers.Every(ctx, 0, w.interval, func(ctx context.Context) {
+			w.tracker.Attempt()
+			defer func() {
+				if rec := recover(); rec != nil {
+					w.tracker.Fail("ingest panic", fmt.Errorf("%v", rec))
 				}
 			}()
-			time.Sleep(interval)
-		}
-	}()
+			ctx, cancel := context.WithTimeout(ctx, runTimeout)
+			defer cancel()
+			if err := w.runOnce(ctx); err != nil {
+				w.tracker.Fail("ingest", err)
+			}
+		})
+	})
 }
+
+// Start is the compatibility entry point. Retain Worker in server startup.
+func (i *Ingester) Start(interval time.Duration) { i.Worker(interval).Start(context.Background()) }
+
+func (i *Ingester) Stop()                    { i.runner.Stop() }
+func (i *Ingester) Wait()                    { i.runner.Wait() }
+func (i *Ingester) Status() []workers.Status { return i.runner.Status() }
 
 // bucketKey identifies one aggregate row: a site, a UTC hour, and who was asking.
 type bucketKey struct {
@@ -590,6 +608,7 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 	i.pruneOld(ctx)
 
 	if n := len(viewDelta); n > 0 || len(lines) > 0 {
+		i.tracker.Progress()
 		var people, bots, infra, owner int64
 		for k, v := range viewDelta {
 			switch k.class {
@@ -611,46 +630,66 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 
 func (i *Ingester) pruneOld(ctx context.Context) {
 	cutoff := time.Now().UTC().AddDate(0, 0, -i.retentionDays).Format(time.RFC3339)
-	if _, err := i.db.ExecContext(ctx,
+	if result, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_view_hourly WHERE hour < $1::timestamptz`, cutoff); err != nil {
-		log.Printf("analytics prune views: %v", err)
+		i.tracker.Fail("prune views", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		i.tracker.Progress()
 	}
-	if _, err := i.db.ExecContext(ctx,
+	if result, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_visitor_hourly WHERE hour < $1::timestamptz`, cutoff); err != nil {
-		log.Printf("analytics prune visitors: %v", err)
+		i.tracker.Fail("prune visitors", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		i.tracker.Progress()
 	}
-	if _, err := i.db.ExecContext(ctx,
+	if result, err := i.db.ExecContext(ctx,
 		`DELETE FROM owner_visitor_marks WHERE last_seen < now() - ($1 * interval '1 day')`, OwnerMarkDays); err != nil {
-		log.Printf("analytics prune owner marks: %v", err)
+		i.tracker.Fail("prune owner marks", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		i.tracker.Progress()
 	}
-	if _, err := i.db.ExecContext(ctx,
+	if result, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_geo_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		log.Printf("analytics prune geo: %v", err)
+		i.tracker.Fail("prune geo", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		i.tracker.Progress()
 	}
-	if _, err := i.db.ExecContext(ctx,
+	if result, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_page_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		log.Printf("analytics prune pages: %v", err)
+		i.tracker.Fail("prune pages", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		i.tracker.Progress()
 	}
-	if _, err := i.db.ExecContext(ctx,
+	if result, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_referrer_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		log.Printf("analytics prune referrers: %v", err)
+		i.tracker.Fail("prune referrers", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		i.tracker.Progress()
 	}
-	if _, err := i.db.ExecContext(ctx,
+	if result, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_traffic_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		log.Printf("analytics prune site traffic: %v", err)
+		i.tracker.Fail("prune site traffic", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		i.tracker.Progress()
 	}
-	if _, err := i.db.ExecContext(ctx,
+	if result, err := i.db.ExecContext(ctx,
 		`DELETE FROM traffic_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		log.Printf("analytics prune traffic: %v", err)
+		i.tracker.Fail("prune traffic", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		i.tracker.Progress()
 	}
 	// Legacy pre-split daily tables: no longer written, same retention.
-	if _, err := i.db.ExecContext(ctx,
+	if result, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_view_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		log.Printf("analytics prune daily views: %v", err)
+		i.tracker.Fail("prune daily views", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		i.tracker.Progress()
 	}
-	if _, err := i.db.ExecContext(ctx,
+	if result, err := i.db.ExecContext(ctx,
 		`DELETE FROM site_visitor_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		log.Printf("analytics prune daily visitors: %v", err)
+		i.tracker.Fail("prune daily visitors", err)
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		i.tracker.Progress()
 	}
 }
 

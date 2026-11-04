@@ -24,6 +24,7 @@ import (
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/imagescan"
 	"github.com/vsriram/simple-host/internal/storage"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // Image matching (SIM-200). Images that reach the box (site files from a
@@ -58,15 +59,17 @@ type ImageScanConfig struct {
 // ImageScan is the queue worker and the quarantine. A nil *ImageScan is the
 // feature off: every method is a no-op.
 type ImageScan struct {
-	database *sql.DB
-	disk     *storage.DiskStorage
-	matcher  imagescan.Matcher
-	reporter imagescan.Reporter // nil: reports cannot be filed
-	mailer   email.Sender
-	cfg      ImageScanConfig
-	now      func() time.Time
-	// run starts the enqueue work: a goroutine in production, synchronous
-	// in tests.
+	runner     *workers.Runner
+	tracker    *workers.Tracker
+	enqueueCtx context.Context
+	database   *sql.DB
+	disk       *storage.DiskStorage
+	matcher    imagescan.Matcher
+	reporter   imagescan.Reporter // nil: reports cannot be filed
+	mailer     email.Sender
+	cfg        ImageScanConfig
+	now        func() time.Time
+	// run overrides dispatch in tests; production uses the retained runner.
 	run func(func())
 	// prepare is imagescan.Prepare; tests substitute a trivial one.
 	prepare func([]byte, imagescan.PrepareOptions) (*imagescan.Image, string, error)
@@ -104,10 +107,10 @@ func NewImageScan(database *sql.DB, disk *storage.DiskStorage, matcher imagescan
 	if cfg.EvidenceDir == "" && disk != nil {
 		cfg.EvidenceDir = filepath.Join(disk.DataDir(), ".evidence")
 	}
-	s := &ImageScan{
+	t := workers.NewTracker("operations.image_scan")
+	s := &ImageScan{runner: workers.NewRunner(t), tracker: t,
 		database: database, disk: disk, matcher: matcher, reporter: reporter, mailer: mailer, cfg: cfg,
 		now:        time.Now,
-		run:        func(f func()) { go f() },
 		prepare:    imagescan.Prepare,
 		saveReport: db.SetImageMatchReport,
 	}
@@ -304,15 +307,17 @@ func (s *ImageScan) enqueue(cands []enqueueCandidate) {
 	if len(cands) == 0 {
 		return
 	}
-	s.run(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	s.runEnqueue(func(ctx context.Context) {
+		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
+		s.tracker.Attempt()
+		defer s.updatePending(ctx)
 		for _, c := range cands {
 			c.job.SHA256 = sha256Hex(c.data)
 			c.job.Bytes = int64(len(c.data))
 			verdict, tracking, found, err := db.LookupImageHash(ctx, s.database, c.job.SHA256)
 			if err != nil {
-				log.Printf("image scan: hash lookup: %v", err)
+				s.tracker.Fail("hash lookup", err)
 				continue
 			}
 			switch {
@@ -324,20 +329,48 @@ func (s *ImageScan) enqueue(cands []enqueueCandidate) {
 				// clean or skipped: nothing to do for these bytes.
 			default:
 				if _, err := db.EnqueueImageScan(ctx, s.database, c.job); err != nil {
-					log.Printf("image scan: enqueue %s %s: %v", c.job.Kind, c.job.Path, err)
+					s.tracker.Fail("enqueue", err)
+				} else {
+					s.tracker.Progress()
 				}
 			}
 		}
 	})
 }
 
-// Start runs the worker: a short wait after boot, then a pass every few
-// seconds until ctx ends.
+// runEnqueue retains production enqueue work in the owner. Tests may replace
+// the dispatch hook and retain its goroutines in their fixture.
+func (s *ImageScan) runEnqueue(fn func(context.Context)) {
+	if s.run != nil {
+		s.run(func() { fn(context.Background()) })
+		return
+	} // test dispatch hook
+	s.runner.Go(s.enqueueCtx, fn)
+}
+func (s *ImageScan) Stop() {
+	if s != nil {
+		s.runner.Stop()
+	}
+}
+func (s *ImageScan) Wait() {
+	if s != nil {
+		s.runner.Wait()
+	}
+}
+func (s *ImageScan) Status() []workers.Status {
+	if s == nil {
+		return nil
+	}
+	return s.runner.Status()
+}
+
+// Start waits briefly after boot, then scans every few seconds.
 func (s *ImageScan) Start(ctx context.Context) {
 	if s == nil {
 		return
 	}
-	go func() {
+	s.enqueueCtx = ctx
+	s.runner.Go(ctx, func(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
@@ -353,7 +386,7 @@ func (s *ImageScan) Start(ctx context.Context) {
 			case <-t.C:
 			}
 		}
-	}()
+	})
 }
 
 // RunOnce claims due jobs and runs them, a few at a time. Jobs for the same
@@ -363,9 +396,11 @@ func (s *ImageScan) RunOnce(ctx context.Context) int {
 	if s == nil {
 		return 0
 	}
+	s.tracker.Attempt()
+	defer s.updatePending(ctx)
 	jobs, err := db.ClaimImageScans(ctx, s.database, imageScanClaim)
 	if err != nil {
-		log.Printf("image scan: claim: %v", err)
+		s.tracker.Fail("claim", err)
 		return 0
 	}
 	groups := map[string][]db.ImageScanJob{}
@@ -420,7 +455,7 @@ func (s *ImageScan) loadJobBytes(ctx context.Context, j db.ImageScanJob) ([]byte
 			// Postpone under the lock: a restore takes the same lock, so it
 			// cannot land between this check and the postpone.
 			if perr := db.PostponeImageScan(ctx, s.database, j.ID, imageScanDeletedWait); perr != nil {
-				log.Printf("image scan: postpone job %d: %v", j.ID, perr)
+				s.tracker.Fail("postpone deleted-site job", perr)
 			}
 			unlock()
 			return nil, errImageScanSiteDeleted
@@ -539,7 +574,7 @@ func (s *ImageScan) runJob(ctx context.Context, j db.ImageScanJob) {
 
 func (s *ImageScan) record(ctx context.Context, sha string, v imagescan.Verdict, tracking, detail string) {
 	if err := db.RecordImageHash(ctx, s.database, sha, string(v), s.matcher.Name(), tracking, detail); err != nil {
-		log.Printf("image scan: record %s %s: %v", v, sha[:12], err)
+		s.tracker.Fail("record hash verdict", err)
 	}
 }
 
@@ -548,7 +583,9 @@ func (s *ImageScan) finish(ctx context.Context, id int64) {
 		return
 	}
 	if err := db.DeleteImageScan(ctx, s.database, id); err != nil {
-		log.Printf("image scan: delete job %d: %v", id, err)
+		s.tracker.Fail("delete job", err)
+	} else {
+		s.tracker.Progress()
 	}
 }
 
@@ -556,12 +593,13 @@ func (s *ImageScan) finish(ctx context.Context, id int64) {
 // failure parks the job for good with its error (one log line), so the
 // admin page's gave-up count and the log say what happened.
 func (s *ImageScan) deferJob(ctx context.Context, j db.ImageScanJob, err error) {
+	s.tracker.Fail("scan image", err)
 	attempts := j.Attempts + 1
 	text := err.Error()
 	if attempts >= imageScanMaxAttempts {
 		log.Printf("image scan: job %d (%s %s) gave up after %d attempts: %v", j.ID, j.Kind, j.Path, attempts, err)
 		if derr := db.GiveUpImageScan(ctx, s.database, j.ID, "gave up: "+text, attempts); derr != nil {
-			log.Printf("image scan: give up job %d: %v", j.ID, derr)
+			s.tracker.Fail("park failed job", derr)
 		}
 		return
 	}
@@ -571,7 +609,7 @@ func (s *ImageScan) deferJob(ctx context.Context, j db.ImageScanJob, err error) 
 		log.Printf("image scan: job %d (%s %s) attempt %d: %v", j.ID, j.Kind, j.Path, attempts, err)
 	}
 	if derr := db.DeferImageScan(ctx, s.database, j.ID, text, attempts); derr != nil {
-		log.Printf("image scan: defer job %d: %v", j.ID, derr)
+		s.tracker.Fail("defer job", derr)
 	}
 }
 
@@ -723,6 +761,7 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 		st := imageStep{Step: name, Status: status, Detail: detail}
 		if err != nil {
 			st.Error = err.Error()
+			s.tracker.Fail("quarantine "+name, err)
 		}
 		steps = append(steps, st)
 		log.Printf("image scan: match #%d on %s %s: %s: %s %s %s", m.ID, matchWhere(m), m.Path, name, status, detail, st.Error)
@@ -735,7 +774,7 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 	}
 
 	// 1. The record, with the uploader and the address as they are now.
-	m.Uploader, m.Address = s.reporteeOf(ctx, m), s.addressOf(m)
+	m.Uploader, m.Address = s.reporteeOf(ctx, m), s.addressOf(ctx, m)
 	id, err := db.InsertImageMatch(ctx, s.database, m)
 	if err != nil {
 		log.Printf("image scan: MATCH on %s %s could not be recorded: %v (acting on it anyway)", matchWhere(m), m.Path, err)
@@ -840,7 +879,7 @@ func (s *ImageScan) quarantine(ctx context.Context, f imageFinding) {
 	}
 
 	// 6. The alert.
-	if err := s.sendAlert(m, steps, reportFiled); err != nil {
+	if err := s.sendAlert(ctx, m, steps, reportFiled); err != nil {
 		add("alert email", stepFailed, "", err)
 	} else if s.cfg.AlertEmail != "" {
 		add("alert email", stepDone, "sent to "+s.cfg.AlertEmail, nil)
@@ -1077,7 +1116,7 @@ func (s *ImageScan) productName() string {
 
 // sendAlert emails the alert address what happened, step by step. Never the
 // image, never a path or link to it.
-func (s *ImageScan) sendAlert(m db.ImageMatch, steps []imageStep, reportFiled bool) error {
+func (s *ImageScan) sendAlert(ctx context.Context, m db.ImageMatch, steps []imageStep, reportFiled bool) error {
 	if s.cfg.AlertEmail == "" {
 		return nil
 	}
@@ -1115,14 +1154,14 @@ func (s *ImageScan) sendAlert(m db.ImageMatch, steps []imageStep, reportFiled bo
 
 // addressOf is the site's own https address (as the dashboard shows it) or
 // the event slug.
-func (s *ImageScan) addressOf(m db.ImageMatch) string {
+func (s *ImageScan) addressOf(ctx context.Context, m db.ImageMatch) string {
 	if m.EventSlug != "" {
 		return m.EventSlug
 	}
 	if m.SiteID == "" {
 		return ""
 	}
-	site, err := db.GetSiteByID(context.Background(), s.database, m.SiteID)
+	site, err := db.GetSiteByID(ctx, s.database, m.SiteID)
 	if err != nil {
 		return ""
 	}
@@ -1423,5 +1462,14 @@ func (h *SiteHandler) adminImageScanReport(w http.ResponseWriter, r *http.Reques
 		admin := auth.GetUser(r.Context())
 		log.Printf("admin_image_scan_report match=%d report_id=%s by=%s", id, rid, admin.ID)
 		writeJSON(w, http.StatusOK, map[string]any{"report_id": rid, "reported_at": at})
+	}
+}
+
+func (s *ImageScan) updatePending(ctx context.Context) {
+	var n int64
+	if err := s.database.QueryRowContext(ctx, `SELECT count(*) FROM image_scan_queue WHERE next_attempt_at < 'infinity'`).Scan(&n); err != nil {
+		s.tracker.Fail("count pending jobs", err)
+	} else {
+		s.tracker.SetPending(n)
 	}
 }

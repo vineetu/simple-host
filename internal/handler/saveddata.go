@@ -17,6 +17,7 @@ import (
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // Saved data, step 1: the safety floor (saved-data redesign, owner approved
@@ -288,20 +289,32 @@ func (h *SiteHandler) replayItem(w http.ResponseWriter, r *http.Request, siteID,
 // SAVED_DATA_IDEMPOTENCY_MAX_PER_SITE) and watch counts past
 // SAVED_DATA_WATCH_KEEP_DAYS every SAVED_DATA_SWEEP_MINUTES, and thins any
 // site's history past SAVED_DATA_HISTORY_MAX_MB.
-func (h *SiteHandler) StartSavedDataSweep(ctx context.Context) {
-	go func() {
-		t := time.NewTicker(time.Duration(h.savedData.SweepMinutes) * time.Minute)
-		defer t.Stop()
+type savedDataWorker struct {
+	*workers.Runner
+	h       *SiteHandler
+	tracker *workers.Tracker
+}
+
+func (h *SiteHandler) SavedDataWorker() workers.Owner {
+	t := workers.NewTracker("operations.saved_data_sweep")
+	return &savedDataWorker{workers.NewRunner(t), h, t}
+}
+func (w *savedDataWorker) Start(ctx context.Context) {
+	w.Go(ctx, func(ctx context.Context) {
+		tick := time.NewTicker(time.Duration(w.h.savedData.SweepMinutes) * time.Minute)
+		defer tick.Stop()
 		for {
-			h.sweepSavedData(ctx)
+			w.tracker.Attempt()
+			w.h.sweepSavedData(ctx)
 			select {
 			case <-ctx.Done():
 				return
-			case <-t.C:
+			case <-tick.C:
 			}
 		}
-	}()
+	})
 }
+func (h *SiteHandler) StartSavedDataSweep(ctx context.Context) { h.SavedDataWorker().Start(ctx) }
 
 func (h *SiteHandler) sweepSavedData(ctx context.Context) {
 	svc := legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{

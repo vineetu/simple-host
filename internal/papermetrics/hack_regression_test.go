@@ -125,6 +125,7 @@ func TestPaperOffWritesNothing(t *testing.T) {
 	t.Setenv("PAPER_METRICS", "off")
 	c := New(d, "").WithHack()
 	c.Start(context.Background())
+	t.Cleanup(func() { c.Stop(); c.Wait() })
 	c.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		RecordHackStage(r.Context(), "ignored", "open")
 		HackPhasesChanged(r.Context())
