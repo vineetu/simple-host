@@ -42,16 +42,8 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 {handler,hackhttp,auth,mcp} -> config repository/** storage sitelocks email
 mcp -> mcp/apps/bundlegen
 [transitional]
-app/legacy -> db production # removal step 5.4: legacy adapter still reads Host sites, settings and actors through db
-app/sites -> repository/hackteams production # removal step 5.4: team write-state checks until app/accounts owns shared authorization
-app/storage -> repository/accounts production # removal step 5.4: visitor session checks until app/accounts owns shared authorization
-app/storage -> repository/hackevents production # removal step 5.4: event file-link scope until app/accounts owns shared authorization
-app/storage -> repository/hackteams production # removal step 5.4: team file-link scope until app/accounts owns shared authorization
 db -> repository/accounts production # removal step 5.4: account SQL forwarders for remaining callers
-app/sites -> rules/storage production # removal step 5.4: shared unpacked archive budget rule used by website limits
-app/legacy -> db test # removal step 5.4: legacy adapter tests use Host db fixtures
 db -> rules/storage production # removal step 5.4: legacy db forwarders call extracted pure storage rules
-repository/sites -> repository/accounts production # removal step 5.4: hostname retirement reuses shared platform-name classification
 db -> repository/legacy production # removal step 5.4: legacy SQL forwarders for remaining callers
 db -> repository/sites production # removal step 5.4: site/version SQL forwarders for remaining callers
 db -> repository/hackevents production # removal step 5.4: event aliases, account cleanup and notification locks
@@ -59,7 +51,6 @@ db -> repository/hackteams production # removal step 5.4: team aliases, account 
 db -> repository/hackentries production # removal step 5.4: Host-dependent compatibility aliases
 db -> repository/sqlkit production # removal step 5.4: db keeps the Querier alias until the last repository moves
 db -> model production # removal step 5.4: db keeps type aliases until the last repository moves
-auth -> db production # removal step 5.4: accounts repository
 hackhttp -> @/hack-toolkit production # removal step 5.4: webassets extraction
 hackhttp -> config production # removal step 5.4: final transport boundary
 hackhttp -> db production # removal step 5.4: Host accounts, sites and keys

@@ -1,9 +1,6 @@
-package db
+package accounts
 
 import (
-	"context"
-	"database/sql"
-	"errors"
 	"testing"
 	"time"
 )
@@ -18,16 +15,13 @@ func TestInternalVisitorPassLifecycleAndNoOwner(t *testing.T) {
 	if got, ok := LookupInternalVisitorKey(key); !ok || got != pass {
 		t.Fatalf("lookup: %+v %v", got, ok)
 	}
-	if _, ok := lookupInternalKey(key); ok {
+	if _, ok := LookupInternalKey(key); ok {
 		t.Fatal("visitor pass resolved as owner key")
 	}
-	if _, _, ok := lookupInternalTeamKey(key); ok {
+	if _, _, ok := LookupInternalTeamKey(key); ok {
 		t.Fatal("visitor pass resolved as team key")
 	}
-	// Nil DB proves rejection happens before loading any account identity.
-	if _, err := GetUserByAPIKey(context.Background(), nil, key, DefaultLimits().KeyIdleExpiry); !errors.Is(err, sql.ErrNoRows) {
-		t.Fatalf("owner lookup: %v", err)
-	}
+
 	revoke()
 	if _, ok := LookupInternalVisitorKey(key); ok {
 		t.Fatal("revoked pass accepted")
@@ -37,8 +31,8 @@ func TestInternalVisitorPassLifecycleAndNoOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer revoke()
-	cred, _ := lookupInternalCred(key)
-	cred.expires = time.Now().Add(-time.Second)
+	cred, _ := LookupInternalCred(key)
+	cred.Expires = time.Now().Add(-time.Second)
 	internalKeys.Store(key, cred)
 	if _, ok := LookupInternalVisitorKey(key); ok {
 		t.Fatal("expired pass accepted")

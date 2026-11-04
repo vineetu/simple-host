@@ -7,11 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
+	model "github.com/vsriram/simple-host/internal/model"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // Adapter owns Host legacy saved-data compatibility operations.
 type Adapter struct {
+	accounts *accountapp.Service
 	database *sql.DB
 	cutoff   time.Time
 	deps     Deps
@@ -29,21 +32,21 @@ type Deps struct {
 	KeyIdleExpiry                  time.Duration
 	ResolveNamedSite               func(context.Context, string) (string, error)
 	BoundHistory                   func(context.Context, string)
-	ResolveMineSession             func(string) (db.VisitorSession, bool)
+	ResolveMineSession             func(string) (model.VisitorSession, bool)
 	VisitorOwnerKeyWrite           func(string) bool
 	VisitorDomainElsewhere         func(string) (string, bool)
-	VisitorOwnAddress              func(context.Context, string) (db.SiteDomainInfo, bool, error)
-	VisitorInternalSession         func(string) (db.VisitorSession, bool)
-	VisitorResolveKey              func(context.Context, string) (db.User, bool, error)
-	VisitorKeyActor                func(string) db.Actor
-	VisitorSessionValid            func(db.VisitorSession, string) bool
+	VisitorOwnAddress              func(context.Context, string) (model.SiteDomainInfo, bool, error)
+	VisitorInternalSession         func(string) (model.VisitorSession, bool)
+	VisitorResolveKey              func(context.Context, string) (model.User, bool, error)
+	VisitorKeyActor                func(string) model.Actor
+	VisitorSessionValid            func(model.VisitorSession, string) bool
 	VisitorLog                     func(string, string)
 	VisitorLogKey                  func(string, bool)
 	ContentOwnerBrowser            func(string) bool
 	ContentBody                    func() ([]byte, error)
 	ContentDeclareFirst            func() bool
 	ContentSiteMaxBytes            func() int64
-	ContentAuthor                  func(context.Context, db.Actor) db.Actor
+	ContentAuthor                  func(context.Context, model.Actor) model.Actor
 	HistoryThinStuck               *sync.Map
 	HistoryThinAllowed             func(string) bool
 	DataReadLimit                  func(string) bool
@@ -55,8 +58,8 @@ type Deps struct {
 	KindResolveSite                func(string) (string, error)
 	KindReadLimit                  func(string) bool
 	DataAdminMismatch              func(string) bool
-	DataPrivateRead                func(context.Context, string) (db.VisitorSession, error)
-	PersonalSession                func(string) (db.VisitorSession, bool)
+	DataPrivateRead                func(context.Context, string) (model.VisitorSession, error)
+	PersonalSession                func(string) (model.VisitorSession, bool)
 	PersonalReadBody               func() ([]byte, []byte, error)
 	PersonalWriteLimit             func() bool
 	SweepEvict                     func()
@@ -71,10 +74,10 @@ type Deps struct {
 	CollectionOwnerKeyWrite        func(string) bool
 	CollectionDomainElsewhere      func(string) (string, bool)
 	CollectionSharedDomain         func(context.Context, string) (string, bool)
-	CollectionKeyActor             func(string) db.Actor
-	CollectionInternalSession      func(string) (db.VisitorSession, bool)
-	CollectionResolveKey           func(context.Context, string) (db.User, bool, error)
-	CollectionSessionValid         func(db.VisitorSession, string) bool
+	CollectionKeyActor             func(string) model.Actor
+	CollectionInternalSession      func(string) (model.VisitorSession, bool)
+	CollectionResolveKey           func(context.Context, string) (model.User, bool, error)
+	CollectionSessionValid         func(model.VisitorSession, string) bool
 	CollectionLogAnon              func(string, string, string, string)
 	CollectionOwnerBrowser         func(string) bool
 	CollectionStrictSession        func(string) CollectionBrowserSession
@@ -90,7 +93,7 @@ type Deps struct {
 
 // New constructs an adapter for the given database and legacy cutoff.
 func New(database *sql.DB, cutoff time.Time, deps Deps) *Adapter {
-	return &Adapter{database: database, cutoff: cutoff, deps: deps}
+	return &Adapter{accounts: accountapp.New(database), database: database, cutoff: cutoff, deps: deps}
 }
 
 // CutoffApplies reports whether a classified request is subject to the cutoff.
@@ -114,7 +117,7 @@ func (a *Adapter) ClosedFor(ctx context.Context, candidates []CutoffCandidate) (
 			continue
 		}
 		seen[c.ID] = true
-		at, name, err := db.SiteCreatedAt(ctx, a.database, c.ID)
+		at, name, err := siterepo.SiteCreatedAt(ctx, a.database, c.ID)
 		if err != nil {
 			continue
 		}

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
@@ -172,7 +173,7 @@ func TestKeyExpiry(t *testing.T) {
 	// including the KEY_IDLE_EXPIRY_DAYS=0 override applied below.
 	me := func(k string) resp {
 		mux2 := http.NewServeMux()
-		a.users.Register(mux2, auth.Middleware(a.admin, adminID, a.database, a.users.limits.KeyIdleExpiry), NoticeMiddleware("1.0.0"))
+		a.users.Register(mux2, auth.Middleware(a.admin, adminID, accountapp.New(a.database), a.users.limits.KeyIdleExpiry), NoticeMiddleware("1.0.0"))
 		req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 		req.Header.Set("X-API-Key", k)
 		rec := httptest.NewRecorder()

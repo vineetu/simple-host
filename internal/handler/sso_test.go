@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -327,7 +328,7 @@ func TestSSOCookieBoundary(t *testing.T) {
 	}
 	called := false
 	w := httptest.NewRecorder()
-	auth.Middleware("admin", "id", nil, 180*24*time.Hour)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })).ServeHTTP(w, r)
+	auth.Middleware("admin", "id", accountapp.New(nil), 180*24*time.Hour)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })).ServeHTTP(w, r)
 	if called || w.Code != 401 {
 		t.Fatal("middleware accepted SSO cookie")
 	}
@@ -500,8 +501,8 @@ func TestSSOProviderAndEmailSignup(t *testing.T) {
 	// Both methods use the apex account handlers' existing local geo block.
 	const ip = "198.51.100.13"
 	geo := buildGeo(t, ip, "IQ")
-	a.users.SetSignupGeoBlock(geo, []string{"IQ"})
-	o.SetSignupGeoBlock(geo, []string{"IQ"})
+	a.users.SetSignupGeoBlock(accountapp.NewSignupGeoBlock(geo, []string{"IQ"}))
+	o.SetSignupGeoBlock(accountapp.NewSignupGeoBlock(geo, []string{"IQ"}))
 	for _, path := range []string{"/v1/auth", "/v1/auth/oauth/google/callback?state=x&code=x"} {
 		method := "POST"
 		var body any = map[string]string{"email": "blocked@example.test"}

@@ -1,7 +1,6 @@
 package storage
 
 import (
-	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
 )
 
@@ -41,14 +40,14 @@ func (s *Service) visitorActive(call *Call) *Error {
 	if call.ActiveChecked {
 		return nil
 	}
-	suspended, err := accounts.UserSuspended(call.Context, s.db, call.VisitorSessionUserID)
+	suspended, err := s.accounts.UserSuspended(call.Context, call.VisitorSessionUserID)
 	if err != nil {
 		return &Error{Code: "internal_error", Message: "internal server error"}
 	}
 	if suspended {
 		return &Error{Code: "account_suspended"}
 	}
-	_ = accounts.TouchVisitorSession(call.Context, s.db, call.VisitorSessionID, s.deps.VisitorSessionIdle)
+	_ = s.accounts.TouchVisitorSession(call.Context, call.VisitorSessionID, s.deps.VisitorSessionIdle)
 	call.ActiveChecked = true
 	return nil
 }

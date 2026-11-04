@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/vsriram/simple-host/internal/repository/accounts"
+	siterules "github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // RetirePlatformName keeps a released claimed <name>.<SITE_DOMAIN> with its
@@ -13,8 +13,8 @@ import (
 // site's current address (or says the site was removed) instead of passing to
 // whichever site happens to share its name, and nobody else can claim it.
 // Any other host is ignored.
-func RetirePlatformName(ctx context.Context, q Querier, host, siteID, userID string) error {
-	if _, ok := accounts.PlatformNameLabel(host); !ok {
+func RetirePlatformName(ctx context.Context, q Querier, host, siteID, userID string, platformDomains ...string) error {
+	if _, ok := siterules.PlatformNameLabel(host, platformDomains); !ok {
 		return nil
 	}
 	_, err := q.ExecContext(ctx, `
@@ -28,7 +28,7 @@ func RetirePlatformName(ctx context.Context, q Querier, host, siteID, userID str
 // (current and earlier) as retired names before the site is deleted; the
 // rows outlive it (site_id becomes NULL). Returns every domain the site had,
 // for the caller to unbind on disk.
-func RetireSiteNames(ctx context.Context, q Querier, siteID string) ([]string, error) {
+func RetireSiteNames(ctx context.Context, q Querier, siteID string, platformDomains ...string) ([]string, error) {
 	var userID, cur, prev string
 	err := q.QueryRowContext(ctx, `SELECT user_id, COALESCE(custom_domain, ''), COALESCE(previous_domain, '') FROM sites WHERE id = $1`, siteID).Scan(&userID, &cur, &prev)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -43,7 +43,7 @@ func RetireSiteNames(ctx context.Context, q Querier, siteID string) ([]string, e
 			continue
 		}
 		out = append(out, d)
-		if err := RetirePlatformName(ctx, q, d, siteID, userID); err != nil {
+		if err := RetirePlatformName(ctx, q, d, siteID, userID, platformDomains...); err != nil {
 			return nil, err
 		}
 	}

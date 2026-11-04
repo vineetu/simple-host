@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
-	"log"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 // Names given to keys by where they came from. A key minted from the Keys
@@ -39,8 +40,8 @@ const (
 // caller that treats an unknown key as "not signed in" keeps doing so; the key
 // middleware tells them apart to say why.
 var (
-	ErrKeyExpired     = fmt.Errorf("api key expired: %w", sql.ErrNoRows)
-	ErrKeyExpiredIdle = fmt.Errorf("api key expired after going unused: %w", sql.ErrNoRows)
+	ErrKeyExpired     = model.ErrKeyExpired
+	ErrKeyExpiredIdle = model.ErrKeyExpiredIdle
 )
 
 // APIKey is one row of api_keys as its owner sees it. The key itself is never
@@ -66,15 +67,7 @@ func (k APIKey) IdleExpiresAt(keyIdle time.Duration) *time.Time {
 }
 
 func idleExpiresAt(idleFrom time.Time, lastUsed *time.Time, keyIdle time.Duration) *time.Time {
-	if keyIdle <= 0 {
-		return nil
-	}
-	from := idleFrom
-	if lastUsed != nil && lastUsed.After(from) {
-		from = *lastUsed
-	}
-	t := from.Add(keyIdle)
-	return &t
+	return accounts.IdleExpiresAt(idleFrom, lastUsed, keyIdle)
 }
 
 // Expired says whether the key has stopped working at now, and why:
@@ -85,13 +78,7 @@ func (k APIKey) Expired(now time.Time, keyIdle time.Duration) string {
 }
 
 func keyExpired(now time.Time, expiresAt *time.Time, idleFrom time.Time, lastUsed *time.Time, keyIdle time.Duration) string {
-	if expiresAt != nil && !now.Before(*expiresAt) {
-		return KeyExpiredFixed
-	}
-	if t := idleExpiresAt(idleFrom, lastUsed, keyIdle); t != nil && !now.Before(*t) {
-		return KeyExpiredIdle
-	}
-	return ""
+	return accounts.KeyExpired(now, expiresAt, idleFrom, lastUsed, keyIdle)
 }
 
 func keyLast4(key string) string {
@@ -101,20 +88,8 @@ func keyLast4(key string) string {
 	return key[len(key)-4:]
 }
 
-// touchAPIKeyInterval: last_used_at is display data, not a control, so it is
-// written at most this often rather than on every request.
-const touchAPIKeyInterval = 5 * time.Minute
-
 func touchAPIKey(ctx context.Context, q Querier, keyHash string) {
-	if keyHash == "" {
-		return
-	}
-	if _, err := q.ExecContext(ctx, `
-		UPDATE api_keys SET last_used_at = now()
-		 WHERE key_hash = $1 AND (last_used_at IS NULL OR last_used_at < now() - make_interval(secs => $2))`,
-		keyHash, touchAPIKeyInterval.Seconds()); err != nil {
-		log.Printf("api key: touch last_used_at: %v", err)
-	}
+	accounts.TouchAPIKey(ctx, q, keyHash)
 }
 
 // ListAPIKeys returns an account's keys, newest first.
@@ -280,28 +255,4 @@ func PurgeExpiredAPIKeys(ctx context.Context, q Querier, keyIdle time.Duration) 
 		return 0, err
 	}
 	return res.RowsAffected()
-}
-
-// APIKeyScope is the scope of a stored key that still works, or
-// sql.ErrNoRows for a key that is not stored (unknown, the env admin key, an
-// internal credential) or has expired: an expired key is passed on so the key
-// middleware can say it expired rather than that it is deploy-only.
-func APIKeyScope(ctx context.Context, q Querier, apiKey string, keyIdle time.Duration) (string, error) {
-	var (
-		scope     string
-		expiresAt *time.Time
-		idleFrom  time.Time
-		lastUsed  *time.Time
-		now       time.Time
-	)
-	err := q.QueryRowContext(ctx,
-		`SELECT scope, expires_at, idle_from, last_used_at, now() FROM api_keys WHERE key_hash = $1`,
-		HashAPIKey(apiKey)).Scan(&scope, &expiresAt, &idleFrom, &lastUsed, &now)
-	if err != nil {
-		return "", err
-	}
-	if keyExpired(now, expiresAt, idleFrom, lastUsed, keyIdle) != "" {
-		return "", sql.ErrNoRows
-	}
-	return scope, nil
 }

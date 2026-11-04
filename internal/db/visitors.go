@@ -5,20 +5,15 @@ import (
 	"database/sql"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/accounts"
+	"github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // OAuthIdentity is a provider account linked to a users row. The durable key
 // is (provider, provider_user_id); email is a snapshot, not a uniqueness key.
-type OAuthIdentity struct {
-	ID             string
-	UserID         string
-	Provider       string
-	ProviderUserID string
-	Email          sql.NullString
-	EmailVerified  bool
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-}
+type OAuthIdentity = model.OAuthIdentity
 
 // OAuthState is one in-flight authorization-code flow.
 type OAuthState struct {
@@ -37,17 +32,7 @@ type OAuthState struct {
 
 // VisitorSession is the server-side row behind the site-scoped cookie.
 // UserID is the one principal; the cookie is not an API key.
-type VisitorSession struct {
-	SSOPassHash   sql.NullString
-	ID            []byte
-	UserID        string
-	SiteID        string
-	Host          string
-	CreatedAt     time.Time
-	LastSeenAt    time.Time
-	ExpiresAt     time.Time
-	IdleExpiresAt time.Time
-}
+type VisitorSession = model.VisitorSession
 
 // EstablishToken is the one-time bounce from the apex callback onto the host
 // that will Set-Cookie.
@@ -81,11 +66,7 @@ func GetOAuthIdentity(ctx context.Context, q Querier, provider, providerUserID s
 // GetLatestOAuthIdentity returns the most recently created identity with a
 // provider-verified email for a user.
 func GetLatestOAuthIdentity(ctx context.Context, q Querier, userID string) (OAuthIdentity, error) {
-	const query = `SELECT provider, email FROM oauth_identities
- WHERE user_id = $1 AND email_verified ORDER BY created_at DESC LIMIT 1`
-	var identity OAuthIdentity
-	err := q.QueryRowContext(ctx, query, userID).Scan(&identity.Provider, &identity.Email)
-	return identity, err
+	return accounts.GetLatestOAuthIdentity(ctx, q, userID)
 }
 
 // InsertOAuthIdentity links a provider account to a users row.
@@ -198,17 +179,7 @@ func ActivateVisitorSession(ctx context.Context, q Querier, id []byte, ttl, idle
 // parent SSO pass, it answers only while that pass's parent key is still
 // live (keyIdle, KEY_IDLE_EXPIRY_DAYS).
 func GetVisitorSession(ctx context.Context, q Querier, id []byte, keyIdle time.Duration) (VisitorSession, error) {
-	const query = `
-		SELECT v.id, v.user_id::text, v.site_id::text, v.host, v.created_at, v.last_seen_at, v.expires_at, v.idle_expires_at, v.sso_pass_hash
- FROM visitor_sessions v WHERE v.id = $1 AND (v.sso_pass_hash IS NULL OR EXISTS (
- SELECT 1 FROM sso_passes p JOIN api_keys k ON k.key_hash=p.parent_key_hash JOIN users u ON u.id=p.user_id
- WHERE p.id_hash=v.sso_pass_hash AND ` + liveSSOPass + `))`
-	var s VisitorSession
-	err := q.QueryRowContext(ctx, query, id, keyIdle.Seconds()).Scan(
-		&s.ID, &s.UserID, &s.SiteID, &s.Host,
-		&s.CreatedAt, &s.LastSeenAt, &s.ExpiresAt, &s.IdleExpiresAt, &s.SSOPassHash,
-	)
-	return s, err
+	return accounts.GetVisitorSession(ctx, q, id, keyIdle)
 }
 
 // DeleteVisitorSession removes one session row. Missing rows are not an error.
@@ -256,11 +227,7 @@ func ConsumeEstablishToken(ctx context.Context, q Querier, once, host string) (E
 // GetSiteWriteGate returns the owning user_id and the admin override flag
 // used by visitorWriteOK.
 func GetSiteWriteGate(ctx context.Context, q Querier, siteID string) (userID string, allowAnonymous bool, err error) {
-	err = q.QueryRowContext(ctx,
-		`SELECT user_id::text, allow_anonymous_writes FROM sites WHERE id = $1`,
-		siteID,
-	).Scan(&userID, &allowAnonymous)
-	return
+	return sites.GetSiteWriteGate(ctx, q, siteID)
 }
 
 // SetAllowAnonymousWrites is the admin-only escape hatch on a site.

@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
@@ -139,7 +140,7 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	var root http.Handler
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(srv.Close)
-	authMW := auth.Middleware(adminKey, adminID, database, ed.Limits().KeyIdleExpiry)
+	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), ed.Limits().KeyIdleExpiry)
 	users := handler.NewUserHandler(database, email.NewResendSender("", "test@example.com"), srv.URL, ed)
 	users.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
 	h := NewHackHandler(database, srv.URL, "simple-hack.test", ed)

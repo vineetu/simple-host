@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/storage"
@@ -191,7 +192,7 @@ func TestVersionFilesRequestValidation(t *testing.T) {
 			r.SetPathValue("version", c.version)
 			r.Header.Set("X-API-Key", "test-key")
 			w := httptest.NewRecorder()
-			auth.Middleware("test-key", "owner", nil, 180*24*time.Hour)(handler).ServeHTTP(w, r)
+			auth.Middleware("test-key", "owner", accountapp.New(nil), 180*24*time.Hour)(handler).ServeHTTP(w, r)
 			if w.Code != 400 {
 				t.Fatalf("%+v: %d", c, w.Code)
 			}

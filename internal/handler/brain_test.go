@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/brain"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -73,7 +74,7 @@ func newBrainApp(t *testing.T) *connectorApp {
 	if err != nil {
 		t.Fatal(err)
 	}
-	authMW := auth.Middleware(a.admin, adminID, a.database, 180*24*time.Hour)
+	authMW := auth.Middleware(a.admin, adminID, accountapp.New(a.database), 180*24*time.Hour)
 	a.conn.EnableBrain(a.mux, authMW, brainFixture(t))
 	return a
 }

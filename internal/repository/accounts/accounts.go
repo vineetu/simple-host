@@ -12,6 +12,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
+	siterules "github.com/vsriram/simple-host/internal/rules/sites"
 )
 
 // Querier is the shared database/transaction query interface.
@@ -332,16 +333,7 @@ func PlatformDomains() []string {
 // PlatformNameLabel returns the label of a one-label host under any platform
 // domain.
 func PlatformNameLabel(host string) (string, bool) {
-	host = strings.ToLower(strings.TrimSpace(host))
-	for _, d := range PlatformDomains() {
-		if !strings.HasSuffix(host, "."+d) {
-			continue
-		}
-		if label := strings.TrimSuffix(host, "."+d); label != "" && !strings.Contains(label, ".") {
-			return label, true
-		}
-	}
-	return "", false
+	return siterules.PlatformNameLabel(host, PlatformDomains())
 }
 
 // HostForms is host and, for a one-label platform name, the same label under

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/vsriram/simple-host/internal/db"
 	repo "github.com/vsriram/simple-host/internal/repository/legacy"
 )
 
@@ -33,9 +32,9 @@ func (a *Adapter) VisitorToolWrite(ctx context.Context, in VisitorToolWriteInput
 		entry["mine"] = true
 	}
 	// A history marker has no earlier value and therefore cannot be restored.
-	historyKind := db.HistoryStorage
+	historyKind := "storage"
 	if in.Kind == "collection" {
-		historyKind = db.HistoryList
+		historyKind = "list"
 	}
 	err = repo.RecordVisitorAIWrite(ctx, a.database, in.SiteID, in.Resource, in.Action+" "+in.Kind, in.UserID, in.App, historyKind)
 	if err != nil {

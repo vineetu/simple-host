@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/accounts"
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	"github.com/vsriram/simple-host/internal/repository/sites"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
@@ -35,16 +36,16 @@ func AddAPIKey(ctx context.Context, q Querier, userID, apiKey, name string) erro
 func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string, keyIdle time.Duration) (User, error) {
 	if strings.HasPrefix(apiKey, internalKeyPrefix) {
 		c, ok := lookupInternalCred(apiKey)
-		if !ok || c.visitor != nil {
+		if !ok || c.Visitor != nil {
 			return User{}, sql.ErrNoRows
 		}
-		u, err := GetUserByID(ctx, db, c.userID)
+		u, err := GetUserByID(ctx, db, c.UserID)
 		if err == nil && u.Suspended {
 			return u, ErrAccountSuspended
 		}
-		if err == nil && c.teamID != "" {
+		if err == nil && c.TeamID != "" {
 			// A connector connection bound to a team site (hack_sites.go).
-			id, terr := ResolveTeamIdentity(ctx, db, c.userID, c.teamID)
+			id, terr := ResolveTeamIdentity(ctx, db, c.UserID, c.TeamID)
 			if terr != nil {
 				return User{}, terr
 			}
@@ -52,37 +53,7 @@ func GetUserByAPIKey(ctx context.Context, db *sql.DB, apiKey string, keyIdle tim
 		}
 		return u, err
 	}
-	const query = `
-		SELECT u.id, u.username, u.is_admin, u.created_at, u.handle, u.display_name, k.key_hash,
-		       u.suspended_at IS NOT NULL, COALESCE(u.suspended_reason, ''),
-		       k.scope, k.expires_at, k.idle_from, k.last_used_at, now()
-		FROM api_keys k JOIN users u ON u.id = k.user_id
-		WHERE k.key_hash = $1
-	`
-
-	var (
-		user      User
-		expiresAt *time.Time
-		idleFrom  time.Time
-		lastUsed  *time.Time
-		now       time.Time
-	)
-	err := db.QueryRowContext(ctx, query, HashAPIKey(apiKey)).Scan(
-		&user.ID,
-		&user.Username,
-		&user.IsAdmin,
-		&user.CreatedAt,
-		&user.Handle,
-		&user.DisplayName,
-		&user.KeyHash,
-		&user.Suspended,
-		&user.SuspendedReason,
-		&user.KeyScope,
-		&expiresAt,
-		&idleFrom,
-		&lastUsed,
-		&now,
-	)
+	user, expiresAt, idleFrom, lastUsed, now, err := accounts.KeyPrincipal(ctx, db, apiKey)
 	if err == nil && user.KeyScope == KeyScopeDeploy {
 		// A deploy key never carries admin powers, even when an admin
 		// minted it: a leaked CI secret must not list every site on the
@@ -319,23 +290,7 @@ func GetSite(ctx context.Context, db *sql.DB, name string) (Site, error) {
 // legacy subdomain / bare-name route never flips to a later same-named site.
 // Returns sql.ErrNoRows if no site with that name exists.
 func GetSiteIDByName(ctx context.Context, db *sql.DB, name string) (string, error) {
-	var id string
-	err := db.QueryRowContext(ctx,
-		`SELECT id FROM sites WHERE name = $1 AND deleted_at IS NULL ORDER BY created_at ASC, id ASC LIMIT 1`,
-		name,
-	).Scan(&id)
-	return id, err
-}
-
-// SiteCreatedAt is a live (non-deleted) site's created_at and name.
-func SiteCreatedAt(ctx context.Context, q Querier, id string) (time.Time, string, error) {
-	var at time.Time
-	var name string
-	err := q.QueryRowContext(ctx,
-		`SELECT created_at, name FROM sites WHERE id::text = $1 AND deleted_at IS NULL`,
-		id,
-	).Scan(&at, &name)
-	return at, name, err
+	return sites.GetSiteIDByName(ctx, db, name)
 }
 
 func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
@@ -407,9 +362,7 @@ func SetSiteOffline(ctx context.Context, q Querier, siteID string, on bool) erro
 
 // SiteOffline reports whether a site is offline by its owner's choice.
 func SiteOffline(ctx context.Context, q Querier, siteID string) (bool, error) {
-	var off bool
-	err := q.QueryRowContext(ctx, `SELECT offline_at IS NOT NULL FROM sites WHERE id::text = $1`, siteID).Scan(&off)
-	return off, err
+	return sites.SiteOffline(ctx, q, siteID)
 }
 
 // CreateAuthToken inserts a new verification token row.

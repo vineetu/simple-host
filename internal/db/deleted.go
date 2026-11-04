@@ -47,7 +47,7 @@ func ListPurgeableSites(ctx context.Context, database *sql.DB, retention time.Du
 
 // PurgeDeletedSite forwards to the sites repository.
 func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string, retention time.Duration) ([]string, error) {
-	return sites.PurgeDeletedSite(ctx, database, siteID, retention)
+	return sites.PurgeDeletedSite(ctx, database, siteID, retention, platformDomains()...)
 }
 
 func oneRow(res sql.Result, err error) error {

@@ -23,13 +23,13 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/analytics"
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
-	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/netusage"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
@@ -227,8 +227,8 @@ type SiteHandler struct {
 // attempt from a blocked country is refused before anything is created or
 // emailed — a new account and an existing one alike. geo may be nil;
 // countries may be empty — either turns this off.
-func (h *SiteHandler) SetSignupGeoBlock(geo *geoip.DB, countries []string) {
-	h.geoBlock = newSignupGeoBlock(geo, countries)
+func (h *SiteHandler) SetSignupGeoBlock(guard accounts.SignupGeoBlock) {
+	h.geoBlock = guard
 }
 
 // SetLegacyStorageCutoff sets LEGACY_STORAGE_CUTOFF. Zero disables the gate.

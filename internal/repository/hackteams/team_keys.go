@@ -5,18 +5,13 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
-	"errors"
+
+	"github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
 // teamKeyBinding returns the team a stored team key is bound to.
 func TeamKeyBinding(ctx context.Context, q Querier, keyHash string) (teamID, memberID string, err error) {
-	err = q.QueryRowContext(ctx, `
-		SELECT b.team_id, b.user_id FROM event_team_keys b JOIN api_keys k ON k.id = b.key_id
-		 WHERE k.key_hash = $1`, keyHash).Scan(&teamID, &memberID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", ErrTeamKeyInactive
-	}
-	return teamID, memberID, err
+	return hackevents.TeamKeyBinding(ctx, q, keyHash)
 }
 
 // ReplaceTeamKey stores apiKey as the person's one team key for the event

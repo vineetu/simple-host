@@ -16,8 +16,8 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-
 	"github.com/vsriram/simple-host/internal/analytics"
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/config"
@@ -215,7 +215,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("ensure admin user: %v", err)
 	}
-	authMW := auth.Middleware(cfg.AdminAPIKey, adminUserID, db, ed.Limits().KeyIdleExpiry)
+	accountsService := accountapp.New(db)
+	authMW := auth.Middleware(cfg.AdminAPIKey, adminUserID, accountsService, ed.Limits().KeyIdleExpiry)
 
 	// Stale-skill notice middleware. Compares the X-Skill-Version header
 	// against the bundled plugin.json version and injects a `_notice`
@@ -362,7 +363,7 @@ func main() {
 	// Deploy-only keys are refused everywhere but the deploy routes, in this
 	// one gate (internal/auth/scope.go). The MCP server calls back into the
 	// gated mux, so its tools follow the same table.
-	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(siteHandler.HackLegacyStorageGate(auth.ScopeGate(db, mux, ed.Identity().TeamKeys, ed.Limits().KeyIdleExpiry))), cfg.PublicBaseURL)
+	gated := handler.APIErrors(mux, siteHandler.LegacyStorageCutoffGate(siteHandler.HackLegacyStorageGate(auth.ScopeGate(accountsService, mux, ed.Identity().TeamKeys, ed.Limits().KeyIdleExpiry))), cfg.PublicBaseURL)
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
 	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, ed.Routes().HostedEvents, ed)
@@ -529,9 +530,10 @@ func main() {
 	// OAuth sign-in or sign-up attempt, new account or existing; an API key
 	// keeps working regardless of where a request comes from, since that is
 	// not a sign-in. See internal/handler/signupgeo.go.
-	userHandler.SetSignupGeoBlock(geo, cfg.SignupBlockedCountries)
-	siteHandler.SetSignupGeoBlock(geo, cfg.SignupBlockedCountries)
-	oauthHandler.SetSignupGeoBlock(geo, cfg.SignupBlockedCountries)
+	signupGeoBlock := accountapp.NewSignupGeoBlock(geo, cfg.SignupBlockedCountries)
+	userHandler.SetSignupGeoBlock(signupGeoBlock)
+	siteHandler.SetSignupGeoBlock(signupGeoBlock)
+	oauthHandler.SetSignupGeoBlock(signupGeoBlock)
 	if len(cfg.SignupBlockedCountries) > 0 {
 		log.Printf("signup geo-block: sign-in and sign-up refused from %s; API keys and site viewing unaffected", strings.Join(cfg.SignupBlockedCountries, ", "))
 	}

@@ -18,7 +18,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
@@ -297,7 +297,7 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	}
 	mux := http.NewServeMux()
 	app := &connectorApp{database: database, admin: adminKey, mux: mux}
-	authMW := auth.Middleware(adminKey, adminID, database, ed.Limits().KeyIdleExpiry)
+	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), ed.Limits().KeyIdleExpiry)
 	noticeMW := NoticeMiddleware("1.0.0")
 	mailer := email.NewResendSender("", "test@example.com")
 
@@ -314,7 +314,7 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	app.sites = sites
 	t.Cleanup(sites.WaitNotifications)
 	sites.Register(mux, authMW, noticeMW)
-	gated := auth.ScopeGate(database, mux, false, ed.Limits().KeyIdleExpiry)
+	gated := auth.ScopeGate(accountapp.New(database), mux, false, ed.Limits().KeyIdleExpiry)
 	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated, false, ed)
 	conn.Register(mux, authMW)
 	app.conn = conn

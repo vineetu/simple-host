@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
-	rulesstorage "github.com/vsriram/simple-host/internal/rules/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
 )
 
@@ -31,6 +31,6 @@ func (s *Service) WebsiteUploadLimits(ctx context.Context, in WebsiteLimitsInput
 		return "Upload limits are unavailable."
 	}
 	limit, override := s.deps.WebsiteLimit(ctx, &holder)
-	total, file, entries := tarball.FileLimits(rulesstorage.ExtractBudget(limit, override), s.deps.MaxFilesPerSite)
+	total, file, entries := tarball.FileLimits(appstorage.ExtractBudget(limit, override), s.deps.MaxFilesPerSite)
 	return fmt.Sprintf("Zip up to %d MB. Unpacked, up to %d MB in total, %d MB per file and %d files.", limit>>20, total>>20, file>>20, entries)
 }

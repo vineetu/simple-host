@@ -2,25 +2,25 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"database/sql"
-
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/storage"
-	"net/http/httptest"
 )
 
 // Private collections and claimed <name>.<SITE_DOMAIN> addresses, end to end
@@ -86,7 +86,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	}
 	mux := http.NewServeMux()
 	a := &privateApp{connectorApp: &connectorApp{database: database, admin: adminKey}, mux: mux}
-	authMW := auth.Middleware(adminKey, adminID, database, ed.Limits().KeyIdleExpiry)
+	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), ed.Limits().KeyIdleExpiry)
 	var root http.Handler
 	a.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(a.srv.Close)

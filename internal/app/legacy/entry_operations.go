@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
 )
 
@@ -29,8 +30,8 @@ type EntryRequest struct {
 
 // EntryResult contains the completed operation and response-shaping facts.
 type EntryResult struct {
-	Item     db.CollectionItem
-	Settings db.DataSettings
+	Item     model.CollectionItem
+	Settings model.DataSettings
 	Route    string
 	Done     bool
 	Headers  map[string][]string
@@ -67,16 +68,16 @@ func (a *Adapter) prepareEntry(ctx context.Context, in EntryRequest, operation s
 	if err != nil {
 		return
 	}
-	if out.Settings.Kind == db.KindPersonal {
+	if out.Settings.Kind == "mine" {
 		err = &Error{Code: "personal_item"}
 		return
 	}
 	out.Route = "visitor"
-	if operation == "update" && out.Settings.Kind == db.KindBoard {
+	if operation == "update" && out.Settings.Kind == "board" {
 		out.Route = "board"
 	} else if operation != "undo" && (in.Key != "" || a.deps.ContentOwnerBrowser(siteID)) {
 		out.Route = "owner"
-	} else if out.Settings.Kind == db.KindBoard {
+	} else if out.Settings.Kind == "board" {
 		out.Route = "board"
 	}
 	if out.Route == "owner" {
@@ -100,7 +101,7 @@ func (a *Adapter) prepareEntry(ctx context.Context, in EntryRequest, operation s
 }
 
 func (a *Adapter) entrySiteAvailable(ctx context.Context, siteID string, checkOffline bool) error {
-	suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+	suspended, reason, err := siterepo.SiteSuspension(ctx, a.database, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &Error{Code: "site_not_found"}
 	}
@@ -111,7 +112,7 @@ func (a *Adapter) entrySiteAvailable(ctx context.Context, siteID string, checkOf
 		return &Error{Code: "site_suspended", Message: reason}
 	}
 	if checkOffline {
-		offline, err := db.SiteOffline(ctx, a.database, siteID)
+		offline, err := siterepo.SiteOffline(ctx, a.database, siteID)
 		if err != nil {
 			return err
 		}
@@ -181,7 +182,7 @@ func (a *Adapter) entryManager(ctx context.Context, in EntryRequest) (string, er
 			log.Printf("admin_private_edit user_id=%s site_id=%s route=%s %s", u.ID, id, in.Method, in.Path)
 			return id, nil
 		}
-		site, err := db.GetSiteByUser(ctx, a.database, u.ID, in.SiteName)
+		site, err := siterepo.GetSiteByUser(ctx, a.database, u.ID, in.SiteName)
 		if err != nil || (in.Handle != "" && !strings.EqualFold(in.Handle, u.Handle.String)) {
 			return "", &Error{Code: "private_not_found"}
 		}
@@ -202,7 +203,7 @@ func (a *Adapter) entryManager(ctx context.Context, in EntryRequest) (string, er
 	if !sess.OK || sess.UserID != home.OwnerID || in.VisitorPass {
 		return "", &Error{Code: "private_not_found"}
 	}
-	_ = db.TouchVisitorSession(ctx, a.database, sess.ID, in.Idle)
+	_ = a.accounts.TouchVisitorSession(ctx, sess.ID, in.Idle)
 	if !in.CSRFValid {
 		return "", &Error{Code: "csrf_required"}
 	}
@@ -216,7 +217,7 @@ func (a *Adapter) changeSelectedEntry(ctx context.Context, in EntryRequest, out 
 			resultErr = &EntryStageError{Stage: stage, Err: resultErr}
 		}
 	}()
-	var actor db.Actor
+	var actor model.Actor
 	var err error
 	if out.Route == "board" {
 		writer, e := a.BoardWriter(ctx, BoardWriterInput{SiteID: siteID, Key: in.Key, Preview: in.Preview, ContentHost: in.ContentHost, CSRFValid: in.CSRFValid, VisitorPass: in.VisitorPass})
@@ -236,10 +237,10 @@ func (a *Adapter) changeSelectedEntry(ctx context.Context, in EntryRequest, out 
 		if err != nil {
 			return out, err
 		}
-		if set.Kind == db.KindPersonal {
+		if set.Kind == "mine" {
 			return out, &Error{Code: "personal_only"}
 		}
-		if !set.Private && set.Kind != db.KindBoard && operation == "update" {
+		if !set.Private && set.Kind != "board" && operation == "update" {
 			return out, &Error{Code: "append_only"}
 		}
 	}
@@ -254,7 +255,7 @@ func (a *Adapter) changeSelectedEntry(ctx context.Context, in EntryRequest, out 
 			actor = a.entryManagerActor(ctx, in, siteID)
 		}
 		stage = "mutation"
-		found, err := db.SoftDeleteItem(ctx, a.database, siteID, in.Name, in.ID, actor)
+		found, err := softDeleteItem(ctx, a.database, siteID, in.Name, in.ID, actor)
 		if err == nil && !found {
 			err = &Error{Code: "selected_not_found"}
 		}
@@ -262,7 +263,7 @@ func (a *Adapter) changeSelectedEntry(ctx context.Context, in EntryRequest, out 
 	}
 	if operation == "undo" {
 		stage = "mutation"
-		out.Item, out.Done, err = db.UndoOwnWithdrawal(ctx, a.database, siteID, out.Settings.Name, in.ID, actor.ID, in.Window, true, false, in.BoardMax, actor, in.MaxBytes, true)
+		out.Item, out.Done, err = undoOwnWithdrawal(ctx, a.database, siteID, out.Settings.Name, in.ID, actor.ID, in.Window, true, false, in.BoardMax, actor, in.MaxBytes, true)
 		return out, err
 	}
 	limit := in.ListMaxBytes
@@ -298,19 +299,19 @@ func (a *Adapter) changeSelectedEntry(ctx context.Context, in EntryRequest, out 
 	}
 	if out.Route == "board" {
 		stage = "mutation"
-		out.Item, err = db.UpdateItemVersioned(ctx, a.database, siteID, out.Settings.Name, in.ID, in.IfVersion, actor, in.MaxBytes, transform)
+		out.Item, err = updateItemVersioned(ctx, a.database, siteID, out.Settings.Name, in.ID, in.IfVersion, actor, in.MaxBytes, transform)
 	} else {
 		actor = a.entryManagerActor(ctx, in, siteID)
 		stage = "mutation"
-		out.Item, err = db.UpdateCollectionItemByID(ctx, a.database, siteID, in.Name, in.ID, actor, in.MaxBytes, transform)
+		out.Item, err = updateCollectionItemByID(ctx, a.database, siteID, in.Name, in.ID, actor, in.MaxBytes, transform)
 	}
 	a.deps.BoundHistory(ctx, siteID)
 	return out, err
 }
 
-func (a *Adapter) entryManagerActor(ctx context.Context, in EntryRequest, siteID string) db.Actor {
-	owner, _, _ := db.GetSiteWriteGate(ctx, a.database, siteID)
-	actor := db.Actor{ID: owner, Kind: "owner"}
+func (a *Adapter) entryManagerActor(ctx context.Context, in EntryRequest, siteID string) model.Actor {
+	owner, _, _ := siterepo.GetSiteWriteGate(ctx, a.database, siteID)
+	actor := model.Actor{ID: owner, Kind: "owner"}
 	if in.Key != "" {
 		if u, ok, err := a.deps.VisitorResolveKey(ctx, in.Key); err == nil && ok {
 			actor.ID = u.ID

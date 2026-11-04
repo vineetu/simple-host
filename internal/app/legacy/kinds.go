@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/legacy"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
 )
 
@@ -25,7 +26,7 @@ type VisitorAccessInput struct {
 
 // CheckVisitorAccess checks suspension and CSRF before touching the session.
 func (a *Adapter) CheckVisitorAccess(ctx context.Context, in VisitorAccessInput) error {
-	suspended, err := db.UserSuspended(ctx, a.database, in.UserID)
+	suspended, err := a.accounts.UserSuspended(ctx, in.UserID)
 	if err != nil {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
@@ -35,7 +36,7 @@ func (a *Adapter) CheckVisitorAccess(ctx context.Context, in VisitorAccessInput)
 	if in.NeedCSRF && !in.CSRFValid {
 		return &Error{Code: "csrf_required"}
 	}
-	_ = db.TouchVisitorSession(ctx, a.database, in.SessionID, in.Idle)
+	_ = a.accounts.TouchVisitorSession(ctx, in.SessionID, in.Idle)
 	return nil
 }
 
@@ -73,7 +74,7 @@ func (a *Adapter) PersonSaverAllowed(ctx context.Context, in PersonSaverInput) (
 		return ok, err
 	}
 	if in.UserID != "" && !in.VisitorPass {
-		if ownerID, _, err := db.GetSiteWriteGate(ctx, a.database, in.SiteID); err == nil && ownerID == in.UserID {
+		if ownerID, _, err := siterepo.GetSiteWriteGate(ctx, a.database, in.SiteID); err == nil && ownerID == in.UserID {
 			return true, nil
 		}
 	}
@@ -92,35 +93,35 @@ type updateVisitorEntryInput struct {
 }
 
 // updateVisitorEntry applies a visitor patch and records its previous value.
-func (a *Adapter) updateVisitorEntry(ctx context.Context, in updateVisitorEntryInput) (db.CollectionItem, db.DataSettings, error) {
+func (a *Adapter) updateVisitorEntry(ctx context.Context, in updateVisitorEntryInput) (model.CollectionItem, model.DataSettings, error) {
 	set, err := a.visitorEntrySettings(ctx, in.SiteID, in.Name, in.DeclareFirst, in.VisitorAccess)
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.CollectionItem{}, set, &Error{Code: "site_not_found"}
+		return model.CollectionItem{}, set, &Error{Code: "site_not_found"}
 	}
 	if err != nil {
-		return db.CollectionItem{}, set, err
+		return model.CollectionItem{}, set, err
 	}
 	if !in.ValidID {
-		return db.CollectionItem{}, set, &Error{Code: "invalid_id"}
+		return model.CollectionItem{}, set, &Error{Code: "invalid_id"}
 	}
 	if err := a.requireWritableEntry(ctx, in.SiteID, in.Name, in.ID, in.VisitorAccess.UserID, in.VisitorPass, true); err != nil {
-		return db.CollectionItem{}, set, err
+		return model.CollectionItem{}, set, err
 	}
 	maxBytes := EntryMaxBytes(set, in.EntryMaxKB, in.ListMaxBytes)
 	raw, readErr := in.ReadPatch(maxBytes)
 	var bodyErr *Error
 	if errors.As(readErr, &bodyErr) && bodyErr.Code == "item_too_large" {
-		return db.CollectionItem{}, set, &Error{Code: "item_too_large"}
+		return model.CollectionItem{}, set, &Error{Code: "item_too_large"}
 	}
 	if readErr != nil {
-		return db.CollectionItem{}, set, &Error{Code: "invalid_patch"}
+		return model.CollectionItem{}, set, &Error{Code: "invalid_patch"}
 	}
 	patch, valid := storagerules.DecodeLegacyEntryPatch(raw)
 	if !valid {
-		return db.CollectionItem{}, set, &Error{Code: "invalid_patch"}
+		return model.CollectionItem{}, set, &Error{Code: "invalid_patch"}
 	}
 	if !storagerules.LegacyJSONStorable(raw) {
-		return db.CollectionItem{}, set, &Error{Code: "invalid_json"}
+		return model.CollectionItem{}, set, &Error{Code: "invalid_json"}
 	}
 	if a.deps.BoundHistory != nil {
 		defer a.deps.BoundHistory(ctx, in.SiteID)
@@ -128,31 +129,31 @@ func (a *Adapter) updateVisitorEntry(ctx context.Context, in updateVisitorEntryI
 	actor := a.entryActor(ctx, in.VisitorAccess.UserID)
 	tx, err := a.database.BeginTx(ctx, nil)
 	if err != nil {
-		return db.CollectionItem{}, set, err
+		return model.CollectionItem{}, set, err
 	}
 	defer tx.Rollback()
 	cur, err := repo.LockCollectionItem(ctx, tx, in.SiteID, in.Name, in.ID)
 	if err != nil {
-		return db.CollectionItem{}, set, err
+		return model.CollectionItem{}, set, err
 	}
 	next, err := storagerules.PatchLegacyEntry(cur.Data, patch, maxBytes)
 	if err != nil {
-		return db.CollectionItem{}, set, err
+		return model.CollectionItem{}, set, err
 	}
 	it, err := repo.UpdateCollectionItem(ctx, tx, in.SiteID, in.Name, in.ID, next)
 	if err != nil {
-		return db.CollectionItem{}, set, err
+		return model.CollectionItem{}, set, err
 	}
-	if err := repo.RecordHistory(ctx, tx, in.SiteID, db.HistoryList, in.Name, &in.ID, db.OpEdit, cur.Data, actor); err != nil {
-		return db.CollectionItem{}, set, err
+	if err := repo.RecordHistory(ctx, tx, in.SiteID, "list", in.Name, &in.ID, "edit", cur.Data, actor); err != nil {
+		return model.CollectionItem{}, set, err
 	}
 	if len(it.Data) > len(cur.Data) && a.deps.MaxBytes() > 0 {
 		used, err := repo.SiteDataUsage(ctx, tx, in.SiteID)
 		if err != nil {
-			return db.CollectionItem{}, set, err
+			return model.CollectionItem{}, set, err
 		}
 		if used > a.deps.MaxBytes() {
-			return db.CollectionItem{}, set, db.ErrSiteFull
+			return model.CollectionItem{}, set, model.ErrSiteFull
 		}
 	}
 	return it, set, tx.Commit()
@@ -167,7 +168,7 @@ type withdrawVisitorEntryInput struct {
 }
 
 // withdrawVisitorEntry checks the declaration and author before withdrawing an entry.
-func (a *Adapter) withdrawVisitorEntry(ctx context.Context, in withdrawVisitorEntryInput) (db.DataSettings, error) {
+func (a *Adapter) withdrawVisitorEntry(ctx context.Context, in withdrawVisitorEntryInput) (model.DataSettings, error) {
 	set, err := a.visitorEntrySettings(ctx, in.SiteID, in.Name, in.DeclareFirst, in.VisitorAccess)
 	if err != nil {
 		return set, err
@@ -195,7 +196,7 @@ func (a *Adapter) withdrawVisitorEntry(ctx context.Context, in withdrawVisitorEn
 	if n == 0 {
 		return set, &Error{Code: "not_found"}
 	}
-	if err := repo.RecordHistory(ctx, tx, in.SiteID, db.HistoryList, in.Name, &in.ID, db.OpDelete, nil, actor); err != nil {
+	if err := repo.RecordHistory(ctx, tx, in.SiteID, "list", in.Name, &in.ID, "delete", nil, actor); err != nil {
 		return set, &Error{Code: "delete_failed"}
 	}
 	if err := tx.Commit(); err != nil {
@@ -205,9 +206,9 @@ func (a *Adapter) withdrawVisitorEntry(ctx context.Context, in withdrawVisitorEn
 }
 
 // visitorEntrySettings preserves the access check before the declaration read.
-func (a *Adapter) visitorEntrySettings(ctx context.Context, siteID, name string, declareFirst bool, access VisitorAccessInput) (db.DataSettings, error) {
+func (a *Adapter) visitorEntrySettings(ctx context.Context, siteID, name string, declareFirst bool, access VisitorAccessInput) (model.DataSettings, error) {
 	if err := a.CheckVisitorAccess(ctx, access); err != nil {
-		return db.DataSettings{}, err
+		return model.DataSettings{}, err
 	}
 	set, err := a.WriteCollectionSettings(ctx, siteID, name, declareFirst)
 	if err != nil {
@@ -247,8 +248,8 @@ func (a *Adapter) requireWritableEntry(ctx context.Context, siteID, name string,
 }
 
 // entryActor resolves the optional author email used in entry history.
-func (a *Adapter) entryActor(ctx context.Context, userID string) db.Actor {
-	actor := db.Actor{ID: userID, Kind: "visitor"}
+func (a *Adapter) entryActor(ctx context.Context, userID string) model.Actor {
+	actor := model.Actor{ID: userID, Kind: "visitor"}
 	if userID != "" {
 		actor.Email, _ = a.visitorEmail(ctx, userID)
 	}
@@ -257,13 +258,13 @@ func (a *Adapter) entryActor(ctx context.Context, userID string) db.Actor {
 
 // visitorEmail resolves the verified email used by entry permissions and history.
 func (a *Adapter) visitorEmail(ctx context.Context, userID string) (string, error) {
-	u, err := db.GetUserByID(ctx, a.database, userID)
+	u, err := a.accounts.GetUserByID(ctx, userID)
 	if err != nil {
 		return "", err
 	}
 	email := u.Username
 	if !strings.Contains(email, "@") {
-		identity, err := db.GetLatestOAuthIdentity(ctx, a.database, userID)
+		identity, err := a.accounts.GetLatestOAuthIdentity(ctx, userID)
 		if err == nil && identity.Email.Valid && identity.Email.String != "" {
 			email = identity.Email.String
 		} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -285,75 +286,75 @@ type undoVisitorEntryInput struct {
 }
 
 // undoVisitorEntry restores a visitor's withdrawal within its permitted window.
-func (a *Adapter) undoVisitorEntry(ctx context.Context, in undoVisitorEntryInput) (db.CollectionItem, bool, db.DataSettings, error) {
+func (a *Adapter) undoVisitorEntry(ctx context.Context, in undoVisitorEntryInput) (model.CollectionItem, bool, model.DataSettings, error) {
 	set, err := a.visitorEntrySettings(ctx, in.SiteID, in.Name, in.DeclareFirst, in.VisitorAccess)
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.CollectionItem{}, false, set, &Error{Code: "site_not_found"}
+		return model.CollectionItem{}, false, set, &Error{Code: "site_not_found"}
 	}
 	if err != nil {
-		return db.CollectionItem{}, false, set, err
+		return model.CollectionItem{}, false, set, err
 	}
 	if !in.ValidID {
-		return db.CollectionItem{}, false, set, &Error{Code: "invalid_id"}
+		return model.CollectionItem{}, false, set, &Error{Code: "invalid_id"}
 	}
 	if err := a.requireWritableEntry(ctx, in.SiteID, in.Name, in.ID, in.VisitorAccess.UserID, in.VisitorPass, false); err != nil {
-		return db.CollectionItem{}, false, set, err
+		return model.CollectionItem{}, false, set, err
 	}
 	entryActor := a.entryActor(ctx, in.VisitorAccess.UserID)
-	declared := set.Kind == db.KindEntries
+	declared := set.Kind == "entries"
 	onePerPerson := declared && set.OnePerPerson
 	tx, err := a.database.BeginTx(ctx, nil)
 	if err != nil {
-		return db.CollectionItem{}, false, set, err
+		return model.CollectionItem{}, false, set, err
 	}
 	defer tx.Rollback()
 	if declared {
 		if err := repo.LockContentDeclaration(ctx, tx, in.SiteID, in.Name); err != nil {
-			return db.CollectionItem{}, false, set, err
+			return model.CollectionItem{}, false, set, err
 		}
 	}
 	op, actor, at, err := repo.LockWithdrawal(ctx, tx, in.SiteID, in.Name, in.ID, in.VisitorAccess.UserID, false)
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.CollectionItem{}, false, set, nil
+		return model.CollectionItem{}, false, set, nil
 	}
 	if err != nil {
-		return db.CollectionItem{}, false, set, err
+		return model.CollectionItem{}, false, set, err
 	}
 	if !storagerules.LegacyWithdrawalRestorable(op.String, actor.String, in.VisitorAccess.UserID, at, time.Now(), in.Window) {
-		return db.CollectionItem{}, false, set, nil
+		return model.CollectionItem{}, false, set, nil
 	}
 	if declared && onePerPerson {
-		other, _, err := repo.LivePersonEntry(ctx, tx, in.SiteID, in.Name, in.VisitorAccess.UserID, db.BaseEmail(entryActor.Email), in.ID)
+		other, _, err := repo.LivePersonEntry(ctx, tx, in.SiteID, in.Name, in.VisitorAccess.UserID, model.BaseEmail(entryActor.Email), in.ID)
 		if err != nil {
-			return db.CollectionItem{}, false, set, err
+			return model.CollectionItem{}, false, set, err
 		}
 		if other != 0 {
-			return db.CollectionItem{}, false, set, db.ErrOnePerPerson
+			return model.CollectionItem{}, false, set, model.ErrOnePerPerson
 		}
 	}
 	if declared {
 		full, err := repo.NameHoldsItems(ctx, tx, in.SiteID, in.Name, in.MaxItems-1)
 		if err != nil {
-			return db.CollectionItem{}, false, set, err
+			return model.CollectionItem{}, false, set, err
 		}
 		if full {
-			return db.CollectionItem{}, false, set, db.ErrNameFull
+			return model.CollectionItem{}, false, set, model.ErrNameFull
 		}
 	}
 	it, err := repo.RestoreWithdrawal(ctx, tx, in.ID)
 	if err != nil {
-		return db.CollectionItem{}, false, set, err
+		return model.CollectionItem{}, false, set, err
 	}
-	if err := repo.RecordHistory(ctx, tx, in.SiteID, db.HistoryList, in.Name, &in.ID, db.OpUndelete, nil, entryActor); err != nil {
-		return db.CollectionItem{}, false, set, err
+	if err := repo.RecordHistory(ctx, tx, in.SiteID, "list", in.Name, &in.ID, "undelete", nil, entryActor); err != nil {
+		return model.CollectionItem{}, false, set, err
 	}
 	if in.MaxBytes > 0 {
 		used, err := repo.SiteDataUsage(ctx, tx, in.SiteID)
 		if err != nil {
-			return db.CollectionItem{}, false, set, err
+			return model.CollectionItem{}, false, set, err
 		}
 		if used > in.MaxBytes {
-			return db.CollectionItem{}, false, set, db.ErrSiteFull
+			return model.CollectionItem{}, false, set, model.ErrSiteFull
 		}
 	}
 	return it, true, set, tx.Commit()
@@ -362,7 +363,7 @@ func (a *Adapter) undoVisitorEntry(ctx context.Context, in undoVisitorEntryInput
 // SetSaversInput identifies the site and its new saver settings.
 type SetSaversInput struct {
 	SiteID string
-	Savers db.Savers
+	Savers model.Savers
 }
 
 // SetSavers replaces a site's saver settings in one transaction.
@@ -419,7 +420,7 @@ type PutDataInput struct {
 
 // PutDataResult contains the saved document or replayed Personal record.
 type PutDataResult struct {
-	Item                                     db.CollectionItem
+	Item                                     model.CollectionItem
 	Personal, Found, Replayed, SaveAttempted bool
 	ReplayStatus                             int
 }
@@ -439,7 +440,7 @@ func (a *Adapter) putPersonalData(ctx context.Context, in PutDataInput) (result 
 	if in.Key != "" {
 		return result, &Error{Code: "personal_only"}
 	}
-	offline, err := db.SiteOffline(ctx, a.database, in.SiteID)
+	offline, err := siterepo.SiteOffline(ctx, a.database, in.SiteID)
 	if err != nil {
 		return result, &Error{Code: "internal", Message: err.Error()}
 	}
@@ -470,7 +471,7 @@ func (a *Adapter) putPersonalData(ctx context.Context, in PutDataInput) (result 
 	if !a.deps.PersonalWriteLimit() {
 		return result, &Error{Code: "rate_limited"}
 	}
-	actor := a.deps.ContentAuthor(ctx, db.Actor{ID: sess.UserID, Kind: "visitor"})
+	actor := a.deps.ContentAuthor(ctx, model.Actor{ID: sess.UserID, Kind: "visitor"})
 	raw, doc, err := a.deps.PersonalReadBody()
 	if err != nil {
 		return result, err
@@ -481,7 +482,7 @@ func (a *Adapter) putPersonalData(ctx context.Context, in PutDataInput) (result 
 	}
 	var scope []byte
 	if key != "" && actor.ID != "" {
-		var previous db.IdempotentResponse
+		var previous model.LegacyIdempotentResponse
 		var state string
 		scope, previous, state, err = a.ClaimWrite(ctx, in.SiteID, "PUT data/"+in.Name, actor.ID, key, raw)
 		if err != nil {
@@ -528,55 +529,55 @@ func (a *Adapter) putPersonalData(ctx context.Context, in PutDataInput) (result 
 	return result, nil
 }
 
-func (a *Adapter) savePersonalDocument(ctx context.Context, in PutDataInput, actor db.Actor, doc json.RawMessage, maxBytes int64) (db.CollectionItem, error) {
+func (a *Adapter) savePersonalDocument(ctx context.Context, in PutDataInput, actor model.Actor, doc json.RawMessage, maxBytes int64) (model.CollectionItem, error) {
 	if actor.ID == "" {
-		return db.CollectionItem{}, errors.New("a personal record needs a signed-in person")
+		return model.CollectionItem{}, errors.New("a personal record needs a signed-in person")
 	}
 	tx, err := a.database.BeginTx(ctx, nil)
 	if err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
 	defer tx.Rollback()
 	if err := repo.LockPersonalDeclaration(ctx, tx, in.SiteID, in.Name); err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
 	id, old, deleted, err := repo.LockPersonalItem(ctx, tx, in.SiteID, in.Name, actor.ID)
 	found := err == nil
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
-	var it db.CollectionItem
+	var it model.CollectionItem
 	if found {
 		it, err = repo.UpdatePersonalItem(ctx, tx, id, doc, actor.Email)
 		if err != nil {
-			return db.CollectionItem{}, err
+			return model.CollectionItem{}, err
 		}
-		if err := repo.RecordHistory(ctx, tx, in.SiteID, db.HistoryList, in.Name, &id, db.OpEdit, old, actor); err != nil {
-			return db.CollectionItem{}, err
+		if err := repo.RecordHistory(ctx, tx, in.SiteID, "list", in.Name, &id, "edit", old, actor); err != nil {
+			return model.CollectionItem{}, err
 		}
 	} else {
 		if in.PersonalPeopleMax > 0 {
 			n, err := repo.CountPersonalItems(ctx, tx, in.SiteID, in.Name, in.PersonalPeopleMax)
 			if err != nil {
-				return db.CollectionItem{}, err
+				return model.CollectionItem{}, err
 			}
 			if n >= in.PersonalPeopleMax {
-				return db.CollectionItem{}, db.ErrPeopleFull
+				return model.CollectionItem{}, model.ErrPeopleFull
 			}
 		}
 		it, err = repo.InsertPersonalItem(ctx, tx, in.SiteID, in.Name, doc, actor)
 		if err != nil {
-			return db.CollectionItem{}, err
+			return model.CollectionItem{}, err
 		}
 	}
 	if !found || deleted.Valid || len(it.Data) > len(old) {
 		if maxBytes > 0 {
 			used, err := repo.SiteDataUsage(ctx, tx, in.SiteID)
 			if err != nil {
-				return db.CollectionItem{}, err
+				return model.CollectionItem{}, err
 			}
 			if used > maxBytes {
-				return db.CollectionItem{}, db.ErrSiteFull
+				return model.CollectionItem{}, model.ErrSiteFull
 			}
 		}
 	}
@@ -584,67 +585,67 @@ func (a *Adapter) savePersonalDocument(ctx context.Context, in PutDataInput, act
 }
 
 // putContent stores a page-info document and bounds its history afterward.
-func (a *Adapter) putContent(ctx context.Context, in PutContentInput) (db.CollectionItem, error) {
-	suspended, reason, err := db.SiteSuspension(ctx, a.database, in.SiteID)
+func (a *Adapter) putContent(ctx context.Context, in PutContentInput) (model.CollectionItem, error) {
+	suspended, reason, err := siterepo.SiteSuspension(ctx, a.database, in.SiteID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.CollectionItem{}, &Error{Code: "site_not_found"}
+		return model.CollectionItem{}, &Error{Code: "site_not_found"}
 	}
 	if err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
 	if suspended {
-		return db.CollectionItem{}, &Error{Code: "site_suspended", Message: reason}
+		return model.CollectionItem{}, &Error{Code: "site_suspended", Message: reason}
 	}
 
 	set, err := a.WriteCollectionSettings(ctx, in.SiteID, in.Name, a.deps.ContentDeclareFirst())
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.CollectionItem{}, &Error{Code: "site_not_found"}
+		return model.CollectionItem{}, &Error{Code: "site_not_found"}
 	}
 	if err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
 	switch set.Kind {
-	case db.KindContent:
-	case db.KindPersonal:
-		return db.CollectionItem{}, &Error{Code: "content_personal"}
-	case db.KindEntries, db.KindBoard:
-		return db.CollectionItem{}, &Error{Code: "content_wrong_kind", Message: set.Kind}
+	case "content":
+	case "mine":
+		return model.CollectionItem{}, &Error{Code: "content_personal"}
+	case "entries", "board":
+		return model.CollectionItem{}, &Error{Code: "content_wrong_kind", Message: set.Kind}
 	default:
-		return db.CollectionItem{}, &Error{Code: "content_declare_first"}
+		return model.CollectionItem{}, &Error{Code: "content_declare_first"}
 	}
 
-	ownerID, _, err := db.GetSiteWriteGate(ctx, a.database, in.SiteID)
+	ownerID, _, err := siterepo.GetSiteWriteGate(ctx, a.database, in.SiteID)
 	if err != nil {
-		return db.CollectionItem{}, &Error{Code: "site_not_found"}
+		return model.CollectionItem{}, &Error{Code: "site_not_found"}
 	}
-	var actor db.Actor
+	var actor model.Actor
 	if in.Key != "" {
 		u, ok, err := a.deps.VisitorResolveKey(ctx, in.Key)
 		if err != nil {
-			return db.CollectionItem{}, err
+			return model.CollectionItem{}, err
 		}
 		if !ok {
-			return db.CollectionItem{}, &Error{Code: "invalid_api_key"}
+			return model.CollectionItem{}, &Error{Code: "invalid_api_key"}
 		}
 		if !u.IsAdmin && u.ID != ownerID {
-			return db.CollectionItem{}, &Error{Code: "site_not_found"}
+			return model.CollectionItem{}, &Error{Code: "site_not_found"}
 		}
-		actor = db.Actor{ID: u.ID, Kind: "owner"}
+		actor = model.Actor{ID: u.ID, Kind: "owner"}
 		if u.ID != ownerID {
 			actor.Kind = "admin"
 		}
 	} else if a.deps.ContentOwnerBrowser(in.SiteID) {
 		if !in.CSRFValid {
-			return db.CollectionItem{}, &Error{Code: "csrf_required"}
+			return model.CollectionItem{}, &Error{Code: "csrf_required"}
 		}
-		actor = db.Actor{ID: ownerID, Kind: "owner"}
+		actor = model.Actor{ID: ownerID, Kind: "owner"}
 	} else {
-		return db.CollectionItem{}, &Error{Code: "owner_only"}
+		return model.CollectionItem{}, &Error{Code: "owner_only"}
 	}
 	actor = a.deps.ContentAuthor(ctx, actor)
 	data, err := a.deps.ContentBody()
 	if err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
 	maxBytes := a.deps.ContentSiteMaxBytes()
 	if a.deps.BoundHistory != nil {
@@ -652,38 +653,38 @@ func (a *Adapter) putContent(ctx context.Context, in PutContentInput) (db.Collec
 	}
 	tx, err := a.database.BeginTx(ctx, nil)
 	if err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
 	defer tx.Rollback()
 	if err := repo.LockContentForPut(ctx, tx, in.SiteID, in.Name); err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
 	cur, found, err := repo.GetContent(ctx, tx, in.SiteID, in.Name)
 	if err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
-	var it db.CollectionItem
+	var it model.CollectionItem
 	if found {
 		it, err = repo.UpdateContent(ctx, tx, cur.ID, data, actor)
 		if err != nil {
-			return db.CollectionItem{}, err
+			return model.CollectionItem{}, err
 		}
-		if err := repo.RecordHistory(ctx, tx, in.SiteID, db.HistoryList, in.Name, &cur.ID, db.OpEdit, cur.Data, actor); err != nil {
-			return db.CollectionItem{}, err
+		if err := repo.RecordHistory(ctx, tx, in.SiteID, "list", in.Name, &cur.ID, "edit", cur.Data, actor); err != nil {
+			return model.CollectionItem{}, err
 		}
 	} else {
 		it, err = repo.InsertContent(ctx, tx, in.SiteID, in.Name, data, actor)
 		if err != nil {
-			return db.CollectionItem{}, err
+			return model.CollectionItem{}, err
 		}
 	}
 	if (!found || len(it.Data) > len(cur.Data)) && maxBytes > 0 {
 		used, err := repo.SiteDataUsage(ctx, tx, in.SiteID)
 		if err != nil {
-			return db.CollectionItem{}, err
+			return model.CollectionItem{}, err
 		}
 		if used > maxBytes {
-			return db.CollectionItem{}, db.ErrSiteFull
+			return model.CollectionItem{}, model.ErrSiteFull
 		}
 	}
 	return it, tx.Commit()
@@ -701,9 +702,9 @@ type ListMineInput struct {
 
 // ListMineResult holds a page of a visitor's entries and its continuation.
 type ListMineResult struct {
-	Items    []db.CollectionItem
+	Items    []model.CollectionItem
 	Next     *int64
-	Settings db.DataSettings
+	Settings model.DataSettings
 }
 
 // ListMine checks visitor access and reads the visitor's entries.
@@ -715,7 +716,7 @@ func (a *Adapter) ListMine(ctx context.Context, in ListMineInput) (ListMineResul
 	if !a.deps.MineReadLimit(siteID) {
 		return ListMineResult{}, &Error{Code: "rate_limited"}
 	}
-	suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+	suspended, reason, err := siterepo.SiteSuspension(ctx, a.database, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ListMineResult{}, &Error{Code: "site_not_found"}
 	}
@@ -743,7 +744,7 @@ func (a *Adapter) ListMine(ctx context.Context, in ListMineInput) (ListMineResul
 	if err != nil {
 		return ListMineResult{Settings: set}, err
 	}
-	if !storagerules.LegacyEntriesLike(set.Kind, set.Shared) && set.Kind != db.KindBoard {
+	if !storagerules.LegacyEntriesLike(set.Kind, set.Shared) && set.Kind != "board" {
 		return ListMineResult{Settings: set}, &Error{Code: "wrong_kind"}
 	}
 	items, err := repo.ListOwnEntries(ctx, a.database, siteID, in.Name, in.Access.UserID, in.Limit, in.Before)
@@ -803,7 +804,7 @@ func (a *Adapter) resolveDataReadSite(in GetDataKindInput) (string, bool, error)
 
 // DataKindResult contains the declaration facts shown to readers.
 type DataKindResult struct {
-	Settings     db.DataSettings
+	Settings     model.DataSettings
 	EntriesLike  bool
 	OnePerPerson bool
 }
@@ -821,10 +822,10 @@ type DataReadResult struct {
 	SiteID                         string
 	OwnerKey                       bool
 	Route                          storagerules.LegacyDataRoute
-	Document                       db.CollectionItem
+	Document                       model.CollectionItem
 	Found, OwnerView, PrivateCache bool
 	PersonalCount, PersonalFew     bool
-	Items                          []db.CollectionItem
+	Items                          []model.CollectionItem
 	Next                           *int64
 	Private, Board, WithAuthor     bool
 	Count                          int64
@@ -854,7 +855,7 @@ func (a *Adapter) ReadData(ctx context.Context, in DataReadInput) (DataReadResul
 			if in.Count {
 				result.PersonalCount = true
 				result.Count, err = repo.CountLiveItems(ctx, a.database, siteID, in.Name)
-				result.PersonalFew = result.Count > 0 && result.Count < db.PersonalFewMax
+				result.PersonalFew = result.Count > 0 && result.Count < repo.PersonalFewMax
 				return result, err
 			}
 			if ownerKey {
@@ -902,7 +903,7 @@ func (a *Adapter) readDataList(ctx context.Context, in DataReadInput) (DataReadR
 		return result, &Error{Code: "rate_limited"}
 	}
 	if !ownerKey {
-		suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+		suspended, reason, err := siterepo.SiteSuspension(ctx, a.database, siteID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return result, &Error{Code: "site_not_found"}
 		}
@@ -912,7 +913,7 @@ func (a *Adapter) readDataList(ctx context.Context, in DataReadInput) (DataReadR
 		if suspended {
 			return result, &Error{Code: "site_suspended", Message: reason}
 		}
-		offline, err := db.SiteOffline(ctx, a.database, siteID)
+		offline, err := siterepo.SiteOffline(ctx, a.database, siteID)
 		if err != nil {
 			return result, &Error{Code: "internal", Message: err.Error()}
 		}
@@ -921,7 +922,7 @@ func (a *Adapter) readDataList(ctx context.Context, in DataReadInput) (DataReadR
 		}
 	}
 	set, err := a.collectionSettings(ctx, siteID, in.Name)
-	if err == nil && set.Kind == db.KindPersonal {
+	if err == nil && set.Kind == "mine" {
 		return result, &Error{Code: "personal_only"}
 	}
 	if err != nil {
@@ -942,7 +943,7 @@ func (a *Adapter) readDataList(ctx context.Context, in DataReadInput) (DataReadR
 				}
 				return result, &Error{Code: "internal", Message: err.Error()}
 			}
-			_ = db.TouchVisitorSession(ctx, a.database, sess.ID, in.Access.Idle)
+			_ = a.accounts.TouchVisitorSession(ctx, sess.ID, in.Access.Idle)
 		}
 	}
 	result.WithAuthor = ownerKey || a.deps.DataOwnerBrowser(siteID)
@@ -950,7 +951,7 @@ func (a *Adapter) readDataList(ctx context.Context, in DataReadInput) (DataReadR
 		result.PrivateCache = true
 	}
 	result.Items, result.Next, err = a.listCollection(ctx, CollectionListInput{SiteID: siteID, Collection: in.Name, Limit: in.Limit, Before: in.Before, WithAuthor: result.WithAuthor, Settings: set})
-	result.Board = set.Kind == db.KindBoard
+	result.Board = set.Kind == "board"
 	if err != nil {
 		return result, &Error{Code: "internal", Message: err.Error()}
 	}
@@ -960,7 +961,7 @@ func (a *Adapter) readDataList(ctx context.Context, in DataReadInput) (DataReadR
 // DataKind reads a declaration and derives its public kind facts.
 func (a *Adapter) DataKind(ctx context.Context, in DataKindInput) (DataKindResult, error) {
 	if !in.OwnerKey {
-		suspended, reason, err := db.SiteSuspension(ctx, a.database, in.SiteID)
+		suspended, reason, err := siterepo.SiteSuspension(ctx, a.database, in.SiteID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return DataKindResult{}, &Error{Code: "site_not_found"}
 		}
@@ -970,7 +971,7 @@ func (a *Adapter) DataKind(ctx context.Context, in DataKindInput) (DataKindResul
 		if suspended {
 			return DataKindResult{}, &Error{Code: "site_suspended", Message: reason}
 		}
-		offline, err := db.SiteOffline(ctx, a.database, in.SiteID)
+		offline, err := siterepo.SiteOffline(ctx, a.database, in.SiteID)
 		if err != nil {
 			return DataKindResult{}, &Error{Code: "internal", Message: err.Error()}
 		}
@@ -985,7 +986,7 @@ func (a *Adapter) DataKind(ctx context.Context, in DataKindInput) (DataKindResul
 	return DataKindResult{
 		Settings:     set,
 		EntriesLike:  storagerules.LegacyEntriesLike(set.Kind, set.Shared),
-		OnePerPerson: set.OnePerPerson && set.Kind == db.KindEntries,
+		OnePerPerson: set.OnePerPerson && set.Kind == "entries",
 	}, nil
 }
 
@@ -998,16 +999,16 @@ type VisitorWriteInput struct {
 }
 
 // VisitorWrite authorizes a page write and checks the site's saver policy.
-func (a *Adapter) VisitorWrite(ctx context.Context, in VisitorWriteInput) (db.Actor, error) {
-	anon := db.Actor{Kind: "anonymous"}
-	ownerID, allowAnon, err := db.GetSiteWriteGate(ctx, a.database, in.SiteID)
+func (a *Adapter) VisitorWrite(ctx context.Context, in VisitorWriteInput) (model.Actor, error) {
+	anon := model.Actor{Kind: "anonymous"}
+	ownerID, allowAnon, err := siterepo.GetSiteWriteGate(ctx, a.database, in.SiteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return anon, &Error{Code: "site_not_found"}
 	}
 	if err != nil {
 		return anon, err
 	}
-	suspended, reason, err := db.SiteSuspension(ctx, a.database, in.SiteID)
+	suspended, reason, err := siterepo.SiteSuspension(ctx, a.database, in.SiteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return anon, &Error{Code: "site_not_found"}
 	}
@@ -1017,7 +1018,7 @@ func (a *Adapter) VisitorWrite(ctx context.Context, in VisitorWriteInput) (db.Ac
 	if suspended {
 		return anon, &Error{Code: "site_suspended", Message: reason}
 	}
-	off, err := db.SiteOffline(ctx, a.database, in.SiteID)
+	off, err := siterepo.SiteOffline(ctx, a.database, in.SiteID)
 	if err != nil {
 		return anon, err
 	}
@@ -1040,7 +1041,7 @@ func (a *Adapter) VisitorWrite(ctx context.Context, in VisitorWriteInput) (db.Ac
 		return a.visitorSaver(ctx, in, a.deps.VisitorKeyActor(ownerID))
 	}
 	if in.ContentHost {
-		if info, ok, _ := db.GetSiteDomainInfo(ctx, a.database, in.SiteID); ok && info.Domain != "" {
+		if info, ok, _ := siterepo.GetSiteDomainInfo(ctx, a.database, in.SiteID); ok && info.Domain != "" {
 			if own, has, _ := a.deps.VisitorOwnAddress(ctx, in.SiteID); has {
 				info.Domain = own.Domain
 			}
@@ -1059,7 +1060,7 @@ func (a *Adapter) VisitorWrite(ctx context.Context, in VisitorWriteInput) (db.Ac
 		if !in.CSRFValid {
 			return anon, &Error{Code: "pass_csrf_required"}
 		}
-		return a.visitorSaver(ctx, in, db.Actor{ID: sess.UserID, Kind: "visitor"})
+		return a.visitorSaver(ctx, in, model.Actor{ID: sess.UserID, Kind: "visitor"})
 	}
 	if in.Key != "" {
 		u, ok, err := a.deps.VisitorResolveKey(ctx, in.Key)
@@ -1073,9 +1074,9 @@ func (a *Adapter) VisitorWrite(ctx context.Context, in VisitorWriteInput) (db.Ac
 		if ok {
 			a.deps.VisitorLogKey(u.ID, true)
 			if u.IsAdmin && u.ID != ownerID {
-				return a.visitorSaver(ctx, in, db.Actor{ID: u.ID, Kind: "admin"})
+				return a.visitorSaver(ctx, in, model.Actor{ID: u.ID, Kind: "admin"})
 			}
-			return a.visitorSaver(ctx, in, db.Actor{ID: u.ID, Kind: "owner"})
+			return a.visitorSaver(ctx, in, model.Actor{ID: u.ID, Kind: "owner"})
 		}
 		return anon, &Error{Code: "invalid_api_key"}
 	}
@@ -1088,9 +1089,9 @@ func (a *Adapter) VisitorWrite(ctx context.Context, in VisitorWriteInput) (db.Ac
 	}
 	if raw := in.VisitorSessionCookie; raw != "" && !in.ContentHost {
 		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
-			sess, sessErr := db.GetVisitorSession(ctx, a.database, id, in.KeyIdle)
+			sess, sessErr := a.accounts.GetVisitorSession(ctx, id, in.KeyIdle)
 			if sessErr == nil && a.deps.VisitorSessionValid(sess, in.SiteID) {
-				susp, err := db.UserSuspended(ctx, a.database, sess.UserID)
+				susp, err := a.accounts.UserSuspended(ctx, sess.UserID)
 				if err != nil {
 					return anon, err
 				}
@@ -1098,11 +1099,11 @@ func (a *Adapter) VisitorWrite(ctx context.Context, in VisitorWriteInput) (db.Ac
 					return anon, &Error{Code: "account_suspended"}
 				}
 				if in.CSRFValid {
-					_ = db.TouchVisitorSession(ctx, a.database, id, in.SessionIdle)
+					_ = a.accounts.TouchVisitorSession(ctx, id, in.SessionIdle)
 					if sess.UserID == ownerID {
-						return a.visitorSaver(ctx, in, db.Actor{ID: sess.UserID, Kind: "owner"})
+						return a.visitorSaver(ctx, in, model.Actor{ID: sess.UserID, Kind: "owner"})
 					}
-					return a.visitorSaver(ctx, in, db.Actor{ID: sess.UserID, Kind: "visitor"})
+					return a.visitorSaver(ctx, in, model.Actor{ID: sess.UserID, Kind: "visitor"})
 				}
 				if mode == "on" {
 					return anon, &Error{Code: "csrf_required"}
@@ -1125,7 +1126,7 @@ func (a *Adapter) VisitorWrite(ctx context.Context, in VisitorWriteInput) (db.Ac
 	return a.visitorSaver(ctx, in, anon)
 }
 
-func (a *Adapter) visitorSaver(ctx context.Context, in VisitorWriteInput, actor db.Actor) (db.Actor, error) {
+func (a *Adapter) visitorSaver(ctx context.Context, in VisitorWriteInput, actor model.Actor) (model.Actor, error) {
 	if actor.Kind != "visitor" && actor.Kind != "anonymous" {
 		return actor, nil
 	}
@@ -1147,14 +1148,14 @@ type BoardWriterInput struct {
 
 // BoardWriterResult contains the writer and any reached rate-limit headers.
 type BoardWriterResult struct {
-	Actor   db.Actor
+	Actor   model.Actor
 	Headers map[string][]string
 }
 
 // BoardWriter authorizes a board write and applies its visitor write limits.
 func (a *Adapter) BoardWriter(ctx context.Context, in BoardWriterInput) (out BoardWriterResult, err error) {
 	if in.Key != "" || a.deps.ContentOwnerBrowser(in.SiteID) {
-		ownerID, _, err := db.GetSiteWriteGate(ctx, a.database, in.SiteID)
+		ownerID, _, err := siterepo.GetSiteWriteGate(ctx, a.database, in.SiteID)
 		if err != nil {
 			return out, &Error{Code: "site_not_found"}
 		}
@@ -1169,7 +1170,7 @@ func (a *Adapter) BoardWriter(ctx context.Context, in BoardWriterInput) (out Boa
 			if !u.IsAdmin && u.ID != ownerID {
 				return out, &Error{Code: "site_not_found"}
 			}
-			out.Actor = db.Actor{ID: u.ID, Kind: "owner"}
+			out.Actor = model.Actor{ID: u.ID, Kind: "owner"}
 			if u.ID != ownerID {
 				out.Actor.Kind = "admin"
 			}
@@ -1177,14 +1178,14 @@ func (a *Adapter) BoardWriter(ctx context.Context, in BoardWriterInput) (out Boa
 			if !in.CSRFValid {
 				return out, &Error{Code: "csrf_required"}
 			}
-			out.Actor = db.Actor{ID: ownerID, Kind: "owner"}
+			out.Actor = model.Actor{ID: ownerID, Kind: "owner"}
 		} else {
 			return out, &Error{Code: "owner_only"}
 		}
 		out.Actor = a.deps.ContentAuthor(ctx, out.Actor)
 		return out, nil
 	}
-	offline, err := db.SiteOffline(ctx, a.database, in.SiteID)
+	offline, err := siterepo.SiteOffline(ctx, a.database, in.SiteID)
 	if err != nil {
 		return out, err
 	}
@@ -1218,6 +1219,6 @@ func (a *Adapter) BoardWriter(ctx context.Context, in BoardWriterInput) (out Boa
 	if !a.deps.CollectionBoardLimit(sess.UserID) {
 		return out, &Error{Code: "rate_limited"}
 	}
-	out.Actor = a.deps.ContentAuthor(ctx, db.Actor{ID: sess.UserID, Kind: "visitor"})
+	out.Actor = a.deps.ContentAuthor(ctx, model.Actor{ID: sess.UserID, Kind: "visitor"})
 	return out, nil
 }

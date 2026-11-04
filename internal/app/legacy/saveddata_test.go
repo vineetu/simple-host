@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
 )
 
 func TestReadBucketLookupOrder(t *testing.T) {
@@ -23,9 +23,9 @@ func TestReadBucketLookupOrder(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls []string
 			a := New(nil, time.Time{}, Deps{
-				VisitorResolveKey: func(_ context.Context, _ string) (db.User, bool, error) {
+				VisitorResolveKey: func(_ context.Context, _ string) (model.User, bool, error) {
 					calls = append(calls, "key")
-					return db.User{ID: "owner"}, tc.valid, nil
+					return model.User{ID: "owner"}, tc.valid, nil
 				},
 			})
 			if got := a.ReadBucket(context.Background(), ReadBucketInput{SiteID: "site", APIKey: tc.key, ClientIP: "192.0.2.1"}); got != tc.want {
@@ -40,8 +40,8 @@ func TestReadBucketLookupOrder(t *testing.T) {
 
 func TestReadBucketKeyLookupErrorFallsBackToSite(t *testing.T) {
 	a := New(nil, time.Time{}, Deps{
-		VisitorResolveKey: func(context.Context, string) (db.User, bool, error) {
-			return db.User{ID: "owner"}, true, errors.New("lookup failed")
+		VisitorResolveKey: func(context.Context, string) (model.User, bool, error) {
+			return model.User{ID: "owner"}, true, errors.New("lookup failed")
 		},
 	})
 	got := a.ReadBucket(context.Background(), ReadBucketInput{SiteID: "site", APIKey: "key", ClientIP: "192.0.2.1"})

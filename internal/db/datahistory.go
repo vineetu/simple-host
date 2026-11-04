@@ -40,12 +40,12 @@ const (
 )
 
 // ErrNoEarlierValue: the history row holds nothing to put back.
-var ErrNoEarlierValue = errors.New("this change has no earlier value to put back")
+var ErrNoEarlierValue = model.ErrNoEarlierValue
 
 // ErrSiteFull: the write would grow the site's live saved data (page data and
 // list items; not history, not Recently deleted) past its cap. Writes that do
 // not grow it are never refused.
-var ErrSiteFull = errors.New("site saved data is full")
+var ErrSiteFull = model.ErrSiteFull
 
 // OperatorLabel is how the platform admin's moderation shows to a site's
 // owner, in place of the admin account's address.
@@ -422,7 +422,7 @@ func UndeleteItems(ctx context.Context, database *sql.DB, siteID, collection str
 
 // ErrOneDocument: Page info is one document, and bringing this item back
 // would make a second live one beside it.
-var ErrOneDocument = errors.New("page info holds one document")
+var ErrOneDocument = model.ErrOneDocument
 
 // lockNameFor takes the name's declaration-row lock when it has one, so a
 // restore and an add (or a change of kind) cannot interleave, and returns

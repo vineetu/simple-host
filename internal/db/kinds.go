@@ -44,7 +44,7 @@ const (
 
 // ErrVersionConflict: the item changed since the version the caller named
 // (If-Match); the current item comes back with it.
-var ErrVersionConflict = errors.New("the item changed since that version")
+var ErrVersionConflict = model.ErrVersionConflict
 
 // Notify choices for Submissions.
 const (
@@ -60,10 +60,10 @@ const (
 )
 
 // ErrOnePerPerson: this person already has a live entry in a one-per-person name.
-var ErrOnePerPerson = errors.New("one entry per person")
+var ErrOnePerPerson = model.ErrOnePerPerson
 
 // ErrNameFull: the name holds as many entries as it may.
-var ErrNameFull = errors.New("this list is full")
+var ErrNameFull = model.ErrNameFull
 
 // ErrNameHasRows: the name holds items (live or in Recently deleted), so it
 // cannot become Personal, or stop being Personal.
@@ -254,173 +254,11 @@ func GetItemAuthor(ctx context.Context, q Querier, siteID, name string, id int64
 	return legacy.GetItemAuthor(ctx, q, siteID, name, id)
 }
 
-// UndoOwnWithdrawal brings back item id of name when userID sent it and
-// withdrew it themselves within the last window: the item's latest change is
-// that person's own delete. ok=false otherwise (nothing changes). For a
-// declared Submissions name (declared) it takes the same lock as AppendEntry
-// and keeps its rules: at most maxItems live entries (ErrNameFull) and, with
-// onePerPerson, none while the person has another live entry
-// (ErrOnePerPerson).
-//
-// anyAuthor (a Shared board) lets the person who deleted an item bring it
-// back whoever added it; otherwise it must be their own.
-func UndoOwnWithdrawal(ctx context.Context, database *sql.DB, siteID, name string, id int64, userID string, window time.Duration, declared, onePerPerson bool, maxItems int, a Actor, maxBytes int64, anyAuthor bool) (CollectionItem, bool, error) {
-	tx, err := database.BeginTx(ctx, nil)
-	if err != nil {
-		return CollectionItem{}, false, err
-	}
-	defer tx.Rollback()
-	if declared {
-		if err := legacy.LockContentDeclaration(ctx, tx, siteID, name); err != nil {
-			return CollectionItem{}, false, err
-		}
-	}
-	op, actor, at, err := legacy.LockWithdrawal(ctx, tx, siteID, name, id, userID, anyAuthor)
-	if errors.Is(err, sql.ErrNoRows) {
-		return CollectionItem{}, false, nil
-	}
-	if err != nil {
-		return CollectionItem{}, false, err
-	}
-	if op.String != OpDelete || actor.String != userID || time.Since(at) > window {
-		return CollectionItem{}, false, nil
-	}
-	if declared && onePerPerson {
-		other, _, err := legacy.LivePersonEntry(ctx, tx, siteID, name, userID, BaseEmail(a.Email), id)
-		if err != nil {
-			return CollectionItem{}, false, err
-		}
-		if other != 0 {
-			return CollectionItem{}, false, ErrOnePerPerson
-		}
-	}
-	if declared {
-		full, err := NameHoldsItems(ctx, tx, siteID, name, maxItems-1)
-		if err != nil {
-			return CollectionItem{}, false, err
-		}
-		if full {
-			return CollectionItem{}, false, ErrNameFull
-		}
-	}
-	it, err := legacy.RestoreWithdrawal(ctx, tx, id)
-	if err != nil {
-		return CollectionItem{}, false, err
-	}
-	if err := recordHistory(ctx, tx, siteID, HistoryList, name, &id, OpUndelete, nil, a); err != nil {
-		return CollectionItem{}, false, err
-	}
-	if err := roomAfter(ctx, tx, siteID, maxBytes); err != nil {
-		return CollectionItem{}, false, err
-	}
-	return it, true, tx.Commit()
-}
-
 // ---- Personal (mine) --------------------------------------------------------------
-
-// GetPersonal is userID's live record in a Personal name, ok=false when
-// they have none (never saved, or deleted).
-func GetPersonal(ctx context.Context, q Querier, siteID, name, userID string) (CollectionItem, bool, error) {
-	return legacy.GetPersonal(ctx, q, siteID, name, userID)
-}
-
-// PersonalItemID is the id of userID's record in a Personal name, live or in
-// Recently deleted; 0 when they never saved one.
-func PersonalItemID(ctx context.Context, q Querier, siteID, name, userID string) (int64, error) {
-	return legacy.PersonalItemID(ctx, q, siteID, name, userID)
-}
-
-// SavePersonal writes a.ID's record in a Personal name: fn gets the live
-// record (nil when there is none) and returns the new one. Each person has
-// one row per name for good: a deleted record (by them, or cleared by the
-// owner) is written over and comes back live, so a restore never makes two.
-// The earlier value goes to history. The declaration row is locked, so two
-// first saves at once cannot make two rows. ErrSiteFull when it grows the
-// site past maxBytes; ErrPeopleFull when the person has no row yet and
-// peopleMax people already have one (live or in Recently deleted).
-func SavePersonal(ctx context.Context, database *sql.DB, siteID, name string, a Actor, maxBytes int64, peopleMax int, fn func(cur json.RawMessage) (json.RawMessage, error)) (CollectionItem, error) {
-	if a.ID == "" {
-		return CollectionItem{}, errors.New("a personal record needs a signed-in person")
-	}
-	tx, err := database.BeginTx(ctx, nil)
-	if err != nil {
-		return CollectionItem{}, err
-	}
-	defer tx.Rollback()
-	if err := legacy.LockPersonalDeclaration(ctx, tx, siteID, name); err != nil {
-		return CollectionItem{}, err
-	}
-	id, old, deleted, err := legacy.LockPersonalItem(ctx, tx, siteID, name, a.ID)
-	found := err == nil
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return CollectionItem{}, err
-	}
-	var cur json.RawMessage
-	if found && !deleted.Valid {
-		cur = old
-	}
-	next, err := fn(cur)
-	if err != nil {
-		return CollectionItem{}, err
-	}
-	var it CollectionItem
-	if found {
-		it, err = legacy.UpdatePersonalItem(ctx, tx, id, next, a.Email)
-		if err != nil {
-			return CollectionItem{}, err
-		}
-		if err := recordHistory(ctx, tx, siteID, HistoryList, name, &id, OpEdit, old, a); err != nil {
-			return CollectionItem{}, err
-		}
-	} else {
-		if peopleMax > 0 {
-			n, err := legacy.CountPersonalItems(ctx, tx, siteID, name, peopleMax)
-			if err != nil {
-				return CollectionItem{}, err
-			}
-			if n >= peopleMax {
-				return CollectionItem{}, ErrPeopleFull
-			}
-		}
-		it, err = legacy.InsertPersonalItem(ctx, tx, siteID, name, next, a)
-		if err != nil {
-			return CollectionItem{}, err
-		}
-	}
-	if !found || deleted.Valid || len(it.Data) > len(old) {
-		if err := roomAfter(ctx, tx, siteID, maxBytes); err != nil {
-			return CollectionItem{}, err
-		}
-	}
-	return it, tx.Commit()
-}
 
 // ErrPeopleFull: a Personal name already holds a record for as many people
 // as it may (SAVED_DATA_PERSONAL_PEOPLE_MAX).
-var ErrPeopleFull = errors.New("this Personal name has as many people as it may")
-
-// ForgetClearedPersonal is a person deleting their record after the owner's
-// clear took it: nothing changes but a delete by them in its history, so the
-// owner's "Restore" (which brings back only what a clear took) leaves it
-// deleted. ok=false when they have no record that a clear took last.
-func ForgetClearedPersonal(ctx context.Context, database *sql.DB, siteID, name string, a Actor) (bool, error) {
-	tx, err := database.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-	id, op, err := legacy.LockClearedPersonal(ctx, tx, siteID, name, a.ID)
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && op.String != OpClear) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	if err := recordHistory(ctx, tx, siteID, HistoryList, name, &id, OpDelete, nil, a); err != nil {
-		return false, err
-	}
-	return true, tx.Commit()
-}
+var ErrPeopleFull = model.ErrPeopleFull
 
 // ListItemHistory is one item's changes, newest first (a person's own
 // Personal record). before > 0 pages back.

@@ -9,7 +9,9 @@ import (
 	"log"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	repo "github.com/vsriram/simple-host/internal/repository/legacy"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // GetPersonalInput identifies a personal read and its request facts.
@@ -20,7 +22,7 @@ type GetPersonalInput struct {
 
 // GetPersonalResult contains a visitor's record or an owner's coarse count.
 type GetPersonalResult struct {
-	Item                db.CollectionItem
+	Item                model.CollectionItem
 	Found, Counted, Few bool
 	Count               int64
 }
@@ -29,12 +31,12 @@ type GetPersonalResult struct {
 func (a *Adapter) GetPersonal(ctx context.Context, in GetPersonalInput) (out GetPersonalResult, err error) {
 	if in.OwnerKey || a.deps.CollectionOwnerBrowser(in.SiteID) {
 		if in.Count {
-			n, err := db.CountLiveItems(ctx, a.database, in.SiteID, in.Name)
+			n, err := repo.CountLiveItems(ctx, a.database, in.SiteID, in.Name)
 			if err != nil {
 				return out, &Error{Code: "internal"}
 			}
 			out.Counted, out.Count = true, n
-			if n > 0 && n < db.PersonalFewMax {
+			if n > 0 && n < repo.PersonalFewMax {
 				out.Count, out.Few = 0, true
 			}
 			return out, nil
@@ -50,15 +52,15 @@ func (a *Adapter) GetPersonal(ctx context.Context, in GetPersonalInput) (out Get
 	if !sess.OK {
 		return out, &Error{Code: "visitor_auth_required"}
 	}
-	suspended, err := db.UserSuspended(ctx, a.database, sess.UserID)
+	suspended, err := a.accounts.UserSuspended(ctx, sess.UserID)
 	if err != nil {
 		return out, &Error{Code: "internal"}
 	}
 	if suspended {
 		return out, &Error{Code: "account_suspended"}
 	}
-	_ = db.TouchVisitorSession(ctx, a.database, sess.ID, a.deps.VisitorSessionIdle)
-	out.Item, out.Found, err = db.GetPersonal(ctx, a.database, in.SiteID, in.Name, sess.UserID)
+	_ = a.accounts.TouchVisitorSession(ctx, sess.ID, a.deps.VisitorSessionIdle)
+	out.Item, out.Found, err = repo.GetPersonal(ctx, a.database, in.SiteID, in.Name, sess.UserID)
 	return out, err
 }
 
@@ -70,14 +72,14 @@ func (e *PersonalPatchError) Error() string { return e.Message }
 // SavePersonalInput identifies a personal write and its idempotency scope.
 type SavePersonalInput struct {
 	SiteID, Name, Route, IdempotencyKey string
-	Actor                               db.Actor
+	Actor                               model.Actor
 	Body                                []byte
 	SuccessStatus                       int
 }
 
 // SavePersonalResult contains a saved record or a replayed record.
 type SavePersonalResult struct {
-	Item            db.CollectionItem
+	Item            model.CollectionItem
 	Found, Replayed bool
 	ReplayStatus    int
 	Headers         map[string][]string
@@ -92,7 +94,7 @@ func (a *Adapter) savePersonal(ctx context.Context, in SavePersonalInput) (out S
 	var scope []byte
 	saved := false
 	if key != "" && in.Actor.ID != "" {
-		var prev db.IdempotentResponse
+		var prev model.LegacyIdempotentResponse
 		var state string
 		scope, prev, state, err = a.ClaimWrite(ctx, in.SiteID, in.Route, in.Actor.ID, key, in.Body)
 		if err != nil {
@@ -105,7 +107,7 @@ func (a *Adapter) savePersonal(ctx context.Context, in SavePersonalInput) (out S
 			return out, &Error{Code: "idempotency_in_progress"}
 		case "replay":
 			out.Replayed, out.ReplayStatus = true, prev.Status
-			out.Item, out.Found, err = db.GetPersonal(ctx, a.database, in.SiteID, in.Name, in.Actor.ID)
+			out.Item, out.Found, err = repo.GetPersonal(ctx, a.database, in.SiteID, in.Name, in.Actor.ID)
 			return out, err
 		}
 	}
@@ -116,7 +118,7 @@ func (a *Adapter) savePersonal(ctx context.Context, in SavePersonalInput) (out S
 			}
 		}
 	}()
-	out.Item, err = db.SavePersonal(ctx, a.database, in.SiteID, in.Name, in.Actor, a.deps.PersonalSiteMaxBytes(), a.deps.PersonalPeopleMax(), a.deps.PersonalNext)
+	out.Item, err = savePersonal(ctx, a.database, in.SiteID, in.Name, in.Actor, a.deps.PersonalSiteMaxBytes(), a.deps.PersonalPeopleMax(), a.deps.PersonalNext)
 	a.deps.BoundPersonalHistory(ctx, in.SiteID)
 	if err != nil {
 		return out, err
@@ -144,7 +146,7 @@ func (a *Adapter) PutPersonal(ctx context.Context, in PutPersonalInput) (out Sav
 	if in.Key != "" {
 		return out, &Error{Code: "personal_data"}
 	}
-	offline, err := db.SiteOffline(ctx, a.database, in.SiteID)
+	offline, err := siterepo.SiteOffline(ctx, a.database, in.SiteID)
 	if err != nil {
 		return out, &Error{Code: "internal"}
 	}
@@ -161,7 +163,7 @@ func (a *Adapter) PutPersonal(ctx context.Context, in PutPersonalInput) (out Sav
 	if !sess.OK {
 		return out, &Error{Code: "visitor_auth_required"}
 	}
-	suspended, err := db.UserSuspended(ctx, a.database, sess.UserID)
+	suspended, err := a.accounts.UserSuspended(ctx, sess.UserID)
 	if err != nil {
 		return out, &Error{Code: "internal"}
 	}
@@ -171,8 +173,8 @@ func (a *Adapter) PutPersonal(ctx context.Context, in PutPersonalInput) (out Sav
 	if !in.CSRF {
 		return out, &Error{Code: "csrf_required"}
 	}
-	_ = db.TouchVisitorSession(ctx, a.database, sess.ID, a.deps.VisitorSessionIdle)
-	actor := db.Actor{ID: sess.UserID, Kind: "visitor"}
+	_ = a.accounts.TouchVisitorSession(ctx, sess.ID, a.deps.VisitorSessionIdle)
+	actor := model.Actor{ID: sess.UserID, Kind: "visitor"}
 	if err := a.authorizeCollectionSaver(ctx, in.SiteID, actor, in.VisitorPass); err != nil {
 		return out, err
 	}
@@ -200,18 +202,18 @@ func (a *Adapter) PutPersonal(ctx context.Context, in PutPersonalInput) (out Sav
 // DeletePersonalInput identifies the visitor's personal record to delete.
 type DeletePersonalInput struct {
 	SiteID, Name string
-	Actor        db.Actor
+	Actor        model.Actor
 }
 
 // DeletePersonal deletes a live record or forgets one taken by an owner clear.
 func (a *Adapter) deletePersonal(ctx context.Context, in DeletePersonalInput) (bool, error) {
-	it, found, err := db.GetPersonal(ctx, a.database, in.SiteID, in.Name, in.Actor.ID)
+	it, found, err := repo.GetPersonal(ctx, a.database, in.SiteID, in.Name, in.Actor.ID)
 	if err == nil && found {
-		found, err = db.SoftDeleteItem(ctx, a.database, in.SiteID, in.Name, it.ID, in.Actor)
+		found, err = softDeleteItem(ctx, a.database, in.SiteID, in.Name, it.ID, in.Actor)
 	}
 	// A person's delete still counts if the owner's clear took their record.
 	if err == nil && !found {
-		found, err = db.ForgetClearedPersonal(ctx, a.database, in.SiteID, in.Name, in.Actor)
+		found, err = forgetClearedPersonal(ctx, a.database, in.SiteID, in.Name, in.Actor)
 	}
 	return found, err
 }
@@ -243,7 +245,7 @@ func (a *Adapter) personalTarget(ctx context.Context, in DeletePersonalRequest) 
 	if err != nil {
 		return out, "", &Error{Code: "site_not_found"}
 	}
-	suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+	suspended, reason, err := siterepo.SiteSuspension(ctx, a.database, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, "", &Error{Code: "site_not_found"}
 	}
@@ -253,7 +255,7 @@ func (a *Adapter) personalTarget(ctx context.Context, in DeletePersonalRequest) 
 	if suspended {
 		return out, "", &Error{Code: "site_suspended", Message: reason}
 	}
-	offline, err := db.SiteOffline(ctx, a.database, siteID)
+	offline, err := siterepo.SiteOffline(ctx, a.database, siteID)
 	if err != nil {
 		return out, "", &Error{Code: "internal"}
 	}
@@ -268,17 +270,17 @@ func (a *Adapter) personalTarget(ctx context.Context, in DeletePersonalRequest) 
 		return out, "", &Error{Code: "internal"}
 	}
 	out.Kind = set.Kind
-	if set.Kind != db.KindPersonal {
+	if set.Kind != "mine" {
 		return out, "", &Error{Code: "personal_wrong_kind"}
 	}
 	return out, siteID, nil
 }
 
-func (a *Adapter) personalWriter(ctx context.Context, siteID string, facts CollectionWriteActor, needSaver bool) (actor db.Actor, headers map[string][]string, err error) {
+func (a *Adapter) personalWriter(ctx context.Context, siteID string, facts CollectionWriteActor, needSaver bool) (actor model.Actor, headers map[string][]string, err error) {
 	if facts.Key != "" {
 		return actor, nil, &Error{Code: "personal_data"}
 	}
-	offline, err := db.SiteOffline(ctx, a.database, siteID)
+	offline, err := siterepo.SiteOffline(ctx, a.database, siteID)
 	if err != nil {
 		return actor, nil, &Error{Code: "internal"}
 	}
@@ -295,7 +297,7 @@ func (a *Adapter) personalWriter(ctx context.Context, siteID string, facts Colle
 	if !sess.OK {
 		return actor, nil, &Error{Code: "visitor_auth_required"}
 	}
-	suspended, err := db.UserSuspended(ctx, a.database, sess.UserID)
+	suspended, err := a.accounts.UserSuspended(ctx, sess.UserID)
 	if err != nil {
 		return actor, nil, &Error{Code: "internal"}
 	}
@@ -305,8 +307,8 @@ func (a *Adapter) personalWriter(ctx context.Context, siteID string, facts Colle
 	if !facts.CSRF {
 		return actor, nil, &Error{Code: "csrf_required"}
 	}
-	_ = db.TouchVisitorSession(ctx, a.database, sess.ID, a.deps.VisitorSessionIdle)
-	actor = db.Actor{ID: sess.UserID, Kind: "visitor"}
+	_ = a.accounts.TouchVisitorSession(ctx, sess.ID, a.deps.VisitorSessionIdle)
+	actor = model.Actor{ID: sess.UserID, Kind: "visitor"}
 	if needSaver {
 		if err := a.authorizeCollectionSaver(ctx, siteID, actor, facts.VisitorPass); err != nil {
 			return actor, nil, err
@@ -403,13 +405,13 @@ type PersonalHistoryRequest struct {
 // PersonalHistoryResult contains reached headers and the requested history data.
 type PersonalHistoryResult struct {
 	DeletePersonalResult
-	Entries    []db.HistoryEntry
-	Entry      db.HistoryEntry
-	Item       db.CollectionItem
+	Entries    []model.HistoryEntry
+	Entry      model.HistoryEntry
+	Item       model.CollectionItem
 	RestoredID int64
 }
 
-func (a *Adapter) personalReader(ctx context.Context, siteID string, facts CollectionWriteActor) (actor db.Actor, headers map[string][]string, err error) {
+func (a *Adapter) personalReader(ctx context.Context, siteID string, facts CollectionWriteActor) (actor model.Actor, headers map[string][]string, err error) {
 	allowed, headers := a.deps.CollectionReadLimit(siteID)
 	if !allowed {
 		return actor, headers, &Error{Code: "rate_limited"}
@@ -421,15 +423,15 @@ func (a *Adapter) personalReader(ctx context.Context, siteID string, facts Colle
 	if !sess.OK {
 		return actor, headers, &Error{Code: "visitor_auth_required"}
 	}
-	suspended, err := db.UserSuspended(ctx, a.database, sess.UserID)
+	suspended, err := a.accounts.UserSuspended(ctx, sess.UserID)
 	if err != nil {
 		return actor, headers, &Error{Code: "internal"}
 	}
 	if suspended {
 		return actor, headers, &Error{Code: "account_suspended"}
 	}
-	_ = db.TouchVisitorSession(ctx, a.database, sess.ID, a.deps.VisitorSessionIdle)
-	return db.Actor{ID: sess.UserID, Kind: "visitor"}, headers, nil
+	_ = a.accounts.TouchVisitorSession(ctx, sess.ID, a.deps.VisitorSessionIdle)
+	return model.Actor{ID: sess.UserID, Kind: "visitor"}, headers, nil
 }
 
 // ReadPersonalHistory resolves and reads the visitor's personal history page.
@@ -488,14 +490,14 @@ type PersonalHistoryInput struct {
 }
 
 // PersonalHistory returns the history of a visitor's personal record.
-func (a *Adapter) personalHistory(ctx context.Context, in PersonalHistoryInput) ([]db.HistoryEntry, error) {
-	itemID, err := db.PersonalItemID(ctx, a.database, in.SiteID, in.Name, in.UserID)
+func (a *Adapter) personalHistory(ctx context.Context, in PersonalHistoryInput) ([]model.HistoryEntry, error) {
+	itemID, err := repo.PersonalItemID(ctx, a.database, in.SiteID, in.Name, in.UserID)
 	if err != nil {
 		return nil, err
 	}
-	entries := []db.HistoryEntry{}
+	entries := []model.HistoryEntry{}
 	if itemID != 0 {
-		entries, err = db.ListItemHistory(ctx, a.database, in.SiteID, in.Name, itemID, in.Limit, in.Before)
+		entries, err = repo.ListItemHistory(ctx, a.database, in.SiteID, in.Name, itemID, in.Limit, in.Before)
 	}
 	return entries, err
 }
@@ -503,20 +505,20 @@ func (a *Adapter) personalHistory(ctx context.Context, in PersonalHistoryInput) 
 // PersonalHistoryEntryInput identifies a change belonging to a visitor's record.
 type PersonalHistoryEntryInput struct {
 	SiteID, Name string
-	Actor        db.Actor
+	Actor        model.Actor
 	ChangeID     int64
 	ValidID      bool
 }
 
-func (a *Adapter) personalHistoryEntry(ctx context.Context, in PersonalHistoryEntryInput) (db.HistoryEntry, error) {
-	itemID, err := db.PersonalItemID(ctx, a.database, in.SiteID, in.Name, in.Actor.ID)
+func (a *Adapter) personalHistoryEntry(ctx context.Context, in PersonalHistoryEntryInput) (model.HistoryEntry, error) {
+	itemID, err := repo.PersonalItemID(ctx, a.database, in.SiteID, in.Name, in.Actor.ID)
 	if err != nil {
-		return db.HistoryEntry{}, &Error{Code: "internal"}
+		return model.HistoryEntry{}, &Error{Code: "internal"}
 	}
 	if !in.ValidID || itemID == 0 {
-		return db.HistoryEntry{}, &Error{Code: "history_not_found"}
+		return model.HistoryEntry{}, &Error{Code: "history_not_found"}
 	}
-	e, err := db.ReadHistoryEntry(ctx, a.database, in.SiteID, db.HistoryList, in.Name, in.ChangeID)
+	e, err := readHistoryEntry(ctx, a.database, in.SiteID, "list", in.Name, in.ChangeID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return e, &Error{Code: "internal"}
 	}
@@ -527,12 +529,12 @@ func (a *Adapter) personalHistoryEntry(ctx context.Context, in PersonalHistoryEn
 }
 
 // RestorePersonal restores a visitor's record to the value before a change.
-func (a *Adapter) restorePersonal(ctx context.Context, in PersonalHistoryEntryInput) (db.CollectionItem, int64, error) {
+func (a *Adapter) restorePersonal(ctx context.Context, in PersonalHistoryEntryInput) (model.CollectionItem, int64, error) {
 	e, err := a.personalHistoryEntry(ctx, in)
 	if err != nil {
-		return db.CollectionItem{}, 0, err
+		return model.CollectionItem{}, 0, err
 	}
-	it, err := db.RestoreItemVersion(ctx, a.database, in.SiteID, in.Name, e.ID, in.Actor, a.deps.PersonalSiteMaxBytes(), 0)
+	it, err := restoreItemVersion(ctx, a.database, in.SiteID, in.Name, e.ID, in.Actor, a.deps.PersonalSiteMaxBytes(), 0)
 	a.deps.BoundPersonalHistory(ctx, in.SiteID)
 	return it, e.ID, err
 }

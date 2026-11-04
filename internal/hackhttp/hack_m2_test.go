@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
@@ -113,7 +114,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	mux := http.NewServeMux()
 	a := &teamSiteApp{database: database, admin: adminKey, mux: mux, certDir: certDir}
 	ed := edition.ForKind(edition.Hack)
-	authMW := auth.Middleware(adminKey, adminID, database, 180*24*time.Hour)
+	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), 180*24*time.Hour)
 	var root http.Handler
 	a.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(a.srv.Close)
@@ -135,7 +136,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.hack.Register(mux, authMW)
 	a.sites.SetHackEventPage(HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages))
 	a.sites.SetHackScreenshot(HackScreenshot(database, a.sites.TeamSitesReady))
-	gated := a.sites.LegacyStorageCutoffGate(a.sites.HackLegacyStorageGate(auth.ScopeGate(database, mux, true, 180*24*time.Hour)))
+	gated := a.sites.LegacyStorageCutoffGate(a.sites.HackLegacyStorageGate(auth.ScopeGate(accountapp.New(database), mux, true, 180*24*time.Hour)))
 	a.conn = handler.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetHackTeams(true)

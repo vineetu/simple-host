@@ -13,8 +13,6 @@ import (
 	"time"
 
 	model "github.com/vsriram/simple-host/internal/model"
-	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
-	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 	repository "github.com/vsriram/simple-host/internal/repository/storage"
 	mechanics "github.com/vsriram/simple-host/internal/storage"
@@ -436,17 +434,5 @@ func (s *Service) fileLinkScopeCurrent(ctx context.Context, site model.Site, sco
 	if !ok || id == "" || memberID == "" {
 		return false
 	}
-	switch kind {
-	case "team":
-		team, err := teamrepo.ResolveTeamIdentity(ctx, s.db, memberID, id)
-		return err == nil && team.AccountID == site.UserID && team.TeamSlug == site.Name
-	case "event":
-		ev, err := eventrepo.GetEventByAccount(ctx, s.db, site.UserID)
-		if err != nil || ev.ID != id || site.Name != ev.ID || ev.TakenDown() {
-			return false
-		}
-		member, err := eventrepo.GetEventMember(ctx, s.db, ev.ID, memberID)
-		return err == nil && member.Role == "organiser"
-	}
-	return false
+	return s.accounts.FileLinkScopeAllows(ctx, site, kind, id, memberID)
 }

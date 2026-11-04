@@ -26,6 +26,7 @@ import (
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/model"
 	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
 	"github.com/vsriram/simple-host/internal/workers"
 )
@@ -239,7 +240,10 @@ func (h *SiteHandler) visitorWriteSvc(r *http.Request, in legacy.VisitorWriteInp
 	return legacy.New(h.database, h.legacyStorageCutoff, legacy.Deps{
 		VisitorOwnerKeyWrite:   func(owner string) bool { return h.ownerKeyWrite(r, owner) },
 		VisitorDomainElsewhere: func(site string) (string, bool) { return h.livesOnDomainElsewhere(r, site) },
-		VisitorOwnAddress:      h.siteOwnAddress,
+		VisitorOwnAddress: func(ctx context.Context, siteID string) (model.SiteDomainInfo, bool, error) {
+			info, ok, err := h.siteOwnAddress(ctx, siteID)
+			return model.SiteDomainInfo(info), ok, err
+		},
 		VisitorInternalSession: func(site string) (db.VisitorSession, bool) { return h.internalVisitorSession(r, site) },
 		VisitorResolveKey:      h.resolveWriterKey,
 		VisitorKeyActor:        func(owner string) db.Actor { return h.keyActor(r, owner) },

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -302,7 +303,7 @@ func TestRotateWithKeyRevokedMidRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	users := NewUserHandler(a.database, nil, a.srv.URL)
-	h := auth.Middleware("", "", a.database, 180*24*time.Hour)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := auth.Middleware("", "", accountapp.New(a.database), 180*24*time.Hour)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := a.database.Exec(`DELETE FROM api_keys WHERE key_hash = $1`, u.KeyHash); err != nil {
 			t.Fatal(err)
 		}

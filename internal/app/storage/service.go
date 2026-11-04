@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	runtime "github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -42,12 +43,15 @@ type Deps struct {
 
 // Service owns site storage workflows.
 type Service struct {
-	db   *sql.DB
-	deps Deps
+	accounts *accountapp.Service
+	db       *sql.DB
+	deps     Deps
 }
 
 // New constructs a storage service.
-func New(db *sql.DB, deps Deps) *Service { return &Service{db: db, deps: deps} }
+func New(db *sql.DB, deps Deps) *Service {
+	return &Service{accounts: accountapp.New(db), db: db, deps: deps}
+}
 
 // writeLock acquires the shared site lock and rechecks the resource before
 // starting the bounded write context. The recheck runs while the lock is held.

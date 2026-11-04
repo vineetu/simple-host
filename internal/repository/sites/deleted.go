@@ -133,7 +133,7 @@ func queryDeletedSites(ctx context.Context, database *sql.DB, query string, args
 // past the window: a restore that won the race keeps the site. sql.ErrNoRows
 // when nothing was removed. Returns every own address the site had, for the
 // caller to unbind on disk and release the certificate of.
-func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string, retention time.Duration) ([]string, error) {
+func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string, retention time.Duration, platformDomains ...string) ([]string, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string, rete
 	}
 	// A claimed <name>.<SITE_DOMAIN> outlives the site as a retired name
 	// ("this site was removed"), so it never passes to a stranger's site.
-	domains, err := RetireSiteNames(ctx, tx, siteID)
+	domains, err := RetireSiteNames(ctx, tx, siteID, platformDomains...)
 	if err != nil {
 		return nil, err
 	}

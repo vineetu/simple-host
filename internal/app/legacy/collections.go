@@ -16,8 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/legacy"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // CollectionOptionsInput contains the origin facts for a preflight request.
@@ -63,20 +64,20 @@ func (a *Adapter) AuthorizeCollectionGate(_ context.Context, in CollectionGateIn
 }
 
 // prepareCollectionAppend applies the write gate and reads the declaration.
-func (a *Adapter) prepareCollectionAppend(ctx context.Context, in CollectionGateInput) (string, db.DataSettings, error) {
+func (a *Adapter) prepareCollectionAppend(ctx context.Context, in CollectionGateInput) (string, model.DataSettings, error) {
 	if err := a.AuthorizeCollectionGate(ctx, in); err != nil {
-		return "", db.DataSettings{}, err
+		return "", model.DataSettings{}, err
 	}
 	id, err := a.deps.ResolveWriteSite(ctx, in.SiteName)
 	if err != nil {
-		return "", db.DataSettings{}, err
+		return "", model.DataSettings{}, err
 	}
 	set, err := a.WriteCollectionSettings(ctx, id, in.Collection, in.DeclareFirst)
 	if err == nil {
 		switch {
-		case set.Kind == db.KindContent:
+		case set.Kind == "content":
 			err = &Error{Code: "append_content"}
-		case set.Kind == db.KindPersonal:
+		case set.Kind == "mine":
 			err = &Error{Code: "append_personal"}
 		case set.Kind == "" && !set.Shared:
 			err = &Error{Code: "declare_first"}
@@ -86,8 +87,8 @@ func (a *Adapter) prepareCollectionAppend(ctx context.Context, in CollectionGate
 }
 
 // authorizeCollectionSubmitter applies the declared-submission identity rule.
-func (a *Adapter) authorizeCollectionSubmitter(_ context.Context, set db.DataSettings, actor db.Actor) error {
-	if set.Kind == db.KindEntries && actor.Kind == "anonymous" {
+func (a *Adapter) authorizeCollectionSubmitter(_ context.Context, set model.DataSettings, actor model.Actor) error {
+	if set.Kind == "entries" && actor.Kind == "anonymous" {
 		return &Error{Code: "visitor_auth_required"}
 	}
 	return nil
@@ -120,12 +121,12 @@ func collectionPage(limitValue, beforeValue string) (int, int64) {
 }
 
 // collectionSettings reads the declaration for a collection.
-func (a *Adapter) collectionSettings(ctx context.Context, siteID, coll string) (db.DataSettings, error) {
+func (a *Adapter) collectionSettings(ctx context.Context, siteID, coll string) (model.DataSettings, error) {
 	return legacy.GetDataSettings(ctx, a.database, siteID, coll)
 }
 
 // WriteCollectionSettings applies the configured default to an undeclared name.
-func (a *Adapter) WriteCollectionSettings(ctx context.Context, siteID, coll string, declareFirst bool) (db.DataSettings, error) {
+func (a *Adapter) WriteCollectionSettings(ctx context.Context, siteID, coll string, declareFirst bool) (model.DataSettings, error) {
 	set, err := a.collectionSettings(ctx, siteID, coll)
 	if err == nil && !declareFirst {
 		set.Shared = true
@@ -134,8 +135,8 @@ func (a *Adapter) WriteCollectionSettings(ctx context.Context, siteID, coll stri
 }
 
 // EntryMaxBytes selects the item limit for a collection declaration.
-func EntryMaxBytes(set db.DataSettings, entryMaxKB int, listMaxBytes int64) int64 {
-	if set.Kind == db.KindEntries {
+func EntryMaxBytes(set model.DataSettings, entryMaxKB int, listMaxBytes int64) int64 {
+	if set.Kind == "entries" {
 		return int64(entryMaxKB) << 10
 	}
 	return listMaxBytes
@@ -151,31 +152,31 @@ type CollectionReadSettingsInput struct {
 }
 
 // CollectionReadSettings checks site availability and reads the list declaration.
-func (a *Adapter) collectionReadSettings(ctx context.Context, in CollectionReadSettingsInput) (db.DataSettings, error) {
+func (a *Adapter) collectionReadSettings(ctx context.Context, in CollectionReadSettingsInput) (model.DataSettings, error) {
 	if !in.Owner {
-		suspended, reason, err := db.SiteSuspension(ctx, a.database, in.SiteID)
+		suspended, reason, err := siterepo.SiteSuspension(ctx, a.database, in.SiteID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return db.DataSettings{}, &Error{Code: "site_not_found"}
+			return model.DataSettings{}, &Error{Code: "site_not_found"}
 		}
 		if err != nil {
-			return db.DataSettings{}, &Error{Code: "internal"}
+			return model.DataSettings{}, &Error{Code: "internal"}
 		}
 		if suspended {
-			return db.DataSettings{}, &Error{Code: "site_suspended", Message: reason}
+			return model.DataSettings{}, &Error{Code: "site_suspended", Message: reason}
 		}
-		offline, err := db.SiteOffline(ctx, a.database, in.SiteID)
+		offline, err := siterepo.SiteOffline(ctx, a.database, in.SiteID)
 		if err != nil {
-			return db.DataSettings{}, &Error{Code: "internal"}
+			return model.DataSettings{}, &Error{Code: "internal"}
 		}
 		if offline {
-			return db.DataSettings{}, &Error{Code: "site_offline"}
+			return model.DataSettings{}, &Error{Code: "site_offline"}
 		}
 	}
 	set, err := a.collectionSettings(ctx, in.SiteID, in.Collection)
 	if err != nil {
 		return set, &Error{Code: "internal"}
 	}
-	if set.Kind == db.KindPersonal {
+	if set.Kind == "mine" {
 		return set, ErrPersonalList
 	}
 	return set, nil
@@ -212,7 +213,7 @@ func (a *Adapter) collectionReadView(ctx context.Context, in CollectionReadViewI
 			if !sess.OK || sess.UserID != ownerID || in.VisitorPass {
 				return false, &Error{Code: "private_not_found"}
 			}
-			_ = db.TouchVisitorSession(ctx, a.database, sess.ID, a.deps.VisitorSessionIdle)
+			_ = a.accounts.TouchVisitorSession(ctx, sess.ID, a.deps.VisitorSessionIdle)
 		}
 	}
 	if in.OwnerKey {
@@ -233,11 +234,11 @@ func (a *Adapter) collectionReadView(ctx context.Context, in CollectionReadViewI
 type CollectionListInput struct {
 	SiteID, Collection, Limit, Before string
 	WithAuthor                        bool
-	Settings                          db.DataSettings
+	Settings                          model.DataSettings
 }
 
 // ListCollection reads and shapes a collection page for its caller.
-func (a *Adapter) listCollection(ctx context.Context, in CollectionListInput) ([]db.CollectionItem, *int64, error) {
+func (a *Adapter) listCollection(ctx context.Context, in CollectionListInput) ([]model.CollectionItem, *int64, error) {
 	siteID, coll, withAuthor, set := in.SiteID, in.Collection, in.WithAuthor, in.Settings
 	limit, before := collectionPage(in.Limit, in.Before)
 	items, err := legacy.ListCollectionItemsByID(ctx, a.database, siteID, coll, limit, before, withAuthor)
@@ -253,7 +254,7 @@ func (a *Adapter) listCollection(ctx context.Context, in CollectionListInput) ([
 		if !set.Private && !withAuthor {
 			items[i].Data = WithoutSubmitter(items[i].Data)
 		}
-		if set.Kind != db.KindBoard {
+		if set.Kind != "board" {
 			items[i].Version = 0
 		}
 	}
@@ -268,9 +269,9 @@ type CollectionPageInput struct {
 
 // CollectionPageResult records the headers reached while loading a list page.
 type CollectionPageResult struct {
-	Items           []db.CollectionItem
+	Items           []model.CollectionItem
 	Next            *int64
-	Settings        db.DataSettings
+	Settings        model.DataSettings
 	Private, Author bool
 }
 
@@ -368,10 +369,10 @@ func (a *Adapter) OwnedSiteID(ctx context.Context, in OwnedSiteInput) (string, e
 	if !in.SignedIn {
 		return "", sql.ErrNoRows
 	}
-	var site db.Site
+	var site model.Site
 	err := sql.ErrNoRows
 	if in.UserID != "" {
-		site, err = db.GetSiteByUser(ctx, a.database, in.UserID, in.SiteName)
+		site, err = siterepo.GetSiteByUser(ctx, a.database, in.UserID, in.SiteName)
 		if err == nil && in.Scoped && in.ScopedSiteID != site.ID {
 			err = sql.ErrNoRows
 		}
@@ -380,7 +381,7 @@ func (a *Adapter) OwnedSiteID(ctx context.Context, in OwnedSiteInput) (string, e
 		return site.ID, nil
 	}
 	if errors.Is(err, sql.ErrNoRows) && in.Admin {
-		return db.GetSiteIDByName(ctx, a.database, in.SiteName)
+		return siterepo.GetSiteIDByName(ctx, a.database, in.SiteName)
 	}
 	return "", err
 }
@@ -397,12 +398,12 @@ func (a *Adapter) OwnerSiteFromKey(ctx context.Context, in OwnerKeyInput) (strin
 	if in.SiteName == "" || in.APIKey == "" {
 		return "", false
 	}
-	var user db.User
+	var user model.User
 	if a.deps.AdminAPIKey != "" && subtle.ConstantTimeCompare([]byte(in.APIKey), []byte(a.deps.AdminAPIKey)) == 1 {
 		user.IsAdmin = true
 	} else {
 		var err error
-		user, err = db.GetUserByAPIKey(ctx, a.database, in.APIKey, a.deps.KeyIdleExpiry)
+		user, err = a.accounts.GetUserByAPIKey(ctx, in.APIKey, a.deps.KeyIdleExpiry)
 		if err != nil {
 			return "", false
 		}
@@ -478,7 +479,7 @@ type ListSiteCollectionsInput struct {
 }
 
 // ListSiteCollections authorizes and returns the owner inventory.
-func (a *Adapter) ListSiteCollections(ctx context.Context, in ListSiteCollectionsInput) ([]db.CollectionSummary, error) {
+func (a *Adapter) ListSiteCollections(ctx context.Context, in ListSiteCollectionsInput) ([]model.CollectionSummary, error) {
 	if !in.SignedIn {
 		return nil, &Error{Code: "unauthorized", Message: "unauthorized"}
 	}
@@ -497,7 +498,7 @@ func (a *Adapter) ListSiteCollections(ctx context.Context, in ListSiteCollection
 }
 
 // ReplayCollectionItem retrieves the item recorded for an append retry.
-func (a *Adapter) ReplayCollectionItem(ctx context.Context, siteID, coll string, id int64) (db.CollectionItem, error) {
+func (a *Adapter) ReplayCollectionItem(ctx context.Context, siteID, coll string, id int64) (model.CollectionItem, error) {
 	return legacy.GetCollectionItemByID(ctx, a.database, siteID, coll, id)
 }
 
@@ -512,7 +513,7 @@ func (a *Adapter) ReleaseIdempotencyKey(ctx context.Context, scope []byte) error
 }
 
 // ClaimWrite reserves a write or returns the previous result and its state.
-func (a *Adapter) ClaimWrite(ctx context.Context, siteID, route, actorID, key string, body []byte) ([]byte, db.IdempotentResponse, string, error) {
+func (a *Adapter) ClaimWrite(ctx context.Context, siteID, route, actorID, key string, body []byte) ([]byte, model.LegacyIdempotentResponse, string, error) {
 	sum := sha256.Sum256([]byte(siteID + "\x00" + route + "\x00" + actorID + "\x00" + key))
 	bodySum := sha256.Sum256(body)
 	claimed, prev, err := legacy.ClaimIdempotencyKey(ctx, a.database, sum[:], siteID, bodySum[:], 2*time.Minute)
@@ -534,21 +535,21 @@ func (a *Adapter) ClaimWrite(ctx context.Context, siteID, route, actorID, key st
 // SaveEntryInput contains the values for a saved collection item.
 type SaveEntryInput struct {
 	SiteID     string
-	Settings   db.DataSettings
+	Settings   model.DataSettings
 	Body       []byte
-	Actor      db.Actor
+	Actor      model.Actor
 	MaxEntries int
 }
 
 // SaveEntry appends a declared submission or an undeclared collection item.
-func (a *Adapter) SaveEntry(ctx context.Context, in SaveEntryInput) (db.CollectionItem, int64, error) {
+func (a *Adapter) SaveEntry(ctx context.Context, in SaveEntryInput) (model.CollectionItem, int64, error) {
 	siteID, set, body, actor, maxEntries := in.SiteID, in.Settings, in.Body, in.Actor, in.MaxEntries
-	if set.Kind == db.KindEntries {
+	if set.Kind == "entries" {
 		return a.appendEntry(ctx, siteID, set, body, actor, maxEntries)
 	}
 	tx, err := a.database.BeginTx(ctx, nil)
 	if err != nil {
-		return db.CollectionItem{}, 0, err
+		return model.CollectionItem{}, 0, err
 	}
 	defer tx.Rollback()
 	item, err := legacy.AppendCollectionItemTx(ctx, tx, siteID, set.Name, set.Private, body, actor)
@@ -558,41 +559,41 @@ func (a *Adapter) SaveEntry(ctx context.Context, in SaveEntryInput) (db.Collecti
 	return item, 0, tx.Commit()
 }
 
-func (a *Adapter) appendEntry(ctx context.Context, siteID string, set db.DataSettings, body []byte, actor db.Actor, maxEntries int) (db.CollectionItem, int64, error) {
+func (a *Adapter) appendEntry(ctx context.Context, siteID string, set model.DataSettings, body []byte, actor model.Actor, maxEntries int) (model.CollectionItem, int64, error) {
 	tx, err := a.database.BeginTx(ctx, nil)
 	if err != nil {
-		return db.CollectionItem{}, 0, err
+		return model.CollectionItem{}, 0, err
 	}
 	defer tx.Rollback()
 	cur, private, err := legacy.LockEntryDeclaration(ctx, tx, siteID, set.Name)
 	if err != nil {
-		return db.CollectionItem{}, 0, err
+		return model.CollectionItem{}, 0, err
 	}
-	if cur != db.KindEntries || private != set.Private {
-		return db.CollectionItem{}, 0, db.ErrKindChanged
+	if cur != "entries" || private != set.Private {
+		return model.CollectionItem{}, 0, legacy.ErrKindChanged
 	}
 	if set.OnePerPerson && actor.ID != "" {
-		have, mine, err := legacy.LivePersonEntry(ctx, tx, siteID, set.Name, actor.ID, db.BaseEmail(actor.Email), 0)
+		have, mine, err := legacy.LivePersonEntry(ctx, tx, siteID, set.Name, actor.ID, model.BaseEmail(actor.Email), 0)
 		if err != nil {
-			return db.CollectionItem{}, 0, err
+			return model.CollectionItem{}, 0, err
 		}
 		if have != 0 {
 			if !mine {
 				have = 0
 			}
-			return db.CollectionItem{}, have, db.ErrOnePerPerson
+			return model.CollectionItem{}, have, model.ErrOnePerPerson
 		}
 	}
 	full, err := legacy.NameHoldsItems(ctx, tx, siteID, set.Name, maxEntries-1)
 	if err != nil {
-		return db.CollectionItem{}, 0, err
+		return model.CollectionItem{}, 0, err
 	}
 	if full {
-		return db.CollectionItem{}, 0, db.ErrNameFull
+		return model.CollectionItem{}, 0, model.ErrNameFull
 	}
 	it, err := legacy.InsertEntry(ctx, tx, siteID, set.Name, body, actor)
 	if err != nil {
-		return db.CollectionItem{}, 0, err
+		return model.CollectionItem{}, 0, err
 	}
 	return it, 0, tx.Commit()
 }
@@ -617,16 +618,16 @@ func (a *Adapter) collectionHasRoom(ctx context.Context, siteID string, growth, 
 
 // AppendResult contains the item and existing-entry count from an append.
 type AppendResult struct {
-	Item db.CollectionItem
+	Item model.CollectionItem
 	Have int64
 }
 
 // AppendInput contains the resolved values for a collection append.
 type AppendInput struct {
 	SiteID   string
-	Settings db.DataSettings
+	Settings model.DataSettings
 	Body     []byte
-	Actor    db.Actor
+	Actor    model.Actor
 }
 
 // appendCollectionItem checks quota and appends a collection item.
@@ -659,14 +660,14 @@ func (a *Adapter) appendCollectionItem(ctx context.Context, in AppendInput) (res
 
 // collectionVisitorEmail uses the visitor's current address for saver checks and authorship.
 func (a *Adapter) collectionVisitorEmail(ctx context.Context, userID string) (string, error) {
-	u, err := db.GetUserByID(ctx, a.database, userID)
+	u, err := a.accounts.GetUserByID(ctx, userID)
 	if err != nil {
 		return "", err
 	}
 	if strings.Contains(u.Username, "@") {
 		return u.Username, nil
 	}
-	identity, err := db.GetLatestOAuthIdentity(ctx, a.database, userID)
+	identity, err := a.accounts.GetLatestOAuthIdentity(ctx, userID)
 	if err == nil && identity.Email.Valid && identity.Email.String != "" {
 		return identity.Email.String, nil
 	}
@@ -682,16 +683,16 @@ type CollectionWriteActor struct {
 	Preview, ContentHost, Canonical, VisitorPass, CSRF bool
 }
 
-func (a *Adapter) collectionWriteActor(ctx context.Context, siteID, name string, in CollectionWriteActor) (db.Actor, error) {
-	anon := db.Actor{Kind: "anonymous"}
-	ownerID, allowAnon, err := db.GetSiteWriteGate(ctx, a.database, siteID)
+func (a *Adapter) collectionWriteActor(ctx context.Context, siteID, name string, in CollectionWriteActor) (model.Actor, error) {
+	anon := model.Actor{Kind: "anonymous"}
+	ownerID, allowAnon, err := siterepo.GetSiteWriteGate(ctx, a.database, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return anon, &Error{Code: "site_not_found"}
 	}
 	if err != nil {
 		return anon, &Error{Code: "internal"}
 	}
-	suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+	suspended, reason, err := siterepo.SiteSuspension(ctx, a.database, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return anon, &Error{Code: "site_not_found"}
 	}
@@ -701,7 +702,7 @@ func (a *Adapter) collectionWriteActor(ctx context.Context, siteID, name string,
 	if suspended {
 		return anon, &Error{Code: "site_suspended", Message: reason}
 	}
-	offline, err := db.SiteOffline(ctx, a.database, siteID)
+	offline, err := siterepo.SiteOffline(ctx, a.database, siteID)
 	if err != nil {
 		return anon, &Error{Code: "internal"}
 	}
@@ -739,7 +740,7 @@ func (a *Adapter) collectionWriteActor(ctx context.Context, siteID, name string,
 		if !in.CSRF {
 			return anon, &Error{Code: "csrf_required"}
 		}
-		return db.Actor{ID: sess.UserID, Kind: "visitor"}, nil
+		return model.Actor{ID: sess.UserID, Kind: "visitor"}, nil
 	}
 	if in.Key != "" {
 		u, ok, err := a.deps.CollectionResolveKey(ctx, in.Key)
@@ -753,9 +754,9 @@ func (a *Adapter) collectionWriteActor(ctx context.Context, siteID, name string,
 		if ok {
 			log.Printf("key_write user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, in.SiteName, "collection_post", name)
 			if u.IsAdmin && u.ID != ownerID {
-				return db.Actor{ID: u.ID, Kind: "admin"}, nil
+				return model.Actor{ID: u.ID, Kind: "admin"}, nil
 			}
-			return db.Actor{ID: u.ID, Kind: "owner"}, nil
+			return model.Actor{ID: u.ID, Kind: "owner"}, nil
 		}
 		return anon, &Error{Code: "invalid_api_key"}
 	}
@@ -768,9 +769,9 @@ func (a *Adapter) collectionWriteActor(ctx context.Context, siteID, name string,
 	}
 	if in.Cookie != "" && !in.ContentHost {
 		if id, decErr := hex.DecodeString(in.Cookie); decErr == nil && len(id) == 32 {
-			sess, sessErr := db.GetVisitorSession(ctx, a.database, id, a.deps.KeyIdleExpiry)
+			sess, sessErr := a.accounts.GetVisitorSession(ctx, id, a.deps.KeyIdleExpiry)
 			if sessErr == nil && a.deps.CollectionSessionValid(sess, siteID) {
-				suspended, err := db.UserSuspended(ctx, a.database, sess.UserID)
+				suspended, err := a.accounts.UserSuspended(ctx, sess.UserID)
 				if err != nil {
 					return anon, &Error{Code: "internal"}
 				}
@@ -778,11 +779,11 @@ func (a *Adapter) collectionWriteActor(ctx context.Context, siteID, name string,
 					return anon, &Error{Code: "account_suspended"}
 				}
 				if in.CSRF {
-					_ = db.TouchVisitorSession(ctx, a.database, id, a.deps.VisitorSessionIdle)
+					_ = a.accounts.TouchVisitorSession(ctx, id, a.deps.VisitorSessionIdle)
 					if sess.UserID == ownerID {
-						return db.Actor{ID: sess.UserID, Kind: "owner"}, nil
+						return model.Actor{ID: sess.UserID, Kind: "owner"}, nil
 					}
-					return db.Actor{ID: sess.UserID, Kind: "visitor"}, nil
+					return model.Actor{ID: sess.UserID, Kind: "visitor"}, nil
 				}
 				if mode == "on" {
 					return anon, &Error{Code: "csrf_required"}
@@ -806,7 +807,7 @@ func (a *Adapter) collectionWriteActor(ctx context.Context, siteID, name string,
 }
 
 // authorizeCollectionSaver checks the site's saver rule after the visitor gate.
-func (a *Adapter) authorizeCollectionSaver(ctx context.Context, siteID string, actor db.Actor, visitorPass bool) error {
+func (a *Adapter) authorizeCollectionSaver(ctx context.Context, siteID string, actor model.Actor, visitorPass bool) error {
 	if actor.Kind != "visitor" && actor.Kind != "anonymous" {
 		return nil
 	}
@@ -823,7 +824,7 @@ func (a *Adapter) authorizeCollectionSaver(ctx context.Context, siteID string, a
 		return &Error{Code: "internal"}
 	}
 	if !allowed && actor.ID != "" && !visitorPass {
-		ownerID, _, err := db.GetSiteWriteGate(ctx, a.database, siteID)
+		ownerID, _, err := siterepo.GetSiteWriteGate(ctx, a.database, siteID)
 		allowed = err == nil && ownerID == actor.ID
 	}
 	if !allowed {
@@ -876,7 +877,7 @@ func (a *Adapter) appendCollectionWrite(ctx context.Context, in AppendWriteInput
 		}
 	}
 	if in.Actor.Kind == "admin" {
-		in.Actor.Email = db.OperatorLabel
+		in.Actor.Email = "Simple Host (operator)"
 	} else if in.Actor.ID != "" && in.Actor.Email == "" {
 		if email, err := a.collectionVisitorEmail(ctx, in.Actor.ID); err == nil {
 			in.Actor.Email = email
@@ -894,7 +895,7 @@ func (a *Adapter) appendCollectionWrite(ctx context.Context, in AppendWriteInput
 	var scope []byte
 	saved := false
 	if key != "" && in.Actor.ID != "" {
-		var prev db.IdempotentResponse
+		var prev model.LegacyIdempotentResponse
 		var state string
 		scope, prev, state, err = a.ClaimWrite(ctx, in.SiteID, "POST collections/"+in.Settings.Name, in.Actor.ID, key, in.Body)
 		if err != nil {
@@ -935,7 +936,7 @@ func (a *Adapter) appendCollectionWrite(ctx context.Context, in AppendWriteInput
 // appendBoard writes a board item after checking its owner or visitor.
 func (a *Adapter) appendBoard(ctx context.Context, in AppendWriteInput) (out AppendWriteResult, err error) {
 	siteID, set, facts := in.SiteID, in.Settings, in.ActorFacts
-	suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+	suspended, reason, err := siterepo.SiteSuspension(ctx, a.database, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, &Error{Code: "site_not_found"}
 	}
@@ -945,9 +946,9 @@ func (a *Adapter) appendBoard(ctx context.Context, in AppendWriteInput) (out App
 	if suspended {
 		return out, &Error{Code: "site_suspended", Message: reason}
 	}
-	var actor db.Actor
+	var actor model.Actor
 	if facts.Key != "" || a.deps.CollectionOwnerBrowser(siteID) {
-		ownerID, _, err := db.GetSiteWriteGate(ctx, a.database, siteID)
+		ownerID, _, err := siterepo.GetSiteWriteGate(ctx, a.database, siteID)
 		if err != nil {
 			return out, &Error{Code: "site_not_found"}
 		}
@@ -962,7 +963,7 @@ func (a *Adapter) appendBoard(ctx context.Context, in AppendWriteInput) (out App
 			if !u.IsAdmin && u.ID != ownerID {
 				return out, &Error{Code: "site_not_found"}
 			}
-			actor = db.Actor{ID: u.ID, Kind: "owner"}
+			actor = model.Actor{ID: u.ID, Kind: "owner"}
 			if u.ID != ownerID {
 				actor.Kind = "admin"
 			}
@@ -970,12 +971,12 @@ func (a *Adapter) appendBoard(ctx context.Context, in AppendWriteInput) (out App
 			if !facts.CSRF {
 				return out, &Error{Code: "csrf_required"}
 			}
-			actor = db.Actor{ID: ownerID, Kind: "owner"}
+			actor = model.Actor{ID: ownerID, Kind: "owner"}
 		} else {
 			return out, &Error{Code: "owner_only"}
 		}
 	} else {
-		offline, err := db.SiteOffline(ctx, a.database, siteID)
+		offline, err := siterepo.SiteOffline(ctx, a.database, siteID)
 		if err != nil {
 			return out, &Error{Code: "internal"}
 		}
@@ -992,7 +993,7 @@ func (a *Adapter) appendBoard(ctx context.Context, in AppendWriteInput) (out App
 		if !sess.OK {
 			return out, &Error{Code: "visitor_auth_required"}
 		}
-		suspended, err := db.UserSuspended(ctx, a.database, sess.UserID)
+		suspended, err := a.accounts.UserSuspended(ctx, sess.UserID)
 		if err != nil {
 			return out, &Error{Code: "internal"}
 		}
@@ -1002,8 +1003,8 @@ func (a *Adapter) appendBoard(ctx context.Context, in AppendWriteInput) (out App
 		if !facts.CSRF {
 			return out, &Error{Code: "csrf_required"}
 		}
-		_ = db.TouchVisitorSession(ctx, a.database, sess.ID, a.deps.VisitorSessionIdle)
-		actor = db.Actor{ID: sess.UserID, Kind: "visitor"}
+		_ = a.accounts.TouchVisitorSession(ctx, sess.ID, a.deps.VisitorSessionIdle)
+		actor = model.Actor{ID: sess.UserID, Kind: "visitor"}
 		if err := a.authorizeCollectionSaver(ctx, siteID, actor, facts.VisitorPass); err != nil {
 			return out, err
 		}
@@ -1017,7 +1018,7 @@ func (a *Adapter) appendBoard(ctx context.Context, in AppendWriteInput) (out App
 		}
 	}
 	if actor.Kind == "admin" {
-		actor.Email = db.OperatorLabel
+		actor.Email = "Simple Host (operator)"
 	} else if actor.ID != "" && actor.Email == "" {
 		if email, err := a.collectionVisitorEmail(ctx, actor.ID); err == nil {
 			actor.Email = email
@@ -1049,7 +1050,7 @@ func (a *Adapter) appendBoard(ctx context.Context, in AppendWriteInput) (out App
 	var scope []byte
 	saved := false
 	if key != "" && actor.ID != "" {
-		var prev db.IdempotentResponse
+		var prev model.LegacyIdempotentResponse
 		var state string
 		scope, prev, state, err = a.ClaimWrite(ctx, siteID, "POST collections/"+set.Name, actor.ID, key, body)
 		if err != nil {
@@ -1081,7 +1082,7 @@ func (a *Adapter) appendBoard(ctx context.Context, in AppendWriteInput) (out App
 	if !room {
 		return out, &AppendQuotaError{Full: true}
 	}
-	out.Item, _, err = db.AppendEntry(ctx, a.database, siteID, set.Name, db.KindBoard, set.Private, body, actor, false, a.deps.BoardMax())
+	out.Item, _, err = appendEntry(ctx, a.database, siteID, set.Name, "board", set.Private, body, actor, false, a.deps.BoardMax())
 	if err != nil {
 		return out, err
 	}
@@ -1107,7 +1108,7 @@ type CollectionPrivateHome struct {
 // appendPrivate writes a private list item from a signed-in visitor.
 func (a *Adapter) appendPrivate(ctx context.Context, in AppendWriteInput) (out AppendWriteResult, err error) {
 	siteID, set, facts := in.SiteID, in.Settings, in.ActorFacts
-	suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+	suspended, reason, err := siterepo.SiteSuspension(ctx, a.database, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, &Error{Code: "site_not_found"}
 	}
@@ -1117,7 +1118,7 @@ func (a *Adapter) appendPrivate(ctx context.Context, in AppendWriteInput) (out A
 	if suspended {
 		return out, &Error{Code: "site_suspended", Message: reason}
 	}
-	offline, err := db.SiteOffline(ctx, a.database, siteID)
+	offline, err := siterepo.SiteOffline(ctx, a.database, siteID)
 	if err != nil {
 		return out, &Error{Code: "internal"}
 	}
@@ -1181,7 +1182,7 @@ func (a *Adapter) appendPrivate(ctx context.Context, in AppendWriteInput) (out A
 	var scope []byte
 	saved := false
 	if key != "" && sess.UserID != "" {
-		var prev db.IdempotentResponse
+		var prev model.LegacyIdempotentResponse
 		var state string
 		scope, prev, state, err = a.ClaimWrite(ctx, siteID, "POST collections/"+set.Name, sess.UserID, key, raw)
 		if err != nil {
@@ -1220,11 +1221,11 @@ func (a *Adapter) appendPrivate(ctx context.Context, in AppendWriteInput) (out A
 	if !room {
 		return out, &AppendQuotaError{Full: true}
 	}
-	out.Item, out.Have, err = a.SaveEntry(ctx, SaveEntryInput{SiteID: siteID, Settings: set, Body: body, Actor: db.Actor{ID: sess.UserID, Email: email, Kind: "visitor"}, MaxEntries: a.deps.MaxEntries()})
+	out.Item, out.Have, err = a.SaveEntry(ctx, SaveEntryInput{SiteID: siteID, Settings: set, Body: body, Actor: model.Actor{ID: sess.UserID, Email: email, Kind: "visitor"}, MaxEntries: a.deps.MaxEntries()})
 	if err != nil {
 		return out, err
 	}
-	_ = db.TouchVisitorSession(ctx, a.database, sess.ID, a.deps.VisitorSessionIdle)
+	_ = a.accounts.TouchVisitorSession(ctx, sess.ID, a.deps.VisitorSessionIdle)
 	a.WatchItemSize(ctx, siteID, len(body), a.deps.WatchItemKB(), a.deps.LargeItemMetric)
 	if scope != nil {
 		saved = true
@@ -1241,13 +1242,13 @@ type AppendCollectionInput struct {
 	ActorFacts     CollectionWriteActor
 	IdempotencyKey string
 	SuccessStatus  int
-	DecodeBody     func(string, db.DataSettings) (CollectionBody, error)
+	DecodeBody     func(string, model.DataSettings) (CollectionBody, error)
 }
 
 // AppendCollectionResult reports the reached response state and saved item.
 type AppendCollectionResult struct {
 	AppendWriteResult
-	Settings     db.DataSettings
+	Settings     model.DataSettings
 	Branch       string
 	PrivateCache bool
 }
@@ -1266,7 +1267,7 @@ func (a *Adapter) AppendCollection(ctx context.Context, in AppendCollectionInput
 	out.Settings = set
 	if err == nil {
 		out.Branch = "public"
-		if set.Kind == db.KindBoard {
+		if set.Kind == "board" {
 			out.Branch = "board"
 			out.PrivateCache = true
 		} else if set.Private {
@@ -1315,7 +1316,7 @@ type CollectionCSVInput struct {
 func (a *Adapter) CollectionCSVRows(ctx context.Context, in CollectionCSVInput) iter.Seq2[[]string, error] {
 	return func(yield func([]string, error) bool) {
 		stopped := errors.New("export iteration stopped")
-		err := legacy.ForEachCollectionItemByID(ctx, a.database, in.SiteID, in.Collection, func(it db.CollectionItem) error {
+		err := legacy.ForEachCollectionItemByID(ctx, a.database, in.SiteID, in.Collection, func(it model.CollectionItem) error {
 			if !yield(CollectionCSVRow(it, in.Keys, a.deps.CSVSafe), nil) {
 				return stopped
 			}
@@ -1328,7 +1329,7 @@ func (a *Adapter) CollectionCSVRows(ctx context.Context, in CollectionCSVInput) 
 }
 
 // CollectionCSVRow shapes one item for an owner CSV export.
-func CollectionCSVRow(it db.CollectionItem, keys []string, safe func(string) string) []string {
+func CollectionCSVRow(it model.CollectionItem, keys []string, safe func(string) string) []string {
 	row := make([]string, 3+len(keys))
 	row[0] = strconv.FormatInt(it.ID, 10)
 	row[1] = it.CreatedAt.UTC().Format(time.RFC3339)
@@ -1379,35 +1380,35 @@ func CollectionCSVHeader(keys []string, safe func(string) string) []string {
 }
 
 // UpdateCollectionItem updates a declared item and records its previous value.
-func (a *Adapter) UpdateCollectionItem(ctx context.Context, siteID, collection string, id int64, actor db.Actor, maxBytes int64, fn func(json.RawMessage) (json.RawMessage, error)) (db.CollectionItem, error) {
+func (a *Adapter) UpdateCollectionItem(ctx context.Context, siteID, collection string, id int64, actor model.Actor, maxBytes int64, fn func(json.RawMessage) (json.RawMessage, error)) (model.CollectionItem, error) {
 	tx, err := a.database.BeginTx(ctx, nil)
 	if err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
 	defer tx.Rollback()
 	cur, err := legacy.LockCollectionItem(ctx, tx, siteID, collection, id)
 	if err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
 	old := cur.Data
 	next, err := fn(old)
 	if err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
 	it, err := legacy.UpdateCollectionItem(ctx, tx, siteID, collection, id, next)
 	if err != nil {
-		return db.CollectionItem{}, err
+		return model.CollectionItem{}, err
 	}
-	if err := legacy.RecordHistory(ctx, tx, siteID, db.HistoryList, collection, &id, db.OpEdit, old, actor); err != nil {
-		return db.CollectionItem{}, err
+	if err := legacy.RecordHistory(ctx, tx, siteID, "list", collection, &id, "edit", old, actor); err != nil {
+		return model.CollectionItem{}, err
 	}
 	if len(it.Data) > len(old) && maxBytes > 0 {
 		used, err := legacy.SiteDataUsage(ctx, tx, siteID)
 		if err != nil {
-			return db.CollectionItem{}, err
+			return model.CollectionItem{}, err
 		}
 		if used > maxBytes {
-			return db.CollectionItem{}, db.ErrSiteFull
+			return model.CollectionItem{}, model.ErrSiteFull
 		}
 	}
 	return it, tx.Commit()

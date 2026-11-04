@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/repository/accounts"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
@@ -187,7 +188,7 @@ func (s *Service) PurgeDeleted(ctx context.Context) {
 }
 
 func (s *Service) purgeDeletedSite(ctx context.Context, siteID string) ([]string, error) {
-	return repo.PurgeDeletedSite(ctx, s.database, siteID, s.deps.DeletedRetention)
+	return repo.PurgeDeletedSite(ctx, s.database, siteID, s.deps.DeletedRetention, accounts.PlatformDomains()...)
 }
 
 // DeleteInput identifies an owner request and any site selected by an administrator.

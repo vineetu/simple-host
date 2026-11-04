@@ -64,7 +64,7 @@ func issueEmailCode(ctx context.Context, database *sql.DB, mailer email.Sender, 
 		return "", 0, http.StatusBadRequest, signInInvalidEmail()
 	}
 
-	if _, blocked := geoBlock.blockedCountry(ip); blocked {
+	if _, blocked := geoBlock.BlockedCountry(ip); blocked {
 		return "", 0, http.StatusForbidden, signupBlockedError
 	}
 

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/geoip"
@@ -48,7 +49,7 @@ func TestOAuthCallbackGeoBlock(t *testing.T) {
 	}
 
 	t.Run("new identity from a blocked country is refused, nothing created", func(t *testing.T) {
-		oh.SetSignupGeoBlock(buildGeo(t, blockedIP, "IQ"), []string{"IQ"})
+		oh.SetSignupGeoBlock(accountapp.NewSignupGeoBlock(buildGeo(t, blockedIP, "IQ"), []string{"IQ"}))
 		code := "newperson-" + stamp
 		email := code + "@example.test"
 		r := callback(code, blockedIP)
@@ -77,7 +78,7 @@ func TestOAuthCallbackGeoBlock(t *testing.T) {
 		}
 		t.Cleanup(func() { _, _ = a.database.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, existing.ID) })
 
-		oh.SetSignupGeoBlock(buildGeo(t, blockedIP, "IQ"), []string{"IQ"})
+		oh.SetSignupGeoBlock(accountapp.NewSignupGeoBlock(buildGeo(t, blockedIP, "IQ"), []string{"IQ"}))
 		r := callback(code, blockedIP)
 		if r.status != http.StatusForbidden || !strings.Contains(string(r.body), signupBlockedMessage) {
 			t.Fatalf("got %d %q, want 403 with the blocked message", r.status, r.body)
@@ -89,7 +90,7 @@ func TestOAuthCallbackGeoBlock(t *testing.T) {
 	})
 
 	t.Run("unresolved country is not blocked", func(t *testing.T) {
-		oh.SetSignupGeoBlock(buildGeo(t, blockedIP, "IQ"), []string{"IQ"})
+		oh.SetSignupGeoBlock(accountapp.NewSignupGeoBlock(buildGeo(t, blockedIP, "IQ"), []string{"IQ"}))
 		// A different, unmapped IP: the geo check must pass through, leaving
 		// the ordinary invalid-state refusal (this test sends no real state).
 		r := callback("unknown-"+stamp, "203.0.113.90")
@@ -99,7 +100,7 @@ func TestOAuthCallbackGeoBlock(t *testing.T) {
 	})
 
 	t.Run("empty block list is off", func(t *testing.T) {
-		oh.SetSignupGeoBlock(nil, nil)
+		oh.SetSignupGeoBlock(accountapp.NewSignupGeoBlock(nil, nil))
 		r := callback("off-"+stamp, blockedIP)
 		if r.status != http.StatusBadRequest || strings.Contains(string(r.body), signupBlockedMessage) {
 			t.Fatalf("got %d %q, want the ordinary invalid-state refusal, not the geo block", r.status, r.body)

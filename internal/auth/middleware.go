@@ -12,7 +12,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 type contextKey int
@@ -70,7 +71,7 @@ func GenerateAPIKey() (string, error) {
 // seeded `admin` users row, so the admin identity can own sites (the old
 // synthetic ID:"admin" violated the sites.user_id UUID foreign key). keyIdle
 // is the instance's KEY_IDLE_EXPIRY_DAYS limit (edition.Edition.Limits()).
-func Middleware(adminAPIKey, adminUserID string, database *sql.DB, keyIdle time.Duration) func(http.Handler) http.Handler {
+func Middleware(adminAPIKey, adminUserID string, accountService *accounts.Service, keyIdle time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.Header.Get("X-API-Key")
@@ -94,7 +95,7 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB, keyIdle time.
 			// Check hardcoded admin key first. Constant-time compare so the
 			// match can't be inferred from response timing.
 			if subtle.ConstantTimeCompare([]byte(apiKey), []byte(adminAPIKey)) == 1 {
-				adminUser := &db.User{
+				adminUser := &model.User{
 					ID:       adminUserID,
 					Username: "admin",
 					IsAdmin:  true,
@@ -104,9 +105,9 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB, keyIdle time.
 				return
 			}
 
-			user, err := db.GetUserByAPIKey(r.Context(), database, apiKey, keyIdle)
+			user, err := accountService.GetUserByAPIKey(r.Context(), apiKey, keyIdle)
 			if err != nil {
-				if errors.Is(err, db.ErrAccountSuspended) {
+				if errors.Is(err, model.ErrAccountSuspended) {
 					// The key is kept, not deleted, so re-enabling the account
 					// brings it back; the person sees why here.
 					msg := SuspendedMessage(user.SuspendedReason)
@@ -121,7 +122,7 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB, keyIdle time.
 					})
 					return
 				}
-				if errors.Is(err, db.ErrKeyExpired) || errors.Is(err, db.ErrKeyExpiredIdle) {
+				if errors.Is(err, model.ErrKeyExpired) || errors.Is(err, model.ErrKeyExpiredIdle) {
 					msg, code := ExpiredKeyMessage(err, user.KeyExpiresAt, keyIdle)
 					writeJSON(w, http.StatusUnauthorized, errorResponse{Error: msg, Code: code})
 					return
@@ -145,7 +146,7 @@ func Middleware(adminAPIKey, adminUserID string, database *sql.DB, keyIdle time.
 // code: key_expired (past the expiry chosen at mint) or key_expired_idle
 // (unused for KEY_IDLE_EXPIRY_DAYS).
 func ExpiredKeyMessage(err error, expiredAt *time.Time, keyIdle time.Duration) (string, string) {
-	if errors.Is(err, db.ErrKeyExpired) {
+	if errors.Is(err, model.ErrKeyExpired) {
 		msg := "this API key has expired"
 		if expiredAt != nil {
 			msg += " (on " + expiredAt.UTC().Format("2 January 2006") + ")"
@@ -181,12 +182,12 @@ func RequireAdmin(next http.Handler) http.Handler {
 // WithUser returns ctx acting as user. Only for a caller that has already
 // authorised the switch (the admin's per-site actions run the owner routes as
 // the site's owner, handler/adminsite.go).
-func WithUser(ctx context.Context, user *db.User) context.Context {
+func WithUser(ctx context.Context, user *model.User) context.Context {
 	return context.WithValue(ctx, userContextKey, user)
 }
 
-func GetUser(ctx context.Context) *db.User {
-	user, _ := ctx.Value(userContextKey).(*db.User)
+func GetUser(ctx context.Context) *model.User {
+	user, _ := ctx.Value(userContextKey).(*model.User)
 	return user
 }
 

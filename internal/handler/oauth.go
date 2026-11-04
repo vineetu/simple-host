@@ -19,12 +19,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/geoip"
 	"github.com/vsriram/simple-host/internal/oauth"
-
 	"golang.org/x/oauth2"
 )
 
@@ -111,8 +110,8 @@ func (h *OAuthHandler) pipeline() *assetPipeline {
 // country is refused — new account or existing, since OAuth has no separate
 // "does this identity already have an account" check worth making before
 // refusing. geo may be nil; countries may be empty — either turns this off.
-func (h *OAuthHandler) SetSignupGeoBlock(geo *geoip.DB, countries []string) {
-	h.geoBlock = newSignupGeoBlock(geo, countries)
+func (h *OAuthHandler) SetSignupGeoBlock(guard accounts.SignupGeoBlock) {
+	h.geoBlock = guard
 }
 
 func NewOAuthHandler(database *sql.DB, cfg config.Config, editions ...*edition.Edition) *OAuthHandler {
@@ -401,7 +400,7 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	// or existing: unlike the email-code path, there is no separate "does
 	// this identity already have an account" question to ask first, so this
 	// is unconditional and happens before the state/provider round-trip.
-	if _, blocked := h.geoBlock.blockedCountry(clientIP(r)); blocked {
+	if _, blocked := h.geoBlock.BlockedCountry(clientIP(r)); blocked {
 		h.writeOAuthHTMLBlocked(w)
 		return
 	}

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
@@ -96,7 +97,7 @@ func newBridgeTeamApp(t *testing.T) *bridgeTeamApp {
 	}
 	mux := http.NewServeMux()
 	a := &bridgeTeamApp{connectorApp: &connectorApp{database: database, admin: adminKey, mux: mux}, certDir: certDir}
-	authMW := auth.Middleware(adminKey, adminID, database, 180*24*time.Hour)
+	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), 180*24*time.Hour)
 	var root http.Handler
 	a.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(a.srv.Close)
@@ -115,7 +116,7 @@ func newBridgeTeamApp(t *testing.T) *bridgeTeamApp {
 	a.hack.Register(mux, authMW)
 	a.sites.SetHackEventPage(hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, hackhttp.NewHackEventPages(EmbeddedStatic())))
 	a.sites.SetHackScreenshot(hackhttp.HackScreenshot(database, a.sites.TeamSitesReady))
-	gated := a.sites.LegacyStorageCutoffGate(a.sites.HackLegacyStorageGate(auth.ScopeGate(database, mux, true, 180*24*time.Hour)))
+	gated := a.sites.LegacyStorageCutoffGate(a.sites.HackLegacyStorageGate(auth.ScopeGate(accountapp.New(database), mux, true, 180*24*time.Hour)))
 	a.conn = NewConnectorHandler(database, a.srv.URL, adminKey, bridgeTSDomain, "sites."+bridgeTSDomain, "1.0.0", gated, true, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetHackTeams(true)

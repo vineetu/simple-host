@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/model"
+	authrules "github.com/vsriram/simple-host/internal/rules/auth"
 	siterules "github.com/vsriram/simple-host/internal/rules/sites"
 )
 
@@ -52,7 +54,7 @@ func DeployKeyAllows(pattern string) bool { return deployRoutes[pattern] }
 const DeployOnlyMessage = "this is a deploy-only key: it can create, update, roll back and list sites and make preview links, nothing else. " +
 	"Use a full key for this (the Keys panel on your Simple Host page makes one)."
 
-// teamRoutes is everything a member's team key (db.KeyScopeTeam, hosted
+// teamRoutes is everything a member's team key (scope team, hosted
 // events) may call, and only on the team's own site: every {sitename} route
 // here must name it. Deploys, versions, rollback and preview links; the
 // site's saved data as its owner (declaring kinds so visitors' saves are
@@ -137,7 +139,7 @@ func sitePathName(r *http.Request) (string, bool) {
 // longer change its site (the deadline, an ended or taken-down event, a site
 // the organiser took down; deploys check again under a lock, site.go), and
 // refuses a team key whose person is no longer on the team.
-func ScopeGate(database *sql.DB, mux *http.ServeMux, teamKeys bool, keyIdle time.Duration) http.Handler {
+func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, teamKeys bool, keyIdle time.Duration) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("X-API-Key")
 		if key == "" {
@@ -146,14 +148,14 @@ func ScopeGate(database *sql.DB, mux *http.ServeMux, teamKeys bool, keyIdle time
 		}
 		_, pattern := mux.Handler(r)
 		if teamKeys {
-			isTeam, live, id, err := db.TeamScopeOfKey(r.Context(), database, key)
+			isTeam, live, id, err := accountService.TeamScopeOfKey(r.Context(), key)
 			if err != nil {
 				log.Printf("scope gate: team key: %v", err)
 				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 				return
 			}
 			if isTeam {
-				teamGate(w, r, mux, database, pattern, live, id)
+				teamGate(w, r, mux, accountService, pattern, live, id)
 				return
 			}
 		}
@@ -161,13 +163,13 @@ func ScopeGate(database *sql.DB, mux *http.ServeMux, teamKeys bool, keyIdle time
 			mux.ServeHTTP(w, r)
 			return
 		}
-		scope, err := db.APIKeyScope(r.Context(), database, key, keyIdle)
+		scope, err := accountService.APIKeyScope(r.Context(), key, keyIdle)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("scope gate: %v", err)
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		if scope == db.KeyScopeDeploy {
+		if scope == authrules.KeyScopeDeploy {
 			writeJSON(w, http.StatusForbidden, errorResponse{Error: DeployOnlyMessage, Code: "deploy_only_key"})
 			return
 		}
@@ -176,7 +178,7 @@ func ScopeGate(database *sql.DB, mux *http.ServeMux, teamKeys bool, keyIdle time
 }
 
 // teamGate serves a request made with a team credential, or refuses it.
-func teamGate(w http.ResponseWriter, r *http.Request, mux *http.ServeMux, database *sql.DB, pattern string, live bool, id db.TeamIdentity) {
+func teamGate(w http.ResponseWriter, r *http.Request, mux *http.ServeMux, accountService *accounts.Service, pattern string, live bool, id model.TeamIdentity) {
 	if !TeamKeyAllows(pattern) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: TeamOnlyMessage, Code: "team_key_scope"})
 		return
@@ -208,7 +210,7 @@ func teamGate(w http.ResponseWriter, r *http.Request, mux *http.ServeMux, databa
 			pattern != "POST /v1/sites/{sitename}/storage/sqlite/{name}/query" &&
 			pattern != "POST /v1/sites/{sitename}/storage/files/{name}/download-link" &&
 			!strings.HasSuffix(pattern, " /mcp") {
-			st, err := db.TeamWriteStateFor(r.Context(), database, id.TeamID, false)
+			st, err := accountService.TeamWriteState(r.Context(), id.TeamID)
 			if err != nil {
 				log.Printf("scope gate: team state: %v", err)
 				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})

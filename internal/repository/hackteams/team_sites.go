@@ -4,13 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
-var ErrTeamKeyInactive = fmt.Errorf("team key no longer active: %w", sql.ErrNoRows)
+var ErrTeamKeyInactive = hackevents.ErrTeamKeyInactive
 
 type TeamIdentity = model.TeamIdentity
 type TeamKeyInfo = model.TeamKeyInfo
@@ -19,19 +18,7 @@ type TeamKeyInfo = model.TeamKeyInfo
 // now and returns what their team credential acts as. ErrTeamKeyInactive when
 // not.
 func ResolveTeamIdentity(ctx context.Context, q Querier, memberID, teamID string) (TeamIdentity, error) {
-	var t TeamIdentity
-	err := q.QueryRowContext(ctx, `
-		SELECT e.id, e.slug, t.id, t.slug, e.account_id, m.user_id
-		  FROM event_teams t
-		  JOIN events e ON e.id = t.event_id
-		  JOIN event_members m ON m.event_id = e.id AND m.team_id = t.id
-		 WHERE t.id = $1::uuid AND m.user_id = $2::uuid AND m.role = 'participant'
-		   AND m.approval_status = 'approved'`,
-		teamID, memberID).Scan(&t.EventID, &t.EventSlug, &t.TeamID, &t.TeamSlug, &t.AccountID, &t.MemberID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return t, ErrTeamKeyInactive
-	}
-	return t, err
+	return hackevents.ResolveTeamIdentity(ctx, q, memberID, teamID)
 }
 
 // GetTeamKey returns the person's team key for the event, if any.
@@ -91,13 +78,7 @@ type TeamWriteState = model.TeamWriteState
 // before the deadline and then pins what it made live. The time compared is
 // clock_timestamp(), not the transaction's start.
 func TeamWriteStateFor(ctx context.Context, q Querier, teamID string, share bool) (TeamWriteState, error) {
-	lock := ""
-	if share {
-		lock = " FOR SHARE OF t"
-	}
-	return scanTeamWriteState(q.QueryRowContext(ctx, `SELECT `+teamWriteStateCols+`
-		  FROM event_teams t JOIN events e ON e.id = t.event_id
-		 WHERE t.id = $1::uuid`+lock, teamID))
+	return hackevents.TeamWriteStateFor(ctx, q, teamID, share)
 }
 
 // teamWriteStateCols over event_teams t and events e. A site the platform

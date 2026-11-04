@@ -459,7 +459,7 @@ func ReleaseExpiredDomains(ctx context.Context, database *sql.DB, maxAge, ttl ti
 // whichever site happens to share its name, and nobody else can claim it.
 // Any other host is ignored.
 func retirePlatformName(ctx context.Context, q Querier, host, siteID, userID string) error {
-	return sites.RetirePlatformName(ctx, q, host, siteID, userID)
+	return sites.RetirePlatformName(ctx, q, host, siteID, userID, platformDomains()...)
 }
 
 // RetireSiteNames records the site's claimed <name>.<SITE_DOMAIN> addresses
@@ -467,7 +467,7 @@ func retirePlatformName(ctx context.Context, q Querier, host, siteID, userID str
 // rows outlive it (site_id becomes NULL). Returns every domain the site had,
 // for the caller to unbind on disk.
 func RetireSiteNames(ctx context.Context, q Querier, siteID string) ([]string, error) {
-	return sites.RetireSiteNames(ctx, q, siteID)
+	return sites.RetireSiteNames(ctx, q, siteID, platformDomains()...)
 }
 
 // RetiredName is a released <name>.<SITE_DOMAIN>: the site it belongs to, or

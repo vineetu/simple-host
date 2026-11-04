@@ -16,12 +16,11 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
-	"github.com/vsriram/simple-host/internal/geoip"
 )
 
 var validEmail = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
@@ -88,8 +87,8 @@ func (h *UserHandler) pipeline() *assetPipeline {
 // sign-up attempt from a blocked country is refused before anything is
 // created or emailed — a new account and an existing one alike. geo may be
 // nil; countries may be empty — either turns this off.
-func (h *UserHandler) SetSignupGeoBlock(geo *geoip.DB, countries []string) {
-	h.geoBlock = newSignupGeoBlock(geo, countries)
+func (h *UserHandler) SetSignupGeoBlock(guard accounts.SignupGeoBlock) {
+	h.geoBlock = guard
 }
 
 // SignInAlerts is the sign-in alert sender, shared with the connector's

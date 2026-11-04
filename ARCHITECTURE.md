@@ -111,7 +111,8 @@ The following packages exist today (verified with `go list ./internal/...`):
 | `mcp/apps/{bundlegen,gentool}` | MCP Apps browser-bundle generator and command |
 | `workers` | Standard-library lifecycle owners, cancellation, joins and progress/status tracking |
 | `httpx` | Shared HTTP responses, limits, signed links and route metadata |
-| `auth` | Account credential/context and scope middleware |
+| `auth` | Account credential/context and scope middleware, with injected account authorization |
+| `app/accounts` | Principal/session resolution, scoped team authority and sign-in country decisions |
 | `app/hack/events` | Event lifecycle/content, organisers, settings and public directory |
 | `app/hack/teams` | Team lifecycle/admin/links and team finding |
 | `app/hack/members` | Registration, applications, tracks and leaving |
@@ -136,7 +137,7 @@ The following packages exist today (verified with `go list ./internal/...`):
 
 `scripts/check-layering.sh` checks Go imports, including test imports, against the final allowlist
 and exact transitional edges in `scripts/layering/rules.txt`. Each exception names its removal
-step. Account/notification/operations services, `webassets` and `sitelocks` from the
+step. Notification/operations services, `webassets` and `sitelocks` from the
 target map do not exist yet. Shared lock maps are injected by existing wiring
 (`app/sites/service.go:New`, `app/storage/service.go:Deps`), not by a new lock package.
 Do not copy a transitional import as precedent; follow [target §2](docs/architecture/target.md#2-package-map-and-import-contract).

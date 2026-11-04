@@ -53,34 +53,3 @@ func actAsTeam(ctx context.Context, q *sql.DB, member User, id TeamIdentity) (Us
 	holder.Team = &t
 	return holder, nil
 }
-
-// TODO(4.3): Host dependency
-// TeamScopeOfKey answers the scope gate for a team credential: whether apiKey
-// is one (a stored key of scope team, or an internal credential bound to a
-// team) and, if so, what it acts as right now (live=false when the person is
-// no longer on that team: every route is then refused).
-func TeamScopeOfKey(ctx context.Context, q Querier, apiKey string) (isTeam, live bool, id TeamIdentity, err error) {
-	memberID, teamID, internal := lookupInternalTeamKey(apiKey)
-	if !internal {
-		var scope string
-		err = q.QueryRowContext(ctx, `SELECT scope FROM api_keys WHERE key_hash = $1`, HashAPIKey(apiKey)).Scan(&scope)
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, false, id, nil
-		}
-		if err != nil || scope != KeyScopeTeam {
-			return false, false, id, err
-		}
-		teamID, memberID, err = hackteams.TeamKeyBinding(ctx, q, HashAPIKey(apiKey))
-		if errors.Is(err, sql.ErrNoRows) {
-			return true, false, id, nil
-		}
-		if err != nil {
-			return true, false, id, err
-		}
-	}
-	id, err = ResolveTeamIdentity(ctx, q, memberID, teamID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return true, false, id, nil
-	}
-	return true, err == nil, id, err
-}
