@@ -5,7 +5,7 @@
 @/cmd/server -> /** !testdb !geoip/geoiptest @/db @/db/migrations
 {handler,hackhttp} -> app/** auth httpx edition model webassets buildinfo workers
 handler -> mcp
-auth -> app/accounts httpx edition model rules/auth
+auth -> app/accounts httpx edition model rules/auth rules/sites
 mcp -> app/** edition model httpx buildinfo brain webassets workers
 httpx -> app/errors model edition
 app/{accounts,sites,storage,legacy,notifications,operations} -> app/errors model edition workers repository/sqlkit
