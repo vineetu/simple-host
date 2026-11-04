@@ -1426,6 +1426,10 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer revoke()
+		// The minted key stands for the connector, not the person: mark the
+		// request so REST calls bridged from MCP are refused where a
+		// connected app must never act (isConnectorRequest).
+		r = r.WithContext(context.WithValue(r.Context(), connectorTokenKey{}, true))
 		apiKey, mode, owner = key, grantMode, user.ID
 		accountHandle = user.Handle.String
 		oauthGrantID = grant.GrantID

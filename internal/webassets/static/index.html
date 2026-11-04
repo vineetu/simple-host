@@ -1422,6 +1422,7 @@ function parseAnalyticsSummary(data) {
           // Signed in just now: the sign-in answer does not carry the setting.
           api('GET', '/v1/me').then(r => r.ok ? r.json() : null).then(me => {
             if (me && typeof me.signin_alerts === 'boolean') { currentUser.signin_alerts = me.signin_alerts; box.checked = me.signin_alerts; }
+            if (me && me.has_password === true) { currentUser.has_password = true; const pw = document.getElementById('my-password'); if (pw) pw.hidden = false; }
           }).catch(() => {});
         }
       }
@@ -2324,6 +2325,8 @@ function parseAnalyticsSummary(data) {
         msg.className = 'field-msg error';
         return;
       }
+      const saveBtn = document.querySelector('[data-act="changeMyPassword"]');
+      if (saveBtn) saveBtn.disabled = true;
       try {
         const res = await api('POST', '/v1/me/password', { current_password: currentEl.value, new_password: nextEl.value });
         if (res.ok) {
@@ -2341,6 +2344,8 @@ function parseAnalyticsSummary(data) {
       } catch {
         msg.textContent = 'Could not change password.';
         msg.className = 'field-msg error';
+      } finally {
+        if (saveBtn) saveBtn.disabled = false;
       }
     }
 
