@@ -348,9 +348,14 @@ func (o *contentDeliveryOwner) run(ctx context.Context) {
 	}); ok {
 		h.mailer = trackedContentSender{Sender: h.mailer, notice: sender, tracker: o.tracker}
 	}
-	h.deliverContentMail(ctx)
-	h.queueEntryReminders(ctx)
-	h.deliverNoticeMail(ctx)
+	n, err := h.deliverContentMail(ctx)
+	o.record("deliver content mail", n, err)
+	n, err = h.eventsSvc().QueueEntryReminders(ctx)
+	o.record("queue entry reminders", n, err)
+	n, err = h.eventsSvc().PruneNotices(ctx)
+	o.record("prune notices", n, err)
+	n, err = h.deliverNoticeMailOnly(ctx)
+	o.record("deliver notice mail", n, err)
 	o.pending(ctx)
 }
 
@@ -380,14 +385,23 @@ func (s trackedContentSender) SendNotice(to, subject, body string) error {
 	return nil
 }
 
-func (h *HackHandler) deliverContentMail(ctx context.Context) {
+func (o *contentDeliveryOwner) record(op string, n int64, err error) {
+	if n > 0 {
+		o.tracker.Progress()
+	}
+	if err != nil {
+		o.tracker.Fail(op, err)
+	}
+}
+
+func (h *HackHandler) deliverContentMail(ctx context.Context) (int64, error) {
 	sender, ok := h.mailer.(interface {
 		SendNotice(string, string, string) error
 	})
 	if !ok {
-		return
+		return 0, nil
 	}
-	h.eventsSvc().DeliverContentMail(ctx, sender, h.siteDomain, h.publicBaseURL)
+	return h.eventsSvc().DeliverContentMail(ctx, sender, h.siteDomain, h.publicBaseURL)
 }
 
 // Editing an announcement changes the page only, without queueing mail.

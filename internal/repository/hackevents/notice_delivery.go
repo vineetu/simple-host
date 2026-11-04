@@ -72,11 +72,16 @@ const emailableSQL = `(u.username LIKE '%@%' AND NOT u.event_account AND u.suspe
 // queued twice, so asking, withdrawing and asking again inside the email
 // window costs one line, not three.
 func NotifyUsers(ctx context.Context, q sqlkit.Querier, eventID, kind, teamID, refID, detail string, userIDs ...string) error {
+	_, err := NotifyUsersCount(ctx, q, eventID, kind, teamID, refID, detail, userIDs...)
+	return err
+}
+
+func NotifyUsersCount(ctx context.Context, q sqlkit.Querier, eventID, kind, teamID, refID, detail string, userIDs ...string) (int64, error) {
 	if len(userIDs) == 0 {
-		return nil
+		return 0, nil
 	}
 	news, mail := noticeIsNews(kind), noticeEmails(kind)
-	_, err := q.ExecContext(ctx, `
+	res, err := q.ExecContext(ctx, `
 		INSERT INTO event_notices (event_id, user_id, kind, team_id, ref_id, detail, seen_at, email_state)
 		SELECT $1, u.id, $3, NULLIF($4,'')::uuid, NULLIF($5,'')::uuid, $6,
 		       CASE WHEN $7 THEN NULL ELSE now() END,
@@ -90,7 +95,10 @@ func NotifyUsers(ctx context.Context, q sqlkit.Querier, eventID, kind, teamID, r
 		           AND x.ref_id IS NOT DISTINCT FROM NULLIF($5,'')::uuid
 		           AND x.detail = $6 AND x.email_state = 'pending')`,
 		eventID, pq.Array(userIDs), kind, teamID, refID, detail, news, mail)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // NotifyTeamAdmins queues kind for every current admin of the team.
@@ -383,7 +391,15 @@ func DeferMailNotices(ctx context.Context, tx *sql.Tx, ids []string) error {
 // PruneNotices deletes notices older than 30 days, seen or not, and any
 // whose event is gone (event_notices has no foreign key to events).
 func PruneNotices(ctx context.Context, q sqlkit.Querier) error {
-	_, err := q.ExecContext(ctx, `DELETE FROM event_notices n WHERE n.created_at < now() - interval '30 days'
-		OR NOT EXISTS (SELECT 1 FROM events e WHERE e.id = n.event_id)`)
+	_, err := PruneNoticesCount(ctx, q)
 	return err
+}
+
+func PruneNoticesCount(ctx context.Context, q sqlkit.Querier) (int64, error) {
+	res, err := q.ExecContext(ctx, `DELETE FROM event_notices n WHERE n.created_at < now() - interval '30 days'
+		OR NOT EXISTS (SELECT 1 FROM events e WHERE e.id = n.event_id)`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }

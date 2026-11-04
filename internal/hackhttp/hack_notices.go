@@ -92,17 +92,21 @@ func (h *HackHandler) noticePolicy() noticeMailPolicy {
 // minutes. Runs on the content-mail ticker.
 func (h *HackHandler) deliverNoticeMail(ctx context.Context) {
 	h.eventsSvc().PruneNotices(ctx)
+	h.deliverNoticeMailOnly(ctx)
+}
+
+func (h *HackHandler) deliverNoticeMailOnly(ctx context.Context) (int64, error) {
 	sender, ok := h.mailer.(interface {
 		SendNotice(string, string, string) error
 	})
 	if !ok {
-		return
+		return 0, nil
 	}
 	if ready, ok := h.mailer.(interface{ CanSendNotice() bool }); ok && !ready.CanSendNotice() {
-		return
+		return 0, nil
 	}
 	pol := h.noticePolicy()
-	h.eventsSvc().DeliverNoticeMail(ctx, sender, pol.delay, pol.window, h.publicBaseURL, h.entries)
+	return h.eventsSvc().DeliverNoticeMail(ctx, sender, pol.delay, pol.window, h.publicBaseURL, h.entries)
 }
 
 func (h *HackHandler) needsYou(ctx context.Context, ev model.Event, m model.EventMember) []map[string]any {

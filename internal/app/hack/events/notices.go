@@ -178,21 +178,21 @@ func (s *Service) newsText(ctx context.Context, q sqlkit.Querier, eventTitle, zo
 // sendNoticeBatch handles one person and kind. more=false when nothing was due.
 func (s *Service) sendNoticeBatch(ctx context.Context, sender interface {
 	SendNotice(string, string, string) error
-}, delay, window time.Duration, publicBaseURL string, evaluator EntryEvaluator) (bool, error) {
+}, delay, window time.Duration, publicBaseURL string, evaluator EntryEvaluator) (bool, int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 	defer tx.Rollback()
 	b, err := hackevents.NextMailBatch(ctx, tx, delay, window)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+		return false, 0, nil
 	}
 	if hackevents.IsMailBatchRaced(err) {
-		return false, nil
+		return false, 0, nil
 	}
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 	var valid, stale []string
 	type eventLines struct {
@@ -205,7 +205,7 @@ func (s *Service) sendNoticeBatch(ctx context.Context, sender interface {
 	for _, n := range b.Notices {
 		line, ok, err := s.mailLine(ctx, tx, n, evaluator)
 		if err != nil {
-			return false, err
+			return false, 0, err
 		}
 		if !ok || b.Recipient == "" {
 			stale = append(stale, n.ID)
@@ -225,10 +225,14 @@ func (s *Service) sendNoticeBatch(ctx context.Context, sender interface {
 		}
 	}
 	if err := hackevents.FinishMailNotices(ctx, tx, stale, "skipped"); err != nil {
-		return false, err
+		return false, 0, err
 	}
 	if len(valid) == 0 {
-		return true, tx.Commit()
+		err := tx.Commit()
+		if err != nil {
+			return false, 0, err
+		}
+		return true, int64(len(stale)), nil
 	}
 	var body strings.Builder
 	for i, id := range order {
@@ -263,14 +267,22 @@ func (s *Service) sendNoticeBatch(ctx context.Context, sender interface {
 	if err := sender.SendNotice(b.Recipient, subject, body.String()); err != nil {
 		log.Printf("hack: notice mail delivery failed: %v", err)
 		if err := hackevents.DeferMailNotices(ctx, tx, valid); err != nil {
-			return false, err
+			return false, 0, err
 		}
-		return true, tx.Commit()
+		err := tx.Commit()
+		if err != nil {
+			return false, 0, err
+		}
+		return true, int64(len(stale) + len(valid)), nil
 	}
 	if err := hackevents.FinishMailNotices(ctx, tx, valid, "sent"); err != nil {
-		return false, err
+		return false, 0, err
 	}
-	return true, tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		return false, 0, err
+	}
+	return true, int64(len(stale) + len(valid)), nil
 }
 
 func containsString(list []string, s string) bool {
@@ -472,24 +484,28 @@ func hackGMTOffsetLabel(offsetSeconds int) string {
 func NoticeMailTiming() (time.Duration, time.Duration) { return time.Minute, 15 * time.Minute }
 
 // DeliverNoticeMail sends due notice batches.
-func (s *Service) DeliverNoticeMail(ctx context.Context, sender NoticeSender, delay, window time.Duration, publicBaseURL string, evaluator EntryEvaluator) {
+func (s *Service) DeliverNoticeMail(ctx context.Context, sender NoticeSender, delay, window time.Duration, publicBaseURL string, evaluator EntryEvaluator) (written int64, resultErr error) {
 	for i := 0; i < 50; i++ {
-		more, err := s.sendNoticeBatch(ctx, sender, delay, window, publicBaseURL, evaluator)
+		more, n, err := s.sendNoticeBatch(ctx, sender, delay, window, publicBaseURL, evaluator)
+		written += n
 		if err != nil {
 			log.Printf("hack: notice mail: %v", err)
-			return
+			return written, err
 		}
 		if !more {
-			return
+			return written, nil
 		}
 	}
+	return written, nil
 }
 
 // PruneNotices removes old notices before a mail sweep.
-func (s *Service) PruneNotices(ctx context.Context) {
-	if err := hackevents.PruneNotices(ctx, s.db); err != nil {
+func (s *Service) PruneNotices(ctx context.Context) (int64, error) {
+	n, err := hackevents.PruneNoticesCount(ctx, s.db)
+	if err != nil {
 		log.Printf("hack: prune notices: %v", err)
 	}
+	return n, err
 }
 
 // MarkNewsSeen dismisses a member's news.

@@ -404,3 +404,37 @@ func TestHackCreateEventAnnouncementNoDuplicateForSameUser(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Pruning alone is useful work, even without a mail provider; an idle pass is not.
+func TestHackContentPruneProgress(t *testing.T) {
+	isolateQueueTest(t)
+	a := newHackApp(t)
+	org := a.newPerson(t, "prune-progress")
+	slug := uniqueSlug()
+	if r := a.createEvent(t, org, slug, nil); r.status != 201 {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	owner := a.hack.ContentDeliveryOwner().(*contentDeliveryOwner)
+	owner.run(context.Background())
+	if owner.tracker.Snapshot().LastProgress != nil {
+		t.Fatal("idle pass reported progress")
+	}
+	if _, err := a.database.Exec(`INSERT INTO event_notices(event_id,user_id,kind,created_at) SELECT id,$2,'team_locked',now()-interval '31 days' FROM events WHERE slug=$1`, slug, a.userID(t, org)); err != nil {
+		t.Fatal(err)
+	}
+	owner.run(context.Background())
+	before := owner.tracker.Snapshot().LastProgress
+	if before == nil {
+		t.Fatal("pruned notice did not report progress")
+	}
+	owner.run(context.Background())
+	if !owner.tracker.Snapshot().LastProgress.Equal(*before) {
+		t.Fatal("idle pass advanced progress")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	owner.run(ctx)
+	if owner.tracker.Snapshot().LastError == "" {
+		t.Fatal("DB error was not reported")
+	}
+}

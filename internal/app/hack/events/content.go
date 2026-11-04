@@ -110,22 +110,22 @@ func (s *Service) QueueReceipt(ctx context.Context, ev model.Event, teamID, user
 }
 
 // DeliverContentMail sends due announcements and entry receipts.
-func (s *Service) DeliverContentMail(ctx context.Context, sender NoticeSender, siteDomain, publicBaseURL string) {
+func (s *Service) DeliverContentMail(ctx context.Context, sender NoticeSender, siteDomain, publicBaseURL string) (written int64, resultErr error) {
 	for i := 0; i < 100; i++ {
 		tx, err := s.db.BeginTx(ctx, nil)
 		if err != nil {
 			log.Printf("hack: content mail: %v", err)
-			return
+			return written, err
 		}
 		m, err := hackevents.NextEventMail(ctx, tx)
 		if errors.Is(err, sql.ErrNoRows) {
 			tx.Rollback()
-			return
+			return written, nil
 		}
 		if err != nil {
 			tx.Rollback()
 			log.Printf("hack: content mail: %v", err)
-			return
+			return written, err
 		}
 		var subject, body string
 		if m.Kind == "announcement" {
@@ -140,24 +140,27 @@ func (s *Service) DeliverContentMail(ctx context.Context, sender NoticeSender, s
 			if deferErr := hackevents.DeferEventMail(ctx, tx, m); deferErr != nil {
 				tx.Rollback()
 				log.Printf("hack: content mail defer: %v", deferErr)
-				return
+				return written, deferErr
 			}
 			if commitErr := tx.Commit(); commitErr != nil {
 				log.Printf("hack: content mail defer commit: %v", commitErr)
-				return
+				return written, commitErr
 			}
+			written++
 			continue
 		}
 		if err := hackevents.MarkEventMailSent(ctx, tx, m); err != nil {
 			tx.Rollback()
 			log.Printf("hack: content mail mark: %v", err)
-			return
+			return written, err
 		}
 		if err := tx.Commit(); err != nil {
 			log.Printf("hack: content mail commit: %v", err)
-			return
+			return written, err
 		}
+		written++
 	}
+	return written, nil
 }
 
 // CreateEventAnnouncement creates an announcement in the caller’s transaction.
