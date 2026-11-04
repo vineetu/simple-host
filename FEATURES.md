@@ -261,7 +261,8 @@ week and its weekly/daily caps) or `failing` (retried after the issuer's 6-hour 
 visitors' sign-ins and browser-kept data start fresh when the address switches. Old `<handle>.simple-host.app/<site>/…` and
 `sites.simple-host.app/<handle>/<site>/…` links 302 to the site host (path and query kept). A
 renamed site's old name keeps redirecting on all three forms until the name is reused (§1).
-**Status: live** (`PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`, 2026-09-26; design:
+**Status: live**
+(`PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`, 2026-09-26; design:
 `docs/designs/per-site-subdomains.md`).
 
 **Site base move paused (2026-10-09).** simple-host.app is the only address served <a id="site-url"></a>
@@ -421,7 +422,8 @@ and writes need an API key or the connector: sign-in is never offered there, so 
 cookie write gets 401 `visitor_auth_required` (INTENT 2026-09-24, built 2026-09-26; only when
 `PERSON_HOSTS=canonical`: event and self-hosted instances keep the shared host open, logged as
 `outcome=public_host`). A site with its own domain takes no writes on its shared URL.
-**Status: live** (`WRITE_AUTH_MODE=on`).
+**Status: live**
+(`WRITE_AUTH_MODE=on`).
 
 **History and undo (saved-data redesign step 1, INTENT 2026-09-27).** Every PUT, PATCH and <a id="data-history"></a>
 restore keeps the document from before it in `data_history` for 30 days by time
@@ -673,7 +675,8 @@ instance without an apex, start redirects to its legacy visitor OAuth path.
 A visitor signs in on the apex with Google, an emailed code, or (self-hosted) their
 company's identity provider, then gets a host-only cookie for the site's origin. Page saves are
 made as them. `auth.js` is the documented client. GitHub is wired but unconfigured.
-**Status: live** (Google configured).
+**Status: live**
+(Google configured).
 
 **Company sign-in, OIDC (2026-10-16).** A self-hosted install (Simple Hack's standalone package, <a id="access-company-signin"></a>
 or a small-box Simple Host) may add its own identity provider as a fourth provider named `oidc`:
@@ -1739,7 +1742,8 @@ day; views of further new ones that day are counted as `(other)`, so random path
 cannot grow the tables; `GET /v1/sites/{sitename}/analytics/top?days=` answers the top 20 of each, shown per
 site in the owner app's Analytics tab ("Top pages and referrers"), on the per-site analytics
 page, and in MCP `site_analytics` (`top_pages`, `top_referrers`).
-**Status: live** (`ANALYTICS_LOG` set).
+**Status: live**
+(`ANALYTICS_LOG` set).
 
 Paper metrics (2026-10-31, SIM-335; `internal/papermetrics`, method in `docs/paper-metrics.md`):
 aggregates only, for the research papers on this deployment. Server-side time of every request
@@ -2435,7 +2439,8 @@ switches, address state). **Status: built.**
 
 ## 17. Legal and support pages <a id="legal-and-support-pages"></a>
 
-**Status: live.** `GET /terms` → `st/terms.html`; `GET /support` → `st/support.html`;
+**Status: live.**
+`GET /terms` → `st/terms.html`; `GET /support` → `st/support.html`;
 `/privacy.html` → `st/privacy.html` (file server, no clean route). Linked from plugin
 listings; public contact is support@simple-host.app. Go: `h/ui.go`.
 

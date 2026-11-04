@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"os"
@@ -18,6 +20,8 @@ import (
 type dynamicInput struct {
 	File, Declaration, Kind string
 	Values                  []string
+	Registration            int    // 1-based dynamic registration within Declaration; zero for named inputs.
+	RangeExpr               string // For loops over named inputs rather than literal lists.
 }
 
 func patternInputs(sites []dynamicSite, prefix, suffix string) []string {
@@ -33,15 +37,22 @@ func validateDynamicInputs(root string) error {
 	ui := dynamicSites["internal/handler/ui.go:RegisterUIRoutes"]
 	connector := dynamicSites["internal/handler/connector.go:Register"]
 	skills := patternInputs(ui[5:6], "GET /skills/", "")
+	hackVersions := dynamicSites["internal/hackhttp/hack_get_started.go:RegisterHackGetStarted"]
 	inputs := []dynamicInput{
-		{"internal/handler/instancehost.go", "rewrittenAssets", "values", patternInputs(ui[:2], "GET /", "")},
-		{"internal/handler/ui.go", "RegisterUIRoutes", "ranges", patternInputs(ui[1:2], "GET /", "")},
-		{"internal/handler/ui.go", "iconFiles", "keys", patternInputs(ui[2:3], "GET /", "")},
-		{"internal/handler/connector.go", "museClientPath", "values", patternInputs(connector[:1], "GET ", "")},
-		{"internal/handler/connector.go", "Register", "ranges", patternInputs(connector[1:], "", " /mcp")},
-		{"internal/hackhttp/hack_ui.go", "RegisterHackUI", "ranges", patternInputs(dynamicSites["internal/hackhttp/hack_ui.go:RegisterHackUI"], "", "")},
-		{"internal/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "ranges", patternInputs(dynamicSites["internal/hackhttp/hack_get_started.go:RegisterHackGetStarted"], "GET /simple-hack-skills-only-", ".zip")},
-		{"internal/handler/hack_assets.go", "HackSkillNames", "values", []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}},
+		{"internal/handler/instancehost.go", "rewrittenAssets", "values", patternInputs(ui[:2], "GET /", ""), 0, ""},
+		{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, 1, "rewrittenAssets"},
+		{"internal/handler/ui.go", "RegisterUIRoutes", "range", patternInputs(ui[1:2], "GET /", ""), 2, ""},
+		{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, 3, "iconFiles(sh.ed.Presentation().HackAssets)"},
+		{"internal/handler/ui.go", "iconFiles", "keys", patternInputs(ui[2:3], "GET /", ""), 0, ""},
+		{"internal/handler/connector.go", "museClientPath", "values", patternInputs(connector[:1], "GET ", ""), 0, ""},
+		{"internal/handler/connector.go", "Register", "range", patternInputs(connector[1:], "", " /mcp"), 2, ""},
+		{"internal/hackhttp/hack_ui.go", "RegisterHackUI", "range", patternInputs(dynamicSites["internal/hackhttp/hack_ui.go:RegisterHackUI"], "", ""), 1, ""},
+		{"internal/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[:1], "GET /simple-hack-skills-only-", ".zip"), 1, ""},
+		{"internal/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[1:], "GET /simple-hack-skills-only-", ".zip"), 2, ""},
+		{"internal/handler/hack_assets.go", "HackSkillNames", "values", []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}, 0, ""},
+	}
+	for registration := 4; registration <= 7; registration++ {
+		inputs = append(inputs, dynamicInput{"internal/handler/ui.go", "RegisterUIRoutes", "range", nil, registration, "assets.bundledSkillDirs()"})
 	}
 	for _, input := range inputs {
 		if err := validateDynamicInput(root, input); err != nil {
@@ -108,26 +119,33 @@ func validateDynamicInput(root string, input dynamicInput) error {
 		if !ok || fn.Name.Name != input.Declaration {
 			return true
 		}
-		found = true
-		ast.Inspect(fn, func(n ast.Node) bool {
-			switch input.Kind {
-			case "ranges":
-				if loop, ok := n.(*ast.RangeStmt); ok {
-					if list, ok := loop.X.(*ast.CompositeLit); ok {
-						collect(list)
-					}
+		if input.Kind == "range" {
+			loop := registrationRange(fn, input.Registration)
+			if loop == nil {
+				return false
+			}
+			found = true
+			if input.RangeExpr != "" {
+				var expression bytes.Buffer
+				if err := format.Node(&expression, token.NewFileSet(), loop.X); err != nil || expression.String() != input.RangeExpr {
+					literalInputs = false
 				}
-			case "keys":
+			} else {
+				collect(loop.X)
+			}
+		} else if input.Kind == "keys" {
+			found = true
+			ast.Inspect(fn, func(n ast.Node) bool {
 				if pair, ok := n.(*ast.KeyValueExpr); ok {
 					collect(pair.Key)
 				}
-			}
-			return true
-		})
+				return true
+			})
+		}
 		return false
 	})
 	if !found || !literalInputs || !reflect.DeepEqual(uniqueStrings(values), uniqueStrings(input.Values)) {
-		return fmt.Errorf("dynamic inputs changed: %s:%s: got %v, table expects %v; review scripts/inventory/dynamic.go", input.File, input.Declaration, uniqueStrings(values), uniqueStrings(input.Values))
+		return fmt.Errorf("dynamic inputs changed: %s:%s (registration %d): got %v, table expects %v; review scripts/inventory/dynamic.go", input.File, input.Declaration, input.Registration, uniqueStrings(values), uniqueStrings(input.Values))
 	}
 	return nil
 }
@@ -142,4 +160,51 @@ func uniqueStrings(values []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// Select only the range enclosing this dynamic mux registration, so unrelated
+// loops cannot affect its inputs and separate registrations keep separate lists.
+func registrationRange(fn *ast.FuncDecl, ordinal int) *ast.RangeStmt {
+	var target *ast.CallExpr
+	seen := 0
+	ast.Inspect(fn, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || (sel.Sel.Name != "Handle" && sel.Sel.Name != "HandleFunc") || !muxReceiver(sel.X) || len(call.Args) == 0 {
+			return true
+		}
+		if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+			return true
+		}
+		seen++
+		if seen == ordinal {
+			target = call
+		}
+		return true
+	})
+	if target == nil {
+		return nil
+	}
+	variables := map[string]bool{}
+	ast.Inspect(target.Args[0], func(n ast.Node) bool {
+		if name, ok := n.(*ast.Ident); ok {
+			variables[name.Name] = true
+		}
+		return true
+	})
+	var enclosing *ast.RangeStmt
+	ast.Inspect(fn, func(n ast.Node) bool {
+		if loop, ok := n.(*ast.RangeStmt); ok && loop.Pos() < target.Pos() && loop.End() >= target.End() {
+			for _, variable := range []ast.Expr{loop.Key, loop.Value} {
+				if name, ok := variable.(*ast.Ident); ok && variables[name.Name] {
+					enclosing = loop
+				}
+			}
+		}
+		return true
+	})
+	return enclosing
 }

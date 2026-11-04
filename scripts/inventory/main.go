@@ -286,6 +286,7 @@ var anchorRE = regexp.MustCompile(`<a id="([^"]+)"></a>`)
 var idRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 var codeSpanRE = regexp.MustCompile("`([^`]+)`")
 var numberedSectionRE = regexp.MustCompile(`^## [0-9]+\.`)
+var statusOnlyRE = regexp.MustCompile(`^\*\*Status: [^*]*\*\*\s*$`)
 var indexRE = regexp.MustCompile(`^## (21|22)\.`)
 
 type placement struct{ text, id string }
@@ -297,7 +298,7 @@ func parseFeatures(text string) (featurePlacements, error) {
 	current := ""
 	index := false
 	numbered := false
-	for i, line := range strings.Split(text, "\n") {
+	for i, line := range featureLines(text) {
 		if strings.HasPrefix(line, "## ") {
 			index = indexRE.MatchString(line)
 			numbered = numberedSectionRE.MatchString(line)
@@ -305,7 +306,7 @@ func parseFeatures(text string) (featurePlacements, error) {
 		}
 		anchors := anchorRE.FindAllStringSubmatch(line, -1)
 		required := strings.HasPrefix(line, "## ") || strings.HasPrefix(line, "### ") ||
-			(numbered && strings.HasPrefix(line, "**") && !strings.HasPrefix(line, "**Status:"))
+			(numbered && strings.HasPrefix(line, "**") && !statusOnlyRE.MatchString(line))
 		if required && (len(anchors) != 1 || !strings.HasSuffix(line, anchors[0][0])) {
 			return nil, fmt.Errorf("FEATURES.md:%d: required feature must have exactly one anchor at line end", i+1)
 		}
@@ -387,6 +388,7 @@ func generated(inv inventory) (map[string][]byte, error) {
 // The registry preserves IDs even after their feature has been retired.
 func validateFeatureIDs(features, registry string) error {
 	anchors := map[string]bool{}
+	features = strings.Join(featureLines(features), "\n")
 	for _, match := range anchorRE.FindAllStringSubmatch(features, -1) {
 		anchors[match[1]] = true
 	}
@@ -415,4 +417,33 @@ func validateFeatureIDs(features, registry string) error {
 		}
 	}
 	return nil
+}
+
+// Keep line numbers while excluding fenced examples from feature metadata.
+func featureLines(text string) []string {
+	lines := strings.Split(text, "\n")
+	fence := ""
+	for i, line := range lines {
+		trimmed := strings.TrimLeft(line, " ")
+		if len(line)-len(trimmed) <= 3 && len(trimmed) >= 3 && (trimmed[0] == '`' || trimmed[0] == '~') {
+			n := 0
+			for n < len(trimmed) && trimmed[n] == trimmed[0] {
+				n++
+			}
+			if fence == "" && n >= 3 {
+				fence = trimmed[:n]
+				lines[i] = ""
+				continue
+			}
+			if fence != "" && trimmed[0] == fence[0] && n >= len(fence) && strings.TrimSpace(trimmed[n:]) == "" {
+				fence = ""
+				lines[i] = ""
+				continue
+			}
+		}
+		if fence != "" {
+			lines[i] = ""
+		}
+	}
+	return lines
 }

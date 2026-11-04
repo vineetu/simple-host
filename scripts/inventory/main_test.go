@@ -48,6 +48,7 @@ func TestFeaturePlacement(t *testing.T) {
 		`## Missing anchor`,
 		`### Missing anchor`,
 		"## 1. Sites <a id=\"sites\"></a>\n**Missing lead.**",
+		"## 1. Sites <a id=\"sites\"></a>\n**Status: live.** A new feature.",
 		`## A <a id="one"></a> trailing`,
 		"## 1. Sites <a id=\"sites\"></a>\n**Lead.** <a id=\"lead\"></a> trailing",
 	} {
@@ -153,10 +154,13 @@ func TestDynamicInputChanges(t *testing.T) {
 	for _, tc := range []struct{ declaration, kind, source string }{
 		{"assets", "values", `var assets = []string{"old"}`},
 		{"musePath", "values", `const musePath = "old"`},
-		{"Register", "ranges", `func Register() { for _, p := range []string{"old"} { mux.Handle(p,nil) } }`},
+		{"Register", "range", `func Register() { for _, p := range []string{"old"} { mux.Handle(p,nil) } }`},
 		{"icons", "keys", `func icons() map[string]string { return map[string]string{"old":"file.svg"} }`},
 	} {
-		input := dynamicInput{"routes.go", tc.declaration, tc.kind, []string{"old"}}
+		input := dynamicInput{"routes.go", tc.declaration, tc.kind, []string{"old"}, 0, ""}
+		if tc.kind == "range" {
+			input.Registration = 1
+		}
 		for _, mutation := range []string{"", `"new"`, `"old" + suffix`} {
 			source := tc.source
 			changed := mutation != ""
@@ -168,6 +172,53 @@ func TestDynamicInputChanges(t *testing.T) {
 			}
 			if err := validateDynamicInput(root, input); (err != nil) != changed {
 				t.Errorf("%s changed=%v: %v", tc.declaration, changed, err)
+			}
+		}
+	}
+}
+
+func TestFencedFeatureExamples(t *testing.T) {
+	for _, fence := range []string{"```", "~~~"} {
+		text := "## 1. Sites <a id=\"sites\"></a>\n" + fence + "markdown\n## Example\n**Example**\n### Fake <a id=\"fake\"></a>\n`GET /example` and `example_tool`\n" + fence + "\n`GET /real`"
+		placements, err := parseFeatures(text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if placements.resolve("/example", false) != "UNPLACED" || placements.resolve("example_tool", true) != "UNPLACED" || placements.resolve("/real", false) != "sites" {
+			t.Errorf("fenced example changed placements: %+v", placements)
+		}
+		if err := validateFeatureIDs(text, "sites\n"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, status := range []string{"**Status: live.**  ", "**Status: live.** A feature. <a id=\"feature\"></a>"} {
+		if _, err := parseFeatures("## 1. Sites <a id=\"sites\"></a>\n" + status); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestDynamicRegistrationInputs(t *testing.T) {
+	root := t.TempDir()
+	source := `package fixture
+func Register() {
+ for _, p := range []string{"old"} { mux.Handle(p,nil) }
+ for _, p := range []string{"other"} { mux.Handle(p,nil) }
+ for _, unused := range []string{"unrelated"} { _ = unused }
+}`
+	for _, moved := range []bool{false, true} {
+		text := source
+		if moved {
+			text = strings.Replace(text, `[]string{"old"}`, `[]string{}`, 1)
+			text = strings.Replace(text, `[]string{"other"}`, `[]string{"other","old"}`, 1)
+		}
+		if err := os.WriteFile(filepath.Join(root, "routes.go"), []byte(text), 0644); err != nil {
+			t.Fatal(err)
+		}
+		for i, values := range [][]string{{"old"}, {"other"}} {
+			err := validateDynamicInput(root, dynamicInput{"routes.go", "Register", "range", values, i + 1, ""})
+			if (err != nil) != moved {
+				t.Errorf("registration %d moved=%v: %v", i+1, moved, err)
 			}
 		}
 	}

@@ -290,6 +290,7 @@ func parseDoc(p, repo, text string) Doc {
 	cur := Section{ID: "top", Level: 0}
 	var body []string
 	inFence := false
+	fenceMarker := ""
 	flush := func() {
 		cur.Text = strings.TrimSpace(strings.Join(body, "\n"))
 		if cur.Text != "" || cur.Heading != "" {
@@ -299,8 +300,18 @@ func parseDoc(p, repo, text string) Doc {
 	}
 	isMarkdown := strings.HasSuffix(p, ".md")
 	for _, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "```") {
-			inFence = !inFence
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			n := 0
+			for n < len(trimmed) && trimmed[n] == trimmed[0] {
+				n++
+			}
+			if !inFence {
+				fenceMarker = trimmed[:n]
+				inFence = true
+			} else if trimmed[0] == fenceMarker[0] && n >= len(fenceMarker) && strings.TrimSpace(trimmed[n:]) == "" {
+				inFence = false
+			}
 		}
 		// Stable feature IDs are metadata, not owner-facing headings or prose.
 		if path.Base(p) == "FEATURES.md" && !inFence {

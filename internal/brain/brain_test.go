@@ -414,4 +414,11 @@ func TestParseDocFeatureAnchors(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("feature anchors changed parsed content: got %+v, want %+v", got, want)
 	}
+	for _, fence := range []string{"```", "~~~"} {
+		example := fence + "html\n## Literal heading\nexample <a id=\"literal\"></a>\n" + fence
+		doc := parseDoc("simple-host/FEATURES.md", RepoHost, example)
+		if len(doc.Sections) != 1 || doc.Sections[0].Text != example {
+			t.Errorf("%s fence changed literal content: %+v", fence, doc.Sections)
+		}
+	}
 }
