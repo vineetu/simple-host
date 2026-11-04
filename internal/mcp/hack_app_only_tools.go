@@ -1,3 +1,4 @@
+// famHackAppOnly declares app-only twins and judge/organiser screen tools.
 package mcp
 
 import (
@@ -184,9 +185,7 @@ func countSchema(fields ...string) map[string]any {
 
 // hackAppOnlyTools builds every app-only twin, by name, from the already-
 // assembled base registry (base must already contain every tool named
-// below -- HackTools() calls this last, after HackConnectionTools,
-// HackMemberTools, HackOrganiserTools and the hand-written tools at its
-// own top are all appended).
+// below -- hackFamilies() calls this after all base families are assembled).
 func hackAppOnlyTools(base []Tool) []Tool {
 	byName := make(map[string]Tool, len(base))
 	for _, t := range base {
@@ -406,4 +405,23 @@ func hackAppOnlyJudgingDashboardTool() Tool {
 			return out, nil
 		},
 	}
+}
+
+// hackAppFamilyTools registers famHackAppOnly after all base tools exist.
+func hackAppFamilyTools(base []Tool) []Tool {
+	// App-only twins (hack_app_get_applications and the rest, Grok
+	// security review, SIM-344 phase 2): built last, from every tool
+	// above, since each twin wraps an already-registered base tool by
+	// name. Not additionally gated at tools/list the way hack_show_judge/
+	// hack_show_organiser are -- their own content is minimal and safe by
+	// design (fixed sentence, small counts, real data only in _meta), so
+	// over-listing one costs little, where the show tools' whole reason
+	// for conditional listing is that an unflagged or non-UI connection
+	// has no frame to open at all.
+	tools := hackAppOnlyTools(base)
+	// Always present, like passcode_screen in the Simple Host inventory:
+	// gated at tools/list (filterHackShowTools) and at call time
+	// (hackShowJudgeAppAllowed, hackShowOrganiserAppAllowed), never by
+	// being absent from hackByName.
+	return append(tools, hackShowJudgeTool(), hackShowOrganiserTool())
 }

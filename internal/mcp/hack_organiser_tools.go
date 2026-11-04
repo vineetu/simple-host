@@ -1,3 +1,4 @@
+// famHackEvents organiser administration and shared REST route adapters.
 package mcp
 
 import (
@@ -23,7 +24,14 @@ type hackRouteTool struct {
 // exposed by HackTools. A personal connection may call these across events;
 // the REST handler verifies organiser membership for each request.
 func HackOrganiserTools() []Tool {
-	routes := hackOrganiserRoutes()
+	return append(hackOrganiserEventTools(), hackOrganiserEntryTools()...)
+}
+
+func hackOrganiserEventTools() []Tool {
+	return hackRouteTools(hackOrganiserEventRoutes())
+}
+
+func hackRouteTools(routes []hackRouteTool) []Tool {
 	tools := make([]Tool, 0, len(routes)+1)
 	for _, route := range routes {
 		r := route
@@ -43,7 +51,7 @@ func HackOrganiserTools() []Tool {
 		schema := object(props, append(append([]string{}, r.params...), requiredBody(r.body)...)...)
 		outSchema := outObject(map[string]any{"response": anyJSON("REST JSON response with fields limited to this operation."), "status": outInteger("REST status code.")}, "response", "status")
 		if r.csv {
-			outSchema = hackOutputSchemas()["hack_export_scores"]
+			outSchema = hackEntryOutputSchemas()["hack_export_scores"]
 		}
 		if r.archive {
 			outSchema = outObject(map[string]any{"url": outString("Short-lived private download link for the complete archive."), "expires_at": outString("Link expiration in RFC3339 format."), "expires_in": outInteger("Seconds until expiration.")}, "url", "expires_at", "expires_in")
@@ -64,11 +72,6 @@ func HackOrganiserTools() []Tool {
 		tool.run = func(c *call, args map[string]any) (output, error) { return runHackRoute(c, r, args) }
 		tools = append(tools, tool)
 	}
-	// hack_set_entry_excluded is a one-tool mirror of the website's two REST
-	// actions (POST .../entry/exclude and .../entry/include): the AI apps
-	// take a bool rather than two tool names for one toggle, so it is
-	// hand-written instead of a hackRouteTool entry.
-	tools = append(tools, hackSetEntryExcludedTool())
 	return tools
 }
 
@@ -104,6 +107,10 @@ var hackRouteBodyDescriptions = map[string]string{
 }
 
 func hackOrganiserRoutes() []hackRouteTool {
+	return append(hackOrganiserEventRoutes(), hackOrganiserEntryRoutes()...)
+}
+
+func hackOrganiserEventRoutes() []hackRouteTool {
 	return []hackRouteTool{
 		{"hack_get_directory", "List public events", "Read the public event directory. Rows with applications_open true take applications without a join link: use hack_preview_application then hack_apply_to_event.", "GET", "/v1/hack/directory", nil, false, false, true, true, false, false},
 		{"hack_get_content", "Read event content", "Read sponsors, FAQ and schedule. fixed_schedule lists the event's real times as read-only rows marked fixed: true (event start and end, the entry deadline or the caller's own team extension, the voting window, results published), each with set_in naming where it is changed (basics, entries, results). Show them with the schedule but never write them back. prompt on a row (organisers only) is the move the next step asks for at that time. Organiser only for private drafts.", "GET", "/v1/hack/events/{slug}/content", []string{"slug"}, false, false, true, false, false, false},
@@ -118,8 +125,6 @@ func hackOrganiserRoutes() []hackRouteTool {
 		{"hack_decide_application", "Decide application", "Approve or reject an applicant using body.decision. Ask before rejecting. Organiser only.", "POST", "/v1/hack/events/{slug}/applications/{user_id}/decision", []string{"slug", "user_id"}, true, true, false, false, false, false},
 		{"hack_get_tracks", "Read tracks", "Read event tracks. Organiser or participant.", "GET", "/v1/hack/events/{slug}/tracks", []string{"slug"}, false, false, true, false, false, false},
 		{"hack_set_tracks", "Replace tracks", "Replace the full tracks list. Slugs allow 80 characters; duplicate names are allowed. Before removing a track, read teams and warn how many teams will have no track. Ask before overwriting. Organiser only.", "PUT", "/v1/hack/events/{slug}/tracks", []string{"slug"}, true, true, true, true, false, false},
-		{"hack_get_voting_settings", "Read voting settings", "Read event voting settings. Organiser only.", "GET", "/v1/hack/events/{slug}/voting", []string{"slug"}, false, false, true, false, false, false},
-		{"hack_set_voting_settings", "Set voting settings", "Replace voting settings in the REST body. Narrowing eligibility removes earlier ineligible votes and returns votes_removed. Check votes_to_remove in hack_get_voting_settings and ask before removing votes; send confirm_vote_removal: true after confirmation or receive 409 vote_removal_confirmation with the count. Opening voting is public; ask first. Organiser only.", "PUT", "/v1/hack/events/{slug}/voting", []string{"slug"}, true, true, true, true, false, false},
 		{"hack_set_directory_listing", "Set directory listing", "New events are unlisted. Set listed in the REST body to show or hide the event in the public directory. Ask before listing publicly. Organiser only.", "PATCH", "/v1/hack/events/{slug}/directory", []string{"slug"}, true, true, true, true, false, false},
 		{"hack_regenerate_code", "Make a new join or judge link", "Regenerate a join or judge invitation (kind is join or judge). The old link stops working. Ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/codes/{kind}", []string{"slug", "kind"}, false, true, false, true, false, false},
 		{"hack_delete_event", "Delete event", "Permanently delete an event at any stage, its public page, results, team sites, entries, scores and votes. Participants and judges lose access; the name stays reserved unless nobody ever joined. No undo. Always explain this and confirm with the person first, then send body.confirm matching slug. Organiser only.", "DELETE", "/v1/hack/events/{slug}", []string{"slug"}, true, true, false, true, false, false},
@@ -128,10 +133,6 @@ func hackOrganiserRoutes() []hackRouteTool {
 		{"hack_revoke_person_key", "Turn a person's key off", "Revoke a person's event key. Ask first; publishing with it stops. Organiser only.", "DELETE", "/v1/hack/events/{slug}/people/{user_id}/key", []string{"slug", "user_id"}, false, true, false, false, false, false},
 		{"hack_fill_teams", "Fill teams", "Preview with body.apply:false. Show the plan and confirm before body.apply:true. Organiser only.", "POST", "/v1/hack/events/{slug}/teams/fill", []string{"slug"}, true, true, false, false, false, false},
 		{"hack_get_teams", "List event teams", "Read event teams and member names and IDs. Emails are omitted unless include_emails is true. Records any due submission deadline pins. Organiser only.", "GET", "/v1/hack/events/{slug}/teams", []string{"slug"}, false, false, true, false, false, false},
-		{"hack_get_entries", "List entries", "Read all team entries and pinned website links, plus counts by status (submitted, drafts, not_started, not_submitted, sites_live). Records any due submission deadline pins. Organiser or judge.", "GET", "/v1/hack/events/{slug}/entries", []string{"slug"}, false, false, true, false, false, false},
-		{"hack_get_entry_rules", "Read entry rules", "Read which entry fields are required, optional, off or one of (for the show-your-work evidence: video, website, code or screenshot), the active preset (build, code, ideas or custom), which evidence judges see first (judge_first: video or site), the one-sentence rules summary participants see, and whether rules can still change (editable, false from Closed on). Organiser only.", "GET", "/v1/hack/events/{slug}/entry-rules", []string{"slug"}, false, false, false, false, false, false},
-		{"hack_set_entry_rules", "Set entry rules", "Choose a preset (build = AI build, code = Coding, ideas = Ideas and design, custom) and/or set individual fields to required, optional, off, or one_of (video_url, site, code_url and screenshot only; exactly one such field needs to be met). judge_first picks which evidence (video or site) judges see first. Setting a field that differs from the active preset's own table demotes the stored preset to custom. dry_run:true returns the impact (how many submitted entries would newly read as missing something, how many drafts would be newly blocked, and which teams) and a preview, without saving anything. Tightening never un-submits an already-submitted entry. Refused once entries have closed (Closed stage onward): rules are fixed so judging sees one definition of complete. Ask before narrowing rules on a live event. Organiser only.", "PUT", "/v1/hack/events/{slug}/entry-rules", []string{"slug"}, true, true, true, false, false, false},
-		{"hack_get_team_screenshot", "Read team screenshot", "Read one team's entry screenshot as base64 image bytes. Organiser or judge.", "GET", "/v1/hack/events/{slug}/teams/{team}/screenshot", []string{"slug", "team"}, false, false, true, false, false, false},
 		{"hack_move_member", "Move a member to team", "Move a member to the specified team using the REST body. Ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/teams/{team}/members", []string{"slug", "team"}, true, true, false, false, false, false},
 		{"hack_remove_team_member", "Remove a team member", "Take a person off a team. Ask first. Organiser only.", "DELETE", "/v1/hack/events/{slug}/teams/{team}/members/{user_id}", []string{"slug", "team", "user_id"}, false, true, false, false, false, false},
 		{"hack_rename_team", "Rename a team", "Rename an event team's display name with body.name. Its site slug and address stay the same. Organiser only.", "PATCH", "/v1/hack/events/{slug}/teams/{team}", []string{"slug", "team"}, true, true, false, true, false, false},
@@ -147,27 +148,8 @@ func hackOrganiserRoutes() []hackRouteTool {
 		{"hack_preview_organiser_invite", "Preview co-organiser invite", "Read a co-organiser invitation before accepting it.", "GET", "/v1/hack/organiser/{code}", []string{"code"}, false, false, true, false, false, false},
 		{"hack_accept_organiser_invite", "Accept co-organiser invite", "Accept the invitation with body.accept_coc and body.display_name. Ask the person first.", "POST", "/v1/hack/organiser/{code}", []string{"code"}, true, true, false, false, false, false},
 		{"hack_remove_organiser", "Remove co-organiser", "Remove a co-organiser. Ask first. Organiser only.", "DELETE", "/v1/hack/events/{slug}/organisers/{user_id}", []string{"slug", "user_id"}, false, true, false, false, false, false},
-		{"hack_get_judging_settings", "Read judging settings", "Read assignment and scoring settings. Organiser only.", "GET", "/v1/hack/events/{slug}/judging/settings", []string{"slug"}, false, false, true, false, false, false},
-		{"hack_set_judging_settings", "Set judging settings", "Change assignment_mode, judges_per_team, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only.", "PATCH", "/v1/hack/events/{slug}/judging/settings", []string{"slug"}, true, true, false, true, false, false},
-		{"hack_generate_assignments", "Generate judge assignments", "Generate assignments from current settings. Judges only unless body.include_organisers is true. Replaces previous automatic assignments; ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/assignments/generate", []string{"slug"}, true, true, false, false, false, false},
-		{"hack_get_assignments", "Read judge assignments", "Read manual assignments. Organiser only.", "GET", "/v1/hack/events/{slug}/assignments", []string{"slug"}, false, false, true, false, false, false},
-		{"hack_set_assignments", "Replace judge assignments", "Replace manual assignments with body.assignments. Ask first. Organiser only.", "PUT", "/v1/hack/events/{slug}/assignments", []string{"slug"}, true, true, true, false, false, false},
-		{"hack_get_panels", "Read judging panels", "Read track judging panels. Organiser only.", "GET", "/v1/hack/events/{slug}/judging/panels", []string{"slug"}, false, false, true, false, false, false},
-		{"hack_set_panels", "Replace judging panels", "Replace track panel memberships with body.panels. Ask first. Organiser only.", "PUT", "/v1/hack/events/{slug}/judging/panels", []string{"slug"}, true, true, true, false, false, false},
-		{"hack_preview_judging_assignments", "Preview judging", "Preview assignment coverage without changing it. Organiser only.", "GET", "/v1/hack/events/{slug}/judging/preview", []string{"slug"}, false, false, true, false, false, false},
-		{"hack_get_conflicts", "Read conflicts", "Read declared judge/team conflicts. Organiser only.", "GET", "/v1/hack/events/{slug}/conflicts", []string{"slug"}, false, false, true, false, false, false},
-		{"hack_set_judge_conflict", "Record judge conflict", "Record a conflict for any event judge using body.team_id and body.judge_user_id. Organisers may also omit judge_user_id to record their own conflict. Existing scores for that pairing leave current totals; ask first.", "POST", "/v1/hack/events/{slug}/conflicts", []string{"slug"}, true, true, false, false, false, false},
-		{"hack_remove_judge_conflict", "Remove judge conflict", "Remove a conflict; use query judge_user_id to choose another judge, or omit it for yourself. Ask before removing. Organiser only for another judge.", "DELETE", "/v1/hack/events/{slug}/conflicts/{team_id}", []string{"slug", "team_id"}, false, true, true, false, false, false},
-		{"hack_get_judging_dashboard", "Read judging progress", "Read judging coverage and totals, plus former_judges (people who left after scoring: their counted_teams still count toward totals until deleted). Organiser only.", "GET", "/v1/hack/events/{slug}/judging/dashboard", []string{"slug"}, false, false, true, false, false, false},
-		{"hack_delete_former_judge_scores", "Delete a departed judge's scores", "Delete the scores and comments of a judge who left the event, so they stop counting. user_id from former_judges in hack_get_judging_dashboard. confirm is the event's address name, sent only after the person agreed. Refused while judging is locked. Published results change only when results are published again. Ask first. Organiser only.", "DELETE", "/v1/hack/events/{slug}/judging/former-judges/{user_id}", []string{"slug", "user_id"}, true, true, false, false, false, false},
-		{"hack_lock_judging", "Lock judging", "Freeze scores and comments. Ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/judging/lock", []string{"slug"}, false, true, true, false, false, false},
-		{"hack_unlock_judging", "Unlock judging", "Reopen scoring with body.reason. Ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/judging/unlock", []string{"slug"}, true, true, false, false, false, false},
-		{"hack_publish_results", "Publish results", "Publish results using body.rank_overrides for any tie breaks. This replaces the previous public snapshot: show the preview and ask first. Organiser only.", "POST", "/v1/hack/events/{slug}/results/publish", []string{"slug"}, true, true, false, true, false, false},
-		{"hack_set_results_view", "Set public results view", "Set body.full_ranking to show all ranks or winners only. Ask first. Organiser only.", "PATCH", "/v1/hack/events/{slug}/results", []string{"slug"}, true, true, true, true, false, false},
-		{"hack_get_public_results", "Read public results", "Read published results. Available publicly after publication.", "GET", "/v1/hack/events/{slug}/results", []string{"slug"}, false, false, true, true, false, false},
 		{"hack_export_participants", "Export participants", "Read the participant CSV, which adds city, country, age_range, gender and joined_via columns. Organiser only; keep private.", "GET", "/v1/hack/events/{slug}/export/participants.csv", []string{"slug"}, false, false, true, false, true, false},
 		{"hack_export_teams", "Export teams", "Read the team CSV. Organiser only; keep private.", "GET", "/v1/hack/events/{slug}/export/teams.csv", []string{"slug"}, false, false, true, false, true, false},
-		{"hack_export_entries", "Export entries", "Read the entries CSV. Organiser only; keep private.", "GET", "/v1/hack/events/{slug}/export/entries.csv", []string{"slug"}, false, false, true, false, true, false},
 		{"hack_export_projects_archive", "Export team site archive", "Create a short-lived private download link for the complete team site archive. Organiser only; give the link only to the person.", "POST", "/v1/hack/events/{slug}/export/projects-link", []string{"slug"}, false, false, false, false, false, true},
 		{"hack_export_own_team_archive", "Export own team archive", "Create a short-lived private download link for your team's complete archive; give the link only to the person.", "POST", "/v1/hack/events/{slug}/export/own-team-link", []string{"slug"}, false, false, false, false, false, true},
 		{"hack_get_usage", "Read event usage", "Read event storage and traffic usage. Organiser only.", "GET", "/v1/hack/events/{slug}/usage", []string{"slug"}, false, false, true, false, false, false},
@@ -253,56 +235,3 @@ func runHackRoute(c *call, route hackRouteTool, args map[string]any) (output, er
 // website's two REST actions, POST .../teams/{team}/entry/exclude and
 // .../include, chosen by the excluded bool (parity rule, build-plan.md
 // section 4.5: everything on the website must exist in the AI apps too).
-func hackSetEntryExcludedTool() Tool {
-	outSchema := outObject(map[string]any{
-		"response": anyJSON("The team's updated entries-list item (HackEntryListItem)."),
-		"status":   outInteger("REST status code."),
-	}, "response", "status")
-	return Tool{
-		Name:        "hack_set_entry_excluded",
-		Title:       "Exclude or include an entry",
-		Description: "Hand-exclude a team's entry from judging, or put it back in. Organisers typically do this for an entry flagged Incomplete at the deadline (coordinator decision 2026-11-02: an incomplete draft is still judged by default, and organisers can exclude it by hand instead; the entry and its scores are unaffected, only judging eligibility changes). Ask the person first. Organiser only.",
-		InputSchema: object(map[string]any{
-			"slug":     str("The event name."),
-			"team":     str("Team slug."),
-			"excluded": map[string]any{"type": "boolean", "description": "true excludes the entry from judging; false includes it again."},
-		}, "slug", "team", "excluded"),
-		OutputSchema: outSchema,
-		Annotations:  writes(true, true, false),
-		run: func(c *call, args map[string]any) (output, error) {
-			slug, err := eventSlug(args)
-			if err != nil {
-				return output{}, err
-			}
-			team, err := stringArg(args, "team")
-			if err != nil {
-				return output{}, err
-			}
-			excludedRaw, present := args["excluded"]
-			if !present {
-				return output{}, fmt.Errorf("excluded is required")
-			}
-			excluded, ok := excludedRaw.(bool)
-			if !ok {
-				return output{}, fmt.Errorf("excluded must be true or false")
-			}
-			action := "include"
-			if excluded {
-				action = "exclude"
-			}
-			path := "/v1/hack/events/" + url.PathEscape(slug) + "/teams/" + url.PathEscape(team) + "/entry/" + action
-			res := c.do(http.MethodPost, path, nil, nil)
-			if !res.ok() {
-				return output{}, hackRestError("hack_set_entry_excluded", res)
-			}
-			var response any
-			if len(res.body) > 0 {
-				if err := json.Unmarshal(res.body, &response); err != nil {
-					return output{}, fmt.Errorf("hack_set_entry_excluded: server returned invalid JSON: %w", err)
-				}
-			}
-			structured := map[string]any{"response": response, "status": res.status}
-			return output{Text: jsonText(structured), Structured: structured}, nil
-		},
-	}
-}
