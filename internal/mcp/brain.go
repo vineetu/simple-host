@@ -42,7 +42,7 @@ func NewBrainServer(cfg BrainConfig) *Server {
 	serverCfg := Config{ServerName: cfg.ServerName, Version: cfg.Version, MaxBodyBytes: 1 << 20}
 	view := r.view(serverCfg, editionBrain, false, false, false)
 	inv := &inventory{tools: view.tools, bare: view.bare, byName: view.byName, instructions: BrainInstructions, title: "Simple Host product knowledge"}
-	return &Server{cfg: serverCfg, registry: r, fixed: inv}
+	return &Server{cfg: serverCfg, registry: r, policies: r.policyIndex(), fixed: inv}
 }
 
 // BrainInstructions tells the agent what the server is and when to use it.

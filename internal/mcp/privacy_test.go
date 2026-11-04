@@ -235,6 +235,7 @@ func TestHackSQLParametersKeepVisitorReferences(t *testing.T) {
 				}
 				up.answers["POST "+path] = func() (int, string) { return 200, `{}` }
 				c := &call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "test", Mode: mode}}
+				c.policy = s.policy(name)
 				_, err := runStorageRoute(c, "POST", "/sqlite/{name}/"+operation, name, []string{"name"}, "sql", map[string]any{"site": "blog", "event": "blog", "name": "orders", "sql": "SELECT ?", "params": []any{ref}}, event)
 				if err != nil {
 					t.Fatal(err)

@@ -99,6 +99,7 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 				t.Fatal("missing tool")
 			}
 			c := &call{server: newTestServer(up), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "member-key", Mode: CallerModeEvents, UserID: "caller"}}
+			c.policy = tool.policy
 			out, err := tool.run(c, tc.args)
 			if err != nil {
 				t.Fatal(err)

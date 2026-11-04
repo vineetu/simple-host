@@ -125,7 +125,6 @@ func storageToolsFor(event bool) []Tool {
 }
 
 func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string, bodyKind string, args map[string]any, event bool) (output, error) {
-	policy := c.server.policy(toolName)
 	var site string
 	var err error
 	if event {
@@ -156,7 +155,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 		path = strings.Replace(path, "{"+name+"...}", escaped, 1)
 		path = strings.Replace(path, "{"+name+"}", escaped, 1)
 	}
-	if policy.pagedStorage {
+	if c.policy.pagedStorage {
 		query := url.Values{}
 		for _, name := range []string{"prefix", "after"} {
 			value, err := optionalString(args, name)
@@ -200,7 +199,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 				params = list
 			}
 			body["params"] = params
-			if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite && policy.visitorParams {
+			if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite && c.policy.visitorParams {
 				body["params"], e = c.storageVisitorParams(site, params)
 				if e != nil {
 					return output{}, e
@@ -249,7 +248,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 		}
 	}
 	if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite {
-		if err := c.storageVisitorRefs(site, policy, response); err != nil {
+		if err := c.storageVisitorRefs(site, response); err != nil {
 			return output{}, err
 		}
 	}

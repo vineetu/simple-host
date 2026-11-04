@@ -66,7 +66,7 @@ func screenCaller() Caller {
 
 func screenCall(t *testing.T, s *Server, caller Caller, args map[string]any) output {
 	t.Helper()
-	out, err := runPasscodeScreen(&call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: caller, uiClient: true}, args)
+	out, err := runPasscodeScreen(&call{server: s, policy: s.policy("passcode_screen"), orig: httptest.NewRequest("POST", "/mcp", nil), caller: caller, uiClient: true}, args)
 	if err != nil {
 		t.Fatalf("screen action failed: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestPasscodeScreenRoundTrip(t *testing.T) {
 				t.Fatal("wrong AAD accepted")
 			}
 		}
-		if _, err := runPasscodeScreen(&call{server: s, caller: caller, uiClient: true}, args); err == nil || err.Error() != passcodeScreenExpired {
+		if _, err := runPasscodeScreen(&call{server: s, policy: s.policy("passcode_screen"), caller: caller, uiClient: true}, args); err == nil || err.Error() != passcodeScreenExpired {
 			t.Fatal("session reused")
 		}
 	}
@@ -195,7 +195,7 @@ func TestPasscodeScreenBindingAndFailures(t *testing.T) {
 					args["ciphertext"] = "!"
 				}
 			}
-			c := &call{server: s, caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
+			c := &call{server: s, policy: s.policy("passcode_screen"), caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
 			if _, err := runPasscodeScreen(c, args); err == nil {
 				t.Fatal("invalid request accepted")
 			}
@@ -215,7 +215,7 @@ func TestPasscodeScreenBindingAndFailures(t *testing.T) {
 		if raw == base64.RawURLEncoding.EncodeToString(frame.PublicKey().Bytes()) {
 			caller.APIKey = "denied"
 		}
-		if _, err := runPasscodeScreen(&call{server: s, caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}, map[string]any{"action": "begin", "site": "blog", "client_key": raw}); err == nil {
+		if _, err := runPasscodeScreen(&call{server: s, policy: s.policy("passcode_screen"), caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}, map[string]any{"action": "begin", "site": "blog", "client_key": raw}); err == nil {
 			t.Fatal("bad begin accepted")
 		}
 	}
@@ -443,7 +443,7 @@ func TestPasscodeFrameWebCrypto(t *testing.T) {
 		if err := json.Unmarshal(scanner.Bytes(), &args); err != nil {
 			t.Fatal("invalid frame request")
 		}
-		result, err := runPasscodeScreen(&call{server: s, caller: screenCaller(), orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}, args)
+		result, err := runPasscodeScreen(&call{server: s, policy: s.policy("passcode_screen"), caller: screenCaller(), orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}, args)
 		reply := map[string]any{"result": result.Structured}
 		if err != nil {
 			reply = map[string]any{"error": err.Error()}
@@ -490,7 +490,7 @@ func TestPasscodeScreenNoCodeAndReauthorization(t *testing.T) {
 	}
 	id, _ = frameBegin(t, s, caller)
 	caller.APIKey = "denied"
-	c := &call{server: s, caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
+	c := &call{server: s, policy: s.policy("passcode_screen"), caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
 	args := map[string]any{"action": "generate", "site": "blog", "session": id}
 	if _, err := runPasscodeScreen(c, args); err == nil || !strings.Contains(err.Error(), "not allowed") {
 		t.Fatal("REST authority not rechecked")
@@ -553,7 +553,7 @@ func TestPasscodeScreenRefusesUnknownClients(t *testing.T) {
 
 func TestPasscodeLinkWithoutHandle(t *testing.T) {
 	s, _, _ := passcodeTestServer(t)
-	c := &call{server: s, caller: Caller{}}
+	c := &call{server: s, policy: s.policy("passcode_screen"), caller: Caller{}}
 	if got := c.passcodeLink("blog"); got != "https://simple-host.app/dashboard" {
 		t.Fatalf("admin link: %s", got)
 	}

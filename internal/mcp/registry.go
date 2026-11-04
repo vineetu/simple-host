@@ -51,7 +51,7 @@ type toolPolicy struct {
 	notDeployOnly, unlisted, notSearchable               bool
 	listWithPasscode                                     bool
 	personalCredential, listWithoutTeam, preserveNumbers bool
-	unwrap, discovery, notificationID                    bool
+	screenOnly, unwrap, discovery, notificationID        bool
 	screen                                               string
 	showAllowed                                          hackAppOnlyAllowed
 	flatList                                             func(Tool) Tool
@@ -173,15 +173,19 @@ func withToolPolicy(tool Tool, policy toolPolicy) Tool { tool.policy = policy; r
 type inventoryEvents struct{ EventsBackend }
 
 // policy resolves name-only protocol inputs against this server's inventory.
-func (s *Server) policy(name string) toolPolicy {
-	if s.registry != nil {
-		for _, entry := range s.registry.entries {
-			if entry.tool.Name == name {
-				return entry.policy
-			}
+func (s *Server) policy(name string) toolPolicy { return s.policies[name] }
+
+// policyIndex is built once per Server. Host entries win when editions share
+// a name (list_notifications/remove_notification), matching the old name-prefix
+// behavior: those names have Host telemetry policy even in a Hack connection.
+func (r *toolRegistry) policyIndex() map[string]toolPolicy {
+	policies := make(map[string]toolPolicy, len(r.entries))
+	for _, entry := range r.entries {
+		if _, exists := policies[entry.tool.Name]; !exists || entry.edition == editionHost {
+			policies[entry.tool.Name] = entry.policy
 		}
 	}
-	return toolPolicy{}
+	return policies
 }
 
 // addFamilies shares registration and duplicate validation with the raw exports.

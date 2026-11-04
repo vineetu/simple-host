@@ -119,7 +119,7 @@ func passcodeScreenTool() Tool {
 	props["server_key"] = outString("Ephemeral P-256 public key, base64url.")
 	props["sealed"] = outObject(map[string]any{"nonce": outString("AES-GCM nonce, base64url."), "ciphertext": outString("Sealed passcode, base64url.")}, "nonce", "ciphertext")
 	return Tool{
-		policy: toolPolicy{passcodeResult: "screen", analytics: analyticsPolicy{redactAll: true}},
+		policy: toolPolicy{screenOnly: true, passcodeResult: "screen", analytics: analyticsPolicy{redactAll: true}},
 		Name:   "passcode_screen", Title: "Passcode screen",
 		Description: "Exchange sealed passcodes with the passcode screen.",
 		Meta:        map[string]any{"ui": map[string]any{"visibility": []string{"app"}}},
@@ -171,7 +171,7 @@ func runPasscodeScreen(c *call, args map[string]any) (output, error) {
 	case "begin":
 		// REST checks the caller's current authority before issuing any session.
 		res := c.do(http.MethodGet, path, nil, nil)
-		out, err := passcodeOutput("passcode_screen", c.server.policy("passcode_screen"), name, res)
+		out, err := c.passcodeOutput("passcode_screen", name, res)
 		if err != nil {
 			return output{}, err
 		}
@@ -237,7 +237,7 @@ func runPasscodeScreen(c *call, args map[string]any) (output, error) {
 		}
 		// /lock validation errors describe the rule, never the submitted value.
 		// restError reads only error/code (not the passcode in a successful body).
-		out, err := passcodeOutput("passcode_screen", c.server.policy("passcode_screen"), name, res)
+		out, err := c.passcodeOutput("passcode_screen", name, res)
 		if err != nil {
 			return output{}, err
 		}

@@ -47,6 +47,7 @@ func TestHackResultsLimitPersonalData(t *testing.T) {
 			tool := byName[tc.name]
 			up := jsonReply(http.StatusOK, tc.response)
 			c := &call{server: newTestServer(http.HandlerFunc(up)), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "test-key", Mode: CallerModeEvents, UserID: "caller"}}
+			c.policy = tool.policy
 			out, err := tool.run(c, map[string]any{"slug": "spring", "code": "invite", "team": "builders", "team_id": "one", "user_id": "applicant", "body": map[string]any{}})
 			if err != nil {
 				t.Fatal(err)
@@ -128,6 +129,7 @@ func TestHackMyConflictsCallerScope(t *testing.T) {
 					want = map[string]any{"team_id": "one", "team_name": "One"}
 				}
 				c := &call{server: newTestServer(http.HandlerFunc(jsonReply(200, response))), orig: httptest.NewRequest("POST", "/mcp", nil), caller: caller}
+				c.policy = tool.policy
 				out, err := tool.run(c, map[string]any{"slug": "spring", "team_id": "one"})
 				if err != nil {
 					t.Fatal(err)

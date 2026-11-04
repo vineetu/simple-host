@@ -22,6 +22,7 @@ type output struct {
 // address the rate limiters key on) and who it acts as.
 type call struct {
 	server         *Server
+	policy         toolPolicy // resolved caller-visible tool policy
 	orig           *http.Request
 	caller         Caller
 	handle         string

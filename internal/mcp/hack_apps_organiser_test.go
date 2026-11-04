@@ -608,6 +608,7 @@ func TestHackOrganiserRouteMapCoversCalls(t *testing.T) {
 		"POST /v1/hack/events/mockjam/judging/unlock",
 	}
 	for i, call := range calls {
+		c.policy = s.hackByName[call.tool].policy
 		if _, err := s.hackByName[call.tool].run(c, call.args); err != nil {
 			t.Fatalf("%s: %v", call.tool, err)
 		}

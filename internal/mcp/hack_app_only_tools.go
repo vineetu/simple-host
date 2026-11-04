@@ -128,7 +128,9 @@ func hackAppOnlyTwin(base Tool, name, title string, outSchema map[string]any, al
 		if !allowed(c.server, c.caller, c.uiClient) {
 			return output{}, errors.New(name + " is not available for this connection; use " + base.Name + " instead")
 		}
-		out, err := originalRun(c, args)
+		baseCall := *c
+		baseCall.policy = base.policy
+		out, err := originalRun(&baseCall, args)
 		if err != nil {
 			return output{}, err
 		}

@@ -4,7 +4,8 @@ package mcp
 // Production callers pass their Server registry's policies directly.
 func testPolicy(name string) toolPolicy {
 	limits := DefaultLimits()
-	s := &Server{registry: newRegistry(Config{Limits: &limits, Events: inventoryEvents{}})}
+	r := newRegistry(Config{Limits: &limits, Events: inventoryEvents{}})
+	s := &Server{registry: r, policies: r.policyIndex()}
 	return s.policy(name)
 }
 func analyticsParameters(name string, args map[string]any) any {

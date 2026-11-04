@@ -571,6 +571,7 @@ func TestHackJudgeRouteMapCoversCalls(t *testing.T) {
 		"GET /v1/hack/events/mockjam/teams/t1/screenshot",
 	}
 	for i, call := range calls {
+		c.policy = s.hackByName[call.tool].policy
 		if _, err := s.hackByName[call.tool].run(c, call.args); err != nil {
 			t.Fatalf("%s: %v", call.tool, err)
 		}

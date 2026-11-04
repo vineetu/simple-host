@@ -174,6 +174,7 @@ type Config struct {
 
 type Server struct {
 	registry         *toolRegistry
+	policies         map[string]toolPolicy
 	passcodeSessions passcodeSessionStore
 	importMu         sync.Mutex
 	imports          map[[32]byte]ImportLink
@@ -235,7 +236,7 @@ func NewServer(cfg Config) *Server {
 		analytics = newAnalyticsSender(cfg)
 	}
 	return &Server{
-		registry:  r,
+		registry: r, policies: r.policyIndex(),
 		coreTools: core, deployByName: deploy.byName,
 		search: newToolSearch(host.tools), deploySearch: newToolSearch(deploy.tools),
 		analytics: analytics, cfg: cfg, tools: host.tools, byName: host.byName, preOutputSchemaTools: coreBare,
@@ -798,7 +799,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 			record(nameErr)
 			return toolResult(req.ID, nameErr.Error(), nil, true, modern)
 		}
-		if s.policy(name).analytics.redactAll {
+		if s.policy(name).screenOnly {
 			err := errors.New("passcode_screen is only for the passcode screen")
 			record(err)
 			return toolResult(req.ID, err.Error(), nil, true, modern)
@@ -892,7 +893,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		}
 		caller.APIKey = caller.TeamAPIKey
 	}
-	c := &call{server: s, orig: r, caller: caller}
+	c := &call{server: s, orig: r, caller: caller, policy: tool.policy}
 	if raw, present := params.Meta["io.modelcontextprotocol/clientCapabilities"]; modern && present {
 		var caps struct {
 			Extensions map[string]json.RawMessage `json:"extensions"`
