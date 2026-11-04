@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/model"
 )
 
@@ -34,20 +33,20 @@ func (h *SiteHandler) paperHackSite(r *http.Request, account, site string, user 
 	write := r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS" &&
 		(strings.Contains(p, "/storage/kv/") || strings.Contains(p, "/storage/sqlite/") || strings.Contains(p, "/storage/files/")) &&
 		!strings.HasSuffix(p, "/query") && !strings.HasSuffix(p, "/download-link")
-	operations.ResolveHackSite(r.Context(), account, site, member, write)
+	paperRecorder(r.Context()).ResolveHackSite(r.Context(), account, site, member, write)
 }
 
 func (h *SiteHandler) paperHackDeploy(r *http.Request, user *model.User) {
 	if !h.ed.Identity().PaperMetrics || user == nil || user.Team == nil {
 		return
 	}
-	operations.HackDeploy(r.Context())
+	paperRecorder(r.Context()).HackDeploy(r.Context())
 }
 
 func paperHackTeamState(r *http.Request, user *model.User, stage string) {
 	if user != nil && user.Team != nil {
-		operations.ResolveHackEvent(r.Context(), user.Team.EventSlug, stage, user.Team.MemberID)
+		paperRecorder(r.Context()).ResolveHackEvent(r.Context(), user.Team.EventSlug, stage, user.Team.MemberID)
 	}
 }
 
-func paperHackWrite(r *http.Request) { operations.HackWriteCommitted(r.Context()) }
+func paperHackWrite(r *http.Request) { paperRecorder(r.Context()).HackWriteCommitted(r.Context()) }

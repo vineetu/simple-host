@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/db"
 )
 
@@ -74,5 +73,5 @@ func hackSitesPaperUser(r *http.Request, user *db.User) {
 	if user.EventWebsite != nil {
 		member = user.EventWebsite.OrganiserID
 	}
-	operations.HackMember(r.Context(), member)
+	paperRecorder(r.Context()).HackMember(r.Context(), member)
 }

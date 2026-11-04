@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/app/operations"
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/db"
 	rules "github.com/vsriram/simple-host/internal/rules/storage"
@@ -241,7 +240,7 @@ func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ow
 		return
 	}
 	if h.ed.Storage().EventOwners {
-		operations.HackMember(r.Context(), sess.UserID)
+		paperRecorder(r.Context()).HackMember(r.Context(), sess.UserID)
 		if ok, err := db.HackSiteOwnerOnSite(r.Context(), h.database, sess.SiteID, sess.UserID); err != nil || !ok {
 			return
 		}

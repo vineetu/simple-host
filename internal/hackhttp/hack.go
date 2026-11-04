@@ -19,7 +19,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
-	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/httpx"
@@ -332,7 +331,7 @@ func (h *HackHandler) teamSiteURL(eventSlug, teamSlug string) string {
 // only. Moved from hack_paper_metrics.go (cleanup 3.2 slice 1c): free
 // functions with no *SiteHandler dependency, used only by the event API.
 func paperHackEvent(r *http.Request, ev model.Event) {
-	operations.ResolveHackEvent(r.Context(), ev.Slug, ev.Stage, "", ev.ResultsPublishedAt.Time)
+	paperRecorder(r.Context()).ResolveHackEvent(r.Context(), ev.Slug, ev.Stage, "", ev.ResultsPublishedAt.Time)
 	paperHackUser(r, auth.GetUser(r.Context()))
 }
 
@@ -347,15 +346,15 @@ func paperHackUser(r *http.Request, user *model.User) {
 	if user.EventWebsite != nil {
 		member = user.EventWebsite.OrganiserID
 	}
-	operations.HackMember(r.Context(), member)
+	paperRecorder(r.Context()).HackMember(r.Context(), member)
 }
 
 func paperHackKnownMember(r *http.Request, ev model.Event, member string) {
-	operations.ResolveHackEvent(r.Context(), ev.Slug, ev.Stage, member, ev.ResultsPublishedAt.Time)
+	paperRecorder(r.Context()).ResolveHackEvent(r.Context(), ev.Slug, ev.Stage, member, ev.ResultsPublishedAt.Time)
 }
 
 func paperHackStage(r *http.Request, ev model.Event) {
-	operations.RecordHackStage(r.Context(), ev.ID, ev.Stage, ev.UpdatedAt)
+	paperRecorder(r.Context()).RecordHackStage(r.Context(), ev.ID, ev.Stage, ev.UpdatedAt)
 }
 
 // NewHackHandlerForTest builds a *HackHandler with a specific archive-link

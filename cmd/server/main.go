@@ -599,7 +599,7 @@ func main() {
 	// own address when SITE_HOSTS is on (sitehost.go); an account's handle is
 	// its own address when PERSON_HOSTS is on (personhost.go); every other single-label name
 	// keeps the legacy 301 to its path URL.
-	app := handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(gated))))
+	app := handler.WithPaperRecorder(hackhttp.WithPaperRecorder(handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(gated)))), papermetrics.RequestRecorder{}), papermetrics.RequestRecorder{})
 	server := &http.Server{
 		Addr:              net.JoinHostPort(cfg.BindAddr, cfg.Port),
 		Handler:           siteHandler.FamilyHosts(app, siteHandler.SiteBaseHosts(siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, siteHandler.LegacyHostRedirect(app)))))),

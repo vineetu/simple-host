@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/app/operations"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -127,7 +126,7 @@ func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (db.V
 	if err != nil || !h.sessionValidFor(r, sess, siteID) {
 		return db.VisitorSession{}, false
 	}
-	operations.HackMember(r.Context(), sess.UserID)
+	paperRecorder(r.Context()).HackMember(r.Context(), sess.UserID)
 	return sess, true
 }
 
