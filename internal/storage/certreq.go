@@ -22,6 +22,8 @@ const (
 	CertRequestCreate
 	// CertRequestRemove removes a request if present.
 	CertRequestRemove
+	// CertRequestWrite writes a request in place for the domain issuer.
+	CertRequestWrite
 )
 
 // UpdateCertRequest performs one hand-off mutation and reports marker creation.
@@ -38,6 +40,8 @@ func UpdateCertRequest(in CertRequest) (bool, error) {
 		}
 		_ = f.Close()
 		return true, nil
+	case CertRequestWrite:
+		return false, os.WriteFile(p, []byte(in.Body), 0o644)
 	case CertRequestRemove:
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			return false, err

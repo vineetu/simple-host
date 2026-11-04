@@ -2,13 +2,12 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -105,49 +104,12 @@ func domainCertRequestBody(d db.BoundDomain, partner string) string {
 // for in the last day counts toward its daily cap; false when the cap is
 // reached and nothing was written.
 func (h *SiteHandler) requestDomainCert(ctx context.Context, d db.BoundDomain) bool {
-	p := h.domainCertFile("requests", d.Domain)
-	if p == "" || d.Token == "" || d.UserID == "" || d.Name == "" {
-		return false
-	}
-	want := domainCertRequestBody(d, h.requestablePartner(ctx, d))
-	cur, err := os.ReadFile(p)
-	switch {
-	case err == nil && string(cur) == want:
-		return true
-	case err == nil:
-		// Out of date (the site was renamed): rewrite, not a new request.
-	case errors.Is(err, os.ErrNotExist):
-		ok, err := db.AllowDomainCertRequest(ctx, h.database, d.UserID, d.Domain, h.limits.DomainCertsDaily)
-		if err != nil {
-			log.Printf("domain certs: cap check %s: %v", d.Domain, err)
-			return false
-		}
-		if !ok {
-			return false
-		}
-	default:
-		log.Printf("domain certs: read request %s: %v", d.Domain, err)
-		return false
-	}
-	// Written in place: the issuer skips a request it cannot read whole and
-	// sees it again on its next run.
-	if err := os.WriteFile(p, []byte(want), 0o644); err != nil {
-		log.Printf("domain certs: request %s: %v", d.Domain, err)
-		return false
-	}
-	log.Printf("domain certs: requested %s", d.Domain)
-	return true
+	return h.domainCertSvc().RequestDomainCert(ctx, sites.DomainCertInput{Path: h.domainCertFile("requests", d.Domain), Domain: d.Domain, SiteID: d.SiteID, UserID: d.UserID, Name: d.Name, Token: d.Token})
 }
 
 // cancelDomainCert withdraws a request that is no longer wanted (the domain
 // serves already, no longer resolves here, lost its ownership record, or its
 // site was taken down). Idempotent.
 func (h *SiteHandler) cancelDomainCert(domain string) {
-	p := h.domainCertFile("requests", domain)
-	if p == "" {
-		return
-	}
-	if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
-		log.Printf("domain certs: withdraw %s: %v", domain, err)
-	}
+	h.domainCertSvc().CancelDomainCert(context.Background(), sites.DomainCertInput{Path: h.domainCertFile("requests", domain), Domain: domain})
 }

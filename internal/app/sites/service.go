@@ -88,6 +88,9 @@ type Deps struct {
 	ExportResources         func(context.Context, string) ([]map[string]any, error)
 	ExportSQLiteMaxMemory   int64
 	DeletedTransaction      func(*sql.Tx) error
+	IdleArchive             IdleArchiveDeps
+	OwnerMarks              OwnerMarkDeps
+	DomainCerts             DomainCertDeps
 }
 
 // CreateInput contains the values and non-HTTP dependencies for a locked create.

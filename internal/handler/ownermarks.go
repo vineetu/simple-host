@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/analytics"
+	"github.com/vsriram/simple-host/internal/app/sites"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -45,15 +46,5 @@ func (h *SiteHandler) noteOwnerVisitorSignIn(r *http.Request, siteID, userID str
 	if h.ownerMarks == nil || siteID == "" || userID == "" {
 		return
 	}
-	var owner string
-	if err := h.database.QueryRowContext(r.Context(), `SELECT user_id FROM sites WHERE id = $1`, siteID).Scan(&owner); err != nil {
-		log.Printf("owner marks: site owner site=%s: %v", siteID, err)
-		return
-	}
-	if owner != userID {
-		return
-	}
-	if err := h.ownerMarks.Mark(r.Context(), userID, clientIP(r)); err != nil {
-		log.Printf("owner marks: visitor sign-in user=%s: %v", userID, err)
-	}
+	h.ownerMarkSvc().NoteOwnerVisitorSignIn(r.Context(), sites.OwnerMarkInput{SiteID: siteID, UserID: userID, IP: clientIP(r)})
 }
