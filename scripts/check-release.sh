@@ -42,8 +42,8 @@ if [ "$fail" -eq 0 ]; then
   fi
 fi
 
-# settings_docs.py otherwise probes ../simple-host-enterprise implicitly.
-# Supply a known source so this check is independent of the runner's layout.
+# Offline docs-sync runs settings_docs.py --check --local-only.
+# Supply a known Enterprise source here for the cross-repo comparison.
 echo "== settings docs and Enterprise setup settings =="
 enterprise_source=${ENTERPRISE_REPO:-}
 if [ -z "$enterprise_source" ]; then
