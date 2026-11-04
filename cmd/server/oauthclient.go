@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
-	dbpkg "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/handler"
+	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
 )
 
 // repeated collects a flag given more than once.
@@ -53,7 +54,7 @@ func runOAuthClientCommand(args []string) int {
 	defer database.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := dbpkg.VerifySchema(ctx, database); err != nil {
+	if err := operationrepo.VerifySchema(ctx, database); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
@@ -99,7 +100,7 @@ func runOAuthClientCommand(args []string) int {
 		fmt.Println("redirect URIs updated")
 		return 0
 	case "list":
-		clients, err := dbpkg.ListOperatorOAuthClients(ctx, database)
+		clients, err := accountrepo.ListOperatorOAuthClients(ctx, database)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "list:", err)
 			return 1
@@ -116,7 +117,7 @@ func runOAuthClientCommand(args []string) int {
 			fmt.Fprintln(os.Stderr, oauthClientUsage)
 			return 2
 		}
-		ok, err := dbpkg.DeleteOAuthClient(ctx, database, args[1])
+		ok, err := accountrepo.DeleteOAuthClient(ctx, database, args[1])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "delete:", err)
 			return 1

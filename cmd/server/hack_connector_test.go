@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/model"
 	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
@@ -334,7 +335,7 @@ func TestHackOrganiserConnector(t *testing.T) {
 		t.Fatalf("team key tools: %v", memberNames)
 	}
 	deployRaw, _ := auth.GenerateAPIKey()
-	if _, err := db.CreateAPIKey(context.Background(), a.database, a.uid(t, org), accountrepo.HashAPIKey(org.key), deployRaw, "ci", db.KeyScopeDeploy, nil, 50, 180*24*time.Hour); err != nil {
+	if _, err := accountapp.New(a.database).CreateKey(context.Background(), a.uid(t, org), accountrepo.HashAPIKey(org.key), deployRaw, "ci", model.KeyScopeDeploy, nil, 50, 180*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	deployNames := mcpToolNames(t, a.mcpWithKey(t, deployRaw))

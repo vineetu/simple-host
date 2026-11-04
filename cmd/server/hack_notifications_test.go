@@ -21,8 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	notifyapp "github.com/vsriram/simple-host/internal/app/notifications"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/model"
+	notifyrepo "github.com/vsriram/simple-host/internal/repository/notifications"
 )
 
 // testPasscodeKey, notifyTestSecret, notifyRandom, receivedNotification,
@@ -212,14 +214,14 @@ func (f hackNotifyFixture) drain(t *testing.T) {
 }
 func (f hackNotifyFixture) emit(t *testing.T) {
 	t.Helper()
-	if err := db.EmitSiteEvent(context.Background(), f.a.database, f.sid, notifyRandom("evt_", 16), "record.added", "kv", []byte(`{"v":1}`)); err != nil {
+	if err := notifyrepo.EmitSiteEvent(context.Background(), f.a.database, f.sid, notifyRandom("evt_", 16), "record.added", "kv", []byte(`{"v":1}`)); err != nil {
 		t.Fatal(err)
 	}
 }
 func (f hackNotifyFixture) gone(t *testing.T, ids ...string) {
 	t.Helper()
 	for _, id := range ids {
-		if _, err := db.GetNotification(context.Background(), f.a.database, id); !errors.Is(err, sql.ErrNoRows) {
+		if _, err := notifyrepo.GetNotification(context.Background(), f.a.database, id); !errors.Is(err, sql.ErrNoRows) {
 			t.Fatal("membership loss retained subscription")
 		}
 	}
@@ -228,7 +230,7 @@ func TestHackNotificationsTeamVisitorDelivery(t *testing.T) {
 	f := newHackNotifyFixture(t)
 	a := f.a
 	id := f.create(t, f.base, f.member)
-	n, err := db.GetNotification(context.Background(), a.database, id)
+	n, err := notifyrepo.GetNotification(context.Background(), a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,7 +295,7 @@ func TestHackNotificationsTeamVisitorDelivery(t *testing.T) {
 	if rotated.status != 200 {
 		t.Fatal("rotate after deadline")
 	}
-	n, err = db.GetNotification(context.Background(), a.database, id)
+	n, err = notifyrepo.GetNotification(context.Background(), a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +417,7 @@ func TestHackNotificationsMCPSelectedTeamAndOrganiser(t *testing.T) {
 	another := a.makeEvent(t, f.other)
 	wantTS(t, "other event site", a.api(t, "PUT", "/v1/hack/events/"+another+"/website/files?create=1", deployBody("other"), f.other.key), 201, "")
 	subscribe(orgAccess, map[string]any{"event": another}, false)
-	n, err := db.GetNotification(context.Background(), a.database, eventID)
+	n, err := notifyrepo.GetNotification(context.Background(), a.database, eventID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -440,7 +442,7 @@ func TestHackNotificationsMCPSelectedTeamAndOrganiser(t *testing.T) {
 	}
 	wantTS(t, "end event", a.api(t, "POST", "/v1/hack/events/"+f.slug+"/stage", map[string]string{"stage": "archived"}, f.org.key), 200, "")
 	subscribe(orgAccess, eventArgs, false)
-	if err := db.EmitSiteEvent(context.Background(), a.database, n.SiteID, notifyRandom("evt_", 16), "record.added", "rows", json.RawMessage(`{"v":1}`)); err != nil {
+	if err := notifyrepo.EmitSiteEvent(context.Background(), a.database, n.SiteID, notifyRandom("evt_", 16), "record.added", "rows", json.RawMessage(`{"v":1}`)); err != nil {
 		t.Fatal(err)
 	}
 	f.drain(t)
@@ -483,11 +485,11 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 	wantTS(t, "ambiguous site", a.api(t, "POST", f.base, f.body(), f.member.key), 404, "")
 	id := f.create(t, f.base+"?event="+f.slug, f.member)
 	otherID := f.create(t, f.base+"?event="+slug2, f.member)
-	n, err := db.GetNotification(context.Background(), a.database, id)
+	n, err := notifyrepo.GetNotification(context.Background(), a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := db.GetNotification(context.Background(), a.database, otherID)
+	other, err := notifyrepo.GetNotification(context.Background(), a.database, otherID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,7 +516,7 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 	if !ok {
 		t.Fatal("MCP subscribe")
 	}
-	sub, err := db.GetNotification(context.Background(), a.database, result["id"].(string))
+	sub, err := notifyrepo.GetNotification(context.Background(), a.database, result["id"].(string))
 	if err != nil || sub.SiteID != other.SiteID {
 		t.Fatal("MCP resolved wrong event")
 	}
@@ -524,7 +526,7 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 		t.Fatal("remove")
 	}
 	f.gone(t, otherID)
-	if _, err := db.GetNotification(context.Background(), a.database, id); err != nil {
+	if _, err := notifyrepo.GetNotification(context.Background(), a.database, id); err != nil {
 		t.Fatal("removed other event subscription")
 	}
 }
@@ -559,10 +561,10 @@ func TestHackNotificationsWorkerAndMembershipMove(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now()
-	n := db.Notification{ID: notifyRandom("sub_", 12), SiteID: f.sid, OwnerID: a.uid(t, f.other), Hack: true, Source: "owner", URL: f.x.server.URL, Events: []string{"record.added"}, Secret: notifyTestSecret, VerifiedAt: &now}
+	n := model.Notification{ID: notifyRandom("sub_", 12), SiteID: f.sid, OwnerID: a.uid(t, f.other), Hack: true, Source: "owner", URL: f.x.server.URL, Events: []string{"record.added"}, Secret: notifyTestSecret, VerifiedAt: &now}
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := db.SaveNotification(context.Background(), a.database, n, 10, nil, 7, a.sites.NotificationSecretsForTest())
+		_, _, err := notifyapp.New(a.database, nil).SaveNotification(context.Background(), n, 10, nil, 7, a.sites.NotificationSecretsForTest())
 		done <- err
 	}()
 	if err = tx.Commit(); err != nil {
@@ -570,7 +572,7 @@ func TestHackNotificationsWorkerAndMembershipMove(t *testing.T) {
 	}
 	select {
 	case err := <-done:
-		if !errors.Is(err, db.ErrNotificationAccess) {
+		if !errors.Is(err, model.ErrNotificationAccess) {
 			t.Fatal("save crossed membership removal")
 		}
 	case <-time.After(5 * time.Second):

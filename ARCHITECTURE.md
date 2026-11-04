@@ -126,11 +126,11 @@ The following packages exist today (verified with `go list ./internal/...`):
 | `repository/{accounts,sites,storage,legacy}` | Extracted account/site/storage/legacy SQL |
 | `repository/{hackevents,hackteams,hackentries}` | Extracted Hack SQL |
 | `repository/sqlkit` | Shared Querier and transaction-opening primitives |
-| `db` | Remaining account/session/notification/operations SQL, schema checks, compatibility aliases/forwarders |
+| `app/notifications`, `repository/notifications` | Subscription and outbox delivery workflows; notification SQL |
 | `model` | Shared records without SQL or transport |
 | `storage` | Deployment trees, symlinks/markers, runtime files and per-site SQLite mechanics |
 | `edition`, `config` | Injected fixed product policy; environment parsing and settings catalog |
-| `app/operations`, `repository/operations` | Operator reports, API aggregation/retention, measurement and scan lifecycle; report and scan SQL |
+| `app/operations`, `repository/operations` | Operator reports, API aggregation/retention, measurement and scan lifecycle; report, scan and startup schema-verification SQL |
 | `analytics`, `netusage`, `papermetrics` | Access-log, network-counter and research measurement mechanisms |
 | `email`, `eventdns`, `oauth`, `imagescan` | Provider clients |
 | `geoip`, `capacity`, `tarball`, `wpimport` | Local country lookup, disk capacity, archives and WordPress import |

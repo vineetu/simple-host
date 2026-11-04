@@ -42,14 +42,5 @@ mcp/apps/gentool -> mcp/apps/bundlegen
 {handler,hackhttp,auth,mcp} -> config repository/** storage sitelocks email
 mcp -> mcp/apps/bundlegen
 [transitional]
-db -> repository/accounts production # removal step 5.4: account SQL forwarders for remaining callers
-db -> rules/storage production # removal step 5.4: legacy db forwarders call extracted pure storage rules
-db -> repository/legacy production # removal step 5.4: legacy SQL forwarders for remaining callers
-db -> repository/sites production # removal step 5.4: site/version SQL forwarders for remaining callers
-db -> repository/hackevents production # removal step 5.4: event aliases, account cleanup and notification locks
-db -> repository/hackteams production # removal step 5.4: team aliases, account cleanup and team key checks
-db -> repository/hackentries production # removal step 5.4: Host-dependent compatibility aliases
-db -> repository/sqlkit production # removal step 5.4: db keeps the Querier alias until the last repository moves
-db -> model production # removal step 5.4: db keeps type aliases until the last repository moves
 handler -> geoip test # removal step 5.4: worker lifecycle and operations
 handler -> oauth test # removal step 5.4: final transport boundary

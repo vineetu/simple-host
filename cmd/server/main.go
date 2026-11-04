@@ -23,7 +23,6 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/config"
-	dbpkg "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/eventdns"
@@ -34,6 +33,10 @@ import (
 	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
+	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	operationrepo "github.com/vsriram/simple-host/internal/repository/operations"
+	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -142,7 +145,7 @@ func main() {
 	// Before anything else touches the database: a build that reads a column the
 	// database does not have fails at the first query, not at startup, which
 	// looks like a 404 on every page rather than a deployment mistake.
-	if err := dbpkg.VerifySchema(context.Background(), db); err != nil {
+	if err := operationrepo.VerifySchema(context.Background(), db); err != nil {
 		log.Fatalf("schema check: %v", err)
 	}
 	// Hosted events (EVENTS=hosted, simple-hack.app): set before any route is
@@ -155,7 +158,7 @@ func main() {
 	// always sees the originally configured address.
 	var hackInstanceURL string
 	if hosted {
-		if err := dbpkg.VerifyHackSchema(context.Background(), db); err != nil {
+		if err := operationrepo.VerifyHackSchema(context.Background(), db); err != nil {
 			log.Fatalf("schema check (EVENTS=hosted): %v", err)
 		}
 		hackInstanceURL = cfg.PublicBaseURL
@@ -214,7 +217,7 @@ func main() {
 	log.Printf("per-site limit: %d MB", handler.SiteLimit()>>20)
 
 	// Ensure a real admin user row exists so the admin key can own sites.
-	adminUserID, err := dbpkg.EnsureAdminUser(context.Background(), db)
+	adminUserID, err := legacyrepo.EnsureAdminUser(context.Background(), db)
 	if err != nil {
 		log.Fatalf("ensure admin user: %v", err)
 	}
@@ -340,7 +343,7 @@ func main() {
 	userHandler.SetPublicPage(siteHandler.PersonPageURL)
 	userHandler.SetAddressState(siteHandler.AddressState)
 	// One namespace across every domain people's addresses live under.
-	dbpkg.SetPlatformDomains(siteHandler.HandoutBase(), siteHandler.ServedBases()...)
+	accountrepo.SetPlatformDomains(siteHandler.HandoutBase(), siteHandler.ServedBases()...)
 	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)
 	if bases := siteHandler.ServedBases(); len(bases) > 1 {
 		log.Printf("site base move: %s; addresses under %s (handed out: %s)", cfg.SiteBaseMove, strings.Join(bases, " and "), siteHandler.HandoutBase())
@@ -403,10 +406,10 @@ func main() {
 	if hosted {
 		hack := hackhttp.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain, ed)
 		hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
-			return dbpkg.GetUserByAPIKey(ctx, db, key, idle)
+			return accountsService.GetUserByAPIKey(ctx, key, idle)
 		})
 		hack.ShareAssets(siteHandler.Pages())
-		hack.SetHandleChecker(func(ctx context.Context, q dbpkg.Querier, name string) (hackhttp.HandleVerdict, error) {
+		hack.SetHandleChecker(func(ctx context.Context, q sqlkit.Querier, name string) (hackhttp.HandleVerdict, error) {
 			v, err := handler.JudgeHandle(ctx, q, "", name)
 			return hackhttp.HandleVerdict{Status: v.Status, Code: v.Code}, err
 		})
