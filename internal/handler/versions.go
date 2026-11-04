@@ -85,7 +85,7 @@ func effectiveKeepVersions(siteKeep int) int {
 // Rows go first, then the folders: once the row is gone nothing can serve
 // or roll back to that version. It returns the version numbers removed.
 func (h *SiteHandler) pruneVersions(ctx context.Context, siteID, userID, siteName string, activeVersion, siteKeep int) []int {
-	return h.sitesSvc().PruneVersions(ctx, siteID, userID, siteName, activeVersion, siteKeep)
+	return h.sitesSvc().PruneVersions(ctx, sites.PruneInput{SiteID: siteID, UserID: userID, SiteName: siteName, ActiveVersion: activeVersion, SiteKeep: siteKeep})
 }
 
 // setKeepVersions sets how many deploys of one site are kept and applies it at
@@ -102,8 +102,9 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return
 	}
-	if !h.limits.CanSetKeepVersions(accountHandles(r.Context(), h.database, user)...) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: fmt.Sprintf("Simple Host keeps your %d latest versions", keepVersions), Code: "keep_versions_fixed"})
+	if err := h.sitesSvc().CheckRetentionAllowed(r.Context(), user); err != nil {
+		siteErr := err.(*sites.Error)
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
 		return
 	}
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
@@ -123,7 +124,7 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	keep := *req.KeepVersions
-	site, effective, removed, err := h.sitesSvc().SetKeepVersions(r.Context(), user.ID, siteName, keep)
+	site, effective, removed, err := h.sitesSvc().SetKeepVersions(r.Context(), sites.KeepVersionsInput{UserID: user.ID, Name: siteName, Keep: keep})
 	if err != nil {
 		writeSitesError(w, err, siteName)
 		return
@@ -197,7 +198,7 @@ func (h *SiteHandler) discardVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	expectedSiteID, checkSiteID := r.Context().Value(adminSiteKey{}).(string)
-	site, err := h.sitesSvc().DiscardVersion(r.Context(), user.ID, siteName, expectedSiteID, checkSiteID, n)
+	site, err := h.sitesSvc().DiscardVersion(r.Context(), sites.DiscardInput{UserID: user.ID, Name: siteName, ExpectedSiteID: expectedSiteID, CheckSiteID: checkSiteID, Version: n})
 	if err != nil {
 		writeSitesError(w, err, siteName)
 		return
