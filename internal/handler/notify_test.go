@@ -1662,3 +1662,17 @@ func TestNotifyURLMinuteBudget(t *testing.T) {
 		}
 	}
 }
+
+func TestNotificationOwnerStopBeforeStart(t *testing.T) {
+	h := &SiteHandler{}
+	owner := h.NotificationOwner()
+	owner.Stop()
+	owner.Stop()
+	owner.Start(context.Background())
+	owner.Wait()
+	for _, status := range owner.Status() {
+		if status.Running || status.LastAttempt != nil {
+			t.Fatalf("stopped owner started: %+v", status)
+		}
+	}
+}
