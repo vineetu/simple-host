@@ -49,7 +49,10 @@ type Deps struct {
 	AccountRetention        func(context.Context, string, int) (int, error)
 	RetainedFloor           func([]model.Version, int, int, int) int
 	PinnedFloor             func(context.Context, string, string, int) int
-	CreateGate              func(context.Context, *sql.Tx, *db.User, string) error
+	TeamKeys                bool
+	TeamSitesReady          func(string) bool
+	PaperSite               func(context.Context, *db.User, string)
+	PaperState              func(context.Context, *db.User, string)
 	Assign                  func(context.Context, *db.User)
 	NotifyCreate            func(context.Context, *db.User, model.Site, map[string][]byte)
 	NotifyRollback          func(string, int, int)
@@ -116,7 +119,7 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 		return CreateResult{}, err
 	}
 	defer tx.Rollback()
-	if err := s.deps.CreateGate(ctx, tx, in.User, in.Name); err != nil {
+	if err := s.createGate(ctx, tx, in.User, in.Name); err != nil {
 		return CreateResult{}, err
 	}
 	if err := repo.LockUserHandle(ctx, tx, in.User.ID, &in.User.Handle); err != nil {
@@ -643,7 +646,7 @@ func (s *Service) rollbackTransaction(ctx context.Context, site model.Site, vers
 	if err != nil {
 		return site, err
 	}
-	if err := s.deps.CreateGate(ctx, tx, user, site.Name); err != nil {
+	if err := s.createGate(ctx, tx, user, site.Name); err != nil {
 		return site, err
 	}
 	return s.finishRollback(ctx, tx, site, version)
@@ -772,7 +775,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 	if err != nil {
 		return UpdateResult{}, err
 	}
-	if err := s.deps.CreateGate(ctx, tx, in.User, in.Name); err != nil {
+	if err := s.createGate(ctx, tx, in.User, in.Name); err != nil {
 		return UpdateResult{}, err
 	}
 	max, err := repo.GetMaxVersionNumber(ctx, tx, site.ID)
