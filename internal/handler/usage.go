@@ -8,6 +8,7 @@ import (
 	"github.com/vsriram/simple-host/internal/buildinfo"
 	"github.com/vsriram/simple-host/internal/capacity"
 	"github.com/vsriram/simple-host/internal/tarball"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // SetSiteLimit applies the per-site cap, in bytes, to every place that enforces
@@ -128,6 +129,9 @@ func (c *usageCache) refresh(dataDir string, gen int64) {
 	}
 }
 
+// SetWorkerStatus connects the composition root's background status snapshot.
+func (h *SiteHandler) SetWorkerStatus(status func() []workers.Status) { h.workerStatus = status }
+
 // adminUsage reports what this instance is using and what it has left.
 //
 // There is deliberately no projection of how many people or sites will fit. The
@@ -176,6 +180,11 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 		// Bytes served for sites and the box's own transfer this month.
 		"network": h.networkUsage(r.Context(), time.Now()),
 	}
+	statuses := []workers.Status{}
+	if h.workerStatus != nil {
+		statuses = h.workerStatus()
+	}
+	out["workers"] = statuses
 	// ?sizes=1 adds every site's footprint (the admin page's Sites table),
 	// from the same cached walk.
 	if r.URL.Query().Get("sizes") == "1" {

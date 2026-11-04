@@ -49,11 +49,9 @@ with the proxy configuration.
 Main starts certificate requests, Hack reconciliation/entry settling, event retention and mail,
 trash/idle cleanup, legacy retention, submission emails, notification delivery, address-family
 verification, network sampling, image scans and paper metrics. Enabled providers/settings determine
-which loops do work (`cmd/server/main.go:main`, calls to `Start*`). Connector/event-name sweeps,
-Geo DB watching, optional access-log ingestion and explicit `hack.StartCleanup()` (Hack limiter
-eviction) start earlier in main; handler constructors also start
-limiter/cache, expiry and domain-check loops. Worker shutdown is not yet uniformly owned/joined:
-main's signal context cancels its workers before HTTP draining completes.
+which loops do work. Background owners satisfy `workers.Owner` and are registered in
+`cmd/server/workers.go`; `GET /v1/admin/usage` exposes their `workers` status array.
+HTTP drains before the worker set stops and waits, with a separate worker context.
 
 Startup can initialize/migrate with `MIGRATE_ON_START=true`, then verifies required schema;
 without a configured hostname it serves only setup and exits after configuration so the supervisor
@@ -111,6 +109,7 @@ The following packages exist today (verified with `go list ./internal/...`):
 | `hackhttp` | Hack HTTP/pages and transport mapping; no production import of `handler` |
 | `mcp` | JSON-RPC, discovery, family registrars and common tool/schema inventory (`registry.go`); MCP Events |
 | `mcp/apps/{bundlegen,gentool}` | MCP Apps browser-bundle generator and command |
+| `workers` | Standard-library lifecycle owners, cancellation, joins and progress/status tracking |
 | `httpx` | Shared HTTP responses, limits, signed links and route metadata |
 | `auth` | Account credential/context and scope middleware |
 | `app/hack/events` | Event lifecycle/content, organisers, settings and public directory |
@@ -137,7 +136,7 @@ The following packages exist today (verified with `go list ./internal/...`):
 
 `scripts/check-layering.sh` checks Go imports, including test imports, against the final allowlist
 and exact transitional edges in `scripts/layering/rules.txt`. Each exception names its removal
-step. Account/notification/operations services, `webassets`, `workers` and `sitelocks` from the
+step. Account/notification/operations services, `webassets` and `sitelocks` from the
 target map do not exist yet. Shared lock maps are injected by existing wiring
 (`app/sites/service.go:New`, `app/storage/service.go:Deps`), not by a new lock package.
 Do not copy a transitional import as precedent; follow [target §2](docs/architecture/target.md#2-package-map-and-import-contract).

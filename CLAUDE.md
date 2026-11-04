@@ -147,6 +147,8 @@ Never report branch work as fixed; only what a client can see is shipped.
 - `PERSON_HOSTS` and `SITE_HOSTS` default to `off` so event and self-hosted instances keep the
   path model. simple-host.app runs both as `canonical`.
 
+Background owners satisfy `workers.Owner` and are registered in `cmd/server/workers.go`; `GET /v1/admin/usage` reports their `workers` status. Drain HTTP before stopping/joining workers and closing dependencies.
+
 ### Skill staleness notice
 
 `notice_middleware.go` reads the embedded `plugin.json` version at boot. On wrapped routes, a

@@ -1,5 +1,7 @@
 # PARITY — Simple Host (hosted) and Simple Host Enterprise
 
+2026-11-04 background worker status: hosted Host/Hack and small-box builds add a `workers` array to admin usage and a Background workers Overview table. Enterprise has not yet received the lifecycle/status contract (`gap → enterprise`).
+
 2026-11-02 image matching (SIM-200): hosted Simple Host and Simple Hack (server installs with
 a systemd unit) gain image hash matching against known child sexual abuse material through
 Microsoft PhotoDNA Cloud Service (off until `PHOTODNA_API_KEY` or `PHOTODNA_API_KEY_FILE` is

@@ -232,6 +232,10 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       <h2 title="Ranked by size on disk: the live copy plus every kept version">Biggest websites</h2>
       <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th class="num" style="width:1%">#</th><th>Website</th><th>Owner</th><th class="num" title="The copy visitors are served; the per-site limit is about this">Live</th><th class="num" title="Live copy plus every kept version">On disk</th></tr></thead><tbody id="ov-biggest"><tr><td colspan="5" class="empty">Measuring…</td></tr></tbody></table></div>
     </div>
+    <div class="sec">
+      <h2>Background workers</h2>
+      <div class="tbl-wrap"><table class="t"><thead><tr><th>Name</th><th>Status</th><th>Last progress</th><th>Last error</th><th class="num">Pending</th></tr></thead><tbody id="ov-workers"></tbody></table></div>
+    </div>
     <div class="sec" id="net-top-sec" hidden>
       <h2 title="Bytes the web server sent for each website this calendar month (UTC)">Most traffic this month</h2>
       <div class="tbl-wrap"><table class="t nowrap"><thead><tr><th class="num" style="width:1%">#</th><th>Website</th><th>Owner</th><th class="num" title="The website's files: pages, images, scripts">Pages</th><th class="num" title="Its /v1 calls: saved data and visitor sign-in">API</th><th class="num">Total</th><th class="num">Requests</th></tr></thead><tbody id="net-top"></tbody></table></div>
@@ -614,7 +618,9 @@ function renderOverview(){
     return '<tr><td><button type="button" class="link-btn" data-cohort="'+esc(g)+'">'+esc(groupLongLabel(g))+'</button>'+sub+inf+'</td><td class="num">'+c.d7+'</td><td class="num">'+c.d30+'</td><td class="num">'+c.all+'</td></tr>';
   }).join('')||'<tr><td colspan="4" class="empty">Nobody yet.</td></tr>';
 
-  if(u){ renderDisk(); renderNetwork(); }
+  if(u){ renderDisk(); renderNetwork();
+    $('ov-workers').innerHTML=(u.workers||[]).map(function(w){return '<tr><td>'+esc(w.name)+'</td><td>'+(!w.enabled?'off':w.running?'running':'stopped')+'</td><td>'+esc(w.last_progress?dateOf(w.last_progress)+' · '+ago(w.last_progress):'—')+'</td><td>'+esc(w.last_error||'—')+'</td><td class="num">'+esc(w.pending==null?'—':w.pending)+'</td></tr>';}).join('');
+  }
   else if(D.usageFailed){ $('ov-biggest').innerHTML='<tr><td colspan="5" class="empty">'+usageErr+'</td></tr>'; }
   else needUsage('overview', renderOverview);
 }

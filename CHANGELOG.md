@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-04: Admin usage now includes background worker lifecycle and progress reports, with a Background workers table in Overview. HTTP cache and limiter cleanup has explicit cancellation and join ownership; server shutdown drains requests before stopping the worker set.
+
 2026-11-04: `remove_site_passcode` now needs a fresh yes (Grok bot SIM-350, case 30). The Nov 3 wording fix (below) held for ChatGPT asking for a passcode in chat (case 28), but both ChatGPT and Claude still removed a passcode the moment the person asked for it, reading that request itself as enough consent. The tool now takes a `confirm` argument and refuses with an error until it is `true`, telling the model to say anyone with the link will be able to open the site once the passcode is gone and get a fresh agreement in the conversation first. No change to the HTTP API (`DELETE /v1/sites/{s}/lock` is unchanged); any other MCP caller must add `confirm: true`. No migration.
 
 2026-11-03: Passcode tool wording (Grok bot SIM-350, cases 28 and 30). `set_site_passcode`'s description split "ask the person first" (confirm before calling) from "never ask for the passcode in chat" into two sentences; the combined one let ChatGPT read it as permission to ask the person what passcode they wanted, in chat. `remove_site_passcode`'s ask-first line now opens the description instead of trailing it, matching `grant_site_viewer`/`revoke_site_viewer`'s "ASK THE PERSON FIRST" lead. No behaviour change, no migration.

@@ -376,7 +376,6 @@ func main() {
 	userHandler.SetPreviewAccounts(cfg.PreviewAccounts)
 	connector.SetSignInAlerts(userHandler.SignInAlerts())
 	handler.RegisterOpenAIAppsChallenge(mux, cfg.OpenAIAppsChallenge)
-	connector.StartSweep(time.Hour)
 	// The owner's product knowledge server (/brain/mcp, /v1/brain): hosted
 	// simple-host.app only, on when BRAIN_DIR holds the bundle sh-brain-sync
 	// builds. Never on the hackathon platform.
@@ -418,13 +417,12 @@ func main() {
 		}
 		hack.Register(mux, authMW)
 		hack.RegisterDemo(mux, os.Getenv("HACK_DEMO_EVENT_SLUG"))
-		hack.StartCleanup()
 		handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
 			return hack.NameTaken(ctx, name)
 		})
 		hackPages := hackhttp.NewHackEventPages(handler.EmbeddedStatic())
 		siteHandler.SetHackEventPage(hackhttp.HackEventPage(db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages))
-		siteHandler.SetHackScreenshot(hackhttp.HackScreenshot(db, siteHandler.TeamSitesReady))
+		siteHandler.SetHackScreenshot(hackhttp.HackScreenshot(db, siteHandler.TeamSitesReady, hack))
 		hackhttp.RegisterHackHome(mux, siteHandler.Pages())
 		hackhttp.RegisterHackPublic(mux, db, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages)
 		hackhttp.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
@@ -497,6 +495,7 @@ func main() {
 	// Event hostnames for hackathon organisers. Off unless a DNS token and at
 	// least one domain are configured, so a self-hosted instance never tries to
 	// hand out names under a domain it does not control.
+	var eventDomains *handler.EventDomainHandler
 	if cfg.EventDNSToken != "" && len(cfg.EventDomains) > 0 {
 		ev := handler.NewEventDomainHandler(db, eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), cfg.EventDomains, ed)
 		if cfg.EventNamePeer != "" && !hosted {
@@ -506,7 +505,7 @@ func main() {
 			log.Printf("event hostnames: names checked with %s", cfg.EventNamePeer)
 		}
 		ev.Register(mux, authMW)
-		ev.StartSweep(1 * time.Hour)
+		eventDomains = ev
 		log.Printf("event hostnames enabled under: %s", strings.Join(cfg.EventDomains, ", "))
 	}
 
@@ -515,7 +514,6 @@ func main() {
 	// Caller location comes from local DB-IP files only (no network lookup);
 	// the watcher picks up the monthly refresh without a restart.
 	geo := geoip.Open(cfg.GeoIPDir)
-	geo.Watch(time.Minute)
 
 	// Sign-in/sign-up country block (SIGNUP_BLOCKED_COUNTRIES): local lookup
 	// only, off by default. A listed country refuses every email-code and
@@ -559,13 +557,13 @@ func main() {
 
 	// Server-side visitor analytics: tail the nginx analytics log into daily
 	// aggregates. Off unless ANALYTICS_LOG is set (safe default for local dev).
+	var ingester *analytics.Ingester
 	if cfg.AnalyticsLog != "" {
-		analytics.NewIngester(db, cfg.AnalyticsLog, cfg.AdminAPIKey, cfg.ContentHost, cfg.SiteDomain).
+		ingester = analytics.NewIngester(db, cfg.AnalyticsLog, cfg.AdminAPIKey, cfg.ContentHost, cfg.SiteDomain).
 			WithBases(cfg.SiteBaseDomain).
 			WithSalt(cfg.AnalyticsSalt).
 			WithRetentionDays(cfg.Limits.AnalyticsRetention).
-			WithItemCaps(cfg.Limits.AnalyticsPagesDay, cfg.Limits.AnalyticsRefsDay).
-			Start(5 * time.Minute)
+			WithItemCaps(cfg.Limits.AnalyticsPagesDay, cfg.Limits.AnalyticsRefsDay)
 		// The owner's own visits are told apart by marks the handlers write
 		// (ownermarks.go); an install without analytics writes none.
 		siteHandler.SetOwnerMarks(analytics.NewOwnerMarks(db, cfg.AdminAPIKey, cfg.AnalyticsSalt))
@@ -593,25 +591,11 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	// Ask the root issuer for each person's *.<handle>.<SITE_DOMAIN>
-	// certificate (back-fill at boot, then a periodic safety net).
-	siteHandler.StartSiteCertRequests(ctx, 10*time.Minute)
-	siteHandler.StartHackSweep(ctx, time.Minute, hackSweep)
-	if hackEvents != nil {
-		hackEvents.StartEventCleanup(ctx)
-		hackEvents.StartContentDelivery(ctx)
-	}
-	siteHandler.StartDeletedSitePurge(ctx, time.Hour)
-	siteHandler.StartIdleCleanup(ctx)
-	siteHandler.StartSavedDataSweep(ctx)
-	siteHandler.StartSubmissionEmails(ctx)
-	siteHandler.StartNotifications(ctx)
-	siteHandler.StartAddressFamilies(ctx)
-	siteHandler.StartNetworkUsage(ctx)
-	imageScan.Start(ctx)
-	if paper != nil {
-		paper.Start(ctx)
-	}
+	// The signal drains HTTP before it is allowed to cancel background work.
+	workerCtx, cancelWorkers := context.WithCancel(context.Background())
+	defer cancelWorkers()
+	workerSet := startWorkers(workerCtx, workerDependencies{cfg: cfg, site: siteHandler, user: userHandler, oauth: oauthHandler, connector: connector, hack: hackEvents, image: imageScan, paper: paper, metrics: apiMetrics, geo: geo, analytics: ingester, eventDomains: eventDomains, hackSweep: hackSweep})
+	siteHandler.SetWorkerStatus(workerSet.Status)
 
 	serverErr := make(chan error, 1)
 
@@ -626,7 +610,7 @@ func main() {
 	select {
 	case err := <-serverErr:
 		if err != nil {
-			log.Fatalf("server error: %v", err)
+			log.Printf("server error: %v", err)
 		}
 	case <-ctx.Done():
 		stop()
@@ -640,7 +624,22 @@ func main() {
 		if closeErr := server.Close(); closeErr != nil {
 			log.Printf("force close failed: %v", closeErr)
 		}
-		os.Exit(1)
+	}
+	workerSet.Stop()
+	cancelWorkers()
+	joinCtx, joinCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer joinCancel()
+	for _, name := range workerSet.Wait(joinCtx) {
+		log.Printf("worker %s: shutdown deadline exceeded", name)
+	}
+	// The metric owner supplies its final buffered flush when D's hook lands.
+	flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer flushCancel()
+	switch flusher := any(apiMetrics).(type) {
+	case interface{ Flush(context.Context) }:
+		flusher.Flush(flushCtx)
+	case interface{ Flush() }:
+		flusher.Flush()
 	}
 }
 

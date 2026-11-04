@@ -6729,6 +6729,20 @@ paths:
                   sites: { type: integer }
                   accounts: { type: integer, description: Participant accounts, or -1 if the count could not be read }
                   site_limit_mb: { type: integer, description: "Per-site cap in force (MAX_ARCHIVE_MB); accounts in MAX_ARCHIVE_MB_OVERRIDES have their own (max_site_mb in GET /v1/admin/users)" }
+                  workers:
+                    type: array
+                    description: Background owner lifecycle and progress; pending is null for periodic scans.
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        enabled: { type: boolean }
+                        running: { type: boolean }
+                        last_attempt: { type: string, format: date-time, nullable: true }
+                        last_progress: { type: string, format: date-time, nullable: true }
+                        last_error: { type: string }
+                        last_error_at: { type: string, format: date-time, nullable: true }
+                        pending: { type: integer, format: int64, nullable: true }
                   site_limit_overrides: { type: object, nullable: true, additionalProperties: { type: integer }, description: "MAX_ARCHIVE_MB_OVERRIDES as handle to MB; null when no account has its own" }
                   keep_versions: { type: integer, description: 'Deploys of each site kept (KEEP_VERSIONS in force); 0 keeps every one' }
                   version: { type: string, description: 'Release this server was built from, e.g. v0.3.0; "dev" for an unstamped build' }
