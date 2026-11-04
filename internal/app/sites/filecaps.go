@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // checkFileCaps checks the projected disk use before writing a version.
-func (s *Service) checkFileCaps(ctx context.Context, user *db.User, site model.Site, files map[string][]byte, next int, publish bool) error {
+func (s *Service) checkFileCaps(ctx context.Context, user *model.User, site model.Site, files map[string][]byte, next int, publish bool) error {
 	if !s.deps.FileCaps {
 		return nil
 	}

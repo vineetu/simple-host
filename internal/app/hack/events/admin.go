@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
 	model "github.com/vsriram/simple-host/internal/model"
+	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 )
 
@@ -35,7 +35,7 @@ func (s *Service) AdminModerate(ctx context.Context, ev model.Event, reason stri
 	if err != nil {
 		return model.Event{}, err
 	}
-	if err = db.SetUserSuspended(ctx, tx, ev.AccountID, reason); err != nil {
+	if err = accounts.SetUserSuspended(ctx, tx, ev.AccountID, reason); err != nil {
 		return model.Event{}, err
 	}
 	if err = tx.Commit(); err != nil {

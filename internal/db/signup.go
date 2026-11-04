@@ -5,7 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"strings"
-	"time"
+
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Signup is where an account came from, recorded once when it is created
@@ -13,28 +14,11 @@ import (
 // SignupConnectorPrefix followed by the connected app's name; Agent names the
 // agent for SignupAgent; Method is how the person proved who they are.
 // Nothing here is ever an IP address.
-type Signup struct {
-	Source   string
-	Agent    string
-	Method   string
-	Inferred bool // backfilled from other rows, not recorded at the time
-	// Detail is the outside link that brought the browser in, when the
-	// account is credited to one (users.signup_detail, zf-signup-detail.sql).
-	Detail *SignupDetail
-}
+type Signup = model.Signup
 
 // SignupDetail contains same-visit URL/form attribution: from, utm_* and
 // the linking host only, recorded at account creation. Never an IP address.
-type SignupDetail struct {
-	From        string    `json:"from"`
-	UTMSource   string    `json:"utm_source,omitempty"`
-	UTMMedium   string    `json:"utm_medium,omitempty"`
-	UTMCampaign string    `json:"utm_campaign,omitempty"`
-	UTMTerm     string    `json:"utm_term,omitempty"`
-	UTMContent  string    `json:"utm_content,omitempty"`
-	Referrer    string    `json:"referrer,omitempty"`
-	LandedAt    time.Time `json:"landed_at,omitzero"`
-}
+type SignupDetail = model.SignupDetail
 
 const (
 	SignupWebsite = "website"

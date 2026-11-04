@@ -6,8 +6,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
 	model "github.com/vsriram/simple-host/internal/model"
+	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
 )
@@ -18,7 +18,7 @@ func (s *Service) CreateOrganiserInvite(ctx context.Context, eventID, userID str
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	expiry, err := eventrepo.SetOrganiserInvite(ctx, s.db, eventID, userID, db.HashAPIKey(code))
+	expiry, err := eventrepo.SetOrganiserInvite(ctx, s.db, eventID, userID, accounts.HashAPIKey(code))
 	return code, expiry, err
 }
 
@@ -29,7 +29,7 @@ func (s *Service) RevokeOrganiserInvite(ctx context.Context, eventID string) err
 
 // OrganiserInvite finds an invitation's event.
 func (s *Service) OrganiserInvite(ctx context.Context, code string) (model.Event, error) {
-	return eventrepo.OrganiserInviteEvent(ctx, s.db, db.HashAPIKey(hackevents.NormalizeCode(code)), false)
+	return eventrepo.OrganiserInviteEvent(ctx, s.db, accounts.HashAPIKey(hackevents.NormalizeCode(code)), false)
 }
 
 // AcceptOrganiserInvite accepts an invitation, locking the event before the invite and member.
@@ -37,7 +37,7 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 	var ev model.Event
 	var member model.EventMember
 	invalid := func() error { return &Error{"invalid_code", "invalid or expired invitation"} }
-	hash := db.HashAPIKey(hackevents.NormalizeCode(code))
+	hash := accounts.HashAPIKey(hackevents.NormalizeCode(code))
 	// Find the event before locking, then lock the event before the invite
 	// and inviter's member row, matching leave's lock order (SIM-340 2.4).
 	unlocked, err := eventrepo.OrganiserInviteEvent(ctx, s.db, hash, false)

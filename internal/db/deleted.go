@@ -85,14 +85,6 @@ func scanDeletedSite(sc interface{ Scan(...any) error }) (DeletedSite, error) {
 	return d, err
 }
 
-// CountSitesByUser counts the account's sites including those in Recently
-// deleted, which still hold their name and files: the per-account cap.
-func CountSitesByUser(ctx context.Context, q Querier, userID string) (int, error) {
-	var n int
-	err := q.QueryRowContext(ctx, `SELECT count(*) FROM sites WHERE user_id = $1`, userID).Scan(&n)
-	return n, err
-}
-
 // GetDeletedSiteByUser returns the account's site of that name when it is in
 // Recently deleted, or sql.ErrNoRows.
 func GetDeletedSiteByUser(ctx context.Context, q Querier, userID, name string) (DeletedSite, error) {

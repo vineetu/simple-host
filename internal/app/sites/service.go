@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
+	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
 	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/tarball"
@@ -38,10 +38,10 @@ type Service struct {
 type Deps struct {
 	ContentHost, SiteDomain string
 	PersonalSitesEnabled    bool
-	CanSetRetention         func(context.Context, *db.User) bool
+	CanSetRetention         func(context.Context, *model.User) bool
 	DefaultRetention        int
 	LockSite                func(string, string) func()
-	MaxSites                func(context.Context, *db.User) int
+	MaxSites                func(context.Context, *model.User) int
 	WantMarker              func(context.Context, model.Site) (bool, error)
 	SiteURL                 func(model.Site) string
 	RenameURL               func(string, string) string
@@ -51,16 +51,16 @@ type Deps struct {
 	PinnedFloor             func(context.Context, string, string, int) int
 	TeamKeys                bool
 	TeamSitesReady          func(string) bool
-	PaperSite               func(context.Context, *db.User, string)
-	PaperState              func(context.Context, *db.User, string)
-	Assign                  func(context.Context, *db.User)
-	NotifyCreate            func(context.Context, *db.User, model.Site, map[string][]byte)
+	PaperSite               func(context.Context, *model.User, string)
+	PaperState              func(context.Context, *model.User, string)
+	Assign                  func(context.Context, *model.User)
+	NotifyCreate            func(context.Context, *model.User, model.Site, map[string][]byte)
 	NotifyRollback          func(string, int, int)
-	NotifyUpdate            func(context.Context, *db.User, model.Site, int, int, bool, map[string][]byte)
+	NotifyUpdate            func(context.Context, *model.User, model.Site, int, int, bool, map[string][]byte)
 	FileCaps                bool
 	CapCutoff               string
-	CapLimits               func(context.Context, *db.User) (int, int)
-	Retention               func(context.Context, *db.User, model.Site) (int, error)
+	CapLimits               func(context.Context, *model.User) (int, int)
+	Retention               func(context.Context, *model.User, model.Site) (int, error)
 	Summarize               func(map[string][]byte) model.SiteSummary
 	Conflict                func(context.Context, string, string) (string, bool)
 	Marker                  func(context.Context, model.Site) error
@@ -70,13 +70,13 @@ type Deps struct {
 	DeployEnabled           bool
 	NormalizePatch          func(map[string][]byte, []string) (map[string]bool, error)
 	MaxFilesPerSite         int
-	PhotoLimits             func(context.Context, *db.User) (int64, int64)
+	PhotoLimits             func(context.Context, *model.User) (int64, int64)
 	ResponseState           func(model.Site, int, bool, bool) any
 }
 
 // CreateInput contains the values and non-HTTP dependencies for a locked create.
 type CreateInput struct {
-	User                     *db.User
+	User                     *model.User
 	Name, ArchiveSHA, Author string
 	Files                    map[string][]byte
 	OrUpdate                 bool
@@ -110,7 +110,7 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 	// A first deploy assigns a handle before the transaction builds the URL.
 	if !in.User.Handle.Valid || in.User.Handle.String == "" {
 		s.deps.Assign(ctx, in.User)
-		if refetched, err := db.GetUserByUsername(ctx, s.database, in.User.Username); err == nil {
+		if refetched, err := accounts.GetUserByUsername(ctx, s.database, in.User.Username); err == nil {
 			*in.User = refetched
 		}
 	}
@@ -273,7 +273,7 @@ func (s *Service) SetVisibility(ctx context.Context, in VisibilityInput) error {
 	userID, name, visibility := in.UserID, in.Name, in.Visibility
 	unlock := s.deps.LockSite(userID, name)
 	defer unlock()
-	site, err := db.GetSiteByUser(ctx, s.database, userID, name)
+	site, err := repo.GetSiteByUser(ctx, s.database, userID, name)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &Error{Code: "site_not_found"}
@@ -317,7 +317,7 @@ type RenameInput struct{ UserID, OldName, NewName, Handle string }
 func (s *Service) Rename(ctx context.Context, in RenameInput) (RenameResult, error) {
 	userID, oldName, newName, handle := in.UserID, in.OldName, in.NewName, in.Handle
 	var result RenameResult
-	if _, err := db.GetSiteByUser(ctx, s.database, userID, oldName); err != nil {
+	if _, err := repo.GetSiteByUser(ctx, s.database, userID, oldName); err != nil {
 		return result, &Error{Code: "site_not_found"}
 	}
 	first, second := oldName, newName
@@ -328,14 +328,14 @@ func (s *Service) Rename(ctx context.Context, in RenameInput) (RenameResult, err
 	defer unlockFirst()
 	unlockSecond := s.deps.LockSite(userID, second)
 	defer unlockSecond()
-	site, err := db.GetSiteByUser(ctx, s.database, userID, oldName)
+	site, err := repo.GetSiteByUser(ctx, s.database, userID, oldName)
 	if err != nil {
 		return result, &Error{Code: "site_not_found"}
 	}
 	if site.Suspended() {
 		return result, &Error{Code: "site_suspended", Message: site.SuspendedReason()}
 	}
-	if _, err := db.GetSiteByUser(ctx, s.database, userID, newName); err == nil {
+	if _, err := repo.GetSiteByUser(ctx, s.database, userID, newName); err == nil {
 		return result, &Error{Code: "site_exists"}
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return result, err
@@ -350,7 +350,7 @@ func (s *Service) Rename(ctx context.Context, in RenameInput) (RenameResult, err
 		result.Domain = site.CustomDomain.String
 	}
 	domains := []string{result.Domain}
-	if info, ok, err := db.GetSiteDomainInfo(ctx, s.database, site.ID); err != nil {
+	if info, ok, err := repo.GetSiteDomainInfo(ctx, s.database, site.ID); err != nil {
 		return result, err
 	} else if ok && info.PreviousDomain != "" {
 		domains = append(domains, info.PreviousDomain)
@@ -421,7 +421,7 @@ func (s *Service) PruneVersions(ctx context.Context, in PruneInput) []int {
 }
 
 // CheckRetentionAllowed authorizes the retention setting before decoding its body.
-func (s *Service) CheckRetentionAllowed(ctx context.Context, user *db.User) error {
+func (s *Service) CheckRetentionAllowed(ctx context.Context, user *model.User) error {
 	if !s.deps.CanSetRetention(ctx, user) {
 		return &Error{Code: "keep_versions_fixed", Message: fmt.Sprintf("Simple Host keeps your %d latest versions", s.deps.DefaultRetention)}
 	}
@@ -439,7 +439,7 @@ func (s *Service) SetKeepVersions(ctx context.Context, in KeepVersionsInput) (mo
 	userID, name, keep := in.UserID, in.Name, in.Keep
 	unlock := s.deps.LockSite(userID, name)
 	defer unlock()
-	site, err := db.GetSiteByUser(ctx, s.database, userID, name)
+	site, err := repo.GetSiteByUser(ctx, s.database, userID, name)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return site, 0, nil, &Error{Code: "site_not_found"}
@@ -488,7 +488,7 @@ func (s *Service) DiscardVersion(ctx context.Context, in DiscardInput) (model.Si
 	defer unlockAccount()
 	unlock := s.deps.LockSite(userID, name)
 	defer unlock()
-	site, err := db.GetSiteByUser(ctx, s.database, userID, name)
+	site, err := repo.GetSiteByUser(ctx, s.database, userID, name)
 	if err == nil && checkSiteID && site.ID != expectedSiteID {
 		err = sql.ErrNoRows
 	}
@@ -597,7 +597,7 @@ func (s *Service) beginRollback(ctx context.Context, siteID string) (*sql.Tx, er
 // The caller must release the returned lock when it is non-nil.
 func (s *Service) prepareRollback(ctx context.Context, userID, name, expectedID string, checkID bool, version int) (model.Site, func(), bool, error) {
 	unlock := s.deps.LockSite(userID, name)
-	site, err := db.GetSiteByUser(ctx, s.database, userID, name)
+	site, err := repo.GetSiteByUser(ctx, s.database, userID, name)
 	if err == nil && checkID && site.ID != expectedID {
 		err = sql.ErrNoRows
 	}
@@ -638,7 +638,7 @@ func (s *Service) finishRollback(ctx context.Context, tx *sql.Tx, site model.Sit
 
 // RollbackTransaction runs the transaction-time gate and activates the version.
 // The gate receives the locked transaction and returns an authorization error.
-func (s *Service) rollbackTransaction(ctx context.Context, site model.Site, version int, user *db.User) (model.Site, error) {
+func (s *Service) rollbackTransaction(ctx context.Context, site model.Site, version int, user *model.User) (model.Site, error) {
 	tx, err := s.beginRollback(ctx, site.ID)
 	if tx != nil {
 		defer tx.Rollback()
@@ -654,7 +654,7 @@ func (s *Service) rollbackTransaction(ctx context.Context, site model.Site, vers
 
 // UpdateInput contains a deploy's files and request facts.
 type UpdateInput struct {
-	User                     *db.User
+	User                     *model.User
 	Name, ArchiveSHA, Author string
 	Files                    map[string][]byte
 	Publish                  bool
@@ -715,7 +715,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 			return UpdateResult{}, err
 		}
 		if in.Reconcile {
-			site, err := db.GetSiteByUser(ctx, s.database, in.User.ID, in.Name)
+			site, err := repo.GetSiteByUser(ctx, s.database, in.User.ID, in.Name)
 			if err != nil {
 				return UpdateResult{}, &Error{Code: "photo_read_failed"}
 			}
@@ -745,7 +745,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 		unlockSite := s.deps.LockSite(in.User.ID, in.Name)
 		defer unlockSite()
 	}
-	site, err := db.GetSiteByUser(ctx, s.database, in.User.ID, in.Name)
+	site, err := repo.GetSiteByUser(ctx, s.database, in.User.ID, in.Name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return UpdateResult{}, &Error{Code: "deploy_site_not_found"}
 	}
@@ -840,7 +840,7 @@ func (s *Service) mergePatch(ctx context.Context, in UpdateInput) (map[string][]
 	removed, err := s.deps.NormalizePatch(files, in.Remove)
 	if err == nil {
 		var site model.Site
-		site, err = db.GetSiteByUser(ctx, s.database, in.User.ID, in.Name)
+		site, err = repo.GetSiteByUser(ctx, s.database, in.User.ID, in.Name)
 		if err == nil && in.CheckID && site.ID != in.ExpectedID {
 			site, err = model.Site{}, sql.ErrNoRows
 		}
@@ -934,7 +934,7 @@ func (s *Service) sanitizeFiles(files map[string][]byte, budget int64) (map[stri
 
 // RollbackInput identifies the site and version to activate.
 type RollbackInput struct {
-	User             *db.User
+	User             *model.User
 	Name, ExpectedID string
 	CheckID          bool
 	Version          int
@@ -963,7 +963,7 @@ func (s *Service) Rollback(ctx context.Context, in RollbackInput) (RollbackResul
 	return RollbackResult{Site: site, Unchanged: unchanged, ResponseState: s.deps.ResponseState(site, 0, false, true)}, nil
 }
 
-func authorizePersonalSite(user *db.User, enabled bool) error {
+func authorizePersonalSite(user *model.User, enabled bool) error {
 	if !enabled && !user.IsAdmin && user.Team == nil && user.EventWebsite == nil {
 		return &Error{Code: "no_personal_sites", Message: "team sites belong to an event: select your team in the Simple Hack connection before publishing"}
 	}
@@ -972,7 +972,7 @@ func authorizePersonalSite(user *db.User, enabled bool) error {
 
 // PreflightInput contains facts needed before reading a create upload.
 type PreflightInput struct {
-	User          *db.User
+	User          *model.User
 	Name          string
 	CheckExisting bool
 	ReservedError string
@@ -983,7 +983,7 @@ type PreflightInput struct {
 func (s *Service) CreatePreflight(ctx context.Context, in PreflightInput) error {
 	user := in.User
 	if in.CheckExisting {
-		_, err := db.GetSiteByUser(ctx, s.database, user.ID, in.Name)
+		_, err := repo.GetSiteByUser(ctx, s.database, user.ID, in.Name)
 		if err == nil {
 			return &Error{Code: "preflight_exists"}
 		}
@@ -1007,7 +1007,7 @@ func (s *Service) CreatePreflight(ctx context.Context, in PreflightInput) error 
 	if user.IsAdmin || user.Team != nil || user.EventWebsite != nil {
 		return nil
 	}
-	existing, err := db.CountSitesByUser(ctx, s.database, user.ID)
+	existing, err := repo.CountSitesByUser(ctx, s.database, user.ID)
 	if err != nil {
 		return err
 	}

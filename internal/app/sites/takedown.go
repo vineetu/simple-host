@@ -6,7 +6,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
 )
@@ -41,14 +40,14 @@ func (s *Service) SetTeamSiteTakenDown(ctx context.Context, in TeamSiteTakedownI
 				full += ": " + in.Reason
 			}
 			if current == "" || strings.HasPrefix(current, organiserTakedownPrefix) {
-				if err := db.SetSiteSuspended(ctx, tx, siteID, full); err != nil {
+				if err := repo.SetSiteSuspended(ctx, tx, siteID, full); err != nil {
 					return err
 				}
 			}
 		case current != "" && !strings.HasPrefix(current, organiserTakedownPrefix):
 			return model.ErrNotOrganiserTakedown
 		case current != "":
-			if err := db.SetSiteSuspended(ctx, tx, siteID, ""); err != nil {
+			if err := repo.SetSiteSuspended(ctx, tx, siteID, ""); err != nil {
 				return err
 			}
 		}
@@ -61,7 +60,7 @@ func (s *Service) SetTeamSiteTakenDown(ctx context.Context, in TeamSiteTakedownI
 		return err
 	}
 	if siteID != "" {
-		fresh, err := db.GetSiteByID(ctx, s.database, siteID)
+		fresh, err := repo.GetSiteByID(ctx, s.database, siteID)
 		if err != nil {
 			return err
 		}

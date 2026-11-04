@@ -6,12 +6,13 @@ import (
 	"errors"
 	"strings"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	model "github.com/vsriram/simple-host/internal/model"
+	teamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
 	siterules "github.com/vsriram/simple-host/internal/rules/sites"
 )
 
-func (s *Service) createGate(ctx context.Context, tx *sql.Tx, user *db.User, siteName string) *GateError {
+func (s *Service) createGate(ctx context.Context, tx *sql.Tx, user *model.User, siteName string) *GateError {
 	if s.deps.TeamKeys && user.EventWebsite != nil {
 		id := user.EventWebsite
 		if siteName != id.EventID || user.ID == "" {
@@ -39,7 +40,7 @@ func (s *Service) createGate(ctx context.Context, tx *sql.Tx, user *db.User, sit
 		return &GateError{Code: "event_not_found", Message: "event not found"}
 	}
 	s.deps.PaperSite(ctx, user, siteName)
-	st, err := db.TeamWriteStateFor(ctx, tx, user.Team.TeamID, true)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, user.Team.TeamID, true)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &GateError{Message: "this team key stopped working: its team is gone", Code: "team_key_inactive"}

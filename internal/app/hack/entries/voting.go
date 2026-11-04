@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db" // Host (4.3)
 	model "github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
@@ -218,7 +217,7 @@ func (s *Service) ReadPublicVote(ctx context.Context, ev model.Event, now func()
 
 // ReadMyVote returns the selection and eligibility for a signed-in visitor.
 func (s *Service) ReadMyVote(ctx context.Context, ev model.Event, username string, admin bool) (model.Event, string, bool, error) {
-	email := db.BaseEmail(username)
+	email := model.BaseEmail(username)
 	selected, err := repo.OwnVote(ctx, s.db, ev.ID, email)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return ev, "", false, err

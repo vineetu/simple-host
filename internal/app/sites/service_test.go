@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/model"
 )
 
@@ -45,7 +44,7 @@ func TestCreateConflict(t *testing.T) {
 		{name: "duplicate", code: "site_exists"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := createConflict(CreateInput{User: &db.User{ID: "owner"}, Name: "example", OrUpdate: tc.orUpdate}, model.Site{ID: "site"}, "held", tc.held)
+			result, err := createConflict(CreateInput{User: &model.User{ID: "owner"}, Name: "example", OrUpdate: tc.orUpdate}, model.Site{ID: "site"}, "held", tc.held)
 			if result.Exists != tc.exists || result.Site.ID != "site" {
 				t.Fatalf("result = %+v", result)
 			}

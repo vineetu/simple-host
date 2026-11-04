@@ -6,48 +6,15 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // SiteDomainInfo is the domain-binding view of a site. Kept separate from the
 // shared Site struct so existing SELECTs stay untouched (low blast radius).
-type SiteDomainInfo struct {
-	SiteID     string
-	UserID     string
-	Name       string
-	Domain     string
-	Status     string
-	LastError  string
-	VerifiedAt sql.NullTime
-	BoundAt    sql.NullTime
-	Handle     string
-	// PreviousDomain is the site's earlier proven address, still served while
-	// Domain is pending (cleared once Domain is verified).
-	PreviousDomain string
-	// CertStatus is pending | issuing | live | failed ("" = not known yet).
-	CertStatus   string
-	FailingSince sql.NullTime
-	// Token is the site's ownership token: the value of the DNS TXT record
-	// _simple-host.<domain> that proves a custom domain is the owner's.
-	Token string
-	// ProofExempt: Domain was verified before the TXT proof existed and keeps
-	// working without it while it stays verified.
-	ProofExempt bool
-}
+type SiteDomainInfo model.SiteDomainInfo
 
 // domainColumns is the column list scanDomainInfo reads, in order.
-const domainColumns = `id, user_id, name, COALESCE(custom_domain, ''), COALESCE(domain_status, ''),
-	domain_verified_at, domain_bound_at, COALESCE(domain_last_error, ''),
-	COALESCE(previous_domain, ''), COALESCE(domain_cert_status, ''), domain_failing_since,
-	COALESCE(domain_token, ''), COALESCE(custom_domain = ANY(domain_proof_exempt), false)`
-
-func scanDomainInfo(row interface{ Scan(...any) error }) (SiteDomainInfo, error) {
-	var info SiteDomainInfo
-	err := row.Scan(&info.SiteID, &info.UserID, &info.Name, &info.Domain, &info.Status,
-		&info.VerifiedAt, &info.BoundAt, &info.LastError,
-		&info.PreviousDomain, &info.CertStatus, &info.FailingSince,
-		&info.Token, &info.ProofExempt)
-	return info, err
-}
 
 // SetCustomDomain binds domain to siteID with status "pending" and clears any
 // prior verification. A proven address the site already had is kept as
@@ -126,22 +93,6 @@ func dropCustomDomain(ctx context.Context, tx *sql.Tx, siteID, expected string) 
 		return "", "", err
 	}
 	return dropped, restored, nil
-}
-
-// GetSiteDomainInfo returns domain binding info for siteID. ok is false when
-// the site has no custom_domain set (or the site row is missing).
-func GetSiteDomainInfo(ctx context.Context, database *sql.DB, siteID string) (SiteDomainInfo, bool, error) {
-	info, err := scanDomainInfo(database.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM sites WHERE id = $1`, siteID))
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return SiteDomainInfo{}, false, nil
-		}
-		return SiteDomainInfo{}, false, err
-	}
-	if info.Domain == "" {
-		return SiteDomainInfo{}, false, nil
-	}
-	return info, true, nil
 }
 
 // GetSiteByCustomDomain looks up the site a host serves as its own domain
