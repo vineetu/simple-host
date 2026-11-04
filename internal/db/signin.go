@@ -14,11 +14,6 @@ import (
 // the new address and one to the current one; both are needed.
 type EmailChange = model.EmailChange
 
-// PutEmailChange records (or replaces) the account's pending email change.
-func PutEmailChange(ctx context.Context, q Querier, userID, newEmail, codeHash, oldCodeHash string, expiresAt time.Time) error {
-	return accounts.PutEmailChange(ctx, q, userID, newEmail, codeHash, oldCodeHash, expiresAt)
-}
-
 // ApplyEmailChange moves the account to newEmail inside tx and:
 //   - drops the pending change;
 //   - retires every unused emailed code and link for the old address (one
@@ -43,12 +38,6 @@ func ApplyEmailChange(ctx context.Context, tx *sql.Tx, userID, oldEmail, newEmai
 // EmailChangeUndo is an unused, unexpired undo link's change.
 type EmailChangeUndo = model.EmailChangeUndo
 
-// GetEmailChangeUndo looks up an undo link by its token's hash (not locked).
-// sql.ErrNoRows when it is unknown, used or expired.
-func GetEmailChangeUndo(ctx context.Context, q Querier, tokenHash string) (EmailChangeUndo, error) {
-	return accounts.GetEmailChangeUndo(ctx, q, tokenHash)
-}
-
 // ErrUndoAddressTaken: the old address signs in to another account now.
 var ErrUndoAddressTaken = model.ErrUndoAddressTaken
 
@@ -71,17 +60,6 @@ func UndoEmailChange(ctx context.Context, database *sql.DB, tokenHash string) (E
 		return u, err
 	}
 	return u, tx.Commit()
-}
-
-// SignInAlertsOn reports whether the account gets an email after each sign-in.
-func SignInAlertsOn(ctx context.Context, q Querier, userID string) (bool, error) {
-	return accounts.SignInAlertsOn(ctx, q, userID)
-}
-
-// SetSignInAlerts turns sign-in alert emails on or off for the account.
-func SetSignInAlerts(ctx context.Context, q Querier, userID string, on bool) error {
-	_, err := q.ExecContext(ctx, `UPDATE users SET signin_alerts = $2 WHERE id = $1`, userID, on)
-	return err
 }
 
 // SignInAlertTarget is what deciding and addressing a sign-in alert needs.

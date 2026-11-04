@@ -4,8 +4,6 @@ import (
 	"context"
 	"net"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/config"
 )
 
 // A bare domain still pointed at an earlier address of this server proves
@@ -13,7 +11,7 @@ import (
 func TestProveCustomDomainControlAcceptsEarlierAddress(t *testing.T) {
 	resolveTo := "198.51.100.9"
 	h := &OAuthHandler{
-		cfg:         config.Config{CNAMETarget: "cname.simple-host.test", CustomDomainIP: "203.0.113.7", CustomDomainIPAlso: []string{"198.51.100.9"}},
+		cfg:         OAuthSettings{CNAMETarget: "cname.simple-host.test", CustomDomainIP: "203.0.113.7", CustomDomainIPAlso: []string{"198.51.100.9"}},
 		lookupIP:    func(context.Context, string) ([]net.IP, error) { return []net.IP{net.ParseIP(resolveTo)}, nil },
 		lookupCNAME: func(context.Context, string) (string, error) { return "", &net.DNSError{IsNotFound: true} },
 	}

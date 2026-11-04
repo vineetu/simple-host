@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 // The spam check behind the comments preset (owner decision 2026-10-14,
@@ -206,7 +206,7 @@ func storageCheckedAllow(w http.ResponseWriter, c *storageCall) bool {
 
 // storagePostLimits keeps a post from someone not signed in small and
 // mostly free of links. raw is the JSON the page sent.
-func storagePostLimits(w http.ResponseWriter, raw []byte, lim config.Limits) bool {
+func storagePostLimits(w http.ResponseWriter, raw []byte, lim edition.Limits) bool {
 	if len(raw) > lim.SpamCheckedMaxBytes {
 		storageError(w, 413, "post_too_large", fmt.Sprintf("a post here is at most %d bytes", lim.SpamCheckedMaxBytes))
 		return false

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"github.com/vsriram/simple-host/internal/app/accounts"
 	"net"
 	"net/http"
 	"net/url"
@@ -12,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/oauth"
 )
 
@@ -45,8 +45,9 @@ func (a *privateApp) withOAuth(t *testing.T) *OAuthHandler {
 	oh := &OAuthHandler{
 		database:      a.database,
 		limitSet:      a.sites.limitSet,
-		cfg:           config.Config{PublicBaseURL: "https://" + pcSiteDomain, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain},
-		providers:     map[string]oauth.Provider{"google": fakeProvider{}},
+		cfg:           OAuthSettings{PublicBaseURL: "https://" + pcSiteDomain, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain},
+		accounts:      accounts.New(a.database),
+		signIn:        accounts.NewProviderSignIn(accounts.New(a.database), map[string]oauth.Provider{"google": fakeProvider{}}),
 		ipLimiter:     newRateLimiter(10000, 10000),
 		ssoKeyLimiter: newRateLimiter(10000, 10000),
 		lookupIP:      func(context.Context, string) ([]net.IP, error) { return nil, nil },

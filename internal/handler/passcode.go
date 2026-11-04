@@ -29,8 +29,7 @@ import (
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Site passcodes (owner decision 2026-09-29; INTENT.md).
@@ -342,7 +341,7 @@ func (h *SiteHandler) siteGate(w http.ResponseWriter, r *http.Request, userID, s
 	if !h.disk.HasPasscodeMarker(userID, siteName) {
 		return false
 	}
-	row, err := db.GetSitePasscodeByName(r.Context(), h.database, userID, siteName)
+	row, err := h.sitesSvc().GetSitePasscodeByName(r.Context(), userID, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false // no such live site: the caller's 404 stands
@@ -394,7 +393,7 @@ func (h *SiteHandler) sharedHost(host string) bool {
 // passcodeElsewhere answers a protected site's file on a shared host: a 302
 // to the same path on the site's own address, or, when it has none, the
 // plain protected page without a form.
-func (h *SiteHandler) passcodeElsewhere(w http.ResponseWriter, r *http.Request, row db.SitePasscodeRow, rel string) {
+func (h *SiteHandler) passcodeElsewhere(w http.ResponseWriter, r *http.Request, row model.SitePasscodeRow, rel string) {
 	escRel := "/" + strings.TrimLeft((&url.URL{Path: rel}).EscapedPath(), "/")
 	query := ""
 	if r.URL.RawQuery != "" {
@@ -403,7 +402,7 @@ func (h *SiteHandler) passcodeElsewhere(w http.ResponseWriter, r *http.Request, 
 	target := ""
 	if info, has, err := h.siteOwnAddress(r.Context(), row.SiteID); err == nil && has {
 		target = "https://" + strings.ToLower(info.Domain) + escRel
-	} else if handle, _, name, err := db.GetSiteOwner(r.Context(), h.database, row.SiteID); err == nil && handle != "" && h.personAddressFor(handle, name) {
+	} else if handle, _, name, err := h.sitesSvc().GetSiteOwner(r.Context(), row.SiteID); err == nil && handle != "" && h.personAddressFor(handle, name) {
 		target = h.siteAddressWithPath(handle, name, escRel)
 	}
 	if target != "" {
@@ -674,7 +673,7 @@ func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request
 	// next, /robots.txt) sees the path the visitor asked for, not the
 	// rewrite.
 	r = withVisitorPath(r)
-	info, err := db.GetSiteByCustomDomain(r.Context(), h.database, host)
+	info, err := h.sitesSvc().GetSiteByCustomDomain(r.Context(), host)
 	if err != nil || !info.VerifiedAt.Valid {
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("passcode: domain %s: %v", host, err)
@@ -733,7 +732,7 @@ func (h *SiteHandler) passcodeSiteForHost(ctx context.Context, host, next string
 	}
 	if owner, onPerson := h.personHostOwner(ctx, host); onPerson {
 		if !h.ed.Storage().EventSites {
-			home, has, err := db.HomeSite(ctx, h.database, owner.ID)
+			home, has, err := h.sitesSvc().HomeSite(ctx, owner.ID)
 			if err != nil {
 				return "", "", false, err
 			}
@@ -746,7 +745,7 @@ func (h *SiteHandler) passcodeSiteForHost(ctx context.Context, host, next string
 		if !appsites.ValidSiteName.MatchString(seg) {
 			return "", "", false, nil
 		}
-		site, err := db.GetSiteByUser(ctx, h.database, owner.ID, seg)
+		site, err := h.sitesSvc().GetSiteByUser(ctx, owner.ID, seg)
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", "", false, nil
 		}
@@ -762,7 +761,7 @@ func (h *SiteHandler) passcodeSiteForHost(ctx context.Context, host, next string
 	} else if ok {
 		return m.Site.UserID, m.Site.Name, true, nil
 	}
-	info, err := db.GetSiteByCustomDomain(ctx, h.database, host)
+	info, err := h.sitesSvc().GetSiteByCustomDomain(ctx, host)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", false, nil
 	}
@@ -799,9 +798,9 @@ func (h *SiteHandler) unlockSite(w http.ResponseWriter, r *http.Request) {
 		h.renderServiceError(w, r)
 		return
 	}
-	var row db.SitePasscodeRow
+	var row model.SitePasscodeRow
 	if ok {
-		row, err = db.GetSitePasscodeByName(r.Context(), h.database, userID, name)
+		row, err = h.sitesSvc().GetSitePasscodeByName(r.Context(), userID, name)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("passcode unlock %s: %v", host, err)
 			h.renderServiceError(w, r)
@@ -822,7 +821,7 @@ func (h *SiteHandler) unlockSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if wait > 0 {
-		h.servePasscodeGate(w, r, next, "Too many tries. Try again in "+config.Span(roundUpMinute(wait))+".", wait)
+		h.servePasscodeGate(w, r, next, "Too many tries. Try again in "+storeSpan(roundUpMinute(wait))+".", wait)
 		return
 	}
 	if !matched {
@@ -902,13 +901,16 @@ func (p *passcodeState) wrongTry(siteID, ipKey string) time.Duration {
 }
 
 // take spends one token of key's bucket and reports whether that emptied it.
-func take(m map[string]*passcodeBucket, key string, rate config.Rate, now time.Time) bool {
+func take(m map[string]*passcodeBucket, key string, rate struct {
+	Burst int
+	Every time.Duration
+}, now time.Time) bool {
 	b := m[key]
 	if b == nil {
 		b = &passcodeBucket{tokens: float64(rate.Burst), last: now}
 		m[key] = b
 	}
-	b.tokens += now.Sub(b.last).Seconds() * rate.PerSecond()
+	b.tokens += now.Sub(b.last).Seconds() * (1 / rate.Every.Seconds())
 	if b.tokens > float64(rate.Burst) {
 		b.tokens = float64(rate.Burst)
 	}
@@ -946,10 +948,13 @@ func (p *passcodeState) sweep(now time.Time) {
 	lim := p.limits
 	for _, pair := range []struct {
 		m    map[string]*passcodeBucket
-		rate config.Rate
+		rate struct {
+			Burst int
+			Every time.Duration
+		}
 	}{{p.ipTries, lim.RatePasscodeIP}, {p.siteTries, lim.RatePasscodeSite}} {
 		for k, b := range pair.m {
-			full := b.tokens+now.Sub(b.last).Seconds()*pair.rate.PerSecond() >= float64(pair.rate.Burst)
+			full := b.tokens+now.Sub(b.last).Seconds()*(1/pair.rate.Every.Seconds()) >= float64(pair.rate.Burst)
 			if full && !now.Before(b.lockedUntil) {
 				delete(pair.m, k)
 			}
@@ -1053,7 +1058,7 @@ func (h *SiteHandler) passcodeAllows(r *http.Request, siteID string) (bool, erro
 // or a named viewer signed in on this host. private reports a refusal by the
 // named-viewers rule.
 func (h *SiteHandler) siteAccessAllows(r *http.Request, siteID string, viewers bool) (ok, private, gated bool, err error) {
-	row, err := db.GetSitePasscode(r.Context(), h.database, siteID)
+	row, err := h.sitesSvc().GetSitePasscode(r.Context(), siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return true, false, false, nil
 	}
@@ -1078,7 +1083,7 @@ func (h *SiteHandler) siteAccessAllows(r *http.Request, siteID string, viewers b
 
 // ownerOrAdminKey: the request carries the site owner's or the admin's key
 // (or connector token); the admin's use is logged.
-func (h *SiteHandler) ownerOrAdminKey(r *http.Request, row db.SitePasscodeRow) bool {
+func (h *SiteHandler) ownerOrAdminKey(r *http.Request, row model.SitePasscodeRow) bool {
 	key := r.Header.Get("X-API-Key")
 	if key == "" {
 		return false
@@ -1094,7 +1099,7 @@ func (h *SiteHandler) ownerOrAdminKey(r *http.Request, row db.SitePasscodeRow) b
 }
 
 // passcodeRowAllows is the passcode rule for a site that has one.
-func (h *SiteHandler) passcodeRowAllows(r *http.Request, row db.SitePasscodeRow) (bool, error) {
+func (h *SiteHandler) passcodeRowAllows(r *http.Request, row model.SitePasscodeRow) (bool, error) {
 	if key := r.Header.Get("X-API-Key"); key != "" {
 		if u, ok, kerr := h.resolveWriterKey(r.Context(), key); kerr == nil && ok && (u.ID == row.UserID || u.IsAdmin) {
 			if u.ID != row.UserID {
@@ -1148,24 +1153,24 @@ type passcodeResponse struct {
 
 // ownerSiteForPasscode loads the caller's site by {sitename} under its lock
 // for a change. ok=false after writing the answer.
-func (h *SiteHandler) ownerSiteForPasscode(w http.ResponseWriter, r *http.Request) (db.Site, func(), bool) {
+func (h *SiteHandler) ownerSiteForPasscode(w http.ResponseWriter, r *http.Request) (model.Site, func(), bool) {
 	user := auth.GetUser(r.Context())
 	name := strings.TrimSpace(r.PathValue("sitename"))
-	if _, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name); err != nil {
+	if _, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, name); err != nil {
 		writeSiteLookupError(w, err)
-		return db.Site{}, nil, false
+		return model.Site{}, nil, false
 	}
 	unlock := h.lockSite(user.ID, name)
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name)
+	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, name)
 	if err != nil {
 		unlock()
 		writeSiteLookupError(w, err)
-		return db.Site{}, nil, false
+		return model.Site{}, nil, false
 	}
 	if adminSiteMismatch(r, site.ID) {
 		unlock()
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-		return db.Site{}, nil, false
+		return model.Site{}, nil, false
 	}
 	return site, unlock, true
 }
@@ -1183,12 +1188,12 @@ func writeSiteLookupError(w http.ResponseWriter, err error) {
 // routes never read it).
 func (h *SiteHandler) getSitePasscode(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, strings.TrimSpace(r.PathValue("sitename")))
+	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, strings.TrimSpace(r.PathValue("sitename")))
 	if err != nil {
 		writeSiteLookupError(w, err)
 		return
 	}
-	row, err := db.GetSitePasscode(r.Context(), h.database, site.ID)
+	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
 	if err != nil {
 		writeSiteLookupError(w, err)
 		return
@@ -1265,7 +1270,7 @@ func (h *SiteHandler) putSitePasscode(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	row, err := db.GetSitePasscode(r.Context(), h.database, site.ID)
+	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
 	if err != nil {
 		writeSiteLookupError(w, err)
 		return
@@ -1287,21 +1292,12 @@ func (h *SiteHandler) putSitePasscode(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	// The marker first: if the database write then fails, the site is
-	// shown the gate (closed) until the boot sync removes it, never open.
-	if err := h.disk.SetPasscodeMarker(site.UserID, site.Name, true); err != nil {
-		log.Printf("passcode: marker for site %s: %v", site.ID, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "the site's files could not be marked; nothing changed, try again"})
+	now, err := h.sitesSvc().SetSitePasscode(r.Context(), site, row, enc)
+	if err != nil {
+		writeAccessMutationError(w, err)
 		return
 	}
-	now := time.Now().UTC().Truncate(time.Second)
-	if _, err := db.SetSitePasscode(r.Context(), h.database, site.ID, enc, now); err != nil {
-		if row.Enc == nil {
-			_ = h.disk.SetPasscodeMarker(site.UserID, site.Name, false)
-		}
-		writeSiteLookupError(w, err)
-		return
-	}
+
 	changed := row.Enc != nil
 	log.Printf("site_passcode set=true changed=%t generated=%t site_id=%s name=%s by=%s", changed, req.Generate, site.ID, site.Name, auth.GetUser(r.Context()).ID)
 	note := "Every address of the site now asks for this passcode. Anyone you give it to can open the site and pass it on."
@@ -1320,22 +1316,16 @@ func (h *SiteHandler) deleteSitePasscode(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	defer unlock()
-	row, err := db.GetSitePasscode(r.Context(), h.database, site.ID)
+	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
 	if err != nil {
 		writeSiteLookupError(w, err)
 		return
 	}
-	// The database first, then the marker: a failure in between leaves the
-	// site closed until the boot sync, never open with the lock recorded.
-	if err := db.ClearSitePasscode(r.Context(), h.database, site.ID); err != nil {
-		writeSiteLookupError(w, err)
+	if err := h.sitesSvc().ClearSitePasscode(r.Context(), site); err != nil {
+		writeAccessMutationError(w, err)
 		return
 	}
-	if err := h.disk.SetPasscodeMarker(site.UserID, site.Name, site.NamedViewers); err != nil {
-		log.Printf("passcode: marker for site %s: %v", site.ID, err)
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "the passcode is removed, but the site's files could not be updated; try again"})
-		return
-	}
+
 	log.Printf("site_passcode set=false had=%t site_id=%s name=%s by=%s", row.Enc != nil, site.ID, site.Name, auth.GetUser(r.Context()).ID)
 	note := "The passcode is removed: every address of the site is open to everyone again."
 	if row.Enc == nil {
@@ -1353,7 +1343,7 @@ func (h *SiteHandler) signOutEveryone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	if _, err := db.BumpSitePasscodeGeneration(r.Context(), h.database, site.ID); err != nil {
+	if _, err := h.sitesSvc().BumpSitePasscodeGeneration(r.Context(), site.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "this site has no passcode", Code: "no_passcode"})
 			return
@@ -1366,16 +1356,16 @@ func (h *SiteHandler) signOutEveryone(w http.ResponseWriter, r *http.Request) {
 }
 
 // syncPasscodeMarker makes the disk marker match the database.
-func (h *SiteHandler) syncPasscodeMarker(s db.Site) error {
-	return h.disk.SetPasscodeMarker(s.UserID, s.Name, s.Passcode || s.NamedViewers)
+func (h *SiteHandler) syncPasscodeMarker(s model.Site) error {
+	return h.sitesSvc().SyncAccessMarker(s)
 }
 
 // checkVisitorPasscode is shared by the browser unlock and visitor tools.
 // AI calls use a person bucket and a separate site budget. Browsers use IPs.
-func (h *SiteHandler) checkVisitorPasscode(r *http.Request, row db.SitePasscodeRow, supplied string) (time.Duration, bool, error) {
+func (h *SiteHandler) checkVisitorPasscode(r *http.Request, row model.SitePasscodeRow, supplied string) (time.Duration, bool, error) {
 	siteBucket := row.SiteID
 	ipKey := row.SiteID + "|" + clientIP(r)
-	if pass, ok := db.LookupInternalVisitorKey(r.Header.Get(visitorPassHeader)); ok && pass.SiteID == row.SiteID {
+	if pass, ok := h.storeAccounts().LookupInternalVisitorKey(r.Header.Get(visitorPassHeader)); ok && pass.SiteID == row.SiteID {
 		siteBucket = "ai:" + row.SiteID
 		ipKey = siteBucket + "|" + pass.UserID
 	}

@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/config"
 )
 
 func TestSharedHostVisitorEndpointsIgnoreCookie(t *testing.T) {
@@ -34,7 +32,7 @@ func TestSharedHostVisitorEndpointsIgnoreCookie(t *testing.T) {
 }
 
 func TestOAuthSharedHostReturnRejected(t *testing.T) {
-	h := &OAuthHandler{cfg: config.Config{PublicBaseURL: "https://simple-host.app", SiteDomain: "simple-host.app", ContentHost: "sites.simple-host.app"}}
+	h := &OAuthHandler{cfg: OAuthSettings{PublicBaseURL: "https://simple-host.app", SiteDomain: "simple-host.app", ContentHost: "sites.simple-host.app"}}
 	_, _, _, _, err := h.sanitizeReturnTo(context.Background(), "https://sites.simple-host.app/alice/blog/")
 	if err != errInvalidReturnTo {
 		t.Fatalf("got %v", err)

@@ -3,21 +3,20 @@ package handler
 import (
 	"archive/zip"
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/app/hack/members"
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"log"
 	"net/http"
 	"path/filepath"
-	"slices"
-	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // Download my data and Delete my account (GDPR self-service, owner decision
@@ -79,73 +78,20 @@ func (h *SiteHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+	deleted, err := h.storeAccounts().DeleteAccount(r.Context(), accounts.DeleteAccountInput{ID: user.ID, AdminID: h.adminUserID, Confirm: req.Confirm, HoldingAccounts: h.ed.Identity().HoldingAccounts, Teams: members.AccountErasure{}})
+	if writeLifecycleFailure(w, err) {
 		return
 	}
-	defer tx.Rollback()
-	acct, err := db.LockAccountForDelete(r.Context(), tx, user.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
-		return
-	}
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
-	if acct.IsAdmin || acct.ID == h.adminUserID {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: "an admin account cannot delete itself here", Code: "admin_account"})
-		return
-	}
-	// The operator is handling a suspended account; it stays as it is.
-	if acct.Suspended {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: supportText("this account is suspended; write to support@simple-host.app about deleting it"), Code: "account_suspended"})
-		return
-	}
-	// A site the operator took down stays as it is (its owner cannot delete
-	// it), so the account that holds it cannot be deleted here either.
-	if acct.TakenDown > 0 {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: supportText("a site of this account was taken down; write to support@simple-host.app about deleting the account"), Code: "site_suspended"})
-		return
-	}
-	if acct.EventClaims > 0 {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "this account still holds event hostnames; release them first so their DNS records are removed", Code: "event_hostnames"})
-		return
-	}
-	if code, msg, err := HackAccountDeleteBlock(r.Context(), tx, acct.ID, h.ed.Identity().HoldingAccounts); err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	} else if code != "" {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: msg, Code: code})
-		return
-	}
-	want := acct.Handle
-	what := "your handle"
-	if want == "" {
-		want, what = acct.Username, "your email"
-	}
-	if !strings.EqualFold(strings.TrimSpace(req.Confirm), want) {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "type " + what + " (" + want + ") as confirm to delete the account", Code: "confirm_mismatch"})
-		return
-	}
-	erased, err := db.EraseAccount(r.Context(), tx, acct)
-	if err == nil {
-		err = tx.Commit()
-	}
-	if err != nil {
-		log.Printf("delete account %s: %v", acct.ID, err)
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
+	erased := deleted.Erased
+
 	if err := h.eraseAccountFiles(r.Context(), erased); err != nil {
-		log.Printf("delete account %s: files: %v", acct.ID, err)
+		log.Printf("delete account %s: files: %v", user.ID, err)
 	}
 	h.sweepOrphanTeamSites(r.Context(), erased.AffectedEventAccounts)
-	if strings.Contains(acct.Username, "@") {
-		go h.emailAccountDeleted(acct.Username)
+	if strings.Contains(deleted.Username, "@") {
+		go h.emailAccountDeleted(deleted.Username)
 	}
-	log.Printf("account %s deleted by its owner", acct.ID)
+	log.Printf("account %s deleted by its owner", user.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -156,36 +102,10 @@ func (h *SiteHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 // under the locks and the locks retaken until it holds still (a few tries;
 // the account row lock in the erasure then stops anything new).
 func (h *SiteHandler) lockAccountSites(ctx context.Context, userID string) (func(), error) {
-	var unlocks []func()
-	release := func() {
-		for i := len(unlocks) - 1; i >= 0; i-- {
-			unlocks[i]()
-		}
-		unlocks = nil
-	}
-	names, err := db.AccountSiteNames(ctx, h.database, userID)
-	for try := 0; err == nil; try++ {
-		sort.Strings(names)
-		for _, n := range names {
-			unlocks = append(unlocks, h.lockSite(userID, n))
-		}
-		var again []string
-		again, err = db.AccountSiteNames(ctx, h.database, userID)
-		if err != nil {
-			break
-		}
-		sort.Strings(again)
-		if slices.Equal(names, again) || try == 4 {
-			return release, nil
-		}
-		release()
-		names = again
-	}
-	release()
-	return func() {}, err
+	return h.sitesSvc().LockAccountSites(ctx, userID)
 }
 
-// eraseAccountFiles removes on disk what db.EraseAccount removed from the
+// eraseAccountFiles removes on disk what the account service removed from the
 // database. It runs after the commit, never before: the other order means a
 // commit failure leaves a live account whose content is gone. A failure here
 // strands files an operator can delete. The caller holds the sites' locks.
@@ -194,42 +114,8 @@ func (h *SiteHandler) lockAccountSites(ctx context.Context, userID string) (func
 // its certificate request is withdrawn only then and while no other site has
 // taken the domain up since the commit. The take-down markers live in the
 // site folders and go with them.
-func (h *SiteHandler) eraseAccountFiles(ctx context.Context, e db.ErasedAccount) error {
-	var first error
-	keep := func(err error) {
-		if err != nil && first == nil {
-			first = err
-		}
-	}
-	for _, s := range e.Sites {
-		keep(h.disk.PurgeTrashedSiteLinks(e.UserID, s.Name, ""))
-		for _, d := range s.Domains {
-			mine, err := h.disk.UnbindDomainOf(d, e.UserID, s.Name)
-			keep(err)
-			if err != nil || !mine {
-				continue
-			}
-			if _, err := db.GetSiteByCustomDomain(ctx, h.database, d); errors.Is(err, sql.ErrNoRows) {
-				h.cancelDomainCert(d)
-			}
-		}
-	}
-	for _, a := range e.Aliases {
-		keep(h.disk.RemoveHandleLinkOf(a, e.UserID))
-	}
-	// Address families: the link (only while it is still this account's)
-	// and the issuer's request, so nothing is served there any more.
-	for _, f := range e.Families {
-		if h.disk.FamilyLinkTarget(f) == filepath.Join("..", "by-id", e.UserID) {
-			keep(h.disk.UnbindFamily(f))
-		}
-		h.removeFamilyRequest(f)
-	}
-	if len(e.Families) > 0 {
-		h.refreshFamilies(ctx)
-	}
-	keep(h.disk.DeleteUser(e.UserID, e.Handle))
-	return first
+func (h *SiteHandler) eraseAccountFiles(ctx context.Context, e model.ErasedAccount) error {
+	return h.sitesSvc().EraseAccountFiles(ctx, e, appsites.AccountFileDeps{CancelDomain: h.cancelDomainCert, RemoveFamily: func(suffix string) { h.removeFamilyRequest(suffix) }, RefreshFamilies: h.refreshFamilies})
 }
 
 // sweepOrphanTeamSites removes (to Recently deleted) any team site left
@@ -240,19 +126,8 @@ func (h *SiteHandler) eraseAccountFiles(ctx context.Context, e db.ErasedAccount)
 // (not HackHandler) runs it because it already holds the site-trashing
 // capability itself (Grok security review, 2026-11-01). Logs and
 // continues on error, the same as the ordinary per-event sweep.
-func (h *SiteHandler) sweepOrphanTeamSites(ctx context.Context, eventAccountIDs []string) {
-	for _, accountID := range eventAccountIDs {
-		orphans, err := db.OrphanTeamSites(ctx, h.database, accountID)
-		if err != nil {
-			log.Printf("hack: orphan sites after account erasure: %v", err)
-			continue
-		}
-		for _, s := range orphans {
-			if err := h.TrashTeamSite(ctx, s.UserID, s.Name); err != nil {
-				log.Printf("hack: remove site %s after account erasure: %v", s.Name, err)
-			}
-		}
-	}
+func (h *SiteHandler) sweepOrphanTeamSites(ctx context.Context, ids []string) {
+	(members.AccountErasure{}).SweepOrphanSites(ctx, h.database, ids, h.TrashTeamSite)
 }
 
 func (h *SiteHandler) emailAccountDeleted(to string) {
@@ -288,7 +163,7 @@ func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	me, err := db.GetUserByID(ctx, h.database, user.ID)
+	me, err := h.storeAccounts().GetUserByID(ctx, user.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -301,12 +176,12 @@ func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	sites, err := db.ListSitesByUser(ctx, h.database, me.ID)
+	sites, err := h.sitesSvc().ListSitesByUser(ctx, me.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	deleted, err := db.ListDeletedSitesByUser(ctx, h.database, me.ID)
+	deleted, err := h.sitesSvc().ListDeletedSitesByUser(ctx, me.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -358,40 +233,40 @@ type exportDoc struct {
 
 // accountDocuments builds README.txt, account.json, keys.json,
 // connected_apps.json and visitor.json.
-func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]exportDoc, error) {
-	aliases, err := db.ListHandleAliases(ctx, h.database, me.ID)
+func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]exportDoc, error) {
+	aliases, err := h.storeAccounts().ListHandleAliases(ctx, me.ID)
 	if err != nil {
 		return nil, err
 	}
-	addrs, err := db.ListAccountAddresses(ctx, h.database, me.ID)
+	addrs, err := h.storeAccounts().ListAccountAddresses(ctx, me.ID)
 	if err != nil {
 		return nil, err
 	}
-	retired, err := db.ListRetiredNames(ctx, h.database, me.ID)
+	retired, err := h.storeAccounts().ListRetiredNames(ctx, me.ID)
 	if err != nil {
 		return nil, err
 	}
-	idents, err := db.ListSignInIdentities(ctx, h.database, me.ID)
+	idents, err := h.storeAccounts().ListSignInIdentities(ctx, me.ID)
 	if err != nil {
 		return nil, err
 	}
-	keys, err := db.ListAPIKeys(ctx, h.database, me.ID)
+	keys, err := h.storeAccounts().ListAPIKeys(ctx, me.ID)
 	if err != nil {
 		return nil, err
 	}
-	conns, err := db.ListOAuthConnections(ctx, h.database, me.ID)
+	conns, err := h.storeAccounts().ListOAuthConnections(ctx, me.ID)
 	if err != nil {
 		return nil, err
 	}
-	signIns, err := db.ListVisitorSignIns(ctx, h.database, me.ID)
+	signIns, err := h.storeAccounts().ListVisitorSignIns(ctx, me.ID)
 	if err != nil {
 		return nil, err
 	}
-	subs, err := db.ListSubmissionsElsewhere(ctx, h.database, me.ID)
+	subs, err := h.storeAccounts().ListSubmissionsElsewhere(ctx, me.ID)
 	if err != nil {
 		return nil, err
 	}
-	changes, err := db.ListChangesElsewhere(ctx, h.database, me.ID)
+	changes, err := h.legacySvc().ListChangesElsewhere(ctx, me.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +324,7 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]expor
 		"sign_in_methods": ids,
 	}
 	// The account's address families (*.<domain> for every site).
-	if fams, err := db.ListFamiliesByUser(ctx, h.database, me.ID); err == nil {
+	if fams, err := h.sitesSvc().ListFamiliesByUser(ctx, me.ID); err == nil {
 		out := []map[string]any{}
 		for _, f := range fams {
 			m := map[string]any{"family": "*." + f.Suffix, "site_prefix": f.SitePrefix, "status": f.Status,
@@ -542,7 +417,7 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me db.User) ([]expor
 	changeList := []change{}
 	for _, c := range changes {
 		what := "page data"
-		if c.Kind == db.HistoryList {
+		if c.Kind == model.HistoryList {
 			what = "list " + c.Name
 		}
 		changeList = append(changeList, change{Site: siteAddr(c.SiteID, "(a site that has since been deleted)"), What: what, ItemID: c.ItemID, Change: c.Op, At: c.At.UTC()})
@@ -580,7 +455,7 @@ func supportText(s string) string {
 // exportReadme is README.txt at the top of Download my data. undoDays is
 // SAVED_DATA_UNDO_DAYS, how far back visitor.json's changes go.
 func exportReadme(undoDays int) string {
-	return supportText(strings.ReplaceAll(exportReadmeText, "{undo_days}", config.Count(undoDays, "day")))
+	return supportText(strings.ReplaceAll(exportReadmeText, "{undo_days}", accountExportDays(undoDays)))
 }
 
 const exportReadmeText = `Your Simple Host data
@@ -623,3 +498,10 @@ hash, never by address, so there is nothing about you to export.
 To delete your account and all of this, use "Delete my account" on your page,
 or DELETE /v1/me. Anything else: support@simple-host.app.
 `
+
+func accountExportDays(days int) string {
+	if days == 1 {
+		return "one day"
+	}
+	return strconv.Itoa(days) + " days"
+}

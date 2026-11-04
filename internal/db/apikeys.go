@@ -81,19 +81,6 @@ func touchAPIKey(ctx context.Context, q Querier, keyHash string) {
 	accounts.TouchAPIKey(ctx, q, keyHash)
 }
 
-// ListAPIKeys returns an account's keys, newest first.
-func ListAPIKeys(ctx context.Context, q *sql.DB, userID string) ([]APIKey, error) {
-	rows, err := accounts.ListAPIKeys(ctx, q, userID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]APIKey, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, APIKey(row))
-	}
-	return out, nil
-}
-
 // ErrKeyLimit: the account already holds maxAccountKeys (MAX_KEYS_PER_ACCOUNT)
 // keys. Sign-in keys are not refused by it.
 var ErrKeyLimit = model.ErrKeyLimit
@@ -181,13 +168,7 @@ func ReservedKeyName(name string) bool {
 // reissue a participant's lost key. Every site sign-in of the account ends
 // too (EndVisitorSessions). Run it inside the caller's transaction.
 func ReplaceAPIKeys(ctx context.Context, q Querier, userID, newKey, name string) error {
-	if _, err := q.ExecContext(ctx, `DELETE FROM api_keys WHERE user_id = $1`, userID); err != nil {
-		return err
-	}
-	if err := EndVisitorSessions(ctx, q, userID); err != nil {
-		return err
-	}
-	return AddAPIKey(ctx, q, userID, newKey, name)
+	return accounts.ReplaceAPIKeys(ctx, q, userID, newKey, name)
 }
 
 // liveKeySQL is the SQL form of keyExpired == "": the key has neither passed

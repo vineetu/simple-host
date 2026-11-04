@@ -53,10 +53,7 @@ db -> repository/sqlkit production # removal step 5.4: db keeps the Querier alia
 db -> model production # removal step 5.4: db keeps type aliases until the last repository moves
 hackhttp -> handler test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
 hackhttp -> mcp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
-handler -> config production # removal step 5.4: final transport boundary
-handler -> db production # removal step 5.4: site and storage workflows
 handler -> hackhttp test # removal step 5.4: move cross-transport integration fixtures out of the transport packages
-handler -> oauth production # removal step 5.4: final transport boundary
 handler -> storage production # removal step 5.4: site and storage workflows
 hackhttp -> db test # removal step 5.4: Host fixtures and Hack compatibility aliases
 handler -> db test # removal step 5.4: site and storage workflows

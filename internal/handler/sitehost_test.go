@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -273,7 +274,7 @@ func TestSiteHostsCanonical(t *testing.T) {
 	}
 
 	// ---- sign-in return_to --------------------------------------------------------------
-	oa := &OAuthHandler{database: a.database, limitSet: a.sites.limitSet, personSite: a.sites.PersonReturnSite}
+	oa := &OAuthHandler{database: a.database, accounts: accountapp.New(a.database), limitSet: a.sites.limitSet, personSite: a.sites.PersonReturnSite}
 	oa.cfg.PublicBaseURL = "https://simple-host.test"
 	oa.cfg.SiteDomain = pcSiteDomain
 	oa.cfg.ContentHost = pcContentHost

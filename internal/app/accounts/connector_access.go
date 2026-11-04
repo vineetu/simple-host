@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-func (s *Service) ConnectorAccess(ctx context.Context, token string, now time.Time, hackTeams bool, audiences ...string) (model.User, string, string, model.OAuthTokenGrant, bool) {
+func (s *Service) ConnectorAccess(ctx context.Context, token string, now func() time.Time, hackTeams bool, audiences ...string) (model.User, string, string, model.OAuthTokenGrant, bool) {
 	tok, err := s.GetOAuthToken(ctx, hashSecret(token))
-	if err != nil || tok.Kind != "access" || now.After(tok.ExpiresAt) {
+	if err != nil || tok.Kind != "access" || now().After(tok.ExpiresAt) {
 		return model.User{}, "", "", model.OAuthTokenGrant{}, false
 	}
 	audienceOK := false

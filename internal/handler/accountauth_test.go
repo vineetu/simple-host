@@ -19,7 +19,7 @@ func TestAccountAuthOnlyOnAppAddress(t *testing.T) {
 	users := NewUserHandler(nil, accountapp.New(nil), nil, "https://simple-host.app")
 	identity := func(h http.Handler) http.Handler { return h }
 	users.Register(mux, identity, identity)
-	oauth := NewOAuthHandler(nil, accountapp.New(nil), config.Config{PublicBaseURL: "https://simple-host.app"})
+	oauth := newTestOAuthHandler(nil, accountapp.New(nil), config.Config{PublicBaseURL: "https://simple-host.app"})
 	oauth.Register(mux)
 	app := CORS(mux)
 

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 const (
@@ -107,7 +107,7 @@ func (h *SiteHandler) sessionCookieFor(r *http.Request) string {
 
 // sessionValidFor requires the exact host and site where the visitor signed in.
 // Person hosts never widen a session to the owner's other sites.
-func (h *SiteHandler) sessionValidFor(r *http.Request, sess db.VisitorSession, siteID string) bool {
+func (h *SiteHandler) sessionValidFor(r *http.Request, sess model.VisitorSession, siteID string) bool {
 	now := time.Now()
 	if !strings.EqualFold(sess.Host, requestHostName(r)) || now.After(sess.ExpiresAt) || now.After(sess.IdleExpiresAt) {
 		return false
@@ -183,7 +183,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tok, err := db.ConsumeEstablishToken(r.Context(), h.database, once, host)
+	tok, err := h.storeAccounts().ConsumeEstablishToken(r.Context(), once, host)
 	if err != nil {
 		fail(http.StatusBadRequest, "code_used_or_expired")
 		return
@@ -191,7 +191,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 	activated := false
 	defer func() {
 		if !activated {
-			_ = db.DeleteVisitorSession(r.Context(), h.database, tok.SessionID)
+			_ = h.storeAccounts().DeleteVisitorSession(r.Context(), tok.SessionID)
 		}
 	}()
 	if retry == "" {
@@ -213,7 +213,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 
 	// A revoked or expired parent, an offline site, or a passcode set while
 	// the browser was on the apex must not yield a usable session.
-	sess, err := db.GetVisitorSession(r.Context(), h.database, tok.SessionID, h.limits.KeyIdleExpiry)
+	sess, err := h.storeAccounts().GetVisitorSession(r.Context(), tok.SessionID, h.limits.KeyIdleExpiry)
 	if err != nil || !h.sessionValidFor(r, sess, sess.SiteID) {
 		fail(400, "session_invalid")
 		return
@@ -226,7 +226,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 	}
 	boundID, ok := h.PersonReturnSite(r.Context(), host, target.Path)
 	if !ok {
-		info, err := db.GetSiteByCustomDomain(r.Context(), h.database, host)
+		info, err := h.sitesSvc().GetSiteByCustomDomain(r.Context(), host)
 		if err != nil || !info.VerifiedAt.Valid {
 			fail(400, "site_unbound")
 			return
@@ -238,11 +238,11 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if sess.SSOPassHash.Valid {
-		if off, err := db.SiteOffline(r.Context(), h.database, sess.SiteID); err != nil || off {
+		if off, err := h.sitesSvc().SiteOffline(r.Context(), sess.SiteID); err != nil || off {
 			fail(403, "site_offline")
 			return
 		}
-		if susp, _, err := db.SiteSuspension(r.Context(), h.database, sess.SiteID); err != nil || susp {
+		if susp, _, err := h.sitesSvc().SiteSuspension(r.Context(), sess.SiteID); err != nil || susp {
 			fail(403, "site_suspended")
 			return
 		}
@@ -252,7 +252,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	first, err := db.ActivateVisitorSession(r.Context(), h.database, tok.SessionID, h.visitorSessionTTL(), h.visitorSessionIdle())
+	first, err := h.storeAccounts().ActivateVisitorSession(r.Context(), tok.SessionID, h.visitorSessionTTL(), h.visitorSessionIdle())
 	if err != nil {
 		fail(400, "activate")
 		return
@@ -354,12 +354,12 @@ func writeVisitorAuthRequired(w http.ResponseWriter) {
 // visitorWriteGate is the write gate for PUT/PATCH state and POST collections
 // (visitorWriteOK adds who-may-save on top).
 // See docs/history/SPEC.md §4.4. Returns false after writing the error response.
-// On success it also says who is writing (db.Actor, without the email; see
+// On success it also says who is writing (model.Actor, without the email; see
 // actorWithEmail): the site's owner or the platform admin (their key, or the
 // owner signed in on the site), another signed-in visitor, or nobody known.
-func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) (db.Actor, bool) {
-	anon := db.Actor{Kind: actorAnonymous}
-	ownerID, allowAnon, err := db.GetSiteWriteGate(r.Context(), h.database, siteID)
+func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, siteID, siteName, route, collection string) (model.Actor, bool) {
+	anon := model.Actor{Kind: actorAnonymous}
+	ownerID, allowAnon, err := h.sitesSvc().GetSiteWriteGate(r.Context(), siteID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -375,7 +375,7 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 	}
 	// A site its owner took offline takes no saves from visitors; the
 	// owner's (or admin's) key and connector keep writing (offline.go).
-	if off, err := db.SiteOffline(r.Context(), h.database, siteID); err != nil {
+	if off, err := h.sitesSvc().SiteOffline(r.Context(), siteID); err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return anon, false
 	} else if off && !h.ownerKeyWrite(r, ownerID) {
@@ -410,7 +410,7 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 		return h.keyActor(r, ownerID), true
 	}
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
-		if info, ok, _ := db.GetSiteDomainInfo(r.Context(), h.database, siteID); ok && info.Domain != "" {
+		if info, ok, _ := h.sitesSvc().GetSiteDomainInfo(r.Context(), siteID); ok && info.Domain != "" {
 			// Name the address that works: the earlier one while a new
 			// domain is still pending.
 			if own, has, _ := h.siteOwnAddress(r.Context(), siteID); has {
@@ -439,7 +439,7 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 			storageError(w, 403, "csrf_required", "missing CSRF header")
 			return anon, false
 		}
-		return db.Actor{ID: sess.UserID, Kind: actorVisitor}, true
+		return model.Actor{ID: sess.UserID, Kind: actorVisitor}, true
 	}
 
 	if key := r.Header.Get("X-API-Key"); key != "" {
@@ -461,9 +461,9 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 		if ok {
 			log.Printf("key_write user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, siteName, route, collection)
 			if u.IsAdmin && u.ID != ownerID {
-				return db.Actor{ID: u.ID, Kind: actorAdmin}, true
+				return model.Actor{ID: u.ID, Kind: actorAdmin}, true
 			}
-			return db.Actor{ID: u.ID, Kind: actorOwner}, true
+			return model.Actor{ID: u.ID, Kind: actorOwner}, true
 		}
 		writeJSON(w, http.StatusUnauthorized, struct {
 			Error string `json:"error"`
@@ -496,12 +496,12 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 
 	if raw := h.sessionCookieFor(r); raw != "" && !onContentHost {
 		if id, decErr := hex.DecodeString(raw); decErr == nil && len(id) == 32 {
-			sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id, h.limits.KeyIdleExpiry)
+			sess, sessErr := h.storeAccounts().GetVisitorSession(r.Context(), id, h.limits.KeyIdleExpiry)
 			if sessErr == nil {
 				if h.sessionValidFor(r, sess, siteID) {
 					// A suspended person's sign-ins stop working too.
 					// A failed lookup is a server error, not a suspension.
-					if susp, serr := db.UserSuspended(r.Context(), h.database, sess.UserID); serr != nil {
+					if susp, serr := h.storeAccounts().UserSuspended(r.Context(), sess.UserID); serr != nil {
 						writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 						return anon, false
 					} else if susp {
@@ -509,11 +509,11 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 						return anon, false
 					}
 					if r.Header.Get(visitorCSRFHeader) == visitorCSRFValue {
-						_ = db.TouchVisitorSession(r.Context(), h.database, id, h.limits.VisitorSessionIdle)
+						_ = h.storeAccounts().TouchVisitorSession(r.Context(), id, h.limits.VisitorSessionIdle)
 						if sess.UserID == ownerID {
-							return db.Actor{ID: sess.UserID, Kind: actorOwner}, true
+							return model.Actor{ID: sess.UserID, Kind: actorOwner}, true
 						}
-						return db.Actor{ID: sess.UserID, Kind: actorVisitor}, true
+						return model.Actor{ID: sess.UserID, Kind: actorVisitor}, true
 					}
 					if mode == "on" {
 						writeJSON(w, http.StatusForbidden, struct {
@@ -547,34 +547,34 @@ func (h *SiteHandler) visitorWriteGate(w http.ResponseWriter, r *http.Request, s
 // keyActor is who a write that passed without the key check was made by, for
 // the record (history, authors, the watch): the site's owner or the admin
 // when the request carries their valid key, otherwise nobody signed in.
-func (h *SiteHandler) keyActor(r *http.Request, ownerID string) db.Actor {
+func (h *SiteHandler) keyActor(r *http.Request, ownerID string) model.Actor {
 	key := r.Header.Get("X-API-Key")
 	if key == "" {
-		return db.Actor{Kind: actorAnonymous}
+		return model.Actor{Kind: actorAnonymous}
 	}
 	u, ok, err := h.resolveWriterKey(r.Context(), key)
 	switch {
 	case err != nil || !ok:
-		return db.Actor{Kind: actorAnonymous}
+		return model.Actor{Kind: actorAnonymous}
 	case u.ID == ownerID:
-		return db.Actor{ID: u.ID, Kind: actorOwner}
+		return model.Actor{ID: u.ID, Kind: actorOwner}
 	case u.IsAdmin:
-		return db.Actor{ID: u.ID, Kind: actorAdmin}
+		return model.Actor{ID: u.ID, Kind: actorAdmin}
 	}
-	return db.Actor{Kind: actorAnonymous}
+	return model.Actor{Kind: actorAnonymous}
 }
 
-func (h *SiteHandler) resolveWriterKey(ctx context.Context, key string) (db.User, bool, error) {
+func (h *SiteHandler) resolveWriterKey(ctx context.Context, key string) (model.User, bool, error) {
 	if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) == 1 {
-		return db.User{ID: h.adminUserID, Username: "admin", IsAdmin: true}, true, nil
+		return model.User{ID: h.adminUserID, Username: "admin", IsAdmin: true}, true, nil
 	}
-	u, err := db.GetUserByAPIKey(ctx, h.database, key, h.limits.KeyIdleExpiry)
+	u, err := h.storeAccounts().GetUserByAPIKey(ctx, key, h.limits.KeyIdleExpiry)
 	if err != nil {
 		// A suspended account's key is refused like an unknown one.
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, db.ErrAccountSuspended) {
-			return db.User{}, false, nil
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, model.ErrAccountSuspended) {
+			return model.User{}, false, nil
 		}
-		return db.User{}, false, err
+		return model.User{}, false, err
 	}
 	return u, true, nil
 }
@@ -629,7 +629,7 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 			resp["domain"] = info.Domain
 		} else if h.personHostsCanonical() {
 			// The site's own address, where visitors sign in.
-			if handle, _, name, err := db.GetSiteOwner(r.Context(), h.database, siteID); err == nil && h.personAddressFor(handle, name) {
+			if handle, _, name, err := h.sitesSvc().GetSiteOwner(r.Context(), siteID); err == nil && h.personAddressFor(handle, name) {
 				resp["address"] = h.SiteURL(handle, name)
 			}
 		}
@@ -641,7 +641,7 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if id, decErr := hex.DecodeString(h.sessionCookieFor(r)); decErr == nil && len(id) == 32 {
-		sess, sessErr := db.GetVisitorSession(r.Context(), h.database, id, h.limits.KeyIdleExpiry)
+		sess, sessErr := h.storeAccounts().GetVisitorSession(r.Context(), id, h.limits.KeyIdleExpiry)
 		if sessErr == nil {
 			if h.sessionValidFor(r, sess, siteID) {
 				expires := sess.ExpiresAt
@@ -654,7 +654,7 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 				email, err := visitorEmail(r.Context(), h.database, sess.UserID)
 				resp.Email = email
 				if err == nil {
-					identity, ierr := db.GetLatestOAuthIdentity(r.Context(), h.database, sess.UserID)
+					identity, ierr := h.storeAccounts().GetLatestOAuthIdentity(r.Context(), sess.UserID)
 					if ierr == nil && strings.EqualFold(identity.Email.String, email) {
 						resp.Provider = identity.Provider
 					} else if ierr != nil && !errors.Is(ierr, sql.ErrNoRows) {
@@ -668,14 +668,14 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 				// The same test storage applies (storageOwnerOnSite): the
 				// strict same-origin session, the owner's account, one of
 				// the site's own hosts. On Simple Hack: a team member or an
-				// organiser while the site may change (db.HackSiteOwnerOnSite).
+				// organiser while the site may change (accounts.HackSiteOwnerOnSite).
 				if h.ed.Storage().EventOwners {
 					if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == sess.UserID && h.storageOwnHost(r, siteID) {
-						owner, oerr := db.HackSiteOwnerOnSite(r.Context(), h.database, siteID, sess.UserID)
+						owner, oerr := h.storeAccounts().HackSiteOwnerOnSite(r.Context(), siteID, sess.UserID)
 						resp.SiteOwner = oerr == nil && owner
 					}
 				} else {
-					if _, ownerID, _, oerr := db.GetSiteOwner(r.Context(), h.database, siteID); oerr == nil && ownerID == sess.UserID {
+					if _, ownerID, _, oerr := h.sitesSvc().GetSiteOwner(r.Context(), siteID); oerr == nil && ownerID == sess.UserID {
 						if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == ownerID {
 							resp.SiteOwner = h.storageOwnHost(r, siteID)
 						}

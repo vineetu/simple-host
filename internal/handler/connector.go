@@ -1303,7 +1303,7 @@ func (h *ConnectorHandler) userForAccessTokenTeam(ctx context.Context, token str
 // personal hosted grant and "" otherwise. A malformed hosted grant cannot
 // authenticate. The returned grant also carries the selected team, if any.
 func (h *ConnectorHandler) tokenAccess(ctx context.Context, token string, audiences ...string) (model.User, string, string, model.OAuthTokenGrant, bool) {
-	return h.accountsSvc().ConnectorAccess(ctx, token, h.now(), h.hackTeams, audiences...)
+	return h.accountsSvc().ConnectorAccess(ctx, token, h.now, h.hackTeams, audiences...)
 }
 
 // selectHackTeam is called only by the hosted MCP team-selection tool. A

@@ -1,10 +1,12 @@
 package handler
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/app/hack/members"
 	"log"
 	"net/http"
 	"strconv"
@@ -14,7 +16,6 @@ import (
 
 	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // maxAccountsBody bounds the request body, not the number of accounts. An
@@ -134,49 +135,13 @@ func (h *SiteHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, errorResponse{Error: err.Error()})
 		return
 	}
-	created := make([]map[string]string, 0, len(names))
-	skipped := make([]map[string]string, 0)
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+	out, err := h.storeAccounts().CreateAccounts(r.Context(), names, h.ed.Identity().RandomHandles, func(ctx context.Context, q accounts.AttributionStore, id, name string, random bool) {
+		assignHandle(ctx, q, id, name, random)
+	})
+	if writeLifecycleFailure(w, err) {
 		return
 	}
-	defer tx.Rollback()
-	for _, name := range names {
-		key, err := auth.GenerateAPIKey()
-		if err != nil {
-			writeJSON(w, 500, errorResponse{Error: "internal server error"})
-			return
-		}
-		var id string
-		err = tx.QueryRowContext(r.Context(), `INSERT INTO users (username, signup_source, signup_method) VALUES ($1, 'admin', 'issued') ON CONFLICT (username) DO NOTHING RETURNING id`, name).Scan(&id)
-		if errors.Is(err, sql.ErrNoRows) {
-			skipped = append(skipped, map[string]string{"username": name, "reason": "account already exists"})
-			continue
-		}
-		if err == nil {
-			err = db.AddAPIKey(r.Context(), tx, id, key, db.KeyNameEvent)
-		}
-		if err == nil {
-			err = db.MarkEventAccount(r.Context(), tx, id)
-		}
-		if err != nil {
-			writeJSON(w, 500, errorResponse{Error: "internal server error"})
-			return
-		}
-		assignHandle(r.Context(), tx, id, name, h.ed.Identity().RandomHandles)
-		user, err := db.GetUserByID(r.Context(), tx, id)
-		if err != nil || !user.Handle.Valid {
-			writeJSON(w, 500, errorResponse{Error: "could not assign account handle"})
-			return
-		}
-		created = append(created, map[string]string{"username": name, "handle": user.Handle.String, "api_key": key, "display_name": user.DisplayName.String})
-	}
-	if err := tx.Commit(); err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{"created": created, "skipped": skipped})
+	writeJSON(w, http.StatusCreated, out)
 }
 
 // deleteAccount handles DELETE /v1/admin/users/{id}: the same immediate,
@@ -195,52 +160,14 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+	deleted, err := h.storeAccounts().DeleteAccount(r.Context(), accounts.DeleteAccountInput{ID: id, AdminID: h.adminUserID, Operator: true, HoldingAccounts: h.ed.Identity().HoldingAccounts, Teams: members.AccountErasure{}})
+	if writeLifecycleFailure(w, err) {
 		return
 	}
-	defer tx.Rollback()
-	acct, err := db.LockAccountForDelete(r.Context(), tx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, 404, errorResponse{Error: "not found"})
-		return
-	}
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
-	if acct.IsAdmin || acct.ID == h.adminUserID {
-		writeJSON(w, 400, errorResponse{Error: "cannot delete an admin account"})
-		return
-	}
-	if acct.EventClaims > 0 {
-		writeJSON(w, 409, errorResponse{
-			Error: "this account still holds event hostnames; release them first so their DNS records are removed", Code: "event_hostnames"})
-		return
-	}
-	if code, _, err := HackAccountDeleteBlock(r.Context(), tx, acct.ID, h.ed.Identity().HoldingAccounts); err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	} else if code != "" {
-		msg := "this account organises an event that has not ended; end it or delete it from the Events tab first"
-		if code == "event_account" {
-			msg = "this account holds an event; delete the event from the Events tab"
-		}
-		writeJSON(w, http.StatusConflict, errorResponse{Error: msg, Code: code})
-		return
-	}
-	erased, err := db.EraseAccount(r.Context(), tx, acct)
-	if err == nil {
-		err = tx.Commit()
-	}
-	if err != nil {
-		log.Printf("admin delete account %s: %v", acct.ID, err)
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
+	erased := deleted.Erased
+
 	if err = h.eraseAccountFiles(r.Context(), erased); err != nil {
-		log.Printf("admin delete account %s: files: %v", acct.ID, err)
+		log.Printf("admin delete account %s: files: %v", id, err)
 		writeJSON(w, 500, errorResponse{Error: "account removed but its files could not be deleted"})
 		return
 	}
@@ -255,54 +182,12 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 	if !accountAdmin(w, r) {
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+	out, err := h.storeAccounts().ReissueAccountKey(r.Context(), r.PathValue("id"), h.adminUserID, h.ed.Identity().HoldingAccounts)
+	if writeLifecycleFailure(w, err) {
 		return
 	}
-	defer tx.Rollback()
-	var id, username string
-	var handle sql.NullString
-	var admin, suspended bool
-	err = tx.QueryRowContext(r.Context(), `SELECT id, username, handle, is_admin, suspended_at IS NOT NULL FROM users WHERE id::text=$1 FOR UPDATE`, r.PathValue("id")).Scan(&id, &username, &handle, &admin, &suspended)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, 404, errorResponse{Error: "not found"})
-		return
-	}
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
-	if held, herr := HackHoldingAccount(r.Context(), tx, id, h.ed.Identity().HoldingAccounts); herr != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	} else if held {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "this account holds an event and never signs in; manage the event from the admin Events tab", Code: "event_account"})
-		return
-	}
-	if admin || id == h.adminUserID {
-		writeJSON(w, 400, errorResponse{Error: "cannot reissue an admin account's key here"})
-		return
-	}
-	// A suspended account gets no new key; re-enable it first.
-	if suspended {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "this account is suspended; re-enable it before giving it a new key", Code: "account_suspended"})
-		return
-	}
-	key, err := auth.GenerateAPIKey()
-	if err == nil {
-		err = db.ReplaceAPIKeys(r.Context(), tx, id, key, db.KeyNameEvent)
-	}
-	if err == nil {
-		err = db.MarkEventAccount(r.Context(), tx, id)
-	}
-	if err == nil {
-		err = tx.Commit()
-	}
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
+	id, username, handle, key := out.User.ID, out.User.Username, out.User.Handle, out.Key
+
 	log.Printf("admin_key_reissue user_id=%s by=%s", id, auth.GetUser(r.Context()).ID)
 	writeJSON(w, http.StatusOK, map[string]string{
 		"id": id, "username": username, "handle": handle.String, "api_key": key,
@@ -348,125 +233,24 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "turning sign-in alerts on or off needs one of the account's own API keys (X-API-Key), not the admin key or a connected app", Code: "not_an_account_key"})
 		return
 	}
-	tx, err := h.database.BeginTx(r.Context(), nil)
+	updated, alertsOn, err := h.sitesSvc().UpdateProfile(r.Context(), appsites.ProfileInput{UserID: user.ID, DisplayName: req.DisplayName, Handle: req.Handle, SignInAlerts: req.SignInAlerts, RenameEvery: h.handleRenameEvery()})
 	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
-	defer tx.Rollback()
-	var oldHandle sql.NullString
-	// First deploy takes this lock before reading the handle or creating files.
-	err = tx.QueryRowContext(r.Context(), "SELECT handle FROM users WHERE id=$1 FOR UPDATE", user.ID).Scan(&oldHandle)
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
-	changed := req.Handle != nil && *req.Handle != oldHandle.String
-	renamed := false // moved with sites: the old handle stays as an alias
-	if changed {
-		// Sites in Recently deleted count: they come back at this account's
-		// address, so their old links need the alias too.
-		var hasSites bool
-		err = tx.QueryRowContext(r.Context(), "SELECT EXISTS (SELECT 1 FROM sites WHERE user_id=$1)", user.ID).Scan(&hasSites)
-		if err != nil {
-			writeJSON(w, 500, errorResponse{Error: "internal server error"})
-			return
-		}
-		// A handle that ever served files (its handles/<h> link exists, kept
-		// after a rename or a purge) is kept as an alias too, even with no
-		// sites left: old shared links and hand-made vhosts keyed on the
-		// folder must never follow a stranger who claims it. Only a handle
-		// that never published anything is freed.
-		if oldHandle.String != "" && (hasSites || h.disk.HasHandleLink(oldHandle.String)) {
-			// Owner decision 2026-09-27: the handle can change after
-			// publishing; old links redirect through the alias. Once per
-			// handleRenameEvery, so an address cannot be churned.
-			limited, last, rerr := db.HandleRenamedSince(r.Context(), tx, user.ID, time.Now().Add(-h.handleRenameEvery()))
-			if rerr != nil {
-				writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		var failure *accounts.LifecycleError
+		if errors.As(err, &failure) {
+			if failure.Code == "rate_limited" {
+				w.Header().Set("Retry-After", strconv.Itoa(int(time.Until(failure.Next).Seconds())+1))
+				writeJSON(w, 429, map[string]any{"code": "rate_limited", "error": failure.Message, "next_change_after": failure.Next})
 				return
 			}
-			if limited {
-				next := last.Add(h.handleRenameEvery()).UTC()
-				w.Header().Set("Retry-After", strconv.Itoa(int(time.Until(next).Seconds())+1))
-				writeJSON(w, http.StatusTooManyRequests, map[string]any{
-					"code":              "rate_limited",
-					"error":             "you changed your address recently; you can change it again after " + next.Format("2 Jan 2006"),
-					"next_change_after": next,
-				})
-				return
-			}
-			_, err = db.RenameHandleTx(r.Context(), tx, user.ID, *req.Handle)
-			if errors.Is(err, db.ErrDomainTaken) || isUniqueViolation(err) {
+			if failure.Code == "handle_taken" {
 				writeJSON(w, 409, errorResponse{Error: handleTakenMsg(*req.Handle), Code: "handle_taken", Address: handleAddress(*req.Handle)})
 				return
 			}
-			if err != nil {
-				writeJSON(w, 500, errorResponse{Error: "internal server error"})
-				return
-			}
-			renamed = true
-		} else {
-			free, nsErr := db.HandleAvailable(r.Context(), tx, user.ID, *req.Handle)
-			if nsErr != nil {
-				writeJSON(w, 500, errorResponse{Error: "internal server error"})
-				return
-			}
-			if !free {
-				writeJSON(w, 409, errorResponse{Error: handleTakenMsg(*req.Handle), Code: "handle_taken", Address: handleAddress(*req.Handle)})
-				return
-			}
-			_, err = tx.ExecContext(r.Context(), "UPDATE users SET handle=$2, handle_changed_at=now() WHERE id=$1", user.ID, *req.Handle)
-			if isUniqueViolation(err) {
-				writeJSON(w, 409, errorResponse{Error: handleTakenMsg(*req.Handle), Code: "handle_taken", Address: handleAddress(*req.Handle)})
-				return
-			}
-			if err != nil {
-				writeJSON(w, 500, errorResponse{Error: "internal server error"})
-				return
-			}
-			if err = h.disk.RemoveHandleLink(oldHandle.String); err != nil {
-				writeJSON(w, 500, errorResponse{Error: "could not remove old handle link"})
-				return
-			}
 		}
-	}
-	if req.DisplayName != nil {
-		if _, err = tx.ExecContext(r.Context(), "UPDATE users SET display_name=NULLIF($2,'') WHERE id=$1", user.ID, *req.DisplayName); err != nil {
-			writeJSON(w, 500, errorResponse{Error: "internal server error"})
-			return
-		}
-	}
-	if req.SignInAlerts != nil {
-		if err = db.SetSignInAlerts(r.Context(), tx, user.ID, *req.SignInAlerts); err != nil {
-			writeJSON(w, 500, errorResponse{Error: "internal server error"})
-			return
-		}
-	}
-	updated, err := db.GetUserByID(r.Context(), tx, user.ID)
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
+		writeLifecycleFailure(w, err)
 		return
 	}
-	alertsOn, err := db.SignInAlertsOn(r.Context(), tx, user.ID)
-	if err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
-	if err = tx.Commit(); err != nil {
-		writeJSON(w, 500, errorResponse{Error: "internal server error"})
-		return
-	}
-	if renamed {
-		// The files answer under the new handle at once; the old handle's
-		// link stays so old content-host paths keep resolving. The new
-		// handle needs its own *.<handle> certificate: until it is ready,
-		// every address handed out is the person-path one (siteHostLive).
-		if err := h.disk.EnsureHandleLink(updated.Handle.String, updated.ID); err != nil {
-			log.Printf("handle rename: ensure handle link %s: %v", updated.Handle.String, err)
-		}
-		h.RequestSiteCert(updated.Handle.String)
-	}
+
 	writeJSON(w, 200, meResponse{ID: updated.ID, Username: updated.Username, IsAdmin: updated.IsAdmin, Handle: updated.Handle.String, DisplayName: updated.DisplayName.String, PublicPage: h.PersonPageURL(updated.Handle.String), SignInAlerts: &alertsOn})
 }
 
