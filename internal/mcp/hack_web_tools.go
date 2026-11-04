@@ -30,7 +30,8 @@ func hackWebTools() []Tool {
 			},
 		},
 		{
-			Name: "hack_publish_event_website", Title: "Publish event website files",
+			policy: toolPolicy{analytics: analyticsPolicy{fileArguments: true}},
+			Name:   "hack_publish_event_website", Title: "Publish event website files",
 			Description: "Publish a complete event website from inline files (include index.html, with optional files_base64 for assets) or one archive_base64 tar.gz. This replaces the custom site's files, keeps version history, and switches the event host to custom. Ask the organiser before publishing. Organiser only.",
 			InputSchema: object(map[string]any{
 				"slug":           slug["slug"],

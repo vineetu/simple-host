@@ -18,14 +18,6 @@ func hostFamilies(limits Limits) []familyTools {
 		{family: famAccess, tools: access},
 		{family: famStorage, tools: storage},
 	}
-	schemas := outputSchemasWithLimits(limits)
-	for _, family := range families {
-		for i := range family.tools {
-			if schema, ok := schemas[family.tools[i].Name]; ok {
-				family.tools[i].OutputSchema = schema
-			}
-		}
-	}
 	return families
 }
 

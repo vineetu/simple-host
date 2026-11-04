@@ -11,12 +11,12 @@ func hackPublicReadOnly() map[string]any {
 // Filter before serializing either representation. REST responses remain intact
 // for browser pages, and these optional fields need no output schema changes.
 func minimiseHackMemberResult(name, userID string, out map[string]any) {
-	switch name {
-	case "hack_join_event", "hack_apply_to_event", "hack_join_judge", "hack_application_status", "hack_get_team_status":
+	switch declaredPolicy(name).memberResult {
+	case "me":
 		if me, ok := out["me"].(map[string]any); ok {
 			delete(me, "team_key")
 		}
-	case "hack_get_my_conflicts":
+	case "conflicts":
 		if rows, ok := out["conflicts"].([]any); ok {
 			own := make([]any, 0, len(rows))
 			for _, row := range rows {
@@ -28,13 +28,13 @@ func minimiseHackMemberResult(name, userID string, out map[string]any) {
 			}
 			out["conflicts"] = own
 		}
-	case "hack_declare_my_conflict":
+	case "conflict":
 		if hackOwnConflict(out, userID) {
 			delete(out, "judge_id")
 		} else {
 			clear(out)
 		}
-	case "hack_preview_leave_event":
+	case "successors":
 		// successors (creator case) keeps display_name and user_id; email
 		// stays out of model context unless asked (2026-10-28 rule).
 		hackOmitRowField(out["successors"], "email")
@@ -55,10 +55,10 @@ func hackOwnConflict(conflict map[string]any, userID string) bool {
 }
 
 func minimiseHackOrganiserResult(name string, includeEmails bool, out map[string]any) {
-	switch name {
-	case "hack_decide_application":
+	switch declaredPolicy(name).organiserResult {
+	case "decision":
 		delete(out, "user_id")
-	case "hack_get_teams":
+	case "teams":
 		if !includeEmails {
 			teams, _ := out["teams"].([]any)
 			for _, row := range teams {
@@ -68,25 +68,25 @@ func minimiseHackOrganiserResult(name string, includeEmails bool, out map[string
 			}
 			hackOmitRowField(out["on_no_team"], "email")
 		}
-	case "hack_move_member", "hack_set_team_deadline", "hack_take_down_team_site", "hack_restore_team_site":
+	case "member", "team":
 		for field := range out {
 			switch field {
 			case "name", "slug":
 				continue
 			case "site", "deadline", "deadline_override", "frozen", "extended", "pinned_version", "pinned_url":
-				if name != "hack_move_member" {
+				if declaredPolicy(name).organiserResult != "member" {
 					continue
 				}
 			}
 			delete(out, field)
 		}
-	case "hack_get_team_key":
+	case "key":
 		if key, ok := out["key"].(map[string]any); ok {
 			delete(key, "last4")
 			delete(key, "created_at")
 			delete(key, "last_used_at")
 		}
-	case "hack_get_judging_dashboard":
+	case "judging":
 		hackOmitRowField(out["judges"], "judge_id")
 	}
 }

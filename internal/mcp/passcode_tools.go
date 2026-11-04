@@ -19,8 +19,10 @@ func passcodeTools() []Tool {
 	site := map[string]any{"site": str(siteDesc)}
 	return []Tool{
 		{
-			Name:  "get_site_passcode",
-			Title: "Check a site's passcode",
+			policy:       toolPolicy{passcodeResult: "get", screen: "passcode", analytics: analyticsPolicy{secretText: true}, hackSiteExcluded: true, listWithPasscode: true},
+			OutputSchema: passcodeSchema(true),
+			Name:         "get_site_passcode",
+			Title:        "Check a site's passcode",
 			Description: "Show whether a site has a passcode and when it was set. Never shows the passcode in chat; opens the passcode screen in apps that show screens. Changes nothing. " +
 				"Use this before set_site_passcode, remove_site_passcode or sign_out_site_visitors, and when the person asks what their site's passcode is.",
 			InputSchema: object(site, "site"),
@@ -34,8 +36,10 @@ func passcodeTools() []Tool {
 			},
 		},
 		{
-			Name:  "set_site_passcode",
-			Title: "Set or change a site's passcode",
+			policy:       toolPolicy{passcodeResult: "set", screen: "passcode", analytics: analyticsPolicy{secretText: true}, hackSiteExcluded: true},
+			OutputSchema: passcodeSchema(true),
+			Name:         "set_site_passcode",
+			Title:        "Set or change a site's passcode",
 			Description: "Put one passcode on a whole site, or change the one it has: every address of it shows an \"Enter the passcode\" page until a visitor enters the passcode. " +
 				"Changing it replaces the earlier passcode, which is not kept, and every visitor who unlocked the site with the old one must enter the new one. " +
 				passcodeNotLogin + " " +
@@ -80,8 +84,10 @@ func passcodeTools() []Tool {
 			},
 		},
 		{
-			Name:  "remove_site_passcode",
-			Title: "Take the passcode off a site",
+			policy:       toolPolicy{passcodeResult: "remove", analytics: analyticsPolicy{secretText: true}, hackSiteExcluded: true},
+			OutputSchema: passcodeSchema(false),
+			Name:         "remove_site_passcode",
+			Title:        "Take the passcode off a site",
 			Description: "ASK THE PERSON FIRST, before calling this: it takes the passcode off a site, so anyone with its address can open it again. Nothing on the site is deleted, and a new passcode can be set later with set_site_passcode. " +
 				"The person's own request to remove or change it is not consent on its own: tell them anyone with the link will be able to open the site once it is gone, then call again with confirm: true only after they agree in this conversation.",
 			InputSchema: object(map[string]any{
@@ -101,8 +107,10 @@ func passcodeTools() []Tool {
 			},
 		},
 		{
-			Name:  "sign_out_site_visitors",
-			Title: "Make every visitor enter the passcode again",
+			policy:       toolPolicy{passcodeResult: "signout", analytics: analyticsPolicy{secretText: true}, hackSiteExcluded: true},
+			OutputSchema: passcodeSchema(false),
+			Name:         "sign_out_site_visitors",
+			Title:        "Make every visitor enter the passcode again",
 			Description: "Sign every visitor out of a passcode-protected site: each one sees \"Enter the passcode\" again and must enter the same passcode to open it. The passcode does not change and nothing is deleted. " +
 				"Use this when the person thinks the passcode reached someone it should not have and wants a fresh start; to stop the old passcode working, change it with set_site_passcode instead. " +
 				"Ask the person first. It fails on a site without a passcode.",
@@ -142,21 +150,21 @@ func passcodeOutput(tool, name string, res upstreamResult) (output, error) {
 	}
 	var text string
 	switch {
-	case tool == "sign_out_site_visitors":
+	case declaredPolicy(tool).passcodeResult == "signout":
 		text = "Everyone was signed out of " + name + "; visitors must enter the passcode again."
-	case (tool == "remove_site_passcode" || tool == "set_site_passcode" || tool == "passcode_screen") && strings.Contains(lock.Note, "nothing changed"):
+	case (declaredPolicy(tool).passcodeResult == "remove" || declaredPolicy(tool).passcodeResult == "set" || declaredPolicy(tool).passcodeResult == "screen") && strings.Contains(lock.Note, "nothing changed"):
 		return output{Text: name + ": " + lock.Note, Structured: out}, nil
-	case tool == "remove_site_passcode" && lock.Note != "":
+	case declaredPolicy(tool).passcodeResult == "remove" && lock.Note != "":
 		// The server's note says whether a passcode was actually removed.
 		return output{Text: name + ": " + lock.Note, Structured: out}, nil
 	case !lock.Protected:
 		text = name + " has no passcode: anyone with its address can open it."
-	case tool == "set_site_passcode":
+	case declaredPolicy(tool).passcodeResult == "set":
 		text = "Passcode set on " + name + ". Visitors see \"Enter the passcode\" until they enter it."
 	default:
 		text = name + " asks visitors for a passcode."
 	}
-	if lock.Note != "" && tool != "set_site_passcode" {
+	if lock.Note != "" && declaredPolicy(tool).passcodeResult != "set" {
 		text += " " + lock.Note
 	}
 	return output{Text: text, Structured: out}, nil

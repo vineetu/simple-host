@@ -118,10 +118,10 @@ func (c *call) storageVisitorRefs(site, tool string, response any) error {
 		}
 		return nil
 	}
-	switch tool {
-	case "storage_get_kv":
+	switch declaredPolicy(tool).visitorResult {
+	case "item":
 		return field(body)
-	case "storage_list_kv_keys", "storage_list_file_objects":
+	case "items":
 		items, _ := body["items"].([]any)
 		for _, item := range items {
 			if obj, ok := item.(map[string]any); ok {
@@ -130,7 +130,7 @@ func (c *call) storageVisitorRefs(site, tool string, response any) error {
 				}
 			}
 		}
-	case "storage_sql_query":
+	case "rows":
 		columns, _ := body["columns"].([]any)
 		rows, _ := body["rows"].([]any)
 		for i, column := range columns {

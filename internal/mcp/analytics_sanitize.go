@@ -17,7 +17,7 @@ const analyticsFieldBytes = 8192
 var analyticsBase64 = regexp.MustCompile(`^[A-Za-z0-9+/\n\r]+=*$`)
 
 func analyticsParameters(tool string, args map[string]any) any {
-	if tool == "passcode_screen" {
+	if declaredPolicy(tool).analytics.redactAll {
 		return map[string]any{"arguments": "[removed]"}
 	}
 	return capAnalyticsJSON(sdkSanitizeParameters(map[string]any{
@@ -36,7 +36,7 @@ func analyticsCopy(value any) any {
 }
 
 func analyticsResponse(tool string, value any) any {
-	if tool == "passcode_screen" {
+	if declaredPolicy(tool).analytics.redactAll {
 		return "[removed]"
 	}
 	original, _ := value.(map[string]any)
@@ -67,7 +67,7 @@ func analyticsResponse(tool string, value any) any {
 			} else {
 				block["text"] = jsonText(analyticsFile(text, "", false))
 			}
-		case tool == "who_am_i" || strings.Contains(tool, "site_viewer") || tool == "set_site_access" || tool == "storage_visitor_emails":
+		case declaredPolicy(tool).analytics.structuredText:
 			block["text"] = jsonText(response["structuredContent"])
 		default:
 			// Storage and Hack tools also return their JSON as text. Walk
@@ -108,46 +108,30 @@ func analyticsSecretField(tool, name string) bool {
 	case "city", "country", "agerange", "gender":
 		return true
 	case "key":
-		return tool == "hack_create_team_key" || tool == "hack_get_team_key"
+		return declaredPolicy(tool).analytics.secretKey
 	case "how":
-		return tool == "create_upload_link" // embeds the signed URL in a curl command
+		return declaredPolicy(tool).analytics.secretHow // embeds the signed URL in a curl command
 	case "url":
-		switch tool {
-		case "preview_version", "export_site", "storage_file_download_link", "hack_event_storage_file_download_link",
-			"hack_export_projects_archive", "hack_export_own_team_archive", "hack_create_organiser_invite", "hack_regenerate_code":
-			return true
-		}
+		return declaredPolicy(tool).analytics.secretURL
 	}
 	return false
 }
 
-func analyticsSecretText(tool string) bool {
-	switch tool {
-	case "get_site_passcode", "set_site_passcode", "remove_site_passcode", "sign_out_site_visitors",
-		"create_upload_link", "create_import_link", "preview_version", "export_site", "update_site",
-		"storage_file_download_link", "hack_event_storage_file_download_link",
-		"hack_create_team_key", "hack_get_team_key", "hack_export_projects_archive", "hack_export_own_team_archive",
-		"hack_create_event", "hack_get_event", "hack_update_event", "hack_set_event_stage", "hack_regenerate_code",
-		"hack_create_organiser_invite":
-		return true
-	}
-	return false
-}
+func analyticsSecretText(tool string) bool { return declaredPolicy(tool).analytics.secretText }
 
 func analyticsEmailField(tool, name string) bool {
 	name = analyticsFieldName(name)
-	if (tool == "grant_site_viewer" || tool == "revoke_site_viewer" || tool == "set_site_access" || tool == "list_site_viewers") &&
+	if declaredPolicy(tool).analytics.emailChanges &&
 		(name == "added" || name == "alreadylisted" || name == "removed") {
 		return true
 	}
-	if name == "visitoremail" || name == "visitoremails" || (strings.HasPrefix(tool, "hack_") && name == "contactemail") {
+	if name == "visitoremail" || name == "visitoremails" || (declaredPolicy(tool).analytics.contactEmail && name == "contactemail") {
 		return true
 	}
 	if name != "email" && name != "emails" {
 		return false
 	}
-	return tool == "who_am_i" || strings.Contains(tool, "storage_") ||
-		strings.Contains(tool, "site_viewer") || tool == "set_site_access" || strings.HasPrefix(tool, "hack_")
+	return declaredPolicy(tool).analytics.emailIdentity
 }
 
 func analyticsVisitorReference(obj map[string]any) string {
@@ -159,11 +143,7 @@ func analyticsVisitorReference(obj map[string]any) string {
 	return "[removed]"
 }
 
-func analyticsFileResult(tool string) bool {
-	return tool == "read_site_file" || tool == "hack_export_participants" ||
-		tool == "hack_export_teams" || tool == "hack_export_entries" ||
-		tool == "hack_export_scores" || tool == "hack_export_results"
-}
+func analyticsFileResult(tool string) bool { return declaredPolicy(tool).analytics.fileResult }
 
 func analyticsFile(value any, kind string, encoded bool) any {
 	text, ok := value.(string)
@@ -293,7 +273,7 @@ func dropAnalyticsField(tool, key string, field any, obj map[string]any, depth i
 	}
 	name := analyticsFieldName(key)
 	switch {
-	case tool == "visitor_read_site" && name == "pagetext":
+	case declaredPolicy(tool).analytics.pageText && name == "pagetext":
 		return analyticsFile(field, "text/plain", false)
 	case analyticsSecretField(tool, key):
 		return "[removed]"
@@ -305,11 +285,11 @@ func dropAnalyticsField(tool, key string, field any, obj map[string]any, depth i
 	// organiser's read of the queue -- also drop answers and display_name
 	// from the analytics copy. The tool result the organiser's own model
 	// sees is untouched; this is the telemetry copy only.
-	case (tool == "hack_apply_to_event" || tool == "hack_get_applications") && (name == "answers" || name == "displayname"):
+	case declaredPolicy(tool).analytics.applicationAnswers && (name == "answers" || name == "displayname"):
 		return "[removed]"
 	case analyticsEmailField(tool, key):
 		return analyticsVisitorReference(obj)
-	case (name == "files" && (tool == "create_site" || tool == "update_site" || tool == "hack_publish_event_website")) || name == "filesbase64":
+	case (name == "files" && declaredPolicy(tool).analytics.fileArguments) || name == "filesbase64":
 		if text, ok := field.(string); ok {
 			var parsed any
 			if json.Unmarshal([]byte(text), &parsed) == nil {
@@ -323,7 +303,7 @@ func dropAnalyticsField(tool, key string, field any, obj map[string]any, depth i
 			return files
 		}
 		return analyticsFile(field, "", name == "filesbase64")
-	case name == "edits" && tool == "update_site":
+	case name == "edits" && declaredPolicy(tool).analytics.edits:
 		return analyticsEdits(field, depth)
 	case strings.HasSuffix(strings.ToLower(key), "_base64") || name == "base64":
 		kind := analyticsFileType(obj)
@@ -331,11 +311,11 @@ func dropAnalyticsField(tool, key string, field any, obj map[string]any, depth i
 			kind = "application/gzip"
 		}
 		return analyticsFile(field, kind, true)
-	case (tool == "update_site" && (name == "find" || name == "replace")) ||
+	case (declaredPolicy(tool).analytics.edits && (name == "find" || name == "replace")) ||
 		(analyticsFileResult(tool) && (name == "content" || name == "csv")) ||
-		(tool == "storage_put_file" && name == "data"):
+		(declaredPolicy(tool).analytics.fileData && name == "data"):
 		file := analyticsFile(field, analyticsFileType(obj), false)
-		if tool == "read_site_file" && name == "content" {
+		if declaredPolicy(tool).analytics.fileContentSize && name == "content" {
 			if size, ok := obj["size"].(float64); ok {
 				file.(map[string]any)["bytes"] = size
 			}
@@ -548,7 +528,7 @@ func analyticsSecretValues(tool string, value any) []string {
 			}
 		}
 	}
-	if tool == "run_tool" {
+	if declaredPolicy(tool).unwrap {
 		if args, ok := value.(map[string]any); ok {
 			if name, ok := args["name"].(string); ok {
 				tool = name
@@ -589,4 +569,13 @@ func redactAnalyticsSecrets(value any, secrets []string) any {
 	default:
 		return value
 	}
+}
+
+// analyticsPolicy describes how this declaration's telemetry copy is shaped.
+// Argument-name redaction remains common to every tool.
+type analyticsPolicy struct {
+	redactAll, secretText, secretKey, secretHow, secretURL    bool
+	structuredText, emailChanges, emailIdentity, contactEmail bool
+	fileResult, pageText, applicationAnswers, fileArguments   bool
+	edits, fileData, fileContentSize                          bool
 }

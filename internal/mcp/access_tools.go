@@ -42,7 +42,7 @@ func siteAccessOutput(tool string, res upstreamResult) (output, error) {
 	}
 	viewers := make([]any, 0, len(a.Viewers))
 	emails := make([]string, 0, len(a.Viewers))
-	if tool == "list_site_viewers" {
+	if declaredPolicy(tool).accessResult == "list" {
 		for _, v := range a.Viewers {
 			viewers = append(viewers, map[string]any{"email": v.Email, "added_at": v.AddedAt})
 			emails = append(emails, v.Email)
@@ -63,7 +63,7 @@ func siteAccessOutput(tool string, res upstreamResult) (output, error) {
 	}
 	var text string
 	switch {
-	case tool == "grant_site_viewer":
+	case declaredPolicy(tool).accessResult == "grant":
 		text = a.Site + ": named viewers updated."
 		if len(a.Added) > 0 {
 			text += " Added: " + strings.Join(a.Added, ", ") + "."
@@ -71,9 +71,9 @@ func siteAccessOutput(tool string, res upstreamResult) (output, error) {
 		if len(a.AlreadyListed) > 0 {
 			text += " Already listed: " + strings.Join(a.AlreadyListed, ", ") + "."
 		}
-	case tool == "revoke_site_viewer":
+	case declaredPolicy(tool).accessResult == "revoke":
 		text = a.Site + ": removed " + a.Removed + "."
-	case tool == "set_site_access":
+	case declaredPolicy(tool).accessResult == "set":
 		text = a.Site + ": access set to " + a.Access + "."
 	case a.Access == "specific" && len(emails) == 0:
 		text = a.Site + " is open only to its owner: no named viewers yet."
@@ -118,8 +118,10 @@ func accessTools() []Tool {
 	path := func(name string) string { return "/v1/sites/" + url.PathEscape(name) }
 	return []Tool{
 		{
-			Name:  "set_site_access",
-			Title: "Choose who can open a site",
+			policy:       toolPolicy{accessResult: "set", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, hackSiteExcluded: true},
+			OutputSchema: siteAccessSchema("note"),
+			Name:         "set_site_access",
+			Title:        "Choose who can open a site",
 			Description: "Set who can open a whole site. access `specific`: only the owner and the named viewers (grant_site_viewer adds them, and also turns this on); everyone else sees a sign-in page (\"This site is private\"), and a signed-in person who is not named sees \"You do not have access\". access `anyone`: open to anyone with the address again (the named viewers are kept for next time). " +
 				accessToolsWhen + " list_site_viewers shows the full list. ASK THE PERSON FIRST, naming the site and what changes. The owner's key and this connector keep working either way.",
 			InputSchema: object(map[string]any{
@@ -142,11 +144,13 @@ func accessTools() []Tool {
 			},
 		},
 		{
-			Name:        "list_site_viewers",
-			Title:       "Who can open a site",
-			Description: "Show who can open a site: its access (anyone or specific) and its named viewers. " + accessToolsWhen,
-			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
-			Annotations: readOnly(),
+			policy:       toolPolicy{accessResult: "list", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, hackSiteExcluded: true},
+			OutputSchema: siteAccessSchema(),
+			Name:         "list_site_viewers",
+			Title:        "Who can open a site",
+			Description:  "Show who can open a site: its access (anyone or specific) and its named viewers. " + accessToolsWhen,
+			InputSchema:  object(map[string]any{"site": str(siteDesc)}, "site"),
+			Annotations:  readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
 				name, err := siteArg(args)
 				if err != nil {
@@ -156,8 +160,10 @@ func accessTools() []Tool {
 			},
 		},
 		{
-			Name:  "grant_site_viewer",
-			Title: "Let named people open a site",
+			policy:       toolPolicy{accessResult: "grant", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, hackSiteExcluded: true},
+			OutputSchema: siteAccessSchema("added", "already_listed", "note"),
+			Name:         "grant_site_viewer",
+			Title:        "Let named people open a site",
 			Description: "Add people, by the email they will sign in with, to a site's named viewers, and set its access to `specific`: from then on only they and the owner can open the site, after signing in on it with that email (an emailed code, or Google for a Google address). One call does it: \"make my family page only visible to mom@example.com and dad@example.com\" is grant_site_viewer with both emails. " +
 				accessToolsWhen + " list_site_viewers shows the full list. ASK THE PERSON FIRST and use exactly the emails they gave; never guess an address. Tell them to send the people the site's address and to sign in with the email named here.",
 			InputSchema: object(map[string]any{
@@ -186,9 +192,11 @@ func accessTools() []Tool {
 			},
 		},
 		{
-			Name:        "revoke_site_viewer",
-			Title:       "Stop a named person opening a site",
-			Description: "Remove one person, by email, from a site's named viewers: that person can no longer open the site, and their next page view shows \"You do not have access\" instead of the site. Access does not change: removing the last viewer leaves the site open only to its owner until set_site_access sets it to anyone. Ask the person first.",
+			policy:       toolPolicy{accessResult: "revoke", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, hackSiteExcluded: true},
+			OutputSchema: siteAccessSchema("removed", "note"),
+			Name:         "revoke_site_viewer",
+			Title:        "Stop a named person opening a site",
+			Description:  "Remove one person, by email, from a site's named viewers: that person can no longer open the site, and their next page view shows \"You do not have access\" instead of the site. Access does not change: removing the last viewer leaves the site open only to its owner until set_site_access sets it to anyone. Ask the person first.",
 			InputSchema: object(map[string]any{
 				"site":  str(siteDesc),
 				"email": str("The email to remove, as list_site_viewers shows it."),
@@ -215,8 +223,9 @@ func accessTools() []Tool {
 // into the email each person signed in with, for the owner.
 func storageVisitorEmailsTool() Tool {
 	return Tool{
-		Name:  "storage_visitor_emails",
-		Title: "Who sent these records",
+		policy: toolPolicy{analytics: analyticsPolicy{structuredText: true, emailIdentity: true}, hackSiteExcluded: true},
+		Name:   "storage_visitor_emails",
+		Title:  "Who sent these records",
 		Description: "Turn visitor_id values from this site's saved data into the email each person signed in with, to answer \"who placed order 12?\" or \"who sent this?\". A visitor_id is on every row of a read-own SQLite table (storage_sql_query shows it) and, for you as the owner, on KV keys and stored files a visitor wrote (storage_get_kv, storage_list_kv_keys, storage_list_file_objects). " +
 			"Use only when the owner asks who sent particular entries; pass the visitor_id values from those rows. These are site-scoped references, and legacy raw IDs are also accepted. Only people who signed in on this site resolve. The emails are personal data: show them to the person, never put them in a page or in saved data.",
 		InputSchema: object(map[string]any{

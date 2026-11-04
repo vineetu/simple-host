@@ -103,22 +103,6 @@ func hackAppOnlySharedAllowed(s *Server, c Caller, uiCapable bool) bool {
 	return hackAppOnlyJudgeAllowed(s, c, uiCapable) || hackAppOnlyOrganiserAllowed(s, c, uiCapable)
 }
 
-// hackAppOnlyJudgeNames, hackAppOnlyOrganiserNames and hackAppOnlyShared
-// Names are the three gate groups above, by tool name -- the one source
-// of truth both the twin registrations below (call-time) and server.go's
-// hackShowToolsAllowed (listing-time) read from, so the two can never
-// drift on which twin belongs to which app.
-var (
-	hackAppOnlyJudgeNames     = []string{"hack_app_get_judge_queue", "hack_app_get_judge_scores", "hack_app_get_my_conflicts"}
-	hackAppOnlyOrganiserNames = []string{
-		"hack_app_get_people", "hack_app_get_applications", "hack_app_get_registration",
-		"hack_app_get_judging_settings", "hack_app_get_conflicts", "hack_app_get_teams",
-		"hack_app_get_assignments", "hack_app_get_judging_dashboard", "hack_app_set_event_stage",
-		"hack_app_regenerate_code", "hack_app_create_organiser_invite",
-	}
-	hackAppOnlySharedNames = []string{"hack_app_get_rubric"}
-)
-
 // hackAppOnlyTwin builds an app-only companion of base: same name's REST
 // call, same auth, same InputSchema (the view sends it identical
 // arguments), but a model-safe content shape. summarize turns the
@@ -129,6 +113,7 @@ var (
 func hackAppOnlyTwin(base Tool, name, title string, outSchema map[string]any, allowed hackAppOnlyAllowed, summarize func(output) (string, map[string]any)) Tool {
 	twin := base
 	twin.Name = name
+	twin.policy = toolPolicy{showAllowed: allowed}
 	twin.Title = title
 	twin.Description = "App-only companion of " + base.Name + " (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use " + base.Name + " instead for an explicit chat request."
 	twin.Meta = hackAppOnlyVisibility()
@@ -366,7 +351,7 @@ func pluralSentence(verb string, n int, singular, plural string) string {
 // (model-minimised) run().
 func hackAppOnlyJudgingDashboardTool() Tool {
 	return Tool{
-		Name:  "hack_app_get_judging_dashboard",
+		policy: toolPolicy{showAllowed: hackAppOnlyOrganiserAllowed}, Name: "hack_app_get_judging_dashboard",
 		Title: "App: load judging progress",
 		Description: "App-only companion of hack_get_judging_dashboard (SIM-344): the Judging view calls this on its own, every time it opens. " +
 			"Returns a fixed summary and counts; the real coverage data (team and judge names, former judges) goes to the view only, never to the model. Use hack_get_judging_dashboard instead for an explicit chat request.",

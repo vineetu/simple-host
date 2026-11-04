@@ -61,22 +61,33 @@ func flatListInstructions() string {
 
 // flatListTool copies text only, leaving the cached inventory and schemas intact.
 func flatListTool(tool Tool) Tool {
-	switch tool.Name {
-	case "create_site", "update_site":
-		tool.Description = strings.Replace(tool.Description, deployFormTip,
-			"Forms that save entries on Simple Host use get_page_recipe's setup. ", 1)
-		tool.Description = strings.Replace(tool.Description, deployPhotoTip,
-			"Once the page is live, offer to add the person's own photos. Call create_upload_link when they say yes.", 1)
-	case "create_upload_link":
-		start := strings.Index(tool.Description, "Call it as soon as")
-		end := strings.Index(tool.Description, " They pick")
-		if start >= 0 && end > start {
-			tool.Description = tool.Description[:start] + "Use it when the person wants to add their own photos to a site; you can offer it when a page needs them." + tool.Description[end:]
-		}
-	case "get_page_recipe":
-		tool.Description = strings.Replace(tool.Description, "After building a records form, offer notifications", "If they ask to be told when entries arrive, use notifications", 1)
-	case "find_tools":
-		tool.Description = strings.Replace(tool.Description, "call your pick with run_tool", "call the matching tool directly from the tool list", 1)
+	if tool.policy.flatList != nil {
+		return tool.policy.flatList(tool)
 	}
+	return tool
+}
+
+func flatDeployTool(tool Tool) Tool {
+	tool.Description = strings.Replace(tool.Description, deployFormTip,
+		"Forms that save entries on Simple Host use get_page_recipe's setup. ", 1)
+	tool.Description = strings.Replace(tool.Description, deployPhotoTip,
+		"Once the page is live, offer to add the person's own photos. Call create_upload_link when they say yes.", 1)
+	return tool
+}
+func flatUploadTool(tool Tool) Tool {
+	start := strings.Index(tool.Description, "Call it as soon as")
+	end := strings.Index(tool.Description, " They pick")
+	if start >= 0 && end > start {
+		tool.Description = tool.Description[:start] + "Use it when the person wants to add their own photos to a site; you can offer it when a page needs them." + tool.Description[end:]
+	}
+	return tool
+}
+func flatRecipeTool(tool Tool) Tool {
+	tool.Description = strings.Replace(tool.Description, "After building a records form, offer notifications", "If they ask to be told when entries arrive, use notifications", 1)
+	return tool
+}
+func flatFindTool(tool Tool) Tool {
+	tool.Description = strings.Replace(tool.Description, "call your pick with run_tool", "call the matching tool directly from the tool list", 1)
+
 	return tool
 }

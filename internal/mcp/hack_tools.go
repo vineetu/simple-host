@@ -72,11 +72,3 @@ func upstreamMessage(u upstreamResult) (string, string) {
 	}
 	return msg, payload.Code
 }
-
-func hackOutputSchemas() map[string]map[string]any {
-	schemas := hackEventOutputSchemas()
-	for name, schema := range hackEntryOutputSchemas() {
-		schemas[name] = schema
-	}
-	return schemas
-}

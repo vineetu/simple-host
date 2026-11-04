@@ -42,6 +42,8 @@ func notificationLimitsSchema() map[string]any {
 func notificationTools() []Tool {
 	return []Tool{
 		{
+			policy: toolPolicy{personalCredential: true, hackSiteExcluded: true,
+				notDeployOnly: true},
 			Name: "list_notifications", Title: "List notifications",
 			Description: "List webhook subscriptions and their delivery status for one site, or every site on the account. Includes subscriptions created by connected apps.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}),
@@ -95,6 +97,8 @@ func notificationTools() []Tool {
 			},
 		},
 		{
+			policy: toolPolicy{personalCredential: true, notificationID: true, hackSiteExcluded: true,
+				notDeployOnly: true},
 			Name: "remove_notification", Title: "Remove notification",
 			Description:  "Remove a webhook subscription from a site and stop its deliveries. Use the ID from list_notifications.",
 			InputSchema:  object(map[string]any{"site": str(siteDesc), "id": str("The subscription ID from list_notifications.")}, "site", "id"),
@@ -121,7 +125,7 @@ func hackNotificationTools() []Tool {
 	for i := range tools {
 		props := map[string]any{"site": str("Selected team site; omit when using event."), "event": str("Event slug for the organiser website, as in hack_event_storage tools.")}
 		required := []string{}
-		if tools[i].Name == "remove_notification" {
+		if tools[i].policy.notificationID {
 			props["id"] = str("Subscription ID.")
 			required = []string{"id"}
 		}

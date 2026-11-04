@@ -123,6 +123,9 @@ func hackPageRecipeTool() Tool {
 
 func pageRecipeTool() Tool {
 	return Tool{
+		policy: toolPolicy{flatList: flatRecipeTool, personalExcluded: true,
+			noSpamCheck: noSpamCheckRecipeTool,
+			hackSite:    hackSiteGetPageRecipe},
 		Name:  "get_page_recipe",
 		Title: "Page code for bookings, forms, menus, client portals, and visitor uploads",
 		Description: "Return the exact owner setup and a complete, working page for a common job, so you do not have to guess the API. Pick the topic from what the person asked for: " +

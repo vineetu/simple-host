@@ -53,8 +53,7 @@ import (
 // serving code, only the asset files themselves.
 var hackAppScreens = []appScreen{
 	{
-		ID: "hack-judge", Flag: "MCP_APP_HACK_JUDGE", URI: "ui://simple-hack/judge",
-		Tools: []string{"hack_show_judge"}, Label: "Judge", HTML: "hack-judge.html",
+		ID: "hack-judge", Flag: "MCP_APP_HACK_JUDGE", URI: "ui://simple-hack/judge", Label: "Judge", HTML: "hack-judge.html",
 		CSP: map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
 	},
 	{
@@ -62,8 +61,7 @@ var hackAppScreens = []appScreen{
 		// buttons and organiser-people.js's co-organiser invite Copy
 		// button all call navigator.clipboard.writeText directly (not
 		// ui.copyButton), same as passcode/site-preview's own Copy.
-		ID: "hack-organiser", Flag: "MCP_APP_HACK_ORGANISER", URI: "ui://simple-hack/organiser",
-		Tools: []string{"hack_show_organiser"}, Label: "Organiser", HTML: "hack-organiser.html",
+		ID: "hack-organiser", Flag: "MCP_APP_HACK_ORGANISER", URI: "ui://simple-hack/organiser", Label: "Organiser", HTML: "hack-organiser.html",
 		CSP:         map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
 		Permissions: map[string]any{"clipboardWrite": map[string]any{}},
 	},
@@ -255,20 +253,11 @@ func (s *Server) uiDeclaredForListing(caller Caller, params json.RawMessage, mod
 // the matching call-time half, so a tool hidden from listing is also
 // refused if called by name anyway.
 func (s *Server) hackShowToolsAllowed(c Caller, uiCapable bool) map[string]bool {
-	judgeAllowed := s.hackShowJudgeAppAllowed(c, uiCapable)
-	organiserAllowed := s.hackShowOrganiserAppAllowed(c, uiCapable)
-	allowed := map[string]bool{
-		"hack_show_judge":     judgeAllowed,
-		"hack_show_organiser": organiserAllowed,
-	}
-	for _, name := range hackAppOnlyJudgeNames {
-		allowed[name] = judgeAllowed
-	}
-	for _, name := range hackAppOnlyOrganiserNames {
-		allowed[name] = organiserAllowed
-	}
-	for _, name := range hackAppOnlySharedNames {
-		allowed[name] = judgeAllowed || organiserAllowed
+	allowed := map[string]bool{}
+	for _, entry := range s.inventory() {
+		if entry.policy.showAllowed != nil {
+			allowed[entry.tool.Name] = entry.policy.showAllowed(s, c, uiCapable)
+		}
 	}
 	return allowed
 }
@@ -291,8 +280,9 @@ func filterHackShowTools(list []Tool, allowed map[string]bool) []Tool {
 
 func hackShowJudgeTool() Tool {
 	return Tool{
-		Name:  "hack_show_judge",
-		Title: "Show the judge view",
+		policy: toolPolicy{screen: "hack-judge", showAllowed: hackAppOnlyJudgeAllowed},
+		Name:   "hack_show_judge",
+		Title:  "Show the judge view",
 		Description: "Open the judge app view in chat: invite (accept a judge invite, needs code), queue (My teams), score (one entry's scoring, optional team_id) or rubric. " +
 			"Only offered to a connection whose app can render it; every judging action also has a plain tool (hack_get_judge_queue, hack_score_team, hack_declare_my_conflict, hack_get_rubric, hack_preview_judge, hack_join_judge) that works the same everywhere.",
 		InputSchema: object(map[string]any{

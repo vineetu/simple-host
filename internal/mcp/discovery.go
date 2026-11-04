@@ -80,6 +80,8 @@ var actionAliases = map[string][]string{
 func discoveryTools() []Tool {
 	return []Tool{
 		{
+			policy: toolPolicy{flatList: flatFindTool, discovery: true, unlisted: true,
+				notSearchable: true},
 			Name: "find_tools", Title: "Find more Simple Host tools",
 			Description: "Find tools for a job: own domain or short free address, passcode, rollback, rename, delete and restore, visitor numbers, adding or editing your own entry on a shared site, home page, export, notifications, moving a WordPress site, or more storage. Returns matching tools and arguments; call your pick with run_tool.",
 			InputSchema: object(map[string]any{
@@ -113,6 +115,8 @@ func discoveryTools() []Tool {
 			},
 		},
 		{
+			policy: toolPolicy{unwrap: true, discovery: true, unlisted: true,
+				notSearchable: true},
 			Name: "run_tool", Title: "Run a Simple Host tool",
 			Description: "Run a Simple Host tool by name with its arguments, from find_tools or a skill, recipe, or result naming a tool outside your list. The same checks apply; ask the person first where that tool's description says so.",
 			InputSchema: object(map[string]any{
@@ -190,7 +194,7 @@ func newToolSearch(tools []Tool) *toolSearch {
 		listed[name] = true
 	}
 	for _, tool := range tools {
-		if toolPolicies[tool.Name].notSearchable {
+		if tool.policy.notSearchable {
 			continue
 		}
 		entry := searchableTool{tool: tool, weights: map[string]float64{}, listed: listed[tool.Name]}
@@ -335,7 +339,7 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 	copy.flat = flat
 	copy.tools = append([]searchableTool(nil), search.tools...)
 	for i := range copy.tools {
-		if screen && toolPolicies[copy.tools[i].tool.Name].listWithPasscode {
+		if screen && copy.tools[i].tool.policy.listWithPasscode {
 			copy.tools[i].listed = true
 		}
 		if flat {

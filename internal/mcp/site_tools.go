@@ -21,6 +21,13 @@ import (
 func siteTools(limits Limits) []Tool {
 	return []Tool{
 		{
+			OutputSchema: outObject(map[string]any{
+				"sites": outArray("Sites returned by the requested filters and page.", siteSummaryWith(map[string]any{
+					"offline": outBool("Present (true) only when the owner has taken the site offline: every address shows \"This site is offline\" and visitor saves are refused."),
+				})),
+				"count": outInteger("Number of sites returned."),
+			}, "sites", "count"),
+			policy:      toolPolicy{listWithoutTeam: true, screen: "my-sites"},
 			Name:        "list_sites",
 			Title:       "List my sites",
 			Description: "List this account's own sites (admins: pass all_accounts for every account's), newest edited first. Call this before changing a site to get its exact name. Optionally filter with query, dates, order, and limit/offset for paging.",
@@ -101,8 +108,15 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			Name:  "get_site",
-			Title: "Get one site and its files",
+			OutputSchema: siteSummaryWith(map[string]any{
+				"files": outArray("Files in the live version. Absent when nothing is published yet.", outObject(map[string]any{
+					"path": outString("Path from the site root, e.g. `css/style.css`."),
+					"size": outInteger("Size in bytes."),
+				}, "path", "size")),
+			}),
+			policy: toolPolicy{screen: "site-preview"},
+			Name:   "get_site",
+			Title:  "Get one site and its files",
 			Description: "Show one site: its live address, active version, custom domain, and the list of files in the live version with their sizes. " +
 				"Call this before editing an existing site, then read_site_file for each file you will change. It names only the live version; list_versions shows every kept version.",
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
@@ -143,8 +157,26 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			Name:  "read_site_file",
-			Title: "Read files from a site",
+			OutputSchema: outObject(map[string]any{
+				"site": outString(outSiteName),
+				"files": map[string]any{"type": "array", "description": "With paths: each file, in the order asked.", "items": outObject(map[string]any{
+					"path":      outString("The file's path, as asked for."),
+					"size":      outInteger("The file's full size in bytes."),
+					"content":   outString("The file's text. Present for text files only."),
+					"truncated": outBool("True when content holds only the first 200 KB."),
+					"binary":    outBool("True for a binary file, whose content is not returned."),
+					"error":     outString("Why this file could not be read. Present only then."),
+				}, "path")},
+				"path":      outString("The file's path, as asked for."),
+				"version":   outInteger("The version the file was read from."),
+				"size":      outInteger("The file's full size in bytes."),
+				"content":   outString("The file's text. Present for text files only."),
+				"truncated": outBool("True when content holds only the first 200 KB of a larger file. Present only then."),
+				"binary":    outBool("True for a binary file (image, font, audio, video), whose content is not returned. Present only then."),
+			}, "site", "version"),
+			policy: toolPolicy{analytics: analyticsPolicy{fileResult: true, fileContentSize: true}},
+			Name:   "read_site_file",
+			Title:  "Read files from a site",
 			Description: "Return the contents of one file of a site (path), or of up to 10 at once (paths), from the live version unless `version` is given. Read only the files you will change; for a small change you can skip reading and use update_site's edits. " +
 				"Text files come back as text; binary files (images, fonts) are only described. Use update_site with keep_other_files: true to keep files you are not changing.",
 			InputSchema: object(map[string]any{
@@ -157,6 +189,17 @@ func siteTools(limits Limits) []Tool {
 			run:         readSiteFiles,
 		},
 		{
+			policy: toolPolicy{flatList: flatDeployTool, analytics: analyticsPolicy{fileArguments: true}, hackSite: hackSiteCreateSite},
+			OutputSchema: func() map[string]any {
+				schema := siteSummaryWith(map[string]any{
+					"file_count":    outInteger("How many files were published."),
+					"page_warnings": pageWarningsSchema,
+				}, "file_count")
+				props := schema["properties"].(map[string]any)
+				delete(props, "custom_domain")
+				delete(props, "domain_status")
+				return schema
+			}(),
 			Name:  "create_site",
 			Title: "Publish a new site",
 			Description: "Publish a NEW website from files given inline, at a public address. Fails if this account already has a site of that name, so it never overwrites anything; to change an existing site use update_site. " +
@@ -173,6 +216,13 @@ func siteTools(limits Limits) []Tool {
 			run:         func(c *call, args map[string]any) (output, error) { return deploySite(c, args, "create") },
 		},
 		{
+			policy: toolPolicy{flatList: flatDeployTool, analytics: analyticsPolicy{secretText: true, fileArguments: true, edits: true}, hackSite: hackSiteUpdateSite},
+			OutputSchema: siteSummaryWith(map[string]any{
+				"file_count":          outInteger("How many files the new version has."),
+				"page_warnings":       pageWarningsSchema,
+				"unpublished_version": outInteger("Only with publish: false: the version stored without going live (active_version is still the live one)."),
+				"preview_url":         outString("Only with publish: false: a link showing the stored version that works for anyone who has it, for " + span(limits.PreviewLinkTTL) + ". Give it to the person; do not post it publicly."),
+			}, "file_count"),
 			Name:  "update_site",
 			Title: "Publish a new version of a site",
 			Description: "Replace the live files of an EXISTING site with a new version, at its public address. By default the files you send are the complete new version. To change one or two pages of a big site, send just those files with keep_other_files: true. remove_files lists paths to drop, only when keeping other files. " +
@@ -200,7 +250,9 @@ func siteTools(limits Limits) []Tool {
 			run:         func(c *call, args map[string]any) (output, error) { return deploySite(c, args, "replace") },
 		},
 		{
-			Name: "set_keep_versions", Title: "Set versions kept",
+			policy:       toolPolicy{hackSiteExcluded: true},
+			OutputSchema: outObject(map[string]any{"name": outString("Site name."), "keep_versions": outInteger("Stored setting."), "effective_keep_versions": outInteger("Applied count."), "active_version": outInteger("Live version."), "removed_versions": outArray("Removed versions.", outInteger("Version number."))}, "name", "keep_versions", "effective_keep_versions", "active_version", "removed_versions"),
+			Name:         "set_keep_versions", Title: "Set versions kept",
 			Description: "Set a site's version count; older versions are removed for good. Only accounts enabled by the operator may change it. Other accounts get: Simple Host keeps your 4 latest versions. 0 uses the account default. The live version always stays.",
 			InputSchema: object(map[string]any{"site": str(siteDesc), "keep_versions": map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "How many versions to keep (the live one included); 0 goes back to the account default."}}, "site", "keep_versions"),
 			Annotations: writes(true, false, false),
@@ -220,6 +272,15 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
+			OutputSchema: outObject(map[string]any{
+				"site": outString(outSiteName),
+				"versions": outArray("Kept versions, newest first.", outObject(map[string]any{
+					"version":      outInteger("Version number, for rollback_site."),
+					"live":         outBool("Whether visitors see this version now."),
+					"published_at": outString("When the version was published (RFC 3339)."),
+					"not_yet_live": outBool("Present (true) for a version stored with update_site publish: false that has never been live; preview_version shows it, rollback_site makes it live."),
+				}, "version", "live", "published_at")),
+			}, "site", "versions"),
 			Name:        "list_versions",
 			Title:       "List a site's versions",
 			Description: "List the versions kept for a site, newest first, with which one is live. Call this before rollback_site. Each version in the text may name its author (whoever the deployer stated); a version marked not_yet_live can be made live with rollback_site, or removed with discard_version where that tool is offered. `pending: true` lists only those not-yet-live versions.",
@@ -289,9 +350,10 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			Name:        "rollback_site",
-			Title:       "Make an earlier version live",
-			Description: "Make one of a site's kept versions live (visitors see it immediately): an earlier one, or one stored with update_site `publish: false` after the person has looked at its preview. Nothing is deleted; the current version stays available and can be restored the same way. Confirm the version with the person first.",
+			OutputSchema: siteSummarySchema(),
+			Name:         "rollback_site",
+			Title:        "Make an earlier version live",
+			Description:  "Make one of a site's kept versions live (visitors see it immediately): an earlier one, or one stored with update_site `publish: false` after the person has looked at its preview. Nothing is deleted; the current version stays available and can be restored the same way. Confirm the version with the person first.",
 			InputSchema: object(map[string]any{
 				"site":    str(siteDesc),
 				"version": map[string]any{"type": "integer", "description": "The version number to make live, from list_versions."},
@@ -320,8 +382,16 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			Name:  "preview_version",
-			Title: "Preview a version before it is live",
+			OutputSchema: outObject(map[string]any{
+				"site":       outString(outSiteName),
+				"version":    outInteger("The version the link shows."),
+				"live":       outBool("Whether this version is the one visitors see now."),
+				"url":        outString("The preview link: works for anyone who has it, for " + span(limits.PreviewLinkTTL) + ", that version only. Give it to the person to open; do not post it publicly."),
+				"expires_at": outString("When the link stops working (RFC 3339)."),
+			}, "site", "version", "live", "url", "expires_at"),
+			policy: toolPolicy{analytics: analyticsPolicy{secretText: true, secretURL: true}},
+			Name:   "preview_version",
+			Title:  "Preview a version before it is live",
 			Description: "Make a preview link for one of a site's kept versions (from list_versions): the person opens it in their browser to see that version exactly as visitors would, before making it live with rollback_site. " +
 				"The link works for anyone who has it, for " + span(limits.PreviewLinkTTL) + " and only for that version; pages opened from it cannot save anything, and search engines do not index it. Give it to the person to click; do not post it anywhere public.",
 			InputSchema: object(map[string]any{
@@ -361,6 +431,12 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
+			policy: toolPolicy{hackSiteExcluded: true},
+			OutputSchema: outObject(map[string]any{
+				"site":              outString(outSiteName),
+				"discarded_version": outInteger("The never-live version that was removed for good."),
+				"active_version":    outInteger("The version visitors see, unchanged."),
+			}, "site", "discarded_version", "active_version"),
 			Name:  "discard_version",
 			Title: "Discard a version that was never live",
 			Description: "DESTRUCTIVE: removes, for good, a version stored with update_site `publish: false` that has never been live. The live version and versions that have been live cannot be discarded (retention prunes those). " +
@@ -401,6 +477,11 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
+			policy: toolPolicy{hackSite: hackSiteDeleteSite},
+			OutputSchema: outObject(map[string]any{
+				"deleted":         outString("Name of the site that was deleted."),
+				"restorable_days": outInteger("How many days restore_site can bring it back."),
+			}, "deleted", "restorable_days"),
 			Name:  "delete_site",
 			Title: "Delete a site",
 			Description: "DESTRUCTIVE: takes the site offline at once, with every version and all of its saved data (storage resources included). It stays in Recently deleted for " + span(limits.DeletedRetention) + ", where restore_site brings it back exactly as it was; after that it is gone for good. Its name stays taken until then. " +
@@ -431,6 +512,14 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
+			OutputSchema: outObject(map[string]any{
+				"sites": outArray("Sites in Recently deleted, most recently deleted first.", outObject(map[string]any{
+					"name":       outString(outSiteName),
+					"deleted_at": outString("When it was deleted (RFC 3339)."),
+					"purge_at":   outString("When it is removed for good (RFC 3339); restore_site works until then."),
+				}, "name", "deleted_at", "purge_at")),
+				"count": outInteger("How many sites are in Recently deleted."),
+			}, "sites", "count"),
 			Name:        "list_deleted_sites",
 			Title:       "List recently deleted sites",
 			Description: "List the account's sites in Recently deleted: each was deleted within the last " + span(limits.DeletedRetention) + " and can be brought back with restore_site until its purge_at time, when it is removed for good.",
@@ -463,10 +552,12 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			Name:        "restore_site",
-			Title:       "Restore a deleted site",
-			Description: "Bring back a site from Recently deleted (see list_deleted_sites): same name, same address, every version, saved data and connected address, live again at once.",
-			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
+			policy:       toolPolicy{hackSite: hackSiteRestoreSite},
+			OutputSchema: withDescription(siteSummarySchema(), "The restored site, live again at its address."),
+			Name:         "restore_site",
+			Title:        "Restore a deleted site",
+			Description:  "Bring back a site from Recently deleted (see list_deleted_sites): same name, same address, every version, saved data and connected address, live again at once.",
+			InputSchema:  object(map[string]any{"site": str(siteDesc)}, "site"),
 			// Serves the site again at its public address; nothing is lost.
 			Annotations: writes(false, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
@@ -484,9 +575,10 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			Name:        "rename_site",
-			Title:       "Rename a site",
-			Description: "Give a site a new name, which changes its address. Links to the old address keep working: they redirect to the new one until a new site is created with the old name. A connected custom domain stays attached. Not for \"a shorter link\" or \"an address without my username\": that is connect_domain with a free <name>.simple-host.app.",
+			OutputSchema: withDescription(siteSummarySchema(), "The site under its new name, at its new address."),
+			Name:         "rename_site",
+			Title:        "Rename a site",
+			Description:  "Give a site a new name, which changes its address. Links to the old address keep working: they redirect to the new one until a new site is created with the old name. A connected custom domain stays attached. Not for \"a shorter link\" or \"an address without my username\": that is connect_domain with a free <name>.simple-host.app.",
 			InputSchema: object(map[string]any{
 				"site":     str(siteDesc),
 				"new_name": str("The new site name: lowercase letters, numbers and hyphens."),
@@ -514,11 +606,13 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
-			Name:        "set_home_page",
-			Title:       "Choose my home page",
-			Description: "Make one of the person's sites their home page, served at their personal address https://<handle>.simple-host.app/ instead of the showcase (the list of their sites); site null brings the showcase back. The site's own address keeps working too. If that site goes offline or is deleted, the showcase shows again.",
-			InputSchema: object(map[string]any{"site": map[string]any{"type": []string{"string", "null"}, "description": "Your site's name, or null for the showcase."}}, "site"),
-			Annotations: writes(true, true, true),
+			policy:       toolPolicy{hackSiteExcluded: true},
+			OutputSchema: outObject(map[string]any{"site": map[string]any{"type": []string{"string", "null"}}}, "site"),
+			Name:         "set_home_page",
+			Title:        "Choose my home page",
+			Description:  "Make one of the person's sites their home page, served at their personal address https://<handle>.simple-host.app/ instead of the showcase (the list of their sites); site null brings the showcase back. The site's own address keeps working too. If that site goes offline or is deleted, the showcase shows again.",
+			InputSchema:  object(map[string]any{"site": map[string]any{"type": []string{"string", "null"}, "description": "Your site's name, or null for the showcase."}}, "site"),
+			Annotations:  writes(true, true, true),
 			run: func(c *call, args map[string]any) (output, error) {
 				site, ok := args["site"]
 				if !ok {
@@ -540,6 +634,11 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
+			policy: toolPolicy{hackSite: hackSiteSetVisibility},
+			OutputSchema: outObject(map[string]any{
+				"site":       outString(outSiteName),
+				"visibility": outEnum("public: listed on the account's public page; unlisted: left off it, and out of search engines unless the site has its own domain or name (still public to anyone with the address).", "public", "unlisted"),
+			}, "site", "visibility"),
 			Name:  "set_visibility",
 			Title: "Show or hide a site on my public page",
 			Description: "Choose whether a site is listed on the account's public page (https://<handle>.simple-host.app/). An unlisted site is also kept out of search engines unless it has its own domain or claimed name (noindex on every address; its own robots.txt, if it ships one, is kept). " +
@@ -568,6 +667,12 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
+			policy: toolPolicy{hackSite: hackSiteSetSiteOffline},
+			OutputSchema: outObject(map[string]any{
+				"site":    outString(outSiteName),
+				"offline": outBool("Whether the site is offline now."),
+				"url":     outString("The site's address (showing \"This site is offline\" while it is offline)."),
+			}, "site", "offline", "url"),
 			Name:  "set_site_offline",
 			Title: "Take a site offline or back online",
 			Description: "Take a site offline (`offline: true`): every address of it shows a plain \"This site is offline\" page and visitors can no longer save anything (RSVPs, votes, sign-ups, private lists), read its saved data or lists, or sign in, for example when an event is over or a form must stop taking entries. " +
@@ -604,6 +709,10 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
+			OutputSchema: outObject(map[string]any{
+				"site": outString(outSiteName),
+				"keep": outBool("true: kept up for good, never flagged as idle; false: flagged (with an email first) after " + span(limits.IdleAfter) + " without visits or updates."),
+			}, "site", "keep"),
 			Name:  "keep_site",
 			Title: "Keep a site up for good",
 			Description: "Mark a site Keep (or clear the mark). Simple Host emails the owner about a site nobody has visited or updated for " + span(limits.IdleAfter) + " and moves it to Recently deleted " + span(limits.IdleGrace) + " later unless it is kept; a site marked Keep is never flagged. " +
@@ -640,6 +749,20 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
+			OutputSchema: outObject(map[string]any{
+				"site":       outString(outSiteName),
+				"range_days": outInteger("The window the totals cover, in days."),
+				"totals":     trafficSplitSchema("Traffic over the whole window. Visitors are unique across the window."),
+				"last_24h":   trafficSplitSchema("Traffic over the last 24 hours."),
+				"top_pages": outArray("The most viewed pages over the window, people only, most first.", outObject(map[string]any{
+					"path":  outString("The page's path on the site."),
+					"views": outInteger("Views by people."),
+				}, "path", "views")),
+				"top_referrers": outArray("Where visitors came from over the window: the referring domain only (never a full address), people only, most first.", outObject(map[string]any{
+					"domain": outString("The referring site's domain."),
+					"views":  outInteger("Views by people arriving from it."),
+				}, "domain", "views")),
+			}, "site", "range_days", "totals", "last_24h"),
 			Name:        "site_analytics",
 			Title:       "How many people visited",
 			Description: "Visits to a site over the last N days, split into people (not counting the owner's own visits), bots and monitoring, with the most viewed pages and the domains visitors came from (people only). When asked how many people visited, report the `person` numbers only.",
@@ -694,6 +817,12 @@ func siteTools(limits Limits) []Tool {
 			},
 		},
 		{
+			policy: toolPolicy{analytics: analyticsPolicy{secretText: true, secretURL: true}, hackSite: hackSiteExportSite},
+			OutputSchema: outObject(map[string]any{
+				"site":       outString(outSiteName),
+				"url":        outString("The download link: a .tar.gz with the site's files, state.json and collections.json. Give it to the person; it opens without signing in, so do not post it publicly."),
+				"expires_at": outString("When the link stops working (RFC 3339), " + span(limits.ExportLinkTTL) + " after it was made."),
+			}, "site", "url", "expires_at"),
 			Name:  "export_site",
 			Title: "Download a copy of a site",
 			Description: "Make a download link for a copy of one of the person's sites: a .tar.gz holding its live files and its saved data " +

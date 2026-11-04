@@ -26,23 +26,30 @@ func storageToolsFor(event bool) []Tool {
 		args                                     []string
 		body                                     string
 		annotation                               map[string]any
+		policy                                   toolPolicy
 	}
 	routes := []route{
-		{"storage_list_resources", "List storage resources", "List a site's saved-data resources (KV, SQLite, files) with each one's name, kind, preset, and access (who may read, add, edit, and delete), plus each SQLite table's own preset. preset legacy marks a resource saved before presets that keeps its old rules until you set a preset on it. Call it before reading or changing saved data, to get the exact resource name. It does not list a files resource's uploads: storage_list_file_objects does (through run_tool if it is not in your tool list).", "GET", "/resources", nil, "", readOnly()},
-		{"storage_get_usage", "Read site storage usage", "Show how much of a site's saved-data allowance is used: on Simple Host, KV and SQLite together (10,000,000 bytes) and files separately (10 MB); on Simple Hack, one 1,000,000-byte pool for all three. The site's own pages and images are counted elsewhere (list_sites).", "GET", "/usage", nil, "", readOnly()},
-		{"storage_set_resource", "Create a storage resource or set its preset", storageSetResourceDescription, "PUT", "/resources/{name}", []string{"name"}, "resource", writes(true, true, true)},
-		{"storage_delete_resource", "Delete storage resource", "Remove a resource and everything saved in it, for good. Ask the person to confirm this exact resource first.", "DELETE", "/resources/{name}", []string{"name"}, "", writes(true, true, true)},
-		{"storage_list_kv_keys", "List KV keys", "List the keys in a KV resource, optionally only those starting with a prefix.", "GET", "/kv/{name}/keys", []string{"name"}, "", readOnly()},
-		{"storage_get_kv", "Read KV value", "Read one key's JSON value from a KV resource. The answer is {key, value}.", "GET", "/kv/{name}/keys/{key}", []string{"name", "key"}, "", readOnly()},
-		{"storage_put_kv", "Set KV value", "Set one key in a KV resource to a JSON value, replacing what was there. It changes a page only when the page's code already reads that key (SH.storage.kv(name).get(key)); text written in the page itself is changed with update_site (edits), so read the page first. This is how the owner changes page info a page reads live (a menu, prices, opening hours, settings) without republishing the site. Ask before overwriting a value visitors wrote.", "PUT", "/kv/{name}/keys/{key}", []string{"name", "key"}, "value", writes(true, true, true)},
-		{"storage_delete_kv", "Delete KV value", "Delete one key and its value from a KV resource. Ask first.", "DELETE", "/kv/{name}/keys/{key}", []string{"name", "key"}, "", writes(true, true, true)},
-		{"storage_sql_query", "Query SQLite resource", "Read rows from a SQLite resource with a SELECT, as the owner: it sees every person's rows, whatever the preset. Read-only; put values in params with ? placeholders; on Simple Host, visitor_id values from results can be passed back as parameters. Use it to show the person their orders, entries, or messages.", "POST", "/sqlite/{name}/query", []string{"name"}, "sql", readOnly()},
-		{"storage_sql_execute", "Execute SQLite statement", "Change rows in a SQLite resource as the owner: INSERT, UPDATE, or DELETE with ? placeholders, for example setting an order's status; on Simple Host, visitor_id values from results can be passed back as parameters. Ask before changing or deleting what visitors sent. Repeating a successful statement can add duplicate rows or apply a change again, so query the affected records before retrying after an uncertain result.", "POST", "/sqlite/{name}/execute", []string{"name"}, "sql", writes(true, false, true)},
-		{"storage_sql_schema", "Change SQLite schema", "Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE TRIGGER, ALTER TABLE, one statement per call. Use IF NOT EXISTS for supported CREATE statements. Check the current schema before repeating ALTER TABLE. Use id INTEGER PRIMARY KEY and a created_at TEXT column (and updated_at TEXT where rows are edited); the server fills them. Do not declare visitor_id: on every table whose preset uses own or lets visitors add (inbox, wall, comments, records, personal, board) the server adds an indexed visitor_id column itself" + storageSchemaCommentsText + ". A foreign key with ON DELETE CASCADE stops pages deleting the parent row, since that would change another table; leave cascades out of tables pages delete from. Ask before a change that drops or reshapes data.", "POST", "/sqlite/{name}/schema", []string{"name"}, "sql", writes(true, false, true)},
-		{"storage_list_file_objects", "List stored files", "List the files in a files resource, optionally only those under a path prefix.", "GET", "/files/{name}/objects", []string{"name"}, "", readOnly()},
-		{"storage_put_file", "Upload stored file", "Upload one file into a files resource as the owner (base64, under 1 MiB; resize photos first): a gallery photo, a menu PDF, a download. A page shows it with SH.storage.files(name).url(path). Images that are part of the page's design go in create_site or update_site files_base64 instead. Ask before replacing an existing file.", "PUT", "/files/{name}/objects/{path...}", []string{"name", "path"}, "file", writes(true, true, true)},
-		{"storage_delete_file", "Delete stored file", "Delete one file from a files resource. Ask first.", "DELETE", "/files/{name}/objects/{path...}", []string{"name", "path"}, "", writes(true, true, true)},
-		{"storage_file_download_link", "Get stored file download link", "Make a private link, good for ten minutes, to download one stored file in full, for example a photo a visitor uploaded, so the person can open it. Do not post it anywhere public.", "POST", "/files/{name}/download-link", []string{"name", "path"}, "link", readOnly()},
+		{name: "storage_list_resources", title: "List storage resources", description: "List a site's saved-data resources (KV, SQLite, files) with each one's name, kind, preset, and access (who may read, add, edit, and delete), plus each SQLite table's own preset. preset legacy marks a resource saved before presets that keeps its old rules until you set a preset on it. Call it before reading or changing saved data, to get the exact resource name. It does not list a files resource's uploads: storage_list_file_objects does (through run_tool if it is not in your tool list).", method: "GET", suffix: "/resources", args: nil, body: "", annotation: readOnly()},
+		{name: "storage_get_usage", title: "Read site storage usage", description: "Show how much of a site's saved-data allowance is used: on Simple Host, KV and SQLite together (10,000,000 bytes) and files separately (10 MB); on Simple Hack, one 1,000,000-byte pool for all three. The site's own pages and images are counted elsewhere (list_sites).", method: "GET", suffix: "/usage", args: nil, body: "", annotation: readOnly()},
+		{policy: toolPolicy{storageResource: true, noSpamCheck: withoutSpamCheck,
+			hackSite: hackSiteStorageSetResource},
+			name: "storage_set_resource", title: "Create a storage resource or set its preset", description: storageSetResourceDescription, method: "PUT", suffix: "/resources/{name}", args: []string{"name"}, body: "resource", annotation: writes(true, true, true)},
+		{name: "storage_delete_resource", title: "Delete storage resource", description: "Remove a resource and everything saved in it, for good. Ask the person to confirm this exact resource first.", method: "DELETE", suffix: "/resources/{name}", args: []string{"name"}, body: "", annotation: writes(true, true, true)},
+		{policy: toolPolicy{pagedStorage: true, visitorResult: "items"}, name: "storage_list_kv_keys", title: "List KV keys", description: "List the keys in a KV resource, optionally only those starting with a prefix.", method: "GET", suffix: "/kv/{name}/keys", args: []string{"name"}, body: "", annotation: readOnly()},
+		{policy: toolPolicy{visitorResult: "item"}, name: "storage_get_kv", title: "Read KV value", description: "Read one key's JSON value from a KV resource. The answer is {key, value}.", method: "GET", suffix: "/kv/{name}/keys/{key}", args: []string{"name", "key"}, body: "", annotation: readOnly()},
+		{name: "storage_put_kv", title: "Set KV value", description: "Set one key in a KV resource to a JSON value, replacing what was there. It changes a page only when the page's code already reads that key (SH.storage.kv(name).get(key)); text written in the page itself is changed with update_site (edits), so read the page first. This is how the owner changes page info a page reads live (a menu, prices, opening hours, settings) without republishing the site. Ask before overwriting a value visitors wrote.", method: "PUT", suffix: "/kv/{name}/keys/{key}", args: []string{"name", "key"}, body: "value", annotation: writes(true, true, true)},
+		{name: "storage_delete_kv", title: "Delete KV value", description: "Delete one key and its value from a KV resource. Ask first.", method: "DELETE", suffix: "/kv/{name}/keys/{key}", args: []string{"name", "key"}, body: "", annotation: writes(true, true, true)},
+		{policy: toolPolicy{visitorParams: true, visitorResult: "rows"}, name: "storage_sql_query", title: "Query SQLite resource", description: "Read rows from a SQLite resource with a SELECT, as the owner: it sees every person's rows, whatever the preset. Read-only; put values in params with ? placeholders; on Simple Host, visitor_id values from results can be passed back as parameters. Use it to show the person their orders, entries, or messages.", method: "POST", suffix: "/sqlite/{name}/query", args: []string{"name"}, body: "sql", annotation: readOnly()},
+		{policy: toolPolicy{visitorParams: true}, name: "storage_sql_execute", title: "Execute SQLite statement", description: "Change rows in a SQLite resource as the owner: INSERT, UPDATE, or DELETE with ? placeholders, for example setting an order's status; on Simple Host, visitor_id values from results can be passed back as parameters. Ask before changing or deleting what visitors sent. Repeating a successful statement can add duplicate rows or apply a change again, so query the affected records before retrying after an uncertain result.", method: "POST", suffix: "/sqlite/{name}/execute", args: []string{"name"}, body: "sql", annotation: writes(true, false, true)},
+		{policy: toolPolicy{storageResource: true, noSpamCheck: withoutSpamCheck,
+			hackSite: hackSiteStorageSqlSchema},
+			name: "storage_sql_schema", title: "Change SQLite schema", description: "Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE TRIGGER, ALTER TABLE, one statement per call. Use IF NOT EXISTS for supported CREATE statements. Check the current schema before repeating ALTER TABLE. Use id INTEGER PRIMARY KEY and a created_at TEXT column (and updated_at TEXT where rows are edited); the server fills them. Do not declare visitor_id: on every table whose preset uses own or lets visitors add (inbox, wall, comments, records, personal, board) the server adds an indexed visitor_id column itself" + storageSchemaCommentsText + ". A foreign key with ON DELETE CASCADE stops pages deleting the parent row, since that would change another table; leave cascades out of tables pages delete from. Ask before a change that drops or reshapes data.", method: "POST", suffix: "/sqlite/{name}/schema", args: []string{"name"}, body: "sql", annotation: writes(true, false, true)},
+		{policy: toolPolicy{pagedStorage: true, visitorResult: "items"}, name: "storage_list_file_objects", title: "List stored files", description: "List the files in a files resource, optionally only those under a path prefix.", method: "GET", suffix: "/files/{name}/objects", args: []string{"name"}, body: "", annotation: readOnly()},
+		{policy: toolPolicy{analytics: analyticsPolicy{fileData: true}},
+			name: "storage_put_file", title: "Upload stored file", description: "Upload one file into a files resource as the owner (base64, under 1 MiB; resize photos first): a gallery photo, a menu PDF, a download. A page shows it with SH.storage.files(name).url(path). Images that are part of the page's design go in create_site or update_site files_base64 instead. Ask before replacing an existing file.", method: "PUT", suffix: "/files/{name}/objects/{path...}", args: []string{"name", "path"}, body: "file", annotation: writes(true, true, true)},
+		{name: "storage_delete_file", title: "Delete stored file", description: "Delete one file from a files resource. Ask first.", method: "DELETE", suffix: "/files/{name}/objects/{path...}", args: []string{"name", "path"}, body: "", annotation: writes(true, true, true)},
+		{policy: toolPolicy{analytics: analyticsPolicy{secretText: true, secretURL: true}},
+			name: "storage_file_download_link", title: "Get stored file download link", description: "Make a private link, good for ten minutes, to download one stored file in full, for example a photo a visitor uploaded, so the person can open it. Do not post it anywhere public.", method: "POST", suffix: "/files/{name}/download-link", args: []string{"name", "path"}, body: "link", annotation: readOnly()},
 	}
 	tools := make([]Tool, 0, len(routes))
 	for _, route := range routes {
@@ -72,7 +79,7 @@ func storageToolsFor(event bool) []Tool {
 			props[arg] = str(argDescriptions[arg])
 			required = append(required, arg)
 		}
-		if strings.HasSuffix(r.name, "storage_list_kv_keys") || strings.HasSuffix(r.name, "storage_list_file_objects") {
+		if r.policy.pagedStorage {
 			props["prefix"] = str("Optional: only keys or paths that start with this.")
 			props["after"] = str("Optional: the next_after value from the previous answer, to get the next page.")
 			props["limit"] = map[string]any{"type": "integer", "description": "Optional: at most this many results (the server caps it)."}
@@ -87,7 +94,7 @@ func storageToolsFor(event bool) []Tool {
 		case "sql":
 			props["sql"] = str("One SQLite statement, with ? placeholders for values.")
 			props["params"] = map[string]any{"type": "array", "items": anyJSON("One value for a ? placeholder."), "description": "Values for the ? placeholders, in order. Omit or [] when there are none."}
-			if !event && (r.name == "storage_sql_query" || r.name == "storage_sql_execute") {
+			if !event && r.policy.visitorParams {
 				props["params"] = map[string]any{"anyOf": []any{props["params"], map[string]any{"type": "string"}}, "description": "Values for the ? placeholders, in order, as an array or a JSON-encoded array. Omit or [] when there are none."}
 			}
 			required = append(required, "sql")
@@ -96,8 +103,9 @@ func storageToolsFor(event bool) []Tool {
 			props["content_type"] = str("The file's MIME type, e.g. image/webp, image/jpeg, or application/pdf.")
 			required = append(required, "content_base64", "content_type")
 		}
+		r.policy.analytics.emailIdentity = true
 		tool := Tool{
-			Name: r.name, Title: r.title, Description: r.description,
+			policy: r.policy, Name: r.name, Title: r.title, Description: r.description,
 			InputSchema:  object(props, required...),
 			OutputSchema: outObject(map[string]any{"response": anyJSON("Storage response with site-scoped visitor references on Simple Host."), "status": outInteger("REST status code.")}, "response", "status"),
 			Annotations:  r.annotation,
@@ -145,7 +153,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 		path = strings.Replace(path, "{"+name+"...}", escaped, 1)
 		path = strings.Replace(path, "{"+name+"}", escaped, 1)
 	}
-	if strings.HasSuffix(toolName, "storage_list_kv_keys") || strings.HasSuffix(toolName, "storage_list_file_objects") {
+	if declaredPolicy(toolName).pagedStorage {
 		query := url.Values{}
 		for _, name := range []string{"prefix", "after"} {
 			value, err := optionalString(args, name)
@@ -189,7 +197,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 				params = list
 			}
 			body["params"] = params
-			if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite && (toolName == "storage_sql_query" || toolName == "storage_sql_execute") {
+			if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeHackSite && declaredPolicy(toolName).visitorParams {
 				body["params"], e = c.storageVisitorParams(site, params)
 				if e != nil {
 					return output{}, e
@@ -291,7 +299,7 @@ func withoutSpamCheck(tool Tool) Tool {
 	tool.Description = strings.Replace(tool.Description, "(inbox, wall, comments, records,", "(inbox, wall, records,", 1)
 	tool.Description = strings.Replace(tool.Description, storageSchemaCommentsText, "", 1)
 	props, _ := tool.InputSchema["properties"].(map[string]any)
-	if _, ok := props["body"]; ok && strings.HasSuffix(tool.Name, "storage_set_resource") {
+	if _, ok := props["body"]; ok && tool.policy.storageResource {
 		copied := make(map[string]any, len(props))
 		for k, v := range props {
 			copied[k] = v

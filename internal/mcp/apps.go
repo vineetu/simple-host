@@ -6,7 +6,6 @@ import (
 	"html"
 	"net/url"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -17,17 +16,15 @@ const appMIME = "text/html;profile=mcp-app"
 var appFiles embed.FS
 
 type appScreen struct {
-	ID, Flag, URI, Tool, Label, HTML string
-	Tools                            []string
-	CSP                              map[string][]string
-	Permissions                      map[string]any
+	ID, Flag, URI, Label, HTML string
+	CSP                        map[string][]string
+	Permissions                map[string]any
 }
 
 // Add later screens here; shared bridge, stylesheet, gating, and serving stay common.
 var appScreens = []appScreen{
 	{
-		ID: "passcode", Flag: "MCP_APP_PASSCODE", URI: "ui://simple-host/passcode",
-		Tools: []string{"get_site_passcode", "set_site_passcode"}, Label: "Passcode", HTML: "passcode.html",
+		ID: "passcode", Flag: "MCP_APP_PASSCODE", URI: "ui://simple-host/passcode", Label: "Passcode", HTML: "passcode.html",
 		CSP:         map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
 		Permissions: map[string]any{"clipboardWrite": map[string]any{}},
 	},
@@ -38,17 +35,17 @@ var appScreens = []appScreen{
 	},
 	{
 		ID: "my-sites", Flag: "MCP_APP_MY_SITES", URI: "ui://simple-host/my-sites",
-		Tool: "list_sites", Label: "My sites", HTML: "my-sites.html",
+		Label: "My sites", HTML: "my-sites.html",
 		CSP: map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
 	},
 	{
 		ID: "photo-picker", Flag: "MCP_APP_PHOTO_PICKER", URI: "ui://simple-host/photo-picker",
-		Tool: "create_upload_link", Label: "Photo picker", HTML: "photo-picker.html",
+		Label: "Photo picker", HTML: "photo-picker.html",
 		CSP: map[string][]string{"connectDomains": {}, "resourceDomains": {"$origin"}, "frameDomains": {}, "baseUriDomains": {}},
 	},
 	{
 		ID: "site-preview", Flag: "MCP_APP_SITE_PREVIEW", URI: "ui://simple-host/site-preview",
-		Tool: "get_site", Label: "Site preview", HTML: "site-preview.html",
+		Label: "Site preview", HTML: "site-preview.html",
 		CSP:         map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
 		Permissions: map[string]any{"clipboardWrite": map[string]any{}},
 	},
@@ -98,7 +95,7 @@ func appToolMetadata(list []Tool, screens []appScreen) []Tool {
 	out := append([]Tool(nil), list...)
 	for i, tool := range out {
 		for _, screen := range screens {
-			if tool.Name == screen.Tool || slices.Contains(screen.Tools, tool.Name) {
+			if tool.policy.screen == screen.ID {
 				meta := make(map[string]any, len(tool.Meta)+1)
 				for key, value := range tool.Meta {
 					meta[key] = value

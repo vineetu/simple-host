@@ -13,8 +13,9 @@ import (
 func domainTools(limits Limits) []Tool {
 	return []Tool{
 		{
-			Name:  "connect_domain",
-			Title: "Give a site a short free address or its own domain",
+			OutputSchema: domainSchema(true, limits),
+			Name:         "connect_domain",
+			Title:        "Give a site a short free address or its own domain",
 			Description: "Connect a custom domain or claim a short simple-host.app address (optional: every site already has its own at https://<site>.<handle>.simple-host.app/). Either a free `<name>.simple-host.app` address (e.g. `clay-studio.simple-host.app`): active at once, no DNS step, first come first served. " +
 				"Or the person's own domain (e.g. `rsvp.example.com` or `example.com`): returns the two DNS records they must add at their domain registrar, the address record (dns_record) and a TXT ownership record (ownership_record, to keep in place); relay both exactly, then check with domain_status until it is active. " +
 				"Connecting a domain already bound to another of the person's sites moves it to this site. Once active the site lives only at that address, its old address redirects there, and visitors sign in and save there. " +
@@ -54,8 +55,9 @@ func domainTools(limits Limits) []Tool {
 			},
 		},
 		{
-			Name:  "domain_status",
-			Title: "Check a custom domain",
+			OutputSchema: domainSchema(false, limits),
+			Name:         "domain_status",
+			Title:        "Check a custom domain",
 			Description: "Check whether a site's custom domain is connected: pending (the DNS records are not seen yet, or its certificate is being issued) or active. Shows the certificate's progress and, while pending, the earlier address the site is still served at. " +
 				"With domain `*.<domain>`, checks the account's address family instead (no site needed).",
 			InputSchema: object(map[string]any{
@@ -87,6 +89,11 @@ func domainTools(limits Limits) []Tool {
 			},
 		},
 		{
+			OutputSchema: outObject(map[string]any{
+				"site":    outString(outSiteName + " Absent for an address family."),
+				"removed": outString("The address that was disconnected (*.<domain> for an address family)."),
+				"url":     outString("The site's live address now."),
+			}, "removed"),
 			Name:  "remove_domain",
 			Title: "Disconnect a domain",
 			Description: "Disconnect a site's custom domain or free `<name>.simple-host.app` address. Only call this after the person has explicitly confirmed, in this conversation, that they want this specific address disconnected. " +

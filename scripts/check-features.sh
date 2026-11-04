@@ -4,7 +4,7 @@
 #
 # Fails if a registered route path (a literal mux.Handle/HandleFunc pattern in
 # cmd/server or internal/handler, tests excluded) or an MCP tool name
-# (internal/mcp/tools.go) does not appear in FEATURES.md. Paths are matched on
+# (from the MCP registry) does not appear in FEATURES.md. Paths are matched on
 # their own (FEATURES.md writes "`POST`/`PUT /v1/...`"), bounded so /v1/sites
 # is not satisfied by /v1/sites/{sitename}. Patterns built at runtime
 # ("GET /"+name, m+" /mcp") are not literals and are skipped; FEATURES.md
@@ -35,7 +35,7 @@ while read -r p; do
   grep -qE "${re}([^A-Za-z0-9_./{}-]|\$)" "$FEATURES" || { echo "  FAIL: route not in $FEATURES:  $p"; fail=1; }
 done <<<"$paths"
 
-tools=$(grep -hoE 'Name:[[:space:]]*"[a-z_]+"' internal/mcp/tools.go internal/mcp/account_tools.go internal/mcp/site_tools.go internal/mcp/import_tools.go internal/mcp/domain_tools.go internal/mcp/storage_tools.go internal/mcp/access_tools.go internal/mcp/recipes.go | sed -E 's/.*"([a-z_]+)"/\1/' | sort -u)
+tools=$(go run ./scripts/mcpinventory -edition host) || exit 1
 ntools=0
 while read -r t; do
   [ -z "$t" ] && continue

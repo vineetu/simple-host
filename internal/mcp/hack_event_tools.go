@@ -12,13 +12,15 @@ import (
 )
 
 func hackBaseEventTools() []Tool {
+	schemas := hackEventSchemas()
 	tools := []Tool{
 		{
-			Name:        "hack_list_events",
-			Title:       "List my events",
-			Description: "List every hackathon event this person is part of, with their role (organiser, participant or judge). Call this before changing an event. You can manage an event only when the role is organiser.",
-			InputSchema: noArgs(),
-			Annotations: readOnly(),
+			OutputSchema: schemas.list,
+			Name:         "hack_list_events",
+			Title:        "List my events",
+			Description:  "List every hackathon event this person is part of, with their role (organiser, participant or judge). Call this before changing an event. You can manage an event only when the role is organiser.",
+			InputSchema:  noArgs(),
+			Annotations:  readOnly(),
 			run: func(c *call, _ map[string]any) (output, error) {
 				res := c.do(http.MethodGet, "/v1/hack/events", nil, nil)
 				if !res.ok() {
@@ -28,9 +30,10 @@ func hackBaseEventTools() []Tool {
 			},
 		},
 		{
-			Name:        "hack_check_event_name",
-			Title:       "Check an event name",
-			Description: "Check whether an event name is free, and the address it would have. Names are 3 to 39 lowercase letters, numbers or hyphens, and cannot start or end with a hyphen. Check before hack_create_event.",
+			OutputSchema: schemas.name,
+			Name:         "hack_check_event_name",
+			Title:        "Check an event name",
+			Description:  "Check whether an event name is free, and the address it would have. Names are 3 to 39 lowercase letters, numbers or hyphens, and cannot start or end with a hyphen. Check before hack_create_event.",
 			InputSchema: object(map[string]any{
 				"slug": str("The event name to check."),
 			}, "slug"),
@@ -48,9 +51,11 @@ func hackBaseEventTools() []Tool {
 			},
 		},
 		{
-			Name:        "hack_create_event",
-			Title:       "Create an event",
-			Description: "Create a draft event for this person, who becomes its organiser. Ask them first. A draft starts with the starter rubric. The answer includes the join and judge links. This does not publish a website.",
+			policy:       toolPolicy{analytics: analyticsPolicy{secretText: true}},
+			OutputSchema: schemas.event,
+			Name:         "hack_create_event",
+			Title:        "Create an event",
+			Description:  "Create a draft event for this person, who becomes its organiser. Ask them first. A draft starts with the starter rubric. The answer includes the join and judge links. This does not publish a website.",
 			InputSchema: object(map[string]any{
 				"slug":                  str("Event name: 3 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen."),
 				"title":                 str("Event title, one line, up to 120 characters."),
@@ -81,11 +86,13 @@ func hackBaseEventTools() []Tool {
 			},
 		},
 		{
-			Name:        "hack_get_event",
-			Title:       "Get an event",
-			Description: "Read one event: its page, stage and settings. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. \"Kickoff is now. Open sign-up?\"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.",
-			InputSchema: object(map[string]any{"slug": str("The event name.")}, "slug"),
-			Annotations: writes(false, true, false),
+			policy:       toolPolicy{analytics: analyticsPolicy{secretText: true}},
+			OutputSchema: schemas.event,
+			Name:         "hack_get_event",
+			Title:        "Get an event",
+			Description:  "Read one event: its page, stage and settings. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. \"Kickoff is now. Open sign-up?\"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.",
+			InputSchema:  object(map[string]any{"slug": str("The event name.")}, "slug"),
+			Annotations:  writes(false, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
 				slug, err := eventSlug(args)
 				if err != nil {
@@ -99,8 +106,10 @@ func hackBaseEventTools() []Tool {
 			},
 		},
 		{
-			Name:  "hack_update_event",
-			Title: "Update an event",
+			policy:       toolPolicy{analytics: analyticsPolicy{secretText: true}},
+			OutputSchema: schemas.event,
+			Name:         "hack_update_event",
+			Title:        "Update an event",
 			Description: "Change an event's page text and settings. Sends only the fields you set, so omit anything that should stay as it is. " +
 				"Does not change the stage; use hack_set_event_stage for that. Ask the person before overwriting page text. Organiser only.",
 			InputSchema: object(map[string]any{
@@ -148,8 +157,10 @@ func hackBaseEventTools() []Tool {
 			},
 		},
 		{
-			Name:  "hack_set_event_stage",
-			Title: "Set an event's stage",
+			policy:       toolPolicy{analytics: analyticsPolicy{secretText: true}},
+			OutputSchema: schemas.event,
+			Name:         "hack_set_event_stage",
+			Title:        "Set an event's stage",
 			Description: "Set an event's stage: draft, open, building, closed, judging, results or archived. " +
 				"Ask the person first. closed, judging and results close entries. results also locks judging. archived ends the event and cannot be undone. Organiser only.",
 			InputSchema: object(map[string]any{
@@ -181,10 +192,6 @@ func hackBaseEventTools() []Tool {
 				return hackEventOutput("Stage", res.body)
 			},
 		},
-	}
-	schemas := hackEventOutputSchemas()
-	for i := range tools {
-		tools[i].OutputSchema = schemas[tools[i].Name]
 	}
 	return tools
 }
@@ -608,7 +615,7 @@ func hackWebEventTools() []Tool {
 	}
 }
 
-func hackEventOutputSchemas() map[string]map[string]any {
+func hackEventSchemas() hackEventSchemaSet {
 	nullableString := func(desc string) map[string]any {
 		return map[string]any{"type": []any{"string", "null"}, "description": desc}
 	}
@@ -691,12 +698,7 @@ func hackEventOutputSchemas() map[string]map[string]any {
 		"code":      outString("Why the name is unavailable, when available is false."),
 		"error":     outString("The same reason in a sentence, when available is false."),
 	}, "slug", "available", "address")
-	return map[string]map[string]any{
-		"hack_list_events":      outObject(map[string]any{"events": outArray("Events this person is part of.", listItem), "count": outInteger("How many events.")}, "events", "count"),
-		"hack_check_event_name": name,
-		"hack_create_event":     event,
-		"hack_get_event":        event,
-		"hack_update_event":     event,
-		"hack_set_event_stage":  event,
-	}
+	return hackEventSchemaSet{list: outObject(map[string]any{"events": outArray("Events this person is part of.", listItem), "count": outInteger("How many events.")}, "events", "count"), name: name, event: event}
 }
+
+type hackEventSchemaSet struct{ list, name, event map[string]any }

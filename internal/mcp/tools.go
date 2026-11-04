@@ -16,7 +16,8 @@ type Tool struct {
 	OutputSchema map[string]any `json:"outputSchema,omitempty"`
 	Annotations  map[string]any `json:"annotations,omitempty"`
 
-	run func(c *call, args map[string]any) (output, error)
+	policy toolPolicy
+	run    func(c *call, args map[string]any) (output, error)
 }
 
 // MarshalJSON repeats the title inside annotations, where some clients and

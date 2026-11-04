@@ -594,20 +594,18 @@ func parseCallParams(raw json.RawMessage) (callParams, error) {
 		return params, err
 	}
 	name := envelope.Name
-	if name == "run_tool" {
+	if declaredPolicy(name).unwrap {
 		_ = json.Unmarshal(envelope.Arguments["name"], &name)
 	}
-	switch name {
-	case "visitor_read_site", "visitor_add_entry", "visitor_change_entry":
+	if declaredPolicy(name).preserveNumbers {
 		// Preserve entry values and IDs in both direct and wrapped calls.
 		dec := json.NewDecoder(bytes.NewReader(raw))
 		dec.UseNumber()
 		err := dec.Decode(&params)
 		return params, err
-	default:
-		err := json.Unmarshal(raw, &params)
-		return params, err
 	}
+	err := json.Unmarshal(raw, &params)
+	return params, err
 }
 
 func hasClientCapabilities(params json.RawMessage) bool {
@@ -761,7 +759,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	}
 	defer func() {
 		if s.analytics != nil && recorded {
-			if eventName == "passcode_screen" {
+			if declaredPolicy(eventName).analytics.redactAll {
 				intent = "[removed]"
 			}
 			if parameters == nil {
@@ -772,7 +770,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		}
 	}()
 	// Unwrap before lookup so direct and wrapped calls share the same checks.
-	wrapped := params.Name == "run_tool"
+	wrapped := byName[params.Name].policy.unwrap
 	if _, allowed := byName["run_tool"]; wrapped && allowed {
 		outer := params.Arguments
 		name, nameErr := stringArg(outer, "name")
@@ -781,7 +779,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 			intent = inner
 		}
 		_, known := byName[name]
-		validTarget := known && name != "run_tool" && name != "find_tools"
+		validTarget := known && !byName[name].policy.discovery
 		if validTarget {
 			eventName = name
 		}
@@ -800,12 +798,12 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 			record(nameErr)
 			return toolResult(req.ID, nameErr.Error(), nil, true, modern)
 		}
-		if name == "passcode_screen" {
+		if byName[name].policy.analytics.redactAll {
 			err := errors.New("passcode_screen is only for the passcode screen")
 			record(err)
 			return toolResult(req.ID, err.Error(), nil, true, modern)
 		}
-		if name == "run_tool" || name == "find_tools" {
+		if byName[name].policy.discovery {
 			err := errors.New("Nested discovery cannot call another discovery tool. Choose the required operation from the tool list.")
 			record(err)
 			return toolResult(req.ID, err.Error(), nil, true, modern)
@@ -880,12 +878,12 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	// who_am_i reads only the signed-in person and names the selected team
 	// itself, so it needs no team. Notifications also use the person's
 	// credential. Other website tools use the team's scoped credential.
-	if caller.Mode == CallerModeEvents && caller.GrantID != "" && !strings.HasPrefix(params.Name, "hack_") && params.Name != "who_am_i" && params.Name != "list_notifications" && params.Name != "remove_notification" {
+	if caller.Mode == CallerModeEvents && caller.GrantID != "" && !tool.policy.personalCredential {
 		if caller.TeamAPIKey == "" {
 			// My sites can read the person's event websites through the existing
 			// hack_* tools without a team. Return no team data and never replay
 			// this request with the person's credential against /v1/sites.
-			if params.Name == "list_sites" && s.mySitesEnabled(caller) {
+			if tool.policy.listWithoutTeam && s.mySitesEnabled(caller) {
 				record(nil)
 				return toolResult(req.ID, "No team selected. Call hack_get_my_teams to choose a team, or hack_list_events for your event websites.", map[string]any{"sites": []any{}, "count": 0}, false, modern)
 			}

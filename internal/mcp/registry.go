@@ -1,9 +1,6 @@
 package mcp
 
-import (
-	"fmt"
-	"strings"
-)
+import "sync"
 
 // toolFamily names one capability family of MCP tools (docs/architecture/
 // target.md §6). Every registered tool belongs to exactly one family.
@@ -46,108 +43,23 @@ var coreToolNames = []string{
 }
 
 // toolPolicy is per-tool listing and edition policy, applied at registration.
-// It can move onto Tool declarations without changing registry assembly.
+// Declared alongside the tool in its family registrar.
 type toolPolicy struct {
-	hackSiteExcluded, personalExcluded, connectorHidden bool
-	notDeployOnly, unlisted, notSearchable              bool
-	listWithPasscode                                    bool
-	hackSite                                            func(Tool, Limits) Tool
-	noSpamCheck                                         func(Tool) Tool
-}
+	memberResult, organiserResult, visitorResult, accessResult, passcodeResult string
+	storageResource, visitorParams, pagedStorage                               bool
+	judgeParameter, includeEmails, recordsPins, screenshot, optionalBody       bool
 
-var toolPolicies = map[string]toolPolicy{
-	"visitor_read_site":    {hackSiteExcluded: true},
-	"visitor_add_entry":    {hackSiteExcluded: true},
-	"visitor_change_entry": {hackSiteExcluded: true},
-	"list_notifications": {hackSiteExcluded: true,
-		notDeployOnly: true},
-	"remove_notification": {hackSiteExcluded: true,
-		notDeployOnly: true},
-	"create_import_link":     {hackSiteExcluded: true},
-	"get_import_report":      {hackSiteExcluded: true},
-	"set_keep_versions":      {hackSiteExcluded: true},
-	"discard_version":        {hackSiteExcluded: true},
-	"get_site_passcode":      {hackSiteExcluded: true, listWithPasscode: true},
-	"set_site_passcode":      {hackSiteExcluded: true},
-	"remove_site_passcode":   {hackSiteExcluded: true},
-	"sign_out_site_visitors": {hackSiteExcluded: true},
-	"set_site_access":        {hackSiteExcluded: true},
-	"list_site_viewers":      {hackSiteExcluded: true},
-	"grant_site_viewer":      {hackSiteExcluded: true},
-	"revoke_site_viewer":     {hackSiteExcluded: true},
-	"storage_visitor_emails": {hackSiteExcluded: true},
-	"set_home_page":          {hackSiteExcluded: true},
-	"set_bio":                {hackSiteExcluded: true},
-	"set_showcase_site":      {hackSiteExcluded: true},
-	"create_upload_link": {hackSite: func(tool Tool, limits Limits) Tool {
-		tool.Title = "Create a one-time archive upload link"
-		tool.Description = archiveUploadDescription
-		return tool
-	}},
-	"create_site": {hackSite: func(tool Tool, limits Limits) Tool {
-		tool.Description = strings.Replace(tool.Description, deployPhotoTip, hackPhotoTip, 1)
-		return tool
-	}},
-	"update_site": {hackSite: func(tool Tool, limits Limits) Tool {
-		tool.Description = strings.Replace(tool.Description, deployPhotoTip, hackPhotoTip, 1)
-		return tool
-	}},
-	"who_am_i": {hackSite: func(tool Tool, limits Limits) Tool {
-		tool = hackWhoAmITool()
-		return tool
-	}},
-	"get_page_recipe": {personalExcluded: true,
-		noSpamCheck: noSpamCheckRecipeTool,
-		hackSite: func(tool Tool, limits Limits) Tool {
-			tool = hackPageRecipeTool()
-			return tool
-		}},
-	"storage_set_resource": {noSpamCheck: withoutSpamCheck,
-		hackSite: func(tool Tool, limits Limits) Tool {
-			tool.Description = hackPhotoWording(strings.Replace(tool.Description, storageOwnerSentence, hackTeamOwnerSentence, 1))
-			tool = withoutSpamCheck(tool)
-			return tool
-		}},
-	"storage_sql_schema": {noSpamCheck: withoutSpamCheck,
-		hackSite: func(tool Tool, limits Limits) Tool {
-			tool = withoutSpamCheck(tool)
-			return tool
-		}},
-	"set_visibility": {hackSite: func(tool Tool, limits Limits) Tool {
-		tool.Description = "Choose whether the team website appears on its account's public listing. Unlisted also keeps it out of search engines unless it has its own domain or name, and is still reachable by anyone with its address; it does not make the site or any storage resource private."
-		return tool
-	}},
-	"delete_site": {hackSite: func(tool Tool, limits Limits) Tool {
-		tool.Description = "DESTRUCTIVE: take this team's website offline with its published versions and storage. It stays in Recently deleted for " + span(limits.DeletedRetention) + " and can be restored during that time. Only call this after the person has confirmed in this conversation that they want this team's website deleted. Pass the site name twice: as `site` and as `confirm_name`."
-		return tool
-	}},
-	"restore_site": {hackSite: func(tool Tool, limits Limits) Tool {
-		tool.Description = "Restore this team's website from Recently deleted, including its files, versions and storage, while the retention period lasts."
-		return tool
-	}},
-	"set_site_offline": {hackSite: func(tool Tool, limits Limits) Tool {
-		tool.Description = "Take this team's website offline or bring it back. Offline stops serving files and access to KV, SQLite and file resources; nothing is deleted. Ask before taking it offline."
-		return tool
-	}},
-	"export_site": {hackSite: func(tool Tool, limits Limits) Tool {
-		tool.Description = "Make a private, expiring download link for a team's website archive. It contains site files and may include data saved before Simple Hack retired the old storage model. Current websites use KV, SQLite and files. Share the link only with the site owner."
-		run := tool.run
-		tool.run = func(c *call, args map[string]any) (output, error) {
-			out, err := run(c, args)
-			if err == nil {
-				out.Text = "Private site archive link: " + fmt.Sprint(out.Structured["url"]) + ". It may include previously stored data; keep the link private."
-			}
-			return out, err
-		}
-		return tool
-	}},
-	// Minting a team key belongs in the trusted browser/REST workflow,
-	// never in a connector result that could put the secret in chat.
-	"hack_create_team_key": {connectorHidden: true},
-	"find_tools": {unlisted: true,
-		notSearchable: true},
-	"run_tool": {unlisted: true,
-		notSearchable: true},
+	hackSiteExcluded, personalExcluded, connectorHidden  bool
+	notDeployOnly, unlisted, notSearchable               bool
+	listWithPasscode                                     bool
+	personalCredential, listWithoutTeam, preserveNumbers bool
+	unwrap, discovery, notificationID                    bool
+	screen                                               string
+	showAllowed                                          hackAppOnlyAllowed
+	flatList                                             func(Tool) Tool
+	analytics                                            analyticsPolicy
+	hackSite                                             func(Tool, Limits) Tool
+	noSpamCheck                                          func(Tool) Tool
 }
 
 type toolEdition uint8
@@ -163,17 +75,23 @@ type toolEntry struct {
 	family  toolFamily
 	edition toolEdition
 	policy  toolPolicy
+	feature string
 }
 type toolRegistry struct{ entries []toolEntry }
 
 func (r *toolRegistry) add(edition toolEdition, family toolFamily, tools []Tool) {
 	for _, tool := range tools {
+		if edition == editionHack {
+			tool.policy.analytics.emailIdentity = true
+			tool.policy.analytics.contactEmail = true
+			tool.policy.personalCredential = true
+		}
 		for _, entry := range r.entries {
 			if entry.edition == edition && entry.tool.Name == tool.Name {
 				panic("mcp: duplicate tool: " + tool.Name)
 			}
 		}
-		r.entries = append(r.entries, toolEntry{tool, family, edition, toolPolicies[tool.Name]})
+		r.entries = append(r.entries, toolEntry{tool: tool, family: family, edition: edition, policy: tool.policy, feature: string(family)})
 	}
 }
 
@@ -239,6 +157,7 @@ func (r *toolRegistry) view(cfg Config, edition toolEdition, site, personal, dep
 		tool := entry.tool
 		if site && entry.policy.hackSite != nil {
 			tool = entry.policy.hackSite(tool, *cfg.Limits)
+			tool.policy = entry.policy
 		}
 		v.byName[tool.Name] = tool
 		if entry.policy.unlisted {
@@ -249,4 +168,55 @@ func (r *toolRegistry) view(cfg Config, edition toolEdition, site, personal, dep
 		v.bare = append(v.bare, tool)
 	}
 	return v
+}
+
+// withToolPolicy attaches policy to a declaration produced by an adapter.
+func withToolPolicy(tool Tool, policy toolPolicy) Tool { tool.policy = policy; return tool }
+
+// declarationRegistry derives name-only helper lookups from the same declarations
+// used by each Server. It has Events enabled so optional notification tools exist.
+// No backend method is called while assembling declarations.
+type inventoryEvents struct{ EventsBackend }
+
+var declarationOnce sync.Once
+var declarations *toolRegistry
+
+func declarationRegistry() *toolRegistry {
+	declarationOnce.Do(func() {
+		limits := DefaultLimits()
+		declarations = newRegistry(Config{Limits: &limits, Events: inventoryEvents{}})
+	})
+	return declarations
+}
+func declaredPolicy(name string) toolPolicy {
+	for _, entry := range declarationRegistry().entries {
+		if entry.tool.Name == name {
+			return entry.policy
+		}
+	}
+	return toolPolicy{}
+}
+
+// InventoryTool identifies one registered declaration, including hidden tools.
+type InventoryTool struct {
+	Name, Family, Edition string
+	Listed                bool
+}
+
+// Inventory returns every registered tool with Events enabled. Listed describes
+// edition listing policy; caller-specific core and screen gates still apply.
+func Inventory() []InventoryTool {
+	s := NewServer(Config{Events: inventoryEvents{}})
+	var out []InventoryTool
+	for _, entry := range s.inventory() {
+		edition := "host"
+		if entry.edition == editionHack {
+			edition = "hack"
+		}
+		if entry.edition == editionScreen {
+			edition = "screen"
+		}
+		out = append(out, InventoryTool{entry.tool.Name, string(entry.family), edition, !entry.policy.unlisted && !entry.policy.connectorHidden})
+	}
+	return out
 }
