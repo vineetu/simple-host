@@ -320,33 +320,17 @@ PY
 # ── FEATURES.md places every route and MCP tool ──
 bash scripts/check-features.sh || fail=1
 
-# ── Settings docs, the setup helper's copies and the small-box plumbing follow docs/advanced/settings.json ──
-echo "== settings docs =="
-python3 scripts/settings_docs.py --check || fail=1
-
-echo "== the setup page pins the Enterprise Helm chart =="
-js=internal/handler/static/setup/setup.js
-ent_version=$(sed -n "s/^ *var ENT_CHART_VERSION = '\([0-9.]*\)';.*/\1/p" "$js")
-if [ -z "$ent_version" ]; then
-  echo "  FAIL $js has no ENT_CHART_VERSION"; fail=1
-else
-  if [ -n "${SH_ENTERPRISE_REPO:-}" ]; then
-    chart_version=$(sed -n 's/^version: //p' "$SH_ENTERPRISE_REPO/deploy/helm/simple-host-enterprise/Chart.yaml")
-    where="$SH_ENTERPRISE_REPO"
-  else
-    chart_version=$(curl -fsSL "https://raw.githubusercontent.com/vineetu/simple-host-enterprise/chart-v${ent_version}/deploy/helm/simple-host-enterprise/Chart.yaml" | sed -n 's/^version: //p')
-    where="published chart tag"
-  fi
-  if [ "$chart_version" != "$ent_version" ]; then
-    echo "  FAIL page pins chart $ent_version, $where has '$chart_version' (publish the chart first, or set SH_ENTERPRISE_REPO while developing)"; fail=1
-  else echo "  ok Enterprise chart $ent_version ($where)"; fi
-fi
+# Settings docs also compare an Enterprise checkout; run them in check-release.
 
 # ── PARITY.md covers every FEATURES.md section ──
-bash scripts/check-parity.sh || fail=1
+# Cross-repo parity comparison belongs to check-release, even if the caller sets PARITY_OTHER.
+env -u PARITY_OTHER bash scripts/check-parity.sh || fail=1
 
 # ── the public /features page (features.json) covers every FEATURES.md section and bold lead ──
 python3 scripts/check-features-page.py || fail=1
+
+# Read-only atlas coverage, feature anchors and generated navigation.
+python3 docs/ux-atlas/build.py --check || fail=1
 
 echo
 if [ "$fail" -ne 0 ]; then
