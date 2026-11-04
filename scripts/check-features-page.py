@@ -7,15 +7,14 @@ Fails when:
   - a FEATURES.md bold-lead feature (a line inside a numbered section that opens with
     **Lead**, except "Status:")
     appears in no feature's `covers` and is not listed in `not_shown`;
-  - a `covers` or `not_shown` entry names a lead or section FEATURES.md no longer has;
+  - a `covers` or `not_shown` entry names a feature ID or section FEATURES.md no longer has;
   - the data breaks the page's rules (duplicate ids, a one-liner over 140 characters, a
     missing field, an unknown edition or status value, a link outside the allowed public
     targets, a dash the voice rules ban);
   - internal/handler/static/features.html is not what build-features-page.py renders from
     features.json.
 
-Leads are matched after normalising both sides: text up to " Status:", parentheses removed,
-backticks and asterisks removed, lower-cased, punctuation trimmed.
+Leads are matched by their stable FEATURES.md anchors, never by display text.
 
 Run: python3 scripts/check-features-page.py   (also run by scripts/check-docs-sync.sh)
 """
@@ -41,45 +40,43 @@ REQUIRED = ("id", "name", "line", "how", "editions", "status", "covers")
 TEXT_FIELDS = ("name", "line", "who", "how", "example", "where", "limits", "editions_note", "status_note")
 
 
-def norm(lead):
-    s = lead.split(" Status:")[0]
-    s = re.sub(r"\([^)]*\)", " ", s)
-    s = s.replace("`", "").replace("*", "").replace("“", "").replace("”", "").replace('"', "").replace("'", "").replace("\u2019", "")
-    s = re.sub(r"\s+", " ", s).strip(" .;:,")
-    return s.lower()
-
-
 def parse_features_md(path="FEATURES.md"):
-    """Numbered sections, and every line inside one that opens with a **bold lead**."""
+    """Numbered sections and bold leads, keyed by their stable anchor IDs."""
     sections, leads = {}, {}
     cur = None
     pending = None
-    for line in open(path, encoding="utf-8").read().split("\n"):
-        m = re.match(r"^## (\d+)\. (.+?)\s*$", line)
+    for line in open(path, encoding="utf-8").read().splitlines():
+        anchor = re.search(r' <a id="([a-z0-9]+(?:-[a-z0-9]+)*)"></a>$', line)
+        text = line[:anchor.start()] if anchor else line
+        m = re.match(r"^## (\d+)\. (.+?)\s*$", text)
         if m:
             cur = int(m.group(1))
             sections[cur] = m.group(2).strip()
             continue
-        if line.startswith("## "):
+        if text.startswith("## "):
             cur = None
             continue
         if cur is None:
             continue
         if pending is not None:
-            pending += " " + line.strip()
-            if "**" in line:
-                m2 = re.match(r"^\*\*(.+?)\*\*", pending)
-                if m2 and not m2.group(1).startswith("Status:"):
-                    leads.setdefault(norm(m2.group(1)), (cur, m2.group(1).strip()))
+            fid, lead = pending
+            lead += " " + text.strip()
+            if "**" in text:
+                title = re.match(r"^\*\*(.+?)\*\*", lead).group(1).strip()
+                leads[fid] = (cur, title)
                 pending = None
+            else:
+                pending = (fid, lead)
             continue
-        if line.strip().startswith("**"):
-            if "**" not in line.strip()[2:]:
-                pending = line.strip()  # the bold lead closes on a later line
-                continue
-            m2 = re.match(r"^\*\*(.+?)\*\*", line.strip())
-            if m2 and not m2.group(1).startswith("Status:"):
-                leads.setdefault(norm(m2.group(1)), (cur, m2.group(1).strip()))
+        if text.startswith("**") and not text.startswith("**Status:"):
+            if anchor is None:
+                raise ValueError("bold lead has no feature ID: " + text)
+            fid = anchor.group(1)
+            if "**" not in text[2:]:
+                pending = (fid, text)
+            else:
+                title = re.match(r"^\*\*(.+?)\*\*", text).group(1).strip()
+                leads[fid] = (cur, title)
     return sections, leads
 
 
@@ -122,20 +119,19 @@ def main():
             for d in f.get("docs", []):
                 if not d.get("href", "").startswith(ALLOWED_PREFIXES):
                     fails.append("%s: link outside the allowed public targets: %s" % (fid, d.get("href")))
-            for c in f.get("covers", []):
-                nc = norm(c)
-                if nc not in leads:
-                    fails.append("%s: covers %r, which is not a FEATURES.md bold lead" % (fid, c))
-                covered.setdefault(nc, []).append(fid)
+            for feature_id in f.get("covers", []):
+                if feature_id not in leads:
+                    fails.append("%s: covers %r, which is not a FEATURES.md bold-lead ID" % (fid, feature_id))
+                covered.setdefault(feature_id, []).append(fid)
 
     not_shown_leads, not_shown_sections = set(), set()
     for item in data.get("not_shown", []):
         if not item.get("why"):
             fails.append("not_shown entry without a why: %r" % item)
         if "lead" in item:
-            nl = norm(item["lead"])
+            nl = item["lead"]
             if nl not in leads:
-                fails.append("not_shown names a lead FEATURES.md no longer has: %r" % item["lead"])
+                fails.append("not_shown names a bold-lead ID FEATURES.md no longer has: %r" % item["lead"])
             if nl in covered:
                 fails.append("lead both covered and not_shown: %r" % item["lead"])
             not_shown_leads.add(nl)
@@ -155,7 +151,7 @@ def main():
             fails.append("FEATURES.md §%d lead not covered by features.json: %s" % (sec, text))
     for nl, fids in covered.items():
         if len(fids) > 1:
-            fails.append("lead covered by more than one feature (%s): %s" % (", ".join(fids), leads[nl][1]))
+            fails.append("lead covered by more than one feature (%s): %s" % (", ".join(fids), leads.get(nl, (None, nl))[1]))
 
     r = subprocess.run([sys.executable, "scripts/build-features-page.py", "--check"], capture_output=True, text=True)
     if r.returncode != 0:

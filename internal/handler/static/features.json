@@ -321,7 +321,7 @@
       }
      ],
      "covers": [
-      "Website file limits and versions (2026-10-05). Status: live."
+      "publish-file-limits"
      ],
      "evidence": "FEATURES.md §1 L82-92 (200 MB, 1024 MB, SITE_TOTAL_CAP_FROM, after-prune checks, 413 site_total_too_large / account_storage_full, /v1/me file_usage, small box and Hack lines); FEATURES.md §18 L2328 (100 MB default); PARITY rows 'Website file allowances', 'Quotas'. Named account exceptions (chhotabreak, vineetu, jot-transcribe) rendered as 'operator exceptions', no customer names. Not rendered."
     },
@@ -501,7 +501,7 @@
       }
      ],
      "covers": [
-      "Drafts as versions (2026-11-02, SIM-152). Status: live."
+      "site-drafts"
      ],
      "evidence": "FEATURES.md §1 'Drafts as versions' (author on deploys, ?pending=1, DELETE .../versions/{version}, discard_version); PARITY row 'Drafts as versions' (Enterprise: not ported)."
     },
@@ -731,7 +731,7 @@
       }
      ],
      "covers": [
-      "WordPress moves (Simple Host only, 2026-10-14)."
+      "publish-wordpress-import"
      ],
      "evidence": "FEATURES.md L931-935 (create_import_link, accepted files, safety checks, conversion without AI, Squarespace, output list, get_import_report mapping, page-builder notes, 30 minutes, 20 links, 24-hour report, IMPORT_MAX_CONCURRENT); PARITY row 'WordPress import from the owner's export' (not on Hack, Enterprise not built). Small box: the lead says Simple Host only and the import URL is the simple-host.app apex; read as no. Upload-safety internals (zip-bomb caps, entity refusal) covered silently. Not rendered."
     },
@@ -764,7 +764,7 @@
       }
      ],
      "covers": [
-      "Idle-site cleanup (INTENT 2026-09-27). Status: flag"
+      "publish-idle-cleanup"
      ],
      "evidence": "FEATURES.md §1 L185-221 (IDLE_CLEANUP default off, 90 + 30 days, Keep it and Restore it links, confirm page + POST, exemptions, 50 emails per run, 90 days of visit records required); Pages row (Keep for good, idle warning with its date); PARITY row 'Idle-site cleanup' (Enterprise IDLE_CLEANUP_DAYS, dashboard Not used lately); FEATURES.md §15 L1836-1839 and L2015 (EVENT_SITES_KEEP_DAYS 30, EVENT_REMOVAL_WARN_DAYS 14). Token hashing and transaction ordering covered silently. Not rendered."
     }
@@ -811,7 +811,7 @@
       }
      ],
      "covers": [
-      "Site base move paused (2026-10-09)."
+      "site-url"
      ],
      "evidence": "FEATURES.md §2 L222-233 (own origin, /v1/ per site, path form until the certificate), L240-249 (site base move paused: .app only, 301 from the old base). features.html entry site-url L361-371. PARITY row 'Per-site hosts' (Enterprise v1.3 same fallback), row 'Small-box path model'. Simple Hack: FEATURES.md §15 team sites on event hosts."
     },
@@ -1150,7 +1150,7 @@
       }
      ],
      "covers": [
-      "www and the bare domain."
+      "domain-partner"
      ],
      "evidence": "FEATURES.md §3 L324-336 (partner redirect-only host, 301, one certificate, dns_partner, conditions, not_set_up, asked again every 6 h, taken off first, bound partner never offered). features.html entry domain-partner L910-920. Small box: PARITY row 'Custom domains' says partner follows the same checks; Caddy on boxes, so partial."
     },
@@ -1187,8 +1187,8 @@
       }
      ],
      "covers": [
-      "Address families (`*.<domain>` for every site of an account).",
-      "Whole-space custom apex: stopped (2026-10-05)."
+      "address-families",
+      "whole-space-custom-apex-stopped"
      ],
      "evidence": "FEATURES.md §3 L338-368 (wildcard + TXT, site_prefix, www reserved, 24 h pending, first to prove wins, exclusive, canonical main address and redirects, what works on a family address, 24 h / 72 h lapse, waiting_for_operator, simple-hack.app refused; status live hosted only, flag elsewhere needing an operator certificate directory). §13 L1739-1745 (whole-space apex stopped: families do not route the apex to the account home nor cover it with the certificate). PARITY row 'Address families' (Enterprise none, owner decision 2026-09-29). Small box set to no per task; FEATURES.md marks it flag elsewhere. Chhota Break example is a customer already named on the owner's pages; swap for a generic one if the page rule forbids it."
     }
@@ -1276,7 +1276,7 @@
       }
      ],
      "covers": [
-      "Access presets (2026-10-10; owner decision D1 and \"Simple Hack uses storage access presets too\", INTENT.md)."
+      "storage-presets"
      ],
      "evidence": "FEATURES.md §23 'Access presets' paragraph; PARITY rows 'Storage access presets (2026-10-10)' and 'Comments preset'. Dashboard choice wording from §23 visitor-routes paragraph."
     },
@@ -1375,7 +1375,7 @@
       }
      ],
      "covers": [
-      "Page recipes (2026-10-10)."
+      "storage-recipes"
      ],
      "evidence": "FEATURES.md §23 'Page recipes (2026-10-10)' paragraph and the Simple Hack passage (hack_get_page_recipe). Recipe files exist for all 12 topics in internal/mcp/recipes. Not stated for Enterprise in PARITY; recipes carry SQLite setup Enterprise does not run, so marked no."
     },
@@ -1412,7 +1412,7 @@
       }
      ],
      "covers": [
-      "Each person's records"
+      "each-persons-records"
      ],
      "evidence": "FEATURES.md §23 'Each person's records' paragraph and the add/own SQLite paragraphs; current page lede id each-persons-records (text kept in who). FEATURES.md's 2026-10-08 line says 'not Enterprise or Simple Hack', but the later 2026-10-10 presets passage says Simple Hack uses the same presets including records, and PARITY says Enterprise has the same presets; newer text wins, hack yes, enterprise partial."
     },
@@ -1445,7 +1445,7 @@
       }
      ],
      "covers": [
-      "Comments preset: posting without sign-in, spam-checked (2026-10-14; owner decision, INTENT.md)."
+      "storage-comments"
      ],
      "evidence": "FEATURES.md §23 'Comments preset' paragraph (limits 4000 bytes, 2 links, 10/30 s per address, 60 per site; frame; approve_first; small-box compose passes keys); PARITY row 'Comments preset, spam-checked posting without sign-in (2026-10-14)'."
     },
@@ -1478,7 +1478,7 @@
       }
      ],
      "covers": [
-      "Who sent each record (2026-10-10)."
+      "storage-visitor-emails"
      ],
      "evidence": "FEATURES.md §23 'Who sent each record (2026-10-10)' paragraph ('Hosted and small box; not Simple Hack (404 there)'); PARITY row 'Who sent each record (2026-10-10)'."
     },
@@ -1511,7 +1511,7 @@
       }
      ],
      "covers": [
-      "SQL errors say what to fix (2026-10-26)."
+      "storage-sql-errors"
      ],
      "evidence": "FEATURES.md §23 'SQL errors say what to fix (2026-10-26)' paragraph; PARITY row 'Actionable storage errors (2026-10-26)'."
     },
@@ -1544,7 +1544,7 @@
       }
      ],
      "covers": [
-      "Schema route (2026-10-10)."
+      "storage-schema"
      ],
      "evidence": "FEATURES.md §23 'Schema route (2026-10-10)' paragraph plus the own-database schema lines (visitor_id added with an index, removal rolls back) and the per-table rule warnings in the presets paragraph; PARITY row 'Site storage primitives' (Enterprise: no per-site DDL, no SQLite)."
     },
@@ -1641,8 +1641,8 @@
       }
      ],
      "covers": [
-      "Deprecated (2026-10-10): existing sites only.",
-      "The per-site cap"
+      "state-existing-sites-only",
+      "the-per-site-cap"
      ],
      "evidence": "FEATURES.md §4 L383-439 (deprecation, LEGACY_STORAGE_CUTOFF 2026-10-12, 1 MB doc, per-site cap 50 MB, site_full); current page state-shared-store; PARITY rows 'Saved state' and 'Old saved-data cutoff gate'. §5's duplicate deprecation lead is covered here as the same fact.",
      "status": "deprecated",
@@ -1813,7 +1813,7 @@
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
       }
      ],
-     "covers": [],
+     "covers": ["collections-existing-sites-only"],
      "evidence": "FEATURES.md §5 (64 KB per item, append rate SAVED_DATA_APPEND_PER_MIN 30, Idempotency-Key) and Kinds (16 KB, 10,000 live); current page collection-append and the 'Site data: collections' lede; PARITY row 'Collections and private collections'.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
@@ -1984,7 +1984,7 @@
       }
      ],
      "covers": [
-      "Who may save here"
+      "who-may-save"
      ],
      "evidence": "FEATURES.md §5 Kinds subsection ('Who may save here', not_allowed_to_save, +tag); 500 from internal/handler/limitstext.go (SAVED_DATA_SAVERS_MAX); current page who-may-save; PARITY row 'Saved-data kinds and who may save'.",
      "status": "deprecated",
@@ -2048,7 +2048,7 @@
       }
      ],
      "covers": [
-      "History and undo (saved-data redesign step 1, INTENT 2026-09-27)."
+      "data-history"
      ],
      "evidence": "FEATURES.md §4 'History and undo' paragraph (30 days, who, diff with daily full copy, 20 MB thinning, clear history typed confirm) and §5 Recently deleted/delete forever and board Restore all window; current page data-history; PARITY rows 'Saved-state history and restore' and 'Who wrote saved data'.",
      "status": "deprecated",
@@ -2182,7 +2182,7 @@
       }
      ],
      "covers": [
-      "Choosing the address at sign-up (2026-09-28)."
+      "access-choose-address"
      ],
      "evidence": "FEATURES.md §7 L784-790; §7 Routes row (choose_handle, suggested_handle, invalid_handle / handle_reserved / handle_taken without using up the code). Not stated for Simple Hack; features.html your-home-page says Simple Hack has no personal sites, so read as no."
     },
@@ -2277,7 +2277,7 @@
       }
      ],
      "covers": [
-      "Deploy-only keys and expiry (2026-09-27)."
+      "access-deploy-key"
      ],
      "evidence": "FEATURES.md §7 L762-782; PARITY rows 'API keys: scopes', 'API keys: expiry'. Hack: same binary, not stated separately."
     },
@@ -2337,7 +2337,7 @@
       }
      ],
      "covers": [
-      "Change sign-in email (2026-09-27; hardened after review the same day)."
+      "signin-email-change"
      ],
      "evidence": "features.html signin-email-change; FEATURES.md §7 L814-836; §6 L672 (EMAIL_SIGNIN=off turns off email change); PARITY row 'Change sign-in email'. Hack: same binary (event accounts refused), not stated separately."
     },
@@ -2370,7 +2370,7 @@
       }
      ],
      "covers": [
-      "Sign-in alerts (2026-09-27)."
+      "signin-alerts"
      ],
      "evidence": "features.html signin-alerts; FEATURES.md §7 L838-849; PARITY row 'Sign-in alert email'. Current page said 'never contains your address or IP'; FEATURES.md says never the IP or a location, so the text now says IP address or location. Hack: same binary, not stated separately."
     },
@@ -2407,7 +2407,7 @@
       }
      ],
      "covers": [
-      "Your data (GDPR self-service, 2026-09-27)."
+      "account-data"
      ],
      "evidence": "features.html account-data; FEATURES.md §7 L792-812; §7 Routes row DELETE /v1/me (account_suspended / site_suspended); PARITY row 'Data export and account erasure'. Hack: same routes (409 event_hostnames refusal exists), not stated separately."
     },
@@ -2444,7 +2444,7 @@
       }
      ],
      "covers": [
-      "Two sign-ins, one rule (2026-10-10)."
+      "visitor-signin"
      ],
      "evidence": "features.html visitor-signin; FEATURES.md §6 L636-639, L680-697 (two sign-ins, one rule; 403 account_auth_unavailable; 503 email_unavailable), L714-716 (requireSignIn, sessionStorage 15 min); PARITY row 'Visitor sign-in on a site'. Current page's Who listed 'a poll, an RSVP, a guestbook'; replaced with real use cases per the brief."
     },
@@ -2477,7 +2477,7 @@
       }
      ],
      "covers": [
-      "One sign-in across sites (2026-10-29, SIM-338)."
+      "access-one-signin"
      ],
      "evidence": "FEATURES.md §6 L600-634; PARITY row 'Visitor sign-in on a site'. Small box: 'Instances without an account apex keep the old visitor flow' (L630)."
     },
@@ -2533,7 +2533,7 @@
       }
      ],
      "covers": [
-      "Shared sign-in card and error table (2026-10-20)."
+      "access-signin-card"
      ],
      "evidence": "FEATURES.md §6 L697-712 (shared sign-in card and error table); PARITY row 'Sign-in card (2026-10-20)'."
     },
@@ -2570,7 +2570,7 @@
       }
      ],
      "covers": [
-      "Company sign-in, OIDC (2026-10-16)."
+      "access-company-signin"
      ],
      "evidence": "FEATURES.md §6 L641-664; PARITY rows 'Company sign-in on self-hosted installs (2026-10-16)', 'Owner sign-in and sessions'."
     },
@@ -2603,7 +2603,7 @@
       }
      ],
      "covers": [
-      "Email sign-in can be turned off (`EMAIL_SIGNIN`, 2026-10-16)."
+      "access-email-signin-off"
      ],
      "evidence": "FEATURES.md §6 L666-678; PARITY row 'Company sign-in on self-hosted installs (2026-10-16)' (EMAIL_SIGNIN=off turns emailed codes off everywhere). auth.md notes boxes without email omit email-code steps (L676)."
     },
@@ -2636,7 +2636,7 @@
       }
      ],
      "covers": [
-      "Site passcode (INTENT 2026-09-29). Status: flag"
+      "access-passcode"
      ],
      "evidence": "FEATURES.md §1 L94-141 (status flag, default on, needs PASSCODE_ENC_KEY, on at simple-host.app since 2026-09-30; limits 5/3m, 15 min lockout, 60/1m; 6 to 128 chars; refused passcode_needs_own_address and on Simple Hack); PARITY rows 'Site passcode', 'Who can open a site'. PARITY says 'switched off on simple-host.app until address families land (2026-09-29)'; FEATURES.md says on since 2026-09-30 and wins. Connector passcodes 2026-10-30 (L130-137): codes shown on screen, never in chat."
     },
@@ -2673,7 +2673,7 @@
       }
      ],
      "covers": [
-      "Named viewers: who can open the site (INTENT 2026-10-10, dashboard row status and Remove confirm 2026-10-21). Status: shipped hosted."
+      "access-named-viewers"
      ],
      "evidence": "FEATURES.md §1 L143-184 (SITE_VIEWERS_MAX 50, exact match, refused named_viewers_need_own_address, sign_in_unavailable, named_viewers_unavailable on Hack); §6 L607 (named-viewer gates hop automatically); PARITY rows 'Named viewers (2026-10-10 ...)', 'Who can open a site'."
     },
@@ -3320,7 +3320,7 @@
       }
      ],
      "covers": [
-      "Data minimisation (2026-10-28)."
+      "agents-data-minimisation"
      ],
      "evidence": "FEATURES.md §8 'Data minimisation (2026-10-28)' lead and 'Host MCP privacy (2026-10-28)' paragraph; PARITY L32 (Enterprise: no port, usernames by design). Small box not stated; same binary."
     },
@@ -3353,7 +3353,7 @@
       }
      ],
      "covers": [
-      "Agent discovery (2026-10-23)."
+      "agents-discovery"
      ],
      "evidence": "FEATURES.md §16 'Agent discovery (2026-10-23)' lead (L2085-2107); §8 L874-875 (cards, registry listing, mcp.so and Smithery pending); PARITY rows 'Markdown content negotiation and homepage', '/.well-known/ard.json', '/.well-known/api-catalog', 'Discovery Link response headers', 'MCP server card', 'Agent capability card', 'llms.txt', 'MCP host alias', 'Public DNS-AID records', 'Official MCP registry listing'."
     },
@@ -3579,7 +3579,7 @@
       }
      ],
      "covers": [
-      "Owner app load (2026-10-30)."
+      "dashboard-remembered-handle"
      ],
      "evidence": "FEATURES.md §10 'Owner app load (2026-10-30)' paragraph (L1585). Enterprise and Hack not stated; Hack has no personal sites page, Enterprise has its own dashboard."
     },
@@ -3639,7 +3639,7 @@
       }
      ],
      "covers": [
-      "Add photos (SIM-185, 2026-10-23)."
+      "dashboard-add-photos"
      ],
      "evidence": "features.html legend 'Add photos'; FEATURES.md §10 'Add photos (SIM-185, 2026-10-23)' lead (L1529); §8 photo-link paragraph (60 minutes, 10 saves, no sign-in, bound to site name); PARITY row 'Add photos page and upload API'. Internal byte caps (PHOTO_MAX_BYTES, concurrency slots, body deadline) left out as env knobs."
     },
@@ -3668,8 +3668,8 @@
       }
      ],
      "covers": [
-      "WebMCP on Add photos (SIM-186, 2026-10-24).",
-      "WebMCP on the owner app (SIM-186, 2026-10-24)."
+      "webmcp-on-add-photos",
+      "webmcp-on-the-owner-app"
      ],
      "evidence": "FEATURES.md §10 'WebMCP on Add photos (SIM-186, 2026-10-24)' and 'WebMCP on the owner app' paragraphs; PARITY row 'WebMCP page tools' (small box serves the same files; Hack not touched; Enterprise not built)."
     },
@@ -3698,7 +3698,7 @@
       }
      ],
      "covers": [
-      "MCP Apps (SIM-195, 2026-10-23, default off)."
+      "dashboard-mcp-apps"
      ],
      "evidence": "FEATURES.md §10 'MCP Apps (SIM-195, 2026-10-23, default off)' lead (L1044-1115: five screens, flags off/on/accounts, passcode screen TTL 600 s single use, preview off, run_tool gets link, ChatGPT same standard); PARITY row 'MCP Apps screens' (Enterprise default on v0.9.9, preview off everywhere; installers forward flags)."
     },
@@ -3731,9 +3731,9 @@
       }
      ],
      "covers": [
-      "Simple Hack My sites and dashboard (2026-10-24, default off).",
-      "Simple Hack judge app (SIM-344 phase 0+1, default off).",
-      "Simple Hack organiser app (SIM-344 phase 2, default off)."
+      "simple-hack-my-sites-and-dashboard",
+      "simple-hack-judge-app",
+      "simple-hack-organiser-app"
      ],
      "evidence": "FEATURES.md §10 leads 'Simple Hack My sites and dashboard (2026-10-24, default off)' (L1131-1146), 'Simple Hack judge app (SIM-344 phase 0+1, default off)' (L1147 first paragraph), 'Simple Hack organiser app (SIM-344 phase 2, default off)' (L1376 first paragraph); PARITY row 'MCP Apps screens' (UI-declared only, never ChatGPT/OpenAI/Codex, not ported to Enterprise). Self-hosted judge/organiser availability not stated; marked partial."
     },
@@ -3789,7 +3789,7 @@
       }
      ],
      "covers": [
-      "Product icon (Simple Host: \"Rounded\", 2026-10-24; Simple Hack: 2026-10-13)."
+      "dashboard-icon"
      ],
      "evidence": "FEATURES.md §9 'Product icon (Simple Host: \"Rounded\", 2026-10-24; Simple Hack: 2026-10-13)' lead (L956); PARITY row 'Product icon'."
     }
@@ -3856,7 +3856,7 @@
       }
      ],
      "covers": [
-      "Share what you like (2026-10-05)."
+      "showcase-pins-and-bio"
      ],
      "evidence": "FEATURES.md §13 L1725-1738 (pins, order 0-1000000, ties by creation time, bio, owner key or connector only, 280 chars range 1-2000, same order for HTML and feed, unlisted hidden even when pinned). features.html your-home-page entry Showcase row L138. PARITY row 'Your home page' (Enterprise: bio/pin/order in REST, OIDC MCP and dashboard)."
     },
@@ -3889,7 +3889,7 @@
       }
      ],
      "covers": [
-      "Live public feed (2026-10-05)."
+      "showcase-feed"
      ],
      "evidence": "FEATURES.md §13 L1747-1757 (no key, CORS *, cached 30 s, rate-limited, fields, same filter as HTML, custom home may fetch from the apex, hosted events excluded). features.html your-home-page entry API row L138. PARITY row 'Your home page' (Enterprise: signed-in showcase.json, owner-index visibility filter, no-store)."
     },
@@ -3922,7 +3922,7 @@
       }
      ],
      "covers": [
-      "Your home page (2026-10-05)."
+      "your-home-page"
      ],
      "evidence": "FEATURES.md §13 L1759-1770 (GET/PUT /v1/me/home, set_home_page, home_site, Your address panel selector, follows rename, cleared on deletion, fallback while offline/taken down/suspended, same gates as the site host, missing-file 302, sessions bound to exact host and site, hosted events excluded). features.html your-home-page entry L138 (all facts kept). PARITY row 'Your home page' (small-box path showcase opens its existing URL; Enterprise opens existing site URL after access checks)."
     }
@@ -4022,7 +4022,7 @@
       }
      ],
      "covers": [
-      "Your own visits are not counted"
+      "analytics-own-visits"
      ],
      "evidence": "FEATURES.md §12 'Your own visits are not counted' (2026-11-02, SIM-151); PARITY row 'Own visits left out of view counts'; web/analytics-parse.js owner class; internal/mcp/tools.go text in list_sites, get_site and site_analytics."
     },
@@ -4448,9 +4448,9 @@
       }
      ],
      "covers": [
-      "Overview",
-      "Network",
-      "Moderation"
+      "overview",
+      "network",
+      "moderation"
      ],
      "evidence": "FEATURES.md §11 L1603-1636 (six tabs, Overview, Network, Users, Sites, API, Moderation, Tools, admin reads any site's analytics via ?owner=, export.tar.gz, API_GROWTH_RETENTION_DAYS 400, api_self_daily 'from this server', DELETE /v1/admin/sites/{id}/lock never reads the passcode, RATE_LIMIT_SITE_OPS on wrong keys); PARITY rows 'Admin', 'Reissue another person's key', 'Data export and account erasure'. The owner's product knowledge server (§11 'Owner product knowledge') left out on instruction. Not linked: /admin is owner-only."
     },
@@ -4514,7 +4514,7 @@
       }
      ],
      "covers": [
-      "Report a page."
+      "admin-report-page"
      ],
      "evidence": "FEATURES.md §17 'Report a page.' (GET/POST /report, eight reasons, same-origin, 5 per address then 1 per 10 min, 60 an hour, caps URL 2,048 details 4,000 email 254 body 16 KB, Resend mailer, nothing stored, log keeps reason and host, reserved name); §18 Report form row. Not stated for Hack or the small box; same binary. '/report' shown because the current page style allows a page address and the brief lists it as a doc link."
     },
@@ -4578,7 +4578,7 @@
       }
      ],
      "covers": [
-      "Sign-up source"
+      "admin-signup-source"
      ],
      "evidence": "FEATURES.md §7 L738-745 ('Sign-up source', 2026-09-29: website, connector:<app>, agent with 40-character name, IP-shaped values dropped, signup_method, signup_inferred, never an IP); §11 L1628-1636 (drill-down 2026-10-15: funnel, same-visit URL/form attribution only, CSV); PARITY row 'Sign-ups by source (2026-10-15)' (2026-10-24: same-visit only, no cookies, no 30-day window). FEATURES §7 still says 'within 30 days of landing' with an arrival cookie; §11 and PARITY (later dated) say same-visit only, so the same-visit reading is used. Not stated for Hack or the small box; same binary."
     },
@@ -4739,9 +4739,9 @@
       }
      ],
      "covers": [
-      "Cost calculator (`/costs`).",
-      "We already have an ingress and load balancer",
-      "Prices and sources"
+      "cost-calculator",
+      "cost-calculator-existing-ingress",
+      "prices-and-sources"
      ],
      "evidence": "FEATURES.md §16 'Cost calculator (`/costs`).' (inputs, traffic levels, four switches, providers, stacked bar, line items with calculator links, Example 2,000 people, How we size it, Prices and sources, 45-day age check, state in the address, runs in the browser); PARITY row 'Cost calculator'. Quoted headline ranges left out: they live on /enterprise and change with prices."
     },
@@ -4774,8 +4774,8 @@
       }
      ],
      "covers": [
-      "Setup helper (`/setup`).",
-      "Enterprise"
+      "setup-helper",
+      "enterprise"
      ],
      "evidence": "FEATURES.md §16 'Setup helper (`/setup`).' (Small box or Enterprise, Helm or YAML, Basic and Advanced fields, pinned installer with sha256, chart ZIP contents, Set it up with your AI agent, UpCloud $4 line and $25 referral, never asks for a secret, credentials omit, does not create clusters); PARITY row 'Setup helper and advanced docs' (assistant and mistake check removed 2026-10-09; no form choices sent to a model). Status 'built' in FEATURES.md rendered as live."
     },
@@ -4881,10 +4881,10 @@
       }
      ],
      "covers": [
-      "Delete an event (2026-10-05).",
-      "Event administration (P1, deployed 2026-10-01).",
-      "Organiser Overview: one forward move, and Results locks judging (2026-10-31).",
-      "Weekly demo reset (2026-10-10, installation pending)."
+      "delete-an-event",
+      "event-administration",
+      "hack-next-step",
+      "weekly-demo-reset"
      ],
      "evidence": "FEATURES.md §15 L1811-1834 (M0/M1 status, stages), Env row EVENT_CREATE_PER_DAY (3) and EVENT_MAX_ACTIVE_PER_ORGANISER (2), 'Delete an event', 'Event administration', 'Organiser Overview', 'Weekly demo reset' (hosted deploy/prod script, hence hosted only). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system'."
     },
@@ -4921,10 +4921,10 @@
       }
      ],
      "covers": [
-      "Applications without a join link (2026-10-31).",
-      "A schedule that acts (2026-11-02).",
-      "Registration, tracks and challenges (P1, deployed 2026-10-01).",
-      "Outgoing mail visibility (P1, deployed 2026-10-01)."
+      "applications-without-a-join-link",
+      "a-schedule-that-acts",
+      "registration-tracks-and-challenges",
+      "outgoing-mail-visibility"
      ],
      "evidence": "FEATURES.md §15 'Applications without a join link' (limits 5/account, 30/IP per hour, 20 pending, 500 per event), 'Registration, tracks and challenges', 2026-10-27 track and announcement notes, 'Leave this event' (rejected applicant withdraws and may apply again, superseding 'cannot re-apply'). PARITY row 'Event content and communications'. 'Outgoing mail visibility' is an operator-side mail journal and daily watch with no user-visible surface; covered silently."
     },
@@ -4961,10 +4961,10 @@
       }
      ],
      "covers": [
-      "Team finding (2026-10-29, SIM-225; branch implementation).",
-      "Teams redesign (2026-10-31): admins, lock and the team link.",
-      "Leave this event (2026-10-31, SIM-340).",
-      "Notify people when something waits on them (2026-11-02, audit item 7)."
+      "team-finding",
+      "hack-team-admins-lock-links",
+      "leave-this-event",
+      "hack-notices"
      ],
      "evidence": "FEATURES.md §15 'Team finding', 'Teams redesign' (team size default 20, EVENT_TEAM_SIZE_DEFAULT), 'Leave this event'. PARITY rows 'Simple Hack: leave an event', 'Simple Hack: team admins and links', 'Hosted hackathon platform'. Contradiction: the §15 Env table row still lists EVENT_TEAM_SIZE_DEFAULT (4); the 2026-10-31 prose says 20 and wins. Standalone v0.8.13 carries team finding; the 2026-10-31 teams redesign and leave are not stated for the standalone package. 'Notify people when something waits on them' (2026-11-02): Needs you on Home, Overview and Home across events, sidebar badges, emails at most once per kind per 15 minutes, Account opt-out, hack_get_my_todos."
     },
@@ -4987,9 +4987,9 @@
      "status": "live",
      "status_note": "",
      "covers": [
-      "Entry summary card, rules and submit (audit items 4 and 5, 2026-11-02).",
-      "Entry deadline reminders (entries slice 3, 2026-11-02).",
-      "Results show what each team built (entries slice 3, 2026-11-02)."
+      "entry-summary-card-rules-and-submit",
+      "entry-deadline-reminders",
+      "results-show-what-each-team-built"
      ]
     },
     {
@@ -5025,14 +5025,14 @@
       }
      ],
      "covers": [
-      "The judge's one screen (entries slice 2, 2026-11-02).",
-      "Judging (M3).",
-      "Judging choices (P1, deployed 2026-10-01).",
-      "Organisers can also judge (2026-10-02).",
-      "Judging fixes (2026-10-27).",
-      "Stage and entry fixes (2026-10-27).",
-      "Teams can see the rubric (audit item 1, 2026-11-02).",
-      "Panel judging warns about untracked teams (audit item 2, 2026-11-02)."
+      "the-judges-one-screen",
+      "judging",
+      "judging-choices",
+      "organisers-can-also-judge",
+      "judging-fixes",
+      "stage-and-entry-fixes",
+      "teams-can-see-the-rubric",
+      "panel-untracked-teams"
      ],
      "evidence": "FEATURES.md §15 'Judging (M3)', 'Judging choices', 'Organisers can also judge', 'Judging fixes' (confirmation on scored criteria, judges-only default, scoring opens when entries close), 'Archive cleanup' (default rubric). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system' (judging-first Manage). Standalone v0.8.9 carries judging-first Manage."
     },
@@ -5065,7 +5065,7 @@
       }
      ],
      "covers": [
-      "People's choice and directory (P1, deployed 2026-10-01)."
+      "hack-voting"
      ],
      "evidence": "FEATURES.md §15 'People's choice and directory', 2026-10-27 review (confirm_vote_removal), 'Applications without a join link' (only listed events take applications). PARITY row 'Simple Hack sign-up, stages, voting and directory fixes'. Standalone availability not stated for voting; read as the same binary."
     },
@@ -5102,8 +5102,8 @@
       }
      ],
      "covers": [
-      "Archive cleanup (M4).",
-      "Guided team-site publishing (entries slice 3, 2026-11-02)."
+      "archive-cleanup",
+      "guided-team-site-publishing"
      ],
      "evidence": "FEATURES.md §15 L1806-1814 (zip uploads, versions, latest five), M2 status (team sites, take-down), 'Archive cleanup' (30 and 14 days), Env row MAX_ARCHIVE_MB=25 and KEEP_VERSIONS=2, 2026-10-27 review (zip limiter, freezes), 'Stage and entry fixes' (freeze at Judging), 'Personal connector parity' (select team then generic site tools). hackathons.html L96-101 (addresses, 25 MB, two versions, 1,000,000-byte allowance). PARITY rows 'Hack event websites and icon', 'Hosted hackathon platform'; webhooks from v0.8.11 release note."
     },
@@ -5140,7 +5140,7 @@
       }
      ],
      "covers": [
-      "Personal connector parity (implementing 2026-10-02)."
+      "hack-agents"
      ],
      "evidence": "FEATURES.md §15 'Personal connector parity', Skill row (run-hackathon), 'Role films and standing demo' (copyable prompts), standalone v0.8.9 (self-hosted Get started names its own connector). PARITY row 'Hack agent toolkit' (five-skill hack-toolkit install, five connector setups). hackathons.html L85-86. Lead is marked 'implementing' in FEATURES.md but PARITY says deployed; treated as live."
     },
@@ -5177,9 +5177,9 @@
       }
      ],
      "covers": [
-      "Standalone full-platform package (published v0.8.13).",
-      "Company pitch for the standalone package (2026-10-16).",
-      "Kubernetes (2026-11-02)."
+      "standalone-full-platform-package",
+      "hack-company-pitch",
+      "kubernetes"
      ],
      "evidence": "FEATURES.md §15 'Standalone full-platform package' (v0.8.10 OIDC, EMAIL_SIGNIN=off, --tls internal|acme|certs, --ca-cert), 'Company pitch for the standalone package' (2 GB RAM, providers, 45-second film). hackathons.html L88-101. PARITY rows 'Simple Hack for companies', 'Single-container Simple Hack' (not built), 'Event / hackathon instances'. FEATURES.md calls /companies 'Hosted-only' and in the same paragraph says it answers on every full self-hosted instance; the task's reading (hosted only) is used in editions_note."
     },
@@ -5212,7 +5212,7 @@
       }
      ],
      "covers": [
-      "Role films and standing demo (2026-10-10)."
+      "hack-films"
      ],
      "evidence": "FEATURES.md §15 'Role films and standing demo' (hosted-only /watch, demo JSON and redirects, self-hosted 404), 'Weekly demo reset'."
     }
