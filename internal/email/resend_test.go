@@ -2,6 +2,9 @@ package email
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -73,4 +76,32 @@ func TestHackMailJournalOmitsMessageDetails(t *testing.T) {
 	if output.Len() != 0 {
 		t.Fatalf("Host sender entered Hack report: %s", output.String())
 	}
+}
+
+// Cancel while the provider is stalled; both notice variants must interrupt it.
+func TestNoticeContextCancellation(t *testing.T) {
+	for _, replyTo := range []bool{false, true} {
+		t.Run(fmt.Sprint(replyTo), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			s := NewResendSender("key", "from@example.com")
+			s.client.Transport = cancelTransport{cancel: cancel}
+			var err error
+			if replyTo {
+				err = s.SendNoticeReplyToCtx(ctx, "to@example.com", "reply@example.com", "subject", "body")
+			} else {
+				err = s.SendNoticeCtx(ctx, "to@example.com", "subject", "body")
+			}
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("send returned %v, want cancellation", err)
+			}
+		})
+	}
+}
+
+type cancelTransport struct{ cancel context.CancelFunc }
+
+func (c cancelTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	c.cancel()
+	return nil, req.Context().Err()
 }

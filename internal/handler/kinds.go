@@ -25,6 +25,7 @@ import (
 	"github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/email"
 	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
 	"github.com/vsriram/simple-host/internal/workers"
 )
@@ -1732,7 +1733,7 @@ Stop these emails for %s: %s
 
 Simple Host
 `, d.Count, noun, d.Name, d.SiteName, d.Since.UTC().Format("2 Jan 2006 15:04 UTC"), owner, d.Name, stop)
-		if err := mailer.SendNotice(to, subject, text); err != nil {
+		if err := email.SendNoticeCtx(ctx, mailer, to, subject, text); err != nil {
 			// Not retried: the next email counts from here, so these entries
 			// are left out of the count rather than mailed twice.
 			t.Fail("send mail", notificationMailError(err))

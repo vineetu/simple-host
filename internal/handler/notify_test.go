@@ -1165,8 +1165,10 @@ func TestNotifySuspensionEmailRetry(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
 	notificationSQL(t, s, `UPDATE site_notifications SET state='suspended' WHERE id=$1`, id)
-	s.a.sites.mailer = failingNoticeMailer{}
-	s.a.sites.sweepNotifications(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.a.sites.mailer = cancellingNoticeMailer{cancel: cancel}
+	s.a.sites.sweepNotifications(ctx)
 	var emailed sql.NullTime
 	if err := s.a.database.QueryRow(`SELECT suspend_emailed_at FROM site_notifications WHERE id=$1`, id).Scan(&emailed); err != nil || emailed.Valid {
 		t.Fatal("failed email was not released")
@@ -1674,5 +1676,54 @@ func TestNotificationOwnerStopBeforeStart(t *testing.T) {
 		if status.Running || status.LastAttempt != nil {
 			t.Fatalf("stopped owner started: %+v", status)
 		}
+	}
+}
+
+type cancellingNoticeMailer struct {
+	failingNoticeMailer
+	cancel context.CancelFunc
+}
+
+func (m cancellingNoticeMailer) SendNoticeCtx(ctx context.Context, _, _, _ string) error {
+	m.cancel()
+	return ctx.Err()
+}
+
+func TestNotificationOwnerDrainsAcceptedEmits(t *testing.T) {
+	for _, parentCancel := range []bool{false, true} {
+		t.Run(fmt.Sprint(parentCancel), func(t *testing.T) {
+			s, _ := notificationFixture(t)
+			h := s.a.sites
+			e := h.notifyEngine()
+			owner := h.NotificationOwner()
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(func() { cancel(); owner.Stop(); owner.Wait() })
+			owner.Start(ctx)
+			finished := make(chan struct{})
+			e.emit(func(ctx context.Context) {
+				// Work remains accepted until shutdown has closed admission.
+				<-e.stopped
+				if err := ctx.Err(); err != nil {
+					t.Errorf("accepted emit cancelled before drain: %v", err)
+				}
+				close(finished)
+			})
+			if parentCancel {
+				cancel()
+			} else {
+				owner.Stop()
+			}
+			owner.Wait()
+			select {
+			case <-finished:
+			default:
+				t.Fatal("Wait did not join accepted emit")
+			}
+			e.emit(func(context.Context) { t.Error("emit admitted after stop") })
+			owner.Wait()
+			if len(e.emitting) != 0 {
+				t.Fatal("stopped emitter leaked admission")
+			}
+		})
 	}
 }

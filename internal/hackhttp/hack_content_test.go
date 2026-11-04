@@ -234,7 +234,11 @@ func TestHackEntryReceiptOnce(t *testing.T) {
 	if r := a.at(t, "POST", base+"/entry/submit", map[string]any{}, a.key(participant)); r.status != 200 {
 		t.Fatalf("submit: %d %s", r.status, r.body)
 	}
-	a.hack.deliverContentMail(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a.hack.SetMailer(&cancelAfterAcceptedSink{contentMailSink: sink, cancel: cancel})
+	a.hack.ContentDeliveryOwner().(*contentDeliveryOwner).run(ctx)
+	a.hack.SetMailer(sink)
 	if len(sink.notices) != 1 || !strings.Contains(sink.notices[0].subject, "entry received") {
 		t.Fatalf("receipt: %+v", sink.notices)
 	}
@@ -437,4 +441,20 @@ func TestHackContentPruneProgress(t *testing.T) {
 	if owner.tracker.Snapshot().LastError == "" {
 		t.Fatal("DB error was not reported")
 	}
+}
+
+// A provider may return success just as shutdown cancels the operation. Its
+// durable mark must still commit, so the next pass does not send a duplicate.
+type cancelAfterAcceptedSink struct {
+	*contentMailSink
+	cancel context.CancelFunc
+}
+
+func (s *cancelAfterAcceptedSink) SendNoticeCtx(ctx context.Context, to, subject, body string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	err := s.contentMailSink.SendNotice(to, subject, body)
+	s.cancel()
+	return err
 }

@@ -179,7 +179,14 @@ func (s *Service) newsText(ctx context.Context, q sqlkit.Querier, eventTitle, zo
 func (s *Service) sendNoticeBatch(ctx context.Context, sender interface {
 	SendNotice(string, string, string) error
 }, delay, window time.Duration, publicBaseURL string, evaluator EntryEvaluator) (bool, int64, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	if err := ctx.Err(); err != nil {
+		return false, 0, err
+	}
+	txCtx, cancelTx := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancelTx()
+	stopCancel := context.AfterFunc(ctx, cancelTx)
+	defer stopCancel()
+	tx, err := s.db.BeginTx(txCtx, nil)
 	if err != nil {
 		return false, 0, err
 	}
@@ -264,7 +271,17 @@ func (s *Service) sendNoticeBatch(ctx context.Context, sender interface {
 	} else {
 		subject = "Simple Hack: " + subject
 	}
-	if err := sender.SendNotice(b.Recipient, subject, body.String()); err != nil {
+	// Once sending starts, worker cancellation must not roll back a
+	// successful provider response before its durable mark is committed.
+	if !stopCancel() || ctx.Err() != nil {
+		return false, 0, ctx.Err()
+	}
+	sendErr := sendMailNotice(ctx, sender, b.Recipient, subject, body.String())
+	ctx, cancelFinish := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancelFinish()
+	stopFinish := context.AfterFunc(ctx, cancelTx)
+	defer stopFinish()
+	if err := sendErr; err != nil {
 		log.Printf("hack: notice mail delivery failed: %v", err)
 		if err := hackevents.DeferMailNotices(ctx, tx, valid); err != nil {
 			return false, 0, err

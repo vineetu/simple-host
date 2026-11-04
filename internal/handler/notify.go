@@ -21,6 +21,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/workers"
 )
@@ -41,6 +42,9 @@ type notificationEngine struct {
 	start                  sync.Once
 	stop                   sync.Once
 	stopped                chan struct{}
+	emitMu                 sync.Mutex
+	emitIdle               chan struct{}
+	emitPending            int
 	dropped                atomic.Uint64
 	// Both runners are joined before database shutdown; emits may precede Start.
 	runner                     *workers.Runner
@@ -84,6 +88,8 @@ func (h *SiteHandler) notifyEngine() *notificationEngine {
 
 		e := h.notifications
 		e.stopped = make(chan struct{})
+		e.emitIdle = make(chan struct{})
+		close(e.emitIdle)
 		e.delivery = workers.NewTracker("notifications.delivery")
 		e.retention = workers.NewTracker("notifications.retention")
 		e.emits = workers.NewTracker("notifications.emit")
@@ -132,6 +138,41 @@ func (e *notificationEngine) signal() {
 	}
 }
 
+// Admission and the idle signal share a lock so shutdown cannot race a new
+// Runner.Go against the drain. Accepted persistence keeps its own context.
+func (e *notificationEngine) emit(fn func(context.Context)) {
+	e.emitMu.Lock()
+	defer e.emitMu.Unlock()
+	select {
+	case <-e.stopped:
+		return
+	default:
+	}
+	select {
+	case e.emitting <- struct{}{}:
+	default:
+		e.emits.Fail("enqueue event", fmt.Errorf("queue full, dropped=%d", e.dropped.Add(1)))
+		return
+	}
+	if e.emitPending == 0 {
+		e.emitIdle = make(chan struct{})
+	}
+	e.emitPending++
+	e.emitRunner.Go(context.Background(), func(ctx context.Context) {
+		defer func() {
+			e.emitMu.Lock()
+			defer e.emitMu.Unlock()
+			<-e.emitting
+			e.emitPending--
+			if e.emitPending == 0 {
+				close(e.emitIdle)
+			}
+		}()
+		e.emits.Attempt()
+		fn(ctx)
+	})
+}
+
 // Called only after a storage write commits. Notification trouble must never
 // change the response to a successful visitor save.
 func (h *SiteHandler) emitNotification(c storageCall, name string, data map[string]any) {
@@ -139,15 +180,7 @@ func (h *SiteHandler) emitNotification(c storageCall, name string, data map[stri
 		return
 	}
 	e := h.notifyEngine()
-	select {
-	case e.emitting <- struct{}{}:
-	default:
-		e.emits.Fail("enqueue event", fmt.Errorf("queue full, dropped=%d", e.dropped.Add(1)))
-		return
-	}
-	e.emitRunner.Go(context.Background(), func(ctx context.Context) {
-		e.emits.Attempt()
-		defer func() { <-e.emitting }()
+	e.emit(func(ctx context.Context) {
 		h.storeNotificationContext(ctx, c, name, data)
 	})
 }
@@ -230,15 +263,7 @@ func (h *SiteHandler) emitSiteNotification(siteID, name string, data map[string]
 		return
 	}
 	e := h.notifyEngine()
-	select {
-	case e.emitting <- struct{}{}:
-	default:
-		e.emits.Fail("enqueue event", fmt.Errorf("queue full, dropped=%d", e.dropped.Add(1)))
-		return
-	}
-	e.emitRunner.Go(context.Background(), func(ctx context.Context) {
-		e.emits.Attempt()
-		defer func() { <-e.emitting }()
+	e.emit(func(ctx context.Context) {
 		h.storeSiteNotificationContext(ctx, siteID, name, data, dedupe)
 	})
 }
@@ -430,9 +455,22 @@ type notificationOwner struct {
 
 func (o *notificationOwner) Stop() {
 	e := o.h.notifyEngine()
-	e.stop.Do(func() { close(e.stopped) })
-	o.Runner.Stop()
-	e.emitRunner.Stop()
+	e.stop.Do(func() {
+		e.emitMu.Lock()
+		close(e.stopped)
+		idle := e.emitIdle
+		e.emitMu.Unlock()
+		o.Runner.Stop()
+		// Each event already has a five-second persistence deadline. Allow
+		// that full budget after HTTP drain before cancelling accepted writes.
+		timer := time.NewTimer(5 * time.Second)
+		defer timer.Stop()
+		select {
+		case <-idle:
+		case <-timer.C:
+		}
+		e.emitRunner.Stop()
+	})
 }
 func (o *notificationOwner) Wait() { o.Runner.Wait(); o.h.notifyEngine().emitRunner.Wait() }
 func (o *notificationOwner) Status() []workers.Status {
@@ -453,7 +491,7 @@ func (o *notificationOwner) Start(ctx context.Context) {
 			return
 		default:
 		}
-		e.runner.Go(ctx, func(ctx context.Context) { <-ctx.Done(); e.emitRunner.Stop() })
+		e.runner.Go(ctx, func(ctx context.Context) { <-ctx.Done(); o.Stop() })
 		// Keep the initial retention pass synchronous, using the owner's context.
 		ready := make(chan struct{})
 		e.runner.Go(ctx, func(ctx context.Context) { h.sweepNotifications(ctx); close(ready) })
@@ -625,9 +663,9 @@ func (h *SiteHandler) notifySuspension(ctx context.Context, n db.Notification) {
 	if err != nil || !claimed {
 		return
 	}
-	if err = mailer.SendNotice(to, "Simple Host notification paused", "Notifications for "+n.Site+" have been suspended after repeated delivery failures. Check the receiver, then resume the subscription in Notifications."); err != nil {
+	if err = email.SendNoticeCtx(ctx, mailer, to, "Simple Host notification paused", "Notifications for "+n.Site+" have been suspended after repeated delivery failures. Check the receiver, then resume the subscription in Notifications."); err != nil {
 		h.notifyEngine().retention.Fail("send suspension email", notificationMailError(err))
-		retryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		retryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		if _, err := h.database.ExecContext(retryCtx, `UPDATE site_notifications SET suspend_emailed_at=NULL WHERE id=$1`, n.ID); err != nil {
 			h.notifyEngine().retention.Fail("reset suspension email", err)

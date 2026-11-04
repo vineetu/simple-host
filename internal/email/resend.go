@@ -3,6 +3,7 @@ package email
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -118,6 +119,11 @@ func (s *ResendSender) signInCodeMessage(code, link string) (subject, text, html
 // stopped working). text is shown as-is; the HTML part is the same text,
 // escaped.
 func (s *ResendSender) SendNotice(toEmail, subject, text string) error {
+	return s.SendNoticeCtx(context.Background(), toEmail, subject, text)
+}
+
+// SendNoticeCtx delivers a notice with cancellation from its caller.
+func (s *ResendSender) SendNoticeCtx(ctx context.Context, toEmail, subject, text string) error {
 	if s.apiKey == "" {
 		s.mailResult("failed", "reason=missing_key")
 		return errors.New("RESEND_API_KEY not configured")
@@ -125,7 +131,7 @@ func (s *ResendSender) SendNotice(toEmail, subject, text string) error {
 	html := `<!DOCTYPE html>
 <html><body style="font-family: -apple-system, system-ui, sans-serif; color: #1a1a1a; max-width: 520px; margin: 0 auto; padding: 24px; white-space: pre-wrap;">` +
 		htmlpkg.EscapeString(text) + `</body></html>`
-	return s.send(toEmail, subject, text, html)
+	return s.sendWithCtx(ctx, toEmail, "", subject, text, html)
 }
 
 // CanSendNotice reports whether this sender has the credential needed for notices.
@@ -134,6 +140,11 @@ func (s *ResendSender) CanSendNotice() bool { return s.apiKey != "" }
 // SendNoticeReplyTo is SendNotice with a Reply-To address, for notices the
 // person may want to answer (the answer goes to support, not to the sender).
 func (s *ResendSender) SendNoticeReplyTo(toEmail, replyTo, subject, text string) error {
+	return s.SendNoticeReplyToCtx(context.Background(), toEmail, replyTo, subject, text)
+}
+
+// SendNoticeReplyToCtx delivers a notice with Reply-To and caller cancellation.
+func (s *ResendSender) SendNoticeReplyToCtx(ctx context.Context, toEmail, replyTo, subject, text string) error {
 	if s.apiKey == "" {
 		s.mailResult("failed", "reason=missing_key")
 		return errors.New("RESEND_API_KEY not configured")
@@ -141,14 +152,14 @@ func (s *ResendSender) SendNoticeReplyTo(toEmail, replyTo, subject, text string)
 	html := `<!DOCTYPE html>
 <html><body style="font-family: -apple-system, system-ui, sans-serif; color: #1a1a1a; max-width: 520px; margin: 0 auto; padding: 24px; white-space: pre-wrap;">` +
 		htmlpkg.EscapeString(text) + `</body></html>`
-	return s.sendWith(toEmail, replyTo, subject, text, html)
+	return s.sendWithCtx(ctx, toEmail, replyTo, subject, text, html)
 }
 
 func (s *ResendSender) send(toEmail, subject, text, html string) error {
-	return s.sendWith(toEmail, "", subject, text, html)
+	return s.sendWithCtx(context.Background(), toEmail, "", subject, text, html)
 }
 
-func (s *ResendSender) sendWith(toEmail, replyTo, subject, text, html string) error {
+func (s *ResendSender) sendWithCtx(ctx context.Context, toEmail, replyTo, subject, text, html string) error {
 	msg := map[string]any{
 		"from":    s.from,
 		"to":      []string{toEmail},
@@ -165,7 +176,7 @@ func (s *ResendSender) sendWith(toEmail, replyTo, subject, text, html string) er
 		return err
 	}
 
-	req, err := http.NewRequest("POST", s.endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", s.endpoint, bytes.NewReader(body))
 	if err != nil {
 		s.mailResult("failed", "reason=request")
 		return err
@@ -197,4 +208,20 @@ func (s *ResendSender) sendWith(toEmail, replyTo, subject, text, html string) er
 		s.mailResult("accepted", "id=unavailable")
 	}
 	return nil
+}
+
+// NoticeSender is the optional notice capability of a Sender.
+type NoticeSender interface {
+	SendNotice(string, string, string) error
+}
+
+// SendNoticeCtx uses caller cancellation when supported. The fallback keeps
+// existing local/test senders compatible without expanding Sender.
+func SendNoticeCtx(ctx context.Context, s NoticeSender, to, subject, body string) error {
+	if sender, ok := s.(interface {
+		SendNoticeCtx(context.Context, string, string, string) error
+	}); ok {
+		return sender.SendNoticeCtx(ctx, to, subject, body)
+	}
+	return s.SendNotice(to, subject, body)
 }

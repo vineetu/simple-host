@@ -374,7 +374,10 @@ func (s trackedContentSender) CanSendNotice() bool {
 	return true
 }
 func (s trackedContentSender) SendNotice(to, subject, body string) error {
-	if err := s.notice.SendNotice(to, subject, body); err != nil {
+	return s.SendNoticeCtx(context.Background(), to, subject, body)
+}
+func (s trackedContentSender) SendNoticeCtx(ctx context.Context, to, subject, body string) error {
+	if err := email.SendNoticeCtx(ctx, s.notice, to, subject, body); err != nil {
 		// Provider errors can contain the recipient or credentials. Keep those
 		// out of both the status and the existing service log.
 		err = contentMailError(err)
