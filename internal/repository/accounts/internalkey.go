@@ -3,6 +3,7 @@ package accounts
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"github.com/vsriram/simple-host/internal/model"
 	"sync"
 	"time"
 )
@@ -90,9 +91,7 @@ func sweepInternalKeys() {
 
 // InternalVisitorPass has no owner or admin authority. It is only accepted by
 // Visitor handlers for this site and host, for the lifetime of one tool call.
-type InternalVisitorPass struct {
-	UserID, SiteID, Host, AppName string
-}
+type InternalVisitorPass = model.InternalVisitorPass
 
 func IssueInternalVisitorKey(pass InternalVisitorPass) (string, func(), error) {
 	return issueInternal(pass.UserID, "", &pass)
