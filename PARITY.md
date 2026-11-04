@@ -263,7 +263,7 @@ Every numbered `FEATURES.md` section, per repo, and the rows above that cover it
 | hosted | Abuse limits and hardening | Rate limits and abuse caps; Quotas; Security headers; Country-blocked sign-in; RateLimit response headers; Idempotency-Key create replay; API route errors |
 | hosted | Signals and notifications | Notifications; Notification secret encryption |
 | hosted | Operations (health, schema, CLI) | Health and metrics; Deployment model; Schema migrations and version stamp; Operational times and limits; Setup helper and advanced docs |
-| hosted | MCP tool index (58 website tools; hosted Simple Hack event tools) | MCP tools; MCP instructions length by mode; MCP server card; Agent capability card (DNS-AID document); ard.json; api-catalog; Discovery Link headers; llms.txt; Markdown content negotiation and homepage; MCP host alias; Public DNS-AID records; AgentCat MCP usage analytics; Official MCP registry listing; MCPJam CI by lane |
+| hosted | MCP tool index | MCP tools; MCP instructions length by mode; MCP server card; Agent capability card (DNS-AID document); ard.json; api-catalog; Discovery Link headers; llms.txt; Markdown content negotiation and homepage; MCP host alias; Public DNS-AID records; AgentCat MCP usage analytics; Official MCP registry listing; MCPJam CI by lane |
 | hosted | Unplaced routes and tools | (index of FEATURES itself, no feature) |
 | enterprise | Identity: OIDC sign-in, sessions, hand-off | Owner sign-in and sessions; Sign out and sign out everywhere; Change sign-in email; Sign-in alert email; Visitor sign-in on a site |
 | enterprise | API keys (CI and automation) | API keys rows; Revoke a leaked key (admin); Why a key stopped working; Deploy from CI in one call |

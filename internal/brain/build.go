@@ -280,6 +280,7 @@ var secretShapes = regexp.MustCompile(`(?:sh(?:at|rt|ac|cs)_[A-Za-z0-9_-]{16,}|\
 func redact(s string) string { return secretShapes.ReplaceAllString(s, "[redacted]") }
 
 var headingLine = regexp.MustCompile(`^(#{1,6})\s+(.+?)\s*#*\s*$`)
+var featureAnchor = regexp.MustCompile(` <a id="[a-z0-9]+(?:-[a-z0-9]+)*"></a>$`)
 
 // parseDoc splits a document at its headings, ignoring "#" lines inside
 // fenced code. Text before the first heading is a section with no heading.
@@ -300,6 +301,10 @@ func parseDoc(p, repo, text string) Doc {
 	for _, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "```") {
 			inFence = !inFence
+		}
+		// Stable feature IDs are metadata, not owner-facing headings or prose.
+		if path.Base(p) == "FEATURES.md" && !inFence {
+			line = featureAnchor.ReplaceAllString(line, "")
 		}
 		if m := headingLine.FindStringSubmatch(line); isMarkdown && m != nil && !inFence {
 			flush()

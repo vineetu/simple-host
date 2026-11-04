@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 REPO=hosted
 
 [ -f PARITY.md ] || { echo "check-parity: PARITY.md is missing"; exit 1; }
-titles=$(sed -nE 's/^## [0-9]+\. (.+)$/\1/p' FEATURES.md)
+titles=$(sed -E 's/ <a id="[^"]+"><\/a>$//' FEATURES.md | sed -nE 's/^## [0-9]+\. (.+)$/\1/p')
 [ -n "$titles" ] || { echo "check-parity: no '## N. Title' sections in FEATURES.md; the pattern needs updating"; exit 1; }
 
 missing=0

@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -397,5 +398,20 @@ func TestBuildLocalSources(t *testing.T) {
 	m := changes[0].(map[string]any)
 	if m["product"] != "travel" || m["repo"] != RepoTravel || m["label"] != labels[RepoTravel] || !strings.Contains(res.Text, "- ["+labels[RepoTravel]+"] ") {
 		t.Errorf("change: %+v", res)
+	}
+}
+
+func TestParseDocFeatureAnchors(t *testing.T) {
+	plain := "# FEATURES\n\n## 1. Sites and deploy\n\n**Drafts** Keep a version.\n\n### Import\n\n**Multiline\nlead** More text.\n"
+	anchored := strings.NewReplacer(
+		"## 1. Sites and deploy\n", "## 1. Sites and deploy <a id=\"sites-deploy\"></a>\n",
+		"**Drafts** Keep a version.\n", "**Drafts** Keep a version. <a id=\"drafts\"></a>\n",
+		"### Import\n", "### Import <a id=\"import\"></a>\n",
+		"**Multiline\n", "**Multiline <a id=\"multiline\"></a>\n",
+	).Replace(plain)
+	want := parseDoc("simple-host/FEATURES.md", RepoHost, plain)
+	got := parseDoc("simple-host/FEATURES.md", RepoHost, anchored)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("feature anchors changed parsed content: got %+v, want %+v", got, want)
 	}
 }
