@@ -1,4 +1,5 @@
 # Advanced settings
+For where to run a small box and where settings go, see [deployment profiles](../operations/deployment-profiles.md).
 
 The installer supplies the required database connection and admin key; you choose
 the address and sign-in methods. The tables state the binary defaults. This folder
