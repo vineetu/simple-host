@@ -770,6 +770,23 @@ see only the server's fields) and has `items`; it takes `order: "-id"` or `"id d
 
 ## 7. Owner auth (API keys, email codes, profile) <a id="owner-auth"></a>
 
+**Password accounts (2026-11-04).** <a id="password-accounts"></a>
+Self-hosted installs can enable `PASSWORD_SIGNIN=on` (binary default off; Compose and Helm default on).
+`PASSWORD_SELF_SIGNUP=on` permits public username sign-up; off limits creation to the admin.
+`POST /v1/auth/password` accepts a username or email and password; `POST /v1/auth/password/signup`
+creates a username account. Both issue the same sign-in key as email verification, including connector consent.
+`POST /v1/admin/password-users` creates an account and `POST /v1/admin/users/{id}/password` resets
+any non-admin account, returning a temporary password once. The next sign-in requires a different
+`new_password`. Passwords are 8–256 characters, stored as salted Argon2id PHC hashes in
+`account_passwords` (migration `0002-password-sign-in.sql`, deleted with the user). Failed attempts
+are limited per normalized login and IP. The dashboard, Hack sign-in and connector share the form;
+the admin Users panel creates accounts and resets passwords. Optional email metadata establishes
+no email identity; an admin can use an email as the username. With the setting off all four routes
+answer 404 and no password UI appears. No TOTP, leaked-password checks or passkeys.
+Self-host marketing is shown only on simple-host.app and simple-hack.app using existing hosted
+blocks, including landing pages, features and navigation; the routes remain available.
+
+
 **Sign-up source** (2026-09-29): each account records, once at creation, where it came from <a id="admin-signup-source"></a>
 (`users.signup_source`: `website` for a same-site browser request or Google from the site's pages, `artifact-hub`, `vercel-ship`, or `agentcon` (or `from:<value>` for an unnamed `?from=` value) for a browser sign-up from the site's pages, Google, or the /mcp consent page within 30 days of landing through that link (`h/signup.go` `arrivalSources`, the arrival cookie in §15; on the consent page the app's name goes to `signup_agent`), with `signup_detail` holding from, utm_*, the referring host and the landing time;
 otherwise `connector:<app>` when made on the /mcp consent page, from `signup_client` in the verify body or the

@@ -50,6 +50,9 @@ adminApiKey: ""
 # email becomes optional, and email.enabled "off" removes the email-code form
 # everywhere (so only company accounts can sign in).
 signIn:
+  password:
+    enabled: true
+    selfSignup: true
   oidc:
     # Issuer URL (https), e.g. https://login.microsoftonline.com/<tenant>/v2.0,
     # https://your-org.okta.com, https://accounts.google.com.
@@ -62,7 +65,7 @@ signIn:
     # The name on the button: "Sign in with <label>".
     label: "your company account"
   email:
-    enabled: "on"        # "on" or "off"; off needs oidc configured
+    enabled: "on"        # "on" or "off"; off needs OIDC or password sign-in
     resendApiKey: ""     # or RESEND_API_KEY in secrets.existingSecret
     from: ""             # a verified sender, e.g. Simple Hack <hack@example.com>
 

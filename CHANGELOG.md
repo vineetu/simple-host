@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-04: Self-hosted installs can use username/password accounts, with optional public sign-up and admin-issued temporary passwords. Password sign-in works in the dashboard, Simple Hack and connector consent. Self-hosted pages hide run-your-own-server marketing.
+
 2026-11-04: Cleanup 5.4: static pages and reviewed skill bundles now live in webassets; event DNS sweep and import jobs move into site services, and the knowledge HTTP routes use an injected store. Routes, responses and asset bytes are unchanged.
 
 2026-11-04: Admin usage now includes background worker lifecycle and progress reports, with a Background workers table in Overview. HTTP cache and limiter cleanup has explicit cancellation and join ownership; server shutdown drains requests before stopping the worker set.

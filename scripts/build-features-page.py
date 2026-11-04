@@ -48,6 +48,8 @@ def render_feature(f):
     if f["status"] in PILL:
         pill = ' <span class="st %s">%s</span>' % (f["status"], PILL[f["status"]])
     lines = []
+    if f["id"] == "self-host":
+        lines.append("<!--sh:hosted-->")
     lines.append('      <details class="feat" id="%s">' % html.escape(f["id"]))
     lines.append('        <summary><span class="fname">%s</span>%s<span class="fline">%s</span></summary>' % (rich(f["name"]), pill, rich(f["line"])))
     lines.append('        <div class="fbody">')
@@ -80,6 +82,8 @@ def render_feature(f):
     lines.append('          <p class="meta">%s</p>' % " ".join(meta))
     lines.append('        </div>')
     lines.append('      </details>')
+    if f["id"] == "self-host":
+        lines.append("<!--/sh:hosted-->")
     return "\n".join(lines)
 
 

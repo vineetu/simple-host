@@ -18,6 +18,7 @@
   const d=await (await fetch('/v1/auth/oauth/providers')).json();
   const card=SHSignIn.mount(document.getElementById('signin'),{
    title:'Sign in',lead:'to continue to __HOST__',skin:'ink',providers:d.providers||[],oidcLabel:d.oidc_label,emailEnabled:d.email_enabled!==false,
+   password:d.password,ssoState:state,onPasswordSuccess:finish,
    fine:'By continuing you agree to the Terms and Privacy Policy. The site owner can see the email you sign in with.',
    requestCode:email=>post('/v1/auth',{email:email}),
    verifyCode:async(email,code)=>{const data=await post('/v1/auth/verify',{email,code,name:'dashboard sign-in',sso_state:state});await finish(data);return data;},

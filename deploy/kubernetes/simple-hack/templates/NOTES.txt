@@ -19,6 +19,9 @@ Before anyone can open it:
 {{- if include "hack.oidcOn" . }}
   3. The identity provider's web client allows this redirect URI:
        https://{{ .Values.host }}/v1/auth/oauth/oidc/callback
+{{- else if .Values.signIn.password.enabled }}
+  3. Sign in with a username and password. Admin Users can create accounts
+     and reset temporary passwords.
 {{- else }}
   3. Sign-in is by emailed code through Resend; company sign-in (signIn.oidc)
      is the way in for an internal installation.

@@ -722,9 +722,39 @@
       "small_box": true
     },
     {
+      "name": "PASSWORD_SIGNIN",
+      "group": "accounts",
+      "description": "on enables username/password accounts on this install. Off on the hosted services.",
+      "type": "enum",
+      "default": "off",
+      "allowed": [
+        "on",
+        "off"
+      ],
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "PASSWORD_SELF_SIGNUP",
+      "group": "accounts",
+      "description": "When password sign-in is on, on lets people create accounts; off allows only admin-created accounts.",
+      "type": "enum",
+      "default": "on",
+      "allowed": [
+        "on",
+        "off"
+      ],
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "EMAIL_SIGNIN",
       "group": "accounts",
-      "description": "off turns email-code sign-in off everywhere (account, connector, team-site visitors): refused at startup unless company sign-in is configured.",
+      "description": "off turns email-code sign-in off everywhere (account, connector, team-site visitors): refused at startup unless company or password sign-in is configured.",
       "type": "enum",
       "default": "on",
       "allowed": [

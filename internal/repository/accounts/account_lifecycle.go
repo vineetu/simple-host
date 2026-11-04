@@ -293,8 +293,12 @@ func EraseAccount(ctx context.Context, tx *sql.Tx, a model.AccountForDelete, ops
 }
 
 func InsertIssuedAccount(ctx context.Context, tx *sql.Tx, name string) (string, error) {
+	return InsertAccount(ctx, tx, name, "admin", "issued")
+}
+
+func InsertAccount(ctx context.Context, tx *sql.Tx, name, source, method string) (string, error) {
 	var id string
-	err := tx.QueryRowContext(ctx, `INSERT INTO users (username, signup_source, signup_method) VALUES ($1, 'admin', 'issued') ON CONFLICT (username) DO NOTHING RETURNING id`, name).Scan(&id)
+	err := tx.QueryRowContext(ctx, `INSERT INTO users (username, signup_source, signup_method) VALUES ($1, $2, $3) ON CONFLICT (username) DO NOTHING RETURNING id`, name, source, method).Scan(&id)
 	return id, err
 }
 func LockReissueAccount(ctx context.Context, tx *sql.Tx, id string) (model.User, error) {

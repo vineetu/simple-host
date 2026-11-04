@@ -22,6 +22,8 @@ data:
   TRUSTED_PROXY_CIDRS: {{ . | quote }}
   {{- end }}
   # Sign-in.
+  PASSWORD_SIGNIN: {{ ternary "on" "off" .Values.signIn.password.enabled | quote }}
+  PASSWORD_SELF_SIGNUP: {{ ternary "on" "off" .Values.signIn.password.selfSignup | quote }}
   {{- if include "hack.oidcOn" . }}
   OIDC_ISSUER: {{ .Values.signIn.oidc.issuer | quote }}
   OIDC_CLIENT_ID: {{ .Values.signIn.oidc.clientId | quote }}

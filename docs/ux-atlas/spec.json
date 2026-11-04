@@ -7180,13 +7180,19 @@
      "name": "too many tries",
      "when": "rate limit (429 rate_limited)",
      "shows": "Status line 'Too many applications from this account. Wait a while and try again.' The form keeps what was typed."
+    },
+    {
+     "name": "password sign-in",
+     "when": "PASSWORD_SIGNIN is on for this install",
+     "shows": "Provider buttons, username/email and password, Create an account if self sign-up is on, then email code if enabled. Temporary passwords prompt for a new password before sign-in completes."
     }
    ],
    "replaces": [],
    "fixes": [],
    "features": [
     "preview-application",
-    "apply-to-event"
+    "apply-to-event",
+    "password-accounts"
    ],
    "prototype_states": [
     {
@@ -7218,6 +7224,12 @@
     {
      "slug": "closed",
      "name": "Applications off",
+     "stage": "open",
+     "next": null
+    },
+    {
+     "slug": "password",
+     "name": "Password sign-in on own install",
      "stage": "open",
      "next": null
     }

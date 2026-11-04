@@ -43,7 +43,9 @@ type UserHandler struct {
 	ipLimiter    *rateLimiter
 	emailLimiter *rateLimiter
 	// checkLimiter caps address checks per client IP (GET /v1/handles/check).
-	checkLimiter *rateLimiter
+	checkLimiter                            *rateLimiter
+	passwordEnabled, passwordSelfSignup     bool
+	passwordLoginLimiter, passwordIPLimiter *rateLimiter
 
 	// publicPage builds an account's public page address (SiteHandler.PersonPageURL).
 	publicPage func(handle string) string
@@ -164,6 +166,7 @@ func NewUserHandler(database *sql.DB, service *accounts.Service, mailer signInCo
 }
 
 func (h *UserHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
+	h.registerPasswords(mux, authMiddleware, noticeMiddleware)
 	// Account sign-in answers only on the app's own address (accountauth.go);
 	// a hosted page's visitors use the visitor routes on the site's address.
 	mux.Handle("POST /v1/auth", accountAuthOnly(h.publicBaseURL, noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.requestSignIn)))))
@@ -269,24 +272,10 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
-	// The sign-in pages name their key "dashboard sign-in" (the default a
-	// sign-in key gets anyway); the other names Simple Host gives its own
-	// keys stay refused, as in the Keys panel.
-	keyName := strings.TrimSpace(req.Name)
-	if n := strings.ToLower(keyName); n != model.KeyNameDashboard && n != model.KeyNameAgent {
-		var err error
-		if keyName, err = normalizeKeyName(req.Name); err != nil {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
-			return
-		}
-	} else {
-		keyName = n
-	}
-	if keyName == "" {
-		keyName = model.KeyNameAgent
-		if req.Token != "" {
-			keyName = model.KeyNameDashboard
-		}
+
+	if _, err := signInKeyName(req); err != nil {
+		writeJSON(w, 400, errorResponse{Error: err.Error()})
+		return
 	}
 
 	user, created, status, body := verifyEmailCode(r.Context(), h.database, h.emailLimiter, req, "dashboard", sql.NullString{}, h.ed.Identity().RandomHandles, h.authTokenTTL())
@@ -306,7 +295,37 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		recordSignup(r.Context(), h.database, user.ID, source)
 	}
 
-	// A suspended account gets no new key. It has proved its email, so it is
+	h.finishSignIn(w, r, user, created, req)
+}
+
+func signInKeyName(req verifyRequest) (string, error) {
+	keyName := strings.TrimSpace(req.Name)
+	if n := strings.ToLower(keyName); n == model.KeyNameDashboard || n == model.KeyNameAgent {
+		keyName = n
+	} else {
+		var err error
+		keyName, err = normalizeKeyName(req.Name)
+		if err != nil {
+			return "", err
+		}
+	}
+	if keyName == "" {
+		keyName = model.KeyNameAgent
+		if req.Token != "" {
+			keyName = model.KeyNameDashboard
+		}
+	}
+	return keyName, nil
+}
+
+func (h *UserHandler) finishSignIn(w http.ResponseWriter, r *http.Request, user model.User, created bool, req verifyRequest) {
+	keyName, err := signInKeyName(req)
+	if err != nil {
+		writeJSON(w, 400, errorResponse{Error: err.Error()})
+		return
+	}
+
+	// A suspended account gets no new key. It has proved its identity, so it is
 	// told why.
 	fresh, err := h.accounts.GetUserByID(r.Context(), user.ID)
 	if err != nil {

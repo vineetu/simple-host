@@ -188,14 +188,14 @@ const setLive = msg => ui.toast(msg)
       var providers = [];
       if (names.indexOf('google') >= 0) providers.push('google');
       if (names.indexOf('oidc') >= 0) providers.push('oidc');
-      return { providers: providers, emailOn: d.email_enabled !== false, oidcLabel: d.oidc_label || '' };
+      return { providers: providers, emailOn: d.email_enabled !== false, oidcLabel: d.oidc_label || '', password: d.password };
     }).catch(function () {
       return { providers: [], emailOn: true, oidcLabel: '' };
     });
   }
   var IT_FINE = 'Email codes are turned off on this server. Ask your IT team if you cannot sign in.';
   function companyCopy(cfg) {
-    if (!cfg || cfg.emailOn || !cfg.providers.length) return null;
+    if (!cfg || cfg.emailOn || !cfg.providers.length || (cfg.password && cfg.password.enabled)) return null;
     var oidc = cfg.providers.indexOf('oidc') >= 0;
     var google = cfg.providers.indexOf('google') >= 0;
     var copy = { fine: IT_FINE };
@@ -223,7 +223,7 @@ const setLive = msg => ui.toast(msg)
     if (!window.SHSignIn || !slot) return null;
     o = o || {};
     var cfg = o.cfg || { providers: [], emailOn: true, oidcLabel: '' };
-    if (!cfg.emailOn && !(cfg.providers && cfg.providers.length)) return null;
+    if (!cfg.emailOn && !(cfg.providers && cfg.providers.length) && !(cfg.password && cfg.password.enabled)) return null;
     var company = o.company ? companyCopy(cfg) : null;
     var opts = {
       skin: 'ink',
@@ -233,6 +233,8 @@ const setLive = msg => ui.toast(msg)
       providers: cfg.providers || [],
       oidcLabel: cfg.oidcLabel || '',
       emailEnabled: cfg.emailOn !== false,
+      password: cfg.password,
+      onPasswordSuccess: completeSignIn,
       autofocus: o.autofocus !== false,
       startProvider: function (name) { startOAuthProvider(name); },
       requestCode: requestSignInCode,
@@ -346,7 +348,7 @@ const setLive = msg => ui.toast(msg)
     showAuthStep('email');
     var cfg = await loadProviders();
     var bare = $('signin-bare');
-    if (!cfg.emailOn && !cfg.providers.length) {
+    if (!cfg.emailOn && !cfg.providers.length && !(cfg.password && cfg.password.enabled)) {
       destroySignInCard();
       var empty = $('signin-slot');
       if (empty) { empty.textContent = ''; empty.hidden = true; }

@@ -16,7 +16,7 @@ signIn:
     allowedEmailDomains: example.com
     label: Example SSO
   email:
-    enabled: "off"       # company accounts only; "on" with a Resend key adds emailed codes
+    enabled: "off"       # password/company accounts; "on" with a Resend key adds emailed codes
 
 ingress:
   className: nginx

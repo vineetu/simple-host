@@ -101,6 +101,8 @@ services:
       OIDC_LABEL: ${OIDC_LABEL:-}
       OIDC_INSECURE_ALLOWED: ${OIDC_INSECURE_ALLOWED:-}
       EMAIL_SIGNIN: ${EMAIL_SIGNIN:-}
+      PASSWORD_SIGNIN: ${PASSWORD_SIGNIN:-on}
+      PASSWORD_SELF_SIGNUP: ${PASSWORD_SELF_SIGNUP:-on}
       # Operational times and limits (docs/configuration.md). Empty means the
       # built-in default, so these pass through only what .env sets.
       SIGNIN_CODE_TTL_MINUTES: ${SIGNIN_CODE_TTL_MINUTES:-}

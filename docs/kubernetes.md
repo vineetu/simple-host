@@ -74,7 +74,7 @@ Have these before `helm install`; the chart cannot make them.
 
    Note the issuer URL, client ID and client secret. Provider-by-provider
    steps are in [simple-hack-standalone.md](platforms/simple-hack-standalone.md#registering-the-redirect-uri).
-   Without an identity provider, sign-in is by emailed code through Resend
+   Without an identity provider, password sign-in works by default; optionally use emailed codes through Resend
    (`signIn.email`), which needs the pod to reach api.resend.com.
 
 5. **A storage class** that can give a ReadWriteOnce volume (every default
@@ -145,7 +145,8 @@ kubectl -n simple-hack get secret simple-hack-secrets \
 ```
 
 Keep it out of chat and tickets. With `signIn.email.enabled: "off"` (the
-example values), only accounts from the identity provider can sign in.
+example values), password accounts still work by default. For company accounts
+only, also set `signIn.password.enabled: false`.
 `signIn.oidc.allowedEmailDomains` refuses anyone outside the listed domains
 even when the provider would have let them through.
 
@@ -246,3 +247,5 @@ site passcode and notification secret, and the data is unreadable without it.
   without the load balancer, to tell its problems from the proxy's.
 - `deploy/kubernetes/tests/kind-check.sh` runs the whole thing against a
   throwaway kind cluster with its own Postgres, as a release check.
+
+Password sign-in is enabled by default in the chart (`signIn.password.enabled: true`, `signIn.password.selfSignup: true`). It renders `PASSWORD_SIGNIN=on` and `PASSWORD_SELF_SIGNUP=on`, and needs neither OIDC nor Resend. Set `selfSignup: false` for admin-created accounts only, or `enabled: false` to require another sign-in method. Admin Users creates accounts and resets temporary passwords.

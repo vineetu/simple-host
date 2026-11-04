@@ -67,6 +67,7 @@ owner-auth
 owner-dashboard-and-owner-app
 owner-product-knowledge
 panel-untracked-teams
+password-accounts
 personal-and-shared-board
 prices-and-sources
 publish-file-limits

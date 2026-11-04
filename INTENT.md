@@ -129,6 +129,9 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- 2026-11-04 (owner): support password sign-in on self-hosted installs, off by default in the binary and on hosted production. Compose and Helm enable it by default. Self sign-up is a separate setting, on by default; operators may restrict account creation to the admin. Temporary admin passwords must be changed at first sign-in. No TOTP/2-step, leaked-password checks or passkeys. Hide self-host/run-your-own marketing on self-hosted installs, retaining it on simple-host.app and simple-hack.app.
+
+
 - **2026-11-02. Full-test fixes, the coordinator's calls (open to the owner's override).**
   Moving the event to Closed or Judging settles every draft, so incomplete drafts are judged
   (flagged Incomplete) even in an Open-mode event with no deadline. A team that never opened the

@@ -241,8 +241,10 @@ type Config struct {
 	TrustedProxyCIDRs []*net.IPNet
 	// EmailSignIn is EMAIL_SIGNIN: "on" (default) or "off". off turns
 	// email-code sign-in off everywhere (account, connector, team-site
-	// visitors); refused at load unless company sign-in is configured.
-	EmailSignIn string
+	// visitors); refused at load unless company or password sign-in is configured.
+	EmailSignIn        string
+	PasswordSignIn     string
+	PasswordSelfSignup string
 
 	// OpenAIAppsChallenge is the OpenAI plugin portal's domain-verification
 	// token, served verbatim at /.well-known/openai-apps-challenge. Unset: 404.
@@ -502,8 +504,16 @@ func validateAccountSignIn(cfg *Config) error {
 		log.Printf("warning: EMAIL_SIGNIN must be on or off, not %q; treating as on", mode)
 		cfg.EmailSignIn = "on"
 	}
-	if cfg.EmailSignIn == "off" && !cfg.CompanySignInEnabled() {
-		return errors.New("EMAIL_SIGNIN=off needs company sign-in configured (OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET): otherwise nobody could sign in")
+	cfg.PasswordSignIn = "off"
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("PASSWORD_SIGNIN")), "on") {
+		cfg.PasswordSignIn = "on"
+	}
+	cfg.PasswordSelfSignup = "on"
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("PASSWORD_SELF_SIGNUP")), "off") {
+		cfg.PasswordSelfSignup = "off"
+	}
+	if cfg.EmailSignIn == "off" && !cfg.CompanySignInEnabled() && cfg.PasswordSignIn != "on" {
+		return errors.New("EMAIL_SIGNIN=off needs company sign-in configured (OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET) or PASSWORD_SIGNIN=on: otherwise nobody could sign in")
 	}
 	return nil
 }

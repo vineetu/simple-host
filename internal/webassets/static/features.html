@@ -135,7 +135,7 @@
           <li><a class="node" href="#publish"><b>Sites and deploy</b><span class="n">25</span><span class="l">Your AI app sends the finished site to Simple Host, which puts it online and keeps it there, with versions, a copy to download, and an undo for delete.</span></a></li>
           <li><a class="node" href="#addresses"><b>Domains and addresses</b><span class="n">13</span><span class="l">Where a site answers: its own address from the first minute, a short free name, your own domain, or one wildcard for every site you own.</span></a></li>
           <li><a class="node" href="#storage"><b>Storage and saved data</b><span class="n">27</span><span class="l">Where a site keeps what visitors send and what the owner changes from chat, with rules for who may read, add, edit, and delete.</span></a></li>
-          <li><a class="node" href="#access"><b>Sign-in and access</b><span class="n">20</span><span class="l">How owners and visitors sign in, the keys an AI agent uses, and who may open a site.</span></a></li>
+          <li><a class="node" href="#access"><b>Sign-in and access</b><span class="n">21</span><span class="l">How owners and visitors sign in, the keys an AI agent uses, and who may open a site.</span></a></li>
           <li><a class="node" href="#notifications"><b>Notifications</b><span class="n">7</span><span class="l">A signed call to your receiver or your AI app the moment a visitor writes, and the emails Simple Host sends you.</span></a></li>
           <li><a class="node" href="#agents"><b>Agents and MCP</b><span class="n">18</span><span class="l">How an AI app or coding agent connects to Simple Host, what it may call, and what it is told while it works.</span></a></li>
           <li><a class="node" href="#dashboard"><b>Owner dashboard</b><span class="n">9</span><span class="l">The screens where you manage your sites yourself, and the screens your AI app can draw inside a chat.</span></a></li>
@@ -1430,6 +1430,21 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/terms">Terms</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#18-abuse-limits-and-hardening">FEATURES.md: abuse limits</a></span></p>
         </div>
       </details>
+      <details class="feat" id="password-accounts">
+        <summary><span class="fname">Sign in with a password</span><span class="fline">On your own install, use a username and password without an email service or company identity provider.</span></summary>
+        <div class="fbody">
+          <p class="how">The operator enables password sign-in. People can create accounts, or the admin can create them and give each person a temporary password. At first sign-in they choose their own password.</p>
+          <p class="ex"><b>Example.</b> A company runs an internal hackathon without an email provider. The organiser creates accounts from the Users panel.</p>
+          <dl class="fm">
+            <dt>Who</dt><dd>People using a self-hosted install.</dd>
+            <dt>Where</dt><dd>The sign-in card and the admin Users panel.</dd>
+            <dt>Limits</dt><dd class="lim">Passwords need 8 to 256 characters. The operator can turn public account creation off.</dd>
+          </dl>
+          <ul class="eds" aria-label="Editions"><li class="no"><b>Simple Host</b>no</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
+          <p class="ednote">Available on self-hosted Host and Hack installs; off on the hosted services.</p>
+          <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/auth.md">Authentication</a></span></p>
+        </div>
+      </details>
       </div>
     </section>
     <section class="area" id="notifications">
@@ -2446,6 +2461,7 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/setup?product=small-box">Set up a small box</a> <a href="/setup?product=enterprise">Set up Enterprise</a></span></p>
         </div>
       </details>
+<!--sh:hosted-->
       <details class="feat" id="self-host">
         <summary><span class="fname">Run it on your own server</span><span class="fline">The same software runs on a server of your own, from one install command, with every limit on this page as a setting.</span></summary>
         <div class="fbody">
@@ -2461,6 +2477,7 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/setup?product=small-box">Set up a small box</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#20-operations-health-schema-cli">FEATURES.md: Operations</a></span></p>
         </div>
       </details>
+<!--/sh:hosted-->
       <details class="feat" id="admin-health">
         <summary><span class="fname">Health checks and schema upgrades</span><span class="fline">Two health addresses for your monitoring, and schema changes that run once, in order, under a lock, before a new release starts.</span></summary>
         <div class="fbody">

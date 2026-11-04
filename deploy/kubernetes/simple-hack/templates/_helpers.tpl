@@ -96,11 +96,11 @@ template fails with the same plain sentence.
 {{- fail "signIn.oidc.allowedEmailDomains is required when the issuer is Google, or any Google account could sign in" }}
 {{- end }}
 {{- $email := or .Values.signIn.email.resendApiKey .Values.secrets.existingSecret }}
-{{- if and (not $oidc) (not $email) }}
-{{- fail "nobody could sign in: set signIn.oidc (company sign-in) or signIn.email.resendApiKey and from (email codes)" }}
+{{- if and (not $oidc) (not $email) (not .Values.signIn.password.enabled) }}
+{{- fail "nobody could sign in: enable signIn.password.enabled, set signIn.oidc (company sign-in) or signIn.email.resendApiKey and from (email codes)" }}
 {{- end }}
-{{- if and (eq .Values.signIn.email.enabled "off") (not $oidc) }}
-{{- fail "signIn.email.enabled \"off\" needs company sign-in configured, or nobody could sign in" }}
+{{- if and (eq .Values.signIn.email.enabled "off") (not $oidc) (not .Values.signIn.password.enabled) }}
+{{- fail "signIn.email.enabled \"off\" needs company or password sign-in configured, or nobody could sign in" }}
 {{- end }}
 {{- if and .Values.signIn.email.resendApiKey (not .Values.signIn.email.from) }}
 {{- fail "signIn.email.from is required with resendApiKey: the verified sender address" }}

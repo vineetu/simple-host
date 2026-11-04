@@ -98,6 +98,9 @@ func assertChrome(t *testing.T, label, body, wantCurrentHref string) {
 }
 
 func TestChromeOnEveryMainOriginPage(t *testing.T) {
+	prevHosted := instanceIsHostedService
+	instanceIsHostedService = true
+	t.Cleanup(func() { instanceIsHostedService = prevHosted })
 	mux := chromeTestMux(t, edition.Host)
 	for _, tc := range []struct {
 		path, current string

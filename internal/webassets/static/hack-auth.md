@@ -10,6 +10,27 @@ Use the connector at https://simple-hack.app/mcp. Sign in and choose Allow in
 the trusted browser window. Never request codes, keys, passwords, or passcodes
 in chat. All paths below are relative to this server's app origin.
 
+## Password accounts on an install
+
+Read `GET /v1/auth/oauth/providers`: when `password.enabled` is true the install supports
+`POST /v1/auth/password` with `{login,password,name?,sso_state?,new_password?}`.
+Login is the username or account email, trimmed and case-insensitive. Success returns the
+same `{id,username,api_key,is_admin,created,handle}` as email verification. Use the key for
+`/v1/me` and the existing SSO/connector consent flow. Wrong credentials return 401
+`bad_credentials`; repeated failures return 429 with `Retry-After`.
+A 403 `password_change_required` asks for a different `new_password` (8–256 characters).
+If `password.self_signup` is true, `POST /v1/auth/password/signup` with
+`{username,password,email?}` creates an account and signs in. Public usernames are 3–64
+lowercase letters, digits, dots, underscores or hyphens, never email addresses; `email` is
+optional metadata and establishes no email identity. Taken usernames return 409 `username_taken`.
+The admin key can call `POST /v1/admin/password-users` with `{username,email?,password?}`
+or `POST /v1/admin/users/{id}/password` with `{password?}`. Each returns
+`{id,username,handle,temporary_password,message}` once and requires a password change at sign-in.
+Omit `password` to generate a temporary one. Admin usernames may be emails; admin accounts
+cannot be reset here. All password routes return 404 when `PASSWORD_SIGNIN=off`;
+sign-up also returns 404 when `PASSWORD_SELF_SIGNUP=off`. Hosted services leave password sign-in off.
+
+
 ## Browser sign-in
 
 {sign_in}

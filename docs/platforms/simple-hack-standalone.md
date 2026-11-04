@@ -101,7 +101,8 @@ results workflow. Nothing claims a name from simple-host.app.
   records unless you also configure and verify IPv6 bindings and routing.
 - Public TCP ports 80 and 443 reaching this installation; no other web server
   may already occupy them. [Coolify](simple-hack-coolify.md) uses its existing proxy.
-- A Resend API key and a verified sender address. Email-code sign-in requires
+- Password sign-in works by default (`PASSWORD_SIGNIN=on`, `PASSWORD_SELF_SIGNUP=on`). Set the latter to `off` for admin-created accounts only.
+- Optionally, a Resend API key and a verified sender address. Email-code sign-in requires
   these; setting a fake key does not provide working sign-in. Google sign-in
   is optional and uses your own OAuth application and redirect configuration.
 

@@ -47,8 +47,13 @@ const (
 )
 
 var (
-	ChromeTemplates = template.Must(template.ParseFS(staticFiles, "static/partials/*.html"))
-	hackInkVersion  = func() string {
+	// html/template strips literal comments, so partials emit the hosted markers
+	// through fixed trusted constants before hostedBlocks filters the page.
+	ChromeTemplates = template.Must(template.New("").Funcs(template.FuncMap{
+		"hostedStart": func() template.HTML { return template.HTML("<!--sh:hosted-->") },
+		"hostedEnd":   func() template.HTML { return template.HTML("<!--/sh:hosted-->") },
+	}).ParseFS(staticFiles, "static/partials/*.html"))
+	hackInkVersion = func() string {
 		b, err := staticFiles.ReadFile("static/hack-ink.css")
 		if err != nil {
 			panic(err)
@@ -259,7 +264,7 @@ func withChrome(page []byte, d ChromeData) ([]byte, error) {
 	} else if hasHead {
 		page = addHostInk(page, d.Base)
 	}
-	return page, nil
+	return hostedBlocks(page, d.Owner != ""), nil
 }
 
 // The shared app pages get Host's ink after their layout styles. This path

@@ -411,6 +411,229 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
+  /v1/auth/password:
+    post:
+      x-audience:
+      - public-host
+      - public-hack
+      tags:
+      - Auth
+      operationId: passwordSignIn
+      summary: Sign in with a username or email and password
+      description: Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login:
+                  type: string
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  maxLength: 256
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  maxLength: 256
+                name:
+                  type: string
+                sso_state:
+                  type: string
+              required:
+              - login
+              - password
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Wrong username or password (bad_credentials), including unknown and passwordless accounts.
+        '403':
+          description: 'password_change_required: current password verified; resubmit with a different new_password. Or account_suspended.'
+        '404':
+          description: 'not found: PASSWORD_SIGNIN is off.'
+      security: []
+  /v1/auth/password/signup:
+    post:
+      x-audience:
+      - public-host
+      - public-hack
+      tags:
+      - Auth
+      operationId: passwordSignup
+      summary: Create a password account and sign in
+      description: Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in. Username is lowercased; @ is forbidden. Optional email establishes no email identity.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  pattern: ^[a-z0-9._-]{3,64}$
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  maxLength: 256
+                email:
+                  type: string
+              required:
+              - username
+              - password
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: invalid_username or invalid_password
+        '404':
+          description: 'not found: PASSWORD_SIGNIN off or PASSWORD_SELF_SIGNUP off'
+        '409':
+          description: username_taken
+        '429':
+          description: rate_limited; Retry-After header
+      security: []
+  /v1/admin/password-users:
+    post:
+      x-audience:
+      - internal
+      tags:
+      - Admin
+      operationId: createPasswordUser
+      summary: Create an account with a temporary password
+      description: Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in. Requires the admin key. Omit password to generate one; admin-created usernames may be emails.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  maxLength: 256
+              required:
+              - username
+      responses:
+        '200':
+          description: Temporary password shown once; must be changed before sign-in.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  username:
+                    type: string
+                  handle:
+                    type: string
+                  temporary_password:
+                    type: string
+                  message:
+                    type: string
+                required:
+                - id
+                - username
+                - handle
+                - temporary_password
+                - message
+        '400':
+          description: Invalid username/password or admin account reset
+        '401':
+          description: Unauthorized
+        '404':
+          description: 'not found: disabled, non-admin caller or missing account'
+        '409':
+          description: username_taken
+      security:
+      - apiKey: []
+  /v1/admin/users/{id}/password:
+    post:
+      x-audience:
+      - internal
+      tags:
+      - Admin
+      operationId: resetAccountPassword
+      summary: Set a temporary password for a non-admin account
+      description: Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in. Requires the admin key. Omit password to generate one; admin-created usernames may be emails.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  maxLength: 256
+              required: []
+      responses:
+        '200':
+          description: Temporary password shown once; must be changed before sign-in.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  username:
+                    type: string
+                  handle:
+                    type: string
+                  temporary_password:
+                    type: string
+                  message:
+                    type: string
+                required:
+                - id
+                - username
+                - handle
+                - temporary_password
+                - message
+        '400':
+          description: Invalid username/password or admin account reset
+        '401':
+          description: Unauthorized
+        '404':
+          description: 'not found: disabled, non-admin caller or missing account'
+        '409':
+          description: username_taken
+      security:
+      - apiKey: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
   /v1/auth/verify:
     post:
       x-audience: ["public-host", "public-hack"]
@@ -549,6 +772,12 @@ paths:
                 type: object
                 required: [providers, email_enabled]
                 properties:
+                  password:
+                    type: object
+                    description: Present only when password sign-in is enabled on this install.
+                    properties:
+                      enabled: { type: boolean }
+                      self_signup: { type: boolean }
                   sso_enabled: { type: boolean, description: Whether site Sign in should use the apex SSO hop }
                   email_enabled: { type: boolean, description: Whether email-code sign-in is configured and EMAIL_SIGNIN is not off }
                   providers:

@@ -95,8 +95,9 @@ deliberately enters browser setup; configure the real domain/base URL before
 normal use. Dockerfile supplies the persistent DATA_DIR and port
 (`compose.yaml:19`, `compose.yaml:40`, `Dockerfile:37`).
 Standalone also requires `PASSCODE_ENC_KEY`, `ANALYTICS_SALT` and `SITE_DOMAIN`;
-it derives PUBLIC_BASE_URL and requires either complete OIDC settings or
-`RESEND_API_KEY` plus `MAIL_FROM` for sign-in. TLS_MODE/ACME_CA configure its
+it derives PUBLIC_BASE_URL and enables password sign-in by default. With password
+sign-in off, it requires either complete OIDC settings or `RESEND_API_KEY` plus
+`MAIL_FROM` for sign-in. TLS_MODE/ACME_CA configure its
 wrapper/Caddy, not Go server settings (`deploy/hack/standalone/compose.yaml:14`,
 `deploy/hack/standalone/start.sh:16`, `deploy/hack/standalone/start.sh:68`).
 
@@ -150,7 +151,7 @@ uses the ReadWriteOnce volume. `/data/sites` and `/data/geoip` are on `/data`;
 envFrom loads a ConfigMap and Secret. Values set `SITE_DOMAIN`,
 `PUBLIC_BASE_URL`, `EVENTS=hosted`, persistence paths and port; extraConfig and
 extraSecrets add registry names. Set `host`, a database DSN (or existing Secret),
-and OIDC credentials or email sign-in credentials. ADMIN_API_KEY is generated
+and password sign-in (on by default), OIDC credentials or email sign-in credentials. ADMIN_API_KEY is generated
 and retained by Helm, or supplied in your existing Secret; DB_DSN is supplied
 by you. Rendered YAML needs a persistent Secret created separately
 (`deploy/kubernetes/simple-hack/templates/configmap.yaml:10`,
@@ -225,3 +226,10 @@ no database and prints release/commit plus embedded migration information
 | Empty DB | schema.sql or migrate -init | Postgres init or standalone release | Server migrate -init path |
 | Rollback | Saved binary + restart | Previous image/package | Helm rollback/previous image |
 | Restore | Paired DB + site tree + keys | Paired DB + files volume + keys | Paired DB + /data + Secret |
+
+## Password sign-in by profile
+
+Hosted systemd: leave `PASSWORD_SIGNIN=off` (binary default); existing email and provider sign-ins continue.
+Docker Compose small box, standalone Hack and Coolify: `PASSWORD_SIGNIN` and `PASSWORD_SELF_SIGNUP` default to `on` and are passed through. No mail or identity provider is required for password sign-in.
+Kubernetes: `signIn.password.enabled: true` and `signIn.password.selfSignup: true` render both settings as `on`; setting either false renders `off`. Password sign-in satisfies the chart's sign-in requirement without OIDC or Resend.
+An operator may set `PASSWORD_SELF_SIGNUP=off` and create/reset accounts through Admin Users. People must change temporary passwords before completing sign-in. Existing email accounts can receive passwords by admin reset; existing keys and sessions continue to work.

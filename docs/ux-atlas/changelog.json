@@ -1,5 +1,9 @@
 [
  {
+  "date": "2026-11-04",
+  "what": "Self-hosted installs may enable password accounts. The shared sign-in card offers username/email and password after providers, account creation when enabled, and a new-password field for temporary credentials. Hosted services keep their current methods. Prototype: public-apply~password."
+ },
+ {
   "date": "2026-11-02",
   "what": "Entries slice 3 built: publishing and showing. participant-website: a state strip (AI app: Not connected / Connected in Claude, last used, teammates connected too / Connected to another team with a switch line / Using a key; Website: Not published yet / Published, version, when, link), Claude and ChatGPT tabs (default: the app last connected) with numbered steps read from hack-connect-steps.json, which /get-started now renders too, the person's sign-in email named, a Copy prompt built from the entry, and polling every 5 s for up to 10 minutes while visible with a toast on Connected and Published; once published the steps fold into Publish again. public-event-page: results rows carry the summary card (winners open, other full-ranking rows folded), Open website / Watch video (host named, never embedded) / View code when the event asks for it, only on rows the results setting shows; team site cards gain tool tags and See result. participant-results: Your entry as the public sees it, or one line saying it is not shown. Deadline reminder email 24 h and 1 h before for teams not submitted (Account email switch respected, never key-only accounts)."
  },

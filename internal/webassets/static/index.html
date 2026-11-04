@@ -1218,7 +1218,7 @@ function parseAnalyticsSummary(data) {
       } catch (e) {}
       const names = d.providers || [];
       const emailOn = d.email_enabled !== false;
-      const keyOnly = !emailOn && !names.length;
+      const keyOnly = !emailOn && !names.length && !(d.password && d.password.enabled);
       const keyForm = document.getElementById('key-form');
       if (keyOnly) keyForm.hidden = false;
       signInCard = window.SHSignIn.mount(document.getElementById('signin-mount'), {
@@ -1228,6 +1228,8 @@ function parseAnalyticsSummary(data) {
         providers: names,
         oidcLabel: d.oidc_label || '',
         emailEnabled: !keyOnly && emailOn,
+          password: d.password,
+          onPasswordSuccess: completeSignIn,
         fine: fineNode(!keyOnly && emailOn),
         linkNote: true,
         product: 'Simple Host',

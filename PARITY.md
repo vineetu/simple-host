@@ -1,5 +1,7 @@
 # PARITY — Simple Host (hosted) and Simple Host Enterprise
 
+2026-11-04 password accounts: self-hosted Host/Hack support PASSWORD_SIGNIN and PASSWORD_SELF_SIGNUP, temporary passwords and shared connector sign-in; hosted defaults off. Enterprise port outstanding (`gap → enterprise`). Self-host marketing is hidden outside the hosted services.
+
 2026-11-04 background worker status: hosted Host/Hack and small-box builds add a `workers` array to admin usage and a Background workers Overview table. Enterprise has not yet received the lifecycle/status contract (`gap → enterprise`).
 
 2026-11-02 image matching (SIM-200): hosted Simple Host and Simple Hack (server installs with

@@ -245,6 +245,14 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
   <!-- ============ Users ============ -->
   <section class="panel" role="tabpanel" id="p-users" aria-labelledby="tab-users" hidden>
     <div class="sec">
+      <div id="password-panel" hidden>
+        <h3>Password sign-in</h3>
+        <form id="password-create" class="toolbar">
+          <input class="in" id="password-username" aria-label="Username" placeholder="Username" required autocomplete="off">
+          <input class="in" id="password-temp" type="password" aria-label="Temporary password (optional)" placeholder="Temporary password (optional)" autocomplete="new-password">
+          <button class="btn" type="submit">Create account</button>
+        </form>
+      </div>
       <h2>Users <span class="cnt" id="u-count"></span></h2>
       <div class="toolbar">
         <input class="in grow" type="search" id="u-search" placeholder="Search handle or email (-word hides)" aria-label="Search users by handle or email; start a word with a minus sign to hide matches" autocomplete="off" spellcheck="false">
@@ -430,6 +438,7 @@ function ago(s){
   var y=Math.max(1,Math.floor(days/365.25)); return y+' year'+(y===1?'':'s')+' ago';
 }
 function fmtWhen(s){ var d=new Date(s); if(!s||isNaN(d)) return ''; var m=(Date.now()-d)/60000; if(m<2) return 'just now'; if(m<60) return Math.round(m)+' min ago'; if(m<1440) return Math.round(m/60)+' h ago'; return dateOf(s); }
+var passwordEnabled=false;
 var statusTimer=null;
 function status(msg, err){
   var s=$('status'); s.hidden=false; s.className='msg'+(err?' err':''); s.textContent=msg;
@@ -806,6 +815,7 @@ function userPanel(u){
   var acts='';
   if(!u.is_admin){
     acts='<div class="actions">'+
+      (passwordEnabled?'<button type="button" class="btn ghost sm" data-reset-password="'+esc(u.id)+'">Reset password</button>':'')+
       (u.suspended?'':'<button type="button" class="btn ghost sm" data-newkey-id="'+esc(u.id)+'" data-name="'+esc(u.username)+'">New key</button>')+
       (u.suspended?'<button type="button" class="btn ghost sm" data-user-enable="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Re-enable</button>'
                   :'<button type="button" class="btn ghost sm" data-user-suspend="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Suspend</button>')+
@@ -1943,11 +1953,30 @@ async function load(){
     D.loaded.users=true;
     var ev=await evP;
     if(ev) applyEventsPayload(ev);
+    var methods=await fetch('/v1/auth/oauth/providers').then(function(r){return r.json();});
+    passwordEnabled=!!(methods.password&&methods.password.enabled);
+    $('password-panel').hidden=!passwordEnabled;
     clearStatus();
     $('tabs').hidden=false;
     showTab(tabFromHash());
   }catch(e){ status('Could not reach the server: '+(e.message||e), true); }
 }
+async function showTemporaryPassword(res){
+  if(!res.ok){ status(await errOf(res),true); return; }
+  var d=await res.json();
+  await shAlert({title:'Temporary password for '+d.username,body:d.message,copy:d.temporary_password,okLabel:'Done'});
+  await reloadUsers();
+}
+$('password-create').addEventListener('submit',async function(e){
+  e.preventDefault();
+  await showTemporaryPassword(await api('POST','/v1/admin/password-users',{username:$('password-username').value,password:$('password-temp').value}));
+  $('password-temp').value='';
+});
+$('u-rows').addEventListener('click',async function(e){
+  var btn=e.target.closest('[data-reset-password]'); if(!btn)return;
+  e.stopPropagation();
+  await showTemporaryPassword(await api('POST','/v1/admin/users/'+encodeURIComponent(btn.dataset.resetPassword)+'/password',{}));
+});
 load();
 })();
 </script>

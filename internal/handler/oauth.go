@@ -41,6 +41,7 @@ type OAuthSettings struct {
 	PublicBaseURL, SiteDomain, ContentHost, CNAMETarget, CustomDomainIP, OIDCLabel string
 	CustomDomainIPAlso                                                             []string
 	EmailEnabled                                                                   bool
+	PasswordEnabled, PasswordSelfSignup                                            bool
 	SignIn                                                                         *accounts.ProviderSignIn
 }
 
@@ -197,6 +198,9 @@ func (h *OAuthHandler) listProviders(w http.ResponseWriter, r *http.Request) {
 		names = append(names, "github")
 	}
 	resp := map[string]any{"providers": names, "email_enabled": h.cfg.EmailEnabled, "sso_enabled": publicBaseHost(h.cfg.PublicBaseURL) != ""}
+	if h.cfg.PasswordEnabled {
+		resp["password"] = map[string]bool{"enabled": true, "self_signup": h.cfg.PasswordSelfSignup}
+	}
 	if h.signIn.Has("oidc") {
 		names = append(names, "oidc")
 		resp["providers"] = names

@@ -1813,7 +1813,9 @@
        "href": "https://github.com/vineetu/simple-host/blob/main/FEATURES.md#5-collections-including-private-collections-deprecated-existing-sites-only"
       }
      ],
-     "covers": ["collections-existing-sites-only"],
+     "covers": [
+      "collections-existing-sites-only"
+     ],
      "evidence": "FEATURES.md §5 (64 KB per item, append rate SAVED_DATA_APPEND_PER_MIN 30, Idempotency-Key) and Kinds (16 KB, 10,000 live); current page collection-append and the 'Site data: collections' lede; PARITY row 'Collections and private collections'.",
      "status": "deprecated",
      "status_note": "kept for sites that already use it; sites made from 12 October 2026 use site storage"
@@ -2707,6 +2709,34 @@
      ],
      "covers": [],
      "evidence": "PARITY.md L208 (country-blocked sign-in, 2026-10-01: SIGNUP_BLOCKED_COUNTRIES, empty = off; 403 signup_unavailable_region; API keys keep working; viewing unaffected; not applied to Enterprise). The countries themselves are not in the sources read and are not rendered. Hack: same binary, not stated for simple-hack.app."
+    },
+    {
+     "id": "password-accounts",
+     "name": "Sign in with a password",
+     "line": "On your own install, use a username and password without an email service or company identity provider.",
+     "who": "People using a self-hosted install.",
+     "how": "The operator enables password sign-in. People can create accounts, or the admin can create them and give each person a temporary password. At first sign-in they choose their own password.",
+     "example": "A company runs an internal hackathon without an email provider. The organiser creates accounts from the Users panel.",
+     "where": "The sign-in card and the admin Users panel.",
+     "limits": "Passwords need 8 to 256 characters. The operator can turn public account creation off.",
+     "editions": {
+      "host": "no",
+      "hack": "no",
+      "enterprise": "no",
+      "smallbox": "yes"
+     },
+     "editions_note": "Available on self-hosted Host and Hack installs; off on the hosted services.",
+     "status": "live",
+     "status_note": "",
+     "docs": [
+      {
+       "href": "/auth.md",
+       "label": "Authentication"
+      }
+     ],
+     "covers": [
+      "password-accounts"
+     ]
     }
    ]
   },

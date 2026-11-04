@@ -248,3 +248,12 @@ func TooManyRequests(w http.ResponseWriter) {
 	}
 	WriteJSON(w, http.StatusTooManyRequests, ErrorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
 }
+
+// Refund returns a reserved attempt when authentication did not fail.
+func (rl *RateLimiter) Refund(key string) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	if b := rl.buckets[key]; b != nil {
+		b.tokens = math.Min(rl.Capacity, b.tokens+1)
+	}
+}

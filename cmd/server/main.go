@@ -286,6 +286,7 @@ func main() {
 
 	handler.RegisterHealthRoutes(mux, db)
 	userHandler := handler.NewUserHandler(db, accountsService, mailer, cfg.PublicBaseURL, ed)
+	userHandler.SetPasswordSignIn(cfg.PasswordSignIn == "on", cfg.PasswordSelfSignup != "off")
 	userHandler.Register(mux, authMW, noticeMW)
 	siteHandler := handler.NewSiteHandler(ed, hackInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, cfg.WriteAuthMode, adminUserID, mailer, userHandler.EmailLimiter())
 	siteHandler.SetOperationsNetwork(operations.NewNetworkUsage(db, ed))

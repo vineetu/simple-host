@@ -39,3 +39,5 @@ For migration ownership, required settings and rollback, see
 See also [Rate limits](advanced/rate-limits.md) for the format and all rate limiters,
 and [Operational times and limits](advanced/README.md#operational-times-and-limits)
 for startup validation, promised dates and served documentation.
+
+Password accounts: `PASSWORD_SIGNIN=on` enables username/password sign-in; the binary default is `off`. `PASSWORD_SELF_SIGNUP=on` (default) permits public account creation; `off` leaves creation to the admin. `EMAIL_SIGNIN=off` accepts either company sign-in or password sign-in as the alternative. See [accounts and sign-in](advanced/accounts-and-sign-in.md).

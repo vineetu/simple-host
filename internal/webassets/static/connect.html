@@ -453,7 +453,7 @@
       cardPromise = fetch('/v1/auth/oauth/providers').then(function (r) { return r.json(); }).catch(function () { return {}; }).then(function (d) {
         var providers = d.providers || [];
         var emailOn = d.email_enabled !== false;
-        var keyOnly = !emailOn && !providers.length;
+        var keyOnly = !emailOn && !providers.length && !(d.password && d.password.enabled);
         var extra = document.createElement('div');
         if (keyOnly) {
           el('key-form').hidden = false;
@@ -471,6 +471,8 @@
           providers: providers,
           oidcLabel: d.oidc_label || '',
           emailEnabled: !keyOnly && emailOn,
+          password: d.password,
+          onPasswordSuccess: function (data) { setKey(data.api_key); enter(); },
           fine: fineNode(!keyOnly && emailOn),
           linkNote: true,
           product: productName(),

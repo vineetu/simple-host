@@ -3,8 +3,8 @@
     <div class="sh-foot">
       <nav class="sh-foot-links" aria-label="More">
         <a href="https://simple-host.app/">Simple Host</a>
-        <a href="https://simple-host.app/hackathons">Self-host an event</a>
-        <a href="{{.Base}}/companies"{{if eq .Current "companies"}} aria-current="page"{{end}}>For companies</a>
+        {{hostedStart}}<a href="https://simple-host.app/hackathons">Self-host an event</a>{{hostedEnd}}
+        {{hostedStart}}<a href="{{.Base}}/companies"{{if eq .Current "companies"}} aria-current="page"{{end}}>For companies</a>{{hostedEnd}}
         <a href="{{.Base}}/privacy.html">Privacy</a>
         <a href="{{.Base}}/terms">Terms</a>
         <a href="{{.Base}}/report"{{if eq .Current "report"}} aria-current="page"{{end}}>Report a page</a>
@@ -18,9 +18,9 @@
 <footer class="sh-footer">
     <div class="sh-foot">
       <nav class="sh-foot-links" aria-label="More">
-        <a href="{{.Base}}/enterprise"{{if eq .Current "enterprise"}} aria-current="page"{{end}}>For companies</a>
+        {{hostedStart}}<a href="{{.Base}}/enterprise"{{if eq .Current "enterprise"}} aria-current="page"{{end}}>For companies</a>{{hostedEnd}}
         {{- if not .HackHome}}
-        <a href="{{.Base}}/hackathons"{{if eq .Current "hackathons"}} aria-current="page"{{end}}>For hackathons</a>
+        {{hostedStart}}<a href="{{.Base}}/hackathons"{{if eq .Current "hackathons"}} aria-current="page"{{end}}>For hackathons</a>{{hostedEnd}}
         {{- end}}
         <a href="{{.Base}}/features"{{if eq .Current "features"}} aria-current="page"{{end}}>Features</a>
         <a href="{{.Base}}/pricing"{{if eq .Current "pricing"}} aria-current="page"{{end}}>Cost and limits</a>

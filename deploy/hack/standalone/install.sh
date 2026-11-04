@@ -60,7 +60,7 @@ if config:
     values.update(supplied)
 if initial:
     for key in ('SITE_DOMAIN', 'RESEND_API_KEY', 'MAIL_FROM', 'OIDC_ISSUER', 'OIDC_CLIENT_ID', 'OIDC_CLIENT_SECRET',
-                'ALLOWED_EMAIL_DOMAINS', 'OIDC_LABEL', 'OIDC_INSECURE_ALLOWED', 'EMAIL_SIGNIN',
+                'ALLOWED_EMAIL_DOMAINS', 'OIDC_LABEL', 'OIDC_INSECURE_ALLOWED', 'EMAIL_SIGNIN', 'PASSWORD_SIGNIN', 'PASSWORD_SELF_SIGNUP',
                 'MCP_APP_PHOTO_PICKER', 'MCP_APP_MY_SITES', 'MCP_APP_DASHBOARD', 'MCP_APP_SITE_PREVIEW'):
         if os.environ.get(key): values[key] = os.environ[key]
 for key in ('MCP_APP_PHOTO_PICKER', 'MCP_APP_MY_SITES', 'MCP_APP_DASHBOARD', 'MCP_APP_SITE_PREVIEW'):
@@ -84,14 +84,18 @@ if values['TLS_MODE'] == 'acme' and not values.get('ACME_CA'):
 if not values.get('EMAIL_SIGNIN'): values['EMAIL_SIGNIN'] = 'on'
 if values['EMAIL_SIGNIN'] not in ('on', 'off'):
     raise SystemExit('EMAIL_SIGNIN must be on or off.')
+for key in ('PASSWORD_SIGNIN', 'PASSWORD_SELF_SIGNUP'):
+    if not values.get(key): values[key] = 'on'
+    if values[key] not in ('on', 'off'):
+        raise SystemExit(key+' must be on or off.')
 # Resend is only required when there is no other way to sign in.
 company_signin = bool(values.get('OIDC_ISSUER') and values.get('OIDC_CLIENT_ID') and values.get('OIDC_CLIENT_SECRET'))
-if not company_signin:
+if not company_signin and values['PASSWORD_SIGNIN'] != 'on':
     for key in ('RESEND_API_KEY', 'MAIL_FROM'):
         if not values.get(key):
             raise SystemExit('Set '+key+' in the private --config file before installing, or configure OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET for company sign-in.')
-if values['EMAIL_SIGNIN'] == 'off' and not company_signin:
-    raise SystemExit('EMAIL_SIGNIN=off needs company sign-in (OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET).')
+if values['EMAIL_SIGNIN'] == 'off' and not company_signin and values['PASSWORD_SIGNIN'] != 'on':
+    raise SystemExit('EMAIL_SIGNIN=off needs PASSWORD_SIGNIN=on or company sign-in (OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET).')
 for key in ('DB_PASSWORD', 'ADMIN_API_KEY', 'ANALYTICS_SALT'):
     if not values.get(key): values[key] = secrets.token_hex(32)
     if not re.fullmatch(r'[0-9a-fA-F]{64}', values[key]):

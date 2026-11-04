@@ -11,19 +11,22 @@ import (
 // speak the same words. Keys with {n} or {min} are filled by the server; the
 // client falls back to the text without the number.
 var signInMessages = map[string]string{
-	"code_wrong":         "That code is not right. {n} tries left.",
-	"code_used_up":       "Too many wrong tries, so this code no longer works. Send a new one to try again.",
-	"code_expired":       "That code has expired or was already used. Codes last {min} minutes. Send a new code.",
-	"rate_limited":       "Too many tries. Wait a minute, then try again.",
-	"invalid_email":      "That email address does not look right.",
-	"send_failed":        "We could not send the email just now. Try again in a minute.",
-	"signup_blocked":     signupBlockedMessage,
-	"email_signin_off":   errEmailSignInOff.Error,
-	"email_unavailable":  "This server cannot send sign-in codes. Use Google if it is offered, or ask whoever runs this server.",
-	"link_other_browser": errLinkOtherBrowser,
-	"account_suspended":  "this account has been suspended by the operator",
-	"network":            "Could not reach {product}. Check your connection.",
-	"unknown":            "Something went wrong. Try again.",
+	"bad_credentials":          "Wrong username or password.",
+	"password_change_required": "Choose a new password to finish signing in.",
+	"username_taken":           "That username is taken.",
+	"code_wrong":               "That code is not right. {n} tries left.",
+	"code_used_up":             "Too many wrong tries, so this code no longer works. Send a new one to try again.",
+	"code_expired":             "That code has expired or was already used. Codes last {min} minutes. Send a new code.",
+	"rate_limited":             "Too many tries. Wait a minute, then try again.",
+	"invalid_email":            "That email address does not look right.",
+	"send_failed":              "We could not send the email just now. Try again in a minute.",
+	"signup_blocked":           signupBlockedMessage,
+	"email_signin_off":         errEmailSignInOff.Error,
+	"email_unavailable":        "This server cannot send sign-in codes. Use Google if it is offered, or ask whoever runs this server.",
+	"link_other_browser":       errLinkOtherBrowser,
+	"account_suspended":        "this account has been suspended by the operator",
+	"network":                  "Could not reach {product}. Check your connection.",
+	"unknown":                  "Something went wrong. Try again.",
 }
 
 const (

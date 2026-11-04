@@ -374,13 +374,14 @@ svg.boiling{filter:url(#boil)}
       <a class="btn btn--ink" href="/events/new">Create event</a>
       <a class="btn" href="/get-started">Connect your sidekick</a>
     </div>
-    <p class="more">Already running one? <a href="/events">Your events</a> · <a href="#scene-0">How it works</a> · <a href="/companies">For companies</a></p>
+    <p class="more">Already running one? <a href="/events">Your events</a> · <a href="#scene-0">How it works</a> · <!--sh:hosted--><a href="/companies">For companies</a><!--/sh:hosted--></p>
     </div>
     <p class="replay"><button class="btn btn--quiet" id="replayBtn" type="button">▶︎ watch the film again</button></p>
   </section>
   <div class="page x">
     <div class="center"><div class="sticky" data-ink style="--tilt:-2deg">just here to join one?<br><a href="/directory">Find a hackathon →</a></div></div>
   </div>
+  <!--sh:hosted-->
   <section class="page x">
     <div class="split">
       <svg id="hostFig" viewBox="0 0 360 260" role="img" aria-label="a server rack and a cloud creature with glasses next to a custom web address"></svg>
@@ -391,6 +392,7 @@ svg.boiling{filter:url(#boil)}
       </div>
     </div>
   </section>
+  <!--/sh:hosted-->
   <div class="page"><div class="ink-rule" id="rule1" aria-hidden="true"></div></div>
   <div class="page x" style="padding-top:var(--s1)">
     <svg id="footFig" viewBox="0 0 320 120" role="img" aria-label="a sleepy creature next to a pizza slice, a bug and a note that says gg"></svg>
@@ -1719,6 +1721,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   /* ───── after the film: self-host + footer ───── */
   function chain(Sx) { Ink.watch(Sx); Sx.onstep = n => { if (n === 0) { setTimeout(() => Sx.goto(1), T(600)); setTimeout(() => Sx.goto(2), T(1200)); } }; }
   const ground2 = (Sx, w, y) => Sx.add(0, 'draw', p => p.line(10, y, w - 10, y - 3, { strokeWidth: 1.7 }), { dur: 600 });
+  if (document.getElementById('hostFig')) {
   const HO = Ink.scene(document.getElementById('hostFig')); ground2(HO, 360, 232);
   HO.doodle(0, 'server', 100, 230, { s: 1.3, delay: T(250) });
   HO.doodle(0, 'note', 80, 24, { w: 200, h: 54, text: 'try: hack.yourteam.dev', size: 16, color: 'var(--accent-2)', rot: -2, delay: T(500) });
@@ -1727,6 +1730,7 @@ var rough=function(){"use strict";function t(t,e,s){if(t&&t.length){const[n,o]=e
   HO.text(2, 300, 130, 'your server', { size: 22, color: 'var(--accent)', rot: 5 }, { delay: T(500) });
   HO.doodle(2, 'grass', 20, 236, { delay: T(800) }); HO.doodle(2, 'grass', 330, 232, { delay: T(900) });
   chain(HO);
+  }
   const FO = Ink.scene(document.getElementById('footFig')); ground2(FO, 320, 100);
   FO.crit(1, 'blob', 80, 98, { mood: 'sleep', acc: 'bow', body: 'var(--accent)', s: .95, delay: T(300) });
   FO.doodle(1, 'pizza', 165, 98, { s: .7, rot: -8, delay: T(450) });

@@ -87,6 +87,8 @@ data:
   MIGRATE_ON_START: "true"
   TRUSTED_PROXY_CIDRS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,127.0.0.0/8,fc00::/7"
   # Sign-in.
+  PASSWORD_SIGNIN: "on"
+  PASSWORD_SELF_SIGNUP: "on"
   OIDC_ISSUER: "https://login.microsoftonline.com/TENANT-ID/v2.0"
   OIDC_CLIENT_ID: "CLIENT-ID"
   ALLOWED_EMAIL_DOMAINS: "example.com"
@@ -169,7 +171,7 @@ spec:
         app.kubernetes.io/instance: simple-hack
       annotations:
         # A changed setting restarts the pod; the server reads them at start.
-        checksum/config: 5b522cb6116964b08f2da5b6b5a813852df6186e2bdad4f0ee096fa94f1fe850
+        checksum/config: 270b6e41a67095e15ba556bcd1666d705b1ec6ccfcebda22b76825794f00f5fa
     spec:
       automountServiceAccountToken: false
       securityContext:

@@ -28,10 +28,10 @@ expect_fail "host is required"
 expect_fail "database.dsn is required" --set host=hack.example.com
 expect_fail "not a lower-case hostname" --set host=Hack.Example --set database.dsn=x
 expect_fail "company sign-in needs all" --set host=hack.example.com --set database.dsn=x --set signIn.oidc.issuer=https://a
-expect_fail "nobody could sign in" --set host=hack.example.com --set database.dsn=x
+expect_fail "nobody could sign in" --set host=hack.example.com --set database.dsn=x --set signIn.password.enabled=false
 expect_fail "must be https" "${base[@]}" --set signIn.oidc.issuer=http://id.example.com
 expect_fail "allowedEmailDomains is required" "${base[@]}" --set signIn.oidc.issuer=https://accounts.google.com
-expect_fail "needs company sign-in" --set host=hack.example.com --set database.dsn=x --set signIn.email.resendApiKey=k --set signIn.email.from=a@b.c --set signIn.email.enabled=off
+expect_fail "needs company or password sign-in" --set signIn.password.enabled=false --set host=hack.example.com --set database.dsn=x --set signIn.email.resendApiKey=k --set signIn.email.from=a@b.c --set signIn.email.enabled=off
 expect_fail "is not an event slug" "${base[@]}" --set 'ingress.events={Spring Hack}'
 expect_fail "loses every site" "${base[@]}" --set persistence.enabled=false
 expect_fail "not both" "${base[@]}" --set database.existingSecret=pg

@@ -1965,3 +1965,11 @@ CREATE TABLE IF NOT EXISTS image_scan_matches (
   report_id TEXT NOT NULL DEFAULT '', reported_at TIMESTAMPTZ, report_error TEXT NOT NULL DEFAULT '',
   uploader TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS image_scan_matches_detected ON image_scan_matches (detected_at DESC);
+
+-- Mirrors db/migrations/0002-password-sign-in.sql.
+CREATE TABLE IF NOT EXISTS account_passwords (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    password_hash TEXT NOT NULL,
+    must_change BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

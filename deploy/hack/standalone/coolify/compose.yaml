@@ -54,6 +54,8 @@ services:
       OIDC_LABEL: ${OIDC_LABEL:-}
       OIDC_INSECURE_ALLOWED: ${OIDC_INSECURE_ALLOWED:-}
       EMAIL_SIGNIN: ${EMAIL_SIGNIN:-on}
+      PASSWORD_SIGNIN: ${PASSWORD_SIGNIN:-on}
+      PASSWORD_SELF_SIGNUP: ${PASSWORD_SELF_SIGNUP:-on}
       TLS_MODE: ${TLS_MODE:-public}
       ACME_CA: ${ACME_CA:-}
     command:
@@ -92,6 +94,8 @@ services:
       OIDC_LABEL: ${OIDC_LABEL:-}
       OIDC_INSECURE_ALLOWED: ${OIDC_INSECURE_ALLOWED:-}
       EMAIL_SIGNIN: ${EMAIL_SIGNIN:-on}
+      PASSWORD_SIGNIN: ${PASSWORD_SIGNIN:-on}
+      PASSWORD_SELF_SIGNUP: ${PASSWORD_SELF_SIGNUP:-on}
       TLS_MODE: ${TLS_MODE:-public}
       ACME_CA: ${ACME_CA:-}
       CADDY_PROXY_PROTOCOL: "servers :8443 {\n listener_wrappers {\n  proxy_protocol {\n\

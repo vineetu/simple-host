@@ -147,6 +147,7 @@
     if (key === "account_suspended") {
       return body.error || err.message || MESSAGES.account_suspended || "this account has been suspended by the operator";
     }
+    if (code === "invalid_password" || code === "invalid_username") return body.error || err.message;
     var tpl = MESSAGES[key] || MESSAGES.unknown || "Something went wrong. Try again.";
     var n = err.tries_left;
     if (n == null) n = body.tries_left;
@@ -207,6 +208,8 @@
     opts = opts || {};
     var skin = opts.skin === "plain" ? "plain" : "ink";
     var emailOn = opts.emailEnabled !== false;
+    var passwordOn = opts.password && opts.password.enabled;
+    var passwordSignup = false, passwordChange = false, loginValue = '', passwordValue = '', newPasswordValue = '';
     var providers = opts.providers || [];
     var product = opts.product || "Simple Host";
     var uid = "sh-si-" + (++seq);
@@ -565,6 +568,19 @@
       return wrap;
     }
 
+    function submitPassword() {
+      if (busy) return;
+      setBusy(true);
+      var body = passwordSignup ? {username: loginValue, password: passwordValue} : {login: loginValue, password: passwordValue, name: 'dashboard sign-in'};
+      if (passwordChange) body.new_password = newPasswordValue;
+      if (opts.ssoState) body.sso_state = opts.ssoState;
+      fetch('/v1/auth/password' + (passwordSignup ? '/signup' : ''), {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})
+        .then(function (r) { return r.json().then(function (data) { if (!r.ok) { var err = new Error(data.error); err.body = data; err.code = data.code; err.status = r.status; throw err; } return data; }); })
+        .then(function (data) { passwordValue = ''; newPasswordValue = ''; return opts.onPasswordSuccess(data); })
+        .catch(function (err) { if (err.code === 'password_change_required') passwordChange = true; startMsg = message(err, opts.product); })
+        .then(function () { setBusy(false); render(); });
+    }
+
     function renderStart() {
       var wrap = el("div");
       if (opts.top) {
@@ -595,7 +611,25 @@
         });
         wrap.appendChild(o);
       }
-      if (emailOn && (showGoogle || showOidc)) wrap.appendChild(el("div", { className: "sh-si-or", text: "or" }));
+      if (passwordOn) {
+        var fields = [['login', passwordSignup ? 'Username' : 'Username or email', 'text'], ['password', 'Password', 'password']];
+        if (passwordChange) fields.push(['new-password', 'New password', 'password']);
+        fields.forEach(function (f) {
+          wrap.appendChild(el('label', {for: uid + '-' + f[0], text: f[1]}));
+          var input = el('input', {id: uid + '-' + f[0], className: 'sh-si-f', type: f[2], autocomplete: f[0] === 'login' ? 'username' : (passwordSignup || f[0] === 'new-password' ? 'new-password' : 'current-password'), minlength: f[2] === 'password' ? '8' : null});
+          input.value = f[0] === 'login' ? loginValue : f[0] === 'password' ? passwordValue : newPasswordValue;
+          input.addEventListener('input', function () { if (f[0] === 'login') loginValue = input.value; else if (f[0] === 'password') passwordValue = input.value; else newPasswordValue = input.value; });
+          wrap.appendChild(input);
+        });
+        var sign = el('button', {type: 'submit', className: 'sh-si-pbtn', text: passwordChange ? 'Change password and sign in' : passwordSignup ? 'Create account' : 'Sign in'});
+        wrap.appendChild(sign);
+        if (opts.password.self_signup && !passwordChange) {
+          var toggle = el('button', {type: 'button', className: 'sh-si-link', text: passwordSignup ? 'Sign in instead' : 'Create an account'});
+          toggle.addEventListener('click', function () { passwordSignup = !passwordSignup; startMsg = ''; render(); });
+          wrap.appendChild(toggle);
+        }
+      }
+      if (emailOn && (passwordOn || showGoogle || showOidc)) wrap.appendChild(el("div", { className: "sh-si-or", text: "or" }));
       if (emailOn) {
         wrap.appendChild(el("label", { "for": uid + "-email", text: "Email" }));
         var inp = el("input", {
@@ -628,7 +662,9 @@
       var form = el("form", { novalidate: "novalidate" });
       form.addEventListener("submit", function (e) {
         e.preventDefault();
-        onContinue();
+        var active = root.activeElement || document.activeElement;
+        if (passwordOn && (!active || active.id !== uid + '-email') && !(e.submitter && e.submitter.getAttribute('data-sh-signin') === 'continue')) submitPassword();
+        else onContinue();
       });
       form.appendChild(wrap);
       // extra sits outside the form: callers pass their own forms (a key

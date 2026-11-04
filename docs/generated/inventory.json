@@ -252,7 +252,7 @@
       "method": "DELETE",
       "path": "/v1/me/identities/{id}",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:184",
+      "source": "internal/handler/user.go:187",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -260,7 +260,7 @@
       "method": "DELETE",
       "path": "/v1/me/keys/{id}",
       "feature_id": "signin-alerts",
-      "source": "internal/handler/user.go:178",
+      "source": "internal/handler/user.go:181",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -404,7 +404,7 @@
       "method": "DELETE",
       "path": "/v1/sso/consents/{site}",
       "feature_id": "access-one-signin",
-      "source": "internal/handler/user.go:175",
+      "source": "internal/handler/user.go:178",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1628,7 +1628,7 @@
       "method": "GET",
       "path": "/v1/admin/api-analytics",
       "feature_id": "moderation",
-      "source": "cmd/server/main.go:557",
+      "source": "cmd/server/main.go:558",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1652,7 +1652,7 @@
       "method": "GET",
       "path": "/v1/admin/growth",
       "feature_id": "moderation",
-      "source": "cmd/server/main.go:558",
+      "source": "cmd/server/main.go:559",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1684,7 +1684,7 @@
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "cmd/server/main.go:575",
+      "source": "cmd/server/main.go:576",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1772,7 +1772,7 @@
       "method": "GET",
       "path": "/v1/auth/oauth/providers",
       "feature_id": "access-company-signin",
-      "source": "internal/handler/oauth.go:172",
+      "source": "internal/handler/oauth.go:173",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1780,7 +1780,7 @@
       "method": "GET",
       "path": "/v1/auth/oauth/{provider}",
       "feature_id": "visitor-signin",
-      "source": "internal/handler/oauth.go:178",
+      "source": "internal/handler/oauth.go:179",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1788,7 +1788,7 @@
       "method": "GET",
       "path": "/v1/auth/oauth/{provider}/callback",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/oauth.go:177",
+      "source": "internal/handler/oauth.go:178",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2292,7 +2292,7 @@
       "method": "GET",
       "path": "/v1/handles/check",
       "feature_id": "access-choose-address",
-      "source": "internal/handler/user.go:171",
+      "source": "internal/handler/user.go:174",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2324,7 +2324,7 @@
       "method": "GET",
       "path": "/v1/me",
       "feature_id": "publish-file-limits",
-      "source": "internal/handler/user.go:172",
+      "source": "internal/handler/user.go:175",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2372,7 +2372,7 @@
       "method": "GET",
       "path": "/v1/me/email/undo",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:181",
+      "source": "internal/handler/user.go:184",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2404,7 +2404,7 @@
       "method": "GET",
       "path": "/v1/me/identities",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:183",
+      "source": "internal/handler/user.go:186",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2412,7 +2412,7 @@
       "method": "GET",
       "path": "/v1/me/keys",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/user.go:176",
+      "source": "internal/handler/user.go:179",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2948,7 +2948,7 @@
       "method": "GET",
       "path": "/v1/visitor/oauth/{provider}",
       "feature_id": "visitor-signin",
-      "source": "internal/handler/oauth.go:181",
+      "source": "internal/handler/oauth.go:182",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3474,6 +3474,14 @@
     },
     {
       "method": "POST",
+      "path": "/v1/admin/password-users",
+      "feature_id": "password-accounts",
+      "source": "internal/handler/password.go:24",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
       "path": "/v1/admin/sites/{id}/domain",
       "feature_id": "moderation",
       "source": "internal/handler/adminsite.go:34",
@@ -3538,6 +3546,14 @@
     },
     {
       "method": "POST",
+      "path": "/v1/admin/users/{id}/password",
+      "feature_id": "password-accounts",
+      "source": "internal/handler/password.go:25",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
       "path": "/v1/admin/users/{id}/suspend",
       "feature_id": "moderation",
       "source": "internal/handler/site.go:554",
@@ -3548,7 +3564,23 @@
       "method": "POST",
       "path": "/v1/auth",
       "feature_id": "access-email-signin-off",
-      "source": "internal/handler/user.go:169",
+      "source": "internal/handler/user.go:172",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/auth/password",
+      "feature_id": "password-accounts",
+      "source": "internal/handler/password.go:22",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
+      "path": "/v1/auth/password/signup",
+      "feature_id": "password-accounts",
+      "source": "internal/handler/password.go:23",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3556,7 +3588,7 @@
       "method": "POST",
       "path": "/v1/auth/verify",
       "feature_id": "access-email-signin-off",
-      "source": "internal/handler/user.go:170",
+      "source": "internal/handler/user.go:173",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3948,7 +3980,7 @@
       "method": "POST",
       "path": "/v1/me/api-key/rotate",
       "feature_id": "signin-alerts",
-      "source": "internal/handler/user.go:173",
+      "source": "internal/handler/user.go:176",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3956,7 +3988,7 @@
       "method": "POST",
       "path": "/v1/me/email",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:179",
+      "source": "internal/handler/user.go:182",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3964,7 +3996,7 @@
       "method": "POST",
       "path": "/v1/me/email/undo",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:182",
+      "source": "internal/handler/user.go:185",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3972,7 +4004,7 @@
       "method": "POST",
       "path": "/v1/me/email/verify",
       "feature_id": "signin-email-change",
-      "source": "internal/handler/user.go:180",
+      "source": "internal/handler/user.go:183",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3980,7 +4012,7 @@
       "method": "POST",
       "path": "/v1/me/keys",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/user.go:177",
+      "source": "internal/handler/user.go:180",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3988,7 +4020,7 @@
       "method": "POST",
       "path": "/v1/me/sign-out",
       "feature_id": "admin-signup-source",
-      "source": "internal/handler/user.go:174",
+      "source": "internal/handler/user.go:177",
       "package": "internal/handler",
       "dynamic": false
     },

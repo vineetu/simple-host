@@ -51,7 +51,9 @@ Email codes need [email](email.md) set up; Google needs an OAuth client whose re
 | `ALLOWED_EMAIL_DOMAINS` | none | text | Comma-separated email domains company sign-in accepts, e.g. example.com,example.co.uk. Sign-in from another domain is refused. Required when OIDC_ISSUER is Google (https://accounts.google.com). |
 | `OIDC_LABEL` | `your company account` | text | Names the company sign-in button: "Sign in with <label>". |
 | `OIDC_INSECURE_ALLOWED` | `false` | `true` / `false` | true permits a plain-http OIDC_ISSUER. Local testing only. **Security-sensitive.** |
-| `EMAIL_SIGNIN` | `on` | `on` / `off` | off turns email-code sign-in off everywhere (account, connector, team-site visitors): refused at startup unless company sign-in is configured. |
+| `PASSWORD_SIGNIN` | `off` | `on` / `off` | on enables username/password accounts on this install. Off on the hosted services. |
+| `PASSWORD_SELF_SIGNUP` | `on` | `on` / `off` | When password sign-in is on, on lets people create accounts; off allows only admin-created accounts. |
+| `EMAIL_SIGNIN` | `on` | `on` / `off` | off turns email-code sign-in off everywhere (account, connector, team-site visitors): refused at startup unless company or password sign-in is configured. |
 | `REVIEW_ACCOUNT_EMAIL` | none | text | A plugin reviewer's account that may sign in with a password on the connector. Set with the hash, or neither. |
 | `REVIEW_ACCOUNT_PASSWORD_HASH` | none | secret | That reviewer account's password hash. **Security-sensitive.** |
 | `SIGNUP_BLOCKED_COUNTRIES` | none | text | ISO-3166 alpha-2 country codes (comma-separated) that may not sign in or sign up (email-code or OAuth), resolved locally (GEOIP_DIR), never sent to a third party. An API key keeps working from anywhere (that is not a sign-in); an unresolved country is always allowed. Empty: off. |
