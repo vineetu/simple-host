@@ -368,6 +368,7 @@ Tables (`db/schema.sql`):
 - `ip_country_ranges` — reference data for visitor-analytics country counts.
 
 ## Deploy
+The three supported layouts, settings, migration owners and rollback steps are in [deployment profiles](docs/operations/deployment-profiles.md).
 
 - Binary `/usr/local/bin/simple-host`, `simple-host.service` (user `simplehost`, sandboxed,
   writes only `/srv/simple-host/sites`), env `/etc/simple-host.env` (secrets; never print it).

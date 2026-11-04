@@ -1,4 +1,5 @@
 # Advanced settings
+For where to run a small box and where settings go, see [deployment profiles](../operations/deployment-profiles.md).
 
 Simple Host runs with no settings beyond its address, and every default is what
 simple-host.app itself runs. This folder explains each advanced feature in plain terms, lists
