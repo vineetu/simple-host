@@ -1,457 +1,231 @@
 # Architecture
 
-Where things live and how a request moves through them. What the product does is in
-`FEATURES.md`; why it is that way is in `INTENT.md`. This file is only about where it lives.
-Anything that must stay true is enforced by a check in `make check`, not by this document.
-Where the code is heading (package map, the Edition object, where new features go) is
-`docs/architecture/target.md`, the plan of record for the 2026-11 cleanup. Follow it for new code.
+A current map of the binary, request paths and package boundaries. Read [FEATURES.md](FEATURES.md)
+for behavior and [INTENT.md](INTENT.md) for product decisions. The focused guides under
+[docs/architecture/](docs/architecture/) explain domain state, persistence, frontend and contribution.
+[Target architecture](docs/architecture/target.md) gives the dependency rationale and where to add a feature;
+its planned packages are not all present yet.
 
-## Components
+## What runs
 
-| Piece | What it is | Where |
+`cmd/server/main.go:main` wires one Go binary around one `http.ServeMux`, Postgres and a local
+site directory. Hosted Simple Host and Simple Hack run separate instances of that binary,
+with separate databases and file roots. Self-hosted installations use the same implementation.
+
+Main calls `edition.New(cfg)` once, after the schema check and before registering routes.
+`EVENTS=hosted` selects Hack; other values select Host (`internal/edition/edition.go:New`).
+The injected `*edition.Edition` holds fixed route, presentation, identity, storage, notification
+and limit policies; event stages and deadlines remain database state.
+
+| Policy | Host | Hosted Hack |
 |---|---|---|
-| Go service | One binary: API, dashboard and pages, site files for site hosts, person hosts and claimed names, MCP connector, OAuth server | `/usr/local/bin/simple-host`, `simple-host.service`, `127.0.0.1:8090` (`BIND_ADDR`) |
-| nginx | TLS (wildcard cert plus one `*.<handle>` cert per person), hostname routing, serves the legacy content host and custom-domain files from disk, writes the analytics log | `/etc/nginx/sites-enabled/*` (repo copies in `deploy/prod/`) |
-| Postgres 16 | Accounts, sites, versions, state, collections, sessions, OAuth, aggregates | database `simplehost`, role `simplehost`; schema `db/schema.sql` |
-| Site files | Versioned folders on local disk | `/srv/simple-host/sites` (`DATA_DIR`) |
-| Geo DB | DB-IP Lite country files, read on this box | `GEOIP_DIR`, refreshed by `simple-host-geoip-refresh.timer` |
-| Email | Resend transactional mail; Hack sends write recipient-free accepted/failure journal records | `internal/email`, `scripts/hack-mail-report.py` |
-| Event DNS | Vercel DNS API, hands hackathon organisers hostnames; off unless configured | `internal/eventdns` |
-| Notifications | Signed HTTPS webhooks and MCP Events on a visitor write (Host and Hack) and, Simple Host only, on site events emitted from the deploy and active-version paths (`site.go`), domain checks (`domaincheck.go`), the named-viewers gate (`viewers.go`), and the visitor sign-in paths (`viewers.go`, `visitoremail.go`, `visitorsession.go`); outbox table, in-process delivery workers, no external queue | `internal/handler/notify*.go`, `internal/mcp/events.go` |
+| Routes and presentation | Hosting pages, personal sites | Event routes, Hack pages and skills |
+| Identity | Personal handles/sites | Random user handles, event holding accounts, scoped team/event website credentials |
+| Storage | KV/SQLite/files and grandfathered legacy APIs | KV/SQLite/files; legacy APIs return 410 |
+| Site policy | Deployment file caps, photos | Strict archives, event retention and judging previews |
+| Notifications | Site scope | Event membership and website scope |
 
-There is no object store, CDN, external queue or frontend build. simple-hack.app
-is the same binary behind its own nginx vhost (`/` proxies to `/hackathons`).
+Source: `internal/edition/{routes,presentation,identity,storage,notifications}.go`;
+`Limits()` returns the configured limits by value.
 
-Hosted Simple Hack's `/get-started` onboarding is `internal/handler/static/hack-get-started.html`,
-served through the existing CSP and shared Hack chrome by `hack_get_started.go`.
-Native exclusive `<details>` rows explain OAuth setup; hash links open the matching AI. FAQ
-answers use native accordions too. The page offers Copy buttons for connector addresses, the five-skill
-coding-agent install command and role prompts, and keeps downloads/raw skill links
-in a closed `<details>` section. The archives and `/v1/skills/` handlers are unchanged.
-`node scripts/check-hack-get-started.mjs` checks the served page at 320, 390 and
-1280 px in both system themes, Copy buttons and fallbacks, CSP, and local-only
-resource loads; `HACK_GET_STARTED_URL` selects a preview instead of the live page.
+| Component | Responsibility and source |
+|---|---|
+| Go service | HTTP pages/API, site-host files, OAuth/MCP, background work; `cmd/server/main.go` |
+| Postgres | Accounts, site metadata, resources/KV, Hack state, sessions, outboxes and aggregates; `db/schema.sql` |
+| Local disk | Deployment versions, links/markers, runtime SQLite and raw files; `internal/storage` |
+| TLS reverse proxy | Hosted nginx routes hosts and serves some files directly; self-hosted Caddy configurations are in `deploy/` |
+| Certificate issuers | External root-owned request/ready-marker services; `deploy/site-certs/`, `domain-certs/`, `family-certs/` |
+| Local Geo DB | Country lookup from DB-IP files; `internal/geoip`, refresh script in `scripts/` |
+| Email and optional providers | Resend (`internal/email`), DNS (`internal/eventdns`), OAuth (`internal/oauth`), PhotoDNA (`internal/imagescan`) |
 
-Simple Host’s landing is `static/host-story.html` (2026-10-10: a click-to-play video
-whose files live in `static/film/` and are served by `film.go` at `/film/`), separate
-from the `index.html` dashboard shell. Root sign-in/build queries redirect to `/dashboard`.
-`chrome.go` appends `host-ink.css` after page layout styles when rendering Host
-app pages; Hack keeps `hack-ink.css`. Bare status pages use `host-status.css`,
-with an embedded font and no network loads. The passcode CSP allows only the
-existing script hash, both stylesheet hashes and the embedded font. No deployed
-user HTML passes through this theme path. First-boot setup serves the local
-stylesheet/fonts. Inventory and checks: `docs/history/simple-host-ink-theme-2026-10-05.md`.
+There is no external queue or object store in this implementation. Webhook/MCP Events delivery
+uses Postgres outboxes and in-process workers (`internal/handler/notify*.go`, `internal/mcp/events.go`).
+No CLI-proxy sidecar is needed by the Go request path; deployment-specific integrations belong
+with the proxy configuration.
+
+Main starts certificate requests, Hack reconciliation/entry settling, event retention and mail,
+trash/idle cleanup, legacy retention, submission emails, notification delivery, address-family
+verification, network sampling, image scans and paper metrics. Enabled providers/settings determine
+which loops do work (`cmd/server/main.go:main`, calls to `Start*`). Connector/event-name sweeps,
+Geo DB watching and optional access-log ingestion start earlier; handler constructors also start
+limiter/cache, expiry and domain-check loops. Worker shutdown is not yet uniformly owned/joined:
+main's signal context cancels its workers before HTTP draining completes.
+
+Startup can initialize/migrate with `MIGRATE_ON_START=true`, then verifies required schema;
+without a configured hostname it serves only setup and exits after configuration so the supervisor
+can restart it. See `cmd/server/main.go:main` and [deployment profiles](docs/operations/deployment-profiles.md).
 
 ## Hosts and how a request flows
 
-The hosted base move is paused (2026-10-09): `SITE_BASE_MOVE=off`, with
-`SITE_BASE_DOMAIN` retained for the app's 301 back to matching `SITE_DOMAIN`
-hosts, path and query kept. `SiteBaseHosts` handles this before person/site
-routing. nginx keeps the old TLS proxy blocks and certificates for shared links;
-the script's `HTTP_MODE=app` sends HTTP straight to .app. `.site` issuer units stay disabled. See
-`docs/operations/site-base-paused.md` (revisit about 2026-11-09).
+Hosted nginx proxies app requests to the configured Go listener (normally `127.0.0.1:8090`)
+and blocks public `/internal/` access. Some content/custom-domain/family files bypass Go;
+the matching proxy templates and disk markers are part of the request path.
 
-Every hostname reaches the binary through nginx on `127.0.0.1:8090`. Inside, the handler chain
-is (`cmd/server/main.go`):
+The dispatch order in `cmd/server/main.go:main` is:
 
-`FamilyHosts` → `SiteBaseHosts` → `BoundSubdomains` → `SiteHosts` → `PersonHosts` →
-`LegacyHostRedirect` → app, where app is
-`SecurityHeaders(CORS(apiMetrics(BearerAuth(mux))))`.
+```text
+FamilyHosts → SiteBaseHosts → BoundSubdomains → SiteHosts → PersonHosts
+            → LegacyHostRedirect → app
+app = SecurityHeaders(CORS(apiMetrics(BearerAuth(gated))))
+gated = APIErrors(LegacyStorageCutoffGate(HackLegacyStorageGate(ScopeGate(mux))))
+```
 
-**Apex `simple-host.app` (and simple-hack.app).** nginx proxies everything to the app except
-`/internal/` (404 from outside). The single
-`ServeMux` answers the API (`/v1/...`), the pages (`ui.go`: `/`, `/dashboard`, `/admin`,
-`/features`, `/hackathons`, `/enterprise*`, `/terms`, `/support`, `/analytics/{site}`), the
-skill downloads (`/skills.zip`, `/plugin.zip`, `/install.sh`, `/.well-known/skills/...`), the
-connector (`/mcp`, `/oauth/*`, `/.well-known/oauth-*`) and `/healthz`, `/readyz`. Agents write
-here with `X-API-Key` or a connector bearer token.
+A matched host can serve files directly or send API requests to `app`; this is not one universal
+middleware stack over every file response. Optional paper metrics wrap the whole dispatcher.
+Route registrations and source locations are in [routes](docs/generated/routes.md).
 
-**Site hosts `<site>.<handle>.simple-host.app`** (`sitehost.go`, live 2026-09-26). Every site
-is its own origin: `SiteHosts` serves the site's live files at the root, `/v1/` answers for that
-one site only, and visitor sign-in, sessions and private collections are bound to that host. A
-two-label name needs its own certificate, `*.<handle>.simple-host.app`: the app drops
-`SITE_CERT_DIR/requests/<handle>`, a root-owned issuer (`deploy/site-certs/`, run by a path
-unit when a request lands and a 10-minute timer; queue bounds of 10000/week, 1000/day and 30/run; LE rate limits fall back to Google
-Trust Services then ZeroSSL with shared Google request/order pacing; certbot DNS-01 through the Vercel hooks in
-`/usr/local/lib/certbot-vercel/`) issues it, copies it for nginx and writes
-`SITE_CERT_DIR/ready/<handle>`; the nginx server for `<site>.<person>.simple-host.app` loads the
-cert by variable. The app never hands out or redirects to a site host before its ready marker
-exists; until then that person's sites keep the person-path form. Mode comes from `SITE_HOSTS`:
-`off` (default; event and self-hosted boxes), `serve` (answer, hand out person-path URLs),
-`canonical` (live: the site host is the address handed out). Needs `PERSON_HOSTS` on.
+| Host | Routing, identity and code |
+|---|---|
+| Apex `simple-host.app` / `simple-hack.app` | Pages, `/v1/`, OAuth, `/mcp`, skill downloads and probes. Protected account routes require `X-API-Key` or a connector bearer token, with route-specific permissions. `handler/ui.go`, `connector.go`, `auth/middleware.go`; Hack registration in `hackhttp/hack.go`. |
+| `<site>.<handle>.simple-host.app` | Files at `/`, API bound to that site, visitor cookies on that origin. Own-address redirects and rename/handle aliases are resolved before files; `handler/sitehost.go:SiteHosts`. |
+| Custom domain | nginx serves files and proxies API/gates; visitor identity stays on that site's origin. Verification/issuer lifecycle: `handler/domains.go`, `domaincheck.go`, `domaincert.go`; `deploy/domain-certs/`. |
+| Claimed `<name>.simple-host.app` | Immediately verified through the domain API; `handler/platformsubdomain.go:BoundSubdomains` serves files and same-origin API. Retired names redirect to their current site with 302; older unbound per-name hosts keep the legacy 301 path redirect (`legacyhost.go:LegacyHostRedirect`). |
+| `<label>.<suffix>` address family | Host resolves one account and its prefixed site. nginx serves files; `handler/familyhost.go:FamilyHosts` handles API, misses, aliases and own-domain redirects. Visitor auth is site-bound. |
+| `<handle>.simple-host.app` | Public site listing/home page and legacy `/<site>/` fallback; `/v1/` binds to that person's sites. Ready site hosts or own domains get 302 redirects. `handler/personhost.go:PersonHosts`. |
+| Legacy `sites.simple-host.app/<handle>/<site>/` | nginx redirects through `/internal/domain-redirect` or `/internal/site-redirect`; same path/query, 302 with no-store. `/v1/` remains; canonical person-host mode requires keys for shared-host writes, without visitor sign-in. `personhost.go:contentHostRedirect`, `domains.go`. |
+| Hack `<event>.simple-hack.app` | `PersonHosts` selects `handler/hack_mode.go:serveHackEventHost`: event page/gallery screenshot, or custom event website. Only a custom website's own storage/visitor API allowlist is served here; event management stays apex-only. |
+| Hack `<team>.<event>.simple-hack.app` | Site-host dispatch with the event holding account and team site. Scoped credentials authorize website management; visitor sessions cover that website. `handler/sitehost.go`, `hack_sites.go`, `auth/scope.go`. |
 
-**Custom domains** (`domains.go`, `domaincheck.go`, `domaincert.go`). A bound domain is
-re-checked every 2 minutes (hourly once active). Once it resolves here but HTTPS does not answer,
-the app drops `DOMAIN_CERT_DIR/requests/<domain>`; a root-owned issuer (`deploy/domain-certs/`,
-path unit + 10-minute timer, at most 50 new certificates a day) checks the A/AAAA records, runs
-certbot HTTP-01 against the webroot every port-80 server already answers (`/var/www/acme`),
-writes `sites-enabled/simple-host-domain-<domain>` from its template, reloads nginx and writes
-`ready/<domain>`, or `failed/<domain>` with one line the app shows as `last_error`. The issuer
-only issues while the domain's link in `/srv/simple-host/sites/domains/` exists and removes its
-own server (and certificate) once the link is gone; hand-made servers (any other enabled file whose `server_name` names the domain) are
-left alone. A site keeps serving at its earlier own address (`previous_domain`) until a new
-domain is verified; a verified domain failing for 24 h emails the owner, and after 72 h its
-verification is cleared. A claimed `<name>.simple-host.app` the site lets go is kept in
-`legacy_hostnames` and redirects to the site (`legacyhost.go`).
+**Addresses and TLS.** `PERSON_HOSTS` and `SITE_HOSTS` support `off`, `serve`, `canonical`;
+site hosts require person hosts. Defaults are off, preserving the path model. Serve mode answers
+hosts while handing out path URLs; canonical mode hands out ready host URLs. A site host is
+advertised only after `SITE_CERT_DIR/ready/<handle>` exists (`sitehost.go:siteHostLiveOn`).
+The external site issuer issues `*.<handle>.<base>` from queued requests using DNS-01.
+Before readiness, Host uses the person-path fallback; Hack does not expose that fallback.
 
-**Address families `<label>.<suffix>`** (`familyhost.go`, `familyapi.go`, `db/families.go`;
-design `docs/designs/address-families.md`). An account connects `*.<suffix>`; its site named
-`<site_prefix><label>` answers at `<label>.<suffix>`. The host alone names the account and the
-site, so no other account's site is reachable there. A family is verified by its TXT record
-(or the admin's proof exemption) plus the wildcard resolving only here, re-checked every 10
-minutes (hourly once active); once verified the app links `/srv/simple-host/sites/families/<suffix>`
-→ `by-id/<user_id>` and writes `ADDRESS_FAMILY_CERT_DIR/requests/<suffix>` (token, link target,
-certificate mode and lineage, site prefix, reserved labels). A root-owned issuer
-(`deploy/family-certs/issue.sh`, installed as `/usr/local/sbin/simple-host-family-certs`, state
-`/var/lib/simple-host-family-certs`, path unit + 10-minute timer) checks that the operator's
-wildcard lineage covers `*.<suffix>` (it never issues, renews or deletes a certificate; certbot
-renews it as usual), refuses a family any other nginx server answers, writes
-`sites-enabled/simple-host-family-<suffix>` from `vhost.conf.template`, reloads nginx and writes
-`ready/<suffix>`. The app treats a family as live only while that marker's prefix matches.
-nginx serves files straight from `families/<suffix>/<prefix>$label/current` with the
-take-down, offline, passcode and lives-elsewhere markers, and sends `/v1/`, `/internal/` and
-misses to the app, where `FamilyHosts` (outermost in the chain) answers them: the API bound to
-that one site, renamed labels (302 to the new one), missing sites (404), and a site with a
-domain of its own (302 there). The main-address ranking (domain > most specific canonical family
-> site host) decides where the site host redirects and where sign-in and saves happen.
-`deploy/prod/family-adopt.sh` moves a hand-made wildcard vhost to the managed file (dry run by
-default, `--apply`, `--rollback`): ready marker first, then it waits for the admin API's `live`
-(the routing index), then swaps. A host under a proven family (verified or proof-exempt) that is not live is a plain 404.
+Custom domains retain their previous working address while verification is pending. The checker
+queues HTTP-01 issuance once DNS points here; the issuer writes nginx configuration and a ready
+or failed marker. It removes its managed configuration when the domain link disappears and leaves
+hand-made vhosts alone (`deploy/domain-certs/issue.sh`). Active-domain failures notify after 24h
+and release the binding after 72h by default; limits are configurable and an emailed release date
+is preserved (`handler/domaincheck.go:applyDomainCheck`, `config/limits.go:DefaultLimits`).
 
-**Person hosts `<handle>.simple-host.app`** (`personhost.go`). The wildcard vhost
-proxies to the app; `PersonHosts` recognises the handle (aliases such as `admin` →
-`simple-host-team` resolve too). `/` is the person's page of public sites. `/<site>/...` 302s
-to the site host (path and query kept) once the person's certificate is ready; before that it
-is the site's live files served by Go (relative links keep working), with `/v1/` host-bound to
-that person's sites. A site with its own domain 302s to it. Mode comes from
-`PERSON_HOSTS`: `off` (default, event and self-hosted boxes: path model only), `serve` (answer,
-but hand out path URLs), `canonical` (live).
+Address families require TXT proof (or an admin exemption) and wildcard DNS. Their issuer adopts
+an existing operator-managed wildcard certificate rather than issuing one; readiness must match
+the site's prefix. Proven but non-live family hosts return 404. Address ranking is custom domain,
+most-specific canonical family, then site host (`handler/familyhost.go`, `familyapi.go`;
+[family design](docs/designs/address-families.md)).
 
-**Legacy `sites.simple-host.app/<handle>/<site>/`.** nginx still owns this host; the redirect
-below has been live since 2026-09-25 16:26 UTC. A path with a
-`domain-redirect` marker file in the site folder is rewritten to
-`/internal/domain-redirect/...` (302 to the custom domain). Every other
-`/<handle>/<site>/...` is rewritten to `/internal/site-redirect/...`, which 302s
-(`Cache-Control: no-store`) to the site's live address (site host, or person path while the
-certificate is pending), path and query kept. Exception:
-`vineetu/eb2-wait` is still served from disk here because it calls the content host's
-`/eb2-api/*` legacy integration proxies (`contentHostOnlySites` in `personhost.go` and the nginx block
-agree on it). `/<handle>` redirects to the person page. `/v1/` on this host is kept for
-good: old pages and agents call it. Reads there stay open; writes need an API key (no visitor
-sign-in is offered on a host every site shares) when `PERSON_HOSTS=canonical`. The 302 becomes
-301 after a quiet soak
-(`docs/designs/per-person-subdomains-nginx.md`).
+The alternate site-base move is off: `SiteBaseHosts` redirects alternate-base links back to the
+matching platform host with path/query intact. Configuration and issuer details live in
+[the paused-base runbook](docs/operations/site-base-paused.md).
+`contentHostOnlySites` keeps `vineetu/eb2-wait` on the legacy content host for its nginx
+`/eb2-api/*` integrations (`handler/personhost.go`).
 
-**Claimed `<name>.simple-host.app`** (`platformsubdomain.go`). A site claims a free name with
-`POST /v1/sites/{site}/domain`; it is verified at once. `BoundSubdomains` serves it in process
-like a custom domain: files at the root, `/v1/` same-origin, visitor sign-in. Unclaimed
-single-label names that match an old per-name host get a 301 from `LegacyHostRedirect`
-(`legacyhost.go`).
+**Owner, connector and visitor identity.** Email-code or configured OAuth sign-in issues an
+account key; only its SHA-256 is stored. Admin is a real user row ensured at boot.
+OAuth 2.1 with registration, PKCE and consent guards Streamable HTTP `/mcp`. Connector bearer
+and MCP REST replay mint per-request in-memory credentials, revoked after use, and enter the
+same gated mux as REST (`handler/connector.go`, `internal/db/internalkey.go`). MCP tools do
+not bypass scope or legacy gates; Hack filters legacy and chat-facing credential tools.
 
-Off its custom domain (see **Custom domains** above), writes for that site answer 401
-`use_custom_domain`.
+Browser SSO uses the apex host-only `__Host-sh_sso` cookie only in `/v1/sso/*`. It does not
+replace account API authentication. A nonce-bound, one-time hop establishes a site-scoped
+visitor session (`handler/sso.go`, `visitorsession.go`). `/auth.js` supplies `SH.signIn()` and
+`SH.requireSignIn()`; legacy email/provider flows remain for cached pages and instances without
+an apex hop (`visitoremail.go`, `oauth.go`). Hosted Hack serves `SH.storage`, without legacy
+`SH.state`, `SH.collection` or `SH.data` helpers.
 
-**MCP and OAuth** (`connector.go`, `internal/mcp`). An OAuth 2.1 authorization server
-(dynamic client registration, PKCE, consent page `static/connect.html` reusing the normal
-Google or email-code sign-in) guards a Streamable HTTP MCP endpoint at `/mcp`. Each tool call is
-replayed in process into the bare mux, so it meets exactly the REST checks. Account keys are
-stored only as hashes, so the replay carries a per-request internal credential (`shint_…`,
-`internal/db/internalkey.go`: in memory only, revoked when the request ends, 15 min TTL backstop)
-instead of the person's key. `BearerAuth` does the same for connector tokens on `/v1/`. Hand-registered clients:
-`simple-host oauth-client create`. Reviewer password sign-in (`reviewer.go`) and the OpenAI
-domain challenge are off unless configured.
-Hosted Simple Hack filters the old storage tools and chat-facing credential
-creation from MCP discovery and direct calls. A selected team's current
-website tools still use its separate scoped credential and REST permissions;
-Simple Host continues to expose its deprecated legacy tools.
+Host's grandfathered state/collection reads apply Origin/Referer and private-record rules.
+Writes use the owner's/admin's key or an allowed visitor identity plus CSRF on the site's own
+address; shared-host behavior depends on the person-host/write-auth configuration. Storage
+resources have their own declared access policy. Hosted Hack's legacy routes return 410 on
+site and handle aliases; event hosts retain their narrower allowlist (`handler/kinds.go`,
+`hack_legacy_storage.go`, `internal/app/legacy/kinds.go:VisitorWrite`, `internal/app/storage/access.go`).
 
-**Owner sign-in.** Email code (`/v1/auth`, `/v1/auth/verify`, Resend) or Google
-(`/v1/auth/oauth/{provider}`) returns a new API key (each sign-in issues one; `api_keys` keeps
-only its SHA-256; rotate replaces them all); the dashboard keeps it and sends `X-API-Key`. The
-admin is a real `users` row upserted at boot and authenticates with `ADMIN_API_KEY`.
+## Boundaries
 
-**Apex SSO** (`sso.go`, `internal/db/sso.go`). `__Host-sh_sso` is an
-HttpOnly, Secure, SameSite=Lax, host-only cookie at Path=/ (`sh_sso` on HTTP
-in development). Only `/v1/sso/*` reads it; account middleware still requires
-a key or connector token. Its hashed row references `api_keys.key_hash` with
-ON DELETE CASCADE; hop sessions reference that pass with the same cascade.
-Reads check pass expiry, parent key expiry, and account suspension. A site
-start stores return_to and a nonce hash in `sso_hops`, then redirects to the
-apex for remembered consent or the shared sign-in card. Establish burns a
-60-second host- and nonce-bound code. Sign-out revokes the parent key and uses
-a short-lived server-stored `sso_signouts` ticket to revoke the current apex
-cookie family and clear its cookie, even without a live local site session.
-Browser sign-in verification is followed by `/v1/sso/session`; only that
-namespace reads or replaces the apex cookie. Issuance retires the old browser
-family and serializes on the parent key, retaining one pass per key.
-`SetSSOHop` wires automatic named-viewer gates; provider discovery lets auth.js
-retain its old behavior on instances without a hop-capable apex.
+Current flow: HTTP/MCP transport → application services → rules and repositories/disk mechanics.
+Services own extracted workflows and transactions; rules make pure decisions; repositories execute
+SQL. This is an ongoing boundary, not a claim that transport is already free of SQL or disk calls.
+The following packages exist today (verified with `go list ./internal/...`):
 
-**Visitor sign-in** (`visitorsession.go`, `visitoremail.go`, `oauth.go`, `static/auth.js`).
-Only on a site's own address (site host, person-path fallback, claimed name, custom domain); a
-session covers that one site. `SH.signIn()` uses the apex hop above. The legacy
-provider flow, retained for cached pages and instances without an apex, starts on the site host
-(`/v1/visitor/oauth/{provider}`), which sets a 10-minute `__Host-sh_vnonce` cookie there and
-stores only its SHA-256 with the OAuth state (an apex start for a site is redirected there). The
-callback lands on the apex, mints a one-time token carrying that hash, and redirects to
-`<site host>/v1/visitor/establish?once=...`, which sets the host-only `__Host-sh_vsess` cookie
-only in the browser holding the nonce (the code is burned on any failure). So a sign-in finished
-in one browser cannot be completed in another (login CSRF).
-Legacy email: `POST /v1/sites/{site}/visitor/auth` + `/verify` on the site host; codes are bound to
-that one site. Pages include `/auth.js` (`window.SH`) and call `SH.requireSignIn()` before
-saving; `GET /v1/sites/{site}/me` reports the session without extending it.
-Hosted Simple Hack serves the same visitor sign-in and `SH.storage` helpers,
-but strips the old `SH.state`, `SH.collection` and `SH.data` methods.
+| Package under `internal/` | Responsibility |
+|---|---|
+| `handler` | Shared HTTP, accounts, sites/storage, admin, connector composition, embedded `static/`, remaining workers |
+| `hackhttp` | Hack HTTP/pages and transport mapping; no production import of `handler` |
+| `mcp` | JSON-RPC, discovery, family registrars and common tool/schema inventory (`registry.go`); MCP Events |
+| `mcp/apps/{bundlegen,gentool}` | MCP Apps browser-bundle generator and command |
+| `httpx` | Shared HTTP responses, limits, signed links and route metadata |
+| `auth` | Account credential/context and scope middleware |
+| `app/hack/events` | Event lifecycle/content, organisers, settings and public directory |
+| `app/hack/teams` | Team lifecycle/admin/links and team finding |
+| `app/hack/members` | Registration, applications, tracks and leaving |
+| `app/hack/entries` | Entry writes/settling, judging, assignments, scoring, voting and results |
+| `app/sites` | Deploy/publication, versions, addresses, site/account file lifecycle and exports |
+| `app/storage` | KV, SQLite and runtime-file workflows, quotas and access decisions |
+| `app/legacy` | Host saved-data compatibility adapter, including cutoff/access rules |
+| `rules/{auth,sites,storage}` | Pure grant/name/storage decisions |
+| `rules/{hackevents,hackteams,hackentries}` | Pure event codes, team decisions, eligibility, judging and result arithmetic |
+| `repository/{accounts,sites,storage,legacy}` | Extracted account/site/storage/legacy SQL |
+| `repository/{hackevents,hackteams,hackentries}` | Extracted Hack SQL |
+| `repository/sqlkit` | Shared Querier and transaction-opening primitives |
+| `db` | Remaining account/session/notification/operations SQL, schema checks, compatibility aliases/forwarders |
+| `model` | Shared records without SQL or transport |
+| `storage` | Deployment trees, symlinks/markers, runtime files and per-site SQLite mechanics |
+| `edition`, `config` | Injected fixed product policy; environment parsing and settings catalog |
+| `analytics`, `netusage`, `papermetrics` | Access-log aggregation, network sampling and research metrics |
+| `email`, `eventdns`, `oauth`, `imagescan` | Provider clients |
+| `geoip`, `capacity`, `tarball`, `wpimport` | Local country lookup, disk capacity, archives and WordPress import |
+| `brain`, `buildinfo` | Product-knowledge bundle support; stamped version/commit/build time |
+| `testdb`, `geoip/geoiptest` | Test fixtures |
 
-**Simple Host legacy writes and reads.** State (`stateops.go`) and collections (`collections.go`) are readable by
-anyone: a GET with no Origin/Referer is served; one from a page is Origin/Referer-gated (private
-lists refuse the former). Writes pass `visitorWriteOK`: the site owner's API key (or the admin's; connector tokens and MCP arrive as the person's in-process key), or
-a visitor session plus `X-SH-CSRF: 1` on the site's own address. On the old shared host a key
-is the only way in when `PERSON_HOSTS=canonical`; on event and self-hosted instances
-(`off`/`serve`) the shared host is where pages live and its writes stay open. Private collections
-(`privatecollections.go`): only signed-in visitors on the site's address submit, the owner or
-admin reads all, and a visitor reads only their own entries. Personal (`mine`) records are read
-and written only by their person; Shared boards (`board`) are edited item by item with a version
-check.
-Hosted Simple Hack instead answers 410 for state, collection, declared-data,
-saver and history routes on both site and handle aliases. `HackLegacyStorageGate`
-wraps public requests and the connector's in-process REST calls; event hosts
-also keep their narrower `/v1/` allowlist. Historical data stays in owner
-recovery exports without an active legacy API.
+`scripts/check-layering.sh` checks Go imports, including test imports, against the final allowlist
+and exact transitional edges in `scripts/layering/rules.txt`. Each exception names its removal
+step. Account/notification/operations services, `webassets`, `workers` and `sitelocks` from the
+target map do not exist yet. Shared lock maps are injected by existing wiring
+(`app/sites/service.go:New`, `app/storage/service.go:Deps`), not by a new lock package.
+Do not copy a transitional import as precedent; follow [target §2](docs/architecture/target.md#2-package-map-and-import-contract).
 
-## Code map
+Outside `internal/`: `db/schema.sql` and `db/migrations` define fresh/install upgrades;
+`cmd/analytics-rebuild` and `cmd/ip-country-load` are operator tools. `deploy/` holds proxy,
+issuer and deployment templates; `scripts/` holds checks/generators/ops. Website skills live in
+`simple-host-website/`, with generated plugin copies; frontend sources, embeds and generated
+MCP Apps are mapped in [frontend](docs/architecture/frontend.md). Hosted Hack onboarding
+`/get-started` is rendered by `handler/hack_get_started.go` from `static/hack-get-started.html`.
 
-Owner create requests use `internal/handler/idempotency.go`: an account/path/query/key
-map of SHA-256 body hashes and exact status/header/body snapshots, expiring after
-24 hours with hourly cleanup. Requests are temporarily spooled while hashing so
-archive uploads do not need a second full in-memory copy; no upload is retained.
-The wrapper runs after authentication and IP limiting, before response notices.
-Storage row creates and file links use the same cache after their existing
-resource authorization, with the caller identity and resolved site ID.
-`ratelimit.go` takes the token and snapshots its balance under the same mutex for
-RateLimit headers; limits still use continuous token-bucket refill.
+## Where to read next
 
-- `cmd/server/main.go` — wiring: config, schema check, setup mode, admin row, handlers,
-  middleware chain, background loops. `oauthclient.go`, `reviewaccount.go` are subcommands.
-- `cmd/analytics-rebuild`, `cmd/ip-country-load` — one-off operator tools.
-- `internal/handler` — every HTTP handler and the embedded web UI (`static/`, hand-written
-  HTML, no build step). Landmarks: `site.go` deploy, versions, rollback, route registration;
-  `sitehost.go` per-site hosts and certificate requests; `personhost.go` person hosts and `/internal/site-redirect`; `platformsubdomain.go` claimed
-  names and in-process file serving; `domains.go` custom domains, `/internal/domain-redirect`,
-  `/internal/tls-ask`; `legacyhost.go` old per-name hosts; `handles.go` the one namespace;
-  `stateops.go`, `collections.go`, `privatecollections.go`, `export.go` the datastore;
-  `visitorsession.go`, `visitoremail.go`, `oauth.go`, `emailcode.go`, `user.go` sign-in;
-  `connector.go` OAuth server + MCP;
-  `analytics.go` site traffic; `apimetrics.go` per-endpoint API counts;
-  `eventdomain.go` hackathon hostnames; `setup.go` first-boot setup page; `instancehost.go`
-  rewrites hostnames for instances on other domains; `ui.go`, `chrome.go`, `skillshub.go`
-  pages and skill downloads; `notice_middleware.go` stale-skill notice; `ratelimit.go`,
-  `cors.go`; `notify.go`, `notify_client.go`, `notify_routes.go`, `notify_mcp.go` the
-  notification outbox, SSRF-guarded delivery workers and REST routes.
-- `internal/hackhttp` — the Simple Hack HTTP API/pages (cleanup 3.2): `HackHandler` and its
-  routes, event and team pages, the hosted-events home. Does not import `internal/handler`
-  (a transitional edge to `db`/`auth`/`email`/`config` remains until step 4.x's repositories and
-  app services land). `internal/httpx` holds shared protocol helpers (`WriteJSON`, rate
-  limiting, signed links) both `handler` and `hackhttp` call; `internal/rules/*` pure
-  decisions (name/handle shape, OAuth grant classification, Hack event codes) with no SQL or
-  HTTP; `internal/model` shared record types (e.g. `TeamSite`) moved out of `handler`/`db` as
-  both sides needed them. Hack workflows themselves move into `internal/app/hack/*` behind
-  `hackhttp`, one at a time: `app/hack/events` (cleanup 3.2 slice 4) owns the first, the public
-  directory listing. Entries and judging (cleanup 4.1) are the first full area:
-  `rules/hackentries` (completeness, `Judgeable`, results arithmetic, assignment planning,
-  rubric validation), `app/hack/entries` (`Service`: settling, entry writes, entry rules,
-  judge queue, assignments, scores, conflicts, results, judging settings; owns the
-  transactions, returns typed `entries.Error`s that `hackhttp` maps to HTTP) and
-  `repository/hackentries` (all entry/judging SQL, over `repository/sqlkit.Querier`).
-  `db.EntryJudgeableSQL` and `hackentries.Judgeable` share one case table, so SQL and Go can't
-  drift. `db/hackentries_forward.go` forwards the names event-stage code still calls (step 4.2).
-  See `docs/architecture/target.md` §2 for the full target package map.
-- `internal/mcp` — MCP JSON-RPC server, tool list, output schemas, instructions;
-  `events.go`, `events_types.go` MCP Events (`events/list`, `events/subscribe`,
-  `events/unsubscribe`) over the same delivery engine as `notify.go`.
-- `internal/db` — SQL, one file per area (entry/judging SQL now in `repository/hackentries`), `models.go` row types, `schemacheck.go` boot check.
-- `internal/storage/disk.go` — writes deployed site versions: the version trees, the `current`
-  symlink and markers. It is not the only writer under a site's directory: runtime data that
-  pages save (files storage, SQLite and other storage resources under `<site>/runtime/`) is
-  written by the storage handlers in `internal/handler` (`site_storage_files.go`,
-  `site_storage_sql.go`), and the image-scan worker (`imagescan.go`) removes flagged files.
-- `internal/analytics` — tails the nginx analytics log into aggregates, off the request path.
-- Leaves: `config`, `auth` (API-key middleware; reaches `db`), `tarball`, `email`, `oauth`
-  (Google; GitHub wired, unconfigured), `geoip`, `capacity`, `eventdns`, `buildinfo` (release
-  and commit stamped with `-ldflags -X`).
-- `db/migrations` (Go package outside `internal/`) — embeds the migration files and runs
-  `simple-host migrate`: pending files in lexical order, each once, tracked in
-  `schema_migrations`, under an advisory lock; historical files are a fixed baseline, never run.
-- Outside Go: `db/schema.sql` (canonical, for a new database) and `db/migrations/*.sql`;
-  `deploy/prod/` nginx, logrotate, journald retention, geoip timer; `simple-host-website/` the Website Deploy
-  skills and plugin, embedded in the binary; `plugins/simple-host/` the Claude directory plugin
-  (generated skill copies); `openai-plugin/` the ChatGPT package; `scripts/` checks and ops.
+| Need | Read |
+|---|---|
+| Event/team/entry state and actors | [Hack domain](docs/architecture/hack-domain.md) |
+| Tables, disk layout, quotas, transactions, locks, outboxes and recovery | [Persistence](docs/architecture/persistence.md) |
+| Screens, shared browser code, generated assets, themes and skills | [Frontend](docs/architecture/frontend.md) |
+| Tests, migration workflow, release verification and rollback | [Contributing](docs/architecture/contributing.md) |
+| Hosted/systemd, Compose and Kubernetes layouts | [Deployment profiles](docs/operations/deployment-profiles.md) |
+| Settings and full generated reference | [Configuration](docs/configuration.md), [advanced settings](docs/advanced/) |
+| Exact endpoint/tool registrations | [Routes](docs/generated/routes.md), [MCP tools](docs/generated/mcp-tools.md) |
+| Behavior and product constraints | [FEATURES](FEATURES.md), [INTENT](INTENT.md) |
 
-The public `/setup` Enterprise wizard (`static/setup/setup.js`) generates `values.yaml`
-and a persistent Secret template for the Enterprise repository's pinned Helm chart.
-Helm and Kubernetes YAML share the same chart; the latter is `helm template` followed by
-`kubectl apply`. The form and generated files follow the pinned chart. No cloud provisioning runs through this flow.
+## Invariants and traps
 
-## Data model
-
-The 2026-10-02 site-storage-primitives work adds owner-configured KV, SQLite,
-and raw-file resources for hosted/single-instance sites. Runtime SQLite and
-files live below each site's `runtime/` directory, outside `vN` and `current`;
-resource policy and KV values use additive PostgreSQL tables. A decimal
-10,000,000-byte allowance per website (Simple Hack: 1,000,000) pools KV key bytes plus normalized value bytes, SQLite
-main-file allocation after checkpoint, and raw file bytes. The owner usage
-route reports those same counters and the remaining allowance. WAL, deployment
-versions and legacy saved data remain separately accounted for. Site rename,
-trash, restore and deletion move the directory; site/account exports include
-runtime files plus resource declarations and KV. The active contract,
-passcode/visitor policy, isolation rules and measured size comparison are in
-`docs/designs/site-storage-primitives.md`. Enterprise replicas/S3 do not get
-local per-site SQLite through this rollout.
-Simple Host keeps legacy saved-data APIs for existing sites. Hosted Simple
-Hack retains any historical records for owner recovery exports but exposes
-only KV, SQLite and files as active website storage.
-The CGO-free SQLite driver uses ncruces/go-sqlite3's compiled Go translation
-of its SQLite WebAssembly build. It needs no runtime code generation or
-writable-executable memory, so it runs under both hosted systemd services'
-existing executable-memory restriction.
-
-On disk under `/srv/simple-host/sites`: `by-id/<user_id>/<site>/v<n>/` holds each upload,
-`current` points at the live one; `handles/<handle>` links to `by-id/<user_id>`;
-`domains/<domain>` links to a site; a `domain-redirect` file marks a site with its own domain;
-a `suspended` file marks a site the operator has taken down (mirrors `sites.suspended_at` or
-the owner's `users.suspended_at`; re-synced at boot). Go checks it in `serveSiteFile`; nginx
-(custom domains, content host) and Caddy (event boxes) check it where they read files from disk
-and rewrite to `/internal/suspended` (`deploy/prod/nginx-suspended-marker.sh` adds the nginx check).
-An empty `unlisted` file marks a site its owner has unlisted that has no own address (no proven
-custom domain, claimed name or family address; rewritten with visibility and address changes in
-`syncDomainRedirect`, re-synced at boot): Go adds `X-Robots-Tag: noindex, nofollow` in `siteGate`
-and answers a missing `/robots.txt` with `Disallow: /` (`unlisted.go`); Caddy rewrites such a site
-to `/internal/passcode$uri`, so the app serves its files. nginx's custom-domain and family vhosts
-have no check: a site they serve has an own address, so it never carries the marker.
-
-Tables (`db/schema.sql`):
-
-- `users` — every identity: owners, visitors, admin. `handle`, `display_name`.
-- `users` also carries `event_account` (organiser-made accounts), suspension and `signin_alerts`.
-- `api_keys` — account keys as hex SHA-256 only (`key_hash`, `user_id`); several per account;
-  `scope` (full or deploy) and `expires_at`.
-- `handle_aliases`, `legacy_hostnames` — old handles and retired per-name hosts, same namespace.
-- `sites` — owner, name, active version, `state` JSONB + `state_version`, custom domain and its
-  status, `visibility` (listing only), `allowed_origins`.
-- `versions` — one row per upload.
-- `collection_items`, `collection_settings` — lists, boards and Personal records (`kind`,
-  `version`); private flag, `submitted_by`.
-- `data_history` — every saved-data change for 30-day undo; `idempotency_keys`; `data_watch`
-  (counts of the visitor writes a later step may tighten); `site_savers` (who may save, blocks).
-- `site_name_aliases` — a renamed site's old names. `email_changes`, `email_change_undos`,
-  `signin_alerts_sent` — sign-in email changes and alerts.
-- `domain_cert_requests` — the certificate issuer's daily cap.
-- `site_page_daily`, `site_referrer_daily` — top pages and referring domains.
-- `auth_tokens` — email codes, bound to a purpose and, for visitors, one site; expired rows
-  purged.
-- `oauth_identities`, `oauth_states` — Google sign-in.
-- `visitor_sessions`, `visitor_establish_tokens` — site-scoped cookies and their one-time hand-off.
-- `oauth_clients`, `oauth_grants`, `oauth_codes`, `oauth_tokens` — the connector (hashes only).
-- `event_domains` — hackathon hostnames. `instance_config` — answers from the setup page.
-- `site_notifications` — webhook/MCP Events subscriptions (grant-scoped for MCP).
-  Signing secrets and custom header tokens are sealed with AES-256-GCM under
-  `PASSCODE_ENC_KEY`, with `notification:` plus the row ID as associated data
-  for signing secrets and an added `:header` suffix for custom header tokens,
-  and opened only to sign or send (or compare a refresh secret). Without the key,
-  new notifications are refused. `site_events` — the per-site outbox, append-only, ordered by
-  `seq`. `site_event_deliveries` — one row per (event, subscription) attempt, leased by the
-  delivery workers.
-- Analytics: `site_view_hourly`, `site_visitor_hourly`, `site_geo_daily`,
-  `analytics_ingest_state`; legacy `site_view_daily`, `site_visitor_daily` (never written,
-  pruned after 400 days). API: `api_request_daily`, `api_ip_daily` (caller IP truncated to
-  IPv4 /24 or IPv6 /48, pruned at 30 days).
-- `ip_country_ranges` — reference data for visitor-analytics country counts.
-
-## Deploy
-The three supported layouts, settings, migration owners and rollback steps are in [deployment profiles](docs/operations/deployment-profiles.md).
-
-- Binary `/usr/local/bin/simple-host`, `simple-host.service` (user `simplehost`, sandboxed,
-  writes only `/srv/simple-host/sites`), env `/etc/simple-host.env` (secrets; never print it).
-- Build on the box (aarch64) under a memory cap, back up the running binary to
-  `/usr/local/bin/simple-host.bak-<timestamp>`, install, restart, verify from a client. Exact
-  steps in `CLAUDE.md`. Rollback = install the `.bak` and restart.
-- Flags in the env file: `PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`,
-  `SITE_CERT_DIR=/var/lib/simple-host-site-certs`,
-  `DOMAIN_CERT_DIR=/var/lib/simple-host-domain-certs`, `WRITE_AUTH_MODE=on`, `BIND_ADDR=127.0.0.1`
-  (empty = all interfaces, which Docker needs),
-  `ANALYTICS_LOG`, `ANALYTICS_SALT` (visitor hash salt; empty = derived from `ADMIN_API_KEY`),
-  `GEOIP_DIR`.
-- Schema changes are hand-applied SQL here; add them to `db/schema.sql` and `db/migrations/`
-  (idempotent, rule in `db/migrations/migrations.go`), apply before deploying, then record with
-  `simple-host migrate -mark <file>`. Hosted production never migrates on start; small boxes
-  run `simple-host migrate` from `install.sh`. Only with `MIGRATE_ON_START=true` (off by
-  default; meant for Kubernetes, `docs/kubernetes.md`) does the server build an empty schema and
-  apply pending migrations before it listens (`cmd/server/main.go`). The binary refuses to
-  start if a column it reads is missing (`schemacheck.go`).
-- nginx edits are by hand, with a dated `.bak` first, then `nginx -t` and reload.
-- Log retention matches the privacy page's 30 days: `deploy/prod/logrotate-analytics.conf`
-  (installed as `/etc/logrotate.d/simple-host-analytics`; live day + 29 daily archives) and
-  `deploy/prod/journald-retention.conf` (installed as
-  `/etc/systemd/journald.conf.d/30-retention.conf`, `MaxRetentionSec=30day`, box-wide).
-  `analytics-rebuild` replays those archives, so a rebuild reaches back about 30 days.
-
-## Invariants
-
-- **Visitor IPs never leave the box.** Site analytics keep a salted hash plus country counts;
-  API caller IPs are stored truncated (/24, /48) for 30 days and located from local files only;
-  the analytics log drops the query string. No IP goes to a
-  geolocation service or any third party.
-
-- **No client-side analytics.** Nothing is injected into hosted pages; traffic comes from the
-  server's own access log.
-- **API keys are never stored in plaintext.** Only SHA-256 in `api_keys`; in-process callers
-  use a per-request internal credential, never a stored key.
-- **Apex pages run no inline script without a nonce.** `script-src` carries a per-response
-  nonce (`adminUICSP`, `consentHeaders`), no `unsafe-inline`; inline `on*=` handlers are
-  blocked, so pages bind events with `addEventListener`.
-- **Hosted pages never hold an API key.** Everything a page does works with the site-scoped
-  cookie. Middleware reads only `X-API-Key` (or a connector token); a site session is never
-  owner power.
-- **Reads are public; every page write needs an identity.** The private things are private
-  Submissions and Personal records. The one view-lock is a single passcode on a whole site
-  (`h/passcode.go`): a shared code, not a login. A site can instead be limited to named
-  viewers (never both): access level `specific` lets only the owner and the people it names
-  by email open it, after visitor sign-in on the site's own address (`h/viewers.go`). There is no
-  per-page lock.
-- **A site with a domain lives only there.** 302 (not 301) so disconnecting takes effect at once.
-- **One namespace** for handles, claimed names, reserved names and retired hosts.
-- **Never hand out a site host without its certificate.** A TLS name mismatch cannot be fixed
-  after the handshake, so URLs and redirects use `<site>.<handle>` only once
-  `SITE_CERT_DIR/ready/<handle>` exists.
-- **Package imports follow the contract in `docs/architecture/target.md` §2.**
-  `scripts/check-layering.sh` checks the Go import graph against `scripts/layering/rules.txt`;
-  transitional edges carry removal steps.
-- **`openapi.yaml` is the shared API contract;** `openapi.json` is generated from it.
-  Each operation carries `x-audience` (`public-host`, `public-hack`, `internal`, `legacy`).
-  `internal/handler/hack_assets.go` filters operations and unused tags/components at the served
-  `/openapi.json` and `/openapi.yaml` URLs (JSON is valid YAML 1.2). The docs page
-  loads that filtered reference. Internal and legacy (older saved-data) operations stay in the source for
-  coverage; each product’s `llms.txt` describes its public API.
-
-## Traps
-
-- **One payload, two pages.** `index.html` and `showcase.html` both render analytics; check
-  both on any response-shape change. The analytics parser is shared and checked verbatim.
-- **Two origins.** `showcase.html` is served on the apex and on the content host, so shared
-  frontend code is inlined, not linked.
-- **The log tail is stateful** (inode + offset): logrotate must use `create` and
-  `delaycompress`, never `copytruncate`.
-- **The compiled binary is not the repo.** Nothing changes until rebuild and restart; embedded
-  HTML needs a rebuild too.
+- Visitor analytics use local country lookup and salted visitor hashes, without injected page
+  analytics. API metrics truncate IPs to /24 or /48 (`internal/analytics`, `handler/apimetrics.go:truncateIP`).
+- Account middleware reads keys, not visitor cookies (`auth/middleware.go:Middleware`). Hosted
+  pages use site-scoped visitor identity; do not embed an owner's key in a hosted page.
+- Site gates include suspension/offline, passcodes or named viewers; unlisted is listing/robots
+  policy, not an access lock. Reads are not universally public (`handler/passcode.go:siteGate`,
+  `viewers.go`, `unlisted.go`, `internal/app/storage/access.go`). There is no per-page view lock.
+- Normal site requests redirect to their verified own address with 302, so disconnection takes
+  effect; version previews are an explicit exception (`handler/sitehost.go:SiteHosts`).
+- Handles, claimed platform names, reserved names and retired hosts share a namespace
+  (`handler/handlecheck.go:JudgeHandle`). Certificate readiness precedes advertised site URLs.
+- Account UI and consent pages use nonce CSP; passcode pages use fixed script hashes. Do not
+  assume all apex responses use the same CSP (`handler/ui.go:adminUICSP`, `connector.go:consentHeaders`, `passcode.go`).
+- `openapi.yaml` is the source contract; JSON is generated. Served specs filter `x-audience`
+  operations and unused components (`handler/hack_assets.go:publicOpenAPISpec`).
+- Deployment versions and runtime saved files are distinct. `storage/disk.go` is not the only
+  writer under a site directory (`storage/runtime_files.go`, `handler/imagescan.go`).
+- `index.html` and `showcase.html` inline the same analytics parser; showcase also runs on the
+  content host. Keep both copies generated (`scripts/inline-analytics-parser.sh`).
+- The analytics tail tracks inode/offset: rotate with `create` and `delaycompress`, never
+  `copytruncate` (`deploy/prod/logrotate-analytics.conf`). Embedded HTML changes need a rebuild;
+  a changed checkout is not a deployed binary.
 
 ## Checks
 
-`make check` runs gofmt, build, vet, `scripts/test-integration.sh` (the DB-backed test
-fixtures against a disposable Postgres) and `scripts/check-html.sh`,
-`check-layering.sh`, `check-docs-sync.sh`, `check-claude-plugin.sh`,
-`check-fresh-install.sh`. The Makefile is what executes; this list is prose.
-`scripts/check-features.sh` (every route and MCP tool is placed in `FEATURES.md`) and
-`scripts/check-reserved-subdomains.sh` run on their own.
-
-Dated feature notes (October 2026) that used to follow here are in
-`docs/history/architecture-notes-2026-10.md`.
+`make test` is the no-DB loop; `make check` builds/vets and runs disposable-Postgres integration
+fixtures plus local consistency checks. `make check-release` holds network/publication/cross-repo
+checks. The Makefile is authoritative; commands, fixture lifecycle and deploy/rollback steps are
+in [contributing](docs/architecture/contributing.md). Historical rollout notes are in
+[architecture history](docs/history/architecture-notes-2026-10.md).

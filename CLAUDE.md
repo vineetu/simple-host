@@ -11,7 +11,7 @@ https://simple-host.app and runs in production for real users.
 ## Before you change anything
 
 1. Read `INTENT.md` (what it is for, non-goals, decisions with dates),
-   then `FEATURES.md` (what it does today), then `ARCHITECTURE.md` (where it lives).
+   then `FEATURES.md` (what it does today), then `ARCHITECTURE.md` (where it lives) and `docs/architecture/` (focused guides).
 2. `git fetch` and fast-forward first. Two sessions have overwritten each other in production.
 3. Map every surface a change touches before coding: routes, `openapi.yaml`, `llms.txt`, the
    skills, the dashboard and the showcase page, the MCP tools, the Claude and OpenAI plugins.
