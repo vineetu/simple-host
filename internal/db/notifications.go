@@ -574,3 +574,13 @@ func RecentlyVerifiedNotification(ctx context.Context, q Querier, owner, url str
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications WHERE owner_id=$1 AND url=$2 AND source='mcp' AND verified_at>now()-interval '30 days')`, owner, url).Scan(&yes)
 	return yes, err
 }
+
+// PendingContentMail counts each existing partial pending index, including delayed retries.
+func PendingContentMail(ctx context.Context, q Querier) (int64, error) {
+	var n int64
+	err := q.QueryRowContext(ctx, `SELECT
+ (SELECT count(*) FROM event_announcement_deliveries WHERE sent_at IS NULL) +
+ (SELECT count(*) FROM event_entry_receipts WHERE sent_at IS NULL) +
+ (SELECT count(*) FROM event_notices WHERE email_state='pending')`).Scan(&n)
+	return n, err
+}

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
+	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
@@ -326,12 +327,7 @@ func (o *contentDeliveryOwner) Start(ctx context.Context) {
 	})
 }
 func (o *contentDeliveryOwner) pending(ctx context.Context) (int64, bool) {
-	var n int64
-	// Each subquery uses the existing partial pending index; include delayed retries.
-	err := o.h.database.QueryRowContext(ctx, `SELECT
- (SELECT count(*) FROM event_announcement_deliveries WHERE sent_at IS NULL) +
- (SELECT count(*) FROM event_entry_receipts WHERE sent_at IS NULL) +
- (SELECT count(*) FROM event_notices WHERE email_state='pending')`).Scan(&n)
+	n, err := db.PendingContentMail(ctx, o.h.database)
 	if err != nil {
 		o.tracker.Fail("count pending mail", err)
 		return 0, false
