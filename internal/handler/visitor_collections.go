@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 func (h *SiteHandler) visitorCollectionRequest(r *http.Request, args map[string]any, action, method string, value any) (any, error) {
@@ -19,7 +17,7 @@ func (h *SiteHandler) visitorCollectionRequest(r *http.Request, args map[string]
 	if !ok {
 		return nil, fmt.Errorf("visitor pass does not cover this site")
 	}
-	set, err := db.GetDataSettings(r.Context(), h.database, siteID, name)
+	set, err := h.legacySvc().VisitorCollectionSettings(r.Context(), siteID, name)
 	if err != nil {
 		return nil, err
 	}
@@ -39,8 +37,7 @@ func (h *SiteHandler) visitorCollectionRequest(r *http.Request, args map[string]
 			return nil, err
 		}
 		r.SetPathValue("id", strconv.FormatInt(id, 10))
-		author, err := db.GetItemAuthor(r.Context(), h.database, siteID, name, id)
-		if err != nil || author.SubmittedBy != sess.UserID || author.DeletedAt != nil {
+		if !h.legacySvc().VisitorEntryOwned(r.Context(), siteID, name, id, sess.UserID, true) {
 			return nil, fmt.Errorf("not_found: no entry of yours with that id")
 		}
 		fn = h.updateEntry
@@ -64,9 +61,9 @@ func (h *SiteHandler) visitorCollectionRequest(r *http.Request, args map[string]
 		case map[string]any:
 			if raw, ok := x["id"].(json.Number); ok {
 				id, _ := raw.Int64()
-				a, err := db.GetItemAuthor(r.Context(), h.database, siteID, name, id)
+				owned, err := h.legacySvc().VisitorEntryOwnership(r.Context(), siteID, name, id, sess.UserID)
 				if err == nil {
-					x["mine"] = a.SubmittedBy == sess.UserID
+					x["mine"] = owned
 				}
 			}
 			if items, ok := x["items"].([]any); ok {
