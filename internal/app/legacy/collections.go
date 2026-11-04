@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log"
@@ -54,11 +55,7 @@ func (a *Adapter) AuthorizeCollectionGate(_ context.Context, in CollectionGateIn
 		}
 		return err
 	}
-	originAllowed := in.OriginAllowed
-	if !in.KeyWithoutPage && a.deps.AuthorizeCollectionOrigin != nil {
-		originAllowed = a.deps.AuthorizeCollectionOrigin(in.SiteName)
-	}
-	if !in.KeyWithoutPage && !originAllowed {
+	if !in.KeyWithoutPage && !in.OriginAllowed {
 		return &Error{Code: "origin_not_allowed", Message: "origin not allowed"}
 	}
 	return nil
@@ -85,42 +82,6 @@ func (a *Adapter) prepareCollectionAppend(ctx context.Context, in CollectionGate
 		}
 	}
 	return id, set, err
-}
-
-// AppendCollection runs the full append sequence, including transport callbacks at
-// the points where request handling and response writing must occur.
-func (a *Adapter) AppendCollection(ctx context.Context, in CollectionGateInput) (db.DataSettings, error) {
-	siteID, set, err := a.prepareCollectionAppend(ctx, in)
-	if err != nil {
-		return set, err
-	}
-	// Boards and private lists use their own write paths before the public gate.
-	if set.Kind == db.KindBoard {
-		a.deps.CollectionAppendBoard(siteID, set)
-		return set, nil
-	}
-	if set.Private {
-		a.deps.CollectionAppendPrivate(siteID, set)
-		return set, nil
-	}
-	actor, ok := a.deps.CollectionAppendActor(siteID, set)
-	if !ok {
-		return set, nil
-	}
-	// Declared submissions require a signed-in visitor before rate limiting
-	// or reading the request body.
-	if err := a.authorizeCollectionSubmitter(ctx, set, actor); err != nil {
-		return set, err
-	}
-	input, ok := a.deps.CollectionAppendPrepare(siteID, set, actor)
-	if !ok {
-		return set, nil
-	}
-	if err := a.validateCollectionBody(input.Body); err != nil {
-		return set, err
-	}
-	a.appendCollectionOnce(ctx, input)
-	return set, nil
 }
 
 func (a *Adapter) validateCollectionBody(body []byte) error {
@@ -201,16 +162,89 @@ func CollectionPrivateReadAllowed(ownerKey, sharedHost, originless bool) bool {
 	return !originless
 }
 
-// listCollectionSettings reads the declaration and excludes personal records.
-func (a *Adapter) listCollectionSettings(ctx context.Context, siteID, coll string) (db.DataSettings, error) {
-	set, err := a.collectionSettings(ctx, siteID, coll)
+// CollectionReadSettingsInput identifies the list and whether its owner is reading.
+type CollectionReadSettingsInput struct {
+	SiteID, Collection string
+	Owner              bool
+}
+
+// CollectionReadSettings checks site availability and reads the list declaration.
+func (a *Adapter) collectionReadSettings(ctx context.Context, in CollectionReadSettingsInput) (db.DataSettings, error) {
+	if !in.Owner {
+		suspended, reason, err := db.SiteSuspension(ctx, a.database, in.SiteID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return db.DataSettings{}, &Error{Code: "site_not_found"}
+		}
+		if err != nil {
+			return db.DataSettings{}, &Error{Code: "internal"}
+		}
+		if suspended {
+			return db.DataSettings{}, &Error{Code: "site_suspended", Message: reason}
+		}
+		offline, err := db.SiteOffline(ctx, a.database, in.SiteID)
+		if err != nil {
+			return db.DataSettings{}, &Error{Code: "internal"}
+		}
+		if offline {
+			return db.DataSettings{}, &Error{Code: "site_offline"}
+		}
+	}
+	set, err := a.collectionSettings(ctx, in.SiteID, in.Collection)
 	if err != nil {
-		return set, err
+		return set, &Error{Code: "internal"}
 	}
 	if set.Kind == db.KindPersonal {
 		return set, ErrPersonalList
 	}
 	return set, nil
+}
+
+// CollectionBrowserSession contains the visitor session facts for a list read.
+type CollectionBrowserSession struct {
+	UserID string
+	ID     []byte
+	OK     bool
+}
+
+// CollectionReadViewInput contains the request facts used to authorize and select a list view.
+type CollectionReadViewInput struct {
+	SiteID                                                                  string
+	OwnerKey, SharedHost, Originless, VisitorPass, HasStrictCookie, Private bool
+}
+
+// CollectionReadView authorizes private reads and selects the author view.
+func (a *Adapter) collectionReadView(ctx context.Context, in CollectionReadViewInput) (bool, error) {
+	if in.Private {
+		if in.SharedHost || (!in.OwnerKey && in.Originless) {
+			return false, &Error{Code: "private_not_found"}
+		}
+		if !in.OwnerKey {
+			ownerID, here, err := a.deps.CollectionOwnerDomain(ctx, in.SiteID)
+			if err != nil {
+				return false, &Error{Code: "internal"}
+			}
+			if !here {
+				return false, &Error{Code: "private_not_found"}
+			}
+			sess := a.deps.CollectionBrowserSession(ctx, in.SiteID)
+			if !sess.OK || sess.UserID != ownerID || in.VisitorPass {
+				return false, &Error{Code: "private_not_found"}
+			}
+			_ = db.TouchVisitorSession(ctx, a.database, sess.ID, a.deps.VisitorSessionIdle)
+		}
+	}
+	if in.OwnerKey {
+		return true, nil
+	}
+	if in.VisitorPass || !in.HasStrictCookie || in.SharedHost {
+		return false, nil
+	}
+	sess := a.deps.CollectionBrowserSession(ctx, in.SiteID)
+	if !sess.OK {
+		return false, nil
+	}
+	ownerID, here, err := a.deps.CollectionOwnerDomain(ctx, in.SiteID)
+	return err == nil && here && sess.UserID == ownerID, nil
 }
 
 // CollectionListInput contains the resolved values for a collection page.
@@ -244,73 +278,81 @@ func (a *Adapter) listCollection(ctx context.Context, in CollectionListInput) ([
 	return items, next, nil
 }
 
-// CollectionPageRequest contains the request facts for a complete list read.
-type CollectionPageRequest struct {
-	CollectionListSiteInput
-	Limit, Before string
-	SharedHost    bool
+// CollectionPageInput contains the resolved site and request facts for a list page.
+type CollectionPageInput struct {
+	CollectionListInput
+	CollectionReadViewInput
 }
 
-// CollectionPageResult is the page and declaration selected for a list read.
+// CollectionPageResult records the headers reached while loading a list page.
 type CollectionPageResult struct {
-	Items        []db.CollectionItem
-	Next         *int64
-	Settings     db.DataSettings
-	PrivateCache bool
-	AuthorView   bool
+	Items           []db.CollectionItem
+	Next            *int64
+	Settings        db.DataSettings
+	Private, Author bool
 }
 
-// ReadCollection performs site selection, read checks and the page query in order.
-func (a *Adapter) ReadCollection(ctx context.Context, in CollectionPageRequest) (CollectionPageResult, error) {
-	var out CollectionPageResult
-	in.SiteName = strings.TrimSpace(in.SiteName)
-	in.Collection = strings.TrimSpace(in.Collection)
-	siteID, owner, err := a.collectionListSite(ctx, in.CollectionListSiteInput)
+// CollectionPage checks availability and access before reading a collection page.
+func (a *Adapter) collectionPage(ctx context.Context, in CollectionPageInput) (result CollectionPageResult, err error) {
+	set, err := a.collectionReadSettings(ctx, CollectionReadSettingsInput{SiteID: in.CollectionListInput.SiteID, Collection: in.Collection, Owner: in.OwnerKey})
+	if err != nil {
+		return result, err
+	}
+	result.Settings, result.Private = set, set.Private
+	in.CollectionReadViewInput.Private = set.Private
+	result.Author, err = a.collectionReadView(ctx, in.CollectionReadViewInput)
+	if err != nil {
+		return result, err
+	}
+	in.CollectionListInput.WithAuthor, in.CollectionListInput.Settings = result.Author, set
+	result.Items, result.Next, err = a.listCollection(ctx, in.CollectionListInput)
+	return result, err
+}
+
+// ReadCollectionInput contains the request facts for a collection read.
+type ReadCollectionInput struct {
+	CollectionListSiteInput
+	CollectionReadViewInput
+	Limit, Before string
+}
+
+// ReadCollectionResult contains the page and headers reached during a read.
+type ReadCollectionResult struct {
+	CollectionPageResult
+	Headers map[string][]string
+}
+
+// ReadCollection resolves, authorizes and loads a collection page.
+func (a *Adapter) ReadCollection(ctx context.Context, in ReadCollectionInput) (out ReadCollectionResult, err error) {
+	out.Headers = make(map[string][]string)
+	siteID, owner, err := a.collectionReadTarget(ctx, in.CollectionListSiteInput)
 	if err != nil {
 		return out, err
 	}
-	if !a.deps.CollectionReadAllowed(siteID, owner) {
-		return out, &Error{Code: "read_limited"}
-	}
-	if !owner {
-		suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+	if !owner && !in.CollectionListSiteInput.Originless {
+		var headers map[string][]string
+		in.CollectionListSiteInput.OriginAllowed, headers = a.deps.CollectionOrigin(in.SiteName)
+		for k, v := range headers {
+			out.Headers[k] = v
+		}
+		siteID, err = a.resolveOriginCollection(ctx, in.CollectionListSiteInput)
 		if err != nil {
 			return out, err
 		}
-		if suspended {
-			return out, &Error{Code: "site_suspended", Message: reason}
-		}
-		offline, err := db.SiteOffline(ctx, a.database, siteID)
-		if err != nil {
-			return out, &Error{Code: "internal", Message: err.Error()}
-		}
-		if offline {
-			return out, &Error{Code: "site_offline"}
-		}
 	}
-	out.Settings, err = a.listCollectionSettings(ctx, siteID, in.Collection)
-	if errors.Is(err, ErrPersonalList) {
-		return out, err
+	allowed, headers := a.deps.CollectionReadLimit(siteID)
+	for k, v := range headers {
+		out.Headers[k] = v
 	}
-	if err != nil {
-		return out, &Error{Code: "internal", Message: err.Error()}
+	if !allowed {
+		return out, &Error{Code: "rate_limited"}
 	}
-	if out.Settings.Private {
-		out.PrivateCache = true
-		if !CollectionPrivateReadAllowed(owner, in.SharedHost, in.Originless) {
-			return out, &Error{Code: "private_not_found"}
-		}
-		if err := a.deps.CollectionPrivateRead(siteID, owner); err != nil {
-			return out, err
-		}
-	}
-	withAuthor := a.deps.CollectionAuthorView(siteID, owner)
-	out.AuthorView = withAuthor
-	out.Items, out.Next, err = a.listCollection(ctx, CollectionListInput{SiteID: siteID, Collection: in.Collection, Limit: in.Limit, Before: in.Before, WithAuthor: withAuthor, Settings: out.Settings})
-	if err != nil {
-		return out, &Error{Code: "internal", Message: err.Error()}
-	}
-	return out, nil
+	in.CollectionReadViewInput.SiteID, in.CollectionReadViewInput.OwnerKey = siteID, owner
+	out.CollectionPageResult, err = a.collectionPage(ctx, CollectionPageInput{
+		CollectionListInput:     CollectionListInput{SiteID: siteID, Collection: in.Collection, Limit: in.Limit, Before: in.Before},
+		CollectionReadViewInput: in.CollectionReadViewInput,
+	})
+	return out, err
 }
 
 // WithoutSubmitter removes the private submitter stamp from an item.
@@ -400,32 +442,46 @@ func (a *Adapter) OwnerSiteFromKey(ctx context.Context, in OwnerKeyInput) (strin
 // CollectionListSiteInput contains the request facts needed to select a list's site.
 type CollectionListSiteInput struct {
 	OwnerKeyInput
-	Collection string
-	Originless bool
+	Collection                string
+	Originless, OriginAllowed bool
 }
 
-// CollectionListSite selects the owner-key site or applies the public origin gate.
-func (a *Adapter) collectionListSite(ctx context.Context, in CollectionListSiteInput) (string, bool, error) {
+// CollectionReadTarget validates a list target and checks for an owner key.
+func (a *Adapter) collectionReadTarget(ctx context.Context, in CollectionListSiteInput) (string, bool, error) {
 	if err := validateCollectionTarget(in.SiteName, in.Collection); err != nil {
 		return "", false, err
 	}
 	id, owner := a.OwnerSiteFromKey(ctx, in.OwnerKeyInput)
-	if !owner {
-		if !in.Originless {
-			if err := a.AuthorizeCollectionGate(ctx, CollectionGateInput{SiteName: in.SiteName, Collection: in.Collection}); err != nil {
-				return "", false, err
-			}
-		}
-		var err error
-		id, err = a.deps.ResolveNamedSite(ctx, in.SiteName)
-		if err != nil {
-			return "", false, err
-		}
+	if !owner && in.Originless {
+		id, err := a.resolveScopedCollectionSite(ctx, in)
+		return id, false, err
 	}
-	if in.Scoped && in.ScopedSiteID != id {
-		return "", false, sql.ErrNoRows
+	if owner && in.Scoped && in.ScopedSiteID != id {
+		return "", false, &Error{Code: "site_not_found"}
 	}
 	return id, owner, nil
+}
+
+// ResolveOriginCollection authorizes an origin and resolves the list's site.
+func (a *Adapter) resolveOriginCollection(ctx context.Context, in CollectionListSiteInput) (string, error) {
+	if err := a.AuthorizeCollectionGate(ctx, CollectionGateInput{SiteName: in.SiteName, Collection: in.Collection, OriginAllowed: in.OriginAllowed}); err != nil {
+		return "", err
+	}
+	return a.resolveScopedCollectionSite(ctx, in)
+}
+
+func (a *Adapter) resolveScopedCollectionSite(ctx context.Context, in CollectionListSiteInput) (string, error) {
+	id, err := a.deps.ResolveNamedSite(ctx, in.SiteName)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", &Error{Code: "site_not_found"}
+	}
+	if err != nil {
+		return "", &Error{Code: "internal"}
+	}
+	if in.Scoped && in.ScopedSiteID != id {
+		return "", &Error{Code: "site_not_found"}
+	}
+	return id, nil
 }
 
 // Error describes a legacy operation failure without transport status codes.
@@ -577,100 +633,703 @@ func (a *Adapter) collectionHasRoom(ctx context.Context, siteID string, growth, 
 	return used+growth <= maxBytes, nil
 }
 
-// ClaimError identifies a failed idempotency reservation.
-type ClaimError struct{ Err error }
-
-func (e *ClaimError) Error() string { return e.Err.Error() }
-
-// AppendResult contains an append or an idempotent replay.
+// AppendResult contains the item and existing-entry count from an append.
 type AppendResult struct {
-	Item        db.CollectionItem
-	Have        int64
-	State       string
-	Previous    db.IdempotentResponse
-	ReplayFound bool
+	Item db.CollectionItem
+	Have int64
 }
 
 // AppendInput contains the resolved values for a collection append.
 type AppendInput struct {
-	SiteID, Key   string
-	Settings      db.DataSettings
-	Body          []byte
-	Actor         db.Actor
-	SuccessStatus int
+	SiteID   string
+	Settings db.DataSettings
+	Body     []byte
+	Actor    db.Actor
 }
 
-// appendCollectionOnce reserves a retry key and runs the collection append.
-func (a *Adapter) appendCollectionOnce(ctx context.Context, in AppendInput) (result AppendResult, err error) {
-	siteID, set, body, actor, key := in.SiteID, in.Settings, in.Body, in.Actor, in.Key
+// appendCollectionItem checks quota and appends a collection item.
+func (a *Adapter) appendCollectionItem(ctx context.Context, in AppendInput) (result AppendResult, err error) {
+	siteID, set, body, actor := in.SiteID, in.Settings, in.Body, in.Actor
+	visitor := actor.Kind == "visitor" || actor.Kind == "anonymous"
+	ok, err := a.collectionHasRoom(ctx, siteID, int64(len(body)), a.deps.MaxBytes())
+	if err != nil {
+		return result, &AppendQuotaError{}
+	}
+	if !ok {
+		return result, &AppendQuotaError{Full: true}
+	}
+	newName := false
+	if visitor {
+		if used, err := legacy.CollectionNameUsed(ctx, a.database, siteID, set.Name); err == nil && !used {
+			newName = true
+		}
+	}
+	result.Item, result.Have, err = a.SaveEntry(ctx, SaveEntryInput{SiteID: siteID, Settings: set, Body: body, Actor: actor, MaxEntries: a.deps.MaxEntries()})
+	if err != nil {
+		return result, err
+	}
+	if newName {
+		a.Watch(ctx, siteID, a.deps.NewListMetric, 1)
+	}
+	a.WatchItemSize(ctx, siteID, len(body), a.deps.WatchItemKB(), a.deps.LargeItemMetric)
+	return result, nil
+}
+
+// collectionVisitorEmail uses the visitor's current address for saver checks and authorship.
+func (a *Adapter) collectionVisitorEmail(ctx context.Context, userID string) (string, error) {
+	u, err := db.GetUserByID(ctx, a.database, userID)
+	if err != nil {
+		return "", err
+	}
+	if strings.Contains(u.Username, "@") {
+		return u.Username, nil
+	}
+	identity, err := db.GetLatestOAuthIdentity(ctx, a.database, userID)
+	if err == nil && identity.Email.Valid && identity.Email.String != "" {
+		return identity.Email.String, nil
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	return u.Username, nil
+}
+
+// CollectionWriteActor contains request facts used by the public write gate.
+type CollectionWriteActor struct {
+	SiteName, Key, Mode, Cookie                        string
+	Preview, ContentHost, Canonical, VisitorPass, CSRF bool
+}
+
+func (a *Adapter) collectionWriteActor(ctx context.Context, siteID, name string, in CollectionWriteActor) (db.Actor, error) {
+	anon := db.Actor{Kind: "anonymous"}
+	ownerID, allowAnon, err := db.GetSiteWriteGate(ctx, a.database, siteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return anon, &Error{Code: "site_not_found"}
+	}
+	if err != nil {
+		return anon, &Error{Code: "internal"}
+	}
+	suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return anon, &Error{Code: "site_not_found"}
+	}
+	if err != nil {
+		return anon, &Error{Code: "internal"}
+	}
+	if suspended {
+		return anon, &Error{Code: "site_suspended", Message: reason}
+	}
+	offline, err := db.SiteOffline(ctx, a.database, siteID)
+	if err != nil {
+		return anon, &Error{Code: "internal"}
+	}
+	if offline && !a.deps.CollectionOwnerKeyWrite(ownerID) {
+		return anon, &Error{Code: "site_offline"}
+	}
+	if in.Preview && in.Key == "" {
+		return anon, &Error{Code: "preview_read_only"}
+	}
+	mode := in.Mode
+	if mode == "" {
+		mode = "log"
+	}
+	if domain, elsewhere := a.deps.CollectionDomainElsewhere(siteID); elsewhere {
+		a.deps.CollectionLogAnon(siteID, in.SiteName, mode, "use_custom_domain")
+		if mode == "on" && !allowAnon {
+			return anon, &Error{Code: "use_custom_domain", Message: domain}
+		}
+		return a.deps.CollectionKeyActor(ownerID), nil
+	}
+	if in.ContentHost {
+		if domain, exists := a.deps.CollectionSharedDomain(ctx, siteID); exists {
+			a.deps.CollectionLogAnon(siteID, in.SiteName, mode, "use_custom_domain")
+			if mode == "on" && !allowAnon {
+				return anon, &Error{Code: "use_custom_domain", Message: domain}
+			}
+			return a.deps.CollectionKeyActor(ownerID), nil
+		}
+	}
+	if in.VisitorPass {
+		sess, ok := a.deps.CollectionInternalSession(siteID)
+		if !ok {
+			return anon, &Error{Code: "visitor_pass_forbidden"}
+		}
+		if !in.CSRF {
+			return anon, &Error{Code: "csrf_required"}
+		}
+		return db.Actor{ID: sess.UserID, Kind: "visitor"}, nil
+	}
+	if in.Key != "" {
+		u, ok, err := a.deps.CollectionResolveKey(ctx, in.Key)
+		if err != nil {
+			return anon, &Error{Code: "internal"}
+		}
+		if ok && !u.IsAdmin && u.ID != ownerID {
+			log.Printf("key_write_refused user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, in.SiteName, "collection_post", name)
+			return anon, &Error{Code: "site_not_found"}
+		}
+		if ok {
+			log.Printf("key_write user_id=%s site_id=%s name=%s route=%s collection=%s", u.ID, siteID, in.SiteName, "collection_post", name)
+			if u.IsAdmin && u.ID != ownerID {
+				return db.Actor{ID: u.ID, Kind: "admin"}, nil
+			}
+			return db.Actor{ID: u.ID, Kind: "owner"}, nil
+		}
+		return anon, &Error{Code: "invalid_api_key"}
+	}
+	if mode == "off" {
+		return anon, nil
+	}
+	if in.ContentHost && !in.Canonical {
+		a.deps.CollectionLogAnon(siteID, in.SiteName, mode, "public_host")
+		return anon, nil
+	}
+	if in.Cookie != "" && !in.ContentHost {
+		if id, decErr := hex.DecodeString(in.Cookie); decErr == nil && len(id) == 32 {
+			sess, sessErr := db.GetVisitorSession(ctx, a.database, id, a.deps.KeyIdleExpiry)
+			if sessErr == nil && a.deps.CollectionSessionValid(sess, siteID) {
+				suspended, err := db.UserSuspended(ctx, a.database, sess.UserID)
+				if err != nil {
+					return anon, &Error{Code: "internal"}
+				}
+				if suspended {
+					return anon, &Error{Code: "account_suspended"}
+				}
+				if in.CSRF {
+					_ = db.TouchVisitorSession(ctx, a.database, id, a.deps.VisitorSessionIdle)
+					if sess.UserID == ownerID {
+						return db.Actor{ID: sess.UserID, Kind: "owner"}, nil
+					}
+					return db.Actor{ID: sess.UserID, Kind: "visitor"}, nil
+				}
+				if mode == "on" {
+					return anon, &Error{Code: "csrf_required"}
+				}
+			}
+		}
+	}
+	outcome := "allowed"
+	if mode == "on" {
+		if allowAnon {
+			outcome = "overridden"
+		} else {
+			outcome = "rejected"
+		}
+	}
+	a.deps.CollectionLogAnon(siteID, in.SiteName, mode, outcome)
+	if outcome == "rejected" {
+		return anon, &Error{Code: "visitor_auth_required"}
+	}
+	return anon, nil
+}
+
+// authorizeCollectionSaver checks the site's saver rule after the visitor gate.
+func (a *Adapter) authorizeCollectionSaver(ctx context.Context, siteID string, actor db.Actor, visitorPass bool) error {
+	if actor.Kind != "visitor" && actor.Kind != "anonymous" {
+		return nil
+	}
+	email := ""
+	if actor.ID != "" {
+		var err error
+		email, err = a.collectionVisitorEmail(ctx, actor.ID)
+		if err != nil || email == "" {
+			return &Error{Code: "internal"}
+		}
+	}
+	allowed, err := db.SaverAllowed(ctx, a.database, siteID, email)
+	if err != nil {
+		return &Error{Code: "internal"}
+	}
+	if !allowed && actor.ID != "" && !visitorPass {
+		ownerID, _, err := db.GetSiteWriteGate(ctx, a.database, siteID)
+		allowed = err == nil && ownerID == actor.ID
+	}
+	if !allowed {
+		return &Error{Code: "not_allowed_to_save"}
+	}
+	return nil
+}
+
+// AppendWriteInput contains the authorized collection write and idempotency facts.
+type AppendWriteInput struct {
+	AppendInput
+	IdempotencyKey string
+	SuccessStatus  int
+	ReadBody       func() ([]byte, bool, error)
+	ActorFacts     CollectionWriteActor
+}
+
+// AppendWriteResult contains the saved item or the result of a replay.
+type AppendWriteResult struct {
+	AppendResult
+	Replayed, ReplayFound bool
+	ReplayStatus          int
+	ReplayRef             int64
+	Headers               map[string][]string
+}
+
+// appendCollectionWrite claims idempotency, appends, and records the outcome.
+func (a *Adapter) appendCollectionWrite(ctx context.Context, in AppendWriteInput) (out AppendWriteResult, err error) {
+	in.Actor, err = a.collectionWriteActor(ctx, in.SiteID, in.Settings.Name, in.ActorFacts)
+	if err != nil {
+		return out, err
+	}
+	if err := a.authorizeCollectionSaver(ctx, in.SiteID, in.Actor, in.ActorFacts.VisitorPass); err != nil {
+		return out, err
+	}
+	if err := a.authorizeCollectionSubmitter(ctx, in.Settings, in.Actor); err != nil {
+		return out, err
+	}
+	if in.Actor.Kind == "visitor" || in.Actor.Kind == "anonymous" {
+		var allowed bool
+		allowed, out.Headers = a.deps.CollectionAppendLimit()
+		if !allowed {
+			return out, &Error{Code: "rate_limited"}
+		}
+	}
+	if in.Actor.Kind == "admin" {
+		in.Actor.Email = db.OperatorLabel
+	} else if in.Actor.ID != "" && in.Actor.Email == "" {
+		if email, err := a.collectionVisitorEmail(ctx, in.Actor.ID); err == nil {
+			in.Actor.Email = email
+		}
+	}
+	if in.ReadBody != nil {
+		var tooLarge bool
+		in.Body, tooLarge, err = in.ReadBody()
+		if err != nil {
+			if tooLarge {
+				return out, &Error{Code: "item_too_large"}
+			}
+			return out, &Error{Code: "invalid_request_body"}
+		}
+	}
+	if err := a.validateCollectionBody(in.Body); err != nil {
+		return out, err
+	}
+	key := strings.TrimSpace(in.IdempotencyKey)
+	if len(key) > 255 {
+		return out, &Error{Code: "invalid_idempotency_key"}
+	}
 	var scope []byte
 	saved := false
-	completed := false
+	if key != "" && in.Actor.ID != "" {
+		var prev db.IdempotentResponse
+		var state string
+		scope, prev, state, err = a.ClaimWrite(ctx, in.SiteID, "POST collections/"+in.Settings.Name, in.Actor.ID, key, in.Body)
+		if err != nil {
+			return out, err
+		}
+		switch state {
+		case "reused":
+			return out, &Error{Code: "idempotency_key_reused"}
+		case "pending":
+			return out, &Error{Code: "idempotency_in_progress"}
+		case "replay":
+			out.Replayed, out.ReplayStatus, out.ReplayRef = true, prev.Status, prev.Ref
+			out.Item, err = a.ReplayCollectionItem(ctx, in.SiteID, in.Settings.Name, prev.Ref)
+			out.ReplayFound = err == nil
+			return out, nil
+		}
+	}
 	defer func() {
-		if completed && scope != nil && !saved {
-			if releaseErr := legacy.ReleaseIdempotencyKey(context.WithoutCancel(ctx), a.database, scope); releaseErr != nil {
-				log.Printf("idempotency release: %v", releaseErr)
+		if scope != nil && !saved {
+			if err := a.ReleaseIdempotencyKey(context.WithoutCancel(ctx), scope); err != nil {
+				log.Printf("idempotency release: %v", err)
 			}
 		}
 	}()
-	result, err = func() (result AppendResult, err error) {
-		if len(key) > 255 {
-			return result, &Error{Code: "invalid_idempotency_key", Message: "Idempotency-Key is at most 255 characters"}
-		}
-		if key != "" && actor.ID != "" {
-			var state string
-			scope, result.Previous, state, err = a.ClaimWrite(ctx, siteID, "POST collections/"+set.Name, actor.ID, key, body)
-			if err != nil {
-				return result, &ClaimError{Err: err}
-			}
-			if state != "claimed" {
-				result.State = state
-				if state == "replay" {
-					result.Item, err = a.ReplayCollectionItem(ctx, siteID, set.Name, result.Previous.Ref)
-					result.ReplayFound = err == nil
-					err = nil
-				}
-				return result, nil
-			}
-		}
-		visitor := actor.Kind == "visitor" || actor.Kind == "anonymous"
-		maxEntries, watchItemKB, maxBytes := a.deps.MaxEntries, a.deps.WatchItemKB, a.deps.MaxBytes
-		newListMetric, largeItemMetric, successStatus := a.deps.NewListMetric, a.deps.LargeItemMetric, in.SuccessStatus
-		ok, err := a.collectionHasRoom(ctx, siteID, int64(len(body)), maxBytes)
-		if err != nil {
-			return result, &AppendQuotaError{}
-		}
-		if !ok {
-			return result, &AppendQuotaError{Full: true}
-		}
-		newName := false
-		if visitor {
-			if used, err := legacy.CollectionNameUsed(ctx, a.database, siteID, set.Name); err == nil && !used {
-				newName = true
-			}
-		}
-		item, have, err := a.SaveEntry(ctx, SaveEntryInput{SiteID: siteID, Settings: set, Body: body, Actor: actor, MaxEntries: maxEntries})
-		if err != nil {
-			result.Item, result.Have = item, have
-			return result, err
-		}
-		if newName {
-			a.Watch(ctx, siteID, newListMetric, 1)
-		}
-		a.WatchItemSize(ctx, siteID, len(body), watchItemKB, largeItemMetric)
-		if scope != nil {
-			// Keep it even if the caller has gone: that is the retry case.
-			if err := legacy.SaveIdempotentResponse(context.WithoutCancel(ctx), a.database, scope, successStatus, "", item.ID); err != nil {
-				log.Printf("idempotency save: %v", err)
-			}
-		}
-		result.Item, result.Have = item, have
+	out.AppendResult, err = a.appendCollectionItem(ctx, in.AppendInput)
+	if err != nil {
+		return out, err
+	}
+	if scope != nil {
 		saved = true
-		return result, nil
+		if err := a.SaveIdempotentResponse(context.WithoutCancel(ctx), scope, in.SuccessStatus, "", out.Item.ID); err != nil {
+			log.Printf("idempotency save: %v", err)
+		}
+	}
+	return out, nil
+}
+
+// appendBoard writes a board item after checking its owner or visitor.
+func (a *Adapter) appendBoard(ctx context.Context, in AppendWriteInput) (out AppendWriteResult, err error) {
+	siteID, set, facts := in.SiteID, in.Settings, in.ActorFacts
+	suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return out, &Error{Code: "site_not_found"}
+	}
+	if err != nil {
+		return out, &Error{Code: "internal"}
+	}
+	if suspended {
+		return out, &Error{Code: "site_suspended", Message: reason}
+	}
+	var actor db.Actor
+	if facts.Key != "" || a.deps.CollectionOwnerBrowser(siteID) {
+		ownerID, _, err := db.GetSiteWriteGate(ctx, a.database, siteID)
+		if err != nil {
+			return out, &Error{Code: "site_not_found"}
+		}
+		if facts.Key != "" {
+			u, ok, err := a.deps.CollectionResolveKey(ctx, facts.Key)
+			if err != nil {
+				return out, &Error{Code: "internal"}
+			}
+			if !ok {
+				return out, &Error{Code: "invalid_api_key"}
+			}
+			if !u.IsAdmin && u.ID != ownerID {
+				return out, &Error{Code: "site_not_found"}
+			}
+			actor = db.Actor{ID: u.ID, Kind: "owner"}
+			if u.ID != ownerID {
+				actor.Kind = "admin"
+			}
+		} else if a.deps.CollectionOwnerBrowser(siteID) {
+			if !facts.CSRF {
+				return out, &Error{Code: "csrf_required"}
+			}
+			actor = db.Actor{ID: ownerID, Kind: "owner"}
+		} else {
+			return out, &Error{Code: "owner_only"}
+		}
+	} else {
+		offline, err := db.SiteOffline(ctx, a.database, siteID)
+		if err != nil {
+			return out, &Error{Code: "internal"}
+		}
+		if offline {
+			return out, &Error{Code: "site_offline"}
+		}
+		if facts.Preview {
+			return out, &Error{Code: "preview_read_only"}
+		}
+		if facts.ContentHost {
+			return out, &Error{Code: "visitor_auth_required"}
+		}
+		sess := a.deps.CollectionStrictSession(siteID)
+		if !sess.OK {
+			return out, &Error{Code: "visitor_auth_required"}
+		}
+		suspended, err := db.UserSuspended(ctx, a.database, sess.UserID)
+		if err != nil {
+			return out, &Error{Code: "internal"}
+		}
+		if suspended {
+			return out, &Error{Code: "account_suspended"}
+		}
+		if !facts.CSRF {
+			return out, &Error{Code: "csrf_required"}
+		}
+		_ = db.TouchVisitorSession(ctx, a.database, sess.ID, a.deps.VisitorSessionIdle)
+		actor = db.Actor{ID: sess.UserID, Kind: "visitor"}
+		if err := a.authorizeCollectionSaver(ctx, siteID, actor, facts.VisitorPass); err != nil {
+			return out, err
+		}
+		var allowed bool
+		allowed, out.Headers = a.deps.CollectionAppendLimit()
+		if !allowed {
+			return out, &Error{Code: "rate_limited"}
+		}
+		if !a.deps.CollectionBoardLimit(sess.UserID) {
+			return out, &Error{Code: "rate_limited"}
+		}
+	}
+	if actor.Kind == "admin" {
+		actor.Email = db.OperatorLabel
+	} else if actor.ID != "" && actor.Email == "" {
+		if email, err := a.collectionVisitorEmail(ctx, actor.ID); err == nil {
+			actor.Email = email
+		}
+	}
+	raw, tooLarge, err := in.ReadBody()
+	if err != nil {
+		if tooLarge {
+			return out, &Error{Code: "board_item_too_large"}
+		}
+		return out, &Error{Code: "invalid_request_body"}
+	}
+	var obj map[string]json.RawMessage
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if err := dec.Decode(&obj); err != nil || obj == nil || dec.More() {
+		return out, &Error{Code: "board_not_object"}
+	}
+	if !a.deps.CollectionJSONStorable(raw) {
+		return out, &Error{Code: "invalid_json", Message: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`}
+	}
+	body := json.RawMessage(bytes.TrimSpace(raw))
+	stamped := false
+	for _, key := range []string{"_submitted_by", "_submitted_at"} {
+		if _, ok := obj[key]; ok {
+			delete(obj, key)
+			stamped = true
+		}
+	}
+	if stamped {
+		body, err = json.Marshal(obj)
+		if err != nil {
+			return out, &Error{Code: "internal"}
+		}
+	}
+	key := strings.TrimSpace(in.IdempotencyKey)
+	if len(key) > 255 {
+		return out, &Error{Code: "invalid_idempotency_key"}
+	}
+	var scope []byte
+	saved := false
+	if key != "" && actor.ID != "" {
+		var prev db.IdempotentResponse
+		var state string
+		scope, prev, state, err = a.ClaimWrite(ctx, siteID, "POST collections/"+set.Name, actor.ID, key, body)
+		if err != nil {
+			return out, err
+		}
+		switch state {
+		case "reused":
+			return out, &Error{Code: "idempotency_key_reused"}
+		case "pending":
+			return out, &Error{Code: "idempotency_in_progress"}
+		case "replay":
+			out.Replayed, out.ReplayStatus, out.ReplayRef = true, prev.Status, prev.Ref
+			out.Item, err = a.ReplayCollectionItem(ctx, siteID, set.Name, prev.Ref)
+			out.ReplayFound = err == nil
+			return out, nil
+		}
+	}
+	defer func() {
+		if scope != nil && !saved {
+			if err := a.ReleaseIdempotencyKey(context.WithoutCancel(ctx), scope); err != nil {
+				log.Printf("idempotency release: %v", err)
+			}
+		}
 	}()
-	completed = true
-	a.deps.CollectionAppendRespond(set, result, err)
-	return result, err
+	room, err := a.collectionHasRoom(ctx, siteID, int64(len(body)), a.deps.MaxBytes())
+	if err != nil {
+		return out, &AppendQuotaError{}
+	}
+	if !room {
+		return out, &AppendQuotaError{Full: true}
+	}
+	out.Item, _, err = db.AppendEntry(ctx, a.database, siteID, set.Name, db.KindBoard, set.Private, body, actor, false, a.deps.BoardMax())
+	if err != nil {
+		return out, err
+	}
+	out.Item.Version = 1
+	a.WatchItemSize(ctx, siteID, len(body), a.deps.WatchItemKB(), a.deps.LargeItemMetric)
+	if scope != nil {
+		saved = true
+		if err := a.SaveIdempotentResponse(context.WithoutCancel(ctx), scope, in.SuccessStatus, "", out.Item.ID); err != nil {
+			log.Printf("idempotency save: %v", err)
+		}
+	}
+	out.Item.Data = WithoutSubmitter(out.Item.Data)
+	out.Item.By = ""
+	return out, nil
+}
+
+// CollectionPrivateHome describes a site's own address.
+type CollectionPrivateHome struct {
+	Host, OwnerID string
+	IsDomain      bool
+}
+
+// appendPrivate writes a private list item from a signed-in visitor.
+func (a *Adapter) appendPrivate(ctx context.Context, in AppendWriteInput) (out AppendWriteResult, err error) {
+	siteID, set, facts := in.SiteID, in.Settings, in.ActorFacts
+	suspended, reason, err := db.SiteSuspension(ctx, a.database, siteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return out, &Error{Code: "site_not_found"}
+	}
+	if err != nil {
+		return out, &Error{Code: "internal"}
+	}
+	if suspended {
+		return out, &Error{Code: "site_suspended", Message: reason}
+	}
+	offline, err := db.SiteOffline(ctx, a.database, siteID)
+	if err != nil {
+		return out, &Error{Code: "internal"}
+	}
+	if offline {
+		return out, &Error{Code: "site_offline"}
+	}
+	if facts.Preview {
+		return out, &Error{Code: "preview_read_only"}
+	}
+	info, here, err := a.deps.CollectionPrivateHome(siteID)
+	if err != nil {
+		return out, &Error{Code: "internal"}
+	}
+	if info.IsDomain && !here && a.deps.CollectionPrivateWrongHost() {
+		return out, &Error{Code: "use_custom_domain", Message: info.Host}
+	}
+	if facts.Key != "" {
+		return out, &Error{Code: "private_visitor_only"}
+	}
+	if !here {
+		return out, &Error{Code: "private_needs_own_domain"}
+	}
+	sess := a.deps.CollectionStrictSession(siteID)
+	if !sess.OK {
+		a.deps.CollectionLogAnon(siteID, facts.SiteName, "on", "private_rejected")
+		return out, &Error{Code: "visitor_auth_required"}
+	}
+	if !facts.CSRF {
+		return out, &Error{Code: "csrf_required"}
+	}
+	visitor := sess.UserID != info.OwnerID || facts.VisitorPass
+	if visitor {
+		var allowed bool
+		allowed, out.Headers = a.deps.CollectionAppendLimit()
+		if !allowed {
+			return out, &Error{Code: "rate_limited"}
+		}
+	}
+	email, err := a.collectionVisitorEmail(ctx, sess.UserID)
+	if err != nil || email == "" {
+		return out, &Error{Code: "internal"}
+	}
+	if visitor {
+		allowed, err := db.SaverAllowed(ctx, a.database, siteID, email)
+		if err != nil {
+			return out, &Error{Code: "internal"}
+		}
+		if !allowed {
+			return out, &Error{Code: "not_allowed_to_save"}
+		}
+	}
+	raw, tooLarge, err := in.ReadBody()
+	var fields map[string]json.RawMessage
+	if err == nil {
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		if err = dec.Decode(&fields); err == nil && (fields == nil || dec.More()) {
+			err = errors.New("not one object")
+		}
+	}
+	if err != nil {
+		if tooLarge {
+			return out, &Error{Code: "item_too_large"}
+		}
+		return out, &Error{Code: "private_not_object"}
+	}
+	if !a.deps.CollectionJSONStorable(raw) {
+		return out, &Error{Code: "invalid_json", Message: `the JSON holds text that cannot be saved: a NUL character (\u0000), half of a surrogate pair (\ud800 alone) or bytes that are not UTF-8. Remove it and send again`}
+	}
+	key := strings.TrimSpace(in.IdempotencyKey)
+	if len(key) > 255 {
+		return out, &Error{Code: "invalid_idempotency_key"}
+	}
+	var scope []byte
+	saved := false
+	if key != "" && sess.UserID != "" {
+		var prev db.IdempotentResponse
+		var state string
+		scope, prev, state, err = a.ClaimWrite(ctx, siteID, "POST collections/"+set.Name, sess.UserID, key, raw)
+		if err != nil {
+			return out, err
+		}
+		switch state {
+		case "reused":
+			return out, &Error{Code: "idempotency_key_reused"}
+		case "pending":
+			return out, &Error{Code: "idempotency_in_progress"}
+		case "replay":
+			out.Replayed, out.ReplayStatus, out.ReplayRef = true, prev.Status, prev.Ref
+			out.Item, err = a.ReplayCollectionItem(ctx, siteID, set.Name, prev.Ref)
+			out.ReplayFound = err == nil
+			return out, nil
+		}
+	}
+	defer func() {
+		if scope != nil && !saved {
+			if err := a.ReleaseIdempotencyKey(context.WithoutCancel(ctx), scope); err != nil {
+				log.Printf("idempotency release: %v", err)
+			}
+		}
+	}()
+	by, _ := json.Marshal(email)
+	at, _ := json.Marshal(time.Now().UTC().Format(time.RFC3339))
+	fields["_submitted_by"], fields["_submitted_at"] = by, at
+	body, err := json.Marshal(fields)
+	if err != nil {
+		return out, &Error{Code: "invalid_item"}
+	}
+	room, err := a.collectionHasRoom(ctx, siteID, int64(len(body)), a.deps.MaxBytes())
+	if err != nil {
+		return out, &AppendQuotaError{}
+	}
+	if !room {
+		return out, &AppendQuotaError{Full: true}
+	}
+	out.Item, out.Have, err = a.SaveEntry(ctx, SaveEntryInput{SiteID: siteID, Settings: set, Body: body, Actor: db.Actor{ID: sess.UserID, Email: email, Kind: "visitor"}, MaxEntries: a.deps.MaxEntries()})
+	if err != nil {
+		return out, err
+	}
+	_ = db.TouchVisitorSession(ctx, a.database, sess.ID, a.deps.VisitorSessionIdle)
+	a.WatchItemSize(ctx, siteID, len(body), a.deps.WatchItemKB(), a.deps.LargeItemMetric)
+	if scope != nil {
+		saved = true
+		if err := a.SaveIdempotentResponse(context.WithoutCancel(ctx), scope, in.SuccessStatus, "", out.Item.ID); err != nil {
+			log.Printf("idempotency save: %v", err)
+		}
+	}
+	return out, nil
+}
+
+// AppendCollectionInput contains request facts for a collection append.
+type AppendCollectionInput struct {
+	Gate           CollectionGateInput
+	ActorFacts     CollectionWriteActor
+	IdempotencyKey string
+	SuccessStatus  int
+	ReadBody       func(string, db.DataSettings) ([]byte, bool, error)
+}
+
+// AppendCollectionResult reports the reached response state and saved item.
+type AppendCollectionResult struct {
+	AppendWriteResult
+	Settings     db.DataSettings
+	Branch       string
+	PrivateCache bool
+}
+
+// AppendCollection resolves, authorizes and appends one collection item.
+func (a *Adapter) AppendCollection(ctx context.Context, in AppendCollectionInput) (out AppendCollectionResult, err error) {
+	headers := map[string][]string{}
+	if in.Gate.SiteName != "" && ValidCollectionName(in.Gate.Collection) && !in.Gate.KeyWithoutPage {
+		var originHeaders map[string][]string
+		in.Gate.OriginAllowed, originHeaders = a.deps.CollectionOrigin(in.Gate.SiteName)
+		for k, v := range originHeaders {
+			headers[k] = v
+		}
+	}
+	siteID, set, err := a.prepareCollectionAppend(ctx, in.Gate)
+	out.Settings = set
+	if err == nil {
+		out.Branch = "public"
+		if set.Kind == db.KindBoard {
+			out.Branch = "board"
+			out.PrivateCache = true
+		} else if set.Private {
+			out.Branch = "private"
+			out.PrivateCache = true
+		}
+		write := AppendWriteInput{AppendInput: AppendInput{SiteID: siteID, Settings: set}, ActorFacts: in.ActorFacts, IdempotencyKey: in.IdempotencyKey, SuccessStatus: in.SuccessStatus, ReadBody: func() ([]byte, bool, error) { return in.ReadBody(out.Branch, set) }}
+		switch out.Branch {
+		case "board":
+			out.AppendWriteResult, err = a.appendBoard(ctx, write)
+		case "private":
+			out.AppendWriteResult, err = a.appendPrivate(ctx, write)
+		default:
+			out.AppendWriteResult, err = a.appendCollectionWrite(ctx, write)
+		}
+	}
+	for k, v := range out.Headers {
+		headers[k] = v
+	}
+	out.Headers = headers
+	return out, err
 }
 
 // IsCollectionPrivate reads the collection's privacy setting.
