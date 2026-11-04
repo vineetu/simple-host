@@ -8,7 +8,12 @@ import (
 	"github.com/vsriram/simple-host/internal/httpx"
 )
 
-func (h *HackHandler) eventsSvc() *events.Service { return events.New(h.database) }
+func (h *HackHandler) eventsSvc() *events.Service {
+	if h.events == nil {
+		return events.New(h.database)
+	}
+	return h.events
+}
 
 func writeEventsError(w http.ResponseWriter, err error) {
 	var workflowErr *events.Error

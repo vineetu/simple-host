@@ -4,33 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/model"
+	"github.com/vsriram/simple-host/internal/repository/sites"
 )
 
-// SitePasscodeRow is a site's passcode state (handler/passcode.go). Enc is the
-// sealed passcode (nil = none); Generation goes up on every change and on
-// "sign everyone out".
-type SitePasscodeRow struct {
-	SiteID     string
-	UserID     string
-	Name       string
-	Enc        []byte
-	SetAt      sql.NullTime
-	Generation int
-	Offline    bool
-	// NamedViewers: sites.access is 'specific' (viewers.go): only the owner
-	// and the named viewers may open the site.
-	NamedViewers bool
-}
+// SitePasscodeRow is the shared passcode state.
+type SitePasscodeRow = model.SitePasscodeRow
 
-// GetSitePasscode loads the passcode state of a live (not deleted) site.
-// sql.ErrNoRows for an unknown or deleted site.
+// GetSitePasscode loads a live site's passcode state.
 func GetSitePasscode(ctx context.Context, q Querier, siteID string) (SitePasscodeRow, error) {
-	var r SitePasscodeRow
-	err := q.QueryRowContext(ctx, `
-		SELECT id, user_id, name, passcode_enc, passcode_set_at, passcode_generation, offline_at IS NOT NULL, access = 'specific'
-		  FROM sites WHERE id::text = $1 AND deleted_at IS NULL`, siteID).Scan(
-		&r.SiteID, &r.UserID, &r.Name, &r.Enc, &r.SetAt, &r.Generation, &r.Offline, &r.NamedViewers)
-	return r, err
+	return sites.GetSitePasscode(ctx, q, siteID)
 }
 
 // SetSitePasscode stores a new sealed passcode and ends every unlock (the

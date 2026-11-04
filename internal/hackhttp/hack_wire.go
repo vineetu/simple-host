@@ -16,7 +16,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
-	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
@@ -68,8 +67,8 @@ func hackGalleryPublic(ev model.Event, ready func(string) bool) bool {
 // teamSiteURL and ready are SiteHandler.TeamSiteURL and TeamSitesReady.
 // pages is the hack-event.html template cache (HackEventPages), built once
 // by the caller and passed in explicitly (cleanup 3.2 slice 4).
-func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, teamSlug string) string, ready func(eventSlug string) bool, pages *HackEventPages) func(w http.ResponseWriter, r *http.Request, user db.User) bool {
-	return func(w http.ResponseWriter, r *http.Request, user db.User) bool {
+func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, teamSlug string) string, ready func(eventSlug string) bool, pages *HackEventPages) func(w http.ResponseWriter, r *http.Request, user model.User) bool {
+	return func(w http.ResponseWriter, r *http.Request, user model.User) bool {
 		ev, err := events.New(database).EventByAccount(r.Context(), user.ID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return false
@@ -314,14 +313,14 @@ func hackGalleryLink(teamSiteURL func(string, string) string, eventSlug, teamSlu
 // HackScreenshot is the SiteHandler hook for GET/HEAD /screenshots/<team> on
 // the event host. It writes the image only while that team is on the public
 // gallery; otherwise false, and the caller renders the 404.
-func HackScreenshot(database *sql.DB, ready func(string) bool, owners ...*HackHandler) func(w http.ResponseWriter, r *http.Request, user db.User, team string) bool {
+func HackScreenshot(database *sql.DB, ready func(string) bool, owners ...*HackHandler) func(w http.ResponseWriter, r *http.Request, user model.User, team string) bool {
 	// Public and unauthenticated, each hit reads up to 2 MB from the
 	// database: metered per network address.
 	perIP := httpx.NewRateLimiter(120, 5)
 	if len(owners) > 0 {
 		owners[0].addLimiter("http.hack.screenshots", perIP)
 	}
-	return func(w http.ResponseWriter, r *http.Request, user db.User, team string) bool {
+	return func(w http.ResponseWriter, r *http.Request, user model.User, team string) bool {
 		if !hackGallerySlug(team) {
 			return false
 		}

@@ -16,7 +16,6 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-
 	"github.com/vsriram/simple-host/internal/analytics"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/buildinfo"
@@ -30,6 +29,7 @@ import (
 	"github.com/vsriram/simple-host/internal/handler"
 	"github.com/vsriram/simple-host/internal/imagescan"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
 	"github.com/vsriram/simple-host/internal/storage"
 )
@@ -396,6 +396,9 @@ func main() {
 	var hackEvents *hackhttp.HackHandler
 	if hosted {
 		hack := hackhttp.NewHackHandler(db, cfg.PublicBaseURL, cfg.SiteDomain, ed)
+		hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
+			return dbpkg.GetUserByAPIKey(ctx, db, key, idle)
+		})
 		hack.ShareAssets(siteHandler.Pages())
 		hack.SetHandleChecker(func(ctx context.Context, q dbpkg.Querier, name string) (hackhttp.HandleVerdict, error) {
 			v, err := handler.JudgeHandle(ctx, q, "", name)

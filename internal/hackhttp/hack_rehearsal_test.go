@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/db"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // The retention rehearsal uses real files and HTTP serving, in addition to
@@ -52,7 +52,7 @@ func TestHackArchiveCleanupRealSites(t *testing.T) {
 	if gone.status == http.StatusOK || strings.Contains(string(gone.body), "Keep this project") {
 		t.Fatalf("removed project still public: %d", gone.status)
 	}
-	if _, err := db.GetDeletedSiteByUser(context.Background(), a.database, account, team); err != nil {
+	if _, err := siterepo.GetDeletedSiteByUser(context.Background(), a.database, account, team); err != nil {
 		t.Fatalf("not in Recently deleted: %v", err)
 	}
 	wantTS(t, "event page retained", a.on(t, "GET", slug+"."+tsDomain, "/", nil, ""), http.StatusOK, "")

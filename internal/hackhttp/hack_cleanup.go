@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
-	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
@@ -21,15 +20,7 @@ const (
 )
 
 // SetMailer is the notice sender for the archive warning. Call once at startup.
-func (h *HackHandler) SetMailer(m email.Sender) { h.mailer = m }
-
-// hackReplySender is handler's replyNoticeSender (idle.go), duplicated here
-// (cleanup 3.2 slice 1c) so this type assertion needs no cross-package
-// reference once HackHandler moves to internal/hackhttp: any email.Sender
-// that also exposes SendNoticeReplyTo satisfies both interfaces identically.
-type hackReplySender interface {
-	SendNoticeReplyTo(toEmail, replyTo, subject, text string) error
-}
+func (h *HackHandler) SetMailer(m events.Mailer) { h.mailer = m }
 
 // StartEventCleanup runs the sweep shortly after boot and then daily.
 // EVENTS=hosted only: main starts it from the hosted-mode block.
@@ -39,17 +30,7 @@ func (h *HackHandler) runEventCleanup(ctx context.Context, now time.Time) {
 	h.runEventCleanupTracked(ctx, now, nil)
 }
 func (h *HackHandler) runEventCleanupTracked(ctx context.Context, now time.Time, report *workers.Tracker) {
-	var send func(context.Context, string, string, string, string) error
-	if m, ok := h.mailer.(hackReplySender); ok {
-		send = func(ctx context.Context, to, replyTo, subject, body string) error {
-			if sender, ok := m.(interface {
-				SendNoticeReplyToCtx(context.Context, string, string, string, string) error
-			}); ok {
-				return sender.SendNoticeReplyToCtx(ctx, to, replyTo, subject, body)
-			}
-			return m.SendNoticeReplyTo(to, replyTo, subject, body)
-		}
-	}
+	send := events.ArchiveWarningSender(h.mailer)
 	var trash func(context.Context, string, string) error
 	if h.sites != nil {
 		trash = h.sites.TrashTeamSite

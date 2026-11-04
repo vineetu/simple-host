@@ -6,8 +6,8 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/app/hack/teams"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // getTeamLink is the public GET /v1/hack/team-links/{code}: a team link or
@@ -17,10 +17,10 @@ import (
 // the team's own name and counts, and the caller's own status.
 func (h *HackHandler) getTeamLink(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var user *db.User
+	var user *model.User
 	caller := ""
 	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := db.GetUserByAPIKey(ctx, h.database, k, h.limits.KeyIdleExpiry); err == nil {
+		if u, err := h.eventsSvc().UserByAPIKey(ctx, k, h.limits.KeyIdleExpiry); err == nil {
 			user = &u
 			caller = u.ID
 		}

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
@@ -42,7 +41,7 @@ func (h *HackHandler) getTeamSiteStatus(w http.ResponseWriter, r *http.Request) 
 // /key fields plus when and how the live version went live, and when the
 // deadline pin was taken.
 func (h *HackHandler) siteStatusJSON(ctx context.Context, ev model.Event, team model.EventTeam) map[string]any {
-	var site *db.Site
+	var site *model.Site
 	if h.sites != nil {
 		if info, st, err := h.sites.TeamSiteInfo(ctx, ev.AccountID, team.Slug); err != nil {
 			log.Printf("hack: site status %s/%s: %v", ev.Slug, team.Slug, err)

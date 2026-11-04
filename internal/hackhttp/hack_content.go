@@ -5,9 +5,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,8 +12,6 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
-	"github.com/vsriram/simple-host/internal/db"
-	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
@@ -327,7 +322,7 @@ func (o *contentDeliveryOwner) Start(ctx context.Context) {
 	})
 }
 func (o *contentDeliveryOwner) pending(ctx context.Context) (int64, bool) {
-	n, err := db.PendingContentMail(ctx, o.h.database)
+	n, err := o.h.eventsSvc().PendingContentMail(ctx)
 	if err != nil {
 		o.tracker.Fail("count pending mail", err)
 		return 0, false
@@ -342,11 +337,11 @@ func (o *contentDeliveryOwner) run(ctx context.Context) {
 	// still controls transactions, retries, and the order of all three phases.
 	h := &HackHandler{database: o.h.database, mailer: o.h.mailer,
 		siteDomain: o.h.siteDomain, publicBaseURL: o.h.publicBaseURL,
-		noticeTiming: o.h.noticeTiming, entries: o.h.entries}
+		noticeTiming: o.h.noticeTiming, entries: o.h.entries, events: o.h.eventsSvc()}
 	if sender, ok := h.mailer.(interface {
 		SendNotice(string, string, string) error
 	}); ok {
-		h.mailer = trackedContentSender{Sender: h.mailer, notice: sender, tracker: o.tracker}
+		h.mailer = events.TrackContentSender(h.mailer, sender, o.tracker)
 	}
 	n, err := h.deliverContentMail(ctx)
 	o.record("deliver content mail", n, err)
@@ -357,35 +352,6 @@ func (o *contentDeliveryOwner) run(ctx context.Context) {
 	n, err = h.deliverNoticeMailOnly(ctx)
 	o.record("deliver notice mail", n, err)
 	o.pending(ctx)
-}
-
-type trackedContentSender struct {
-	email.Sender
-	notice interface {
-		SendNotice(string, string, string) error
-	}
-	tracker *workers.Tracker
-}
-
-func (s trackedContentSender) CanSendNotice() bool {
-	if ready, ok := s.Sender.(interface{ CanSendNotice() bool }); ok {
-		return ready.CanSendNotice()
-	}
-	return true
-}
-func (s trackedContentSender) SendNotice(to, subject, body string) error {
-	return s.SendNoticeCtx(context.Background(), to, subject, body)
-}
-func (s trackedContentSender) SendNoticeCtx(ctx context.Context, to, subject, body string) error {
-	if err := email.SendNoticeCtx(ctx, s.notice, to, subject, body); err != nil {
-		// Provider errors can contain the recipient or credentials. Keep those
-		// out of both the status and the existing service log.
-		err = contentMailError(err)
-		s.tracker.Fail("send mail", err)
-		return err
-	}
-	s.tracker.Progress()
-	return nil
 }
 
 func (o *contentDeliveryOwner) record(op string, n int64, err error) {
@@ -439,26 +405,4 @@ func (h *HackHandler) changeAnnouncement(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// Mail errors may echo recipients or provider credentials; expose only known causes.
-func contentMailError(err error) error {
-	if errors.Is(err, context.Canceled) {
-		return context.Canceled
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return context.DeadlineExceeded
-	}
-	var network net.Error
-	if errors.As(err, &network) && network.Timeout() {
-		return errors.New("mail provider timeout")
-	}
-	if err.Error() == "RESEND_API_KEY not configured" {
-		return errors.New("mail provider is not configured")
-	}
-	var status int
-	if n, _ := fmt.Sscanf(err.Error(), "resend returned status %d", &status); n == 1 {
-		return fmt.Errorf("mail provider returned HTTP %d", status)
-	}
-	return errors.New("mail provider delivery failed")
 }

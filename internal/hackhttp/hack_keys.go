@@ -12,7 +12,6 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/hack/teams"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
@@ -36,7 +35,7 @@ func (h *HackHandler) registerTeamSites(mux *http.ServeMux, wrap func(http.Handl
 
 // teamSiteJSON is a team's site as the events API shows it.
 func (h *HackHandler) teamSiteJSON(ctx context.Context, ev model.Event, team model.EventTeam) map[string]any {
-	var site *db.Site
+	var site *model.Site
 	if h.sites != nil {
 		info, st, err := h.sites.TeamSiteInfo(ctx, ev.AccountID, team.Slug)
 		if err != nil {
@@ -49,7 +48,7 @@ func (h *HackHandler) teamSiteJSON(ctx context.Context, ev model.Event, team mod
 }
 
 // teamSiteJSONFrom is teamSiteJSON with the site already read (nil: none).
-func (h *HackHandler) teamSiteJSONFrom(ev model.Event, team model.EventTeam, site *db.Site, ready bool) map[string]any {
+func (h *HackHandler) teamSiteJSONFrom(ev model.Event, team model.EventTeam, site *model.Site, ready bool) map[string]any {
 	out := map[string]any{
 		"name":              team.Slug,
 		"url":               h.teamSiteURL(ev.Slug, team.Slug),
@@ -75,7 +74,7 @@ type teamList struct {
 	states   map[string]model.TeamWriteState
 	members  map[string][]model.EventPerson // by team id
 	versions map[string]bool                // "<site id>/<n>" of every stored version
-	sites    map[string]db.Site             // live sites of the holding account, by name
+	sites    map[string]model.Site          // live sites of the holding account, by name
 	ready    bool
 }
 
@@ -87,7 +86,7 @@ func (h *HackHandler) loadTeamList(ctx context.Context, ev model.Event) (teamLis
 
 }
 
-func (tl teamList) site(name string) *db.Site {
+func (tl teamList) site(name string) *model.Site {
 	if s, ok := tl.sites[name]; ok {
 		return &s
 	}
@@ -531,7 +530,7 @@ func (h *HackHandler) putTeamSiteArchive(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	sites, ok := h.sites.(interface {
-		PublishTeamArchive(http.ResponseWriter, *http.Request, db.User, string)
+		PublishTeamArchive(http.ResponseWriter, *http.Request, model.User, string)
 	})
 	if !ok {
 		httpx.WriteError(w, 503, "website_unavailable", "team website publishing is unavailable")

@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
 	hackmodel "github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/hackentries"
 	hackeventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	hackteamrepo "github.com/vsriram/simple-host/internal/repository/hackteams"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
 )
 
 func runDemoReset(t *testing.T, envFile string) (string, error) {
@@ -31,7 +31,7 @@ func runDemoReset(t *testing.T, envFile string) (string, error) {
 
 func TestHackDemoResetScript(t *testing.T) {
 	a := newHackApp(t) // httptest selects a free loopback port.
-	adminID, err := db.EnsureAdminUser(context.Background(), a.database)
+	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), a.database)
 	if err != nil {
 		t.Fatal(err)
 	}

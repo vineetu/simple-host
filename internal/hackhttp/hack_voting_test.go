@@ -2,7 +2,6 @@ package hackhttp
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/internal/handler"
 	"io/fs"
 	"strings"
 	"sync"
@@ -10,7 +9,8 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/handler"
+	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
 func voteSettings(t *testing.T, a *teamSiteApp, slug string, org person, open, close time.Time, eligibility string) {
@@ -88,7 +88,7 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	wantTS(t, "own team", a.api(t, "PUT", base+"/vote", map[string]string{"team": alpha}, p1.key), 409, "own_team_vote")
 	selfAliasEmail := strings.Replace(p1.email, "@", "+alias@", 1)
 	selfAliasKey, _ := auth.GenerateAPIKey()
-	selfAlias, err := db.CreateUser(context.Background(), a.database, selfAliasEmail, selfAliasKey, false)
+	selfAlias, err := accountrepo.CreateUser(context.Background(), a.database, selfAliasEmail, selfAliasKey, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestHackVotingAndDirectory(t *testing.T) {
 	// A second account at the same verified mailbox with a +tag cannot add a vote.
 	aliasEmail := strings.Replace(voters[0].email, "@", "+other@", 1)
 	aliasKey, _ := auth.GenerateAPIKey()
-	alias, err := db.CreateUser(context.Background(), a.database, aliasEmail, aliasKey, false)
+	alias, err := accountrepo.CreateUser(context.Background(), a.database, aliasEmail, aliasKey, false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/repository/hackevents"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 func TestHackAdministrationCoOrganisers(t *testing.T) {
@@ -114,7 +114,7 @@ func TestHackAdministrationExportsAndUsage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	site, err := db.GetSiteByUser(context.Background(), a.database, ev.AccountID, team1)
+	site, err := siterepo.GetSiteByUser(context.Background(), a.database, ev.AccountID, team1)
 	if err != nil {
 		t.Fatal(err)
 	}

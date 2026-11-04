@@ -20,10 +20,7 @@ import (
 	"github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/papermetrics"
@@ -85,8 +82,8 @@ type HackHandler struct {
 	// type's methods are unexported in another package once this type
 	// moves to internal/hackhttp), so the three values this package reads
 	// (siteLimitFor, exportLinkTTL, idleReplyTo below) are HackHandler's
-	// own methods over the same config.Limits fields.
-	limits config.Limits
+	// own methods over the same edition.Limits fields.
+	limits edition.Limits
 	// siteArchiveDefault is the instance's default per-site size cap when
 	// an account has no MAX_ARCHIVE_MB_OVERRIDES entry: handler.SiteLimit()
 	// at construction (SetSiteArchiveDefault, wired from main). Falls back
@@ -111,7 +108,7 @@ type HackHandler struct {
 	sites hackSiteHooks
 	// mailer sends the one archive warning (hack_cleanup.go). nil, or a
 	// sender that cannot send a notice, makes that sweep log and do nothing.
-	mailer         email.Sender
+	mailer         events.Mailer
 	archiveLinkKey []byte
 	// noticeTiming overrides the notice email delay and window (tests only;
 	// hack_notices.go).
@@ -131,19 +128,8 @@ type HackHandler struct {
 	// ShareAssets (main wires it right after construction; tests do the
 	// same in newHackApp/newTeamSiteApp).
 	assets hackPages
-	// handleChecker judges a candidate event slug against the Host
-	// handle namespace (shape, reservation, occupancy): handlecheck.go's
-	// judgeHandle, which HackHandler has no home for itself (the handle
-	// namespace belongs to Host). Injected (cleanup 3.2 slice 3,
-	// SetHandleChecker) since hackhttp may not import handler; nil means
-	// "no handle conflicts" (tests that never wire it, e.g. the no-app
-	// registrar-only fixtures, never reach a name check).
-	handleChecker func(ctx context.Context, q db.Querier, handle string) (HandleVerdict, error)
-	// events is the Hack events service (internal/app/hack/events,
-	// cleanup 3.2 slice 4): today just the public directory listing
-	// (getDirectory, hack_voting.go). Built in NewHackHandler from the
-	// same *sql.DB; nil on a bare &HackHandler{} (NewHackHandlerForTest),
-	// which never serves the directory route.
+	// events owns event workflows and shared account/site lookups. The instance's
+	// key resolver and handle checker are wired once before routes are served.
 	events  *events.Service
 	entries *entries.Service
 }
@@ -152,29 +138,30 @@ type HackHandler struct {
 // candidate name: Status 0 means it can be had. Mirrors just the two fields
 // slugVerdict/NameTaken need (handler's handleVerdict also carries Error and
 // Address, which are Host-only concerns).
-type HandleVerdict struct {
-	Status int
-	Code   string
-}
+type HandleVerdict = events.HandleVerdict
 
 // SetHandleChecker injects handlecheck.go's judgeHandle (the Host handle
 // namespace: shape, reservation, who already holds it), which this package
 // cannot reach itself (it may not import handler). Wired from
 // cmd/server/main.go; test fixtures (hack_test.go, hack_m2_test.go) wire the
 // same function, via their test-only handler import.
-func (h *HackHandler) SetHandleChecker(fn func(ctx context.Context, q db.Querier, handle string) (HandleVerdict, error)) {
-	h.handleChecker = fn
+func (h *HackHandler) SetHandleChecker(fn events.HandleChecker) {
+	if h.events == nil {
+		h.events = events.New(h.database)
+	}
+	h.events.SetHandleChecker(fn)
 }
 
-// judgeHandle is the event-name counterpart of handlecheck.go's judgeHandle,
-// reached through h.handleChecker (SetHandleChecker above) since that
-// function lives on the Host side. userID is always "" here: an event slug
-// is never anyone's own handle.
-func (h *HackHandler) judgeHandle(ctx context.Context, name string) (HandleVerdict, error) {
-	if h.handleChecker == nil {
-		return HandleVerdict{}, nil
+// SetKeyResolver shares the instance's account authentication service.
+func (h *HackHandler) SetKeyResolver(resolve events.KeyResolver) {
+	if h.events == nil {
+		h.events = events.New(h.database)
 	}
-	return h.handleChecker(ctx, h.database, name)
+	h.events.SetKeyResolver(resolve)
+}
+
+func (h *HackHandler) judgeHandle(ctx context.Context, name string) (HandleVerdict, error) {
+	return h.eventsSvc().JudgeHandle(ctx, name)
 }
 
 // hackPages is what moving Hack code needs of the site's asset/chrome
@@ -257,9 +244,9 @@ func (h *HackHandler) pipeline() hackPages { return h.assets }
 type hackSiteHooks interface {
 	TeamSitesReady(eventSlug string) bool
 	TeamSiteURL(eventSlug, teamSlug string) string
-	TeamSiteInfo(ctx context.Context, accountID, teamSlug string) (model.TeamSite, db.Site, error)
+	TeamSiteInfo(ctx context.Context, accountID, teamSlug string) (model.TeamSite, model.Site, error)
 	TeamPreviewLink(ctx context.Context, accountID, eventSlug, teamSlug string, n int) (string, time.Time, bool)
-	TeamPreviewLinkFor(site db.Site, eventSlug string, n int) (string, bool)
+	TeamPreviewLinkFor(site model.Site, eventSlug string, n int) (string, bool)
 	SetTeamSiteTakenDown(ctx context.Context, accountID, teamID, teamSlug string, on bool, reason string) error
 	TrashTeamSite(ctx context.Context, accountID, name string) error
 	RequestSiteCert(handle string)
@@ -349,7 +336,7 @@ func paperHackEvent(r *http.Request, ev model.Event) {
 	paperHackUser(r, auth.GetUser(r.Context()))
 }
 
-func paperHackUser(r *http.Request, user *db.User) {
+func paperHackUser(r *http.Request, user *model.User) {
 	if user == nil {
 		return
 	}
@@ -378,7 +365,7 @@ func paperHackStage(r *http.Request, ev model.Event) {
 // tokens never cross-authenticate even when minted from the same underlying
 // key — only the domain string tells them apart — so it needs the exact
 // same key the SiteHandler side of that test uses.
-func NewHackHandlerForTest(archiveLinkKey []byte, limits config.Limits) *HackHandler {
+func NewHackHandlerForTest(archiveLinkKey []byte, limits edition.Limits) *HackHandler {
 	return &HackHandler{archiveLinkKey: archiveLinkKey, limits: limits}
 }
 
@@ -441,24 +428,14 @@ func newHackArchiveKey() []byte {
 // limitSet.siteLimitFor (limits.go) so the values read stay identical;
 // duplicated here (not shared) because that method is unexported in
 // another package once this type moves to internal/hackhttp.
-func (h *HackHandler) siteLimitFor(ctx context.Context, database *sql.DB, user *db.User) (limit int64, override bool) {
+func (h *HackHandler) siteLimitFor(ctx context.Context, database *sql.DB, user *model.User) (limit int64, override bool) {
 	if h.limits.MaxArchiveOverrides == "" || user == nil {
 		return h.siteArchiveDefault, false
 	}
-	if mb, ok := h.limits.ArchiveOverrideMB(hackAccountHandles(ctx, database, user)...); ok {
+	if mb, ok := h.limits.ArchiveOverrideMB(h.eventsSvc().AccountHandles(ctx, user)...); ok {
 		return int64(mb) << 20, true
 	}
 	return h.siteArchiveDefault, false
-}
-
-// hackAccountHandles is handler's own accountHandles (limits.go), duplicated
-// for the same reason as newHackArchiveKey above.
-func hackAccountHandles(ctx context.Context, database *sql.DB, user *db.User) []string {
-	handles := []string{user.Handle.String}
-	if aliases, err := db.ListHandleAliases(ctx, database, user.ID); err == nil {
-		handles = append(handles, aliases...)
-	}
-	return handles
 }
 
 // exportLinkTTL is the shared EXPORT_LINK_TTL_MINUTES knob, which also
@@ -649,7 +626,7 @@ func decodeHackJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 	return true
 }
 
-func hackNeedUser(w http.ResponseWriter, r *http.Request) *db.User {
+func hackNeedUser(w http.ResponseWriter, r *http.Request) *model.User {
 	user := auth.GetUser(r.Context())
 	if user == nil {
 		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
@@ -669,7 +646,7 @@ func writeEventNotFound(w http.ResponseWriter) {
 type hackAccess struct {
 	event  model.Event
 	member model.EventMember
-	user   *db.User
+	user   *model.User
 	admin  bool
 }
 
@@ -1658,7 +1635,7 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 	// the account is metered, not the venue's shared address.
 	caller := ""
 	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := db.GetUserByAPIKey(r.Context(), h.database, k, h.limits.KeyIdleExpiry); err == nil {
+		if u, err := h.eventsSvc().UserByAPIKey(r.Context(), k, h.limits.KeyIdleExpiry); err == nil {
 			caller = u.ID
 		}
 	}

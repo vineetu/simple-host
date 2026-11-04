@@ -22,7 +22,6 @@ import (
 	entries "github.com/vsriram/simple-host/internal/app/hack/entries"
 	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
@@ -767,7 +766,7 @@ func (h *HackHandler) entrySiteView(ctx context.Context, ev model.Event, team mo
 		why = "not_ready"
 	}
 	if why == "" {
-		row, err := db.GetSitePasscode(ctx, h.database, site.ID)
+		row, err := h.eventsSvc().SitePasscode(ctx, site.ID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, nil

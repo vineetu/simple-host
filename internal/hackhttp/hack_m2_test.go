@@ -24,7 +24,11 @@ import (
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/internal/model"
+	accountrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
+	legacyrepo "github.com/vsriram/simple-host/internal/repository/legacy"
+	siterepo "github.com/vsriram/simple-host/internal/repository/sites"
 	"github.com/vsriram/simple-host/internal/storage"
 )
 
@@ -101,12 +105,12 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 			t.Fatal(err)
 		}
 	}
-	oldDomain := db.PlatformDomain()
-	db.SetPlatformDomain(tsDomain)
-	t.Cleanup(func() { db.SetPlatformDomain(oldDomain) })
+	oldDomain := accountrepo.CurrentPlatformDomain()
+	accountrepo.SetPlatformDomain(tsDomain)
+	t.Cleanup(func() { accountrepo.SetPlatformDomain(oldDomain) })
 
 	adminKey, _ := auth.GenerateAPIKey()
-	adminID, err := db.EnsureAdminUser(context.Background(), database)
+	adminID, err := legacyrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,6 +135,9 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.hack = NewHackHandler(database, a.srv.URL, tsDomain)
 	a.hack.ShareAssets(a.sites.Pages())
 	a.hack.SetHandleChecker(hackHandleCheckerForTest)
+	a.hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
+		return db.GetUserByAPIKey(ctx, database, key, idle)
+	})
 	a.hack.SetSites(a.sites)
 	a.hack.Register(mux, authMW)
 	a.sites.SetHackEventPage(HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages))
@@ -322,7 +329,7 @@ func (a *teamSiteApp) newPerson(t *testing.T, label string) person {
 	t.Helper()
 	addr := label + "-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
 	key, _ := auth.GenerateAPIKey()
-	u, err := db.CreateUser(context.Background(), a.database, addr, key, false)
+	u, err := accountrepo.CreateUser(context.Background(), a.database, addr, key, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -590,7 +597,7 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT s.id FROM sites s JOIN events e ON e.account_id = s.user_id WHERE e.slug = $1 AND s.name = $2`, slug, beta).Scan(&betaSite); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetSiteSuspended(context.Background(), a.database, betaSite, "platform says no"); err != nil {
+	if err := siterepo.SetSiteSuspended(context.Background(), a.database, betaSite, "platform says no"); err != nil {
 		t.Fatal(err)
 	}
 	wantTS(t, "restore platform takedown", a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/"+beta+"/restore", nil, org.key), 409, "platform_takedown")
