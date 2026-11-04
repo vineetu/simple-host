@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/storage"
 	"github.com/vsriram/simple-host/internal/wpimport"
 )
 
@@ -281,14 +282,14 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 			revoke()
 		}
 	}()
-	dir, err := os.MkdirTemp("", "simple-host-import-")
+	dir, err := storage.CreateImportDir()
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "could not store the upload; try again"})
 		return
 	}
 	defer func() {
 		if !handedOff {
-			os.RemoveAll(dir)
+			storage.RemoveImportDir(dir)
 		}
 	}()
 	m.update(link.ID, func(rec *importRecord) {
@@ -357,7 +358,7 @@ func (h *ConnectorHandler) receiveImport(w http.ResponseWriter, r *http.Request)
 			reject(errors.New("choose at most 10 files"))
 			return
 		}
-		dst, err := os.CreateTemp(dir, "upload-")
+		dst, err := storage.CreateImportFile(dir, "upload-")
 		if err != nil {
 			reject(err)
 			return
@@ -398,7 +399,7 @@ func (h *ConnectorHandler) runImport(token string, link mcp.ImportLink, revoke f
 	m := h.imports
 	spent := false
 	defer func() { h.mcp.ReleaseImport(token, spent) }()
-	defer os.RemoveAll(files.dir)
+	defer storage.RemoveImportDir(files.dir)
 	defer revoke()
 	defer func() { <-m.slots }()
 	defer func() {
@@ -475,7 +476,7 @@ func (h *ConnectorHandler) runImport(token string, link mcp.ImportLink, revoke f
 		r.message = r.stage
 		r.warnings = result.Report.Warnings
 	})
-	archive, err := os.CreateTemp(files.dir, "site-*.tar.gz")
+	archive, err := storage.CreateImportFile(files.dir, "site-*.tar.gz")
 	if err != nil {
 		fail(err)
 		return

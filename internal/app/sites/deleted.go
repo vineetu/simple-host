@@ -1,0 +1,286 @@
+package sites
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"log"
+	"strings"
+	"time"
+
+	db "github.com/vsriram/simple-host/internal/db"
+	repo "github.com/vsriram/simple-host/internal/repository/sites"
+)
+
+// ErrRestoreFiles means the deleted site's files could not be restored.
+var ErrRestoreFiles = errors.New("could not restore the site's files")
+
+// TrashInput describes a locked deletion, for an already locked site.
+type TrashInput struct {
+	Site db.Site
+}
+
+// RestoreTrashedInput describes a locked restore and current handle.
+type RestoreTrashedInput struct {
+	Site   db.DeletedSite
+	Handle string
+}
+
+// Trash moves a live site to Recently deleted: marked in the database
+// (plus whatever also records in the same transaction), and its files moved
+// out of every served path, with the commit last so a failure leaves the site
+// live and whole. The caller holds the site's lock. sql.ErrNoRows when the
+// site is no longer live.
+func (s *Service) Trash(ctx context.Context, in TrashInput) error {
+	site, also := in.Site, s.deps.DeletedTransaction
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := repo.MarkSiteDeleted(ctx, tx, site.ID, s.deps.DeletedRetention); err != nil {
+		return err
+	}
+	if also != nil {
+		if err := also(tx); err != nil {
+			return err
+		}
+	}
+	if err := s.disk.TrashSite(site.UserID, site.Name, site.ID); err != nil {
+		log.Printf("delete site %s: %v", site.ID, err)
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		if rerr := s.disk.RestoreSite(site.UserID, site.Name, site.ID); rerr != nil {
+			log.Printf("delete site %s: commit failed and files could not be moved back: %v", site.ID, rerr)
+		}
+		return err
+	}
+	return nil
+}
+
+// WakeImageScans makes image checks waiting on a restored site's delete
+// run now, not at their next hourly look. A failure only delays them. The
+// restore has committed by then, so a client that hangs up does not stop it.
+func (s *Service) WakeImageScans(ctx context.Context, siteID string) {
+	if !s.deps.ImageScanEnabled {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	if err := db.WakeImageScans(ctx, s.database, siteID); err != nil {
+		log.Printf("restore site %s: image checks: %v", siteID, err)
+	}
+}
+
+// RestoreTrashed brings a site in Recently deleted back exactly as it
+// was (plus whatever also records in the same transaction). handle is the
+// owner's current handle ("" if none). The caller holds the site's lock.
+// sql.ErrNoRows when it is not (or no longer) in Recently deleted.
+func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (db.Site, error) {
+	d, handle, also := in.Site, in.Handle, s.deps.DeletedTransaction
+	// It comes back as it was, taken down included (the operator may have
+	// taken it down while it was deleted): the marker goes into its folder
+	// before the folder is served again, so it is never live without it.
+	full, err := db.GetSiteByID(ctx, s.database, d.ID)
+	if err != nil {
+		return db.Site{}, err
+	}
+	if err := s.disk.SetTrashedSuspended(d.UserID, d.ID, full.Suspended()); err != nil {
+		log.Printf("restore site %s: suspend marker: %v", d.ID, err)
+		return db.Site{}, ErrRestoreFiles
+	}
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return db.Site{}, err
+	}
+	defer tx.Rollback()
+	if err := repo.RestoreDeletedSite(ctx, tx, d.ID); err != nil {
+		return db.Site{}, err
+	}
+	if also != nil {
+		if err := also(tx); err != nil {
+			return db.Site{}, err
+		}
+	}
+	// The name is this site's again; an old name another site left there
+	// stops redirecting.
+	if err := repo.DropOldSiteName(ctx, tx, d.UserID, d.Name); err != nil {
+		return db.Site{}, err
+	}
+	if err := s.disk.RestoreSite(d.UserID, d.Name, d.ID); err != nil {
+		log.Printf("restore site %s: %v", d.ID, err)
+		return db.Site{}, ErrRestoreFiles
+	}
+	if err := tx.Commit(); err != nil {
+		if terr := s.disk.TrashSite(d.UserID, d.Name, d.ID); terr != nil {
+			log.Printf("restore site %s: commit failed and files could not be moved back: %v", d.ID, terr)
+		}
+		return db.Site{}, err
+	}
+	s.WakeImageScans(ctx, d.ID)
+	// The handle may have changed while the site was deleted.
+	if handle != "" {
+		if err := s.disk.EnsureHandleLink(handle, d.UserID); err != nil {
+			log.Printf("restore site: ensure handle link %s: %v", handle, err)
+		}
+		s.deps.RequestCert(handle)
+	}
+	site, err := db.GetSiteByUser(ctx, s.database, d.UserID, d.Name)
+	if err != nil {
+		return db.Site{}, err
+	}
+	// The operator may have acted since: make the marker follow the record.
+	if err := s.disk.SetSuspended(site.UserID, site.Name, site.Suspended()); err != nil {
+		log.Printf("restore site %s: suspend marker: %v", site.ID, err)
+	}
+	// Its addresses may have changed meanwhile (unlisted.go).
+	if err := s.deps.Marker(ctx, site); err != nil {
+		log.Printf("restore site %s: unlisted marker: %v", site.ID, err)
+	}
+	return site, nil
+}
+
+// PurgeDeleted removes sites whose restore window has passed: the row
+// (versions, data and claimed names cascade) first, then the files.
+func (s *Service) PurgeDeleted(ctx context.Context) {
+	list, err := db.ListPurgeableSites(ctx, s.database, s.deps.DeletedRetention)
+	if err != nil {
+		log.Printf("deleted-site purge: list: %v", err)
+		return
+	}
+	for _, d := range list {
+		unlock := s.deps.LockSite(d.UserID, d.Name)
+		domains, err := s.purgeDeletedSite(ctx, d.ID)
+		unlock()
+		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				log.Printf("deleted-site purge: %s: %v", d.ID, err)
+			}
+			continue
+		}
+		if err := s.disk.PurgeTrashedSite(d.UserID, d.ID); err != nil {
+			log.Printf("deleted-site purge: files of %s: %v", d.ID, err)
+		}
+		if err := s.disk.PurgeTrashedSiteLinks(d.UserID, d.Name, strings.ToLower(d.CustomDomain.String)); err != nil {
+			log.Printf("deleted-site purge: links of %s: %v", d.ID, err)
+		}
+		for _, dom := range domains {
+			// Only while the link is still this site's: the domain may have
+			// been bound to another site since this one was deleted.
+			mine, err := s.disk.UnbindDomainOf(dom, d.UserID, d.Name)
+			if err != nil {
+				log.Printf("deleted-site purge: unbind %s: %v", dom, err)
+				continue
+			}
+			if mine {
+				s.deps.CancelDomainCert(dom)
+			}
+		}
+		log.Printf("deleted-site purge: removed %s (%s)", d.Name, d.ID)
+	}
+}
+
+func (s *Service) purgeDeletedSite(ctx context.Context, siteID string) ([]string, error) {
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if err := repo.LockPurgeableSite(ctx, tx, siteID, s.deps.DeletedRetention); err != nil {
+		return nil, err
+	}
+	domains, err := db.RetireSiteNames(ctx, tx, siteID)
+	if err != nil {
+		return nil, err
+	}
+	if err := repo.DeleteSite(ctx, tx, siteID); err != nil {
+		return nil, err
+	}
+	return domains, tx.Commit()
+}
+
+// DeleteInput identifies an owner request and any site selected by an administrator.
+type DeleteInput struct {
+	UserID, Name, ExpectedSiteID string
+	CheckSiteID                  bool
+}
+
+// Delete authorizes and moves a live site to Recently deleted under its lock.
+func (s *Service) Delete(ctx context.Context, in DeleteInput) error {
+	lookup := func() (db.Site, error) {
+		site, err := db.GetSiteByUser(ctx, s.database, in.UserID, in.Name)
+		if err == nil && in.CheckSiteID && in.ExpectedSiteID != site.ID {
+			return db.Site{}, sql.ErrNoRows
+		}
+		return site, err
+	}
+	// Look up before taking the lock, then read again under the lock.
+	if _, err := lookup(); errors.Is(err, sql.ErrNoRows) {
+		return &Error{Code: "delete_not_found"}
+	}
+	unlock := s.deps.LockSite(in.UserID, in.Name)
+	defer unlock()
+	site, err := lookup()
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &Error{Code: "delete_not_found"}
+		}
+		return err
+	}
+	if site.Suspended() {
+		return &Error{Code: "site_suspended", Message: site.SuspendedReason()}
+	}
+	if err := s.Trash(ctx, TrashInput{Site: site}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &Error{Code: "delete_not_found"}
+		}
+		return err
+	}
+	return nil
+}
+
+// RestoreInput identifies the owner's deleted site and current handle.
+type RestoreInput struct{ UserID, Name, Handle string }
+
+// RestoreResult keeps the site and address response snapshot captured under its lock.
+type RestoreResult struct {
+	Site          db.Site
+	ResponseState any
+}
+
+// Restore restores a deleted site under its name lock, with its current addresses.
+func (s *Service) Restore(ctx context.Context, in RestoreInput) (RestoreResult, error) {
+	// Lock only a name really held in Recently deleted; check again under it.
+	unlock := func() {}
+	if _, err := db.GetDeletedSiteByUser(ctx, s.database, in.UserID, in.Name); err == nil {
+		unlock = s.deps.LockSite(in.UserID, in.Name)
+	}
+	defer func() { unlock() }()
+	d, err := db.GetDeletedSiteByUser(ctx, s.database, in.UserID, in.Name)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			if _, lerr := db.GetSiteByUser(ctx, s.database, in.UserID, in.Name); lerr == nil {
+				return RestoreResult{}, &Error{Code: "site_not_deleted"}
+			}
+			return RestoreResult{}, &Error{Code: "deleted_not_found"}
+		}
+		return RestoreResult{}, err
+	}
+	// A site in Recently deleted already counts toward its quota.
+	site, err := s.RestoreTrashed(ctx, RestoreTrashedInput{Site: d, Handle: in.Handle})
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return RestoreResult{}, &Error{Code: "deleted_not_found"}
+		case errors.Is(err, ErrRestoreFiles):
+			return RestoreResult{}, &Error{Code: "restore_files"}
+		default:
+			return RestoreResult{}, err
+		}
+	}
+	if s.deps.HasLiveFamilies() {
+		s.deps.SyncRedirect(ctx, site.ID)
+	}
+	return RestoreResult{Site: site, ResponseState: s.deps.ResponseState(site, 0, false, false)}, nil
+}

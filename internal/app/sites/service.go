@@ -74,6 +74,12 @@ type Deps struct {
 	ResponseState           func(model.Site, int, bool, bool) any
 	WebsiteArchiveDefault   int64
 	WebsiteLimit            func(context.Context, *model.User) (int64, bool)
+	DeletedRetention        time.Duration
+	ImageScanEnabled        bool
+	CancelDomainCert        func(string)
+	ExportResources         func(context.Context, string) ([]map[string]any, error)
+	ExportSQLiteMaxMemory   int64
+	DeletedTransaction      func(*sql.Tx) error
 }
 
 // CreateInput contains the values and non-HTTP dependencies for a locked create.
