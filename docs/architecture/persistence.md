@@ -37,7 +37,6 @@ Evidence: `go.mod`, the pinned dependency's `wrap.go` (`sqlite3_wasm.New`), and
 
 `db/schema.sql` is the canonical table/foreign-key definition. Some definitions
 are extended by later `ALTER TABLE` statements in that same file; read those too.
-The following groups include the old architecture's data-model inventory.
 
 | Records | Relationship and purpose |
 |---|---|
