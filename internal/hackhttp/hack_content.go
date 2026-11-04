@@ -5,15 +5,22 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/hack/events"
+	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/email"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/rules/sites"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 type hackSponsor struct {
@@ -288,21 +295,89 @@ func (h *HackHandler) queueReceipt(ctx context.Context, ev model.Event, teamID, 
 	h.eventsSvc().QueueReceipt(ctx, ev, teamID, userID)
 }
 
-func (h *HackHandler) StartContentDelivery(ctx context.Context) {
-	go func() {
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
-		for {
-			h.deliverContentMail(ctx)
-			h.queueEntryReminders(ctx)
-			h.deliverNoticeMail(ctx)
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
+type contentDeliveryOwner struct {
+	h *HackHandler
+	*workers.Runner
+	tracker *workers.Tracker
+	once    sync.Once
+}
+
+func (h *HackHandler) ContentDeliveryOwner() workers.Owner {
+	h.contentOnce.Do(func() {
+		t := workers.NewTracker("hack.content_delivery")
+		h.contentOwner = &contentDeliveryOwner{h: h, Runner: workers.NewRunner(t), tracker: t}
+	})
+	return h.contentOwner
+}
+func (h *HackHandler) StartContentDelivery(ctx context.Context) { h.ContentDeliveryOwner().Start(ctx) }
+func (o *contentDeliveryOwner) Start(ctx context.Context) {
+	o.once.Do(func() {
+		o.Go(ctx, func(ctx context.Context) {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for {
+				o.run(ctx)
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
 			}
-		}
-	}()
+		})
+	})
+}
+func (o *contentDeliveryOwner) pending(ctx context.Context) (int64, bool) {
+	n, err := db.PendingContentMail(ctx, o.h.database)
+	if err != nil {
+		o.tracker.Fail("count pending mail", err)
+		return 0, false
+	}
+	o.tracker.SetPending(n)
+	return n, true
+}
+func (o *contentDeliveryOwner) run(ctx context.Context) {
+	o.tracker.Attempt()
+	o.pending(ctx)
+	// Only replace the mail dependency in this local handler view. The service
+	// still controls transactions, retries, and the order of all three phases.
+	h := &HackHandler{database: o.h.database, mailer: o.h.mailer,
+		siteDomain: o.h.siteDomain, publicBaseURL: o.h.publicBaseURL,
+		noticeTiming: o.h.noticeTiming, entries: o.h.entries}
+	if sender, ok := h.mailer.(interface {
+		SendNotice(string, string, string) error
+	}); ok {
+		h.mailer = trackedContentSender{Sender: h.mailer, notice: sender, tracker: o.tracker}
+	}
+	h.deliverContentMail(ctx)
+	h.queueEntryReminders(ctx)
+	h.deliverNoticeMail(ctx)
+	o.pending(ctx)
+}
+
+type trackedContentSender struct {
+	email.Sender
+	notice interface {
+		SendNotice(string, string, string) error
+	}
+	tracker *workers.Tracker
+}
+
+func (s trackedContentSender) CanSendNotice() bool {
+	if ready, ok := s.Sender.(interface{ CanSendNotice() bool }); ok {
+		return ready.CanSendNotice()
+	}
+	return true
+}
+func (s trackedContentSender) SendNotice(to, subject, body string) error {
+	if err := s.notice.SendNotice(to, subject, body); err != nil {
+		// Provider errors can contain the recipient or credentials. Keep those
+		// out of both the status and the existing service log.
+		err = contentMailError(err)
+		s.tracker.Fail("send mail", err)
+		return err
+	}
+	s.tracker.Progress()
+	return nil
 }
 
 func (h *HackHandler) deliverContentMail(ctx context.Context) {
@@ -347,4 +422,26 @@ func (h *HackHandler) changeAnnouncement(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// Mail errors may echo recipients or provider credentials; expose only known causes.
+func contentMailError(err error) error {
+	if errors.Is(err, context.Canceled) {
+		return context.Canceled
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	var network net.Error
+	if errors.As(err, &network) && network.Timeout() {
+		return errors.New("mail provider timeout")
+	}
+	if err.Error() == "RESEND_API_KEY not configured" {
+		return errors.New("mail provider is not configured")
+	}
+	var status int
+	if n, _ := fmt.Sscanf(err.Error(), "resend returned status %d", &status); n == 1 {
+		return fmt.Errorf("mail provider returned HTTP %d", status)
+	}
+	return errors.New("mail provider delivery failed")
 }

@@ -525,12 +525,33 @@ func ClaimNotificationEmail(ctx context.Context, q Querier, id string) (bool, er
 	return n > 0, err
 }
 func SweepNotifications(ctx context.Context, q Querier, days int) error {
-	_, err := q.ExecContext(ctx, `DELETE FROM site_events WHERE created_at<now()-$1*interval '1 day'`, days)
-	if err != nil {
-		return err
-	}
-	_, err = q.ExecContext(ctx, `DELETE FROM site_notifications WHERE expires_at<now()-$1*interval '1 day'`, days)
+	_, err := SweepNotificationsCount(ctx, q, days)
 	return err
+}
+func SweepNotificationsCount(ctx context.Context, q Querier, days int) (int64, error) {
+	var total int64
+	for _, query := range []string{
+		`DELETE FROM site_events WHERE created_at<now()-$1*interval '1 day'`,
+		`DELETE FROM site_notifications WHERE expires_at<now()-$1*interval '1 day'`,
+	} {
+		result, err := q.ExecContext(ctx, query, days)
+		if err != nil {
+			return total, err
+		}
+		n, err := result.RowsAffected()
+		total += n
+		if err != nil {
+			return total, err
+		}
+	}
+	return total, nil
+}
+
+// PendingNotificationDeliveries counts the partial pending index, including leased and retrying rows.
+func PendingNotificationDeliveries(ctx context.Context, q Querier) (int64, error) {
+	var n int64
+	err := q.QueryRowContext(ctx, `SELECT count(*) FROM site_event_deliveries WHERE state='pending'`).Scan(&n)
+	return n, err
 }
 func NotificationHistory(ctx context.Context, database *sql.DB, id string, days int) ([]json.RawMessage, error) {
 	rows, err := database.QueryContext(ctx, `SELECT jsonb_build_object('event_id',e.event_id,'name',e.name,'created_at',e.created_at,'state',d.state,'attempts',d.attempts,'last_attempt_at',d.last_attempt_at,'last_http',d.last_http,'result',d.last_category,'duration_ms',d.duration_ms) FROM site_event_deliveries d JOIN site_events e ON e.seq=d.event_seq WHERE subscription_id=$1 AND e.created_at>=now()-$2*interval '1 day' ORDER BY e.seq DESC LIMIT 200`, id, days)
@@ -552,4 +573,14 @@ func RecentlyVerifiedNotification(ctx context.Context, q Querier, owner, url str
 	var yes bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications WHERE owner_id=$1 AND url=$2 AND source='mcp' AND verified_at>now()-interval '30 days')`, owner, url).Scan(&yes)
 	return yes, err
+}
+
+// PendingContentMail counts each existing partial pending index, including delayed retries.
+func PendingContentMail(ctx context.Context, q Querier) (int64, error) {
+	var n int64
+	err := q.QueryRowContext(ctx, `SELECT
+ (SELECT count(*) FROM event_announcement_deliveries WHERE sent_at IS NULL) +
+ (SELECT count(*) FROM event_entry_receipts WHERE sent_at IS NULL) +
+ (SELECT count(*) FROM event_notices WHERE email_state='pending')`).Scan(&n)
+	return n, err
 }

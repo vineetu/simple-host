@@ -84,7 +84,15 @@ func TestHackContentAndMail(t *testing.T) {
 	if r.status != 201 || r.json(t)["emails_queued"] != float64(2) || r.json(t)["organiser_copied"] != true {
 		t.Fatalf("announcement: %d %s", r.status, r.body)
 	}
-	a.hack.deliverContentMail(context.Background())
+	owner := a.hack.ContentDeliveryOwner().(*contentDeliveryOwner)
+	if n, ok := owner.pending(context.Background()); !ok || n != 2 {
+		t.Fatalf("queued mail: %d, available=%v", n, ok)
+	}
+	owner.run(context.Background())
+	status := owner.Status()[0]
+	if status.LastAttempt == nil || status.LastProgress == nil || status.Pending == nil || *status.Pending != 0 {
+		t.Fatalf("mail status: %+v", status)
+	}
 	if len(sink.notices) != 2 {
 		t.Fatalf("announcement mail: %+v", sink.notices)
 	}
@@ -278,7 +286,12 @@ func TestHackMailFailureDoesNotBlockOtherMessages(t *testing.T) {
 	if r.status != 201 || r.json(t)["emails_queued"] != float64(3) {
 		t.Fatalf("announcement: %d %s", r.status, r.body)
 	}
-	a.hack.deliverContentMail(context.Background())
+	owner := a.hack.ContentDeliveryOwner().(*contentDeliveryOwner)
+	owner.run(context.Background())
+	status := owner.Status()[0]
+	if status.LastError == "" || status.LastErrorAt == nil || status.Pending == nil || *status.Pending != 1 {
+		t.Fatalf("retry status: %+v", status)
+	}
 	if len(sink.notices) != 3 {
 		t.Fatalf("later announcement and receipt blocked: %+v", sink.notices)
 	}

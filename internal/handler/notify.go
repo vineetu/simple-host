@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"sort"
 	"strings"
 	"sync"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 type notificationEngine struct {
@@ -37,17 +39,21 @@ type notificationEngine struct {
 	verifying              chan struct{}
 	rest                   *rateLimiter
 	start                  sync.Once
+	stop                   sync.Once
+	stopped                chan struct{}
 	dropped                atomic.Uint64
-	// wg counts every goroutine the engine starts (workers, sweeper,
-	// emits) so WaitNotifications can join them; the server never waits.
-	wg sync.WaitGroup
+	// Both runners are joined before database shutdown; emits may precede Start.
+	runner                     *workers.Runner
+	delivery, retention, emits *workers.Tracker
+	emitRunner                 *workers.Runner
+	submissions                *submissionEmailOwner
 }
 
 // WaitNotifications blocks until every notification goroutine has
 // returned: the workers and sweeper (which stop when the context passed to
 // StartNotifications is cancelled) and any emit still storing an event.
 // Tests call it before closing the database; the server does not.
-func (h *SiteHandler) WaitNotifications() { h.notifyEngine().wg.Wait() }
+func (h *SiteHandler) WaitNotifications() { h.NotificationOwner().Wait() }
 
 // SetNotifyClientForTest swaps h's webhook-delivery client for a test
 // double trusting roots (a local httptest.TLS server's certificate pool)
@@ -75,6 +81,16 @@ func (h *SiteHandler) notifyEngine() *notificationEngine {
 		l := h.limits
 		// A one-attempt URL burst keeps the first minute within the configured rate.
 		h.notifications = &notificationEngine{ownerConcurrency: l.NotifyOwnerConcurrency, client: notifyClient{secrets: &h.passcode, timeout: l.NotifyTimeout}, minute: newRateLimiter(float64(l.NotifyPerMinute), float64(l.NotifyPerMinute)/60), day: newRateLimiter(float64(l.NotifyPerDay), float64(l.NotifyPerDay)/86400), challenge: newRateLimiter(10, 10.0/60), wake: make(chan struct{}, l.NotifyWorkers), emitting: make(chan struct{}, 64), verifying: make(chan struct{}, 10), rest: newRateLimiter(60, 1), perURL: newRateLimiter(1, float64(l.NotifyPerURLPerMinute)/60), owners: make(map[string]int)}
+
+		e := h.notifications
+		e.stopped = make(chan struct{})
+		e.delivery = workers.NewTracker("notifications.delivery")
+		e.retention = workers.NewTracker("notifications.retention")
+		e.emits = workers.NewTracker("notifications.emit")
+		e.runner = workers.NewRunner(e.delivery, e.retention)
+		e.emitRunner = workers.NewRunner(e.emits)
+		e.submissions = &submissionEmailOwner{h: h, tracker: workers.NewTracker("mail.submissions")}
+		e.submissions.runner = workers.NewRunner(e.submissions.tracker)
 	})
 	return h.notifications
 }
@@ -126,22 +142,24 @@ func (h *SiteHandler) emitNotification(c storageCall, name string, data map[stri
 	select {
 	case e.emitting <- struct{}{}:
 	default:
-		log.Printf("notifications: emit queue full, dropped=%d", e.dropped.Add(1))
+		e.emits.Fail("enqueue event", fmt.Errorf("queue full, dropped=%d", e.dropped.Add(1)))
 		return
 	}
-	e.wg.Add(1)
-	go func() {
-		defer e.wg.Done()
+	e.emitRunner.Go(context.Background(), func(ctx context.Context) {
+		e.emits.Attempt()
 		defer func() { <-e.emitting }()
-		h.storeNotification(c, name, data)
-	}()
+		h.storeNotificationContext(ctx, c, name, data)
+	})
 }
 func (h *SiteHandler) storeNotification(c storageCall, name string, data map[string]any) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	h.storeNotificationContext(context.Background(), c, name, data)
+}
+func (h *SiteHandler) storeNotificationContext(parent context.Context, c storageCall, name string, data map[string]any) {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	yes, err := db.HasNotificationsFor(ctx, h.database, c.siteID, name)
 	if err != nil {
-		log.Printf("notifications: subscription lookup failed for site %s", c.siteID)
+		h.notifyEngine().emits.Fail("lookup subscriptions", err)
 		return
 	}
 	if !yes {
@@ -154,6 +172,7 @@ func (h *SiteHandler) storeNotification(c storageCall, name string, data map[str
 	}
 	site, err := db.GetSiteByID(ctx, h.database, c.siteID)
 	if err != nil {
+		e.emits.Fail("load event site", err)
 		return
 	}
 	data["v"] = 1
@@ -191,9 +210,10 @@ func (h *SiteHandler) storeNotification(c storageCall, name string, data map[str
 		return
 	}
 	if err = db.EmitSiteEvent(ctx, h.database, c.siteID, notifyEventID(), name, c.resourceName, raw); err != nil {
-		log.Printf("notifications: emit failed for site %s", c.siteID)
+		e.emits.Fail("store event", err)
 		return
 	}
+	e.emits.Progress()
 	e.signal()
 }
 
@@ -213,22 +233,24 @@ func (h *SiteHandler) emitSiteNotification(siteID, name string, data map[string]
 	select {
 	case e.emitting <- struct{}{}:
 	default:
-		log.Printf("notifications: emit queue full, dropped=%d", e.dropped.Add(1))
+		e.emits.Fail("enqueue event", fmt.Errorf("queue full, dropped=%d", e.dropped.Add(1)))
 		return
 	}
-	e.wg.Add(1)
-	go func() {
-		defer e.wg.Done()
+	e.emitRunner.Go(context.Background(), func(ctx context.Context) {
+		e.emits.Attempt()
 		defer func() { <-e.emitting }()
-		h.storeSiteNotification(siteID, name, data, dedupe)
-	}()
+		h.storeSiteNotificationContext(ctx, siteID, name, data, dedupe)
+	})
 }
 func (h *SiteHandler) storeSiteNotification(siteID, name string, data map[string]any, dedupe time.Duration) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	h.storeSiteNotificationContext(context.Background(), siteID, name, data, dedupe)
+}
+func (h *SiteHandler) storeSiteNotificationContext(parent context.Context, siteID, name string, data map[string]any, dedupe time.Duration) {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	yes, err := db.HasNotificationsFor(ctx, h.database, siteID, name)
 	if err != nil {
-		log.Printf("notifications: subscription lookup failed for site %s", siteID)
+		h.notifyEngine().emits.Fail("lookup subscriptions", err)
 		return
 	}
 	if !yes {
@@ -236,6 +258,7 @@ func (h *SiteHandler) storeSiteNotification(siteID, name string, data map[string
 	}
 	site, err := db.GetSiteByID(ctx, h.database, siteID)
 	if err != nil {
+		h.notifyEngine().emits.Fail("load event site", err)
 		return
 	}
 	visitor, _ := data["visitor"].(string)
@@ -275,10 +298,11 @@ func (h *SiteHandler) storeSiteNotification(siteID, name string, data map[string
 		err = db.EmitSiteEvent(ctx, h.database, siteID, notifyEventID(), name, "", raw)
 	}
 	if err != nil {
-		log.Printf("notifications: emit failed for site %s", siteID)
+		e.emits.Fail("store event", err)
 		return
 	}
 	if stored {
+		e.emits.Progress()
 		e.signal()
 	}
 }
@@ -398,14 +422,49 @@ func notifyBody(d db.NotificationDelivery, cursor int64, bodyMax int) []byte {
 	}
 	return raw
 }
-func (h *SiteHandler) StartNotifications(ctx context.Context) {
+
+type notificationOwner struct {
+	h *SiteHandler
+	*workers.Runner
+}
+
+func (o *notificationOwner) Stop() {
+	e := o.h.notifyEngine()
+	e.stop.Do(func() { close(e.stopped) })
+	o.Runner.Stop()
+	e.emitRunner.Stop()
+}
+func (o *notificationOwner) Wait() { o.Runner.Wait(); o.h.notifyEngine().emitRunner.Wait() }
+func (o *notificationOwner) Status() []workers.Status {
+	e := o.h.notifyEngine()
+	e.emits.SetPending(int64(len(e.emitting)))
+	return append(o.Runner.Status(), e.emitRunner.Status()...)
+}
+func (h *SiteHandler) NotificationOwner() workers.Owner {
+	return &notificationOwner{h, h.notifyEngine().runner}
+}
+func (h *SiteHandler) StartNotifications(ctx context.Context) { h.NotificationOwner().Start(ctx) }
+func (o *notificationOwner) Start(ctx context.Context) {
+	h := o.h
 	e := h.notifyEngine()
 	e.start.Do(func() {
-		h.sweepNotifications(ctx)
+		select {
+		case <-e.stopped:
+			return
+		default:
+		}
+		e.runner.Go(ctx, func(ctx context.Context) { <-ctx.Done(); e.emitRunner.Stop() })
+		// Keep the initial retention pass synchronous, using the owner's context.
+		ready := make(chan struct{})
+		e.runner.Go(ctx, func(ctx context.Context) { h.sweepNotifications(ctx); close(ready) })
+		select {
+		case <-ready:
+		case <-e.stopped:
+			return
+		case <-ctx.Done():
+		}
 		for i := 0; i < h.limits.NotifyWorkers; i++ {
-			e.wg.Add(1)
-			go func() {
-				defer e.wg.Done()
+			e.runner.Go(ctx, func(ctx context.Context) {
 				tick := time.NewTicker(time.Second)
 				defer tick.Stop()
 				for {
@@ -418,11 +477,9 @@ func (h *SiteHandler) StartNotifications(ctx context.Context) {
 					for ctx.Err() == nil && h.deliverNotification(ctx) {
 					}
 				}
-			}()
+			})
 		}
-		e.wg.Add(1)
-		go func() {
-			defer e.wg.Done()
+		e.runner.Go(ctx, func(ctx context.Context) {
 			tick := time.NewTicker(time.Hour)
 			defer tick.Stop()
 			for {
@@ -438,7 +495,7 @@ func (h *SiteHandler) StartNotifications(ctx context.Context) {
 					e.rest.evictIdle(time.Hour)
 				}
 			}
-		}()
+		})
 	})
 }
 
@@ -452,13 +509,16 @@ func (h *SiteHandler) DeliverNotificationForTest(ctx context.Context) bool {
 
 func (h *SiteHandler) deliverNotification(ctx context.Context) bool {
 	l := h.limits
+	e := h.notifyEngine()
+	e.delivery.Attempt()
+	h.notificationPending(ctx)
 	d, err := db.ClaimNotificationDelivery(ctx, h.database, l.NotifyTimeout+30*time.Second, l.NotifyAttempts, l.NotifyHistoryDays, l.NotifySuspendWindow)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false
 	}
 	if err != nil {
 		if ctx.Err() == nil {
-			log.Print("notifications: claim failed")
+			e.delivery.Fail("claim delivery", err)
 		}
 		return false
 	}
@@ -470,6 +530,7 @@ func (h *SiteHandler) processNotification(ctx context.Context, d db.Notification
 	defer cancel()
 	n, err := db.GetNotification(ctx, h.database, d.SubscriptionID)
 	if err != nil {
+		h.notifyEngine().delivery.Fail("load subscription", err)
 		return true
 	}
 	// A pause or expiry may have happened after the claim.
@@ -481,6 +542,7 @@ func (h *SiteHandler) processNotification(ctx context.Context, d db.Notification
 	state := "skipped"
 	site, err := db.GetSiteByID(ctx, h.database, n.SiteID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		h.notifyEngine().delivery.Fail("load delivery site", err)
 		return true
 	}
 	allowed := site.UserID == n.OwnerID
@@ -493,9 +555,13 @@ func (h *SiteHandler) processNotification(ctx context.Context, d db.Notification
 	if err == nil && !site.Offline && !site.Suspended() && !site.Deleted && allowed {
 		cursor, e := db.NotificationCursor(ctx, h.database, n.ID, n.SiteID)
 		if e != nil {
+			h.notifyEngine().delivery.Fail("load delivery cursor", e)
 			return true
 		}
 		held, err := db.NotificationLeaseHeld(ctx, h.database, d)
+		if err != nil {
+			h.notifyEngine().delivery.Fail("check delivery lease", err)
+		}
 		if err != nil || !held {
 			return true
 		}
@@ -506,7 +572,7 @@ func (h *SiteHandler) processNotification(ctx context.Context, d db.Notification
 		}
 		if !acquired || !engine.perURL.allow(n.URL) {
 			if err := db.DeferNotificationDelivery(ctx, h.database, d); err != nil {
-				log.Printf("notifications: deferred claim update failed for subscription %s", n.ID)
+				engine.delivery.Fail("defer delivery", err)
 			}
 			return true
 		}
@@ -515,6 +581,9 @@ func (h *SiteHandler) processNotification(ctx context.Context, d db.Notification
 			return true
 		}
 		result = engine.client.send(ctx, n, d.EventID, body)
+		if !result.Delivered {
+			engine.delivery.Fail("send webhook", fmt.Errorf("%s (HTTP %d)", result.Result, result.Status))
+		}
 		state = "failed"
 		if result.Delivered {
 			state = "delivered"
@@ -530,7 +599,10 @@ func (h *SiteHandler) processNotification(ctx context.Context, d db.Notification
 	next := time.Now().Add(delays[i])
 	suspended, err := db.FinishNotificationDelivery(ctx, h.database, d, state, result.Result, result.Status, int(time.Since(start).Milliseconds()), next, l.NotifySuspendWindow, l.NotifySuspendAttempts, l.NotifySuspendFailurePercent, l.NotifySuspendAfter)
 	if err != nil {
-		log.Printf("notifications: result update failed for subscription %s", n.ID)
+		h.notifyEngine().delivery.Fail("finish delivery", err)
+	} else {
+		h.notifyEngine().delivery.Progress()
+		h.notificationPending(ctx)
 	}
 	if suspended {
 		h.notifySuspension(ctx, n)
@@ -547,25 +619,37 @@ func (h *SiteHandler) notifySuspension(ctx context.Context, n db.Notification) {
 		return
 	}
 	claimed, err := db.ClaimNotificationEmail(ctx, h.database, n.ID)
+	if err != nil {
+		h.notifyEngine().retention.Fail("claim suspension email", err)
+	}
 	if err != nil || !claimed {
 		return
 	}
 	if err = mailer.SendNotice(to, "Simple Host notification paused", "Notifications for "+n.Site+" have been suspended after repeated delivery failures. Check the receiver, then resume the subscription in Notifications."); err != nil {
-		log.Printf("notifications: suspension email failed for subscription %s", n.ID)
-		retryCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		h.notifyEngine().retention.Fail("send suspension email", notificationMailError(err))
+		retryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		if _, err := h.database.ExecContext(retryCtx, `UPDATE site_notifications SET suspend_emailed_at=NULL WHERE id=$1`, n.ID); err != nil {
-			log.Printf("notifications: suspension email retry update failed for subscription %s", n.ID)
+			h.notifyEngine().retention.Fail("reset suspension email", err)
 		}
+	} else {
+		h.notifyEngine().retention.Progress()
 	}
 }
 
 func (h *SiteHandler) sweepNotifications(ctx context.Context) {
-	if err := db.SweepNotifications(ctx, h.database, h.limits.NotifyHistoryDays); err != nil {
-		log.Print("notifications: history sweep failed")
+	t := h.notifyEngine().retention
+	t.Attempt()
+	n, err := db.SweepNotificationsCount(ctx, h.database, h.limits.NotifyHistoryDays)
+	if err != nil {
+		t.Fail("sweep history", err)
+	}
+	if n > 0 {
+		t.Progress()
 	}
 	rows, err := h.database.QueryContext(ctx, `SELECT id FROM site_notifications WHERE state='suspended' AND suspend_emailed_at IS NULL`)
 	if err != nil {
+		t.Fail("list suspension emails", err)
 		return
 	}
 	var ids []string
@@ -574,6 +658,9 @@ func (h *SiteHandler) sweepNotifications(ctx context.Context) {
 		if rows.Scan(&id) == nil {
 			ids = append(ids, id)
 		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fail("read suspension emails", err)
 	}
 	rows.Close()
 	for _, id := range ids {
@@ -597,4 +684,36 @@ func (h *SiteHandler) notificationSiteInfo(ctx context.Context, site db.Site) (s
 		return ev.Slug, "https://" + ev.Slug + "." + h.siteDomain + "/", nil
 	}
 	return site.Name, h.TeamSiteURL(ev.Slug, site.Name), nil
+}
+
+func (h *SiteHandler) notificationPending(ctx context.Context) {
+	t := h.notifyEngine().delivery
+	n, err := db.PendingNotificationDeliveries(ctx, h.database)
+	if err != nil {
+		t.Fail("count pending deliveries", err)
+		return
+	}
+	t.SetPending(n)
+}
+
+// Mail errors may echo recipients or provider credentials; expose only known causes.
+func notificationMailError(err error) error {
+	if errors.Is(err, context.Canceled) {
+		return context.Canceled
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	var network net.Error
+	if errors.As(err, &network) && network.Timeout() {
+		return errors.New("mail provider timeout")
+	}
+	if err.Error() == "RESEND_API_KEY not configured" {
+		return errors.New("mail provider is not configured")
+	}
+	var status int
+	if n, _ := fmt.Sscanf(err.Error(), "resend returned status %d", &status); n == 1 {
+		return fmt.Errorf("mail provider returned HTTP %d", status)
+	}
+	return errors.New("mail provider delivery failed")
 }

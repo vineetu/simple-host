@@ -19,12 +19,14 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/legacy"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	storagerules "github.com/vsriram/simple-host/internal/rules/storage"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // Saved data, step 2: kinds (saved-data redesign, owner approved 2026-09-27;
@@ -1648,33 +1650,51 @@ func (h *SiteHandler) checkNotifyStopToken(tok string) (siteID, name string, ok 
 // SAVED_DATA_NOTIFY_EACH_MINUTES: at most one email per name per that
 // interval ("each") or per SAVED_DATA_NOTIFY_DAILY_HOURS ("daily"), counting
 // what arrived since the last one.
-func (h *SiteHandler) StartSubmissionEmails(ctx context.Context) {
-	go func() {
-		t := time.NewTicker(time.Duration(h.savedData.NotifyEachMinutes) * time.Minute)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				h.sendSubmissionEmails(ctx)
+type submissionEmailOwner struct {
+	h       *SiteHandler
+	runner  *workers.Runner
+	tracker *workers.Tracker
+	once    sync.Once
+}
+
+func (h *SiteHandler) SubmissionEmailOwner() workers.Owner       { return h.notifyEngine().submissions }
+func (h *SiteHandler) StartSubmissionEmails(ctx context.Context) { h.SubmissionEmailOwner().Start(ctx) }
+func (o *submissionEmailOwner) Stop()                            { o.runner.Stop() }
+func (o *submissionEmailOwner) Wait()                            { o.runner.Wait() }
+func (o *submissionEmailOwner) Status() []workers.Status         { return o.runner.Status() }
+func (o *submissionEmailOwner) Start(ctx context.Context) {
+	o.once.Do(func() {
+		o.runner.Go(ctx, func(ctx context.Context) {
+			t := time.NewTicker(time.Duration(o.h.savedData.NotifyEachMinutes) * time.Minute)
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					o.h.sendSubmissionEmails(ctx)
+				}
 			}
-		}
-	}()
+		})
+	})
 }
 
 func (h *SiteHandler) sendSubmissionEmails(ctx context.Context) int {
+	t := h.notifyEngine().submissions.tracker
+	t.Attempt()
 	mailer, ok := h.mailer.(noticeSender)
-	if !ok {
-		return 0
-	}
 	each := time.Duration(h.savedData.NotifyEachMinutes) * time.Minute
 	daily := time.Duration(h.savedData.NotifyDailyHours) * time.Hour
 	due, err := db.DueNotifications(ctx, h.database, each, daily)
 	if err != nil {
-		log.Printf("submission emails: %v", err)
+		t.Fail("list due mail", err)
 		return 0
 	}
+	t.SetPending(int64(len(due)))
+	if !ok {
+		return 0
+	}
+	pending := int64(len(due))
 	sent := 0
 	for _, d := range due {
 		to, err := db.GetSiteOwnerEmail(ctx, h.database, d.SiteID)
@@ -1685,12 +1705,15 @@ func (h *SiteHandler) sendSubmissionEmails(ctx context.Context) int {
 		// a failed send) never sends the same email again.
 		won, err := db.ClaimNotification(ctx, h.database, d)
 		if err != nil {
-			log.Printf("submission emails: claim site_id=%s name=%s: %v", d.SiteID, d.Name, err)
+			t.Fail("claim mail", err)
 			continue
 		}
 		if !won {
 			continue
 		}
+		pending--
+		t.SetPending(pending)
+		t.Progress() // The claim durably consumes this batch, including failed sends.
 		noun := "entries"
 		if d.Count == 1 {
 			noun = "entry"
@@ -1712,10 +1735,11 @@ Simple Host
 		if err := mailer.SendNotice(to, subject, text); err != nil {
 			// Not retried: the next email counts from here, so these entries
 			// are left out of the count rather than mailed twice.
-			log.Printf("submission emails: site_id=%s name=%s: %v", d.SiteID, d.Name, err)
+			t.Fail("send mail", notificationMailError(err))
 			continue
 		}
 		sent++
+		t.Progress()
 	}
 	if sent > 0 {
 		log.Printf("submission emails: sent %d", sent)

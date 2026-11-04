@@ -471,6 +471,10 @@ func TestSubmissionEmails(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.a.sites.sendSubmissionEmails(ctx)
+	status := s.a.sites.SubmissionEmailOwner().Status()[0]
+	if status.LastAttempt == nil || status.LastProgress == nil || status.Pending == nil || *status.Pending != 0 {
+		t.Fatalf("submission worker status: %+v", status)
+	}
 	got := mine()
 	if len(got) != 1 || !strings.Contains(got[0], "|2 new entries in orders on shop|") {
 		t.Fatalf("digest: %q", got)

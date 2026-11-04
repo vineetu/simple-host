@@ -13,6 +13,7 @@ import (
 	"net/mail"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -75,6 +76,8 @@ var hackStagesOfferedList = []string{"draft", "open", "building", "closed", "jud
 // HackHandler is the hosted-events API (EVENTS=hosted).
 type HackHandler struct {
 	limiterOwner *limiterWorkers
+	contentOnce  sync.Once
+	contentOwner *contentDeliveryOwner
 	// limits is this instance's edition.Limits() snapshot. A plain field,
 	// not handler's shared limitSet embedding (cleanup 3.2 slice 1c: that
 	// type's methods are unexported in another package once this type
