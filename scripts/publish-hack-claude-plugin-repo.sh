@@ -1,12 +1,12 @@
 #!/bin/bash
 # Publish the Simple Hack Claude plugin to the standalone repo github.com/vineetu/simple-hack-plugin,
 # which is what the Claude plugin directory lists. Run after a hack-toolkit release
-# (after python3 hack-toolkit/build.py). Keeps that repo's README.md, LICENSE and
+# (after python3 internal/webassets/hack-toolkit/build.py). Keeps that repo's README.md, LICENSE and
 # .claude-plugin/marketplace.json; replaces the skills, .mcp.json, plugin.json and icon from
-# hack-toolkit/; bumps the marketplace version.
+# internal/webassets/hack-toolkit/; bumps the marketplace version.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-KIT="$ROOT/hack-toolkit"
+KIT="$ROOT/internal/webassets/hack-toolkit"
 SKILLS="run-hackathon join-hackathon judge-hackathon website-deploy website-deploy-builder"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 git clone -q https://github.com/vineetu/simple-hack-plugin.git "$TMP/repo"

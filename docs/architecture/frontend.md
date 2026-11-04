@@ -8,7 +8,7 @@ The tables below group screens rather than repeat that inventory.
 
 ## Asset ownership and serving
 
-The browser sources live in `internal/handler/static/`: handwritten HTML,
+The browser sources live in `internal/webassets/static/`: handwritten HTML,
 CSS and JavaScript. `internal/handler/ui.go` embeds `all:static` into the Go
 binary. Changing a file requires rebuilding and restarting the server.
 There is no browser build step for ordinary Host pages or the Hack website's
@@ -22,13 +22,13 @@ Files needing this pipeline must not bypass it through raw file serving.
 
 Hack pages live in `internal/hackhttp`, which receives the asset pipeline
 through `hack.go:hackPages` and `HackHandler.ShareAssets`. The embedded tree
-still belongs to `handler`; the proposed `internal/webassets` extraction in
-`target.md` is not the current layout. Hack does not import `handler` to read
-assets.
+belongs to `internal/webassets`; presentation and instance rewriting remain in
+`handler`. Hack reads bundles through `webassets` and does not import `handler`
+to read assets.
 
 ## Browser route to screen map
 
-All source filenames in this table are relative to `internal/handler/static/`.
+All source filenames in this table are relative to `internal/webassets/static/`.
 Go owners name the registration or rendering function.
 
 | Surface | Source / screen selection | Go owner |
@@ -206,7 +206,7 @@ and `apps/bundlegen/bundle.go:esbuildVersion`; it is not a floating CLI.
 | `static/openapi.yaml` | `static/openapi.json` | Command below | `scripts/check-docs-sync.sh`, parsed YAML/JSON equality |
 | `static/features.json`, `scripts/features-page.tmpl.html` | `static/features.html` | `python3 scripts/build-features-page.py` | `scripts/check-features-page.py` |
 | `web/analytics-parse.js` | Marked script blocks in `index.html`, `showcase.html`, `analytics.html` | `bash scripts/inline-analytics-parser.sh` | `--check` plus Node parser fixtures in docs-sync |
-| `simple-host-website/skills`, plugin manifest | `plugins/simple-host/skills` and synced manifest version | `bash scripts/sync-claude-plugin.sh` | `scripts/check-claude-plugin.sh` |
+| `internal/webassets/simple-host-website/skills`, plugin manifest | `plugins/simple-host/skills` and synced manifest version | `bash scripts/sync-claude-plugin.sh` | `scripts/check-claude-plugin.sh` |
 | HTTP registrations, MCP registry, FEATURES placement | `docs/generated/{routes.md,mcp-tools.md,inventory.json}` | `make inventory` | `go run ./scripts/inventory check` |
 
 Do not hand-edit the generated bundle/CSS, JSON contract, public feature
@@ -218,7 +218,7 @@ shared kit for the embedded frame. The `go:generate` directives are in
 Exact OpenAPI conversion (PyYAML required):
 
 ```sh
-python3 -c "import yaml,json;json.dump(yaml.safe_load(open('internal/handler/static/openapi.yaml')),open('internal/handler/static/openapi.json','w'),indent=2)"
+python3 -c "import yaml,json;json.dump(yaml.safe_load(open('internal/webassets/static/openapi.yaml')),open('internal/webassets/static/openapi.json','w'),indent=2)"
 ```
 
 Source OpenAPI operations use four `x-audience` values: `public-host`,
@@ -248,3 +248,8 @@ The atlas specifies intended UX and supplies examples. It is not loaded by
 the running app, and its sample state is not server policy. Runtime truth is
 the registered routes, real screen modules and server responses/rules.
 Use the [Hack domain guide](hack-domain.md) for transitions and permissions.
+
+The reviewed Hack skill source is `internal/webassets/hack-toolkit/skills`.
+`scripts/sync-claude-plugin.sh` also copies it to `hack-toolkit/skills` to keep
+the published GitHub install address working; `check-claude-plugin.sh` checks
+that compatibility copy. Embedded and downloaded bytes retain their existing paths.

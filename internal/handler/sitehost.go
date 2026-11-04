@@ -94,7 +94,7 @@ func (h *SiteHandler) siteHostLive(handle, name string) bool {
 // siteHostLiveOn is siteHostLive for the site host under base (whose
 // certificate readiness is kept apart from the other base's).
 func (h *SiteHandler) siteHostLiveOn(handle, name, base string) bool {
-	return h.siteHostsOn() && h.personAddressFor(handle, name) && validSiteName.MatchString(name) &&
+	return h.siteHostsOn() && h.personAddressFor(handle, name) && sites.ValidSiteName.MatchString(name) &&
 		!strings.HasPrefix(name, "xn--") && h.siteCertReadyOn(handle, base)
 }
 
@@ -141,7 +141,7 @@ func (h *SiteHandler) siteHostSite(ctx context.Context, host string) (db.Site, d
 		return db.Site{}, db.User{}, false, nil
 	}
 	label, handle, base, ok := h.siteHostParts(host)
-	if !ok || !handleAddressable(handle) || !validSiteName.MatchString(label) {
+	if !ok || !handleAddressable(handle) || !sites.ValidSiteName.MatchString(label) {
 		return db.Site{}, db.User{}, false, nil
 	}
 	user, err := db.GetUserByHandle(ctx, h.database, handle)
@@ -199,7 +199,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 		if r.URL.RawQuery != "" {
 			query = "?" + r.URL.RawQuery
 		}
-		if !handleAddressable(handle) || !validSiteName.MatchString(label) {
+		if !handleAddressable(handle) || !sites.ValidSiteName.MatchString(label) {
 			h.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", h.mainSiteURL(), "Go to "+h.siteDomain)
 			return
 		}
@@ -351,7 +351,7 @@ func (h *SiteHandler) siteHasPath(userID, siteName, rel string) bool {
 // (and no site has it now; callers look the site up first). Returns that
 // site's current address with escapedPath (starting with "/") appended.
 func (h *SiteHandler) renamedSiteAddress(ctx context.Context, userID, name, escapedPath string) (string, bool) {
-	if !validSiteName.MatchString(name) {
+	if !sites.ValidSiteName.MatchString(name) {
 		return "", false
 	}
 	siteID, _, err := db.ResolveOldSiteName(ctx, h.database, userID, name)

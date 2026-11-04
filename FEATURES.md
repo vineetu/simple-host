@@ -17,8 +17,8 @@ page, table, env flag or skill section. `scripts/check-features.sh` (run by
 name is missing here.
 
 Conventions:
-- Paths are relative to the repo root. `h/` = `internal/handler/`, `st/` = `internal/handler/static/`,
-  `sk/` = `simple-host-website/skills/` (the skills source; `plugins/simple-host/skills/` is a
+- Paths are relative to the repo root. `h/` = `internal/handler/`, `st/` = `internal/webassets/static/`,
+  `sk/` = `internal/webassets/simple-host-website/skills/` (the skills source; `plugins/simple-host/skills/` is a
   generated copy, and `openai-plugin/skills/` is a separate rewrite).
 - **Status**: `live` = in the running binary and enabled in `/etc/simple-host.env`; `flag` = off
   unless the named env is set; `planned` = decided in INTENT, not built.
@@ -998,7 +998,7 @@ Skill routes: `/skills/website-deploy`, `/skills/website-deploy.zip`, `/skills/w
 Skill routes: `/skills/website-deploy-builder`, `/skills/website-deploy-builder.zip`, `/skills/website-deploy-builder/SKILL.md`, `/skills/website-deploy-builder/references/{file}`.
 Skill routes: `/skills/connect-domain`, `/skills/connect-domain.zip`, `/skills/connect-domain/SKILL.md`, `/skills/connect-domain/references/{file}`.
 
-**Product icon (Simple Host: "Rounded", 2026-10-24; Simple Hack: 2026-10-13).** Simple Host's mark is a bold hand-drawn `s.h` monogram with a teal period, ink on a cream tile (a reversed ink-tile colorway is kept for light pages). Simple Hack keeps its own mark, a hand-inked dark frame around a red dot on cream paper. Sources are in `docs/brand/`: Simple Host's `rounded-*.svg` (512 px master, 16 px pixel-snapped master for small rendering, dark and mono variants) and `reversed-*.svg` for the light-page colorway; Simple Hack's `b_hack.svg` and `favicon_hack.svg` are unchanged; Simple Host's prior mark is kept at `docs/brand/old/` for reference. The same four paths serve each product's own files: `/favicon.svg`, `/favicon-32.png` (32 px, for browsers that skip SVG favicons), `/favicon.ico` (16, 32, and 48 px) and `/apple-touch-icon.png` (180 px), with Simple Hack mapping them to `st/favicon-hack.*`, `st/favicon-32-hack.png` and `st/apple-touch-icon-hack.png` (`iconFiles` in `h/ui.go`). Every chrome page links all four with a shared `?v=c` query string and the files are served with `Cache-Control: public, max-age=86400`, so a rebrand reaches browsers that had cached the old mark, and a future icon change is picked up by bumping that letter rather than renaming the files. Self-hosted and small-box installs carry the Simple Host mark, as they carry its header wordmark. The ChatGPT plugin icon and logo (`openai-plugin/assets/`) and the Simple Host Claude plugin icon (`plugins/simple-host/.claude-plugin/icon.png`) carry the new Simple Host mark. The Simple Hack kit icons (`hack-toolkit/metadata/claude-icon.png`, from which `hack-toolkit/build.py` resizes the OpenAI logo and composer icon) are unchanged. <a id="dashboard-icon"></a>
+**Product icon (Simple Host: "Rounded", 2026-10-24; Simple Hack: 2026-10-13).** Simple Host's mark is a bold hand-drawn `s.h` monogram with a teal period, ink on a cream tile (a reversed ink-tile colorway is kept for light pages). Simple Hack keeps its own mark, a hand-inked dark frame around a red dot on cream paper. Sources are in `docs/brand/`: Simple Host's `rounded-*.svg` (512 px master, 16 px pixel-snapped master for small rendering, dark and mono variants) and `reversed-*.svg` for the light-page colorway; Simple Hack's `b_hack.svg` and `favicon_hack.svg` are unchanged; Simple Host's prior mark is kept at `docs/brand/old/` for reference. The same four paths serve each product's own files: `/favicon.svg`, `/favicon-32.png` (32 px, for browsers that skip SVG favicons), `/favicon.ico` (16, 32, and 48 px) and `/apple-touch-icon.png` (180 px), with Simple Hack mapping them to `st/favicon-hack.*`, `st/favicon-32-hack.png` and `st/apple-touch-icon-hack.png` (`iconFiles` in `h/ui.go`). Every chrome page links all four with a shared `?v=c` query string and the files are served with `Cache-Control: public, max-age=86400`, so a rebrand reaches browsers that had cached the old mark, and a future icon change is picked up by bumping that letter rather than renaming the files. Self-hosted and small-box installs carry the Simple Host mark, as they carry its header wordmark. The ChatGPT plugin icon and logo (`openai-plugin/assets/`) and the Simple Host Claude plugin icon (`plugins/simple-host/.claude-plugin/icon.png`) carry the new Simple Host mark. The Simple Hack kit icons (`internal/webassets/hack-toolkit/metadata/claude-icon.png`, from which `internal/webassets/hack-toolkit/build.py` resizes the OpenAI logo and composer icon) are unchanged. <a id="dashboard-icon"></a>
 
 The public API reference is audience-specific: `/openapi.json`, `/openapi.yaml`
 and `/docs.html` list only this product’s public operations. The shared contract
@@ -1011,7 +1011,7 @@ older saved-data endpoints still work for sites that already use them;
 visitor sessions, Skills, Account, Showcase and Versions have explicit tags.
 The product’s `llms.txt` follows its public reference.
 
-Skills source is `simple-host-website/skills/` (embedded via `simple-host-website/embed.go`) at
+Skills source is `internal/webassets/simple-host-website/skills/` (embedded via `internal/webassets/simple-host-website/embed.go`) at
 version **0.27.62**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live** (Claude
 lists Simple Host in both its connector directory and its plugin directory; the ChatGPT listing,
@@ -1049,15 +1049,15 @@ install. The existing ink theme, shared header/footer and system light/dark appl
 | Routes | `GET /skills.zip` (Simple Host excludes the three Hack role skills; Simple Hack serves exactly five hosted skills) · `GET /hack-skills.zip` · `GET /simple-hack-skills-only-0.2.0.zip` (retained original) · `GET /simple-hack-skills-only-0.2.1.zip` · `GET /simple-hack-skills-only-0.2.2.zip` · `GET /simple-hack-skills-only-0.2.3.zip` · `GET /simple-hack-skills-only-0.2.4.zip` · `GET /simple-hack-skills-only-0.2.5.zip` (older 0.2.0–0.2.5 routes return 410) · `GET /simple-hack-skills-only-0.2.6.zip` · `GET /simple-hack-skills-only-0.2.10.zip` · `GET /simple-hack-skills-only-0.2.11.zip` · `GET /simple-hack-skills-only-0.2.12.zip` · `GET /get-started` · `GET /skills` (hosted page alias) · `GET /skills/version` · `GET /skills/{dir}.zip`, `GET /skills/{dir}/SKILL.md`, `GET /skills/{dir}` and `GET /skills/{dir}/references/{file}` (per bundled skill dir, registered in a loop) · `GET /plugin.zip` · `GET /install.sh` · `GET /install.ps1` · `GET /v1/skills` · `GET /v1/skills/{name}` · `GET /v1/skills/{name}/SKILL.md` · `GET /v1/skills/{name}/references/{file}` · `GET /.well-known/skills/index.json` · `GET /.well-known/skills/{name}/SKILL.md` · `GET /.well-known/skills/{name}/references/{file}` · `GET /.well-known/openai-apps-challenge` · `GET /{asset}` for each of `rewrittenAssets` (only on non-canonical instances). Every skill file route (SKILL.md and references, on `/skills/`, `/v1/skills/` and `/.well-known/skills/`) and the zips serve the text with this instance's hostnames and limits (`MAX_ARCHIVE_MB` and the limit knobs) written in, except the Hack role skills (`skillServedText`, `copyRewritten`) |
 | Skills | `website-deploy` (SKILL.md + references `backend.md`, `operations.md`, `packaging-and-validation.md`, `register.md`, `frameworks.md`), `website-deploy-builder`, `connect-domain` (+ `references/registrars.md`); the hosted Simple Hack catalog and ZIP expose exactly organiser `run-hackathon`, participant `join-hackathon`, judge `judge-hackathon` and the two shared website skills. The role skills are not in the Simple Host plugin or its `/skills.zip`. |
 | Pages | `st/install.html`, `st/llms.txt`, `st/openapi.yaml` / `st/openapi.json`, `st/docs.html` (Swagger UI) |
-| Go | `h/ui.go` (zips, install scripts, `PluginVersion`), `h/skillshub.go` (catalog; not host-rewritten), `h/instancehost.go` (`rewrittenAssets`, `controlPlaneSkills`), `h/notice_middleware.go` (`X-Skill-Version` → `_notice`), `h/openaichallenge.go`, `simple-host-website/embed.go` |
-| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.9.17, mcp.json, connector-only skills, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `host-toolkit/site/` (existing Website Deploy Toolkit download site; current 0.9.17 and retained 0.9.7 archive), `simple-host-website/` (canonical skills 0.27.35, legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
+| Go | `h/ui.go` (zips, install scripts, `PluginVersion`), `h/skillshub.go` (catalog; not host-rewritten), `h/instancehost.go` (`rewrittenAssets`, `controlPlaneSkills`), `h/notice_middleware.go` (`X-Skill-Version` → `_notice`), `h/openaichallenge.go`, `internal/webassets/simple-host-website/embed.go` |
+| Packaging | `plugins/simple-host/` (Claude plugin: `.claude-plugin/plugin.json`, `.mcp.json` → `https://simple-host.app/mcp`), `.claude-plugin/marketplace.json`, `openai-plugin/` (plugin.json 0.9.17, mcp.json, connector-only skills, assets, demo-sites, SUBMISSION.md), `dist/*.zip`, `host-toolkit/site/` (existing Website Deploy Toolkit download site; current 0.9.17 and retained 0.9.7 archive), `internal/webassets/simple-host-website/` (canonical skills 0.27.35, legacy plugin, `mcp-server/` Node stdio MCP, `setup.sh`, `template/`) |
 | Scripts | `scripts/sync-claude-plugin.sh` (copy source → plugin, stamp version), `scripts/check-claude-plugin.sh` (drift + `X-Skill-Version` literals), `scripts/publish-claude-plugin-repo.sh` (→ github.com/vineetu/simple-host-plugin, tag `v$V`), `scripts/build-openai-plugin.sh`, `scripts/check-docs-sync.sh` (routes ↔ openapi ↔ llms.txt ↔ skills) |
 | Env | `PUBLIC_BASE_URL`, `SITE_DOMAIN`, `CONTENT_HOST`, `CNAME_TARGET` (host rewriting), `OPENAI_APPS_CHALLENGE` |
 | External | Claude plugin directory, OpenAI apps portal, GitHub `vineetu/simple-host-plugin`, skills CLI (`npx skills`) |
 
-A separate Simple Hack toolkit lives in `hack-toolkit/`: deterministic skills-only,
+A separate Simple Hack toolkit lives in `internal/webassets/hack-toolkit/`: deterministic skills-only,
 OpenAI MCP/plugin, Claude plugin and standalone skill ZIPs plus a static download
-site (package 0.2.10). Its five-skill snapshot in `hack-toolkit/skills/` is the
+site (package 0.2.10). Its five-skill snapshot in `internal/webassets/hack-toolkit/skills/` is the
 canonical Simple Hack source for all four ZIPs, first-party raw/per-skill routes
 and coding-agent ZIPs; generic Simple Host skills remain separate. Each Hack
 skill declares the signed-in `https://simple-hack.app/mcp` dependency in
@@ -1072,8 +1072,8 @@ The download website at https://simple-hack-toolkit.vineetu.simple-host.app/
 serves the four reviewed 0.2.10 ZIPs and current submission notes. Its `/skills/`
 reader displays the complete text of all five reviewed skills,
 their two references and five MCP dependency declarations, with raw links whose
-bytes match the primary ZIP. `hack-toolkit/build-reader.py` generates that page
-and the raw files from the maintained `hack-toolkit/skills/` snapshot.
+bytes match the primary ZIP. `internal/webassets/hack-toolkit/build-reader.py` generates that page
+and the raw files from the maintained `internal/webassets/hack-toolkit/skills/` snapshot.
 Earlier
 0.1.x–0.2.5 ZIPs were withdrawn from public downloads; their bytes remain in
 Git history. First-party immutable ChatGPT routes 0.2.0–0.2.5 return 410;
@@ -1226,7 +1226,7 @@ apps/...`) writes the checked-in result (`hack-judge-bundle.js`, plus
 `hack-judge-kit.css`), and `TestHackJudgeBundleFresh` rebuilds it in the test
 binary and fails if the checked-in copy has drifted. Screens are reused
 unmodified except for calls to a small platform adapter
-(`internal/handler/static/hack/platform.js` on the website,
+(`internal/webassets/static/hack/platform.js` on the website,
 `internal/mcp/apps/frame/platform.js` here) where the real browser
 environment does not hold inside this frame — ordinary source in both
 screen and adapter, not a generation-time patch: `judge-scoring.js`'s
@@ -1442,7 +1442,7 @@ them), with no event data in the refusal.
 
 The view is built the same way as the judge app, by `internal/mcp/apps/
 bundlegen` (`GenerateOrganiserJS`/`internal/mcp/apps/gentool`), from
-`internal/handler/static/hack/{ui.js, schedule.js, screens/_orgA-util.js,
+`internal/webassets/static/hack/{ui.js, schedule.js, screens/_orgA-util.js,
 screens/{organiser-overview,organiser-people,organiser-judging}.js}` via its
 own entry module (`internal/mcp/apps/entry/organiser.js`) —
 `_orgB-util.js` (teams/entries) is not needed yet. `TestHackOrganiserBundleFresh`

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/accounts"
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
@@ -31,7 +32,7 @@ const oauthStateTTL = 10 * time.Minute
 
 var oauthHTMLFailed = themed(`<!DOCTYPE html><html><head><meta charset="utf-8"><!--sh:theme--><title>Sign-in failed</title></head><body><p>Sign-in failed. Close this tab and try again from the site.</p></body></html>`)
 
-// visitorHandleRe moved to internal/rules/sites (sites.VisitorHandle); see
+// appsites.VisitorHandle moved to internal/rules/sites (sites.VisitorHandle); see
 // the lowercase alias in internal/handler/sites_forward.go. visitorSitenameRe
 // is the path-model segment allowed in return_to (SPEC §2.1): the nginx
 // content-host charset, not the slightly stricter create-site DNS-label regex.
@@ -741,7 +742,7 @@ func (h *OAuthHandler) isClaimedPlatformSubdomain(host string) bool {
 			break
 		}
 	}
-	if !ok || label == "www" || reservedSubdomainSet[label] {
+	if !ok || label == "www" || appsites.ReservedSubdomainSet[label] {
 		return false
 	}
 	host = strings.ToLower(host)
@@ -958,7 +959,7 @@ func splitContentHostPath(p string) (handle, sitename string, ok bool) {
 		return "", "", false
 	}
 	handle, sitename = parts[0], parts[1]
-	if !visitorHandleRe.MatchString(handle) || !visitorSitenameRe.MatchString(sitename) {
+	if !appsites.VisitorHandle.MatchString(handle) || !visitorSitenameRe.MatchString(sitename) {
 		return "", "", false
 	}
 	prefix := "/" + handle + "/" + sitename

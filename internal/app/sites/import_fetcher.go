@@ -1,4 +1,4 @@
-package handler
+package sites
 
 import (
 	"context"
@@ -7,13 +7,14 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 type importFetcher struct {
@@ -77,7 +78,7 @@ func importSourceHosts(files []string) map[string]bool {
 	}
 	return hosts
 }
-func newImportFetcher(hosts map[string]bool, theme string, photos bool, l config.Limits) *importFetcher {
+func newImportFetcher(hosts map[string]bool, theme string, photos bool, l edition.Limits) *importFetcher {
 	f := &importFetcher{hosts: hosts, theme: theme, photos: photos, max: int64(l.ImportFetchMaxMB) << 20, total: int64(l.ImportFetchTotalMB) << 20, deadline: time.Now().Add(15 * time.Minute)}
 	transport := &http.Transport{DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 		host, port, err := net.SplitHostPort(addr)
@@ -186,4 +187,37 @@ func (f *importFetcher) Fetch(ctx context.Context, raw string) ([]byte, error) {
 		return nil, errors.New("only the theme page and CSS may be copied")
 	}
 	return body, nil
+}
+
+func isPublicIP(s string) bool {
+	ip, err := netip.ParseAddr(s)
+	if err != nil {
+		return false
+	}
+	ip = ip.Unmap()
+	if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+		return false
+	}
+	for _, p := range nonPublicPrefixes {
+		if p.Contains(ip) {
+			return false
+		}
+	}
+	return true
+}
+
+var nonPublicPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("::/96"),
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("240.0.0.0/4"),
+	netip.MustParsePrefix("64:ff9b::/96"),
+	netip.MustParsePrefix("64:ff9b:1::/48"),
+	netip.MustParsePrefix("2001::/23"),
+	netip.MustParsePrefix("2002::/16"),
+	netip.MustParsePrefix("100::/64"),
+	netip.MustParsePrefix("2001:db8::/32"),
+	netip.MustParsePrefix("fec0::/10"),
 }

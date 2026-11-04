@@ -1,4 +1,4 @@
-package handler
+package sites
 
 import (
 	"bytes"

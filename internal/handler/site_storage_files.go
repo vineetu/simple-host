@@ -15,6 +15,7 @@ import (
 	"time"
 
 	appstorage "github.com/vsriram/simple-host/internal/app/storage"
+	httpx "github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/storage"
 	"golang.org/x/text/unicode/norm"
 )
@@ -203,7 +204,7 @@ func (h *SiteHandler) storageFileToken(c storageCall, p string, expires time.Tim
 	if c.linkScope != "" {
 		payload += "." + base64.RawURLEncoding.EncodeToString([]byte(c.linkScope))
 	}
-	return sealLink(h.exportKey, "site storage file v1", []byte(payload))
+	return httpx.SealLink(h.exportKey, "site storage file v1", []byte(payload))
 }
 func (h *SiteHandler) createStorageFileLink(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageResourceFor(w, r, "files")

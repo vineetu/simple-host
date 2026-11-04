@@ -94,7 +94,7 @@ func (h *SiteHandler) addPhotos(w http.ResponseWriter, r *http.Request) {
 	defer rc.SetReadDeadline(time.Time{})
 	user := auth.GetUser(r.Context())
 	name := r.PathValue("sitename")
-	if err := validateSiteShape(name); err != nil {
+	if err := sites.ValidateShape(name); err != nil {
 		writeJSON(w, 400, errorResponse{Error: "Invalid site name."})
 		return
 	}

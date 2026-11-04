@@ -28,7 +28,7 @@ var dynamicSites = dynamicTable{
 
 func skillPatterns(suffix string) []string {
 	// bundledSkillDirs is private. This is the union of the Host and Hack bundles
-	// (simple-host-website/skills and hack-toolkit/skills); availability is checked
+	// (internal/webassets/simple-host-website/skills and internal/webassets/hack-toolkit/skills); availability is checked
 	// at runtime by skillAvailable, but every directory below is served in an edition.
 	var out []string
 	for _, name := range []string{"connect-domain", "join-hackathon", "judge-hackathon", "run-hackathon", "website-deploy", "website-deploy-builder"} {

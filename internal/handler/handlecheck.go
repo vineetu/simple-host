@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -44,11 +45,11 @@ const handleFormatMsg = "Use 1 to 39 lowercase letters, numbers or hyphens, not 
 // the early, readable refusal.
 func JudgeHandle(ctx context.Context, q db.Querier, userID, handle string) (handleVerdict, error) {
 	v := handleVerdict{Address: handleAddress(handle)}
-	if !visitorHandleRe.MatchString(handle) || !handleIsLabel(handle) {
+	if !appsites.VisitorHandle.MatchString(handle) || !appsites.HandleIsLabel(handle) {
 		v.Status, v.Code, v.Error = http.StatusBadRequest, "invalid_handle", handleFormatMsg
 		return v, nil
 	}
-	if labelReservedForNew(handle) {
+	if appsites.LabelReservedForNew(handle) {
 		v.Status, v.Code = http.StatusConflict, "handle_reserved"
 		v.Error = "That address is reserved: " + v.Address + " can't be used. Try another."
 		return v, nil

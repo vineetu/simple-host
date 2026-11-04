@@ -10,6 +10,7 @@ import (
 	"path"
 	"strings"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -38,7 +39,7 @@ func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var name *string
-		if json.Unmarshal(body["site"], &name) != nil || (name != nil && !validSiteName.MatchString(*name)) {
+		if json.Unmarshal(body["site"], &name) != nil || (name != nil && !appsites.ValidSiteName.MatchString(*name)) {
 			writeJSON(w, 400, errorResponse{Error: "send site as a name or null"})
 			return
 		}
@@ -128,7 +129,7 @@ func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user
 	}
 	if !h.homePathExists(s, r.URL.Path) {
 		seg, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
-		if validSiteName.MatchString(seg) {
+		if appsites.ValidSiteName.MatchString(seg) {
 			if other, err := db.GetSiteByUser(r.Context(), h.database, user.ID, seg); err == nil {
 				_, escTail, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
 				if other.ID == s.ID {

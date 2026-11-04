@@ -166,7 +166,7 @@ Authenticated routes take `X-API-Key: <key>`. JSON in, JSON out. The full contra
 - [CHANGELOG.md](CHANGELOG.md): what changed, newest first.
 - `make check`: format, build, vet, tests (including the DB-backed fixtures, against a
   disposable Postgres) and the doc-sync checks. `make test` is the fast no-DB loop.
-- Skills source: [`simple-host-website/skills/`](simple-host-website/skills/). The Claude plugin in [`plugins/simple-host/`](plugins/simple-host/) is a generated copy (`bash scripts/sync-claude-plugin.sh`).
+- Skills source: [`internal/webassets/simple-host-website/skills/`](internal/webassets/simple-host-website/skills/). The Claude plugin in [`plugins/simple-host/`](plugins/simple-host/) is a generated copy (`bash scripts/sync-claude-plugin.sh`).
 
 ## License
 

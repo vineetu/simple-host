@@ -31,7 +31,7 @@ For a new route or tool, include these documentation changes:
    anchors from `docs/feature-ids.txt`; add a new ID there for a new anchor.
 2. Run `make inventory`. Commit generated `docs/generated/routes.md`,
    `mcp-tools.md` and `inventory.json` with the registrations/registry change.
-3. Update `internal/handler/static/openapi.yaml` for an HTTP contract change,
+3. Update `internal/webassets/static/openapi.yaml` for an HTTP contract change,
    including `x-audience`; regenerate `openapi.json` as in [frontend.md](frontend.md).
 4. Update applicable llms.txt, skills and dashboard/showcase presentation.
    Skill edits require a plugin version bump and the sync script.

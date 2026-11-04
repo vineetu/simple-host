@@ -48,8 +48,8 @@ class Checker(HTMLParser):
 failed = False
 # The chrome partials are fragments, but each must still close what it opens,
 # or every page it is injected into inherits the stray tag.
-for path in sorted(glob.glob("internal/handler/static/*.html") +
-                   glob.glob("internal/handler/static/partials/*.html")):
+for path in sorted(glob.glob("internal/webassets/static/*.html") +
+                   glob.glob("internal/webassets/static/partials/*.html")):
     checker = Checker()
     checker.feed(open(path, encoding="utf-8").read())
     problems = checker.problems + [

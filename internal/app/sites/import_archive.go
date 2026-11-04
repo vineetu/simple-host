@@ -1,4 +1,4 @@
-package handler
+package sites
 
 import (
 	"archive/tar"
@@ -16,15 +16,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/tarball"
 	"github.com/vsriram/simple-host/internal/wpimport"
 )
 
-var errImportTooLarge = errors.New("import files too large")
+var ErrImportTooLarge = errors.New("import files too large")
 
 // Paths are validated before ignoring junk and before creating any file.
-func importPath(name string) (string, error) {
+func ImportPath(name string) (string, error) {
 	if len(name) > tarball.MaxPathLen {
 		return "", errors.New("archive path exceeds 1024 bytes")
 	}
@@ -66,32 +66,32 @@ func importRSS(head []byte) bool {
 	}
 }
 
-type importFiles struct {
-	dir                       string
-	limits                    config.Limits
-	xml                       []string
-	media                     map[string]wpimport.MediaFile
+type ImportFiles struct {
+	Dir                       string
+	Limits                    edition.Limits
+	Xml                       []string
+	Media                     map[string]wpimport.MediaFile
 	entries                   int
-	total, xmlBytes, metadata int64
+	Total, xmlBytes, metadata int64
 }
 
-func (f *importFiles) entry(name string, src io.Reader, compressed uint64) error {
+func (f *ImportFiles) Entry(name string, src io.Reader, compressed uint64) error {
 	return f.storeEntry(name, src, compressed, false)
 }
 
-func (f *importFiles) storeEntry(name string, src io.Reader, compressed uint64, streamCounted bool) error {
-	clean, err := importPath(name)
+func (f *ImportFiles) storeEntry(name string, src io.Reader, compressed uint64, streamCounted bool) error {
+	clean, err := ImportPath(name)
 	if err != nil {
 		return err
 	}
 	if !streamCounted {
 		f.entries++
-		if f.entries > f.limits.ImportMaxArchiveEntries {
+		if f.entries > f.Limits.ImportMaxArchiveEntries {
 			return errors.New("archive has too many entries")
 		}
 	}
 	// Anonymous disk names prevent duplicate entries and file/directory collisions.
-	dst, err := os.CreateTemp(f.dir, "part-")
+	dst, err := os.CreateTemp(f.Dir, "part-")
 	if err != nil {
 		return err
 	}
@@ -101,13 +101,13 @@ func (f *importFiles) storeEntry(name string, src io.Reader, compressed uint64, 
 		return fmt.Errorf("could not read archive entry: %w", err)
 	}
 	if n > 200<<20 {
-		return fmt.Errorf("%w: an archive entry is larger than 200 MB", errImportTooLarge)
+		return fmt.Errorf("%w: an archive entry is larger than 200 MB", ErrImportTooLarge)
 	}
 	if !streamCounted {
-		f.total += n
+		f.Total += n
 	}
-	if f.total > int64(f.limits.ImportMaxUnpackedMB)<<20 {
-		return fmt.Errorf("%w: unpacked files are too large", errImportTooLarge)
+	if f.Total > int64(f.Limits.ImportMaxUnpackedMB)<<20 {
+		return fmt.Errorf("%w: unpacked files are too large", ErrImportTooLarge)
 	}
 	if compressed > 0 && n > 1<<20 && uint64(n) > compressed*100 {
 		return errors.New("archive compression ratio exceeds 100:1")
@@ -129,17 +129,17 @@ func (f *importFiles) storeEntry(name string, src io.Reader, compressed uint64, 
 	}
 	if importXML(head) && importRSS(head) {
 		f.xmlBytes += n
-		if f.xmlBytes > int64(f.limits.ImportMaxXMLMB)<<20 {
-			return fmt.Errorf("%w: WordPress XML files are too large", errImportTooLarge)
+		if f.xmlBytes > int64(f.Limits.ImportMaxXMLMB)<<20 {
+			return fmt.Errorf("%w: WordPress XML files are too large", ErrImportTooLarge)
 		}
-		f.xml = append(f.xml, dst.Name())
+		f.Xml = append(f.Xml, dst.Name())
 	} else {
 		filename := dst.Name()
-		f.media[clean] = wpimport.MediaFile{Size: n, Open: func() (io.ReadCloser, error) { return os.Open(filename) }}
+		f.Media[clean] = wpimport.MediaFile{Size: n, Open: func() (io.ReadCloser, error) { return os.Open(filename) }}
 	}
 	return nil
 }
-func (f *importFiles) unpack(filename string) error {
+func (f *ImportFiles) Unpack(filename string) error {
 	src, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -149,13 +149,13 @@ func (f *importFiles) unpack(filename string) error {
 	head, _ := br.Peek(64 << 10)
 	switch {
 	case importXML(head):
-		return f.entry(filepath.Base(filename), br, 0)
+		return f.Entry(filepath.Base(filename), br, 0)
 	case bytes.HasPrefix(head, []byte{'P', 'K', 3, 4}):
 		stat, err := src.Stat()
 		if err != nil {
 			return err
 		}
-		section, err := checkImportZIP(src, stat.Size(), f.limits.ImportMaxArchiveEntries-f.entries)
+		section, err := checkImportZIP(src, stat.Size(), f.Limits.ImportMaxArchiveEntries-f.entries)
 		if err != nil {
 			return err
 		}
@@ -164,7 +164,7 @@ func (f *importFiles) unpack(filename string) error {
 			return errors.New("invalid ZIP archive")
 		}
 		for _, e := range zr.File {
-			if _, err := importPath(e.Name); err != nil {
+			if _, err := ImportPath(e.Name); err != nil {
 				return err
 			}
 			if e.Mode()&os.ModeType != 0 && !e.FileInfo().IsDir() {
@@ -172,7 +172,7 @@ func (f *importFiles) unpack(filename string) error {
 			}
 			if e.FileInfo().IsDir() {
 				f.entries++
-				if f.entries > f.limits.ImportMaxArchiveEntries {
+				if f.entries > f.Limits.ImportMaxArchiveEntries {
 					return errors.New("archive has too many entries")
 				}
 				continue
@@ -181,7 +181,7 @@ func (f *importFiles) unpack(filename string) error {
 			if err != nil {
 				return err
 			}
-			err = f.entry(e.Name, r, max(e.CompressedSize64, 1))
+			err = f.Entry(e.Name, r, max(e.CompressedSize64, 1))
 			r.Close()
 			if err != nil {
 				return err
@@ -202,7 +202,7 @@ func (f *importFiles) unpack(filename string) error {
 		return errors.New("use a WordPress XML export, ZIP, TAR or TAR.GZ archive")
 	}
 }
-func (f *importFiles) untar(src io.Reader, compressed uint64) error {
+func (f *ImportFiles) untar(src io.Reader, compressed uint64) error {
 	stream := &importExpandedReader{src: src, files: f, compressed: compressed}
 	tr := tar.NewReader(&importTarReader{src: stream, files: f})
 	for {
@@ -214,7 +214,7 @@ func (f *importFiles) untar(src io.Reader, compressed uint64) error {
 		if err != nil {
 			return fmt.Errorf("invalid TAR archive: %w", err)
 		}
-		if _, err = importPath(e.Name); err != nil {
+		if _, err = ImportPath(e.Name); err != nil {
 			return err
 		}
 		switch e.Typeflag {
@@ -233,21 +233,21 @@ func (f *importFiles) untar(src io.Reader, compressed uint64) error {
 // to the same import-wide budget. Gzip ratios use the entire expanded stream.
 type importExpandedReader struct {
 	src        io.Reader
-	files      *importFiles
+	files      *ImportFiles
 	compressed uint64
 	expanded   int64
 }
 
 func (r *importExpandedReader) Read(p []byte) (int, error) {
-	remaining := (int64(r.files.limits.ImportMaxUnpackedMB) << 20) - r.files.total
+	remaining := (int64(r.files.Limits.ImportMaxUnpackedMB) << 20) - r.files.Total
 	if int64(len(p)) > remaining+1 {
 		p = p[:remaining+1]
 	}
 	n, err := r.src.Read(p)
-	r.files.total += int64(n)
+	r.files.Total += int64(n)
 	r.expanded += int64(n)
-	if r.files.total > int64(r.files.limits.ImportMaxUnpackedMB)<<20 {
-		return n, errImportTooLarge
+	if r.files.Total > int64(r.files.Limits.ImportMaxUnpackedMB)<<20 {
+		return n, ErrImportTooLarge
 	}
 	if r.compressed > 0 && r.expanded > 10<<20 && uint64(r.expanded) > r.compressed*100 {
 		return n, errors.New("archive compression ratio exceeds 100:1")
@@ -259,7 +259,7 @@ func (r *importExpandedReader) Read(p []byte) (int, error) {
 // metadata. Forward at most one header or body span per Read.
 type importTarReader struct {
 	src       io.Reader
-	files     *importFiles
+	files     *ImportFiles
 	remaining int64
 	ended     bool
 	header    [512]byte
@@ -299,11 +299,11 @@ func (r *importTarReader) Read(p []byte) (int, error) {
 		r.ended = true
 	} else {
 		r.files.entries++
-		if r.files.entries > r.files.limits.ImportMaxArchiveEntries {
+		if r.files.entries > r.files.Limits.ImportMaxArchiveEntries {
 			return 0, errors.New("archive has too many physical entries")
 		}
 		size, err := strconv.ParseInt(strings.Trim(string(header[124:136]), " \x00"), 8, 64)
-		if err != nil || size < 0 || size > (int64(r.files.limits.ImportMaxUnpackedMB)<<20) {
+		if err != nil || size < 0 || size > (int64(r.files.Limits.ImportMaxUnpackedMB)<<20) {
 			return 0, errors.New("invalid or oversized TAR entry")
 		}
 		switch header[156] {

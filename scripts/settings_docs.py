@@ -10,7 +10,7 @@ docs/advanced/settings.json is generated from the code (`simple-host settings
     <!-- settings:group=<id> --> (or settings:type=<type>) and <!-- /settings -->;
   * hosted repo: checks every setting offered on a small box is passed through
     compose.yaml and kept by deploy/install/install.sh, and keeps the setup
-    helper's copies (internal/handler/static/setup/*.json) equal to the
+    helper's copies (internal/webassets/static/setup/*.json) equal to the
     sources: this repo's settings.json, and the enterprise repo's when a
     checkout of it is found ($ENTERPRISE_REPO or ../simple-host-enterprise).
 
@@ -128,7 +128,7 @@ if os.path.exists(os.path.join(ROOT, "compose.yaml")):
         if s["name"] not in kept and not s["name"].startswith("RATE_LIMIT_"):
             errors.append(f"{s['name']} is offered on a small box but install.sh does not keep it on a re-run (LIMIT_VARS)")
 
-    static = "internal/handler/static/setup"
+    static = "internal/webassets/static/setup"
     write_or_check(f"{static}/small-box-settings.json", read("docs/advanced/settings.json"))
     if not LOCAL_ONLY:
         candidates = [os.environ.get("ENTERPRISE_REPO", ""), os.path.join(ROOT, "..", "simple-host-enterprise")]

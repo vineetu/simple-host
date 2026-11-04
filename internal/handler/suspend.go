@@ -27,7 +27,7 @@ import (
 
 const maxSuspendReason = 300
 
-// uuidShape moved to internal/rules/sites (sites.UUIDShape); see the
+// appsites.UUIDShape moved to internal/rules/sites (sites.UUIDShape); see the
 // lowercase alias in internal/handler/sites_forward.go.
 
 // takedownPage is what every address of a suspended site answers. Plain on
@@ -305,7 +305,7 @@ func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
 			}
 		}
 		id := strings.ToLower(strings.TrimSpace(r.PathValue("id")))
-		if !uuidShape.MatchString(id) {
+		if !appsites.UUIDShape.MatchString(id) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 			return
 		}

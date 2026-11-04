@@ -2,19 +2,15 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/eventdns"
 	"github.com/vsriram/simple-host/internal/workers"
 )
 
@@ -32,22 +28,14 @@ import (
 // EventDomainHandler hands an organiser two hostnames under a domain we own,
 // pointing at their own server, so they never touch a registrar.
 type EventDomainHandler struct {
-	sweepOnceInit sync.Once
-	sweepOwner    *siteLoop
-	limitSet
-	db      *sql.DB
-	dns     eventdns.Provider
-	probe   *eventdns.LiveProbe
+	service *sites.Service
 	domains []string // the domains we are willing to create names under
 	limiter *rateLimiter
-	// peer is the hackathon platform (EVENT_NAME_PEER): a name it holds
-	// under the same zone is refused here (hack_mode.go). nil: no peer.
-	peer func(ctx context.Context, zone, name string) (bool, error)
 }
 
 // SetNamePeer sets the peer instance asked before a name is claimed.
 func (h *EventDomainHandler) SetNamePeer(fn func(ctx context.Context, zone, name string) (bool, error)) {
-	h.peer = fn
+	h.service.SetEventNamePeer(fn)
 }
 
 // NameClaimed reports whether name is claimed under zone here: what this
@@ -56,21 +44,9 @@ func (h *EventDomainHandler) NameClaimed(ctx context.Context, zone, name string)
 	return h.eventSitesSvc().EventNameClaimed(ctx, sites.EventNameInput{Name: name, Zone: zone})
 }
 
-func NewEventDomainHandler(database *sql.DB, dns eventdns.Provider, domains []string, editions ...*edition.Edition) *EventDomainHandler {
-	var ed *edition.Edition
-	if len(editions) > 0 {
-		ed = editions[0]
-	}
-	// Burst of 10, refilling one a minute.
-	//
-	// The limiter runs before validation on purpose, so a rejected request still
-	// costs a token and nobody can enumerate which names are taken for free. That
-	// means typos count too, which is why the burst is not tight: four mistyped
-	// addresses followed by a real attempt must not lock an organiser out. The
-	// hard ceiling on abuse is maxClaimsPerAccount, not this.
-	return &EventDomainHandler{limitSet: newLimitSet(ed.Limits()), db: database, dns: dns, domains: domains,
-		probe:   eventdns.NewLiveProbe(),
-		limiter: newRateLimiter(10, 1.0/60.0)}
+func NewEventDomainHandler(service *sites.Service, domains []string) *EventDomainHandler {
+	// Burst of 10, refilling one a minute. Rejected requests still cost a token.
+	return &EventDomainHandler{service: service, domains: domains, limiter: newRateLimiter(10, 1.0/60.0)}
 }
 
 func (h *EventDomainHandler) Register(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
@@ -119,13 +95,13 @@ func (h *EventDomainHandler) claim(w http.ResponseWriter, r *http.Request) {
 	if req.Domain == "" && len(h.domains) > 0 {
 		req.Domain = h.domains[0]
 	}
-	name, nerr := eventdns.NormalizeName(req.Name)
+	name, nerr := sites.NormalizeEventName(req.Name)
 	if nerr != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: nerr.Error()})
 		return
 	}
 	req.Name = name
-	canonicalIP, err := eventdns.ValidatePublicIP(req.IP)
+	canonicalIP, err := sites.ValidatePublicIP(req.IP)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
 		return
@@ -186,27 +162,10 @@ func (h *EventDomainHandler) list(w http.ResponseWriter, r *http.Request) {
 //
 // This is the whole reason expires_at exists. An organiser who forgets leaves a
 // name pointing at a cloud address that provider will hand to someone else.
-func (h *EventDomainHandler) Owner() workers.Owner {
-	h.sweepOnceInit.Do(func() {
-		h.sweepOwner = newSiteLoop("sites.event_dns_sweep", func() bool { return true }, func(ctx context.Context) { h.startSweep(ctx, time.Hour) })
-	})
-	return h.sweepOwner
-}
-func (h *EventDomainHandler) StartSweep(every time.Duration) {
-	h.Owner()
-	h.sweepOwner.once.Do(func() { h.startSweep(context.Background(), every) })
-}
-func (h *EventDomainHandler) startSweep(ctx context.Context, every time.Duration) {
-	h.sweepOwner.periodic(ctx, every, every, h.sweepOnce)
-}
-
-func (h *EventDomainHandler) sweepOnce(ctx context.Context) {
-	h.eventSitesSvc().SweepEventDomains(ctx)
-}
-
-func (h *EventDomainHandler) eventSitesSvc() *sites.Service {
-	return sites.New(h.db, nil, nil, 0, sites.Deps{EventDNS: h.dns, EventProbe: h.probe, EventNamePeer: h.peer, EventDomains: h.domains, EventTTL: h.eventTTL(), EventMaxClaims: h.maxClaimsPerAccount()})
-}
+func (h *EventDomainHandler) Owner() workers.Owner           { return h.service.EventDNSOwner() }
+func (h *EventDomainHandler) StartSweep(every time.Duration) { h.service.StartEventDNSSweep(every) }
+func (h *EventDomainHandler) sweepOnce(ctx context.Context)  { h.service.SweepEventDomains(ctx) }
+func (h *EventDomainHandler) eventSitesSvc() *sites.Service  { return h.service }
 
 func eventDomainResponse(e sites.EventDomainResult) map[string]any {
 	return map[string]any{"host": e.Host, "content_host": e.ContentHost, "ip": e.IP, "expires_at": e.ExpiresAt.UTC().Format(time.RFC3339)}

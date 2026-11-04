@@ -11,8 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
+	"github.com/vsriram/simple-host/internal/edition"
 )
 
 type eventTestDNS struct {
@@ -49,8 +51,10 @@ func TestEventDomainWorkflow(t *testing.T) {
 	p := a.newPerson(t, "event-owner")
 	uid, _ := a.userID(t, p)
 	dns := &eventTestDNS{}
-	h := NewEventDomainHandler(a.database, dns, []string{"event-workflow.test"})
-	h.probe.HTTP = &http.Client{Transport: eventProbeTransport{}}
+	domains := []string{"event-workflow.test"}
+	lim := edition.ForKind(edition.Host).Limits()
+	svc := sites.New(a.database, nil, nil, 0, sites.Deps{EventDNS: dns, EventProbe: sites.NewEventProbe(&http.Client{Transport: eventProbeTransport{}}), EventDomains: domains, EventTTL: lim.EventTTL, EventMaxClaims: lim.EventMaxClaims})
+	h := NewEventDomainHandler(svc, domains)
 	request := func(method, path, body string, user *db.User) *httptest.ResponseRecorder {
 		t.Helper()
 		r := httptest.NewRequest(method, path, strings.NewReader(body))

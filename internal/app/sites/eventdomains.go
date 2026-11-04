@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/eventdns"
 	reposite "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
@@ -267,3 +269,13 @@ func (s *Service) SweepEventDomains(ctx context.Context) {
 		log.Printf("event sweep: released %s.%s", e.Name, e.Domain)
 	}
 }
+
+// NormalizeEventName and ValidatePublicIP validate claim/setup inputs before DNS work.
+var NormalizeEventName = eventdns.NormalizeName
+var ValidatePublicIP = eventdns.ValidatePublicIP
+
+func (s *Service) SetEventNamePeer(fn func(context.Context, string, string) (bool, error)) {
+	s.deps.EventNamePeer = fn
+}
+
+func NewEventProbe(client *http.Client) *eventdns.LiveProbe { return &eventdns.LiveProbe{HTTP: client} }

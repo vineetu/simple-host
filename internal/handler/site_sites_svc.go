@@ -3,13 +3,13 @@ package handler
 import (
 	"context"
 	"errors"
-
 	"fmt"
 	"github.com/vsriram/simple-host/internal/app/operations"
 	db "github.com/vsriram/simple-host/internal/db"
 	"net/http"
 
 	"github.com/vsriram/simple-host/internal/app/sites"
+	rulesstorage "github.com/vsriram/simple-host/internal/rules/storage"
 )
 
 func (h *SiteHandler) sitesSvc() *sites.Service {
@@ -21,7 +21,7 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		},
 		PhotoLimits: func(ctx context.Context, user *db.User) (int64, int64) {
 			limit, override := h.siteLimitFor(ctx, h.database, user)
-			return limit, extractBudget(limit, override)
+			return limit, rulesstorage.ExtractBudget(limit, override)
 		},
 		DefaultRetention: keepVersions,
 		CanSetRetention: func(ctx context.Context, user *db.User) bool {

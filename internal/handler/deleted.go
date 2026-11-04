@@ -64,7 +64,7 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
 		return
 	}
-	if err := validateSiteShape(siteName); err != nil {
+	if err := sites.ValidateShape(siteName); err != nil {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return
 	}
@@ -119,7 +119,7 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if err := validateSiteShape(siteName); err != nil {
+	if err := sites.ValidateShape(siteName); err != nil {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no site with that name in Recently deleted"})
 		return
 	}

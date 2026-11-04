@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -72,7 +73,7 @@ func (h *SiteHandler) asSiteOwner(next http.HandlerFunc) http.Handler {
 		}
 		// Delete refuses a name from before today's naming rules; say so
 		// rather than answering "not found".
-		if err := validateSiteShape(site.Name); err != nil && r.Pattern == "DELETE /v1/admin/sites/{id}" {
+		if err := appsites.ValidateShape(site.Name); err != nil && r.Pattern == "DELETE /v1/admin/sites/{id}" {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "this site's name (" + site.Name + ") is from before the current naming rules, so it cannot be deleted from here; its owner can rename it first, or take it down instead", Code: "legacy_site_name"})
 			return
 		}

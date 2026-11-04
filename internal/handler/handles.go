@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -98,7 +99,7 @@ func handleSeed(user *db.User, siteDomain string) string {
 		return user.Username
 	}
 	label, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(siteDomain)), ".")
-	if base := sanitizeHandleBase(label); label != "" && base == label && !labelReservedForNew(base) {
+	if base := sanitizeHandleBase(label); label != "" && base == label && !appsites.LabelReservedForNew(base) {
 		return base
 	}
 	return "organiser"
@@ -127,12 +128,12 @@ func assignHandle(ctx context.Context, q db.Querier, userID, email string, rando
 
 	// Candidates: base, base-2 … base-20, then base-<first8(userID)>.
 	candidates := make([]string, 0, 22)
-	if !labelReservedForNew(base) {
+	if !appsites.LabelReservedForNew(base) {
 		candidates = append(candidates, base)
 	}
 	for n := 2; n <= 20; n++ {
 		c := base + "-" + strconv.Itoa(n)
-		if !labelReservedForNew(c) {
+		if !appsites.LabelReservedForNew(c) {
 			candidates = append(candidates, c)
 		}
 	}
@@ -141,7 +142,7 @@ func assignHandle(ctx context.Context, q db.Querier, userID, email string, rando
 		suffix = suffix[:8]
 	}
 	fallback := base + "-" + suffix
-	if !labelReservedForNew(fallback) {
+	if !appsites.LabelReservedForNew(fallback) {
 		candidates = append(candidates, fallback)
 	}
 

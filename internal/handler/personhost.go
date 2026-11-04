@@ -10,6 +10,7 @@ import (
 	"path"
 	"strings"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -65,7 +66,7 @@ var contentHostOnlySites = map[string]bool{
 
 // handleAddressable: the handle can be a host label and is not reserved.
 func handleAddressable(handle string) bool {
-	return visitorHandleRe.MatchString(handle) && handleIsLabel(handle) && !labelReserved(handle)
+	return appsites.VisitorHandle.MatchString(handle) && appsites.HandleIsLabel(handle) && !appsites.LabelReserved(handle)
 }
 
 // personHostFor is the host of an account's own address, as handed out
@@ -244,7 +245,7 @@ func (h *SiteHandler) PersonReturnSite(ctx context.Context, host, p string) (str
 		}
 		return "", false
 	}
-	if !validSiteName.MatchString(seg) {
+	if !appsites.ValidSiteName.MatchString(seg) {
 		return "", false
 	}
 	site, err := db.GetSiteByUser(ctx, h.database, owner.ID, seg)
@@ -330,7 +331,7 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 	if r.URL.RawQuery != "" {
 		query = "?" + r.URL.RawQuery
 	}
-	if !validSiteName.MatchString(seg) {
+	if !appsites.ValidSiteName.MatchString(seg) {
 		h.renderPersonNotFound(w, r, handle)
 		return
 	}
@@ -434,7 +435,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 	}
 	rest := "/" + strings.TrimPrefix(r.PathValue("rest"), "/")
 	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name)
-	if err != nil || !validSiteName.MatchString(name) {
+	if err != nil || !appsites.ValidSiteName.MatchString(name) {
 		if errors.Is(err, sql.ErrNoRows) {
 			// An old name of a renamed site: its current address.
 			escRest := (&url.URL{Path: rest}).EscapedPath()

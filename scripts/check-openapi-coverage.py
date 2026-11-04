@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-spec = json.loads(Path('internal/handler/static/openapi.json').read_text())
+spec = json.loads(Path('internal/webassets/static/openapi.json').read_text())
 methods = {'get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace'}
 audiences = {'public-host', 'public-hack', 'internal', 'legacy'}
 operations = {}

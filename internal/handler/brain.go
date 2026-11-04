@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/brain"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/mcp"
 )
@@ -30,10 +29,17 @@ const brainPath = "/brain/mcp"
 // brainOwnerOnly is the one refusal everyone but the owner gets.
 const brainOwnerOnly = "This is the Simple Host owner's private product knowledge server. It is not available to other accounts."
 
+// BrainStore is the knowledge adapter supplied by the composition root.
+type BrainStore interface {
+	Call(string, map[string]any) (string, map[string]any, error)
+	Freshness() (map[string]any, error)
+	ErrorCode(error) string
+}
+
 // BrainHandler serves the knowledge server.
 type BrainHandler struct {
 	connector *ConnectorHandler
-	store     *brain.Store
+	store     BrainStore
 	server    *mcp.Server
 	tools     []mcp.Tool
 }
@@ -41,15 +47,13 @@ type BrainHandler struct {
 // EnableBrain turns on the knowledge server, reading the bundle at
 // bundlePath, and registers its routes. Call once at startup, after
 // connector.Register.
-func (h *ConnectorHandler) EnableBrain(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler, bundlePath string) *BrainHandler {
-	store := brain.Open(bundlePath)
+func (h *ConnectorHandler) EnableBrain(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler, bundlePath string, store BrainStore) *BrainHandler {
 	b := &BrainHandler{connector: h, store: store}
 	b.server = mcp.NewBrainServer(mcp.BrainConfig{
 		ServerName: "simple-host-brain",
 		Version:    h.skillVersion,
 		Query: func(name string, args map[string]any) (string, map[string]any, error) {
-			res, err := store.Call(name, args)
-			return res.Text, res.Structured, err
+			return store.Call(name, args)
 		},
 	})
 	b.tools = mcp.BrainTools(func(string, map[string]any) (string, map[string]any, error) { return "", nil, nil })
@@ -81,10 +85,10 @@ func (h *ConnectorHandler) brainResourceMetadata(w http.ResponseWriter, r *http.
 func (h *ConnectorHandler) brainUnauthorized(w http.ResponseWriter, presented bool) {
 	code := "sign_in_required"
 	meta := h.issuer + "/.well-known/oauth-protected-resource" + brainPath
-	challenge := `Bearer resource_metadata="` + meta + `", scope="` + oauthScope + `"`
+	challenge := `Bearer resource_metadata="` + meta + `", scope="` + auth.OAuthScope + `"`
 	if presented {
 		code = "invalid_token"
-		challenge = `Bearer error="invalid_token", error_description="The access token is invalid, expired, revoked or not for this server", resource_metadata="` + meta + `", scope="` + oauthScope + `"`
+		challenge = `Bearer error="invalid_token", error_description="The access token is invalid, expired, revoked or not for this server", resource_metadata="` + meta + `", scope="` + auth.OAuthScope + `"`
 	}
 	w.Header().Set("WWW-Authenticate", challenge)
 	w.Header().Set("Cache-Control", "no-store")
@@ -198,21 +202,20 @@ func (b *BrainHandler) restCall(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	res, err := b.store.Call(name, args)
+	text, result, err := b.store.Call(name, args)
 	if err != nil {
-		var ae brain.ArgError
-		if errors.As(err, &ae) {
+		if b.store.ErrorCode(err) == "invalid_argument" {
 			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_argument"})
 			return
 		}
-		if errors.Is(err, brain.ErrNotReady) {
+		if b.store.ErrorCode(err) == "not_ready" {
 			writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: err.Error(), Code: "not_ready"})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"text": res.Text, "result": res.Structured})
+	writeJSON(w, http.StatusOK, map[string]any{"text": text, "result": result})
 }
 
 // isBrainResource reports whether a requested resource names the knowledge

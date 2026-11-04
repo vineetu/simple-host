@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 )
 
 type unreadPhotoBody struct{ t *testing.T }
@@ -74,7 +76,7 @@ func TestPhotoAncestorConflicts(t *testing.T) {
 
 func TestPhotoReservedNamesKeepExistingHosts(t *testing.T) {
 	for _, handle := range []string{"photos", "photo-codecs"} {
-		if !labelReservedForNew(handle) || !handleAddressable(handle) {
+		if !appsites.LabelReservedForNew(handle) || !handleAddressable(handle) {
 			t.Fatalf("claim/serve policy: %s", handle)
 		}
 		t.Run(handle, func(t *testing.T) {

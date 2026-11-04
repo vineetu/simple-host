@@ -92,3 +92,6 @@ func (e *Edition) Storage() StoragePolicy { return e.or().storage }
 
 // Notifications returns the notification policy.
 func (e *Edition) Notifications() NotificationPolicy { return e.or().notifications }
+
+// Limits is the operational snapshot supplied to application workflows.
+type Limits = config.Limits

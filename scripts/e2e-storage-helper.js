@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 
-const script = fs.readFileSync(path.join(__dirname, '..', 'internal/handler/static/auth.js'), 'utf8');
+const script = fs.readFileSync(path.join(__dirname, '..', 'internal/webassets/static/auth.js'), 'utf8');
 const host = 'demo.owner.simple-host.app';
 const seen = [];
 const json = (value, status = 200) => ({ status, contentType: 'application/json', body: JSON.stringify(value) });

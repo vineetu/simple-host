@@ -27,6 +27,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -742,7 +743,7 @@ func (h *SiteHandler) passcodeSiteForHost(ctx context.Context, host, next string
 		}
 		seg, _, _ := strings.Cut(strings.TrimPrefix(next, "/"), "/")
 		seg, _, _ = strings.Cut(seg, "?")
-		if !validSiteName.MatchString(seg) {
+		if !appsites.ValidSiteName.MatchString(seg) {
 			return "", "", false, nil
 		}
 		site, err := db.GetSiteByUser(ctx, h.database, owner.ID, seg)

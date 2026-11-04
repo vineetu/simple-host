@@ -13,6 +13,7 @@ import (
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
+	httpx "github.com/vsriram/simple-host/internal/httpx"
 )
 
 // Look before it goes live.
@@ -46,13 +47,13 @@ var errPreviewLink = errors.New("this preview link is not valid or has expired")
 // signPreviewToken binds a token to one site, one version and an expiry.
 func (h *SiteHandler) signPreviewToken(siteID string, version int, expires time.Time) string {
 	payload := siteID + "." + strconv.Itoa(version) + "." + strconv.FormatInt(expires.Unix(), 10)
-	return sealLink(h.exportKey, previewLinkDomain, []byte(payload))
+	return httpx.SealLink(h.exportKey, previewLinkDomain, []byte(payload))
 }
 
 // checkPreviewToken returns the site and version a token was minted for, if
 // its authentication holds and it has not expired.
 func (h *SiteHandler) checkPreviewToken(token string, now time.Time) (siteID string, version int, err error) {
-	raw, err := openLink(h.exportKey, previewLinkDomain, token)
+	raw, err := httpx.OpenLink(h.exportKey, previewLinkDomain, token)
 	if err != nil {
 		return "", 0, errPreviewLink
 	}

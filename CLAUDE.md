@@ -26,15 +26,15 @@ https://simple-host.app and runs in production for real users.
 
 - Update `FEATURES.md` and add a line to `CHANGELOG.md` (newest first, plain language). A new
   section or bold-lead feature in `FEATURES.md` also gets an entry in
-  `internal/handler/static/features.json` (the public /features page: plain words, an example,
+  `internal/webassets/static/features.json` (the public /features page: plain words, an example,
   editions, status, docs links; or a `not_shown` row with a why), then
   `python3 scripts/build-features-page.py` regenerates `features.html`. `scripts/check-features-page.py`
   (in `check-docs-sync.sh`) fails on a missing entry or a stale page.
-- Route changed: update `internal/handler/static/openapi.yaml` (the contract), regenerate
+- Route changed: update `internal/webassets/static/openapi.yaml` (the contract), regenerate
   `openapi.json` with
-  `python3 -c "import yaml,json;json.dump(yaml.safe_load(open('internal/handler/static/openapi.yaml')),open('internal/handler/static/openapi.json','w'),indent=2)"`,
+  `python3 -c "import yaml,json;json.dump(yaml.safe_load(open('internal/webassets/static/openapi.yaml')),open('internal/webassets/static/openapi.json','w'),indent=2)"`,
   then `llms.txt` and the skills if it is user-facing. `scripts/check-docs-sync.sh` fails on drift.
-- Skills changed: bump `version` in `simple-host-website/.claude-plugin/plugin.json` (the
+- Skills changed: bump `version` in `internal/webassets/simple-host-website/.claude-plugin/plugin.json` (the
   stale-skill notice reads it from the embedded file), then run
   `bash scripts/sync-claude-plugin.sh`. Never hand-edit `plugins/simple-host/skills/`.
 - The plugin repos github.com/vineetu/simple-host-plugin and simple-hack-plugin are published

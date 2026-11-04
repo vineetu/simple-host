@@ -105,10 +105,11 @@ The following packages exist today (verified with `go list ./internal/...`):
 
 | Package under `internal/` | Responsibility |
 |---|---|
-| `handler` | Shared HTTP, accounts, sites/storage, admin, connector composition, embedded `static/`, remaining workers |
+| `handler` | Shared HTTP, accounts, sites/storage, admin, connector composition, asset presentation, remaining workers |
 | `hackhttp` | Hack HTTP/pages and transport mapping; no production import of `handler` |
 | `mcp` | JSON-RPC, discovery, family registrars and common tool/schema inventory (`registry.go`); MCP Events |
 | `mcp/apps/{bundlegen,gentool}` | MCP Apps browser-bundle generator and command |
+| `webassets` | Embedded static pages, Hack modules and Host/Hack skill/download bundles; no internal dependencies |
 | `workers` | Standard-library lifecycle owners, cancellation, joins and progress/status tracking |
 | `httpx` | Shared HTTP responses, limits, signed links and route metadata |
 | `auth` | Account credential/context and scope middleware, with injected account authorization |
@@ -138,7 +139,7 @@ The following packages exist today (verified with `go list ./internal/...`):
 
 `scripts/check-layering.sh` checks Go imports, including test imports, against the final allowlist
 and exact transitional edges in `scripts/layering/rules.txt`. Each exception names its removal
-step. Notification/operations services, `webassets` and `sitelocks` from the
+step. `sitelocks` from the
 target map do not exist yet. Shared lock maps are injected by existing wiring
 (`app/sites/service.go:New`, `app/storage/service.go:Deps`), not by a new lock package.
 Do not copy a transitional import as precedent; follow [target §2](docs/architecture/target.md#2-package-map-and-import-contract).
@@ -148,7 +149,7 @@ Outside `internal/`: `db/schema.sql` and `db/migrations` define fresh/install up
 manages reviewer accounts. `handler/instancehost.go` rewrites instance hostnames in assets.
 `openai-plugin/` is the ChatGPT package. `deploy/` holds proxy,
 issuer and deployment templates; `scripts/` holds checks/generators/ops. Website skills live in
-`simple-host-website/`, with generated plugin copies; frontend sources, embeds and generated
+`internal/webassets/simple-host-website/`, with generated plugin copies; frontend sources, embeds and generated
 MCP Apps are mapped in [frontend](docs/architecture/frontend.md). Hosted Hack onboarding
 `/get-started` is rendered through `handler/chrome.go:chromePageRaw` from `static/hack-get-started.html`.
 

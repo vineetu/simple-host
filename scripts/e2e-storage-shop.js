@@ -11,7 +11,7 @@ const apex=fixture.apex||'simple-host.test';
 // HTTP/1.1 pool instead of opening 150 local Postgres connections at once.
 const localAgent = new http.Agent({keepAlive:true,maxSockets:6});
 const gallery='<h1>Public gallery</h1>'+Array.from({length:150},(_,i)=>`<img alt="Photo ${i+1}" src="/v1/sites/shop/storage/files/photos/objects/p${String(i).padStart(3,'0')}.png">`).join('');
-const auth = fs.readFileSync('internal/handler/static/auth.js', 'utf8');
+const auth = fs.readFileSync('internal/webassets/static/auth.js', 'utf8');
 const html = `<form id="order"><label>Item <input name="item" required></label><button>Order</button></form><p id="message"></p><form id="change"><label>Note <input name="details" required></label><button>Add note</button></form><p id="changed"></p><pre id="orders"></pre><pre id="history"></pre>
 <script>window.SH_CONFIG={site:'shop'};</script><script src="https://${fixture.apex||"simple-host.test"}/auth.js"></script><script>
 const orders=SH.storage.sqlite('orders').table('orders');

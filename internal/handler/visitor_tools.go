@@ -21,6 +21,7 @@ import (
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
+	httpx "github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/mcp"
 	"golang.org/x/net/html"
 )
@@ -469,7 +470,7 @@ func (h *SiteHandler) visitorResourceRequest(base *http.Request, args map[string
 	if after != "" {
 		if kind == "kv" {
 			pass, _ := db.LookupInternalVisitorKey(base.Header.Get(visitorPassHeader))
-			raw, err := openLink(h.visitorRefKey(), "visitor-kv-cursor:"+pass.SiteID+":"+resource, after)
+			raw, err := httpx.OpenLink(h.visitorRefKey(), "visitor-kv-cursor:"+pass.SiteID+":"+resource, after)
 			if err != nil {
 				return nil, fmt.Errorf("invalid pagination cursor")
 			}
@@ -732,7 +733,7 @@ func (h *SiteHandler) visitorKVResult(r *http.Request, resource string, result a
 	}
 	if cursor, ok := obj["next_after"].(string); ok {
 		if cursor != "" {
-			cursor = sealLink(h.visitorRefKey(), "visitor-kv-cursor:"+pass.SiteID+":"+resource, []byte(cursor))
+			cursor = httpx.SealLink(h.visitorRefKey(), "visitor-kv-cursor:"+pass.SiteID+":"+resource, []byte(cursor))
 		}
 		obj["next_after"] = visitorStructure{cursor}
 	}

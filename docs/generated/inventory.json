@@ -12,7 +12,7 @@
       "method": "DELETE",
       "path": "/brain/mcp",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:63",
+      "source": "internal/handler/brain.go:67",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -20,7 +20,7 @@
       "method": "DELETE",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:345",
+      "source": "internal/handler/connector.go:347",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -44,7 +44,7 @@
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:35",
+      "source": "internal/handler/adminsite.go:36",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -52,7 +52,7 @@
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}/domain",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:34",
+      "source": "internal/handler/adminsite.go:35",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -60,7 +60,7 @@
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}/lock",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:39",
+      "source": "internal/handler/adminsite.go:40",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -68,7 +68,7 @@
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}/versions/{version}",
       "feature_id": "site-drafts",
-      "source": "internal/handler/adminsite.go:41",
+      "source": "internal/handler/adminsite.go:42",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -84,7 +84,7 @@
       "method": "DELETE",
       "path": "/v1/events/{name}",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/eventdomain.go:79",
+      "source": "internal/handler/eventdomain.go:55",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -244,7 +244,7 @@
       "method": "DELETE",
       "path": "/v1/me/connections/{client_id}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:359",
+      "source": "internal/handler/connector.go:361",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -468,7 +468,7 @@
       "method": "GET",
       "path": "/",
       "feature_id": "sites-and-deploy",
-      "source": "internal/handler/ui.go:244",
+      "source": "internal/handler/ui.go:242",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -492,7 +492,7 @@
       "method": "GET",
       "path": "/.well-known/api-catalog",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:143",
+      "source": "internal/handler/ui.go:141",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -500,7 +500,7 @@
       "method": "GET",
       "path": "/.well-known/ard.json",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:142",
+      "source": "internal/handler/ui.go:140",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -516,7 +516,7 @@
       "method": "GET",
       "path": "/.well-known/muse-client.json",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:330",
+      "source": "internal/handler/connector.go:332",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -524,7 +524,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:327",
+      "source": "internal/handler/connector.go:329",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -532,7 +532,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server/brain/mcp",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:59",
+      "source": "internal/handler/brain.go:63",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -540,7 +540,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server/mcp",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:329",
+      "source": "internal/handler/connector.go:331",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -548,7 +548,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:325",
+      "source": "internal/handler/connector.go:327",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -556,7 +556,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource/brain/mcp",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:58",
+      "source": "internal/handler/brain.go:62",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -564,7 +564,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource/mcp",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:326",
+      "source": "internal/handler/connector.go:328",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -580,7 +580,7 @@
       "method": "GET",
       "path": "/.well-known/skills/index.json",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:315",
+      "source": "internal/handler/skillshub.go:313",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -588,7 +588,7 @@
       "method": "GET",
       "path": "/.well-known/skills/{name}/SKILL.md",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:316",
+      "source": "internal/handler/skillshub.go:314",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -596,7 +596,7 @@
       "method": "GET",
       "path": "/.well-known/skills/{name}/references/{file}",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:317",
+      "source": "internal/handler/skillshub.go:315",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -612,7 +612,7 @@
       "method": "GET",
       "path": "/admin",
       "feature_id": "admin",
-      "source": "internal/handler/ui.go:174",
+      "source": "internal/handler/ui.go:172",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -620,7 +620,7 @@
       "method": "GET",
       "path": "/analytics/{sitename}",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/ui.go:209",
+      "source": "internal/handler/ui.go:207",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -628,7 +628,7 @@
       "method": "GET",
       "path": "/apple-touch-icon.png",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:137",
+      "source": "internal/handler/ui.go:135",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -636,7 +636,7 @@
       "method": "GET",
       "path": "/auth.js",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/ui.go:122",
+      "source": "internal/handler/ui.go:120",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -644,7 +644,7 @@
       "method": "GET",
       "path": "/auth.md",
       "feature_id": "access-email-signin-off",
-      "source": "internal/handler/ui.go:74",
+      "source": "internal/handler/ui.go:72",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -652,7 +652,7 @@
       "method": "GET",
       "path": "/brain/mcp",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:62",
+      "source": "internal/handler/brain.go:66",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -668,7 +668,7 @@
       "method": "GET",
       "path": "/costs",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:195",
+      "source": "internal/handler/ui.go:193",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -676,7 +676,7 @@
       "method": "GET",
       "path": "/dashboard",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/ui.go:218",
+      "source": "internal/handler/ui.go:216",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -684,7 +684,7 @@
       "method": "GET",
       "path": "/dashboard",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/ui.go:223",
+      "source": "internal/handler/ui.go:221",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -716,7 +716,7 @@
       "method": "GET",
       "path": "/docs.html",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:130",
+      "source": "internal/handler/ui.go:128",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -788,7 +788,7 @@
       "method": "GET",
       "path": "/enterprise",
       "feature_id": "hack-voting",
-      "source": "internal/handler/ui.go:184",
+      "source": "internal/handler/ui.go:182",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -796,7 +796,7 @@
       "method": "GET",
       "path": "/enterprise/architecture",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/ui.go:186",
+      "source": "internal/handler/ui.go:184",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -804,7 +804,7 @@
       "method": "GET",
       "path": "/enterprise/brief",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:185",
+      "source": "internal/handler/ui.go:183",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -828,7 +828,7 @@
       "method": "GET",
       "path": "/favicon-32.png",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:137",
+      "source": "internal/handler/ui.go:135",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -836,7 +836,7 @@
       "method": "GET",
       "path": "/favicon.ico",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:137",
+      "source": "internal/handler/ui.go:135",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -844,7 +844,7 @@
       "method": "GET",
       "path": "/favicon.svg",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:137",
+      "source": "internal/handler/ui.go:135",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -852,7 +852,7 @@
       "method": "GET",
       "path": "/features",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:178",
+      "source": "internal/handler/ui.go:176",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -860,7 +860,7 @@
       "method": "GET",
       "path": "/film/{file}",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:151",
+      "source": "internal/handler/ui.go:149",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -892,7 +892,7 @@
       "method": "GET",
       "path": "/hackathons",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/ui.go:187",
+      "source": "internal/handler/ui.go:185",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -916,7 +916,7 @@
       "method": "GET",
       "path": "/import/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:348",
+      "source": "internal/handler/connector.go:350",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -932,7 +932,7 @@
       "method": "GET",
       "path": "/index.md",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:221",
+      "source": "internal/handler/ui.go:219",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -940,7 +940,7 @@
       "method": "GET",
       "path": "/install.html",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:122",
+      "source": "internal/handler/ui.go:120",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -948,7 +948,7 @@
       "method": "GET",
       "path": "/install.html",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:129",
+      "source": "internal/handler/ui.go:127",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -956,7 +956,7 @@
       "method": "GET",
       "path": "/install.ps1",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:169",
+      "source": "internal/handler/ui.go:167",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -964,7 +964,7 @@
       "method": "GET",
       "path": "/install.sh",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:168",
+      "source": "internal/handler/ui.go:166",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1100,7 +1100,7 @@
       "method": "GET",
       "path": "/llms.md",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:222",
+      "source": "internal/handler/ui.go:220",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1108,7 +1108,7 @@
       "method": "GET",
       "path": "/llms.txt",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:122",
+      "source": "internal/handler/ui.go:120",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1116,7 +1116,7 @@
       "method": "GET",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:345",
+      "source": "internal/handler/connector.go:347",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1132,7 +1132,7 @@
       "method": "GET",
       "path": "/oauth/authorize",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:333",
+      "source": "internal/handler/connector.go:335",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1140,7 +1140,7 @@
       "method": "GET",
       "path": "/openapi.json",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:126",
+      "source": "internal/handler/ui.go:124",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1148,7 +1148,7 @@
       "method": "GET",
       "path": "/openapi.yaml",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:126",
+      "source": "internal/handler/ui.go:124",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1180,7 +1180,7 @@
       "method": "GET",
       "path": "/plugin.zip",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:165",
+      "source": "internal/handler/ui.go:163",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1188,7 +1188,7 @@
       "method": "GET",
       "path": "/pricing",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:182",
+      "source": "internal/handler/ui.go:180",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1204,7 +1204,7 @@
       "method": "GET",
       "path": "/recipes/{topic}",
       "feature_id": "storage-recipes",
-      "source": "internal/handler/ui.go:77",
+      "source": "internal/handler/ui.go:75",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1212,7 +1212,7 @@
       "method": "GET",
       "path": "/report",
       "feature_id": "admin-report-page",
-      "source": "internal/handler/ui.go:201",
+      "source": "internal/handler/ui.go:199",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1220,7 +1220,7 @@
       "method": "GET",
       "path": "/robots.txt",
       "feature_id": "sites-and-deploy",
-      "source": "internal/handler/ui.go:140",
+      "source": "internal/handler/ui.go:138",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1228,7 +1228,7 @@
       "method": "GET",
       "path": "/setup",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/ui.go:191",
+      "source": "internal/handler/ui.go:189",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1236,7 +1236,7 @@
       "method": "GET",
       "path": "/setup/{$}",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:192",
+      "source": "internal/handler/ui.go:190",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1252,7 +1252,7 @@
       "method": "GET",
       "path": "/signin.js",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/ui.go:122",
+      "source": "internal/handler/ui.go:120",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1372,7 +1372,7 @@
       "method": "GET",
       "path": "/sitemap.xml",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:141",
+      "source": "internal/handler/ui.go:139",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1388,7 +1388,7 @@
       "method": "GET",
       "path": "/skills.zip",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:144",
+      "source": "internal/handler/ui.go:142",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1396,7 +1396,7 @@
       "method": "GET",
       "path": "/skills/connect-domain",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:159",
+      "source": "internal/handler/ui.go:157",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1404,7 +1404,7 @@
       "method": "GET",
       "path": "/skills/connect-domain.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:156",
+      "source": "internal/handler/ui.go:154",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1412,7 +1412,7 @@
       "method": "GET",
       "path": "/skills/connect-domain/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:157",
+      "source": "internal/handler/ui.go:155",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1420,7 +1420,7 @@
       "method": "GET",
       "path": "/skills/connect-domain/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:160",
+      "source": "internal/handler/ui.go:158",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1428,7 +1428,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:159",
+      "source": "internal/handler/ui.go:157",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1436,7 +1436,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:156",
+      "source": "internal/handler/ui.go:154",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1444,7 +1444,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:157",
+      "source": "internal/handler/ui.go:155",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1452,7 +1452,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:160",
+      "source": "internal/handler/ui.go:158",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1460,7 +1460,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:159",
+      "source": "internal/handler/ui.go:157",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1468,7 +1468,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:156",
+      "source": "internal/handler/ui.go:154",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1476,7 +1476,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:157",
+      "source": "internal/handler/ui.go:155",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1484,7 +1484,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:160",
+      "source": "internal/handler/ui.go:158",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1492,7 +1492,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:159",
+      "source": "internal/handler/ui.go:157",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1500,7 +1500,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:156",
+      "source": "internal/handler/ui.go:154",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1508,7 +1508,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:157",
+      "source": "internal/handler/ui.go:155",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1516,7 +1516,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "internal/handler/ui.go:160",
+      "source": "internal/handler/ui.go:158",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1524,7 +1524,7 @@
       "method": "GET",
       "path": "/skills/version",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/ui.go:147",
+      "source": "internal/handler/ui.go:145",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1532,7 +1532,7 @@
       "method": "GET",
       "path": "/skills/website-deploy",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:159",
+      "source": "internal/handler/ui.go:157",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1540,7 +1540,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:159",
+      "source": "internal/handler/ui.go:157",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1548,7 +1548,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:156",
+      "source": "internal/handler/ui.go:154",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1556,7 +1556,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:157",
+      "source": "internal/handler/ui.go:155",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1564,7 +1564,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:160",
+      "source": "internal/handler/ui.go:158",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1572,7 +1572,7 @@
       "method": "GET",
       "path": "/skills/website-deploy.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:156",
+      "source": "internal/handler/ui.go:154",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1580,7 +1580,7 @@
       "method": "GET",
       "path": "/skills/website-deploy/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:157",
+      "source": "internal/handler/ui.go:155",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1588,7 +1588,7 @@
       "method": "GET",
       "path": "/skills/website-deploy/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "internal/handler/ui.go:160",
+      "source": "internal/handler/ui.go:158",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -1596,7 +1596,7 @@
       "method": "GET",
       "path": "/support",
       "feature_id": "legal-and-support-pages",
-      "source": "internal/handler/ui.go:199",
+      "source": "internal/handler/ui.go:197",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1612,7 +1612,7 @@
       "method": "GET",
       "path": "/terms",
       "feature_id": "legal-and-support-pages",
-      "source": "internal/handler/ui.go:198",
+      "source": "internal/handler/ui.go:196",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1628,7 +1628,7 @@
       "method": "GET",
       "path": "/v1/admin/api-analytics",
       "feature_id": "moderation",
-      "source": "cmd/server/main.go:552",
+      "source": "cmd/server/main.go:554",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1652,7 +1652,7 @@
       "method": "GET",
       "path": "/v1/admin/growth",
       "feature_id": "moderation",
-      "source": "cmd/server/main.go:553",
+      "source": "cmd/server/main.go:555",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1684,7 +1684,7 @@
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "cmd/server/main.go:570",
+      "source": "cmd/server/main.go:572",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1716,7 +1716,7 @@
       "method": "GET",
       "path": "/v1/admin/sites/{id}/collections",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:30",
+      "source": "internal/handler/adminsite.go:31",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1724,7 +1724,7 @@
       "method": "GET",
       "path": "/v1/admin/sites/{id}/collections/{coll}",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:31",
+      "source": "internal/handler/adminsite.go:32",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1732,7 +1732,7 @@
       "method": "GET",
       "path": "/v1/admin/sites/{id}/collections/{coll}/export.csv",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:32",
+      "source": "internal/handler/adminsite.go:33",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1740,7 +1740,7 @@
       "method": "GET",
       "path": "/v1/admin/sites/{id}/versions",
       "feature_id": "site-drafts",
-      "source": "internal/handler/adminsite.go:28",
+      "source": "internal/handler/adminsite.go:29",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1772,7 +1772,7 @@
       "method": "GET",
       "path": "/v1/auth/oauth/providers",
       "feature_id": "access-company-signin",
-      "source": "internal/handler/oauth.go:195",
+      "source": "internal/handler/oauth.go:196",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1780,7 +1780,7 @@
       "method": "GET",
       "path": "/v1/auth/oauth/{provider}",
       "feature_id": "visitor-signin",
-      "source": "internal/handler/oauth.go:201",
+      "source": "internal/handler/oauth.go:202",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1788,7 +1788,7 @@
       "method": "GET",
       "path": "/v1/auth/oauth/{provider}/callback",
       "feature_id": "access-signin-card",
-      "source": "internal/handler/oauth.go:200",
+      "source": "internal/handler/oauth.go:201",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1796,7 +1796,7 @@
       "method": "GET",
       "path": "/v1/brain",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:64",
+      "source": "internal/handler/brain.go:68",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1812,7 +1812,7 @@
       "method": "GET",
       "path": "/v1/events",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/eventdomain.go:77",
+      "source": "internal/handler/eventdomain.go:53",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2316,7 +2316,7 @@
       "method": "GET",
       "path": "/v1/imports/status/{import_id}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:350",
+      "source": "internal/handler/connector.go:352",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2356,7 +2356,7 @@
       "method": "GET",
       "path": "/v1/me/connections",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:358",
+      "source": "internal/handler/connector.go:360",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2428,7 +2428,7 @@
       "method": "GET",
       "path": "/v1/photo-links",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:353",
+      "source": "internal/handler/connector.go:355",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2764,7 +2764,7 @@
       "method": "GET",
       "path": "/v1/skills",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:308",
+      "source": "internal/handler/skillshub.go:306",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2772,7 +2772,7 @@
       "method": "GET",
       "path": "/v1/skills/{name}",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:309",
+      "source": "internal/handler/skillshub.go:307",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2780,7 +2780,7 @@
       "method": "GET",
       "path": "/v1/skills/{name}/SKILL.md",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:312",
+      "source": "internal/handler/skillshub.go:310",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2788,7 +2788,7 @@
       "method": "GET",
       "path": "/v1/skills/{name}/references/{file}",
       "feature_id": "dashboard-icon",
-      "source": "internal/handler/skillshub.go:313",
+      "source": "internal/handler/skillshub.go:311",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2948,7 +2948,7 @@
       "method": "GET",
       "path": "/v1/visitor/oauth/{provider}",
       "feature_id": "visitor-signin",
-      "source": "internal/handler/oauth.go:204",
+      "source": "internal/handler/oauth.go:205",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -2972,7 +2972,7 @@
       "method": "GET",
       "path": "/{$}",
       "feature_id": "owner-dashboard-and-owner-app",
-      "source": "internal/handler/ui.go:224",
+      "source": "internal/handler/ui.go:222",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3364,7 +3364,7 @@
       "method": "POST",
       "path": "/",
       "feature_id": "sites-and-deploy",
-      "source": "internal/handler/ui.go:243",
+      "source": "internal/handler/ui.go:241",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3372,7 +3372,7 @@
       "method": "POST",
       "path": "/brain/mcp",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:61",
+      "source": "internal/handler/brain.go:65",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3380,7 +3380,7 @@
       "method": "POST",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "internal/handler/connector.go:345",
+      "source": "internal/handler/connector.go:347",
       "package": "internal/handler",
       "dynamic": true
     },
@@ -3388,7 +3388,7 @@
       "method": "POST",
       "path": "/oauth/authorize/decision",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:334",
+      "source": "internal/handler/connector.go:336",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3396,7 +3396,7 @@
       "method": "POST",
       "path": "/oauth/register",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:332",
+      "source": "internal/handler/connector.go:334",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3404,7 +3404,7 @@
       "method": "POST",
       "path": "/oauth/reviewer-signin",
       "feature_id": "visitor-signin",
-      "source": "internal/handler/connector.go:337",
+      "source": "internal/handler/connector.go:339",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3412,7 +3412,7 @@
       "method": "POST",
       "path": "/oauth/revoke",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:339",
+      "source": "internal/handler/connector.go:341",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3420,7 +3420,7 @@
       "method": "POST",
       "path": "/oauth/token",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:338",
+      "source": "internal/handler/connector.go:340",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3428,7 +3428,7 @@
       "method": "POST",
       "path": "/report",
       "feature_id": "admin-report-page",
-      "source": "internal/handler/ui.go:202",
+      "source": "internal/handler/ui.go:200",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3476,7 +3476,7 @@
       "method": "POST",
       "path": "/v1/admin/sites/{id}/domain",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:33",
+      "source": "internal/handler/adminsite.go:34",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3500,7 +3500,7 @@
       "method": "POST",
       "path": "/v1/admin/sites/{id}/versions/{version}/preview-link",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:40",
+      "source": "internal/handler/adminsite.go:41",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3564,7 +3564,7 @@
       "method": "POST",
       "path": "/v1/brain/{tool}",
       "feature_id": "owner-product-knowledge",
-      "source": "internal/handler/brain.go:65",
+      "source": "internal/handler/brain.go:69",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3580,7 +3580,7 @@
       "method": "POST",
       "path": "/v1/events",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/eventdomain.go:78",
+      "source": "internal/handler/eventdomain.go:54",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3924,7 +3924,7 @@
       "method": "POST",
       "path": "/v1/imports/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:349",
+      "source": "internal/handler/connector.go:351",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3996,7 +3996,7 @@
       "method": "POST",
       "path": "/v1/photo-links",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:354",
+      "source": "internal/handler/connector.go:356",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4396,7 +4396,7 @@
       "method": "POST",
       "path": "/v1/uploads/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:356",
+      "source": "internal/handler/connector.go:358",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4428,7 +4428,7 @@
       "method": "PUT",
       "path": "/v1/admin/sites/{id}/active-version",
       "feature_id": "moderation",
-      "source": "internal/handler/adminsite.go:29",
+      "source": "internal/handler/adminsite.go:30",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -4828,7 +4828,7 @@
       "method": "PUT",
       "path": "/v1/uploads/{token}",
       "feature_id": "publish-wordpress-import",
-      "source": "internal/handler/connector.go:355",
+      "source": "internal/handler/connector.go:357",
       "package": "internal/handler",
       "dynamic": false
     }

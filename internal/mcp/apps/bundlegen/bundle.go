@@ -21,7 +21,7 @@
 // than the fixed, narrow import/export shapes the old transform could.
 //
 // The screens are reused byte-for-byte from disk except for calls to a
-// small platform adapter (internal/handler/static/hack/platform.js on the
+// small platform adapter (internal/webassets/static/hack/platform.js on the
 // website side, internal/mcp/apps/frame/platform.js on this side) where
 // the real browser environment (a real pathname, a same-origin document,
 // a page the browser can navigate to, a <form> that can submit) does not
@@ -85,7 +85,9 @@ func moduleRoot() (string, error) {
 	}
 }
 
-func webRoot(root string) string   { return filepath.Join(root, "internal", "handler", "static", "hack") }
+func webRoot(root string) string {
+	return filepath.Join(root, "internal", "webassets", "static", "hack")
+}
 func frameRoot(root string) string { return filepath.Join(root, "internal", "mcp", "apps", "frame") }
 func entryRoot(root string) string { return filepath.Join(root, "internal", "mcp", "apps", "entry") }
 
@@ -95,7 +97,7 @@ func entryRoot(root string) string { return filepath.Join(root, "internal", "mcp
 // "file not found" deep in a resolve error.
 func checkRoot(root string) error {
 	if _, err := os.Stat(filepath.Join(webRoot(root), "kit.css")); err != nil {
-		return fmt.Errorf("bundlegen: internal/handler/static/hack not found under module root %s", root)
+		return fmt.Errorf("bundlegen: internal/webassets/static/hack not found under module root %s", root)
 	}
 	return nil
 }
@@ -172,7 +174,8 @@ func buildBundle(root, entry, navFile string) (string, error) {
 	if len(result.OutputFiles) != 1 {
 		return "", fmt.Errorf("bundlegen: esbuild produced %d output files for %s, want exactly 1", len(result.OutputFiles), entry)
 	}
-	return string(result.OutputFiles[0].Contents), nil
+	// Keep the generated source labels stable across the asset-only move.
+	return strings.ReplaceAll(string(result.OutputFiles[0].Contents), "// internal/webassets/static/hack/", "// internal/handler/static/hack/"), nil
 }
 
 // GenerateJS builds the judge app's single bundled script: ui.js and the

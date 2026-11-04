@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/sites"
+	appstorage "github.com/vsriram/simple-host/internal/app/storage"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/db"
@@ -124,7 +125,7 @@ func TestKeepMergedUnpackedCaps(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "large.txt"), body, 0600); err != nil {
 		t.Fatal(err)
 	}
-	input := sites.UpdateInput{User: user, Name: "blog", Files: map[string][]byte{"about.html": []byte("patch")}, Keep: true, Publish: true, Budget: extractBudget(1<<20, false), Limit: 1 << 20}
+	input := sites.UpdateInput{User: user, Name: "blog", Files: map[string][]byte{"about.html": []byte("patch")}, Keep: true, Publish: true, Budget: appstorage.ExtractBudget(1<<20, false), Limit: 1 << 20}
 	result, err := a.sites.sitesSvc().Update(context.Background(), input)
 	if err != nil {
 		t.Fatal("request cap applied to retained bytes", err)
@@ -134,7 +135,7 @@ func TestKeepMergedUnpackedCaps(t *testing.T) {
 		t.Fatal("retained file missing", err)
 	}
 	input.Files = map[string][]byte{"about.html": []byte("patch")}
-	input.Budget = extractBudget(1<<20, true)
+	input.Budget = appstorage.ExtractBudget(1<<20, true)
 	_, err = a.sites.sitesSvc().Update(context.Background(), input)
 	var siteErr *sites.Error
 	if !errors.As(err, &siteErr) || siteErr.Code != "patch_too_large" {

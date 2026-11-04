@@ -29,7 +29,9 @@ import (
 
 // Service owns site lifecycle operations.
 type Service struct {
-	accounts        *accountapp.Service
+	accounts   *accountapp.Service
+	eventSweep *eventDNSState
+
 	database        *sql.DB
 	disk            *storage.DiskStorage
 	previewAccounts map[string]bool
@@ -245,7 +247,7 @@ func createConflict(in CreateInput, site model.Site, msg string, held bool) (Cre
 
 // New constructs a site lifecycle service using the instance's shared locks.
 func New(database *sql.DB, disk *storage.DiskStorage, previewAccounts map[string]bool, previewTTL time.Duration, deps Deps) *Service {
-	return &Service{accounts: accountapp.New(database), database: database, disk: disk, previewAccounts: previewAccounts, previewTTL: previewTTL, deps: deps}
+	return &Service{accounts: accountapp.New(database), eventSweep: &eventDNSState{}, database: database, disk: disk, previewAccounts: previewAccounts, previewTTL: previewTTL, deps: deps}
 }
 
 // previewExpiry returns the expiry for a preview account, or nil for a permanent site.

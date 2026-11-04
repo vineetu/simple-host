@@ -12,7 +12,7 @@ historical ZIP or the demo and listing artifacts when updating current skills.
 not the old draft's bound `app-...` id); `downloads/simple-host-openai-plugin.zip` is kept as
 the old draft's last-built 1.0.2 package in case that route is ever revisited.
 
-The maintained coding-agent skill source is `simple-host-website/skills/`. The connector-only
+The maintained coding-agent skill source is `internal/webassets/simple-host-website/skills/`. The connector-only
 copy in `openai-plugin/skills/` deliberately omits API keys and command-line
 fallbacks and is the source for all three public OpenAI ZIPs. `FALLBACK=1 bash scripts/build-openai-plugin.sh` builds the three
 current ZIPs in `dist/`; copy the plugin ZIP into `site/downloads/simple-host-openai-plugin-new.zip`

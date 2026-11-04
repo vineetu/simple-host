@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render internal/handler/static/features.html from features.json.
+"""Render internal/webassets/static/features.html from features.json.
 
 features.json is the one source for the public Features page (areas, features, editions,
 status, links). This script fills scripts/features-page.tmpl.html and writes the page.
@@ -15,9 +15,9 @@ import re
 import sys
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-DATA = os.path.join(ROOT, "internal/handler/static/features.json")
+DATA = os.path.join(ROOT, "internal/webassets/static/features.json")
 TMPL = os.path.join(ROOT, "scripts/features-page.tmpl.html")
-OUT = os.path.join(ROOT, "internal/handler/static/features.html")
+OUT = os.path.join(ROOT, "internal/webassets/static/features.html")
 
 EDITIONS = [("host", "Simple Host"), ("hack", "Simple Hack"), ("enterprise", "Enterprise"), ("smallbox", "Small box")]
 ED_WORD = {"yes": "yes", "no": "no", "partial": "partly", "planned": "planned"}
@@ -119,7 +119,7 @@ def main():
     if "--check" in sys.argv:
         cur = open(OUT, encoding="utf-8").read() if os.path.exists(OUT) else ""
         if cur != page:
-            print("FAIL: internal/handler/static/features.html is stale; run python3 scripts/build-features-page.py")
+            print("FAIL: internal/webassets/static/features.html is stale; run python3 scripts/build-features-page.py")
             sys.exit(1)
         print("  ok features.html matches features.json")
         return

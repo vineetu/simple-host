@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	db "github.com/vsriram/simple-host/internal/db"
 )
 
@@ -55,7 +56,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 			return
 		}
 		label := strings.TrimSuffix(host, suffix)
-		if label == "" || strings.Contains(label, ".") || labelReserved(label) {
+		if label == "" || strings.Contains(label, ".") || appsites.LabelReserved(label) {
 			next.ServeHTTP(w, r) // a reserved platform label, or a multi-label host (e.g. *.lab)
 			return
 		}

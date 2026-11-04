@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -17,10 +16,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/mcp"
-	"github.com/vsriram/simple-host/internal/wpimport"
 )
 
 const testWXR = `<?xml version="1.0"?><rss xmlns:wp="http://wordpress.org/export/1.2/"><channel><wp:base_site_url>https://old.example</wp:base_site_url><wp:base_blog_url>https://www.old.example</wp:base_blog_url><item/></channel></rss>`
@@ -89,17 +88,17 @@ func importGET(root http.Handler, path string) *httptest.ResponseRecorder {
 	root.ServeHTTP(w, r)
 	return w
 }
-func fakeImport(t *testing.T, fn func(context.Context, wpimport.Input) (*wpimport.Result, error)) {
+func fakeImport(t *testing.T, fn func(context.Context, sites.ImportInput) (*sites.ImportResult, error)) {
 	t.Helper()
-	old := convertImport
-	convertImport = fn
-	t.Cleanup(func() { convertImport = old })
+	old := sites.ConvertImport
+	sites.ConvertImport = fn
+	t.Cleanup(func() { sites.ConvertImport = old })
 }
 func waitImport(t *testing.T, h *ConnectorHandler, id string) map[string]any {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		out, err := h.imports.report("owner", id)
+		out, err := h.imports.Report("owner", id)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -147,8 +146,8 @@ func TestImportLifecycle(t *testing.T) {
 	if w := importPOST(t, root, token, "not an archive"); w.Code != 400 {
 		t.Fatal(w.Code)
 	}
-	fakeImport(t, func(ctx context.Context, in wpimport.Input) (*wpimport.Result, error) {
-		return &wpimport.Result{Files: map[string][]byte{"index.html": []byte("hello"), "about.html": []byte("about")}, Report: wpimport.Report{Pages: 2, Posts: 3, MediaCopied: 4, Warnings: []string{"Photo was missing"}, Features: []wpimport.Feature{{Kind: "comments", Status: "needs_setup", Pages: []string{"/about.html"}, Setup: []wpimport.ToolCall{{Tool: "storage_set_resource", Args: map[string]any{"name": "comments"}}}}}}}, nil
+	fakeImport(t, func(ctx context.Context, in sites.ImportInput) (*sites.ImportResult, error) {
+		return &sites.ImportResult{Files: map[string][]byte{"index.html": []byte("hello"), "about.html": []byte("about")}, Report: sites.ImportReport{Pages: 2, Posts: 3, MediaCopied: 4, Warnings: []string{"Photo was missing"}, Features: []sites.ImportFeature{{Kind: "comments", Status: "needs_setup", Pages: []string{"/about.html"}, Setup: []sites.ImportToolCall{{Tool: "storage_set_resource", Args: map[string]any{"name": "comments"}}}}}}}, nil
 	})
 	w := importPOST(t, root, token, testWXR)
 	if w.Code != 202 {
@@ -226,7 +225,7 @@ func TestImportConcurrentPostAndEntityRetry(t *testing.T) {
 		return "fresh", func() {}, nil
 	}
 	token, id = mintImportTest(t, h, c)
-	fakeImport(t, func(context.Context, wpimport.Input) (*wpimport.Result, error) {
+	fakeImport(t, func(context.Context, sites.ImportInput) (*sites.ImportResult, error) {
 		return nil, errors.New("plain conversion failure")
 	})
 	result := make(chan *httptest.ResponseRecorder)
@@ -248,7 +247,7 @@ func TestImportQueueAndCleanup(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var first bool
-	fakeImport(t, func(context.Context, wpimport.Input) (*wpimport.Result, error) {
+	fakeImport(t, func(context.Context, sites.ImportInput) (*sites.ImportResult, error) {
 		if !first {
 			first = true
 			close(started)
@@ -278,10 +277,10 @@ func TestImportQueueAndCleanup(t *testing.T) {
 	for _, id := range ids {
 		waitImport(t, h, id)
 	}
-	h.imports.mu.Lock()
-	r := h.imports.records[ids[0]]
-	r.finished = time.Now().Add(-25 * time.Hour)
-	h.imports.mu.Unlock()
+	h.imports.Mu.Lock()
+	r := h.imports.Records[ids[0]]
+	r.Finished = time.Now().Add(-25 * time.Hour)
+	h.imports.Mu.Unlock()
 	if importGET(root, "/v1/imports/status/"+ids[0]).Code != 404 {
 		t.Fatal("old record retained")
 	}
@@ -329,12 +328,12 @@ func TestImportCleanupAndDeployRefusal(t *testing.T) {
 				})
 			}
 			var directory string
-			fakeImport(t, func(ctx context.Context, in wpimport.Input) (*wpimport.Result, error) {
+			fakeImport(t, func(ctx context.Context, in sites.ImportInput) (*sites.ImportResult, error) {
 				directory = filepath.Dir(in.WXR[0].(*os.File).Name())
 				if mode == "panic" {
 					panic("converter panic")
 				}
-				return &wpimport.Result{Files: map[string][]byte{"index.html": []byte("hello")}}, nil
+				return &sites.ImportResult{Files: map[string][]byte{"index.html": []byte("hello")}}, nil
 			})
 			token, id := mintImportTest(t, h, c)
 			if w := importPOST(t, root, token, testWXR); w.Code != 202 {
@@ -416,41 +415,16 @@ func TestImportReceivingCapsReleaseReservation(t *testing.T) {
 		t.Fatal("too many files spent link")
 	}
 }
-func TestImportRecordCapAndFeatures(t *testing.T) {
-	m := newImportManager(5)
-	for i := 0; i < 21; i++ {
-		id := fmt.Sprint(i)
-		if err := m.created(mcp.ImportLink{ID: id, Owner: "owner", Site: "blog"}); err != nil {
-			t.Fatal(err)
-		}
-		m.update(id, func(r *importRecord) { r.finished = time.Now(); r.state = "done" })
-	}
-	if len(m.records) != 20 || m.records["0"] != nil {
-		t.Fatal("oldest record not dropped")
-	}
-	m.update("20", func(r *importRecord) {
-		r.report = &wpimport.Report{Features: []wpimport.Feature{{Kind: "search", Status: wpimport.StatusBuiltIn, Use: "Built-in search", Note: "Ready"}, {Kind: "hit_counter", Status: wpimport.StatusReplaced, Use: "site_analytics", Note: "Ask in chat"}, {Kind: "shop", Status: wpimport.StatusNotSupported, Use: "Static catalog", Note: "No checkout"}}}
-	})
-	out, err := m.report("owner", "20")
-	if err != nil {
-		t.Fatal(err)
-	}
-	steps := out["next_steps"].([]string)
-	if len(steps) != 4 || !strings.Contains(steps[0], "Built-in search") || !strings.Contains(steps[1], "site_analytics") || !strings.Contains(steps[2], "No checkout") || !strings.Contains(steps[3], "connect_domain") {
-		t.Fatal(steps)
-	}
-}
-
 func TestImportThemeHostAndPhotoSelection(t *testing.T) {
 	h, root, c := newImportTest(t)
-	fakeImport(t, func(ctx context.Context, in wpimport.Input) (*wpimport.Result, error) {
+	fakeImport(t, func(ctx context.Context, in sites.ImportInput) (*sites.ImportResult, error) {
 		if in.ThemeURL != "" {
 			t.Error("unrelated theme host accepted")
 		}
 		if _, err := in.Fetch(ctx, "https://old.example/photo.jpg"); err == nil || !strings.Contains(err.Error(), "switched off") {
 			t.Error("photo setting not passed", err)
 		}
-		return &wpimport.Result{Files: map[string][]byte{"index.html": []byte("hello")}}, nil
+		return &sites.ImportResult{Files: map[string][]byte{"index.html": []byte("hello")}}, nil
 	})
 	token, id := mintImportTest(t, h, c)
 	var b bytes.Buffer
@@ -468,7 +442,7 @@ func TestImportThemeHostAndPhotoSelection(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	out := waitImport(t, h, id)
-	if out["state"] != "done" || len(out["report"].(*wpimport.Report).Warnings) != 1 {
+	if out["state"] != "done" || len(out["report"].(*sites.ImportReport).Warnings) != 1 {
 		t.Fatal(out)
 	}
 }
@@ -486,8 +460,8 @@ func TestImportRechecksSignInBeforePublishing(t *testing.T) {
 		return "first", func() { close(revoked) }, nil
 	}
 	h.upstream = http.HandlerFunc(func(http.ResponseWriter, *http.Request) { deployed = true })
-	fakeImport(t, func(context.Context, wpimport.Input) (*wpimport.Result, error) {
-		return &wpimport.Result{Files: map[string][]byte{"index.html": []byte("hello")}}, nil
+	fakeImport(t, func(context.Context, sites.ImportInput) (*sites.ImportResult, error) {
+		return &sites.ImportResult{Files: map[string][]byte{"index.html": []byte("hello")}}, nil
 	})
 	token, id := mintImportTest(t, h, c)
 	if w := importPOST(t, root, token, testWXR); w.Code != 202 {

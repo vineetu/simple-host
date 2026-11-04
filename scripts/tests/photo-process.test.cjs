@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const context = vm.createContext({ TextEncoder });
-vm.runInContext(fs.readFileSync('internal/handler/static/photo-process.js', 'utf8'), context);
+vm.runInContext(fs.readFileSync('internal/webassets/static/photo-process.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('internal/mcp/apps/photo-picker.js', 'utf8'), context);
 const {slug, shrink} = context.SHPhotos;
 const {occupiedPaths, photoPath, batches} = context.SHPhotoBatch;
@@ -150,7 +150,7 @@ async function photosPage({account='alice',handle='bob',sites=[{name:'blog',user
   },
   crypto:require('node:crypto').webcrypto,btoa,TextEncoder,Uint8Array,URLSearchParams,URL:{createObjectURL:()=> 'blob:fixture',revokeObjectURL(){}},
   FormData:class{append(){}},SHPhotos:{slug,shrink:async()=>({blob:{size:3},ext:'.webp'})}});
- vm.runInContext(fs.readFileSync('internal/handler/static/photos.js','utf8'),ctx);
+ vm.runInContext(fs.readFileSync('internal/webassets/static/photos.js','utf8'),ctx);
  await new Promise(resolve=>setImmediate(resolve));
  get('site').value ||= token?'blog':'';
  return {get,session,signIn,search,posts,
@@ -182,7 +182,7 @@ for (const capabilities of [{workerAllowed:false},{wasmAllowed:false}]) {
 
 function decodeHarness(overrides = {}) {
  const ctx=vm.createContext({setTimeout,clearTimeout,Date,Uint8Array,DataView,ArrayBuffer,...overrides});
- const source=fs.readFileSync('internal/handler/static/photo-process.js','utf8').replace('root.SHPhotos = {','root.SHPhotos = { decode, nativeDimensions,');
+ const source=fs.readFileSync('internal/webassets/static/photo-process.js','utf8').replace('root.SHPhotos = {','root.SHPhotos = { decode, nativeDimensions,');
  vm.runInContext(source,ctx);return ctx.SHPhotos;
 }
 const photoFile = (bytes, name='photo.png') => ({name,size:bytes.length,arrayBuffer:async()=>Uint8Array.from(bytes).buffer});

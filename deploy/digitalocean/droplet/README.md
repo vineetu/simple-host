@@ -52,7 +52,7 @@ read -rsp 'DigitalOcean API token: ' DIGITALOCEAN_API_TOKEN && echo && export DI
 - `lint`: `bash -n` and `shellcheck` on this image's own scripts.
 - `pins`: the installer release, commit and sha256 in `template.json` and
   `first-login.sh` match the ones https://simple-host.app/setup uses
-  (`internal/handler/static/setup/setup.js`).
+  (`internal/webassets/static/setup/setup.js`).
 - `test`: `pins`, `lint`, then `test/first-login_test.sh`, which runs the
   first-login setup, `001_onboot` and the motd in an `ubuntu:24.04` container
   with the installer and DNS stubbed (needs Docker).

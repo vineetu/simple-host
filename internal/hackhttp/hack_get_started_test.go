@@ -10,10 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	hacktoolkit "github.com/vsriram/simple-host/hack-toolkit"
-
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 func TestHackGetStartedSkills(t *testing.T) {
@@ -47,7 +46,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want, err := hacktoolkit.Skills.ReadFile("skills/" + f.Name)
+			want, err := webassets.HackSkills.ReadFile("skills/" + f.Name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -93,7 +92,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 		}
 	}
 	name := "simple-hack-skills-only-0.2.6.zip"
-	primary, err := hacktoolkit.Files.ReadFile("site/downloads/" + name)
+	primary, err := webassets.HackFiles.ReadFile("site/downloads/" + name)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
+	httpx "github.com/vsriram/simple-host/internal/httpx"
 )
 
 // Export links: a short-lived address that downloads one site's export
@@ -54,7 +55,7 @@ func (h *SiteHandler) exportLinkBase() string {
 // signExportToken binds a token to one owner, one site and an expiry.
 func (h *SiteHandler) signExportToken(userID, siteID string, expires time.Time) string {
 	payload := userID + "." + siteID + "." + strconv.FormatInt(expires.Unix(), 10)
-	return sealLink(h.exportKey, exportLinkDomain, []byte(payload))
+	return httpx.SealLink(h.exportKey, exportLinkDomain, []byte(payload))
 }
 
 var errExportLink = errors.New("this download link is not valid or has expired")
@@ -62,7 +63,7 @@ var errExportLink = errors.New("this download link is not valid or has expired")
 // checkExportToken returns the owner and site a token was minted for, if its
 // authentication holds and it has not expired.
 func (h *SiteHandler) checkExportToken(token string, now time.Time) (userID, siteID string, err error) {
-	raw, err := openLink(h.exportKey, exportLinkDomain, token)
+	raw, err := httpx.OpenLink(h.exportKey, exportLinkDomain, token)
 	if err != nil {
 		return "", "", errExportLink
 	}

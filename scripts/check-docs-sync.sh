@@ -11,10 +11,10 @@
 set -u
 cd "$(dirname "$0")/.."
 
-OPENAPI=internal/handler/static/openapi.yaml
-LLMS=internal/handler/static/llms.txt
-SKILL_DEPLOY=simple-host-website/skills/website-deploy/SKILL.md
-SKILL_BUILD=simple-host-website/skills/website-deploy-builder/SKILL.md
+OPENAPI=internal/webassets/static/openapi.yaml
+LLMS=internal/webassets/static/llms.txt
+SKILL_DEPLOY=internal/webassets/simple-host-website/skills/website-deploy/SKILL.md
+SKILL_BUILD=internal/webassets/simple-host-website/skills/website-deploy-builder/SKILL.md
 
 fail=0
 
@@ -100,7 +100,7 @@ echo
 # behind — old response shape, two endpoints missing — while this script printed
 # "docs in sync ✓". Anything generating a client from the json got the old shape.
 echo "== openapi.json matches openapi.yaml =="
-OPENAPI_JSON=internal/handler/static/openapi.json
+OPENAPI_JSON=internal/webassets/static/openapi.json
 if [ ! -e "$OPENAPI_JSON" ]; then
   echo "  FAIL: missing $OPENAPI_JSON"
   fail=1
@@ -187,7 +187,7 @@ echo "== assets naming the host are rewritten =="
 listed=$(sed -n '/^var rewrittenAssets = \[\]string{/,/^}/p' internal/handler/instancehost.go \
   | grep -oE '"[^"]+"' | tr -d '"')
 missing=""
-for f in internal/handler/static/*; do
+for f in internal/webassets/static/*; do
   base=$(basename "$f")
   case "$base" in swagger-ui*) continue ;; esac
   grep -q "simple-host\.app" "$f" 2>/dev/null || continue
@@ -212,7 +212,7 @@ fi
 # following the hackathon skill hit exactly this and could read none of them.
 echo "== skill references are reachable by URL =="
 missing=""
-for skill in simple-host-website/skills/*/; do
+for skill in internal/webassets/simple-host-website/skills/*/; do
   name=$(basename "$skill")
   [ -d "$skill/references" ] || continue
   for ref in "$skill"references/*.md; do
@@ -241,14 +241,14 @@ fi
 # "until" or "pending". run-hackathon is exempt — event instances keep the path
 # model on sites.<their-domain>/<handle>/<project>/.
 echo "== docs use the site address =="
-canon_docs=(simple-host-website/skills "$LLMS" "$OPENAPI" internal/handler/static/*.html openai-plugin/skills internal/mcp/instructions.go internal/mcp/outputs.go internal/mcp/tools.go )
+canon_docs=(internal/webassets/simple-host-website/skills "$LLMS" "$OPENAPI" internal/webassets/static/*.html openai-plugin/skills internal/mcp/instructions.go internal/mcp/outputs.go internal/mcp/tools.go )
 old_addr='sites\.(simple-host\.app|<[^>/]+>|\{[^}/]+\}|&lt;[^/]+&gt;)/(<|\{|&lt;)'
 offending=$(grep -rnE "$old_addr" "${canon_docs[@]}" 2>/dev/null \
-  | grep -v '^simple-host-website/skills/run-hackathon/' \
+  | grep -v '^internal/webassets/simple-host-website/skills/run-hackathon/' \
   | grep -viE 'old|legacy|redirect' || true)
 person_path='(<handle>|\{handle\}|&lt;handle&gt;)\.simple-host\.(app|site)/(<(site|sitename|name)>|\{(site|sitename|name)\}|&lt;(site|sitename|name)&gt;)'
 offending_pp=$(grep -rnE "$person_path" "${canon_docs[@]}" 2>/dev/null \
-  | grep -v '^simple-host-website/skills/run-hackathon/' \
+  | grep -v '^internal/webassets/simple-host-website/skills/run-hackathon/' \
   | grep -viE 'old|legacy|redirect|fallback|briefly|brand-new|new account|until|pending' || true)
 if [ -n "$offending" ]; then
   echo "$offending" | cut -c1-200 | sed 's/^/  FAIL: shared path form as the address (say "old"\/"legacy"\/"redirect" or use <site>.<handle>.simple-host.app): /'
@@ -259,7 +259,7 @@ if [ -n "$offending_pp" ]; then
   fail=1
 fi
 missing_site=""
-for doc in "$LLMS" "$OPENAPI" "$SKILL_DEPLOY" "$SKILL_BUILD" simple-host-website/skills/connect-domain/SKILL.md internal/mcp/instructions.go; do
+for doc in "$LLMS" "$OPENAPI" "$SKILL_DEPLOY" "$SKILL_BUILD" internal/webassets/simple-host-website/skills/connect-domain/SKILL.md internal/mcp/instructions.go; do
   grep -qE '<(site|sitename|name)>\.<handle>\.simple-host\.(app|site)' "$doc" || missing_site="$missing_site $doc"
 done
 if [ -n "$missing_site" ]; then
@@ -301,7 +301,7 @@ class Onboarding(HTMLParser):
         if self.in_command:
             self.command += data
 
-page = Path('internal/handler/static/hack-get-started.html').read_text()
+page = Path('internal/webassets/static/hack-get-started.html').read_text()
 parsed = Onboarding()
 parsed.feed(page)
 assert parsed.command and parsed.command in Path('README.md').read_text(), 'README install command differs from onboarding'
@@ -311,8 +311,8 @@ required += ['/v1/skills/' + name + '/SKILL.md' for name in ['run-hackathon', 'j
 for url in required:
     assert (url, True) in parsed.links, f'{url} missing from collapsed other installs'
 assert all(other for url, other in parsed.links if url.startswith('/v1/skills/')), 'Skill reading belongs under other installs'
-for doc in ['README.md', 'FEATURES.md', 'ARCHITECTURE.md', 'INTENT.md', 'PARITY.md', 'internal/handler/static/llms.txt']:
-    if doc != 'internal/handler/static/llms.txt':
+for doc in ['README.md', 'FEATURES.md', 'ARCHITECTURE.md', 'INTENT.md', 'PARITY.md', 'internal/webassets/static/llms.txt']:
+    if doc != 'internal/webassets/static/llms.txt':
         assert '/get-started' in Path(doc).read_text(), f'{doc} must describe hosted onboarding'
 print('  ok — five-skill install command, onboarding docs and tucked-away downloads agree')
 PY

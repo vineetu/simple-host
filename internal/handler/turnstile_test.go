@@ -374,7 +374,7 @@ func TestTurnstileMessagesJS(t *testing.T) {
 	start := strings.LastIndex(page, "<script nonce=\"%s\">") + len("<script nonce=\"%s\">")
 	end := strings.LastIndex(page, "</script>")
 	frame := strings.Replace(strings.Replace(page[start:end], "%s", `"`+turnstileTestSiteKey+`"`, 1), "%s", `"`+turnstileAction+`"`, 1)
-	auth, err := os.ReadFile("static/auth.js")
+	auth, err := embeddedStatic.ReadFile("static/auth.js")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regenerate docs/advanced/settings.json from the code, then the settings
 # tables in docs/advanced/*.md and the setup helper's copies under
-# internal/handler/static/setup/ (the enterprise copy from an enterprise
+# internal/webassets/static/setup/ (the enterprise copy from an enterprise
 # checkout: ENTERPRISE_REPO=/path/to/simple-host-enterprise, else
 # ../simple-host-enterprise).
 # `make check` fails until this has been run after a setting changes.

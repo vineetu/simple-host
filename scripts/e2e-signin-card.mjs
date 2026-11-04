@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium, webkit } from '/tmp/tsx/node_modules/playwright/index.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const srcPath = path.join(root, 'internal/handler/static/signin.js');
+const srcPath = path.join(root, 'internal/webassets/static/signin.js');
 const src = fs.readFileSync(srcPath, 'utf8');
 const messages = {
   code_wrong: 'That code is not right. {n} tries left.',

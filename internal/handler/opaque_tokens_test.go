@@ -14,6 +14,7 @@ import (
 	"github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
 	"github.com/vsriram/simple-host/internal/hackhttp"
+	httpx "github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/mcp"
 )
 
@@ -64,21 +65,21 @@ func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 			if token == tc.mint() {
 				t.Error("nonce reused")
 			}
-			plain, err := openLink(key, tc.domain, token)
+			plain, err := httpx.OpenLink(key, tc.domain, token)
 			if err != nil || !bytes.Contains(plain, []byte(opaqueSite)) {
 				t.Fatal("payload failed to round trip")
 			}
 			raw, _ := base64.RawURLEncoding.DecodeString(token)
 			raw[len(raw)/2] ^= 1
 			for _, bad := range []string{"", token[:len(token)/2], base64.RawURLEncoding.EncodeToString(raw)} {
-				if _, err := openLink(key, tc.domain, bad); err == nil {
+				if _, err := httpx.OpenLink(key, tc.domain, bad); err == nil {
 					t.Error("tampered token accepted")
 				}
 			}
-			if _, err := openLink(newExportKey(), tc.domain, token); err == nil {
+			if _, err := httpx.OpenLink(newExportKey(), tc.domain, token); err == nil {
 				t.Error("wrong key accepted")
 			}
-			if _, err := openLink(key, tc.domain+"other", token); err == nil {
+			if _, err := httpx.OpenLink(key, tc.domain+"other", token); err == nil {
 				t.Error("wrong link kind accepted")
 			}
 		})
@@ -92,7 +93,7 @@ func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 	if got, ok := hack.CheckHackArchiveClaim(cases[3].mint(), now); !ok || got != claim {
 		t.Fatal("archive binding lost")
 	}
-	raw, err := openLink(key, "site storage file v1", cases[2].mint())
+	raw, err := httpx.OpenLink(key, "site storage file v1", cases[2].mint())
 	expected := opaqueOwner + "." + opaqueSite + ".photos." + base64.RawURLEncoding.EncodeToString([]byte("a/photo.png")) + "."
 	if err != nil || !strings.HasPrefix(string(raw), expected) || !strings.HasSuffix(string(raw), "."+base64.RawURLEncoding.EncodeToString([]byte(storage.linkScope))) {
 		t.Fatal("file scope lost")

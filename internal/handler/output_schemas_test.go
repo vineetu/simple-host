@@ -79,7 +79,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("create_upload_link", map[string]any{"site": "shop"})
 	call("create_import_link", map[string]any{"site": "shop"})
 	var importID string
-	for id := range a.conn.imports.records {
+	for id := range a.conn.imports.Records {
 		importID = id
 	}
 	call("get_import_report", map[string]any{"import_id": importID})
@@ -118,7 +118,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	if s := call("set_site_offline", map[string]any{"site": "shop", "offline": false}); s["offline"] != false {
 		t.Fatalf("set_site_offline back: %v", s)
 	}
-	// A passcode on the whole site: set, read status, sign everyone out, remove.
+	// A passcode on the whole Site: set, read status, sign everyone out, remove.
 	if err := a.sites.SetPasscodeKey("q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80="); err != nil {
 		t.Fatal(err)
 	}

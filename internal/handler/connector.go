@@ -47,9 +47,11 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/operations"
+	appsites "github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/edition"
+	httpx "github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/mcp"
 	"github.com/vsriram/simple-host/internal/workers"
 )
@@ -85,7 +87,7 @@ type ConnectorHandler struct {
 	adminAPIKey   string
 	mcp           *mcp.Server
 	mcpConfig     mcp.Config
-	imports       *importManager
+	imports       *appsites.ImportManager
 	upstream      http.Handler
 	skillVersion  string
 
@@ -184,7 +186,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	h.httpCaches.rate("http.connector.tokenLimiter", h.tokenLimiter, 10*time.Minute, 30*time.Minute)
 	h.httpCaches.rate("http.connector.uploadLimiter", h.uploadLimiter, 10*time.Minute, 30*time.Minute)
 	h.httpCaches.rate("http.connector.importStatusLimiter", h.importStatusLimiter, 10*time.Minute, 30*time.Minute)
-	h.imports = newImportManager(lim.ImportMaxConcurrent)
+	h.imports = appsites.NewImportManager(lim.ImportMaxConcurrent)
 	h.upstream = upstream
 	h.skillVersion = skillVersion
 	mcpSnapshot := mcpLimits(lim)
@@ -194,10 +196,10 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		AnalyticsEnv:       analyticsEnv(issuer),
 		AnalyticsPepper:    analyticsPepper(adminAPIKey),
 		ImportLinkTTL:      lim.ImportLinkTTL,
-		ImportCreated:      h.imports.created,
-		ImportReceiving:    h.imports.receiving,
-		ImportReport:       h.imports.report,
-		ValidateSiteShape:  validateSiteShape,
+		ImportCreated:      func(link mcp.ImportLink) error { return h.imports.Created(importJobLink(link)) },
+		ImportReceiving:    h.imports.Receiving,
+		ImportReport:       h.imports.Report,
+		ValidateSiteShape:  appsites.ValidateShape,
 		Upstream:           upstream,
 		APIHost:            apiHost,
 		ContentOrigin:      "https://" + contentHost,
@@ -626,7 +628,7 @@ func (h *ConnectorHandler) register(w http.ResponseWriter, r *http.Request) {
 
 	client := db.OAuthClient{
 		ClientID:                randomToken(prefixClient, 16),
-		Name:                    cleanClientName(req.ClientName),
+		Name:                    httpx.CleanClientName(req.ClientName),
 		RedirectURIs:            req.RedirectURIs,
 		TokenEndpointAuthMethod: method,
 		PKCERequired:            true,
@@ -650,7 +652,7 @@ func (h *ConnectorHandler) register(w http.ResponseWriter, r *http.Request) {
 		"grant_types":                []string{"authorization_code", "refresh_token"},
 		"response_types":             []string{"code"},
 		"token_endpoint_auth_method": method,
-		"scope":                      oauthScope,
+		"scope":                      auth.OAuthScope,
 	}
 	if secret != "" {
 		resp["client_secret"] = secret
@@ -678,7 +680,7 @@ func CreateOperatorClient(ctx context.Context, database *sql.DB, name string, re
 	client := db.OAuthClient{
 		ClientID:                randomToken(prefixClient, 16),
 		SecretHash:              sql.NullString{String: hashSecret(secret), Valid: true},
-		Name:                    cleanClientName(name),
+		Name:                    httpx.CleanClientName(name),
 		RedirectURIs:            append([]string{}, redirectURIs...),
 		TokenEndpointAuthMethod: "client_secret_post",
 		PKCERequired:            pkceRequired,
@@ -755,7 +757,7 @@ func (h *ConnectorHandler) museClientMetadata(w http.ResponseWriter, r *http.Req
 		"grant_types":                []string{"authorization_code", "refresh_token"},
 		"response_types":             []string{"code"},
 		"token_endpoint_auth_method": "none",
-		"scope":                      oauthScope,
+		"scope":                      auth.OAuthScope,
 	})
 }
 
@@ -889,9 +891,9 @@ func (h *ConnectorHandler) parseAuthorize(ctx context.Context, q url.Values) (au
 // stays "sites": clients already ask for that, and the consent page chooses.
 func (h *ConnectorHandler) scopesSupported() []string {
 	if h.hackTeams {
-		return []string{oauthScope, hackEventsScope}
+		return []string{auth.OAuthScope, auth.HackEventsScope}
 	}
-	return []string{oauthScope}
+	return []string{auth.OAuthScope}
 }
 
 // redirectWith builds the redirect back to the app, keeping any query the
@@ -1024,7 +1026,7 @@ func (h *ConnectorHandler) SetSignInAlerts(a *SignInAlerts) { h.alerts = a }
 
 // connectedAppName is how a sign-in alert names the app: the name it
 // registered with (self-declared, so the alert quotes it).
-func connectedAppName(name string) string { return cleanClientName(name) }
+func connectedAppName(name string) string { return httpx.CleanClientName(name) }
 
 // ResolveConsentUserForTest is resolveConsentUser, exported as a test hook
 // (cleanup 3.2 slice 3): the moved hack_m2_test.go
@@ -1132,7 +1134,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: brainOwnerOnly, Code: "owner_only"})
 		return
 	}
-	scope := oauthScope
+	scope := auth.OAuthScope
 	if h.hackTeams {
 		// A consent page left open across deployment may still submit the old
 		// team-only choice. Do not silently turn that narrower approval into a
@@ -1141,7 +1143,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, errorResponse{Error: "The connection options changed. Reload this page and allow again.", Code: "consent_updated"})
 			return
 		}
-		scope = oauthScope + " " + hackEventsScope
+		scope = auth.OAuthScope + " " + auth.HackEventsScope
 	}
 	code := randomToken(prefixCode, 32)
 	if err := db.InsertOAuthCode(r.Context(), h.database, hashSecret(code), db.OAuthCode{
@@ -1353,7 +1355,7 @@ func (h *ConnectorHandler) refresh(w http.ResponseWriter, r *http.Request, clien
 		return
 	}
 	if h.hackTeams {
-		if _, _, ok := hackGrantKind(tok.Scope); !ok {
+		if _, _, ok := auth.GrantKind(tok.Scope); !ok {
 			// Not spent: the transaction rolls back. The person reconnects.
 			oauthError(w, http.StatusBadRequest, "invalid_grant", "this connection cannot be refreshed; reconnect and choose a team or Manage my events")
 			return
@@ -1519,9 +1521,9 @@ func (h *ConnectorHandler) tokenAccess(ctx context.Context, token string, audien
 	}
 	_ = db.TouchOAuthGrant(ctx, h.database, tok.GrantID)
 	if !h.hackTeams {
-		return user, scopeTeam(tok.Scope), "", tok, true
+		return user, auth.ScopeTeam(tok.Scope), "", tok, true
 	}
-	teamID, events, ok := hackGrantKind(tok.Scope)
+	teamID, events, ok := auth.GrantKind(tok.Scope)
 	if !ok {
 		return db.User{}, "", "", db.OAuthTokenGrant{}, false
 	}
@@ -1537,7 +1539,7 @@ func (h *ConnectorHandler) selectHackTeam(ctx context.Context, caller mcp.Caller
 	if !h.hackTeams || caller.GrantID == "" || caller.UserID == "" {
 		return errors.New("connect your personal account to select a team")
 	}
-	if !uuidShape.MatchString(teamID) {
+	if !appsites.UUIDShape.MatchString(teamID) {
 		return errors.New("team_id must be a team UUID")
 	}
 	ok, err := db.SelectOAuthTeam(ctx, h.database, caller.GrantID, caller.UserID, strings.ToLower(teamID))
@@ -1616,11 +1618,11 @@ func (h *ConnectorHandler) BearerAuth(next http.Handler) http.Handler {
 
 func (h *ConnectorHandler) mcpUnauthorized(w http.ResponseWriter, presented bool) {
 	code := "sign_in_required"
-	challenge := `Bearer resource_metadata="` + h.issuer + `/.well-known/oauth-protected-resource/mcp", scope="` + oauthScope + `"`
+	challenge := `Bearer resource_metadata="` + h.issuer + `/.well-known/oauth-protected-resource/mcp", scope="` + auth.OAuthScope + `"`
 	if presented {
 		code = "invalid_token"
 		challenge = `Bearer error="invalid_token", error_description="The access token is invalid, expired or revoked", resource_metadata="` +
-			h.issuer + `/.well-known/oauth-protected-resource/mcp", scope="` + oauthScope + `"`
+			h.issuer + `/.well-known/oauth-protected-resource/mcp", scope="` + auth.OAuthScope + `"`
 	}
 	w.Header().Set("WWW-Authenticate", challenge)
 	w.Header().Set("Cache-Control", "no-store")
@@ -1658,7 +1660,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
 		}
-		appName = cleanClientName(client.Name)
+		appName = httpx.CleanClientName(client.Name)
 		mintPhoto = func(ctx context.Context, _ bool) (string, func(), error) {
 			current, err := db.GetOAuthGrantByID(ctx, h.database, grant.GrantID)
 			if err != nil || current.UserID != user.ID || current.ClientID != grant.ClientID || current.Resource != h.mcpResource {
@@ -1668,7 +1670,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 			if err != nil || u.Suspended || u.Username == "admin" {
 				return "", nil, errors.New("photo sign-in ended")
 			}
-			return h.internalKeyFor(u.ID, scopeTeam(current.Scope))
+			return h.internalKeyFor(u.ID, auth.ScopeTeam(current.Scope))
 		}
 		mintUpload = func(ctx context.Context, team bool) (string, func(), error) {
 			u, currentTeam, _, currentGrant, valid := h.tokenAccess(ctx, token, h.mcpResource, h.issuer)

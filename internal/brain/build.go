@@ -27,7 +27,7 @@ const (
 var allowlist = map[string][]string{
 	RepoHost: {
 		"INTENT.md", "FEATURES.md", "PARITY.md", "CHANGELOG.md",
-		"internal/handler/static/llms.txt", "internal/handler/static/hack-llms.txt",
+		"internal/webassets/static/llms.txt", "internal/webassets/static/hack-llms.txt",
 		"docs/designs/*.md", "docs/platforms/*.md", "docs/advanced/README.md",
 		"docs/history/*release*.md",
 	},
@@ -579,7 +579,7 @@ type productSpec struct {
 
 func buildProducts(b *Bundle, v map[string]string) []Product {
 	hostIntent, entIntent := RepoHost+"/INTENT.md", RepoEnterprise+"/INTENT.md"
-	hackLLMs := RepoHost + "/internal/handler/static/hack-llms.txt"
+	hackLLMs := RepoHost + "/internal/webassets/static/hack-llms.txt"
 	specs := []productSpec{
 		{id: "host", name: "Simple Host (simple-host.app)",
 			what: [2]string{hostIntent, "What this is, and why it exists"}, who: [2]string{hostIntent, "Who uses it, and in what situation"},
