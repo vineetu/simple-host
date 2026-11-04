@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/vsriram/simple-host/internal/eventdns"
 	"github.com/vsriram/simple-host/internal/model"
 	accounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	repo "github.com/vsriram/simple-host/internal/repository/sites"
@@ -74,6 +75,13 @@ type Deps struct {
 	ResponseState           func(model.Site, int, bool, bool) any
 	WebsiteArchiveDefault   int64
 	WebsiteLimit            func(context.Context, *model.User) (int64, bool)
+	EventDNS                eventdns.Provider
+	EventProbe              *eventdns.LiveProbe
+	EventNamePeer           func(context.Context, string, string) (bool, error)
+	EventDomains            []string
+	EventTTL                time.Duration
+	EventMaxClaims          int
+	CertRequests            CertRequestDeps
 }
 
 // CreateInput contains the values and non-HTTP dependencies for a locked create.

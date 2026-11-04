@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -407,25 +407,7 @@ func (h *SiteHandler) renderSiteHostNotFound(w http.ResponseWriter, r *http.Requ
 // directory: SITE_DOMAIN's until the base is handed out, and the base's from
 // serve on.
 func (h *SiteHandler) RequestSiteCert(handle string) {
-	handle = strings.ToLower(strings.TrimSpace(handle))
-	if !h.siteHostsOn() || !handleAddressable(handle) {
-		return
-	}
-	for _, base := range h.certRequestBases() {
-		if h.siteCertReadyOn(handle, base) {
-			continue
-		}
-		p := filepath.Join(h.certDirFor(base), "requests", handle)
-		f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-		if err != nil {
-			if !errors.Is(err, os.ErrExist) {
-				log.Printf("site certs: request %s: %v", handle, err)
-			}
-			continue
-		}
-		_ = f.Close()
-		log.Printf("site certs: requested *.%s", h.personHostOn(handle, base))
-	}
+	h.certRequestSvc().RequestSiteCert(context.Background(), sites.SiteCertRequestInput{Handle: handle})
 }
 
 // requestSiteCertsForAll requests a certificate for every person with at

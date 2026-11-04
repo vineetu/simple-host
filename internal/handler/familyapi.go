@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
@@ -561,35 +562,14 @@ func familyRequestBody(f db.AddressFamily, l config.Limits) string {
 // that has its certificate set up (rewritten only when it changed, so the
 // issuer's path unit fires only then); anything else has none.
 func (h *SiteHandler) syncFamilyRequest(f db.AddressFamily) {
-	if h.familyCertDir == "" || !validFamilyKey(f.Suffix) {
-		return
-	}
-	if !f.VerifiedAt.Valid || f.CertName == "" || f.CertMode != "wildcard" {
-		h.removeFamilyRequest(f.Suffix)
-		return
-	}
-	p := filepath.Join(h.familyCertDir, "requests", f.Suffix)
-	body := familyRequestBody(f, h.limits)
-	if cur, err := os.ReadFile(p); err == nil && string(cur) == body {
-		return
-	}
-	tmp := p + ".new"
-	if err := os.WriteFile(tmp, []byte(body), 0o644); err != nil {
-		log.Printf("address family %s: request: %v", f.Suffix, err)
-		return
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		log.Printf("address family %s: request: %v", f.Suffix, err)
-	}
+	h.certRequestSvc().SyncFamilyCertRequest(context.Background(), sites.FamilyCertRequestInput{
+		Directory: h.familyCertDir, Suffix: f.Suffix, Body: familyRequestBody(f, h.limits),
+		ValidKey: validFamilyKey(f.Suffix), Verified: f.VerifiedAt.Valid, CertName: f.CertName, Wildcard: f.CertMode == "wildcard",
+	})
 }
 
 func (h *SiteHandler) removeFamilyRequest(suffix string) {
-	if h.familyCertDir == "" || !validFamilyKey(suffix) {
-		return
-	}
-	if err := os.Remove(filepath.Join(h.familyCertDir, "requests", suffix)); err != nil && !os.IsNotExist(err) {
-		log.Printf("address family %s: remove request: %v", suffix, err)
-	}
+	h.certRequestSvc().RemoveFamilyCertRequest(context.Background(), sites.FamilyCertRequestInput{Directory: h.familyCertDir, Suffix: suffix, ValidKey: validFamilyKey(suffix)})
 }
 
 // --- Checks ---
