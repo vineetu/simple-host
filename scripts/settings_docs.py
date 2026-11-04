@@ -18,6 +18,7 @@ docs/advanced/settings.json is generated from the code (`simple-host settings
 
   python3 scripts/settings_docs.py          rewrite the tables and copies
   python3 scripts/settings_docs.py --check  fail if anything is out of step
+  python3 scripts/settings_docs.py --check --local-only  offline checks; no Enterprise probes
 """
 import json
 import os
@@ -26,6 +27,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHECK = "--check" in sys.argv[1:]
+LOCAL_ONLY = "--local-only" in sys.argv[1:]
 errors = []
 
 
@@ -161,15 +163,16 @@ if os.path.exists(os.path.join(ROOT, "compose.yaml")):
 
     static = "internal/handler/static/setup"
     write_or_check(f"{static}/small-box-settings.json", read("docs/advanced/settings.json"))
-    candidates = [os.environ.get("ENTERPRISE_REPO", ""), os.path.join(ROOT, "..", "simple-host-enterprise")]
-    ent = next((c for c in candidates if c and os.path.exists(os.path.join(c, "docs/advanced/settings.json"))), None)
-    if ent:
-        with open(os.path.join(ent, "docs/advanced/settings.json"), encoding="utf-8") as f:
-            write_or_check(f"{static}/enterprise-settings.json", f.read())
-    elif not os.path.exists(os.path.join(ROOT, static, "enterprise-settings.json")):
-        errors.append(f"{static}/enterprise-settings.json is missing and no enterprise checkout was found (set ENTERPRISE_REPO)")
-    else:
-        print("settings_docs: no enterprise checkout found; enterprise-settings.json not compared (set ENTERPRISE_REPO)")
+    if not LOCAL_ONLY:
+        candidates = [os.environ.get("ENTERPRISE_REPO", ""), os.path.join(ROOT, "..", "simple-host-enterprise")]
+        ent = next((c for c in candidates if c and os.path.exists(os.path.join(c, "docs/advanced/settings.json"))), None)
+        if ent:
+            with open(os.path.join(ent, "docs/advanced/settings.json"), encoding="utf-8") as f:
+                write_or_check(f"{static}/enterprise-settings.json", f.read())
+        elif not os.path.exists(os.path.join(ROOT, static, "enterprise-settings.json")):
+            errors.append(f"{static}/enterprise-settings.json is missing and no enterprise checkout was found (set ENTERPRISE_REPO)")
+        else:
+            print("settings_docs: no enterprise checkout found; enterprise-settings.json not compared (set ENTERPRISE_REPO)")
 
 if errors:
     print("\n".join(errors), file=sys.stderr)

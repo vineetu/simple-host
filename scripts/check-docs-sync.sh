@@ -320,7 +320,10 @@ PY
 # ── FEATURES.md places every route and MCP tool ──
 bash scripts/check-features.sh || fail=1
 
-# Settings docs also compare an Enterprise checkout; run them in check-release.
+# Local settings tables, defaults, small-box passthrough and generated copy.
+# Enterprise sources are compared separately by check-release.
+echo "== settings docs (local only) =="
+python3 scripts/settings_docs.py --check --local-only || fail=1
 
 # ── PARITY.md covers every FEATURES.md section ──
 # Cross-repo parity comparison belongs to check-release, even if the caller sets PARITY_OTHER.
