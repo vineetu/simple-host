@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"sync"
 	"time"
 
@@ -39,7 +38,6 @@ type Deps struct {
 	EventOwners                              bool
 	LegacyRoutes                             bool
 	ResourceHistory                          func(context.Context, string, string) (any, error)
-	TableWriteRequest                        func(Call, *Error, func(map[string]json.RawMessage) (TableResult, error))
 }
 
 // Service owns site storage workflows.
@@ -51,9 +49,9 @@ type Service struct {
 // New constructs a storage service.
 func New(db *sql.DB, deps Deps) *Service { return &Service{db: db, deps: deps} }
 
-// WriteLock acquires the shared site lock and rechecks the resource before
+// writeLock acquires the shared site lock and rechecks the resource before
 // starting the bounded write context. The recheck runs while the lock is held.
-func (s *Service) WriteLock(ctx context.Context, key string, wait, timeout time.Duration, recheck func(context.Context) bool) (context.Context, func(), error) {
+func (s *Service) writeLock(ctx context.Context, key string, wait, timeout time.Duration, recheck func(context.Context) bool) (context.Context, func(), error) {
 	lockCtx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	mu, _ := s.deps.Locks.LoadOrStore(key, &sync.Mutex{})

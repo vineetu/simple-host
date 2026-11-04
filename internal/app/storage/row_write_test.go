@@ -214,42 +214,13 @@ func TestAddTableRowOwnerMayUseTrigger(t *testing.T) {
 	}
 }
 
-func TestTableAddAuthorizesBeforeReplay(t *testing.T) {
-	called := false
-	s := New(nil, Deps{PasscodeAllows: func() bool { return false }, TableWriteRequest: func(Call, *Error, func(map[string]json.RawMessage) (TableResult, error)) { called = true }})
+func TestTableWriteAuthorizesBeforeReplay(t *testing.T) {
+	s := New(nil, Deps{PasscodeAllows: func() bool { return false }})
 	c := Call{Resource: rules.Resource{SitePasscode: "inherit"}}
-	result, err := s.TableAdd(context.Background(), TableInput{Call: c, Table: "notes"})
-	if err != nil || result.Authorization == nil || result.Authorization.Code != "site_locked" || called {
-		t.Fatalf("authorization: result %#v, error %v, replay called %v", result, err, called)
-	}
-}
-
-func TestTableAddReplaySkipsWrite(t *testing.T) {
-	called := false
-	s := New(nil, Deps{TableWriteRequest: func(Call, *Error, func(map[string]json.RawMessage) (TableResult, error)) { called = true }})
-	c := Call{Owner: true}
-	_, err := s.TableAdd(context.Background(), TableInput{Call: c, Table: "notes"})
-	if err != nil || !called {
-		t.Fatalf("replay callback: called %v, error %v", called, err)
-	}
-}
-
-func TestTableRemoveAuthorizesBeforeReplay(t *testing.T) {
-	called := false
-	s := New(nil, Deps{PasscodeAllows: func() bool { return false }, TableWriteRequest: func(Call, *Error, func(map[string]json.RawMessage) (TableResult, error)) { called = true }})
-	c := Call{Resource: rules.Resource{SitePasscode: "inherit"}}
-	result, err := s.TableRemove(context.Background(), TableInput{Call: c, Table: "notes", ID: 1})
-	if err != nil || result.Authorization == nil || result.Authorization.Code != "site_locked" || called {
-		t.Fatalf("authorization: result %#v, error %v, replay called %v", result, err, called)
-	}
-}
-
-func TestTableRemoveReplaySkipsWrite(t *testing.T) {
-	called := false
-	s := New(nil, Deps{TableWriteRequest: func(Call, *Error, func(map[string]json.RawMessage) (TableResult, error)) { called = true }})
-	c := Call{Owner: true}
-	_, err := s.TableRemove(context.Background(), TableInput{Call: c, Table: "notes", ID: 1})
-	if err != nil || !called {
-		t.Fatalf("replay callback: called %v, error %v", called, err)
+	for _, action := range []string{"add", "edit", "delete"} {
+		result := s.AuthorizeTableWrite(context.Background(), TableInput{Call: c, Table: "notes"}, action)
+		if result.Allowed() || result.Authorization == nil || result.Authorization.Code != "site_locked" {
+			t.Fatalf("%s: %#v", action, result)
+		}
 	}
 }

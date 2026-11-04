@@ -17,11 +17,34 @@ import (
 
 // TableInput contains the decoded facts for a table operation.
 type TableInput struct {
-	Call   Call
-	Table  string
-	ID     int64
-	Values map[string]json.RawMessage
-	Query  url.Values
+	Call       Call
+	Table      string
+	ID         int64
+	Values     map[string]json.RawMessage
+	Query      url.Values
+	Authorized TableAuthorization
+}
+
+// TableAuthorization carries the decisions made before idempotency replay.
+type TableAuthorization struct {
+	call          Call
+	filter        string
+	Authorization *Error
+	allowed       bool
+	verified      bool
+	table, action string
+}
+
+// Allowed reports whether the table write was authorized.
+func (a TableAuthorization) Allowed() bool { return a.verified && a.allowed }
+
+// CheckedPost reports whether checked-post limits apply.
+func (a TableAuthorization) CheckedPost() bool { return a.call.CheckedPost }
+
+// AuthorizeTableWrite checks the gates before the idempotency boundary.
+func (s *Service) AuthorizeTableWrite(ctx context.Context, in TableInput, action string) TableAuthorization {
+	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, action)
+	return TableAuthorization{call: c, filter: filter, Authorization: auth, allowed: allowed, verified: true, table: in.Table, action: action}
 }
 
 // TableResult contains the response and any ordered authorization responses.

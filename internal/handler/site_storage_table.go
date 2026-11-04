@@ -85,77 +85,63 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 	if action == "add" || action == "edit" || action == "delete" {
 		call := h.storageServiceCall(c)
 		call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
-		deps := h.storageRequestDeps(r, c)
-		deps.TableWriteRequest = func(ac appstorage.Call, auth *appstorage.Error, run func(map[string]json.RawMessage) (appstorage.TableResult, error)) {
-			if auth != nil {
-				writeStorageRefusals(w, auth.Refusals)
+		svc := h.storageRequestSvc(r, c)
+		in := appstorage.TableInput{Call: call, Table: table, ID: rowID}
+		in.Authorized = svc.AuthorizeTableWrite(r.Context(), in, action)
+		auth := in.Authorized.Authorization
+		if auth != nil {
+			if len(auth.Refusals) == 0 {
+				storageError(w, 403, auth.Code, auth.Message)
+				return
 			}
-			account := c.accountID
-			if !c.owner {
-				account = c.visitorID
-			}
-			h.createIdempotency.wrapAccount(account, c.siteID, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if action == "delete" {
-					result, err := run(nil)
-					if err != nil {
-						writeTableError(w, err.(*appstorage.Error))
-						return
-					}
-					after = result.Notify
-					writeJSON(w, 200, result.Body)
-					return
-				}
+			writeStorageRefusals(w, auth.Refusals)
+		}
+		if !in.Authorized.Allowed() {
+			return
+		}
+		account := c.accountID
+		if !c.owner {
+			account = c.visitorID
+		}
+		h.createIdempotency.wrapAccount(account, c.siteID, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if action != "delete" {
 				body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
 				if err != nil {
 					storageError(w, 400, "invalid_rows", "send a JSON object of column values")
 					return
 				}
-				if action == "add" && ac.CheckedPost && !storagePostLimits(w, body, h.limits) {
+				if action == "add" && in.Authorized.CheckedPost() && !storagePostLimits(w, body, h.limits) {
 					return
 				}
-				var values map[string]json.RawMessage
 				dec := json.NewDecoder(bytes.NewReader(body))
-				if dec.Decode(&values) != nil || values == nil || len(values) > 100 || dec.Decode(new(any)) != io.EOF || action == "edit" && len(values) == 0 {
+				if dec.Decode(&in.Values) != nil || in.Values == nil || len(in.Values) > 100 || dec.Decode(new(any)) != io.EOF || action == "edit" && len(in.Values) == 0 {
 					storageError(w, 400, "invalid_rows", "send a JSON object of column values")
 					return
 				}
-				for _, raw := range values {
+				for _, raw := range in.Values {
 					if !storageScalar(raw) {
 						storageError(w, 400, "invalid_rows", "values are strings, numbers, true, false, or null")
 						return
 					}
 				}
-				result, err := run(values)
-				if err != nil {
-					writeTableError(w, err.(*appstorage.Error))
-					return
-				}
-				after = result.Notify
-				writeJSON(w, 200, result.Body)
-			})).ServeHTTP(w, r)
-		}
-		svc := appstorage.New(h.database, deps)
-		in := appstorage.TableInput{Call: call, Table: table, ID: rowID}
-		var result appstorage.TableResult
-		var err error
-		if action == "add" {
-			result, err = svc.TableAdd(r.Context(), in)
-		} else if action == "edit" {
-			result, err = svc.TableEdit(r.Context(), in)
-		} else {
-			result, err = svc.TableRemove(r.Context(), in)
-		}
-		if auth := result.Authorization; auth != nil {
-			if len(auth.Refusals) == 0 {
-				storageError(w, 403, auth.Code, auth.Message)
-			} else {
-				writeStorageRefusals(w, auth.Refusals)
 			}
-			return
-		}
-		if err != nil {
-			writeTableError(w, err.(*appstorage.Error))
-		}
+			var result appstorage.TableResult
+			var err error
+			switch action {
+			case "add":
+				result, err = svc.TableAdd(r.Context(), in)
+			case "edit":
+				result, err = svc.TableEdit(r.Context(), in)
+			default:
+				result, err = svc.TableRemove(r.Context(), in)
+			}
+			if err != nil {
+				writeTableError(w, err.(*appstorage.Error))
+				return
+			}
+			after = result.Notify
+			writeJSON(w, 200, result.Body)
+		})).ServeHTTP(w, r)
 		return
 	}
 

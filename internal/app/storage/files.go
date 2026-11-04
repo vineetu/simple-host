@@ -41,7 +41,7 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	if err != nil {
 		return FilePutResult{}, nil, &Error{Code: "invalid_file", Message: "file too large; shrink photos to about 1600 px WebP"}
 	}
-	ctx, unlock, err := s.WriteLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
 		return FilePutResult{}, nil, err
 	}
@@ -169,7 +169,7 @@ func (s *Service) DeleteFile(ctx context.Context, in FileDeleteInput) (*Error, e
 			return auth, nil
 		}
 	}
-	ctx, unlock, err := s.WriteLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
 		return auth, err
 	}

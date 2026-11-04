@@ -128,23 +128,6 @@ func TestStorageRound2SQLiteConcurrencyPOC(t *testing.T) {
 
 func TestStorageRound2OwnerTimeoutAndDeployWait(t *testing.T) {
 	s := newSecurityShop(t)
-	for _, owner := range []bool{true, false} {
-		r := httptest.NewRequest("POST", "/", nil)
-		release, ok := s.a.sites.storageWriteLock(httptest.NewRecorder(), r, storageCall{ownerID: s.ownerID, siteName: "shop", owner: owner}, false)
-		if !ok {
-			t.Fatal("write lock refused")
-		}
-		deadline, ok := r.Context().Deadline()
-		left := time.Until(deadline)
-		release()
-		want := s.a.sites.limits.StorageVisitorWriteTimeout
-		if owner {
-			want = s.a.sites.limits.StorageOwnerTimeout
-		}
-		if !ok || left < want-100*time.Millisecond {
-			t.Fatalf("owner=%v timeout %v, want %v", owner, left, want)
-		}
-	}
 	s.resource(t, "kv", "kv", "anyone", "anyone", "full")
 	release := s.a.sites.lockSite(s.ownerID, "shop")
 	var once sync.Once

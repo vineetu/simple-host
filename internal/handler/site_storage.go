@@ -264,7 +264,15 @@ func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Reques
 		storageError(w, 500, "internal_error", "internal server error")
 		return
 	}
-	writeJSON(w, 200, map[string]any{"resources": out})
+	entries := make([]map[string]any, 0, len(out))
+	for _, item := range out {
+		entry := storageResourceJSON(fromRulesResource(item.Resource))
+		if item.HasVisitorHistory {
+			entry["visitor_history"] = item.VisitorHistory
+		}
+		entries = append(entries, entry)
+	}
+	writeJSON(w, 200, map[string]any{"resources": entries})
 }
 
 func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request) {
@@ -323,7 +331,11 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	if result.Created {
 		status = 201
 	}
-	writeJSON(w, status, result.Body)
+	body := storageResourceJSON(fromRulesResource(result.Resource))
+	if len(result.Warnings) > 0 {
+		body["warnings"] = result.Warnings
+	}
+	writeJSON(w, status, body)
 }
 
 // storageAccessError refuses a matrix that breaks a rule (R1 to R4) or names
@@ -603,33 +615,6 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 }
 func escapeStorageLike(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
-}
-
-// Bodies are consumed before this bounded write/quota critical section. Reads
-// never use the deploy mutex. Recheck policy after waiting for a concurrent PUT.
-func (h *SiteHandler) storageWriteLock(w http.ResponseWriter, r *http.Request, c storageCall, recheck bool) (func(), bool) {
-	var check func(context.Context) bool
-	if recheck {
-		check = func(ctx context.Context) bool {
-			current, err := h.loadStorageResource(ctx, c.siteID, c.resourceName)
-			return err == nil && current.fingerprint() == c.resource.fingerprint()
-		}
-	}
-	timeout := h.limits.StorageVisitorWriteTimeout
-	if c.owner {
-		timeout = h.limits.StorageOwnerTimeout
-	}
-	ctx, unlock, err := h.storageSvc().WriteLock(r.Context(), c.ownerID+"/"+c.siteName, h.limits.StorageWriteLockWait, timeout, check)
-	if err != nil {
-		if e, ok := err.(*appstorage.Error); ok && e.Code == "storage_busy" {
-			storageBusy(w)
-		} else {
-			storageError(w, 409, "resource_changed", "resource changed; retry")
-		}
-		return nil, false
-	}
-	*r = *r.WithContext(ctx)
-	return unlock, true
 }
 
 // POST query and download-link routes only read; method alone is insufficient.
