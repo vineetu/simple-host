@@ -18,14 +18,17 @@ import (
 // ended, then warn organisers whose warning date has arrived and who have
 // not been warned. With no mailer that can send a notice, the pass does
 // nothing (the same gate as the idle-site cleanup).
-func (s *Service) RunEventCleanup(ctx context.Context, now time.Time, keep, warnFor time.Duration, trash func(context.Context, string, string) error, send func(string, string, string, string) error, replyTo string) {
+func (s *Service) RunEventCleanup(ctx context.Context, now time.Time, keep, warnFor time.Duration, trash func(context.Context, string, string) error, send func(string, string, string, string) error, replyTo string, reports ...CleanupReport) {
+	if len(reports) > 0 && reports[0] != nil {
+		ctx = context.WithValue(ctx, cleanupReportKey{}, reports[0])
+	}
 	if send == nil {
-		log.Printf("event-site cleanup: no mailer; nothing done")
+		cleanupFail(ctx, "send event cleanup notices", errors.New("no mailer configured"))
 		return
 	}
 	events, err := eventrepo.ListEventsForSiteCleanup(ctx, s.db)
 	if err != nil {
-		log.Printf("event-site cleanup: list: %v", err)
+		cleanupFail(ctx, "list events for site cleanup", err)
 		return
 	}
 	var warn []model.Event
@@ -53,36 +56,37 @@ func (s *Service) RunEventCleanup(ctx context.Context, now time.Time, keep, warn
 // the stamp follows the pass either way, and nothing else on the event changes.
 func (s *Service) removeEventSites(ctx context.Context, ev model.Event, now time.Time, keepFor time.Duration, trash func(context.Context, string, string) error) {
 	if trash == nil {
-		log.Printf("event-site cleanup: remove %s: team sites are not connected", ev.Slug)
+		cleanupFail(ctx, "remove event sites", errors.New("team sites are not connected"))
 		return
 	}
 	teams, err := teamrepo.ListEventTeams(ctx, s.db, ev.ID)
 	if err != nil {
-		log.Printf("event-site cleanup: remove %s: %v", ev.Slug, err)
+		cleanupFail(ctx, "list event teams for removal", err)
 		return
 	}
 	for _, team := range teams {
 		if err := trash(ctx, ev.AccountID, team.Slug); err != nil {
-			log.Printf("event-site cleanup: remove %s/%s: %v", ev.Slug, team.Slug, err)
+			cleanupFail(ctx, "trash event team site", err)
 			continue
 		}
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		log.Printf("event-site cleanup: remove %s: %v", ev.Slug, err)
+		cleanupFail(ctx, "begin event removal transaction", err)
 		return
 	}
 	defer tx.Rollback()
 	if err := eventrepo.MarkEventSitesRemoved(ctx, tx, ev.ID, now, keepFor); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			log.Printf("event-site cleanup: mark %s removed: %v", ev.Slug, err)
+			cleanupFail(ctx, "mark event sites removed", err)
 		}
 		return
 	}
 	if err := tx.Commit(); err != nil {
-		log.Printf("event-site cleanup: remove %s: %v", ev.Slug, err)
+		cleanupFail(ctx, "commit event sites removed", err)
 		return
 	}
+	cleanupProgress(ctx)
 	log.Printf("event-site cleanup: removed team sites of %s", ev.Slug)
 }
 
@@ -98,13 +102,13 @@ func (s *Service) warnEventRemoval(ctx context.Context, send func(string, string
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		log.Printf("event-site cleanup: warn %s: %v", ev.Slug, err)
+		cleanupFail(ctx, "begin event warning transaction", err)
 		return
 	}
 	defer tx.Rollback()
 	if err := eventrepo.MarkEventRemovalWarned(ctx, tx, ev.ID, now, keepFor, warnFor); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			log.Printf("event-site cleanup: mark %s warned: %v", ev.Slug, err)
+			cleanupFail(ctx, "mark event removal warning", err)
 		}
 		return
 	}
@@ -119,12 +123,33 @@ If you need more time, write to support@simple-host.app.
 Simple Hack
 `, ev.Title, removeOn)
 	if err := send(ev.ContactEmail, replyTo, subject, text); err != nil {
-		log.Printf("event-site cleanup: warn %s: %v", ev.Slug, err)
+		cleanupFail(ctx, "send event removal warning", err)
 		return
 	}
 	if err := tx.Commit(); err != nil {
-		log.Printf("event-site cleanup: warn %s: email sent but not recorded (it goes again next run): %v", ev.Slug, err)
+		cleanupFail(ctx, "commit event removal warning", err)
 		return
 	}
+	cleanupProgress(ctx)
 	log.Printf("event-site cleanup: warned organiser of %s", ev.Slug)
+}
+
+// CleanupReport receives real cleanup outcomes from the lifecycle owner.
+type CleanupReport interface {
+	Progress()
+	Fail(string, error)
+}
+type cleanupReportKey struct{}
+
+func cleanupProgress(ctx context.Context) {
+	if r, ok := ctx.Value(cleanupReportKey{}).(CleanupReport); ok {
+		r.Progress()
+	}
+}
+func cleanupFail(ctx context.Context, op string, err error) {
+	if r, ok := ctx.Value(cleanupReportKey{}).(CleanupReport); ok {
+		r.Fail(op, err)
+	} else if err != nil {
+		log.Printf("%s: %v", op, err)
+	}
 }

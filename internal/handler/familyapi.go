@@ -16,11 +16,12 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/publicsuffix"
+
 	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
-	"golang.org/x/net/publicsuffix"
 )
 
 // The address-family API (familyhost.go has the model):
@@ -561,15 +562,23 @@ func familyRequestBody(f db.AddressFamily, l config.Limits) string {
 // syncFamilyRequest keeps requests/<suffix> in step with a verified family
 // that has its certificate set up (rewritten only when it changed, so the
 // issuer's path unit fires only then); anything else has none.
-func (h *SiteHandler) syncFamilyRequest(f db.AddressFamily) {
-	h.certRequestSvc().SyncFamilyCertRequest(context.Background(), sites.FamilyCertRequestInput{
+func (h *SiteHandler) syncFamilyRequest(f db.AddressFamily, contexts ...context.Context) {
+	ctx := context.Background()
+	if len(contexts) > 0 {
+		ctx = contexts[0]
+	}
+	h.certRequestSvc().SyncFamilyCertRequest(ctx, sites.FamilyCertRequestInput{
 		Directory: h.familyCertDir, Suffix: f.Suffix, Body: familyRequestBody(f, h.limits),
 		ValidKey: validFamilyKey(f.Suffix), Verified: f.VerifiedAt.Valid, CertName: f.CertName, Wildcard: f.CertMode == "wildcard",
 	})
 }
 
-func (h *SiteHandler) removeFamilyRequest(suffix string) {
-	h.certRequestSvc().RemoveFamilyCertRequest(context.Background(), sites.FamilyCertRequestInput{Directory: h.familyCertDir, Suffix: suffix, ValidKey: validFamilyKey(suffix)})
+func (h *SiteHandler) removeFamilyRequest(suffix string, contexts ...context.Context) {
+	ctx := context.Background()
+	if len(contexts) > 0 {
+		ctx = contexts[0]
+	}
+	h.certRequestSvc().RemoveFamilyCertRequest(ctx, sites.FamilyCertRequestInput{Directory: h.familyCertDir, Suffix: suffix, ValidKey: validFamilyKey(suffix)})
 }
 
 // --- Checks ---
@@ -584,15 +593,18 @@ func (h *SiteHandler) checkFamilies(ctx context.Context) {
 	defer cancel()
 	expired, err := db.ReleaseExpiredFamilies(ctx, h.database, h.limits.FamilyUnprovenTTL)
 	if err != nil {
-		log.Printf("address families: expiry: %v", err)
+		sites.ReportWorkerFailure(ctx, "check address family", err)
+	}
+	if len(expired) > 0 {
+		sites.ReportWorkerProgress(ctx)
 	}
 	for _, f := range expired {
-		h.removeFamilyRequest(f.Suffix)
+		h.removeFamilyRequest(f.Suffix, ctx)
 		log.Printf("address family *.%s: never proved; dropped", f.Suffix)
 	}
 	due, err := db.ListFamiliesToCheck(ctx, h.database, h.limits.FamilyActiveRecheck)
 	if err != nil {
-		log.Printf("address families: list: %v", err)
+		sites.ReportWorkerFailure(ctx, "check address family", err)
 		return
 	}
 	ours := h.serverAddrs(ctx)
@@ -697,45 +709,47 @@ func (h *SiteHandler) checkFamily(ctx context.Context, f db.AddressFamily, ours 
 	if !f.VerifiedAt.Valid {
 		if !ok {
 			if _, err := db.SetFamilyCheck(ctx, h.database, f.ID, false, why); err != nil {
-				log.Printf("address family %s: %v", f.Suffix, err)
+				sites.ReportWorkerFailure(ctx, "check address family", err)
 			}
 			return
 		}
 		won, losers, err := db.VerifyFamily(ctx, h.database, f.ID)
 		if err != nil {
-			log.Printf("address family %s: verify: %v", f.Suffix, err)
+			sites.ReportWorkerFailure(ctx, "check address family", err)
 			return
 		}
 		if !won {
 			if _, err := db.SetFamilyCheck(ctx, h.database, f.ID, false, "*."+f.Suffix+" (or a name under it) is connected to another account"); err != nil {
-				log.Printf("address family %s: %v", f.Suffix, err)
+				sites.ReportWorkerFailure(ctx, "check address family", err)
 			}
 			return
 		}
 		for _, l := range losers {
-			h.removeFamilyRequest(l.Suffix)
+			h.removeFamilyRequest(l.Suffix, ctx)
 			h.emailFamilyNotice(l, "Your address family *."+l.Suffix+" was not connected",
 				fmt.Sprintf("You asked to connect *.%s to your Simple Host account, but another account proved it owns that name first, so your request was dropped.\n\nIf the name is yours, check who else has access to its DNS records.\n\nSimple Host\n", l.Suffix))
 		}
 		f.VerifiedAt = sql.NullTime{Time: time.Now(), Valid: true}
 		if err := h.disk.BindFamily(f.UserID, f.Suffix); err != nil {
-			log.Printf("address family %s: bind: %v", f.Suffix, err)
+			sites.ReportWorkerFailure(ctx, "check address family", err)
 		}
-		h.syncFamilyRequest(f)
+		h.syncFamilyRequest(f, ctx)
+		sites.ReportWorkerProgress(ctx)
 		log.Printf("address family *.%s of %s verified", f.Suffix, f.UserID)
 		h.refreshFamilies(ctx)
 		return
 	}
 	// Verified: keep its link and request in step, then record the check.
 	if err := h.disk.BindFamily(f.UserID, f.Suffix); err != nil {
-		log.Printf("address family %s: bind: %v", f.Suffix, err)
+		sites.ReportWorkerFailure(ctx, "check address family", err)
 	}
-	h.syncFamilyRequest(f)
+	h.syncFamilyRequest(f, ctx)
 	check, err := db.SetFamilyCheck(ctx, h.database, f.ID, ok, why)
 	if err != nil {
-		log.Printf("address family %s: %v", f.Suffix, err)
+		sites.ReportWorkerFailure(ctx, "check address family", err)
 		return
 	}
+	sites.ReportWorkerProgress(ctx)
 	if ok || !check.FailingSince.Valid {
 		return
 	}
@@ -748,7 +762,7 @@ func (h *SiteHandler) checkFamily(ctx context.Context, f db.AddressFamily, ours 
 	switch {
 	case due:
 		if err := h.releaseFamily(ctx, f); err != nil {
-			log.Printf("address family %s: lapse: %v", f.Suffix, err)
+			sites.ReportWorkerFailure(ctx, "check address family", err)
 			return
 		}
 		h.emailFamilyNotice(f, "Your address family *."+f.Suffix+" was disconnected",
@@ -759,7 +773,7 @@ func (h *SiteHandler) checkFamily(ctx context.Context, f db.AddressFamily, ours 
 			fmt.Sprintf("Your sites answer at <site>.%s, and that address family has failed every check for %s.\n\nWhat the last check saw: %s\n\nIf you moved the domain on purpose, there is nothing to do. Otherwise check its DNS records at your registrar (the wildcard record *.%s and the TXT record %s).\n\nIf it is still failing %s from now, *.%s is disconnected from your account and your sites answer at their own Simple Host addresses again.\n\nSimple Host\n",
 				f.Suffix, config.Span(lim.FamilyLapseWarnAfter), why, f.Suffix, domainProofHost(f.Suffix), config.Span(lim.FamilyLapseAfter-lim.FamilyLapseWarnAfter), f.Suffix)) {
 			if err := db.MarkFamilyLapseNotified(ctx, h.database, f.ID, releaseAt); err != nil {
-				log.Printf("address family %s: mark notified: %v", f.Suffix, err)
+				sites.ReportWorkerFailure(ctx, "check address family", err)
 			}
 		}
 	}
@@ -772,7 +786,7 @@ func (h *SiteHandler) emailFamilyNotice(f db.AddressFamily, subject, text string
 		return false
 	}
 	if err := mailer.SendNotice(f.Email, subject, text); err != nil {
-		log.Printf("address family %s: notice: %v", f.Suffix, err)
+		log.Printf("address family: send notice: %v", err)
 		return false
 	}
 	return true

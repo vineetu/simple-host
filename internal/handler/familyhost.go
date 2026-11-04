@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -91,11 +92,15 @@ func (h *SiteHandler) familiesOn() bool {
 // StartAddressFamilies loads the live families now and keeps them fresh,
 // and runs the families' DNS checks, until ctx ends.
 func (h *SiteHandler) StartAddressFamilies(ctx context.Context) {
-	if !h.familiesOn() {
-		return
-	}
-	h.refreshFamilies(ctx)
-	go func() {
+	h.siteLoop("sites.address_families").Start(ctx)
+}
+func (h *SiteHandler) startAddressFamilies(ctx context.Context) {
+	o := h.siteLoop("sites.address_families")
+	initialized := make(chan struct{})
+	o.Go(ctx, func(ctx context.Context) {
+		o.tracker.Attempt()
+		h.refreshFamilies(sites.WithWorkerReport(ctx, o.tracker))
+		close(initialized)
 		t := time.NewTicker(h.limits.FamilyCacheTTL)
 		defer t.Stop()
 		for {
@@ -103,25 +108,17 @@ func (h *SiteHandler) StartAddressFamilies(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				h.refreshFamilies(ctx)
+				o.tracker.Attempt()
+				h.refreshFamilies(sites.WithWorkerReport(ctx, o.tracker))
 			}
 		}
-	}()
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(30 * time.Second):
-		}
-		for {
-			h.checkFamilies(ctx)
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(h.limits.FamilyCheckInterval):
-			}
-		}
-	}()
+	})
+	// Preserve the synchronous initial cache load while retaining the work in
+	// the Runner so Stop cancels it and Wait includes it.
+	if o.Status()[0].Running {
+		<-initialized
+	}
+	o.periodic(ctx, 30*time.Second, h.limits.FamilyCheckInterval, h.checkFamilies)
 }
 
 // familyReadyPrefix reads the issuer's ready marker for suffix: whether it
@@ -168,7 +165,7 @@ func (h *SiteHandler) refreshFamilies(ctx context.Context) {
 	if h.familiesOn() {
 		list, err := db.ListAllFamilies(ctx, h.database)
 		if err != nil {
-			log.Printf("address families: list: %v", err)
+			sites.ReportWorkerFailure(ctx, "refresh address families", err)
 			return
 		}
 		for _, f := range list {
@@ -206,6 +203,9 @@ func (h *SiteHandler) refreshFamilies(ctx context.Context) {
 		if sig(byUser[u]) != sig(fs) {
 			changed[u] = true
 		}
+	}
+	if len(changed) > 0 {
+		sites.ReportWorkerProgress(ctx)
 	}
 	for u := range changed {
 		h.syncUserRedirects(ctx, u)

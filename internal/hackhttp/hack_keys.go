@@ -492,8 +492,14 @@ func (h *HackHandler) RequestOpenEventCerts(ctx context.Context) {
 	if h.sites == nil {
 		return
 	}
-	if err := h.teamsSvc().OpenEventSlugs(ctx, h.sites.RequestSiteCert); err != nil {
-		log.Printf("hack: open events: %v", err)
+	if err := h.teamsSvc().OpenEventSlugs(ctx, func(handle string) {
+		if s, ok := h.sites.(interface{ RequestSiteCertContext(context.Context, string) }); ok {
+			s.RequestSiteCertContext(ctx, handle)
+		} else {
+			h.sites.RequestSiteCert(handle)
+		}
+	}); err != nil {
+		siteSweepReport{ctx: ctx}.Fail("list open events for certificates", err)
 	}
 
 }

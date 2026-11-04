@@ -18,18 +18,30 @@ import (
 // left as "not submitted" (still judged, with an Incomplete flag) otherwise.
 // The per-minute timer calls it alongside PinDueTeams. Stage transitions call
 // SettleEventTx in the same transaction so judging never waits for the sweep.
-func (s *Service) SettleDue(ctx context.Context) { s.SettleEvent(ctx, "") }
+func (s *Service) SettleDue(ctx context.Context, reports ...SweepReport) {
+	s.SettleEvent(ctx, "", reports...)
+}
 
 // SettleEvent runs the deadline sweep for an event (or all events if empty).
-func (s *Service) SettleEvent(ctx context.Context, eventID string) {
+func (s *Service) SettleEvent(ctx context.Context, eventID string, reports ...SweepReport) {
 	ids, err := entryrepo.UnsettledFrozenTeamIDs(ctx, s.db, eventID)
 	if err != nil {
 		log.Printf("hack: settle sweep: %v", err)
+		for _, r := range reports {
+			r.Fail("list unsettled entries", err)
+		}
 		return
 	}
 	for _, teamID := range ids {
-		if err := s.SettleTeam(ctx, teamID); err != nil {
+		if err := s.SettleTeam(ctx, teamID, func() {
+			for _, r := range reports {
+				r.Progress()
+			}
+		}); err != nil {
 			log.Printf("hack: settle sweep %s: %v", teamID, err)
+			for _, r := range reports {
+				r.Fail("settle entry", err)
+			}
 		}
 	}
 }
@@ -84,7 +96,8 @@ func (s *Service) startSiteOnlyEntries(ctx context.Context, tx *sql.Tx, eventID 
 // SettleTeam locks and settles one team's entry in its own transaction
 // (lock order: team, then entry -- there is no specific member or event row
 // to lock for this write).
-func (s *Service) SettleTeam(ctx context.Context, teamID string) error {
+func (s *Service) SettleTeam(ctx context.Context, teamID string, progress ...func()) error {
+	changed := false
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -93,15 +106,23 @@ func (s *Service) SettleTeam(ctx context.Context, teamID string) error {
 	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE id = $1 FOR UPDATE`, teamID); err != nil {
 		return err
 	}
-	if err := s.SettleTeamTx(ctx, tx, teamID); err != nil {
+	if err := s.SettleTeamTx(ctx, tx, teamID, func() { changed = true }); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if changed {
+		for _, fn := range progress {
+			fn()
+		}
+	}
+	return nil
 }
 
 // SettleTeamTx is SettleTeam's body, run in a transaction that
 // already holds the team row FOR UPDATE.
-func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, teamID string) error {
+func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, teamID string, progress ...func()) error {
 	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, false)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
@@ -142,7 +163,25 @@ func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, teamID string) e
 		if st.Deadline.Valid {
 			deadline = st.Deadline.Time
 		}
-		return entryrepo.SettleEntryComplete(ctx, tx, teamID, deadline)
+		err = entryrepo.SettleEntryComplete(ctx, tx, teamID, deadline)
+		if err == nil {
+			for _, fn := range progress {
+				fn()
+			}
+		}
+		return err
 	}
-	return entryrepo.SettleEntryIncomplete(ctx, tx, teamID)
+	err = entryrepo.SettleEntryIncomplete(ctx, tx, teamID)
+	if err == nil {
+		for _, fn := range progress {
+			fn()
+		}
+	}
+	return err
+}
+
+// SweepReport receives committed entry settlement outcomes.
+type SweepReport interface {
+	Progress()
+	Fail(string, error)
 }

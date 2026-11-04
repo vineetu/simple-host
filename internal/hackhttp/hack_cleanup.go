@@ -2,10 +2,11 @@ package hackhttp
 
 import (
 	"context"
-	"log"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/email"
+	"github.com/vsriram/simple-host/internal/workers"
 )
 
 // Archive cleanup (M4). Once an event is archived, its team sites stay up
@@ -32,31 +33,12 @@ type hackReplySender interface {
 
 // StartEventCleanup runs the sweep shortly after boot and then daily.
 // EVENTS=hosted only: main starts it from the hosted-mode block.
-func (h *HackHandler) StartEventCleanup(ctx context.Context) {
-	keep := h.limits.EventSitesKeep
-	warn := h.limits.EventRemovalWarn
-	log.Printf("event-site cleanup: on (team sites removed %d days after an event archives, one warning %d days before, then daily)", int(keep.Hours()/24), int(warn.Hours()/24))
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(eventCleanupDelay):
-		}
-		h.runEventCleanup(ctx, time.Now())
-		t := time.NewTicker(eventCleanupEvery)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				h.runEventCleanup(ctx, time.Now())
-			}
-		}
-	}()
-}
+func (h *HackHandler) StartEventCleanup(ctx context.Context) { h.EventCleanupOwner().Start(ctx) }
 
 func (h *HackHandler) runEventCleanup(ctx context.Context, now time.Time) {
+	h.runEventCleanupTracked(ctx, now, nil)
+}
+func (h *HackHandler) runEventCleanupTracked(ctx context.Context, now time.Time, report *workers.Tracker) {
 	var send func(string, string, string, string) error
 	if m, ok := h.mailer.(hackReplySender); ok {
 		send = m.SendNoticeReplyTo
@@ -65,5 +47,9 @@ func (h *HackHandler) runEventCleanup(ctx context.Context, now time.Time) {
 	if h.sites != nil {
 		trash = h.sites.TrashTeamSite
 	}
-	h.events.RunEventCleanup(ctx, now, h.limits.EventSitesKeep, h.limits.EventRemovalWarn, trash, send, h.idleReplyTo())
+	var reports []events.CleanupReport
+	if report != nil {
+		reports = append(reports, report)
+	}
+	h.events.RunEventCleanup(ctx, now, h.limits.EventSitesKeep, h.limits.EventRemovalWarn, trash, send, h.idleReplyTo(), reports...)
 }

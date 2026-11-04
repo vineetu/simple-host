@@ -155,5 +155,5 @@ func (h *HackHandler) entryProgressJSON(ctx context.Context, ev model.Event, tea
 
 // SettleDueEntries runs the deadline sweep for every event.
 func (h *HackHandler) SettleDueEntries(ctx context.Context) {
-	h.entries.SettleDue(ctx)
+	h.entries.SettleDue(ctx, siteSweepReport{ctx: ctx})
 }

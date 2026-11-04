@@ -62,7 +62,9 @@ func init() {
 }
 
 type SiteHandler struct {
-	ed *edition.Edition
+	siteWorkersOnce sync.Once
+	siteWorkers     *siteWorkerGroup
+	ed              *edition.Edition
 	// limitSet is ed.Limits(), held once so a request does not copy the
 	// whole snapshot on every read (limits.go).
 	limitSet
@@ -424,11 +426,9 @@ func NewSiteHandler(ed *edition.Edition, hackInstanceURL string, database *sql.D
 				log.Printf("preview backfill: stamped expiry on %d existing site(s) for %q", n, u)
 			}
 		}
-		h.startExpirySweep(time.Hour)
 		log.Printf("preview-site expiry enabled: accounts=%d ttl=%s", len(previewAccounts), previewTTL)
 	}
 	if customDomainIP != "" {
-		h.startDomainChecks(h.domainCheckInterval())
 		log.Printf("custom-domain verification enabled: every %s, active re-proved after %s", h.domainCheckInterval(), domainActiveAge)
 	}
 	return h
@@ -437,19 +437,18 @@ func NewSiteHandler(ed *edition.Edition, hackInstanceURL string, database *sql.D
 // startExpirySweep periodically deletes sites whose expires_at has passed
 // (DB rows + on-disk files), keeping the platform free of stale preview sites.
 func (h *SiteHandler) startExpirySweep(every time.Duration) {
-	go func() {
-		// Run once shortly after boot, then on the interval.
-		time.Sleep(30 * time.Second)
-		for {
-			h.sweepExpiredSites()
-			time.Sleep(every)
+	o := h.siteLoop("sites.preview_expiry")
+	o.once.Do(func() {
+		if o.enabled() {
+			h.startExpirySweepContext(context.Background(), every)
 		}
-	}()
+	})
 }
-
-func (h *SiteHandler) sweepExpiredSites() {
-	h.sitesSvc().SweepExpiredSites()
+func (h *SiteHandler) startExpirySweepContext(ctx context.Context, every time.Duration) {
+	o := h.siteLoop("sites.preview_expiry")
+	o.periodic(ctx, 30*time.Second, every, func(ctx context.Context) { h.sitesSvc().SweepExpiredSites(ctx) })
 }
+func (h *SiteHandler) sweepExpiredSites() { h.sitesSvc().SweepExpiredSites(context.Background()) }
 
 func (h *SiteHandler) registerStorageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/sites/{sitename}/storage/resources", h.listStorageResources)

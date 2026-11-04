@@ -145,6 +145,7 @@ func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (r
 func (s *Service) PurgeDeleted(ctx context.Context) {
 	list, err := repo.ListPurgeableSites(ctx, s.database, s.deps.DeletedRetention)
 	if err != nil {
+		ReportWorkerFailure(ctx, "list purgeable sites", err)
 		log.Printf("deleted-site purge: list: %v", err)
 		return
 	}
@@ -154,14 +155,17 @@ func (s *Service) PurgeDeleted(ctx context.Context) {
 		unlock()
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
+				ReportWorkerFailure(ctx, "purge site row", err)
 				log.Printf("deleted-site purge: %s: %v", d.ID, err)
 			}
 			continue
 		}
 		if err := s.disk.PurgeTrashedSite(d.UserID, d.ID); err != nil {
+			ReportWorkerFailure(ctx, "purge site files", err)
 			log.Printf("deleted-site purge: files of %s: %v", d.ID, err)
 		}
 		if err := s.disk.PurgeTrashedSiteLinks(d.UserID, d.Name, strings.ToLower(d.CustomDomain.String)); err != nil {
+			ReportWorkerFailure(ctx, "purge site links", err)
 			log.Printf("deleted-site purge: links of %s: %v", d.ID, err)
 		}
 		for _, dom := range domains {
@@ -169,6 +173,7 @@ func (s *Service) PurgeDeleted(ctx context.Context) {
 			// been bound to another site since this one was deleted.
 			mine, err := s.disk.UnbindDomainOf(dom, d.UserID, d.Name)
 			if err != nil {
+				ReportWorkerFailure(ctx, "unbind purged site domain", err)
 				log.Printf("deleted-site purge: unbind %s: %v", dom, err)
 				continue
 			}
@@ -176,6 +181,7 @@ func (s *Service) PurgeDeleted(ctx context.Context) {
 				s.deps.CancelDomainCert(dom)
 			}
 		}
+		ReportWorkerProgress(ctx)
 		log.Printf("deleted-site purge: removed %s (%s)", d.Name, d.ID)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -407,7 +408,10 @@ func (h *SiteHandler) renderSiteHostNotFound(w http.ResponseWriter, r *http.Requ
 // directory: SITE_DOMAIN's until the base is handed out, and the base's from
 // serve on.
 func (h *SiteHandler) RequestSiteCert(handle string) {
-	h.certRequestSvc().RequestSiteCert(context.Background(), sites.SiteCertRequestInput{Handle: handle})
+	h.RequestSiteCertContext(context.Background(), handle)
+}
+func (h *SiteHandler) RequestSiteCertContext(ctx context.Context, handle string) {
+	h.certRequestSvc().RequestSiteCert(ctx, sites.SiteCertRequestInput{Handle: handle})
 }
 
 // requestSiteCertsForAll requests a certificate for every person with at
@@ -419,31 +423,54 @@ func (h *SiteHandler) requestSiteCertsForAll(ctx context.Context) {
 	}
 	handles, err := db.ListHandlesWithSites(ctx, h.database)
 	if err != nil {
-		log.Printf("site certs: list handles: %v", err)
+		sites.ReportWorkerFailure(ctx, "list certificate handles", err)
 		return
 	}
 	for _, handle := range handles {
-		h.RequestSiteCert(handle)
+		if ctx.Err() != nil {
+			return
+		}
+		h.certRequestSvc().RequestSiteCert(ctx, sites.SiteCertRequestInput{Handle: handle})
 	}
+}
+
+func (h *SiteHandler) updateSiteCertPending(ctx context.Context) {
+	var pending int64
+	seen := map[string]bool{}
+	for _, base := range h.certRequestBases() {
+		if ctx.Err() != nil {
+			return
+		}
+		dir := filepath.Join(h.certDirFor(base), "requests")
+		if seen[dir] {
+			continue
+		}
+		seen[dir] = true
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			sites.ReportWorkerFailure(ctx, "count certificate requests", err)
+			return
+		}
+		for _, f := range files {
+			if f.Type().IsRegular() {
+				pending++
+			}
+		}
+	}
+	h.siteLoop("sites.cert_requests").tracker.SetPending(pending)
 }
 
 // StartSiteCertRequests runs requestSiteCertsForAll now and then every
 // interval until ctx ends.
 func (h *SiteHandler) StartSiteCertRequests(ctx context.Context, every time.Duration) {
-	if !h.siteHostsOn() || len(h.certRequestBases()) == 0 {
-		return
-	}
-	go func() {
-		h.requestSiteCertsForAll(ctx)
-		t := time.NewTicker(every)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				h.requestSiteCertsForAll(ctx)
-			}
+	o := h.siteLoop("sites.cert_requests")
+	o.once.Do(func() {
+		if o.enabled() {
+			h.startSiteCertRequests(ctx, every)
 		}
-	}()
+	})
+}
+func (h *SiteHandler) startSiteCertRequests(ctx context.Context, every time.Duration) {
+	o := h.siteLoop("sites.cert_requests")
+	o.periodicTicker(ctx, 0, every, func(ctx context.Context) { h.requestSiteCertsForAll(ctx); h.updateSiteCertPending(ctx) })
 }

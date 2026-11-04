@@ -113,28 +113,16 @@ func (h *SiteHandler) idleEvidenceOK(ctx context.Context, now time.Time) (bool, 
 // StartIdleCleanup runs the cleanup shortly after boot and then every
 // idleRunEvery, while IDLE_CLEANUP is on.
 func (h *SiteHandler) StartIdleCleanup(ctx context.Context) {
-	if !h.idleCleanup {
-		return
-	}
-	log.Printf("idle-site cleanup: on (warn after %d days idle, remove %d days later, at most %d emails per run)", int(h.idleAfter().Hours()/24), int(h.idleGrace().Hours()/24), h.idleEmailCap())
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(10 * time.Minute):
+	o := h.siteLoop("sites.idle_cleanup")
+	o.once.Do(func() {
+		if o.enabled() {
+			h.startIdleCleanup(ctx)
 		}
-		h.runIdleCleanup(ctx, time.Now())
-		t := time.NewTicker(idleRunEvery)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				h.runIdleCleanup(ctx, time.Now())
-			}
-		}
-	}()
+	})
+}
+func (h *SiteHandler) startIdleCleanup(ctx context.Context) {
+	o := h.siteLoop("sites.idle_cleanup")
+	o.periodicTicker(ctx, 10*time.Minute, idleRunEvery, func(ctx context.Context) { h.runIdleCleanup(ctx, time.Now()) })
 }
 
 // runIdleCleanup is one pass: drop warnings of sites active again, remove
@@ -145,12 +133,12 @@ func (h *SiteHandler) runIdleCleanup(ctx context.Context, now time.Time) {
 	}
 	mailer, ok := h.mailer.(replyNoticeSender)
 	if !ok {
-		log.Printf("idle-site cleanup: no mailer; nothing done")
+		sites.ReportWorkerFailure(ctx, "send idle notices", errors.New("no mailer configured"))
 		return
 	}
 	trusted, why, _, _, err := h.idleEvidenceOK(ctx, now)
 	if err != nil {
-		log.Printf("idle-site cleanup: %v", err)
+		sites.ReportWorkerFailure(ctx, "idle cleanup", err)
 		return
 	}
 	if !trusted {
@@ -158,16 +146,17 @@ func (h *SiteHandler) runIdleCleanup(ctx context.Context, now time.Time) {
 		return
 	}
 	if n, err := db.ClearStaleIdleWarnings(ctx, h.database, h.idleExempt); err != nil {
-		log.Printf("idle-site cleanup: clear warnings: %v", err)
+		sites.ReportWorkerFailure(ctx, "idle cleanup", err)
 		return
 	} else if n > 0 {
+		sites.ReportWorkerProgress(ctx)
 		log.Printf("idle-site cleanup: %d warned site(s) active again", n)
 	}
 	budget := h.idleEmailCap()
 
 	remove, err := db.ListIdleSitesToRemove(ctx, h.database, h.idleExempt, now, h.idleGrace(), budget)
 	if err != nil {
-		log.Printf("idle-site cleanup: list removals: %v", err)
+		sites.ReportWorkerFailure(ctx, "idle cleanup", err)
 		return
 	}
 	for _, s := range remove {
@@ -184,7 +173,7 @@ func (h *SiteHandler) runIdleCleanup(ctx context.Context, now time.Time) {
 	}
 	warn, err := db.ListIdleSitesToWarn(ctx, h.database, h.idleExempt, now.Add(-h.idleAfter()), budget)
 	if err != nil {
-		log.Printf("idle-site cleanup: list warnings: %v", err)
+		sites.ReportWorkerFailure(ctx, "idle cleanup", err)
 		return
 	}
 	for _, s := range warn {

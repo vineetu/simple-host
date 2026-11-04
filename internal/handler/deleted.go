@@ -160,17 +160,14 @@ func (h *SiteHandler) purgeDeletedSites(ctx context.Context) { h.lifecycleSvc().
 // StartDeletedSitePurge runs the purge now and then every interval until ctx
 // ends.
 func (h *SiteHandler) StartDeletedSitePurge(ctx context.Context, every time.Duration) {
-	go func() {
-		h.purgeDeletedSites(ctx)
-		t := time.NewTicker(every)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				h.purgeDeletedSites(ctx)
-			}
+	o := h.siteLoop("sites.trash_purge")
+	o.once.Do(func() {
+		if o.enabled() {
+			h.startDeletedSitePurge(ctx, every)
 		}
-	}()
+	})
+}
+func (h *SiteHandler) startDeletedSitePurge(ctx context.Context, every time.Duration) {
+	o := h.siteLoop("sites.trash_purge")
+	o.periodicTicker(ctx, 0, every, func(ctx context.Context) { h.purgeDeletedSites(ctx) })
 }
