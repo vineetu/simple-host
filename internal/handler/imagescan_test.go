@@ -391,7 +391,7 @@ func TestImageScanDeployMatch(t *testing.T) {
 	if r := a.at(t, "POST", pcSiteDomain, "/v1/admin/image-scan/"+id64(m2.ID)+"/report", nil, admin); r.status != http.StatusBadGateway || r.json(t)["code"] != "report_failed" {
 		t.Fatalf("failed report: %d %s", r.status, r.body)
 	}
-	if got, _ := db.GetImageMatch(context.Background(), a.database, m2.ID); got.ReportStatus != "failed" || !strings.Contains(got.ReportError, "service down") {
+	if got, _ := db.GetImageMatch(context.Background(), a.database, m2.ID); got.ReportStatus != "failed" || got.ReportError != "report: provider rejected request or returned an invalid response" {
 		t.Fatalf("after failed report: %+v", got)
 	}
 	f.reporter.err = nil
@@ -545,7 +545,7 @@ func TestImageScanRetry(t *testing.T) {
 		}
 	}
 	row()
-	if attempts != 1 || !next.After(time.Now().Add(30*time.Second)) || !strings.Contains(lastErr, "retryable") {
+	if attempts != 1 || !next.After(time.Now().Add(30*time.Second)) || lastErr != "match: temporary provider failure" {
 		t.Fatalf("after a retryable error: attempts=%d next=%s err=%q", attempts, next, lastErr)
 	}
 	if _, err := a.database.Exec(`UPDATE image_scan_queue SET next_attempt_at = now() WHERE site_id::text = $1`, siteID); err != nil {
@@ -554,7 +554,7 @@ func TestImageScanRetry(t *testing.T) {
 	f.matcher.err = errors.New("permanent trouble")
 	f.scan.RunOnce(context.Background())
 	row()
-	if attempts != 2 || !next.After(time.Now().Add(90*time.Second)) || lastErr != "permanent trouble" {
+	if attempts != 2 || !next.After(time.Now().Add(90*time.Second)) || lastErr != "match: provider rejected request or returned an invalid response" {
 		t.Fatalf("after a permanent error: attempts=%d next=%s err=%q", attempts, next, lastErr)
 	}
 	if _, err := a.database.Exec(`UPDATE image_scan_queue SET next_attempt_at = now() WHERE site_id::text = $1`, siteID); err != nil {

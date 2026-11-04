@@ -12,11 +12,12 @@ import (
 // HTTPCaches owns the transport's periodic in-memory eviction loops.
 // Registration finishes before Start, alongside route wiring.
 type HTTPCaches struct {
-	once    sync.Once
-	runner  *workers.Runner
-	jobs    []cacheCleanup
-	tracker *workers.Tracker
-	name    string
+	startOnce sync.Once
+	once      sync.Once
+	runner    *workers.Runner
+	jobs      []cacheCleanup
+	tracker   *workers.Tracker
+	name      string
 }
 type cacheCleanup struct {
 	every time.Duration
@@ -37,17 +38,19 @@ func (c *HTTPCaches) init() {
 	})
 }
 func (c *HTTPCaches) Start(ctx context.Context) {
-	c.init()
-	for _, j := range c.jobs {
-		c.runner.Go(ctx, func(ctx context.Context) {
-			workers.Every(ctx, j.every, j.every, func(context.Context) {
-				c.tracker.Attempt()
-				if j.evict() > 0 {
-					c.tracker.Progress()
-				}
+	c.startOnce.Do(func() {
+		c.init()
+		for _, j := range c.jobs {
+			c.runner.Go(ctx, func(ctx context.Context) {
+				workers.Every(ctx, j.every, j.every, func(context.Context) {
+					c.tracker.Attempt()
+					if j.evict() > 0 {
+						c.tracker.Progress()
+					}
+				})
 			})
-		})
-	}
+		}
+	})
 }
 func (c *HTTPCaches) Stop()                           { c.init(); c.runner.Stop() }
 func (c *HTTPCaches) Wait()                           { c.init(); c.runner.Wait() }

@@ -20,6 +20,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/workers"
@@ -40,11 +41,12 @@ type Counters struct {
 
 // Sampler adds counter growth to net_usage_daily.
 type Sampler struct {
-	runner  *workers.Runner
-	tracker *workers.Tracker
-	db      *sql.DB
-	iface   string // "" picks the interface of the default route on each sample
-	now     func() time.Time
+	startOnce sync.Once
+	runner    *workers.Runner
+	tracker   *workers.Tracker
+	db        *sql.DB
+	iface     string // "" picks the interface of the default route on each sample
+	now       func() time.Time
 }
 
 // New builds a sampler. iface is NETWORK_INTERFACE; empty means the interface
@@ -56,29 +58,31 @@ func New(db *sql.DB, iface string) *Sampler {
 
 // Start samples now and then every interval until ctx ends.
 func (s *Sampler) Start(ctx context.Context, interval time.Duration) {
-	s.runner.Go(ctx, func(ctx context.Context) {
-		t := time.NewTicker(interval)
-		defer t.Stop()
-		for {
-			s.tracker.Attempt()
-			func() {
-				defer func() {
-					if rec := recover(); rec != nil {
-						s.tracker.Fail("sample panic", fmt.Errorf("%v", rec))
+	s.startOnce.Do(func() {
+		s.runner.Go(ctx, func(ctx context.Context) {
+			t := time.NewTicker(interval)
+			defer t.Stop()
+			for {
+				s.tracker.Attempt()
+				func() {
+					defer func() {
+						if rec := recover(); rec != nil {
+							s.tracker.Fail("sample panic", fmt.Errorf("%v", rec))
+						}
+					}()
+					c, cancel := context.WithTimeout(ctx, 30*time.Second)
+					defer cancel()
+					if err := s.Sample(c); err != nil {
+						s.tracker.Fail("sample", err)
 					}
 				}()
-				c, cancel := context.WithTimeout(ctx, 30*time.Second)
-				defer cancel()
-				if err := s.Sample(c); err != nil {
-					s.tracker.Fail("sample", err)
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
 				}
-			}()
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
 			}
-		}
+		})
 	})
 }
 

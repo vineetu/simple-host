@@ -63,11 +63,15 @@ func init() {
 }
 
 type SiteHandler struct {
-	httpCaches      HTTPCaches
-	workerStatus    func() []workers.Status
-	ed              *edition.Edition
-	siteWorkersOnce sync.Once
-	siteWorkers     *siteWorkerGroup
+	savedWorkerOnce   sync.Once
+	savedWorker       *savedDataWorker
+	networkWorkerOnce sync.Once
+	networkWorker     *networkUsageWorker
+	httpCaches        HTTPCaches
+	workerStatus      func() []workers.Status
+	ed                *edition.Edition
+	siteWorkersOnce   sync.Once
+	siteWorkers       *siteWorkerGroup
 	// limitSet is ed.Limits(), held once so a request does not copy the
 	// whole snapshot on every read (limits.go).
 	limitSet

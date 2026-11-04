@@ -43,6 +43,7 @@ import (
 // applies to every row and nothing outlives the 30-day IP retention. If the
 // database files are missing, the columns are simply blank.
 type APIMetrics struct {
+	startOnce  sync.Once
 	workerOnce sync.Once
 	runner     *workers.Runner
 	tracker    *workers.Tracker
@@ -240,10 +241,15 @@ func (m *APIMetrics) initWorker() {
 		}
 	})
 }
-func (m *APIMetrics) Start(ctx context.Context) { m.initWorker(); m.runner.Go(ctx, m.flushLoop) }
-func (m *APIMetrics) Stop()                     { m.initWorker(); m.runner.Stop() }
-func (m *APIMetrics) Wait()                     { m.initWorker(); m.runner.Wait() }
-func (m *APIMetrics) Status() []workers.Status  { m.initWorker(); return m.runner.Status() }
+func (m *APIMetrics) Start(ctx context.Context) {
+	m.startOnce.Do(func() {
+		m.initWorker()
+		m.runner.Go(ctx, m.flushLoop)
+	})
+}
+func (m *APIMetrics) Stop()                    { m.initWorker(); m.runner.Stop() }
+func (m *APIMetrics) Wait()                    { m.initWorker(); m.runner.Wait() }
+func (m *APIMetrics) Status() []workers.Status { m.initWorker(); return m.runner.Status() }
 
 func (m *APIMetrics) flushLoop(ctx context.Context) {
 	m.tracker.Attempt()

@@ -2,6 +2,7 @@ package hackhttp
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/httpx"
@@ -12,9 +13,10 @@ type limiterJob struct {
 	limiter *httpx.RateLimiter
 }
 type limiterWorkers struct {
-	runner  *workers.Runner
-	jobs    []limiterJob
-	tracker *workers.Tracker
+	startOnce sync.Once
+	runner    *workers.Runner
+	jobs      []limiterJob
+	tracker   *workers.Tracker
 }
 
 func (h *HackHandler) addLimiter(_ string, l *httpx.RateLimiter) {
@@ -41,16 +43,18 @@ func (h *HackHandler) LimiterWorkers() workers.Owner {
 // StartCleanup is the compatibility entry point for the limiter owner.
 func (h *HackHandler) StartCleanup(ctx context.Context) { h.LimiterWorkers().Start(ctx) }
 func (o *limiterWorkers) Start(ctx context.Context) {
-	for _, j := range o.jobs {
-		o.runner.Go(ctx, func(ctx context.Context) {
-			workers.Every(ctx, 10*time.Minute, 10*time.Minute, func(context.Context) {
-				o.tracker.Attempt()
-				if j.limiter.EvictIdle(30*time.Minute) > 0 {
-					o.tracker.Progress()
-				}
+	o.startOnce.Do(func() {
+		for _, j := range o.jobs {
+			o.runner.Go(ctx, func(ctx context.Context) {
+				workers.Every(ctx, 10*time.Minute, 10*time.Minute, func(context.Context) {
+					o.tracker.Attempt()
+					if j.limiter.EvictIdle(30*time.Minute) > 0 {
+						o.tracker.Progress()
+					}
+				})
 			})
-		})
-	}
+		}
+	})
 }
 func (o *limiterWorkers) Stop()                    { o.runner.Stop() }
 func (o *limiterWorkers) Wait()                    { o.runner.Wait() }

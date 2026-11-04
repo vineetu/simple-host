@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -50,6 +51,7 @@ var assetExt = map[string]struct{}{
 
 // Ingester tails an nginx analytics log and upserts daily aggregates.
 type Ingester struct {
+	startOnce   sync.Once
 	runner      *workers.Runner
 	tracker     *workers.Tracker
 	db          *sql.DB
@@ -143,7 +145,9 @@ func (i *Ingester) WithSalt(salt string) *Ingester {
 	return i
 }
 
-// Worker returns the retained lifecycle owner. Production uses five minutes.
+// Worker adapts the interval to the ingester's shared lifecycle. Start is
+// guarded on the Ingester, including across compatibility calls and wrappers.
+// Production uses five minutes.
 func (i *Ingester) Worker(interval time.Duration) workers.Owner {
 	return &ingestWorker{Ingester: i, interval: interval}
 }
@@ -154,18 +158,33 @@ type ingestWorker struct {
 }
 
 func (w *ingestWorker) Start(ctx context.Context) {
-	w.runner.Go(ctx, func(ctx context.Context) {
-		workers.Every(ctx, 0, w.interval, func(ctx context.Context) {
-			w.tracker.Attempt()
-			defer func() {
-				if rec := recover(); rec != nil {
-					w.tracker.Fail("ingest panic", fmt.Errorf("%v", rec))
+	w.startOnce.Do(func() {
+		w.runner.Go(ctx, func(ctx context.Context) {
+			timer := time.NewTimer(0)
+			defer timer.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-timer.C:
 				}
-			}()
-			ctx, cancel := context.WithTimeout(ctx, runTimeout)
-			defer cancel()
-			if err := w.runOnce(ctx); err != nil {
-				w.tracker.Fail("ingest", err)
+				if ctx.Err() != nil {
+					return
+				}
+				func() {
+					w.tracker.Attempt()
+					defer func() {
+						if rec := recover(); rec != nil {
+							w.tracker.Fail("ingest panic", fmt.Errorf("%v", rec))
+						}
+					}()
+					ctx, cancel := context.WithTimeout(ctx, runTimeout)
+					defer cancel()
+					if err := w.runOnce(ctx); err != nil {
+						w.tracker.Fail("ingest", err)
+					}
+				}()
+				timer.Reset(w.interval)
 			}
 		})
 	})

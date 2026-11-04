@@ -145,12 +145,23 @@ func CompleteSSOSignout(ctx context.Context, database *sql.DB, token, cookieHash
 	return back, tx.Commit()
 }
 func SweepSSO(ctx context.Context, q Querier) error {
+	_, err := sweepSSOCount(ctx, q)
+	return err
+}
+func sweepSSOCount(ctx context.Context, q Querier) (int64, error) {
+	var deleted int64
 	for _, query := range []string{`DELETE FROM sso_hops WHERE expires_at<now()`, `DELETE FROM sso_signouts WHERE expires_at<now()`, `DELETE FROM sso_passes WHERE expires_at<now() OR idle_expires_at<now()`} {
-		if _, err := q.ExecContext(ctx, query); err != nil {
-			return err
+		result, err := q.ExecContext(ctx, query)
+		if err != nil {
+			return deleted, err
+		}
+		n, err := result.RowsAffected()
+		deleted += n
+		if err != nil {
+			return deleted, err
 		}
 	}
-	return nil
+	return deleted, nil
 }
 
 func ForgetSSOConsent(ctx context.Context, q Querier, userID, siteID string) error {

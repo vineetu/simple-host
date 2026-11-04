@@ -55,8 +55,10 @@ func (h *OAuthHandler) writeOAuthHTMLBlocked(w http.ResponseWriter) {
 }
 
 type OAuthHandler struct {
-	httpCaches HTTPCaches
-	ed         *edition.Edition
+	visitorWorkerOnce sync.Once
+	visitorWorker     *visitorAuthWorkers
+	httpCaches        HTTPCaches
+	ed                *edition.Edition
 	limitSet
 	// personSite resolves a return_to on a person host to its site
 	// (SiteHandler.PersonReturnSite); nil when person hosts are not wired.

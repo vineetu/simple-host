@@ -36,6 +36,7 @@ func Enabled() bool {
 
 // Collector owns every paper metric for one server process.
 type Collector struct {
+	startOnce  sync.Once
 	runner     *workers.Runner
 	tracker    *workers.Tracker
 	db         *sql.DB
@@ -70,21 +71,23 @@ func New(db *sql.DB, dataDir string, apexHosts ...string) *Collector {
 
 // Start runs the flush, sample and snapshot loops until ctx ends.
 func (c *Collector) Start(ctx context.Context) {
-	if !Enabled() {
-		return
-	}
-	c.runner.Go(ctx, func(ctx context.Context) {
-		c.tracker.Attempt()
-		newRun := c.runID.Load() == 0
-		if _, err := c.ensureRun(ctx); err != nil {
-			c.tracker.Fail("register run", err)
-		} else if newRun {
-			c.tracker.Progress()
+	c.startOnce.Do(func() {
+		if !Enabled() {
+			return
 		}
-		if c.hack != nil {
-			c.runner.Go(ctx, c.hackLoop)
-		}
-		c.loop(ctx)
+		c.runner.Go(ctx, func(ctx context.Context) {
+			c.tracker.Attempt()
+			newRun := c.runID.Load() == 0
+			if _, err := c.ensureRun(ctx); err != nil {
+				c.tracker.Fail("register run", err)
+			} else if newRun {
+				c.tracker.Progress()
+			}
+			if c.hack != nil {
+				c.runner.Go(ctx, c.hackLoop)
+			}
+			c.loop(ctx)
+		})
 	})
 }
 

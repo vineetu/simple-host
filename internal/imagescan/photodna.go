@@ -32,7 +32,13 @@ func (p *PhotoDNA) client() *http.Client {
 }
 
 // Match implements Matcher: POST the image bytes to MatchURL.
-func (p *PhotoDNA) Match(ctx context.Context, img *Image) (Match, error) {
+func (p *PhotoDNA) Match(ctx context.Context, img *Image) (result Match, resultErr error) {
+	status := 0
+	defer func() {
+		if resultErr != nil {
+			resultErr = providerError("match", status, resultErr)
+		}
+	}()
 	if img == nil || len(img.Data) == 0 {
 		return Match{}, errors.New("photodna: match: no image bytes")
 	}
@@ -51,7 +57,9 @@ func (p *PhotoDNA) Match(ctx context.Context, img *Image) (Match, error) {
 	if ct == "" {
 		ct = http.DetectContentType(img.Data)
 	}
-	status, body, err := p.post(ctx, u, ct, img.Data)
+	var body []byte
+	var err error
+	status, body, err = p.post(ctx, u, ct, img.Data)
 	if err != nil {
 		return Match{}, fmt.Errorf("photodna: match: %w: %v", ErrRetryable, err)
 	}
@@ -88,7 +96,13 @@ func (p *PhotoDNA) Match(ctx context.Context, img *Image) (Match, error) {
 }
 
 // Report implements Reporter: POST the report JSON to ReportURL.
-func (p *PhotoDNA) Report(ctx context.Context, in Report) (ReportResult, error) {
+func (p *PhotoDNA) Report(ctx context.Context, in Report) (result ReportResult, resultErr error) {
+	status := 0
+	defer func() {
+		if resultErr != nil {
+			resultErr = providerError("report", status, resultErr)
+		}
+	}()
 	if err := validateReport(in); err != nil {
 		return ReportResult{}, err
 	}
@@ -100,7 +114,8 @@ func (p *PhotoDNA) Report(ctx context.Context, in Report) (ReportResult, error) 
 	if err != nil {
 		return ReportResult{}, fmt.Errorf("photodna: report: encode: %w", err)
 	}
-	status, resp, err := p.post(ctx, u, "application/json", body)
+	var resp []byte
+	status, resp, err = p.post(ctx, u, "application/json", body)
 	if err != nil {
 		return ReportResult{}, fmt.Errorf("photodna: report: %w: %v", ErrRetryable, err)
 	}

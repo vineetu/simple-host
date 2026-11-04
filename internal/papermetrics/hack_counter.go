@@ -436,7 +436,9 @@ func (c *Collector) hackLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			c.flushHack(context.Background(), time.Now().UTC())
+			finalCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			c.flushHack(finalCtx, time.Now().UTC())
+			cancel()
 			return
 		case <-c.hack.refresh:
 			c.refreshHackBackground(ctx)

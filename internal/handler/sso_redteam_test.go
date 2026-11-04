@@ -124,8 +124,8 @@ func TestSSORedteamListedConsentAndPending(t *testing.T) {
 			case "abandon":
 				a.database.Exec(`UPDATE visitor_sessions SET expires_at=now()-interval '1 second' WHERE user_id=$1`, uid)
 				a.database.Exec(`UPDATE visitor_establish_tokens SET expires_at=now()-interval '1 second' WHERE once=$1`, u.Query().Get("once"))
-				if err := db.SweepVisitorAuth(context.Background(), a.database); err != nil {
-					t.Fatal(err)
+				if n, err := db.SweepVisitorAuthCount(context.Background(), a.database); err != nil || n < 2 {
+					t.Fatalf("expired handoff/session cleanup: removed=%d err=%v", n, err)
 				}
 				check(0, 0)
 				return

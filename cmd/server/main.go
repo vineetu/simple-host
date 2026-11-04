@@ -638,7 +638,10 @@ func main() {
 	}
 	workerSet.Stop()
 	cancelWorkers()
-	joinCtx, joinCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Allow an in-flight API flush (15s) followed by its final flush (15s),
+	// and the paper collectors' final flushes (20s), before closing the DB.
+	// HTTP drain (10s) plus this join (45s) stays below systemd's 90s stop limit.
+	joinCtx, joinCancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer joinCancel()
 	laggards := workerSet.Wait(joinCtx)
 	for _, name := range laggards {

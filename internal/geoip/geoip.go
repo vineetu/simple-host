@@ -51,9 +51,10 @@ type Info struct {
 // DB holds the two readers and reloads them when their files change.
 // The zero value is not usable; call Open.
 type DB struct {
-	runner  *workers.Runner
-	tracker *workers.Tracker
-	dir     string
+	startOnce sync.Once
+	runner    *workers.Runner
+	tracker   *workers.Tracker
+	dir       string
 
 	mu   sync.RWMutex // held for reading across a lookup, for writing across a swap
 	city *slot
@@ -103,18 +104,20 @@ type watchWorker struct {
 
 func (d *DB) WatchWorker(interval time.Duration) workers.Owner { return &watchWorker{d, interval} }
 func (w *watchWorker) Start(ctx context.Context) {
-	w.runner.Go(ctx, func(ctx context.Context) {
-		tick := time.NewTicker(w.interval)
-		defer tick.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-tick.C:
-				w.tracker.Attempt()
-				w.Reload()
+	w.startOnce.Do(func() {
+		w.runner.Go(ctx, func(ctx context.Context) {
+			tick := time.NewTicker(w.interval)
+			defer tick.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-tick.C:
+					w.tracker.Attempt()
+					w.Reload()
+				}
 			}
-		}
+		})
 	})
 }
 
