@@ -401,14 +401,21 @@ func itemsWithin(ctx context.Context, tx *sql.Tx, siteID, name string, maxItems 
 	return nil
 }
 
-// getItemHistoryEntry reads list history; state-diff reconstruction stays in the state workflow.
-func getHistoryEntry(ctx context.Context, q sqlkit.Querier, siteID, kind, name string, id int64) (model.HistoryEntry, error) {
+// getHistoryEntry reads one change and reconstructs state diffs in the same snapshot.
+func getHistoryEntry(ctx context.Context, q historyReader, siteID, kind, name string, id int64) (model.HistoryEntry, error) {
 	e, prev, err := repo.HistoryRecord(ctx, q, siteID, kind, name, id)
 	if err != nil {
 		return e, err
 	}
-	if prev != nil {
+	switch {
+	case prev != nil:
 		e.Value = json.RawMessage(prev)
+	case kind == model.HistoryState:
+		v, err := stateBefore(ctx, q, siteID, id)
+		if err != nil && !errors.Is(err, model.ErrNoEarlierValue) {
+			return e, err
+		}
+		e.Value = v
 	}
 	return e, nil
 }
