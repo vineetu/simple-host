@@ -77,6 +77,9 @@ func run(args []string) error {
 	if args[0] != "routes" && args[0] != "write" && args[0] != "check" {
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
+	if err := validateDynamicInputs("."); err != nil {
+		return err
+	}
 	routes, err := scanRoutes(".", dynamicSites)
 	if err != nil {
 		return err
@@ -114,6 +117,15 @@ func run(args []string) error {
 		return err
 	}
 	var problems []string
+	if args[0] == "check" {
+		registry, err := os.ReadFile("docs/feature-ids.txt")
+		if err != nil {
+			return err
+		}
+		if err := validateFeatureIDs(string(features), string(registry)); err != nil {
+			problems = append(problems, err.Error())
+		}
+	}
 	for _, name := range []string{"routes.md", "mcp-tools.md", "inventory.json"} {
 		path := "docs/generated/" + name
 		if args[0] == "write" {
@@ -272,6 +284,8 @@ func scanRoutes(root string, table dynamicTable) ([]route, error) {
 
 var anchorRE = regexp.MustCompile(`<a id="([^"]+)"></a>`)
 var idRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+var codeSpanRE = regexp.MustCompile("`([^`]+)`")
+var numberedSectionRE = regexp.MustCompile(`^## [0-9]+\.`)
 var indexRE = regexp.MustCompile(`^## (21|22)\.`)
 
 type placement struct{ text, id string }
@@ -282,12 +296,19 @@ func parseFeatures(text string) (featurePlacements, error) {
 	ids := map[string]bool{}
 	current := ""
 	index := false
+	numbered := false
 	for i, line := range strings.Split(text, "\n") {
 		if strings.HasPrefix(line, "## ") {
 			index = indexRE.MatchString(line)
+			numbered = numberedSectionRE.MatchString(line)
 			current = ""
 		}
 		anchors := anchorRE.FindAllStringSubmatch(line, -1)
+		required := strings.HasPrefix(line, "## ") || strings.HasPrefix(line, "### ") ||
+			(numbered && strings.HasPrefix(line, "**") && !strings.HasPrefix(line, "**Status:"))
+		if required && (len(anchors) != 1 || !strings.HasSuffix(line, anchors[0][0])) {
+			return nil, fmt.Errorf("FEATURES.md:%d: required feature must have exactly one anchor at line end", i+1)
+		}
 		if len(anchors) > 1 {
 			return nil, fmt.Errorf("FEATURES.md:%d: multiple anchors", i+1)
 		}
@@ -308,13 +329,20 @@ func parseFeatures(text string) (featurePlacements, error) {
 func (p featurePlacements) resolve(name string, isTool bool) string {
 	pattern := "`" + regexp.QuoteMeta(name) + "`"
 	if !isTool {
-		pattern = regexp.QuoteMeta(name) + `([^A-Za-z0-9_./{}-]|$)`
+		pattern = "^(?:[A-Z]+(?:/[A-Z]+)* )?" + regexp.QuoteMeta(name) + `([^A-Za-z0-9_./{}-]|$)`
 	}
 	re := regexp.MustCompile(pattern)
 	for _, line := range p {
-		text := line.text
-		if re.MatchString(text) {
-			return line.id
+		if isTool {
+			if re.MatchString(line.text) {
+				return line.id
+			}
+		} else if strings.Contains(line.text, name) {
+			for _, span := range codeSpanRE.FindAllStringSubmatch(line.text, -1) {
+				if re.MatchString(span[1]) {
+					return line.id
+				}
+			}
 		}
 	}
 	return "UNPLACED"
@@ -353,5 +381,38 @@ func generated(inv inventory) (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string][]byte{"routes.md": []byte(routes.String()), "mcp-tools.md": []byte(tools.String()), "inventory.json": append(data, '\n')}, nil
+	return map[string][]byte{"routes.md": []byte(strings.TrimRight(routes.String(), "\n") + "\n"), "mcp-tools.md": []byte(strings.TrimRight(tools.String(), "\n") + "\n"), "inventory.json": append(data, '\n')}, nil
+}
+
+// The registry preserves IDs even after their feature has been retired.
+func validateFeatureIDs(features, registry string) error {
+	anchors := map[string]bool{}
+	for _, match := range anchorRE.FindAllStringSubmatch(features, -1) {
+		anchors[match[1]] = true
+	}
+	entries := strings.Split(strings.TrimSuffix(registry, "\n"), "\n")
+	if !sort.StringsAreSorted(entries) {
+		return fmt.Errorf("docs/feature-ids.txt: IDs must be sorted")
+	}
+	known := map[string]bool{}
+	for _, entry := range entries {
+		fields := strings.Fields(entry)
+		if len(fields) < 1 || len(fields) > 2 || (len(fields) == 2 && fields[1] != "retired") {
+			return fmt.Errorf("docs/feature-ids.txt: invalid entry %q", entry)
+		}
+		id := fields[0]
+		if !idRE.MatchString(id) || len(id) > 40 || known[id] {
+			return fmt.Errorf("docs/feature-ids.txt: invalid or duplicate ID %q", id)
+		}
+		known[id] = true
+		if len(fields) == 1 && !anchors[id] {
+			return fmt.Errorf("docs/feature-ids.txt: non-retired ID %q missing from FEATURES.md", id)
+		}
+	}
+	for _, match := range anchorRE.FindAllStringSubmatch(features, -1) {
+		if !known[match[1]] {
+			return fmt.Errorf("FEATURES.md: anchor %q missing from docs/feature-ids.txt", match[1])
+		}
+	}
+	return nil
 }

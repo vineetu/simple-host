@@ -19,7 +19,7 @@
     {
       "method": "DELETE",
       "path": "/mcp",
-      "feature_id": "admin-signup-source",
+      "feature_id": "access-deploy-key",
       "source": "internal/handler/connector.go:302",
       "package": "internal/handler",
       "dynamic": true
@@ -371,7 +371,7 @@
     {
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/resources/{name}",
-      "feature_id": "storage-presets",
+      "feature_id": "storage-sql-errors",
       "source": "internal/handler/site.go:459",
       "package": "internal/handler",
       "dynamic": false
@@ -611,7 +611,7 @@
     {
       "method": "GET",
       "path": "/admin",
-      "feature_id": "collections-existing-sites-only",
+      "feature_id": "admin",
       "source": "internal/handler/ui.go:174",
       "package": "internal/handler",
       "dynamic": false
@@ -635,7 +635,7 @@
     {
       "method": "GET",
       "path": "/auth.js",
-      "feature_id": "the-per-site-cap",
+      "feature_id": "access-signin-card",
       "source": "internal/handler/ui.go:122",
       "package": "internal/handler",
       "dynamic": true
@@ -811,7 +811,7 @@
     {
       "method": "GET",
       "path": "/events",
-      "feature_id": "applications-without-a-join-link",
+      "feature_id": "hack-voting",
       "source": "internal/hackhttp/hack_ui.go:61",
       "package": "internal/hackhttp",
       "dynamic": true
@@ -875,7 +875,7 @@
     {
       "method": "GET",
       "path": "/get-started",
-      "feature_id": "publish-wordpress-import",
+      "feature_id": "dashboard-icon",
       "source": "internal/hackhttp/hack_get_started.go:19",
       "package": "internal/hackhttp",
       "dynamic": false
@@ -939,7 +939,7 @@
     {
       "method": "GET",
       "path": "/install.html",
-      "feature_id": "publish-wordpress-import",
+      "feature_id": "skills-and-plugin-distribution",
       "source": "internal/handler/ui.go:122",
       "package": "internal/handler",
       "dynamic": true
@@ -947,7 +947,7 @@
     {
       "method": "GET",
       "path": "/install.html",
-      "feature_id": "publish-wordpress-import",
+      "feature_id": "skills-and-plugin-distribution",
       "source": "internal/handler/ui.go:129",
       "package": "internal/handler",
       "dynamic": false
@@ -1075,7 +1075,7 @@
     {
       "method": "GET",
       "path": "/join/{code}",
-      "feature_id": "registration-tracks-and-challenges",
+      "feature_id": "hosted-events-simple-hack-app",
       "source": "internal/hackhttp/hack_ui.go:61",
       "package": "internal/hackhttp",
       "dynamic": true
@@ -1083,7 +1083,7 @@
     {
       "method": "GET",
       "path": "/judge/{code}",
-      "feature_id": "judging",
+      "feature_id": "hosted-events-simple-hack-app",
       "source": "internal/hackhttp/hack_ui.go:61",
       "package": "internal/hackhttp",
       "dynamic": true
@@ -1107,7 +1107,7 @@
     {
       "method": "GET",
       "path": "/llms.txt",
-      "feature_id": "dashboard-icon",
+      "feature_id": "agents-discovery",
       "source": "internal/handler/ui.go:122",
       "package": "internal/handler",
       "dynamic": true
@@ -1115,7 +1115,7 @@
     {
       "method": "GET",
       "path": "/mcp",
-      "feature_id": "admin-signup-source",
+      "feature_id": "access-deploy-key",
       "source": "internal/handler/connector.go:302",
       "package": "internal/handler",
       "dynamic": true
@@ -1155,7 +1155,7 @@
     {
       "method": "GET",
       "path": "/organiser/{code}",
-      "feature_id": "event-administration",
+      "feature_id": "hack-voting",
       "source": "internal/hackhttp/hack_ui.go:61",
       "package": "internal/hackhttp",
       "dynamic": true
@@ -1579,7 +1579,7 @@
     {
       "method": "GET",
       "path": "/skills/website-deploy/SKILL.md",
-      "feature_id": "publish-wordpress-import",
+      "feature_id": "skills-and-plugin-distribution",
       "source": "internal/handler/ui.go:157",
       "package": "internal/handler",
       "dynamic": true
@@ -3379,7 +3379,7 @@
     {
       "method": "POST",
       "path": "/mcp",
-      "feature_id": "admin-signup-source",
+      "feature_id": "access-deploy-key",
       "source": "internal/handler/connector.go:302",
       "package": "internal/handler",
       "dynamic": true
@@ -4795,7 +4795,7 @@
     {
       "method": "PUT",
       "path": "/v1/sites/{sitename}/storage/resources/{name}",
-      "feature_id": "storage-presets",
+      "feature_id": "storage-sql-errors",
       "source": "internal/handler/site.go:458",
       "package": "internal/handler",
       "dynamic": false

@@ -45,6 +45,11 @@ func TestFeaturePlacement(t *testing.T) {
 		"## A <a id=\"same\"></a>\n### B <a id=\"same\"></a>",
 		`## A <a id="` + strings.Repeat("a", 41) + `"></a>`,
 		`## A <a id="one"></a> <a id="two"></a>`,
+		`## Missing anchor`,
+		`### Missing anchor`,
+		"## 1. Sites <a id=\"sites\"></a>\n**Missing lead.**",
+		`## A <a id="one"></a> trailing`,
+		"## 1. Sites <a id=\"sites\"></a>\n**Lead.** <a id=\"lead\"></a> trailing",
 	} {
 		if _, err := parseFeatures(text); err == nil {
 			t.Errorf("accepted invalid anchors: %s", text)
@@ -99,5 +104,71 @@ func Register() {
 	table["missing.go:Missing"] = []dynamicSite{{"missing", []string{"GET /missing"}}}
 	if _, err := scanRoutes(root, table); err == nil || !strings.Contains(err.Error(), "stale") {
 		t.Errorf("stale table: %v", err)
+	}
+}
+
+func TestRouteTokenBoundaries(t *testing.T) {
+	for _, text := range []string{
+		"owner key/connector/admin",
+		"`connector`/admin",
+		"`GET /v1/admin`",
+		"`/v1/admin`",
+		"`GET /admin/settings`",
+	} {
+		if got := (featurePlacements{{text, "wrong"}}).resolve("/admin", false); got != "UNPLACED" {
+			t.Errorf("fragment matched %q", text)
+		}
+	}
+	for _, text := range []string{"`/admin`", "`GET /admin`", "`GET/POST /admin`", "`GET`/`POST /admin`"} {
+		if got := (featurePlacements{{text, "admin"}}).resolve("/admin", false); got != "admin" {
+			t.Errorf("route notation rejected: %q", text)
+		}
+	}
+}
+
+func TestFeatureIDRegistry(t *testing.T) {
+	features := `## 1. Sites <a id="sites"></a>`
+	for _, tc := range []struct {
+		registry string
+		valid    bool
+	}{
+		{"sites\n", true},
+		{"old retired\nsites\n", true},
+		{"other\nsites\n", false},  // active IDs cannot disappear.
+		{"other retired\n", false}, // anchors must be registered.
+		{"sites\nold retired\n", false},
+		{"sites\nsites retired\n", false},
+	} {
+		if err := validateFeatureIDs(features, tc.registry); (err == nil) != tc.valid {
+			t.Errorf("registry %q: %v", tc.registry, err)
+		}
+	}
+	if _, err := parseFeatures("**Preamble**\n" + features + "\n**Status: live.**"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDynamicInputChanges(t *testing.T) {
+	root := t.TempDir()
+	for _, tc := range []struct{ declaration, kind, source string }{
+		{"assets", "values", `var assets = []string{"old"}`},
+		{"musePath", "values", `const musePath = "old"`},
+		{"Register", "ranges", `func Register() { for _, p := range []string{"old"} { mux.Handle(p,nil) } }`},
+		{"icons", "keys", `func icons() map[string]string { return map[string]string{"old":"file.svg"} }`},
+	} {
+		input := dynamicInput{"routes.go", tc.declaration, tc.kind, []string{"old"}}
+		for _, mutation := range []string{"", `"new"`, `"old" + suffix`} {
+			source := tc.source
+			changed := mutation != ""
+			if changed {
+				source = strings.ReplaceAll(source, `"old"`, mutation)
+			}
+			if err := os.WriteFile(filepath.Join(root, input.File), []byte("package fixture\n"+source), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if err := validateDynamicInput(root, input); (err != nil) != changed {
+				t.Errorf("%s changed=%v: %v", tc.declaration, changed, err)
+			}
+		}
 	}
 }
