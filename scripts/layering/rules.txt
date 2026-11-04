@@ -51,6 +51,5 @@ db -> repository/hackteams production # removal step 5.4: team aliases, account 
 db -> repository/hackentries production # removal step 5.4: Host-dependent compatibility aliases
 db -> repository/sqlkit production # removal step 5.4: db keeps the Querier alias until the last repository moves
 db -> model production # removal step 5.4: db keeps type aliases until the last repository moves
-hackhttp -> db test # removal step 5.4: Host fixtures and Hack compatibility aliases
 handler -> geoip test # removal step 5.4: worker lifecycle and operations
 handler -> oauth test # removal step 5.4: final transport boundary
