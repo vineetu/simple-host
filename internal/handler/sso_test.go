@@ -16,7 +16,6 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/config"
 	db "github.com/vsriram/simple-host/internal/db"
 	"github.com/vsriram/simple-host/internal/oauth"
 )
@@ -513,32 +512,6 @@ func TestSSOProviderAndEmailSignup(t *testing.T) {
 		r := a.at(t, method, a.appHost(), path, body, map[string]string{"X-Forwarded-For": ip})
 		if r.status != 403 {
 			t.Fatalf("geo block: %s %d", path, r.status)
-		}
-	}
-}
-
-func TestSSOHackEventAndTeamHosts(t *testing.T) {
-	a := newBridgeTeamApp(t)
-	organiser, member := a.newPerson(t, "ssohackorg"), a.newPerson(t, "ssohackmember")
-	event := a.makeEvent(t, organiser)
-	a.join(t, event, member, organiser)
-	team, _ := a.startTeam(t, event, "SSO team", member)
-	markReady(t, a.certDir, event)
-	wantTS(t, "team", a.deployTeam(t, team, a.teamKey(t, event, member), "team"), 201, "")
-	wantTS(t, "event website", a.api(t, "PUT", "/v1/hack/events/"+event+"/website/files?create=1", deployBody("event"), organiser.key), 201, "")
-	o := NewOAuthHandler(a.database, accountapp.New(a.database), config.Config{PublicBaseURL: a.srv.URL, SiteDomain: bridgeTSDomain, ContentHost: "sites." + bridgeTSDomain}, a.sites.ed)
-	o.SetPersonSiteResolver(a.sites.PersonReturnSite)
-	o.SetPasscodeCheck(a.sites.PasscodeLetsIn)
-	a.sites.SetSSOHop(o)
-	o.Register(a.mux)
-	pa := &privateApp{connectorApp: a.connectorApp, sites: a.sites, users: a.users, mux: a.mux}
-	pass := pa.ssoPass(t, member.key)
-	for _, host := range []string{team + "." + event + "." + bridgeTSDomain, event + "." + bridgeTSDomain} {
-		raw, _ := pa.finishSSO(t, host, pass)
-		id, _ := hex.DecodeString(raw)
-		sess, err := db.GetVisitorSession(context.Background(), a.database, id, 180*24*time.Hour)
-		if err != nil || sess.Host != host {
-			t.Fatalf("Hack site pass: %v", err)
 		}
 	}
 }

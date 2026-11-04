@@ -13,7 +13,7 @@ import (
 	"github.com/vsriram/simple-host/internal/app/hack/members"
 	"github.com/vsriram/simple-host/internal/config"
 	"github.com/vsriram/simple-host/internal/edition"
-	"github.com/vsriram/simple-host/internal/handler"
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 // Apply to a hackathon without a join link (zp-hack-applications.sql, owner
@@ -1123,7 +1123,7 @@ func TestHackApplyPostCodeJoinRegression(t *testing.T) {
 // is not present yet (another agent's in-flight work), the test is skipped
 // rather than failing spuriously.
 func TestHackApplyCountryValidatorCoverage(t *testing.T) {
-	js, err := fs.ReadFile(handler.EmbeddedStatic(), "static/hack/screens/public-apply.js")
+	js, err := fs.ReadFile(webassets.Static, "static/hack/screens/public-apply.js")
 	if err != nil {
 		t.Skip("screens/public-apply.js not present yet")
 	}

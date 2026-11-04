@@ -1,12 +1,13 @@
 package hackhttp
 
 import (
-	"github.com/vsriram/simple-host/internal/handler"
 	"io/fs"
 	"net/http"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/webassets"
 )
 
 // TestServeHackContentForBrowser is an opt-in local fixture for mobile theme checks.
@@ -31,7 +32,7 @@ func TestServeHackContentForBrowser(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { renderHackEventPage(w, r, p, testHackPages) })
 	mux.HandleFunc("/site.css", func(w http.ResponseWriter, r *http.Request) {
-		css, err := fs.ReadFile(handler.EmbeddedStatic(), "static/site.css")
+		css, err := fs.ReadFile(webassets.Static, "static/site.css")
 		if err != nil {
 			http.Error(w, "missing CSS", 500)
 			return

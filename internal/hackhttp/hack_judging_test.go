@@ -1528,6 +1528,7 @@ func TestHackJudgingScoringStageAndAutomaticOrganisers(t *testing.T) {
 	if _, err := w.a.database.Exec(`UPDATE users SET is_admin=true WHERE username=$1`, w.org.email); err != nil {
 		t.Fatal(err)
 	}
+	w.a.hack.ShareAssets(demoPolicyPages{})
 	w.a.hack.RegisterDemo(w.a.mux, w.slug)
 	if _, err := w.a.database.Exec(`UPDATE events SET stage='building' WHERE slug=$1`, w.slug); err != nil {
 		t.Fatal(err)
@@ -1545,3 +1546,9 @@ func TestHackJudgingScoringStageAndAutomaticOrganisers(t *testing.T) {
 		t.Fatalf("include organisers: %+v", rows)
 	}
 }
+
+// This scoring test registers demo mode without serving a page. The only
+// presentation dependency registration needs is its HTTP wrapper.
+type demoPolicyPages struct{ hackPages }
+
+func (demoPolicyPages) AdminUICSP(next http.Handler) http.Handler { return next }
