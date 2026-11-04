@@ -217,9 +217,10 @@ type InventoryTool struct {
 // Inventory returns every registered tool with Events enabled. Listed describes
 // edition listing policy; caller-specific core and screen gates still apply.
 func Inventory() []InventoryTool {
-	s := NewServer(Config{Events: inventoryEvents{}})
+	limits := DefaultLimits()
+	r := newRegistry(Config{Limits: &limits, Events: inventoryEvents{}})
 	var out []InventoryTool
-	for _, entry := range s.inventory() {
+	for _, entry := range r.entries {
 		edition := "host"
 		if entry.edition == editionHack {
 			edition = "hack"

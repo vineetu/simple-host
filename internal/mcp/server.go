@@ -798,7 +798,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 			record(nameErr)
 			return toolResult(req.ID, nameErr.Error(), nil, true, modern)
 		}
-		if byName[name].policy.analytics.redactAll {
+		if s.policy(name).analytics.redactAll {
 			err := errors.New("passcode_screen is only for the passcode screen")
 			record(err)
 			return toolResult(req.ID, err.Error(), nil, true, modern)

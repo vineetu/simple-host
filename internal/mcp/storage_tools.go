@@ -59,6 +59,8 @@ func storageToolsFor(event bool) []Tool {
 		if event {
 			siteField = "event"
 			siteDescription = "The event's name (slug) on Simple Hack."
+			// The file data telemetry summary belongs only to Host uploads.
+			r.policy.analytics.fileData = false
 			r.name = "hack_event_" + r.name
 			r.title = "Event website: " + r.title
 			r.description = strings.ReplaceAll(r.description, "storage_", "hack_event_storage_")
