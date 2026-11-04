@@ -82,6 +82,12 @@ type Deps struct {
 	EventTTL                time.Duration
 	EventMaxClaims          int
 	CertRequests            CertRequestDeps
+	DeletedRetention        time.Duration
+	ImageScanEnabled        bool
+	CancelDomainCert        func(string)
+	ExportResources         func(context.Context, string) ([]map[string]any, error)
+	ExportSQLiteMaxMemory   int64
+	DeletedTransaction      func(*sql.Tx) error
 }
 
 // CreateInput contains the values and non-HTTP dependencies for a locked create.

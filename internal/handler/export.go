@@ -6,18 +6,17 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"database/sql"
-	"encoding/json"
+
 	"fmt"
 	"io"
-	"io/fs"
+
 	"net/http"
-	"os"
+
 	"path/filepath"
 	"strings"
 	"time"
 
-	sqlite3 "github.com/ncruces/go-sqlite3"
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/db"
 )
@@ -38,7 +37,7 @@ func (h *SiteHandler) exportSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("sitename")))
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name)
+	site, err := h.lifecycleSvc().ExportSite(r.Context(), sites.ExportSiteInput{UserID: user.ID, Name: name})
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 		return
@@ -68,7 +67,7 @@ func (h *SiteHandler) exportAll(w http.ResponseWriter, r *http.Request) {
 	if !accountAdmin(w, r) {
 		return
 	}
-	sites, err := db.ListAllSites(r.Context(), h.database)
+	sites, err := h.lifecycleSvc().ExportSites(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -129,212 +128,15 @@ func (h *SiteHandler) writeSiteTar(ctx context.Context, tw *tar.Writer, prefix s
 	return h.writeSiteArchive(ctx, tarPut(tw), prefix, site.ID, filepath.Join(h.disk.SiteDir(site.UserID, site.Name), "current"))
 }
 
-// writeSiteArchive writes one site under prefix: state.json (saved data),
-// collections.json (every list, private ones included, each entry with its
-// id, time and submitter), and files/ (the version in current, the site's
-// live folder or, for a site in Recently deleted, the one waiting in trash).
+// writeSiteArchive streams the values yielded while the service holds the site lock.
 func (h *SiteHandler) writeSiteArchive(ctx context.Context, put archivePut, prefix, siteID, current string) error {
-	var ownerID, siteName string
-	if err := h.database.QueryRowContext(ctx, `SELECT user_id::text,name FROM sites WHERE id=$1`, siteID).Scan(&ownerID, &siteName); err != nil {
-		return err
-	}
-	unlock := h.lockSite(ownerID, siteName)
-	defer unlock()
-	// The saved data first, because it is the part nothing else preserves: the
-	// files exist in whatever the person built from, the JSON only lives here.
-	state := "null"
-	if raw, _, err := db.GetSiteStateByID(ctx, h.database, siteID); err == nil && len(raw) > 0 {
-		state = string(raw)
-	}
-	if err := putBytes(put, prefix+"/state.json", []byte(state)); err != nil {
-		return err
-	}
-	if items, err := exportCollections(ctx, h.database, siteID); err == nil && len(items) > 0 {
-		if b, err := json.MarshalIndent(items, "", "  "); err == nil {
-			if err := putBytes(put, prefix+"/collections.json", b); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Runtime storage is a sibling of current, so it survives deploys and
-	// version rollback and is included for both live and recently deleted sites.
-	if err := h.writeStorageArchive(ctx, put, prefix, siteID, filepath.Join(filepath.Dir(current), "runtime")); err != nil {
-		return err
-	}
-	if _, err := os.Stat(current); err != nil {
-		return nil // nothing published yet; saved and runtime data still export
-	}
-	return filepath.WalkDir(current, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		rel, rerr := filepath.Rel(current, path)
-		if rerr != nil {
-			return nil
-		}
-		info, ierr := d.Info()
-		if ierr != nil || !info.Mode().IsRegular() {
-			return nil
-		}
-		f, oerr := os.Open(path)
-		if oerr != nil {
-			return nil
-		}
-		defer f.Close()
-		return put(prefix+"/files/"+filepath.ToSlash(rel), info.ModTime(), info.Size(), f)
-	})
-}
-
-type storageExportKV struct {
-	Resource string          `json:"resource"`
-	Key      string          `json:"key"`
-	Value    json.RawMessage `json:"value"`
-	WriterID string          `json:"writer_id"`
-}
-
-func (h *SiteHandler) writeStorageArchive(ctx context.Context, put archivePut, prefix, siteID, runtime string) error {
-	list, err := h.listStorageResourceRows(ctx, siteID)
-	if err != nil {
-		return err
-	}
-	resources := []map[string]any{}
-	for _, x := range list {
-		resources = append(resources, storageResourceJSON(x))
-	}
-	if len(resources) > 0 {
-		b, e := json.MarshalIndent(map[string]any{"resources": resources}, "", "  ")
-		if e != nil {
-			return e
-		}
-		if e = putBytes(put, prefix+"/storage/resources.json", b); e != nil {
-			return e
-		}
-	}
-	fileRows, e := h.database.QueryContext(ctx, `SELECT resource_name,path,writer_id FROM site_storage_files WHERE site_id=$1 ORDER BY resource_name,path`, siteID)
-	if e != nil {
-		return e
-	}
-	fileOwners := []map[string]string{}
-	for fileRows.Next() {
-		var resource, path, writer string
-		if e = fileRows.Scan(&resource, &path, &writer); e != nil {
-			fileRows.Close()
-			return e
-		}
-		fileOwners = append(fileOwners, map[string]string{"resource": resource, "path": path, "writer_id": writer})
-	}
-	e = fileRows.Err()
-	fileRows.Close()
-	if e != nil {
-		return e
-	}
-	if len(fileOwners) > 0 {
-		b, e := json.Marshal(map[string]any{"items": fileOwners})
-		if e != nil {
-			return e
-		}
-		if e = putBytes(put, prefix+"/storage/file-writers.json", b); e != nil {
-			return e
-		}
-	}
-	kvRows, err := h.database.QueryContext(ctx, `SELECT resource_name,key,value,writer_id FROM site_storage_kv WHERE site_id=$1 ORDER BY resource_name,key`, siteID)
-	if err != nil {
-		return err
-	}
-	entries := []storageExportKV{}
-	for kvRows.Next() {
-		var x storageExportKV
-		if err := kvRows.Scan(&x.Resource, &x.Key, &x.Value, &x.WriterID); err != nil {
-			kvRows.Close()
-			return err
-		}
-		entries = append(entries, x)
-	}
-	err = kvRows.Err()
-	kvRows.Close()
-	if err != nil {
-		return err
-	}
-	if len(entries) > 0 {
-		b, e := json.MarshalIndent(map[string]any{"items": entries}, "", "  ")
-		if e != nil {
-			return e
-		}
-		if e = putBytes(put, prefix+"/storage/kv.json", b); e != nil {
-			return e
-		}
-	}
-	if _, err := os.Stat(runtime); os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	return filepath.WalkDir(runtime, func(p string, d fs.DirEntry, err error) error {
+	for entry, err := range h.lifecycleSvc().Export(ctx, sites.ExportInput{Prefix: prefix, SiteID: siteID, Current: current}) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && strings.HasPrefix(d.Name(), ".deleting-") {
-			return filepath.SkipDir
+		if err := put(entry.Name, entry.ModTime, entry.Size, entry.Reader); err != nil {
+			return err
 		}
-		if d.IsDir() {
-			return nil
-		}
-		if !d.Type().IsRegular() {
-			return nil
-		}
-		if strings.HasSuffix(p, "-wal") || strings.HasSuffix(p, "-shm") {
-			return nil
-		}
-		if strings.HasSuffix(p, ".sqlite") {
-			conn, e := sqlite3.OpenContext(sqlite3.WithMaxMemory(ctx, storageSQLiteMaxMemory), p)
-			if e != nil {
-				return e
-			}
-			_, _, e = conn.WALCheckpoint("main", sqlite3.CHECKPOINT_TRUNCATE)
-			if ce := conn.Close(); e == nil {
-				e = ce
-			}
-			if e != nil {
-				return e
-			}
-		}
-		rel, e := filepath.Rel(runtime, p)
-		if e != nil {
-			return e
-		}
-		info, e := d.Info()
-		if e != nil {
-			return e
-		}
-		f, e := os.Open(p)
-		if e != nil {
-			return e
-		}
-		defer f.Close()
-		return put(prefix+"/storage/runtime/"+filepath.ToSlash(rel), info.ModTime(), info.Size(), f)
-	})
-}
-
-// exportItem is one list entry in collections.json: its id, when it was
-// saved, who sent it (when they were signed in) and what the page saved.
-type exportItem struct {
-	ID          int64           `json:"id"`
-	CreatedAt   time.Time       `json:"created_at"`
-	SubmittedBy string          `json:"submitted_by,omitempty"`
-	Data        json.RawMessage `json:"data"`
-}
-
-func exportCollections(ctx context.Context, database *sql.DB, siteID string) (map[string][]exportItem, error) {
-	items, err := db.ListExportItems(ctx, database, siteID)
-	if err != nil {
-		return nil, err
 	}
-	out := map[string][]exportItem{}
-	for _, it := range items {
-		out[it.Collection] = append(out[it.Collection], exportItem{
-			ID: it.ID, CreatedAt: it.CreatedAt.UTC(), SubmittedBy: it.SubmittedBy, Data: json.RawMessage(it.Data),
-		})
-	}
-	return out, nil
+	return nil
 }

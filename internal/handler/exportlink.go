@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
-	"github.com/vsriram/simple-host/internal/db"
 )
 
 // Export links: a short-lived address that downloads one site's export
@@ -91,7 +91,7 @@ func (h *SiteHandler) createExportLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("sitename")))
-	site, err := db.GetSiteByUser(r.Context(), h.database, user.ID, name)
+	site, err := h.lifecycleSvc().ExportSite(r.Context(), sites.ExportSiteInput{UserID: user.ID, Name: name})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeSiteNotFound(w, name)
@@ -121,16 +121,15 @@ func (h *SiteHandler) downloadExport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: err.Error(), Code: "export_link_invalid"})
 		return
 	}
-	site, err := db.GetSiteByID(r.Context(), h.database, siteID)
-	if err != nil || site.UserID != userID || site.Deleted {
+	site, err := h.lifecycleSvc().ExportSite(r.Context(), sites.ExportSiteInput{UserID: userID, SiteID: siteID, DownloadLink: true})
+	if err != nil {
+		var e *sites.Error
+		if errors.As(err, &e) && e.Code == "account_suspended" {
+			writeAccountSuspended(w)
+			return
+		}
 		// Deleted, or no longer this person's: the link dies with the site.
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: errExportLink.Error(), Code: "export_link_invalid"})
-		return
-	}
-	// A link minted before the person was suspended stops with them. (A site
-	// taken down on its own still exports to its owner, as the keyed route does.)
-	if site.OwnerSuspended {
-		writeAccountSuspended(w)
 		return
 	}
 	h.writeExport(w, r, site)

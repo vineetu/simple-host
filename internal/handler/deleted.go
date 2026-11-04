@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/sites"
 	"github.com/vsriram/simple-host/internal/auth"
 	db "github.com/vsriram/simple-host/internal/db"
 )
@@ -68,32 +68,18 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return
 	}
-	// Look the site up before taking its lock, so a request for a name the
-	// account does not have never adds a lock; read it again under the lock.
-	if _, err := h.siteForCaller(r, user.ID, siteName); errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-		return
-	}
-	unlock := h.lockSite(user.ID, siteName)
-	defer unlock()
-
-	site, err := h.siteForCaller(r, user.ID, siteName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		return
-	}
-	// A site the operator took down stays as it is: its owner cannot delete it.
-	if refuseSuspendedSite(w, site) {
-		return
-	}
-	if err := h.trashSite(r.Context(), site, nil); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-			return
+	expected, check := r.Context().Value(adminSiteKey{}).(string)
+	if err := h.lifecycleSvc().Delete(r.Context(), sites.DeleteInput{UserID: user.ID, Name: siteName, ExpectedSiteID: expected, CheckSiteID: check}); err != nil {
+		var e *sites.Error
+		if errors.As(err, &e) {
+			switch e.Code {
+			case "delete_not_found":
+				writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
+				return
+			case "site_suspended":
+				writeSiteSuspended(w, e.Message)
+				return
+			}
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -101,36 +87,8 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// trashSite moves a live site to Recently deleted: marked in the database
-// (plus whatever also records in the same transaction), and its files moved
-// out of every served path, with the commit last so a failure leaves the site
-// live and whole. The caller holds the site's lock. sql.ErrNoRows when the
-// site is no longer live.
 func (h *SiteHandler) trashSite(ctx context.Context, site db.Site, also func(tx *sql.Tx) error) error {
-	tx, err := h.database.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err := db.MarkSiteDeleted(ctx, tx, site.ID, h.limits.DeletedRetention); err != nil {
-		return err
-	}
-	if also != nil {
-		if err := also(tx); err != nil {
-			return err
-		}
-	}
-	if err := h.disk.TrashSite(site.UserID, site.Name, site.ID); err != nil {
-		log.Printf("delete site %s: %v", site.ID, err)
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		if rerr := h.disk.RestoreSite(site.UserID, site.Name, site.ID); rerr != nil {
-			log.Printf("delete site %s: commit failed and files could not be moved back: %v", site.ID, rerr)
-		}
-		return err
-	}
-	return nil
+	return h.lifecycleSvcWithTransaction(also).Trash(ctx, sites.TrashInput{Site: site})
 }
 
 // listDeletedSites: GET /v1/me/deleted-sites.
@@ -165,168 +123,39 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "no site with that name in Recently deleted"})
 		return
 	}
-	// Lock only a name the account really has in Recently deleted (checked
-	// again under the lock below); the answers for other names need no lock.
-	unlock := func() {}
-	if _, err := db.GetDeletedSiteByUser(r.Context(), h.database, user.ID, siteName); err == nil {
-		unlock = h.lockSite(user.ID, siteName)
-	}
-	defer func() { unlock() }()
-
-	d, err := db.GetDeletedSiteByUser(r.Context(), h.database, user.ID, siteName)
+	result, err := h.lifecycleSvc().Restore(r.Context(), sites.RestoreInput{UserID: user.ID, Name: siteName, Handle: user.Handle.String})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			if _, lerr := db.GetSiteByUser(r.Context(), h.database, user.ID, siteName); lerr == nil {
+		var e *sites.Error
+		if errors.As(err, &e) {
+			switch e.Code {
+			case "site_not_deleted":
 				writeJSON(w, http.StatusConflict, errorResponse{Error: "that site is not deleted", Code: "site_not_deleted"})
 				return
+			case "deleted_not_found":
+				writeJSON(w, http.StatusNotFound, errorResponse{Error: "no site with that name in Recently deleted"})
+				return
+			case "restore_files":
+				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not restore the site's files"})
+				return
 			}
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "no site with that name in Recently deleted"})
-			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	// No quota check: a site in Recently deleted already counts toward it.
-	site, err := h.restoreTrashedSite(r.Context(), d, user.Handle.String, nil)
-	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "no site with that name in Recently deleted"})
-		case errors.Is(err, errRestoreFiles):
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "could not restore the site's files"})
-		default:
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-		}
-		return
-	}
-	if h.hasLiveFamilies() {
-		h.syncDomainRedirect(r.Context(), site.ID)
-	}
-	writeJSON(w, http.StatusOK, h.toSiteResponse(site, "Restored with all its versions and saved data."))
+	writeJSON(w, http.StatusOK, h.toSiteResponseState(result.Site, "Restored with all its versions and saved data.", result.ResponseState.(siteResponseState)))
 }
 
-var errRestoreFiles = errors.New("could not restore the site's files")
+var errRestoreFiles = sites.ErrRestoreFiles
 
-// wakeImageScans makes image checks waiting on a restored site's delete
-// run now, not at their next hourly look. A failure only delays them. The
-// restore has committed by then, so a client that hangs up does not stop it.
 func (h *SiteHandler) wakeImageScans(ctx context.Context, siteID string) {
-	if h.imageScan == nil {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
-	if err := db.WakeImageScans(ctx, h.database, siteID); err != nil {
-		log.Printf("restore site %s: image checks: %v", siteID, err)
-	}
+	h.lifecycleSvc().WakeImageScans(ctx, siteID)
 }
 
-// restoreTrashedSite brings a site in Recently deleted back exactly as it
-// was (plus whatever also records in the same transaction). handle is the
-// owner's current handle ("" if none). The caller holds the site's lock.
-// sql.ErrNoRows when it is not (or no longer) in Recently deleted.
 func (h *SiteHandler) restoreTrashedSite(ctx context.Context, d db.DeletedSite, handle string, also func(tx *sql.Tx) error) (db.Site, error) {
-	// It comes back as it was, taken down included (the operator may have
-	// taken it down while it was deleted): the marker goes into its folder
-	// before the folder is served again, so it is never live without it.
-	full, err := db.GetSiteByID(ctx, h.database, d.ID)
-	if err != nil {
-		return db.Site{}, err
-	}
-	if err := h.disk.SetTrashedSuspended(d.UserID, d.ID, full.Suspended()); err != nil {
-		log.Printf("restore site %s: suspend marker: %v", d.ID, err)
-		return db.Site{}, errRestoreFiles
-	}
-	tx, err := h.database.BeginTx(ctx, nil)
-	if err != nil {
-		return db.Site{}, err
-	}
-	defer tx.Rollback()
-	if err := db.RestoreDeletedSite(ctx, tx, d.ID); err != nil {
-		return db.Site{}, err
-	}
-	if also != nil {
-		if err := also(tx); err != nil {
-			return db.Site{}, err
-		}
-	}
-	// The name is this site's again; an old name another site left there
-	// stops redirecting.
-	if err := db.DropOldSiteName(ctx, tx, d.UserID, d.Name); err != nil {
-		return db.Site{}, err
-	}
-	if err := h.disk.RestoreSite(d.UserID, d.Name, d.ID); err != nil {
-		log.Printf("restore site %s: %v", d.ID, err)
-		return db.Site{}, errRestoreFiles
-	}
-	if err := tx.Commit(); err != nil {
-		if terr := h.disk.TrashSite(d.UserID, d.Name, d.ID); terr != nil {
-			log.Printf("restore site %s: commit failed and files could not be moved back: %v", d.ID, terr)
-		}
-		return db.Site{}, err
-	}
-	h.wakeImageScans(ctx, d.ID)
-	// The handle may have changed while the site was deleted.
-	if handle != "" {
-		if err := h.disk.EnsureHandleLink(handle, d.UserID); err != nil {
-			log.Printf("restore site: ensure handle link %s: %v", handle, err)
-		}
-		h.RequestSiteCert(handle)
-	}
-	site, err := db.GetSiteByUser(ctx, h.database, d.UserID, d.Name)
-	if err != nil {
-		return db.Site{}, err
-	}
-	// The operator may have acted since: make the marker follow the record.
-	if err := h.syncSiteMarker(site); err != nil {
-		log.Printf("restore site %s: suspend marker: %v", site.ID, err)
-	}
-	// Its addresses may have changed meanwhile (unlisted.go).
-	if err := h.syncUnlistedMarker(ctx, site); err != nil {
-		log.Printf("restore site %s: unlisted marker: %v", site.ID, err)
-	}
-	return site, nil
+	return h.lifecycleSvcWithTransaction(also).RestoreTrashed(ctx, sites.RestoreTrashedInput{Site: d, Handle: handle})
 }
 
-// purgeDeletedSites removes sites whose restore window has passed: the row
-// (versions, data and claimed names cascade) first, then the files.
-func (h *SiteHandler) purgeDeletedSites(ctx context.Context) {
-	list, err := db.ListPurgeableSites(ctx, h.database, h.limits.DeletedRetention)
-	if err != nil {
-		log.Printf("deleted-site purge: list: %v", err)
-		return
-	}
-	for _, d := range list {
-		unlock := h.lockSite(d.UserID, d.Name)
-		domains, err := db.PurgeDeletedSite(ctx, h.database, d.ID, h.limits.DeletedRetention)
-		unlock()
-		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				log.Printf("deleted-site purge: %s: %v", d.ID, err)
-			}
-			continue
-		}
-		if err := h.disk.PurgeTrashedSite(d.UserID, d.ID); err != nil {
-			log.Printf("deleted-site purge: files of %s: %v", d.ID, err)
-		}
-		if err := h.disk.PurgeTrashedSiteLinks(d.UserID, d.Name, strings.ToLower(d.CustomDomain.String)); err != nil {
-			log.Printf("deleted-site purge: links of %s: %v", d.ID, err)
-		}
-		for _, dom := range domains {
-			// Only while the link is still this site's: the domain may have
-			// been bound to another site since this one was deleted.
-			mine, err := h.disk.UnbindDomainOf(dom, d.UserID, d.Name)
-			if err != nil {
-				log.Printf("deleted-site purge: unbind %s: %v", dom, err)
-				continue
-			}
-			if mine {
-				h.cancelDomainCert(dom)
-			}
-		}
-		log.Printf("deleted-site purge: removed %s (%s)", d.Name, d.ID)
-	}
-}
+func (h *SiteHandler) purgeDeletedSites(ctx context.Context) { h.lifecycleSvc().PurgeDeleted(ctx) }
 
 // StartDeletedSitePurge runs the purge now and then every interval until ctx
 // ends.
