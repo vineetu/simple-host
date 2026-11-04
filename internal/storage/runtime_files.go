@@ -2,11 +2,17 @@ package storage
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 )
+
+// DetectContentType identifies the content type of file data.
+func DetectContentType(data []byte) string {
+	return http.DetectContentType(data)
+}
 
 // ValidObjectPath provides the existing runtime storage helper.
 func ValidObjectPath(p string) bool {
