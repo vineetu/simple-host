@@ -8,7 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/vsriram/simple-host/internal/db"
+	accounts "github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/app/hack/members"
 )
 
 // Teams redesign (owner 2026-10-31): team admins, locking, the team link,
@@ -816,20 +817,8 @@ func TestHackAccountErasurePromotesNewAdmin(t *testing.T) {
 	a.joinTeamByCode(t, slug, code, member)
 	leaderID := a.userID(t, leader)
 
-	ctx := context.Background()
-	tx, err := a.database.BeginTx(ctx, nil)
+	_, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: leaderID, Operator: true, HoldingAccounts: true, Teams: members.AccountErasure{}})
 	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback()
-	acct, err := db.LockAccountForDelete(ctx, tx, leaderID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.EraseAccount(ctx, tx, acct); err != nil {
-		t.Fatal(err)
-	}
-	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -870,23 +859,11 @@ func TestHackAccountErasureSoleMemberBeforeDeadlineDeletesTeam(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := context.Background()
-	tx, err := a.database.BeginTx(ctx, nil)
+	out, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: soloID, Operator: true, HoldingAccounts: true, Teams: members.AccountErasure{}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
-	acct, err := db.LockAccountForDelete(ctx, tx, soloID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	erased, err := db.EraseAccount(ctx, tx, acct)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := tx.Commit(); err != nil {
-		t.Fatal(err)
-	}
+	erased := out.Erased
 
 	var stillExists bool
 	if err := a.database.QueryRow(`SELECT EXISTS (SELECT 1 FROM event_teams WHERE id = $1)`, teamID).Scan(&stillExists); err != nil {
@@ -930,20 +907,8 @@ func TestHackAccountErasureSoleMemberAfterDeadlineKeepsAndLocksTeam(t *testing.T
 	// TeamKeepableSQL/TeamFrozenForLeave agree with what a raw UPDATE would not.
 	wantTS(t, "close", a.at(t, "POST", base+"/stage", map[string]string{"stage": "closed"}, a.key(org)), 200, "")
 
-	ctx := context.Background()
-	tx, err := a.database.BeginTx(ctx, nil)
+	_, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: soloID, Operator: true, HoldingAccounts: true, Teams: members.AccountErasure{}})
 	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback()
-	acct, err := db.LockAccountForDelete(ctx, tx, soloID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.EraseAccount(ctx, tx, acct); err != nil {
-		t.Fatal(err)
-	}
-	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
 
