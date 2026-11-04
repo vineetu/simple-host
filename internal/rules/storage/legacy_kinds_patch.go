@@ -3,8 +3,9 @@ package storage
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/model"
 )
 
 // LegacyEntriesLike reports whether a declaration behaves as submissions.
@@ -23,10 +24,10 @@ func LegacyWithdrawalRestorable(op, actor, userID string, at, now time.Time, win
 }
 
 // ErrLegacyEntryTooLarge indicates that a patch grew an entry beyond its limit.
-var ErrLegacyEntryTooLarge = errors.New("too large")
+var ErrLegacyEntryTooLarge = model.ErrLegacyEntryTooLarge
 
 // ErrLegacyEntryNotObject indicates that an entry cannot be patched as an object.
-var ErrLegacyEntryNotObject = errors.New("not an object")
+var ErrLegacyEntryNotObject = model.ErrLegacyEntryNotObject
 
 // DecodeLegacyEntryPatch accepts the object format used for entry patches.
 func DecodeLegacyEntryPatch(raw []byte) (map[string]json.RawMessage, bool) {

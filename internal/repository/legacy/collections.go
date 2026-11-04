@@ -298,7 +298,7 @@ func ListCollectionSummariesByID(ctx context.Context, db *sql.DB, siteID string)
 }
 
 // ErrKindChanged indicates that a collection declaration changed.
-var ErrKindChanged = errors.New("the name's kind changed")
+var ErrKindChanged = model.ErrKindChanged
 
 // AppendCollectionItemByID appends one item to a site's named collection — a
 // single INSERT (O(1), no document rewrite), so high-volume appends stay cheap

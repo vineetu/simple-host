@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/model"
@@ -67,11 +66,11 @@ var ErrNameFull = model.ErrNameFull
 
 // ErrNameHasRows: the name holds items (live or in Recently deleted), so it
 // cannot become Personal, or stop being Personal.
-var ErrNameHasRows = errors.New("the name holds items")
+var ErrNameHasRows = model.ErrNameHasRows
 
 // ErrSeveralItems: a list with more than one live item cannot become Page
 // info, which is one document.
-var ErrSeveralItems = errors.New("the name holds several items")
+var ErrSeveralItems = model.ErrSeveralItems
 
 // ErrKindChanged: the name's declaration changed after the caller read it
 // (the owner changed its kind at the same moment); nothing was saved.
@@ -82,12 +81,7 @@ var ErrKindChanged = legacy.ErrKindChanged
 // those back under the public name). Content: the change is to Page info,
 // which a private name becomes only when it holds nothing at all; any other
 // change needs the owner's confirm_public.
-type PrivateItemsError struct {
-	Live, Deleted int64
-	Content       bool
-}
-
-func (e *PrivateItemsError) Error() string { return "the private name holds items" }
+type PrivateItemsError = model.PrivateItemsError
 
 // publicGate runs under the declaration lock before a private name (cur,
 // curPrivate) becomes readable by anyone as kind with private. Items in

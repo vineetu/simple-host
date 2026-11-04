@@ -1,5 +1,9 @@
 package storage
 
+import (
+	"github.com/vsriram/simple-host/internal/model"
+)
+
 // LegacyDataListReadable reports whether a declaration supports list reads.
 func LegacyDataListReadable(kind string, shared bool) bool {
 	return LegacyEntriesLike(kind, shared) || kind == "board"
@@ -11,19 +15,14 @@ func LegacyDataReadLimited(kind string, shared, count bool) bool {
 }
 
 // LegacyDataRoute is the action for a data read after declaration checks.
-type LegacyDataRoute uint8
+type LegacyDataRoute = model.LegacyDataRoute
 
 const (
-	// LegacyDataPersonal delegates to the person's record read.
-	LegacyDataPersonal LegacyDataRoute = iota
-	// LegacyDataContent reads a page-info document.
-	LegacyDataContent
-	// LegacyDataUndeclared rejects a name without a readable kind.
-	LegacyDataUndeclared
-	// LegacyDataCount reads the number of live items.
-	LegacyDataCount
-	// LegacyDataList delegates to the list read.
-	LegacyDataList
+	LegacyDataPersonal   = model.LegacyDataPersonal
+	LegacyDataContent    = model.LegacyDataContent
+	LegacyDataUndeclared = model.LegacyDataUndeclared
+	LegacyDataCount      = model.LegacyDataCount
+	LegacyDataList       = model.LegacyDataList
 )
 
 // LegacyDataReadRoute selects the data read operation for a declaration.

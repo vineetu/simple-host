@@ -3,23 +3,13 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	storesites "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // HomeSite loads the selected site, including offline and taken-down rows.
 func HomeSite(ctx context.Context, q Querier, userID string) (Site, bool, error) {
-	var id sql.NullString
-	if err := q.QueryRowContext(ctx, `SELECT home_site_id FROM users WHERE id = $1`, userID).Scan(&id); err != nil {
-		return Site{}, false, err
-	}
-	if !id.Valid {
-		return Site{}, false, nil
-	}
-	s, err := GetSiteByID(ctx, q, id.String)
-	if err == sql.ErrNoRows || (err == nil && s.Deleted) {
-		_, err = q.ExecContext(ctx, `UPDATE users SET home_site_id = NULL WHERE id = $1 AND home_site_id = $2`, userID, id.String)
-		return Site{}, false, err
-	}
-	return s, err == nil, err
+	return storesites.HomeSite(ctx, q, userID)
 }
 
 // SetHomeSite uses one statement so a concurrent delete cannot select a deleted site.

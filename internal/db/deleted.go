@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/internal/repository/sites"
+	storesites "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // Recently deleted (completeness plan, 2026-09-27).
@@ -67,9 +68,5 @@ func oneRow(res sql.Result, err error) error {
 // DomainHeldByDeletedSite reports whether host is the own address (current or
 // earlier) of a site in Recently deleted, which keeps it held until purge.
 func DomainHeldByDeletedSite(ctx context.Context, q Querier, host string) (bool, error) {
-	var held bool
-	f := hostForms(host)
-	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE deleted_at IS NOT NULL
-		AND (custom_domain IN (lower($1), lower($2)) OR previous_domain IN (lower($1), lower($2))))`, f[0], f[1]).Scan(&held)
-	return held, err
+	return storesites.DomainHeldByDeletedSite(ctx, q, host, hostForms(host))
 }

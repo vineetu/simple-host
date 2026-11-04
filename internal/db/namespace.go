@@ -6,6 +6,9 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	storeaccounts "github.com/vsriram/simple-host/internal/repository/accounts"
+	storesites "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // One namespace under the platform domain (owner decision 2026-09-25).
@@ -65,25 +68,13 @@ func platformNameIsHandle(ctx context.Context, tx *sql.Tx, label string) (bool, 
 // ResolveHandleAlias returns the current handle of the account that used to
 // be old, or sql.ErrNoRows.
 func ResolveHandleAlias(ctx context.Context, q Querier, old string) (string, error) {
-	var handle string
-	err := q.QueryRowContext(ctx, `
-		SELECT u.handle FROM handle_aliases a JOIN users u ON u.id = a.user_id
-		WHERE a.handle = $1 AND u.handle IS NOT NULL`, strings.ToLower(old)).Scan(&handle)
-	return handle, err
+	return storeaccounts.ResolveHandleAlias(ctx, q, old)
 }
 
 // GetUserByHandleOrAlias looks a handle up, falling back to an old handle kept
 // as an alias. Returns sql.ErrNoRows when neither exists.
 func GetUserByHandleOrAlias(ctx context.Context, database *sql.DB, handle string) (User, error) {
-	u, err := GetUserByHandle(ctx, database, handle)
-	if !errors.Is(err, sql.ErrNoRows) {
-		return u, err
-	}
-	current, aerr := ResolveHandleAlias(ctx, database, handle)
-	if aerr != nil {
-		return User{}, err
-	}
-	return GetUserByHandle(ctx, database, current)
+	return storeaccounts.GetUserByHandleOrAlias(ctx, database, handle)
 }
 
 // RenameHandle moves an account to a new handle and keeps the old one as an
@@ -170,11 +161,7 @@ func HandleRenamedSince(ctx context.Context, q Querier, userID string, t time.Ti
 // GetSiteOwner returns the owner's handle ("" if none), user id and the
 // site's name for siteID. Returns sql.ErrNoRows for an unknown site.
 func GetSiteOwner(ctx context.Context, q Querier, siteID string) (handle, userID, name string, err error) {
-	err = q.QueryRowContext(ctx, `
-		SELECT COALESCE(u.handle, ''), u.id::text, s.name
-		FROM sites s JOIN users u ON u.id = s.user_id
-		WHERE s.id::text = $1 AND s.deleted_at IS NULL`, siteID).Scan(&handle, &userID, &name)
-	return
+	return storesites.GetSiteOwner(ctx, q, siteID)
 }
 
 // ListHandlesWithSites returns every account handle that owns at least one

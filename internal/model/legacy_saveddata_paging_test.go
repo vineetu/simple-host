@@ -1,9 +1,7 @@
-package storage
+package model
 
 import (
 	"testing"
-
-	"github.com/vsriram/simple-host/internal/model"
 )
 
 func TestLegacyHistoryPage(t *testing.T) {
@@ -22,7 +20,7 @@ func TestLegacyHistoryPage(t *testing.T) {
 }
 
 func TestLegacyHistoryNext(t *testing.T) {
-	entries := []model.HistoryEntry{{ID: 7}, {ID: 3}}
+	entries := []HistoryEntry{{ID: 7}, {ID: 3}}
 	if n := LegacyHistoryNext(entries, 3); n != nil {
 		t.Fatalf("partial page cursor = %v", *n)
 	}

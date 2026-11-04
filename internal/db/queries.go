@@ -10,8 +10,10 @@ import (
 
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/accounts"
+	storeaccounts "github.com/vsriram/simple-host/internal/repository/accounts"
 	"github.com/vsriram/simple-host/internal/repository/hackteams"
 	"github.com/vsriram/simple-host/internal/repository/sites"
+	storesites "github.com/vsriram/simple-host/internal/repository/sites"
 	"github.com/vsriram/simple-host/internal/repository/sqlkit"
 )
 
@@ -131,22 +133,7 @@ func RotateAPIKey(ctx context.Context, db *sql.DB, userID, currentKeyHash, newKe
 
 // GetUserByHandle looks up a user by their URL-safe handle.
 func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, error) {
-	const query = `
-		SELECT id, username, is_admin, created_at, handle, display_name
-		FROM users
-		WHERE handle = $1
-	`
-
-	var user User
-	err := db.QueryRowContext(ctx, query, handle).Scan(
-		&user.ID,
-		&user.Username,
-		&user.IsAdmin,
-		&user.CreatedAt,
-		&user.Handle,
-		&user.DisplayName,
-	)
-	return user, err
+	return storeaccounts.GetUserByHandle(ctx, db, handle)
 }
 
 // GetHandleBySiteName returns the URL-safe handle of the OLDEST owner of a site
@@ -154,16 +141,7 @@ func GetUserByHandle(ctx context.Context, db *sql.DB, handle string) (User, erro
 // serve. Used to 301 a deprecated name-subdomain to its canonical path URL.
 // Returns sql.ErrNoRows if no such site; the handle is "" if the owner has none.
 func GetHandleBySiteName(ctx context.Context, db *sql.DB, name string) (string, error) {
-	const query = `
-		SELECT COALESCE(u.handle, '')
-		FROM sites s JOIN users u ON u.id = s.user_id
-		WHERE s.name = $1 AND s.deleted_at IS NULL
-		ORDER BY s.created_at ASC
-		LIMIT 1
-	`
-	var handle string
-	err := db.QueryRowContext(ctx, query, name).Scan(&handle)
-	return handle, err
+	return storesites.GetHandleBySiteName(ctx, db, name)
 }
 
 // Alias (cleanup 4.1): defined in internal/repository/sqlkit.

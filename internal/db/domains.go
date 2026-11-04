@@ -9,6 +9,7 @@ import (
 
 	"github.com/vsriram/simple-host/internal/model"
 	"github.com/vsriram/simple-host/internal/repository/sites"
+	storesites "github.com/vsriram/simple-host/internal/repository/sites"
 )
 
 // SiteDomainInfo is the domain-binding view of a site. Kept separate from the
@@ -100,17 +101,8 @@ func dropCustomDomain(ctx context.Context, tx *sql.Tx, siteID, expected string) 
 // that earlier address and the binding counts as verified. Returns
 // sql.ErrNoRows when none.
 func GetSiteByCustomDomain(ctx context.Context, database *sql.DB, domain string) (SiteDomainInfo, error) {
-	// A platform name is found under whichever platform domain it is stored.
-	f := hostForms(domain)
-	info, err := scanDomainInfo(database.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM sites WHERE custom_domain IN ($1, $2) AND deleted_at IS NULL ORDER BY custom_domain = $1 DESC LIMIT 1`, f[0], f[1]))
-	if !errors.Is(err, sql.ErrNoRows) {
-		return info, err
-	}
-	info, err = scanDomainInfo(database.QueryRowContext(ctx, `SELECT `+domainColumns+` FROM sites WHERE previous_domain IN ($1, $2) AND deleted_at IS NULL ORDER BY previous_domain = $1 DESC LIMIT 1`, f[0], f[1]))
-	if err != nil {
-		return SiteDomainInfo{}, err
-	}
-	return info.AsPrevious(), nil
+	info, err := storesites.GetSiteByCustomDomain(ctx, database, domain, hostForms(domain))
+	return SiteDomainInfo(info), err
 }
 
 // AsPrevious is the view of the site's earlier proven address: that address
@@ -478,12 +470,8 @@ type RetiredName struct {
 
 // GetRetiredName looks host up in legacy_hostnames. sql.ErrNoRows if absent.
 func GetRetiredName(ctx context.Context, database *sql.DB, host string) (RetiredName, error) {
-	var r RetiredName
-	var siteID sql.NullString
-	f := hostForms(host)
-	err := database.QueryRowContext(ctx, `SELECT site_id::text FROM legacy_hostnames WHERE hostname IN (lower($1), lower($2)) ORDER BY hostname = lower($1) DESC LIMIT 1`, f[0], f[1]).Scan(&siteID)
-	r.SiteID = siteID.String
-	return r, err
+	info, err := storesites.GetRetiredName(ctx, database, host, hostForms(host))
+	return RetiredName(info), err
 }
 
 // isPlatformName: host is exactly one label under a platform domain.
@@ -494,9 +482,7 @@ func isPlatformName(host string) bool {
 
 // GetSiteOwnerEmail returns the sign-in address of the site's owner.
 func GetSiteOwnerEmail(ctx context.Context, database *sql.DB, siteID string) (string, error) {
-	var email string
-	err := database.QueryRowContext(ctx, `SELECT u.username FROM sites s JOIN users u ON u.id = s.user_id WHERE s.id = $1`, siteID).Scan(&email)
-	return email, err
+	return storesites.GetSiteOwnerEmail(ctx, database, siteID)
 }
 
 // ClaimPlatformSubdomain binds a free <name>.<SITE_DOMAIN> address to siteID,
