@@ -1081,7 +1081,14 @@ CREATE TABLE IF NOT EXISTS events (
   taken_down_at         TIMESTAMPTZ,
   taken_down_reason     TEXT NOT NULL DEFAULT '',
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- 0003-hack-notices-judges-messages.sql: minutes before a deadline, 0..5
+  -- entries each 15..20160, distinct, sorted descending. Drives both entry
+  -- reminders (participants) and judging reminders (judges). judging_ends_at
+  -- is optional, set like the event's other times; NULL means judges get no
+  -- reminder.
+  reminder_offsets      INTEGER[] NOT NULL DEFAULT '{1440,60}',
+  judging_ends_at       TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS events_created_by_idx ON events (created_by, created_at);
 
@@ -1698,7 +1705,9 @@ CREATE TABLE IF NOT EXISTS event_notices (
   user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   kind         TEXT NOT NULL CHECK (kind IN ('join_request','invite','request_answered','application_new',
                  'application_decided','site_taken_down','site_restored','deadline_changed','team_admin',
-                 'team_locked','team_removed','entry_reminder')),
+                 'team_locked','team_removed','entry_reminder',
+                 -- 0003-hack-notices-judges-messages.sql
+                 'judging_open','judging_reminder','team_message')),
   team_id      UUID,
   ref_id       UUID,
   detail       TEXT NOT NULL DEFAULT '',
@@ -1724,7 +1733,9 @@ ALTER TABLE event_notices DROP CONSTRAINT IF EXISTS event_notices_event_id_fkey;
 CREATE TABLE IF NOT EXISTS event_entry_reminders (
   event_id  UUID NOT NULL,
   team_id   UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
-  kind      TEXT NOT NULL CHECK (kind IN ('24h','1h')),
+  -- 0003-hack-notices-judges-messages.sql: any offset label (was a fixed
+  -- ('24h','1h') pair), e.g. '72h', '90m'.
+  kind      TEXT NOT NULL CHECK (kind ~ '^[0-9]+[hm]$'),
   deadline  TIMESTAMPTZ NOT NULL,
   sent_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (event_id, team_id, kind)
@@ -1732,6 +1743,32 @@ CREATE TABLE IF NOT EXISTS event_entry_reminders (
 CREATE INDEX IF NOT EXISTS event_entry_reminders_team_idx ON event_entry_reminders (team_id);
 -- "Email me when something waits on me" on Account. On unless turned off.
 ALTER TABLE hack_account_preferences ADD COLUMN IF NOT EXISTS email_updates BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- Judging-close reminders (0003-hack-notices-judges-messages.sql): one row
+-- per (judge, offset), re-armed when judging_ends_at moves.
+CREATE TABLE IF NOT EXISTS event_judge_reminders (
+  event_id  UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  user_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind      TEXT NOT NULL CHECK (kind ~ '^[0-9]+[hm]$'),
+  deadline  TIMESTAMPTZ NOT NULL,
+  sent_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, user_id, kind)
+);
+
+-- Organiser team messages (0003-hack-notices-judges-messages.sql): the
+-- durable history. Delivery is the notice (kind team_message); notices are
+-- pruned after 30 days and exist only per recipient.
+CREATE TABLE IF NOT EXISTS event_team_messages (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id    UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  team_id     UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
+  sender_id   UUID REFERENCES users(id) ON DELETE SET NULL,
+  sender_name TEXT NOT NULL DEFAULT '',
+  body        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS event_team_messages_team_idx ON event_team_messages (team_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS event_team_messages_event_idx ON event_team_messages (event_id, created_at);
 
 -- Entries and participant journey, slice 1 (db/migrations/zv-hack-entry-summary.sql):
 -- the summary card, explicit submit against per-event rules, and the settle

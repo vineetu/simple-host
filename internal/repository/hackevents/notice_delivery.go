@@ -30,6 +30,12 @@ const (
 	TeamAdminNotice          = "team_admin"
 	NoticeTeamLocked         = "team_locked"
 	NoticeTeamRemoved        = "team_removed"
+	// 0003-hack-notices-judges-messages.sql: judging_open/judging_reminder go
+	// to every current judge member (not team-scoped); team_message goes to
+	// one team's current members.
+	NoticeJudgingOpen     = "judging_open"
+	NoticeJudgingReminder = "judging_reminder"
+	NoticeTeamMessage     = "team_message"
 )
 
 // noticeIsNews: shown in the app as a dismissable line until seen. The other
@@ -38,7 +44,8 @@ const (
 func noticeIsNews(kind string) bool {
 	switch kind {
 	case NoticeRequestAnswered, NoticeApplicationDecided, NoticeSiteTakenDown, NoticeSiteRestored,
-		NoticeDeadlineChanged, TeamAdminNotice, NoticeTeamLocked:
+		NoticeDeadlineChanged, TeamAdminNotice, NoticeTeamLocked,
+		NoticeJudgingOpen, NoticeJudgingReminder, NoticeTeamMessage:
 		return true
 	}
 	return false
@@ -53,7 +60,7 @@ func noticeEmails(kind string) bool { return kind != NoticeTeamLocked }
 func NoticeTeamScoped(kind string) bool {
 	switch kind {
 	case NoticeSiteTakenDown, NoticeSiteRestored, NoticeDeadlineChanged, TeamAdminNotice, NoticeTeamLocked,
-		NoticeEntryReminder:
+		NoticeEntryReminder, NoticeTeamMessage:
 		return true
 	}
 	return false
@@ -134,6 +141,32 @@ func NotifyOrganisers(ctx context.Context, q sqlkit.Querier, eventID, kind, refI
 	return NotifyUsers(ctx, q, eventID, kind, "", refID, "", ids...)
 }
 
+// ListJudgeMemberIDs lists the event's current judge members (role='judge';
+// an organiser who also judges is not included, matching the contract's
+// "every member with role judge").
+func ListJudgeMemberIDs(ctx context.Context, q sqlkit.Querier, eventID string) ([]string, error) {
+	return userIDs(ctx, q, `SELECT user_id FROM event_members WHERE event_id = $1 AND role = 'judge'`, eventID)
+}
+
+// NotifyJudges queues kind (judging_open) for every judge of the event.
+func NotifyJudges(ctx context.Context, q sqlkit.Querier, eventID, kind string) error {
+	ids, err := ListJudgeMemberIDs(ctx, q, eventID)
+	if err != nil {
+		return err
+	}
+	return NotifyUsers(ctx, q, eventID, kind, "", "", "", ids...)
+}
+
+// NoticeIsJudge reports whether the person is currently a judge member of
+// the event (judging_open/judging_reminder's staleness check: "the person is
+// no longer a judge").
+func NoticeIsJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string) (bool, error) {
+	var ok bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2 AND role = 'judge')`,
+		eventID, userID).Scan(&ok)
+	return ok, err
+}
+
 // SupersedeTeamNotices marks earlier notices of these kinds about the team
 // seen, and drops their unsent emails: a restored site replaces the
 // take-down line, a second deadline change replaces the first, an unlock
@@ -195,7 +228,7 @@ func ListNews(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]
 		  JOIN event_members m ON m.event_id = n.event_id AND m.user_id = n.user_id
 		 WHERE n.event_id = $1 AND n.user_id = $2 AND n.seen_at IS NULL
 		   AND n.created_at > now() - interval '14 days'
-		   AND (n.kind NOT IN ('site_taken_down','site_restored','deadline_changed','team_admin','team_locked')
+		   AND (n.kind NOT IN ('site_taken_down','site_restored','deadline_changed','team_admin','team_locked','team_message')
 		        OR n.team_id = m.team_id)
 		 ORDER BY n.created_at DESC, n.id LIMIT 20`, eventID, userID)
 	if err != nil {

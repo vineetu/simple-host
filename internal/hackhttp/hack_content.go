@@ -347,6 +347,8 @@ func (o *contentDeliveryOwner) run(ctx context.Context) {
 	o.record("deliver content mail", n, err)
 	n, err = h.eventsSvc().QueueEntryReminders(ctx)
 	o.record("queue entry reminders", n, err)
+	n, err = h.eventsSvc().QueueJudgeReminders(ctx, h.entries)
+	o.record("queue judge reminders", n, err)
 	n, err = h.eventsSvc().PruneNotices(ctx)
 	o.record("prune notices", n, err)
 	n, err = h.deliverNoticeMailOnly(ctx)

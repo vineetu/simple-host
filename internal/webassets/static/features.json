@@ -4994,16 +4994,17 @@
       "team-finding",
       "hack-team-admins-lock-links",
       "leave-this-event",
-      "hack-notices"
+      "hack-notices",
+      "team-messages"
      ],
-     "evidence": "FEATURES.md §15 'Team finding', 'Teams redesign' (team size default 20, EVENT_TEAM_SIZE_DEFAULT), 'Leave this event'. PARITY rows 'Simple Hack: leave an event', 'Simple Hack: team admins and links', 'Hosted hackathon platform'. Contradiction: the §15 Env table row still lists EVENT_TEAM_SIZE_DEFAULT (4); the 2026-10-31 prose says 20 and wins. Standalone v0.8.13 carries team finding; the 2026-10-31 teams redesign and leave are not stated for the standalone package. 'Notify people when something waits on them' (2026-11-02): Needs you on Home, Overview and Home across events, sidebar badges, emails at most once per kind per 15 minutes, Account opt-out, hack_get_my_todos."
+     "evidence": "FEATURES.md §15 'Team finding', 'Teams redesign' (team size default 20, EVENT_TEAM_SIZE_DEFAULT), 'Leave this event'. PARITY rows 'Simple Hack: leave an event', 'Simple Hack: team admins and links', 'Hosted hackathon platform'. Contradiction: the §15 Env table row still lists EVENT_TEAM_SIZE_DEFAULT (4); the 2026-10-31 prose says 20 and wins. Standalone v0.8.13 carries team finding; the 2026-10-31 teams redesign and leave are not stated for the standalone package. 'Notify people when something waits on them' (2026-11-02): Needs you on Home, Overview and Home across events, sidebar badges, emails at most once per kind per 15 minutes, Account opt-out, hack_get_my_todos. 'Team messages' (2026-11-05): an organiser can message one or up to 25 teams at once; the team sees it in app and by email, with its own sent-message history."
     },
     {
      "id": "hack-entries",
      "name": "Entry card, rules and submit",
      "line": "Every team hands in the same short summary card, organisers decide what a complete entry needs, and a team submits when it is ready.",
      "who": "Teams finishing their entry before the deadline, and organisers who want every entry in the same shape for judges.",
-     "how": "The card asks for the problem, the solution in one line, who it is for, the track, tools and AI as tags, and what works today, plus show-your-work evidence: a video, the team website, a code link or a screenshot. Organisers pick a preset (AI build, Coding, Ideas and design) or set each line Required, Optional or Off, and the evidence lines also One of; before saving tighter rules they see which teams it affects. Saving a draft never checks anything. Submit does, on the server, the same way on the website and in the AI apps. Home shows a four-step checklist and a countdown to the team's own deadline. At the deadline a complete draft is submitted automatically; an incomplete one is still judged, marked Incomplete, and the organiser can exclude it by hand. 24 hours and 1 hour before the deadline, teams whose entry isn't submitted get a reminder email naming what is missing. Published results show each shown team's card on the public page.",
+     "how": "The card asks for the problem, the solution in one line, who it is for, the track, tools and AI as tags, and what works today, plus show-your-work evidence: a video, the team website, a code link or a screenshot. Organisers pick a preset (AI build, Coding, Ideas and design) or set each line Required, Optional or Off, and the evidence lines also One of; before saving tighter rules they see which teams it affects. Saving a draft never checks anything. Submit does, on the server, the same way on the website and in the AI apps. Home shows a four-step checklist and a countdown to the team's own deadline. At the deadline a complete draft is submitted automatically; an incomplete one is still judged, marked Incomplete, and the organiser can exclude it by hand. At each of the event's own reminder times before the deadline (24 hours and 1 hour by default), teams whose entry isn't submitted get a reminder email naming what is missing. Published results show each shown team's card on the public page.",
      "example": "An organiser picks the Coding preset, so a code link becomes required. A team fills its card, adds its repo and a video, presses Submit and sees the checklist on Home tick over.",
      "where": "Entry and Home for teams, Entries and the entry detail for organisers, in the Simple Hack app; hack_submit_entry and hack_set_entry_rules in the AI apps.",
      "limits": "Rules can change only until entries close. Tighter rules never un-submit an entry. A team that never started an entry is not judged.",
@@ -5019,8 +5020,10 @@
      "covers": [
       "entry-summary-card-rules-and-submit",
       "entry-deadline-reminders",
-      "results-show-what-each-team-built"
-     ]
+      "results-show-what-each-team-built",
+      "reminder-times"
+     ],
+     "evidence": "FEATURES.md §15 'Reminder times' (2026-11-05): one list of offsets (up to 5, 15 minutes to 14 days each, default 24 hours and 1 hour) drives both this entry reminder and the judging reminder, organiser-editable on Entries."
     },
     {
      "id": "hack-judging",
@@ -5062,9 +5065,10 @@
       "judging-fixes",
       "stage-and-entry-fixes",
       "teams-can-see-the-rubric",
-      "panel-untracked-teams"
+      "panel-untracked-teams",
+      "judge-notices"
      ],
-     "evidence": "FEATURES.md §15 'Judging (M3)', 'Judging choices', 'Organisers can also judge', 'Judging fixes' (confirmation on scored criteria, judges-only default, scoring opens when entries close), 'Archive cleanup' (default rubric). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system' (judging-first Manage). Standalone v0.8.9 carries judging-first Manage."
+     "evidence": "FEATURES.md §15 'Judging (M3)', 'Judging choices', 'Organisers can also judge', 'Judging fixes' (confirmation on scored criteria, judges-only default, scoring opens when entries close), 'Archive cleanup' (default rubric). PARITY rows 'Hosted hackathon platform', 'Simple Hack Manage and one button system' (judging-first Manage). Standalone v0.8.9 carries judging-first Manage. 'Judge notices' (2026-11-05): judges are told in app and by email when judging opens and, while they still have teams to score, before it closes."
     },
     {
      "id": "hack-voting",

@@ -532,6 +532,8 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	h.registerHackPreferences(mux, wrap)
 	h.registerLeave(mux, wrap)
 	h.registerNotices(mux, wrap)
+	h.registerTeamMessages(mux, wrap)
+	h.registerReminders(mux, wrap)
 }
 
 // SetNamePeer: fn reports whether the peer instance holds name; nil = no peer.
@@ -1017,6 +1019,7 @@ func (h *HackHandler) eventView(ctx context.Context, ev model.Event, member mode
 			"taken_down":           ev.TakenDown(),
 			"results_visibility":   ev.ResultsVisibility,
 			"submission_deadline":  rfc3339UTC(ev.SubmissionDeadline),
+			"judging_ends_at":      rfc3339UTC(ev.JudgingEndsAt),
 			"entry_required":       entryRequiredList(ev.EntryRequired),
 			"gallery_open":         ev.GalleryOpen,
 			"team_sites_ready":     h.teamSitesReady(ev.Slug),
@@ -1281,6 +1284,9 @@ type patchEventReq struct {
 	SubmissionDeadline *string   `json:"submission_deadline"`
 	EntryRequired      *[]string `json:"entry_required"`
 	GalleryOpen        *bool     `json:"gallery_open"`
+	// 0003-hack-notices-judges-messages.sql: when judging closes. Same
+	// parsing as submission_deadline; "" or null clears it.
+	JudgingEndsAt *string `json:"judging_ends_at"`
 }
 
 func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
@@ -1475,6 +1481,17 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.GalleryOpen != nil {
 			ev.GalleryOpen = *req.GalleryOpen
+		}
+		if req.JudgingEndsAt != nil {
+			if strings.TrimSpace(*req.JudgingEndsAt) == "" {
+				ev.JudgingEndsAt = sql.NullTime{}
+			} else {
+				t, validationErr := parseEventTimeValue(*req.JudgingEndsAt, loc, "judging_ends_at", true)
+				if validationErr != nil {
+					return false, false, validationErr
+				}
+				ev.JudgingEndsAt = t
+			}
 		}
 		return deadlineChanged, entryRequiredChanged, nil
 	})

@@ -98,6 +98,24 @@ func (s *Service) JudgeQueue(ctx context.Context, ev model.Event, judgeID string
 	return out, nil
 }
 
+// UnscoredTeams is the events service's EntryEvaluator.UnscoredTeams
+// (0003-hack-notices-judges-messages.sql): how many of this judge's queue
+// rows are not yet Done. Used for judging_open/judging_reminder's N, both
+// live (NeedsYou) and at send time (the mail sweep and the reminder sweep).
+func (s *Service) UnscoredTeams(ctx context.Context, ev model.Event, judgeID string) (int, error) {
+	rows, err := s.JudgeQueue(ctx, ev, judgeID, func() error { return nil })
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, r := range rows {
+		if !r.Done {
+			n++
+		}
+	}
+	return n, nil
+}
+
 // Pool is the prospective judging pool used before entries settle.
 type Pool struct {
 	In                        map[string]bool

@@ -1,6 +1,7 @@
 import { href } from '../nav.js'
 import { labelList, joinAnd } from './_orgB-util.js'
 import { rowMenuHTML, wireRowMenus, formDialog } from './_orgA-util.js'
+import { openTeamMessageDialog, messageRowsHTML } from './_team-message-dialog.js'
 
 export function title(ctx) {
   return 'Team'
@@ -34,13 +35,14 @@ export async function render(ctx) {
 
   wireRowMenus()
 
-  let teams = [], team = null, members = [], entryItem = null, required = [], onNoTeam = []
+  let teams = [], team = null, members = [], entryItem = null, required = [], onNoTeam = [], messages = []
 
   async function load() {
-    const [tr, pr, er] = await Promise.all([
+    const [tr, pr, er, mr] = await Promise.all([
       api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams'),
       api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/people'),
-      api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/entries')
+      api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/entries'),
+      api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/' + encodeURIComponent(teamSlug) + '/messages')
     ])
     if (!tr.ok) { setLive(tr.data.error || 'Could not load the team', true); return false }
     teams = tr.data.teams || []
@@ -56,6 +58,7 @@ export async function render(ctx) {
       required = er.data.required || []
       entryItem = (er.data.entries || []).find(e => e.team.slug === teamSlug) || null
     }
+    messages = mr.ok ? (mr.data.messages || []) : []
     return true
   }
 
@@ -114,6 +117,7 @@ ${lockReason ? `<div class="note warn">${esc(lockReason)}</div>` : ''}
 ${team.kept ? `<div class="note" role="status">Everyone left after the deadline. ${esc(team.name)} keeps its entry, site and scores, and can’t take new members.</div>` : ''}
 ${membersBlock}
 <section class="card"><h2>Team</h2><form id="rename-form"><div class="field"><label for="rename-name">Team name</label><div class="control-row"><input class="input" id="rename-name" type="text" maxlength="80" value="${esc(team.name)}"${lockReason ? ' disabled' : ''}><button class="btn" type="submit"${lockReason ? ' disabled' : ''}>Save</button></div></div></form></section>
+<section class="card" id="messages"><h2>Messages</h2>${messages.length ? messageRowsHTML(ui, ev, messages, { withSender: true }) : '<p class="muted">No messages sent to this team yet.</p>'}${ev.stage === 'archived' ? '' : `<div class="form-actions"><button class="btn" type="button" id="msg-team-btn">Message team</button></div>`}</section>
 ${team.kept ? '' : `<section class="card"><h2>Joining</h2>
 <div class="setting"><div class="t"><b>Lock team</b><span>No more people can join by link, code, request or invite, and Fill teams skips it. You can still place people here.</span></div><div class="ctl"><button class="toggle${team.locked ? ' on' : ''}" type="button" role="switch" aria-checked="${team.locked ? 'true' : 'false'}" aria-label="Lock team" id="team-lock-toggle"${lockReason ? ' disabled' : ''}></button></div></div>
 <div class="setting wraps"><div class="t"><b>Team link</b><span>Anyone in this event who opens it joins straight away.</span></div><div class="ctl addr"><span class="mono">${esc(addr)}</span><button class="btn" type="button" id="team-link-copy">Copy</button><button class="btn" type="button" id="team-link-new"${lockReason ? ' disabled' : ''}>New link</button></div></div>
@@ -127,6 +131,8 @@ ${team.kept ? '' : `<section class="card"><h2>Joining</h2>
     const addBtn = $('add-someone')
     if (addBtn) addBtn.addEventListener('click', onAddSomeone)
     $('rename-form').addEventListener('submit', onRename)
+    const msgBtn = $('msg-team-btn')
+    if (msgBtn) msgBtn.addEventListener('click', onMessageTeam)
     const lockToggle = $('team-lock-toggle')
     if (lockToggle) lockToggle.addEventListener('click', onToggleLock)
     const linkCopy = $('team-link-copy')
@@ -202,6 +208,15 @@ ${team.kept ? '' : `<section class="card"><h2>Joining</h2>
       if (!r.ok) { setLive(r.data.error || 'Could not remove them', true); return }
       await load(); paint(); ui.saved(main)
     }
+  }
+
+  async function onMessageTeam() {
+    const sent = await openTeamMessageDialog(ctx, { teamIds: [team.id], title: 'Message ' + team.name })
+    if (!sent) return
+    const n = sent.reduce((s, m) => s + (m.recipients || 0), 0)
+    await load()
+    paint()
+    ui.toast('Sent to ' + n + (n === 1 ? ' person' : ' people'), main)
   }
 
   async function onRename(e) {

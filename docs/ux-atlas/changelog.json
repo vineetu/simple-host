@@ -1,5 +1,9 @@
 [
  {
+  "date": "2026-11-05",
+  "what": "Notices extension: judge-home gets a Needs you card (judging_open/judging_reminder, section queue, needsCard/bindDismiss). Organiser team-detail gets a Messages card (sent history, 'No messages sent to this team yet.') with a Message team button (textarea, 1000-character counter, hidden once archived); organiser-teams' Teams tab gets per-row checkboxes and a Message selected button (1 to 25, shared dialog via _team-message-dialog.js). participant-team's Members tab gets a Messages from the organisers card, hidden when empty. organiser-entries gets a Reminder times card (removable chips, an add control in minutes/hours/days, 5 max, 15 min to 14 days, Save; reads/writes GET/PUT .../reminders) -- Entries, not Settings, since it already owns the deadline these reminders key off. organiser-judging gets a Judging closes card (plain date-time, PATCH judging_ends_at) next to the rubric and tie-break, per the CHANGE 2026-11-05 note dropping schedule-row inference; schedule.js's setInLink/soonText/cueHeading learn the fixed row key judging_end. New features: judge-needs-you, judging-reminder-email, message-team, view-team-messages, view-messages-from-organisers, set-reminder-times, set-judging-closes. New FEATURES.md anchors: judge-notices, team-messages, reminder-times. Prototype: judge-home, organiser-team-detail(~message), organiser-teams, participant-team~with-team, organiser-entries, organiser-judging."
+ },
+ {
   "date": "2026-11-04",
   "what": "Self-hosted installs may enable password accounts. The shared sign-in card offers username/email and password after providers, account creation when enabled, and a new-password field for temporary credentials. Hosted services keep their current methods. Prototype: public-apply~password."
  },

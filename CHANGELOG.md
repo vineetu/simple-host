@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-05: Simple Hack notifications grow to cover judges and organiser messages. Judges now get a notice, in the app and by email, when judging opens (with how many teams are in their queue) and a reminder before judging closes while they still have teams left to score, keyed off a new "Judging closes" event field (`judging_ends_at`) rather than a schedule row. Organisers can message one or more teams directly (`hack_message_team`); each team sees it as a notice and by email, with a readable history (`hack_get_team_messages` / `hack_get_my_team_messages`). Reminder times are now an event setting organisers control (`hack_get_reminder_settings` / `hack_set_reminder_settings`), at most 5 times between 15 minutes and 14 days ahead (default 24 hours and 1 hour), and the same list now drives both participant entry reminders and judge reminders.
+
 2026-11-05: Simple Hack: every stage change and Publish results offers to tell participants. A short suggested announcement opens for that move; edit it, choose whether to email, then Send or Don't send (SIM-341). `hack_set_event_stage` tells AI apps to offer the same through `hack_post_announcement`.
 
 2026-11-05: Simple Hack Get started presents the website and the AI apps as two equal ways in for organisers, participants and judges, with the website clicks written out as fully as the AI prompts (SIM-218).

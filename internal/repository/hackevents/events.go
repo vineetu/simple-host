@@ -31,7 +31,7 @@ const EventColumns = `
 	entry_required, gallery_open,
 	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason,
 	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding, applications_open, directory_listed,
-	entry_preset, entry_rules, judge_first`
+	entry_preset, entry_rules, judge_first, reminder_offsets, judging_ends_at`
 
 // ScanEventFields returns destinations in EventColumns order.
 func ScanEventFields(e *Event) []any {
@@ -45,7 +45,7 @@ func ScanEventFields(e *Event) []any {
 		pq.Array(&e.EntryRequired), &e.GalleryOpen,
 		&e.JudgeAssignmentMode, &e.JudgesPerTeam, &e.JudgingLockedAt, &e.JudgingLockReason,
 		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks, &e.TeamFinding, &e.ApplicationsOpen, &e.DirectoryListed,
-		&e.EntryPreset, &e.EntryRules, &e.JudgeFirst,
+		&e.EntryPreset, &e.EntryRules, &e.JudgeFirst, pq.Array(&e.ReminderOffsets), &e.JudgingEndsAt,
 	}
 }
 
@@ -262,14 +262,24 @@ func UpdateEventPatch(ctx context.Context, q sqlkit.Querier, e Event) (Event, er
 			title = $2, tagline = $3, about = $4, rules = $5, prizes = $6, coc_text = $7,
 			time_zone = $8, starts_at = $9, ends_at = $10, team_size_max = $11,
 			organiser_name = $12, organisation = $13, contact_email = $14, purpose = $15,
-			expected_participants = $16, accent_color = $17, updated_at = now(), team_finding = $18, applications_open = $19
+			expected_participants = $16, accent_color = $17, updated_at = now(), team_finding = $18, applications_open = $19,
+			judging_ends_at = $20
 		WHERE id = $1
 		RETURNING `+EventColumns,
 		e.ID, e.Title, e.Tagline, e.About, e.Rules, e.Prizes, e.CocText,
 		e.TimeZone, nullTime(e.StartsAt), nullTime(e.EndsAt), e.TeamSizeMax,
 		e.OrganiserName, e.Organisation, e.ContactEmail, e.Purpose, nullInt(e.ExpectedParticipants), e.AccentColor, e.TeamFinding, e.ApplicationsOpen,
+		nullTime(e.JudgingEndsAt),
 	)
 	return ScanEvent(row)
+}
+
+// SetEventReminderOffsets saves the validated, normalised reminder offsets
+// (0003-hack-notices-judges-messages.sql).
+func SetEventReminderOffsets(ctx context.Context, q sqlkit.Querier, eventID string, offsets []int64) (Event, error) {
+	return ScanEvent(q.QueryRowContext(ctx, `
+		UPDATE events SET reminder_offsets = $2, updated_at = now() WHERE id = $1 RETURNING `+EventColumns,
+		eventID, pq.Array(offsets)))
 }
 
 // GetEventForUpdate reads the event and locks its row until the transaction

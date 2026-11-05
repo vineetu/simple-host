@@ -53,6 +53,15 @@ func MailInvite(ctx context.Context, q sqlkit.Querier, refID, userID string) (st
 	return team, err
 }
 
+// NoticeTeamMessageBody reads a team message's text for the notice line
+// (0003-hack-notices-judges-messages.sql). sql.ErrNoRows when the message or
+// the team is gone, or the message is no longer that team's.
+func NoticeTeamMessageBody(ctx context.Context, q sqlkit.Querier, id, teamID string) (string, error) {
+	var body string
+	err := q.QueryRowContext(ctx, `SELECT body FROM event_team_messages WHERE id = $1 AND team_id = $2`, id, teamID).Scan(&body)
+	return body, err
+}
+
 // MailApplicationPending checks whether an application still awaits a decision.
 func MailApplicationPending(ctx context.Context, q sqlkit.Querier, eventID, userID string) (bool, error) {
 	var pending bool

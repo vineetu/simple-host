@@ -29,8 +29,11 @@ func needsYouItem(kind, id string, count int, text, section string, at time.Time
 
 // NeedsYou lists what waits on this member in this event, live to-dos first,
 // then unseen news, newest first. Empty for the platform admin reading an
-// event it is not in, for a taken-down event, and for a judge.
-func (s *Service) NeedsYou(ctx context.Context, ev model.Event, m model.EventMember) []Need {
+// event it is not in, and for a taken-down event. judges is the entries
+// service's small interface (0003-hack-notices-judges-messages.sql),
+// needed for a judge's unscored-teams count; nil is safe (judging news is
+// simply dropped, same as any other stale notice).
+func (s *Service) NeedsYou(ctx context.Context, ev model.Event, m model.EventMember, judges EntryEvaluator) []Need {
 	items := []Need{}
 	if m.JoinedAt.IsZero() || ev.TakenDown() {
 		return items
@@ -47,6 +50,17 @@ func (s *Service) NeedsYou(ctx context.Context, ev model.Event, m model.EventMem
 				text = "1 application is waiting for a decision."
 			}
 			items = append(items, needsYouItem(hackevents.NoticeApplicationNew, "", n, text, "people", time.Time{}))
+		}
+		return items
+	case "judge":
+		news, err := hackevents.ListNews(ctx, s.db, ev.ID, m.UserID)
+		if err != nil || judges == nil {
+			return items
+		}
+		for _, n := range news {
+			if text, ok, err := s.judgingNoticeLine(ctx, s.db, n, ev.TimeZone, judges); err == nil && ok {
+				items = append(items, needsYouItem(n.Kind, n.ID, 1, text, "queue", n.CreatedAt))
+			}
 		}
 		return items
 	case "participant":
@@ -171,8 +185,61 @@ func (s *Service) newsText(ctx context.Context, q sqlkit.Querier, eventTitle, zo
 		return team.Name + " is locked, so nobody new can join.", "team", true
 	case hackevents.NoticeTeamRemoved:
 		return oneLine(n.Detail), "team", n.Detail != ""
+	case hackevents.NoticeTeamMessage:
+		body, err := hackevents.NoticeTeamMessageBody(ctx, q, n.RefID, n.TeamID)
+		if err != nil {
+			return "", "", false
+		}
+		return "Message from the organisers: " + oneLine(body), "team", true
 	}
 	return "", "", false
+}
+
+// judgingNoticeLine re-reads the event and writes judging_open/
+// judging_reminder's line from state now. ok=false drops it: the event is
+// gone, the stage is no longer judging, judging is locked, the person is no
+// longer a judge, or (judging_reminder only) N is 0 or judging_ends_at has
+// passed or been cleared.
+func (s *Service) judgingNoticeLine(ctx context.Context, q sqlkit.Querier, n model.Notice, zone string, judges EntryEvaluator) (string, bool, error) {
+	ev, err := hackevents.GetEventByID(ctx, q, n.EventID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	if ev.Stage != "judging" || ev.JudgingLockedAt.Valid {
+		return "", false, nil
+	}
+	isJudge, err := hackevents.NoticeIsJudge(ctx, q, n.EventID, n.UserID)
+	if err != nil {
+		return "", false, err
+	}
+	if !isJudge {
+		return "", false, nil
+	}
+	count, err := judges.UnscoredTeams(ctx, ev, n.UserID)
+	if err != nil {
+		return "", false, err
+	}
+	teams := func(n int) string {
+		if n == 1 {
+			return "1 team"
+		}
+		return fmt.Sprintf("%d teams", n)
+	}
+	if n.Kind == hackevents.NoticeJudgingOpen {
+		if count == 0 {
+			return "Judging is open. No teams are in your queue yet.", true, nil
+		}
+		return "Judging is open: you have " + teams(count) + " to score.", true, nil
+	}
+	// judging_reminder
+	if count == 0 || !ev.JudgingEndsAt.Valid || !ev.JudgingEndsAt.Time.After(time.Now()) {
+		return "", false, nil
+	}
+	have := "You still have " + teams(count) + " to score."
+	return "Judging closes " + hackNoticeTime(ev.JudgingEndsAt.Time, zone) + " (" + ReminderIn(ev.JudgingEndsAt.Time.Sub(time.Now())) + "). " + have, true, nil
 }
 
 // sendNoticeBatch handles one person and kind. more=false when nothing was due.
@@ -335,6 +402,12 @@ func noticeSubject(kind string) string {
 		return "you were taken off a team"
 	case hackevents.NoticeEntryReminder:
 		return "your entry is due soon"
+	case hackevents.NoticeJudgingOpen:
+		return "judging is open"
+	case hackevents.NoticeJudgingReminder:
+		return "judging closes soon"
+	case hackevents.NoticeTeamMessage:
+		return "a message from the organisers"
 	}
 	return "something is waiting for you"
 }
@@ -350,6 +423,10 @@ func (s *Service) noticeLink(kind, slug, publicBaseURL string) string {
 		return base + "/team?s=website"
 	case hackevents.NoticeDeadlineChanged, hackevents.NoticeEntryReminder:
 		return base + "/team?s=entry"
+	case hackevents.NoticeJudgingOpen, hackevents.NoticeJudgingReminder:
+		return base + "/judge?s=queue"
+	case hackevents.NoticeTeamMessage:
+		return base + "/team?s=team"
 	}
 	return base + "/team?s=team"
 }
@@ -424,6 +501,9 @@ func (s *Service) mailLine(ctx context.Context, tx *sql.Tx, n model.MailNotice, 
 			return "", false, nil
 		}
 		return s.entryReminderLine(ctx, tx, n, evaluator)
+	case hackevents.NoticeJudgingOpen, hackevents.NoticeJudgingReminder:
+		text, ok, err := s.judgingNoticeLine(ctx, tx, n.Notice, n.EventTimeZone, evaluator)
+		return oneLine(text), ok, err
 	}
 	text, _, ok := s.newsText(ctx, tx, n.EventTitle, n.EventTimeZone, n.Notice)
 	return oneLine(text), ok, nil
@@ -536,8 +616,10 @@ type TodoEvent struct {
 	Items             []Need
 }
 
-// Todos collects pending work and email settings for a user.
-func (s *Service) Todos(ctx context.Context, userID string) ([]TodoEvent, bool, bool, error) {
+// Todos collects pending work and email settings for a user. judges is the
+// entries service's small interface, needed for a judge's news
+// (0003-hack-notices-judges-messages.sql); nil is safe.
+func (s *Service) Todos(ctx context.Context, userID string, judges EntryEvaluator) ([]TodoEvent, bool, bool, error) {
 	events, roles, err := hackevents.ListEventsForUser(ctx, s.db, userID)
 	if err != nil {
 		return nil, false, false, err
@@ -548,7 +630,7 @@ func (s *Service) Todos(ctx context.Context, userID string) ([]TodoEvent, bool, 
 		if err != nil {
 			continue
 		}
-		items := s.NeedsYou(ctx, ev, m)
+		items := s.NeedsYou(ctx, ev, m, judges)
 		if len(items) == 0 {
 			continue
 		}

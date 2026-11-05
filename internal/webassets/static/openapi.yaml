@@ -8751,6 +8751,14 @@ paths:
                     give single teams more time). Changing the deadline after the event
                     has ended is 409 event_closed. A value that is not a time is 400
                     invalid_submission_deadline.
+                judging_ends_at:
+                  type: string
+                  description: >-
+                    When judging closes, same parsing as submission_deadline. An empty
+                    string clears it. Judges with unscored teams are reminded before this
+                    time, from the event's reminder offsets (GET/PUT .../reminders); with
+                    no judging_ends_at they get no reminder. Not inferred from the
+                    schedule. A value that is not a time is 400 invalid_judging_ends_at.
                 entry_required:
                   type: array
                   deprecated: true
@@ -14520,6 +14528,149 @@ paths:
                     People per team. Default min(4, team_size_max); must be
                     between 1 and the event's team_size_max.
 
+  /v1/hack/events/{slug}/team-messages:
+    post:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: postHackTeamMessages
+      summary: Message one or more teams (organiser) (EVENTS=hosted only)
+      description: >-
+        Sends one message to each of 1 to 25 distinct team_ids of this event, in app and by
+        email, to every current member of each team (0003-hack-notices-judges-messages.sql).
+        At most 50 team messages (rows) per event per rolling hour; over that, 429
+        rate_limited with Retry-After. Organiser only.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [team_ids, text]
+              properties:
+                team_ids: { type: array, items: { type: string, format: uuid }, minItems: 1, maxItems: 25, description: Distinct team ids of this event. }
+                text: { type: string, description: "1 to 1000 characters, trimmed." }
+      responses:
+        '201':
+          description: One row per team actually sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      allOf:
+                        - { $ref: '#/components/schemas/HackTeamMessage' }
+                        - type: object
+                          properties:
+                            team_id: { type: string, format: uuid }
+                            team_name: { type: string }
+                            recipients: { type: integer, description: Members notified. }
+        '400': { description: invalid_team or invalid_text, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: event_not_found for a non-organiser, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: event_closed, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '429': { description: 'rate_limited; Retry-After header', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /v1/hack/events/{slug}/teams/{team}/messages:
+    get:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: getHackTeamMessages
+      summary: Read one team's messages from the organisers (organiser) (EVENTS=hosted only)
+      description: Up to 100 messages sent to this team, newest first. Organiser only.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+        - { in: path, name: team, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Message history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HackTeamMessages' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "event_not_found or team_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /v1/hack/events/{slug}/team/messages:
+    get:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: getMyHackTeamMessages
+      summary: Read my team's messages from the organisers (participant) (EVENTS=hosted only)
+      description: >-
+        Up to 100 messages sent to the caller's current team, newest first; an empty list
+        when they are on no team. Participant only.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Message history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HackTeamMessages' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
+  /v1/hack/events/{slug}/reminders:
+    get:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: getHackReminderSettings
+      summary: Read reminder offsets (organiser) (EVENTS=hosted only)
+      description: >-
+        The minutes-before-deadline offsets that drive both the entry-deadline reminder
+        emails to teams and the judging-closes reminders to judges, the allowed range, and
+        when judging closes (judging_ends_at, set through PATCH .../events/{slug}).
+        Organiser only.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Reminder settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HackReminderSettings' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    put:
+      x-audience: ["public-hack"]
+      tags: ["Hosted events"]
+      operationId: putHackReminderSettings
+      summary: Replace reminder offsets (organiser) (EVENTS=hosted only)
+      description: >-
+        Validates, dedupes and sorts offsets_minutes descending: 0 to 5 entries, each 15 to
+        20160 minutes (14 days), distinct. Empty means no reminders for either audience.
+        409 event_closed once the event is archived. Organiser only.
+      security: [{ apiKey: [] }]
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [offsets_minutes]
+              properties:
+                offsets_minutes: { type: array, items: { type: integer }, maxItems: 5, description: "Minutes before the deadline, each 15 to 20160." }
+      responses:
+        '200':
+          description: Reminder settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HackReminderSettings' }
+        '400': { description: invalid_offsets, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: event_closed, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
 components:
   securitySchemes:
     apiKey: { type: apiKey, in: header, name: X-API-Key }
@@ -15053,6 +15204,7 @@ components:
         taken_down: { type: boolean }
         results_visibility: { type: string, enum: [winners, ranking] }
         submission_deadline: { type: string, format: date-time, nullable: true, description: The event's deadline, RFC 3339 UTC, or null. }
+        judging_ends_at: { type: string, format: date-time, nullable: true, description: "When judging closes, RFC 3339 UTC, or null. Drives the judging-closes reminder; not inferred from the schedule." }
         entry_required:
           type: array
           deprecated: true
@@ -15160,14 +15312,14 @@ components:
       type: object
       required: [key, title, description, start_at, end_at, all_day, fixed, set_in]
       properties:
-        key: { type: string, enum: [event_start, event_end, entry_deadline, team_deadline, voting, results_published] }
+        key: { type: string, enum: [event_start, event_end, entry_deadline, team_deadline, voting, results_published, judging_end] }
         title: { type: string, example: Entries due }
         description: { type: string }
         start_at: { type: string, format: date-time }
         end_at: { type: string, format: date-time, nullable: true, description: Null for a moment such as a deadline; set for the voting window. }
         all_day: { type: boolean, description: An event start or end saved as a date only. Shown without a time and never prompts or nudges. }
         fixed: { type: boolean, enum: [true] }
-        set_in: { type: string, enum: [basics, entries, results], description: Where the organiser changes it. }
+        set_in: { type: string, enum: [basics, entries, results, judging], description: Where the organiser changes it. }
         prompt: { type: string, description: Organisers only. The move this row asks for once its time comes (entry_deadline asks closed). }
     HackNextStep:
       type: object
@@ -15198,6 +15350,28 @@ components:
         body: { type: string }
         created_at: { type: string, format: date-time }
         emails_sent: { type: integer, description: "Deliveries actually sent for this announcement so far, not merely queued." }
+    HackTeamMessage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        text: { type: string }
+        sender_name: { type: string }
+        created_at: { type: string, format: date-time }
+    HackTeamMessages:
+      type: object
+      properties:
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/HackTeamMessage' }
+    HackReminderSettings:
+      type: object
+      properties:
+        offsets_minutes: { type: array, items: { type: integer }, description: "Minutes before the deadline, sorted descending." }
+        default_minutes: { type: array, items: { type: integer }, description: "The factory default, 1440 and 60 (24h, 1h)." }
+        min_minutes: { type: integer, description: "15." }
+        max_minutes: { type: integer, description: "20160 (14 days)." }
+        max_count: { type: integer, description: "5." }
+        judging_ends_at: { type: string, format: date-time, nullable: true, description: "When judging closes, or null when judges get no reminder." }
     HackEventView:
       type: object
       properties:

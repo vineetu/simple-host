@@ -1,6 +1,7 @@
 import { errText, isBlockedCode } from './_partB-util.js'
 import { startTour } from '../tour.js'
 import { row, rowMenuHTML, wireRowMenus, teamLink, COPY_ICON, LOCK_ICON } from './_team-util.js'
+import { messagesFromOrganisersCardHTML } from './_team-message-dialog.js'
 
 // Teams redesign (owner, 2026-10-31): the old side-by-side Start/Join cards
 // and the single long on-team page are gone. No team: one question, "How
@@ -86,6 +87,17 @@ export async function render(ctx) {
     if (r.ok) finding = Object.assign(finding, r.data)
   } catch (e) { if (client.isSignedOut(e)) return }
   if (!ctx.alive()) return
+
+  // Messages from the organisers (notices contract 2026-11-05): only on a
+  // team -- the route is "own current team", empty with no team at all.
+  let messages = []
+  if (team) {
+    try {
+      const mr = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team/messages')
+      if (mr.ok) messages = mr.data.messages || []
+    } catch (e) { if (client.isSignedOut(e)) return }
+    if (!ctx.alive()) return
+  }
 
   const $ = id => main.querySelector('#' + id)
 
@@ -260,6 +272,7 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
     // link card's own "Anyone ... joins straight away."
     parts.push(`<div class="sp-head"><h2 id="sp-h" tabindex="-1">Members</h2><p>Anyone with the team link joins straight away. Admins approve requests to join.</p></div>`)
     if (frozen) parts.push(`<div class="note" role="status">Entries are closed, so ${esc(team.name)} can’t change now.</div>`)
+    parts.push(messagesFromOrganisersCardHTML(ui, ev, messages))
     parts.push(teamLinkCardHTML())
     if (!frozen) parts.push(requestsHTML(pendingRequests))
     parts.push(`<div class="list editable" aria-label="Members"><div class="lh">Members · ${members.length}</div>${members.map(m => memberRowHTML(m, members.length >= ev.team_size_max)).join('')}</div>`)

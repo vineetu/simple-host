@@ -129,6 +129,16 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-05 (owner). Notifications and messaging are one system.** Owner's rule: "This
+  notification and messaging system should be part of the notifications, not separate from it.
+  It should be architectural-level, similar in kind. Everything should be done via the API /
+  MCP." Judge notices, team messages and reminder times are notice kinds and an event setting
+  in the existing notices table and email queue, not a parallel system. One reminder list per
+  event drives both audiences: participant entry reminders and judge reminders. Judging close
+  time comes from the event's own `judging_ends_at` field, added in migration 0003, rather than
+  inferring it from schedule row names, which is fragile. Reason: one place for everything that
+  reaches a person, the same opt-out and batching.
+
 - 2026-11-04 (owner): support password sign-in on self-hosted installs, off by default in the binary and on hosted production. Compose and Helm enable it by default. Self sign-up is a separate setting, on by default; operators may restrict account creation to the admin. Temporary admin passwords must be changed at first sign-in. No TOTP/2-step, leaked-password checks or passkeys. Hide self-host/run-your-own marketing on self-hosted installs, retaining it on simple-host.app and simple-hack.app.
 
 

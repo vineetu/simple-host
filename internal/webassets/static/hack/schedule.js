@@ -25,6 +25,9 @@ export function setInLink(setIn, slug) {
   if (setIn === 'basics') return { label: 'Basics', href: href('organiser', slug, 'event-page') + '&tab=basics' }
   if (setIn === 'entries') return { label: 'Entries', href: href('organiser', slug, 'entries') }
   if (setIn === 'results') return { label: 'Results', href: href('organiser', slug, 'results') }
+  // judging_ends_at (notices contract, CHANGE 2026-11-05): set on
+  // organiser-judging.js, next to the rubric and tie-break.
+  if (setIn === 'judging') return { label: 'Judging', href: href('organiser', slug, 'judging') }
   return null
 }
 
@@ -97,6 +100,7 @@ export function soonText(r, now = Date.now()) {
     case 'team_deadline': return 'Entries are due in ' + m
     case 'event_start': return 'The event starts in ' + m
     case 'event_end': return 'The event ends in ' + m
+    case 'judging_end': return 'Judging closes in ' + m
     default: return r.title + ' starts in ' + m
   }
 }
@@ -148,6 +152,7 @@ export function cueHeading(ui, ev, step, now = Date.now()) {
     case 'entry_deadline': phrase = c.now ? 'Entries are due now' : 'Entries were due at ' + at; break
     case 'event_start': phrase = c.now ? 'The event starts now' : 'The event started at ' + at; break
     case 'event_end': phrase = c.now ? 'The event ends now' : 'The event ended at ' + at; break
+    case 'judging_end': phrase = c.now ? 'Judging closes now' : 'Judging closed at ' + at; break
     default: phrase = c.now ? c.title + ' is now' : c.title + ' was at ' + at
   }
   return phrase + '. ' + label + '?'

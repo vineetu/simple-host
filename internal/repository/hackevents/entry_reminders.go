@@ -10,33 +10,46 @@ import (
 )
 
 // NoticeEntryReminder is the entry deadline reminder (entries slice 3,
-// db/migrations/zx-hack-entry-reminders.sql): 24 hours and 1 hour before a
-// team's effective deadline, every current member of a team whose entry is
-// not submitted gets an email through the notices queue. It is email only
-// (born seen): Home already shows the countdown and the checklist.
+// db/migrations/zx-hack-entry-reminders.sql; generalised to custom offsets by
+// 0003-hack-notices-judges-messages.sql): before a team's effective
+// deadline, every current member of a team whose entry is not submitted
+// gets an email through the notices queue. It is email only (born seen):
+// Home already shows the countdown and the checklist.
 const NoticeEntryReminder = "entry_reminder"
 
 // EntryReminder is one team that is due a reminder now.
 type EntryReminder = model.EntryReminder
 
-// DueEntryReminders lists teams whose effective deadline is still ahead and
-// at most 24 hours away, whose entry is not submitted (or not started), in
-// an event that still takes entries, and that have not yet had this
-// reminder for this deadline. Inside the last hour only the 1-hour reminder
-// is due, so a team first seen 40 minutes out gets one email, not two.
+// reminderOffsetKindSQL is the label for an offset of M minutes, the same
+// rule Go's ReminderLabel uses: M%60==0 ? (M/60)+"h" : M+"m" (1440->"24h",
+// 60->"1h", 4320->"72h", 90->"90m"), so existing rows keep deduping.
+const reminderOffsetKindSQL = `CASE WHEN offset_min % 60 = 0 THEN (offset_min/60)::text || 'h' ELSE offset_min::text || 'm' END`
+
+// DueEntryReminders lists teams due a reminder now, from their own event's
+// reminder_offsets (0003-hack-notices-judges-messages.sql: one list drives
+// both audiences). The due offset is the smallest configured offset still
+// >= what remains (deadline - now); none if remaining exceeds every
+// configured offset -- the generalised form of the old fixed 24h/1h pair.
+// Teams whose entry is not submitted (or not started), in an event that
+// still takes entries, that have not yet had this reminder for this
+// deadline.
 func DueEntryReminders(ctx context.Context, q sqlkit.Querier) ([]EntryReminder, error) {
 	rows, err := queryContext(ctx, q, `
 		WITH c AS (
-		  SELECT e.id AS event_id, t.id AS team_id, `+EffectiveDeadlineSQL+` AS deadline
+		  SELECT e.id AS event_id, t.id AS team_id, e.reminder_offsets AS offsets, `+EffectiveDeadlineSQL+` AS deadline
 		    FROM event_teams t JOIN events e ON e.id = t.event_id
 		   WHERE e.stage IN ('open','building','closed') AND e.taken_down_at IS NULL
 		     AND t.site_taken_down_at IS NULL
+		     AND cardinality(e.reminder_offsets) > 0
 		     AND NOT EXISTS (SELECT 1 FROM event_entries en WHERE en.team_id = t.id AND en.submitted_at IS NOT NULL)
 		     AND EXISTS (SELECT 1 FROM event_members m WHERE m.event_id = e.id AND m.team_id = t.id)
+		), off AS (
+		  SELECT c.event_id, c.team_id, c.deadline, MIN(o) AS offset_min
+		    FROM c, unnest(c.offsets) AS o
+		   WHERE c.deadline > now() AND (c.deadline - now()) <= (o * interval '1 minute')
+		   GROUP BY c.event_id, c.team_id, c.deadline
 		), k AS (
-		  SELECT event_id, team_id, deadline,
-		         CASE WHEN deadline <= now() + interval '1 hour' THEN '1h' ELSE '24h' END AS kind
-		    FROM c WHERE deadline > now() AND deadline <= now() + interval '24 hours'
+		  SELECT event_id, team_id, deadline, `+reminderOffsetKindSQL+` AS kind FROM off
 		)
 		SELECT k.event_id, k.team_id, k.kind, k.deadline FROM k
 		 WHERE NOT EXISTS (SELECT 1 FROM event_entry_reminders r

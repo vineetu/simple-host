@@ -23,6 +23,10 @@ Use the Simple Hack connector signed in through its trusted browser window. Foll
 | Set content | `hack_set_content` |
 | Get announcements | `hack_get_announcements` |
 | Post announcement | `hack_post_announcement` |
+| Message one or more teams (ask first, it emails them) | `hack_message_team` |
+| Get a team's message history | `hack_get_team_messages` |
+| Get reminder times | `hack_get_reminder_settings` |
+| Set reminder times | `hack_set_reminder_settings` |
 | Get registration | `hack_get_registration` |
 | Set registration | `hack_set_registration` |
 | Turn applications on or off | `hack_update_event` (`applications_open`) |
@@ -103,6 +107,10 @@ Automatic assignments default to judges only. Use body.include_organisers=true t
 Announcements: `PUT /v1/hack/events/{slug}/announcements/{announcement}` accepts `title` and `body`. Editing does not send a new email. `DELETE` on the same path removes it. MCP: `hack_edit_announcement` and `hack_delete_announcement`, with `slug`, `announcement`, and a `body` object for edits. Ask before deleting.
 
 Posting an announcement (`hack_post_announcement`, `POST /v1/hack/events/{slug}/announcements`) with `email_participants: true` emails every approved participant whose username is an email address, plus one copy to the posting organiser when their own username is email-shaped too (never a duplicate if they are also a participant). The response's `emails_queued` is the real count actually queued, not the event's total participant count; `organiser_copied` says whether that count includes the organiser's own copy. `GET /v1/hack/events/{slug}/announcements` returns each announcement's `emails_sent`, the number of those deliveries actually sent so far.
+
+`hack_message_team` (`POST /v1/hack/events/{slug}/team-messages`, body `team_ids` (1..25) and `text` (1..1000 chars)) sends one message to each chosen team; every current member sees it as a notice and gets it by email, so ask before sending. The response reports a recipient count per team. `hack_get_team_messages` (`GET /v1/hack/events/{slug}/teams/{team}/messages`) returns that team's message history, newest first.
+
+`hack_get_reminder_settings` and `hack_set_reminder_settings` (`GET`/`PUT /v1/hack/events/{slug}/reminders`) read or set the one list of reminder times for the event, up to 5 entries, 15 minutes to 14 days ahead, default 24 hours and 1 hour. The same list drives both entry reminders to participants without a submitted entry and, through `judging_ends_at`, judge reminders before judging closes.
 
 Website zip uploads also work in the signed-in Page tab, including in draft. The event website GET returns recent versions with dates and upload limits. Static archives need index.html at the root; existing size and file checks apply.
 

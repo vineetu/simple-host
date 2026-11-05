@@ -224,6 +224,14 @@ func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event,
 				return model.Event{}, "", err
 			}
 		}
+		// 0003-hack-notices-judges-messages.sql: judging opens now, from
+		// anything but results -- after settle, so a judge's first
+		// reminder/queue read already sees the settled entries.
+		if stage == "judging" && current != "judging" && current != "results" {
+			if err := eventrepo.NotifyJudges(ctx, tx, event.ID, eventrepo.NoticeJudgingOpen); err != nil {
+				return model.Event{}, "", err
+			}
+		}
 		// Moving to results locks judging in the same transaction, when it
 		// is not locked already: Results already stops scoring
 		// (scoringStage), and locking here removes the dead end where the

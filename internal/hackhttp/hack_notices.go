@@ -29,7 +29,7 @@ func (h *HackHandler) getTodos(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	todos, on, possible, err := h.eventsSvc().Todos(r.Context(), user.ID)
+	todos, on, possible, err := h.eventsSvc().Todos(r.Context(), user.ID, h.entryEvaluator())
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -110,7 +110,18 @@ func (h *HackHandler) deliverNoticeMailOnly(ctx context.Context) (int64, error) 
 }
 
 func (h *HackHandler) needsYou(ctx context.Context, ev model.Event, m model.EventMember) []map[string]any {
-	return needsYouView(h.eventsSvc().NeedsYou(ctx, ev, m))
+	return needsYouView(h.eventsSvc().NeedsYou(ctx, ev, m, h.entryEvaluator()))
+}
+
+// entryEvaluator is h.entries as a true nil events.EntryEvaluator when
+// h.entries itself is nil (a bare &HackHandler{} test fixture): a nil
+// *entries.Service boxed in a non-nil interface would panic on first call,
+// not compare equal to nil.
+func (h *HackHandler) entryEvaluator() events.EntryEvaluator {
+	if h.entries == nil {
+		return nil
+	}
+	return h.entries
 }
 
 func needsYouView(needs []events.Need) []map[string]any {

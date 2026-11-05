@@ -55,9 +55,24 @@ export async function render(ctx) {
   let draftMode = settings.assignment_mode
   let draftPerTeam = settings.judges_per_team
 
+  // Judging closes (notices contract 2026-11-05, CHANGE 2026-11-05): an
+  // explicit, organiser-set event time -- no inference from a schedule row
+  // any more. PATCH /v1/hack/events/{slug} {"judging_ends_at": "..."}
+  // ("" clears), same parsing as submission_deadline/ends_at. Drives the
+  // judging-reminder emails on Entries' Reminder times card, and shows as a
+  // fixed, read-only "Judging closes" row on the Event page's Schedule
+  // (schedule.js setInLink's 'judging' case points back here).
+  function closesHTML() {
+    if (archived) {
+      return `<section class="card" id="jg-closes-card"><h2>Judging closes</h2><p>${ev.judging_ends_at ? 'Judging closed ' + ui.esc(ui.dateTime(ev.judging_ends_at, ev)) : 'No time was set.'}</p></section>`
+    }
+    return `<section class="card" id="jg-closes-card"><h2>Judging closes</h2><div class="field"><label>Judging closes · ${ui.esc(ev.time_zone || 'UTC')}<input class="input" id="jg-closes-input" type="datetime-local" value="${ui.esc(ui.localInputValue(ev.judging_ends_at, ev))}"${adminLockReason ? ' disabled' : ''}></label><p class="help">Judges with teams left to score are reminded this long before this time (set on Entries' Reminder times). Leave it empty for no judge reminder.</p></div><div class="form-actions"><button class="btn primary" type="button" id="jg-closes-save"${adminLockReason ? ' disabled' : ''}>Save</button><button class="btn quiet" type="button" id="jg-closes-clear"${adminLockReason || !ev.judging_ends_at ? ' disabled' : ''}>Clear</button></div></section>`
+  }
+
   const setupInner = `
 <section class="card" id="jg-rubric-card"><h2>Rubric</h2><div id="jg-rubric"></div><div class="form-actions"><button class="btn" type="button" id="jg-add">Add a criterion</button><span class="hint" id="jg-weight"></span><button class="btn" type="button" id="jg-rubric-save">Save rubric</button></div></section>
 <section class="card" id="jg-tie-card"><h2>Tie-break</h2><div class="field"><label>First tie criterion<select class="select" id="jg-tie"></select></label><p class="help">You can change this until judging starts.</p></div><div class="form-actions"><button class="btn" type="button" id="jg-tie-save">Save</button></div></section>
+${closesHTML()}
 <section class="card" id="jg-mode-card"><h2>How judges are assigned</h2>
 <label class="check"><input type="radio" name="jg-mode" value="open" id="jg-mode-open"><span><b>Open</b><span>Judges pick any team from the full list.</span></span></label>
 <label class="check"><input type="radio" name="jg-mode" value="automatic" id="jg-mode-automatic"><span><b>Automatic</b><span>Simple Hack assigns judges to teams evenly.</span></span></label>
@@ -261,6 +276,29 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
     if (!r.ok) { setLive(ui.errText(r), 'err', btn); return }
     settings.tie_criterion_id = (r.data && r.data.tie_criterion_id) || ''
     setLive('Saved', 'ok', btn)
+  }
+
+  async function onSaveCloses() {
+    const input = $('jg-closes-input')
+    const btn = $('jg-closes-save')
+    const value = input.value
+    btn.disabled = true
+    let r
+    try { r = await api('PATCH', base, { judging_ends_at: value }) }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', 'err', btn); btn.disabled = !!adminLockReason; return }
+    if (!r.ok) { setLive(ui.errText(r), 'err', btn); btn.disabled = !!adminLockReason; return }
+    ev.judging_ends_at = (r.data && r.data.event && r.data.event.judging_ends_at) || null
+    btn.disabled = !!adminLockReason
+    const clearBtn = $('jg-closes-clear')
+    if (clearBtn) clearBtn.disabled = !!adminLockReason || !ev.judging_ends_at
+    setLive('Saved', 'ok', btn)
+  }
+
+  async function onClearCloses() {
+    const ok = await ui.confirm({ title: 'Clear judging closes?', body: 'Judges stop getting a reminder before judging closes. Clear it?', confirmLabel: 'Clear', danger: true })
+    if (!ok) return
+    $('jg-closes-input').value = ''
+    await onSaveCloses()
   }
 
   // Paints from the DRAFT, never from `settings` -- see the draftMode
@@ -564,6 +602,10 @@ ${setupFirst ? setupBlock + restBlock : restBlock + setupBlock}
   $('jg-add').addEventListener('click', () => { rubric.push({ id: '', name: '', description: '', weight: 0, max_points: 5 }); paintRubric() })
   $('jg-rubric-save').addEventListener('click', saveRubric)
   $('jg-tie-save').addEventListener('click', saveTie)
+  const closesSave = $('jg-closes-save')
+  if (closesSave) closesSave.addEventListener('click', onSaveCloses)
+  const closesClear = $('jg-closes-clear')
+  if (closesClear) closesClear.addEventListener('click', onClearCloses)
   $('jg-mode-save').addEventListener('click', saveMode)
   $('jg-generate').addEventListener('click', generate)
   main.querySelectorAll('input[name="jg-mode"]').forEach(r => r.addEventListener('change', () => {

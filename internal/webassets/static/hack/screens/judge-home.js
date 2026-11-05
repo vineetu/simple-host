@@ -2,6 +2,7 @@ import { href } from '../nav.js'
 import { errText } from './_judge-util.js'
 import { startTour } from '../tour.js'
 import { previewLeave, openLeave } from '../leave.js'
+import { needsCard, bindDismiss } from '../needs.js'
 
 // Leave this event: danger zone last on the page, text from the preview
 // (copy-deck.md, judge section). Returns '' if the preview couldn't be
@@ -42,7 +43,14 @@ export async function render(ctx) {
   const api = client.api
   const ev = detail.event
   const slug = ev.slug
-  main.innerHTML = `<div class="ph"><div class="t"><h1>Overview</h1></div></div><div id="jh-body"><p class="muted">Loading…</p></div>`
+  // Needs you (notices contract 2026-11-05): judging_open/judging_reminder
+  // (section `queue`) and any team_message that reached this judge as a
+  // participant elsewhere -- same needsCard/bindDismiss pair
+  // participant-home.js uses, the server's needs_you already covers the
+  // judge role too.
+  const needs = detail.needs_you || []
+  main.innerHTML = `<div class="ph"><div class="t"><h1>Overview</h1></div></div>` + needsCard(ui, 'judge', slug, needs) + `<div id="jh-body"><p class="muted">Loading…</p></div>`
+  bindDismiss(main, client, ui, slug, () => { if (ctx.alive()) ctx.refresh() })
   const body = main.querySelector('#jh-body')
 
   let queueRes, confRes, preview

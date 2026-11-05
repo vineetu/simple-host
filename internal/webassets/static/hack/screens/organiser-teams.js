@@ -1,6 +1,7 @@
 import { href } from '../nav.js'
 import { slugify } from './_orgB-util.js'
 import { rowMenuHTML, wireRowMenus, formDialog, undoToast, adminLock } from './_orgA-util.js'
+import { openTeamMessageDialog } from './_team-message-dialog.js'
 
 // Teams redesign (owner, 2026-10-31): Teams gets its own full design, like
 // the Event page -- four sub-pages instead of one long page with two
@@ -52,6 +53,11 @@ export async function render(ctx) {
   // looking" line the atlas puts on every Solo row.
   let lookingByUser = {}
   let tracks = (ev.tracks || []).map(t => ({ ...t }))
+  // Message selected (notices contract 2026-11-05): ids kept across
+  // repaints of the Teams sub-page, cleared after a successful Send or when
+  // the whole screen reloads -- row checkboxes read their checked state
+  // straight off this set in teamRow().
+  let selectedTeamIds = new Set()
 
   async function load() {
     const calls = [api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams')]
@@ -76,7 +82,12 @@ export async function render(ctx) {
     // aliases to organiser-team-detail; `s=teams` (plural, href's own
     // section name for this screen) would just reopen this same list.
     const teamHref = href(role, slug, 'team') + '&team=' + encodeURIComponent(t.slug)
-    return `<a class="r" href="${esc(teamHref)}"><span class="main"><b>${esc(t.name)}</b><span>${esc(trackName)}${adminsLine ? ' · ' + esc(adminsLine) : ''}</span></span><span class="meta">${t.members.length} of ${teamSizeMax}${pill}</span></a>`
+    // Message selected: the row is no longer a bare link (a checkbox can't
+    // live inside one), so the name/track/admins move to their own `.main`
+    // link and the checkbox sits in front of it -- same `.r` flex row the
+    // editable lists elsewhere on this screen already use.
+    const checked = selectedTeamIds.has(t.id)
+    return `<div class="r"><input type="checkbox" class="team-msg-chk" data-team-id="${esc(t.id)}" aria-label="Select ${esc(t.name)} to message"${checked ? ' checked' : ''}><a class="main" href="${esc(teamHref)}"><b>${esc(t.name)}</b><span>${esc(trackName)}${adminsLine ? ' · ' + esc(adminsLine) : ''}</span></a><span class="meta">${t.members.length} of ${teamSizeMax}${pill}</span></div>`
   }
 
   function soloRow(p) {
@@ -107,10 +118,54 @@ export async function render(ctx) {
   }
 
   function paintTeams(sp) {
-    sp.innerHTML = `<div class="sp-head"><h2 id="sp-h" tabindex="-1">Teams</h2><p>Open a team to rename it, place people, choose its admins or lock it.</p></div>
+    // Message selected (notices contract 2026-11-05): hidden once archived,
+    // same as the per-team "Message team" button on organiser-team-detail.js
+    // -- POST team-messages 409s event_closed either way, so there is
+    // nothing this button could do once the event has ended.
+    const canMessage = teams.length && ev.stage !== 'archived'
+    sp.innerHTML = `<div class="sp-head"><h2 id="sp-h" tabindex="-1">Teams</h2><p>Open a team to rename it, place people, choose its admins or lock it.</p>${canMessage ? `<button class="btn" type="button" id="msg-selected" disabled>Message selected</button>` : ''}</div>
 ${ev.team_finding ? '' : `<div class="note">Team finding is off. People join teams with a link or code.</div>`}
 ${ev.stage === 'archived' ? `<div class="note warn">This event has ended. Teams can’t change any more.</div>` : ''}
-${teams.length ? `<div class="list">${teams.map(teamRow).join('')}</div><p class="list-foot">Teams hold up to ${teamSizeMax} people. Change that in <a href="?s=teams&tab=settings">Settings</a>.</p>` : `<div class="empty-state"><h3>No teams yet</h3><p>Teams show here once participants start them, or when Fill teams places people.</p></div>`}`
+${teams.length ? `<div class="list">${teams.map(teamRow).join('')}</div><p class="list-foot">Teams hold up to ${teamSizeMax} people. Change that in <a href="?s=teams&tab=settings">Settings</a>. Select teams to message them.</p>` : `<div class="empty-state"><h3>No teams yet</h3><p>Teams show here once participants start them, or when Fill teams places people.</p></div>`}`
+    wireTeamMessaging(sp)
+  }
+
+  function wireTeamMessaging(sp) {
+    const btn = sp.querySelector('#msg-selected')
+    function syncButton() {
+      if (!btn) return
+      const n = selectedTeamIds.size
+      btn.disabled = n < 1 || n > 25
+      btn.textContent = n > 1 ? `Message selected (${n})` : 'Message selected'
+    }
+    sp.querySelectorAll('.team-msg-chk').forEach(chk => chk.addEventListener('change', () => {
+      const id = chk.getAttribute('data-team-id')
+      if (chk.checked) {
+        if (selectedTeamIds.size >= 25) {
+          chk.checked = false
+          setLive('You can message up to 25 teams at a time.', true)
+          return
+        }
+        selectedTeamIds.add(id)
+      } else {
+        selectedTeamIds.delete(id)
+      }
+      syncButton()
+    }))
+    if (btn) btn.addEventListener('click', onMessageSelected)
+    syncButton()
+  }
+
+  async function onMessageSelected() {
+    const ids = Array.from(selectedTeamIds)
+    if (!ids.length) return
+    const label = ids.length === 1 ? ((teams.find(t => t.id === ids[0]) || {}).name || 'this team') : ids.length + ' teams'
+    const sent = await openTeamMessageDialog(ctx, { teamIds: ids, title: 'Message ' + label })
+    if (!sent) return
+    const n = sent.reduce((s, m) => s + (m.recipients || 0), 0)
+    selectedTeamIds.clear()
+    await paint()
+    setLive('Sent to ' + n + (n === 1 ? ' person' : ' people'))
   }
 
   function paintSolo(sp) {

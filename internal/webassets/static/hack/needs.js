@@ -15,7 +15,9 @@ export function needHref(role, slug, item) {
 // sentence (a take-down's reason, an admin's what-you-can-do), else where
 // the link goes. .main b stays one line on desktop, so the long part wraps
 // in the span instead.
-const OPEN = { team: 'Open Team', website: 'Open Website', entry: 'Open Entry', people: 'Review applications', home: '' }
+// `queue` (judge section, added for judging_open/judging_reminder) and
+// `team` already covering team_message -- notices contract 2026-11-05.
+const OPEN = { team: 'Open Team', website: 'Open Website', entry: 'Open Entry', people: 'Review applications', home: '', queue: 'Open queue' }
 export function splitNeed(item) {
   const text = String(item.text || '')
   const i = text.indexOf('. ')

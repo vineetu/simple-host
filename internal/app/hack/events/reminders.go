@@ -71,9 +71,16 @@ func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder)
 	return n + 1, nil
 }
 
-// EntryEvaluator evaluates an entry using the existing entry service.
+// EntryEvaluator is the events service's small interface over the entries
+// service (0003-hack-notices-judges-messages.sql: "like EntryEvaluator"),
+// wired from hackhttp so this package never imports app/hack/entries
+// directly. EvaluateEntryTx checks an entry's completeness for the entry
+// reminder's text; UnscoredTeams counts a judge's queue rows not yet Done,
+// for judging_open/judging_reminder's N, both live (NeedsYou) and at send
+// time (the mail sweep).
 type EntryEvaluator interface {
 	EvaluateEntryTx(context.Context, *sql.Tx, model.Event, model.TeamWriteState, string, model.EventEntry) (hackentries.Check, error)
+	UnscoredTeams(ctx context.Context, ev model.Event, judgeID string) (int, error)
 }
 
 // entryReminderLine re-reads the team and its entry and writes the

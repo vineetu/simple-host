@@ -74,6 +74,17 @@ function fieldsEqual (a, b) {
   return true
 }
 
+// Reminder times (notices contract 2026-11-05, CHANGE 2026-11-05): one
+// offsets_minutes list drives both the entry-reminder emails to teams and
+// the judging-reminder emails to judges. "3 days", "1 day", "2 hours",
+// "90 minutes" -- minutes only when the value isn't a whole hour or day,
+// so the common 1440/60 pair still reads as "1 day"/"1 hour".
+function offsetLabel (m) {
+  if (m >= 1440 && m % 1440 === 0) { const d = m / 1440; return d + (d === 1 ? ' day' : ' days') }
+  if (m >= 60 && m % 60 === 0) { const h = m / 60; return h + (h === 1 ? ' hour' : ' hours') }
+  return m + (m === 1 ? ' minute' : ' minutes')
+}
+
 export async function render (ctx) {
   const { main, api: client, ui, event, role } = ctx
   const api = client.api
@@ -94,21 +105,30 @@ export async function render (ctx) {
   // field for this lineage, only the bare `preset` id (plan section 4.2).
   let lastPresetChosen = null
   let dirty = false
+  // Reminder times: `reminders` is the last-saved GET/PUT response;
+  // `reminderDraft` is the organiser's in-progress edit (add/remove a chip,
+  // not yet saved) -- same draft/saved split as organiser-judging.js's own
+  // draftMode, so a repaint never snaps an unsaved chip back.
+  let reminders = { offsets_minutes: [], default_minutes: [], min_minutes: 15, max_minutes: 20160, max_count: 5, judging_ends_at: null }
+  let reminderDraft = []
 
   const entriesPath = '/v1/hack/events/' + encodeURIComponent(slug) + '/entries'
   const rulesPath = '/v1/hack/events/' + encodeURIComponent(slug) + '/entry-rules'
+  const remindersPath = '/v1/hack/events/' + encodeURIComponent(slug) + '/reminders'
 
   async function load () {
-    const [tr, er, ur, rr] = await Promise.all([
+    const [tr, er, ur, rr, remr] = await Promise.all([
       api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams'),
       api('GET', entriesPath),
       api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/usage'),
-      api('GET', rulesPath)
+      api('GET', rulesPath),
+      api('GET', remindersPath)
     ])
     if (tr.ok) teams = tr.data.teams || []
     if (er.ok) { entries = er.data.entries || []; counts = er.data.counts || {} } else setLive(er.data.error || 'Could not load entries', true)
     if (ur.ok) usage = ur.data
     if (rr.ok) { rules = rr.data; lastPresetChosen = rules.preset !== 'custom' ? rules.preset : lastPresetChosen }
+    if (remr.ok) { reminders = remr.data; reminderDraft = (reminders.offsets_minutes || []).slice() }
   }
 
   function teamBySlug (slug2) { return teams.find(t => t.slug === slug2) }
@@ -202,6 +222,79 @@ ${showRows}
 </section>`
   }
 
+  // --- Reminder times -----------------------------------------------------
+
+  function remindersHTML (lockReason) {
+    const chips = reminderDraft.map(m => `<span class="tag" data-off="${m}">${esc(offsetLabel(m))} before<button type="button" aria-label="Remove the ${esc(offsetLabel(m))} reminder" data-rem-off="${m}"${lockReason ? ' disabled' : ''}>×</button></span>`).join('')
+    const judgingLine = reminders.judging_ends_at
+      ? 'Judging closes ' + esc(ui.dateTime(reminders.judging_ends_at, ev)) + '.'
+      : `Set when judging closes on <a href="${esc(href(role, slug, 'judging'))}">Judging</a> to remind judges.`
+    return `<section class="card" id="reminders"><h2>Reminder times</h2>
+<p class="help">Teams without a submitted entry are emailed this long before their deadline. Judges with teams left to score are reminded this long before judging closes.</p>
+<div class="tag-input" id="rem-chips" role="group" aria-label="Reminder times">${chips || '<span class="muted">No reminders set.</span>'}</div>
+${lockReason ? '' : `<div class="field-row" style="margin-top:12px">
+<div class="field"><label for="rem-n">Add a reminder</label><input class="input" id="rem-n" type="number" min="1" inputmode="numeric" style="max-width:110px"></div>
+<div class="field"><label for="rem-unit">Unit</label><select class="select" id="rem-unit"><option value="days" selected>days before</option><option value="hours">hours before</option><option value="minutes">minutes before</option></select></div>
+</div>
+<div class="form-actions"><button class="btn" type="button" id="rem-add-btn"${reminderDraft.length >= reminders.max_count ? ' disabled' : ''}>Add</button></div>
+<p class="err" id="rem-err"></p>
+<p class="help">Up to ${reminders.max_count}, each between ${reminders.min_minutes} minutes and 14 days before the deadline.</p>`}
+<p class="help">${judgingLine}</p>
+${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No unsaved changes</span><button class="btn quiet" type="button" id="rem-discard" disabled>Discard</button><button class="btn primary" type="button" id="rem-save" disabled>Save</button></div>`}
+</section>`
+  }
+
+  function wireReminders (lockReason) {
+    if (lockReason) return
+    const err = $('rem-err')
+    function sortedCopy (arr) { return arr.slice().sort((a, b) => b - a) }
+    function syncDirty () {
+      const dirty2 = JSON.stringify(sortedCopy(reminderDraft)) !== JSON.stringify(sortedCopy(reminders.offsets_minutes || []))
+      $('rem-hint').textContent = dirty2 ? 'Unsaved changes' : 'No unsaved changes'
+      $('rem-hint').classList.toggle('dirty', dirty2)
+      $('rem-discard').disabled = !dirty2
+      $('rem-save').disabled = !dirty2
+    }
+    main.querySelectorAll('[data-rem-off]').forEach(btn => btn.addEventListener('click', () => {
+      const m = Number(btn.getAttribute('data-rem-off'))
+      reminderDraft = reminderDraft.filter(x => x !== m)
+      paint()
+    }))
+    const addBtn = $('rem-add-btn')
+    if (addBtn) addBtn.addEventListener('click', () => {
+      err.textContent = ''
+      const nRaw = $('rem-n').value.trim()
+      const unit = $('rem-unit').value
+      const n = Number(nRaw)
+      if (!nRaw || !Number.isInteger(n) || n <= 0) { err.textContent = 'Enter a whole number.'; return }
+      const mult = unit === 'days' ? 1440 : unit === 'hours' ? 60 : 1
+      const minutes = n * mult
+      if (minutes < reminders.min_minutes || minutes > reminders.max_minutes) { err.textContent = 'Each reminder must be between ' + reminders.min_minutes + ' minutes and 14 days before the deadline.'; return }
+      if (reminderDraft.includes(minutes)) { err.textContent = 'Already have a reminder at that time.'; return }
+      if (reminderDraft.length >= reminders.max_count) { err.textContent = 'Up to ' + reminders.max_count + ' reminders.'; return }
+      reminderDraft = reminderDraft.concat(minutes).sort((a, b) => b - a)
+      paint()
+    })
+    const discardBtn = $('rem-discard')
+    if (discardBtn) discardBtn.addEventListener('click', () => { reminderDraft = (reminders.offsets_minutes || []).slice(); paint() })
+    const saveBtn = $('rem-save')
+    if (saveBtn) saveBtn.addEventListener('click', onSaveReminders)
+    syncDirty()
+  }
+
+  async function onSaveReminders () {
+    const btn = $('rem-save')
+    btn.disabled = true
+    let r
+    try { r = await api('PUT', remindersPath, { offsets_minutes: reminderDraft }) }
+    catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); btn.disabled = false; return }
+    if (!r.ok) { setLive(ui.errText(r, { fallback: 'Could not save reminder times.' }), true); btn.disabled = false; return }
+    reminders = r.data
+    reminderDraft = (reminders.offsets_minutes || []).slice()
+    paint()
+    ui.saved(main)
+  }
+
   // --- Paint --------------------------------------------------------------
 
   function paint () {
@@ -226,6 +319,7 @@ ${archived
 ${closedStages.includes(ev.stage) ? '<p>To reopen, move the event back to Building on Overview.</p>' : ''}
 <div class="form-actions"><button class="btn primary" type="button" id="deadline-save"${lockReason ? ' disabled' : ''}>Save deadline</button><button class="btn quiet" type="button" id="deadline-clear"${ev.submission_deadline && !lockReason ? '' : ' disabled'}>Clear deadline</button></div>`}
 </section>
+${remindersHTML(lockReason)}
 ${handInHTML(rulesLockReason)}
 <section class="card" id="ext"><h2>Extensions</h2>
 ${extendedTeams().length ? extendedTeams().map(t => extensionRow(t, !!lockReason, archived)).join('') : (ev.submission_deadline && !archived ? '<p class="muted">No team has an extension.</p>' : '')}
@@ -252,6 +346,7 @@ ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` :
     main.querySelectorAll('[data-exclude]').forEach(btn => btn.addEventListener('click', () => onExclude(btn.getAttribute('data-exclude'), btn.getAttribute('data-name'))))
     main.querySelectorAll('[data-include]').forEach(btn => btn.addEventListener('click', () => onInclude(btn.getAttribute('data-include'))))
     $('export-entries').addEventListener('click', () => client.downloadFile('/v1/hack/events/' + encodeURIComponent(slug) + '/export/entries.csv', slug + '-entries.csv', $('export-entries')))
+    wireReminders(ui.writeLockReason(ev, event.admin_view))
     if (!rulesLockReason) wireHandIn()
   }
 

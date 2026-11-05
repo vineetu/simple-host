@@ -122,6 +122,9 @@ var hackColumns = map[string][]string{
 	"event_entry_receipts":          {"event_id", "team_id", "user_id", "recipient", "sent_at", "attempted_at"},
 	// zx-hack-entry-reminders.sql
 	"event_entry_reminders": {"event_id", "team_id", "kind", "deadline", "sent_at"},
+	// 0003-hack-notices-judges-messages.sql
+	"event_judge_reminders": {"event_id", "user_id", "kind", "deadline", "sent_at"},
+	"event_team_messages":   {"id", "event_id", "team_id", "sender_id", "sender_name", "body", "created_at"},
 	"events": {"signup_questions", "approval_required", "id", "slug", "account_id", "created_by", "title", "stage", "organiser_name", "organisation",
 		"contact_email", "purpose", "expected_participants", "tagline", "website_mode", "icon_media_type", "icon_bytes", "accent_color", "about", "rules", "prizes", "coc_text",
 		"time_zone", "starts_at", "ends_at", "team_size_max", "join_code", "judge_code", "submission_deadline",
@@ -135,7 +138,9 @@ var hackColumns = map[string][]string{
 		// zp-hack-applications.sql
 		"applications_open",
 		// zv-hack-entry-summary.sql
-		"entry_preset", "entry_rules", "judge_first"},
+		"entry_preset", "entry_rules", "judge_first",
+		// 0003-hack-notices-judges-messages.sql
+		"reminder_offsets", "judging_ends_at"},
 	"event_team_requests": {"id", "event_id", "team_id", "user_id", "kind", "created_by", "created_at"},
 	"event_teams": {"open", "looking_for", "track_id", "id", "event_id", "slug", "name", "code", "created_by", "created_at",
 		// hack2-team-sites.sql

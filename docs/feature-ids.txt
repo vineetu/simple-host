@@ -49,6 +49,7 @@ hack-team-admins-lock-links
 hack-voting
 hackathon-event-instances
 hosted-events-simple-hack-app
+judge-notices
 judging
 judging-choices
 judging-fixes
@@ -75,6 +76,7 @@ publish-file-limits
 publish-idle-cleanup
 publish-wordpress-import
 registration-tracks-and-challenges
+reminder-times
 results-show-what-each-team-built
 saved-state
 setup-helper
@@ -103,6 +105,7 @@ storage-schema
 storage-sql-errors
 storage-visitor-emails
 team-finding
+team-messages
 teams-can-see-the-rubric
 the-judges-one-screen
 the-per-site-cap

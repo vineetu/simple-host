@@ -2106,6 +2106,14 @@
     },
     {
       "method": "GET",
+      "path": "/v1/hack/events/{slug}/reminders",
+      "feature_id": "reminder-times",
+      "source": "internal/hackhttp/hack_reminders.go:16",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
       "path": "/v1/hack/events/{slug}/results",
       "feature_id": "results-show-what-each-team-built",
       "source": "internal/hackhttp/hack_judging.go:50",
@@ -2138,6 +2146,14 @@
     },
     {
       "method": "GET",
+      "path": "/v1/hack/events/{slug}/team/messages",
+      "feature_id": "team-messages",
+      "source": "internal/hackhttp/hack_team_messages.go:22",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
       "path": "/v1/hack/events/{slug}/teams",
       "feature_id": "hack-team-admins-lock-links",
       "source": "internal/hackhttp/hack.go:491",
@@ -2149,6 +2165,14 @@
       "path": "/v1/hack/events/{slug}/teams/open",
       "feature_id": "team-finding",
       "source": "internal/hackhttp/hack.go:492",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hack/events/{slug}/teams/{team}/messages",
+      "feature_id": "team-messages",
+      "source": "internal/hackhttp/hack_team_messages.go:21",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -3778,6 +3802,14 @@
     },
     {
       "method": "POST",
+      "path": "/v1/hack/events/{slug}/team-messages",
+      "feature_id": "team-messages",
+      "source": "internal/hackhttp/hack_team_messages.go:20",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
       "path": "/v1/hack/events/{slug}/team/invites",
       "feature_id": "team-finding",
       "source": "internal/hackhttp/hack.go:496",
@@ -4557,6 +4589,14 @@
       "path": "/v1/hack/events/{slug}/registration",
       "feature_id": "registration-tracks-and-challenges",
       "source": "internal/hackhttp/hack_registration.go:13",
+      "package": "internal/hackhttp",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/hack/events/{slug}/reminders",
+      "feature_id": "reminder-times",
+      "source": "internal/hackhttp/hack_reminders.go:17",
       "package": "internal/hackhttp",
       "dynamic": false
     },
@@ -5349,6 +5389,12 @@
       "feature_id": "results-show-what-each-team-built"
     },
     {
+      "name": "hack_get_my_team_messages",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "team-messages"
+    },
+    {
       "name": "hack_get_my_teams",
       "family": "hack-events",
       "edition": "hack",
@@ -5409,6 +5455,12 @@
       "feature_id": "registration-tracks-and-challenges"
     },
     {
+      "name": "hack_get_reminder_settings",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "reminder-times"
+    },
+    {
       "name": "hack_get_rubric",
       "family": "hack-entries",
       "edition": "hack",
@@ -5419,6 +5471,12 @@
       "family": "hack-events",
       "edition": "hack",
       "feature_id": "guided-team-site-publishing"
+    },
+    {
+      "name": "hack_get_team_messages",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "team-messages"
     },
     {
       "name": "hack_get_team_screenshot",
@@ -5527,6 +5585,12 @@
       "family": "hack-events",
       "edition": "hack",
       "feature_id": "hack-team-admins-lock-links"
+    },
+    {
+      "name": "hack_message_team",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "team-messages"
     },
     {
       "name": "hack_move_member",
@@ -5785,6 +5849,12 @@
       "family": "hack-events",
       "edition": "hack",
       "feature_id": "simple-hack-organiser-app"
+    },
+    {
+      "name": "hack_set_reminder_settings",
+      "family": "hack-events",
+      "edition": "hack",
+      "feature_id": "reminder-times"
     },
     {
       "name": "hack_set_results_view",

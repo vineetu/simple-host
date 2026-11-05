@@ -35,12 +35,13 @@ Use the Simple Hack connector at `https://simple-hack.app/mcp`. The person signs
 | Read choices, vote, see own result | `hack_get_voting`, `hack_get_my_vote`, `hack_vote`, `hack_get_my_results` (`shown_publicly` and `entry`: the card the public sees) |
 | Make private team archive link | `hack_export_own_team_archive` |
 | See what waits on me in every event; dismiss news | `hack_get_my_todos`, `hack_dismiss_notices` |
+| Read messages the organisers sent my team | `hack_get_my_team_messages` |
 | Account theme | `hack_get_preferences`, `hack_set_preferences` |
 | Turn the what-waits-on-me emails on or off | `hack_set_email_updates` |
 
 No join link? Find the event with `hack_get_directory` or its address, then use `hack_preview_application` to check whether it takes applications and read its code of conduct and sign-up questions. Ask for the person's display name and answers, and offer the three optional fields (city, country, age range, gender) without filling them in yourself. Call `hack_apply_to_event` once they agree to the code of conduct. Every application waits for the organisers, whatever the event's approval setting says. Check its state with `hack_application_status`.
 
-When the person asks what needs them, start with `hack_get_my_todos`. It lists join requests for a team they admin, invites, and news such as an application answer, a site taken down, an extension or being made team admin, with the same words the website shows. Requests and invites clear only when answered. Ask before dismissing news lines or changing the email setting. These emails go only to an account whose sign-in is an email address, at most one of each kind every 15 minutes.
+When the person asks what needs them, start with `hack_get_my_todos`. It lists join requests for a team they admin, invites, and news such as an application answer, a site taken down, an extension, being made team admin, or a message the organisers sent the team, with the same words the website shows. A message also shows in full history with `hack_get_my_team_messages`. Requests and invites clear only when answered. Ask before dismissing news lines or changing the email setting. These emails go only to an account whose sign-in is an email address, at most one of each kind every 15 minutes. Entry reminders arrive at the organiser's reminder times for the event, 24 hours and 1 hour before the deadline by default, while the team's entry is not submitted.
 
 Preview the join link, code of conduct and questions first. Ask the person to accept the displayed conduct; set `accept_coc: true` only after they do. An approval-required event creates a pending application; wait for approval before team, entry or site work. Confirm the selected team before creating, joining or leaving. One participant can belong to one team in an event.
 

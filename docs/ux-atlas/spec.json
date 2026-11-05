@@ -2004,7 +2004,8 @@
     "view-team-finding-board-organiser",
     "add-tracks-and-challenges",
     "remove-track",
-    "move-member-to-team"
+    "move-member-to-team",
+    "message-team"
    ],
    "prototype_states": [
     {
@@ -2069,6 +2070,11 @@
      "q": "Does Fill teams need team finding on?",
      "decision": "No, it works either way and places into any unlocked team with room.",
      "why": "It is the organiser placing people, like Move, not participants discovering each other. Locked teams are the teams' own way to say no."
+    },
+    {
+     "q": "How does Message selected fit the Teams list? (notices contract, 2026-11-05)",
+     "decision": "A plain checkbox in front of each row's own link (the row stops being a bare `<a>`, since a checkbox can't live inside one), and a Message selected button in the sub-page head, enabled only with 1 to 25 checked. Left off entirely once the event is archived.",
+     "why": "The row already had to stop being a single link the moment it needed a second interactive control; everywhere else in this app that happens (member rows, solo rows) the row becomes a div with its own .main link, so this follows the same shape rather than inventing a new one."
     }
    ],
    "phone": "Sub-page tabs scroll sideways, with a soft edge fade hinting there is more to scroll to (shared .subnav fix, prod full test 2026-11-02). Rows wrap, Fill teams sits in the sub-page head, the Fill teams dialog rises as a sheet.",
@@ -2079,7 +2085,8 @@
      "url": "?s=teams&tab=teams (default)",
      "holds": [
       "list-teams",
-      "view-team-finding-board-organiser"
+      "view-team-finding-board-organiser",
+      "message-team"
      ],
      "save": "nothing to save, rows open Team detail",
      "empty": "empty-state 'No teams yet' / 'Teams show here once participants start them, or when Fill teams places people.'"
@@ -2265,6 +2272,11 @@
      "q": "What can an organiser do to a team now?",
      "decision": "Everything they could (rename, move, take off, delete, Fill teams), plus lock or unlock, make or remove admins, and make a new team link. An organiser can place someone on a locked team by hand, but never on a team kept after everyone left.",
      "why": "Organisers keep their existing powers (owner, 2026-10-31). The new ones cover a team whose only admin disappeared. Placing by hand is a deliberate organiser act, which is why the lock doesn't stop it."
+    },
+    {
+     "q": "Where does Message team live? (notices contract, 2026-11-05)",
+     "decision": "A Messages card between Team and Joining: the sent-message history (newest first, 'No messages sent to this team yet.' when empty) with a Message team button under it, opening a Send dialog (textarea, 1000-character counter). The button is left off entirely once the event is archived; the history stays visible.",
+     "why": "History belongs where the team already lives, not buried behind a dialog with no record. Hiding the button (not just disabling it) once archived matches POST team-messages' own 409 event_closed -- there is nothing the button could do."
     }
    ],
    "features": [
@@ -2274,7 +2286,9 @@
     "delete-team",
     "lock-team",
     "set-team-admin",
-    "new-team-link"
+    "new-team-link",
+    "message-team",
+    "view-team-messages"
    ],
    "prototype_states": [
     {
@@ -2300,6 +2314,12 @@
      "name": "Kept after everyone left",
      "stage": "judging",
      "next": "Judging"
+    },
+    {
+     "slug": "message",
+     "name": "Message team",
+     "stage": "building",
+     "next": "Entries close in 2 days · Sun 6:00 pm"
     }
    ]
   },
@@ -2472,6 +2492,11 @@
      "q": "Can rules change after teams submit?",
      "decision": "Yes until entries close; submitted entries stay submitted and their teams are told what's now asked for. The confirm names the counts. Read-only once the stage is Closed or later.",
      "why": "Un-submitting entries behind a team's back the night before the deadline would be the worst outcome; telling them keeps the organiser in charge without breaking anyone's work."
+    },
+    {
+     "q": "Where does Reminder times live? (notices contract, 2026-11-05)",
+     "decision": "On Entries, right under the Deadline card, not on Settings. The note under it reads \"Teams without a submitted entry are emailed this long before their deadline. Judges with teams left to score are reminded this long before judging closes.\" and names a link to Judging when judging_ends_at isn't set yet.",
+     "why": "One offsets list drives both the entry-deadline reminder and the judging-closes reminder, but Entries is already 'where organisers set deadlines' -- the screen's own h1 subtitle. Settings holds organiser identity, applications and webhook notifications, none of it deadline-shaped; putting a deadline control there would be the odd one out, not this one."
     }
    ],
    "features": [
@@ -2484,7 +2509,8 @@
     "clear-team-deadline-override",
     "view-entries-progress",
     "download-entries-csv",
-    "view-storage-usage"
+    "view-storage-usage",
+    "set-reminder-times"
    ],
    "prototype_states": [
     {
@@ -2796,6 +2822,11 @@
      "q": "Can an organiser drop a departed judge's scores?",
      "decision": "Yes: Delete scores on that judge's row, with a confirm, while judging is not locked. It deletes the score rows and the former-judge record.",
      "why": "Remove person can't reach someone who already left. Without this a judge could score unfairly, leave, and make those scores untouchable. Deleting (rather than hiding) stops the scores coming back if the judge later rejoins with the judge link."
+    },
+    {
+     "q": "Where is judging_ends_at set? (notices contract, CHANGE 2026-11-05)",
+     "decision": "Its own card here, between Tie-break and How judges are assigned: a plain date-time field in the event's own zone, Save and Clear, read-only text once archived. It drives the judging-closes reminder (Reminder times, on Entries) and shows as a fixed, read-only 'Judging closes' row on the Event page's Schedule.",
+     "why": "The CHANGE note dropped the original plan to infer it from a schedule row ('Finish judging') -- it is now a plain organiser-set field, like submission_deadline, so it needs a plain field, and this is the screen where the rest of judging gets set up before entries even close."
     }
    ],
    "features": [
@@ -2812,7 +2843,8 @@
     "unlock-judging",
     "view-judging-dashboard",
     "delete-former-judge-scores",
-    "warn-teams-without-track"
+    "warn-teams-without-track",
+    "set-judging-closes"
    ],
    "prototype_states": [
     {
@@ -4378,6 +4410,11 @@
      "q": "Does the Team screen keep its own walkthrough?",
      "decision": "Yes, rewritten for the new no-team page: the question and its three choices, Ask to join, Join with a link or code, Start a new team, and Let teams find you. Steps whose target is missing (team finding off) are skipped, as today.",
      "why": "Same owner rule (2026-10-30): a walkthrough explains only the screen it's shown on."
+    },
+    {
+     "q": "Where do organiser messages show on Team? (notices contract, 2026-11-05)",
+     "decision": "A Messages from the organisers card on Members (the default tab), right under the sp-head and above the Team link card -- hidden entirely (no card at all) when the team has never been messaged.",
+     "why": "Members is what everyone already lands on; a message from the organisers is exactly the kind of thing that should be seen without hunting through Settings. Hidden rather than an empty state because most teams will never get one and an always-there 'nothing here' card is just noise."
     }
    ],
    "features": [
@@ -4400,7 +4437,8 @@
     "join-team-by-code",
     "copy-team-code",
     "replay-participant-walkthrough",
-    "team-removal-notice"
+    "team-removal-notice",
+    "view-messages-from-organisers"
    ],
    "prototype_states": [
     {
@@ -5234,12 +5272,19 @@
      "q": "Do judges get the schedule's fixed rows or nudges? (2026-11-02)",
      "decision": "No change. Judges have no Schedule section. Their timing is the scoring lock and the queue, which Home already shows. The public page's Schedule is one link away.",
      "why": "Nothing in 'a schedule that acts' changes what a judge does or when. Adding a screen for it would be clutter."
+    },
+    {
+     "q": "Does Home get a Needs you card too? (notices contract, 2026-11-05)",
+     "decision": "Yes, the same needsCard/bindDismiss pair as participant Home, placed above the status line: judging opening and a reminder before judging closes while teams are still unscored, each dismissable and linking to My teams (section queue).",
+     "why": "The server's needs_you already covers every role; judges were the one role whose Home never read it. Reusing the exact same card/dismiss code keeps the three roles' Needs you behaving identically rather than growing a judge-only variant."
     }
    ],
    "features": [
     "replay-judging-walkthrough",
     "leave-event",
-    "see-event-stage"
+    "see-event-stage",
+    "judge-needs-you",
+    "judging-reminder-email"
    ],
    "prototype_states": [
     {

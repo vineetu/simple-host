@@ -29,8 +29,26 @@ type EventMail struct {
 // EntryReminder is a shared Hack record.
 type EntryReminder struct {
 	EventID, TeamID string
-	Kind            string // "24h" or "1h"
+	Kind            string // an offset label, e.g. "24h", "90m"
 	Deadline        time.Time
+}
+
+// JudgeReminderDue is a shared Hack record: one event due a judging-close
+// reminder now, at this offset (0003-hack-notices-judges-messages.sql).
+type JudgeReminderDue struct {
+	EventID  string
+	Kind     string // an offset label, e.g. "24h", "90m"
+	Deadline time.Time
+}
+
+// TeamMessage is a shared Hack record: one event_team_messages row
+// (0003-hack-notices-judges-messages.sql).
+type TeamMessage struct {
+	ID, EventID, TeamID string
+	SenderID            sql.NullString
+	SenderName          string
+	Body                string
+	CreatedAt           time.Time
 }
 
 // GalleryCard is a shared Hack record.

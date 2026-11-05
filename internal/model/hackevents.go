@@ -71,6 +71,15 @@ type Event struct {
 	EntryPreset string
 	EntryRules  []byte
 	JudgeFirst  string
+	// 0003-hack-notices-judges-messages.sql: minutes before a deadline, 0..5
+	// entries each 15..20160, distinct, stored sorted descending. Drives both
+	// entry reminders (participants) and judging reminders (judges).
+	// int64, not int: lib/pq's array Scan only knows a fixed set of element
+	// types, int64 among them.
+	ReminderOffsets []int64
+	// When judging closes, set like the event's other times. NULL means
+	// judges get no reminder.
+	JudgingEndsAt sql.NullTime
 }
 
 // EventMember is one row of event_members.

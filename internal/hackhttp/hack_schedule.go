@@ -113,6 +113,12 @@ func hackFixedSchedule(in hackFixedInputs) []hackFixedRow {
 	} else if ev.SubmissionDeadline.Valid {
 		add(hackFixedRow{Key: "entry_deadline", Title: "Entries due", StartAt: stamp(ev.SubmissionDeadline.Time), SetIn: "entries", Prompt: "closed"})
 	}
+	if ev.JudgingEndsAt.Valid {
+		// 0003-hack-notices-judges-messages.sql: a plain organiser-set time,
+		// not inferred from any schedule row. Prompts "Finish judging" for
+		// organisers, the same move the judging-close reminder keys off.
+		add(hackFixedRow{Key: "judging_end", Title: "Judging closes", StartAt: stamp(ev.JudgingEndsAt.Time), SetIn: "judging", Prompt: "results"})
+	}
 	if in.Voting != nil && votingStatus(ev, *in.Voting, in.Now) != "disabled" {
 		end := stamp(in.Voting.ClosesAt.Time)
 		add(hackFixedRow{Key: "voting", Title: "People's choice voting", Description: "Vote for your favourite projects on the event page.",
