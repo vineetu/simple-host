@@ -89,14 +89,25 @@ def render_feature(f):
     if f["status"] in PILL:
         pill = ' <span class="st %s">%s</span>' % (f["status"], PILL[f["status"]])
     lines = []
+    # self-host hides itself on every self-hosted instance (sh:hosted); a
+    # feature Host doesn't have but Hack does (is_hack_only) hides only on
+    # a self-hosted Host edition (sh:hashack). Both are glued onto the
+    # opening/closing <details> line, never a standalone marker line:
+    # hasHackBlocks/hostedBlocks only remove the marker text itself, so a
+    # marker alone on its own line would leave a blank line behind
+    # wherever this feature is KEPT (every hosted page, verified
+    # byte-identical by scripts/golden and shots/hosted-diff.mjs).
+    open_markers, close_markers = "", ""
     if f["id"] == "self-host":
-        lines.append("<!--sh:hosted-->")
+        open_markers += "<!--sh:hosted-->"
+        close_markers = "<!--/sh:hosted-->" + close_markers
     # self-host (above) already hides itself on every self-hosted instance;
     # this is the narrower, Host-edition-only gate.
     hack_only = f["id"] != "self-host" and is_hack_only(f)
     if hack_only:
-        lines.append("<!--sh:hashack-->")
-    lines.append('      <details class="feat" id="%s">' % html.escape(f["id"]))
+        open_markers += "<!--sh:hashack-->"
+        close_markers = "<!--/sh:hashack-->" + close_markers
+    lines.append(open_markers + '      <details class="feat" id="%s">' % html.escape(f["id"]))
     lines.append('        <summary><span class="fname">%s</span>%s<span class="fline">%s</span></summary>' % (rich(f["name"]), pill, rich(f["line"])))
     lines.append('        <div class="fbody">')
     lines.append('          <p class="how">%s</p>' % rich(f["how"]))
@@ -137,11 +148,7 @@ def render_feature(f):
         meta.append('<span class="docs"><b>Read more:</b> %s</span>' % " ".join(doc_links))
     lines.append('          <p class="meta">%s</p>' % " ".join(meta))
     lines.append('        </div>')
-    lines.append('      </details>')
-    if hack_only:
-        lines.append("<!--/sh:hashack-->")
-    if f["id"] == "self-host":
-        lines.append("<!--/sh:hosted-->")
+    lines.append('      </details>' + close_markers)
     return "\n".join(lines)
 
 
@@ -153,7 +160,12 @@ def render(data):
         # itself and stays unconditionally.
         p = '      <p class="lede">%s</p>' % rich(s)
         if "simple-hack.app" in s:
-            return "<!--sh:hashack-->\n" + p + "\n<!--/sh:hashack-->"
+            # Glued onto the same line as the content, not a standalone
+            # marker line: hasHackBlocks only removes the marker text, so a
+            # marker alone on its own line would leave a blank line behind
+            # wherever the content is KEPT (every hosted page, verified
+            # byte-identical by scripts/golden and shots/hosted-diff.mjs).
+            return "<!--sh:hashack-->" + p + "<!--/sh:hashack-->"
         return p
     intro = "\n".join(intro_p(s) for s in data["intro"])
     tree = ['        <div class="root"><b>%s</b><span>%s</span></div>' % (rich(data["root"]["name"]), rich(data["root"]["line"])),

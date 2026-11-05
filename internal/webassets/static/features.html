@@ -121,9 +121,7 @@
       <div class="kicker">Features</div>
       <h1>What Simple Host is, and how its parts fit together</h1>
       <p class="lede">Simple Host puts websites online. Your own AI app or agent makes the site; Simple Host gives it an address, saved data, visitor sign-in, and the controls you need to run it.</p>
-<!--sh:hashack-->
-      <p class="lede">This page is the map: every area of the product, the features inside each one, and where to read more. Simple Hack, which runs hackathons on simple-hack.app, is the same software run as its own product and has its own branch below.</p>
-<!--/sh:hashack-->
+<!--sh:hashack-->      <p class="lede">This page is the map: every area of the product, the features inside each one, and where to read more. Simple Hack, which runs hackathons on simple-hack.app, is the same software run as its own product and has its own branch below.</p><!--/sh:hashack-->
     </section>
 
     <section class="map" aria-labelledby="map-title">
@@ -1925,8 +1923,7 @@
           <p class="meta"><span class="status"><b>Status:</b> off by default. Off by default; on for named accounts.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app">FEATURES.md section 10</a></span></p>
         </div>
       </details>
-<!--sh:hashack-->
-      <details class="feat" id="dashboard-mcp-apps-hack">
+<!--sh:hashack-->      <details class="feat" id="dashboard-mcp-apps-hack">
         <summary><span class="fname">Simple Hack screens inside the chat</span> <span class="st flag">Off by default</span><span class="fline">On Simple Hack the same kind of screens show a team&#x27;s sites and weekly dashboard, a judge&#x27;s queue and scoring, and an organiser&#x27;s overview.</span></summary>
         <div class="fbody">
           <p class="how">My sites marks your selected team, lists your other current teams, and includes event websites you organise; a selected team&#x27;s dashboard shows weekly person visitors, seven daily values, and the latest three inbox or records entries. The judge app is one screen with four views (accept the invite, queue, score, rubric), opened by one tool, and every judging action keeps its plain tool underneath. The organiser app has overview and stage, people and applications, and the judging dashboard, opened by its own tool and shown to organisers only.</p>
@@ -1940,8 +1937,7 @@
           <p class="ednote">The self-hosted Simple Hack package with company sign-in gets My sites and the dashboard; the judge and organiser apps are hosted Simple Hack.</p>
           <p class="meta"><span class="status"><b>Status:</b> off by default. Off by default; on for named accounts.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/">Simple Hack</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app">FEATURES.md section 10</a></span></p>
         </div>
-      </details>
-<!--/sh:hashack-->
+      </details><!--/sh:hashack-->
       <details class="feat" id="dashboard-theme">
         <summary><span class="fname">One theme that follows your system</span><span class="fline">Every page follows your device&#x27;s light or dark setting until you pick Match my system, Light, or Dark once in the header.</span></summary>
         <div class="fbody">
@@ -2465,8 +2461,7 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/setup?product=small-box">Set up a small box</a> <a href="/setup?product=enterprise">Set up Enterprise</a></span></p>
         </div>
       </details>
-<!--sh:hosted-->
-      <details class="feat" id="self-host">
+<!--sh:hosted-->      <details class="feat" id="self-host">
         <summary><span class="fname">Run it on your own server</span><span class="fline">The same software runs on a server of your own, from one install command, with every limit on this page as a setting.</span></summary>
         <div class="fbody">
           <p class="how">One server, Docker Compose, and a one-line installer that pulls a pinned release: the app, Postgres, and Caddy for certificates. The setup helper asks a few questions and writes the command and the settings. Re-running the installer upgrades: it pulls the new release, applies the schema changes, then starts the new app; if a schema change fails the old app keeps running. The DigitalOcean 1-Click image runs the same installer on first login.</p>
@@ -2480,8 +2475,7 @@
           <p class="ednote">Simple Hack also runs on a server of your own with the same installer, keeping its own address.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/setup?product=small-box">Set up a small box</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#20-operations-health-schema-cli">FEATURES.md: Operations</a></span></p>
         </div>
-      </details>
-<!--/sh:hosted-->
+      </details><!--/sh:hosted-->
       <details class="feat" id="admin-health">
         <summary><span class="fname">Health checks and schema upgrades</span><span class="fline">Two health addresses for your monitoring, and schema changes that run once, in order, under a lock, before a new release starts.</span></summary>
         <div class="fbody">
@@ -2503,8 +2497,7 @@
       <div class="areahead"><h2>Simple Hack</h2><a class="up" href="#map-title">Back to the map</a></div>
       <p class="lede">Simple Hack runs hackathons from sign-up to results, team sites included. It is the same software run as its own product.</p>
       <div class="feats">
-<!--sh:hashack-->
-      <details class="feat" id="hack-run-event">
+<!--sh:hashack-->      <details class="feat" id="hack-run-event">
         <summary><span class="fname">Run an event</span><span class="fline">Create a hackathon at simple-hack.app, move it through its stages with one button, add co-organisers, and delete it when done.</span></summary>
         <div class="fbody">
           <p class="how">Sign in at https://simple-hack.app and create an event; it gets its own public page at <code>&lt;event&gt;.simple-hack.app</code>, a join link, a judge link, and a code of conduct. The Overview shows one forward button for the current stage (open, building, closed, judging, results, ended), worked out on the server so the website and your AI app agree; moving to Results also locks judging. You can invite one co-organiser at a time with a seven-day, single-use link, rename teams, download participant, team, entry, and score CSVs, download every team site as an archive, and see storage use. Settings ends with Delete this event, which asks you to type the event&#x27;s address name and then removes the public page, results, entries, scores, votes, member access, custom website, and storage for good. A standing demo event on simple-hack.app lets you try the participant and judge paths from https://simple-hack.app/watch.</p>
@@ -2518,10 +2511,8 @@
           <p class="ednote">Available as the standalone Simple Hack package on one server; the weekly demo event is hosted only.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/">Simple Hack</a> <a href="https://simple-hack.app/get-started">Get started</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
-      </details>
-<!--/sh:hashack-->
-<!--sh:hashack-->
-      <details class="feat" id="hack-registration">
+      </details><!--/sh:hashack-->
+<!--sh:hashack-->      <details class="feat" id="hack-registration">
         <summary><span class="fname">Registration, applications, tracks, and announcements</span><span class="fline">People join by link or apply from the public listing; organisers ask sign-up questions, set tracks and prizes, and post announcements.</span></summary>
         <div class="fbody">
           <p class="how">Participants join with the event&#x27;s link, or, for an event listed in Find a hackathon, apply from the listing or the event&#x27;s public page without a link. Applications are on by default and every application waits for an organiser&#x27;s decision in People, Applications; an applicant may add a city, country, age range, and gender, which stay with that event and are never shown to other organisers. Organisers can ask up to eight text questions at sign-up and require approval; pending and rejected applicants see their own status. Up to twelve tracks each carry a challenge and a prize, and each team picks one track before its deadline. Organisers publish sponsors, an FAQ, a schedule with time zones, and announcements, can edit or delete an announcement, and can email participants, send a receipt on a team&#x27;s first complete entry, and show a public submission countdown. The schedule shows the real times on its own (event start and end, the entry deadline, the voting window, results), so they never drift, and a schedule row can ask the organiser for the next step when its time comes, for example “Kickoff is now. Open sign-up?” It never moves the stage itself. Participants see “Demos starts in 12 minutes” on their Home.</p>
@@ -2535,10 +2526,8 @@
           <p class="ednote">Available as the standalone Simple Hack package on one server</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/">Simple Hack</a> <a href="https://simple-hack.app/get-started">Get started</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
-      </details>
-<!--/sh:hashack-->
-<!--sh:hashack-->
-      <details class="feat" id="hack-teams">
+      </details><!--/sh:hashack-->
+<!--sh:hashack-->      <details class="feat" id="hack-teams">
         <summary><span class="fname">Teams</span><span class="fline">Find teammates, ask to join or invite, run your team as its admin, lock it, share its link, and leave an event cleanly.</span></summary>
         <div class="fbody">
           <p class="how">Solo participants see open teams with their track, room left, and members, ask to join, or list themselves with a short intro; team members invite listed people and accept or decline requests. Whoever creates a team is its first admin; admins approve requests, rename the team, edit its looking-for note, remove members, make other admins, lock or unlock the team, and roll a new team link (<code>https://simple-hack.app/team/&lt;code&gt;</code>), which anyone can preview before joining. Locking clears pending requests and invites and takes nobody new. Organisers can preview Fill teams, which places solo people into teams with room and then makes new teams, and apply it after confirmation. Anyone can leave an event from their Overview, Settings, or Home row menu, or through their AI app; before the team deadline an emptied team is deleted with its entry and site, and after it the team, its entry, its site, and its scores stay as they were.</p>
@@ -2552,10 +2541,8 @@
           <p class="ednote">Available as the standalone Simple Hack package on one server</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/">Simple Hack</a> <a href="https://simple-hack.app/watch">Watch the participant film</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
-      </details>
-<!--/sh:hashack-->
-<!--sh:hashack-->
-      <details class="feat" id="hack-entries">
+      </details><!--/sh:hashack-->
+<!--sh:hashack-->      <details class="feat" id="hack-entries">
         <summary><span class="fname">Entry card, rules and submit</span><span class="fline">Every team hands in the same short summary card, organisers decide what a complete entry needs, and a team submits when it is ready.</span></summary>
         <div class="fbody">
           <p class="how">The card asks for the problem, the solution in one line, who it is for, the track, tools and AI as tags, and what works today, plus show-your-work evidence: a video, the team website, a code link or a screenshot. Organisers pick a preset (AI build, Coding, Ideas and design) or set each line Required, Optional or Off, and the evidence lines also One of; before saving tighter rules they see which teams it affects. Saving a draft never checks anything. Submit does, on the server, the same way on the website and in the AI apps. Home shows a four-step checklist and a countdown to the team&#x27;s own deadline. At the deadline a complete draft is submitted automatically; an incomplete one is still judged, marked Incomplete, and the organiser can exclude it by hand. At each of the event&#x27;s own reminder times before the deadline (24 hours and 1 hour by default), teams whose entry isn&#x27;t submitted get a reminder email naming what is missing. Published results show each shown team&#x27;s card on the public page.</p>
@@ -2569,10 +2556,8 @@
           <p class="ednote">Simple Hack only</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span></p>
         </div>
-      </details>
-<!--/sh:hashack-->
-<!--sh:hashack-->
-      <details class="feat" id="hack-judging">
+      </details><!--/sh:hashack-->
+<!--sh:hashack-->      <details class="feat" id="hack-judging">
         <summary><span class="fname">Judging</span><span class="fline">A weighted rubric, judges spread openly, automatically, by hand, or by track panel, conflicts of interest, a lock, and published results.</span></summary>
         <div class="fbody">
           <p class="how">The organiser sets a rubric of 1 to 10 criteria, each with a weight and a points scale, before judging opens; a new event starts with Idea, Execution, Design, and Demo at 25 percent each, scored 1 to 5. Judges are spread openly (everyone scores everyone), automatically (an even, conflict-aware spread), by manual assignment, or by panels per track. A judge or an organiser can declare a conflict of interest, which drops that pairing from queues and totals. Organisers, including co-organisers, can also judge under their own account, with the same conflicts and locks. The judge&#x27;s queue puts the least-covered team first, the scoring screen opens the frozen team site and saves criteria as you go, and Save and next moves on. The organiser watches coverage on the dashboard, locks judging, then publishes: ties are flagged and can be resolved by hand, totals can be raw or normalised across judges, and public ranks and scores can each be hidden. After publication each team privately sees its total, rank, and the judges&#x27; comments without names.</p>
@@ -2586,10 +2571,8 @@
           <p class="ednote">Available as the standalone Simple Hack package on one server</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/watch">Watch the judge film</a> <a href="https://simple-hack.app/get-started">Get started</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
-      </details>
-<!--/sh:hashack-->
-<!--sh:hashack-->
-      <details class="feat" id="hack-voting">
+      </details><!--/sh:hashack-->
+<!--sh:hashack-->      <details class="feat" id="hack-voting">
         <summary><span class="fname">People&#x27;s choice voting and the directory</span><span class="fline">A public vote on the entry gallery with one vote per verified email, and a public directory where organisers list their events.</span></summary>
         <div class="fbody">
           <p class="how">Once the entry gallery is open, an organiser opens voting with a start and end time and chooses who may vote: any signed-in account, approved event members, or approved participants only. Each verified email has one vote per event and can change it until voting closes; counts and the ranking appear on the public vote page only after the close. The public directory at Find a hackathon groups events as happening now, upcoming, or past; new events are unlisted until an organiser opts in, and listing is also what lets people apply without a join link.</p>
@@ -2603,10 +2586,8 @@
           <p class="ednote">Available as the standalone Simple Hack package on one server</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/">Simple Hack</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
-      </details>
-<!--/sh:hashack-->
-<!--sh:hashack-->
-      <details class="feat" id="hack-sites">
+      </details><!--/sh:hashack-->
+<!--sh:hashack-->      <details class="feat" id="hack-sites">
         <summary><span class="fname">Team sites and the event website</span><span class="fline">Every team gets a site at its own address, published from an AI app or a zip; organisers can swap the built-in event page for a custom one.</span></summary>
         <div class="fbody">
           <p class="how">Each team&#x27;s site lives at <code>&lt;team&gt;.&lt;event&gt;.simple-hack.app</code>. A team publishes it from the AI app they already use (the connector selects the team, then the ordinary site tools publish) or by uploading a zip of static files with <code>index.html</code> at the root from the team&#x27;s Publish card; both show the published address and version. Team sites use the same KV, SQLite, and file storage presets as any Simple Host site, with page recipes for the setup code, and saves can notify through webhooks. The event&#x27;s public page is built in; an organiser can instead publish a custom website to the event address, versioned, with the latest five versions shown, and switch back to the built-in page at any time. An organiser can take a team site down and restore it. After an event is archived, team sites stay up for 30 days; the organiser gets one email 14 days before they are removed, and the event page and results stay.</p>
@@ -2620,10 +2601,8 @@
           <p class="ednote">Available as the standalone Simple Hack package on one server, where team sites live at <code>team.event.your-domain</code> and KV, SQLite, and files share a 1,000,000-byte allowance per site</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/hackathons">Self-host Simple Hack</a> <a href="https://simple-hack.app/get-started">Get started</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
-      </details>
-<!--/sh:hashack-->
-<!--sh:hashack-->
-      <details class="feat" id="hack-agents">
+      </details><!--/sh:hashack-->
+<!--sh:hashack-->      <details class="feat" id="hack-agents">
         <summary><span class="fname">The AI connector and skills</span><span class="fline">One connection at https://simple-hack.app/mcp works for organiser, participant, and judge roles, with skills for each.</span></summary>
         <div class="fbody">
           <p class="how">Connect your AI app to <code>https://simple-hack.app/mcp</code> once; the same personal connection lists the tools for every role and every event you are in, and the roles come from your membership, so an organiser who also judges needs nothing extra. Participants pick their team and then publish its site with the ordinary site tools. The event tools follow the same rules as the website, so membership, validation, and refusals match. Get started walks through five AI connector setups and offers a one-line install of the five-skill toolkit (run-hackathon, join-hackathon, judge-hackathon, and the site skills); the skill files are also downloadable. The role films on Watch include copyable prompts for creating an event, judging, and building a team site.</p>
@@ -2637,10 +2616,8 @@
           <p class="ednote">Available as the standalone Simple Hack package on one server, with its own Get started naming its own connector</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/get-started">Get started</a> <a href="https://simple-hack.app/watch">Watch the role films</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
-      </details>
-<!--/sh:hashack-->
-<!--sh:hashack-->
-      <details class="feat" id="hack-companies">
+      </details><!--/sh:hashack-->
+<!--sh:hashack-->      <details class="feat" id="hack-companies">
         <summary><span class="fname">Simple Hack inside a company</span><span class="fline">The whole platform on one Docker server, or on your Kubernetes cluster with your own Postgres, with company sign-in.</span></summary>
         <div class="fbody">
           <p class="how">Download the standalone package (ZIP or tar.gz) and run the install on one Linux server with Docker and 2 GB of RAM; it brings the app, PostgreSQL, and a Caddy web server, with a persistent settings file, volumes for the database, sites, and certificates, and an upgrade script. Event pages use <code>event.your-domain</code> and team sites <code>team.event.your-domain</code>. People sign in through the company&#x27;s OpenID Connect provider (Okta, Google Workspace, Microsoft Entra, Keycloak) with email sign-in turned off, or with email sign-in and optional Google. On an internal address the installer can issue certificates from its own CA, from the company&#x27;s ACME server, or use the company&#x27;s certificate files, and trust the company root. The page at https://simple-hack.app/companies explains the setup with a 45-second film and the two one-line install commands; DigitalOcean and Coolify guides cover those paths. On Kubernetes, the Helm chart in deploy/kubernetes runs the same image as one pod with your Postgres, a persistent volume for the sites and a TLS-terminating load balancer in front; the pod builds the database schema itself on first start, event pages use <code>event.your-domain</code> and team sites <code>event.your-domain/team/</code>, and docs/kubernetes.md is the runbook.</p>
@@ -2654,10 +2631,8 @@
           <p class="ednote">This feature is the standalone Simple Hack package itself (v0.8.13); the /companies page and its film are served by simple-hack.app</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/companies">For companies</a> <a href="/hackathons">Self-host Simple Hack</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
-      </details>
-<!--/sh:hashack-->
-<!--sh:hashack-->
-      <details class="feat" id="hack-films">
+      </details><!--/sh:hashack-->
+<!--sh:hashack-->      <details class="feat" id="hack-films">
         <summary><span class="fname">Role films and the standing demo</span><span class="fline">Three short drawn films show the organiser, judge, and participant paths, with a live demo event you can join or judge right away.</span></summary>
         <div class="fbody">
           <p class="how">https://simple-hack.app/watch plays an Organizer, a Judge, and a Participant film, six scenes each, with narration on click, pause and restart, draggable scene marks, mute, and keyboard controls; captions sit under the picture on a phone. Each film comes with copyable prompts for your AI app. Below the films, the page shows join and judge links for a standing demo event, so you can try the participant or judge path without making an event of your own. The home page and the companies page open with click-to-play films of their own.</p>
@@ -2671,8 +2646,7 @@
           <p class="ednote">Hosted only</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/watch">Watch</a> <a href="https://simple-hack.app/">Simple Hack</a></span></p>
         </div>
-      </details>
-<!--/sh:hashack-->
+      </details><!--/sh:hashack-->
       </div>
     </section>
   </main>
