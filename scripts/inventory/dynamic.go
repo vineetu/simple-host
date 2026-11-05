@@ -9,7 +9,7 @@ var dynamicSites = dynamicTable{
 		{`m + " /mcp"`, []string{"POST /mcp", "GET /mcp", "DELETE /mcp"}},
 	},
 	"internal/handler/ui.go:RegisterUIRoutes": {
-		{`"GET /" + name`, []string{"GET /llms.txt", "GET /install.html", "GET /auth.js", "GET /signin.js"}},
+		{`"GET /" + name`, []string{"GET /llms.txt", "GET /install.html", "GET /auth.js", "GET /signin.js", "GET /features.json"}},
 		{`"GET /" + name`, []string{"GET /openapi.yaml", "GET /openapi.json"}},
 		{`"GET /" + name`, []string{"GET /favicon.svg", "GET /favicon.ico", "GET /favicon-32.png", "GET /apple-touch-icon.png"}},
 		{`"GET /skills/" + dir + ".zip"`, skillPatterns(".zip")},

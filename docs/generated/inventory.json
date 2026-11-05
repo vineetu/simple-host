@@ -468,7 +468,7 @@
       "method": "GET",
       "path": "/",
       "feature_id": "sites-and-deploy",
-      "source": "internal/handler/ui.go:249",
+      "source": "internal/handler/ui.go:260",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -620,7 +620,7 @@
       "method": "GET",
       "path": "/analytics/{sitename}",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/ui.go:214",
+      "source": "internal/handler/ui.go:225",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -668,7 +668,7 @@
       "method": "GET",
       "path": "/costs",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:200",
+      "source": "internal/handler/ui.go:211",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -676,7 +676,7 @@
       "method": "GET",
       "path": "/dashboard",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/ui.go:223",
+      "source": "internal/handler/ui.go:234",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -684,7 +684,7 @@
       "method": "GET",
       "path": "/dashboard",
       "feature_id": "publish-idle-cleanup",
-      "source": "internal/handler/ui.go:228",
+      "source": "internal/handler/ui.go:239",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -858,6 +858,14 @@
     },
     {
       "method": "GET",
+      "path": "/features.json",
+      "feature_id": "dashboard-icon",
+      "source": "internal/handler/ui.go:127",
+      "package": "internal/handler",
+      "dynamic": true
+    },
+    {
+      "method": "GET",
       "path": "/film/{file}",
       "feature_id": "agents-discovery",
       "source": "internal/handler/ui.go:156",
@@ -892,7 +900,23 @@
       "method": "GET",
       "path": "/hackathons",
       "feature_id": "applications-without-a-join-link",
-      "source": "internal/handler/ui.go:192",
+      "source": "internal/handler/ui.go:193",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/hackathons",
+      "feature_id": "applications-without-a-join-link",
+      "source": "internal/handler/ui.go:201",
+      "package": "internal/handler",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/hackathons.html",
+      "feature_id": "applications-without-a-join-link",
+      "source": "internal/handler/ui.go:202",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -932,7 +956,7 @@
       "method": "GET",
       "path": "/index.md",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:226",
+      "source": "internal/handler/ui.go:237",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1100,7 +1124,7 @@
       "method": "GET",
       "path": "/llms.md",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:227",
+      "source": "internal/handler/ui.go:238",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1212,7 +1236,7 @@
       "method": "GET",
       "path": "/report",
       "feature_id": "admin-report-page",
-      "source": "internal/handler/ui.go:206",
+      "source": "internal/handler/ui.go:217",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1228,7 +1252,7 @@
       "method": "GET",
       "path": "/setup",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "internal/handler/ui.go:196",
+      "source": "internal/handler/ui.go:207",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1236,7 +1260,7 @@
       "method": "GET",
       "path": "/setup/{$}",
       "feature_id": "agents-discovery",
-      "source": "internal/handler/ui.go:197",
+      "source": "internal/handler/ui.go:208",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1596,7 +1620,7 @@
       "method": "GET",
       "path": "/support",
       "feature_id": "legal-and-support-pages",
-      "source": "internal/handler/ui.go:204",
+      "source": "internal/handler/ui.go:215",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1612,7 +1636,7 @@
       "method": "GET",
       "path": "/terms",
       "feature_id": "legal-and-support-pages",
-      "source": "internal/handler/ui.go:203",
+      "source": "internal/handler/ui.go:214",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -1628,7 +1652,7 @@
       "method": "GET",
       "path": "/v1/admin/api-analytics",
       "feature_id": "moderation",
-      "source": "cmd/server/main.go:563",
+      "source": "cmd/server/main.go:575",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1652,7 +1676,7 @@
       "method": "GET",
       "path": "/v1/admin/growth",
       "feature_id": "moderation",
-      "source": "cmd/server/main.go:564",
+      "source": "cmd/server/main.go:576",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -1684,7 +1708,7 @@
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "cmd/server/main.go:581",
+      "source": "cmd/server/main.go:593",
       "package": "cmd/server",
       "dynamic": false
     },
@@ -2996,7 +3020,7 @@
       "method": "GET",
       "path": "/{$}",
       "feature_id": "owner-dashboard-and-owner-app",
-      "source": "internal/handler/ui.go:229",
+      "source": "internal/handler/ui.go:240",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3388,7 +3412,7 @@
       "method": "POST",
       "path": "/",
       "feature_id": "sites-and-deploy",
-      "source": "internal/handler/ui.go:248",
+      "source": "internal/handler/ui.go:259",
       "package": "internal/handler",
       "dynamic": false
     },
@@ -3452,7 +3476,7 @@
       "method": "POST",
       "path": "/report",
       "feature_id": "admin-report-page",
-      "source": "internal/handler/ui.go:207",
+      "source": "internal/handler/ui.go:218",
       "package": "internal/handler",
       "dynamic": false
     },
