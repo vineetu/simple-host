@@ -3049,11 +3049,11 @@
     {
      "id": "agents-plugin",
      "name": "Claude's plugin and connector directories",
-     "line": "Claude still lists Simple Host in its directories, but Get started no longer sends anyone there: the one way in is the MCP address.",
+     "line": "Hosted Get started links the plugin and directory steps alongside the MCP address; self-hosted shows only its address, no plugin mention.",
      "who": "Anyone on Claude who wants the skills and the connection without a terminal.",
-     "how": "The Claude plugin (Customize, Plugins, Discover) and connector directory listings for Simple Host and Simple Hack still exist and keep working for someone who already uses them, and the ChatGPT plugin submission stays in review. Neither page links them any more: Get started on both products shows the MCP address and the custom-connector-by-URL steps as the one way to connect (owner, 2026-11-05).",
+     "how": "The Claude plugin (Customize, Plugins, Discover) and connector directory listings for Simple Host and Simple Hack still exist, still work, and are still linked from hosted Get started, now alongside the MCP address in its own copy box, filled from the viewer's own origin; the ChatGPT plugin submission stays in review. A self-hosted install's Get started shows only its own MCP address: no plugin ZIP, connector directory, marketplace command or app-directory review note (owner, 2026-11-05).",
      "example": "A returning user who added the Claude plugin months ago keeps using it; someone new instead pastes the address Get started gives them.",
-     "where": "Claude's own connector and plugin directories, found by searching for Simple Host there directly; Get started no longer links to them.",
+     "where": "Hosted Get started links both; Claude's own connector and plugin directories also list Simple Host directly. A self-hosted instance's Get started links neither.",
      "limits": "[[hosted]]Only simple-host.app and simple-hack.app ever appeared in Claude's directories; a self-hosted instance never offered a plugin.[[/hosted]][[self]]A self-hosted instance never offered a plugin.[[/self]] This listing is not the onboarding path on either product's Get started page.",
      "editions": {
       "host": "yes",
@@ -3063,7 +3063,7 @@
      },
      "editions_note": "Simple Hack is in Claude's connector directory with its own toolkit; Enterprise ships its skills as a plugin download for its own instance.",
      "status": "live",
-     "status_note": "Still live in Claude's own directories; withdrawn from Get started's onboarding flow 2026-11-05.",
+     "status_note": "Still live in Claude's own directories and still linked from hosted Get started, now alongside the MCP-address option added 2026-11-05.",
      "docs": [
       {
        "label": "Get started",

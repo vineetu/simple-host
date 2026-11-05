@@ -1083,10 +1083,11 @@ The product’s `llms.txt` follows its public reference.
 Skills source is `internal/webassets/simple-host-website/skills/` (embedded via `internal/webassets/simple-host-website/embed.go`) at
 version **0.27.62**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
 standalone plugin repo, and via `npx skills add vineetu/simple-host`, for distribution and for
-coding agents' optional skill install; neither package is presented on Get started as a way to
-connect (2026-11-05, see below). **Status: live** (Claude
-lists Simple Host in both its connector directory and its plugin directory, though Get started no
-longer links either; the ChatGPT listing,
+coding agents' optional skill install; hosted Get started still links both the Claude plugin and
+the connector directory, now alongside the MCP address in its own copy box (2026-11-05, see
+below); a self-hosted install's Get started links neither and shows only its own address. **Status:
+live** (Claude lists Simple Host in both its connector directory and its plugin directory, and
+hosted Get started still links both; the ChatGPT listing,
 1.0.1, has been resubmitted and is in review; Simple Hack's ChatGPT listing is in review, and its
 Claude connector listing is live, but its Claude plugin listing is not confirmed).
 Get started and llms.txt give the one MCP address for this instance, filled server-side from
@@ -1109,8 +1110,8 @@ second question. `llms.txt` and the connector's server instructions say the same
 | Surface | Details |
 |---|---|
 Hosted Simple Hack's `/get-started` shows organisers, participants and judges two equal ways in, side by side (stacked on a phone): on the website (sign in at simple-hack.app, then the exact clicks) and in your AI app (a ready prompt), with neither one first (SIM-218, 2026-11-05; INTENT 2026-10-27). The AI-app setup follows under Pick your AI, under one prominent `https://simple-hack.app/mcp`
-copy box near the top (id `connect`, filled client-side from `location.origin`): there is exactly
-one way to connect (owner, 2026-11-05). Claude, ChatGPT and Claude Code are its three primary,
+copy box near the top (id `connect`, filled client-side from `location.origin`), alongside the
+restored plugin and connector-directory options on hosted (owner, 2026-11-05). Claude, ChatGPT and Claude Code are its three primary,
 un-collapsed accordions (custom connector by URL; developer-mode custom MCP server; `claude mcp
 add --transport http simple-hack <address>` then `/mcp` → Authenticate); Grok, GitHub Copilot,
 Meta Muse (MCP URL and Client ID, 2026-10-15), Gemini, Mistral Vibe and Codex/other coding agents

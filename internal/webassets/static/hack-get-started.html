@@ -83,7 +83,7 @@
 
     <section aria-labelledby="connect-heading" id="connect">
       <h2 id="connect-heading">Connect your AI app</h2>
-      <p>There is one way in: this address. Paste it into Claude, ChatGPT, Claude Code, or any other AI app that takes a custom MCP connector URL.</p>
+      <p>Paste this address into Claude, ChatGPT, Claude Code, or any other AI app that takes a custom MCP connector URL.</p>
       <div class="connect-box">
         <div class="copyrow"><code id="mcp-url" data-mcp-address>https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-url" aria-label="Copy the Simple Hack connector address">Copy</button></div>
       </div>
@@ -306,12 +306,24 @@
         });
       });
     });
+    // #coding-agents was this row's id before the "Other AI apps" group
+    // split it out as #other-coding; a link or bookmark carrying the old
+    // fragment still has to open it.
+    var LEGACY_AI_ANCHORS = { 'coding-agents': 'other-coding' };
     function openLinkedAI() {
-      var row = document.getElementById(location.hash.slice(1));
-      if (row && row.matches('.skills > details')) {
+      var hash = location.hash.slice(1);
+      var row = document.getElementById(LEGACY_AI_ANCHORS[hash] || hash);
+      if (!row) return;
+      if (row.matches('.skills > details')) {
         document.querySelectorAll('.skills > details').forEach(function (other) { other.open = other === row; });
+        // A row nested inside "Other AI apps" (grok, copilot, muse, gemini,
+        // mistral, other-coding) sits inside its own .skills, a direct
+        // child of that group's <details>, not the top-level one -- opening
+        // just the row leaves it hidden inside a still-closed group.
+        var group = row.closest('details.other');
+        if (group) group.open = true;
         row.scrollIntoView();
-      } else if (row && row.id === 'other-ai-apps') {
+      } else if (row.matches('details.other')) {
         row.open = true;
         row.scrollIntoView();
       }

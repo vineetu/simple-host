@@ -139,7 +139,7 @@
       <!-- Connect your AI app: the one address, prominent, near the top. -->
       <section aria-labelledby="connect">
         <h2 id="connect">Connect your AI app</h2>
-        <p class="hint">There is one way in: this address. Paste it into Claude, ChatGPT, Claude Code, or any other AI app that takes a custom MCP connector URL.</p>
+        <p class="hint">Paste this address into Claude, ChatGPT, Claude Code, or any other AI app that takes a custom MCP connector URL.</p>
         <div class="copyrow"><code id="mcp-url" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-url">Copy</button></div>
       </section>
 
@@ -218,10 +218,13 @@
             </summary>
             <div class="app-panel" id="p-claude-code" role="region" aria-labelledby="b-claude-code">
               <ol class="steps">
-                <!--sh:hosted--><li>Run this in your terminal. It adds the connector and the skills:
+                <li>Run this in your terminal. It adds the connector:
+                  <div class="copyrow cmd"><code id="cmd-claude-connector" data-mcp-cmd="claude mcp add --transport http simple-host {address}">claude mcp add --transport http simple-host https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-connector">Copy</button></div>
+                </li>
+                <!--sh:hosted--><li>Or run this instead. It adds the connector and the skills together:
                   <div class="copyrow cmd"><code id="cmd-claude-plugin">claude plugin marketplace add vineetu/simple-host &amp;&amp; claude plugin install simple-host@simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-plugin">Copy</button></div>
-                </li><!--/sh:hosted--><!--sh:self--><li>Run this in your terminal. It adds the skills and the connector:
-                  <div class="copyrow cmd"><code id="cmd-claude-plugin" data-mcp-cmd="npx skills add vineetu/simple-host -g -a claude-code -y &amp;&amp; claude mcp add --transport http simple-host {address}">npx skills add vineetu/simple-host -g -a claude-code -y &amp;&amp; claude mcp add --transport http simple-host https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-plugin">Copy</button></div>
+                </li><!--/sh:hosted--><!--sh:self--><li>Also add the skills, so your AI follows Simple Host's own instructions:
+                  <div class="copyrow cmd"><code id="cmd-claude-skills">npx skills add vineetu/simple-host -g -a claude-code -y</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-skills">Copy</button></div>
                 </li><!--/sh:self-->
                 <li>In Claude Code, type <b>/mcp</b>, choose <b>simple-host</b>, then <b>Authenticate</b>.</li>
                 <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
@@ -238,7 +241,7 @@
               <ol class="steps">
                 <li>Go to <a href="https://grok.com/connectors" target="_blank" rel="noopener">grok.com/connectors</a>, choose <b>New Connector</b>, then <b>Custom</b>.</li>
                 <li>Name it <b>Simple Host</b>, paste this address into Server URL, and click <b>Add Connector</b>:
-                  <div class="copyrow"><code id="mcp-grok">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-grok">Copy</button></div>
+                  <div class="copyrow"><code id="mcp-grok" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-grok">Copy</button></div>
                 </li>
                 <li>Sign in once in the window that opens.</li>
               </ol>
@@ -254,7 +257,7 @@
               <ol class="steps">
                 <li>In VS Code, open the Command Palette and run <b>MCP: Add Server</b>, then choose <b>HTTP</b>.</li>
                 <li>Paste this address and name it <b>simple-host</b>:
-                  <div class="copyrow"><code id="mcp-copilot">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-copilot">Copy</button></div>
+                  <div class="copyrow"><code id="mcp-copilot" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-copilot">Copy</button></div>
                 </li>
                 <li>Sign in once in the window that opens, then ask Copilot Chat for a site.</li>
               </ol>
@@ -270,7 +273,7 @@
               <ol class="steps">
                 <li>In Muse, open <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>.</li>
                 <li>Paste this address as the MCP URL:
-                  <div class="copyrow"><code id="mcp-muse">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-muse">Copy</button></div>
+                  <div class="copyrow"><code id="mcp-muse" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-muse">Copy</button></div>
                 </li>
                 <li>Muse asks for a Client ID. Type this, not your email:
                   <div class="copyrow"><code id="muse-client-id">meta-muse</code><button class="copy-btn" type="button" data-copy-target="muse-client-id">Copy</button></div>
@@ -289,7 +292,7 @@
               <ol class="steps">
                 <li>On a computer, open <a href="https://gemini.google.com" target="_blank" rel="noopener">gemini.google.com</a>, then <b>Settings</b>, then <b>Connected Apps</b>.</li>
                 <li>Under <b>Custom apps</b>, choose <b>Add a custom app</b>, paste this address, and choose <b>Next</b>:
-                  <div class="copyrow"><code id="mcp-gemini">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-gemini">Copy</button></div>
+                  <div class="copyrow"><code id="mcp-gemini" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-gemini">Copy</button></div>
                 </li>
                 <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
               </ol>
@@ -306,7 +309,7 @@
               <ol class="steps">
                 <li>Open <b>Connectors</b>, choose <b>Add Connector</b>, then the <b>Custom MCP Connector</b> tab.</li>
                 <li>Name it <b>simplehost</b>, paste this address as the Server URL, and choose <b>Connect</b>:
-                  <div class="copyrow"><code id="mcp-mistral">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-mistral">Copy</button></div>
+                  <div class="copyrow"><code id="mcp-mistral" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-mistral">Copy</button></div>
                 </li>
                 <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
               </ol>
@@ -337,7 +340,7 @@
             <div class="app-panel" id="p-codex" role="region" aria-labelledby="b-codex">
               <ol class="steps">
                 <li>Run this in your terminal. It adds the skills and the connector:
-                  <div class="copyrow cmd"><code id="cmd-codex">npx skills add vineetu/simple-host -g -a codex -y &amp;&amp; codex mcp add simple-host --url https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="cmd-codex">Copy</button></div>
+                  <div class="copyrow cmd"><code id="cmd-codex" data-mcp-cmd="npx skills add vineetu/simple-host -g -a codex -y &amp;&amp; codex mcp add simple-host --url {address}">npx skills add vineetu/simple-host -g -a codex -y &amp;&amp; codex mcp add simple-host --url https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="cmd-codex">Copy</button></div>
                 </li>
                 <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
                 <li>Start Codex and ask for a site.</li>
@@ -353,7 +356,7 @@
             <div class="app-panel" id="p-openclaw" role="region" aria-labelledby="b-openclaw">
               <ol class="steps">
                 <li>Run this on the computer where OpenClaw runs. It adds the skills and the connector:
-                  <div class="copyrow cmd"><code id="cmd-openclaw">npx skills add vineetu/simple-host -g -a openclaw -y &amp;&amp; openclaw mcp add simple-host --url https://simple-host.app/mcp --transport streamable-http --auth oauth &amp;&amp; openclaw mcp login simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-openclaw">Copy</button></div>
+                  <div class="copyrow cmd"><code id="cmd-openclaw" data-mcp-cmd="npx skills add vineetu/simple-host -g -a openclaw -y &amp;&amp; openclaw mcp add simple-host --url {address} --transport streamable-http --auth oauth &amp;&amp; openclaw mcp login simple-host">npx skills add vineetu/simple-host -g -a openclaw -y &amp;&amp; openclaw mcp add simple-host --url https://simple-host.app/mcp --transport streamable-http --auth oauth &amp;&amp; openclaw mcp login simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-openclaw">Copy</button></div>
                 </li>
                 <li>Open the link it prints, sign in, then choose <b>Allow</b>.</li>
                 <li>Ask OpenClaw for a site, from any chat you use it in.</li>
@@ -370,7 +373,7 @@
             <div class="app-panel" id="p-hermes" role="region" aria-labelledby="b-hermes">
               <ol class="steps">
                 <li>Run this on the computer where Hermes runs. It adds the skills and the connector:
-                  <div class="copyrow cmd"><code id="cmd-hermes">npx skills add vineetu/simple-host -g -a hermes-agent -y &amp;&amp; hermes mcp add simple-host --url https://simple-host.app/mcp --auth oauth --connect-timeout 300</code><button class="copy-btn" type="button" data-copy-target="cmd-hermes">Copy</button></div>
+                  <div class="copyrow cmd"><code id="cmd-hermes" data-mcp-cmd="npx skills add vineetu/simple-host -g -a hermes-agent -y &amp;&amp; hermes mcp add simple-host --url {address} --auth oauth --connect-timeout 300">npx skills add vineetu/simple-host -g -a hermes-agent -y &amp;&amp; hermes mcp add simple-host --url https://simple-host.app/mcp --auth oauth --connect-timeout 300</code><button class="copy-btn" type="button" data-copy-target="cmd-hermes">Copy</button></div>
                 </li>
                 <li>Open the link it prints, sign in, then choose <b>Allow</b>. When Hermes asks to enable the tools, press Enter.</li>
                 <li>Ask Hermes for a site, from any chat you use it in.</li>
@@ -390,11 +393,11 @@
                   <div class="copyrow"><code id="cmd-npx">npx skills add vineetu/simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-npx">Copy</button></div>
                 </li>
                 <li>In your agent's MCP settings, add a remote HTTP server named <b>simple-host</b> with this address:
-                  <div class="copyrow"><code id="mcp-code">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-code">Copy</button></div>
+                  <div class="copyrow"><code id="mcp-code" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-code">Copy</button></div>
                 </li>
                 <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
               </ol>
-              <p class="hint">Also reachable at https://mcp.simple-host.app/mcp.</p>
+              <!--sh:hosted--><p class="hint">Also reachable at https://mcp.simple-host.app/mcp.</p><!--/sh:hosted-->
               <p class="hint">Your agent needs to support MCP sign-in (OAuth). <a href="/docs.html#install-skills">Other ways to install</a></p>
             </div>
           </details>
