@@ -880,7 +880,7 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	organisation, ok := checkHackLine(w, req.Organisation, "organisation", 0, 120)
+	organisation, ok := checkHackLine(w, scrubOrganisationHint(req.Organisation), "organisation", 0, 120)
 	if !ok {
 		return
 	}
@@ -1421,7 +1421,7 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 			ev.OrganiserName = s
 		}
 		if req.Organisation != nil {
-			s, validationErr := checkHackLineValue(*req.Organisation, "organisation", 0, 120)
+			s, validationErr := checkHackLineValue(scrubOrganisationHint(*req.Organisation), "organisation", 0, 120)
 			if validationErr != nil {
 				return false, false, validationErr
 			}
@@ -1767,6 +1767,21 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, member, organiser))
+}
+
+// hackOrganisationHintPaste is the field's own guidance text, seen saved as
+// the real value of an event's organisation: some client (a form, or an AI
+// filling one) copied the hint instead of leaving the field empty or
+// omitting it. Clear an exact match (ignoring case and surrounding space)
+// rather than storing it as if it were a real organisation name.
+const hackOrganisationHintPaste = "write the name of your company, college, or group (for example: futuretech or your organization's name)"
+
+// scrubOrganisationHint clears a value that is exactly the hint text above.
+func scrubOrganisationHint(s string) string {
+	if strings.ToLower(strings.TrimSpace(s)) == hackOrganisationHintPaste {
+		return ""
+	}
+	return s
 }
 
 func checkHackText(w http.ResponseWriter, s, field string, min, max int) (string, bool) {

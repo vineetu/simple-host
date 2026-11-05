@@ -495,6 +495,39 @@ func TestHackCreateValidation(t *testing.T) {
 	}
 }
 
+// TestHackOrganisationHintCleared: a client that copies the organisation
+// field's own hint text into the value (instead of leaving it empty) must
+// not have it stored as a real organisation name, on create or on update.
+func TestHackOrganisationHintCleared(t *testing.T) {
+	a := newHackApp(t)
+	p := a.newPerson(t, "hint")
+	slug := uniqueSlug()
+	hint := "Write the name of your company, college, or group (for example: FutureTech or your organization's name)"
+
+	r := a.createEvent(t, p, slug, map[string]any{"organisation": "  " + strings.ToUpper(hint) + "  "})
+	if r.status != http.StatusCreated {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	if got := r.json(t)["organiser"].(map[string]any)["organisation"]; got != "" {
+		t.Fatalf("create organisation = %v, want cleared", got)
+	}
+
+	// A genuine organisation name is untouched.
+	r = a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"organisation": "Analytic Club"}, a.key(p))
+	if r.status != 200 || r.json(t)["organiser"].(map[string]any)["organisation"] != "Analytic Club" {
+		t.Fatalf("patch real org: %d %s", r.status, r.body)
+	}
+
+	// The hint text pasted on update is cleared too.
+	r = a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"organisation": hint}, a.key(p))
+	if r.status != 200 {
+		t.Fatalf("patch hint: %d %s", r.status, r.body)
+	}
+	if got := r.json(t)["organiser"].(map[string]any)["organisation"]; got != "" {
+		t.Fatalf("patch organisation = %v, want cleared", got)
+	}
+}
+
 func TestHackCreateNameTakenHandlePeerBudgetLimits(t *testing.T) {
 	a := newHackApp(t)
 	org := a.newPerson(t, "lim")
