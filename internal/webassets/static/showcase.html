@@ -931,7 +931,7 @@
       <div class="section" id="owner-signin" hidden>
         <div class="section-num"><h2>Sign-in</h2><span class="line"></span></div>
         <div class="conn-row" id="signin-email-row">
-          <span><b id="signin-email"></b><small>The email you sign in with. A change needs a code from this address and one from the new one; your other keys are signed out.</small></span>
+          <span id="signin-email-text"><b id="signin-email"></b><small>The email you sign in with. A change needs a code from this address and one from the new one; your other keys are signed out.</small></span>
           <button type="button" class="btn btn-secondary btn-small" id="signin-email-change">Change email</button>
         </div>
         <form class="signin-form" id="signin-email-form" hidden>
@@ -963,6 +963,7 @@
            page. Owner-only. Does not sign out any other key or session. -->
       <div class="section" id="owner-password" hidden>
         <div class="section-num"><h2>Password</h2><span class="line"></span></div>
+        <p class="addr-msg" id="password-login" hidden></p>
         <div class="conn-row">
           <span><b>Change your password</b><small>At least 8 characters. Your other keys and sessions are not affected.</small></span>
         </div>
@@ -5031,7 +5032,29 @@ function parseAnalyticsSummary(data) {
             if (!me || !me.handle || me.handle !== HANDLE) me = null;
           }
           if (!me) return;
-          document.getElementById('signin-email').textContent = me.login || me.username;
+          // The Email card shows the real address (me.email, or
+          // me.username when it is one) -- never me.login, which is a
+          // password account's sign-in name and can differ from its email
+          // once ApplyEmailChange updates users.username. login has its
+          // own line in the Password card instead.
+          var login = me.login || '';
+          var username = me.username || '';
+          var realEmail = me.email || (username.indexOf('@') !== -1 ? username : '');
+          var emailText = document.getElementById('signin-email-text');
+          var emailActions = document.getElementById('signin-email-change');
+          if (realEmail) {
+            emailText.innerHTML = '<b id="signin-email"></b><small>The email you sign in with. A change needs a code from this address and one from the new one; your other keys are signed out.</small>';
+            document.getElementById('signin-email').textContent = realEmail;
+            if (emailActions) emailActions.hidden = false;
+          } else {
+            emailText.textContent = 'Your account has no email address.';
+            if (emailActions) emailActions.hidden = true;
+          }
+          var loginLine = document.getElementById('password-login');
+          if (loginLine) {
+            loginLine.hidden = !login;
+            loginLine.textContent = login ? ('You sign in with ' + login + '.') : '';
+          }
           alerts.checked = me.signin_alerts !== false;
           box.hidden = false;
           if (pwBox) pwBox.hidden = !(me.has_password === true);
