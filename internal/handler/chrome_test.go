@@ -355,6 +355,123 @@ func TestHackAppShellCarriesInstallContact(t *testing.T) {
 	})
 }
 
+// hackTestHandler is a self-hosted Hack-edition *SiteHandler whose asset
+// pipeline is rebased off the canonical https://simple-hack.app address, the
+// same way RebasePagesForTest lets a real self-hosted Hack instance (EVENTS=
+// hosted, SITE_DOMAIN=<its own domain>) differ from the real hosted service:
+// hostedOwner() == "" here, where chromeTestHandler(edition.Hack) alone
+// would still read as the real hosted simple-hack.app (inkBaseURL defaults
+// to canonicalHackBaseURL).
+func hackTestHandler(t *testing.T, domain string) *SiteHandler {
+	t.Helper()
+	ed := edition.ForKind(edition.Hack)
+	sh := &SiteHandler{ed: ed, limitSet: newLimitSet(ed.Limits()), siteDomain: domain, contentHost: "sites." + domain}
+	sh.RebasePagesForTest("https://" + domain)
+	return sh
+}
+
+// assertNoHostedDomain fails label if body names either real hosted service,
+// case-insensitively (a hosted-domain hit the self-host audit's end-to-end
+// script also checks for, scripts/../shots/selfhost-e2e.mjs).
+func assertNoHostedDomain(t *testing.T, label, body string) {
+	t.Helper()
+	lower := strings.ToLower(body)
+	if strings.Contains(lower, "simple-hack.app") {
+		t.Errorf("%s: still names simple-hack.app:\n%s", label, body)
+	}
+	if strings.Contains(lower, "simple-host.app") {
+		t.Errorf("%s: still names simple-host.app:\n%s", label, body)
+	}
+}
+
+// TestSelfHostedNoHostedDomainAcrossPages is finding 5's test extension: a
+// self-hosted install -- Hack edition or Host edition -- must not leak
+// either real hosted domain on any served chromed page, not just the three
+// (support.html, terms.html, privacy.html) this fix directly targeted.
+func TestSelfHostedNoHostedDomainAcrossPages(t *testing.T) {
+	prevContact := auth.SupportContact
+	t.Cleanup(func() { auth.SupportContact = prevContact })
+	auth.SupportContact = "ops@example.org"
+
+	t.Run("self-hosted Host", func(t *testing.T) {
+		SetInstanceHosts("host.example.test", "", "")
+		defer SetInstanceHosts("simple-host.app", "", "")
+		mux := chromeTestMux(t, edition.Host)
+		for _, p := range []string{
+			"/install.html", "/support", "/privacy.html", "/terms",
+			"/docs.html", "/features", "/pricing", "/report",
+		} {
+			assertNoHostedDomain(t, p, get(t, mux, "host.example.test", p).Body.String())
+		}
+
+		// The landing page ("/") and an unmatched path both fall through to
+		// a database lookup first (showcase.go's ownerAppOrStatic, treating
+		// the path as a possible handle); render the landing page's static
+		// content (index.html) and the 404 page directly through the same
+		// pipeline instead, the way TestNotFoundLabelHostedVsSelfHosted
+		// does for the 404 page.
+		sh := chromeTestHandler(edition.Host)
+		sh.siteDomain = "host.example.test" // renderNotFound's label names this, not hostedOwner()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Host = "host.example.test"
+		rec := httptest.NewRecorder()
+		sh.renderNotFound(rec, httptest.NewRequest(http.MethodGet, "/__not_a_handle__", nil), "/__not_a_handle__")
+		assertNoHostedDomain(t, "404", rec.Body.String())
+
+		page, err := sh.Pages().chromePage("index.html", sh.Pages().chromeDataFor(req, ""))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertNoHostedDomain(t, "index.html (landing)", string(page))
+	})
+
+	t.Run("self-hosted Hack", func(t *testing.T) {
+		sh := hackTestHandler(t, "hack.example.test")
+		SetInstanceHosts("hack.example.test", "", "")
+		defer SetInstanceHosts("simple-host.app", "", "")
+		mux := http.NewServeMux()
+		RegisterUIRoutes(mux, "https://hack.example.test", sh)
+		for _, p := range []string{
+			"/support", "/privacy.html", "/terms", "/docs.html", "/features",
+			"/pricing", "/report",
+		} {
+			assertNoHostedDomain(t, p, get(t, mux, "hack.example.test", p).Body.String())
+		}
+		rec := httptest.NewRecorder()
+		sh.renderNotFound(rec, httptest.NewRequest(http.MethodGet, "/__not_a_handle__", nil), "/__not_a_handle__")
+		assertNoHostedDomain(t, "404", rec.Body.String())
+
+		// hack-get-started.html and connect.html are registered by
+		// internal/hackhttp and ConnectorHandler, not RegisterUIRoutes;
+		// rendered directly through the same chromePage pipeline instead.
+		for _, name := range []string{"hack-get-started.html", "connect.html"} {
+			req := httptest.NewRequest(http.MethodGet, "/x", nil)
+			req.Host = "hack.example.test"
+			page, err := sh.Pages().chromePage(name, sh.Pages().chromeDataFor(req, ""))
+			if err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			assertNoHostedDomain(t, name, string(page))
+		}
+
+		// The Hack SPA shell (hack/app.html via RenderAppShell) and its
+		// sign-in variant.
+		appHTML, err := staticFiles.ReadFile("static/hack/app.html")
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodGet, "/account", nil)
+		req.Host = "hack.example.test"
+		for _, signin := range []bool{false, true} {
+			page, err := sh.Pages().RenderAppShell(req, appHTML, signin)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertNoHostedDomain(t, "hack/app.html", string(page))
+		}
+	})
+}
+
 // TestSelfHostedSupportAddress covers gap 2: with neither SUPPORT_EMAIL nor
 // IDLE_REPLY_TO set, a self-hosted install must not show Vineet's
 // support@simple-host.app anywhere on its pages (not even half-rewritten

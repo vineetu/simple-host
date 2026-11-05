@@ -939,7 +939,7 @@
      "how": "Attach a domain you own, a subdomain like `recipes.yourbrand.com` or the bare domain itself, to one of your sites. You add two DNS records at your registrar; the service checks them about every two minutes and requests the certificate on its own once both are seen. Once connected, the site is served only on your domain: its `<site>.<handle>.simple-host.app` address redirects there, and visitors sign in and save there. Connecting a new domain to a site that already has one keeps the current address serving until the new one is live with its certificate; then the old one redirects.",
      "example": "An architecture practice connects `studio.hallam.co` to its project showcase, so nothing in the address mentions a hosting service.",
      "where": "Connect domain under Manage on your sites page. Your agent can also do it, and there is a skill for exactly this.",
-     "limits": "One domain per site. A binding is provisional until its TXT ownership record proves it: another site can take an unproven one over, and it lapses after 24 hours if DNS never pointed here (7 days in any case). A proven domain is exclusive (`409 domain_taken`). A name another site on this server already serves cannot be connected. Each account may ask for at most 5 new domain certificates a day; the sixth waits. Sites that are taken down, and suspended accounts, get no domain checks. `simple-hack.app` and the service's own zones cannot be connected.",
+     "limits": "One domain per site. A binding is provisional until its TXT ownership record proves it: another site can take an unproven one over, and it lapses after 24 hours if DNS never pointed here (7 days in any case). A proven domain is exclusive (`409 domain_taken`). A name another site on this server already serves cannot be connected. Each account may ask for at most 5 new domain certificates a day; the sixth waits. Sites that are taken down, and suspended accounts, get no domain checks. [[hosted]]`simple-hack.app` and the service's own zones cannot be connected.[[/hosted]]",
      "editions": {
       "host": "yes",
       "hack": "no",
@@ -1162,7 +1162,7 @@
      "how": "Connect `*.trips.example.com` once, with a wildcard DNS record and a TXT record at `_simple-host.<suffix>`. Every site named `<label>` then answers at `<label>.trips.example.com`, with no per-site step. An optional site prefix maps `voucher-meera` to `meera.voucher.example.com`. By default the family address becomes each site's main address: the site's own address and old links redirect there, and sign-in, saved data, private lists, analytics, the report form, passcodes, offline, rename, delete, and restore all work there as on a custom domain. A site with its own custom domain or free name keeps that as its main address; the same account may put a custom domain under its own family.",
      "example": "A travel agency connects `*.quotes.chhotabreak.com` once; every new quote site it publishes is live at `<client>.quotes.chhotabreak.com` the moment it exists.",
      "where": "Ask your AI app to connect `*.<suffix>` (the connect-a-domain skill covers it), or your sites page.",
-     "limits": "The family answers site labels only; the bare suffix itself is not routed to your home page or showcase, and the wildcard certificate does not cover the apex. Nothing is served until both records are seen; a pending family is dropped after 24 hours. Several accounts may wait on one name; the first to prove it wins and the others are emailed. A verified family is exclusive: no other account can connect it, an overlapping family, or a custom domain under it. The label `www` never names a site. The wildcard certificate is set up by the operator; until then the status says waiting for the operator. If it fails every check for a day, the account is emailed. After three days the domain is disconnected and must be connected again with the TXT record. `simple-hack.app` and the service's own zones are refused as suffixes.",
+     "limits": "The family answers site labels only; the bare suffix itself is not routed to your home page or showcase, and the wildcard certificate does not cover the apex. Nothing is served until both records are seen; a pending family is dropped after 24 hours. Several accounts may wait on one name; the first to prove it wins and the others are emailed. A verified family is exclusive: no other account can connect it, an overlapping family, or a custom domain under it. The label `www` never names a site. The wildcard certificate is set up by the operator; until then the status says waiting for the operator. If it fails every check for a day, the account is emailed. After three days the domain is disconnected and must be connected again with the TXT record. [[hosted]]`simple-hack.app` and the service's own zones are refused as suffixes.[[/hosted]]",
      "editions": {
       "host": "yes",
       "hack": "no",
@@ -2465,7 +2465,7 @@
       "enterprise": "yes",
       "smallbox": "partial"
      },
-     "editions_note": "Simple Hack hops through simple-hack.app for team and event sites; Enterprise hands the company session to sites with the same consent; a small box without an account address keeps the older per-site sign-in.",
+     "editions_note": "[[hashack]]Simple Hack hops through simple-hack.app for team and event sites; [[/hashack]]Enterprise hands the company session to sites with the same consent; a small box without an account address keeps the older per-site sign-in.",
      "status": "live",
      "status_note": "",
      "docs": [
@@ -2547,7 +2547,7 @@
      "how": "The operator gives the install the identity provider's details and a \"Sign in with your company account\" button (the label is configurable) appears wherever Google's does: the dashboard, the connector's consent page, and visitor sign-in on team and event sites. The install checks that the email is verified, that it belongs to an allowed domain where one is required, and that the identity is bound to the issuer, so a later change of provider can never land on an old account. A refusal shows a plain page naming the reason.",
      "example": "A company running an internal hackathon on the standalone Simple Hack package lets staff sign in with their Microsoft work accounts and no one needs a code by email.",
      "where": "The sign-in card on a self-hosted install, once the operator has set it up; the operator's steps are in the setup guide.",
-     "limits": "simple-host.app and simple-hack.app do not offer it. A Google-based issuer needs an allowed-domain list, since a consumer Google account can carry any address. If the identity provider is unreachable, the sign-in says so instead of failing silently; the install still starts.",
+     "limits": "[[hosted]]simple-host.app and simple-hack.app do not offer it.[[/hosted]] A Google-based issuer needs an allowed-domain list, since a consumer Google account can carry any address. If the identity provider is unreachable, the sign-in says so instead of failing silently; the install still starts.",
      "editions": {
       "host": "no",
       "hack": "no",
@@ -2992,7 +2992,7 @@
      "how": "Get started shows one address in a copy box filled from your own origin. Claude: Settings, Connectors, Add custom connector, paste it, Connect, sign in, Allow. ChatGPT: turn on Developer mode under Apps & Connectors, Create, paste the address as the MCP server URL, choose OAuth. Claude Code: `claude mcp add --transport http simple-host <address>`, then `/mcp`, Authenticate. Every other AI app pastes the same address. Each connected app is listed with the device it was connected from and when it was last used. A connected app's sign-in expires after 90 days without use.",
      "example": "A consultant asks Claude to publish a one-page proposal for a client, then asks ChatGPT the next week to change the price table on the same site.",
      "where": "Get started gives the one address to add (`https://simple-host.app/mcp`); the dashboard's Connect your AI app card gives it again. Connected apps on your sites page lists them, with Disconnect.",
-     "limits": "Works on the free plans of ChatGPT, Claude, and Grok. Sign out everywhere disconnects every app. Every app must use PKCE, so an app that expects a client secret cannot connect. Simple Hack uses `https://simple-hack.app/mcp`; another server shows its own address, exact for its own origin.",
+     "limits": "Works on the free plans of ChatGPT, Claude, and Grok. Sign out everywhere disconnects every app. Every app must use PKCE, so an app that expects a client secret cannot connect. [[hashack]]Simple Hack uses `https://simple-hack.app/mcp`; another server shows its own address, exact for its own origin.[[/hashack]][[nohack]]Another server shows its own address, exact for its own origin.[[/nohack]]",
      "editions": {
       "host": "yes",
       "hack": "yes",
@@ -3054,7 +3054,7 @@
      "how": "The Claude plugin (Customize, Plugins, Discover) and connector directory listings for Simple Host and Simple Hack still exist and keep working for someone who already uses them, and the ChatGPT plugin submission stays in review. Neither page links them any more: Get started on both products shows the MCP address and the custom-connector-by-URL steps as the one way to connect (owner, 2026-11-05).",
      "example": "A returning user who added the Claude plugin months ago keeps using it; someone new instead pastes the address Get started gives them.",
      "where": "Claude's own connector and plugin directories, found by searching for Simple Host there directly; Get started no longer links to them.",
-     "limits": "Only simple-host.app and simple-hack.app ever appeared in Claude's directories; a self-hosted instance never offered a plugin. This listing is not the onboarding path on either product's Get started page.",
+     "limits": "[[hosted]]Only simple-host.app and simple-hack.app ever appeared in Claude's directories; a self-hosted instance never offered a plugin.[[/hosted]][[self]]A self-hosted instance never offered a plugin.[[/self]] This listing is not the onboarding path on either product's Get started page.",
      "editions": {
       "host": "yes",
       "hack": "partial",

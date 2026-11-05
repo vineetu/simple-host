@@ -39,7 +39,7 @@
   <main class="container">
     <div class="eyebrow">Privacy</div>
     <h1>Privacy Policy</h1>
-    <p class="updated">Simple Host and Simple Hack · last updated 2026-11-05</p>
+    <p class="updated">Simple Host<!--sh:hashack--> and Simple Hack<!--/sh:hashack--> · last updated 2026-11-05</p>
     <!--sh:owner-->
 
     <div class="note">
@@ -54,9 +54,15 @@
     </div>
 
     <h2 id="who">Who we are</h2>
+    <!--sh:hashack-->
     <p>Simple Host and Simple Hack are run by Vineet Sriram, an individual (“we”, “us”). This policy covers simple-host.app, simple-hack.app, and the websites we host for their users. It applies to site owners and visitors, event organisers, participants and judges, and people connecting an AI app to either service. Accounts on Simple Host and Simple Hack are separate.</p>
+    <!--/sh:hashack-->
+    <!--sh:nohack-->
+    <p>Simple Host is run by whoever runs this server. This policy covers this install and the websites it hosts for its users. It applies to site owners and visitors, and people connecting an AI app.</p>
+    <!--/sh:nohack-->
     <p>The rules for using the service are in the <a href="/terms">Terms of Service</a>.</p>
 
+    <!--sh:hashack-->
     <h2 id="simple-hack">Simple Hack events and team projects</h2>
     <p>When you create or join an event, we keep your account email, chosen display name, event role, team membership and code-of-conduct acceptance. We keep the event details its organiser provides, sign-up answers and approval decisions, team and entry details, uploaded project files, invitations, judging assignments, conflicts, scores, comments and published results so the event can run.</p>
     <ul>
@@ -73,6 +79,7 @@
     <h3 id="hack-connector">Simple Hack's AI-app connection</h3>
     <p>The connector at <code>https://simple-hack.app/mcp</code> uses Simple Hack sign-in and asks you to allow either <strong>Manage my events</strong> or one team's project. An event connection can list and create your events, read and edit their settings and rubrics, change stages, and retrieve score and result exports according to your organiser permissions. A team connection uses that team's website tools, including its files and permitted saved data. It cannot manage events or another team's project.</p>
     <p>We receive the tool arguments the AI app sends, such as event details, rubric settings or project files. We send back the requested event details and invite links, role-permitted score/result exports, or team website information and saved data. The AI app then handles that information under its own privacy policy. We receive neither your full chat history nor unrelated conversations. Connection tokens are stored as hashes, access tokens last one hour, and rotating refresh tokens expire after 90 days without use. In Simple Hack's Account page, <strong>Sign out everywhere</strong> revokes connected apps and keys. You can also remove the connector in your AI app; revoking its server access requires signing out everywhere. Request logs follow the retention rules below.</p>
+    <!--/sh:hashack-->
 
     <h2 id="collect">What we collect when you have an account</h2>
     <ul>
@@ -112,7 +119,7 @@
       <li>Analytics records are deleted after 400 days, or when the site is deleted. There is no opt-out, because blocking cookies or sending do-not-track does not change a server log.</li>
     </ul>
     <p>When a page saves data (a comment, an RSVP), that is an API call. API calls record a shortened IP address (the network part, not your exact address) for 30 days, so abuse can be investigated. Only we can see those records.</p>
-    <p>To measure how cheaply this service runs, we also keep service-wide totals that contain nothing about you: how many requests of each kind (site files, saved data, sign-in, AI app calls) the server answered each day and how long they took, how much CPU and memory the server used, daily counts such as the number of sites and accounts, and once a week each site's size (files, scripts, saved data) and visit count with no site name, owner or address attached. On Simple Hack we also keep event totals (such as teams, submissions and saved-data size), event durations, and one-minute counts of requests, publishes and active members with no event name or member identity attached. Member identities are used only in memory to count distinct active members and are discarded each one-minute slot. The one-minute totals are kept for 400 days. A private lookup links random event keys to events and is deleted with the event. It is never exported. Exports give times only as minutes since the event started, hide people counts below five and normally leave out events with fewer than five teams. No IP address, hashed or shortened, and no page address is part of these totals. Only we can see them.</p>
+    <p>To measure how cheaply this service runs, we also keep service-wide totals that contain nothing about you: how many requests of each kind (site files, saved data, sign-in, AI app calls) the server answered each day and how long they took, how much CPU and memory the server used, daily counts such as the number of sites and accounts, and once a week each site's size (files, scripts, saved data) and visit count with no site name, owner or address attached.<!--sh:hashack--> On Simple Hack we also keep event totals (such as teams, submissions and saved-data size), event durations, and one-minute counts of requests, publishes and active members with no event name or member identity attached. Member identities are used only in memory to count distinct active members and are discarded each one-minute slot. The one-minute totals are kept for 400 days. A private lookup links random event keys to events and is deleted with the event. It is never exported. Exports give times only as minutes since the event started, hide people counts below five and normally leave out events with fewer than five teams.<!--/sh:hashack--> No IP address, hashed or shortened, and no page address is part of these totals. Only we can see them.</p>
 
     <h2 id="ai-apps">Connected AI apps</h2>
     <p>The Simple Host connector (also called a plugin; address <code>https://simple-host.app/mcp</code>) lets an AI app such as ChatGPT, Claude or Grok work on your sites for you.</p>

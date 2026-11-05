@@ -377,6 +377,7 @@ func (p *assetPipeline) chromePage(name string, d ChromeData) ([]byte, error) {
 		page = hackPersonalPresentationHTML(name, page)
 	}
 	page = hostedBlocks(p.HackInstanceText(p.limitsText.apply(page)), p.hostedOwner() != "")
+	page = hasHackBlocks(page, p.hostedOwner() != "" || p.pres.HackAssets)
 	if p.hostedOwner() == "" {
 		page = p.selfHostedChromeRewrite(page)
 	}
@@ -491,14 +492,46 @@ func rewriteSupportAddress(page []byte) []byte {
 // the published plugins) with <!--sh:hosted-->...<!--/sh:hosted-->, and what
 // another server says instead with <!--sh:self-->...<!--/sh:self-->.
 func hostedBlocks(page []byte, hosted bool) []byte {
+	keepName, dropName := "hosted", "self"
+	if !hosted {
+		keepName, dropName = dropName, keepName
+	}
+	return stripMarkedBlocks(page, keepName, dropName)
+}
+
+// hasHackBlocks keeps the text that is true only where Simple Hack exists:
+// the two real hosted services (each advertises the other, unchanged) and
+// any Hack-edition instance, self-hosted or not (where HackInstanceText has
+// already localized every plain "simple-hack.app" mention to this
+// instance's own address, so the content is accurate there too). The one
+// case this strips is a self-hosted Host edition -- EVENTS=off, no Hack
+// feature at all -- where a page's cross-product help ("Simple Hack",
+// simple-hack.app/events, the connector's event-management steps) would
+// otherwise describe a service this install does not run.
+//
+// A page marks that content with
+// <!--sh:hashack-->...<!--/sh:hashack-->, and the alternative wording (or
+// nothing) for a self-hosted Host edition with
+// <!--sh:nohack-->...<!--/sh:nohack-->.
+func hasHackBlocks(page []byte, hasHack bool) []byte {
+	keepName, dropName := "hashack", "nohack"
+	if !hasHack {
+		keepName, dropName = dropName, keepName
+	}
+	return stripMarkedBlocks(page, keepName, dropName)
+}
+
+// stripMarkedBlocks removes every <!--sh:dropName-->...<!--/sh:dropName-->
+// span (markers and content together) and unwraps every
+// <!--sh:keepName-->/<!--/sh:keepName--> pair (markers removed, content
+// kept), for one keep/drop marker-name pair at a time -- hostedBlocks and
+// hasHackBlocks each call this once, so a page may carry both pairs
+// independently.
+func stripMarkedBlocks(page []byte, keepName, dropName string) []byte {
 	if !bytes.Contains(page, []byte("<!--sh:")) {
 		return page
 	}
-	keep, drop := "hosted", "self"
-	if !hosted {
-		keep, drop = drop, keep
-	}
-	open, end := []byte("<!--sh:"+drop+"-->"), []byte("<!--/sh:"+drop+"-->")
+	open, end := []byte("<!--sh:"+dropName+"-->"), []byte("<!--/sh:"+dropName+"-->")
 	for {
 		i := bytes.Index(page, open)
 		if i < 0 {
@@ -510,8 +543,8 @@ func hostedBlocks(page []byte, hosted bool) []byte {
 		}
 		page = append(page[:i:i], page[i+j+len(end):]...)
 	}
-	page = bytes.ReplaceAll(page, []byte("<!--sh:"+keep+"-->"), nil)
-	return bytes.ReplaceAll(page, []byte("<!--/sh:"+keep+"-->"), nil)
+	page = bytes.ReplaceAll(page, []byte("<!--sh:"+keepName+"-->"), nil)
+	return bytes.ReplaceAll(page, []byte("<!--/sh:"+keepName+"-->"), nil)
 }
 
 func chromePageRaw(name string, d ChromeData) ([]byte, error) {

@@ -25,12 +25,38 @@ STATUS_WORD = {"live": "live", "flag": "off by default", "planned": "planned", "
 PILL = {"flag": "Off by default", "planned": "Planned", "deprecated": "Existing sites only"}
 
 
+HACK_MARKERS = {
+    "[[hashack]]": "<!--sh:hashack-->",
+    "[[/hashack]]": "<!--/sh:hashack-->",
+    "[[nohack]]": "<!--sh:nohack-->",
+    "[[/nohack]]": "<!--/sh:nohack-->",
+    # The plain hosted/self pair (hostedBlocks, not hasHackBlocks): true
+    # only of the two real hosted services, regardless of edition -- for a
+    # clause naming simple-host.app/simple-hack.app as the two REAL hosted
+    # deployments (a reserved name, a historical fact about Claude's
+    # directory), which is simply untrue of any self-hosted install, Hack
+    # edition included.
+    "[[hosted]]": "<!--sh:hosted-->",
+    "[[/hosted]]": "<!--/sh:hosted-->",
+    "[[self]]": "<!--sh:self-->",
+    "[[/self]]": "<!--/sh:self-->",
+}
+
+
 def rich(s):
     """Escape text; `code` spans become <code>, **bold** spans become <b>.
 
     The <b> form matters: limitstext.go rewrites sentences such as
     "after <b>15 minutes</b>" to the limits an install runs with, so a limit
-    stated on this page must be written with the exact phrase listed there."""
+    stated on this page must be written with the exact phrase listed there.
+
+    [[hashack]]...[[/hashack]] and [[nohack]]...[[/nohack]] become the raw
+    <!--sh:hashack--> markers chrome.go's hasHackBlocks filters on (see
+    is_hack_only): a feature most editions share, but whose text has one
+    clause true only where Simple Hack exists (a reserved name, a
+    simple-hack.app link) and, where the sentence needs it, a
+    self-hosted-Host-edition alternative. [ and ] are not HTML-escaped, so
+    this substitution runs after escaping without touching anything else."""
     parts = re.split(r"(`[^`]+`|\*\*[^*]+\*\*)", s)
     out = []
     for p in parts:
@@ -40,7 +66,22 @@ def rich(s):
             out.append("<b>" + html.escape(p[2:-2]) + "</b>")
         else:
             out.append(html.escape(p))
-    return "".join(out)
+    text = "".join(out)
+    for token, marker in HACK_MARKERS.items():
+        text = text.replace(token, marker)
+    return text
+
+
+def is_hack_only(f):
+    """True for a feature Host explicitly does not have but Hack does (the
+    "hack-*" rows): on a self-hosted Host edition (EVENTS=off, no Hack
+    feature at all) this detail -- full of simple-hack.app links and a
+    description of a service this install does not run -- is both
+    irrelevant and a hosted-domain leak. Wrapped in <!--sh:hashack-->, which
+    chrome.go's hasHackBlocks keeps on the two real hosted services and any
+    Hack-edition instance (self-hosted or not), and drops only there."""
+    eds = f.get("editions", {})
+    return eds.get("host") == "no" and eds.get("hack") in ("yes", "partial")
 
 
 def render_feature(f):
@@ -50,6 +91,11 @@ def render_feature(f):
     lines = []
     if f["id"] == "self-host":
         lines.append("<!--sh:hosted-->")
+    # self-host (above) already hides itself on every self-hosted instance;
+    # this is the narrower, Host-edition-only gate.
+    hack_only = f["id"] != "self-host" and is_hack_only(f)
+    if hack_only:
+        lines.append("<!--sh:hashack-->")
     lines.append('      <details class="feat" id="%s">' % html.escape(f["id"]))
     lines.append('        <summary><span class="fname">%s</span>%s<span class="fline">%s</span></summary>' % (rich(f["name"]), pill, rich(f["line"])))
     lines.append('        <div class="fbody">')
@@ -77,18 +123,39 @@ def render_feature(f):
         status += ". " + rich(f["status_note"]).rstrip(".")
     meta = ['<span class="status"><b>Status:</b> %s.</span>' % status]
     if f.get("docs"):
-        links = " ".join('<a href="%s">%s</a>' % (html.escape(d["href"], quote=True), html.escape(d["label"])) for d in f["docs"])
-        meta.append('<span class="docs"><b>Read more:</b> %s</span>' % links)
+        doc_links = []
+        for d in f["docs"]:
+            a = '<a href="%s">%s</a>' % (html.escape(d["href"], quote=True), html.escape(d["label"]))
+            # A feature most editions share can still carry one Simple
+            # Hack-only doc link (its own get-started or companies page);
+            # drop just that link, not the whole feature, on a self-hosted
+            # Host edition (is_hack_only already hides the whole block for
+            # a feature that is Hack-only to begin with).
+            if not hack_only and "simple-hack.app" in d["href"]:
+                a = "<!--sh:hashack-->" + a + "<!--/sh:hashack-->"
+            doc_links.append(a)
+        meta.append('<span class="docs"><b>Read more:</b> %s</span>' % " ".join(doc_links))
     lines.append('          <p class="meta">%s</p>' % " ".join(meta))
     lines.append('        </div>')
     lines.append('      </details>')
+    if hack_only:
+        lines.append("<!--/sh:hashack-->")
     if f["id"] == "self-host":
         lines.append("<!--/sh:hosted-->")
     return "\n".join(lines)
 
 
 def render(data):
-    intro = "\n".join('      <p class="lede">%s</p>' % rich(s) for s in data["intro"])
+    def intro_p(s):
+        # The Simple Hack mention ("runs hackathons on simple-hack.app") is
+        # cross-product content a self-hosted Host edition should not show
+        # (see is_hack_only); every other intro line describes Simple Host
+        # itself and stays unconditionally.
+        p = '      <p class="lede">%s</p>' % rich(s)
+        if "simple-hack.app" in s:
+            return "<!--sh:hashack-->\n" + p + "\n<!--/sh:hashack-->"
+        return p
+    intro = "\n".join(intro_p(s) for s in data["intro"])
     tree = ['        <div class="root"><b>%s</b><span>%s</span></div>' % (rich(data["root"]["name"]), rich(data["root"]["line"])),
             '        <ol class="branches">']
     for a in data["areas"]:

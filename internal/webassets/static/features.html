@@ -121,7 +121,9 @@
       <div class="kicker">Features</div>
       <h1>What Simple Host is, and how its parts fit together</h1>
       <p class="lede">Simple Host puts websites online. Your own AI app or agent makes the site; Simple Host gives it an address, saved data, visitor sign-in, and the controls you need to run it.</p>
+<!--sh:hashack-->
       <p class="lede">This page is the map: every area of the product, the features inside each one, and where to read more. Simple Hack, which runs hackathons on simple-hack.app, is the same software run as its own product and has its own branch below.</p>
+<!--/sh:hashack-->
     </section>
 
     <section class="map" aria-labelledby="map-title">
@@ -608,7 +610,7 @@
           <dl class="fm">
             <dt>Who</dt><dd>Anyone with a brand, a business or a domain already bought.</dd>
             <dt>Where</dt><dd>Connect domain under Manage on your sites page. Your agent can also do it, and there is a skill for exactly this.</dd>
-            <dt>Limits</dt><dd class="lim">One domain per site. A binding is provisional until its TXT ownership record proves it: another site can take an unproven one over, and it lapses after 24 hours if DNS never pointed here (7 days in any case). A proven domain is exclusive (<code>409 domain_taken</code>). A name another site on this server already serves cannot be connected. Each account may ask for at most 5 new domain certificates a day; the sixth waits. Sites that are taken down, and suspended accounts, get no domain checks. <code>simple-hack.app</code> and the service&#x27;s own zones cannot be connected.</dd>
+            <dt>Limits</dt><dd class="lim">One domain per site. A binding is provisional until its TXT ownership record proves it: another site can take an unproven one over, and it lapses after 24 hours if DNS never pointed here (7 days in any case). A proven domain is exclusive (<code>409 domain_taken</code>). A name another site on this server already serves cannot be connected. Each account may ask for at most 5 new domain certificates a day; the sixth waits. Sites that are taken down, and suspended accounts, get no domain checks. <!--sh:hosted--><code>simple-hack.app</code> and the service&#x27;s own zones cannot be connected.<!--/sh:hosted--></dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="partial"><b>Small box</b>partly</li></ul>
           <p class="ednote">Enterprise has no custom domains by decision; Simple Hack team sites live on the event&#x27;s hosts; on a small box the server&#x27;s own web front issues a connected domain&#x27;s certificate on demand.</p>
@@ -713,7 +715,7 @@
           <dl class="fm">
             <dt>Who</dt><dd>Agencies and businesses that make many sites under one brand: a quote per client, a page per property, a portal per customer.</dd>
             <dt>Where</dt><dd>Ask your AI app to connect <code>*.&lt;suffix&gt;</code> (the connect-a-domain skill covers it), or your sites page.</dd>
-            <dt>Limits</dt><dd class="lim">The family answers site labels only; the bare suffix itself is not routed to your home page or showcase, and the wildcard certificate does not cover the apex. Nothing is served until both records are seen; a pending family is dropped after 24 hours. Several accounts may wait on one name; the first to prove it wins and the others are emailed. A verified family is exclusive: no other account can connect it, an overlapping family, or a custom domain under it. The label <code>www</code> never names a site. The wildcard certificate is set up by the operator; until then the status says waiting for the operator. If it fails every check for a day, the account is emailed. After three days the domain is disconnected and must be connected again with the TXT record. <code>simple-hack.app</code> and the service&#x27;s own zones are refused as suffixes.</dd>
+            <dt>Limits</dt><dd class="lim">The family answers site labels only; the bare suffix itself is not routed to your home page or showcase, and the wildcard certificate does not cover the apex. Nothing is served until both records are seen; a pending family is dropped after 24 hours. Several accounts may wait on one name; the first to prove it wins and the others are emailed. A verified family is exclusive: no other account can connect it, an overlapping family, or a custom domain under it. The label <code>www</code> never names a site. The wildcard certificate is set up by the operator; until then the status says waiting for the operator. If it fails every check for a day, the account is emailed. After three days the domain is disconnected and must be connected again with the TXT record. <!--sh:hosted--><code>simple-hack.app</code> and the service&#x27;s own zones are refused as suffixes.<!--/sh:hosted--></dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="no"><b>Small box</b>no</li></ul>
           <p class="ednote">Hosted Simple Host only; Enterprise has no custom domains by decision, and Simple Hack team sites live on the event&#x27;s hosts.</p>
@@ -1322,7 +1324,7 @@
             <dt>Limits</dt><dd class="lim">A passcode must be entered before the hop; offline or suspended sites refuse it. The shared sign-in lasts 30 days, or 14 days without use, and is bounded by the account key behind it. Signing out on a site or on simple-host.app ends the shared sign-in and every site session that came from it. No iframe or third-party cookie is used, and prefetches and background requests are refused. There is no list of sessions to review; Sign out everywhere ends them all.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="partial"><b>Small box</b>partly</li></ul>
-          <p class="ednote">Simple Hack hops through simple-hack.app for team and event sites; Enterprise hands the company session to sites with the same consent; a small box without an account address keeps the older per-site sign-in.</p>
+          <p class="ednote"><!--sh:hashack-->Simple Hack hops through simple-hack.app for team and event sites; <!--/sh:hashack-->Enterprise hands the company session to sites with the same consent; a small box without an account address keeps the older per-site sign-in.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/auth.md">Sign-in methods (auth.md)</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#6-visitor-sign-in-google-emailed-code">FEATURES.md §6 Visitor sign-in</a></span></p>
         </div>
       </details>
@@ -1363,11 +1365,11 @@
           <dl class="fm">
             <dt>Who</dt><dd>Companies running Simple Host on their own server or Simple Hack&#x27;s standalone package, whose people already have a work account.</dd>
             <dt>Where</dt><dd>The sign-in card on a self-hosted install, once the operator has set it up; the operator&#x27;s steps are in the setup guide.</dd>
-            <dt>Limits</dt><dd class="lim">simple-host.app and simple-hack.app do not offer it. A Google-based issuer needs an allowed-domain list, since a consumer Google account can carry any address. If the identity provider is unreachable, the sign-in says so instead of failing silently; the install still starts.</dd>
+            <dt>Limits</dt><dd class="lim"><!--sh:hosted-->simple-host.app and simple-hack.app do not offer it.<!--/sh:hosted--> A Google-based issuer needs an allowed-domain list, since a consumer Google account can carry any address. If the identity provider is unreachable, the sign-in says so instead of failing silently; the install still starts.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="no"><b>Simple Host</b>no</li><li class="no"><b>Simple Hack</b>no</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">On Enterprise the company&#x27;s identity provider is the only sign-in; on a small box or the standalone Simple Hack package it is an extra button beside email and Google.</p>
-          <p class="meta"><span class="status"><b>Status:</b> off by default. Turned on by the operator of a self-hosted install; off on the hosted services.</span> <span class="docs"><b>Read more:</b> <a href="/setup?product=small-box">Set up a small box</a> <a href="https://simple-hack.app/companies">Simple Hack for companies</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#6-visitor-sign-in-google-emailed-code">FEATURES.md §6 Visitor sign-in</a></span></p>
+          <p class="meta"><span class="status"><b>Status:</b> off by default. Turned on by the operator of a self-hosted install; off on the hosted services.</span> <span class="docs"><b>Read more:</b> <a href="/setup?product=small-box">Set up a small box</a> <!--sh:hashack--><a href="https://simple-hack.app/companies">Simple Hack for companies</a><!--/sh:hashack--> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#6-visitor-sign-in-google-emailed-code">FEATURES.md §6 Visitor sign-in</a></span></p>
         </div>
       </details>
       <details class="feat" id="access-email-signin-off">
@@ -1570,7 +1572,7 @@
           <dl class="fm">
             <dt>Who</dt><dd>Anyone who builds in a chat app rather than a terminal.</dd>
             <dt>Where</dt><dd>Get started gives the one address to add (<code>https://simple-host.app/mcp</code>); the dashboard&#x27;s Connect your AI app card gives it again. Connected apps on your sites page lists them, with Disconnect.</dd>
-            <dt>Limits</dt><dd class="lim">Works on the free plans of ChatGPT, Claude, and Grok. Sign out everywhere disconnects every app. Every app must use PKCE, so an app that expects a client secret cannot connect. Simple Hack uses <code>https://simple-hack.app/mcp</code>; another server shows its own address, exact for its own origin.</dd>
+            <dt>Limits</dt><dd class="lim">Works on the free plans of ChatGPT, Claude, and Grok. Sign out everywhere disconnects every app. Every app must use PKCE, so an app that expects a client secret cannot connect. <!--sh:hashack-->Simple Hack uses <code>https://simple-hack.app/mcp</code>; another server shows its own address, exact for its own origin.<!--/sh:hashack--><!--sh:nohack-->Another server shows its own address, exact for its own origin.<!--/sh:nohack--></dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">Enterprise connects as a company&#x27;s own custom connector, the company names the apps staff may connect, and sign-ins last 30 days.</p>
@@ -1600,7 +1602,7 @@
           <dl class="fm">
             <dt>Who</dt><dd>Anyone on Claude who wants the skills and the connection without a terminal.</dd>
             <dt>Where</dt><dd>Claude&#x27;s own connector and plugin directories, found by searching for Simple Host there directly; Get started no longer links to them.</dd>
-            <dt>Limits</dt><dd class="lim">Only simple-host.app and simple-hack.app ever appeared in Claude&#x27;s directories; a self-hosted instance never offered a plugin. This listing is not the onboarding path on either product&#x27;s Get started page.</dd>
+            <dt>Limits</dt><dd class="lim"><!--sh:hosted-->Only simple-host.app and simple-hack.app ever appeared in Claude&#x27;s directories; a self-hosted instance never offered a plugin.<!--/sh:hosted--><!--sh:self-->A self-hosted instance never offered a plugin.<!--/sh:self--> This listing is not the onboarding path on either product&#x27;s Get started page.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="partial"><b>Simple Hack</b>partly</li><li class="partial"><b>Enterprise</b>partly</li><li class="no"><b>Small box</b>no</li></ul>
           <p class="ednote">Simple Hack is in Claude&#x27;s connector directory with its own toolkit; Enterprise ships its skills as a plugin download for its own instance.</p>
@@ -1664,7 +1666,7 @@
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="partial"><b>Enterprise</b>partly</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">Simple Hack&#x27;s own Get started leads with running, joining, or judging an event; Enterprise shows the connect step on its dashboard&#x27;s first run; another server shows its own connector address.</p>
-          <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/install.html">Get started</a> <a href="https://simple-hack.app/get-started">Simple Hack get started</a></span></p>
+          <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/install.html">Get started</a> <!--sh:hashack--><a href="https://simple-hack.app/get-started">Simple Hack get started</a><!--/sh:hashack--></span></p>
         </div>
       </details>
       <details class="feat" id="skill-install-oneline">
@@ -1923,6 +1925,7 @@
           <p class="meta"><span class="status"><b>Status:</b> off by default. Off by default; on for named accounts.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app">FEATURES.md section 10</a></span></p>
         </div>
       </details>
+<!--sh:hashack-->
       <details class="feat" id="dashboard-mcp-apps-hack">
         <summary><span class="fname">Simple Hack screens inside the chat</span> <span class="st flag">Off by default</span><span class="fline">On Simple Hack the same kind of screens show a team&#x27;s sites and weekly dashboard, a judge&#x27;s queue and scoring, and an organiser&#x27;s overview.</span></summary>
         <div class="fbody">
@@ -1938,6 +1941,7 @@
           <p class="meta"><span class="status"><b>Status:</b> off by default. Off by default; on for named accounts.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/">Simple Hack</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#10-owner-dashboard-and-owner-app">FEATURES.md section 10</a></span></p>
         </div>
       </details>
+<!--/sh:hashack-->
       <details class="feat" id="dashboard-theme">
         <summary><span class="fname">One theme that follows your system</span><span class="fline">Every page follows your device&#x27;s light or dark setting until you pick Match my system, Light, or Dark once in the header.</span></summary>
         <div class="fbody">
@@ -2499,6 +2503,7 @@
       <div class="areahead"><h2>Simple Hack</h2><a class="up" href="#map-title">Back to the map</a></div>
       <p class="lede">Simple Hack runs hackathons from sign-up to results, team sites included. It is the same software run as its own product.</p>
       <div class="feats">
+<!--sh:hashack-->
       <details class="feat" id="hack-run-event">
         <summary><span class="fname">Run an event</span><span class="fline">Create a hackathon at simple-hack.app, move it through its stages with one button, add co-organisers, and delete it when done.</span></summary>
         <div class="fbody">
@@ -2514,6 +2519,8 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/">Simple Hack</a> <a href="https://simple-hack.app/get-started">Get started</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
       </details>
+<!--/sh:hashack-->
+<!--sh:hashack-->
       <details class="feat" id="hack-registration">
         <summary><span class="fname">Registration, applications, tracks, and announcements</span><span class="fline">People join by link or apply from the public listing; organisers ask sign-up questions, set tracks and prizes, and post announcements.</span></summary>
         <div class="fbody">
@@ -2529,6 +2536,8 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/">Simple Hack</a> <a href="https://simple-hack.app/get-started">Get started</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
       </details>
+<!--/sh:hashack-->
+<!--sh:hashack-->
       <details class="feat" id="hack-teams">
         <summary><span class="fname">Teams</span><span class="fline">Find teammates, ask to join or invite, run your team as its admin, lock it, share its link, and leave an event cleanly.</span></summary>
         <div class="fbody">
@@ -2544,6 +2553,8 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/">Simple Hack</a> <a href="https://simple-hack.app/watch">Watch the participant film</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
       </details>
+<!--/sh:hashack-->
+<!--sh:hashack-->
       <details class="feat" id="hack-entries">
         <summary><span class="fname">Entry card, rules and submit</span><span class="fline">Every team hands in the same short summary card, organisers decide what a complete entry needs, and a team submits when it is ready.</span></summary>
         <div class="fbody">
@@ -2559,6 +2570,8 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span></p>
         </div>
       </details>
+<!--/sh:hashack-->
+<!--sh:hashack-->
       <details class="feat" id="hack-judging">
         <summary><span class="fname">Judging</span><span class="fline">A weighted rubric, judges spread openly, automatically, by hand, or by track panel, conflicts of interest, a lock, and published results.</span></summary>
         <div class="fbody">
@@ -2574,6 +2587,8 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/watch">Watch the judge film</a> <a href="https://simple-hack.app/get-started">Get started</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
       </details>
+<!--/sh:hashack-->
+<!--sh:hashack-->
       <details class="feat" id="hack-voting">
         <summary><span class="fname">People&#x27;s choice voting and the directory</span><span class="fline">A public vote on the entry gallery with one vote per verified email, and a public directory where organisers list their events.</span></summary>
         <div class="fbody">
@@ -2589,6 +2604,8 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/">Simple Hack</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
       </details>
+<!--/sh:hashack-->
+<!--sh:hashack-->
       <details class="feat" id="hack-sites">
         <summary><span class="fname">Team sites and the event website</span><span class="fline">Every team gets a site at its own address, published from an AI app or a zip; organisers can swap the built-in event page for a custom one.</span></summary>
         <div class="fbody">
@@ -2604,6 +2621,8 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/hackathons">Self-host Simple Hack</a> <a href="https://simple-hack.app/get-started">Get started</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
       </details>
+<!--/sh:hashack-->
+<!--sh:hashack-->
       <details class="feat" id="hack-agents">
         <summary><span class="fname">The AI connector and skills</span><span class="fline">One connection at https://simple-hack.app/mcp works for organiser, participant, and judge roles, with skills for each.</span></summary>
         <div class="fbody">
@@ -2619,6 +2638,8 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/get-started">Get started</a> <a href="https://simple-hack.app/watch">Watch the role films</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
       </details>
+<!--/sh:hashack-->
+<!--sh:hashack-->
       <details class="feat" id="hack-companies">
         <summary><span class="fname">Simple Hack inside a company</span><span class="fline">The whole platform on one Docker server, or on your Kubernetes cluster with your own Postgres, with company sign-in.</span></summary>
         <div class="fbody">
@@ -2634,6 +2655,8 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/companies">For companies</a> <a href="/hackathons">Self-host Simple Hack</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#15-hackathon--event-instances-simple-hackapp">FEATURES.md section 15</a></span></p>
         </div>
       </details>
+<!--/sh:hashack-->
+<!--sh:hashack-->
       <details class="feat" id="hack-films">
         <summary><span class="fname">Role films and the standing demo</span><span class="fline">Three short drawn films show the organiser, judge, and participant paths, with a live demo event you can join or judge right away.</span></summary>
         <div class="fbody">
@@ -2649,6 +2672,7 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="https://simple-hack.app/watch">Watch</a> <a href="https://simple-hack.app/">Simple Hack</a></span></p>
         </div>
       </details>
+<!--/sh:hashack-->
       </div>
     </section>
   </main>
