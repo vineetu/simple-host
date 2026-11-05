@@ -170,8 +170,25 @@
           <div class="accordion-body">
           <p><b>Add custom MCP server</b></p>
               <p class="hint">The fastest way: one address to paste.</p>
-              <!--sh:connect:chatgpt-->
+              <ol class="steps">
+                <li><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">Open ChatGPT Plugins</a>.</li>
+                <li>Click <b>Add</b>, then choose <b>Add custom MCP server</b>.</li>
+                <li>Name it <b>Simple Hack</b>, paste this address, and save.
+                  <div class="copyrow"><code id="mcp-chatgpt">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-chatgpt" aria-label="Copy ChatGPT connector address">Copy</button></div>
+                </li>
+                <li>A sign-in window opens. Sign in with Google or an email code, then choose <b>Allow</b>.</li>
+              </ol>
               <p class="hint">ChatGPT keeps the tool list from the day you added Simple Hack. When Simple Hack adds features, open ChatGPT Plugins, choose Simple Hack, then Refresh.</p>
+              <p class="hint">Or add it by its address, in developer mode:</p>
+              <ol class="steps">
+                <li>Open <b>Settings</b>, then <b>Apps &amp; Connectors</b>, then <b>Advanced settings</b>, and turn on <b>Developer mode</b>.</li>
+                <li>Back in <b>Apps &amp; Connectors</b>, choose <b>Create</b>.</li>
+                <li>Name it <b>Simple Hack</b>, and paste this address as the <b>MCP server URL</b>:
+                  <div class="copyrow"><code id="mcp-chatgpt-dev" data-mcp-address>https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-chatgpt-dev" aria-label="Copy ChatGPT connector address">Copy</button></div>
+                </li>
+                <li>Choose <b>OAuth</b> for authentication, then <b>Create</b>.</li>
+                <li>Sign in with Google or an email code, then choose <b>Allow</b>.</li>
+              </ol>
               <p><b>Upload plugin archive</b></p>
               <p class="hint">Also installs the five skills, so your AI follows Simple Hack's own instructions. This ZIP includes the MCP connection.</p>
               <ol class="steps">
@@ -197,7 +214,13 @@
           <p class="hint">On a network that blocks the directory, add it as a custom connector instead: name it Simple Hack, paste this address:</p>
           <div class="copyrow"><code id="mcp-claude" data-mcp-address>https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-claude" aria-label="Copy Claude connector address">Copy</button></div>
           <p class="hint">Or add it by its address:</p>
-          <!--sh:connect:claude-->
+          <ol class="steps">
+            <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>.</li>
+            <li>Name it <b>Simple Hack</b>, paste this address, and choose <b>Add</b>:
+              <div class="copyrow"><code id="mcp-claude-addr" data-mcp-address>https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-claude-addr" aria-label="Copy Claude connector address">Copy</button></div>
+            </li>
+            <li>Choose <b>Connect</b>, sign in, then choose <b>Allow</b>.</li>
+          </ol>
             </div>
         </details>
 
