@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"html"
 	"html/template"
 	"io/fs"
 	"net"
@@ -213,7 +214,19 @@ func (p *assetPipeline) RenderAppShell(r *http.Request, body []byte, signin bool
 	}
 	data := p.chromeDataFor(r, "")
 	data.Hack = false
-	return withChrome(body, data)
+	page, err := withChrome(body, data)
+	if err != nil {
+		return nil, err
+	}
+	// app.html carries its own install's contact in a data attribute (shell.js
+	// reads it for the Help menu's "Contact support" link, never spliced into
+	// its script -- see rewriteSupportAddress); this page does not otherwise
+	// go through chromePage, so it needs the same self-hosted pass applied
+	// here.
+	if p.hostedOwner() == "" {
+		page = p.selfHostedChromeRewrite(page)
+	}
+	return page, nil
 }
 
 // withChrome replaces each marker in page with its rendered partial. Each
@@ -406,24 +419,71 @@ func (p *assetPipeline) selfHostedChromeRewrite(page []byte) []byte {
 // shape: no query string, visible text identical to the address).
 var supportMailtoLinkRe = regexp.MustCompile(`<a href="mailto:support@simple-host\.app(?:\?[^"]*)?">support@simple-host\.app</a>`)
 
+// codeScriptRe matches one <script ...>...</script> element whose content is
+// JavaScript, as opposed to a data island such as
+// type="application/ld+json" or "application/json" (which carries JSON text,
+// not code, and stays eligible for the plain-text swap below). Simple Host's
+// own markup never nests or malforms a script tag, so a non-greedy match is
+// exact.
+var codeScriptRe = regexp.MustCompile(`(?is)<script([^>]*)>.*?</script>`)
+var jsonScriptTypeRe = regexp.MustCompile(`(?i)type\s*=\s*["']?application/(?:ld\+json|json)["']?`)
+
+// rewriteOutsideScript applies fn to every part of page that is not inside a
+// <script> element carrying JavaScript. SUPPORT_EMAIL is validated strictly
+// at config load (limits.go's supportEmailShape) precisely so it can never
+// contain a character that breaks out of a JS string literal or expands in a
+// regexp substitution -- but IDLE_REPLY_TO (this value's older, looser
+// fallback) is not validated as strictly, so this pass is a second,
+// structural guard rather than relying on that validation alone: text this
+// install's own contact gets spliced into never runs as code. A page whose
+// script needs the contact (report.html) reads it from a data attribute set
+// outside any script element instead of having it spliced into its source.
+func rewriteOutsideScript(page []byte, fn func([]byte) []byte) []byte {
+	var out []byte
+	last := 0
+	for _, loc := range codeScriptRe.FindAllSubmatchIndex(page, -1) {
+		start, end, attrStart, attrEnd := loc[0], loc[1], loc[2], loc[3]
+		out = append(out, fn(page[last:start])...)
+		if jsonScriptTypeRe.Match(page[attrStart:attrEnd]) {
+			out = append(out, fn(page[start:end])...)
+		} else {
+			out = append(out, page[start:end]...)
+		}
+		last = end
+	}
+	return append(out, fn(page[last:])...)
+}
+
 // rewriteSupportAddress swaps the hosted service's support address for this
 // install's own contact. When an operator set SUPPORT_EMAIL or
 // IDLE_REPLY_TO, auth.SupportContact is a real address and the mailto link
 // keeps working, now pointed at it (existing behaviour). Left unset,
 // SupportContact is just a phrase ("whoever runs this server") with no "@",
 // so there is no address to link to: the whole anchor is replaced with
-// plain text, and the plain-text mentions (features.html, docs.html,
-// report.html's JS strings) with the same phrase, so a self-hosted install
-// never shows Vineet's inbox as if it were its own.
+// plain text, and the plain-text mentions (features.html, docs.html) with
+// the same phrase, so a self-hosted install never shows Vineet's inbox as if
+// it were its own.
+//
+// Every replacement is literal (ReplaceAllLiteral, never ReplaceAll, so a $
+// in the configured contact can never expand as a submatch reference),
+// HTML-escaped before insertion, and skipped inside executable <script>
+// elements (rewriteOutsideScript) -- SUPPORT_EMAIL=o'connor@example.org
+// broke /report's inline script before this, splicing an apostrophe into a
+// JS string literal.
 func rewriteSupportAddress(page []byte) []byte {
 	if strings.Contains(auth.SupportContact, "@") {
-		addr := []byte(auth.SupportContact)
-		page = supportMailtoLinkRe.ReplaceAll(page, []byte(`<a href="mailto:`+auth.SupportContact+`">`+auth.SupportContact+`</a>`))
-		return bytes.ReplaceAll(page, []byte("support@simple-host.app"), addr)
+		escAddr := []byte(html.EscapeString(auth.SupportContact))
+		link := []byte(`<a href="mailto:` + string(escAddr) + `">` + string(escAddr) + `</a>`)
+		return rewriteOutsideScript(page, func(seg []byte) []byte {
+			seg = supportMailtoLinkRe.ReplaceAllLiteral(seg, link)
+			return bytes.ReplaceAll(seg, []byte("support@simple-host.app"), escAddr)
+		})
 	}
 	phrase := []byte("the person who runs this server")
-	page = supportMailtoLinkRe.ReplaceAll(page, phrase)
-	return bytes.ReplaceAll(page, []byte("support@simple-host.app"), phrase)
+	return rewriteOutsideScript(page, func(seg []byte) []byte {
+		seg = supportMailtoLinkRe.ReplaceAllLiteral(seg, phrase)
+		return bytes.ReplaceAll(seg, []byte("support@simple-host.app"), phrase)
+	})
 }
 
 // hostedBlocks keeps the text that is true for this server. A page marks

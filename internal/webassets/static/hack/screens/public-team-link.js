@@ -31,7 +31,9 @@ export async function render(ctx) {
     return
   }
   if (r.status === 404 || (r.data && r.data.code === 'team_link_not_found')) {
-    main.innerHTML = `<section class="hero"><h1>Team link</h1><p>simple-hack.app</p></section><section class="card"><h2>This team link doesn’t work</h2><p class="sub">The team may have made a new link, or the link was copied wrong. Ask a teammate to send it again.</p><div class="row-flex"><a class="btn primary lg" href="/directory">Find a hackathon</a></div></section>`
+    // location.host, not a literal "simple-hack.app": this instance's own
+    // address, not ours.
+    main.innerHTML = `<section class="hero"><h1>Team link</h1><p>${esc(location.host)}</p></section><section class="card"><h2>This team link doesn’t work</h2><p class="sub">The team may have made a new link, or the link was copied wrong. Ask a teammate to send it again.</p><div class="row-flex"><a class="btn primary lg" href="/directory">Find a hackathon</a></div></section>`
     return
   }
   if (!r.ok) { main.innerHTML = `<div class="note bad" role="alert">${esc(ui.errText(r, { codes: CODES }))}</div>`; return }

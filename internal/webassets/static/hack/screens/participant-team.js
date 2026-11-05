@@ -174,7 +174,9 @@ export async function render(ctx) {
   }
 
   function codePanelHTML() {
-    return `<section class="card"><h2>Join with a link or code</h2><div class="field"><label for="join-code">Team link or code</label><input class="input" id="join-code" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="simple-hack.app/team/… or k7m2-p9qa"${canJoinByCode ? '' : ' disabled'}><p class="help">Paste the whole link or type the 8-character code. Ask a teammate to send it from their Team page.</p><p class="err" id="join-code-err" hidden></p></div><div class="card-foot"><button class="btn primary" type="button" id="join-go"${canJoinByCode ? '' : ' disabled'}>Join team</button></div></section>`
+    // location.host, not a literal "simple-hack.app": this example must
+    // name this install's own address, not ours.
+    return `<section class="card"><h2>Join with a link or code</h2><div class="field"><label for="join-code">Team link or code</label><input class="input" id="join-code" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="${esc(location.host)}/team/… or k7m2-p9qa"${canJoinByCode ? '' : ' disabled'}><p class="help">Paste the whole link or type the 8-character code. Ask a teammate to send it from their Team page.</p><p class="err" id="join-code-err" hidden></p></div><div class="card-foot"><button class="btn primary" type="button" id="join-go"${canJoinByCode ? '' : ' disabled'}>Join team</button></div></section>`
   }
 
   function startPanelHTML() {

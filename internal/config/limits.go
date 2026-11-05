@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 	"sort"
@@ -694,6 +695,16 @@ func formatOverrides(m map[string]int) string {
 // familyLabelShape is one DNS label (ADDRESS_FAMILY_RESERVED_LABELS).
 var familyLabelShape = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
+// supportEmailShape is a plain addr-spec: letters, digits and . _ % + - in
+// the local part, a dot-separated domain of letters, digits and hyphens.
+// SUPPORT_EMAIL is spliced verbatim into page text, mailto: links and (for
+// invalid input that still reaches a regexp-replace path) a regexp
+// replacement's substitution text, so anything quotes, <, >, &, spaces, $ or
+// a backslash could do there -- break a JS string literal, break HTML markup,
+// let $1 expand -- is refused here before it ever reaches a page
+// (chrome.go's rewriteSupportAddress).
+var supportEmailShape = regexp.MustCompile(`^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$`)
+
 // Knobs lists operational settings; docs/advanced/ groups their reference by area.
 func Knobs() []Knob {
 	m, h, d := time.Minute, time.Hour, day
@@ -854,11 +865,20 @@ func Knobs() []Knob {
 		// that is not simple-host.app/simple-hack.app falls back to
 		// IDLE_REPLY_TO when that is also set, else "whoever runs this
 		// server" -- unchanged from before this setting existed.
+		// Unlike every other knob here, an invalid SUPPORT_EMAIL is logged
+		// and ignored rather than refused at startup (ContainsAny's looser
+		// check -- not this test, that IDLE_REPLY_TO above still uses --
+		// used to let unsafe addresses like o'connor@example.org through to
+		// chrome.go's rewriteSupportAddress, which spliced them straight
+		// into page text and mailto: links): this value reaches live pages,
+		// including inside <script> blocks, so it must never be the thing
+		// that takes a self-hosted install down.
 		{Env: "SUPPORT_EMAIL", Unit: "email address",
 			Value: func(l *Limits) string { return l.SupportEmail },
 			set: func(l *Limits, v string) error {
-				if strings.ContainsAny(v, " \t\r\n<>,") || strings.Count(v, "@") != 1 || strings.HasPrefix(v, "@") || strings.HasSuffix(v, "@") {
-					return fmt.Errorf("SUPPORT_EMAIL=%q is not a single email address (like support@example.com)", v)
+				if !supportEmailShape.MatchString(v) {
+					log.Printf("warning: SUPPORT_EMAIL=%q is not a plain email address (letters, digits and . _ %% + - before the @, a dot-separated domain after); ignoring it", v)
+					return nil
 				}
 				l.SupportEmail = v
 				return nil

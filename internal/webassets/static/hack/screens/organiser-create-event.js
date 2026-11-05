@@ -11,6 +11,9 @@ export async function render(ctx) {
   const setLive = ui.live(main)
   const tz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' } catch (e) { return 'UTC' } })()
   let slugTouched = false, slugTimer = null, slugCheckSeq = 0
+  // location.host, not a literal "simple-hack.app": a self-hosted install's
+  // event addresses live under its own domain.
+  const slugDomain = location.host
 
   main.classList.add('narrow')
   main.innerHTML = `
@@ -18,7 +21,7 @@ export async function render(ctx) {
 <div class="ph"><div class="t"><h1>Create event</h1><p>Set up a draft event. You can edit the details later.</p></div><button class="btn primary" type="submit" form="new-form" id="new-submit">Create event</button></div>
 <form id="new-form"><section class="card">
 <div class="field"><label>Title<input class="input" id="new-title" type="text" maxlength="120" required></label></div>
-<div class="field"><label>Address<input class="input" id="new-slug" type="text" maxlength="39" required></label><p class="help" id="new-slug-help">yourname.simple-hack.app</p></div>
+<div class="field"><label>Address<input class="input" id="new-slug" type="text" maxlength="39" required></label><p class="help" id="new-slug-help">yourname.${ui.esc(slugDomain)}</p></div>
 <div class="field-row"><div class="field"><label>Starts<input class="input" id="new-start" type="date" required></label></div><div class="field"><label>Ends (optional)<input class="input" id="new-end" type="date"></label></div></div>
 <div class="field"><label>Time zone<input class="input" id="new-tz" type="text" value="${ui.esc(tz)}" required></label><p class="help">For example Asia/Jakarta or Europe/London.</p></div>
 <div class="field"><label>Your name<input class="input" id="new-organiser" type="text" maxlength="100" required></label></div>
@@ -32,7 +35,7 @@ export async function render(ctx) {
   function checkSlugNow() {
     const slug = $('new-slug').value.trim().toLowerCase()
     const help = $('new-slug-help')
-    if (!slug) { help.textContent = 'yourname.simple-hack.app'; help.className = 'help'; return }
+    if (!slug) { help.textContent = 'yourname.' + slugDomain; help.className = 'help'; return }
     const seq = ++slugCheckSeq
     help.textContent = 'Checking…'; help.className = 'help'
     api('GET', '/v1/hack/names/' + encodeURIComponent(slug)).then(r => {
@@ -42,7 +45,7 @@ export async function render(ctx) {
       // "use 3 to 39 lowercase letters…") straight in the help text --
       // friendly, capitalised copy via the shared error codes instead.
       if (!r.ok) { help.textContent = ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'Could not check that address.' }); help.className = 'help bad'; return }
-      if (r.data.available) { help.textContent = slug + '.simple-hack.app · available'; help.className = 'help ok' }
+      if (r.data.available) { help.textContent = slug + '.' + slugDomain + ' · available'; help.className = 'help ok' }
       else { help.textContent = ui.errText(r, { codes: ui.ERROR_MESSAGES, fallback: 'That address is taken.' }); help.className = 'help bad' }
     }).catch(() => { if (seq === slugCheckSeq) { help.textContent = 'Could not connect. Check your connection and try again.'; help.className = 'help bad' } })
   }

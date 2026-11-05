@@ -39,7 +39,7 @@
     }
   </style>
 </head>
-<body>
+<body data-support-contact="support@simple-host.app">
   <!--sh:header-->
   <main class="container">
     <div class="eyebrow">Report</div>
@@ -98,6 +98,17 @@
       var reason = document.getElementById('r-reason');
       var err = document.getElementById('r-error');
       var btn = document.getElementById('r-submit');
+      // The server never substitutes anything inside a <script> element (it
+      // reaches this install's own contact through the data attribute on
+      // <body> instead, which it can safely rewrite as plain HTML text),
+      // so the fallback messages below are built at runtime rather than
+      // carrying a literal "support@simple-host.app".
+      var supportContact = (document.body.getAttribute('data-support-contact') || '').trim();
+      var sendFailed = function (base) {
+        if (!supportContact) { return base + '.'; }
+        if (supportContact.indexOf('@') !== -1) { return base + ', or email ' + supportContact + '.'; }
+        return base + ', or contact ' + supportContact + '.';
+      };
       var warns = { csam: 'warn-csam', ncii: 'warn-ncii', copyright: 'warn-copyright' };
       var showWarn = function () {
         Object.keys(warns).forEach(function (k) { document.getElementById(warns[k]).hidden = reason.value !== k; });
@@ -129,9 +140,9 @@
             window.scrollTo(0, 0);
             return;
           }
-          err.textContent = (res.body && res.body.error) || 'The report could not be sent. Try again, or email support@simple-host.app.';
+          err.textContent = (res.body && res.body.error) || sendFailed('The report could not be sent. Try again');
         }).catch(function () {
-          err.textContent = 'The report could not be sent. Check your connection and try again, or email support@simple-host.app.';
+          err.textContent = sendFailed('The report could not be sent. Check your connection and try again');
         }).then(function () {
           btn.disabled = false;
           btn.textContent = 'Send report';

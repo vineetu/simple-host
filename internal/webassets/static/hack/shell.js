@@ -98,6 +98,18 @@ function bindSideKeyOnce() {
     if (app && toggle) toggle.click()
   })
 }
+// supportLink is the Help menu's "Contact support" link. The server never
+// substitutes anything inside a <script> element (see chrome.go's
+// rewriteSupportAddress), so this install's own contact reaches the app
+// through data-support-contact on <body> (set on hack/app.html, rewritten
+// server-side for a self-hosted install) instead of a literal mailto: here.
+// With no address configured -- a self-hosted install that set neither
+// SUPPORT_EMAIL nor IDLE_REPLY_TO -- the link is left off rather than shown
+// with nowhere to go.
+function supportLink() {
+  const contact = (document.body.getAttribute('data-support-contact') || '').trim()
+  return contact.indexOf('@') !== -1 ? `<a href="mailto:${esc(contact)}">Contact support</a>` : ''
+}
 export function mount(ctx, section, screenId) {
   bindResizeClose()
   bindSideKeyOnce()
@@ -224,7 +236,7 @@ export function mount(ctx, section, screenId) {
   // section shows.
   const eventNav = event ? `<div class="event-nav">${switcher('sw1')}<nav class="nav" aria-label="Event">${items.map(link).join('')}</nav></div>` : ''
   let collapsed = readSideCollapsed()
-  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}${collapsed ? ' side-collapsed' : ''}"><aside class="side" id="side" aria-label="Navigation"><div class="side-top">${brand()}${toggleBtn(collapsed)}</div>${topNav}${eventNav}<div class="side-foot"><a href="/account" data-tip="Account">${ico('user')}<span>Account</span></a>${signedIn ? `<a href="/" data-signout data-tip="Sign out">${ico('signout')}<span>Sign out</span></a>` : ''}<details><summary data-tour="help" data-tip="Help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}<a href="mailto:support@simple-host.app">Contact support</a></details></div></aside>${event ? popup : ''}<div class="col"><div class="phone-top">${phoneTop}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
+  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}${collapsed ? ' side-collapsed' : ''}"><aside class="side" id="side" aria-label="Navigation"><div class="side-top">${brand()}${toggleBtn(collapsed)}</div>${topNav}${eventNav}<div class="side-foot"><a href="/account" data-tip="Account">${ico('user')}<span>Account</span></a>${signedIn ? `<a href="/" data-signout data-tip="Sign out">${ico('signout')}<span>Sign out</span></a>` : ''}<details><summary data-tour="help" data-tip="Help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}${supportLink()}</details></div></aside>${event ? popup : ''}<div class="col"><div class="phone-top">${phoneTop}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
   const app = root.firstElementChild
   // On Home itself (no event) there is no switcher and no popup to toggle --
   // pop is null there, so every branch below that touches it is guarded.

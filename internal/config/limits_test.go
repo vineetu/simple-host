@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -116,37 +117,36 @@ func TestLimitsOverrides(t *testing.T) {
 // A bad value stops startup with an error that names the variable.
 func TestLimitsInvalid(t *testing.T) {
 	cases := map[string]map[string]string{
-		"not a number":            {"MAX_KEYS_PER_ACCOUNT": "lots"},
-		"zero":                    {"MAX_SITES_PER_ACCOUNT": "0"},
-		"negative":                {"DELETED_RETENTION_DAYS": "-1"},
-		"above max":               {"SIGNIN_CODE_TTL_MINUTES": "61"},
-		"below min":               {"SIGNIN_CODE_TTL_MINUTES": "4"},
-		"fraction":                {"IDLE_AFTER_DAYS": "90.5"},
-		"unit in value":           {"EXPORT_LINK_TTL_MINUTES": "10m"},
-		"rate no comma":           {"RATE_LIMIT_STATE": "60"},
-		"rate bad burst":          {"RATE_LIMIT_STATE": "0,1s"},
-		"rate bad duration":       {"RATE_LIMIT_STATE": "60,soon"},
-		"rate too slow":           {"RATE_LIMIT_STATE": "60,48h"},
-		"rate too fast":           {"RATE_LIMIT_STATE": "60,1us"},
-		"reply-to not email":      {"IDLE_REPLY_TO": "support"},
-		"reply-to two":            {"IDLE_REPLY_TO": "a@b.com,c@d.com"},
-		"support email not email": {"SUPPORT_EMAIL": "support"},
-		"privacy url not a url":   {"PRIVACY_URL": "example.com/privacy"},
-		"idle past session":       {"VISITOR_SESSION_IDLE_DAYS": "31"},
-		"lapse before warn":       {"DOMAIN_LAPSE_WARN_HOURS": "72"},
-		"max age before ttl":      {"DOMAIN_UNPROVEN_HOURS": "240", "DOMAIN_UNPROVEN_MAX_DAYS": "7"},
-		"files above ceiling":     {"MAX_FILES_PER_SITE": "50001"},
-		"event ttl too long":      {"EVENT_TTL_DAYS": "61"},
-		"export link too long":    {"EXPORT_LINK_TTL_MINUTES": "61"},
-		"rename too often":        {"HANDLE_RENAME_EVERY_DAYS": "6"},
-		"signin burst 5x":         {"RATE_LIMIT_SIGNIN_EMAIL": "21,50s"},
-		"signin every 5x":         {"RATE_LIMIT_SIGNIN_EMAIL": "5,10s"},
-		"no limit on codes":       {"RATE_LIMIT_SIGNIN_EMAIL": "100000,1ms"},
-		"token loose":             {"RATE_LIMIT_OAUTH_TOKEN": "30,100ms"},
-		"visitor auth loose":      {"RATE_LIMIT_VISITOR_AUTH": "1000,5s"},
-		"undo zero":               {"SAVED_DATA_UNDO_DAYS": "0"},
-		"watch item past cap":     {"SAVED_DATA_WATCH_ITEM_KB": "65"},
-		"watch keep too short":    {"SAVED_DATA_WATCH_DAYS": "30", "SAVED_DATA_WATCH_KEEP_DAYS": "10"},
+		"not a number":          {"MAX_KEYS_PER_ACCOUNT": "lots"},
+		"zero":                  {"MAX_SITES_PER_ACCOUNT": "0"},
+		"negative":              {"DELETED_RETENTION_DAYS": "-1"},
+		"above max":             {"SIGNIN_CODE_TTL_MINUTES": "61"},
+		"below min":             {"SIGNIN_CODE_TTL_MINUTES": "4"},
+		"fraction":              {"IDLE_AFTER_DAYS": "90.5"},
+		"unit in value":         {"EXPORT_LINK_TTL_MINUTES": "10m"},
+		"rate no comma":         {"RATE_LIMIT_STATE": "60"},
+		"rate bad burst":        {"RATE_LIMIT_STATE": "0,1s"},
+		"rate bad duration":     {"RATE_LIMIT_STATE": "60,soon"},
+		"rate too slow":         {"RATE_LIMIT_STATE": "60,48h"},
+		"rate too fast":         {"RATE_LIMIT_STATE": "60,1us"},
+		"reply-to not email":    {"IDLE_REPLY_TO": "support"},
+		"reply-to two":          {"IDLE_REPLY_TO": "a@b.com,c@d.com"},
+		"privacy url not a url": {"PRIVACY_URL": "example.com/privacy"},
+		"idle past session":     {"VISITOR_SESSION_IDLE_DAYS": "31"},
+		"lapse before warn":     {"DOMAIN_LAPSE_WARN_HOURS": "72"},
+		"max age before ttl":    {"DOMAIN_UNPROVEN_HOURS": "240", "DOMAIN_UNPROVEN_MAX_DAYS": "7"},
+		"files above ceiling":   {"MAX_FILES_PER_SITE": "50001"},
+		"event ttl too long":    {"EVENT_TTL_DAYS": "61"},
+		"export link too long":  {"EXPORT_LINK_TTL_MINUTES": "61"},
+		"rename too often":      {"HANDLE_RENAME_EVERY_DAYS": "6"},
+		"signin burst 5x":       {"RATE_LIMIT_SIGNIN_EMAIL": "21,50s"},
+		"signin every 5x":       {"RATE_LIMIT_SIGNIN_EMAIL": "5,10s"},
+		"no limit on codes":     {"RATE_LIMIT_SIGNIN_EMAIL": "100000,1ms"},
+		"token loose":           {"RATE_LIMIT_OAUTH_TOKEN": "30,100ms"},
+		"visitor auth loose":    {"RATE_LIMIT_VISITOR_AUTH": "1000,5s"},
+		"undo zero":             {"SAVED_DATA_UNDO_DAYS": "0"},
+		"watch item past cap":   {"SAVED_DATA_WATCH_ITEM_KB": "65"},
+		"watch keep too short":  {"SAVED_DATA_WATCH_DAYS": "30", "SAVED_DATA_WATCH_KEEP_DAYS": "10"},
 	}
 	for name, m := range cases {
 		_, err := LoadLimits(env(m))
@@ -161,6 +161,49 @@ func TestLimitsInvalid(t *testing.T) {
 		if !named {
 			t.Errorf("%s: error %q does not name the variable", name, err)
 		}
+	}
+}
+
+// Unlike every other knob, a malformed SUPPORT_EMAIL does not stop startup:
+// it reaches live pages (chrome.go's rewriteSupportAddress splices it into
+// page text, mailto: links and, on an invalid value that used to slip
+// through, a regexp replacement's substitution text), so the server logs a
+// warning and runs with no support address configured rather than let a bad
+// value take a self-hosted install down. An apostrophe (would break a
+// mailto: href or a JS string literal) and a $ (would expand in a
+// regexp.ReplaceAll substitution) must both be rejected.
+func TestSupportEmailInvalidIsLoggedAndIgnored(t *testing.T) {
+	for name, v := range map[string]string{
+		"not an email":  "support",
+		"apostrophe":    "o'connor@example.org",
+		"dollar":        "support$1@example.org",
+		"angle bracket": "<support@example.org>",
+		"ampersand":     "a&b@example.org",
+		"backslash":     `a\b@example.org`,
+		"space":         "sup port@example.org",
+	} {
+		var buf strings.Builder
+		log.SetOutput(&buf)
+		l, err := LoadLimits(env(map[string]string{"SUPPORT_EMAIL": v}))
+		log.SetOutput(os.Stderr)
+		if err != nil {
+			t.Errorf("%s: LoadLimits(%q) failed startup: %v; want it logged and ignored", name, v, err)
+			continue
+		}
+		if l.SupportEmail != "" {
+			t.Errorf("%s: SupportEmail = %q, want ignored (empty)", name, v)
+		}
+		if !strings.Contains(buf.String(), "SUPPORT_EMAIL") || !strings.Contains(buf.String(), "ignoring") {
+			t.Errorf("%s: no warning logged for %q: %q", name, v, buf.String())
+		}
+	}
+
+	l, err := LoadLimits(env(map[string]string{"SUPPORT_EMAIL": "help@example.org"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l.SupportEmail != "help@example.org" {
+		t.Errorf("valid SUPPORT_EMAIL not kept: %q", l.SupportEmail)
 	}
 }
 

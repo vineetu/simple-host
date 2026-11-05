@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"html"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -303,6 +304,57 @@ func TestChromeOnRewrittenInstallPage(t *testing.T) {
 	}
 }
 
+// TestHackAppShellCarriesInstallContact covers the Hack SPA shell
+// (hack/app.html, mounted through RenderAppShell, not chromePage): its
+// data-support-contact attribute is what shell.js's Help menu reads instead
+// of a literal mailto: (finding 4 -- the HTML rewrite otherwise never
+// reaches a static JS file). On the real hosted simple-hack.app it must
+// stay the literal default; on a self-hosted instance it must carry that
+// install's own contact, the same as every other chromed page.
+func TestHackAppShellCarriesInstallContact(t *testing.T) {
+	prevContact := auth.SupportContact
+	t.Cleanup(func() { auth.SupportContact = prevContact })
+
+	appHTML, err := staticFiles.ReadFile("static/hack/app.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(appHTML), `data-support-contact="support@simple-host.app"`) {
+		t.Fatal("hack/app.html lost its default data-support-contact attribute")
+	}
+
+	t.Run("hosted", func(t *testing.T) {
+		auth.SupportContact = "support@simple-host.app"
+		sh := chromeTestHandler(edition.Hack) // defaults to canonicalHackBaseURL: hostedOwner() == "Simple Hack"
+		req := httptest.NewRequest(http.MethodGet, "/account", nil)
+		page, err := sh.Pages().RenderAppShell(req, appHTML, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(page), `data-support-contact="support@simple-host.app"`) {
+			t.Error("hosted app shell must keep the literal default byte-for-byte")
+		}
+	})
+
+	t.Run("self-hosted", func(t *testing.T) {
+		auth.SupportContact = "ops@example.org"
+		sh := chromeTestHandler(edition.Hack)
+		sh.RebasePagesForTest("https://hack.example.test")
+		req := httptest.NewRequest(http.MethodGet, "/account", nil)
+		page, err := sh.Pages().RenderAppShell(req, appHTML, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := string(page)
+		if strings.Contains(body, "support@simple-host.app") {
+			t.Error("self-hosted app shell still names the hosted support address")
+		}
+		if !strings.Contains(body, `data-support-contact="ops@example.org"`) {
+			t.Errorf("self-hosted app shell does not carry the configured contact: %s", body)
+		}
+	})
+}
+
 // TestSelfHostedSupportAddress covers gap 2: with neither SUPPORT_EMAIL nor
 // IDLE_REPLY_TO set, a self-hosted install must not show Vineet's
 // support@simple-host.app anywhere on its pages (not even half-rewritten
@@ -341,6 +393,61 @@ func TestSelfHostedSupportAddress(t *testing.T) {
 			t.Error("/support: mailto link does not use the configured SUPPORT_EMAIL")
 		}
 	})
+}
+
+// TestSupportAddressDefendsAgainstUnsafeCharacters is the regression for the
+// finding this covers: SUPPORT_EMAIL is validated strictly at config load
+// (limits.go's supportEmailShape rejects an apostrophe or a $ outright,
+// TestSupportEmailInvalidIsLoggedAndIgnored in internal/config), but
+// auth.SupportContact can also come from IDLE_REPLY_TO, which is not
+// validated as strictly. This test sets SupportContact directly to values
+// that validation would have rejected, to prove chrome.go's own defenses
+// hold regardless of how an unsafe value got there: a literal replacement
+// (never regexp.ReplaceAll, so a "$1" in the address can't expand as a
+// submatch reference) that never runs inside /report's executable <script>
+// (an apostrophe there would have broken its string literal).
+func TestSupportAddressDefendsAgainstUnsafeCharacters(t *testing.T) {
+	prevContact := auth.SupportContact
+	t.Cleanup(func() { auth.SupportContact = prevContact })
+	SetInstanceHosts("host.example.test", "", "")
+	defer SetInstanceHosts("simple-host.app", "", "")
+	mux := chromeTestMux(t, edition.Host)
+
+	for name, addr := range map[string]string{
+		"apostrophe": "o'connor@example.org",
+		"dollar":     "support$1@example.org",
+	} {
+		t.Run(name, func(t *testing.T) {
+			auth.SupportContact = addr
+			rec := get(t, mux, "host.example.test", "/report")
+			body := rec.Body.String()
+
+			// report.html's own script is the one with the fetch('/report'
+			// ...) call; every served script carries a CSP nonce attribute,
+			// so a bare "<script>" match would miss it.
+			fetchIdx := strings.Index(body, "fetch('/report'")
+			scriptStart := strings.LastIndex(body[:fetchIdx], "<script")
+			scriptEnd := strings.Index(body[fetchIdx:], "</script>")
+			if fetchIdx < 0 || scriptStart < 0 || scriptEnd < 0 {
+				t.Fatalf("/report: could not find its inline <script> (status %d):\n%s", rec.Code, body)
+			}
+			script := body[scriptStart : fetchIdx+scriptEnd]
+			if strings.Contains(script, addr) {
+				t.Errorf("/report: the configured contact %q was spliced into the script instead of staying out of it:\n%s", addr, script)
+			}
+
+			wantAttr := `data-support-contact="` + html.EscapeString(addr) + `"`
+			if !strings.Contains(body, wantAttr) {
+				t.Errorf("/report: body does not carry %q (script reads the contact from it)", wantAttr)
+			}
+
+			escAddr := html.EscapeString(addr)
+			wantLink := `<a href="mailto:` + escAddr + `">` + escAddr + `</a>`
+			if !strings.Contains(body, wantLink) {
+				t.Errorf("/report: mailto link %q not found verbatim (literal replacement must not mangle it)", wantLink)
+			}
+		})
+	}
 }
 
 func TestChromeOnHackathonHomepage(t *testing.T) {
