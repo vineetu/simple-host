@@ -1595,7 +1595,7 @@
       <details class="feat" id="agents-plugin">
         <summary><span class="fname">Claude&#x27;s plugin and connector directories</span><span class="fline">Hosted Get started links the plugin and directory steps alongside the MCP address; self-hosted shows only its address, no plugin mention.</span></summary>
         <div class="fbody">
-          <p class="how">The Claude plugin (Customize, Plugins, Discover) and connector directory listings for Simple Host and Simple Hack still exist, still work, and are still linked from hosted Get started, now alongside the MCP address in its own copy box, filled from the viewer&#x27;s own origin; the ChatGPT plugin submission stays in review. A self-hosted install&#x27;s Get started shows only its own MCP address: no plugin ZIP, connector directory, marketplace command or app-directory review note (owner, 2026-11-05).</p>
+          <p class="how"><!--sh:hosted-->The Claude plugin (Customize, Plugins, Discover) and connector directory listings for Simple Host and Simple Hack still exist, still work, and are still linked from hosted Get started, now alongside the MCP address in its own copy box, filled from the viewer&#x27;s own origin; the ChatGPT plugin submission stays in review.<!--/sh:hosted--><!--sh:self-->A self-hosted install&#x27;s Get started shows only its own MCP address: no plugin ZIP, connector directory, marketplace command or app-directory review note.<!--/sh:self--> (owner, 2026-11-05).</p>
           <p class="ex"><b>Example.</b> A returning user who added the Claude plugin months ago keeps using it; someone new instead pastes the address Get started gives them.</p>
           <dl class="fm">
             <dt>Who</dt><dd>Anyone on Claude who wants the skills and the connection without a terminal.</dd>
@@ -1604,7 +1604,7 @@
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="partial"><b>Simple Hack</b>partly</li><li class="partial"><b>Enterprise</b>partly</li><li class="no"><b>Small box</b>no</li></ul>
           <p class="ednote">Simple Hack is in Claude&#x27;s connector directory with its own toolkit; Enterprise ships its skills as a plugin download for its own instance.</p>
-          <p class="meta"><span class="status"><b>Status:</b> live. Still live in Claude&#x27;s own directories and still linked from hosted Get started, now alongside the MCP-address option added 2026-11-05.</span> <span class="docs"><b>Read more:</b> <a href="/install.html">Get started</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#9-skills-and-plugin-distribution">FEATURES.md section 9</a></span></p>
+          <p class="meta"><span class="status"><b>Status:</b> live. <!--sh:hosted-->Still live in Claude&#x27;s own directories and still linked from hosted Get started, now alongside the MCP-address option added 2026-11-05<!--/sh:hosted--><!--sh:self-->Self-hosted Get started links only its own MCP address<!--/sh:self-->.</span> <span class="docs"><b>Read more:</b> <a href="/install.html">Get started</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#9-skills-and-plugin-distribution">FEATURES.md section 9</a></span></p>
         </div>
       </details>
       <details class="feat" id="skill-website-deploy">
@@ -2461,7 +2461,8 @@
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/setup?product=small-box">Set up a small box</a> <a href="/setup?product=enterprise">Set up Enterprise</a></span></p>
         </div>
       </details>
-<!--sh:hosted-->      <details class="feat" id="self-host">
+<!--sh:hosted-->
+      <details class="feat" id="self-host">
         <summary><span class="fname">Run it on your own server</span><span class="fline">The same software runs on a server of your own, from one install command, with every limit on this page as a setting.</span></summary>
         <div class="fbody">
           <p class="how">One server, Docker Compose, and a one-line installer that pulls a pinned release: the app, Postgres, and Caddy for certificates. The setup helper asks a few questions and writes the command and the settings. Re-running the installer upgrades: it pulls the new release, applies the schema changes, then starts the new app; if a schema change fails the old app keeps running. The DigitalOcean 1-Click image runs the same installer on first login.</p>
@@ -2475,7 +2476,8 @@
           <p class="ednote">Simple Hack also runs on a server of your own with the same installer, keeping its own address.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/setup?product=small-box">Set up a small box</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#20-operations-health-schema-cli">FEATURES.md: Operations</a></span></p>
         </div>
-      </details><!--/sh:hosted-->
+      </details>
+<!--/sh:hosted-->
       <details class="feat" id="admin-health">
         <summary><span class="fname">Health checks and schema upgrades</span><span class="fline">Two health addresses for your monitoring, and schema changes that run once, in order, under a lock, before a new release starts.</span></summary>
         <div class="fbody">

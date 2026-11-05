@@ -91,22 +91,35 @@ def render_feature(f):
     lines = []
     # self-host hides itself on every self-hosted instance (sh:hosted); a
     # feature Host doesn't have but Hack does (is_hack_only) hides only on
-    # a self-hosted Host edition (sh:hashack). Both are glued onto the
-    # opening/closing <details> line, never a standalone marker line:
-    # hasHackBlocks/hostedBlocks only remove the marker text itself, so a
-    # marker alone on its own line would leave a blank line behind
-    # wherever this feature is KEPT (every hosted page, verified
-    # byte-identical by scripts/golden and shots/hosted-diff.mjs).
+    # a self-hosted Host edition (sh:hashack).
+    #
+    # self-host's markers go on their OWN line, exactly as the baseline
+    # (origin/main, pre-dating this script's hashack support) already had
+    # them: hostedBlocks only removes the marker text itself, so the
+    # standalone marker line becomes a blank line once stripped on
+    # hosted -- that blank line either side of #self-host is the baseline's
+    # existing, intentional spacing, not something to collapse.
+    #
+    # is_hack_only's new sh:hashack markers are glued onto the
+    # opening/closing <details> line instead, because unlike self-host
+    # there was no pre-existing standalone-line placement (and hence no
+    # existing blank line) for them to match -- a standalone marker line
+    # here would introduce a NEW stray blank line on every hosted page
+    # that keeps this feature (verified byte-identical by scripts/golden
+    # and shots/hosted-diff.mjs; this was finding 5's blank-line
+    # regression, fixed by gluing).
+    prefix_lines, suffix_lines = [], []
     open_markers, close_markers = "", ""
     if f["id"] == "self-host":
-        open_markers += "<!--sh:hosted-->"
-        close_markers = "<!--/sh:hosted-->" + close_markers
+        prefix_lines.append("<!--sh:hosted-->")
+        suffix_lines.append("<!--/sh:hosted-->")
     # self-host (above) already hides itself on every self-hosted instance;
     # this is the narrower, Host-edition-only gate.
     hack_only = f["id"] != "self-host" and is_hack_only(f)
     if hack_only:
         open_markers += "<!--sh:hashack-->"
         close_markers = "<!--/sh:hashack-->" + close_markers
+    lines.extend(prefix_lines)
     lines.append(open_markers + '      <details class="feat" id="%s">' % html.escape(f["id"]))
     lines.append('        <summary><span class="fname">%s</span>%s<span class="fline">%s</span></summary>' % (rich(f["name"]), pill, rich(f["line"])))
     lines.append('        <div class="fbody">')
@@ -149,6 +162,7 @@ def render_feature(f):
     lines.append('          <p class="meta">%s</p>' % " ".join(meta))
     lines.append('        </div>')
     lines.append('      </details>' + close_markers)
+    lines.extend(suffix_lines)
     return "\n".join(lines)
 
 
