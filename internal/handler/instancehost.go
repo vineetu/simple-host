@@ -142,12 +142,30 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 				}
 				body, err = publicOpenAPISpec(body, audience)
 			}
+			if err == nil && name == "features.json" {
+				// Reached only on a self-hosted instance (features.json is
+				// hidden from the raw file server and routed here only
+				// when assets.rewritten() is true), so this is always the
+				// self-hosted side of [[hosted]]/[[self]]: raw, those
+				// bracket tokens (build-features-page.py's own markers,
+				// never converted to HTML comments for this JSON file)
+				// would otherwise appear literally, and [[hosted]]'s
+				// content (hosted-only domain names, the plugin/directory
+				// copy) with them.
+				body = featureJSONMarkers(body, p.pres.HackAssets)
+			}
 			if err == nil {
 				if p.pres.HackAssets {
-					// Hack's OpenAPI (and hack-llms.txt, which never
-					// mentions it) keeps naming support@simple-host.app as
-					// it does today; only the Host edition's text assets
-					// get the operator's own contact below.
+					// Hack's OpenAPI keeps naming support@simple-host.app as
+					// it does today (explicitly out of scope); every other
+					// Hack-edition text asset -- hack-llms.txt (which never
+					// mentions it) and the shared features.json -- gets the
+					// same operator's-own-contact swap the Host branch
+					// below gets, before HackInstanceText's domain rewrite
+					// for the same reason that one must run first there.
+					if name != "openapi.yaml" && name != "openapi.json" {
+						body = []byte(supportText(string(body)))
+					}
 					body = p.HackInstanceText(p.limitsText.apply(body))
 				} else {
 					if name == "llms.txt" && rw != nil {
@@ -203,6 +221,47 @@ func replaceSetupLine(body []byte, prefix, replacement string) []byte {
 		end = len(body) - start
 	}
 	return append(append(append([]byte{}, body[:start]...), []byte(replacement)...), body[start+end:]...)
+}
+
+// featureJSONMarkers resolves features.json's [[hosted]]/[[self]] and
+// [[hashack]]/[[nohack]] bracket tokens (scripts/build-features-page.py's
+// own HACK_MARKERS, used there to emit the <!--sh:hosted-->-style HTML
+// comments hostedBlocks/hasHackBlocks act on for features.html; this raw
+// JSON file never goes through that script, so the tokens stay literal
+// bracket text unless resolved here). Reached only on a self-hosted
+// instance (see the call site), so the hosted side of [[hosted]]/[[self]]
+// is always dropped; hasHack mirrors hasHackBlocks's own rule for
+// [[hashack]]/[[nohack]] (kept on the two real hosted services and any
+// Hack-edition instance, self-hosted included; dropped only on a
+// self-hosted Host edition).
+func featureJSONMarkers(body []byte, hasHack bool) []byte {
+	body = stripBracketMarkers(body, "self", "hosted")
+	if hasHack {
+		return stripBracketMarkers(body, "hashack", "nohack")
+	}
+	return stripBracketMarkers(body, "nohack", "hashack")
+}
+
+// stripBracketMarkers removes every [[dropName]]...[[/dropName]] span
+// (markers and content together) and unwraps every
+// [[keepName]]/[[/keepName]] pair (markers removed, content kept): the
+// [[...]]-token analogue of chrome.go's stripMarkedBlocks, for the one
+// asset (features.json) whose markers never become HTML comments.
+func stripBracketMarkers(body []byte, keepName, dropName string) []byte {
+	open, end := []byte("[["+dropName+"]]"), []byte("[[/"+dropName+"]]")
+	for {
+		i := bytes.Index(body, open)
+		if i < 0 {
+			break
+		}
+		j := bytes.Index(body[i:], end)
+		if j < 0 {
+			break
+		}
+		body = append(body[:i:i], body[i+j+len(end):]...)
+	}
+	body = bytes.ReplaceAll(body, []byte("[["+keepName+"]]"), nil)
+	return bytes.ReplaceAll(body, []byte("[[/"+keepName+"]]"), nil)
 }
 
 // instanceHosts rewrites the canonical hostnames baked into served assets to

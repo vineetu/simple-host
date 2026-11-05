@@ -382,6 +382,39 @@ func assertNoHostedDomain(t *testing.T, label, body string) {
 	if strings.Contains(lower, "simple-host.app") {
 		t.Errorf("%s: still names simple-host.app:\n%s", label, body)
 	}
+	// Redundant with the two checks above (support@ at a hosted domain
+	// already contains "simple-host.app"/"simple-hack.app"), kept as an
+	// explicit, narrower check so a future change to either domain string
+	// does not silently stop covering the support address specifically.
+	if strings.Contains(lower, "support@simple-hack.app") || strings.Contains(lower, "support@simple-host.app") {
+		t.Errorf("%s: still shows support@ at a hosted domain:\n%s", label, body)
+	}
+	// "vineet sriram" (ownership attribution), not bare "vineet": the
+	// GitHub username in skill/release links (github.com/vineetu/...) also
+	// contains "vineet" and is not an ownership leak.
+	if strings.Contains(lower, "vineet sriram") {
+		t.Errorf("%s: still names Vineet Sriram:\n%s", label, body)
+	}
+}
+
+// assertNoSupportOrOwnershipLeak is assertNoHostedDomain's narrower sibling,
+// for a page whose content legitimately keeps naming the hosted domain
+// (features.json and openapi.json's shared, pre-existing documentation
+// text describes cross-product behaviour -- "On simple-hack.app (EVENTS=
+// hosted) only a team key deploys" -- factually, regardless of which
+// install is serving it; rewriting that prose to be domain-agnostic is a
+// separate, much larger undertaking than this review). What must still
+// never leak on these two is the operator's own identity: a hosted support
+// address, or Vineet Sriram's name.
+func assertNoSupportOrOwnershipLeak(t *testing.T, label, body string) {
+	t.Helper()
+	lower := strings.ToLower(body)
+	if strings.Contains(lower, "support@simple-hack.app") || strings.Contains(lower, "support@simple-host.app") {
+		t.Errorf("%s: still shows support@ at a hosted domain:\n%s", label, body)
+	}
+	if strings.Contains(lower, "vineet sriram") {
+		t.Errorf("%s: still names Vineet Sriram:\n%s", label, body)
+	}
 }
 
 // TestSelfHostedNoHostedDomainAcrossPages is finding 5's test extension: a
@@ -400,8 +433,22 @@ func TestSelfHostedNoHostedDomainAcrossPages(t *testing.T) {
 		for _, p := range []string{
 			"/install.html", "/support", "/privacy.html", "/terms",
 			"/docs.html", "/features", "/pricing", "/report",
+			"/architecture.html", "/hackathons", "/llms.txt",
 		} {
 			assertNoHostedDomain(t, p, get(t, mux, "host.example.test", p).Body.String())
+		}
+		// features.json and openapi.json keep legitimate, pre-existing
+		// cross-product documentation text (see
+		// assertNoSupportOrOwnershipLeak); only the operator's own identity
+		// must not leak from them.
+		for _, p := range []string{"/features.json", "/openapi.json"} {
+			assertNoSupportOrOwnershipLeak(t, p, get(t, mux, "host.example.test", p).Body.String())
+		}
+		// /hackathons redirects rather than rendering on a self-hosted Host
+		// edition (review finding G); confirm the redirect itself, not just
+		// that its (otherwise empty) body has no hosted-domain text.
+		if rec := get(t, mux, "host.example.test", "/hackathons"); rec.Code != http.StatusFound {
+			t.Errorf("/hackathons: self-hosted Host must redirect (got %d)", rec.Code)
 		}
 
 		// The landing page ("/") and an unmatched path both fall through to
@@ -433,10 +480,14 @@ func TestSelfHostedNoHostedDomainAcrossPages(t *testing.T) {
 		RegisterUIRoutes(mux, "https://hack.example.test", sh)
 		for _, p := range []string{
 			"/support", "/privacy.html", "/terms", "/docs.html", "/features",
-			"/pricing", "/report",
+			"/pricing", "/report", "/architecture.html", "/llms.txt",
 		} {
 			assertNoHostedDomain(t, p, get(t, mux, "hack.example.test", p).Body.String())
 		}
+		// Hack's OpenAPI intentionally keeps naming support@simple-host.app
+		// today (out of scope; see instancehost.go's serveRewrittenAsset),
+		// so only features.json is checked here, not /openapi.json.
+		assertNoSupportOrOwnershipLeak(t, "/features.json", get(t, mux, "hack.example.test", "/features.json").Body.String())
 		rec := httptest.NewRecorder()
 		sh.renderNotFound(rec, httptest.NewRequest(http.MethodGet, "/__not_a_handle__", nil), "/__not_a_handle__")
 		assertNoHostedDomain(t, "404", rec.Body.String())
