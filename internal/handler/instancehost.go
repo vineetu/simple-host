@@ -156,15 +156,42 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 			}
 			if err == nil {
 				if p.pres.HackAssets {
-					// Hack's OpenAPI keeps naming support@simple-host.app as
-					// it does today (explicitly out of scope); every other
-					// Hack-edition text asset -- hack-llms.txt (which never
-					// mentions it) and the shared features.json -- gets the
-					// same operator's-own-contact swap the Host branch
-					// below gets, before HackInstanceText's domain rewrite
-					// for the same reason that one must run first there.
-					if name != "openapi.yaml" && name != "openapi.json" {
-						body = []byte(supportText(string(body)))
+					// features.json and openapi.yaml/json carry the same
+					// shared, cross-cutting Host-level prose (handles,
+					// sites, sign-in, the API, support@) that the Host
+					// branch below already rewrites for its own edition --
+					// Simple Hack is the same binary and genuinely has most
+					// of these features too, so a self-hosted Hack install
+					// must name its own address and its own support contact
+					// for them, not simple-host.app's. HackInstanceText
+					// only ever rewrote simple-hack.app's own mentions;
+					// nothing on this branch touched the generic
+					// simple-host.app ones (that rewrite, rw.apply, lived
+					// only in the else branch) until now. supportText runs
+					// first, for the same ordering reason as below:
+					// rw.apply's blanket "simple-host.app" -> siteDomain
+					// replacement would otherwise mangle
+					// support@simple-host.app before supportText can match
+					// it. Unconditional now -- the previous "except
+					// openapi.yaml/json" carve-out was unimplemented scope,
+					// not a product decision, and supportText is a safe
+					// no-op whenever auth.SupportContact is still the
+					// default "support@simple-host.app", which is true on
+					// both real hosted services today.
+					body = []byte(supportText(string(body)))
+					// Gated on genuinely self-hosted (instanceHosts != nil
+					// and not the real hosted simple-hack.app), exactly
+					// like connector.go's site-management-tool rewrite: rw
+					// is non-nil on the real hosted simple-hack.app too,
+					// because its own SITE_DOMAIN ("simple-hack.app")
+					// differs from the Host-only canonicalSiteDomain
+					// constant -- so a bare rw.apply would rewrite that
+					// service's legitimate simple-host.app cross-product
+					// references into "simple-hack.app", naming itself.
+					// This check keeps that service's bytes untouched, the
+					// same as every other hosted instance.
+					if rw != nil && instanceSiteDomain != "simple-hack.app" {
+						body = rw.apply(body)
 					}
 					body = p.HackInstanceText(p.limitsText.apply(body))
 				} else {

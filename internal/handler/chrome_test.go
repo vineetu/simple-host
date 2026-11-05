@@ -481,13 +481,19 @@ func TestSelfHostedNoHostedDomainAcrossPages(t *testing.T) {
 		for _, p := range []string{
 			"/support", "/privacy.html", "/terms", "/docs.html", "/features",
 			"/pricing", "/report", "/architecture.html", "/llms.txt",
+			// features.json and openapi.json used to be checked only with
+			// assertNoSupportOrOwnershipLeak (and openapi.json not at all):
+			// the Hack branch of serveRewrittenAsset never ran the generic
+			// simple-host.app -> siteDomain rewrite (rw.apply) that the
+			// Host branch already had, so a self-hosted Hack install's
+			// shared, cross-cutting Host-level prose (handles, sites,
+			// sign-in, the API) kept naming simple-host.app verbatim.
+			// Fixed (instancehost.go); both now get the full check, same
+			// as every other asset here.
+			"/features.json", "/openapi.json",
 		} {
 			assertNoHostedDomain(t, p, get(t, mux, "hack.example.test", p).Body.String())
 		}
-		// Hack's OpenAPI intentionally keeps naming support@simple-host.app
-		// today (out of scope; see instancehost.go's serveRewrittenAsset),
-		// so only features.json is checked here, not /openapi.json.
-		assertNoSupportOrOwnershipLeak(t, "/features.json", get(t, mux, "hack.example.test", "/features.json").Body.String())
 		rec := httptest.NewRecorder()
 		sh.renderNotFound(rec, httptest.NewRequest(http.MethodGet, "/__not_a_handle__", nil), "/__not_a_handle__")
 		assertNoHostedDomain(t, "404", rec.Body.String())
