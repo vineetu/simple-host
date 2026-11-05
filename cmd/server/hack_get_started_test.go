@@ -140,7 +140,12 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 			t.Errorf("hosted get-started must still offer %q (plugin options stay on hosted)", want)
 		}
 	}
-	for _, id := range []string{"claude", "chatgpt", "claude-code"} {
+	// Hosted restores the baseline row set exactly (SIM connect-mcp review
+	// finding A): Claude and ChatGPT are their own rows, and Claude Code has
+	// no row of its own here (unlike install.html) — it shares the combined
+	// "Claude Code / Codex / other coding agents" row baseline always had,
+	// checked separately below.
+	for _, id := range []string{"claude", "chatgpt"} {
 		_, rest, found := strings.Cut(page, `<details class="accordion" id="`+id+`" name="pick-ai">`)
 		card, _, _ := strings.Cut(rest, "</details>")
 		if !found {
@@ -160,28 +165,33 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 			if !strings.Contains(card, "Upload plugin archive") {
 				t.Error("ChatGPT must still offer the plugin archive upload, alongside the URL option")
 			}
-		case "claude-code":
-			if !strings.Contains(card, "claude mcp add --transport http simple-hack") || !strings.Contains(card, "<b>/mcp</b>") || !strings.Contains(card, "Authenticate") {
-				t.Error("Claude Code must give the mcp add command and the /mcp → Authenticate step")
-			}
 		case "claude":
 			if !strings.Contains(card, "Browse connectors") || !strings.Contains(card, "Claude setup guide") {
 				t.Error("Claude must still offer the hosted connector directory, alongside the URL option")
 			}
 		}
 	}
-	_, otherAI, _ := strings.Cut(page, `<details class="other" id="other-ai-apps">`)
-	otherAI, _, _ = strings.Cut(otherAI, `<p class="hint">After connecting`)
-	if otherAI == "" {
-		t.Fatal("Other AI apps group missing")
+	_, codingRest, foundCoding := strings.Cut(page, `<details class="accordion" id="coding-agents" name="pick-ai">`)
+	codingCard, _, _ := strings.Cut(codingRest, "</details>")
+	if !foundCoding {
+		t.Fatal("coding-agents: missing from Pick your AI (Claude Code's baseline row)")
 	}
-	for _, id := range []string{"grok", "copilot", "muse", "gemini", "mistral", "other-coding"} {
-		if !strings.Contains(otherAI, `id="`+id+`"`) {
-			t.Errorf("%s missing from Other AI apps", id)
+	if !strings.Contains(codingCard, "Claude Code") || !strings.Contains(codingCard, "https://simple-hack.app/mcp") || !strings.Contains(codingCard, "<b>Allow</b>") {
+		t.Error("coding-agents must name Claude Code and give the connector address and consent instructions")
+	}
+	// Hosted keeps baseline's flat row list (SIM connect-mcp review finding
+	// A): grok/copilot/muse/gemini/mistral are their own top-level rows,
+	// never collapsed into the self-hosted-only "Other AI apps" group.
+	for _, id := range []string{"grok", "copilot", "muse", "gemini", "mistral"} {
+		if !strings.Contains(page, `<details class="accordion" id="`+id+`" name="pick-ai">`) {
+			t.Errorf("%s missing from Pick your AI", id)
 		}
 	}
-	if !strings.Contains(otherAI, "meta-muse") {
+	if !strings.Contains(page, "meta-muse") {
 		t.Error("Meta Muse must give its Client ID")
+	}
+	if strings.Contains(page, `id="other-ai-apps"`) {
+		t.Error("hosted must not collapse rows into the self-hosted-only Other AI apps group")
 	}
 	_, other, _ := strings.Cut(page, `<details class="other" id="other-installs">`)
 	other, _, _ = strings.Cut(other, "</details>")

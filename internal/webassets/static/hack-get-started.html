@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=c">
   <link rel="icon" href="/favicon.ico?v=c" sizes="any">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=c">
-  <meta name="description" content="Run, join or judge a hackathon at simple-hack.app, or from Claude, ChatGPT, Claude Code or any AI app that takes a custom MCP connector.">
+  <meta name="description" content="Run, join or judge a hackathon at simple-hack.app, or from Claude, ChatGPT, Grok, Meta Muse, GitHub Copilot or your coding agent.">
   <!--sh:head-->
   <style>
     .wrap { max-width: 820px; margin: 0 auto; padding: 44px 24px 80px; }
@@ -163,23 +163,104 @@
     <section aria-labelledby="pick-heading" id="pick-ai">
       <h2 id="pick-heading">Pick your AI</h2>
       <p>One-time setup. Add Simple Hack to the AI app you use, with the address above, then use the prompts above from any role.</p>
+      <!--sh:hosted-->
       <div class="skills">
+        <details class="accordion" id="chatgpt" name="pick-ai">
+          <summary><span><span class="ai-name">ChatGPT</span><span class="audience">On the web</span></span></summary>
+          <div class="accordion-body">
+          <p><b>Add custom MCP server</b></p>
+              <p class="hint">The fastest way: one address to paste.</p>
+              <!--sh:connect:chatgpt-->
+              <p class="hint">ChatGPT keeps the tool list from the day you added Simple Hack. When Simple Hack adds features, open ChatGPT Plugins, choose Simple Hack, then Refresh.</p>
+              <p><b>Upload plugin archive</b></p>
+              <p class="hint">Also installs the five skills, so your AI follows Simple Hack's own instructions. This ZIP includes the MCP connection.</p>
+              <ol class="steps">
+                <li>Download the <a href="https://simple-hack-toolkit.vineetu.simple-host.app/downloads/simple-hack-openai-0.2.11.zip" download>ChatGPT plugin ZIP</a>.</li>
+                <li><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">Open ChatGPT Plugins</a>.</li>
+                <li>Click <b>Add</b>, then choose <b>Upload plugin archive</b>, and choose the ZIP file.</li>
+                <li>When the sign-in window opens, sign in with Google or an email code, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">In a chat, pick Simple Hack from the <b>+</b> menu, or just ask.</p>
+            <p class="hint">Simple Hack is in review in the ChatGPT app directory. Once it is approved, you will be able to add it from there.</p>
+            </div>
+        </details>
+
         <details class="accordion" id="claude" name="pick-ai">
           <summary><span><span class="ai-name">Claude</span><span class="audience">Web, desktop, and phone</span></span></summary>
           <div class="accordion-body">
-          <!--sh:hosted-->
           <ol class="steps">
             <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Browse connectors</b>.</li>
             <li>Search for <b>Simple Hack</b>, choose <b>Connect</b>, sign in, then choose <b>Allow</b>.</li>
           </ol>
-          <p class="hint">Works on web, desktop, and phone.</p>
+              <p class="hint">Works on web, desktop, and phone.</p>
           <a class="guide" href="https://support.claude.com/en/articles/14328846-browse-skills-connectors-and-plugins-in-one-directory">Claude setup guide</a>
-          <!--sh:connect-fallback:claude-->
-          <!--/sh:hosted-->
-          <!--sh:self-->
+          <p class="hint">On a network that blocks the directory, add it as a custom connector instead: name it Simple Hack, paste this address:</p>
+          <div class="copyrow"><code id="mcp-claude" data-mcp-address>https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-claude" aria-label="Copy Claude connector address">Copy</button></div>
+          <p class="hint">Or add it by its address:</p>
+          <!--sh:connect:claude-->
+            </div>
+        </details>
+
+        <details class="accordion" id="grok" name="pick-ai">
+          <summary><span><span class="ai-name">Grok</span><span class="audience">Custom connectors</span></span></summary>
+          <div class="accordion-body">
+          <!--sh:connect:grok-->
+          <a class="guide" href="https://docs.x.ai/grok/connectors">Grok setup guide</a>
+          </div>
+        </details>
+
+        <details class="accordion" id="copilot" name="pick-ai">
+          <summary><span><span class="ai-name">GitHub Copilot</span><span class="audience">VS Code</span></span></summary>
+          <div class="accordion-body">
+          <!--sh:connect:copilot-->
+          <a class="guide" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code setup guide</a>
+          </div>
+        </details>
+
+        <details class="accordion" id="muse" name="pick-ai">
+          <summary><span><span class="ai-name">Meta Muse</span><span class="audience">Custom connector</span></span></summary>
+          <div class="accordion-body">
+          <!--sh:connect:muse-->
+          </div>
+        </details>
+
+        <details class="accordion" id="gemini" name="pick-ai">
+          <summary><span><span class="ai-name">Gemini</span><span class="audience">Personal Google account, in the US</span></span></summary>
+          <div class="accordion-body">
+          <!--sh:connect:gemini-->
+          <p class="hint">Google offers custom apps to people 18 and over in the US, signed in with a personal account, with Keep Activity on.</p>
+          </div>
+        </details>
+
+        <details class="accordion" id="mistral" name="pick-ai">
+          <summary><span><span class="ai-name">Mistral Vibe</span><span class="audience">Formerly Le Chat. Free plan works</span></span></summary>
+          <div class="accordion-body">
+          <!--sh:connect:mistral-->
+          </div>
+        </details>
+
+        <details class="accordion" id="coding-agents" name="pick-ai">
+          <summary><span><span class="ai-name">Claude Code / Codex / other coding agents</span><span class="audience">Terminal, Node.js</span></span></summary>
+          <div class="accordion-body">
+          <ol class="steps">
+            <li>Install the five Simple Hack skills for Claude Code and Codex, then restart your agent:<div class="copyrow"><code id="install-command-pickai">npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit --global --agent codex claude-code --yes</code><button class="btn" type="button" data-copy-target="install-command-pickai" aria-label="Copy skill install command">Copy</button></div> For another agent, replace <code>codex claude-code</code> with its name, such as <code>openclaw</code> or <code>hermes-agent</code>.</li>
+            <li>Ask your agent to add <b>Simple Hack</b> as a remote HTTP MCP server with OAuth at this address:
+              <div class="copyrow"><code id="mcp-coding-agents" data-mcp-address>https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-coding-agents" aria-label="Copy Claude Code / Codex / other coding agents connector address">Copy</button></div>
+            </li>
+            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
+          </ol>
+          </div>
+        </details>
+
+      </div>
+      <!--/sh:hosted-->
+      <!--sh:self-->
+      <div class="skills">
+        <details class="accordion" id="claude" name="pick-ai">
+          <summary><span><span class="ai-name">Claude</span><span class="audience">Web, desktop, and phone</span></span></summary>
+          <div class="accordion-body">
           <!--sh:connect:claude-->
           <p class="hint">Works on web, desktop, and phone. Claude's connector directory has the hosted service, not this server, so add this one by its address.</p>
-          <!--/sh:self-->
           </div>
         </details>
 
@@ -190,18 +271,6 @@
           <p class="hint">The fastest way: one address to paste.</p>
           <!--sh:connect:chatgpt-->
           <p class="hint">ChatGPT keeps the tool list from the day you added Simple Hack. When Simple Hack adds features, open the connector's settings and refresh it.</p>
-          <!--sh:hosted-->
-          <p><b>Upload plugin archive</b></p>
-          <p class="hint">Also installs the five skills, so your AI follows Simple Hack's own instructions. This ZIP includes the MCP connection.</p>
-          <ol class="steps">
-            <li>Download the <a href="https://simple-hack-toolkit.vineetu.simple-host.app/downloads/simple-hack-openai-0.2.11.zip" download>ChatGPT plugin ZIP</a>.</li>
-            <li><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">Open ChatGPT Plugins</a>.</li>
-            <li>Click <b>Add</b>, then choose <b>Upload plugin archive</b>, and choose the ZIP file.</li>
-            <li>When the sign-in window opens, sign in with Google or an email code, then choose <b>Allow</b>.</li>
-          </ol>
-          <p class="hint">In a chat, pick Simple Hack from the <b>+</b> menu, or just ask.</p>
-          <p class="hint">Simple Hack is in review in the ChatGPT app directory. Once it is approved, you will be able to add it from there.</p>
-          <!--/sh:hosted-->
           </div>
         </details>
 
@@ -264,6 +333,7 @@
           </details>
         </div>
       </details>
+      <!--/sh:self-->
       <p class="hint">After connecting, select Simple Hack in your chat’s tools, then use one of the prompts above.</p>
     </section>
 

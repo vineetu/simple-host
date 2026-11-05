@@ -148,6 +148,46 @@
         <h2 id="pick">Pick your AI</h2>
         <div class="apps">
 
+          <details class="app" id="chatgpt" name="pick-ai">
+            <summary class="app-btn" id="b-chatgpt" aria-expanded="false" aria-controls="p-chatgpt">
+              <span class="app-text"><span class="app-name">ChatGPT</span><span class="app-sub">On the web</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-chatgpt" role="region" aria-labelledby="b-chatgpt">
+              <p><b>Add custom MCP server</b></p>
+              <p class="hint">The fastest way: one address to paste.</p>
+              <ol class="steps">
+                <li><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">Open ChatGPT Plugins</a>.</li>
+                <li>Click <b>Add</b>, then choose <b>Add custom MCP server</b>.</li>
+                <li>Name it <b>Simple Host</b>, paste this address, and save.
+                  <div class="copyrow"><code id="mcp-chatgpt">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-chatgpt">Copy</button></div>
+                </li>
+                <li>A sign-in window opens. Choose Continue with Google, or enter your email and the 6-digit code we send, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">ChatGPT keeps the tool list from the day you added Simple Host. When Simple Host adds features, open ChatGPT Plugins, choose Simple Host, then Refresh.</p>
+              <p class="hint">Or add it by its address, in developer mode:</p>
+              <ol class="steps">
+                <li>Open <b>Settings</b>, then <b>Apps &amp; Connectors</b>, then <b>Advanced settings</b>, and turn on <b>Developer mode</b>.</li>
+                <li>Back in <b>Apps &amp; Connectors</b>, choose <b>Create</b>.</li>
+                <li>Name it <b>Simple Host</b>, and paste this address as the <b>MCP server URL</b>:
+                  <div class="copyrow"><code id="mcp-chatgpt-dev" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-chatgpt-dev">Copy</button></div>
+                </li>
+                <li>Choose <b>OAuth</b> for authentication, then <b>Create</b>.</li>
+                <li>Sign in with Google or an email code, then choose <b>Allow</b>.</li>
+              </ol>
+              <!--sh:hosted--><p><b>Upload plugin archive</b></p>
+              <p class="hint">Also installs the three skills, so your AI follows Simple Host's own instructions. This ZIP includes the MCP connection.</p>
+              <ol class="steps">
+                <li>Download the <a href="https://website-deploy-toolkit.vineetu.simple-host.app/downloads/simple-host-openai-plugin.zip" download>ChatGPT plugin ZIP</a>.</li>
+                <li><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">Open ChatGPT Plugins</a>.</li>
+                <li>Click <b>Add</b>, then choose <b>Upload plugin archive</b>, and choose the ZIP file.</li>
+                <li>When the sign-in window opens, choose Continue with Google, or enter your email and the 6-digit code we send, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">In a chat, pick Simple Host from the <b>+</b> menu, or just ask.</p>
+            <p class="hint">Simple Host 1.0.1 has been resubmitted to the ChatGPT app directory and is in review. Once it is approved, you will be able to add it from there.</p><!--/sh:hosted-->
+            </div>
+          </details>
+
           <details class="app" id="claude" name="pick-ai">
             <summary class="app-btn" id="b-claude" aria-expanded="false" aria-controls="p-claude">
               <span class="app-text"><span class="app-name">Claude</span><span class="app-sub">Web, desktop, and phone</span></span>
@@ -167,7 +207,15 @@
               </ol>
               <p class="hint">Both work on web, desktop, and phone.</p>
               <p class="hint">On a network that blocks the directory, add it as a custom connector instead: name it Simple Host, paste this address:</p>
-              <div class="copyrow"><code id="mcp-claude-hosted" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-claude-hosted">Copy</button></div><!--/sh:hosted-->
+              <div class="copyrow"><code id="mcp-claude">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-claude">Copy</button></div>
+              <p class="hint">Or add it by its address:</p>
+              <ol class="steps">
+                <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>.</li>
+                <li>Name it <b>Simple Host</b>, paste this address, and choose <b>Add</b>.
+                  <div class="copyrow"><code id="mcp-claude-addr" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-claude-addr">Copy</button></div>
+                </li>
+                <li>Choose <b>Connect</b>, sign in, then choose <b>Allow</b>.</li>
+              </ol><!--/sh:hosted-->
               <!--sh:self--><p><b>Add a custom connector</b></p>
               <ol class="steps">
                 <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>.</li>
@@ -177,58 +225,6 @@
                 <li>Choose <b>Connect</b>, sign in, then choose <b>Allow</b>.</li>
               </ol>
               <p class="hint">Works on web, desktop, and phone. Claude's connector directory has the hosted service, not this server, so add this one by its address.</p><!--/sh:self-->
-            </div>
-          </details>
-
-          <details class="app" id="chatgpt" name="pick-ai">
-            <summary class="app-btn" id="b-chatgpt" aria-expanded="false" aria-controls="p-chatgpt">
-              <span class="app-text"><span class="app-name">ChatGPT</span><span class="app-sub">On the web</span></span>
-              <span class="chev" aria-hidden="true"></span>
-            </summary>
-            <div class="app-panel" id="p-chatgpt" role="region" aria-labelledby="b-chatgpt">
-              <p><b>Add custom MCP server</b></p>
-              <p class="hint">The fastest way: one address to paste.</p>
-              <ol class="steps">
-                <li>Open <b>Settings</b>, then <b>Apps &amp; Connectors</b>, then <b>Advanced settings</b>, and turn on <b>Developer mode</b>.</li>
-                <li>Back in <b>Apps &amp; Connectors</b>, choose <b>Create</b>.</li>
-                <li>Name it <b>Simple Host</b>, and paste this address as the <b>MCP server URL</b>:
-                  <div class="copyrow"><code id="mcp-chatgpt" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-chatgpt">Copy</button></div>
-                </li>
-                <li>Choose <b>OAuth</b> for authentication, then <b>Create</b>.</li>
-                <li>Sign in with Google or an email code, then choose <b>Allow</b>.</li>
-              </ol>
-              <p class="hint">ChatGPT keeps the tool list from the day you added Simple Host. When Simple Host adds features, open the connector's settings and refresh it.</p>
-              <!--sh:hosted--><p><b>Upload plugin archive</b></p>
-              <p class="hint">Also installs the three skills, so your AI follows Simple Host's own instructions. This ZIP includes the MCP connection.</p>
-              <ol class="steps">
-                <li>Download the <a href="https://website-deploy-toolkit.vineetu.simple-host.app/downloads/simple-host-openai-plugin.zip" download>ChatGPT plugin ZIP</a>.</li>
-                <li><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">Open ChatGPT Plugins</a>.</li>
-                <li>Click <b>Add</b>, then choose <b>Upload plugin archive</b>, and choose the ZIP file.</li>
-                <li>When the sign-in window opens, choose Continue with Google, or enter your email and the 6-digit code we send, then choose <b>Allow</b>.</li>
-              </ol>
-              <p class="hint">In a chat, pick Simple Host from the <b>+</b> menu, or just ask.</p>
-            <p class="hint">Simple Host 1.0.1 has been resubmitted to the ChatGPT app directory and is in review. Once it is approved, you will be able to add it from there.</p><!--/sh:hosted-->
-            </div>
-          </details>
-
-          <details class="app" id="claude-code" name="pick-ai">
-            <summary class="app-btn" id="b-claude-code" aria-expanded="false" aria-controls="p-claude-code">
-              <span class="app-text"><span class="app-name">Claude Code</span><span class="app-sub">One command</span></span>
-              <span class="chev" aria-hidden="true"></span>
-            </summary>
-            <div class="app-panel" id="p-claude-code" role="region" aria-labelledby="b-claude-code">
-              <ol class="steps">
-                <li>Run this in your terminal. It adds the connector:
-                  <div class="copyrow cmd"><code id="cmd-claude-connector" data-mcp-cmd="claude mcp add --transport http simple-host {address}">claude mcp add --transport http simple-host https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-connector">Copy</button></div>
-                </li>
-                <!--sh:hosted--><li>Or run this instead. It adds the connector and the skills together:
-                  <div class="copyrow cmd"><code id="cmd-claude-plugin">claude plugin marketplace add vineetu/simple-host &amp;&amp; claude plugin install simple-host@simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-plugin">Copy</button></div>
-                </li><!--/sh:hosted--><!--sh:self--><li>Also add the skills, so your AI follows Simple Host's own instructions:
-                  <div class="copyrow cmd"><code id="cmd-claude-skills">npx skills add vineetu/simple-host -g -a claude-code -y</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-skills">Copy</button></div>
-                </li><!--/sh:self-->
-                <li>In Claude Code, type <b>/mcp</b>, choose <b>simple-host</b>, then <b>Authenticate</b>.</li>
-                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
-              </ol>
             </div>
           </details>
 
@@ -329,6 +325,26 @@
                 <li>We email you a 6-digit code. Send that back and it signs you in.</li>
               </ol>
               <p class="hint">No connector window to open; it signs in with the same emailed code a coding agent uses in a terminal.</p>
+            </div>
+          </details>
+
+          <details class="app" id="claude-code" name="pick-ai">
+            <summary class="app-btn" id="b-claude-code" aria-expanded="false" aria-controls="p-claude-code">
+              <span class="app-text"><span class="app-name">Claude Code</span><span class="app-sub">One command</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-claude-code" role="region" aria-labelledby="b-claude-code">
+              <ol class="steps">
+                <!--sh:hosted--><li>Run this in your terminal. It adds the connector and the skills:
+                  <div class="copyrow cmd"><code id="cmd-claude-plugin">claude plugin marketplace add vineetu/simple-host &amp;&amp; claude plugin install simple-host@simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-plugin">Copy</button></div>
+                </li><!--/sh:hosted--><!--sh:self--><li>Run this in your terminal. It adds the skills and the connector:
+                  <div class="copyrow cmd"><code id="cmd-claude-plugin">npx skills add vineetu/simple-host -g -a claude-code -y &amp;&amp; claude mcp add --transport http simple-host https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-plugin">Copy</button></div>
+                </li><!--/sh:self-->
+                <li>In Claude Code, type <b>/mcp</b>, choose <b>simple-host</b>, then <b>Authenticate</b>.</li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">Or add it by its address, without the skills:</p>
+              <div class="copyrow cmd"><code id="cmd-claude-connector" data-mcp-cmd="claude mcp add --transport http simple-host {address}">claude mcp add --transport http simple-host https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-connector">Copy</button></div>
             </div>
           </details>
 
