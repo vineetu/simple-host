@@ -106,7 +106,7 @@ func TestHostPresentationSeparateFromHackStory(t *testing.T) {
 	}
 	// Simple Host baseline; index includes the 2026-10-05 file-usage copy, the 2026-10-10 10 MB KV/SQLite allowance, the 2026-10-12 legacy-storage 410 handling, the 2026-10-13 versioned icon links, the 2026-10-13 copy sweep (em-dashes out of user-visible strings), the 2026-10-16 company sign-in (oidc), the 2026-10-20 shared sign-in card on the dashboard, the 2026-10-23 Add photos action, sign-in return, and agent discovery metadata, the 2026-10-24 Rounded icon (?v=c) and same-visit OAuth attribution, and the 2026-10-28 admin ?all=1 scoping on loadSites (SIM-329), and the 2026-10-29 apex SSO bootstrap and sign-out refresh (SIM-338), and the 2026-10-30 straight hop from /dashboard to the remembered own page, and the 2026-11-02 author and Discard on drafts in Versions (SIM-152), and the 2026-11-02 owner class in the analytics split (SIM-151), and the 2026-11-04 password sign-in option on the shared card, and the 2026-11-04 change-password card, and the 2026-11-05 Connect your AI app card (one MCP address and GET /v1/me/connections status) next to the deploy callout.
 	for name, want := range map[string]string{
-		"index.html": "8c6a3ee32765f9b3989e26f8c20d29520836d9e52af395204f9a7a28e260102a",
+		"index.html": "866c726401eef175bd1f46b124a6da3cbcd1ea8c2cf51c4b738aa99799d974b8",
 		"site.css":   "c93e3d24412adc460a901449787f92a56084b9c0be4dbce6332ccbb673e12a8c",
 	} {
 		raw, err := fs.ReadFile(webassets.Static, "static/"+name)
