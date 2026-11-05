@@ -284,7 +284,8 @@ ${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>`
     // this is the only code path that publishes results on this screen --
     // before the refresh below, same ordering as every stage-changing
     // screen (the move itself always lands before the offer).
-    await offerStageAnnouncement(ctx, { move: 'publish_results', back: false, emailableCount, setLive })
+    // Not after End event: an ended event takes no announcements.
+    if (ev.stage !== 'archived') await offerStageAnnouncement(ctx, { move: 'publish_results', back: false, emailableCount, setLive })
     // SIM-271: publishing before Results now moves the event there itself
     // (and locks judging), so the stage pill and track in the shell -- and
     // the Overview next step -- need the same refresh every other

@@ -876,7 +876,18 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 		}
 		snapshot = resultsSnapshotJSON(results, cards)
 		return json.Marshal(snapshot)
-	}, func() { paperHackTimes(r) })
+	}, func() {
+		paperHackTimes(r)
+		// The stage move committed with the snapshot: its side effects run
+		// now, even if the read that follows the commit fails.
+		if moved {
+			if current != a.event.Stage {
+				paperHackStage(r, a.event)
+			}
+			h.pinDue(r.Context(), a.event.ID)
+			h.requestEventCert(a.event)
+		}
+	})
 	if err != nil {
 		if errors.Is(err, errJudgingNotStarted) {
 			httpx.WriteError(w, http.StatusConflict, "judging_not_started", "Close entries and judge them before publishing results.")
@@ -897,13 +908,6 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 		}
 		httpx.WriteInternal(w)
 		return
-	}
-	if moved {
-		if current != a.event.Stage {
-			paperHackStage(r, a.event)
-		}
-		h.pinDue(r.Context(), a.event.ID)
-		h.requestEventCert(a.event)
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"results": snapshot, "full_ranking": full.FullRanking})
 }
