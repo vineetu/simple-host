@@ -730,6 +730,15 @@
       <p class="si-lede">Describe your site to the AI app or coding agent you already use. Connect Simple Host to publish it, then manage its address, versions and saved data here.</p>
       <a class="btn btn-primary" href="/install.html">Get started →</a>
     </div>
+    <div class="skill-install" id="connect-ai" hidden>
+      <h3>Connect your AI app</h3>
+      <p class="si-lede" id="connect-ai-status">Paste this address into Claude, ChatGPT, Claude Code, or any other AI app that takes a custom MCP connector URL.</p>
+      <div class="si-cmd">
+        <pre id="connect-ai-mcp"></pre>
+        <button type="button" class="btn btn-secondary btn-small" id="connect-ai-copy">Copy</button>
+      </div>
+      <div class="si-verify"><span></span><a class="btn btn-secondary btn-small" href="/install.html">Steps for each app →</a></div>
+    </div>
 
     <div class="empty-state" id="owner-pending" hidden>Loading your sites…</div>
 
@@ -1764,9 +1773,47 @@ function parseAnalyticsSummary(data) {
       hide.hidden = onboardingForced;
       link.hidden = onboardingForced || open;
     }
+    // "Connect your AI app" owner card: the MCP address for this origin and
+    // the signed-in owner's newest connected app (GET /v1/me/connections).
+    var connectCardWired = false;
+    function connectAgo(iso) {
+      var diff = Date.now() - new Date(iso).getTime();
+      if (!isFinite(diff)) return '';
+      var m = Math.floor(diff / 60000);
+      if (m < 1) return 'just now';
+      if (m < 60) return m + ' minute' + (m === 1 ? '' : 's') + ' ago';
+      var h = Math.floor(m / 60);
+      if (h < 24) return h + ' hour' + (h === 1 ? '' : 's') + ' ago';
+      var d = Math.floor(h / 24);
+      return d + ' day' + (d === 1 ? '' : 's') + ' ago';
+    }
+    function showConnectCard() {
+      var card = document.getElementById('connect-ai');
+      if (!card) return;
+      card.hidden = false;
+      var mcp = location.origin + '/mcp';
+      document.getElementById('connect-ai-mcp').textContent = mcp;
+      var btn = document.getElementById('connect-ai-copy');
+      if (!connectCardWired) {
+        connectCardWired = true;
+        btn.addEventListener('click', function () {
+          var done = function (ok) { btn.textContent = ok ? 'Copied' : 'Copy'; if (ok) setTimeout(function () { btn.textContent = 'Copy'; }, 1500); };
+          if (navigator.clipboard) navigator.clipboard.writeText(mcp).then(function () { done(true); }, function () { done(false); });
+        });
+        api('GET', '/v1/me/connections').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+          var list = (d && d.connections) || [];
+          var status = document.getElementById('connect-ai-status');
+          if (!list.length) { status.textContent = 'No AI app connected yet. Paste this address into Claude, ChatGPT, Claude Code, or any other AI app that takes a custom MCP connector URL.'; return; }
+          list.sort(function (a, b) { return new Date(b.last_used_at || b.connected_at || 0) - new Date(a.last_used_at || a.connected_at || 0); });
+          var top = list[0];
+          status.textContent = 'Connected: ' + (top.name || 'an AI app') + (top.last_used_at ? ' · last used ' + connectAgo(top.last_used_at) : '') + '.';
+        }).catch(function () {});
+      }
+    }
     function updateOnboarding(noSites) {
       onboardingOwner = true;
       document.getElementById('build-with-ai').hidden = false;
+      showConnectCard();
       onboardingForced = !!noSites;
       for (var name in ONBOARDING_BLOCKS) updateOnboardingBlock(ONBOARDING_BLOCKS[name]);
     }
@@ -1788,6 +1835,7 @@ function parseAnalyticsSummary(data) {
     function resetOnboardingPublic() {
       onboardingOwner = false;
       document.getElementById('build-with-ai').hidden = true;
+      document.getElementById('connect-ai').hidden = true;
       for (var name in ONBOARDING_BLOCKS) {
         var cfg = ONBOARDING_BLOCKS[name];
         var block = document.getElementById(cfg.block);
