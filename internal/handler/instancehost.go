@@ -26,6 +26,13 @@ var rewrittenAssets = []string{
 	"install.html",
 	"auth.js",
 	"signin.js",
+	// features.json is a build-time source file, not linked from any page,
+	// but it is reachable by path like everything else under static/ and
+	// it names simple-host.app (and support@simple-host.app) throughout --
+	// rewritten here the same way the others are, hidden from the raw file
+	// server only on a self-hosted instance (assets.rewritten()); hosted
+	// keeps serving the exact same bytes it always has.
+	"features.json",
 	"openapi.yaml",
 	"openapi.json",
 }
@@ -137,12 +144,25 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 			}
 			if err == nil {
 				if p.pres.HackAssets {
+					// Hack's OpenAPI (and hack-llms.txt, which never
+					// mentions it) keeps naming support@simple-host.app as
+					// it does today; only the Host edition's text assets
+					// get the operator's own contact below.
 					body = p.HackInstanceText(p.limitsText.apply(body))
 				} else {
 					if name == "llms.txt" && rw != nil {
 						body = selfHostedClaudeSetup(body)
 					}
-					body = p.limitsText.apply(rw.apply(body))
+					// supportText must run before rw.apply: that pass's
+					// blanket "simple-host.app" -> siteDomain replacement
+					// would otherwise mangle "support@simple-host.app"
+					// into a nonexistent "support@<this domain>" first,
+					// leaving nothing left for supportText to match (the
+					// same ordering bug rewriteSupportAddress/
+					// selfHostedChromeRewrite already fixed for chrome
+					// pages -- llms.txt/openapi.yaml/openapi.json never
+					// went through that pass, only this one).
+					body = p.limitsText.apply(rw.apply([]byte(supportText(string(body)))))
 				}
 			}
 			if err == nil && !p.pres.HackAssets && name == "llms.txt" && instanceNote != "" {
