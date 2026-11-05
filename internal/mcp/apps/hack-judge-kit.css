@@ -228,6 +228,7 @@ details.card[open]>summary{margin-bottom:6px}
 .list a.r:hover{background:var(--paper-hi)}
 .list .r .main{flex:1;min-width:0}
 .list .r .main b{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list .r .main .msg-text{white-space:pre-wrap;overflow:visible;overflow-wrap:anywhere}
 .list .r .main span{font-size:13px;color:var(--line-soft)}
 .list .r .meta{font-size:13px;color:var(--line-soft);white-space:nowrap}
 .list .empty{padding:22px 14px;text-align:center;color:var(--line-soft)}

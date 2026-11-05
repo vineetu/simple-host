@@ -33,10 +33,12 @@ type EntryReminder struct {
 	Deadline        time.Time
 }
 
-// JudgeReminderDue is a shared Hack record: one event due a judging-close
-// reminder now, at this offset (0003-hack-notices-judges-messages.sql).
+// JudgeReminderDue is a shared Hack record: one judge of one event due a
+// judging-close reminder now, at this offset, not yet claimed for this
+// deadline (0003-hack-notices-judges-messages.sql).
 type JudgeReminderDue struct {
 	EventID  string
+	UserID   string
 	Kind     string // an offset label, e.g. "24h", "90m"
 	Deadline time.Time
 }

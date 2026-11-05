@@ -43,7 +43,10 @@ export function messageRowsHTML(ui, ev, messages, { withSender = false } = {}) {
     const rel = agoText(m.created_at)
     const when = rel ? `${esc(rel)} · ${abs}` : abs
     const meta = withSender && m.sender_name ? `${esc(m.sender_name)} · ${when}` : when
-    return `<div class="r"><div class="main"><b>${esc(m.text)}</b><span>${meta}</span></div></div>`
+    // Its own class, not `<b>`: `.list .r .main b` is nowrap/ellipsis (built
+    // for a one-line title), which clipped a long message body instead of
+    // wrapping it (point 7). `.msg-text` (kit.css) wraps fully.
+    return `<div class="r"><div class="main"><b class="msg-text">${esc(m.text)}</b><span>${meta}</span></div></div>`
   }).join('')
   return `<div class="list">${rows}</div>`
 }

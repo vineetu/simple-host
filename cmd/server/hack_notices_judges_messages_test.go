@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -88,8 +89,11 @@ func TestHackJudgingOpenAndReminderNotices(t *testing.T) {
 	if busyNeed == nil || busyNeed["text"] != "Judging is open: you have 1 team to score." || busyNeed["section"] != "queue" || busyNeed["dismissable"] != true {
 		t.Fatalf("busy judge judging_open: %v", busyNeed)
 	}
+	// A judge who already scored every team in a non-empty queue is told
+	// so, not "no teams are in your queue yet" (point 10: a populated,
+	// fully-scored queue is not the same as an empty one).
 	doneNeed := findNeed(needsYouOf(t, a, slug, judgeDone), "judging_open")
-	if doneNeed == nil || doneNeed["text"] != "Judging is open. No teams are in your queue yet." {
+	if doneNeed == nil || doneNeed["text"] != "Judging is open. You've scored every team in your queue." {
 		t.Fatalf("done judge judging_open: %v", doneNeed)
 	}
 	sweepNow(a)
@@ -97,7 +101,7 @@ func TestHackJudgingOpenAndReminderNotices(t *testing.T) {
 		!strings.Contains(got[0].body, "Judging is open: you have 1 team to score.") {
 		t.Fatalf("busy judge judging_open mail: %+v", got)
 	}
-	if got := mailTo(sink, judgeDone.email); len(got) != 1 || !strings.Contains(got[0].body, "No teams are in your queue yet.") {
+	if got := mailTo(sink, judgeDone.email); len(got) != 1 || !strings.Contains(got[0].body, "You've scored every team in your queue.") {
 		t.Fatalf("done judge judging_open mail: %+v", got)
 	}
 
@@ -133,6 +137,55 @@ func TestHackJudgingOpenAndReminderNotices(t *testing.T) {
 	wantTS(t, "delete event", a.api(t, "DELETE", base, map[string]any{"confirm": slug}, org.key), 204, "")
 	if err := a.database.QueryRow(`SELECT count(*) FROM event_judge_reminders WHERE event_id = $1`, eventID).Scan(&rows); err != nil || rows != 0 {
 		t.Fatalf("orphaned judge reminders after delete: %d %v", rows, err)
+	}
+}
+
+// TestHackJudgeReminderStaleAfterDeadlineMoves covers point 3: a reminder
+// already queued (claimed, notice written, still pending in the mail
+// queue) for one offset/deadline must not go out once judging_ends_at has
+// since moved -- here, moved 7 days later, so the "1h" label queued no
+// longer describes how much time is actually left.
+func TestHackJudgeReminderStaleAfterDeadlineMoves(t *testing.T) {
+	a := newTeamSiteApp(t)
+	sink := &contentMailSink{}
+	a.hack.SetMailer(sink)
+	a.noticeSink = sink
+	org := a.newPerson(t, "jstaleorg")
+	lead := a.newPerson(t, "jstalelead")
+	judge := a.newPerson(t, "jstalejudge")
+	slug := a.makeEvent(t, org)
+	base := "/v1/hack/events/" + slug
+	waitJoin(t, a, slug, lead, org, "Lea")
+	_, _ = a.startTeam(t, slug, "Alpha", lead)
+	wantTS(t, "draft entry", a.api(t, "PUT", base+"/entry", map[string]any{"title": "Alpha thing"}, lead.key), 200, "")
+	joinAsJudge(t, a, slug, org, judge, "Jud")
+	for _, stage := range []string{"building", "closed"} {
+		wantTS(t, "stage "+stage, a.api(t, "POST", base+"/stage", map[string]string{"stage": stage}, org.key), 200, "")
+	}
+	wantTS(t, "rubric", a.api(t, "PUT", base+"/rubric", rubricBody(criterion("Impact", "", 100, 5)), org.key), 200, "")
+	wantTS(t, "stage judging", a.api(t, "POST", base+"/stage", map[string]string{"stage": "judging"}, org.key), 200, "")
+
+	// Inside the default 1h offset: the sweep claims and queues the
+	// judging_reminder (the judge's one team is still unscored).
+	closesAt := time.Now().Add(50 * time.Minute).UTC().Format(time.RFC3339)
+	wantTS(t, "set judging_ends_at", a.api(t, "PATCH", base, map[string]any{"judging_ends_at": closesAt}, org.key), 200, "")
+	queueJudgeRemindersNow(t, a)
+	var rows int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_judge_reminders r WHERE r.user_id = $1`, a.uid(t, judge)).Scan(&rows); err != nil || rows != 1 {
+		t.Fatalf("queued judge reminder: %d %v", rows, err)
+	}
+
+	// judging_ends_at moves 7 days later before the mail sweep runs: "1h"
+	// no longer describes 7 days plus change left, so the queued reminder
+	// must be dropped as stale, not emailed.
+	if _, err := a.database.Exec(`UPDATE events SET judging_ends_at = judging_ends_at + interval '7 days' WHERE slug = $1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	sweepNow(a)
+	for _, m := range mailTo(sink, judge.email) {
+		if strings.Contains(m.subject, "judging closes soon") || strings.Contains(m.body, "still have") {
+			t.Fatalf("stale judge reminder emailed after judging_ends_at moved 7 days later: %+v", m)
+		}
 	}
 }
 
@@ -251,6 +304,49 @@ func TestHackTeamMessages(t *testing.T) {
 	}
 }
 
+// TestHackTeamMessageRateLimitConcurrent covers point 1: two sends arriving
+// at the same instant, right at the 50/hour boundary, must not both get
+// through and push the count past it -- the count-then-insert has to be
+// serialised per event (pg_advisory_xact_lock), not just correct when run
+// one at a time.
+func TestHackTeamMessageRateLimitConcurrent(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org := a.newPerson(t, "tmsgraceorg")
+	lead := a.newPerson(t, "tmsgracelead")
+	slug := a.makeEvent(t, org)
+	base := "/v1/hack/events/" + slug
+	waitJoin(t, a, slug, lead, org, "Lea")
+	team, _ := a.startTeam(t, slug, "Alpha", lead)
+	teamID := teamIDFor(t, a, slug, team)
+
+	// Fill to exactly one below the limit, so each of the two concurrent
+	// sends below would individually look like it's still under the limit
+	// if the count-then-insert weren't serialised.
+	for i := 0; i < 49; i++ {
+		wantTS(t, "fill rate limit", a.api(t, "POST", base+"/team-messages", map[string]any{"team_ids": []string{teamID}, "text": "filler"}, org.key), http.StatusCreated, "")
+	}
+
+	var wg sync.WaitGroup
+	statuses := make([]int, 2)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			statuses[i] = a.api(t, "POST", base+"/team-messages", map[string]any{"team_ids": []string{teamID}, "text": "racer"}, org.key).status
+		}(i)
+	}
+	wg.Wait()
+
+	if !((statuses[0] == http.StatusCreated && statuses[1] == http.StatusTooManyRequests) ||
+		(statuses[0] == http.StatusTooManyRequests && statuses[1] == http.StatusCreated)) {
+		t.Fatalf("concurrent sends at the boundary: %v", statuses)
+	}
+	var count int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_team_messages WHERE event_id = (SELECT id FROM events WHERE slug = $1)`, slug).Scan(&count); err != nil || count != 50 {
+		t.Fatalf("rows after concurrent sends at the boundary: %d %v", count, err)
+	}
+}
+
 // TestHackCustomReminderOffsets covers: PUT validation (too many offsets,
 // too small, too large), custom offsets driving the entry reminder sweep
 // (DueEntryReminders' generalised due-offset rule), and a moved deadline
@@ -271,6 +367,11 @@ func TestHackCustomReminderOffsets(t *testing.T) {
 	wantCode(t, "too many offsets", a.api(t, "PUT", base+"/reminders", map[string]any{"offsets_minutes": []int{60, 120, 180, 240, 300, 360}}, org.key), http.StatusBadRequest, "invalid_offsets")
 	wantCode(t, "too small", a.api(t, "PUT", base+"/reminders", map[string]any{"offsets_minutes": []int{10}}, org.key), http.StatusBadRequest, "invalid_offsets")
 	wantCode(t, "too large", a.api(t, "PUT", base+"/reminders", map[string]any{"offsets_minutes": []int{21600}}, org.key), http.StatusBadRequest, "invalid_offsets")
+	// Point 9: a missing offsets_minutes field is refused, not silently
+	// treated as [] (which would turn reminders off for both audiences).
+	wantCode(t, "missing field", a.api(t, "PUT", base+"/reminders", map[string]any{}, org.key), http.StatusBadRequest, "invalid_offsets")
+	// An explicit [] is still how reminders are turned off.
+	wantTS(t, "explicit empty turns reminders off", a.api(t, "PUT", base+"/reminders", map[string]any{"offsets_minutes": []int{}}, org.key), http.StatusOK, "")
 
 	put := a.api(t, "PUT", base+"/reminders", map[string]any{"offsets_minutes": []int{4320, 120}}, org.key)
 	wantTS(t, "set offsets", put, http.StatusOK, "")

@@ -560,6 +560,16 @@ func TestHackOrganiserRouteMapCoversCalls(t *testing.T) {
 	} {
 		record(p.method, p.pattern)
 	}
+	// hack_update_event needs a real event shape (hackEventOutput refuses
+	// anything else), unlike the other routes above where this test only
+	// checks which path was called (same reason the judge test's
+	// TestHackJudgeRouteMapCoversCalls has its own GET /v1/hack/events/{slug}
+	// handler for hack_get_event).
+	mux.HandleFunc("PATCH /v1/hack/events/{slug}", func(w http.ResponseWriter, r *http.Request) {
+		seen[r.Method+" "+r.URL.Path] = true
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"judging","judging_ends_at":"2026-01-01T00:00:00Z"},"role":"organiser"}`))
+	})
 	s := newTestServer(mux)
 	c := &call{server: s, caller: organiserCaller("alice", ""), orig: httptest.NewRequest("POST", "/mcp", nil)}
 	calls := []struct {
@@ -591,6 +601,7 @@ func TestHackOrganiserRouteMapCoversCalls(t *testing.T) {
 		{"hack_delete_former_judge_scores", map[string]any{"slug": "mockjam", "user_id": "u1", "body": map[string]any{"confirm": "mockjam"}}},
 		{"hack_lock_judging", map[string]any{"slug": "mockjam"}},
 		{"hack_unlock_judging", map[string]any{"slug": "mockjam", "body": map[string]any{"reason": "testing"}}},
+		{"hack_update_event", map[string]any{"slug": "mockjam", "judging_ends_at": "2026-01-01T00:00:00Z"}},
 	}
 	wantPaths := []string{
 		"GET /v1/hack/events/mockjam/people", "GET /v1/hack/events/mockjam/applications",
@@ -605,7 +616,7 @@ func TestHackOrganiserRouteMapCoversCalls(t *testing.T) {
 		"GET /v1/hack/events/mockjam/teams", "GET /v1/hack/events/mockjam/assignments",
 		"POST /v1/hack/events/mockjam/assignments/generate", "GET /v1/hack/events/mockjam/judging/dashboard",
 		"DELETE /v1/hack/events/mockjam/judging/former-judges/u1", "POST /v1/hack/events/mockjam/judging/lock",
-		"POST /v1/hack/events/mockjam/judging/unlock",
+		"POST /v1/hack/events/mockjam/judging/unlock", "PATCH /v1/hack/events/mockjam",
 	}
 	for i, call := range calls {
 		c.policy = s.hackByName[call.tool].policy
@@ -636,6 +647,7 @@ func TestHackOrganiserViewRouteBodyKeysMatchToolSchema(t *testing.T) {
 		// still pins the same body-key contract.
 		"hack_app_set_event_stage": {"stage"},
 		"hack_set_rubric":          {"criteria", "confirm_score_deletion"},
+		"hack_update_event":        {"judging_ends_at"},
 	}
 	for tool, keys := range flatBodyKeys {
 		schema, ok := s.hackByName[tool]

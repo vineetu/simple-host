@@ -57,7 +57,8 @@
     hack_app_get_judging_settings: 1, hack_set_judging_settings: 1, hack_app_get_conflicts: 1,
     hack_set_judge_conflict: 1, hack_remove_judge_conflict: 1, hack_app_get_teams: 1,
     hack_app_get_assignments: 1, hack_generate_assignments: 1, hack_app_get_judging_dashboard: 1,
-    hack_delete_former_judge_scores: 1, hack_lock_judging: 1, hack_unlock_judging: 1
+    hack_delete_former_judge_scores: 1, hack_lock_judging: 1, hack_unlock_judging: 1,
+    hack_update_event: 1
   };
   var WRITE_TOOLS = {
     hack_app_regenerate_code: 1, hack_app_set_event_stage: 1, hack_decide_application: 1,
@@ -65,7 +66,7 @@
     hack_app_create_organiser_invite: 1, hack_revoke_organiser_invite: 1, hack_set_registration: 1,
     hack_set_rubric: 1, hack_set_judging_settings: 1, hack_set_judge_conflict: 1,
     hack_remove_judge_conflict: 1, hack_generate_assignments: 1, hack_delete_former_judge_scores: 1,
-    hack_lock_judging: 1, hack_unlock_judging: 1
+    hack_lock_judging: 1, hack_unlock_judging: 1, hack_update_event: 1
   };
   var MAX_CONCURRENT = 4;
   var inFlight = 0;
@@ -140,12 +141,24 @@
   // against whatever shape came out of _meta -- a twin's _meta payload is
   // byte-for-byte the wrapped tool's own original structuredContent, so
   // the same wrap/no-wrap split holds.
+  // opts.wrapEvent marks the one hand-written-tool exception to "the
+  // structured result already IS the shape the reused screens read
+  // directly" above: hack_update_event's own output (internal/mcp/
+  // hack_event_tools.go's hackEventOutput) is a flat object (slug, stage,
+  // ... -- shaped for the model, which never reads it nested), but
+  // organiser-judging.js's onSaveCloses, unmodified from the website,
+  // reads the PATCH response the website's real REST route returns:
+  // `{event: {...}}`. Reshaping hackEventOutput itself would change what
+  // every other caller of hack_update_event (the model, any other MCP
+  // client) sees, for one screen's convenience, so this nests the tool's
+  // own flat result under `event` here instead, after unwrap/appOnly.
   function route(method, pattern, tool, params, opts) {
     opts = opts || {};
     return {
       method: method, re: new RegExp('^' + pattern + '$'), tool: tool, params: params,
       bodyKeys: opts.body || null, wrap: !!opts.wrap, queryKeys: opts.query || null,
-      unwrap: !!opts.unwrap, appOnly: !!opts.appOnly, successStatus: opts.status || 200
+      unwrap: !!opts.unwrap, appOnly: !!opts.appOnly, successStatus: opts.status || 200,
+      wrapEvent: !!opts.wrapEvent
     };
   }
   var SEG = '([^/]+)';
@@ -175,7 +188,11 @@
     route('GET', '/v1/hack/events/' + SEG + '/judging/dashboard', 'hack_app_get_judging_dashboard', ['slug'], { unwrap: true, appOnly: true }),
     route('DELETE', '/v1/hack/events/' + SEG + '/judging/former-judges/' + SEG, 'hack_delete_former_judge_scores', ['slug', 'user_id'], { wrap: true, unwrap: true, body: ['confirm'] }),
     route('POST', '/v1/hack/events/' + SEG + '/judging/lock', 'hack_lock_judging', ['slug'], { unwrap: true }),
-    route('POST', '/v1/hack/events/' + SEG + '/judging/unlock', 'hack_unlock_judging', ['slug'], { wrap: true, unwrap: true, body: ['reason'] })
+    route('POST', '/v1/hack/events/' + SEG + '/judging/unlock', 'hack_unlock_judging', ['slug'], { wrap: true, unwrap: true, body: ['reason'] }),
+    // organiser-judging.js's "Judging closes" card (onSaveCloses/onClearCloses,
+    // notices contract 2026-11-05): the only field this screen ever sends
+    // through this very general tool.
+    route('PATCH', '/v1/hack/events/' + SEG, 'hack_update_event', ['slug'], { body: ['judging_ends_at'], wrapEvent: true })
   ];
 
   function matchRoute(method, path) {
@@ -235,7 +252,10 @@
     hack_generate_assignments: function () { return 'Generated judge assignments.'; },
     hack_delete_former_judge_scores: function () { return "Deleted a departed judge's scores."; },
     hack_lock_judging: function () { return 'Locked judging.'; },
-    hack_unlock_judging: function () { return 'Unlocked judging.'; }
+    hack_unlock_judging: function () { return 'Unlocked judging.'; },
+    // This route only ever sends judging_ends_at (the route table's own
+    // body: ['judging_ends_at']), so the summary can be specific.
+    hack_update_event: function (args) { return args.judging_ends_at ? 'Set when judging closes.' : 'Cleared when judging closes.'; }
   };
 
   // The tool-backed api(): same {ok, status, data} shape as the website's
@@ -277,6 +297,7 @@
         data = await app.callTool(def.tool, args);
       }
       if (def.unwrap) data = (data && Object.prototype.hasOwnProperty.call(data, 'response')) ? data.response : data;
+      if (def.wrapEvent) data = { event: data };
       var summarize = MODEL_CONTEXT_SUMMARY[def.tool];
       if (summarize) app.updateModelContext(summarize(args)).catch(function () {});
       return { ok: true, status: def.successStatus, data: data };

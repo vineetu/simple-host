@@ -117,6 +117,12 @@ export async function render (ctx) {
   const remindersPath = '/v1/hack/events/' + encodeURIComponent(slug) + '/reminders'
 
   async function load () {
+    // Saving the deadline reloads everything, including reminders -- but
+    // that must not throw away an unsaved reminder chip the organiser was
+    // mid-edit on (point 8). Only resync the draft from the server when it
+    // wasn't already dirty; a dirty draft survives this reload and is
+    // reconciled the next time the organiser actually saves or discards it.
+    const reminderDraftWasDirty = JSON.stringify(reminderDraft) !== JSON.stringify(reminders.offsets_minutes || [])
     const [tr, er, ur, rr, remr] = await Promise.all([
       api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams'),
       api('GET', entriesPath),
@@ -128,7 +134,10 @@ export async function render (ctx) {
     if (er.ok) { entries = er.data.entries || []; counts = er.data.counts || {} } else setLive(er.data.error || 'Could not load entries', true)
     if (ur.ok) usage = ur.data
     if (rr.ok) { rules = rr.data; lastPresetChosen = rules.preset !== 'custom' ? rules.preset : lastPresetChosen }
-    if (remr.ok) { reminders = remr.data; reminderDraft = (reminders.offsets_minutes || []).slice() }
+    if (remr.ok) {
+      reminders = remr.data
+      if (!reminderDraftWasDirty) reminderDraft = (reminders.offsets_minutes || []).slice()
+    }
   }
 
   function teamBySlug (slug2) { return teams.find(t => t.slug === slug2) }
@@ -244,6 +253,19 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
 </section>`
   }
 
+  // paintReminders repaints only the Reminder times card, in place -- a
+  // full paint() would rebuild #deadline-input's value from `ev` and
+  // throw away whatever the organiser was mid-typing there (point 8, the
+  // other direction from load()'s own fix above). Falls back to a full
+  // paint() if the card isn't on the page for some reason.
+  function paintReminders () {
+    const card = $('reminders')
+    if (!card) { paint(); return }
+    const lockReason = ui.writeLockReason(ev, event.admin_view)
+    card.outerHTML = remindersHTML(lockReason)
+    wireReminders(lockReason)
+  }
+
   function wireReminders (lockReason) {
     if (lockReason) return
     const err = $('rem-err')
@@ -258,7 +280,7 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
     main.querySelectorAll('[data-rem-off]').forEach(btn => btn.addEventListener('click', () => {
       const m = Number(btn.getAttribute('data-rem-off'))
       reminderDraft = reminderDraft.filter(x => x !== m)
-      paint()
+      paintReminders()
     }))
     const addBtn = $('rem-add-btn')
     if (addBtn) addBtn.addEventListener('click', () => {
@@ -273,10 +295,10 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
       if (reminderDraft.includes(minutes)) { err.textContent = 'Already have a reminder at that time.'; return }
       if (reminderDraft.length >= reminders.max_count) { err.textContent = 'Up to ' + reminders.max_count + ' reminders.'; return }
       reminderDraft = reminderDraft.concat(minutes).sort((a, b) => b - a)
-      paint()
+      paintReminders()
     })
     const discardBtn = $('rem-discard')
-    if (discardBtn) discardBtn.addEventListener('click', () => { reminderDraft = (reminders.offsets_minutes || []).slice(); paint() })
+    if (discardBtn) discardBtn.addEventListener('click', () => { reminderDraft = (reminders.offsets_minutes || []).slice(); paintReminders() })
     const saveBtn = $('rem-save')
     if (saveBtn) saveBtn.addEventListener('click', onSaveReminders)
     syncDirty()
@@ -291,7 +313,7 @@ ${lockReason ? '' : `<div class="card-foot"><span class="hint" id="rem-hint">No 
     if (!r.ok) { setLive(ui.errText(r, { fallback: 'Could not save reminder times.' }), true); btn.disabled = false; return }
     reminders = r.data
     reminderDraft = (reminders.offsets_minutes || []).slice()
-    paint()
+    paintReminders()
     ui.saved(main)
   }
 

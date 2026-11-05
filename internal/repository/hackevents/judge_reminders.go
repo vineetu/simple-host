@@ -14,13 +14,17 @@ import (
 // (0003-hack-notices-judges-messages.sql).
 type JudgeReminderDue = model.JudgeReminderDue
 
-// DueJudgeReminders lists events due a judging-close reminder now, from
-// judging_ends_at and the event's own reminder_offsets (the same due-offset
-// rule as DueEntryReminders, generalised across both audiences): events in
-// stage judging, judging not locked, not taken down, with judging_ends_at
-// set and at least one configured offset. The claim (who has already been
-// reminded) is per judge, not per event, so this only says which offset is
-// due for the event; the caller decides which judges still need it.
+// DueJudgeReminders lists (event, judge) pairs due a judging-close reminder
+// now, from judging_ends_at and the event's own reminder_offsets (the same
+// due-offset rule as DueEntryReminders, generalised across both
+// audiences): events in stage judging, judging not locked, not taken down,
+// with judging_ends_at set and at least one configured offset, joined out
+// to every current judge member. The NOT EXISTS against
+// event_judge_reminders (the same shape DueEntryReminders uses against
+// event_entry_reminders) drops a judge who already has this kind claimed
+// for this exact deadline, so a judge whose reminder already went out --
+// or who simply has nothing left to score, which never claims -- cannot
+// sit in the LIMIT 500 batch forever and crowd out judges still due.
 func DueJudgeReminders(ctx context.Context, q sqlkit.Querier) ([]JudgeReminderDue, error) {
 	rows, err := queryContext(ctx, q, `
 		WITH c AS (
@@ -33,9 +37,14 @@ func DueJudgeReminders(ctx context.Context, q sqlkit.Querier) ([]JudgeReminderDu
 		    FROM c, unnest(c.offsets) AS o
 		   WHERE c.deadline > now() AND (c.deadline - now()) <= (o * interval '1 minute')
 		   GROUP BY c.event_id, c.deadline
+		), k AS (
+		  SELECT event_id, deadline, `+reminderOffsetKindSQL+` AS kind FROM off
 		)
-		SELECT event_id, `+reminderOffsetKindSQL+`, deadline FROM off
-		 ORDER BY deadline, event_id LIMIT 500`)
+		SELECT k.event_id, m.user_id, k.kind, k.deadline
+		  FROM k JOIN event_members m ON m.event_id = k.event_id AND m.role = 'judge'
+		 WHERE NOT EXISTS (SELECT 1 FROM event_judge_reminders r
+		        WHERE r.event_id = k.event_id AND r.user_id = m.user_id AND r.kind = k.kind AND r.deadline = k.deadline)
+		 ORDER BY k.deadline, k.event_id, m.user_id LIMIT 500`)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +52,7 @@ func DueJudgeReminders(ctx context.Context, q sqlkit.Querier) ([]JudgeReminderDu
 	var out []JudgeReminderDue
 	for rows.Next() {
 		var d JudgeReminderDue
-		if err := rows.Scan(&d.EventID, &d.Kind, &d.Deadline); err != nil {
+		if err := rows.Scan(&d.EventID, &d.UserID, &d.Kind, &d.Deadline); err != nil {
 			return nil, err
 		}
 		out = append(out, d)

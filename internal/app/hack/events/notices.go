@@ -198,8 +198,12 @@ func (s *Service) newsText(ctx context.Context, q sqlkit.Querier, eventTitle, zo
 // judgingNoticeLine re-reads the event and writes judging_open/
 // judging_reminder's line from state now. ok=false drops it: the event is
 // gone, the stage is no longer judging, judging is locked, the person is no
-// longer a judge, or (judging_reminder only) N is 0 or judging_ends_at has
-// passed or been cleared.
+// longer a judge, or (judging_reminder only) N is 0, judging_ends_at has
+// passed or been cleared, or the queued offset is stale (reminderOffsetStale:
+// removed from reminder_offsets, or judging_ends_at moved later). judging_
+// open never goes stale on the offset check -- it has no offset -- but
+// distinguishes an empty queue from one the judge has already finished
+// (QueueCounts' total vs unscored).
 func (s *Service) judgingNoticeLine(ctx context.Context, q sqlkit.Querier, n model.Notice, zone string, judges EntryEvaluator) (string, bool, error) {
 	ev, err := hackevents.GetEventByID(ctx, q, n.EventID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -218,7 +222,7 @@ func (s *Service) judgingNoticeLine(ctx context.Context, q sqlkit.Querier, n mod
 	if !isJudge {
 		return "", false, nil
 	}
-	count, err := judges.UnscoredTeams(ctx, ev, n.UserID)
+	total, count, err := judges.QueueCounts(ctx, ev, n.UserID)
 	if err != nil {
 		return "", false, err
 	}
@@ -229,13 +233,20 @@ func (s *Service) judgingNoticeLine(ctx context.Context, q sqlkit.Querier, n mod
 		return fmt.Sprintf("%d teams", n)
 	}
 	if n.Kind == hackevents.NoticeJudgingOpen {
-		if count == 0 {
+		switch {
+		case total == 0:
 			return "Judging is open. No teams are in your queue yet.", true, nil
+		case count == 0:
+			return "Judging is open. You've scored every team in your queue.", true, nil
+		default:
+			return "Judging is open: you have " + teams(count) + " to score.", true, nil
 		}
-		return "Judging is open: you have " + teams(count) + " to score.", true, nil
 	}
 	// judging_reminder
 	if count == 0 || !ev.JudgingEndsAt.Valid || !ev.JudgingEndsAt.Time.After(time.Now()) {
+		return "", false, nil
+	}
+	if reminderOffsetStale(ev.ReminderOffsets, n.Detail, ev.JudgingEndsAt.Time.Sub(time.Now())) {
 		return "", false, nil
 	}
 	have := "You still have " + teams(count) + " to score."

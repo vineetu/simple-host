@@ -103,17 +103,27 @@ func (s *Service) JudgeQueue(ctx context.Context, ev model.Event, judgeID string
 // rows are not yet Done. Used for judging_open/judging_reminder's N, both
 // live (NeedsYou) and at send time (the mail sweep and the reminder sweep).
 func (s *Service) UnscoredTeams(ctx context.Context, ev model.Event, judgeID string) (int, error) {
+	_, unscored, err := s.QueueCounts(ctx, ev, judgeID)
+	return unscored, err
+}
+
+// QueueCounts is the events service's EntryEvaluator.QueueCounts
+// (0003-hack-notices-judges-messages.sql): the judge's queue size and how
+// many of those rows are not yet Done. Lets judging_open distinguish an
+// empty queue ("No teams are in your queue yet.") from a populated queue
+// the judge has already finished ("You've scored every team in your
+// queue."), which a bare unscored count of 0 cannot tell apart.
+func (s *Service) QueueCounts(ctx context.Context, ev model.Event, judgeID string) (total, unscored int, err error) {
 	rows, err := s.JudgeQueue(ctx, ev, judgeID, func() error { return nil })
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	n := 0
 	for _, r := range rows {
 		if !r.Done {
-			n++
+			unscored++
 		}
 	}
-	return n, nil
+	return len(rows), unscored, nil
 }
 
 // Pool is the prospective judging pool used before entries settle.

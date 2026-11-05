@@ -37,15 +37,54 @@ type TeamMessageSent struct {
 // current member (team-scoped, so it stops reaching anyone who has since
 // left). teamIDs must all belong to ev and be distinct; the caller validates
 // shape and count (1..25) and text length before calling this.
+//
+// The handler's own checks (organiser membership, archived) ran before the
+// request body was read, which can take arbitrarily long (a slow client, a
+// large body up to the cap); by the time this runs, the sender may have
+// been removed as organiser or the event may have been archived or taken
+// down meanwhile. Inside the transaction, before anything else, this
+// re-reads both under the event row's FOR SHARE lock and refuses with the
+// same errors the handler would have (event_not_found for a sender who is
+// no longer an organiser -- the handler's own non-member/wrong-role
+// treatment -- event_closed for archived, event_taken_down for taken
+// down), rather than trusting the pre-body-read snapshot in ev.
+//
+// The same lock also serialises concurrent sends for this event: without
+// it, two sends arriving together could each count the rows already
+// there, each see themselves as under the 50/hour limit, and both insert,
+// letting the total cross it. pg_advisory_xact_lock (same mechanism
+// NextMailBatch uses, hashtextextended) makes the count-then-insert below
+// atomic across concurrent senders for this event, held until the
+// transaction ends.
 func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs []string, text, senderID, senderName string) ([]TeamMessageSent, error) {
-	if ev.Stage == "archived" {
-		return nil, &Error{"event_closed", "an ended event cannot be changed"}
-	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('hack-team-message:' || $1, 0))`, ev.ID); err != nil {
+		return nil, err
+	}
+	fresh, err := eventrepo.GetEventForShare(ctx, tx, ev.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, &Error{"event_not_found", "event not found"}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if fresh.Stage == "archived" {
+		return nil, &Error{"event_closed", "an ended event cannot be changed"}
+	}
+	if fresh.TakenDown() {
+		return nil, &Error{"event_taken_down", "this event has been taken down"}
+	}
+	sender, err := eventrepo.GetEventMember(ctx, tx, ev.ID, senderID)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && sender.Role != "organiser") {
+		return nil, &Error{"event_not_found", "event not found"}
+	}
+	if err != nil {
+		return nil, err
+	}
 	count, oldest, err := eventrepo.CountRecentTeamMessages(ctx, tx, ev.ID, time.Now().Add(-teamMessageRateWindow))
 	if err != nil {
 		return nil, err

@@ -49,13 +49,21 @@ func (h *HackHandler) putReminderSettings(w http.ResponseWriter, r *http.Request
 		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
 		return
 	}
+	// OffsetsMinutes is a pointer so a missing field (nil) can be told apart
+	// from an explicit [] (valid: turns reminders off for both audiences).
+	// Without this, {} decodes OffsetsMinutes to the same nil-turned-empty
+	// slice as [] and silently turns reminders off.
 	var req struct {
-		OffsetsMinutes []int `json:"offsets_minutes"`
+		OffsetsMinutes *[]int `json:"offsets_minutes"`
 	}
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	updated, err := h.eventsSvc().SetReminderOffsets(r.Context(), a.event.ID, req.OffsetsMinutes)
+	if req.OffsetsMinutes == nil {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_offsets", "offsets_minutes is required ([] turns reminders off)")
+		return
+	}
+	updated, err := h.eventsSvc().SetReminderOffsets(r.Context(), a.event.ID, *req.OffsetsMinutes)
 	if err != nil {
 		writeEventsError(w, err)
 		return

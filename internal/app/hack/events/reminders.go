@@ -46,12 +46,29 @@ func (s *Service) QueueEntryReminders(ctx context.Context) (written int64, first
 	return
 }
 
+// queueEntryReminder re-reads the team's effective deadline under its own
+// FOR SHARE lock before claiming: a sweep that picked up r as a candidate,
+// then stalled, must not claim (and overwrite) a deadline that has since
+// moved -- ClaimEntryReminder's own ON CONFLICT would otherwise treat this
+// stale deadline as a legitimate re-arm and undo a newer claim already
+// recorded for the real current deadline (same race as judge reminders,
+// queueOneJudgeReminder).
 func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback()
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, r.TeamID, true)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	if !st.Deadline.Valid || !st.Deadline.Time.Equal(r.Deadline) {
+		return 0, nil
+	}
 	claimed, err := eventrepo.ClaimEntryReminder(ctx, tx, r)
 	if err != nil || !claimed {
 		return 0, err
@@ -75,17 +92,41 @@ func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder)
 // service (0003-hack-notices-judges-messages.sql: "like EntryEvaluator"),
 // wired from hackhttp so this package never imports app/hack/entries
 // directly. EvaluateEntryTx checks an entry's completeness for the entry
-// reminder's text; UnscoredTeams counts a judge's queue rows not yet Done,
-// for judging_open/judging_reminder's N, both live (NeedsYou) and at send
-// time (the mail sweep).
+// reminder's text; QueueCounts gives a judge's queue size and how many of
+// those rows are not yet Done, for judging_open/judging_reminder's text,
+// both live (NeedsYou) and at send time (the mail sweep); UnscoredTeams is
+// the same unscored count alone, for callers that only need to know
+// whether to remind a judge at all.
 type EntryEvaluator interface {
 	EvaluateEntryTx(context.Context, *sql.Tx, model.Event, model.TeamWriteState, string, model.EventEntry) (hackentries.Check, error)
 	UnscoredTeams(ctx context.Context, ev model.Event, judgeID string) (int, error)
+	QueueCounts(ctx context.Context, ev model.Event, judgeID string) (total, unscored int, err error)
+}
+
+// reminderOffsetStale reports whether a queued reminder -- read back at
+// send time with its offset label (n.Detail) and the time now remaining to
+// its deadline -- no longer describes a reminder the event would still
+// send today (0003-hack-notices-judges-messages.sql: dropped the same way
+// as any other stale notice). True when the organiser removed that offset
+// from reminder_offsets since the reminder was queued, or when the
+// deadline moved later: the remaining time now exceeds the offset by more
+// than 30 minutes (comfortably past the sweep's own polling interval), so
+// what's left is no longer "about to happen", it's a fresh wait for the
+// next due pass at the new deadline.
+func reminderOffsetStale(offsets []int64, label string, remaining time.Duration) bool {
+	for _, o := range offsets {
+		if ReminderLabel(int(o)) == label {
+			return remaining > time.Duration(o)*time.Minute+30*time.Minute
+		}
+	}
+	return true
 }
 
 // entryReminderLine re-reads the team and its entry and writes the
 // reminder's line. ok=false drops it: the entry was submitted meanwhile, the
-// deadline passed, or the team can no longer change its entry.
+// deadline passed, the team can no longer change its entry, or the queued
+// offset no longer matches the event's current reminder_offsets/deadline
+// (reminderOffsetStale).
 func (s *Service) entryReminderLine(ctx context.Context, tx *sql.Tx, n model.MailNotice, evaluator EntryEvaluator) (string, bool, error) {
 	st, err := teamrepo.TeamWriteStateFor(ctx, tx, n.TeamID, false)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -95,6 +136,13 @@ func (s *Service) entryReminderLine(ctx context.Context, tx *sql.Tx, n model.Mai
 		return "", false, err
 	}
 	if st.WriteRefusal() != "" || !st.Deadline.Valid || !st.Now.Before(st.Deadline.Time) {
+		return "", false, nil
+	}
+	ev, err := eventrepo.GetEventByID(ctx, tx, st.EventID)
+	if err != nil {
+		return "", false, err
+	}
+	if reminderOffsetStale(ev.ReminderOffsets, n.Detail, st.Deadline.Time.Sub(st.Now)) {
 		return "", false, nil
 	}
 	closes := "Entries close for your team " + hackNoticeTime(st.Deadline.Time, n.EventTimeZone) +
@@ -108,10 +156,6 @@ func (s *Service) entryReminderLine(ctx context.Context, tx *sql.Tx, n model.Mai
 	}
 	if e.SubmittedAt.Valid {
 		return "", false, nil
-	}
-	ev, err := eventrepo.GetEventByID(ctx, tx, st.EventID)
-	if err != nil {
-		return "", false, err
 	}
 	check, err := evaluator.EvaluateEntryTx(ctx, tx, ev, st, n.TeamID, e)
 	if err != nil {

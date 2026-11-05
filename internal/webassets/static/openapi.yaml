@@ -14646,8 +14646,9 @@ paths:
       summary: Replace reminder offsets (organiser) (EVENTS=hosted only)
       description: >-
         Validates, dedupes and sorts offsets_minutes descending: 0 to 5 entries, each 15 to
-        20160 minutes (14 days), distinct. Empty means no reminders for either audience.
-        409 event_closed once the event is archived. Organiser only.
+        20160 minutes (14 days), distinct. offsets_minutes is required; send [] (not an
+        omitted field) to turn reminders off for both audiences -- omitting it is
+        400 invalid_offsets. 409 event_closed once the event is archived. Organiser only.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
