@@ -240,8 +240,20 @@ func main() {
 	// one) when that is set, else whoever runs the server.
 	if cfg.SiteDomain != "simple-host.app" && cfg.SiteDomain != "simple-hack.app" {
 		contact := "whoever runs this server"
+		// IDLE_REPLY_TO's own validator is looser than SUPPORT_EMAIL's (it
+		// predates this use and must keep accepting values already in use
+		// for the idle-cleanup email): a value such as "ops\@example.org"
+		// passes it but is not safe to splice into a page, a mailto: link
+		// or a JSON-LD island (config.IsSafeContactAddress, same check
+		// SUPPORT_EMAIL gets at config load). An IDLE_REPLY_TO that fails
+		// it here is logged and treated as absent, exactly as an invalid
+		// SUPPORT_EMAIL already is, rather than taking the install down.
 		if r := cfg.Limits.IdleReplyTo; r != "" && r != "support@simple-host.app" {
-			contact = r
+			if config.IsSafeContactAddress(r) {
+				contact = r
+			} else {
+				log.Printf("warning: IDLE_REPLY_TO=%q is not safe to show as a contact address; using it only for idle-cleanup email, not as the support contact", r)
+			}
 		}
 		if e := cfg.Limits.SupportEmail; e != "" {
 			contact = e

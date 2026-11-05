@@ -705,6 +705,19 @@ var familyLabelShape = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`
 // (chrome.go's rewriteSupportAddress).
 var supportEmailShape = regexp.MustCompile(`^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$`)
 
+// IsSafeContactAddress is supportEmailShape, exported so a caller outside
+// this package (cmd/server/main.go, choosing IDLE_REPLY_TO as the support
+// contact fallback when SUPPORT_EMAIL is unset) can run the same strict
+// check SUPPORT_EMAIL itself gets at config load. IDLE_REPLY_TO's own
+// validator (the IDLE_REPLY_TO knob's set func, above) is deliberately
+// looser -- it only rejects whitespace, angle brackets and commas, not
+// quotes or a backslash -- because it predates this one and existing
+// installs' values must keep working for the idle-cleanup email it was
+// written for. Using it as a page/JSON-LD/mailto contact is a different,
+// stricter use, so that path checks again here rather than loosening (or
+// trusting) IDLE_REPLY_TO's own validation.
+func IsSafeContactAddress(v string) bool { return supportEmailShape.MatchString(v) }
+
 // Knobs lists operational settings; docs/advanced/ groups their reference by area.
 func Knobs() []Knob {
 	m, h, d := time.Minute, time.Hour, day

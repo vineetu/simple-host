@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"html"
 	"html/template"
 	"io/fs"
@@ -429,8 +430,13 @@ var supportMailtoLinkRe = regexp.MustCompile(`<a href="mailto:support@simple-hos
 var codeScriptRe = regexp.MustCompile(`(?is)<script([^>]*)>.*?</script>`)
 var jsonScriptTypeRe = regexp.MustCompile(`(?i)type\s*=\s*["']?application/(?:ld\+json|json)["']?`)
 
-// rewriteOutsideScript applies fn to every part of page that is not inside a
-// <script> element carrying JavaScript. SUPPORT_EMAIL is validated strictly
+// rewriteOutsideScript applies htmlFn to every part of page that is not
+// inside a <script> element carrying JavaScript, and jsonFn instead to the
+// content of a JSON data island (type="application/ld+json" or
+// "application/json"): that content is JSON text, not HTML, so it must get
+// a JSON-safe substitution, never an HTML-escaped one (HTML entities such
+// as &amp; are not decoded by a JSON/schema.org consumer, they would just
+// be literal characters in the data). SUPPORT_EMAIL is validated strictly
 // at config load (limits.go's supportEmailShape) precisely so it can never
 // contain a character that breaks out of a JS string literal or expands in a
 // regexp substitution -- but IDLE_REPLY_TO (this value's older, looser
@@ -439,20 +445,32 @@ var jsonScriptTypeRe = regexp.MustCompile(`(?i)type\s*=\s*["']?application/(?:ld
 // install's own contact gets spliced into never runs as code. A page whose
 // script needs the contact (report.html) reads it from a data attribute set
 // outside any script element instead of having it spliced into its source.
-func rewriteOutsideScript(page []byte, fn func([]byte) []byte) []byte {
+func rewriteOutsideScript(page []byte, htmlFn, jsonFn func([]byte) []byte) []byte {
 	var out []byte
 	last := 0
 	for _, loc := range codeScriptRe.FindAllSubmatchIndex(page, -1) {
 		start, end, attrStart, attrEnd := loc[0], loc[1], loc[2], loc[3]
-		out = append(out, fn(page[last:start])...)
+		out = append(out, htmlFn(page[last:start])...)
 		if jsonScriptTypeRe.Match(page[attrStart:attrEnd]) {
-			out = append(out, fn(page[start:end])...)
+			out = append(out, jsonFn(page[start:end])...)
 		} else {
 			out = append(out, page[start:end]...)
 		}
 		last = end
 	}
-	return append(out, fn(page[last:])...)
+	return append(out, htmlFn(page[last:])...)
+}
+
+// jsonStringBody is s as it would appear inside a JSON string's quotes
+// (json.Marshal's output with the surrounding quotes stripped): the
+// JSON-safe analogue of html.EscapeString, for splicing into a JSON-LD or
+// JSON data island instead of HTML text.
+func jsonStringBody(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil || len(b) < 2 {
+		return s
+	}
+	return string(b[1 : len(b)-1])
 }
 
 // rewriteSupportAddress swaps the hosted service's support address for this
@@ -467,22 +485,31 @@ func rewriteOutsideScript(page []byte, fn func([]byte) []byte) []byte {
 //
 // Every replacement is literal (ReplaceAllLiteral, never ReplaceAll, so a $
 // in the configured contact can never expand as a submatch reference),
-// HTML-escaped before insertion, and skipped inside executable <script>
-// elements (rewriteOutsideScript) -- SUPPORT_EMAIL=o'connor@example.org
-// broke /report's inline script before this, splicing an apostrophe into a
-// JS string literal.
+// HTML-escaped before insertion into ordinary page text (JSON-safe instead
+// inside a JSON-LD/JSON data island, jsonStringBody), and skipped inside
+// executable <script> elements (rewriteOutsideScript) --
+// SUPPORT_EMAIL=o'connor@example.org broke /report's inline script before
+// this, splicing an apostrophe into a JS string literal, and an
+// HTML-escaped address spliced into a JSON-LD island broke its JSON (an
+// "&" would otherwise become the four literal characters "&amp;" in data a
+// JSON parser reads, not HTML a browser renders).
 func rewriteSupportAddress(page []byte) []byte {
 	if strings.Contains(auth.SupportContact, "@") {
 		escAddr := []byte(html.EscapeString(auth.SupportContact))
+		jsonAddr := []byte(jsonStringBody(auth.SupportContact))
 		link := []byte(`<a href="mailto:` + string(escAddr) + `">` + string(escAddr) + `</a>`)
 		return rewriteOutsideScript(page, func(seg []byte) []byte {
 			seg = supportMailtoLinkRe.ReplaceAllLiteral(seg, link)
 			return bytes.ReplaceAll(seg, []byte("support@simple-host.app"), escAddr)
+		}, func(seg []byte) []byte {
+			return bytes.ReplaceAll(seg, []byte("support@simple-host.app"), jsonAddr)
 		})
 	}
 	phrase := []byte("the person who runs this server")
 	return rewriteOutsideScript(page, func(seg []byte) []byte {
 		seg = supportMailtoLinkRe.ReplaceAllLiteral(seg, phrase)
+		return bytes.ReplaceAll(seg, []byte("support@simple-host.app"), phrase)
+	}, func(seg []byte) []byte {
 		return bytes.ReplaceAll(seg, []byte("support@simple-host.app"), phrase)
 	})
 }
