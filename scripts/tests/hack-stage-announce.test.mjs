@@ -27,6 +27,7 @@ function check(move, opts) {
   assert.ok(s.body.trim().length > 0, `${move} (back=${!!(opts && opts.back)}): empty body`)
   assert.ok(s.title.length <= TITLE_MAX, `${move}: title ${s.title.length} chars exceeds the server's ${TITLE_MAX}`)
   assert.ok(s.body.length <= BODY_MAX, `${move}: body ${s.body.length} chars exceeds the server's ${BODY_MAX}`)
+  return s
 }
 
 test('every forward stage move the "Your next step" button can offer has a suggestion', () => {
@@ -44,9 +45,30 @@ test('Publish results has a suggestion', () => {
 test('every backward target the stage picker can offer has a suggestion', () => {
   // The stage picker (_orgA-util.js stagePicker) never offers archived as
   // a choice, so a backward move can only land on draft, open, building,
-  // closed or judging.
+  // closed or judging. judgingLocked only changes the judging branch
+  // below, so it's left at its default (falsy) for every other stage.
   for (const stage of ['draft', 'open', 'building', 'closed', 'judging']) {
     check(stage, { back: true, eventTitle: 'Generation Girl 2026' })
+  }
+})
+
+test('back to judging, not locked: "Judging has reopened", never promising a hold', () => {
+  const s = check('judging', { back: true, judgingLocked: false, eventTitle: 'Generation Girl 2026' })
+  assert.equal(s.title, 'Judging has reopened')
+  assert.ok(!/on hold/i.test(s.body), 'unlocked suggestion must not say "on hold"')
+})
+
+test('back to judging, locked (moving back from Results): "Results are on hold", never "reopened"', () => {
+  const s = check('judging', { back: true, judgingLocked: true, eventTitle: 'Generation Girl 2026' })
+  assert.equal(s.title, 'Results are on hold')
+  assert.ok(!/reopened/i.test(s.title) && !/reopened/i.test(s.body), 'locked suggestion must never promise scoring reopens')
+})
+
+test('back to closed never promises scoring reopens, regardless of lock state', () => {
+  for (const judgingLocked of [true, false]) {
+    const s = check('closed', { back: true, judgingLocked, eventTitle: 'Generation Girl 2026' })
+    assert.equal(s.title, 'Entries are closed')
+    assert.equal(s.body, 'Entries are closed. Teams with extra time can still edit.')
   }
 })
 

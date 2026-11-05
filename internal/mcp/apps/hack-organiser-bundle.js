@@ -981,9 +981,9 @@
         case "building":
           return { title: "Entries are open again", body: "Entries are open again. You can edit your entry and website." };
         case "closed":
-          return { title: "Entries are closed", body: "Entries are closed and judges are starting to score. Thanks for building!" };
+          return { title: "Entries are closed", body: "Entries are closed. Teams with extra time can still edit." };
         case "judging":
-          return { title: "Judging has reopened", body: "Judging has reopened. Entries stay as they are." };
+          return opts && opts.judgingLocked ? { title: "Results are on hold", body: "Results are on hold while we take another look. Entries stay as they are." } : { title: "Judging has reopened", body: "Judging has reopened. Entries stay as they are." };
       }
       return null;
     }
@@ -1002,6 +1002,58 @@
         return { title: "The event has ended", body: "The event has ended. Thanks for taking part. The event page stays up as a record." };
     }
     return null;
+  }
+
+  // internal/handler/static/hack/screens/_stage-announce-dialog.js
+  async function offerStageAnnouncement(ctx, { move, back, judgingLocked, emailableCount, setLive }) {
+    if (ctx.noAnnounce) return;
+    const ui = ctx.ui;
+    const api = ctx.api.api;
+    const ev = ctx.event.event;
+    const suggestion = suggestedAnnouncement(move, { back, judgingLocked, eventTitle: ev.title });
+    if (!suggestion) return;
+    const announcePath = "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/announcements";
+    const body = document.createElement("div");
+    body.innerHTML = `<p class="form-intro">Post an announcement about this change. You can edit it first.</p>
+<div class="field"><label for="sa-title">Title</label><input class="input" id="sa-title" maxlength="120" value="${ui.esc(suggestion.title)}"></div>
+<div class="field"><label for="sa-body">Message</label><textarea class="input" id="sa-body" rows="4" maxlength="3000">${ui.esc(suggestion.body)}</textarea></div>
+<label class="check"><input type="checkbox" id="sa-email"${emailableCount ? "" : " disabled"}><span><b>Email ${emailableCount} participants</b><span>${emailableCount ? "Editing it later never sends another email." : "No participant has an email address yet."}</span></span></label>`;
+    const q = (sel) => body.querySelector(sel);
+    await formDialog(ui, { title: "Tell participants?", body, saveLabel: "Send", cancelLabel: "Don't send", focus: "first-field" }, async () => {
+      body.querySelectorAll(".err").forEach((n) => n.remove());
+      const t = q("#sa-title").value.trim(), b = q("#sa-body").value.trim();
+      if (!t) {
+        q("#sa-title").insertAdjacentHTML("afterend", '<p class="err">Title is required.</p>');
+        return false;
+      }
+      if (!b) {
+        q("#sa-body").insertAdjacentHTML("afterend", '<p class="err">Message is required.</p>');
+        return false;
+      }
+      const emailChecked = q("#sa-email").checked;
+      try {
+        const r = await api("POST", announcePath, { title: t, body: b, email_participants: emailChecked });
+        if (!r.ok) {
+          body.insertAdjacentHTML("beforeend", `<p class="err">${ui.esc(ui.errText(r))}</p>`);
+          return false;
+        }
+        if (!emailChecked) {
+          setLive("Posted", "ok");
+        } else {
+          const queued = r.data.emails_queued || 0;
+          if (queued === 0) {
+            setLive("Posted. Nobody had an email address on file, so no email was sent.", "err");
+          } else {
+            const copy = r.data.organiser_copied ? " (including a copy to you)" : "";
+            setLive(`Posted and emailed to ${queued} ${queued === 1 ? "person" : "people"}${copy}.`, "ok");
+          }
+        }
+        return true;
+      } catch (e) {
+        body.insertAdjacentHTML("beforeend", '<p class="err">Cannot reach the server.</p>');
+        return false;
+      }
+    });
   }
 
   // internal/handler/static/hack/screens/organiser-overview.js
@@ -1153,51 +1205,13 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
       return api("POST", "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/stage", { stage: target });
     }
     const emailableCount = counts.emailable_participants ?? 0;
-    const announcePath = "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/announcements";
-    async function offerAnnouncement(move, back) {
-      if (ctx.noAnnounce) return;
-      const suggestion = suggestedAnnouncement(move, { back, eventTitle: ev.title });
-      if (!suggestion) return;
-      const body = document.createElement("div");
-      body.innerHTML = `<p class="form-intro">Post an announcement about this change. You can edit it first.</p>
-<div class="field"><label for="sa-title">Title</label><input class="input" id="sa-title" maxlength="120" value="${ui.esc(suggestion.title)}"></div>
-<div class="field"><label for="sa-body">Message</label><textarea class="input" id="sa-body" rows="4" maxlength="3000">${ui.esc(suggestion.body)}</textarea></div>
-<label class="check"><input type="checkbox" id="sa-email"${emailableCount ? "" : " disabled"}><span><b>Email ${emailableCount} participants</b><span>${emailableCount ? "Editing it later never sends another email." : "No participant has an email address yet."}</span></span></label>`;
-      const q = (sel) => body.querySelector(sel);
-      await formDialog(ui, { title: "Tell participants?", body, saveLabel: "Send", cancelLabel: "Don't send", focus: "first-field" }, async () => {
-        body.querySelectorAll(".err").forEach((n) => n.remove());
-        const t = q("#sa-title").value.trim(), b = q("#sa-body").value.trim();
-        if (!t) {
-          q("#sa-title").insertAdjacentHTML("afterend", '<p class="err">Title is required.</p>');
-          return false;
-        }
-        if (!b) {
-          q("#sa-body").insertAdjacentHTML("afterend", '<p class="err">Message is required.</p>');
-          return false;
-        }
-        const emailChecked = q("#sa-email").checked;
-        try {
-          const r = await api("POST", announcePath, { title: t, body: b, email_participants: emailChecked });
-          if (!r.ok) {
-            body.insertAdjacentHTML("beforeend", `<p class="err">${ui.esc(ui.errText(r))}</p>`);
-            return false;
-          }
-          if (!emailChecked) {
-            setLive("Posted", "ok");
-          } else {
-            const queued = r.data.emails_queued || 0;
-            if (queued === 0) {
-              setLive("Posted. Nobody had an email address on file, so no email was sent.", "err");
-            } else {
-              const copy = r.data.organiser_copied ? " (including a copy to you)" : "";
-              setLive(`Posted and emailed to ${queued} ${queued === 1 ? "person" : "people"}${copy}.`, "ok");
-            }
-          }
-          return true;
-        } catch (e) {
-          body.insertAdjacentHTML("beforeend", '<p class="err">Cannot reach the server.</p>');
-          return false;
-        }
+    async function offerAnnouncement(move, back, judgingLocked) {
+      await offerStageAnnouncement(ctx, {
+        move,
+        back,
+        judgingLocked: judgingLocked ?? !!ev.judging_locked_at,
+        emailableCount,
+        setLive
       });
     }
     if (!archived) {
@@ -1314,7 +1328,8 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
           return;
         }
         const back = STAGE_ORDER2.indexOf(target) < STAGE_ORDER2.indexOf(ev.stage);
-        await offerAnnouncement(target, back);
+        const judgingLocked = r.data && r.data.event && r.data.event.judging_locked_at != null ? !!r.data.event.judging_locked_at : !!ev.judging_locked_at;
+        await offerAnnouncement(target, back, judgingLocked);
         await ctx.refresh();
       } catch (e) {
         setLive("Cannot reach the server.", "err");

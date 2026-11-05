@@ -837,36 +837,30 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	// Publishing implies judging is finished (SIM-271): from any stage
-	// before Results, move there first, the same transition the Overview's
-	// "Finish judging" button performs and which locks judging in the same
-	// step (events.Service.SetStage). Without this, publishing from the
-	// Judging screen's lock + the Results screen's own Publish button (or a
-	// direct REST/MCP call) left the stage, the Overview pill and the public
-	// page's "Judging is under way" kicker all saying Judging after results
-	// were already out, even though they agree once the Overview's one
-	// forward button is used end to end. An archived event is never moved
-	// back; results may still be republished after End event (e.g. to fix a
-	// disqualified team), which is why this only runs on the way to Results,
-	// never away from Archived.
-	// Before entries close there is nothing to judge yet, so publishing is
-	// refused rather than jumping the event straight to Results.
-	if a.event.Stage == "draft" || a.event.Stage == "open" || a.event.Stage == "building" {
-		httpx.WriteError(w, http.StatusConflict, "judging_not_started", "Close entries and judge them before publishing results.")
-		return
-	}
-	if a.event.Stage != "results" && a.event.Stage != "archived" {
-		updated, current, err := h.eventsSvc().SetStage(r.Context(), a.event, "results", h.entries.SettleEventTx)
+	// Publishing implies judging is finished (SIM-271). Before entries
+	// close there is nothing to judge, so it is refused. From Closed or
+	// Judging the event moves to Results first, the same transition the
+	// Overview's "Finish judging" performs (it locks judging too), inside
+	// the publish transaction and under the event lock: a refused or failed
+	// publish leaves the stage as it was, and a concurrent stage change
+	// cannot slip in between the check and the move. An archived event is
+	// never moved; results can still be republished after End event.
+	moved := false
+	var current string
+	prepare := func(tx *sql.Tx, ev model.Event) (model.Event, error) {
+		switch ev.Stage {
+		case "draft", "open", "building":
+			return ev, errJudgingNotStarted
+		case "results", "archived":
+			return ev, nil
+		}
+		updated, cur, err := h.eventsSvc().SetStageTx(r.Context(), tx, ev, "results", h.entries.SettleEventTx)
 		if err != nil {
-			writeEventsError(w, err)
-			return
+			return ev, err
 		}
+		moved, current = true, cur
 		a.event = updated
-		if current != updated.Stage {
-			paperHackStage(r, updated)
-		}
-		h.pinDue(r.Context(), updated.ID)
-		h.requestEventCert(updated)
+		return updated, nil
 	}
 	overrides := make([]rankOverride, len(req.RankOverrides))
 	for i, ov := range req.RankOverrides {
@@ -874,7 +868,7 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 	}
 	var snapshot []map[string]any
 	cardsFailed := false
-	full, phase, err := h.entries.PublishResults(r.Context(), a.event.ID, a.user.ID, overrides, func(q entryapp.Querier, results []teamResult) ([]byte, error) {
+	full, phase, err := h.entries.PublishResults(r.Context(), a.event.ID, a.user.ID, overrides, prepare, func(q entryapp.Querier, results []teamResult) ([]byte, error) {
 		cards, err := h.resultsEntryCards(r.Context(), q, a.event, results)
 		if err != nil {
 			cardsFailed = true
@@ -884,8 +878,16 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 		return json.Marshal(snapshot)
 	}, func() { paperHackTimes(r) })
 	if err != nil {
+		if errors.Is(err, errJudgingNotStarted) {
+			httpx.WriteError(w, http.StatusConflict, "judging_not_started", "Close entries and judge them before publishing results.")
+			return
+		}
 		if e, ok := err.(*entryapp.Error); ok {
 			httpx.WriteError(w, http.StatusBadRequest, e.Code, e.Message)
+			return
+		}
+		if phase == "prepare" {
+			writeEventsError(w, err)
 			return
 		}
 		if cardsFailed {
@@ -896,8 +898,18 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
+	if moved {
+		if current != a.event.Stage {
+			paperHackStage(r, a.event)
+		}
+		h.pinDue(r.Context(), a.event.ID)
+		h.requestEventCert(a.event)
+	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"results": snapshot, "full_ranking": full.FullRanking})
 }
+
+// errJudgingNotStarted: publishing results before entries close (SIM-271).
+var errJudgingNotStarted = errors.New("judging not started")
 
 // resultsSnapshotJSON is the array stored as the published results snapshot
 // and returned by POST .../results/publish (build-plan §4.6). Each ranked

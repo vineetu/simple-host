@@ -1,4 +1,5 @@
 import { href } from '../nav.js'
+import { offerStageAnnouncement } from './_stage-announce-dialog.js'
 
 export function title() { return 'Results' }
 
@@ -19,6 +20,12 @@ export async function render(ctx) {
   const $ = id => main.querySelector('#' + id)
   const setLive = ui.live(main)
   const judgingLocked = !!ev.judging_locked_at
+  // SIM-341: the same "Tell participants?" offer organiser-overview.js
+  // makes after every stage move, here after Publish results -- same
+  // emailable count source (organiser.counts) as that screen and
+  // organiser-announcements.js's own "New announcement" form.
+  const data = ctx.event
+  const emailableCount = (data.organiser && data.organiser.counts && data.organiser.counts.emailable_participants) || 0
   // S14: the scoring/visibility/voting settings below don't change any
   // more once the event has ended (judging settings PATCH and voting PUT
   // both already refuse archived server-side) -- Publish, the Directory
@@ -273,6 +280,11 @@ ${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>`
     paintRepublishNote(false)
     syncPublishSection()
     setLive('Results published', 'ok', near)
+    // SIM-341: offered on every successful publish, first or republish --
+    // this is the only code path that publishes results on this screen --
+    // before the refresh below, same ordering as every stage-changing
+    // screen (the move itself always lands before the offer).
+    await offerStageAnnouncement(ctx, { move: 'publish_results', back: false, emailableCount, setLive })
     // SIM-271: publishing before Results now moves the event there itself
     // (and locks judging), so the stage pill and track in the shell -- and
     // the Overview next step -- need the same refresh every other

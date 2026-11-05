@@ -152,8 +152,25 @@ func (s *Service) SetStage(ctx context.Context, event model.Event, stage string,
 		return model.Event{}, "", err
 	}
 	defer tx.Rollback()
+	updated, current, err := s.SetStageTx(ctx, tx, event, stage, settle)
+	if err != nil {
+		return model.Event{}, "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return model.Event{}, "", err
+	}
+	return updated, current, nil
+}
+
+// SetStageTx is SetStage's work inside the caller's transaction: it locks
+// the event's stage and team rows, moves the stage with every side effect
+// SetStage has, and returns the stage it found under that lock. Publishing
+// results uses it so the move to Results and the snapshot commit together
+// (SIM-271). The archived path still needs SetStage's participant check.
+func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event, stage string, settle func(context.Context, *sql.Tx, string) error) (model.Event, string, error) {
 	var current string
-	if err := eventrepo.LockWorkflowStage(ctx, tx, event.ID).Scan(&current); err != nil {
+	var err error
+	if err = eventrepo.LockWorkflowStage(ctx, tx, event.ID).Scan(&current); err != nil {
 		return model.Event{}, "", err
 	}
 	if current == "archived" && stage != "archived" {
@@ -217,9 +234,6 @@ func (s *Service) SetStage(ctx context.Context, event model.Event, stage string,
 				return model.Event{}, "", err
 			}
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return model.Event{}, "", err
 	}
 	return updated, current, nil
 }

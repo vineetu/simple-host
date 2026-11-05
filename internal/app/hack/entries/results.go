@@ -2,6 +2,7 @@ package entries
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/vsriram/simple-host/internal/model"
 	entryrepo "github.com/vsriram/simple-host/internal/repository/hackentries"
@@ -57,7 +58,10 @@ func (s *Service) ComputeResults(ctx context.Context, q sqlkit.Querier, ev model
 
 // PublishResults computes and stores a snapshot in the existing transaction.
 // snapshot builds the transport representation while the transaction is open.
-func (s *Service) PublishResults(ctx context.Context, eventID, userID string, overrides []hackentries.RankOverride, snapshot func(sqlkit.Querier, []TeamResult) ([]byte, error), committed func()) (entryrepo.EventResultsRow, string, error) {
+// prepare, when set, runs right after the event row is locked and may
+// refuse the publish or change the event (SIM-271: move it to Results); its
+// error is returned with phase "prepare".
+func (s *Service) PublishResults(ctx context.Context, eventID, userID string, overrides []hackentries.RankOverride, prepare func(*sql.Tx, model.Event) (model.Event, error), snapshot func(sqlkit.Querier, []TeamResult) ([]byte, error), committed func()) (entryrepo.EventResultsRow, string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return entryrepo.EventResultsRow{}, "begin", err
@@ -66,6 +70,11 @@ func (s *Service) PublishResults(ctx context.Context, eventID, userID string, ov
 	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		return entryrepo.EventResultsRow{}, "lock", err
+	}
+	if prepare != nil {
+		if ev, err = prepare(tx, ev); err != nil {
+			return entryrepo.EventResultsRow{}, "prepare", err
+		}
 	}
 	results, err := s.ComputeResults(ctx, tx, ev)
 	if err != nil {

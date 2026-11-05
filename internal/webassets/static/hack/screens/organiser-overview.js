@@ -1,8 +1,8 @@
 import { href } from '../nav.js'
-import { adminLock, stagePicker, formDialog } from './_orgA-util.js'
+import { adminLock, stagePicker } from './_orgA-util.js'
 import { startTour } from '../tour.js'
 import { cueHeading } from '../schedule.js'
-import { suggestedAnnouncement } from '../stage-announce.js'
+import { offerStageAnnouncement } from './_stage-announce-dialog.js'
 
 const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results', 'archived']
 
@@ -231,55 +231,22 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
   // tell participants, after the move itself has already succeeded --
   // never before, so a refused move never dangles a half-asked
   // announcement. `move` is a target stage id or 'publish_results';
-  // `back` is true only for a backward Change-stage move. Built on
-  // formDialog/ui.dialog (_orgA-util.js), never a new scrim -- same
-  // pattern organiser-announcements.js's own Edit dialog uses. The
-  // checkbox's wording and emailableCount gating are copied from that
-  // screen's "New announcement" form so the two never say something
-  // different for the same event.
+  // `back` is true only for a backward Change-stage move. The dialog
+  // itself (markup, suggestion wording, email-checkbox gating,
+  // live-region messages) now lives in _stage-announce-dialog.js, shared
+  // with organiser-results.js's own Publish offer, so the two screens
+  // never say something different for the same kind of change.
+  // `judgingLocked` defaults to the event's own current lock -- only the
+  // Change-stage handler below overrides it with the stage call's own
+  // fresher response, for the one move (back to judging) whose wording
+  // depends on it.
   const emailableCount = counts.emailable_participants ?? 0
-  const announcePath = '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/announcements'
-  async function offerAnnouncement(move, back) {
-    // The organiser MCP App has no announcements route (its api() answers
-    // "not available here"), so inside a chat the AI app makes this offer
-    // itself, per hack_set_event_stage's description.
-    if (ctx.noAnnounce) return
-    const suggestion = suggestedAnnouncement(move, { back, eventTitle: ev.title })
-    if (!suggestion) return
-    const body = document.createElement('div')
-    body.innerHTML = `<p class="form-intro">Post an announcement about this change. You can edit it first.</p>
-<div class="field"><label for="sa-title">Title</label><input class="input" id="sa-title" maxlength="120" value="${ui.esc(suggestion.title)}"></div>
-<div class="field"><label for="sa-body">Message</label><textarea class="input" id="sa-body" rows="4" maxlength="3000">${ui.esc(suggestion.body)}</textarea></div>
-<label class="check"><input type="checkbox" id="sa-email"${emailableCount ? '' : ' disabled'}><span><b>Email ${emailableCount} participants</b><span>${emailableCount ? 'Editing it later never sends another email.' : 'No participant has an email address yet.'}</span></span></label>`
-    const q = sel => body.querySelector(sel)
-    await formDialog(ui, { title: 'Tell participants?', body, saveLabel: 'Send', cancelLabel: "Don't send", focus: 'first-field' }, async () => {
-      body.querySelectorAll('.err').forEach(n => n.remove())
-      const t = q('#sa-title').value.trim(), b = q('#sa-body').value.trim()
-      if (!t) { q('#sa-title').insertAdjacentHTML('afterend', '<p class="err">Title is required.</p>'); return false }
-      if (!b) { q('#sa-body').insertAdjacentHTML('afterend', '<p class="err">Message is required.</p>'); return false }
-      const emailChecked = q('#sa-email').checked
-      try {
-        const r = await api('POST', announcePath, { title: t, body: b, email_participants: emailChecked })
-        if (!r.ok) { body.insertAdjacentHTML('beforeend', `<p class="err">${ui.esc(ui.errText(r))}</p>`); return false }
-        // Same live-region wording organiser-announcements.js uses for the
-        // same server response, so the two screens never read differently
-        // for the same result.
-        if (!emailChecked) {
-          setLive('Posted', 'ok')
-        } else {
-          const queued = r.data.emails_queued || 0
-          if (queued === 0) {
-            setLive('Posted. Nobody had an email address on file, so no email was sent.', 'err')
-          } else {
-            const copy = r.data.organiser_copied ? ' (including a copy to you)' : ''
-            setLive(`Posted and emailed to ${queued} ${queued === 1 ? 'person' : 'people'}${copy}.`, 'ok')
-          }
-        }
-        return true
-      } catch (e) { body.insertAdjacentHTML('beforeend', '<p class="err">Cannot reach the server.</p>'); return false }
+  async function offerAnnouncement(move, back, judgingLocked) {
+    await offerStageAnnouncement(ctx, {
+      move, back,
+      judgingLocked: judgingLocked ?? !!ev.judging_locked_at,
+      emailableCount, setLive
     })
-    // 'Don't send', Escape and a scrim click all resolve formDialog false
-    // with nothing posted -- there is no "nothing sent" message to show.
   }
 
   if (!archived) {
@@ -381,7 +348,15 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
       // the server-refuses-on-archived ordering issue runEnd/
       // runEndFromNext handle doesn't apply to this path).
       const back = STAGE_ORDER.indexOf(target) < STAGE_ORDER.indexOf(ev.stage)
-      await offerAnnouncement(target, back)
+      // SIM-341 wording fix: the response from the stage call itself is
+      // fresher than ev (which still reflects the stage before this
+      // move), so a back-to-judging offer right after Results locks
+      // judging in the very same call must see that lock -- falling back
+      // to ev's own flag only if the response is missing it somehow.
+      const judgingLocked = (r.data && r.data.event && r.data.event.judging_locked_at != null)
+        ? !!r.data.event.judging_locked_at
+        : !!ev.judging_locked_at
+      await offerAnnouncement(target, back, judgingLocked)
       await ctx.refresh()
     } catch (e) { setLive('Cannot reach the server.', 'err'); btn.disabled = false }
   })

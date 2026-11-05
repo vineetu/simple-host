@@ -1183,6 +1183,15 @@ func TestHackPublishResultsMovesEventToResults(t *testing.T) {
 		t.Fatalf("back to closed: %d %s", r.status, r.body)
 	}
 
+	// A refused publish (a bad rank override) rolls the stage move back
+	// with it: still Closed, judging not locked.
+	if r := w.call(t, "POST", "/results/publish", map[string]any{"rank_overrides": []map[string]any{{"team_id": "no-such-team", "rank": 1}}}, w.org); r.status != http.StatusBadRequest {
+		t.Fatalf("publish with a bad override: %d %s, want 400", r.status, r.body)
+	}
+	if ev := eventJSON(); ev["stage"] != "closed" || ev["judging_locked_at"] != nil {
+		t.Fatalf("after refused publish: stage %v, judging_locked_at %v; want closed, unlocked", ev["stage"], ev["judging_locked_at"])
+	}
+
 	// Publishing straight from Closed -- skipping Start judging, Lock
 	// judging and Finish judging entirely, as a direct REST/MCP call or an
 	// organiser Results screen visit could -- still works, and leaves the
