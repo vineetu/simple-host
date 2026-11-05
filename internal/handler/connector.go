@@ -1005,12 +1005,11 @@ func (h *ConnectorHandler) authorize(w http.ResponseWriter, r *http.Request) {
 		// This install's own host, named on the sign-in step and the Allow
 		// page on a self-hosted instance only (SIM connect-mcp rule 4):
 		// hosted text already says Simple Host/Simple Hack and stays as it
-		// is. host is harmless either way (both editions already show their
-		// own host in the browser's address bar); self_hosted gates the new
-		// copy connect.html's script adds.
-		data["host"] = r.Host
+		// is, so host/self_hosted are only emitted on self-hosted -- hosted's
+		// consent HTML/JSON must stay byte-identical to the baseline.
 		if h.pipeline().hostedOwner() == "" {
 			data["self_hosted"] = true
+			data["host"] = r.Host
 		}
 	}
 	h.renderConsent(w, r, status, data)
