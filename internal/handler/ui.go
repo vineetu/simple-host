@@ -189,7 +189,18 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.Handle("GET /enterprise", assets.adminUICSP(assets.serveStaticPage("enterprise.html")))
 	mux.Handle("GET /enterprise/brief", assets.adminUICSP(assets.serveStaticPage("enterprise-brief.html")))
 	mux.Handle("GET /enterprise/architecture", assets.adminUICSP(assets.serveStaticPage("enterprise-architecture.html")))
-	mux.Handle("GET /hackathons", assets.adminUICSP(assets.serveStaticPage("hackathons.html")))
+	if assets.pres.HackAssets || assets.hostedOwner() != "" {
+		mux.Handle("GET /hackathons", assets.adminUICSP(assets.serveStaticPage("hackathons.html")))
+	} else {
+		// Self-hosted Host edition (no Hack feature, EVENTS=off): this page
+		// pitches self-hosting the Hack platform and links to "Use the
+		// hosted version" (simple-hack.app) -- neither makes sense on an
+		// instance that is already self-hosted. Hidden the same way other
+		// self-host-only marketing is, a redirect to home rather than a
+		// page describing something this install cannot do.
+		mux.Handle("GET /hackathons", http.RedirectHandler("/", http.StatusFound))
+		mux.Handle("GET /hackathons.html", http.RedirectHandler("/", http.StatusFound))
+	}
 	// The setup helper: a small-box .env and install command, or Enterprise's
 	// config.env and Secret template, built in the browser from the two
 	// settings lists under static/setup/ (docs/advanced/README.md).
