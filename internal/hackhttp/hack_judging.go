@@ -837,6 +837,37 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
+	// Publishing implies judging is finished (SIM-271): from any stage
+	// before Results, move there first, the same transition the Overview's
+	// "Finish judging" button performs and which locks judging in the same
+	// step (events.Service.SetStage). Without this, publishing from the
+	// Judging screen's lock + the Results screen's own Publish button (or a
+	// direct REST/MCP call) left the stage, the Overview pill and the public
+	// page's "Judging is under way" kicker all saying Judging after results
+	// were already out, even though they agree once the Overview's one
+	// forward button is used end to end. An archived event is never moved
+	// back; results may still be republished after End event (e.g. to fix a
+	// disqualified team), which is why this only runs on the way to Results,
+	// never away from Archived.
+	// Before entries close there is nothing to judge yet, so publishing is
+	// refused rather than jumping the event straight to Results.
+	if a.event.Stage == "draft" || a.event.Stage == "open" || a.event.Stage == "building" {
+		httpx.WriteError(w, http.StatusConflict, "judging_not_started", "Close entries and judge them before publishing results.")
+		return
+	}
+	if a.event.Stage != "results" && a.event.Stage != "archived" {
+		updated, current, err := h.eventsSvc().SetStage(r.Context(), a.event, "results", h.entries.SettleEventTx)
+		if err != nil {
+			writeEventsError(w, err)
+			return
+		}
+		a.event = updated
+		if current != updated.Stage {
+			paperHackStage(r, updated)
+		}
+		h.pinDue(r.Context(), updated.ID)
+		h.requestEventCert(updated)
+	}
 	overrides := make([]rankOverride, len(req.RankOverrides))
 	for i, ov := range req.RankOverrides {
 		overrides[i] = rankOverride{TeamID: ov.TeamID, Rank: ov.Rank}

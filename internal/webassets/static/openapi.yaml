@@ -10782,10 +10782,16 @@ paths:
         preferences; unresolved ties remain until recorded rank_overrides.
         The snapshot also keeps track names and prizes and each track winner. rank_overrides may resolve a tie by giving every
         team in that tied group a distinct integer to order that group
-        (400 invalid_rank_override otherwise). Does not require judging
-        to be locked, and may be called again at any time (each call
-        recomputes and overwrites; full_ranking is kept from the prior
-        publish, or false on the first one).
+        (400 invalid_rank_override otherwise). Refused before entries close
+        (409 judging_not_started at draft, open or building). May be called
+        again at any time after that, including after the event has ended
+        (each call recomputes and overwrites; full_ranking is kept from the
+        prior publish, or false on the first one). From closed or judging,
+        publishing moves the event to results and locks
+        judging first (the same transition "Finish judging" performs), so
+        the stage and the event page's own words never keep saying judging
+        is under way once results are out; an already-ended event is never
+        reopened by this.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -10812,6 +10818,7 @@ paths:
         '400': { description: "invalid_rank_override or invalid_request", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '403': { description: "event_taken_down", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "event_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "judging_not_started (draft, open or building)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/hack/events/{slug}/results:

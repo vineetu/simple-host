@@ -3763,7 +3763,7 @@
     {
       "method": "POST",
       "path": "/v1/hack/events/{slug}/results/publish",
-      "feature_id": "hack-voting",
+      "feature_id": "hack-publish-finishes-judging",
       "source": "internal/hackhttp/hack_judging.go:48",
       "package": "internal/hackhttp",
       "dynamic": false

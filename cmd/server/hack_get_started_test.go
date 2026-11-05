@@ -74,7 +74,7 @@ func TestHackGetStartedSkills(t *testing.T) {
 		mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, path, nil))
 		return r
 	}
-	if page := get("/get-started"); page.Code != 200 || !strings.Contains(page.Body.String(), "Run, join or judge a hackathon from the AI you already use.") {
+	if page := get("/get-started"); page.Code != 200 || !strings.Contains(page.Body.String(), "Run, join or judge a hackathon on the website or in your AI app.") {
 		t.Fatalf("get-started: %d", page.Code)
 	}
 	if alias := get("/skills"); alias.Code != http.StatusMovedPermanently || alias.Header().Get("Location") != "/get-started" {
@@ -121,7 +121,7 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 	mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/get-started", nil))
 	page := r.Body.String()
 	last := -1
-	for _, heading := range []string{"Run, join or judge a hackathon from the AI you already use.", "Pick your AI", "Try one of these", "What happens next", "Other ways to install"} {
+	for _, heading := range []string{"Run, join or judge a hackathon on the website or in your AI app.", ">Organiser</h2>", ">Participant</h2>", ">Judge</h2>", ">Pick your AI</h2>", ">What happens next</h2>", "Other ways to install"} {
 		at := strings.Index(page, heading)
 		if at <= last {
 			t.Fatalf("missing or out-of-order heading %q", heading)

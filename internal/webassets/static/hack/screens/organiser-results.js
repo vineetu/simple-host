@@ -273,6 +273,12 @@ ${lockReason ? `<div class="note warn" role="alert">${ui.esc(lockReason)}</div>`
     paintRepublishNote(false)
     syncPublishSection()
     setLive('Results published', 'ok', near)
+    // SIM-271: publishing before Results now moves the event there itself
+    // (and locks judging), so the stage pill and track in the shell -- and
+    // the Overview next step -- need the same refresh every other
+    // stage-changing screen already does; without it they kept showing
+    // Judging until the next navigation.
+    if (ev.stage !== 'results' && ev.stage !== 'archived') await ctx.refresh()
   }
   $('res-publish-top').addEventListener('click', () => publish(null, $('res-publish-top')))
   $('res-lock-hint').hidden = judgingLocked

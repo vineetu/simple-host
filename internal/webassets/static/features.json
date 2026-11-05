@@ -5254,6 +5254,10 @@
   {
    "section": 22,
    "why": "An index of FEATURES.md itself (every route and tool is placed), not a feature."
+  },
+  {
+   "lead": "hack-publish-finishes-judging",
+   "why": "A correctness fix to an existing step (publish now finishes judging), not a new user-facing capability to list on its own."
   }
  ]
 }

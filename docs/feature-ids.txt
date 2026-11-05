@@ -44,6 +44,7 @@ hack-company-pitch
 hack-films
 hack-next-step
 hack-notices
+hack-publish-finishes-judging
 hack-team-admins-lock-links
 hack-voting
 hackathon-event-instances

@@ -1,7 +1,8 @@
 import { href } from '../nav.js'
-import { adminLock, stagePicker } from './_orgA-util.js'
+import { adminLock, stagePicker, formDialog } from './_orgA-util.js'
 import { startTour } from '../tour.js'
 import { cueHeading } from '../schedule.js'
+import { suggestedAnnouncement } from '../stage-announce.js'
 
 const STAGE_ORDER = ['draft', 'open', 'building', 'closed', 'judging', 'results', 'archived']
 
@@ -226,6 +227,61 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
     return api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/stage', { stage: target })
   }
 
+  // SIM-341 (owner): every stage change (and Publish results) offers to
+  // tell participants, after the move itself has already succeeded --
+  // never before, so a refused move never dangles a half-asked
+  // announcement. `move` is a target stage id or 'publish_results';
+  // `back` is true only for a backward Change-stage move. Built on
+  // formDialog/ui.dialog (_orgA-util.js), never a new scrim -- same
+  // pattern organiser-announcements.js's own Edit dialog uses. The
+  // checkbox's wording and emailableCount gating are copied from that
+  // screen's "New announcement" form so the two never say something
+  // different for the same event.
+  const emailableCount = counts.emailable_participants ?? 0
+  const announcePath = '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/announcements'
+  async function offerAnnouncement(move, back) {
+    // The organiser MCP App has no announcements route (its api() answers
+    // "not available here"), so inside a chat the AI app makes this offer
+    // itself, per hack_set_event_stage's description.
+    if (ctx.noAnnounce) return
+    const suggestion = suggestedAnnouncement(move, { back, eventTitle: ev.title })
+    if (!suggestion) return
+    const body = document.createElement('div')
+    body.innerHTML = `<p class="form-intro">Post an announcement about this change. You can edit it first.</p>
+<div class="field"><label for="sa-title">Title</label><input class="input" id="sa-title" maxlength="120" value="${ui.esc(suggestion.title)}"></div>
+<div class="field"><label for="sa-body">Message</label><textarea class="input" id="sa-body" rows="4" maxlength="3000">${ui.esc(suggestion.body)}</textarea></div>
+<label class="check"><input type="checkbox" id="sa-email"${emailableCount ? '' : ' disabled'}><span><b>Email ${emailableCount} participants</b><span>${emailableCount ? 'Editing it later never sends another email.' : 'No participant has an email address yet.'}</span></span></label>`
+    const q = sel => body.querySelector(sel)
+    await formDialog(ui, { title: 'Tell participants?', body, saveLabel: 'Send', cancelLabel: "Don't send", focus: 'first-field' }, async () => {
+      body.querySelectorAll('.err').forEach(n => n.remove())
+      const t = q('#sa-title').value.trim(), b = q('#sa-body').value.trim()
+      if (!t) { q('#sa-title').insertAdjacentHTML('afterend', '<p class="err">Title is required.</p>'); return false }
+      if (!b) { q('#sa-body').insertAdjacentHTML('afterend', '<p class="err">Message is required.</p>'); return false }
+      const emailChecked = q('#sa-email').checked
+      try {
+        const r = await api('POST', announcePath, { title: t, body: b, email_participants: emailChecked })
+        if (!r.ok) { body.insertAdjacentHTML('beforeend', `<p class="err">${ui.esc(ui.errText(r))}</p>`); return false }
+        // Same live-region wording organiser-announcements.js uses for the
+        // same server response, so the two screens never read differently
+        // for the same result.
+        if (!emailChecked) {
+          setLive('Posted', 'ok')
+        } else {
+          const queued = r.data.emails_queued || 0
+          if (queued === 0) {
+            setLive('Posted. Nobody had an email address on file, so no email was sent.', 'err')
+          } else {
+            const copy = r.data.organiser_copied ? ' (including a copy to you)' : ''
+            setLive(`Posted and emailed to ${queued} ${queued === 1 ? 'person' : 'people'}${copy}.`, 'ok')
+          }
+        }
+        return true
+      } catch (e) { body.insertAdjacentHTML('beforeend', '<p class="err">Cannot reach the server.</p>'); return false }
+    })
+    // 'Don't send', Escape and a scrim click all resolve formDialog false
+    // with nothing posted -- there is no "nothing sent" message to show.
+  }
+
   if (!archived) {
     // Same clipboard logic as ui.copyButton, against the existing readonly inputs.
     async function copyInput(input, btn) {
@@ -258,6 +314,12 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
       if (!ok) return
       btn.disabled = true
       try {
+        // The server refuses an announcement on an already-archived event
+        // (hack_content.go postAnnouncement: event_ended), so the offer
+        // has to come BEFORE the archive call here, not after like every
+        // other move -- only when the person chose Send does anything
+        // post; "Don't send" or Escape falls straight through to archive.
+        await offerAnnouncement('archived', false)
         const r = await callStage('archived')
         if (!r.ok) { setLive(ui.errText(r), 'err'); btn.disabled = false; return }
         await ctx.refresh()
@@ -281,10 +343,12 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
       if (!ok) return
       nextMoveBtn.disabled = true
       try {
+        const move = step.kind === 'publish_results' ? 'publish_results' : step.stage
         const r = step.kind === 'publish_results'
           ? await api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/results/publish', {})
           : await callStage(step.stage)
         if (!r.ok) { setLive(ui.errText(r), 'err'); nextMoveBtn.disabled = false; await ctx.refresh(); return }
+        await offerAnnouncement(move, false)
         await ctx.refresh()
       } catch (e) { setLive('Cannot reach the server.', 'err'); nextMoveBtn.disabled = false }
     })
@@ -293,6 +357,10 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
       if (!ok) return
       nextMoveBtn.disabled = true
       try {
+        // Same ordering as the danger-zone End button: the announcement,
+        // when the person chooses Send, must post before the event
+        // archives -- the server refuses one on an archived event.
+        await offerAnnouncement('archived', false)
         const r = await callStage('archived')
         if (!r.ok) { setLive(ui.errText(r), 'err'); nextMoveBtn.disabled = false; await ctx.refresh(); return }
         await ctx.refresh()
@@ -308,6 +376,12 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
     try {
       const r = await callStage(target)
       if (!r.ok) { setLive(ui.errText(r), 'err'); btn.disabled = false; return }
+      // Change stage is the only way here to move backward (the stage
+      // picker never offers archived, so this call never archives --
+      // the server-refuses-on-archived ordering issue runEnd/
+      // runEndFromNext handle doesn't apply to this path).
+      const back = STAGE_ORDER.indexOf(target) < STAGE_ORDER.indexOf(ev.stage)
+      await offerAnnouncement(target, back)
       await ctx.refresh()
     } catch (e) { setLive('Cannot reach the server.', 'err'); btn.disabled = false }
   })

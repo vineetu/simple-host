@@ -27756,7 +27756,7 @@
         ],
         "operationId": "postHackResultsPublish",
         "summary": "Compute and publish results (organiser) (EVENTS=hosted only)",
-        "description": "Computes eligible weighted judge-entry scores, stores both raw and population-normalised team means, and ranks in the selected score_mode. Equal totals use the preselected criterion mean, then pairwise judge preferences; unresolved ties remain until recorded rank_overrides. The snapshot also keeps track names and prizes and each track winner. rank_overrides may resolve a tie by giving every team in that tied group a distinct integer to order that group (400 invalid_rank_override otherwise). Does not require judging to be locked, and may be called again at any time (each call recomputes and overwrites; full_ranking is kept from the prior publish, or false on the first one).",
+        "description": "Computes eligible weighted judge-entry scores, stores both raw and population-normalised team means, and ranks in the selected score_mode. Equal totals use the preselected criterion mean, then pairwise judge preferences; unresolved ties remain until recorded rank_overrides. The snapshot also keeps track names and prizes and each track winner. rank_overrides may resolve a tie by giving every team in that tied group a distinct integer to order that group (400 invalid_rank_override otherwise). Refused before entries close (409 judging_not_started at draft, open or building). May be called again at any time after that, including after the event has ended (each call recomputes and overwrites; full_ranking is kept from the prior publish, or false on the first one). From closed or judging, publishing moves the event to results and locks judging first (the same transition \"Finish judging\" performs), so the stage and the event page's own words never keep saying judging is under way once results are out; an already-ended event is never reopened by this.",
         "security": [
           {
             "apiKey": []
@@ -27842,6 +27842,16 @@
           },
           "404": {
             "description": "event_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "judging_not_started (draft, open or building)",
             "content": {
               "application/json": {
                 "schema": {

@@ -1145,6 +1145,90 @@ func TestHackJudgingScoreFormulaHandCheck(t *testing.T) {
 	}
 }
 
+// TestHackPublishResultsMovesEventToResults is SIM-271: before this fix,
+// PublishResults had no stage check at all, so a judging-locked publish from
+// the organiser's Results screen (or a direct REST/MCP call) could succeed
+// while the event stage stayed "judging" (or earlier) -- the Overview pill
+// and the public page kept saying "Judging is under way" even though
+// winners were already out. Publishing now always leaves the event at
+// Results (or later), the same place the Overview's "Finish judging" button
+// would have put it, so the stage and its words never disagree with what
+// just happened.
+func TestHackPublishResultsMovesEventToResults(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org))
+	c1 := rv.Criteria[0].ID
+	team := w.teams[0].id
+	w.scoreTeam(t, w.judges[0], team, map[string]int{c1: 5}, nil)
+
+	eventJSON := func() map[string]any {
+		return w.call(t, "GET", "", nil, w.org).json(t)["event"].(map[string]any)
+	}
+	if stage := eventJSON()["stage"]; stage != "closed" {
+		t.Fatalf("setup: stage = %v, want closed", stage)
+	}
+
+	// Before entries close there is nothing to judge: publishing is refused
+	// and the stage stays put.
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "building"}, w.org); r.status != http.StatusOK {
+		t.Fatalf("back to building: %d %s", r.status, r.body)
+	}
+	if r := w.call(t, "POST", "/results/publish", map[string]any{}, w.org); r.status != http.StatusConflict || !strings.Contains(string(r.body), "judging_not_started") {
+		t.Fatalf("publish at building: %d %s, want 409 judging_not_started", r.status, r.body)
+	}
+	if stage := eventJSON()["stage"]; stage != "building" {
+		t.Fatalf("stage after refused publish = %v, want building", stage)
+	}
+	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "closed"}, w.org); r.status != http.StatusOK {
+		t.Fatalf("back to closed: %d %s", r.status, r.body)
+	}
+
+	// Publishing straight from Closed -- skipping Start judging, Lock
+	// judging and Finish judging entirely, as a direct REST/MCP call or an
+	// organiser Results screen visit could -- still works, and leaves the
+	// event at Results, locked, exactly as Finish judging would have.
+	pub := w.call(t, "POST", "/results/publish", map[string]any{}, w.org)
+	if pub.status != http.StatusOK {
+		t.Fatalf("publish: %d %s", pub.status, pub.body)
+	}
+	ev := eventJSON()
+	if ev["stage"] != "results" {
+		t.Fatalf("stage after publish = %v, want results", ev["stage"])
+	}
+	if ev["judging_locked_at"] == nil {
+		t.Fatal("judging_locked_at after publish: want set, got nil")
+	}
+	if ev["results_published"] != true {
+		t.Fatalf("results_published after publish = %v, want true", ev["results_published"])
+	}
+	// hackStagePill/buildHackStageCard (hack_eventpage.go) already switch
+	// on exactly this "results" + published combination to stop saying
+	// "Judging is under way" -- the bug was only ever that the stage never
+	// got here, which the checks above now cover directly.
+
+	// Republishing (e.g. after fixing a conflict) keeps working once Results
+	// has already been reached: no second stage move, no error.
+	pub2 := w.call(t, "POST", "/results/publish", map[string]any{}, w.org)
+	if pub2.status != http.StatusOK {
+		t.Fatalf("republish at results: %d %s", pub2.status, pub2.body)
+	}
+	if ev2 := eventJSON(); ev2["stage"] != "results" {
+		t.Fatalf("stage after republish = %v, want results", ev2["stage"])
+	}
+
+	// And results stay updatable (e.g. to fix a disqualified team) even
+	// once the event has ended -- publishing never refuses on account of
+	// Archived, only reopening a stage does.
+	w.setStage(t, "archived")
+	pub3 := w.call(t, "POST", "/results/publish", map[string]any{}, w.org)
+	if pub3.status != http.StatusOK {
+		t.Fatalf("republish at archived: %d %s", pub3.status, pub3.body)
+	}
+	if ev3 := eventJSON(); ev3["stage"] != "archived" {
+		t.Fatalf("stage after republish at archived = %v, want still archived", ev3["stage"])
+	}
+}
+
 func TestHackJudgingConflictExcludedFromTotal(t *testing.T) {
 	w := newJudgingWorld(t, 1, 2)
 	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org))
@@ -1277,7 +1361,13 @@ func TestHackOrganisersCanJudgeAndRemovedOrganiserScoresStopCounting(t *testing.
 			}
 		}
 	}
-	checkResult(60, 3, orgComment, coComment, "judge comment")
+	// The self-conflict (and the forbidden read/write/queue checks it
+	// causes) is declared before the first publish, while scoring is still
+	// open: SIM-271 made publishing move the event to Results and lock
+	// judging in the same step, the same as the Overview's "Finish judging"
+	// -- scoring itself (not just a new conflict) is meant to close once
+	// judging has moved on, so this is no longer something to exercise
+	// after a publish.
 	self := decodeConflict(t, w.call(t, "POST", "/conflicts", map[string]any{"team_id": team}, w.org))
 	if self.JudgeID != w.a.userID(t, w.org) {
 		t.Fatalf("self conflict targeted %s", self.JudgeID)
@@ -1291,6 +1381,7 @@ func TestHackOrganisersCanJudgeAndRemovedOrganiserScoresStopCounting(t *testing.
 	if r := w.call(t, "GET", "/judge/queue", nil, w.org); len(r.json(t)["queue"].([]any)) != 0 {
 		t.Fatalf("conflicted organiser queue: %s", r.body)
 	}
+	// First publish: the conflicted organiser's score is already excluded.
 	checkResult(40, 2, coComment, "judge comment")
 	if r := w.call(t, "DELETE", "/organisers/"+w.a.userID(t, co), nil, w.org); r.status != http.StatusNoContent {
 		t.Fatalf("remove co-organiser: %d %s", r.status, r.body)

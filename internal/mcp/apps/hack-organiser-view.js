@@ -337,6 +337,9 @@
       me: { username: 'me', id: (state.orgData && state.orgData.me && state.orgData.me.id) || '', display_name: (state.orgData && state.orgData.me && state.orgData.me.display_name) || '' },
       params: paramsObj(params || {}),
       alive: function () { return generation === renderGeneration; },
+      // SIM-341: no announcements route here, so organiser-overview.js skips
+      // its "Tell participants?" dialog; the AI app offers it instead.
+      noAnnounce: true,
       refresh: function () { return renderView(state.view, state.params, { replace: true }); },
       go: function (path) {
         var q = (path.split('?')[1] || '');

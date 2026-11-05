@@ -701,6 +701,11 @@
      "name": "applications waiting",
      "when": "needs_you has an application_new item (2026-11-02 notify design)",
      "shows": "A .note under the next-step card: '3 applications are waiting for a decision.' with a Review applications link to People, the same count as the People sidebar badge. Gone the moment nothing is waiting."
+    },
+    {
+     "name": "offering to tell participants (SIM-341, 2026-11-05)",
+     "when": "the next-step move, Publish results, Change stage, or End event just succeeded",
+     "shows": "a dialog (formDialog/ui.dialog, never a new scrim): heading 'Tell participants?', 'Post an announcement about this change. You can edit it first.', an editable Title input and Body textarea prefilled with a suggested message for that move (stage-announce.js's suggestedAnnouncement; e.g. open: 'Sign-up is open' / 'Sign-up is open. Join with the event link and find a team.', archived: 'The event has ended' / 'The event has ended. Thanks for taking part. The event page stays up as a record.', a backward Change-stage move gets its own wording, e.g. judging backward: 'Judging has reopened' / 'Judging has reopened. Entries stay as they are.'), the same 'Email N participants' checkbox the Announcements screen uses (off by default, disabled with its explanation when emailable_participants is 0), and two buttons, 'Don't send' and 'Send'. Escape or a scrim click is 'Don't send'. Send posts through the same POST .../announcements call and reports the same live-region messages (posted / posted and emailed N) as Announcements; an empty title or body is refused inline, and a server error keeps what was typed. For End event, the event archives after this dialog closes, and the announcement posts (when Send was chosen) before the archive call -- the server refuses an announcement on an already-ended event."
     }
    ],
    "replaces": [
@@ -769,6 +774,11 @@
      "q": "Does the schedule move the stage at its time? (owner, 2026-11-02)",
      "decision": "Never. The server adds next_step.cue (the latest row lining up with the move whose time has come, with the wording) and Overview asks. AI apps read the same cue through hack_get_event. A delayed kickoff therefore never closes entries early.",
      "why": "Owner 2026-11-02: it never acts by itself, it only prompts, and the organiser presses the button."
+    },
+    {
+     "q": "Should every stage change offer to tell participants? (owner, SIM-341, 2026-11-05)",
+     "decision": "Yes, after the move itself succeeds, not before: a dialog with an editable Title/Body prefilled from a per-move suggestion, the Announcements screen's own email checkbox and wording, and 'Don't send' / 'Send' (Escape and the scrim both mean Don't send). For End event specifically, the announcement (when Send is chosen) posts before the archive call, since the server refuses one on an already-ended event; every other move posts after.",
+     "why": "Owner: 'Every stage change should offer to send an announcement, with the option not to send, or to edit what is sent.' Reusing Announcements' own endpoint, checkbox and live-region wording keeps the two screens from ever describing the same result differently."
     }
    ],
    "features": [

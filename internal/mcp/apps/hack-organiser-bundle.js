@@ -905,6 +905,22 @@
       sel.focus();
     });
   }
+  async function formDialog(ui, { title: title4, body, saveLabel = "Save", cancelLabel = "Cancel", focus = "first-field" }, onSave) {
+    for (; ; ) {
+      const action = await ui.dialog({
+        title: title4,
+        body,
+        buttons: [
+          { label: cancelLabel, value: "cancel", attrs: { "data-cancel": "" } },
+          { label: saveLabel, value: "save", className: "btn primary" }
+        ],
+        escapeValue: "cancel",
+        focus
+      });
+      if (action !== "save") return false;
+      if (await onSave()) return true;
+    }
+  }
 
   // internal/mcp/apps/frame/tour.js
   function startTour() {
@@ -949,6 +965,43 @@
         phrase = c.now ? c.title + " is now" : c.title + " was at " + at;
     }
     return phrase + ". " + label + "?";
+  }
+
+  // internal/handler/static/hack/stage-announce.js
+  function suggestedAnnouncement(move, opts) {
+    const back = !!(opts && opts.back);
+    if (move === "publish_results") {
+      return { title: "Results are out", body: "Results are out. See them on the event page." };
+    }
+    if (back) {
+      switch (move) {
+        case "draft":
+          return { title: "Sign-up is paused", body: "Sign-up is paused for now. Everyone who joined stays in." };
+        case "open":
+        case "building":
+          return { title: "Entries are open again", body: "Entries are open again. You can edit your entry and website." };
+        case "closed":
+          return { title: "Entries are closed", body: "Entries are closed and judges are starting to score. Thanks for building!" };
+        case "judging":
+          return { title: "Judging has reopened", body: "Judging has reopened. Entries stay as they are." };
+      }
+      return null;
+    }
+    switch (move) {
+      case "open":
+        return { title: "Sign-up is open", body: "Sign-up is open. Join with the event link and find a team." };
+      case "building":
+        return { title: "Building has started", body: "Building has started. Add your entry and website before entries close." };
+      case "closed":
+        return { title: "Entries are closed", body: "Entries are closed and judges are starting to score. Thanks for building!" };
+      case "judging":
+        return { title: "Judging has started", body: "Judging has started. Entries, teams and websites can no longer be changed." };
+      case "results":
+        return { title: "Judging is done", body: "Judging is done. Results are coming soon." };
+      case "archived":
+        return { title: "The event has ended", body: "The event has ended. Thanks for taking part. The event page stays up as a record." };
+    }
+    return null;
   }
 
   // internal/handler/static/hack/screens/organiser-overview.js
@@ -1099,6 +1152,54 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
     async function callStage(target) {
       return api("POST", "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/stage", { stage: target });
     }
+    const emailableCount = counts.emailable_participants ?? 0;
+    const announcePath = "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/announcements";
+    async function offerAnnouncement(move, back) {
+      if (ctx.noAnnounce) return;
+      const suggestion = suggestedAnnouncement(move, { back, eventTitle: ev.title });
+      if (!suggestion) return;
+      const body = document.createElement("div");
+      body.innerHTML = `<p class="form-intro">Post an announcement about this change. You can edit it first.</p>
+<div class="field"><label for="sa-title">Title</label><input class="input" id="sa-title" maxlength="120" value="${ui.esc(suggestion.title)}"></div>
+<div class="field"><label for="sa-body">Message</label><textarea class="input" id="sa-body" rows="4" maxlength="3000">${ui.esc(suggestion.body)}</textarea></div>
+<label class="check"><input type="checkbox" id="sa-email"${emailableCount ? "" : " disabled"}><span><b>Email ${emailableCount} participants</b><span>${emailableCount ? "Editing it later never sends another email." : "No participant has an email address yet."}</span></span></label>`;
+      const q = (sel) => body.querySelector(sel);
+      await formDialog(ui, { title: "Tell participants?", body, saveLabel: "Send", cancelLabel: "Don't send", focus: "first-field" }, async () => {
+        body.querySelectorAll(".err").forEach((n) => n.remove());
+        const t = q("#sa-title").value.trim(), b = q("#sa-body").value.trim();
+        if (!t) {
+          q("#sa-title").insertAdjacentHTML("afterend", '<p class="err">Title is required.</p>');
+          return false;
+        }
+        if (!b) {
+          q("#sa-body").insertAdjacentHTML("afterend", '<p class="err">Message is required.</p>');
+          return false;
+        }
+        const emailChecked = q("#sa-email").checked;
+        try {
+          const r = await api("POST", announcePath, { title: t, body: b, email_participants: emailChecked });
+          if (!r.ok) {
+            body.insertAdjacentHTML("beforeend", `<p class="err">${ui.esc(ui.errText(r))}</p>`);
+            return false;
+          }
+          if (!emailChecked) {
+            setLive("Posted", "ok");
+          } else {
+            const queued = r.data.emails_queued || 0;
+            if (queued === 0) {
+              setLive("Posted. Nobody had an email address on file, so no email was sent.", "err");
+            } else {
+              const copy = r.data.organiser_copied ? " (including a copy to you)" : "";
+              setLive(`Posted and emailed to ${queued} ${queued === 1 ? "person" : "people"}${copy}.`, "ok");
+            }
+          }
+          return true;
+        } catch (e) {
+          body.insertAdjacentHTML("beforeend", '<p class="err">Cannot reach the server.</p>');
+          return false;
+        }
+      });
+    }
     if (!archived) {
       async function copyInput(input, btn) {
         try {
@@ -1135,6 +1236,7 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
         if (!ok) return;
         btn.disabled = true;
         try {
+          await offerAnnouncement("archived", false);
           const r = await callStage("archived");
           if (!r.ok) {
             setLive(ui.errText(r), "err");
@@ -1164,6 +1266,7 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
         if (!ok) return;
         nextMoveBtn.disabled = true;
         try {
+          const move = step.kind === "publish_results" ? "publish_results" : step.stage;
           const r = step.kind === "publish_results" ? await api("POST", "/v1/hack/events/" + encodeURIComponent(ev.slug) + "/results/publish", {}) : await callStage(step.stage);
           if (!r.ok) {
             setLive(ui.errText(r), "err");
@@ -1171,6 +1274,7 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
             await ctx.refresh();
             return;
           }
+          await offerAnnouncement(move, false);
           await ctx.refresh();
         } catch (e) {
           setLive("Cannot reach the server.", "err");
@@ -1182,6 +1286,7 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
         if (!ok) return;
         nextMoveBtn.disabled = true;
         try {
+          await offerAnnouncement("archived", false);
           const r = await callStage("archived");
           if (!r.ok) {
             setLive(ui.errText(r), "err");
@@ -1208,6 +1313,8 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
           btn.disabled = false;
           return;
         }
+        const back = STAGE_ORDER2.indexOf(target) < STAGE_ORDER2.indexOf(ev.stage);
+        await offerAnnouncement(target, back);
         await ctx.refresh();
       } catch (e) {
         setLive("Cannot reach the server.", "err");

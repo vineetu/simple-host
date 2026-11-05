@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=c">
   <link rel="icon" href="/favicon.ico?v=c" sizes="any">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=c">
-  <meta name="description" content="Add Simple Hack to ChatGPT, Claude, Grok, Meta Muse, GitHub Copilot or your coding agent once. Then ask to run, join or judge a hackathon.">
+  <meta name="description" content="Run, join or judge a hackathon at simple-hack.app, or from Claude, ChatGPT, Grok, Meta Muse, GitHub Copilot or your coding agent.">
   <!--sh:head-->
   <style>
     .wrap { max-width: 820px; margin: 0 auto; padding: 44px 24px 80px; }
@@ -19,6 +19,9 @@
     a { color: var(--accent); overflow-wrap: anywhere; }
     .lede { font-size: 18px; }
     section { border-top: 1.5px dashed var(--border-hi); padding-top: 28px; margin-top: 34px; }
+    .role-lede { color: var(--text); }
+    .paths { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; }
+    .path { background: var(--surface); padding: 20px; min-width: 0; }
     .skills { display: grid; gap: 12px; }
     .skill { background: var(--surface); padding: 20px; min-width: 0; }
     .accordion { background: var(--surface); border: 1.5px solid var(--border-hi); border-radius: var(--wobble); min-width: 0; }
@@ -38,11 +41,10 @@
     .copyrow code { flex: 1 1 180px; min-width: 0; font-size: 14px; }
     code { font-family: var(--mono); overflow-wrap: anywhere; }
     .btn { min-height: 44px; padding: 7px 14px; background: var(--surface); color: var(--text); cursor: pointer; flex: 0 0 auto; }
-    .prompts { display: grid; gap: 16px; }
-    .prompt { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-    .prompt div { flex: 1 1 240px; min-width: 0; }
+    .prompt { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 10px; }
+    .prompt div, .prompt p { flex: 1 1 200px; min-width: 0; }
     .prompt p { color: var(--text); margin: 0; }
-    .hint { margin-top: 18px; font-size: 14px; }
+    .hint { margin-top: 14px; font-size: 14px; }
     .faq { margin: 0; }
     .faq { display: grid; gap: 12px; }
     .faq .accordion-body { color: var(--text-secondary); line-height: 1.6; }
@@ -58,17 +60,89 @@
       .wrap { padding: 30px 16px 64px; }
       .skill { padding: 18px; }
       .copyrow code { font-size: 13px; }
+      .paths { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <!--sh:header-->
   <main class="wrap">
-    <h1>Run, join or judge a hackathon from the AI you already use.</h1>
-    <p class="lede">Add Simple Hack to your AI once. Then just ask.</p>
+    <h1>Run, join or judge a hackathon on the website or in your AI app.</h1>
+    <p class="lede">Simple Hack works the same both ways. Pick whichever you like for each step below, and switch any time.</p>
+    <p id="copy-status" role="status" aria-live="polite"></p>
 
-    <section aria-labelledby="pick-heading">
+    <section aria-labelledby="organiser-heading" id="organiser">
+      <h2 id="organiser-heading">Organiser</h2>
+      <p class="role-lede">Create the event, open sign-up, and share the join and judge links.</p>
+      <div class="paths">
+        <article class="path">
+          <h3>On the website</h3>
+          <ol class="steps">
+            <li>Sign in at <a href="https://simple-hack.app">simple-hack.app</a> with Google or an email code.</li>
+            <li>On Home, click <b>Create event</b>, fill in the details, then click <b>Create event</b> again to save it as a draft.</li>
+            <li>From the sidebar, open <b>Judging</b> to write your rubric, and <b>Teams</b>, then its <b>Tracks</b> tab, to add tracks if you want them.</li>
+            <li>On <b>Overview</b>, click your next step when you're ready. It walks you from opening sign-up through to publishing results.</li>
+            <li>Under <b>Share your event</b>, click <b>Copy</b> next to your join link and judge link, and send them out.</li>
+          </ol>
+        </article>
+        <article class="path">
+          <h3>In your AI app</h3>
+          <p>Add Simple Hack to your AI once (see <a href="#pick-ai">Pick your AI</a> below), then ask in a new chat:</p>
+          <div class="prompt"><p id="prompt-organiser">Create a hackathon called Night Build for next Saturday and Sunday, and give me the join link.</p><button class="btn" type="button" data-copy-target="prompt-organiser" aria-label="Copy organiser prompt">Copy</button></div>
+          <p class="hint">Your AI may ask for event details or confirmation before opening an event.</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="participant-heading" id="participant">
+      <h2 id="participant-heading">Participant</h2>
+      <p class="role-lede">Join the event, find a team, and publish your team's site.</p>
+      <div class="paths">
+        <article class="path">
+          <h3>On the website</h3>
+          <ol class="steps">
+            <li>Open the join link the organiser sent you, then sign in with Google or an email code.</li>
+            <li>Fill in your name, answer any questions, check <b>I agree to the code of conduct</b>, then click <b>Join event</b> (or <b>Send application</b>, if the event needs approval).</li>
+            <li>On <b>Team</b>, choose how you want to team up: <b>Start a new team</b>, <b>Ask to join a team</b>, or <b>Join with a link or code</b>.</li>
+            <li>On <b>Entry</b>, fill in your project's details and click <b>Submit entry</b> (or <b>Save draft</b> to finish later).</li>
+            <li>On <b>Website</b>, click <b>Upload</b> to publish a zip of your site yourself. No AI app needed.</li>
+          </ol>
+        </article>
+        <article class="path">
+          <h3>In your AI app</h3>
+          <p>Add Simple Hack to your AI once (see <a href="#pick-ai">Pick your AI</a> below), then describe your idea:</p>
+          <div class="prompt"><p id="prompt-participant">Join the hackathon with code ab12cd34 and start a team called Night Owls. Build our team’s site: an app that matches volunteers to shifts.</p><button class="btn" type="button" data-copy-target="prompt-participant" aria-label="Copy participant prompt">Copy</button></div>
+          <p class="hint">Use your event’s real join code. Your AI builds the page and publishes it to your team's Website tab.</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="judge-heading" id="judge">
+      <h2 id="judge-heading">Judge</h2>
+      <p class="role-lede">Accept the judge invite, then score your assigned teams.</p>
+      <div class="paths">
+        <article class="path">
+          <h3>On the website</h3>
+          <ol class="steps">
+            <li>Open the judge link the organiser sent you, then sign in with Google or an email code.</li>
+            <li>Read the code of conduct, type your name, check <b>I agree to the code of conduct</b>, then click <b>Join as judge</b>.</li>
+            <li>Read the brief under <b>Rubric &amp; brief</b>.</li>
+            <li>Open <b>My teams</b> and click <b>Score this team</b>.</li>
+            <li>Tap a score for each part of the rubric, add an optional comment, then click <b>Save &amp; next</b> (<b>Save &amp; finish</b> on your last team).</li>
+          </ol>
+        </article>
+        <article class="path">
+          <h3>In your AI app</h3>
+          <p>Add Simple Hack to your AI once (see <a href="#pick-ai">Pick your AI</a> below), then ask in a new chat:</p>
+          <div class="prompt"><p id="prompt-judge">I’m judging Night Build. Show me my next entry.</p><button class="btn" type="button" data-copy-target="prompt-judge" aria-label="Copy judge prompt">Copy</button></div>
+          <p class="hint">You’ll need the organiser’s judge link first, the same as on the website.</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="pick-heading" id="pick-ai">
       <h2 id="pick-heading">Pick your AI</h2>
+      <p>One-time setup. Add Simple Hack to the AI app you use, then use the prompts above from any role.</p>
       <div class="skills">
         <details class="accordion" id="chatgpt" name="pick-ai">
           <summary><span><span class="ai-name">ChatGPT</span><span class="audience">On the web</span></span></summary>
@@ -160,24 +234,12 @@
         </details>
 
       </div>
-      <p class="hint">After connecting, select Simple Hack in your chat’s tools and try a prompt below. Your AI may ask for event details or confirmation before opening an event.</p>
-    </section>
-
-    <section aria-labelledby="try-heading">
-      <h2 id="try-heading">Try one of these</h2>
-      <div class="prompts">
-        <article class="skill prompt"><div><h3>Organiser</h3><p id="prompt-organiser">Create a hackathon called Night Build for next Saturday and Sunday, and give me the join link.</p></div><button class="btn" type="button" data-copy-target="prompt-organiser" aria-label="Copy organiser prompt">Copy</button></article>
-        <article class="skill prompt"><div><h3>Participant</h3><p id="prompt-participant">Join the hackathon with code ab12cd34 and start a team called Night Owls. Build our team’s site: an app that matches volunteers to shifts.</p></div><button class="btn" type="button" data-copy-target="prompt-participant" aria-label="Copy participant prompt">Copy</button></article>
-        <article class="skill prompt"><div><h3>Judge</h3><p id="prompt-judge">I’m judging Night Build. Show me my next entry.</p></div><button class="btn" type="button" data-copy-target="prompt-judge" aria-label="Copy judge prompt">Copy</button></article>
-      </div>
-      <p>No coding needed. Describe your idea to your AI and it builds your team's site.</p>
-      <p class="hint">Use your event’s real join code. Judges need the organiser’s judge link first.</p>
-      <p id="copy-status" role="status" aria-live="polite"></p>
+      <p class="hint">After connecting, select Simple Hack in your chat’s tools, then use one of the prompts above.</p>
     </section>
 
     <section aria-labelledby="next-heading">
       <h2 id="next-heading">What happens next</h2>
-      <p>Your AI helps with the event and gives you the links to share. You can also manage your event, team or judging from Simple Hack on your phone.</p>
+      <p>Manage your event, team or judging from simple-hack.app on any device, or from your AI app once it's connected. Your AI gives you the links to share.</p>
       <div class="faq">
         <details class="accordion" name="faq"><summary>Is it free?</summary><div class="accordion-body">Yes. Running an event, joining, judging and hosting team sites are free.</div></details>
         <details class="accordion" name="faq"><summary>Who sees the scores?</summary><div class="accordion-body">After results are published, ranks and overall scores are public by default. Organisers can hide either. Teams privately see their own detailed scores and feedback; organisers see all results.</div></details>

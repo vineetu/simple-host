@@ -35,7 +35,7 @@ check:
 	go build ./...
 	go vet ./...
 	bash scripts/test-integration.sh
-	node --test scripts/tests/arrival.test.cjs scripts/tests/photo-process.test.cjs scripts/tests/my-sites.test.cjs scripts/tests/site-preview.test.cjs
+	node --test scripts/tests/arrival.test.cjs scripts/tests/photo-process.test.cjs scripts/tests/my-sites.test.cjs scripts/tests/site-preview.test.cjs scripts/tests/hack-stage-announce.test.mjs
 	bash scripts/check-html.sh
 	bash scripts/check-layering.sh
 	bash scripts/check-docs-sync.sh
