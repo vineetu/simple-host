@@ -126,7 +126,7 @@ export async function render(ctx) {
     sp.innerHTML = `<div class="sp-head"><h2 id="sp-h" tabindex="-1">Teams</h2><p>Open a team to rename it, place people, choose its admins or lock it.</p>${canMessage ? `<button class="btn" type="button" id="msg-selected" disabled>Message selected</button>` : ''}</div>
 ${ev.team_finding ? '' : `<div class="note">Team finding is off. People join teams with a link or code.</div>`}
 ${ev.stage === 'archived' ? `<div class="note warn">This event has ended. Teams can’t change any more.</div>` : ''}
-${teams.length ? `<div class="list">${teams.map(teamRow).join('')}</div><p class="list-foot">Teams hold up to ${teamSizeMax} people. Change that in <a href="?s=teams&tab=settings">Settings</a>. Select teams to message them.</p>` : `<div class="empty-state"><h3>No teams yet</h3><p>Teams show here once participants start them, or when Fill teams places people.</p></div>`}`
+${teams.length ? `<div class="list">${teams.map(teamRow).join('')}</div><p class="list-foot"><span>Teams hold up to ${teamSizeMax} people. Change that in <a href="?s=teams&tab=settings">Settings</a>. Select teams to message them.</span></p>` : `<div class="empty-state"><h3>No teams yet</h3><p>Teams show here once participants start them, or when Fill teams places people.</p></div>`}`
     wireTeamMessaging(sp)
   }
 
