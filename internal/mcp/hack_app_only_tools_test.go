@@ -58,6 +58,9 @@ func appOnlyUpstream() *http.ServeMux {
 	mux.HandleFunc("POST /v1/hack/events/mockjam/stage", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"open","stages_offered":["open"]},"role":"organiser","organiser":{"join_code":"jc","join_url":"https://x/MARKER-JOIN-URL","judge_code":"gc","judge_url":"https://x/MARKER-JUDGE-URL"}}`))
 	})
+	mux.HandleFunc("PATCH /v1/hack/events/mockjam", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"event":{"slug":"mockjam","title":"Mock Jam","stage":"judging","stages_offered":["judging"],"judging_ends_at":"2026-01-01T00:00:00Z"},"role":"organiser","organiser":{"join_code":"jc","join_url":"https://x/MARKER-JOIN-URL","judge_code":"gc","judge_url":"https://x/MARKER-JUDGE-URL"}}`))
+	})
 	mux.HandleFunc("POST /v1/hack/events/mockjam/codes/join", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"code":"newcode","url":"https://x/MARKER-REGEN-URL"}`))
 	})
@@ -155,6 +158,7 @@ func TestHackAppOnlyTwinsContentCarriesNoPersonalData(t *testing.T) {
 		{"hack_app_get_teams", map[string]any{"slug": "mockjam"}, []string{"MARKER-TEAM-NAME", "MARKER-JUDGE-NAME"}},
 		{"hack_app_get_judging_dashboard", map[string]any{"slug": "mockjam"}, []string{"MARKER-TEAM-NAME", "MARKER-JUDGE-NAME", "MARKER-FORMER-JUDGE"}},
 		{"hack_app_set_event_stage", map[string]any{"slug": "mockjam", "stage": "open"}, []string{"MARKER-JOIN-URL", "MARKER-JUDGE-URL"}},
+		{"hack_app_set_judging_ends_at", map[string]any{"slug": "mockjam", "judging_ends_at": "2026-01-01T00:00:00Z"}, []string{"MARKER-JOIN-URL", "MARKER-JUDGE-URL"}},
 		{"hack_app_regenerate_code", map[string]any{"slug": "mockjam", "kind": "join"}, []string{"MARKER-REGEN-URL"}},
 		{"hack_app_create_organiser_invite", map[string]any{"slug": "mockjam"}, []string{"MARKER-INVITE-URL"}},
 		{"hack_app_get_judge_queue", map[string]any{"slug": "mockjam"}, []string{"MARKER-ENTRY-TITLE"}},
@@ -307,6 +311,7 @@ func appOnlyTwinNames() []string {
 		"hack_app_get_rubric", "hack_app_get_judging_settings", "hack_app_get_conflicts",
 		"hack_app_get_teams", "hack_app_get_assignments", "hack_app_get_judging_dashboard",
 		"hack_app_set_event_stage", "hack_app_regenerate_code", "hack_app_create_organiser_invite",
+		"hack_app_set_judging_ends_at",
 		"hack_app_get_judge_queue", "hack_app_get_judge_scores", "hack_app_get_my_conflicts",
 	}
 }

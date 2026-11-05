@@ -43,11 +43,15 @@
   // hack_app_* names are app-only twins (Grok security review finding 1,
   // SIM-344 phase 2, internal/mcp/hack_app_only_tools.go): the view calls
   // these, never the originals, for every read it makes on its own and
-  // for the three writes whose REST body carries a secret the show tool
+  // for the four writes whose REST body carries a secret the show tool
   // deliberately withholds (a new join/judge link, a co-organiser
-  // invite). The originals (hack_get_people, hack_get_applications, ...)
-  // stay reachable only for an explicit chat request, through the
-  // model's own tool list -- this view never calls them.
+  // invite, or -- hack_app_set_judging_ends_at, 0003-hack-notices-judges-
+  // messages.sql round 2 -- an organiser output that happens to carry
+  // the join/judge codes alongside the one field this card actually
+  // sets). The originals (hack_get_people, hack_get_applications,
+  // hack_update_event, ...) stay reachable only for an explicit chat
+  // request, through the model's own tool list -- this view never calls
+  // them.
   var ORGANISER_TOOLS = {
     hack_show_organiser: 1, hack_app_get_people: 1, hack_app_get_applications: 1,
     hack_app_regenerate_code: 1, hack_app_set_event_stage: 1, hack_app_get_registration: 1,
@@ -58,7 +62,7 @@
     hack_set_judge_conflict: 1, hack_remove_judge_conflict: 1, hack_app_get_teams: 1,
     hack_app_get_assignments: 1, hack_generate_assignments: 1, hack_app_get_judging_dashboard: 1,
     hack_delete_former_judge_scores: 1, hack_lock_judging: 1, hack_unlock_judging: 1,
-    hack_update_event: 1
+    hack_app_set_judging_ends_at: 1
   };
   var WRITE_TOOLS = {
     hack_app_regenerate_code: 1, hack_app_set_event_stage: 1, hack_decide_application: 1,
@@ -66,7 +70,7 @@
     hack_app_create_organiser_invite: 1, hack_revoke_organiser_invite: 1, hack_set_registration: 1,
     hack_set_rubric: 1, hack_set_judging_settings: 1, hack_set_judge_conflict: 1,
     hack_remove_judge_conflict: 1, hack_generate_assignments: 1, hack_delete_former_judge_scores: 1,
-    hack_lock_judging: 1, hack_unlock_judging: 1, hack_update_event: 1
+    hack_lock_judging: 1, hack_unlock_judging: 1, hack_app_set_judging_ends_at: 1
   };
   var MAX_CONCURRENT = 4;
   var inFlight = 0;
@@ -152,6 +156,11 @@
   // every other caller of hack_update_event (the model, any other MCP
   // client) sees, for one screen's convenience, so this nests the tool's
   // own flat result under `event` here instead, after unwrap/appOnly.
+  // The PATCH route below combines this with appOnly: hack_app_set_
+  // judging_ends_at's _meta is byte-for-byte hack_update_event's own
+  // structuredContent (hackAppOnlyTwin wraps it unchanged), so wrapEvent
+  // nests that same flat object the same way once appOnly has pulled it
+  // out of _meta.
   function route(method, pattern, tool, params, opts) {
     opts = opts || {};
     return {
@@ -190,9 +199,15 @@
     route('POST', '/v1/hack/events/' + SEG + '/judging/lock', 'hack_lock_judging', ['slug'], { unwrap: true }),
     route('POST', '/v1/hack/events/' + SEG + '/judging/unlock', 'hack_unlock_judging', ['slug'], { wrap: true, unwrap: true, body: ['reason'] }),
     // organiser-judging.js's "Judging closes" card (onSaveCloses/onClearCloses,
-    // notices contract 2026-11-05): the only field this screen ever sends
-    // through this very general tool.
-    route('PATCH', '/v1/hack/events/' + SEG, 'hack_update_event', ['slug'], { body: ['judging_ends_at'], wrapEvent: true })
+    // notices contract 2026-11-05): the app-only twin (0003-hack-notices-
+    // judges-messages.sql round 2, Codex review), not hack_update_event
+    // directly -- the general event-patch tool's own output carries the
+    // organiser's join/judge codes whenever the caller is the organiser,
+    // which this card opening/saving on its own, with nobody in chat
+    // having asked for it, must not put in front of the model (the same
+    // reasoning as every other appOnly route above). judging_ends_at is
+    // still the only field this card ever sends.
+    route('PATCH', '/v1/hack/events/' + SEG, 'hack_app_set_judging_ends_at', ['slug'], { body: ['judging_ends_at'], wrapEvent: true, appOnly: true })
   ];
 
   function matchRoute(method, path) {
@@ -255,7 +270,7 @@
     hack_unlock_judging: function () { return 'Unlocked judging.'; },
     // This route only ever sends judging_ends_at (the route table's own
     // body: ['judging_ends_at']), so the summary can be specific.
-    hack_update_event: function (args) { return args.judging_ends_at ? 'Set when judging closes.' : 'Cleared when judging closes.'; }
+    hack_app_set_judging_ends_at: function (args) { return args.judging_ends_at ? 'Set when judging closes.' : 'Cleared when judging closes.'; }
   };
 
   // The tool-backed api(): same {ok, status, data} shape as the website's

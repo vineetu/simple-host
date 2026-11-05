@@ -5017,6 +5017,12 @@
       "feature_id": "simple-hack-organiser-app"
     },
     {
+      "name": "hack_app_set_judging_ends_at",
+      "family": "hack-app-only",
+      "edition": "hack",
+      "feature_id": "simple-hack-organiser-app"
+    },
+    {
       "name": "hack_application_status",
       "family": "hack-events",
       "edition": "hack",

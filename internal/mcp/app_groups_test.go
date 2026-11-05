@@ -7,7 +7,7 @@ var (
 		"hack_app_get_people", "hack_app_get_applications", "hack_app_get_registration",
 		"hack_app_get_judging_settings", "hack_app_get_conflicts", "hack_app_get_teams",
 		"hack_app_get_assignments", "hack_app_get_judging_dashboard", "hack_app_set_event_stage",
-		"hack_app_regenerate_code", "hack_app_create_organiser_invite",
+		"hack_app_regenerate_code", "hack_app_create_organiser_invite", "hack_app_set_judging_ends_at",
 	}
 	hackAppOnlySharedNames = []string{"hack_app_get_rubric"}
 )

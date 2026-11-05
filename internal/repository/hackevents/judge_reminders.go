@@ -23,8 +23,9 @@ type JudgeReminderDue = model.JudgeReminderDue
 // event_judge_reminders (the same shape DueEntryReminders uses against
 // event_entry_reminders) drops a judge who already has this kind claimed
 // for this exact deadline, so a judge whose reminder already went out --
-// or who simply has nothing left to score, which never claims -- cannot
-// sit in the LIMIT 500 batch forever and crowd out judges still due.
+// or who simply has nothing left to score, which the caller
+// (queueOneJudgeReminder, notify=false) still claims without a notice --
+// cannot sit in the LIMIT 500 batch forever and crowd out judges still due.
 func DueJudgeReminders(ctx context.Context, q sqlkit.Querier) ([]JudgeReminderDue, error) {
 	rows, err := queryContext(ctx, q, `
 		WITH c AS (

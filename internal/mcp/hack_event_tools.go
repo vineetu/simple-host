@@ -320,6 +320,7 @@ type hackEventView struct {
 		TimeZone      string   `json:"time_zone"`
 		StartsAt      *string  `json:"starts_at"`
 		EndsAt        *string  `json:"ends_at"`
+		JudgingEndsAt *string  `json:"judging_ends_at"`
 		TeamSizeMax   int      `json:"team_size_max"`
 		TeamFinding   bool     `json:"team_finding"`
 		URL           string   `json:"url"`
@@ -369,29 +370,33 @@ func hackEventOutput(verb string, body []byte) (output, error) {
 	}
 	offered := append([]string{}, view.Event.StagesOffered...)
 	out := map[string]any{
-		"slug":           view.Event.Slug,
-		"title":          view.Event.Title,
-		"tagline":        view.Event.Tagline,
-		"about":          view.Event.About,
-		"rules":          view.Event.Rules,
-		"prizes":         view.Event.Prizes,
-		"coc_text":       view.Event.CocText,
-		"stage":          view.Event.Stage,
-		"role":           view.Role,
-		"url":            view.Event.URL,
-		"time_zone":      view.Event.TimeZone,
-		"team_size_max":  view.Event.TeamSizeMax,
-		"team_finding":   view.Event.TeamFinding,
-		"taken_down":     view.Event.TakenDown,
-		"stages_offered": offered,
-		"starts_at":      nil,
-		"ends_at":        nil,
+		"slug":            view.Event.Slug,
+		"title":           view.Event.Title,
+		"tagline":         view.Event.Tagline,
+		"about":           view.Event.About,
+		"rules":           view.Event.Rules,
+		"prizes":          view.Event.Prizes,
+		"coc_text":        view.Event.CocText,
+		"stage":           view.Event.Stage,
+		"role":            view.Role,
+		"url":             view.Event.URL,
+		"time_zone":       view.Event.TimeZone,
+		"team_size_max":   view.Event.TeamSizeMax,
+		"team_finding":    view.Event.TeamFinding,
+		"taken_down":      view.Event.TakenDown,
+		"stages_offered":  offered,
+		"starts_at":       nil,
+		"ends_at":         nil,
+		"judging_ends_at": nil,
 	}
 	if view.Event.StartsAt != nil {
 		out["starts_at"] = *view.Event.StartsAt
 	}
 	if view.Event.EndsAt != nil {
 		out["ends_at"] = *view.Event.EndsAt
+	}
+	if view.Event.JudgingEndsAt != nil {
+		out["judging_ends_at"] = *view.Event.JudgingEndsAt
 	}
 	if n := view.NextStep; n != nil {
 		var blocked any
@@ -631,23 +636,24 @@ func hackEventSchemas() hackEventSchemaSet {
 		return schema
 	}
 	event := outObject(map[string]any{
-		"slug":           outString("The event name."),
-		"title":          outString("The event title."),
-		"tagline":        outString("Short line under the title. Empty when unset."),
-		"about":          outString("About text. Empty when unset."),
-		"rules":          outString("Rules text. Empty when unset."),
-		"prizes":         outString("Prizes text. Empty when unset."),
-		"coc_text":       outString("The organiser's own code of conduct. Empty when unset."),
-		"stage":          outString("draft, open, building, closed, judging, results or archived."),
-		"role":           outString("This person's role: organiser, participant or judge."),
-		"url":            outString("The event's public address."),
-		"time_zone":      outString("IANA time zone."),
-		"team_size_max":  outInteger("Maximum people on a team."),
-		"team_finding":   outBool("Whether private team finding is enabled."),
-		"taken_down":     outBool("Whether the operator has taken the event down."),
-		"stages_offered": outArray("Stages hack_set_event_stage accepts.", outString("A stage name.")),
-		"starts_at":      nullableString("Start time, or null when unset."),
-		"ends_at":        nullableString("End time, or null when unset."),
+		"slug":            outString("The event name."),
+		"title":           outString("The event title."),
+		"tagline":         outString("Short line under the title. Empty when unset."),
+		"about":           outString("About text. Empty when unset."),
+		"rules":           outString("Rules text. Empty when unset."),
+		"prizes":          outString("Prizes text. Empty when unset."),
+		"coc_text":        outString("The organiser's own code of conduct. Empty when unset."),
+		"stage":           outString("draft, open, building, closed, judging, results or archived."),
+		"role":            outString("This person's role: organiser, participant or judge."),
+		"url":             outString("The event's public address."),
+		"time_zone":       outString("IANA time zone."),
+		"team_size_max":   outInteger("Maximum people on a team."),
+		"team_finding":    outBool("Whether private team finding is enabled."),
+		"taken_down":      outBool("Whether the operator has taken the event down."),
+		"stages_offered":  outArray("Stages hack_set_event_stage accepts.", outString("A stage name.")),
+		"starts_at":       nullableString("Start time, or null when unset."),
+		"ends_at":         nullableString("End time, or null when unset."),
+		"judging_ends_at": nullableString("When judging closes, or null when unset. Judges with unscored teams are reminded before this time, once set."),
 		"next_step": withDescription(outObject(map[string]any{
 			"kind":            outString("stage, publish_results or none."),
 			"stage":           outString("The stage hack_set_event_stage would move to. Empty for publish_results or none."),
@@ -681,7 +687,7 @@ func hackEventSchemas() hackEventSchemaSet {
 				"on_no_team":   outInteger("Participants who have not joined a team."),
 			}, "participants", "teams", "judges", "on_no_team"),
 		}, "organiser_name", "organisation", "contact_email", "purpose", "expected_participants", "join_code", "join_url", "judge_code", "judge_url", "counts"), "Present only when this person is the organiser."),
-	}, "slug", "title", "tagline", "about", "rules", "prizes", "coc_text", "stage", "role", "url", "time_zone", "team_size_max", "taken_down", "stages_offered", "starts_at", "ends_at")
+	}, "slug", "title", "tagline", "about", "rules", "prizes", "coc_text", "stage", "role", "url", "time_zone", "team_size_max", "taken_down", "stages_offered", "starts_at", "ends_at", "judging_ends_at")
 	listItem := outObject(map[string]any{
 		"slug":       outString("The event name."),
 		"title":      outString("The event title."),

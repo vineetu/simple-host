@@ -63,7 +63,7 @@ func (h *HackHandler) putReminderSettings(w http.ResponseWriter, r *http.Request
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_offsets", "offsets_minutes is required ([] turns reminders off)")
 		return
 	}
-	updated, err := h.eventsSvc().SetReminderOffsets(r.Context(), a.event.ID, *req.OffsetsMinutes)
+	updated, err := h.eventsSvc().SetReminderOffsets(r.Context(), a.event.ID, a.user.ID, *req.OffsetsMinutes)
 	if err != nil {
 		writeEventsError(w, err)
 		return

@@ -2,6 +2,8 @@ package events
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -60,7 +62,20 @@ func ValidateReminderOffsets(in []int) ([]int, error) {
 }
 
 // SetReminderOffsets validates and saves the event's reminder offsets.
-func (s *Service) SetReminderOffsets(ctx context.Context, eventID string, offsets []int) (model.Event, error) {
+//
+// The handler's own checks (organiser membership, archived) ran before the
+// request body was read, which can take arbitrarily long (a slow client, a
+// large body); by the time this runs, actorID may have been removed as
+// organiser, or the event may have been archived or taken down meanwhile.
+// Inside the transaction, before writing anything, this re-reads the event
+// under its own row lock (GetEventForUpdate, stronger than the FOR SHARE
+// the team-message sender uses, since this writes the event row itself)
+// and actorID's membership, and refuses with the same codes SendTeamMessage
+// does: event_not_found for an actor who is no longer an organiser (the
+// handler's own non-member/wrong-role treatment), event_closed for
+// archived, event_taken_down for taken down -- rather than trusting the
+// pre-body-read snapshot the handler checked against.
+func (s *Service) SetReminderOffsets(ctx context.Context, eventID, actorID string, offsets []int) (model.Event, error) {
 	valid, err := ValidateReminderOffsets(offsets)
 	if err != nil {
 		return model.Event{}, err
@@ -71,11 +86,24 @@ func (s *Service) SetReminderOffsets(ctx context.Context, eventID string, offset
 	}
 	defer tx.Rollback()
 	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return model.Event{}, &Error{"event_not_found", "event not found"}
+	}
 	if err != nil {
 		return model.Event{}, err
 	}
 	if ev.Stage == "archived" {
 		return model.Event{}, &Error{"event_closed", "an ended event cannot be changed"}
+	}
+	if ev.TakenDown() {
+		return model.Event{}, &Error{"event_taken_down", "this event has been taken down"}
+	}
+	actor, err := eventrepo.GetEventMember(ctx, tx, eventID, actorID)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && actor.Role != "organiser") {
+		return model.Event{}, &Error{"event_not_found", "event not found"}
+	}
+	if err != nil {
+		return model.Event{}, err
 	}
 	valid64 := make([]int64, len(valid))
 	for i, m := range valid {

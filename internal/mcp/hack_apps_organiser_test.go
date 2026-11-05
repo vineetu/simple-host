@@ -647,7 +647,13 @@ func TestHackOrganiserViewRouteBodyKeysMatchToolSchema(t *testing.T) {
 		// still pins the same body-key contract.
 		"hack_app_set_event_stage": {"stage"},
 		"hack_set_rubric":          {"criteria", "confirm_score_deletion"},
-		"hack_update_event":        {"judging_ends_at"},
+		// hack_app_set_judging_ends_at, not hack_update_event: the route
+		// table calls the app-only twin for this write too (0003-hack-
+		// notices-judges-messages.sql round 2, Codex review -- the general
+		// event-patch tool's output carries the organiser's join/judge
+		// codes), with its own narrowed InputSchema (slug, judging_ends_at
+		// only; see hack_app_only_tools.go).
+		"hack_app_set_judging_ends_at": {"judging_ends_at"},
 	}
 	for tool, keys := range flatBodyKeys {
 		schema, ok := s.hackByName[tool]

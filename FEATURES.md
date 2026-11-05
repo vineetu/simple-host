@@ -1617,7 +1617,7 @@ Server-side confirm tokens for an irreversible model-initiated call (the
 former-judge score delete already has one: `confirm` must equal the
 event's own slug) are a follow-up, not yet built for the rest of this list.
 
-MCP: `hack_app_create_organiser_invite`, `hack_app_get_applications`, `hack_app_get_assignments`, `hack_app_get_conflicts`, `hack_app_get_judging_dashboard`, `hack_app_get_judging_settings`, `hack_app_get_people`, `hack_app_get_registration`, `hack_app_get_rubric`, `hack_app_get_teams`, `hack_app_regenerate_code`, `hack_app_set_event_stage`.
+MCP: `hack_app_create_organiser_invite`, `hack_app_get_applications`, `hack_app_get_assignments`, `hack_app_get_conflicts`, `hack_app_get_judging_dashboard`, `hack_app_get_judging_settings`, `hack_app_get_people`, `hack_app_get_registration`, `hack_app_get_rubric`, `hack_app_get_teams`, `hack_app_regenerate_code`, `hack_app_set_event_stage`, `hack_app_set_judging_ends_at`.
 
 **Add photos (SIM-185, 2026-10-23).** `GET /photos?site=<name>` uses the shared <a id="dashboard-add-photos"></a>
 sign-in card and the dashboard's stored owner key. Pick up to 30 photos, edit

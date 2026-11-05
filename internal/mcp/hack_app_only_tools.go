@@ -305,6 +305,43 @@ func hackAppOnlyTools(base []Tool) []Tool {
 		func(out output) (string, map[string]any) {
 			return "Created a co-organiser invitation.", map[string]any{"created": true}
 		})
+	// hack_app_set_judging_ends_at (0003-hack-notices-judges-messages.sql
+	// round 2, Codex review): organiser-judging.js's "Judging closes" card
+	// used to call hack_update_event straight (hack-organiser-view.js's
+	// own route table), the general event-patch tool -- whose output
+	// (hackEventOutput) carries the organiser's join/judge codes and URLs
+	// whenever the caller is the organiser, exactly the secret the twin
+	// pattern exists to keep out of content/structuredContent for an
+	// app-initiated call nobody in chat asked for. This wraps the same
+	// tool (same REST route, same auth) and reduces content down to the
+	// one non-secret field the card actually sets.
+	judgingEndsAtTwin := hackAppOnlyTwin(find("hack_update_event"), "hack_app_set_judging_ends_at", "App: set when judging closes",
+		outObject(map[string]any{
+			"judging_ends_at": map[string]any{"type": []any{"string", "null"}, "description": "When judging closes, after the change, or null when cleared."},
+		}, "judging_ends_at"),
+		hackAppOnlyOrganiserAllowed,
+		func(out output) (string, map[string]any) {
+			v := out.Structured["judging_ends_at"]
+			text := "Cleared when judging closes."
+			if v != nil {
+				text = "Set when judging closes."
+			}
+			return text, map[string]any{"judging_ends_at": v}
+		})
+	// Narrower than hack_update_event's own InputSchema (every field it
+	// can patch): this twin is reached only by the "Judging closes"
+	// card, which only ever sends judging_ends_at (hack-organiser-view.js's
+	// route table: body: ['judging_ends_at']), so advertising the rest
+	// here would invite a future caller to use a judging-close setter to
+	// patch the event's title or page text instead. hackPatchBody
+	// (hack_event_tools.go) still reads whichever of its known keys are
+	// present in args, so the narrower schema does not change what
+	// originalRun (hack_update_event's own run) accepts or does.
+	judgingEndsAtTwin.InputSchema = object(map[string]any{
+		"slug":            str("The event name."),
+		"judging_ends_at": str("When judging closes, in the event time zone. Empty clears it. Judges with unscored teams are reminded before this time, once set; with no judging_ends_at they get no reminder."),
+	}, "slug")
+	twins = append(twins, judgingEndsAtTwin)
 
 	// --- shared and judge reads --------------------------------------------
 	twin("hack_get_rubric", "hack_app_get_rubric", "App: load the rubric",

@@ -17,11 +17,14 @@ import (
 // wired from hackhttp.
 
 // QueueJudgeReminders claims each due (event, judge) pair once per deadline,
-// then queues the judges whose queue still has unscored teams. due rows are
-// already filtered to judges not yet claimed for their exact deadline
-// (DueJudgeReminders), so a judge with nothing left to score is simply
-// skipped here rather than reappearing in every sweep's batch. Events are
-// cached by id since DueJudgeReminders can return several judges per event.
+// then queues (with a notice) the judges whose queue still has unscored
+// teams. A judge with nothing left to score at this offset is still
+// claimed, just without a notice (queueOneJudgeReminder's notify=false): the
+// claim row is what DueJudgeReminders' NOT EXISTS filters on, so without it
+// that judge would be re-selected by every sweep forever, and can crowd out
+// judges still due once a busy event has more than LIMIT 500 of them stuck
+// this way. Events are cached by id since DueJudgeReminders can return
+// several judges per event.
 func (s *Service) QueueJudgeReminders(ctx context.Context, judges EntryEvaluator) (written int64, firstErr error) {
 	due, err := eventrepo.DueJudgeReminders(ctx, s.db)
 	if err != nil {
@@ -50,10 +53,7 @@ func (s *Service) QueueJudgeReminders(ctx context.Context, judges EntryEvaluator
 			}
 			continue
 		}
-		if count == 0 {
-			continue
-		}
-		n, err := s.queueOneJudgeReminder(ctx, d)
+		n, err := s.queueOneJudgeReminder(ctx, d, count > 0)
 		written += n
 		if err != nil {
 			log.Printf("hack: judge reminder %s: %v", d.EventID, err)
@@ -71,7 +71,16 @@ func (s *Service) QueueJudgeReminders(ctx context.Context, judges EntryEvaluator
 // -- ClaimJudgeReminder's own ON CONFLICT would otherwise treat this stale
 // deadline as a legitimate re-arm and undo a newer claim already recorded
 // for the real current deadline.
-func (s *Service) queueOneJudgeReminder(ctx context.Context, d model.JudgeReminderDue) (int64, error) {
+//
+// notify=false (the judge's queue had nothing unscored as of QueueJudge
+// Reminders' own check) still claims the row, just skips the notice: the
+// claim, not the notice, is what keeps this judge out of every later
+// sweep's DueJudgeReminders batch for this exact deadline. Without it, a
+// judge who is simply done for this offset would never be claimable and
+// would reappear in the LIMIT 500 candidate batch forever, potentially
+// crowding out judges still actually due (the starvation this guards
+// against).
+func (s *Service) queueOneJudgeReminder(ctx context.Context, d model.JudgeReminderDue, notify bool) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
@@ -91,14 +100,18 @@ func (s *Service) queueOneJudgeReminder(ctx context.Context, d model.JudgeRemind
 	if err != nil || !claimed {
 		return 0, err
 	}
-	n, err := eventrepo.NotifyUsersCount(ctx, tx, d.EventID, eventrepo.NoticeJudgingReminder, "", "", d.Kind, d.UserID)
-	if err != nil {
-		return 0, err
+	var n int64
+	if notify {
+		n, err = eventrepo.NotifyUsersCount(ctx, tx, d.EventID, eventrepo.NoticeJudgingReminder, "", "", reminderDetail(d.Kind, d.Deadline), d.UserID)
+		if err != nil {
+			return 0, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
 	// The durable reminder claim is also a write when the member is not
-	// emailable (matches queueEntryReminder's own accounting).
+	// emailable (matches queueEntryReminder's own accounting), or when
+	// there is no notice to send at all (notify=false).
 	return n + 1, nil
 }

@@ -125,8 +125,11 @@ func TestHackJudgingOpenAndReminderNotices(t *testing.T) {
 	if got := mailTo(sink, judgeDone.email); len(got) != 1 {
 		t.Fatalf("judge who scored everything was reminded: %+v", got)
 	}
-	if err := a.database.QueryRow(`SELECT count(*) FROM event_judge_reminders r WHERE r.user_id = $1`, a.uid(t, judgeDone)).Scan(&rows); err != nil || rows != 0 {
-		t.Fatalf("reminder row for a judge with nothing left: %d %v", rows, err)
+	// Round 2 (starvation fix): a fully-scored judge still gets a claim row
+	// for this deadline -- just no notice -- so DueJudgeReminders' own NOT
+	// EXISTS stops re-selecting them every sweep.
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_judge_reminders r WHERE r.user_id = $1`, a.uid(t, judgeDone)).Scan(&rows); err != nil || rows != 1 {
+		t.Fatalf("claim row for a judge with nothing left: %d %v", rows, err)
 	}
 
 	// Deleting the event leaves no orphaned reminder rows (cascade, point 8).
@@ -413,5 +416,60 @@ func TestHackCustomReminderOffsets(t *testing.T) {
 	sweepNow(a)
 	if got := mailTo(sink, lead.email); len(got) != 2 {
 		t.Fatalf("re-armed reminder: %+v", got)
+	}
+}
+
+// TestHackEntryReminderExactStaleAfterDeadlineMoves covers the round 2 exact
+// staleness check (0003-hack-notices-judges-messages.sql): detail is now
+// "<label>@<deadline RFC3339 UTC>", read back and compared exactly, instead
+// of the retired "+30 minutes" heuristic. With offsets_minutes [15], a
+// reminder queued 10 minutes out is still within the old heuristic's grace
+// window (15+30 = 45 minutes) once the deadline moves to 40 minutes out --
+// under the old rule it would wrongly still go out -- but the deadline it
+// was queued for no longer exists, so the exact check must drop it. Once
+// the deadline comes back within the offset (a different instant from the
+// first), the reminder re-arms and is sent.
+func TestHackEntryReminderExactStaleAfterDeadlineMoves(t *testing.T) {
+	a := newTeamSiteApp(t)
+	sink := &contentMailSink{}
+	a.hack.SetMailer(sink)
+	a.noticeSink = sink
+	org := a.newPerson(t, "remexactorg")
+	lead := a.newPerson(t, "remexactlead")
+	slug := a.makeEvent(t, org)
+	base := "/v1/hack/events/" + slug
+	waitJoin(t, a, slug, lead, org, "Lea")
+	a.startTeam(t, slug, "Alpha", lead)
+	wantTS(t, "set offsets", a.api(t, "PUT", base+"/reminders", map[string]any{"offsets_minutes": []int{15}}, org.key), http.StatusOK, "")
+
+	// 10 minutes out: inside the 15-minute offset, so the sweep claims and
+	// queues the reminder.
+	if _, err := a.database.Exec(`UPDATE events SET stage = 'building', submission_deadline = now() + interval '10 minutes' WHERE slug = $1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	events.New(a.database).QueueEntryReminders(context.Background())
+	var rows int
+	if err := a.database.QueryRow(`SELECT count(*) FROM event_entry_reminders r JOIN events e ON e.id = r.event_id WHERE e.slug = $1`, slug).Scan(&rows); err != nil || rows != 1 {
+		t.Fatalf("queued entry reminder: %d %v", rows, err)
+	}
+
+	// The deadline moves to 40 minutes out before the mail sweep runs.
+	if _, err := a.database.Exec(`UPDATE events SET submission_deadline = now() + interval '40 minutes' WHERE slug = $1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	sweepNow(a)
+	if got := mailTo(sink, lead.email); len(got) != 0 {
+		t.Fatalf("stale reminder emailed after deadline moved from 10m to 40m out: %+v", got)
+	}
+
+	// The deadline comes back within the offset, at a different instant
+	// than the first time: the reminder re-arms and is sent.
+	if _, err := a.database.Exec(`UPDATE events SET submission_deadline = now() + interval '10 minutes' WHERE slug = $1`, slug); err != nil {
+		t.Fatal(err)
+	}
+	events.New(a.database).QueueEntryReminders(context.Background())
+	sweepNow(a)
+	if got := mailTo(sink, lead.email); len(got) != 1 {
+		t.Fatalf("re-armed reminder not emailed: %+v", got)
 	}
 }

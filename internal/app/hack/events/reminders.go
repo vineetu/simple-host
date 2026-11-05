@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/model"
@@ -46,19 +47,32 @@ func (s *Service) QueueEntryReminders(ctx context.Context) (written int64, first
 	return
 }
 
-// queueEntryReminder re-reads the team's effective deadline under its own
-// FOR SHARE lock before claiming: a sweep that picked up r as a candidate,
-// then stalled, must not claim (and overwrite) a deadline that has since
-// moved -- ClaimEntryReminder's own ON CONFLICT would otherwise treat this
-// stale deadline as a legitimate re-arm and undo a newer claim already
-// recorded for the real current deadline (same race as judge reminders,
-// queueOneJudgeReminder).
+// queueEntryReminder re-reads the team's effective deadline under lock
+// before claiming: a sweep that picked up r as a candidate, then stalled,
+// must not claim (and overwrite) a deadline that has since moved --
+// ClaimEntryReminder's own ON CONFLICT would otherwise treat this stale
+// deadline as a legitimate re-arm and undo a newer claim already recorded
+// for the real current deadline (same race as judge reminders,
+// queueOneJudgeReminder). The effective deadline is GREATEST(events.
+// submission_deadline, event_teams.deadline_override) (EffectiveDeadlineSQL),
+// so it depends on the event row too: TeamWriteStateFor's own "FOR SHARE OF
+// t" only locks the team, leaving a concurrent change to the event's
+// submission_deadline free to commit mid-transaction. Locking the event row
+// first, in its own statement, makes that change wait (or have already
+// happened) before TeamWriteStateFor reads the combined deadline, so the
+// comparison below sees one consistent, serialised state rather than a
+// torn read across the two tables.
 func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback()
+	if _, err := eventrepo.GetEventForShare(ctx, tx, r.EventID); errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
 	st, err := teamrepo.TeamWriteStateFor(ctx, tx, r.TeamID, true)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
@@ -77,7 +91,7 @@ func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder)
 	if err != nil {
 		return 0, err
 	}
-	n, err := eventrepo.NotifyUsersCount(ctx, tx, r.EventID, eventrepo.NoticeEntryReminder, r.TeamID, "", r.Kind, ids...)
+	n, err := eventrepo.NotifyUsersCount(ctx, tx, r.EventID, eventrepo.NoticeEntryReminder, r.TeamID, "", reminderDetail(r.Kind, r.Deadline), ids...)
 	if err != nil {
 		return 0, err
 	}
@@ -103,21 +117,46 @@ type EntryEvaluator interface {
 	QueueCounts(ctx context.Context, ev model.Event, judgeID string) (total, unscored int, err error)
 }
 
+// reminderDetail is a queued reminder's stored detail: the offset label
+// plus the exact deadline it was queued for, "<label>@<deadline RFC3339
+// UTC>" (e.g. "24h@2026-11-06T17:00:00Z"), used for both entry_reminder and
+// judging_reminder (0003-hack-notices-judges-messages.sql round 2). Read
+// back by reminderOffsetStale at send time, this lets a moved deadline be
+// detected exactly -- the stored deadline simply no longer equals the
+// current one -- instead of by the "+30 minutes" heuristic it replaces.
+func reminderDetail(label string, deadline time.Time) string {
+	return label + "@" + deadline.UTC().Format(time.RFC3339)
+}
+
 // reminderOffsetStale reports whether a queued reminder -- read back at
-// send time with its offset label (n.Detail) and the time now remaining to
-// its deadline -- no longer describes a reminder the event would still
-// send today (0003-hack-notices-judges-messages.sql: dropped the same way
-// as any other stale notice). True when the organiser removed that offset
-// from reminder_offsets since the reminder was queued, or when the
-// deadline moved later: the remaining time now exceeds the offset by more
-// than 30 minutes (comfortably past the sweep's own polling interval), so
-// what's left is no longer "about to happen", it's a fresh wait for the
-// next due pass at the new deadline.
-func reminderOffsetStale(offsets []int64, label string, remaining time.Duration) bool {
+// send time with its stored detail (n.Detail) -- no longer describes a
+// reminder the event would still send today (0003-hack-notices-judges-
+// messages.sql: dropped the same way as any other stale notice). detail is
+// reminderDetail's "<label>@<deadline RFC3339 UTC>": stale when the
+// organiser removed that offset from reminder_offsets since the reminder
+// was queued, or when the deadline it was queued for (parsed back out of
+// detail) no longer equals currentDeadline -- the live effective deadline
+// (team) or judging_ends_at (judges) -- compared at second precision.
+//
+// A legacy row queued before this exact form (detail is a bare label, no
+// "@" -- a pending entry_reminder from before this change) keeps the old
+// heuristic instead, since it was never given a deadline to compare
+// exactly: stale once what's left exceeds the offset by more than 30
+// minutes (comfortably past the sweep's own polling interval).
+func reminderOffsetStale(offsets []int64, detail string, currentDeadline time.Time, remaining time.Duration) bool {
+	label, deadlineStr, hasDeadline := strings.Cut(detail, "@")
 	for _, o := range offsets {
-		if ReminderLabel(int(o)) == label {
+		if ReminderLabel(int(o)) != label {
+			continue
+		}
+		if !hasDeadline {
 			return remaining > time.Duration(o)*time.Minute+30*time.Minute
 		}
+		stored, err := time.Parse(time.RFC3339, deadlineStr)
+		if err != nil {
+			return true
+		}
+		return !stored.Truncate(time.Second).Equal(currentDeadline.Truncate(time.Second))
 	}
 	return true
 }
@@ -142,7 +181,7 @@ func (s *Service) entryReminderLine(ctx context.Context, tx *sql.Tx, n model.Mai
 	if err != nil {
 		return "", false, err
 	}
-	if reminderOffsetStale(ev.ReminderOffsets, n.Detail, st.Deadline.Time.Sub(st.Now)) {
+	if reminderOffsetStale(ev.ReminderOffsets, n.Detail, st.Deadline.Time, st.Deadline.Time.Sub(st.Now)) {
 		return "", false, nil
 	}
 	closes := "Entries close for your team " + hackNoticeTime(st.Deadline.Time, n.EventTimeZone) +

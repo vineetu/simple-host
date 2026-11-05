@@ -218,7 +218,7 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 }
 
 func TestHackToolDispatch(t *testing.T) {
-	const eventBody = `{"event":{"slug":"spring","title":"Spring","tagline":"","about":"","rules":"","prizes":"","coc_text":"","stage":"draft","time_zone":"UTC","starts_at":"2026-10-01T00:00:00Z","ends_at":null,"team_size_max":4,"url":"https://simple-hack.app/e/spring","taken_down":false,"stages_offered":["draft","open"]},"role":"organiser","me":{"team":{"code":"SECRET-TEAM"}},"next_step":{"kind":"stage","stage":"open","label":"Open sign-up","deadline_passed":false,"blocked":null,"cue":{"key":"","title":"Kickoff","start_at":"2026-10-01T09:00:00Z","end_at":"2026-10-01T10:00:00Z","fixed":false,"now":true,"text":"Kickoff is now. Open sign-up?"}},"organiser":{"organiser_name":"Ada","organisation":"","contact_email":"ada@example.com","purpose":"build","expected_participants":10,"join_code":"abc","join_url":"https://simple-hack.app/join/abc","judge_code":"def","judge_url":"https://simple-hack.app/judge/def","counts":{"participants":1,"teams":0,"judges":0,"on_no_team":1}}}`
+	const eventBody = `{"event":{"slug":"spring","title":"Spring","tagline":"","about":"","rules":"","prizes":"","coc_text":"","stage":"draft","time_zone":"UTC","starts_at":"2026-10-01T00:00:00Z","ends_at":null,"judging_ends_at":"2026-10-05T18:00:00Z","team_size_max":4,"url":"https://simple-hack.app/e/spring","taken_down":false,"stages_offered":["draft","open"]},"role":"organiser","me":{"team":{"code":"SECRET-TEAM"}},"next_step":{"kind":"stage","stage":"open","label":"Open sign-up","deadline_passed":false,"blocked":null,"cue":{"key":"","title":"Kickoff","start_at":"2026-10-01T09:00:00Z","end_at":"2026-10-01T10:00:00Z","fixed":false,"now":true,"text":"Kickoff is now. Open sign-up?"}},"organiser":{"organiser_name":"Ada","organisation":"","contact_email":"ada@example.com","purpose":"build","expected_participants":10,"join_code":"abc","join_url":"https://simple-hack.app/join/abc","judge_code":"def","judge_url":"https://simple-hack.app/judge/def","counts":{"participants":1,"teams":0,"judges":0,"on_no_team":1}}}`
 	const rubricBody = `{"criteria":[{"position":1,"name":"Idea","description":"","weight":60,"max_points":10},{"position":2,"name":"Build","description":"working software","weight":40,"max_points":5}]}`
 	const listBody = `[{"slug":"spring","title":"Spring","stage":"draft","role":"organiser","url":"https://simple-hack.app/e/spring","manage_url":"https://simple-hack.app/e/spring/manage","starts_at":"2026-10-01T00:00:00Z","ends_at":null,"taken_down":false,"time_zone":"UTC"}]`
 
@@ -297,6 +297,12 @@ func TestHackToolDispatch(t *testing.T) {
 	})
 	if !strings.Contains(created["organiser"].(map[string]any)["join_url"].(string), "/join/") {
 		t.Fatalf("create dropped the join link: %v", created["organiser"])
+	}
+	// hack_get_event/hack_update_event parity (0003-hack-notices-judges-
+	// messages.sql round 2): the MCP event output used to omit
+	// judging_ends_at entirely, unlike the real REST event JSON.
+	if created["judging_ends_at"] != "2026-10-05T18:00:00Z" {
+		t.Fatalf("hack_create_event output missing judging_ends_at: %v", created["judging_ends_at"])
 	}
 	sent := map[string]any{}
 	if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
