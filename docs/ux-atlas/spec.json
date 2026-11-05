@@ -5796,7 +5796,7 @@
    "user_moment": "Anyone -- organiser, participant or judge -- checks or changes their sign-in details.",
    "purpose": "Manage display name, email, linked sign-in, preferences and the account itself, with irreversible actions visibly separated.",
    "primary_action": "Save display name.",
-   "layout": "Name, Email, Google sign-in (with per-identity Unlink), Preferences (sign-in alerts, email me when something waits on me, theme), an 'AI apps' note, then a red-bordered Danger zone (API key rotation, sign out everywhere, delete account) -- identical for every role, independent of the event switcher.",
+   "layout": "Name, Email, Google sign-in (with per-identity Unlink), Connect your AI app (address, per-app steps, connection status), Preferences (sign-in alerts, email me when something waits on me, theme), then a red-bordered Danger zone (API key rotation, sign out everywhere, delete account) -- identical for every role, independent of the event switcher.",
    "sections": [
     {
      "name": "Name",
@@ -5852,11 +5852,20 @@
      "actions": []
     },
     {
-     "name": "AI apps",
+     "name": "Connect your AI app",
      "contents": [
-      "A connected AI app checks who's signed in and which team's site it's publishing to using this account, automatically -- nothing to set up here."
+      "Connector address: https://simple-hack.app/mcp (filled from this page's own origin)",
+      "Claude / ChatGPT / Claude Code tabs, same steps as /get-started's Website screen",
+      "Steps for other AI apps -> /get-started#other-ai-apps",
+      "Connected: Claude, last used 2 hours ago (from GET /v1/me/connections; Not connected yet otherwise)"
      ],
-     "actions": []
+     "actions": [
+      {
+       "label": "Copy",
+       "kind": "secondary",
+       "confirm": null
+      }
+     ]
     },
     {
      "name": "Danger zone",
@@ -5928,6 +5937,11 @@
      "q": "What happens to the toggle for a key-only account?",
      "decision": "Disabled, with 'Your account has no email address, so there's nothing to email.' instead of hiding the row.",
      "why": "Only an account whose sign-in name is an email address can ever receive one; a key-only or event-holding account has nothing to turn on, and saying so plainly beats a row that silently does nothing."
+    },
+    {
+     "q": "The old 'AI apps' note said nothing to set up here -- now there is a Connect your AI app card. Why the change?",
+     "decision": "Owner, 2026-11-05: Account gets a real way to connect, not just a note that it happens automatically elsewhere.",
+     "why": "A signed-in person asked where to add Simple Hack to their AI without leaving Account; the same address and steps as /get-started and the Website screen's publish card now live here too, reusing hack-connect-steps.json so the three surfaces never drift apart."
     }
    ],
    "features": [
@@ -5942,7 +5956,8 @@
     "sign-out",
     "sign-out-everywhere",
     "delete-own-account",
-    "email-when-waiting"
+    "email-when-waiting",
+    "connect-ai-app-account"
    ],
    "prototype_states": [
     {

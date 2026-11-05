@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/edition"
 )
 
@@ -210,6 +211,81 @@ func TestChromeOnShowcaseAndNotFound(t *testing.T) {
 	}
 }
 
+// TestNotFoundLabelHostedVsSelfHosted covers gap 3: the previous worker made
+// the 404 back-link always say "Go to "+siteDomain, which also changed
+// hosted simple-hack.app's label (its siteDomain is "simple-hack.app", not
+// "simple-host.app"). The baseline literal "Go to simple-host.app" must
+// survive untouched on every hosted instance (cross-brand, on purpose); only
+// a genuinely self-hosted install should name itself.
+func TestNotFoundLabelHostedVsSelfHosted(t *testing.T) {
+	prevHosted := instanceIsHostedService
+	t.Cleanup(func() { instanceIsHostedService = prevHosted })
+
+	// Hosted Host edition (simple-host.app).
+	instanceIsHostedService = true
+	h := chromeTestHandlerFor(edition.ForKind(edition.Host))
+	rec := httptest.NewRecorder()
+	h.renderNotFound(rec, httptest.NewRequest(http.MethodGet, "/__not_a_handle__", nil), "/__not_a_handle__")
+	if !strings.Contains(rec.Body.String(), ">Go to simple-host.app<") {
+		t.Error("hosted Host 404: label is not the baseline literal")
+	}
+
+	// Hosted Hack edition (simple-hack.app): same literal, cross-brand.
+	hHack := chromeTestHandlerFor(edition.ForKind(edition.Hack))
+	hHack.siteDomain = "simple-hack.app"
+	rec = httptest.NewRecorder()
+	hHack.renderNotFound(rec, httptest.NewRequest(http.MethodGet, "/__not_a_handle__", nil), "/__not_a_handle__")
+	if !strings.Contains(rec.Body.String(), ">Go to simple-host.app<") {
+		t.Error("hosted Hack 404: label is not the baseline literal")
+	}
+
+	// Self-hosted: names itself, not simple-host.app.
+	instanceIsHostedService = false
+	hSelf := chromeTestHandlerFor(edition.ForKind(edition.Host))
+	hSelf.siteDomain = "host.example.test"
+	rec = httptest.NewRecorder()
+	hSelf.renderNotFound(rec, httptest.NewRequest(http.MethodGet, "/__not_a_handle__", nil), "/__not_a_handle__")
+	body := rec.Body.String()
+	if !strings.Contains(body, ">Go to host.example.test<") {
+		t.Error("self-hosted 404: label does not name this install")
+	}
+	if strings.Contains(body, "simple-host.app") {
+		t.Error("self-hosted 404: label still names simple-host.app")
+	}
+}
+
+// TestNotFoundLabelFileServerBranch covers the second call site (ui.go's
+// static-file-not-found branch, a separate hardcoded duplicate of the same
+// label, item 24 of the audit).
+func TestNotFoundLabelFileServerBranch(t *testing.T) {
+	prevHosted := instanceIsHostedService
+	t.Cleanup(func() { instanceIsHostedService = prevHosted })
+
+	instanceIsHostedService = true
+	mux := http.NewServeMux()
+	RegisterUIRoutes(mux, "https://simple-host.app", chromeTestHandlerFor(edition.ForKind(edition.Host)))
+	body := get(t, mux, "simple-host.app", "/does.not.exist").Body.String()
+	if !strings.Contains(body, ">Go to simple-host.app<") {
+		t.Error("hosted file-server 404: label is not the baseline literal")
+	}
+
+	instanceIsHostedService = false
+	SetInstanceHosts("host.example.test", "", "")
+	defer SetInstanceHosts("simple-host.app", "", "")
+	hSelf := chromeTestHandlerFor(edition.ForKind(edition.Host))
+	hSelf.siteDomain = "host.example.test"
+	hSelf.contentHost = "sites.host.example.test"
+	mux2 := http.NewServeMux()
+	RegisterUIRoutes(mux2, "https://host.example.test", hSelf)
+	body2 := get(t, mux2, "host.example.test", "/does.not.exist").Body.String()
+	if !strings.Contains(body2, ">Go to host.example.test<") {
+		t.Errorf("self-hosted file-server 404: label missing own domain: %s", body2)
+	}
+	if strings.Contains(body2, "simple-host.app") {
+		t.Error("self-hosted file-server 404: label still names simple-host.app")
+	}
+}
+
 func TestChromeOnRewrittenInstallPage(t *testing.T) {
 	// On another instance install.html is served by serveRewrittenAsset, not
 	// the file server. It must get the chrome too.
@@ -225,6 +301,46 @@ func TestChromeOnRewrittenInstallPage(t *testing.T) {
 	if strings.Contains(body, "simple-host.app") {
 		t.Error("instance install.html still names simple-host.app")
 	}
+}
+
+// TestSelfHostedSupportAddress covers gap 2: with neither SUPPORT_EMAIL nor
+// IDLE_REPLY_TO set, a self-hosted install must not show Vineet's
+// support@simple-host.app anywhere on its pages (not even half-rewritten
+// into a nonexistent "support@<this domain>"); with one set, the mailto
+// links and plain-text mentions use it instead (existing behaviour).
+func TestSelfHostedSupportAddress(t *testing.T) {
+	prevContact := auth.SupportContact
+	t.Cleanup(func() { auth.SupportContact = prevContact })
+	SetInstanceHosts("host.example.test", "", "")
+	defer SetInstanceHosts("simple-host.app", "", "")
+	mux := chromeTestMux(t, edition.Host)
+
+	t.Run("no setting", func(t *testing.T) {
+		auth.SupportContact = "whoever runs this server"
+		for _, path := range []string{"/support", "/terms", "/privacy.html", "/features", "/pricing"} {
+			body := get(t, mux, "host.example.test", path).Body.String()
+			if strings.Contains(strings.ToLower(body), "simple-host.app") {
+				t.Errorf("%s: still names simple-host.app", path)
+			}
+			if strings.Contains(body, "support@") {
+				t.Errorf("%s: still shows a support@ address with no setting configured", path)
+			}
+			if path == "/support" && !strings.Contains(body, "the person who runs this server") {
+				t.Errorf("%s: missing the self-hosted contact phrase", path)
+			}
+		}
+	})
+
+	t.Run("SUPPORT_EMAIL set", func(t *testing.T) {
+		auth.SupportContact = "ops@example.org"
+		body := get(t, mux, "host.example.test", "/support").Body.String()
+		if strings.Contains(body, "support@simple-host.app") {
+			t.Error("/support: still names the hosted address after SUPPORT_EMAIL is set")
+		}
+		if !strings.Contains(body, `<a href="mailto:ops@example.org">ops@example.org</a>`) {
+			t.Error("/support: mailto link does not use the configured SUPPORT_EMAIL")
+		}
+	})
 }
 
 func TestChromeOnHackathonHomepage(t *testing.T) {

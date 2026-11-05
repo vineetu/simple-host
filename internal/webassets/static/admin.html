@@ -248,7 +248,7 @@ details.box summary{cursor:pointer;font-size:14px;color:var(--text-secondary);ma
       <div id="password-panel" hidden>
         <h3>Password sign-in</h3>
         <form id="password-create" class="toolbar">
-          <input class="in" id="password-username" aria-label="Username" placeholder="Username" required autocomplete="off">
+          <input class="in" id="password-username" aria-label="Email or username" placeholder="you@example.com" required autocomplete="username">
           <input class="in" id="password-temp" type="password" aria-label="Temporary password (optional)" placeholder="Temporary password (optional)" autocomplete="new-password">
           <button class="btn" type="submit">Create account</button>
         </form>
@@ -647,7 +647,7 @@ function renderDisk(){
   var top=(d.largest||[]).slice(0,10);
   $('ov-biggest').innerHTML=top.map(function(t,i){
     var o=D.byId[t.user_id];
-    return '<tr><td class="num">'+(i+1)+'</td><td>'+esc(t.name)+'</td><td>'+(o?esc(o.handle||o.username):'<span class="muted">-</span>')+'</td><td class="num">'+bytes(t.live_bytes||0)+'</td><td class="num">'+bytes(t.bytes)+'</td></tr>';
+    return '<tr><td class="num">'+(i+1)+'</td><td>'+esc(t.name)+'</td><td>'+(o?esc(o.handle||nameOf(o)):'<span class="muted">-</span>')+'</td><td class="num">'+bytes(t.live_bytes||0)+'</td><td class="num">'+bytes(t.bytes)+'</td></tr>';
   }).join('')||'<tr><td colspan="5" class="empty">No websites yet.</td></tr>';
 }
 
@@ -769,11 +769,15 @@ function renderNetwork(){
 }
 
 // ---------------------------------------------------------------- users
-function emailOf(u){ return String(u.email||(u.username&&u.username.indexOf('@')>0?u.username:'')); }
+// nameOf: a password account's own login (what it actually signs in with)
+// when there is one, since a self sign-up's u.username is a synthetic,
+// never-shown value (CreatePasswordAccount); otherwise u.username as before.
+function nameOf(u){ return String(u.login||u.username); }
+function emailOf(u){ return String(u.email||u.login||(u.username&&u.username.indexOf('@')>0?u.username:'')); }
 function handleLink(u){
   var link=u.page_url||'';
   if(u.handle) return link?'<a href="'+esc(link)+'" target="_blank" rel="noopener">'+esc(u.handle)+'</a>':esc(u.handle);
-  return '<span class="muted">'+esc(u.username)+'</span>';
+  return '<span class="muted">'+esc(nameOf(u))+'</span>';
 }
 var US={q:'', newestFirst:true, page:0, open:{}};
 // Admin search boxes: every plain word must match, a -word hides rows that match it.
@@ -784,7 +788,7 @@ function searchMatches(q,text){
     w=w.slice(1); return !w || text.indexOf(w)<0;
   });
 }
-function userMatches(u,q){ return searchMatches(q, String(u.handle||'')+' '+u.username+' '+emailOf(u)); }
+function userMatches(u,q){ return searchMatches(q, String(u.handle||'')+' '+nameOf(u)+' '+emailOf(u)); }
 function renderUsers(){
   var q=US.q.trim().toLowerCase();
   var rows=D.users.filter(function(u){ return userMatches(u,q); })
@@ -797,7 +801,7 @@ function renderUsers(){
   $('u-rows').innerHTML=slice.map(function(u){
     var open=!!US.open[u.id];
     var st=u.is_admin?'<span class="tag acc">admin</span>':u.suspended?'<span class="tag down">suspended</span>':'<span class="tag ok">active</span>';
-    return '<tr class="clickable'+(open?' open':'')+'" data-user="'+esc(u.id)+'"><td class="num"><button type="button" class="row-toggle" aria-expanded="'+open+'" aria-controls="ud-'+esc(u.id)+'" aria-label="Details for '+esc(u.handle||u.username)+'">'+(open?'&#9662;':'&#9656;')+'</button> '+u._n+'</td>'+
+    return '<tr class="clickable'+(open?' open':'')+'" data-user="'+esc(u.id)+'"><td class="num"><button type="button" class="row-toggle" aria-expanded="'+open+'" aria-controls="ud-'+esc(u.id)+'" aria-label="Details for '+esc(u.handle||nameOf(u))+'">'+(open?'&#9662;':'&#9656;')+'</button> '+u._n+'</td>'+
       '<td>'+esc(dateOf(u.created_at))+' <span class="muted ago">· '+esc(ago(u.created_at))+'</span></td>'+
       '<td>'+handleLink(u)+'</td><td>'+esc(emailOf(u))+'</td><td>'+(u.is_admin?'<span class="muted">-</span>':sourceCell(u))+'</td>'+
       '<td class="num">'+(u.site_count||0)+'</td><td>'+st+'</td></tr>'+
@@ -816,13 +820,13 @@ function userPanel(u){
   if(!u.is_admin){
     acts='<div class="actions">'+
       (passwordEnabled?'<button type="button" class="btn ghost sm" data-reset-password="'+esc(u.id)+'">Reset password</button>':'')+
-      (u.suspended?'':'<button type="button" class="btn ghost sm" data-newkey-id="'+esc(u.id)+'" data-name="'+esc(u.username)+'">New key</button>')+
-      (u.suspended?'<button type="button" class="btn ghost sm" data-user-enable="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Re-enable</button>'
-                  :'<button type="button" class="btn ghost sm" data-user-suspend="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Suspend</button>')+
-      '<button type="button" class="btn danger sm" data-delete-id="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Delete account</button>'+
-      '<button type="button" class="btn ghost sm" data-goto-sites="'+esc(u.handle||u.username)+'">Open in Sites</button></div>';
+      (u.suspended?'':'<button type="button" class="btn ghost sm" data-newkey-id="'+esc(u.id)+'" data-name="'+esc(nameOf(u))+'">New key</button>')+
+      (u.suspended?'<button type="button" class="btn ghost sm" data-user-enable="'+esc(u.id)+'" data-name="'+esc(nameOf(u))+'">Re-enable</button>'
+                  :'<button type="button" class="btn ghost sm" data-user-suspend="'+esc(u.id)+'" data-name="'+esc(nameOf(u))+'">Suspend</button>')+
+      '<button type="button" class="btn danger sm" data-delete-id="'+esc(u.id)+'" data-name="'+esc(nameOf(u))+'">Delete account</button>'+
+      '<button type="button" class="btn ghost sm" data-goto-sites="'+esc(u.handle||nameOf(u))+'">Open in Sites</button></div>';
   }
-  var meta='<div class="muted" style="font-size:13px;margin-bottom:6px">'+esc(u.username)+(u.display_name?' · '+esc(u.display_name):'')+' · joined '+esc(dateOf(u.created_at))+(u.is_admin?'':' · source: '+sourceCell(u))+(u.max_sites?' · '+(u.site_count||0)+' of '+u.max_sites+' sites':'')+(u.max_site_mb?' · up to '+u.max_site_mb+' MB each':'')+'</div>';
+  var meta='<div class="muted" style="font-size:13px;margin-bottom:6px">'+esc(nameOf(u))+(u.display_name?' · '+esc(u.display_name):'')+' · joined '+esc(dateOf(u.created_at))+(u.is_admin?'':' · source: '+sourceCell(u))+(u.max_sites?' · '+(u.site_count||0)+' of '+u.max_sites+' sites':'')+(u.max_site_mb?' · up to '+u.max_site_mb+' MB each':'')+'</div>';
   return meta+why+list+acts+famPanel(u);
 }
 $('u-search').addEventListener('input', function(){ US.q=this.value; US.page=0; renderUsers(); });
@@ -934,7 +938,7 @@ function famConnect(u, row){
   var suffix=v('suffix').value.trim(); if(!suffix){ v('suffix').focus(); return; }
   famCall('POST','/v1/admin/users/'+encodeURIComponent(u.id)+'/address-families',
     {suffix:suffix, site_prefix:v('prefix').value.trim(), canonical:v('canonical').checked, cert_name:v('cert').value.trim(), proof_exempt:v('exempt').checked},
-    'Connected '+(suffix.indexOf('*.')===0?suffix:'*.'+suffix)+' for '+(u.handle||u.username)+'.');
+    'Connected '+(suffix.indexOf('*.')===0?suffix:'*.'+suffix)+' for '+(u.handle||nameOf(u))+'.');
 }
 $('u-rows').addEventListener('click', function(e){
   var b=e.target.closest('button'); if(!b) return;
@@ -986,7 +990,7 @@ async function renderSites(){
     var link=s.site_url?'<a href="'+esc(s.site_url)+'" target="_blank" rel="noopener">'+esc(s.name)+'</a>':esc(s.name);
     var fam=s.family_address?esc(hostOf(s.family_address))+' <span class="muted">· family</span>':'';
     var dom=s.custom_domain?esc(s.custom_domain)+(s.domain_status&&s.domain_status!=='active'?' <span class="muted">· '+esc(s.domain_status)+'</span>':'')+(fam?'<div class="sub">'+fam+'</div>':''):(fam||'<span class="muted">-</span>');
-    return '<tr data-site="'+esc(s.id)+'"><td>'+link+'<span class="site-mobile-metrics">'+esc(o.handle||o.username)+' · '+(s.disk==null?'-':(s.disk/(1024*1024)).toFixed(1)+' MB')+' · '+s.views.toLocaleString()+' views</span></td><td>'+esc(o.handle||o.username)+'</td>'+
+    return '<tr data-site="'+esc(s.id)+'"><td>'+link+'<span class="site-mobile-metrics">'+esc(o.handle||nameOf(o))+' · '+(s.disk==null?'-':(s.disk/(1024*1024)).toFixed(1)+' MB')+' · '+s.views.toLocaleString()+' views</span></td><td>'+esc(o.handle||nameOf(o))+'</td>'+
       '<td class="num">'+sizeCell(s.size)+'</td><td class="num">'+(s.disk/(1024*1024)).toFixed(2)+'</td>'+
       '<td>'+esc(dateOf(updatedAt(s)))+' <span class="muted ago">· '+esc(ago(updatedAt(s)))+'</span></td>'+
       '<td class="num">'+s.views.toLocaleString()+'</td><td>'+esc(s.visibility||'')+'</td><td>'+siteStatus(s)+'</td><td>'+dom+'</td>'+
@@ -1114,14 +1118,14 @@ async function showVersions(s){
     if(!res.ok){ setPanel(s, 'Could not load versions: '+esc(await errOf(res))+' '+closeBtn); return; }
     var v=await res.json();
     if(!Array.isArray(v)||!v.length){ setPanel(s, 'No versions. '+closeBtn); return; }
-    setPanel(s, '<strong>Versions of '+esc(s.name)+'</strong> <span class="muted">('+esc(s.owner.handle||s.owner.username)+')</span>'+
+    setPanel(s, '<strong>Versions of '+esc(s.name)+'</strong> <span class="muted">('+esc(s.owner.handle||nameOf(s.owner))+')</span>'+
       v.map(function(x){ return '<div class="vrow"><span class="mono">v'+x.version_number+'</span><span class="muted">'+esc(new Date(x.created_at).toLocaleString())+'</span>'+
         (x.is_active?'<span class="tag ok">active</span>':'<button type="button" class="btn ghost sm" data-rollback="'+x.version_number+'" data-site-id="'+esc(s.id)+'">Make active</button>')+'</div>'; }).join('')+
       '<div class="actions">'+closeBtn+'</div>');
   }catch(e){ setPanel(s, 'Cannot reach the server. '+closeBtn); }
 }
 async function rollback(s, n){
-  if(!(await shConfirm({title:'Make v'+n+' the live version of "'+s.name+'"?', body:'Owner: '+(s.owner.handle||s.owner.username)+'. The other versions are kept.', confirmLabel:'Make it active'}))) return;
+  if(!(await shConfirm({title:'Make v'+n+' the live version of "'+s.name+'"?', body:'Owner: '+(s.owner.handle||nameOf(s.owner))+'. The other versions are kept.', confirmLabel:'Make it active'}))) return;
   try{
     var res=await api('PUT', sitePath(s,'/active-version'), {version_number:Number(n)});
     if(!res.ok){ status(await errOf(res), true); return; }
@@ -1181,7 +1185,7 @@ function saveBlob(blob, name){
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
 }
 async function connectDomain(s){
-  var d=await shPrompt({title:'Connect a domain to '+s.name, body:'Owner: '+(s.owner.handle||s.owner.username)+'. A subdomain like recipes.brand.com, or a free name.', label:'Domain', placeholder:'recipes.brand.com', confirmLabel:'Connect'});
+  var d=await shPrompt({title:'Connect a domain to '+s.name, body:'Owner: '+(s.owner.handle||nameOf(s.owner))+'. A subdomain like recipes.brand.com, or a free name.', label:'Domain', placeholder:'recipes.brand.com', confirmLabel:'Connect'});
   if(!d||!d.trim()) return;
   try{
     var res=await api('POST', sitePath(s,'/domain'), {domain:d.trim()});
@@ -1194,7 +1198,7 @@ async function connectDomain(s){
   }catch(e){ status('Cannot reach the server', true); }
 }
 async function disconnectDomain(s){
-  if(!(await shConfirm({title:'Disconnect '+s.custom_domain+' from '+s.name+'?', body:'Owner: '+(s.owner.handle||s.owner.username)+'. The site keeps its own address.', confirmLabel:'Disconnect', danger:true}))) return;
+  if(!(await shConfirm({title:'Disconnect '+s.custom_domain+' from '+s.name+'?', body:'Owner: '+(s.owner.handle||nameOf(s.owner))+'. The site keeps its own address.', confirmLabel:'Disconnect', danger:true}))) return;
   try{
     var res=await api('DELETE', sitePath(s,'/domain'));
     if(res.status!==204&&!res.ok){ status(await errOf(res), true); return; }
@@ -1202,7 +1206,7 @@ async function disconnectDomain(s){
   }catch(e){ status('Cannot reach the server', true); }
 }
 async function deleteSite(s){
-  if(!(await shConfirm({title:'Delete "'+s.name+'" of '+(s.owner.handle||s.owner.username)+'?', body:'It goes offline now. For 7 days its owner can restore it, with every version and all its saved data, from Recently deleted on their page; after that it is gone for good.', confirmLabel:'Delete site', danger:true}))) return;
+  if(!(await shConfirm({title:'Delete "'+s.name+'" of '+(s.owner.handle||nameOf(s.owner))+'?', body:'It goes offline now. For 7 days its owner can restore it, with every version and all its saved data, from Recently deleted on their page; after that it is gone for good.', confirmLabel:'Delete site', danger:true}))) return;
   try{
     var res=await api('DELETE', sitePath(s));
     if(res.status!==204&&!res.ok){ status(await errOf(res), true); return; }
@@ -1223,12 +1227,12 @@ $('s-rows').addEventListener('click', function(e){
 function renderModeration(){
   var rows=[];
   D.users.forEach(function(u){
-    if(u.suspended) rows.push('<tr><td><strong>'+esc(u.handle||u.username)+'</strong> <span class="tag down">account suspended</span><div class="sub">'+(u.site_count||0)+' site'+(u.site_count===1?'':'s')+' down with it</div></td><td>'+esc(emailOf(u))+'</td><td class="wrap">'+esc(u.suspended_reason)+'</td>'+
-      '<td><button type="button" class="btn ghost sm" data-user-enable="'+esc(u.id)+'" data-name="'+esc(u.username)+'">Re-enable</button></td></tr>');
+    if(u.suspended) rows.push('<tr><td><strong>'+esc(u.handle||nameOf(u))+'</strong> <span class="tag down">account suspended</span><div class="sub">'+(u.site_count||0)+' site'+(u.site_count===1?'':'s')+' down with it</div></td><td>'+esc(emailOf(u))+'</td><td class="wrap">'+esc(u.suspended_reason)+'</td>'+
+      '<td><button type="button" class="btn ghost sm" data-user-enable="'+esc(u.id)+'" data-name="'+esc(nameOf(u))+'">Re-enable</button></td></tr>');
   });
   D.sites.forEach(function(s){
     if(!s.suspended||s.suspended_by==='account') return;
-    rows.push('<tr><td><strong>'+esc(s.name)+'</strong> <span class="tag down">taken down</span></td><td>'+esc(s.owner.handle||s.owner.username)+'</td><td class="wrap">'+esc(s.suspended_reason)+'</td>'+
+    rows.push('<tr><td><strong>'+esc(s.name)+'</strong> <span class="tag down">taken down</span></td><td>'+esc(s.owner.handle||nameOf(s.owner))+'</td><td class="wrap">'+esc(s.suspended_reason)+'</td>'+
       '<td><button type="button" class="btn ghost sm" data-site-restore="'+esc(s.id)+'" data-name="'+esc(s.name)+'">Restore</button></td></tr>');
   });
   $('m-count').textContent='('+rows.length+')';
@@ -1335,7 +1339,7 @@ var ES={page:0};
 function entries(){
   var q=(($('entry-filter').value)||'').trim().toLowerCase();
   var list=D.sites.filter(function(s){ return !!s.site_url; }).map(function(s){
-    return {id:s.id, name:s.name, account:s.owner.handle||s.owner.username, handle:s.owner.handle||'', url:s.site_url, domain:s.custom_domain||'',
+    return {id:s.id, name:s.name, account:s.owner.handle||nameOf(s.owner), handle:s.owner.handle||'', url:s.site_url, domain:s.custom_domain||'',
       suspended:!!s.suspended, offline:!!s.offline, reason:s.suspended_reason||'', by:s.suspended_by||'', created:s.created_at};
   }).sort(function(a,b){ return new Date(b.created)-new Date(a.created); });
   var total=list.length;
@@ -1968,7 +1972,7 @@ async function load(){
 async function showTemporaryPassword(res){
   if(!res.ok){ status(await errOf(res),true); return; }
   var d=await res.json();
-  await shAlert({title:'Temporary password for '+d.username,body:d.message,copy:d.temporary_password,okLabel:'Done'});
+  await shAlert({title:'Temporary password for '+(d.login||d.username),body:d.message,copy:d.temporary_password,okLabel:'Done'});
   await reloadUsers();
 }
 $('password-create').addEventListener('submit',async function(e){

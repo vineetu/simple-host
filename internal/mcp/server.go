@@ -240,7 +240,9 @@ func NewServer(cfg Config) *Server {
 		coreTools: core, deployByName: deploy.byName,
 		search: newToolSearch(host.tools), deploySearch: newToolSearch(deploy.tools),
 		analytics: analytics, cfg: cfg, tools: host.tools, byName: host.byName, preOutputSchemaTools: coreBare,
-		hackTools: hack.tools, hackByName: hack.byName, hackBare: hack.bare,
+		hackTools:     hackInstanceTools(hack.tools, cfg.APIHost),
+		hackByName:    hackInstanceToolMap(hack.byName, cfg.APIHost),
+		hackBare:      hackInstanceTools(hack.bare, cfg.APIHost),
 		hackSiteTools: site.tools, hackSiteBare: site.bare, hackSiteByName: site.byName,
 	}
 }
@@ -394,10 +396,60 @@ func (s *Server) hostInstructions(text string) string {
 }
 
 func (s *Server) hackInstanceInstructions(text string) string {
-	if s.cfg.APIHost != "" {
-		text = strings.ReplaceAll(text, "simple-hack.app", s.cfg.APIHost)
+	return hackInstanceReplace(text, s.cfg.APIHost)
+}
+
+// hackInstanceReplace is hackInstanceInstructions' one-line replace, shared
+// with hackInstanceTools/hackInstanceToolMap below. On simple-hack.app
+// itself cfg.APIHost is "simple-hack.app" too, so this is an identity
+// replace there -- same as hackInstanceInstructions already relied on for
+// the top-level instructions text; a self-hosted instance's own APIHost
+// makes it a real substitution.
+func hackInstanceReplace(text, apiHost string) string {
+	if apiHost != "" {
+		text = strings.ReplaceAll(text, "simple-hack.app", apiHost)
 	}
 	return text
+}
+
+// hackInstanceTools applies hackInstanceReplace to every tool's text, once,
+// at construction (apiHost: cfg.APIHost). Unlike the Host edition's
+// instanceTools (basetext.go), the Hack tool set
+// (hackTools/hackBare/hackSiteTools/...) is served with zero rewriting today
+// -- CallerModeEvents returns s.hackTools straight from the registry
+// (forCaller), with no per-request pass -- so this has to run once in
+// NewServer instead. Only hack_apply_to_event's description currently names
+// simple-hack.app (the one hardcoded hosted URL in the whole MCP surface,
+// SIM connect-mcp audit item 25); this is the general-purpose fix so the
+// next one is caught the same way the instructions text already is.
+func hackInstanceTools(tools []Tool, apiHost string) []Tool {
+	if apiHost == "" {
+		return tools
+	}
+	out := make([]Tool, len(tools))
+	for i, t := range tools {
+		t.Title = hackInstanceReplace(t.Title, apiHost)
+		t.Description = hackInstanceReplace(t.Description, apiHost)
+		t.InputSchema = mapSchema(t.InputSchema, func(s string) string { return hackInstanceReplace(s, apiHost) })
+		t.OutputSchema = mapSchema(t.OutputSchema, func(s string) string { return hackInstanceReplace(s, apiHost) })
+		out[i] = t
+	}
+	return out
+}
+
+func hackInstanceToolMap(m map[string]Tool, apiHost string) map[string]Tool {
+	if apiHost == "" {
+		return m
+	}
+	out := make(map[string]Tool, len(m))
+	for name, t := range m {
+		t.Title = hackInstanceReplace(t.Title, apiHost)
+		t.Description = hackInstanceReplace(t.Description, apiHost)
+		t.InputSchema = mapSchema(t.InputSchema, func(s string) string { return hackInstanceReplace(s, apiHost) })
+		t.OutputSchema = mapSchema(t.OutputSchema, func(s string) string { return hackInstanceReplace(s, apiHost) })
+		out[name] = t
+	}
+	return out
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

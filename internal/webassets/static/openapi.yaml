@@ -472,7 +472,7 @@ paths:
       - Auth
       operationId: passwordSignup
       summary: Create a password account and sign in
-      description: Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in. Username is lowercased; @ is forbidden.
+      description: Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in. Username accepts any value, an email is suggested but not required; it is trimmed and lower-cased, 1–254 characters, no control characters.
       requestBody:
         required: true
         content:
@@ -482,7 +482,8 @@ paths:
               properties:
                 username:
                   type: string
-                  pattern: ^[a-z0-9._-]{3,64}$
+                  minLength: 1
+                  maxLength: 254
                 password:
                   type: string
                   format: password
@@ -517,7 +518,7 @@ paths:
       - Admin
       operationId: createPasswordUser
       summary: Create an account with a temporary password
-      description: Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in. Requires the admin key. Omit password to generate one; admin-created usernames may be emails.
+      description: Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in. Requires the admin key. Omit password to generate one; any username is accepted (an email is suggested).
       requestBody:
         required: true
         content:
@@ -576,7 +577,7 @@ paths:
       - Admin
       operationId: resetAccountPassword
       summary: Set a temporary password for a non-admin account
-      description: Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in. Requires the admin key. Omit password to generate one; admin-created usernames may be emails.
+      description: Available only when PASSWORD_SIGNIN=on. Passwords are 8–256 characters. Temporary passwords require a different new_password at sign-in. Requires the admin key. Omit password to generate one; any username is accepted (an email is suggested).
       requestBody:
         required: true
         content:
@@ -693,14 +694,14 @@ paths:
               schema: { $ref: '#/components/schemas/AuthResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '409':
-          description: "code choose_handle (a new account: choose its address first; carries suggested_handle and address), or handle_taken / handle_reserved (the handle sent cannot be had; error names the address). The code is not used up."
+          description: "code choose_handle (a new account: choose its address first; carries suggested_handle and address), handle_taken / handle_reserved (the handle sent cannot be had; error names the address), or password_account_exists (this address already has a password account from PASSWORD_SIGNIN; the code is spent, sign in with the password instead). The code is not used up except for password_account_exists."
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   error: { type: string }
-                  code: { type: string, enum: [choose_handle, handle_taken, handle_reserved] }
+                  code: { type: string, enum: [choose_handle, handle_taken, handle_reserved, password_account_exists] }
                   suggested_handle: { type: string }
                   address: { type: string, example: rose.simple-host.app }
         '401':
@@ -855,7 +856,9 @@ paths:
         Answers only on the app's own address (403 account_auth_unavailable elsewhere).
         Provider redirect URI on the apex. Consumes the one-time `state`.
         Identifies via userinfo, then `resolveUser` (link or create a `users`
-        row on a verified email; refuse missing/unverified email). Site
+        row on a verified email; refuse missing/unverified email, and refuse
+        an address that already has a PASSWORD_SIGNIN password account, a
+        themed HTML page naming neither account). Site
         purpose 302s to `https://<return-host>/v1/visitor/establish?once=…`.
         Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=…` for the dashboard
         to redeem via `POST /v1/auth/verify`. Neither redirect contains an
@@ -1209,6 +1212,7 @@ paths:
                   is_admin: { type: boolean }
                   signin_alerts: { type: boolean, description: "Whether an email follows each sign-in or app connection (PATCH /v1/me to change)." }
                   has_password: { type: boolean, description: "Whether this account has a password set. Present only when PASSWORD_SIGNIN is on (self-hosted installs); absent on hosted services. POST /v1/me/password changes it." }
+                  login: { type: string, description: "A password account's own login (account_passwords.login), present whenever has_password is true. A self sign-up's username above is a synthetic value, never shown to the person: show login instead whenever it is present." }
                   max_sites: { type: integer, description: "Sites this account may hold (sites in Recently deleted count; one more is 403 site_quota_reached): the instance's MAX_SITES_PER_ACCOUNT, or the account's own MAX_SITES_OVERRIDES entry. Absent for admins, who have no limit." }
                   file_usage: { type: object, properties: { used_bytes: { type: integer }, limit_mb: { type: integer, description: "0 means no account file cap" }, message: { type: string, example: "12.3 MB of 1 GB used" }, tips: { type: string } }, description: "Website files and kept versions including the live copy and Recently deleted sites; saved data and storage resources excluded" }
                   can_set_keep_versions: { type: boolean, description: "Account is allowed to change per-site retention" }
@@ -7196,6 +7200,7 @@ paths:
                       properties:
                         id: { type: string }
                         username: { type: string }
+                        login: { type: string, description: "This password account's own login (account_passwords.login); \"\" without one. A self sign-up's username above is a synthetic value, never meaningful on its own: show login instead whenever it is non-empty." }
                         handle: { type: string }
                         page_url: { type: string, description: "Address of the person's public page; empty without a handle" }
                         is_admin: { type: boolean }
@@ -14848,6 +14853,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         username: { type: string }
+        login: { type: string, description: "A password account's own login (account_passwords.login), present on a password sign-in or signup. A self sign-up's username is a synthetic value, never shown to the person: show login instead whenever it is present." }
         api_key: { type: string, description: "A new key for this sign-in, starting shk_ (keys issued before 2026-09-27 are bare hex and keep working). Earlier keys keep working until revoked (DELETE /v1/me/keys/{id}) or rotated. Stored only as a hash, so it is shown only here." }
         is_admin: { type: boolean }
         created: { type: boolean, description: true if this verify created the account }

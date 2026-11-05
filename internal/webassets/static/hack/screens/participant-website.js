@@ -221,14 +221,26 @@ function publishCardHTML (ui, esc, doc, state, conn, email, promptText, publishe
     addressUsed = true
     return '<div class="copy" data-mcp-row><input class="input mono" id="web-app-mcp" aria-label="Connector address" value="" readonly></div>'
   }
+  let cmdCount = 0
+  const commandRow = tpl => {
+    cmdCount++
+    return '<div class="copy" data-mcp-cmd="' + esc(tpl) + '" id="web-app-cmd-' + cmdCount + '"></div>'
+  }
+  // The hosted service can offer a directory/browse path (Claude's
+  // connector directory) that no self-hosted instance has; connect_hosted
+  // carries that alternate list, picked only on the canonical hosted
+  // origin -- the same test get-started.html's own hosted/self markers
+  // encode server-side. See hack-connect-steps.json's _about.
+  const hosted = location.origin === 'https://simple-hack.app'
   const fill = t => String(t || '').split('{app}').join(esc(app.label)).split('{email}').join('<b>' + esc(email || 'your email') + '</b>')
-  const connect = app.connect || []
+  const connect = (hosted && app.connect_hosted) || app.connect || []
   let lis = ''
   connect.forEach((step, n) => {
     let extra = step.address ? addressRow() : ''
+    if (step.command) extra += commandRow(step.command)
     if (step.copy) extra += '<div class="copy"><input class="input mono" aria-label="' + esc(step.copy.label) + '" value="' + esc(step.copy.value) + '" readonly></div>'
     if (n === connect.length - 1) {
-      if (app.fallback) extra += '<p class="help">' + app.fallback + '</p>' + addressRow()
+      if (hosted && app.fallback) extra += '<p class="help">' + app.fallback + '</p>' + addressRow()
       if (doc.signin_hint) extra += '<p class="help">' + fill(doc.signin_hint) + '</p>'
     }
     lis += stepLI(step.html + (step.after || ''), appConnected, extra)
@@ -306,7 +318,7 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
   // ---- Publish (hidden once closed for publish) ----
   let closedNoteHTML = ''
   let publishHTML = ''
-  const email = (ctx.me && (ctx.me.email || ctx.me.username)) || ''
+  const email = (ctx.me && (ctx.me.login || ctx.me.email || ctx.me.username)) || ''
   const promptText = buildPrompt(ev, team, entry)
   if (closedForPublish) {
     closedNoteHTML = '<div class="note info">Publishing is closed.' + (site.exists ? ' Your site stays live as submitted.' : '') + '</div>'
@@ -353,13 +365,25 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
   }))
 
   // ---- connector address (filled client-side so it always matches this origin) ----
+  const mcp = keyData.mcp_url || (location.origin + '/mcp')
   const mcpRow = main.querySelector('[data-mcp-row]')
   if (mcpRow) {
     const input = mcpRow.querySelector('#web-app-mcp')
-    const mcp = keyData.mcp_url || (location.origin + '/mcp')
     input.value = mcp
     mcpRow.append(ui.copyButton(mcp, 'Copy'))
   }
+  // ---- a step's command, e.g. Claude Code's `claude mcp add ...`, filled
+  // the same way (its one "{address}" placeholder -- see
+  // hack-connect-steps.json's ConnectStep.command). ----
+  main.querySelectorAll('[data-mcp-cmd]').forEach(row => {
+    const text = (row.getAttribute('data-mcp-cmd') || '').split('{address}').join(mcp)
+    const input = document.createElement('input')
+    input.className = 'input mono'
+    input.readOnly = true
+    input.value = text
+    input.setAttribute('aria-label', 'Command')
+    row.append(input, ui.copyButton(text, 'Copy'))
+  })
   const promptCopy = main.querySelector('[data-prompt-copy]')
   if (promptCopy) promptCopy.append(ui.copyButton(promptText, 'Copy prompt'))
 

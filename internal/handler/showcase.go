@@ -418,7 +418,14 @@ func (h *SiteHandler) renderNotFound(w http.ResponseWriter, r *http.Request, ori
 	message := "Page not found"
 	subtext := "The page you’re looking for doesn’t exist."
 	backURL := h.mainSiteURL()
+	// Baseline, unconditional literal on the hosted service, true for
+	// simple-hack.app too (same team, deliberate cross-brand reference) --
+	// must stay byte-identical there. A self-hosted install has no business
+	// sending anyone to simple-host.app, so it names itself instead.
 	backLabel := "Go to simple-host.app"
+	if h.pipeline().hostedOwner() == "" {
+		backLabel = "Go to " + h.siteDomain
+	}
 
 	if len(segs) >= 1 {
 		handle := strings.ToLower(segs[0])

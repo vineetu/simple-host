@@ -747,7 +747,7 @@
         ],
         "operationId": "passwordSignup",
         "summary": "Create a password account and sign in",
-        "description": "Available only when PASSWORD_SIGNIN=on. Passwords are 8\u2013256 characters. Temporary passwords require a different new_password at sign-in. Username is lowercased; @ is forbidden.",
+        "description": "Available only when PASSWORD_SIGNIN=on. Passwords are 8\u2013256 characters. Temporary passwords require a different new_password at sign-in. Username accepts any value, an email is suggested but not required; it is trimmed and lower-cased, 1\u2013254 characters, no control characters.",
         "requestBody": {
           "required": true,
           "content": {
@@ -757,7 +757,8 @@
                 "properties": {
                   "username": {
                     "type": "string",
-                    "pattern": "^[a-z0-9._-]{3,64}$"
+                    "minLength": 1,
+                    "maxLength": 254
                   },
                   "password": {
                     "type": "string",
@@ -814,7 +815,7 @@
         ],
         "operationId": "createPasswordUser",
         "summary": "Create an account with a temporary password",
-        "description": "Available only when PASSWORD_SIGNIN=on. Passwords are 8\u2013256 characters. Temporary passwords require a different new_password at sign-in. Requires the admin key. Omit password to generate one; admin-created usernames may be emails.",
+        "description": "Available only when PASSWORD_SIGNIN=on. Passwords are 8\u2013256 characters. Temporary passwords require a different new_password at sign-in. Requires the admin key. Omit password to generate one; any username is accepted (an email is suggested).",
         "requestBody": {
           "required": true,
           "content": {
@@ -904,7 +905,7 @@
         ],
         "operationId": "resetAccountPassword",
         "summary": "Set a temporary password for a non-admin account",
-        "description": "Available only when PASSWORD_SIGNIN=on. Passwords are 8\u2013256 characters. Temporary passwords require a different new_password at sign-in. Requires the admin key. Omit password to generate one; admin-created usernames may be emails.",
+        "description": "Available only when PASSWORD_SIGNIN=on. Passwords are 8\u2013256 characters. Temporary passwords require a different new_password at sign-in. Requires the admin key. Omit password to generate one; any username is accepted (an email is suggested).",
         "requestBody": {
           "required": true,
           "content": {
@@ -1148,7 +1149,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "409": {
-            "description": "code choose_handle (a new account: choose its address first; carries suggested_handle and address), or handle_taken / handle_reserved (the handle sent cannot be had; error names the address). The code is not used up.",
+            "description": "code choose_handle (a new account: choose its address first; carries suggested_handle and address), handle_taken / handle_reserved (the handle sent cannot be had; error names the address), or password_account_exists (this address already has a password account from PASSWORD_SIGNIN; the code is spent, sign in with the password instead). The code is not used up except for password_account_exists.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1162,7 +1163,8 @@
                       "enum": [
                         "choose_handle",
                         "handle_taken",
-                        "handle_reserved"
+                        "handle_reserved",
+                        "password_account_exists"
                       ]
                     },
                     "suggested_handle": {
@@ -1468,7 +1470,7 @@
         ],
         "operationId": "oauthCallback",
         "summary": "OAuth callback (apex only)",
-        "description": "Answers only on the app's own address (403 account_auth_unavailable elsewhere). Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=\u2026`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=\u2026` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
+        "description": "Answers only on the app's own address (403 account_auth_unavailable elsewhere). Provider redirect URI on the apex. Consumes the one-time `state`. Identifies via userinfo, then `resolveUser` (link or create a `users` row on a verified email; refuse missing/unverified email, and refuse an address that already has a PASSWORD_SIGNIN password account, a themed HTML page naming neither account). Site purpose 302s to `https://<return-host>/v1/visitor/establish?once=\u2026`. Owner purpose 302s to `{PUBLIC_BASE_URL}/?token=\u2026` for the dashboard to redeem via `POST /v1/auth/verify`. Neither redirect contains an API key. Failures are a short no-store HTML page on the apex with no Location and no cookie.",
         "parameters": [
           {
             "name": "provider",
@@ -2267,6 +2269,10 @@
                     "has_password": {
                       "type": "boolean",
                       "description": "Whether this account has a password set. Present only when PASSWORD_SIGNIN is on (self-hosted installs); absent on hosted services. POST /v1/me/password changes it."
+                    },
+                    "login": {
+                      "type": "string",
+                      "description": "A password account's own login (account_passwords.login), present whenever has_password is true. A self sign-up's username above is a synthetic value, never shown to the person: show login instead whenever it is present."
                     },
                     "max_sites": {
                       "type": "integer",
@@ -17938,6 +17944,10 @@
                           },
                           "username": {
                             "type": "string"
+                          },
+                          "login": {
+                            "type": "string",
+                            "description": "This password account's own login (account_passwords.login); \"\" without one. A self sign-up's username above is a synthetic value, never meaningful on its own: show login instead whenever it is non-empty."
                           },
                           "handle": {
                             "type": "string"
@@ -37463,6 +37473,10 @@
           },
           "username": {
             "type": "string"
+          },
+          "login": {
+            "type": "string",
+            "description": "A password account's own login (account_passwords.login), present on a password sign-in or signup. A self sign-up's username is a synthetic value, never shown to the person: show login instead whenever it is present."
           },
           "api_key": {
             "type": "string",

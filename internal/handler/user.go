@@ -132,6 +132,11 @@ type authResponse struct {
 	IsAdmin  bool   `json:"is_admin"`
 	Created  bool   `json:"created"`
 	Handle   string `json:"handle,omitempty"`
+	// Login is the same field GET /v1/me carries for a password account
+	// (account_passwords.login): present on a password sign-in or signup,
+	// so the dashboard/Hack UI showing this response directly never shows
+	// a self sign-up's synthetic Username instead.
+	Login string `json:"login,omitempty"`
 }
 
 func NewUserHandler(database *sql.DB, service *accounts.Service, mailer signInCodeSender, publicBaseURL string, editions ...*edition.Edition) *UserHandler {
@@ -363,6 +368,17 @@ func (h *UserHandler) finishSignIn(w http.ResponseWriter, r *http.Request, user 
 	// one-time link): the owner hears about it. Browser sign-in then calls
 	// /v1/sso/session so cookie replacement stays inside the SSO namespace.
 	h.alerts.Alert(user.ID, r.UserAgent(), "")
+	// A password account's own login (account_passwords.login), never its
+	// possibly-synthetic Username: a cosmetic field, so a lookup failure
+	// here logs and falls back to "" rather than failing the sign-in.
+	login := ""
+	if h.passwordEnabled {
+		if l, has, lerr := h.accounts.PasswordLogin(r.Context(), user.ID); lerr != nil {
+			log.Printf("auth: password login lookup after verify: %v", lerr)
+		} else if has {
+			login = l
+		}
+	}
 	writeJSON(w, http.StatusOK, authResponse{
 		ID:       user.ID,
 		Username: user.Username,
@@ -370,6 +386,7 @@ func (h *UserHandler) finishSignIn(w http.ResponseWriter, r *http.Request, user 
 		IsAdmin:  user.IsAdmin,
 		Created:  created,
 		Handle:   user.Handle.String,
+		Login:    login,
 	})
 }
 
@@ -428,12 +445,13 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if h.passwordEnabled {
-		has, err := h.accounts.HasPassword(r.Context(), user.ID)
+		login, has, err := h.accounts.PasswordLogin(r.Context(), user.ID)
 		if err != nil {
 			writeJSON(w, 500, errorResponse{Error: "internal server error"})
 			return
 		}
 		resp.HasPassword = &has
+		resp.Login = login
 	}
 	resp.CanSetKeepVersions = h.limits.CanSetKeepVersions(accountHandles(r.Context(), h.database, user)...)
 	resp.KeepVersions = h.limits.KeepVersionsFor(keepVersions, accountHandles(r.Context(), h.database, user)...)
@@ -477,6 +495,12 @@ type meResponse struct {
 	// when PASSWORD_SIGNIN is on (self-hosted installs only), so hosted
 	// responses stay byte-identical with the field absent.
 	HasPassword *bool `json:"has_password,omitempty"`
+	// Login is what a password account actually signs in with (its own
+	// account_passwords.login), present whenever HasPassword is true. A
+	// self sign-up's Username is a synthetic, never-shown value instead
+	// (CreatePasswordAccount), so the dashboard and Hack account screen
+	// must show Login, not Username, for a password account.
+	Login string `json:"login,omitempty"`
 	// MaxSites is the sites this account may hold (MAX_SITES_OVERRIDES, else
 	// MAX_SITES_PER_ACCOUNT); absent for admins, who have no limit.
 	MaxSites *int `json:"max_sites,omitempty"`

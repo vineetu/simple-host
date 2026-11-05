@@ -138,12 +138,29 @@ func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (mode
 // name is not an address (an organiser-made event account), because an
 // account can move off an address it no longer owns while the identity
 // linked under it stays.
+//
+// A self-signup password account's username is never treated as a verified
+// address here, even one shaped like an email: the person who typed it never
+// proved they control it, which is exactly how a password signup could
+// squat someone else's email ahead of them (see the password-accounts
+// pre-account-hijacking fix). An admin-created password account keeps the
+// old behaviour -- the admin vouched for that address. If a self-signup
+// account separately proved an address through Google/OIDC, that linked
+// address is used instead; with neither, it has no verified email at all.
 func visitorEmail(ctx context.Context, database *sql.DB, userID string) (string, error) {
 	u, err := accountapp.New(database).GetUserByID(ctx, userID)
 	if err != nil {
 		return "", err
 	}
-	if strings.Contains(u.Username, "@") {
+	looksLikeEmail := strings.Contains(u.Username, "@")
+	selfSignupPassword := false
+	if looksLikeEmail {
+		selfSignupPassword, err = accountapp.New(database).SelfSignupPasswordAccount(ctx, userID)
+		if err != nil {
+			return "", err
+		}
+	}
+	if looksLikeEmail && !selfSignupPassword {
 		return u.Username, nil
 	}
 	identity, err := accountapp.New(database).GetLatestOAuthIdentity(ctx, userID)
@@ -152,6 +169,13 @@ func visitorEmail(ctx context.Context, database *sql.DB, userID string) (string,
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return "", err
+	}
+	if looksLikeEmail {
+		// A self-signup password account's email-shaped username never
+		// proved it controls that address (pre-account hijacking) and there
+		// is no linked OAuth identity either: no verified email to fall
+		// back to, unlike an ordinary non-email username below.
+		return "", nil
 	}
 	return u.Username, nil
 }

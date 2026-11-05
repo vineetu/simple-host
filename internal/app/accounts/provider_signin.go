@@ -25,6 +25,7 @@ const providerStateTTL = 10 * time.Minute
 var providerNoncePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
 var errOAuthEmailRefused = errors.New("oauth email refused")
 var errOAuthAdminRefused = errors.New("oauth admin refused")
+var errOAuthPasswordRefused = errors.New("oauth password account refused")
 
 // ProviderIdentity is the stable provider user ID and verified-email snapshot.
 // Email is used only for the first-link decision; re-logins key on UserID.
@@ -117,6 +118,9 @@ func (flow *ProviderSignIn) Callback(ctx context.Context, in ProviderCallbackInp
 	if errors.Is(err, errOAuthEmailRefused) || errors.Is(err, errOAuthAdminRefused) {
 		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadRequest}
 	}
+	if errors.Is(err, errOAuthPasswordRefused) {
+		return ProviderResult{}, &ProviderFailure{Status: http.StatusConflict, Refusal: "This email already has a password account on this install. Sign in with the password instead."}
+	}
 	if err != nil {
 		log.Printf("oauth: resolve user: %v", err)
 		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
@@ -204,11 +208,22 @@ func (flow *ProviderSignIn) Callback(ctx context.Context, in ProviderCallbackInp
 	return ProviderResult{State: st, Once: once}, nil
 }
 func resolveUser(ctx context.Context, q repo.Querier, ident ProviderIdentity) (model.User, bool, error) {
+	// A re-login through an identity already linked here needs no
+	// password-account check to stay sound: the link itself was only ever
+	// made below, past that check, so it can never point at one of
+	// CreatePasswordAccount's accounts in the first place. The check here
+	// is defence in depth only, in case that ever stops being true.
 	existing, err := repo.GetOAuthIdentity(ctx, q, ident.Provider, ident.UserID)
 	if err == nil {
 		user, uerr := repo.GetUserByID(ctx, q, existing.UserID)
 		if uerr != nil {
 			return model.User{}, false, uerr
+		}
+		if pw, perr := repo.PasswordSignupAccount(ctx, q, user.ID); perr != nil {
+			return model.User{}, false, perr
+		} else if pw {
+			log.Printf("oauth: refused existing-identity link to a password account provider=%s", ident.Provider)
+			return model.User{}, false, errOAuthPasswordRefused
 		}
 		if terr := repo.TouchOAuthIdentity(ctx, q, existing.ID, ident.Email, ident.EmailVerified); terr != nil {
 			return model.User{}, false, terr
@@ -255,6 +270,22 @@ func resolveUser(ctx context.Context, q repo.Querier, ident ProviderIdentity) (m
 		}
 	default:
 		return model.User{}, false, err
+	}
+
+	// An existing account under this address that CreatePasswordAccount made
+	// (admin-created; a self-signup password account's username is now a
+	// synthetic value and could never match email here in the first place)
+	// never proved it controls the address: this provider's verified email
+	// proves the opposite, but linking it to that account would hand
+	// whoever signs in here a password its creator already knows
+	// (pre-account hijacking). Refuse instead of resolving to or linking it.
+	if !created {
+		if pw, perr := repo.PasswordSignupAccount(ctx, q, user.ID); perr != nil {
+			return model.User{}, false, perr
+		} else if pw {
+			log.Printf("oauth: refused password-account link provider=%s", ident.Provider)
+			return model.User{}, false, errOAuthPasswordRefused
+		}
 	}
 
 	if _, err := repo.InsertOAuthIdentity(ctx, q, user.ID, ident.Provider, ident.UserID, email, ident.EmailVerified); err != nil {

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -137,6 +138,59 @@ func TestVisitorEmailFollowsAccountEmail(t *testing.T) {
 	got, err = visitorEmail(ctx, a.database, uid)
 	if err != nil || got != "bob-"+uid+"@acme.test" {
 		t.Fatalf("event account visitorEmail = %q, %v", got, err)
+	}
+}
+
+// Pre-account-hijacking fix, visitorEmail side (2026-11-05): a self-signup
+// password account's username is never trusted as a verified address, even
+// one shaped like an email -- the person who typed it never proved they
+// control it. viewerAllowed and every other gate that calls visitorEmail
+// (savers, visitor sessions, connector/MCP visitor tools) would otherwise
+// let such an account pass as the real owner of that address, e.g. on a
+// named-viewers site that lists the squatted email.
+func TestVisitorEmailRefusesSelfSignupPasswordAccount(t *testing.T) {
+	a := newPrivateApp(t)
+	ctx := context.Background()
+	assign := func(ctx context.Context, q accountapp.AttributionStore, id, email string, random bool) {
+		assignHandle(ctx, q, id, email, random)
+	}
+	svc := accountapp.New(a.database)
+
+	address := fmt.Sprintf("victim-%d@example.com", time.Now().UnixNano())
+
+	// Self sign-up with someone else's address as the login: never proved
+	// control of it. Its users.username is a synthetic value now
+	// (CreatePasswordAccount), so visitorEmail never even sees the typed
+	// address -- confirmed here as defence in depth, same as its own
+	// SelfSignupPasswordAccount check.
+	selfUser, _, err := svc.CreatePasswordAccount(ctx, address, "squatter password", false, false, assign)
+	if err != nil {
+		t.Fatalf("self-signup password account: %v", err)
+	}
+	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE id=$1`, selfUser.ID) })
+	if got, err := visitorEmail(ctx, a.database, selfUser.ID); err != nil || got == address || strings.Contains(got, "@") {
+		t.Fatalf("self-signup password account's typed login trusted as a verified email: got %q, err %v", got, err)
+	}
+
+	// The same account, later proving that address through Google: now it
+	// has a real verified email to fall back to.
+	if _, err := accountsrepo.InsertOAuthIdentity(ctx, a.database, selfUser.ID, "google", "g-"+selfUser.ID, address, true); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := visitorEmail(ctx, a.database, selfUser.ID); err != nil || got != address {
+		t.Fatalf("linked OAuth identity not used as the verified email: got %q, err %v", got, err)
+	}
+
+	// An admin-created (temporary) password account under an email keeps
+	// the old behaviour: the admin vouched for that address.
+	adminAddress := fmt.Sprintf("admin-made-%d@example.com", time.Now().UnixNano())
+	adminUser, _, err := svc.CreatePasswordAccount(ctx, adminAddress, "", true, false, assign)
+	if err != nil {
+		t.Fatalf("admin-created password account: %v", err)
+	}
+	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE id=$1`, adminUser.ID) })
+	if got, err := visitorEmail(ctx, a.database, adminUser.ID); err != nil || got != adminAddress {
+		t.Fatalf("admin-created password account's address not trusted: got %q, err %v", got, err)
 	}
 }
 

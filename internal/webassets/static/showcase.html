@@ -5031,7 +5031,7 @@ function parseAnalyticsSummary(data) {
             if (!me || !me.handle || me.handle !== HANDLE) me = null;
           }
           if (!me) return;
-          document.getElementById('signin-email').textContent = me.username;
+          document.getElementById('signin-email').textContent = me.login || me.username;
           alerts.checked = me.signin_alerts !== false;
           box.hidden = false;
           if (pwBox) pwBox.hidden = !(me.has_password === true);

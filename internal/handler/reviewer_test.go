@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/auth"
 	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
@@ -188,6 +189,34 @@ func TestReviewerSignInEndToEnd(t *testing.T) {
 		if me := a.do(t, http.MethodGet, "/v1/me", nil, map[string]string{"X-API-Key": k}).json(t); me["username"] != reviewer {
 			t.Fatalf("key after second sign-in: %v", me)
 		}
+	}
+}
+
+// TestReviewerSignInRefusesPasswordAccount: a password account under the
+// operator's configured REVIEW_ACCOUNT_EMAIL -- admin-created here, so its
+// users.username really is that address (a self sign-up's username is now
+// a synthetic value and could never be found by that address in the first
+// place: see TestPasswordSelfSignupNeverHijacksEmailSignIn) -- never
+// proved it controls that address, so the reviewer must not be handed it
+// (and the account's own password must not open the reviewer's
+// connected-app access) even though the email and reviewer password both
+// match.
+func TestReviewerSignInRefusesPasswordAccount(t *testing.T) {
+	a := newConnectorApp(t)
+	a.users.SetPasswordSignIn(true, true)
+	reviewer := "reviewer-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
+	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE username = $1`, reviewer) })
+	encoded, _ := HashReviewerPassword(reviewerTestPassword)
+	if !a.conn.EnableReviewerSignIn(reviewer, encoded) {
+		t.Fatal("could not enable")
+	}
+
+	if _, _, err := accountapp.New(a.database).CreatePasswordAccount(context.Background(), reviewer, "", true, false, a.users.assignPasswordHandle); err != nil {
+		t.Fatalf("admin-created password account under the reviewer address: %v", err)
+	}
+
+	if r := a.reviewerSignIn(t, reviewer, reviewerTestPassword, nil); r.status != http.StatusForbidden || strings.Contains(string(r.body), "api_key") {
+		t.Fatalf("reviewer sign-in reused a password account: %d %s", r.status, r.body)
 	}
 }
 

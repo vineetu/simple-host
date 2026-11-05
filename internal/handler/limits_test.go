@@ -67,6 +67,10 @@ func otherValue(t *testing.T, env string) string {
 			return "7,7s"
 		case env == "IDLE_REPLY_TO":
 			return "help@example.org"
+		case env == "SUPPORT_EMAIL":
+			return "help@example.org"
+		case env == "PRIVACY_URL":
+			return "https://example.org/privacy"
 		case env == "SAVED_DATA_DEFAULT_KIND":
 			return "declare_first"
 		case env == "MAX_SITES_OVERRIDES":

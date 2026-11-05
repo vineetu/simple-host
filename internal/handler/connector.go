@@ -226,8 +226,17 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	}
 	// Another Simple Host server names itself in the connector's text, with
 	// the rewriter its llms.txt and Get started use (SetInstanceHosts runs
-	// first). Simple Hack rewrites its own text.
-	if instanceHosts != nil && !h.hostedEvents {
+	// first). Simple Hack rewrites its own simple-hack.app mentions
+	// separately (hackInstanceTools, server.go); this pass covers the
+	// site-management tools' simple-host.app mentions (list_sites,
+	// create_site, connect_domain, ...), which a Hack edition's MCP surface
+	// serves too (a team's Website tab publishes through the same site
+	// infrastructure) -- so it must run for a self-hosted Hack instance,
+	// not only a self-hosted Host one. Gated on genuinely self-hosted
+	// (neither hosted domain), not just !hostedEvents, so the real hosted
+	// simple-hack.app (hostedEvents=true, siteDomain != canonicalSiteDomain
+	// since that constant is Host-specific) keeps its own text unchanged.
+	if instanceHosts != nil && siteDomain != "simple-hack.app" {
 		h.mcpConfig.Rewrite = instanceHosts.r.Replace
 	}
 	h.mcp = mcp.NewServer(h.mcpConfig)
@@ -992,6 +1001,16 @@ func (h *ConnectorHandler) authorize(w http.ResponseWriter, r *http.Request) {
 		}
 		if h.brainResource != "" && req.Resource == h.brainResource {
 			data["brain"] = true
+		}
+		// This install's own host, named on the sign-in step and the Allow
+		// page on a self-hosted instance only (SIM connect-mcp rule 4):
+		// hosted text already says Simple Host/Simple Hack and stays as it
+		// is. host is harmless either way (both editions already show their
+		// own host in the browser's address bar); self_hosted gates the new
+		// copy connect.html's script adds.
+		data["host"] = r.Host
+		if h.pipeline().hostedOwner() == "" {
+			data["self_hosted"] = true
 		}
 	}
 	h.renderConsent(w, r, status, data)

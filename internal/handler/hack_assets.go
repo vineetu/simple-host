@@ -191,23 +191,44 @@ type ConnectCopy struct {
 }
 
 // ConnectStep is one numbered step.
+//
+// Command is a one-line terminal command template, with a literal "{address}"
+// placeholder for the MCP address (e.g. "claude mcp add --transport http
+// simple-hack {address}"). It renders as its own copy box, filled server-side
+// from doc.MCPAddress and client-side (hack-get-started.html's own script,
+// and participant-website.js/account.js) from the viewer's own origin, same
+// as an Address step's copy box.
 type ConnectStep struct {
 	HTML         string       `json:"html"`
 	Address      bool         `json:"address,omitempty"`
 	AddressLabel string       `json:"address_label,omitempty"`
 	Copy         *ConnectCopy `json:"copy,omitempty"`
+	Command      string       `json:"command,omitempty"`
 	After        string       `json:"after,omitempty"`
 	Prompt       bool         `json:"prompt,omitempty"`
 }
 
 // ConnectApp is one AI app's connect steps.
+//
+// ConnectHosted, when set, is an alternate steps list (a directory/browse
+// path, e.g. Claude's connector directory) that only the canonical hosted
+// instance can offer. Neither expandConnectSteps nor connectStepsListHTML
+// (this file, server-rendered /get-started) read it — that page already
+// picks hosted vs. self with its own <!--sh:hosted-->/<!--sh:self-->
+// markers around the markup, same as every other hosted-only block. It
+// exists so the Website and Account screens' client-side renderers
+// (hack/connect-steps.js, hack/screens/participant-website.js), which have
+// no server-side hosted/self marker to lean on, can pick the same way the
+// page does (by the viewer's own origin) without duplicating the whole
+// steps array per screen.
 type ConnectApp struct {
-	ID       string        `json:"id"`
-	Label    string        `json:"label"`
-	Tab      bool          `json:"tab,omitempty"`
-	Connect  []ConnectStep `json:"connect"`
-	Fallback string        `json:"fallback,omitempty"`
-	Note     string        `json:"note,omitempty"`
+	ID            string        `json:"id"`
+	Label         string        `json:"label"`
+	Tab           bool          `json:"tab,omitempty"`
+	Connect       []ConnectStep `json:"connect"`
+	ConnectHosted []ConnectStep `json:"connect_hosted,omitempty"`
+	Fallback      string        `json:"fallback,omitempty"`
+	Note          string        `json:"note,omitempty"`
 }
 
 // ConnectStepsDoc is the whole hack-connect-steps.json file.
@@ -260,9 +281,33 @@ func connectCopyRow(id, value, label string) string {
 		`" aria-label="` + html.EscapeString(label) + `">Copy</button></div>`
 }
 
+// connectAddressRow is connectCopyRow for the one MCP address, marked
+// data-mcp-address so the page's own script can refill it from the
+// viewer's origin (exact on a self-hosted instance too, not just
+// HackInstanceText's string rewrite).
+func connectAddressRow(id, value, label string) string {
+	return `<div class="copyrow"><code id="` + html.EscapeString(id) + `" data-mcp-address>` + html.EscapeString(value) +
+		`</code><button class="btn" type="button" data-copy-target="` + html.EscapeString(id) +
+		`" aria-label="` + html.EscapeString(label) + `">Copy</button></div>`
+}
+
+// connectCommandRow renders a ConnectStep.Command template, filled with
+// mcpAddress, in its own copy box. data-mcp-cmd carries the raw template
+// (its one "{address}" placeholder) so the page's own script can refill it
+// from the viewer's origin, the same way data-mcp-address does for a plain
+// address row.
+func connectCommandRow(id, template, mcpAddress, label string) string {
+	filled := strings.ReplaceAll(template, "{address}", mcpAddress)
+	return `<div class="copyrow"><code id="` + html.EscapeString(id) + `" data-mcp-cmd="` + html.EscapeString(template) + `">` + html.EscapeString(filled) +
+		`</code><button class="btn" type="button" data-copy-target="` + html.EscapeString(id) +
+		`" aria-label="` + html.EscapeString(label) + `">Copy</button></div>`
+}
+
 // connectStepsListHTML is one app's <ol class="steps"> for /get-started.
 // The address is the hosted one; HackInstanceText rewrites it on another
-// server exactly as it did when the list was written into the page.
+// server exactly as it did when the list was written into the page, and the
+// page's own script refills it (and any command box) from the viewer's
+// origin so it is always exact.
 func connectStepsListHTML(doc ConnectStepsDoc, app ConnectApp) string {
 	var b strings.Builder
 	b.WriteString(`<ol class="steps">`)
@@ -276,7 +321,10 @@ func connectStepsListHTML(doc ConnectStepsDoc, app ConnectApp) string {
 			if label == "" {
 				label = app.Label
 			}
-			b.WriteString("\n              " + connectCopyRow("mcp-"+app.ID, doc.MCPAddress, "Copy "+label+" connector address") + "\n            ")
+			b.WriteString("\n              " + connectAddressRow("mcp-"+app.ID, doc.MCPAddress, "Copy "+label+" connector address") + "\n            ")
+		}
+		if s.Command != "" {
+			b.WriteString("\n              " + connectCommandRow("cmd-"+app.ID, s.Command, doc.MCPAddress, "Copy "+app.Label+" command") + "\n            ")
 		}
 		b.WriteString(s.After + "</li>")
 	}

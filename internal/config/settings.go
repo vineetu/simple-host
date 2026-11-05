@@ -166,6 +166,8 @@ var knobDocs = map[string]knobDoc{
 	"IDLE_AFTER_DAYS":                  {"cleanup", "Idle cleanup: a site unused this long gets its owner a warning email.", false, true},
 	"IDLE_GRACE_DAYS":                  {"cleanup", "Idle cleanup: how long after the warning an unused site moves to Recently deleted.", false, true},
 	"IDLE_REPLY_TO":                    {"email", "Reply-To address of the idle-cleanup emails.", false, true},
+	"SUPPORT_EMAIL":                    {"email", "This install's own support contact, shown on its pages, in its emails and in error messages instead of ours. Unset: IDLE_REPLY_TO if that is set, else \"whoever runs this server\" on a self-hosted install (unchanged on simple-host.app/simple-hack.app).", false, true},
+	"PRIVACY_URL":                      {"server", "This install's own privacy policy, linked from the footer instead of ours. Unset: the hosted service keeps its own; a self-hosted install hides the link.", false, true},
 	"ANALYTICS_RETENTION_DAYS":         {"cleanup", "How long visit analytics are kept.", false, true},
 	"ANALYTICS_PAGES_PER_SITE_DAY":     {"observability", "Distinct pages a site's Top pages keeps per day; views of further new pages that day are counted together as (other).", false, true},
 	"ANALYTICS_REFERRERS_PER_SITE_DAY": {"observability", "Distinct referring domains a site keeps per day; further new domains that day are counted together as (other).", false, true},
@@ -500,7 +502,7 @@ func Settings() []Setting {
 			}
 		case "on/off":
 			s.Type, s.Unit, s.Allowed = "bool", "", []string{"on", "off"}
-		case "email address", "model name", "DNS labels", "handle:sites", "handle:mb", "handle:versions", "handles", "RFC3339":
+		case "email address", "URL", "model name", "DNS labels", "handle:sites", "handle:mb", "handle:versions", "handles", "RFC3339":
 			s.Type = "string"
 		case "seconds", "minutes", "hours", "days":
 			s.Type = "duration"

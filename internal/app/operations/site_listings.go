@@ -22,3 +22,10 @@ func (s *Reporting) SiteAccounts(ctx context.Context) ([]model.User, error) {
 func (s *Reporting) SiteAccountAliases(ctx context.Context) (map[string][]string, error) {
 	return accounts.HandleAliasesByUser(ctx, s.database)
 }
+
+// SiteAccountLogins loads every password account's own login, keyed by user
+// id, so the admin Users page can show it instead of a self sign-up's
+// possibly-synthetic users.username (CreatePasswordAccount).
+func (s *Reporting) SiteAccountLogins(ctx context.Context) (map[string]string, error) {
+	return accounts.PasswordLogins(ctx, s.database)
+}

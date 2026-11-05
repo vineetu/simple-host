@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/vsriram/simple-host/internal/auth"
 )
 
 // The site chrome — one header, one footer, one stylesheet — is defined once,
@@ -130,6 +132,11 @@ type ChromeData struct {
 	// simple-hack.app, for the line naming who runs the service. Empty on
 	// every other instance, which someone else runs under their own name.
 	Owner string
+	// PrivacyURL is PRIVACY_URL, this install's own privacy policy. The
+	// footer partial links to it, on a self-hosted instance only ({{if
+	// .PrivacyURL}}, inside an <!--sh:self--> block so it never reaches a
+	// hosted page's rendered bytes even if somehow set there).
+	PrivacyURL string
 }
 
 // hostedOwner names the hosted service this process is, or "".
@@ -187,6 +194,7 @@ func (p *assetPipeline) chromeDataFor(r *http.Request, base string) ChromeData {
 		CSSVersion:    siteCSSVersion,
 		SigninVersion: SigninJSVersion(),
 		Owner:         p.hostedOwner(),
+		PrivacyURL:    p.limits.PrivacyURL,
 	}
 }
 
@@ -355,7 +363,67 @@ func (p *assetPipeline) chromePage(name string, d ChromeData) ([]byte, error) {
 	if p.pres.HackAssets {
 		page = hackPersonalPresentationHTML(name, page)
 	}
-	return hostedBlocks(p.HackInstanceText(p.limitsText.apply(page)), p.hostedOwner() != ""), nil
+	page = hostedBlocks(p.HackInstanceText(p.limitsText.apply(page)), p.hostedOwner() != "")
+	if p.hostedOwner() == "" {
+		page = p.selfHostedChromeRewrite(page)
+	}
+	return page, nil
+}
+
+// selfHostedChromeRewrite is the one centralized self-hosted pass every
+// chromed page gets, not just the five enumerated rewrittenAssets
+// (instancehost.go). Runs only when hostedOwner() == "" -- a genuinely
+// self-hosted instance, never simple-host.app or simple-hack.app themselves
+// (instanceHosts can be non-nil there too, since a Hack instance's own
+// SITE_DOMAIN differs from the Host-specific canonicalSiteDomain constant;
+// hostedOwner() is what actually tells the two apart, so gating on it here
+// is what keeps the hosted edition's served bytes untouched).
+//
+// By the time this runs, hostedBlocks has already dropped every
+// <!--sh:hosted-->-wrapped block: the plugins, the connector directory, our
+// own self-host marketing. What is left and still names
+// simple-host.app/simple-hack.app is a link to an equivalent page on this
+// install (a dashboard, a skill download, a docs command, an og:url) --
+// exactly what instanceHosts already knows how to repoint, the same
+// substitution the five rewrittenAssets have always gotten (ui.go,
+// instancehost.go). The one address instanceHosts cannot safely guess is
+// the operator's own support contact: SUPPORT_EMAIL (or IDLE_REPLY_TO,
+// supportText's older mechanism) replaces support@simple-host.app in text
+// and mailto: links; left unset, an operator sees the plain string removed
+// nowhere -- call sites that want "no address at all" check
+// auth.SupportContact themselves (account_data.go's supportText).
+func (p *assetPipeline) selfHostedChromeRewrite(page []byte) []byte {
+	// Must run before instanceHosts.apply: that pass's blanket
+	// "simple-host.app" -> siteDomain replacement would otherwise mangle
+	// "support@simple-host.app" into "support@<this domain>" first, a
+	// nonexistent address, leaving nothing left for this one to match.
+	page = rewriteSupportAddress(page)
+	return instanceHosts.apply(page)
+}
+
+// supportMailtoLinkRe matches the whole <a href="mailto:support@simple-host.app...">...</a>
+// element (every page that links the hosted support address uses this exact
+// shape: no query string, visible text identical to the address).
+var supportMailtoLinkRe = regexp.MustCompile(`<a href="mailto:support@simple-host\.app(?:\?[^"]*)?">support@simple-host\.app</a>`)
+
+// rewriteSupportAddress swaps the hosted service's support address for this
+// install's own contact. When an operator set SUPPORT_EMAIL or
+// IDLE_REPLY_TO, auth.SupportContact is a real address and the mailto link
+// keeps working, now pointed at it (existing behaviour). Left unset,
+// SupportContact is just a phrase ("whoever runs this server") with no "@",
+// so there is no address to link to: the whole anchor is replaced with
+// plain text, and the plain-text mentions (features.html, docs.html,
+// report.html's JS strings) with the same phrase, so a self-hosted install
+// never shows Vineet's inbox as if it were its own.
+func rewriteSupportAddress(page []byte) []byte {
+	if strings.Contains(auth.SupportContact, "@") {
+		addr := []byte(auth.SupportContact)
+		page = supportMailtoLinkRe.ReplaceAll(page, []byte(`<a href="mailto:`+auth.SupportContact+`">`+auth.SupportContact+`</a>`))
+		return bytes.ReplaceAll(page, []byte("support@simple-host.app"), addr)
+	}
+	phrase := []byte("the person who runs this server")
+	page = supportMailtoLinkRe.ReplaceAll(page, phrase)
+	return bytes.ReplaceAll(page, []byte("support@simple-host.app"), phrase)
 }
 
 // hostedBlocks keeps the text that is true for this server. A page marks

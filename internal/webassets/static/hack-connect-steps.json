@@ -1,6 +1,6 @@
 {
-  "v": 2,
-  "_about": "One source for the per-app connect steps: /get-started renders each app's list from here (hack_connect_steps.go), and the Website screen (participant-website.js) shows the tab apps with the publish steps below. html is our own trusted markup.",
+  "v": 3,
+  "_about": "One source for the per-app connect steps: /get-started renders each app's list from here (hack_connect_steps.go), and the Website screen (participant-website.js) and the Account screen (account.js) show the tab apps with the publish/connect steps below. html is our own trusted markup. The address-by-URL method (\"connect\") works on every instance, hosted or self-hosted. An app that also has a hosted-only directory/browse path (Claude's connector directory) carries it separately as \"connect_hosted\", shown instead of \"connect\" only on the canonical hosted instance (location.origin === 'https://simple-hack.app'; get-started.html picks the same way, server-side, via its own <!--sh:hosted-->/<!--sh:self--> markers), with \"fallback\" appended after it as the by-URL escape hatch. A step with \"command\" is a copy box built from a command template, {address} replaced with mcp_address (or, client-side, the viewer's own origin + mcp_path).",
   "mcp_path": "/mcp",
   "mcp_address": "https://simple-hack.app/mcp",
   "signin_hint": "Sign in with {email}, the email you use here, so {app} can see your team.",
@@ -20,6 +20,18 @@
       "tab": true,
       "connect": [
         {
+          "html": "Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>."
+        },
+        {
+          "html": "Name it <b>Simple Hack</b>, paste this address, and choose <b>Add</b>:",
+          "address": true
+        },
+        {
+          "html": "Choose <b>Connect</b>, sign in, then choose <b>Allow</b>."
+        }
+      ],
+      "connect_hosted": [
+        {
           "html": "Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Browse connectors</b>."
         },
         {
@@ -34,17 +46,37 @@
       "tab": true,
       "connect": [
         {
-          "html": "<a href=\"https://chatgpt.com/plugins\" target=\"_blank\" rel=\"noopener\">Open ChatGPT Plugins</a>."
+          "html": "Open <b>Settings</b>, then <b>Apps &amp; Connectors</b>, then <b>Advanced settings</b>, and turn on <b>Developer mode</b>."
         },
         {
-          "html": "Click <b>Add</b>, then choose <b>Add custom MCP server</b>."
+          "html": "Back in <b>Apps &amp; Connectors</b>, choose <b>Create</b>."
         },
         {
-          "html": "Name it <b>Simple Hack</b>, paste this address, and save.",
+          "html": "Name it <b>Simple Hack</b>, and paste this address as the <b>MCP server URL</b>:",
           "address": true
         },
         {
-          "html": "A sign-in window opens. Sign in with Google or an email code, then choose <b>Allow</b>."
+          "html": "Choose <b>OAuth</b> for authentication, then <b>Create</b>."
+        },
+        {
+          "html": "Sign in with Google or an email code, then choose <b>Allow</b>."
+        }
+      ]
+    },
+    {
+      "id": "claude-code",
+      "label": "Claude Code",
+      "tab": true,
+      "connect": [
+        {
+          "html": "Run this in your terminal:",
+          "command": "claude mcp add --transport http simple-hack {address}"
+        },
+        {
+          "html": "In Claude Code, type <b>/mcp</b>, choose <b>simple-hack</b>, then <b>Authenticate</b>."
+        },
+        {
+          "html": "Sign in with Google or an email code, then choose <b>Allow</b>."
         }
       ]
     },
@@ -137,10 +169,17 @@
       ]
     },
     {
-      "id": "coding-agents",
-      "label": "Claude Code, Codex and other coding agents",
-      "connect": [],
-      "note": "Steps live in hack-get-started.html itself: check-docs-sync.sh reads the install command from that page."
+      "id": "other-coding",
+      "label": "Codex and other coding agents",
+      "connect": [
+        {
+          "html": "In your agent's MCP settings, add a remote HTTP server named <b>simple-hack</b>, with OAuth, at this address:",
+          "address": true
+        },
+        {
+          "html": "Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>."
+        }
+      ]
     }
   ]
 }

@@ -121,49 +121,77 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 	mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/get-started", nil))
 	page := r.Body.String()
 	last := -1
-	for _, heading := range []string{"Run, join or judge a hackathon on the website or in your AI app.", ">Organiser</h2>", ">Participant</h2>", ">Judge</h2>", ">Pick your AI</h2>", ">What happens next</h2>", "Other ways to install"} {
+	for _, heading := range []string{"Run, join or judge a hackathon on the website or in your AI app.", ">Connect your AI app</h2>", ">Organiser</h2>", ">Participant</h2>", ">Judge</h2>", ">Pick your AI</h2>", ">What happens next</h2>", "Other ways to install"} {
 		at := strings.Index(page, heading)
 		if at <= last {
 			t.Fatalf("missing or out-of-order heading %q", heading)
 		}
 		last = at
 	}
-	for _, id := range []string{"chatgpt", "claude", "grok", "copilot", "muse", "gemini", "mistral", "coding-agents"} {
+	// One way in that always works: the MCP address, once, prominently, near
+	// the top.
+	if !strings.Contains(page, `id="mcp-url" data-mcp-address>https://simple-hack.app/mcp</code>`) {
+		t.Fatal("top of page must show the MCP address in one copy box")
+	}
+	// Hosted keeps every existing plugin/directory option (SIM connect-mcp
+	// rule 1: nothing is removed, the URL option is only ADDED alongside it).
+	for _, want := range []string{"Browse connectors", "chatgpt.com/plugins", "is in review", "Upload plugin archive", "Claude setup guide"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("hosted get-started must still offer %q (plugin options stay on hosted)", want)
+		}
+	}
+	for _, id := range []string{"claude", "chatgpt", "claude-code"} {
 		_, rest, found := strings.Cut(page, `<details class="accordion" id="`+id+`" name="pick-ai">`)
 		card, _, _ := strings.Cut(rest, "</details>")
-		steps := 3
-		requireGoogleCode := true
-		switch id {
-		case "chatgpt":
-			steps = 8
-			if !strings.Contains(card, "https://chatgpt.com/plugins") || !strings.Contains(card, "Add custom MCP server") || !strings.Contains(card, "Upload plugin archive") {
-				t.Error("ChatGPT must link to Plugins and offer both setup methods")
-			}
-		case "muse":
-			steps = 4
-			if !strings.Contains(card, "Add custom connector") || !strings.Contains(card, "meta-muse") {
-				t.Error("Meta Muse must give the MCP URL and the Client ID")
-			}
-		case "claude":
-			steps = 2
-			requireGoogleCode = false
-			if !strings.Contains(card, "Browse connectors") || !strings.Contains(card, "custom connector") {
-				t.Error("Claude must lead with the directory and keep a custom connector fallback")
-			}
+		if !found {
+			t.Fatalf("%s: missing from Pick your AI", id)
 		}
-		if !found || strings.Count(card, "<li>") != steps || !strings.Contains(card, "https://simple-hack.app/mcp") || !strings.Contains(card, "<b>Allow</b>") {
-			t.Errorf("%s must have %d steps, connector address and consent instructions", id, steps)
+		if !strings.Contains(card, "https://simple-hack.app/mcp") || !strings.Contains(card, "<b>Allow</b>") {
+			t.Errorf("%s must have the connector address and consent instructions", id)
 		}
-		if requireGoogleCode && !strings.Contains(card, "Google or an email code") {
+		if id != "claude" && !strings.Contains(card, "Google or an email code") {
 			t.Errorf("%s must describe sign-in", id)
 		}
+		switch id {
+		case "chatgpt":
+			if !strings.Contains(card, "Developer mode") || !strings.Contains(card, "MCP server URL") || !strings.Contains(card, "OAuth") {
+				t.Error("ChatGPT must describe the developer-mode custom connector steps")
+			}
+			if !strings.Contains(card, "Upload plugin archive") {
+				t.Error("ChatGPT must still offer the plugin archive upload, alongside the URL option")
+			}
+		case "claude-code":
+			if !strings.Contains(card, "claude mcp add --transport http simple-hack") || !strings.Contains(card, "<b>/mcp</b>") || !strings.Contains(card, "Authenticate") {
+				t.Error("Claude Code must give the mcp add command and the /mcp → Authenticate step")
+			}
+		case "claude":
+			if !strings.Contains(card, "Browse connectors") || !strings.Contains(card, "Claude setup guide") {
+				t.Error("Claude must still offer the hosted connector directory, alongside the URL option")
+			}
+		}
+	}
+	_, otherAI, _ := strings.Cut(page, `<details class="other" id="other-ai-apps">`)
+	otherAI, _, _ = strings.Cut(otherAI, `<p class="hint">After connecting`)
+	if otherAI == "" {
+		t.Fatal("Other AI apps group missing")
+	}
+	for _, id := range []string{"grok", "copilot", "muse", "gemini", "mistral", "other-coding"} {
+		if !strings.Contains(otherAI, `id="`+id+`"`) {
+			t.Errorf("%s missing from Other AI apps", id)
+		}
+	}
+	if !strings.Contains(otherAI, "meta-muse") {
+		t.Error("Meta Muse must give its Client ID")
 	}
 	_, other, _ := strings.Cut(page, `<details class="other" id="other-installs">`)
 	other, _, _ = strings.Cut(other, "</details>")
 	if other == "" || strings.Contains(other, "<summary open") || strings.Contains(page, `id="other-installs" open`) {
 		t.Fatal("other installs must be collapsed")
 	}
-	for _, url := range []string{"/skills.zip", "/hack-skills.zip", "/simple-hack-skills-only-0.2.13.zip", "/v1/skills/run-hackathon/references/organiser-api.md", "/v1/skills/website-deploy/references/storage.md"} {
+	if !strings.Contains(other, "Optional") {
+		t.Error("skill install must be labeled optional, not the way to connect")
+	}
+	for _, url := range []string{"/skills.zip", "/hack-skills.zip", "/v1/skills/run-hackathon/references/organiser-api.md", "/v1/skills/website-deploy/references/storage.md"} {
 		if !strings.Contains(other, `href="`+url+`"`) {
 			t.Errorf("download/reference %s missing from other installs", url)
 		}
@@ -183,10 +211,39 @@ func TestHackGetStartedOnboarding(t *testing.T) {
 			t.Errorf("missing %q", want)
 		}
 	}
-	if strings.Count(page, "data-copy-target=") != 13 {
-		t.Fatal("expected nine connector (Muse has two), one install and three prompt Copy buttons")
-	}
 	if !strings.Contains(page, `nonce="`) || strings.Contains(page, "<!--sh:") {
 		t.Fatal("page must use the shared chrome and CSP nonce")
+	}
+}
+
+// TestHackGetStartedOnboardingSelfHosted is TestHackGetStartedOnboarding's
+// mirror image for rule 2 of the connect-MCP work: a self-hosted instance
+// shows only its own https://<host>/mcp, never a plugin, ZIP, directory or
+// app-review mention, and never the hosted service's own domain.
+func TestHackGetStartedOnboardingSelfHosted(t *testing.T) {
+	assets := handler.NewPages(edition.ForKind(edition.Hack), "http://hack.example.test:18201")
+	mux := http.NewServeMux()
+	hackhttp.RegisterHackGetStarted(mux, assets)
+	r := httptest.NewRecorder()
+	mux.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/get-started", nil))
+	page := r.Body.String()
+
+	if !strings.Contains(page, `id="mcp-url" data-mcp-address>http://hack.example.test:18201/mcp</code>`) {
+		t.Fatal("self-hosted top of page must show this install's own MCP address")
+	}
+	for _, stale := range []string{"plugin", "Plugin", "Browse connectors", "chatgpt.com/plugins", "is in review", "Upload plugin archive", "Claude setup guide", "simple-hack.app", "simple-host.app"} {
+		if strings.Contains(page, stale) {
+			t.Errorf("self-hosted get-started must not mention %q: no plugin mentions, no hosted domain", stale)
+		}
+	}
+	for _, id := range []string{"claude", "chatgpt", "claude-code"} {
+		_, rest, found := strings.Cut(page, `<details class="accordion" id="`+id+`" name="pick-ai">`)
+		card, _, _ := strings.Cut(rest, "</details>")
+		if !found {
+			t.Fatalf("%s: missing from Pick your AI", id)
+		}
+		if !strings.Contains(card, "http://hack.example.test:18201/mcp") {
+			t.Errorf("%s must point at this install's own address", id)
+		}
 	}
 }

@@ -2003,10 +2003,17 @@ CREATE TABLE IF NOT EXISTS image_scan_matches (
   uploader TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS image_scan_matches_detected ON image_scan_matches (detected_at DESC);
 
--- Mirrors db/migrations/0002-password-sign-in.sql.
+-- Mirrors db/migrations/0002-password-sign-in.sql and 0004-password-login.sql.
 CREATE TABLE IF NOT EXISTS account_passwords (
     user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     password_hash TEXT NOT NULL,
     must_change BOOLEAN NOT NULL DEFAULT FALSE,
+    -- The address or made-up name the person actually typed (trimmed,
+    -- lower-cased), kept separate from users.username so a self sign-up
+    -- can never make users.username something that looks like a verified
+    -- email it never proved: see CreatePasswordAccount. Unique: self
+    -- sign-up uniqueness is checked here, not against users.username.
+    login TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS account_passwords_login_idx ON account_passwords (login);

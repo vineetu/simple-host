@@ -341,6 +341,16 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]ex
 	} else {
 		account["account_name"] = me.Username
 	}
+	// A self sign-up's account_name above is a synthetic "pw-..." value
+	// (CreatePasswordAccount), never what the account actually signs in
+	// with: include its own login (account_passwords.login) too, the same
+	// field GET /v1/me and the admin page already show in its place
+	// (user.go's me/finishSignIn, site.go's adminAccounts).
+	if login, has, err := h.storeAccounts().PasswordLogin(ctx, me.ID); err != nil {
+		return nil, err
+	} else if has {
+		account["login"] = login
+	}
 	if p := h.PersonPageURL(me.Handle.String); p != "" {
 		account["address"] = p
 	}

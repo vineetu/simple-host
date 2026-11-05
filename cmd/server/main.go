@@ -235,12 +235,16 @@ func main() {
 	handler.SetInstanceHosts(cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.HandoutBase())
 	// Who a person writes to about their account: the hosted service's
 	// support address on simple-host.app and simple-hack.app (both run by
-	// the same team); elsewhere IDLE_REPLY_TO when the operator set one, or
-	// whoever runs the server.
+	// the same team); elsewhere SUPPORT_EMAIL when the operator set one
+	// (the clearly-named setting), else IDLE_REPLY_TO (the older, doubled-up
+	// one) when that is set, else whoever runs the server.
 	if cfg.SiteDomain != "simple-host.app" && cfg.SiteDomain != "simple-hack.app" {
 		contact := "whoever runs this server"
 		if r := cfg.Limits.IdleReplyTo; r != "" && r != "support@simple-host.app" {
 			contact = r
+		}
+		if e := cfg.Limits.SupportEmail; e != "" {
+			contact = e
 		}
 		auth.SetSupportContact(contact, cfg.ResendAPIKey != "")
 	}

@@ -2987,12 +2987,12 @@
     {
      "id": "connector",
      "name": "Simple Host in your chat app",
-     "line": "Add Simple Host to ChatGPT, Claude, or Grok once, sign in, and the chat app can publish and manage your sites for you.",
+     "line": "Add Simple Host to Claude, ChatGPT, Claude Code or any AI app once with the one MCP address, then sign in and it can manage your sites.",
      "who": "Anyone who builds in a chat app rather than a terminal.",
-     "how": "The chat app adds the connector address, opens a sign-in window where you sign in with Google or an email code, and you choose Allow. From then on the app calls Simple Host as you, and every call meets the same checks as the API. Each connected app is listed with the device it was connected from (for example \"Chrome on macOS\") and when it was last used. In Claude, the Simple Host plugin adds the connector and the skills together in one step. A connected app's sign-in expires after 90 days without use.",
+     "how": "Get started shows one address in a copy box filled from your own origin. Claude: Settings, Connectors, Add custom connector, paste it, Connect, sign in, Allow. ChatGPT: turn on Developer mode under Apps & Connectors, Create, paste the address as the MCP server URL, choose OAuth. Claude Code: `claude mcp add --transport http simple-host <address>`, then `/mcp`, Authenticate. Every other AI app pastes the same address. Each connected app is listed with the device it was connected from and when it was last used. A connected app's sign-in expires after 90 days without use.",
      "example": "A consultant asks Claude to publish a one-page proposal for a client, then asks ChatGPT the next week to change the price table on the same site.",
-     "where": "Get started gives the address to add (`https://simple-host.app/mcp`), or the plugin for Claude. Connected apps on your sites page lists them, with Disconnect.",
-     "limits": "Works on the free plans of ChatGPT, Claude, and Grok. Sign out everywhere disconnects every app. Every app must use PKCE, so an app that expects a client secret cannot connect. Simple Hack uses `https://simple-hack.app/mcp`; another server shows its own connector address.",
+     "where": "Get started gives the one address to add (`https://simple-host.app/mcp`); the dashboard's Connect your AI app card gives it again. Connected apps on your sites page lists them, with Disconnect.",
+     "limits": "Works on the free plans of ChatGPT, Claude, and Grok. Sign out everywhere disconnects every app. Every app must use PKCE, so an app that expects a client secret cannot connect. Simple Hack uses `https://simple-hack.app/mcp`; another server shows its own address, exact for its own origin.",
      "editions": {
       "host": "yes",
       "hack": "yes",
@@ -3048,13 +3048,13 @@
     },
     {
      "id": "agents-plugin",
-     "name": "The Claude plugin and the app directories",
-     "line": "Claude lists Simple Host as a connector and as a plugin that adds the connector and the three skills in one step.",
+     "name": "Claude's plugin and connector directories",
+     "line": "Claude still lists Simple Host in its directories, but Get started no longer sends anyone there: the one way in is the MCP address.",
      "who": "Anyone on Claude who wants the skills and the connection without a terminal.",
-     "how": "In Claude, open Settings, then Connectors, then Browse connectors, search for Simple Host, choose Connect, sign in, and choose Allow. It works on web, desktop, and phone. The plugin (Customize, Plugins, Discover) installs the connector and the deploy, planning, and domain skills together. ChatGPT takes the connector as a custom MCP server from its Plugins page, or a plugin archive with the skills inside.",
-     "example": "A founder on a phone installs the plugin in Claude and has a landing page for their waitlist live before the train arrives.",
-     "where": "Claude's connector and plugin directories; Get started links the ChatGPT Plugins page.",
-     "limits": "Only simple-host.app and simple-hack.app appear in Claude's directories; another server offers its own custom connector address instead. Simple Hack has its own skills toolkit for Claude and ChatGPT.",
+     "how": "The Claude plugin (Customize, Plugins, Discover) and connector directory listings for Simple Host and Simple Hack still exist and keep working for someone who already uses them, and the ChatGPT plugin submission stays in review. Neither page links them any more: Get started on both products shows the MCP address and the custom-connector-by-URL steps as the one way to connect (owner, 2026-11-05).",
+     "example": "A returning user who added the Claude plugin months ago keeps using it; someone new instead pastes the address Get started gives them.",
+     "where": "Claude's own connector and plugin directories, found by searching for Simple Host there directly; Get started no longer links to them.",
+     "limits": "Only simple-host.app and simple-hack.app ever appeared in Claude's directories; a self-hosted instance never offered a plugin. This listing is not the onboarding path on either product's Get started page.",
      "editions": {
       "host": "yes",
       "hack": "partial",
@@ -3063,7 +3063,7 @@
      },
      "editions_note": "Simple Hack is in Claude's connector directory with its own toolkit; Enterprise ships its skills as a plugin download for its own instance.",
      "status": "live",
-     "status_note": "",
+     "status_note": "Still live in Claude's own directories; withdrawn from Get started's onboarding flow 2026-11-05.",
      "docs": [
       {
        "label": "Get started",

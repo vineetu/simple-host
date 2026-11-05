@@ -131,6 +131,8 @@ type Limits struct {
 	APIGrowthRetention  int           // API_GROWTH_RETENTION_DAYS (days)
 	APIMetricsFlush     time.Duration // API_METRICS_FLUSH_SECONDS
 	IdleReplyTo         string        // IDLE_REPLY_TO
+	SupportEmail        string        // SUPPORT_EMAIL: "" keeps IDLE_REPLY_TO's address (or, self-hosted, "whoever runs this server")
+	PrivacyURL          string        // PRIVACY_URL: "" shows ours (hosted) or hides the link (self-hosted)
 
 	// Network use on the admin page (internal/netusage).
 	NetworkAllowanceGB int           // NETWORK_MONTHLY_ALLOWANCE_GB (0 hides the bar)
@@ -843,6 +845,36 @@ func Knobs() []Knob {
 					return fmt.Errorf("IDLE_REPLY_TO=%q is not a single email address (like support@example.com)", v)
 				}
 				l.IdleReplyTo = v
+				return nil
+			}},
+		// SUPPORT_EMAIL names this install's own contact, shown instead of
+		// ours wherever the pages, emails and error messages say
+		// support@simple-host.app (auth.SupportContact, cmd/server/main.go;
+		// supportText, internal/handler/account_data.go). Unset, an install
+		// that is not simple-host.app/simple-hack.app falls back to
+		// IDLE_REPLY_TO when that is also set, else "whoever runs this
+		// server" -- unchanged from before this setting existed.
+		{Env: "SUPPORT_EMAIL", Unit: "email address",
+			Value: func(l *Limits) string { return l.SupportEmail },
+			set: func(l *Limits, v string) error {
+				if strings.ContainsAny(v, " \t\r\n<>,") || strings.Count(v, "@") != 1 || strings.HasPrefix(v, "@") || strings.HasSuffix(v, "@") {
+					return fmt.Errorf("SUPPORT_EMAIL=%q is not a single email address (like support@example.com)", v)
+				}
+				l.SupportEmail = v
+				return nil
+			}},
+		// PRIVACY_URL names this install's own privacy policy, shown instead
+		// of ours in the footer and wherever a page links to one. Unset: the
+		// hosted service keeps its own (/privacy.html, unchanged); a
+		// self-hosted install hides the link rather than show a policy that
+		// is not its operator's.
+		{Env: "PRIVACY_URL", Unit: "URL",
+			Value: func(l *Limits) string { return l.PrivacyURL },
+			set: func(l *Limits, v string) error {
+				if !strings.HasPrefix(v, "https://") && !strings.HasPrefix(v, "http://") {
+					return fmt.Errorf("PRIVACY_URL=%q must start with https:// or http://", v)
+				}
+				l.PrivacyURL = v
 				return nil
 			}},
 

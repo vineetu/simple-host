@@ -160,12 +160,21 @@ func (p *assetPipeline) serveRewrittenAsset(name string, rw *hostRewriter, modTi
 	})
 }
 
-// selfHostedClaudeSetup swaps llms.txt's Claude steps on another server, and
-// drops the ChatGPT directory note:
-// Claude's directory and the plugin connect to simple-host.app, so this server
-// is added by its address.
+// selfHostedClaudeSetup swaps llms.txt's Claude, ChatGPT and Claude Code
+// steps on another server: the plugin and the app directories only connect
+// to the hosted service, so a self-hosted install has no way to offer them
+// and must describe the URL-only path instead (mirrors install.html's
+// sh:self panels for the same three apps).
 func selfHostedClaudeSetup(body []byte) []byte {
-	start := bytes.Index(body, []byte("CLAUDE SETUP: "))
+	body = replaceSetupLine(body, "CLAUDE SETUP: ", "CLAUDE SETUP: open Settings, then Connectors, then Add custom connector. Name it Simple Host, address https://simple-host.app/mcp, choose Add, then Connect, sign in, then choose Allow. Works on web, desktop, and phone. Claude's connector directory and the Simple Host plugin connect to the hosted service, not this server.")
+	body = replaceSetupLine(body, "CHATGPT SETUP: ", "CHATGPT SETUP: open Settings, then Apps & Connectors, then Advanced settings, and turn on Developer mode. Back in Apps & Connectors choose Create, name it Simple Host, paste https://simple-host.app/mcp as the MCP server URL, choose OAuth, then Create. Sign in with Google or an email code, then choose Allow. In a chat, pick Simple Host from the + menu, or just ask. ChatGPT's plugin directory connects to the hosted service, not this server; when Simple Host adds features, open the connector's settings and refresh it.")
+	return bytes.Replace(body, []byte(" Claude Code: install the plugin (it carries the connector), then /mcp, Authenticate."), []byte(" Claude Code: claude mcp add --transport http simple-host https://simple-host.app/mcp, then /mcp, Authenticate."), 1)
+}
+
+// replaceSetupLine swaps the single line beginning with prefix (up to the
+// next newline) for replacement. A missing prefix leaves body untouched.
+func replaceSetupLine(body []byte, prefix, replacement string) []byte {
+	start := bytes.Index(body, []byte(prefix))
 	if start < 0 {
 		return body
 	}
@@ -173,9 +182,7 @@ func selfHostedClaudeSetup(body []byte) []byte {
 	if end < 0 {
 		end = len(body) - start
 	}
-	line := []byte("CLAUDE SETUP: open Settings, then Connectors, then Add custom connector. Name it Simple Host, address https://simple-host.app/mcp, choose Add, then Connect, sign in, then choose Allow. Works on web, desktop, and phone. Claude's connector directory and the Simple Host plugin connect to the hosted service, not this server.")
-	body = append(append(append([]byte{}, body[:start]...), line...), body[start+end:]...)
-	return bytes.Replace(body, []byte(" Simple Host 1.0.1 has been resubmitted to the ChatGPT app directory and is in review. Once it is approved, you will be able to add it from there."), nil, 1)
+	return append(append(append([]byte{}, body[:start]...), []byte(replacement)...), body[start+end:]...)
 }
 
 // instanceHosts rewrites the canonical hostnames baked into served assets to

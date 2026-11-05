@@ -55,6 +55,18 @@
   ],
   "settings": [
     {
+      "name": "PRIVACY_URL",
+      "group": "server",
+      "description": "This install's own privacy policy, linked from the footer instead of ours. Unset: the hosted service keeps its own; a self-hosted install hides the link.",
+      "type": "string",
+      "default": "",
+      "unit": "URL",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
       "name": "SITE_DOMAIN",
       "group": "server",
       "description": "The domain this server lives at, like hack.example.com. Unset, the server starts in setup mode and asks for one.",
@@ -3031,6 +3043,18 @@
       "description": "Reply-To address of the idle-cleanup emails.",
       "type": "string",
       "default": "support@simple-host.app",
+      "unit": "email address",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "SUPPORT_EMAIL",
+      "group": "email",
+      "description": "This install's own support contact, shown on its pages, in its emails and in error messages instead of ours. Unset: IDLE_REPLY_TO if that is set, else \"whoever runs this server\" on a self-hosted install (unchanged on simple-host.app/simple-hack.app).",
+      "type": "string",
+      "default": "",
       "unit": "email address",
       "security_sensitive": false,
       "required": false,

@@ -123,8 +123,13 @@ p{margin:0 0 var(--s0)}
 @media (max-width:699px){
  .home{width:min(100% - 24px,1080px);padding-top:12px}
  .player{width:min(100%,calc((100svh - 150px) * 780 / 1688));min-width:min(100%,200px)}
- .frame{aspect-ratio:780/1688}
- .bigplay{left:0;right:0;bottom:6%;margin:0 auto;width:max-content;padding:12px 18px 12px 14px}
+ .frame{aspect-ratio:780/1688;overflow:visible;border-radius:4px}
+ .frame video,.frame .poster,.frame .poster img,.end{border-radius:inherit}
+ /* The phone poster's own drawing already shows a "Create event" button and
+    "Already running one?" line near its bottom edge; bottom:6% (the 16:9
+    poster's empty corner) sits right on top of that at this aspect ratio.
+    Stack the play button below the poster instead of over it. */
+ .bigplay{left:50%;right:auto;bottom:auto;top:100%;transform:translateX(-50%);margin:14px auto 0;width:max-content;padding:12px 18px 12px 14px}
  .bar{gap:6px}
  .bar .time{display:none}
  .hero .lede{font-size:19px}
@@ -143,9 +148,6 @@ html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset
 .end .btn.ink{background:var(--accent);color:var(--paper-hi);border-color:var(--accent)}
 .hero .lede{max-width:38ch;margin:0 auto 20px;font-family:var(--hand);font-size:28px}
 .hero h1{font-size:clamp(40px,2rem + 3.6vw,76px)}
-.center{display:flex;justify-content:center;padding:40px 0 64px}
-.sticky{position:relative;padding:16px 24px;background:var(--paper-hi);border:1.4px solid var(--line-soft);transform:rotate(var(--tilt));font:24px/1.3 var(--note);box-shadow:var(--shadow)}
-.sticky::after{content:"";position:absolute;right:0;bottom:0;border-style:solid;border-width:0 0 16px 16px;border-color:transparent transparent var(--paper-lo) transparent}
 .split{display:grid;gap:40px;align-items:center;padding-bottom:40px}
 .stack>*+*{margin-top:24px}
 .stack h3{font-size:30px}
@@ -183,10 +185,10 @@ html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset
  <h1><span class="ink-red">Hackathons,</span> now for <span class="ink-blue">everyone.</span></h1>
  <p class="lede">Want fresh ideas from your people? Run a hackathon. Free.</p>
  <div class="cta"><a class="btn ink" href="/events/new">Create event</a><a class="btn" href="/directory">Find a hackathon</a><a class="btn" href="/events">Your events</a><a class="btn" href="/watch">Watch how it works</a></div>
+ <p class="more">Just here to join one? <a href="/directory">Find a hackathon →</a></p>
  <!--sh:hosted--><p class="more">Running this inside a company? <a href="/companies">For companies</a></p><!--/sh:hosted-->
 </section>
 <div id="after">
- <div class="center"><div class="sticky" style="--tilt:-2deg">just here to join one?<br><a href="/directory">Find a hackathon →</a></div></div>
  <!--sh:hosted-->
  <section class="split" aria-label="Self-host Simple Hack">
   <svg id="hostFig" viewBox="0 0 360 260" role="img" aria-label="a server rack and a cloud creature with glasses next to a custom web address">

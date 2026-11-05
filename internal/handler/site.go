@@ -2205,6 +2205,14 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
+	// A self sign-up's users.username is a synthetic, never-shown value
+	// (CreatePasswordAccount): the admin page shows each password
+	// account's own login instead.
+	logins, err := h.siteReporting().SiteAccountLogins(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+		return
+	}
 
 	// Group sites under their owner.
 	byUser := make(map[string][]map[string]any, len(users))
@@ -2233,8 +2241,14 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			list = []map[string]any{}
 		}
 		out = append(out, map[string]any{
-			"id":               u.ID,
-			"username":         u.Username,
+			"id":       u.ID,
+			"username": u.Username,
+			// Login is this account's own login (account_passwords.login),
+			// "" for an account with no password row. A self sign-up's
+			// Username above is a synthetic value, never what it actually
+			// signs in with: the page must show Login instead whenever it
+			// is present.
+			"login":            logins[u.ID],
 			"handle":           u.Handle.String,
 			"page_url":         h.PersonPageURL(u.Handle.String),
 			"display_name":     u.DisplayName.String,

@@ -863,6 +863,19 @@
           </div>
         </div>
 
+        <!-- Connect your AI app: one address, always visible once signed in.
+             Separate from the deploy callout above (which can be collapsed) -
+             this one is compact and stays put. -->
+        <div class="deploy-callout" id="connect-ai-callout">
+          <h3>Connect your AI app</h3>
+          <p id="connect-ai-status">One address works everywhere: Claude, ChatGPT, Claude Code and more.</p>
+          <div class="callout-actions">
+            <code id="connect-ai-mcp" style="flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere;"></code>
+            <button type="button" class="btn btn-ghost btn-small" id="connect-ai-copy">Copy</button>
+            <a class="btn btn-ghost btn-small" href="/install.html">Steps for each app →</a>
+          </div>
+        </div>
+
         <!-- Sites List -->
         <div class="section-header">
           <h2>Your sites</h2>
@@ -1321,7 +1334,7 @@ function parseAnalyticsSummary(data) {
 
     function completeSignIn(data) {
       apiKey = data.api_key;
-      currentUser = { id: data.id, username: data.username, is_admin: data.is_admin, handle: data.handle };
+      currentUser = { id: data.id, username: data.username, login: data.login, is_admin: data.is_admin, handle: data.handle };
       localStorage.setItem('apiKey', apiKey);
       enterAfterSignIn();
     }
@@ -1354,7 +1367,7 @@ function parseAnalyticsSummary(data) {
         }
         const d = await r.json();
         apiKey = key;
-        currentUser = { id: d.id, username: d.username, is_admin: d.is_admin, handle: d.handle, public_page: d.public_page };
+        currentUser = { id: d.id, username: d.username, login: d.login, is_admin: d.is_admin, handle: d.handle, public_page: d.public_page };
         localStorage.setItem('apiKey', key);
         enterAfterSignIn();
       } catch (err) {
@@ -1389,7 +1402,7 @@ function parseAnalyticsSummary(data) {
         return;
       }
       document.body.classList.add('authed');
-      document.getElementById('username-display').textContent = currentUser.username;
+      document.getElementById('username-display').textContent = currentUser.login || currentUser.email || currentUser.username;
       document.getElementById('user-actions').style.display = '';
       if (currentUser.is_admin) {
         document.getElementById('admin-tab').style.display = '';
@@ -1400,6 +1413,53 @@ function parseAnalyticsSummary(data) {
       const rawJob = new URLSearchParams(location.search).get('job');
       if (rawJob) clearJobUrl();
       loadSites();
+      initConnectCard();
+    }
+
+    // "Connect your AI app" dashboard card: the one MCP address (exact for
+    // this origin, so it works on a small-box or enterprise install too)
+    // plus the signed-in person's current connection status.
+    function connectAiAgo(iso) {
+      if (!iso) return '';
+      const diff = Date.now() - new Date(iso).getTime();
+      if (!Number.isFinite(diff)) return '';
+      if (diff < 60000) return 'just now';
+      const m = Math.floor(diff / 60000);
+      if (m < 60) return m + ' minute' + (m === 1 ? '' : 's') + ' ago';
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + ' hour' + (h === 1 ? '' : 's') + ' ago';
+      const d = Math.floor(h / 24);
+      return d + ' day' + (d === 1 ? '' : 's') + ' ago';
+    }
+    function initConnectCard() {
+      const mcpEl = document.getElementById('connect-ai-mcp');
+      const copyBtn = document.getElementById('connect-ai-copy');
+      const statusEl = document.getElementById('connect-ai-status');
+      if (!mcpEl || !copyBtn || !statusEl) return;
+      const mcp = location.origin + '/mcp';
+      mcpEl.textContent = mcp;
+      if (!copyBtn.dataset.wired) {
+        copyBtn.dataset.wired = '1';
+        copyBtn.addEventListener('click', async () => {
+          let copied = false;
+          try { await navigator.clipboard.writeText(mcp); copied = true; } catch (e) {
+            const ta = document.createElement('textarea');
+            ta.value = mcp; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select();
+            try { copied = document.execCommand('copy'); } catch (e2) {}
+            ta.remove();
+          }
+          copyBtn.textContent = copied ? 'Copied' : 'Copy';
+          if (copied) setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+        });
+      }
+      api('GET', '/v1/me/connections').then(r => r.ok ? r.json() : null).then(d => {
+        const list = (d && d.connections) || [];
+        if (!list.length) { statusEl.textContent = 'No AI app connected yet.'; return; }
+        list.sort((a, b) => new Date(b.last_used_at || b.connected_at || 0) - new Date(a.last_used_at || a.connected_at || 0));
+        const top = list[0];
+        statusEl.textContent = 'Connected: ' + (top.name || 'an AI app') + (top.last_used_at ? ' · last used ' + connectAiAgo(top.last_used_at) : '') + '.';
+      }).catch(() => {});
     }
 
     // Show a link to the user's public page (public_page from /v1/me:
@@ -1409,12 +1469,12 @@ function parseAnalyticsSummary(data) {
       const myData = document.getElementById('my-data');
       if (myData) {
         myData.hidden = !(currentUser && !currentUser.handle && !currentUser.is_admin);
-        document.getElementById('my-data-word').textContent = (currentUser && currentUser.username) || '';
+        document.getElementById('my-data-word').textContent = (currentUser && (currentUser.login || currentUser.email || currentUser.username)) || '';
       }
       const mySignin = document.getElementById('my-signin');
       if (mySignin) {
         mySignin.hidden = !(currentUser && !currentUser.handle && !currentUser.is_admin);
-        document.getElementById('my-signin-email').textContent = (currentUser && currentUser.username) || '';
+        document.getElementById('my-signin-email').textContent = (currentUser && (currentUser.login || currentUser.email || currentUser.username)) || '';
         const box = document.getElementById('my-signin-alerts');
         box.checked = !(currentUser && currentUser.signin_alerts === false);
         if (!mySignin.hidden) loadMyIdentities();
@@ -2449,7 +2509,7 @@ function parseAnalyticsSummary(data) {
     document.getElementById('site-sort').addEventListener('change', e => setSiteSort(e.target.value));
     document.getElementById('my-signin-alerts').addEventListener('change', e => setSignInAlerts(e.target));
     document.getElementById('my-data-confirm').addEventListener('input', e => {
-      const want = ((currentUser && currentUser.username) || '').toLowerCase();
+      const want = ((currentUser && (currentUser.login || currentUser.email || currentUser.username)) || '').toLowerCase();
       document.getElementById('my-data-go').disabled = !want || e.target.value.trim().toLowerCase() !== want;
     });
 

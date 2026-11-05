@@ -139,7 +139,7 @@ export function mount(ctx, section, screenId) {
   // when an event is actually open.
   // Sign out sits in the sidebar foot next to Account (ux-arbiter 2026-10-30).
   const signedIn = !!ctx.api.apiKey()
-  const personName = me?.display_name || me?.username || me?.email || ''
+  const personName = me?.display_name || me?.login || me?.username || me?.email || ''
   function brand() {
     // mark-short (collapsed rail) is aria-hidden; the sr-only span carries
     // "Home" for a screen reader once mark-full is display:none, same as

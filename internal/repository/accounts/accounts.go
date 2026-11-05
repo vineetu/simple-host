@@ -115,6 +115,47 @@ func GetUserByUsername(ctx context.Context, q Querier, username string) (User, e
 	return user, err
 }
 
+// PasswordSignupAccount reports whether id was created by
+// CreatePasswordAccount (signup_method='password', signup_source IN
+// ('website','admin')) -- self sign-up or admin-created, either way never
+// proving it controls whatever address it was given. This excludes the
+// REVIEW_ACCOUNT_EMAIL reviewer's own account, which also happens to be
+// tagged signup_method='password' (ReviewerAccount, signup_source
+// 'reviewer') for an unrelated reason and must keep resolving to itself on
+// every later sign-in. Email-code sign-in, OAuth/OIDC sign-in and reviewer
+// sign-in all use this to refuse resolving to, linking, or reusing such an
+// account under an address it was never proven to control (pre-account
+// hijacking).
+func PasswordSignupAccount(ctx context.Context, q Querier, id string) (bool, error) {
+	var ok bool
+	// COALESCE matters: signup_method/signup_source is NULL for most
+	// pre-existing accounts, and NULL = 'password' is SQL NULL (not false),
+	// which cannot Scan into a bool. NULL correctly means "not one of
+	// CreatePasswordAccount's accounts" here, i.e. false.
+	err := q.QueryRowContext(ctx, `SELECT COALESCE(signup_method = 'password' AND signup_source IN ('website','admin'), false) FROM users WHERE id=$1`, id).Scan(&ok)
+	return ok, err
+}
+
+// SelfSignupPasswordAccount reports whether id was created through the
+// public password sign-up form (signup_method='password',
+// signup_source='website'), as opposed to an admin-created password
+// account. Such an account never proved it controls any address -- not even
+// one that looks like an email -- the way an admin vouching for one does, or
+// an email code or OAuth/OIDC sign-in does. Every email-based authorization
+// gate that derives an address from a username (visitorEmail and its
+// callers: named viewers, savers, visitor sessions, connector/MCP visitor
+// tools) must treat such an account as having no verified email, so a
+// self-signup under someone else's address can never pass as that person.
+func SelfSignupPasswordAccount(ctx context.Context, q Querier, id string) (bool, error) {
+	var ok bool
+	// COALESCE matters: signup_method/signup_source is NULL for most
+	// pre-existing accounts, and NULL = 'password' is SQL NULL (not false),
+	// which cannot Scan into a bool. NULL correctly means "not known to be a
+	// self-signup password account" here, i.e. false.
+	err := q.QueryRowContext(ctx, `SELECT COALESCE(signup_method = 'password' AND signup_source = 'website', false) FROM users WHERE id=$1`, id).Scan(&ok)
+	return ok, err
+}
+
 // ClaimHandle atomically sets a user's handle iff still unset. Returns (true,nil) on
 // success, (false,nil) if the handle is taken (unique violation) so the caller can try
 // the next candidate, (false,err) on other errors.

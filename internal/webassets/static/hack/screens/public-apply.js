@@ -209,7 +209,7 @@ export async function render(ctx) {
   // does -- never the email or username, so the one never becomes the
   // visible name the organisers and teammates see.
   const name = (ctx.me && ctx.me.display_name) || ''
-  const email = (ctx.me && (ctx.me.email || ctx.me.username)) || ''
+  const email = (ctx.me && (ctx.me.login || ctx.me.email || ctx.me.username)) || ''
   const questions = Array.isArray(info.signup_questions) ? info.signup_questions : []
   const questionsHTML = questions.map((q, i) =>
     `<div class="field"><label for="ap-q-${i}">${esc(q.prompt)}${q.required ? '' : ' (optional)'}</label><textarea class="input" id="ap-q-${i}" data-question="${esc(q.id)}" maxlength="500"${q.required ? ' required' : ''}></textarea></div>`

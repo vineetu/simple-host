@@ -781,6 +781,44 @@ any non-admin account, returning a temporary password once. The next sign-in req
 `account_passwords` (migration `0002-password-sign-in.sql`, deleted with the user). Failed attempts
 are limited per normalized login and IP. The dashboard, Hack sign-in and connector share the form;
 the admin Users panel creates accounts and resets passwords. An admin can use an email as the username.
+The login is free-form (2026-11-05, redesigned after review): no character class, no
+email-only allowlist — a person may type any email or made-up name. `NormalizeLogin` trims and
+lower-cases it; 1–254 characters after trimming and no control characters are the only limits
+(400 `invalid_username`, "Enter an email or username, up to 254 characters."). The sign-in field
+is labelled "Email or username" with placeholder `you@example.com` everywhere it appears
+(dashboard, Hack, connector, admin create). A self sign-up's typed login is **never** stored as
+`users.username` and never treated as an address: it lives only in its own column,
+`account_passwords.login` (unique there, migration `0004-password-login.sql`), where sign-in
+looks it up and where its own uniqueness is checked (409 `username_taken` on a repeat, including
+differing only in case). `users.username` becomes a synthetic, random value instead
+(`pw-<32 hex characters>`), so every other place in the codebase that would otherwise trust
+`users.username` as a verified address — `visitorEmail` (named viewers, savers, visitor
+sessions, connector/MCP visitor tools), Hack voting identity, sign-in alert mail, Hack
+notice/announcement/receipt delivery, named-viewer sign-in history — simply never sees a
+self-chosen login at all, closing that whole class of gate at its root rather than patching each
+one. The real login is handed back only on the signup/sign-in response and `GET /v1/me` as
+`login`, which the dashboard, Hack account screen, Hack shell, connector consent page and the
+admin Users page all show in place of `username` whenever it is present. An **admin-created**
+account keeps `users.username == login` — the admin vouches for that address, exactly as before
+this change, so it is treated as a verified address everywhere `users.username` is, same as
+always. A handle is still derived from the typed login either way, regardless of the characters
+typed (`SanitizeHandleBase` maps anything outside `a-z0-9-` to a dash, and strips a domain from
+an email-shaped login first, so no address leaks into the handle; falls back to a random handle).
+Pre-account hijacking is refused (2026-11-05): a password account under an address never proves
+it controls that address — self sign-up's `users.username` is synthetic and could not even be
+found by address in the first place; an admin-created one still could, since it keeps
+`users.username == login`, but the admin's say-so is not the address owner's proof either — so
+an email-code or OAuth/OIDC sign-in that proves control of an address (a provider's verified
+email, or a redeemed code) never resolves to or links an admin-created password account under
+it; refused instead (409 `password_account_exists` for email codes; the OAuth callback's themed
+refusal page for providers, including defence in depth on an already-linked identity),
+spending the code so it cannot be replayed. Password sign-in itself requires a password row, so
+it can never reach an email-code or OAuth account either — the two kinds of account never merge,
+and a self sign-up's address and an email-code account under the same address simply coexist as
+two separate accounts. `REVIEW_ACCOUNT_EMAIL` reviewer sign-in applies the same refusal to any
+password account (self-signup or admin-created) under its configured address, while still
+recognising its own account on repeat sign-in (that one is tagged `signup_method=password` too,
+for an unrelated historical reason, but a different `signup_source`).
 Password self-sign-up applies the same country block as email sign-up. Argon2 work runs at most
 two calls at a time; sign-in verifies before locking and rejects a password changed meanwhile. With the setting off all four routes
 answer 404 and no password UI appears. No TOTP, leaked-password checks or passkeys.
@@ -1001,7 +1039,7 @@ button; one that contains `muse-client` (the mangled document URL) says plainly 
 changed it. Unknown client IDs are logged by shape (never the typed text) with their redirect URI.
 Sign-in on the consent page reuses Google or email code. Tool calls are replayed into the mux
 as the person, so they meet the same checks as REST. Connector tokens are stored hashed.
-Apps checked against this server (2026-10-15), each with a row on Get started (simple-host.app/install.html; simple-hack.app/get-started has the chat apps): ChatGPT, Claude, Grok, GitHub Copilot, Meta Muse, Gemini (Connected Apps, Add a custom app; personal Google accounts in the US), Mistral Vibe (formerly Le Chat; Custom MCP Connector), Instinct (text or voice, no connector: it reads Get started itself and signs in with the agent email-code flow below, confirmed by server logs and by the owner 2026-10-15), Claude Code (plugin, then `/mcp`), Codex (`codex mcp add`), OpenClaw (`openclaw mcp add ... --transport streamable-http --auth oauth`, then `openclaw mcp login`; it defaults to SSE without the flag) and Hermes Agent (`hermes mcp add ... --auth oauth --connect-timeout 300`; its 30-second default is shorter than an email-code sign-in). Codex, OpenClaw and Hermes were run for real on this box: DCR with a loopback redirect, email-code sign-in, Allow, then a published site. Perplexity is not listed: it registers as a public client and then expects a client secret, which this server never issues to public clients. Instinct does not appear in `oauth_grants` or `oauth_clients` (no connector), so its row documents the older agent sign-in (§7) instead: nginx access logs for 2026-10-13/14 show it fetching `/v1/skills/website-deploy/references/register.md` then `operations.md`, then `POST /v1/auth` with a response body size that matches only the owner's exact email, over `Python-urllib/3.12` with no Referer (it is not a browser). Not added to Simple Hack's Get started: `hack-llms.txt` tells its skill not to ask for sign-in codes in chat.
+Apps checked against this server (2026-10-15), each with a row on Get started (simple-host.app/install.html; simple-hack.app/get-started has the chat apps): ChatGPT, Claude, Grok, GitHub Copilot, Meta Muse, Gemini (Connected Apps, Add a custom app; personal Google accounts in the US), Mistral Vibe (formerly Le Chat; Custom MCP Connector), Instinct (text or voice, no connector: it reads Get started itself and signs in with the agent email-code flow below, confirmed by server logs and by the owner 2026-10-15), Claude Code (`claude mcp add --transport http <name> <address>`, then `/mcp`), Codex (`codex mcp add`), OpenClaw (`openclaw mcp add ... --transport streamable-http --auth oauth`, then `openclaw mcp login`; it defaults to SSE without the flag) and Hermes Agent (`hermes mcp add ... --auth oauth --connect-timeout 300`; its 30-second default is shorter than an email-code sign-in). Codex, OpenClaw and Hermes were run for real on this box: DCR with a loopback redirect, email-code sign-in, Allow, then a published site. Perplexity is not listed: it registers as a public client and then expects a client secret, which this server never issues to public clients. Instinct does not appear in `oauth_grants` or `oauth_clients` (no connector), so its row documents the older agent sign-in (§7) instead: nginx access logs for 2026-10-13/14 show it fetching `/v1/skills/website-deploy/references/register.md` then `operations.md`, then `POST /v1/auth` with a response body size that matches only the owner's exact email, over `Python-urllib/3.12` with no Referer (it is not a browser). Not added to Simple Hack's Get started: `hack-llms.txt` tells its skill not to ask for sign-in codes in chat. 2026-11-05 (owner): both Get started pages gained a prominent MCP-address copy box, filled client-side from the viewer's own origin, plus custom-connector-by-URL steps for Claude, ChatGPT (developer mode) and Claude Code — alongside, not instead of, every option already there: hosted keeps the ChatGPT plugin ZIP, Claude's plugin and connector-directory steps, and the skills-only ZIP, byte-identical to before. A self-hosted install shows only its own MCP address and no plugin mention at all (no plugin ZIPs, plugin directory, marketplace command or app-directory note). Claude, ChatGPT and Claude Code are the three primary rows; the rest sit collapsed under one Other AI apps group, since they connect the same one way. The signed-in view of Simple Hack's Get started (client-side, from the stored key) swaps the hero for a connection-status header and hides public-only marketing; the hack Account screen and the Simple Host dashboard each gained a compact Connect your AI app card with the same address and `GET /v1/me/connections` status.
 **Status: live.**
 
 | Surface | Details |
@@ -1044,18 +1082,21 @@ The product’s `llms.txt` follows its public reference.
 
 Skills source is `internal/webassets/simple-host-website/skills/` (embedded via `internal/webassets/simple-host-website/embed.go`) at
 version **0.27.62**, served over HTTP, packaged as a Claude plugin, an OpenAI/ChatGPT plugin, a
-standalone plugin repo, and via `npx skills add vineetu/simple-host`. **Status: live** (Claude
-lists Simple Host in both its connector directory and its plugin directory; the ChatGPT listing,
+standalone plugin repo, and via `npx skills add vineetu/simple-host`, for distribution and for
+coding agents' optional skill install; neither package is presented on Get started as a way to
+connect (2026-11-05, see below). **Status: live** (Claude
+lists Simple Host in both its connector directory and its plugin directory, though Get started no
+longer links either; the ChatGPT listing,
 1.0.1, has been resubmitted and is in review; Simple Hack's ChatGPT listing is in review, and its
 Claude connector listing is live, but its Claude plugin listing is not confirmed).
-Get started, llms.txt and the connector's reconnect steps name Claude's directories and the
-published plugins only on simple-host.app and simple-hack.app. Any other server shows its own
-custom connector address instead (pages mark the hosted text `<!--sh:hosted-->` and the
-replacement `<!--sh:self-->`, `hostedBlocks` in `h/chrome.go`; 2026-10-15). The connector on another Simple Host server passes its tool text, instructions, recipes, page checks and hints through the same host rewriter as llms.txt (`mcp.Config.Rewrite`), so it never names simple-host.app there.
+Get started and llms.txt give the one MCP address for this instance, filled server-side from
+`HackInstanceText`/the generic host rewriter and client-side from the viewer's own origin, so a
+self-hosted install never names simple-host.app or simple-hack.app there. `hostedBlocks` in
+`h/chrome.go` (`<!--sh:hosted-->`/`<!--sh:self-->`) still exists for the few lines that genuinely
+differ (the hosted-only "self-host your own" FAQ line, the self-hosted sign-in wording), not for
+the per-app connect steps, which are identical on every instance. The connector on another Simple Host server passes its tool text, instructions, recipes, page checks and hints through the same host rewriter as llms.txt (`mcp.Config.Rewrite`), so it never names simple-host.app there.
 
-[Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask. For Simple Hack, name it Simple Hack and use `https://simple-hack.app/mcp`. Both Get started pages keep their exclusive native accordions, link directly to ChatGPT Plugins, and offer Add custom MCP server first, then Upload plugin archive. The linked full ZIPs contain plugin.json, mcp.json, and skills; skills-only downloads are labeled separately.
-
-Open Claude, then **Settings**, then **Connectors**, then **Browse connectors**. Search for **Simple Host**, choose **Connect**, sign in, then choose **Allow**. It works on web, desktop, and phone. Claude also lists a Simple Host plugin (**Customize** → **Plugins** → **Discover**) that adds the connector and skills in one step.
+2026-11-05 (owner): the one address that always works, this MCP address, is now shown once, prominently, in its own copy box filled client-side from the viewer's own origin (exact on a self-hosted instance too), alongside every option that was already there. Open Claude, then **Settings**, then **Connectors**, then **Browse connectors** (hosted) or **Add custom connector** (self-hosted, or on a network that blocks the directory — the same custom-connector-by-URL steps hosted offers as a fallback): paste `https://simple-host.app/mcp`, choose **Add**, then **Connect**, sign in, then choose **Allow**. Hosted also keeps **Customize** → **Plugins** → **Discover**, Simple Host's one-step plugin install. In ChatGPT, open **Settings**, then **Apps & Connectors**, then **Advanced settings**, and turn on **Developer mode**; back in **Apps & Connectors** choose **Create**, name it **Simple Host**, paste the same address as the **MCP server URL**, choose **OAuth**, then **Create**; sign in, then choose **Allow** — hosted also keeps the ChatGPT plugin ZIP (Upload plugin archive) and its app-directory review note. In Claude Code, hosted runs `claude plugin marketplace add vineetu/simple-host && claude plugin install simple-host@simple-host`; self-hosted runs `npx skills add vineetu/simple-host -g -a claude-code -y && claude mcp add --transport http simple-host https://simple-host.app/mcp` (Simple Hack: `simple-hack` and `https://simple-hack.app/mcp`); either way, then `/mcp`, choose the server, and **Authenticate**. Claude, ChatGPT and Claude Code are the three primary rows, with Grok, GitHub Copilot, Meta Muse, Gemini, Mistral Vibe and other coding agents collapsed under one Other AI apps group below them, since they connect the same one way. A self-hosted install shows none of the plugin material above — no plugin ZIP, directory, marketplace command or app-directory note, only its own MCP address; the coding-agent skill install (`npx skills add`) remains available on every edition as an optional, clearly-labelled extra under each page's collapsed Other ways to install, never the way to connect.
 
 Every skill that publishes, deletes or changes visibility tells the agent to check with the
 person first: before a new site goes online the first time it asks once (name, address, public
@@ -1067,14 +1108,23 @@ second question. `llms.txt` and the connector's server instructions say the same
 
 | Surface | Details |
 |---|---|
-Hosted Simple Hack's `/get-started` shows organisers, participants and judges two equal ways in, side by side (stacked on a phone): on the website (sign in at simple-hack.app, then the exact clicks) and in your AI app (a ready prompt), with neither one first (SIM-218, 2026-11-05; INTENT 2026-10-27). The AI-app setup follows under Pick your AI. Six collapsed, exclusive native accordions cover ChatGPT, Claude, Grok, Meta Muse (MCP URL and Client ID, 2026-10-15), GitHub Copilot and coding
-agents (their hash links open the matching row), with copyable `https://simple-hack.app/mcp` addresses and Google/email-code
-OAuth sign-in followed by Allow. The coding-agent row installs exactly five Hack skills
-for Codex and Claude Code from the repo's `hack-toolkit` path using `npx skills add`.
-Three role prompts have Copy buttons; collapsed FAQ accordions cover free use, phones, team addresses,
-default public winners/private team scores after publication (organisers may publish
-more), and self-hosting. ZIPs and raw skill links stay under collapsed Other ways to
-install. The existing ink theme, shared header/footer and system light/dark apply.
+Hosted Simple Hack's `/get-started` shows organisers, participants and judges two equal ways in, side by side (stacked on a phone): on the website (sign in at simple-hack.app, then the exact clicks) and in your AI app (a ready prompt), with neither one first (SIM-218, 2026-11-05; INTENT 2026-10-27). The AI-app setup follows under Pick your AI, under one prominent `https://simple-hack.app/mcp`
+copy box near the top (id `connect`, filled client-side from `location.origin`): there is exactly
+one way to connect (owner, 2026-11-05). Claude, ChatGPT and Claude Code are its three primary,
+un-collapsed accordions (custom connector by URL; developer-mode custom MCP server; `claude mcp
+add --transport http simple-hack <address>` then `/mcp` → Authenticate); Grok, GitHub Copilot,
+Meta Muse (MCP URL and Client ID, 2026-10-15), Gemini, Mistral Vibe and Codex/other coding agents
+sit collapsed under one further "Other AI apps" accordion, since they take the same address, not
+an alternative. Google/email-code OAuth sign-in and Allow follow every app's steps. A command step
+(`ConnectStep.command`, hack-connect-steps.json `v3`) renders its own copy box the same way an
+address step does. Three role prompts have Copy buttons; collapsed FAQ accordions cover who sees
+the scores, phones, team addresses, and (hidden from a signed-in viewer, `data-public-only`) free
+use and self-hosting. The five-skill `npx skills add` install, and raw/ZIP skill downloads, sit
+under collapsed Other ways to install, reworded as an optional extra for coding agents, not the
+way to connect; the ChatGPT plugin ZIP link and the Claude connector-directory fallback are gone.
+Signed in (a stored key; the page stays static and server-cached), the hero swaps to "Connect your
+AI app" / "Signed in as <email>" with the current `GET /v1/me/connections` status and links to
+Your events and Account, and public-only marketing hides. The existing ink theme, shared header/footer and system light/dark apply.
 
 | Routes | `GET /skills.zip` (Simple Host excludes the three Hack role skills; Simple Hack serves exactly five hosted skills) · `GET /hack-skills.zip` · `GET /simple-hack-skills-only-0.2.0.zip` (retained original) · `GET /simple-hack-skills-only-0.2.1.zip` · `GET /simple-hack-skills-only-0.2.2.zip` · `GET /simple-hack-skills-only-0.2.3.zip` · `GET /simple-hack-skills-only-0.2.4.zip` · `GET /simple-hack-skills-only-0.2.5.zip` (older 0.2.0–0.2.5 routes return 410) · `GET /simple-hack-skills-only-0.2.6.zip` · `GET /simple-hack-skills-only-0.2.10.zip` · `GET /simple-hack-skills-only-0.2.11.zip` · `GET /simple-hack-skills-only-0.2.12.zip` · `GET /get-started` · `GET /skills` (hosted page alias) · `GET /skills/version` · `GET /skills/{dir}.zip`, `GET /skills/{dir}/SKILL.md`, `GET /skills/{dir}` and `GET /skills/{dir}/references/{file}` (per bundled skill dir, registered in a loop) · `GET /plugin.zip` · `GET /install.sh` · `GET /install.ps1` · `GET /v1/skills` · `GET /v1/skills/{name}` · `GET /v1/skills/{name}/SKILL.md` · `GET /v1/skills/{name}/references/{file}` · `GET /.well-known/skills/index.json` · `GET /.well-known/skills/{name}/SKILL.md` · `GET /.well-known/skills/{name}/references/{file}` · `GET /.well-known/openai-apps-challenge` · `GET /{asset}` for each of `rewrittenAssets` (only on non-canonical instances). Every skill file route (SKILL.md and references, on `/skills/`, `/v1/skills/` and `/.well-known/skills/`) and the zips serve the text with this instance's hostnames and limits (`MAX_ARCHIVE_MB` and the limit knobs) written in, except the Hack role skills (`skillServedText`, `copyRewritten`) |
 | Skills | `website-deploy` (SKILL.md + references `backend.md`, `operations.md`, `packaging-and-validation.md`, `register.md`, `frameworks.md`), `website-deploy-builder`, `connect-domain` (+ `references/registrars.md`); the hosted Simple Hack catalog and ZIP expose exactly organiser `run-hackathon`, participant `join-hackathon`, judge `judge-hackathon` and the two shared website skills. The role skills are not in the Simple Host plugin or its `/skills.zip`. |
@@ -1940,6 +1990,7 @@ the hosted platform below, and self-hosting is its second option.
 | Pages | `st/hackathons.html` (organiser prompt, swaps in `location.host`), `st/og-hack.png`, `st/setup.html`, `st/admin.html` |
 | Go | `h/eventdomain.go` (claim/release/list, hourly sweep), `internal/eventdns/{vercel,inuse}.go`, `h/setup.go` (`InstanceConfigured`, setup restart), `h/chrome.go` (`HackHome` when host is `simple-hack.*`), `h/instancehost.go` (host rewriting for non-canonical instances; `SetInstanceNote`: llms.txt opens with a THIS SERVER block — one shared browser origin, previews need per-site addresses, how visitors sign in or that they cannot, whether email is sent, who to ask) |
 | No sign-in, no email | With no email and no Google/GitHub sign-in, Submissions, Personal, Shared boards and making a list private are 409 `visitor_sign_in_unavailable`; with no email, Submissions emails default off and `notify` each/daily is 409 `email_unavailable`. Off simple-host.app, messages, emails, the export README and connector hints name `IDLE_REPLY_TO` or "whoever runs this server" (`auth.SetSupportContact`), and `invalid_api_key` says to ask for a new key where no email sign-in exists. |
+| Self-hosted contact, 2026-11-05 | Optional `SUPPORT_EMAIL` and `PRIVACY_URL` settings (`h/limits.go`) name this install's own contact and privacy policy; `PRIVACY_URL` unset hides the footer's Privacy link on a self-hosted instance rather than linking ours. A centralized chrome rewrite (`selfHostedChromeRewrite`, `h/chrome.go`, run on every chromed page, not just the enumerated rewritten assets) replaces every `support@simple-host.app` mailto link and plain-text mention — support, terms, privacy, features, pricing, docs, report — with `SUPPORT_EMAIL`/`IDLE_REPLY_TO` when set, else "the person who runs this server"; this pass runs before the generic host-domain rewrite, since that would otherwise mangle the address into a nonexistent `support@<this domain>` first. |
 | Content host (Caddy) | `deploy/compose/Caddyfile` serves files and hands the app what is not one, as the hosted nginx does: `domain-redirect` marker → `/internal/domain-redirect`, a missing site → `/internal/site-redirect` (a renamed site's old name redirects), `/<handle>/` → `/internal/showcase`, file misses and the root → `/internal/notfound`; `/internal/*` from outside is 404 on every host. Tested by `deploy/compose/Caddyfile_test.sh` (in `make check`, Docker) and the hackathon e2e. The installer re-run on a box set up in the browser reports its hostnames instead of failing. |
 | DB | `event_domains`, `instance_config` |
 | Env | `EVENT_DNS_TOKEN`, `EVENT_DNS_TEAM_ID`, `EVENT_DOMAINS`, `SETUP_PASSWORD`, `SETUP_PUBLIC_API`, `PERSON_HOSTS` (off on event instances), `MAX_ARCHIVE_MB`, `KEEP_VERSIONS`, `BIND_ADDR` |

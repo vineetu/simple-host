@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -164,8 +165,20 @@ func (h *UserHandler) passwordSignup(w http.ResponseWriter, r *http.Request) {
 	}
 	h.finishSignIn(w, r, user, true, verifyRequest{Name: model.KeyNameDashboard})
 }
-func temporaryPasswordResponse(w http.ResponseWriter, user model.User, password string) {
-	writeJSON(w, 200, map[string]string{"id": user.ID, "username": user.Username, "handle": user.Handle.String, "temporary_password": password, "message": "Save this password now. The person must choose a new password when signing in."})
+
+// temporaryPasswordResponse includes login (account_passwords.login)
+// whenever the account has one: a self sign-up's username is a synthetic
+// "pw-..." value (CreatePasswordAccount), never what it actually signs in
+// with, so admin.html's "Temporary password for <username>" must show
+// login instead whenever resetPassword hands one back (a fresh
+// createPasswordUser account has username == login already, so this is a
+// no-op there).
+func temporaryPasswordResponse(w http.ResponseWriter, user model.User, password, login string) {
+	resp := map[string]string{"id": user.ID, "username": user.Username, "handle": user.Handle.String, "temporary_password": password, "message": "Save this password now. The person must choose a new password when signing in."}
+	if login != "" {
+		resp["login"] = login
+	}
+	writeJSON(w, 200, resp)
 }
 func (h *UserHandler) createPasswordUser(w http.ResponseWriter, r *http.Request) {
 	if !h.passwordEnabled {
@@ -187,7 +200,11 @@ func (h *UserHandler) createPasswordUser(w http.ResponseWriter, r *http.Request)
 	if writeLifecycleFailure(w, err) {
 		return
 	}
-	temporaryPasswordResponse(w, user, password)
+	login, _, lerr := h.accounts.PasswordLogin(r.Context(), user.ID)
+	if lerr != nil {
+		log.Printf("auth: password login lookup after create: %v", lerr)
+	}
+	temporaryPasswordResponse(w, user, password, login)
 }
 func (h *UserHandler) resetPassword(w http.ResponseWriter, r *http.Request) {
 	if !h.passwordEnabled {
@@ -208,5 +225,9 @@ func (h *UserHandler) resetPassword(w http.ResponseWriter, r *http.Request) {
 	if writeLifecycleFailure(w, err) {
 		return
 	}
-	temporaryPasswordResponse(w, user, password)
+	login, _, lerr := h.accounts.PasswordLogin(r.Context(), user.ID)
+	if lerr != nil {
+		log.Printf("auth: password login lookup after reset: %v", lerr)
+	}
+	temporaryPasswordResponse(w, user, password, login)
 }

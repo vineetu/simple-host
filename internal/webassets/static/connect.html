@@ -119,6 +119,7 @@
       <section id="step-consent" class="conn-card" hidden>
         <div id="consent-top"></div>
         <h1>Allow <span class="app-name"></span>?</h1>
+        <p class="conn-fine" id="consent-host" hidden></p>
         <div class="conn-who">
           <span class="conn-av" id="who-av"></span>
           <span class="conn-who-text">Signed in as <b id="who-email"></b></span>
@@ -202,6 +203,14 @@
     Array.prototype.forEach.call(document.querySelectorAll('.app-name'), function (n) { n.textContent = data.client_name || ''; });
     el('redirect-host').textContent = data.redirect_host || '';
     if (!el('consent-top').firstChild) el('consent-top').appendChild(appRow(2));
+    // Self-hosted only (SIM connect-mcp rule 4): name this install's own
+    // host on the Allow page. Hosted already says Simple Host/Simple Hack
+    // everywhere else on this page and stays exactly as it was.
+    if (data.self_hosted && data.host) {
+      var hostLine = el('consent-host');
+      hostLine.textContent = 'on ' + data.host;
+      hostLine.hidden = false;
+    }
 
     function reachError() {
       return window.SHSignIn.message({ status: 0, code: 'network' }, productName());
@@ -383,7 +392,7 @@
       var key = getKey();
       var who = key ? await me(key) : null;
       if (who) {
-        setWho(who.username || '');
+        setWho(who.login || who.username || '');
         if (window.shAuthRender) window.shAuthRender();
         el('consent-msg').textContent = '';
         if (data.hack) hackConsentCopy();
@@ -465,7 +474,9 @@
         }
         card = window.SHSignIn.mount(el('signin-mount'), {
           skin: 'ink',
-          title: 'Sign in to connect',
+          // Self-hosted names its own host here (SIM connect-mcp rule 4);
+          // hosted keeps the title it always had.
+          title: (data.self_hosted && data.host) ? 'Sign in to connect — ' + data.host : 'Sign in to connect',
           lead: keyOnly ? 'Paste the key your organiser gave you.' : 'New here? The same steps create your account. You stay signed in, so you will not need to do this again.',
           top: appRow(1),
           providers: providers,

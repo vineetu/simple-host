@@ -2,12 +2,13 @@
 <footer class="sh-footer">
     <div class="sh-foot">
       <nav class="sh-foot-links" aria-label="More">
-        <a href="https://simple-host.app/">Simple Host</a>
+        {{hostedStart}}<a href="https://simple-host.app/">Simple Host</a>{{hostedEnd}}
         {{hostedStart}}<a href="https://simple-host.app/hackathons">Self-host an event</a>{{hostedEnd}}
         {{hostedStart}}<a href="{{.Base}}/companies"{{if eq .Current "companies"}} aria-current="page"{{end}}>For companies</a>{{hostedEnd}}
-        <a href="{{.Base}}/privacy.html">Privacy</a>
-        <a href="{{.Base}}/terms">Terms</a>
-        <a href="{{.Base}}/report"{{if eq .Current "report"}} aria-current="page"{{end}}>Report a page</a>
+        {{hostedStart}}<a href="{{.Base}}/privacy.html">Privacy</a>{{hostedEnd}}
+        {{- if .PrivacyURL}}<!--sh:self--><a href="{{.PrivacyURL}}">Privacy</a><!--/sh:self-->{{end}}
+        {{hostedStart}}<a href="{{.Base}}/terms">Terms</a>{{hostedEnd}}
+        {{hostedStart}}<a href="{{.Base}}/report"{{if eq .Current "report"}} aria-current="page"{{end}}>Report a page</a>{{hostedEnd}}
       </nav>
       {{- if .Owner}}
       <p class="sh-credit">{{.Owner}} is made and run by Vineet Sriram.</p>
@@ -26,8 +27,9 @@
         <a href="{{.Base}}/pricing"{{if eq .Current "pricing"}} aria-current="page"{{end}}>Cost and limits</a>
         <a href="{{.Base}}/docs.html"{{if eq .Current "docs"}} aria-current="page"{{end}}>API</a>
         <a href="{{.Base}}/architecture.html"{{if eq .Current "architecture"}} aria-current="page"{{end}}>Architecture</a>
-        <a href="{{.Base}}/privacy.html"{{if eq .Current "privacy"}} aria-current="page"{{end}}>Privacy</a>
-        <a href="{{.Base}}/report"{{if eq .Current "report"}} aria-current="page"{{end}}>Report a page</a>
+        {{hostedStart}}<a href="{{.Base}}/privacy.html"{{if eq .Current "privacy"}} aria-current="page"{{end}}>Privacy</a>{{hostedEnd}}
+        {{- if .PrivacyURL}}<!--sh:self--><a href="{{.PrivacyURL}}">Privacy</a><!--/sh:self-->{{end}}
+        {{hostedStart}}<a href="{{.Base}}/report"{{if eq .Current "report"}} aria-current="page"{{end}}>Report a page</a>{{hostedEnd}}
       </nav>
       {{- if .Owner}}
       <p class="sh-credit">{{.Owner}} is made and run by Vineet Sriram.</p>

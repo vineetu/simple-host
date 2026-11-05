@@ -261,6 +261,23 @@ func (s *Service) VerifyEmailCode(ctx context.Context, allow func(string) bool, 
 		return model.User{}, false, http.StatusInternalServerError, CodeFailure{Error: "internal server error"}
 	}
 
+	// An existing account under this address that CreatePasswordAccount made
+	// (admin-created; a self-signup password account's username is now a
+	// synthetic value and could never match tok.Email here in the first
+	// place) never proved it controls the address: a code sent to this
+	// address proves the opposite, but landing the real owner in that
+	// account would hand them a sign-in whoever set that password already
+	// knows (pre-account hijacking). Refuse instead of resolving to it; the
+	// code is already spent, same as any other refusal past this point.
+	if !created {
+		if pw, merr := repo.PasswordSignupAccount(ctx, s.database, user.ID); merr != nil {
+			log.Printf("auth: signup method lookup: %v", merr)
+			return model.User{}, false, http.StatusInternalServerError, CodeFailure{Error: "internal server error"}
+		} else if pw {
+			return model.User{}, false, http.StatusConflict, CodeFailure{Error: "This address already has a password account. Sign in with the password instead.", Code: "password_account_exists"}
+		}
+	}
+
 	// Assign a URL-safe handle for dashboard users (or lazy-backfill older rows that
 	// still have a NULL handle). ClaimHandle only writes WHERE handle IS NULL,
 	// so existing handles are never overwritten.

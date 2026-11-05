@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=c">
   <link rel="icon" href="/favicon.ico?v=c" sizes="any">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=c">
-  <meta name="description" content="Run, join or judge a hackathon at simple-hack.app, or from Claude, ChatGPT, Grok, Meta Muse, GitHub Copilot or your coding agent.">
+  <meta name="description" content="Run, join or judge a hackathon at simple-hack.app, or from Claude, ChatGPT, Claude Code or any AI app that takes a custom MCP connector.">
   <!--sh:head-->
   <style>
     .wrap { max-width: 820px; margin: 0 auto; padding: 44px 24px 80px; }
@@ -22,6 +22,8 @@
     .role-lede { color: var(--text); }
     .paths { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; }
     .path { background: var(--surface); padding: 20px; min-width: 0; }
+    .connect-box { background: var(--surface); padding: 18px 20px; max-width: 540px; min-width: 0; }
+    .links.inline { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 14px; }
     .skills { display: grid; gap: 12px; }
     .skill { background: var(--surface); padding: 20px; min-width: 0; }
     .accordion { background: var(--surface); border: 1.5px solid var(--border-hi); border-radius: var(--wobble); min-width: 0; }
@@ -51,6 +53,7 @@
     .other { border-top: 1.5px dashed var(--border-hi); margin-top: 34px; padding-top: 22px; }
     .other summary { cursor: pointer; color: var(--accent); min-height: 44px; padding: 8px 0; }
     .other p { margin-top: 14px; }
+    .other .skills { margin-top: 14px; }
     .links { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 14px 0; }
     .links a { min-height: 44px; display: inline-flex; align-items: center; }
     .files { margin: 0; padding-left: 22px; color: var(--text-secondary); }
@@ -67,9 +70,25 @@
 <body>
   <!--sh:header-->
   <main class="wrap">
-    <h1>Run, join or judge a hackathon on the website or in your AI app.</h1>
-    <p class="lede">Simple Hack works the same both ways. Pick whichever you like for each step below, and switch any time.</p>
+    <div id="hero-public" data-public-only>
+      <h1>Run, join or judge a hackathon on the website or in your AI app.</h1>
+      <p class="lede">Simple Hack works the same both ways. Pick whichever you like for each step below, and switch any time.</p>
+    </div>
+    <div id="hero-signed-in" hidden>
+      <h1>Connect your AI app</h1>
+      <p class="lede">Signed in as <b data-signed-in-email></b>. <span id="connect-status"></span></p>
+      <p class="links inline"><a href="/events">Your events</a><a href="/account">Account</a></p>
+    </div>
     <p id="copy-status" role="status" aria-live="polite"></p>
+
+    <section aria-labelledby="connect-heading" id="connect">
+      <h2 id="connect-heading">Connect your AI app</h2>
+      <p>There is one way in: this address. Paste it into Claude, ChatGPT, Claude Code, or any other AI app that takes a custom MCP connector URL.</p>
+      <div class="connect-box">
+        <div class="copyrow"><code id="mcp-url" data-mcp-address>https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-url" aria-label="Copy the Simple Hack connector address">Copy</button></div>
+      </div>
+      <p class="hint">Steps for Claude, ChatGPT and Claude Code are under <a href="#pick-ai">Pick your AI</a> below.</p>
+    </section>
 
     <section aria-labelledby="organiser-heading" id="organiser">
       <h2 id="organiser-heading">Organiser</h2>
@@ -143,98 +162,108 @@
 
     <section aria-labelledby="pick-heading" id="pick-ai">
       <h2 id="pick-heading">Pick your AI</h2>
-      <p>One-time setup. Add Simple Hack to the AI app you use, then use the prompts above from any role.</p>
+      <p>One-time setup. Add Simple Hack to the AI app you use, with the address above, then use the prompts above from any role.</p>
       <div class="skills">
+        <details class="accordion" id="claude" name="pick-ai">
+          <summary><span><span class="ai-name">Claude</span><span class="audience">Web, desktop, and phone</span></span></summary>
+          <div class="accordion-body">
+          <!--sh:hosted-->
+          <ol class="steps">
+            <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Browse connectors</b>.</li>
+            <li>Search for <b>Simple Hack</b>, choose <b>Connect</b>, sign in, then choose <b>Allow</b>.</li>
+          </ol>
+          <p class="hint">Works on web, desktop, and phone.</p>
+          <a class="guide" href="https://support.claude.com/en/articles/14328846-browse-skills-connectors-and-plugins-in-one-directory">Claude setup guide</a>
+          <!--sh:connect-fallback:claude-->
+          <!--/sh:hosted-->
+          <!--sh:self-->
+          <!--sh:connect:claude-->
+          <p class="hint">Works on web, desktop, and phone. Claude's connector directory has the hosted service, not this server, so add this one by its address.</p>
+          <!--/sh:self-->
+          </div>
+        </details>
+
         <details class="accordion" id="chatgpt" name="pick-ai">
           <summary><span><span class="ai-name">ChatGPT</span><span class="audience">On the web</span></span></summary>
           <div class="accordion-body">
           <p><b>Add custom MCP server</b></p>
-              <p class="hint">The fastest way: one address to paste.</p>
-              <!--sh:connect:chatgpt-->
-              <p class="hint">ChatGPT keeps the tool list from the day you added Simple Hack. When Simple Hack adds features, open ChatGPT Plugins, choose Simple Hack, then Refresh.</p>
-              <p><b>Upload plugin archive</b></p>
-              <p class="hint">Also installs the five skills, so your AI follows Simple Hack's own instructions. This ZIP includes the MCP connection.</p>
-              <ol class="steps">
-                <li>Download the <a href="https://simple-hack-toolkit.vineetu.simple-host.app/downloads/simple-hack-openai-0.2.11.zip" download>ChatGPT plugin ZIP</a>.</li>
-                <li><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">Open ChatGPT Plugins</a>.</li>
-                <li>Click <b>Add</b>, then choose <b>Upload plugin archive</b>, and choose the ZIP file.</li>
-                <li>When the sign-in window opens, sign in with Google or an email code, then choose <b>Allow</b>.</li>
-              </ol>
-              <p class="hint">In a chat, pick Simple Hack from the <b>+</b> menu, or just ask.</p>
-            <!--sh:hosted--><p class="hint">Simple Hack is in review in the ChatGPT app directory. Once it is approved, you will be able to add it from there.</p><!--/sh:hosted-->
-            </div>
-        </details>
-
-        <details class="accordion" id="claude" name="pick-ai">
-          <summary><span><span class="ai-name">Claude</span><span class="audience">Web, desktop, and phone</span></span></summary>
-          <div class="accordion-body">
-          <!--sh:hosted--><!--sh:connect:claude-->
-              <p class="hint">Works on web, desktop, and phone.</p>
-          <a class="guide" href="https://support.claude.com/en/articles/14328846-browse-skills-connectors-and-plugins-in-one-directory">Claude setup guide</a>
-          <!--sh:connect-fallback:claude--><!--/sh:hosted-->
-          <!--sh:self--><ol class="steps">
-            <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>.</li>
-            <li>Name it <b>Simple Hack</b>, paste this address, and choose <b>Add</b>:
-              <div class="copyrow"><code id="mcp-claude">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-claude" aria-label="Copy Claude connector address">Copy</button></div>
-            </li>
-            <li>Choose <b>Connect</b>, sign in, then choose <b>Allow</b>.</li>
-          </ol>
-          <p class="hint">Works on web, desktop, and phone. Claude's connector directory has the hosted service, not this server, so add this one by its address.</p><!--/sh:self-->
-            </div>
-        </details>
-
-        <details class="accordion" id="grok" name="pick-ai">
-          <summary><span><span class="ai-name">Grok</span><span class="audience">Custom connectors</span></span></summary>
-          <div class="accordion-body">
-          <!--sh:connect:grok-->
-          <a class="guide" href="https://docs.x.ai/grok/connectors">Grok setup guide</a>
-          </div>
-        </details>
-
-        <details class="accordion" id="copilot" name="pick-ai">
-          <summary><span><span class="ai-name">GitHub Copilot</span><span class="audience">VS Code</span></span></summary>
-          <div class="accordion-body">
-          <!--sh:connect:copilot-->
-          <a class="guide" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code setup guide</a>
-          </div>
-        </details>
-
-        <details class="accordion" id="muse" name="pick-ai">
-          <summary><span><span class="ai-name">Meta Muse</span><span class="audience">Custom connector</span></span></summary>
-          <div class="accordion-body">
-          <!--sh:connect:muse-->
-          </div>
-        </details>
-
-        <details class="accordion" id="gemini" name="pick-ai">
-          <summary><span><span class="ai-name">Gemini</span><span class="audience">Personal Google account, in the US</span></span></summary>
-          <div class="accordion-body">
-          <!--sh:connect:gemini-->
-          <p class="hint">Google offers custom apps to people 18 and over in the US, signed in with a personal account, with Keep Activity on.</p>
-          </div>
-        </details>
-
-        <details class="accordion" id="mistral" name="pick-ai">
-          <summary><span><span class="ai-name">Mistral Vibe</span><span class="audience">Formerly Le Chat. Free plan works</span></span></summary>
-          <div class="accordion-body">
-          <!--sh:connect:mistral-->
-          </div>
-        </details>
-
-        <details class="accordion" id="coding-agents" name="pick-ai">
-          <summary><span><span class="ai-name">Claude Code / Codex / other coding agents</span><span class="audience">Terminal, Node.js</span></span></summary>
-          <div class="accordion-body">
+          <p class="hint">The fastest way: one address to paste.</p>
+          <!--sh:connect:chatgpt-->
+          <p class="hint">ChatGPT keeps the tool list from the day you added Simple Hack. When Simple Hack adds features, open the connector's settings and refresh it.</p>
+          <!--sh:hosted-->
+          <p><b>Upload plugin archive</b></p>
+          <p class="hint">Also installs the five skills, so your AI follows Simple Hack's own instructions. This ZIP includes the MCP connection.</p>
           <ol class="steps">
-            <li>Install the five Simple Hack skills for Claude Code and Codex, then restart your agent:<div class="copyrow"><code id="install-command">npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit --global --agent codex claude-code --yes</code><button class="btn" type="button" data-copy-target="install-command" aria-label="Copy skill install command">Copy</button></div> For another agent, replace <code>codex claude-code</code> with its name, such as <code>openclaw</code> or <code>hermes-agent</code>.</li>
-            <li>Ask your agent to add <b>Simple Hack</b> as a remote HTTP MCP server with OAuth at this address:
-              <div class="copyrow"><code id="mcp-coding-agents">https://simple-hack.app/mcp</code><button class="btn" type="button" data-copy-target="mcp-coding-agents" aria-label="Copy Claude Code / Codex / other coding agents connector address">Copy</button></div>
-            </li>
-            <li>Sign in once in the Simple Hack window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
+            <li>Download the <a href="https://simple-hack-toolkit.vineetu.simple-host.app/downloads/simple-hack-openai-0.2.11.zip" download>ChatGPT plugin ZIP</a>.</li>
+            <li><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">Open ChatGPT Plugins</a>.</li>
+            <li>Click <b>Add</b>, then choose <b>Upload plugin archive</b>, and choose the ZIP file.</li>
+            <li>When the sign-in window opens, sign in with Google or an email code, then choose <b>Allow</b>.</li>
           </ol>
+          <p class="hint">In a chat, pick Simple Hack from the <b>+</b> menu, or just ask.</p>
+          <p class="hint">Simple Hack is in review in the ChatGPT app directory. Once it is approved, you will be able to add it from there.</p>
+          <!--/sh:hosted-->
           </div>
         </details>
 
+        <details class="accordion" id="claude-code" name="pick-ai">
+          <summary><span><span class="ai-name">Claude Code</span><span class="audience">Terminal</span></span></summary>
+          <div class="accordion-body">
+          <!--sh:connect:claude-code-->
+          </div>
+        </details>
       </div>
+
+      <details class="other" id="other-ai-apps">
+        <summary>Other AI apps</summary>
+        <p>They connect the same way, with the same address.</p>
+        <div class="skills">
+          <details class="accordion" id="grok" name="other-ai">
+            <summary><span><span class="ai-name">Grok</span><span class="audience">Custom connectors</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:grok-->
+            <a class="guide" href="https://docs.x.ai/grok/connectors">Grok setup guide</a>
+            </div>
+          </details>
+
+          <details class="accordion" id="copilot" name="other-ai">
+            <summary><span><span class="ai-name">GitHub Copilot</span><span class="audience">VS Code</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:copilot-->
+            <a class="guide" href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code setup guide</a>
+            </div>
+          </details>
+
+          <details class="accordion" id="muse" name="other-ai">
+            <summary><span><span class="ai-name">Meta Muse</span><span class="audience">Custom connector</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:muse-->
+            </div>
+          </details>
+
+          <details class="accordion" id="gemini" name="other-ai">
+            <summary><span><span class="ai-name">Gemini</span><span class="audience">Personal Google account, in the US</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:gemini-->
+            <p class="hint">Google offers custom apps to people 18 and over in the US, signed in with a personal account, with Keep Activity on.</p>
+            </div>
+          </details>
+
+          <details class="accordion" id="mistral" name="other-ai">
+            <summary><span><span class="ai-name">Mistral Vibe</span><span class="audience">Formerly Le Chat. Free plan works</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:mistral-->
+            </div>
+          </details>
+
+          <details class="accordion" id="other-coding" name="other-ai">
+            <summary><span><span class="ai-name">Codex and other coding agents</span><span class="audience">Remote HTTP MCP server</span></span></summary>
+            <div class="accordion-body">
+            <!--sh:connect:other-coding-->
+            <p class="hint">Also works for any agent whose MCP settings take a remote HTTP server and OAuth.</p>
+            </div>
+          </details>
+        </div>
+      </details>
       <p class="hint">After connecting, select Simple Hack in your chat’s tools, then use one of the prompts above.</p>
     </section>
 
@@ -242,18 +271,22 @@
       <h2 id="next-heading">What happens next</h2>
       <p>Manage your event, team or judging from simple-hack.app on any device, or from your AI app once it's connected. Your AI gives you the links to share.</p>
       <div class="faq">
-        <details class="accordion" name="faq"><summary>Is it free?</summary><div class="accordion-body">Yes. Running an event, joining, judging and hosting team sites are free.</div></details>
+        <details class="accordion" name="faq" data-public-only><summary>Is it free?</summary><div class="accordion-body">Yes. Running an event, joining, judging and hosting team sites are free.</div></details>
         <details class="accordion" name="faq"><summary>Who sees the scores?</summary><div class="accordion-body">After results are published, ranks and overall scores are public by default. Organisers can hide either. Teams privately see their own detailed scores and feedback; organisers see all results.</div></details>
         <details class="accordion" name="faq"><summary>Do I need a laptop?</summary><div class="accordion-body">No. You can run, join or judge from a phone. Coding agents need a computer.</div></details>
         <details class="accordion" name="faq"><summary>Where do team sites live?</summary><div class="accordion-body">At <code>team.event.simple-hack.app</code>, using your team and event names.</div></details>
-        <!--sh:hosted--><details class="accordion" name="faq"><summary>Can I run my own?</summary><div class="accordion-body">Yes. <a href="https://simple-host.app/hackathons">Self-host a hackathon with Simple Host</a>.</div></details><!--/sh:hosted-->
+        <!--sh:hosted--><details class="accordion" name="faq" data-public-only><summary>Can I run my own?</summary><div class="accordion-body">Yes. <a href="https://simple-host.app/hackathons">Self-host a hackathon with Simple Host</a>.</div></details><!--/sh:hosted-->
       </div>
     </section>
 
     <details class="other" id="other-installs">
       <summary>Other ways to install</summary>
-      <p>Download the five skill folders for your coding agent, or upload the skills-only plugin ZIP in a ChatGPT workspace that supports custom plugin uploads. Connect <code>https://simple-hack.app/mcp</code> as above to use them.</p>
-      <div class="links"><a href="/skills.zip" download>Skills ZIP</a><a href="/simple-hack-skills-only-0.2.13.zip" download>Skills-only ChatGPT plugin ZIP</a><a href="/hack-skills.zip" download>Alternate skills ZIP</a></div>
+      <p>Optional: Simple Hack's skill files for coding agents. They add instructions, not the connection — connect <code>https://simple-hack.app/mcp</code> as above first.</p>
+      <ol class="steps">
+        <li>Install the five Simple Hack skills for Claude Code, Codex and other coding agents, then restart your agent:<div class="copyrow"><code id="install-command">npx -y skills add https://github.com/vineetu/simple-host/tree/main/hack-toolkit --global --agent codex claude-code --yes</code><button class="btn" type="button" data-copy-target="install-command" aria-label="Copy skill install command">Copy</button></div> For another agent, replace <code>codex claude-code</code> with its name, such as <code>openclaw</code> or <code>hermes-agent</code>.</li>
+      </ol>
+      <p>Or download the skill folders directly<!--sh:hosted-->, or upload the skills-only plugin ZIP in a ChatGPT workspace that supports custom plugin uploads<!--/sh:hosted-->.</p>
+      <div class="links"><a href="/skills.zip" download>Skills ZIP</a><!--sh:hosted--><a href="/simple-hack-skills-only-0.2.13.zip" download>Skills-only ChatGPT plugin ZIP</a><!--/sh:hosted--><a href="/hack-skills.zip" download>Alternate skills ZIP</a></div>
       <ul class="files">
         <li><a href="/v1/skills/run-hackathon/SKILL.md">Run a hackathon</a> · <a href="/v1/skills/run-hackathon/references/organiser-api.md">Organiser reference</a></li>
         <li><a href="/v1/skills/join-hackathon/SKILL.md">Join a hackathon</a></li>
@@ -278,10 +311,25 @@
       if (row && row.matches('.skills > details')) {
         document.querySelectorAll('.skills > details').forEach(function (other) { other.open = other === row; });
         row.scrollIntoView();
+      } else if (row && row.id === 'other-ai-apps') {
+        row.open = true;
+        row.scrollIntoView();
       }
     }
     window.addEventListener('hashchange', openLinkedAI);
     openLinkedAI();
+
+    // The MCP address, and any command built from it, are filled from this
+    // page's own origin so they are exact on every instance, hosted or
+    // self-hosted, without waiting on a server-side rewrite.
+    (function () {
+      var mcp = location.origin + '/mcp';
+      document.querySelectorAll('[data-mcp-address]').forEach(function (el) { el.textContent = mcp; });
+      document.querySelectorAll('[data-mcp-cmd]').forEach(function (el) {
+        el.textContent = el.getAttribute('data-mcp-cmd').split('{address}').join(mcp);
+      });
+    })();
+
     document.querySelectorAll('[data-copy-target]').forEach(function (button) {
       button.addEventListener('click', async function () {
         var target = document.getElementById(button.dataset.copyTarget);
@@ -312,6 +360,44 @@
         }
       });
     });
+
+    // Signed-in view (A5): the page is static and cached, so this is all
+    // client-side. A missing key, or a 401, leaves the public view as-is.
+    (function () {
+      var key = '';
+      try { key = localStorage.getItem('apiKey') || ''; } catch (e) {}
+      if (!key) return;
+      function agoText(iso) {
+        if (!iso) return '';
+        var diff = Date.now() - new Date(iso).getTime();
+        if (!isFinite(diff)) return '';
+        if (diff < 60000) return 'just now';
+        var m = Math.floor(diff / 60000);
+        if (m < 60) return m + ' minute' + (m === 1 ? '' : 's') + ' ago';
+        var h = Math.floor(m / 60);
+        if (h < 24) return h + ' hour' + (h === 1 ? '' : 's') + ' ago';
+        var d = Math.floor(h / 24);
+        return d + ' day' + (d === 1 ? '' : 's') + ' ago';
+      }
+      fetch('/v1/me', { headers: { 'X-API-Key': key } }).then(function (r) {
+        if (!r.ok) throw new Error('signed out');
+        return r.json();
+      }).then(function (me) {
+        document.querySelectorAll('[data-public-only]').forEach(function (el) { el.hidden = true; });
+        document.getElementById('hero-signed-in').hidden = false;
+        var who = document.querySelector('[data-signed-in-email]');
+        if (who) who.textContent = (me && (me.login || me.email || me.username)) || '';
+        return fetch('/v1/me/connections', { headers: { 'X-API-Key': key } });
+      }).then(function (r) { return r && r.ok ? r.json() : null; }).then(function (d) {
+        var statusEl = document.getElementById('connect-status');
+        if (!statusEl) return;
+        var list = (d && d.connections) || [];
+        if (!list.length) { statusEl.textContent = 'No AI app connected yet.'; return; }
+        list.sort(function (a, b) { return new Date(b.last_used_at || b.connected_at || 0) - new Date(a.last_used_at || a.connected_at || 0); });
+        var top = list[0];
+        statusEl.textContent = 'Connected: ' + (top.name || 'an AI app') + (top.last_used_at ? ' · last used ' + agoText(top.last_used_at) : '') + '.';
+      }).catch(function () {});
+    })();
   </script>
 </body>
 </html>

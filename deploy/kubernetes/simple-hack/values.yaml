@@ -224,6 +224,8 @@ probes:
 #   MAX_ARCHIVE_MB: "25"              largest site upload
 #   SIGNUP_BLOCKED_COUNTRIES: ""      ISO country codes refused at sign-in
 #   OIDC_INSECURE_ALLOWED: "true"     a plain-http issuer; tests only
+#   SUPPORT_EMAIL: "support@example.com"       this install's own contact
+#   PRIVACY_URL: "https://example.com/privacy" this install's own privacy policy
 extraConfig: {}
 extraSecrets: {}
 

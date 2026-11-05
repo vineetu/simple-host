@@ -5,18 +5,50 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
-	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/vsriram/simple-host/internal/model"
 	repo "github.com/vsriram/simple-host/internal/repository/accounts"
 )
 
-var passwordUsername = regexp.MustCompile(`^[a-z0-9._-]{3,64}$`)
-var passwordEmail = regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$`)
-
 func NormalizeLogin(login string) string { return strings.ToLower(strings.TrimSpace(login)) }
+
+// validLogin is a sanity limit, not format gating (owner decision,
+// 2026-11-05): the person may type any email or made-up login they like --
+// no character class, no email-only allowlist. It is already normalized
+// (NormalizeLogin: trimmed, lower-cased) by the time it reaches here. Only
+// empty, over-long or control-character input is refused.
+func validLogin(login string) error {
+	n := utf8.RuneCountInString(login)
+	if n == 0 || n > 254 {
+		return lifecycleFail(400, "Enter an email or username, up to 254 characters.", "invalid_username")
+	}
+	for _, r := range login {
+		if unicode.IsControl(r) {
+			return lifecycleFail(400, "Enter an email or username, up to 254 characters.", "invalid_username")
+		}
+	}
+	return nil
+}
+
+// randomPasswordUsername is a self sign-up account's users.username: never
+// shaped like an email and never meaningful, so nothing elsewhere in the
+// codebase that treats users.username as a verified address -- visitor/saver
+// email resolution, Hack voting identity, sign-in alert mail, Hack notice
+// delivery, named-viewer sign-in history -- can be fooled by a self-chosen
+// value that looks like someone else's address. What the person actually
+// typed lives only in account_passwords.login (see CreatePasswordAccount).
+func randomPasswordUsername() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return "pw-" + hex.EncodeToString(b), nil
+}
 func badCredentials() error {
 	return lifecycleFail(401, "Wrong username or password.", "bad_credentials")
 }
@@ -73,7 +105,10 @@ func (s *Service) PasswordSignIn(ctx context.Context, login, password, newPasswo
 		if err != nil {
 			return model.User{}, err
 		}
-		if err := repo.SetPassword(ctx, tx, user.ID, next, false); err != nil {
+		// This account was just found by repo.PasswordAccount, so its
+		// account_passwords row already exists: login is never used here
+		// (SetPassword only applies it to a fresh row).
+		if err := repo.SetPassword(ctx, tx, user.ID, next, "", false); err != nil {
 			return model.User{}, err
 		}
 	}
@@ -89,6 +124,24 @@ func (s *Service) HasPassword(ctx context.Context, userID string) (bool, error) 
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// PasswordLogin reports a password account's own login for display (GET
+// /v1/me, instead of a self sign-up's possibly-synthetic users.username).
+// ok=false when the account has no password row.
+func (s *Service) PasswordLogin(ctx context.Context, userID string) (string, bool, error) {
+	login, err := repo.PasswordLoginByID(ctx, s.database, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	return login, err == nil, err
+}
+
+// SelfSignupPasswordAccount reports whether userID was created through the
+// public password sign-up form, never admin-created: see
+// repo.SelfSignupPasswordAccount.
+func (s *Service) SelfSignupPasswordAccount(ctx context.Context, userID string) (bool, error) {
+	return repo.SelfSignupPasswordAccount(ctx, s.database, userID)
 }
 
 // ChangePassword lets a signed-in password account replace its own password:
@@ -134,7 +187,9 @@ func (s *Service) ChangePassword(ctx context.Context, userID, current, next stri
 	if err != nil {
 		return err
 	}
-	if err := repo.SetPassword(ctx, tx, userID, nextHash, false); err != nil {
+	// hash was loaded by PasswordHashByID above (404 if it didn't exist),
+	// so this account_passwords row already exists: login is never used.
+	if err := repo.SetPassword(ctx, tx, userID, nextHash, "", false); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -149,10 +204,24 @@ func temporaryPassword(password string) (string, error) {
 	}
 	return password, validPassword(password)
 }
-func (s *Service) CreatePasswordAccount(ctx context.Context, username, password string, temporary, randomHandles bool, assign func(context.Context, AttributionStore, string, string, bool)) (model.User, string, error) {
-	username = NormalizeLogin(username)
-	if !passwordUsername.MatchString(username) && !(temporary && len(username) <= 254 && passwordEmail.MatchString(username)) {
-		return model.User{}, "", lifecycleFail(400, "Username must be 3–64 letters, numbers, dots, underscores or hyphens.", "invalid_username")
+
+// CreatePasswordAccount creates a password account for login (what the
+// person typed, or an admin-chosen address for temporary=true). login is
+// stored, normalized, as account_passwords.login, which is where
+// PasswordAccount looks a login up and where its own uniqueness is checked
+// -- not users.username.
+//
+// Self sign-up (temporary=false, signup_source "website") never proved it
+// controls login, even one shaped like an email, so users.username becomes
+// a synthetic, never-email value instead (randomPasswordUsername) and login
+// is handed to assign for handle derivation only (SanitizeHandleBase already
+// strips a domain, so no address leaks into the handle). Admin create
+// (temporary=true, signup_source "admin") keeps users.username == login --
+// the admin vouches for that address, same as before this change.
+func (s *Service) CreatePasswordAccount(ctx context.Context, login, password string, temporary, randomHandles bool, assign func(context.Context, AttributionStore, string, string, bool)) (model.User, string, error) {
+	login = NormalizeLogin(login)
+	if err := validLogin(login); err != nil {
+		return model.User{}, "", err
 	}
 	var err error
 	if temporary {
@@ -173,18 +242,34 @@ func (s *Service) CreatePasswordAccount(ctx context.Context, username, password 
 	}
 	defer tx.Rollback()
 	// Use the same insertion and handle-assignment path as bulk account creation.
-	source := "website"
+	source, username := "website", login
 	if temporary {
 		source = "admin"
+	} else if username, err = randomPasswordUsername(); err != nil {
+		return model.User{}, "", err
 	}
-	id, err := repo.InsertAccount(ctx, tx, username, source, "password")
+	var id string
+	for attempt := 0; ; attempt++ {
+		id, err = repo.InsertAccount(ctx, tx, username, source, "password")
+		if !temporary && errors.Is(err, sql.ErrNoRows) && attempt < 4 {
+			// The random synthetic username collided (vanishingly
+			// unlikely): try a fresh one. This can never be login's own
+			// uniqueness -- that is checked below, against
+			// account_passwords.login, not users.username.
+			if username, err = randomPasswordUsername(); err != nil {
+				return model.User{}, "", err
+			}
+			continue
+		}
+		break
+	}
 	if errors.Is(err, sql.ErrNoRows) || repo.IsUniqueViolation(err) {
 		return model.User{}, "", lifecycleFail(409, "That username is taken.", "username_taken")
 	}
 	if err != nil {
 		return model.User{}, "", err
 	}
-	assign(ctx, tx, id, username, randomHandles)
+	assign(ctx, tx, id, login, randomHandles)
 	user, err := repo.GetUserByID(ctx, tx, id)
 	if err != nil {
 		return user, "", err
@@ -192,7 +277,14 @@ func (s *Service) CreatePasswordAccount(ctx context.Context, username, password 
 	if !user.Handle.Valid {
 		return user, "", lifecycleFail(500, "could not assign account handle", "")
 	}
-	if err := repo.SetPassword(ctx, tx, id, hash, temporary); err != nil {
+	if err := repo.SetPassword(ctx, tx, id, hash, login, temporary); err != nil {
+		if repo.IsUniqueViolation(err) {
+			// login already belongs to another password account
+			// (account_passwords.login is unique) -- the same outward
+			// refusal as a username clash, whichever table actually
+			// caught it.
+			return user, "", lifecycleFail(409, "That username is taken.", "username_taken")
+		}
 		return user, "", err
 	}
 
@@ -222,7 +314,17 @@ func (s *Service) ResetPassword(ctx context.Context, id, password string) (model
 	if user.IsAdmin {
 		return user, "", lifecycleFail(400, "cannot set an admin password", "")
 	}
-	if err := repo.SetPassword(ctx, tx, id, hash, true); err != nil {
+	// Adding a password row here, including to an existing email-code or
+	// OAuth account by id, is the signed-in admin's own deliberate act on an
+	// account they already picked -- not an unauthenticated sign-in
+	// resolving to one it never proved it owned, so it is not the
+	// pre-account-hijacking case above and needs no refusal. login (used
+	// only if this account never had a password row before) is the
+	// account's own existing username: by the time an admin can name this
+	// account by id, it already has whatever address or name it signs in
+	// with, and the admin vouches for it the same as a fresh admin-created
+	// account's username == login.
+	if err := repo.SetPassword(ctx, tx, id, hash, NormalizeLogin(user.Username), true); err != nil {
 		return user, "", err
 	}
 	return user, password, tx.Commit()

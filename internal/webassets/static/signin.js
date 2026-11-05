@@ -612,11 +612,11 @@
         wrap.appendChild(o);
       }
       if (passwordOn) {
-        var fields = [['login', passwordSignup ? 'Username' : 'Username or email', 'text'], ['password', 'Password', 'password']];
+        var fields = [['login', 'Email or username', 'text'], ['password', 'Password', 'password']];
         if (passwordChange) fields.push(['new-password', 'New password', 'password']);
         fields.forEach(function (f) {
           wrap.appendChild(el('label', {for: uid + '-' + f[0], text: f[1]}));
-          var input = el('input', {id: uid + '-' + f[0], className: 'sh-si-f', type: f[2], autocomplete: f[0] === 'login' ? 'username' : (passwordSignup || f[0] === 'new-password' ? 'new-password' : 'current-password'), minlength: f[2] === 'password' ? '8' : null});
+          var input = el('input', {id: uid + '-' + f[0], className: 'sh-si-f', type: f[2], autocomplete: f[0] === 'login' ? 'username' : (passwordSignup || f[0] === 'new-password' ? 'new-password' : 'current-password'), placeholder: f[0] === 'login' ? 'you@example.com' : null, minlength: f[2] === 'password' ? '8' : null});
           input.value = f[0] === 'login' ? loginValue : f[0] === 'password' ? passwordValue : newPasswordValue;
           input.addEventListener('input', function () { if (f[0] === 'login') loginValue = input.value; else if (f[0] === 'password') passwordValue = input.value; else newPasswordValue = input.value; });
           wrap.appendChild(input);
