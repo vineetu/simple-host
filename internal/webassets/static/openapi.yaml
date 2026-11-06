@@ -9866,15 +9866,20 @@ paths:
       operationId: putHackEntryRules
       summary: Set entry rules (organiser) (EVENTS=hosted only)
       description: >-
-        Choose a preset (build, code, ideas or custom) and/or set individual
-        fields; judge_first picks which evidence judges see first. Setting a
-        field that differs from the active preset's own table demotes the
-        stored preset to custom. dry_run:true returns impact and preview
-        without saving anything (HackEntryRulesImpact instead of
-        HackEntryRulesView). Tightening never un-submits an already-submitted
-        entry. Refused with 409 entry_rules_closed once entries have closed
-        (Closed stage onward): rules are fixed so judging sees one definition
-        of complete.
+        Choose a preset (video_or_website, the default -- at least one of a
+        video or a website; or video_website_code -- video, website and code
+        link all required) and/or set individual fields; judge_first picks
+        which evidence judges see first. Setting a field that differs from
+        the active preset's own table demotes the stored preset to custom.
+        An event already on an older preset (build, code, ideas or custom)
+        keeps it and its saved values until a current preset is set or a
+        field is changed; sending build, code, ideas or custom here is
+        refused (400 invalid_preset) naming the two current ones. dry_run:true
+        returns impact and preview without saving anything
+        (HackEntryRulesImpact instead of HackEntryRulesView). Tightening
+        never un-submits an already-submitted entry. Refused with 409
+        entry_rules_closed once entries have closed (Closed stage onward):
+        rules are fixed so judging sees one definition of complete.
       security: [{ apiKey: [] }]
       parameters:
         - { in: path, name: slug, required: true, schema: { type: string } }
@@ -15332,8 +15337,16 @@ components:
       type: object
       description: The organiser Overview's one forward move, computed by the server.
       properties:
-        kind: { type: string, enum: [stage, publish_results, none] }
-        stage: { type: string }
+        kind:
+          type: string
+          enum: [stage, entry_rules, publish_results, none]
+          description: >-
+            entry_rules (SIM-382) is a draft event whose organiser hasn't
+            saved entry rules yet: the button opens Entries' "What teams
+            hand in" setting (PUT .../entry-rules), not a stage change.
+            Saving any choice there, even the default, moves this to
+            stage/open ("Open sign-up").
+        stage: { type: string, description: Empty for entry_rules, publish_results or none. }
         label: { type: string, example: Close entries }
         deadline_passed: { type: boolean }
         blocked: { type: string, nullable: true, enum: [archive_needs_participants] }
@@ -15607,7 +15620,7 @@ components:
           type: object
           description: The event's entry rules, read-only here; the organiser changes them with PUT .../entry-rules.
           properties:
-            preset: { type: string, enum: [build, code, ideas, custom] }
+            preset: { type: string, enum: [video_or_website, video_website_code, build, code, ideas, custom] }
             fields:
               type: object
               description: Every entry-rules field (HackEntryRuleField, minus one_of) mapped to required, optional, off or one_of.
@@ -15748,7 +15761,7 @@ components:
     HackEntryRulesView:
       type: object
       properties:
-        preset: { type: string, enum: [build, code, ideas, custom] }
+        preset: { type: string, enum: [video_or_website, video_website_code, build, code, ideas, custom], description: video_or_website and video_website_code are the two current presets; build, code, ideas and custom are legacy values an older event may still carry. }
         fields:
           type: object
           description: Every entry-rules field mapped to required, optional, off or one_of. one_of is only ever set on video_url, site, code_url or screenshot; title is always required.
@@ -15764,11 +15777,14 @@ components:
       properties:
         preset:
           type: string
-          enum: [build, code, ideas, custom]
+          enum: [video_or_website, video_website_code]
           description: >-
-            Expands to that preset's own field table first; any fields below are
-            then applied on top. build = AI build, code = Coding, ideas = Ideas
-            and design. Anything else is 400 invalid_preset.
+            Expands to that preset's own field table first; any fields below
+            are then applied on top. video_or_website (the default): video
+            and site one_of, code off. video_website_code: video, site and
+            code all required. An older preset (build, code, ideas, custom)
+            is refused with 400 invalid_preset naming these two -- an event
+            already on one keeps it until a current preset is set here.
         fields:
           type: object
           description: >-
@@ -15804,7 +15820,7 @@ components:
           type: object
           description: The rules as they would be saved.
           properties:
-            preset: { type: string, enum: [build, code, ideas, custom] }
+            preset: { type: string, enum: [video_or_website, video_website_code, build, code, ideas, custom] }
             fields:
               type: object
               additionalProperties: { type: string, enum: [required, optional, off, one_of] }

@@ -196,6 +196,10 @@ func TestHackScheduleActsAPI(t *testing.T) {
 	slug := uniqueSlug()
 	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
 	base := "/v1/hack/events/" + slug
+	// SIM-382: a brand-new event's next_step is entry_rules until the
+	// organiser saves a choice; this test is about the schedule cue on the
+	// Open sign-up step, so get past that first step like the website would.
+	wantTS(t, "save entry rules", a.at(t, "PUT", base+"/entry-rules", map[string]any{"preset": "video_or_website"}, a.key(org)), 200, "")
 	kickoff := time.Now().Add(-5 * time.Minute).UTC()
 	content := map[string]any{
 		"sponsors": []any{}, "faq": []any{},

@@ -11,14 +11,18 @@ import (
 // the expanded+validated rules JSON (never the client's raw JSON -- the
 // handler normalises it first) and which evidence judges see first. It also
 // writes entry_required for the deprecated alias, kept in sync with the
-// rules' required fields among hackEntryFields for one release.
+// rules' required fields among hackEntryFields for one release. Every real
+// call here is an organiser explicitly saving rules (PutRules's non-dry-run
+// path, or the deprecated entry_required alias), so it also sets
+// entry_rules_chosen true for good (0005-hack-entry-rules-chosen.sql,
+// SIM-382) -- even a save that keeps the default preset counts as a choice.
 
 func UpdateEventEntryRules(ctx context.Context, q sqlkit.Querier, eventID, preset string, rulesJSON []byte, judgeFirst string, legacyRequired []string) (Event, error) {
 	if legacyRequired == nil {
 		legacyRequired = []string{}
 	}
 	return ScanEvent(q.QueryRowContext(ctx, `
-		UPDATE events SET entry_preset = $2, entry_rules = $3, judge_first = $4, entry_required = $5, updated_at = now()
+		UPDATE events SET entry_preset = $2, entry_rules = $3, judge_first = $4, entry_required = $5, entry_rules_chosen = true, updated_at = now()
 		 WHERE id = $1 RETURNING `+EventColumns, eventID, preset, rulesJSON, judgeFirst, pq.Array(legacyRequired)))
 }
 

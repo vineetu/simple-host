@@ -213,10 +213,13 @@ func TestHackEntryReceiptOnce(t *testing.T) {
 	}
 	a.openEvent(t, org, slug)
 	base := "/v1/hack/events/" + slug
-	// Simplify entry rules to title only (slice 1's build preset otherwise
+	// Simplify entry rules to title only (the default preset otherwise
 	// needs more than a title before an entry can be submitted) -- this test
-	// only exercises the receipt mail, not the rules engine.
-	if r := a.at(t, "PUT", base+"/entry-rules", map[string]any{"preset": "custom"}, a.key(org)); r.status != 200 {
+	// only exercises the receipt mail, not the rules engine. "fields" alone
+	// (no "preset") demotes the stored preset to custom server-side without
+	// this test sending the now-refused preset value "custom" itself
+	// (SIM-382: only video_or_website and video_website_code may be set directly).
+	if r := a.at(t, "PUT", base+"/entry-rules", map[string]any{"fields": titleOnlyEntryFields}, a.key(org)); r.status != 200 {
 		t.Fatalf("entry rules: %d %s", r.status, r.body)
 	}
 	join := a.at(t, "GET", base, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
@@ -265,7 +268,7 @@ func TestHackMailFailureDoesNotBlockOtherMessages(t *testing.T) {
 	base := "/v1/hack/events/" + slug
 	// Simplify entry rules to title only, as TestHackEntryReceiptOnce does --
 	// this test only needs a submitted entry to queue a receipt.
-	if r := a.at(t, "PUT", base+"/entry-rules", map[string]any{"preset": "custom"}, a.key(org)); r.status != 200 {
+	if r := a.at(t, "PUT", base+"/entry-rules", map[string]any{"fields": titleOnlyEntryFields}, a.key(org)); r.status != 200 {
 		t.Fatalf("entry rules: %d %s", r.status, r.body)
 	}
 	join := a.at(t, "GET", base, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)

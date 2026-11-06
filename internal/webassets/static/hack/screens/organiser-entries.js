@@ -1,5 +1,6 @@
 import { href } from '../nav.js'
 import { fmtBytes } from './_orgB-util.js'
+import { wantsSection } from '../platform.js'
 
 export function title() { return 'Entries' }
 
@@ -29,26 +30,27 @@ function joinAnd (items) {
 }
 function labelList (fields) { return fields.map(f => PLAIN[f] || f) }
 
-// Client-side mirror of the server's own table (internal/handler/
-// hack_entry_rules.go entryPresets), which follows the atlas's "What do the
-// presets set?" decision. Used to show each preset's lines straight away
-// when a card is picked and to tell when the lines still match a preset.
-// The server is the one place that actually expands and stores a preset.
+// Client-side mirror of the server's own table (internal/rules/hackentries/
+// entries.go Presets), which follows the atlas's "What do the presets set?"
+// decision. Used to show each preset's lines straight away when a card is
+// picked and to tell when the lines still match a preset. The server is the
+// one place that actually expands and stores a preset.
+//
+// SIM-382 (owner, 2026-11-05/06): exactly these two now, both naming what
+// teams hand in. AI build, Coding, Ideas and design and Custom are gone from
+// this picker -- an event already on one of them keeps its own rules (read
+// from `rules.fields` below, same as always) and isn't shown as a selected
+// card here; picking one of these two switches it over.
 const PRESETS = {
-  build: {
-    label: 'AI build', desc: 'Teams build with AI or no-code tools. Video or website.',
+  video_or_website: {
+    label: 'Video or website', desc: 'Teams show a demo video or a published website -- at least one of the two.',
     fields: { title: 'required', problem: 'required', tagline: 'required', audience: 'required', track: 'required', tools: 'required', maturity: 'required', description: 'optional', video_url: 'one_of', site: 'one_of', code_url: 'off', screenshot: 'optional' },
     judge_first: 'video'
   },
-  code: {
-    label: 'Coding', desc: 'Adds a required code link. Judges open the website first.',
-    fields: { title: 'required', problem: 'required', tagline: 'required', audience: 'optional', track: 'required', tools: 'required', maturity: 'required', description: 'optional', video_url: 'one_of', site: 'one_of', code_url: 'required', screenshot: 'optional' },
+  video_website_code: {
+    label: 'Video, website and code link', desc: 'Teams show a demo video, a published website and a code link -- all three required.',
+    fields: { title: 'required', problem: 'required', tagline: 'required', audience: 'required', track: 'required', tools: 'required', maturity: 'required', description: 'optional', video_url: 'required', site: 'required', code_url: 'required', screenshot: 'optional' },
     judge_first: 'site'
-  },
-  ideas: {
-    label: 'Ideas and design', desc: 'No build needed. Video, website or a screenshot.',
-    fields: { title: 'required', problem: 'required', tagline: 'required', audience: 'required', track: 'required', tools: 'optional', maturity: 'optional', description: 'optional', video_url: 'one_of', site: 'one_of', code_url: 'off', screenshot: 'one_of' },
-    judge_first: 'video'
   }
 }
 const SUMMARY_ROWS = [
@@ -98,7 +100,7 @@ export async function render (ctx) {
   let usage = null
   // The server's entry-rules `editable` decides; the stage fallback only
   // covers a failed rules fetch, so a closed event never looks editable.
-  let rules = { preset: 'build', fields: {}, judge_first: 'video', summary: '', has_tracks: !!(ev.tracks && ev.tracks.length), editable: !['closed', 'judging', 'results'].includes(ev.stage) }
+  let rules = { preset: 'video_or_website', fields: {}, judge_first: 'video', summary: '', has_tracks: !!(ev.tracks && ev.tracks.length), editable: !['closed', 'judging', 'results'].includes(ev.stage) }
   // Remembered only for this page visit: which preset card was last chosen,
   // so a config that still matches it can read "Custom (from X)" instead of
   // a bare "Custom" the moment one line is nudged off it. The server has no
@@ -226,7 +228,7 @@ ${summaryRows}
 ${showRows}
 <p class="help" style="margin-top:10px"><b>One of:</b> teams need at least one of the lines marked One of.${rules.summary ? ' Here: ' + esc(rules.summary) + '.' : ''}</p>
 </div>
-<div class="field-group"><h3>Judges see</h3><div class="field inline"><span class="lab">After the card, first</span>${judgeFirstSeg}</div><p class="help">Every judge sees the summary card first. Coding events usually open the website first.</p></div>
+<div class="field-group"><h3>Judges see</h3><div class="field inline"><span class="lab">After the card, first</span>${judgeFirstSeg}</div><p class="help">Every judge sees the summary card first. Video, website and code link events usually open the website first.</p></div>
 <div class="form-actions"><button class="btn primary" type="button" id="rules-save"${disabled ? ' disabled' : ''}>Save</button><span class="hint" id="rules-hint">${rules.preset === 'custom' ? esc(currentPresetLabel()) : ''}</span></div>
 </section>`
   }
@@ -573,4 +575,9 @@ ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` :
     const extSection = $('ext')
     if (extSection) extSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+
+  // Deep link from Overview's "Choose what teams hand in" first step
+  // (SIM-382, #handin): bring the card into view instead of leaving the
+  // organiser to scroll past Deadline and Reminder times to find it.
+  if (wantsSection('handin')) $('handin')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }

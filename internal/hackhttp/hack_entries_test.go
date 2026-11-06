@@ -22,6 +22,19 @@ import (
 // and judge list. newHackApp does not turn hack mode on; these routes do
 // not need it.
 
+// titleOnlyEntryFields is every entry-rules field but title set to
+// optional, for tests that need a minimal rule set (the default preset
+// otherwise requires more than a title before an entry can be submitted)
+// but don't exercise the rules engine itself. Sent as "fields" with no
+// "preset": the server demotes the stored preset to custom on its own, so
+// these tests never send the now-refused preset value "custom" directly
+// (SIM-382: only video_or_website and video_website_code may be set that way).
+var titleOnlyEntryFields = map[string]string{
+	"problem": "optional", "tagline": "optional", "audience": "optional", "track": "optional",
+	"tools": "optional", "maturity": "optional", "description": "optional",
+	"video_url": "optional", "site": "optional", "code_url": "optional", "screenshot": "optional",
+}
+
 type hackEntryWorld struct {
 	a     *hackApp
 	slug  string
@@ -62,13 +75,14 @@ func newHackEntryWorld(t *testing.T) *hackEntryWorld {
 			t.Fatalf("join %s: %d %s", name, r.status, r.body)
 		}
 	}
-	// Entry rules: slice 1's "build" preset requires more than a title
+	// Entry rules: slice 1's default "video_or_website" preset requires more than a title
 	// (problem, tagline, audience, track, tools, maturity, plus a video or
 	// site). This world's tests exercise the title/tagline/etc fields and
 	// the submissions-closed flow, not the rules engine itself, so reset to
-	// a minimal custom rule set (title only, same as the old entry_required
-	// default) to keep their completeness assertions meaningful.
-	if r := a.at(t, "PUT", "/v1/hack/events/"+slug+"/entry-rules", map[string]any{"preset": "custom"}, a.key(org)); r.status != 200 {
+	// a minimal rule set via titleOnlyEntryFields (title only, same as the
+	// old entry_required default) to keep their completeness assertions
+	// meaningful.
+	if r := a.at(t, "PUT", "/v1/hack/events/"+slug+"/entry-rules", map[string]any{"fields": titleOnlyEntryFields}, a.key(org)); r.status != 200 {
 		t.Fatalf("entry rules: %d %s", r.status, r.body)
 	}
 	joinAs(p1, "Ada One", false)

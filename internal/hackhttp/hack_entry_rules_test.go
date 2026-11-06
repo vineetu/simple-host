@@ -35,7 +35,7 @@ type rulesWorld struct {
 	teams []rulesTeam
 }
 
-// newRulesWorld makes an event (default build preset, no tracks), an
+// newRulesWorld makes an event (default video_or_website preset, no tracks), an
 // organiser, a judge, and nTeams participants each already on their own
 // solo team.
 func newRulesWorld(t *testing.T, nTeams int) *rulesWorld {
@@ -83,7 +83,7 @@ func (w *rulesWorld) teamID(t *testing.T, slug string) string {
 	return id
 }
 
-// buildCompleteFields are the fields that satisfy the default "build"
+// buildCompleteFields are the fields that satisfy the default "video_or_website"
 // preset with no event tracks: everything required, plus video_url for the
 // one_of group.
 func buildCompleteFields() map[string]any {
@@ -471,26 +471,36 @@ func TestHackEntryRulesPresetsAndDryRun(t *testing.T) {
 	a := w.a
 	base := "/v1/hack/events/" + w.slug + "/entry-rules"
 
-	// A new event starts on the build preset, expanded.
+	// A new event starts on the video_or_website preset, expanded.
 	view := a.at(t, "GET", base, nil, a.key(w.org)).json(t)
 	fields := view["fields"].(map[string]any)
-	if view["preset"] != "build" || fields["audience"] != "required" || fields["code_url"] != "off" {
-		t.Fatalf("default build preset: %#v", view)
+	if view["preset"] != "video_or_website" || fields["audience"] != "required" || fields["code_url"] != "off" {
+		t.Fatalf("default video_or_website preset: %#v", view)
 	}
 
-	// Switching preset to "code" expands code's own table.
-	codeR := a.at(t, "PUT", base, map[string]any{"preset": "code"}, a.key(w.org))
+	// SIM-382: a removed preset (the three retired names, and custom) is
+	// refused when set directly, naming the two current ones.
+	for _, bad := range []string{"build", "code", "ideas", "custom"} {
+		r := a.at(t, "PUT", base, map[string]any{"preset": bad}, a.key(w.org))
+		if r.status != 400 || r.json(t)["code"] != "invalid_preset" {
+			t.Fatalf("preset %s should be refused: %d %s", bad, r.status, r.body)
+		}
+	}
+
+	// Switching preset to "video_website_code" expands its own table: all
+	// three show-your-work lines required, not one_of.
+	codeR := a.at(t, "PUT", base, map[string]any{"preset": "video_website_code"}, a.key(w.org))
 	if codeR.status != 200 {
-		t.Fatalf("preset code: %d %s", codeR.status, codeR.body)
+		t.Fatalf("preset video_website_code: %d %s", codeR.status, codeR.body)
 	}
 	cFields := codeR.json(t)["fields"].(map[string]any)
-	if codeR.json(t)["preset"] != "code" || cFields["audience"] != "optional" || cFields["code_url"] != "required" {
-		t.Fatalf("code preset: %#v", codeR.json(t))
+	if codeR.json(t)["preset"] != "video_website_code" || cFields["video_url"] != "required" || cFields["site"] != "required" || cFields["code_url"] != "required" {
+		t.Fatalf("video_website_code preset: %#v", codeR.json(t))
 	}
 
-	// Back to build, then a field override demotes the stored preset to custom.
-	if r := a.at(t, "PUT", base, map[string]any{"preset": "build"}, a.key(w.org)); r.status != 200 {
-		t.Fatalf("back to build: %d %s", r.status, r.body)
+	// Back to video_or_website, then a field override demotes the stored preset to custom.
+	if r := a.at(t, "PUT", base, map[string]any{"preset": "video_or_website"}, a.key(w.org)); r.status != 200 {
+		t.Fatalf("back to video_or_website: %d %s", r.status, r.body)
 	}
 	overR := a.at(t, "PUT", base, map[string]any{"fields": map[string]string{"screenshot": "required"}}, a.key(w.org))
 	if overR.status != 200 || overR.json(t)["preset"] != "custom" {
@@ -498,11 +508,11 @@ func TestHackEntryRulesPresetsAndDryRun(t *testing.T) {
 	}
 	oFields := overR.json(t)["fields"].(map[string]any)
 	if oFields["screenshot"] != "required" || oFields["audience"] != "required" {
-		t.Fatalf("override kept the rest of build: %#v", oFields)
+		t.Fatalf("override kept the rest of video_or_website: %#v", oFields)
 	}
 
 	// preset + a differing field in the same call also stores custom.
-	combo := a.at(t, "PUT", base, map[string]any{"preset": "build", "fields": map[string]string{"description": "required"}}, a.key(w.org))
+	combo := a.at(t, "PUT", base, map[string]any{"preset": "video_or_website", "fields": map[string]string{"description": "required"}}, a.key(w.org))
 	if combo.status != 200 || combo.json(t)["preset"] != "custom" {
 		t.Fatalf("preset+override -> custom: %d %#v", combo.status, combo.json(t))
 	}
@@ -558,8 +568,8 @@ func TestHackEntryRulesPresetsAndDryRun(t *testing.T) {
 	if r := a.at(t, "POST", "/v1/hack/events/"+w.slug+"/stage", map[string]string{"stage": "closed"}, a.key(w.org)); r.status != 200 {
 		t.Fatalf("close: %d %s", r.status, r.body)
 	}
-	wantCode(t, "closed non-dry-run", a.at(t, "PUT", base, map[string]any{"preset": "ideas"}, a.key(w.org)), 409, "entry_rules_closed")
-	wantCode(t, "closed dry run too", a.at(t, "PUT", base, map[string]any{"dry_run": true, "preset": "ideas"}, a.key(w.org)), 409, "entry_rules_closed")
+	wantCode(t, "closed non-dry-run", a.at(t, "PUT", base, map[string]any{"preset": "video_website_code"}, a.key(w.org)), 409, "entry_rules_closed")
+	wantCode(t, "closed dry run too", a.at(t, "PUT", base, map[string]any{"dry_run": true, "preset": "video_website_code"}, a.key(w.org)), 409, "entry_rules_closed")
 }
 
 // TestHackEntryRequiredAliasDeprecated: PATCH entry_required maps to
@@ -569,7 +579,7 @@ func TestHackEntryRequiredAliasDeprecated(t *testing.T) {
 	w := newRulesWorld(t, 0)
 	a := w.a
 
-	// Build preset leaves "screenshot" optional by default.
+	// The default video_or_website preset leaves "screenshot" optional.
 	before := a.at(t, "GET", "/v1/hack/events/"+w.slug+"/entry-rules", nil, a.key(w.org)).json(t)
 	if before["fields"].(map[string]any)["screenshot"] != "optional" {
 		t.Fatalf("precondition: %#v", before)
@@ -588,7 +598,7 @@ func TestHackEntryRequiredAliasDeprecated(t *testing.T) {
 	if fields["screenshot"] != "required" {
 		t.Fatalf("alias did not require screenshot: %#v", fields)
 	}
-	// Fields outside the legacy list are untouched (still build's values).
+	// Fields outside the legacy list are untouched (still video_or_website's values).
 	if fields["audience"] != "required" || fields["code_url"] != "off" {
 		t.Fatalf("alias touched a non-legacy field: %#v", fields)
 	}

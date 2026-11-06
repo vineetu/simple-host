@@ -1797,12 +1797,18 @@ CREATE INDEX IF NOT EXISTS event_entries_unsettled_idx
   ON event_entries (event_id) WHERE submitted_at IS NULL AND submit_settled_at IS NULL;
 
 ALTER TABLE events ADD COLUMN IF NOT EXISTS entry_preset text NOT NULL DEFAULT 'custom'
-      CHECK (entry_preset IN ('build', 'code', 'ideas', 'custom'));
+      CHECK (entry_preset IN ('build', 'code', 'ideas', 'custom', 'video_or_website', 'video_website_code'));
 ALTER TABLE events ADD COLUMN IF NOT EXISTS entry_rules jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS judge_first text NOT NULL DEFAULT 'video'
       CHECK (judge_first IN ('video', 'site'));
 -- A fresh install has no existing events to backfill; zv-hack-entry-summary.sql
 -- backfills entry_rules from entry_required on an existing database.
+
+-- 0005-hack-entry-rules-chosen.sql (SIM-382): whether an organiser has ever
+-- saved entry rules. DEFAULT true means a fresh install's rows (and every
+-- pre-existing event on a live database) count as already chosen; the
+-- create handler inserts a new event with this explicitly false.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS entry_rules_chosen boolean NOT NULL DEFAULT true;
 
 -- Paper metrics (SIM-335, 2026-10-31): aggregate-only numbers for the research
 -- papers on this deployment. No person, address, site name or path is stored.

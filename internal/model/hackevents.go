@@ -71,6 +71,15 @@ type Event struct {
 	EntryPreset string
 	EntryRules  []byte
 	JudgeFirst  string
+	// 0005-hack-entry-rules-chosen.sql (SIM-382): whether an organiser has
+	// ever saved entry rules on this event. New events start false, with
+	// the default preset's fields already in place (so entries can be
+	// filled before the organiser visits the setting) -- false only drives
+	// the Overview "Choose what teams hand in" first step. Every event
+	// that existed before this column was added counts as already chosen.
+	// Any real PutRules save (including saving the unchanged default) sets
+	// it true for good; it never goes back to false.
+	EntryRulesChosen bool
 	// 0003-hack-notices-judges-messages.sql: minutes before a deadline, 0..5
 	// entries each 15..20160, distinct, stored sorted descending. Drives both
 	// entry reminders (participants) and judging reminders (judges).

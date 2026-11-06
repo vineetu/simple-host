@@ -711,6 +711,16 @@ func TestHackNextStepEveryStage(t *testing.T) {
 	next := func() map[string]any {
 		return a.at(t, "GET", base, nil, a.key(org)).json(t)["next_step"].(map[string]any)
 	}
+	// SIM-382: a brand-new event's very first next_step is choosing entry
+	// rules, even though it is still on draft -- Open sign-up isn't
+	// offered until the organiser saves a choice (the default counts).
+	if n := next(); n["kind"] != "entry_rules" || n["stage"] != "" || n["label"] != "Choose what teams hand in" {
+		t.Fatalf("new event next_step should be entry_rules: %v", n)
+	}
+	wantCode(t, "save default entry rules", a.at(t, "PUT", base+"/entry-rules", map[string]any{"preset": "video_or_website"}, a.key(org)), 200, "")
+	if n := next(); n["kind"] != "stage" || n["stage"] != "open" {
+		t.Fatalf("saving the default preset should make the next step Open sign-up: %v", n)
+	}
 	cases := []struct {
 		stage, kind, nextStage, label string
 	}{

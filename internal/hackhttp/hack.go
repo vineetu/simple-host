@@ -1119,18 +1119,29 @@ func (h *HackHandler) memberProgressJSON(ctx context.Context, ev model.Event, me
 
 // nextStepJSON is the Overview's one forward move: the server computes it so
 // the website and AI apps agree (parity rule 2026-10-27). kind is "stage"
-// (set stage to the given stage), "publish_results" (POST .../results/publish
-// {}) or "none" (archived: no button). blocked is nil or
-// "archive_needs_participants" (End with nobody in the event): the button
-// still shows, disabled, pointing to Settings -> Delete. eventView adds cue
-// (hackScheduleCue): the schedule row that lines up with this move once its
-// time has come, or nil.
+// (set stage to the given stage), "entry_rules" (SIM-382: open the "What
+// teams hand in" setting on Entries; no stage change), "publish_results"
+// (POST .../results/publish {}) or "none" (archived: no button). blocked is
+// nil or "archive_needs_participants" (End with nobody in the event): the
+// button still shows, disabled, pointing to Settings -> Delete. eventView
+// adds cue (hackScheduleCue): the schedule row that lines up with this move
+// once its time has come, or nil.
 func nextStepJSON(ev model.Event, results entries.EventResultsRow, participants int) map[string]any {
 	step := func(stage, label string, deadlinePassed bool, blocked any) map[string]any {
 		return map[string]any{"kind": "stage", "stage": stage, "label": label, "deadline_passed": deadlinePassed, "blocked": blocked}
 	}
 	switch ev.Stage {
 	case "draft":
+		// SIM-382: a new event hasn't had its entry rules chosen yet (it
+		// already carries the default preset's fields, so teams could fill
+		// an entry before this -- EntryRulesChosen only gates this card).
+		// Once the organiser saves a choice, even the unchanged default,
+		// this step moves on to Open sign-up. An event that already had
+		// rules before this column existed starts out chosen (the
+		// migration backfills it true), so it never sees this step.
+		if !ev.EntryRulesChosen {
+			return map[string]any{"kind": "entry_rules", "stage": "", "label": "Choose what teams hand in", "deadline_passed": false, "blocked": nil}
+		}
 		return step("open", "Open sign-up", false, nil)
 	case "open":
 		return step("building", "Start building", false, nil)

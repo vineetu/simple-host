@@ -1065,9 +1065,12 @@
   function title(ctx) {
     return "Overview";
   }
-  function nextStepContent(ev, step, resultsHref, settingsHref) {
+  function nextStepContent(ev, step, resultsHref, settingsHref, entriesHref) {
     if (!step || step.kind === "none") {
       return { h2: "This event has ended", sentence: "The public page stays up as a record.", confirmBody: "", button: null };
+    }
+    if (step.kind === "entry_rules") {
+      return { h2: step.label, sentence: "Video or website is already selected on Entries. Change it there if you\u2019d rather require a code link too.", button: step.label, navHref: entriesHref };
     }
     if (step.kind === "publish_results") {
       return {
@@ -1126,8 +1129,9 @@
     const archived = ev.stage === "archived";
     const resultsHref = href("organiser", ev.slug, "results");
     const settingsHref = href("organiser", ev.slug, "settings");
+    const entriesHandInHref = href("organiser", ev.slug, "entries") + "#handin";
     const step = data.next_step || { kind: "none" };
-    const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref));
+    const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref), entriesHandInHref);
     const cue = content.button && !content.blocked ? cueHeading(ui, ev, step) : "";
     if (cue) {
       content.h2 = cue;
@@ -1272,6 +1276,10 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
     const nextMoveBtn = $("ov-next-move");
     if (nextMoveBtn && !content.blocked) {
       nextMoveBtn.addEventListener("click", async () => {
+        if (content.navHref) {
+          ctx.go(content.navHref);
+          return;
+        }
         if (content.isEnd) {
           await runEndFromNext();
           return;

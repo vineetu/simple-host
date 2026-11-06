@@ -25264,7 +25264,7 @@
         ],
         "operationId": "putHackEntryRules",
         "summary": "Set entry rules (organiser) (EVENTS=hosted only)",
-        "description": "Choose a preset (build, code, ideas or custom) and/or set individual fields; judge_first picks which evidence judges see first. Setting a field that differs from the active preset's own table demotes the stored preset to custom. dry_run:true returns impact and preview without saving anything (HackEntryRulesImpact instead of HackEntryRulesView). Tightening never un-submits an already-submitted entry. Refused with 409 entry_rules_closed once entries have closed (Closed stage onward): rules are fixed so judging sees one definition of complete.",
+        "description": "Choose a preset (video_or_website, the default -- at least one of a video or a website; or video_website_code -- video, website and code link all required) and/or set individual fields; judge_first picks which evidence judges see first. Setting a field that differs from the active preset's own table demotes the stored preset to custom. An event already on an older preset (build, code, ideas or custom) keeps it and its saved values until a current preset is set or a field is changed; sending build, code, ideas or custom here is refused (400 invalid_preset) naming the two current ones. dry_run:true returns impact and preview without saving anything (HackEntryRulesImpact instead of HackEntryRulesView). Tightening never un-submits an already-submitted entry. Refused with 409 entry_rules_closed once entries have closed (Closed stage onward): rules are fixed so judging sees one definition of complete.",
         "security": [
           {
             "apiKey": []
@@ -38839,12 +38839,16 @@
             "type": "string",
             "enum": [
               "stage",
+              "entry_rules",
               "publish_results",
               "none"
-            ]
+            ],
+            "description": "entry_rules (SIM-382) is a draft event whose organiser hasn't saved entry rules yet: the button opens Entries' \"What teams hand in\" setting (PUT .../entry-rules), not a stage change. Saving any choice there, even the default, moves this to stage/open (\"Open sign-up\")."
           },
           "stage": {
-            "type": "string"
+            "type": "string",
+            "description": "Empty for entry_rules",
+            "publish_results or none.": null
           },
           "label": {
             "type": "string",
@@ -39556,6 +39560,8 @@
               "preset": {
                 "type": "string",
                 "enum": [
+                  "video_or_website",
+                  "video_website_code",
                   "build",
                   "code",
                   "ideas",
@@ -39930,11 +39936,16 @@
           "preset": {
             "type": "string",
             "enum": [
+              "video_or_website",
+              "video_website_code",
               "build",
               "code",
               "ideas",
               "custom"
-            ]
+            ],
+            "description": "video_or_website and video_website_code are the two current presets; build",
+            "code": null,
+            "ideas and custom are legacy values an older event may still carry.": null
           },
           "fields": {
             "type": "object",
@@ -39980,12 +39991,10 @@
           "preset": {
             "type": "string",
             "enum": [
-              "build",
-              "code",
-              "ideas",
-              "custom"
+              "video_or_website",
+              "video_website_code"
             ],
-            "description": "Expands to that preset's own field table first; any fields below are then applied on top. build = AI build, code = Coding, ideas = Ideas and design. Anything else is 400 invalid_preset."
+            "description": "Expands to that preset's own field table first; any fields below are then applied on top. video_or_website (the default): video and site one_of, code off. video_website_code: video, site and code all required. An older preset (build, code, ideas, custom) is refused with 400 invalid_preset naming these two -- an event already on one keeps it until a current preset is set here."
           },
           "fields": {
             "type": "object",
@@ -40060,6 +40069,8 @@
               "preset": {
                 "type": "string",
                 "enum": [
+                  "video_or_website",
+                  "video_website_code",
                   "build",
                   "code",
                   "ideas",

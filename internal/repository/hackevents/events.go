@@ -31,7 +31,7 @@ const EventColumns = `
 	entry_required, gallery_open,
 	judge_assignment_mode, judges_per_team, judging_locked_at, judging_lock_reason,
 	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding, applications_open, directory_listed,
-	entry_preset, entry_rules, judge_first, reminder_offsets, judging_ends_at`
+	entry_preset, entry_rules, judge_first, reminder_offsets, judging_ends_at, entry_rules_chosen`
 
 // ScanEventFields returns destinations in EventColumns order.
 func ScanEventFields(e *Event) []any {
@@ -45,7 +45,7 @@ func ScanEventFields(e *Event) []any {
 		pq.Array(&e.EntryRequired), &e.GalleryOpen,
 		&e.JudgeAssignmentMode, &e.JudgesPerTeam, &e.JudgingLockedAt, &e.JudgingLockReason,
 		&e.ScoreMode, &e.TieCriterionID, &e.PublicScores, &e.PublicRanks, &e.TeamFinding, &e.ApplicationsOpen, &e.DirectoryListed,
-		&e.EntryPreset, &e.EntryRules, &e.JudgeFirst, pq.Array(&e.ReminderOffsets), &e.JudgingEndsAt,
+		&e.EntryPreset, &e.EntryRules, &e.JudgeFirst, pq.Array(&e.ReminderOffsets), &e.JudgingEndsAt, &e.EntryRulesChosen,
 	}
 }
 
@@ -227,26 +227,30 @@ func InsertEventCreateLog(ctx context.Context, q sqlkit.Querier, userID string) 
 // InsertEvent writes a new events row. Unique violations on slug or codes are
 // returned as-is so the caller can retry codes or map a slug clash to name_taken.
 func InsertEvent(ctx context.Context, q sqlkit.Querier, e Event) (Event, error) {
-	// entry_preset/entry_rules: new events start on the AI-build preset (the
-	// create handler passes its expanded rules JSON; zv-hack-entry-summary.sql
-	// section 2 -- a Go table, not a DB default, so the preset's field list
-	// lives in one place, internal/rules/hackentries/entries.go).
+	// entry_preset/entry_rules: new events start on the "video or website"
+	// preset (the create handler passes its expanded rules JSON;
+	// zv-hack-entry-summary.sql section 2 -- a Go table, not a DB default,
+	// so the preset's field list lives in one place,
+	// internal/rules/hackentries/entries.go). entry_rules_chosen: the
+	// create handler passes false (0005-hack-entry-rules-chosen.sql,
+	// SIM-382) -- the organiser hasn't saved a choice yet, which is what
+	// gates Overview's "Choose what teams hand in" first step.
 	row := q.QueryRowContext(ctx, `
 		INSERT INTO events (
 			id, slug, account_id, created_by, title, stage,
 			organiser_name, organisation, contact_email, purpose, expected_participants,
 			tagline, about, rules, prizes, coc_text, time_zone, starts_at, ends_at,
-			team_size_max, join_code, judge_code, entry_preset, entry_rules
+			team_size_max, join_code, judge_code, entry_preset, entry_rules, entry_rules_chosen
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10, $11,
 			$12, $13, $14, $15, $16, $17, $18, $19,
-			$20, $21, $22, $23, $24
+			$20, $21, $22, $23, $24, $25
 		) RETURNING `+EventColumns,
 		e.ID, e.Slug, e.AccountID, e.CreatedBy, e.Title, e.Stage,
 		e.OrganiserName, e.Organisation, e.ContactEmail, e.Purpose, nullInt(e.ExpectedParticipants),
 		e.Tagline, e.About, e.Rules, e.Prizes, e.CocText, e.TimeZone, nullTime(e.StartsAt), nullTime(e.EndsAt),
-		e.TeamSizeMax, e.JoinCode, e.JudgeCode, e.EntryPreset, e.EntryRules,
+		e.TeamSizeMax, e.JoinCode, e.JudgeCode, e.EntryPreset, e.EntryRules, e.EntryRulesChosen,
 	)
 	out, err := ScanEvent(row)
 	if err != nil && isUniqueViolation(err) {

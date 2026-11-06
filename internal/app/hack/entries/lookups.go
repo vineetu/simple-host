@@ -77,6 +77,7 @@ var (
 	LoadRules      = hackentries.LoadRules
 	MissingMessage = hackentries.MissingMessage
 	PresetKnown    = hackentries.PresetKnown
+	PresetSettable = hackentries.PresetSettable
 	RulesEditable  = hackentries.RulesEditable
 	RulesSummary   = hackentries.RulesSummary
 	ValidateRubric = hackentries.ValidateRubric

@@ -105,6 +105,15 @@ func TestEntryRulesSummary(t *testing.T) {
 	if got := RulesSummary(ExpandPreset("ideas")); got != "a video or a published website or a screenshot" {
 		t.Fatalf("ideas summary = %q", got)
 	}
+	// SIM-382's two current presets.
+	if got := RulesSummary(ExpandPreset("video_or_website")); got != "a video or a published website" {
+		t.Fatalf("video_or_website summary = %q", got)
+	}
+	// video_url, site and code_url are all "required", not "one_of", so
+	// there is no one_of group to name -- only the code link reads.
+	if got := RulesSummary(ExpandPreset("video_website_code")); got != "your code link" {
+		t.Fatalf("video_website_code summary = %q", got)
+	}
 	// Every evidence field off: nothing to show.
 	off := NormaliseRules(map[string]string{"video_url": "off", "site": "off", "code_url": "off", "screenshot": "off"})
 	if got := RulesSummary(off); got != "" {
@@ -164,5 +173,75 @@ func TestNormaliseEntryRulesDropsBad(t *testing.T) {
 	}
 	if nilOut["title"] != "required" {
 		t.Fatalf("nil input title = %q", nilOut["title"])
+	}
+}
+
+// TestEvaluateEntryCurrentPresets: SIM-382's two presets -- video_or_website
+// (the default, video/site one_of, code off) and video_website_code (all
+// three required, not one_of).
+func TestEvaluateEntryCurrentPresets(t *testing.T) {
+	full := model.EventEntry{
+		Title: "T", Problem: "P", Tagline: "Tag", Audience: "Aud",
+		Tools: []string{"Go"}, Maturity: "working", VideoURL: "https://example.com/v",
+	}
+	cases := []struct {
+		name     string
+		preset   string
+		e        model.EventEntry
+		siteLive bool
+		complete bool
+		missing  []string
+	}{
+		{"video_or_website complete via video", "video_or_website", full, false, true, nil},
+		{"video_or_website one_of satisfied by site instead of video", "video_or_website",
+			model.EventEntry{Title: "T", Problem: "P", Tagline: "Tag", Audience: "Aud", Tools: []string{"Go"}, Maturity: "working"},
+			true, true, nil},
+		{"video_or_website one_of unmet: no video, no live site", "video_or_website",
+			model.EventEntry{Title: "T", Problem: "P", Tagline: "Tag", Audience: "Aud", Tools: []string{"Go"}, Maturity: "working"},
+			false, false, []string{"one_of"}},
+		{"video_website_code: video alone is not enough, code and site also required", "video_website_code",
+			full, false, false, []string{"site", "code_url"}},
+		{"video_website_code: all three present, site live", "video_website_code",
+			model.EventEntry{Title: "T", Problem: "P", Tagline: "Tag", Audience: "Aud", Tools: []string{"Go"}, Maturity: "working", VideoURL: "https://example.com/v", CodeURL: "https://example.com/c"},
+			true, true, nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fields := ExpandPreset(c.preset)
+			got := Evaluate(fields, c.e, c.siteLive, false, nil)
+			if got.Complete != c.complete {
+				t.Fatalf("complete = %v, want %v (missing %v)", got.Complete, c.complete, got.Missing)
+			}
+			if !slices.Equal(got.Missing, c.missing) && !(len(got.Missing) == 0 && len(c.missing) == 0) {
+				t.Fatalf("missing = %v, want %v", got.Missing, c.missing)
+			}
+		})
+	}
+}
+
+// TestPresetSettable: only the two current presets may be set going
+// forward; a legacy preset (still a valid stored/evaluated value via
+// PresetKnown) is not settable (SIM-382).
+func TestPresetSettable(t *testing.T) {
+	for _, p := range []string{"video_or_website", "video_website_code"} {
+		if !PresetSettable(p) {
+			t.Fatalf("%s should be settable", p)
+		}
+		if !PresetKnown(p) {
+			t.Fatalf("%s should be known", p)
+		}
+	}
+	for _, p := range []string{"build", "code", "ideas", "custom", "nonsense"} {
+		if PresetSettable(p) {
+			t.Fatalf("%s should not be settable", p)
+		}
+	}
+	for _, p := range []string{"build", "code", "ideas", "custom"} {
+		if !PresetKnown(p) {
+			t.Fatalf("%s should still be a known (legacy) stored value", p)
+		}
+	}
+	if PresetKnown("nonsense") {
+		t.Fatalf("nonsense should not be known")
 	}
 }

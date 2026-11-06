@@ -1,5 +1,9 @@
 [
  {
+  "date": "2026-11-06",
+  "what": "SIM-382 (owner): the entry-rules preset picker narrows to two -- Video or website (the default) and Video, website and code link; AI build, Coding, Ideas and design and Custom drop out of the picker (an event already on one keeps its own rules). organiser-overview gains a new first step for a brand-new event, 'Choose what teams hand in' (next_step.kind entry_rules), before Open sign-up is offered; saving any choice, even the default, moves it on. Prototype: organiser-entries(~empty, ~confirm), organiser-overview~entry-rules (new)."
+ },
+ {
   "date": "2026-11-05",
   "what": "Owner: there is exactly one way to connect an AI app, the MCP address; Get started drops every plugin, plugin-ZIP and connector-directory mention. Account gained a Connect your AI app card (address, Claude/ChatGPT/Claude Code steps, link to other apps, GET /v1/me/connections status); the old AI apps note said there was nothing to set up here, now there is. The Website screen's publish card gained a Claude Code tab. Prototype: account, participant-website(~unpublished, ~connected)."
  },

@@ -628,8 +628,13 @@
    ],
    "states": [
     {
+     "name": "Choose what teams hand in (SIM-382)",
+     "when": "stage draft, entry rules not yet chosen (every new event)",
+     "shows": "next step 'Choose what teams hand in' -- Video or website is already selected on Entries, change it there if you'd rather require a code link too -- with the one button 'Choose what teams hand in', which opens Entries' handin card (no confirm, nothing saved by clicking it). Saving any choice there, even the unchanged default, moves the next step on to Open sign-up. An event that already had rules before this shipped is already chosen and never sees this state."
+    },
+    {
      "name": "Not open yet",
-     "when": "stage draft",
+     "when": "stage draft, entry rules already chosen",
      "shows": "next step 'Open sign-up when your page is ready' with Open sign-up"
     },
     {
@@ -746,6 +751,11 @@
      "why": "Owner, 2026-10-31: 'One main button that moves the event forward. And let the Change stage be there on top.' The card's sentence explains the button, so it needs no other buttons."
     },
     {
+     "q": "SIM-382: where does \"choose entry rules\" fit into Draft -> Open sign-up?",
+     "decision": "It's a step before that move, not part of it: a brand-new event's next step is 'Choose what teams hand in' (next_step.kind entry_rules), and its button navigates to Entries' handin card instead of calling the stage API -- no confirm, since nothing is saved by clicking it. Once the organiser saves a choice there, even the unchanged default, the next step becomes the ordinary Draft -> Open sign-up move above.",
+     "why": "Owner, 2026-11-05/06: every new event should ask what teams hand in before sign-up opens, but the asking itself isn't a stage move and has nothing to confirm -- only the save on Entries does."
+    },
+    {
      "q": "How do Judging, the lock and Results fit into one button?",
      "decision": "Moving to Results now locks judging on the server, in the same transaction, when it is not locked yet. So Judging has one forward move (Finish judging), Results has Publish results, and publishing never meets an unlocked event at Results. Unlocking stays on the Judging screen. Going back from Results to Judging with Change stage leaves the lock on, and the picker says so: 'Judging stays locked. Unlock it on Judging to let judges score again.'",
      "why": "Results already stops scoring (scoringStage), so the lock only records what the stage already means. Without it the Results screen refused to publish an unlocked event, a dead end the one button would walk straight into."
@@ -790,6 +800,7 @@
     "view-event-stats",
     "replay-organiser-walkthrough",
     "view-as-platform-admin",
+    "entry-rules-first-step",
     "move-event-forward",
     "warn-teams-without-track",
     "schedule-row-prompt",
@@ -807,6 +818,12 @@
      "name": "Applications waiting",
      "stage": "building",
      "next": "Entries close in 2 days · Sun 6:00 pm"
+    },
+    {
+     "slug": "entry-rules",
+     "name": "New event: Choose what teams hand in (SIM-382)",
+     "stage": "draft",
+     "next": "Not open yet"
     },
     {
      "slug": "draft",
@@ -877,7 +894,14 @@
    ],
    "next_step_map": [
     {
-     "when": "Not open yet (draft)",
+     "when": "Choose what teams hand in (draft, entry rules not yet chosen -- SIM-382)",
+     "h2": "Choose what teams hand in",
+     "sentence": "Video or website is already selected on Entries. Change it there if you'd rather require a code link too.",
+     "button": "Choose what teams hand in",
+     "does": "navigates to Entries' handin card (?s=entries#handin); no API call, no confirm"
+    },
+    {
+     "when": "Not open yet (draft, entry rules chosen)",
      "h2": "Open sign-up when your page is ready",
      "sentence": "People can join with your link and apply, and judges can use their invite link.",
      "button": "Open sign-up",
@@ -2331,7 +2355,7 @@
    "user_moment": "Amara checks which teams haven't finished their entry with two hours left before the deadline.",
    "purpose": "See who's ready at a glance, set the deadline, say what teams hand in, give extensions, and open any entry.",
    "primary_action": "Set the deadline and what teams hand in.",
-   "layout": "Four .stat tiles (submitted, drafts, not started, sites live). Deadline card. What teams hand in: three preset choice cards (AI build, Coding, Ideas and design), then rows per line with a Required / Optional / Off segmented control (the show-your-work lines also have One of), a help line explaining One of, Judges see after the card: Video | Website, Save. Extensions. Entries list with a status pill per team (Submitted, Draft, Not started, Not submitted) and what's missing. Export.",
+   "layout": "Four .stat tiles (submitted, drafts, not started, sites live). Deadline card. What teams hand in (SIM-382): two preset choice cards (Video or website, Video, website and code link), then rows per line with a Required / Optional / Off segmented control (the show-your-work lines also have One of), a help line explaining One of, Judges see after the card: Video | Website, Save. An event already on a retired preset (AI build, Coding, Ideas and design, Custom) shows its own lines with neither card selected. Extensions. Entries list with a status pill per team (Submitted, Draft, Not started, Not submitted) and what's missing. Export.",
    "sections": [
     {
      "name": "Counts",
@@ -2362,7 +2386,7 @@
     {
      "name": "What teams hand in",
      "contents": [
-      "Presets: AI build -- Teams build with AI or no-code tools. Video or website. / Coding -- Adds a required code link. Judges open the website first. / Ideas and design -- No build needed. Video, website or a screenshot.",
+      "Presets (SIM-382): Video or website (the default) -- at least one of a demo video or a website. / Video, website and code link -- all three required, judges open the website first.",
       "Summary card: Project name (always Required) · Problem · Solution · Who it's for · Track (when the event has tracks) · Tools and AI · What works today -- each Required / Optional / Off",
       "Show your work: Video link · Website · Code link · Screenshot -- each Required / One of / Optional / Off",
       "One of: teams need at least one of the lines marked One of. Here: a video or a website.",
@@ -2433,7 +2457,7 @@
     {
      "name": "before any entries",
      "when": "stage Draft or Open with no entries started",
-     "shows": "Tiles at 0 (not started = number of teams); the list reads 'No entries yet. They show up here once teams start filling theirs in.' Presets are fully editable, AI build preselected for a new event."
+     "shows": "Tiles at 0 (not started = number of teams); the list reads 'No entries yet. They show up here once teams start filling theirs in.' Presets are fully editable, Video or website preselected for a new event (SIM-382)."
     },
     {
      "name": "tightening a rule",
@@ -2443,7 +2467,12 @@
     {
      "name": "custom",
      "when": "any line differs from the chosen preset",
-     "shows": "The chosen preset card reads 'Custom (from AI build)'; choosing a preset again resets every line after a confirm."
+     "shows": "The chosen preset card reads 'Custom (from Video or website)'; choosing a preset again resets every line after a confirm."
+    },
+    {
+     "name": "an older preset (SIM-382)",
+     "when": "the event is still on a retired preset (AI build, Coding, Ideas and design, Custom) and hasn't switched",
+     "shows": "Its own lines show as always, with neither of the two current preset cards selected. Setting a retired preset directly (REST/MCP) is refused, naming the two current ones; the website doesn't offer that option in the first place."
     },
     {
      "name": "entries closed",
@@ -2480,12 +2509,12 @@
     },
     {
      "q": "What do the presets set?",
-     "decision": "AI build (default for new events): everything on the card Required, Video and Website One of, Code Off, Screenshot Optional, Video first. Coding: card Required except Who it's for Optional, Code link Required, Video and Website One of, Screenshot Optional, Website first. Ideas and design: Problem, Solution, Who it's for and Track Required, Tools and Works today Optional, Video, Website and Screenshot One of, Code Off, Video first. Title is always Required; Track is ignored when the event has no tracks.",
-     "why": "Matches the audit's three event kinds and the owner's examples; a coding event is where the code link earns its place, and an ideas event shouldn't demand a working build."
+     "decision": "SIM-382 (owner, 2026-11-05/06), replacing the original three: Video or website (the default): everything on the card Required, Video and Website One of, Code Off, Screenshot Optional, Video first. Video, website and code link: everything on the card Required, Video, Website and Code link all Required (not One of), Screenshot Optional, Website first. Title is always Required; Track is ignored when the event has no tracks. The three retired presets (AI build, Coding, Ideas and design) and Custom keep their old tables for an event already on one -- they're simply no longer offered to pick.",
+     "why": "Owner: the real choice organisers care about is what evidence teams must show, not the three original event-kind labels; two clear options beat three overlapping ones plus an implicit fourth (Custom)."
     },
     {
      "q": "What happens to existing events?",
-     "decision": "The migration turns each event's entry_required list into a Custom rule set (those lines Required, every new line Optional, no One-of), with Video first. New events start on AI build.",
+     "decision": "Kept exactly as they were (SIM-382): an event already on a retired preset keeps its rules and saved values, shown on Entries with neither current preset card selected; it switches only if the organiser picks Video or website or Video, website and code link. Historically, the migration had turned each pre-existing event's entry_required list into a Custom rule set (those lines Required, every new line Optional, no One-of), with Video first, and new events started on AI build; new events now start on Video or website instead, not yet chosen (entry_rules_chosen false) until the organiser saves on Entries.",
      "why": "Existing events keep exactly what they asked for; only the Submit step is new to them. No real events exist yet (owner, 2026-10-31), so the conservative mapping costs nothing."
     },
     {
@@ -3490,7 +3519,7 @@
       "1 d 6 h 12 m left · Your team closes Sun 8 Nov, 20:00 WIB, 2 hours after everyone else",
       "1 Join or start a team -- On SheBuilds with Ayu and Dian. (ticked)",
       "2 Fill in the summary card -- All 7 lines filled. / 5 of 7 filled: add who it's for and tools and AI. (The project name always counts, so the total never changes mid-edit; full-test fix 2026-11-02.)",
-      "3 Add a video or publish your website -- sentence from the event's rule (Coding: 'Add your code link, and a video or your website').",
+      "3 Add a video or publish your website -- sentence from the event's rule (the Video, website and code link preset: 'Add your code link').",
       "4 Submit before the deadline -- Then the judges can see it. You can still change it after."
      ],
      "actions": [
@@ -3589,7 +3618,7 @@
     {
      "name": "on a team, work not shown yet",
      "when": "summary complete, the One-of or Required media rule unmet",
-     "shows": "Next step 'Add a video or publish your website' with Publish your website (to Website) and Add a video link (to Entry). Coding events: 'Add your code link, and a video or your website'."
+     "shows": "Next step 'Add a video or publish your website' with Publish your website (to Website) and Add a video link (to Entry). Video, website and code link events: 'Add your code link'."
     },
     {
      "name": "ready, not submitted",
@@ -5476,7 +5505,7 @@
    "user_moment": "Pak Budi judges remotely from home, 30 teams in an evening: a 20-second read, a 2-minute video, a look at the live site, scores, next. Sometimes on his phone.",
    "purpose": "One screen per team: the summary card first, then the video, then the live site, with the rubric and score chips beside it and a fast Save and next.",
    "primary_action": "Save & next.",
-   "layout": "kit .focus. Left (scrolls): back to My teams and 'Team 4 of 6', the entry summary card as the page header (name, team, track pill, problem, solution, for, tools and AI tags, works today), then the two media blocks in the event's order (Video first by default, Website first for Coding): Video is a .media block with the host named and a click-to-load player for YouTube, Vimeo, Loom and Drive (a large host-named link for anything else); Website is a .media block with the host, Open in a new tab and a framed 520px preview of the submitted (pinned) version. Then the code link when the event asks for one, and More detail from the team folded. Right (fixed): progress bar 'n of m scored', Rubric and brief link, each criterion with its weight and 0-10 chips that save on tap, the comment, the conflict button, and the sticky foot: Previous, Save and next, and the N / P key hint.",
+   "layout": "kit .focus. Left (scrolls): back to My teams and 'Team 4 of 6', the entry summary card as the page header (name, team, track pill, problem, solution, for, tools and AI tags, works today), then the two media blocks in the event's order (Video first by default, Website first for the Video, website and code link preset): Video is a .media block with the host named and a click-to-load player for YouTube, Vimeo, Loom and Drive (a large host-named link for anything else); Website is a .media block with the host, Open in a new tab and a framed 520px preview of the submitted (pinned) version. Then the code link when the event asks for one, and More detail from the team folded. Right (fixed): progress bar 'n of m scored', Rubric and brief link, each criterion with its weight and 0-10 chips that save on tap, the comment, the conflict button, and the sticky foot: Previous, Save and next, and the N / P key hint.",
    "sections": [
     {
      "name": "Summary card",
@@ -5571,7 +5600,7 @@
     },
     {
      "name": "website first",
-     "when": "the event's judge_first is site (Coding preset default)",
+     "when": "the event's judge_first is site (the Video, website and code link preset's default)",
      "shows": "Website preview first, then a Code block (host named, Open), then the video."
     },
     {
@@ -5635,7 +5664,7 @@
     },
     {
      "q": "In what order does a judge see an entry?",
-     "decision": "Card, then the event's first medium (Video by default, Website for the Coding preset), then the other, then code and More detail. The organiser chooses Video or Website first in Entries; the card is always first.",
+     "decision": "Card, then the event's first medium (Video by default, Website for the Video, website and code link preset), then the other, then code and More detail. The organiser chooses Video or Website first in Entries; the card is always first.",
      "why": "Owner: 'Judges see it first, then the video if there is one, then the website. Website and video can be interchangeable. A coding hackathon can be different.'"
     },
     {
@@ -5696,7 +5725,7 @@
     },
     {
      "slug": "site-first",
-     "name": "Coding event: website first",
+     "name": "Video, website and code link event: website first",
      "stage": "judging",
      "next": "Scoring is open · 3 of 6 done"
     },

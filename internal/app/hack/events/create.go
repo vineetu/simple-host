@@ -94,11 +94,16 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 				TeamSizeMax:          teamSize,
 				JoinCode:             joinCode,
 				JudgeCode:            judgeCode,
-				// New events start on the AI-build preset (section 2); a Go
-				// table, not a DB default, so the preset's field list lives
-				// in one place (rules/hackentries).
-				EntryPreset: "build",
-				EntryRules:  hackentries.MarshalRules(hackentries.ExpandPreset("build")),
+				// New events start on the "video or website" preset
+				// (section 2); a Go table, not a DB default, so the
+				// preset's field list lives in one place
+				// (rules/hackentries). EntryRulesChosen false until the
+				// organiser saves a choice on Entries (SIM-382,
+				// 0005-hack-entry-rules-chosen.sql) -- that's what gates
+				// Overview's "Choose what teams hand in" first step.
+				EntryPreset:      "video_or_website",
+				EntryRules:       hackentries.MarshalRules(hackentries.ExpandPreset("video_or_website")),
+				EntryRulesChosen: false,
 			})
 			return ierr
 		})

@@ -105,8 +105,8 @@ func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
 	if !decodeHackJSON(w, r, &req) {
 		return
 	}
-	if req.Preset != nil && !entries.PresetKnown(*req.Preset) {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_preset", "preset must be build, code, ideas or custom")
+	if req.Preset != nil && !entries.PresetSettable(*req.Preset) {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_preset", "preset must be video_or_website or video_website_code")
 		return
 	}
 	if req.JudgeFirst != nil && *req.JudgeFirst != "video" && *req.JudgeFirst != "site" {

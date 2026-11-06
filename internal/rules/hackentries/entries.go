@@ -26,21 +26,37 @@ type EntryRules struct {
 	Fields map[string]string `json:"fields"`
 }
 
-// Presets is the Go table PUT .../entry-rules {preset} expands, and
-// what a newly created event starts on ("build"). The atlas
-// (docs/ux-atlas/spec.json, organiser-entries, "What do the presets set?")
-// is the spec:
-//   - AI build: everything on the card Required, Video and Website One of,
-//     Code Off, Screenshot Optional, video first.
-//   - Coding: the card Required except Who it's for, Code link Required,
-//     Video and Website One of, Screenshot Optional, website first.
-//   - Ideas and design: Problem, Solution, Who it's for and Track Required,
-//     Tools and Works today Optional, Video, Website and Screenshot One of,
-//     Code Off, video first.
+// Presets is the Go table PUT .../entry-rules {preset} expands, and what a
+// newly created event starts on ("video_or_website"). SIM-382 (owner,
+// 2026-11-05/06) narrowed the organiser's choice to exactly two presets,
+// both naming what teams hand in:
+//   - Video or website (the default): everything on the card Required,
+//     Video and Website One of, Code Off, Screenshot Optional, video first.
+//   - Video, website and code link: everything on the card Required,
+//     Video, Website and Code link all Required (not One of), Screenshot
+//     Optional, website first.
 //
-// Description is Optional in all three. Title is always Required, and
-// Track is ignored when the event has no tracks.
+// Description is Optional in both. Title is always Required, and Track is
+// ignored when the event has no tracks.
+//
+// "build", "code" and "ideas" (AI build, Coding, Ideas and design) stay
+// here, unreachable from PresetSettable: an event already on one of them
+// (or on "custom") keeps working exactly as before -- LoadRules/ExpandPreset
+// still expand it -- but PutRules refuses to set any of the four again
+// (section below), so the website and the connector only ever offer the
+// two current presets.
 var Presets = map[string]map[string]string{
+	"video_or_website": {
+		"title": "required", "problem": "required", "tagline": "required",
+		"audience": "required", "track": "required", "tools": "required", "maturity": "required",
+		"description": "optional", "video_url": "one_of", "site": "one_of", "code_url": "off", "screenshot": "optional",
+	},
+	"video_website_code": {
+		"title": "required", "problem": "required", "tagline": "required",
+		"audience": "required", "track": "required", "tools": "required", "maturity": "required",
+		"description": "optional", "video_url": "required", "site": "required", "code_url": "required", "screenshot": "optional",
+	},
+	// Legacy, read-only from PutRules's point of view (see PresetSettable):
 	"build": {
 		"title": "required", "problem": "required", "tagline": "required",
 		"audience": "required", "track": "required", "tools": "required", "maturity": "required",
@@ -60,15 +76,31 @@ var Presets = map[string]map[string]string{
 
 // PresetJudgeFirst is which evidence judges see first for each preset,
 // applied when an organiser picks the preset without naming judge_first.
-var PresetJudgeFirst = map[string]string{"build": "video", "code": "site", "ideas": "video"}
+var PresetJudgeFirst = map[string]string{
+	"video_or_website": "video", "video_website_code": "site",
+	"build": "video", "code": "site", "ideas": "video",
+}
 
 // PresetOrder is the presets an organiser can pick, in display order.
-var PresetOrder = []string{"build", "code", "ideas"}
+var PresetOrder = []string{"video_or_website", "video_website_code"}
 
-// PresetKnown reports whether a preset name is supported.
+// PresetKnown reports whether a preset name is a supported stored value:
+// the two current presets, a legacy one an older event may still carry, or
+// "custom". Use this for reading/evaluating a stored event; use
+// PresetSettable to decide whether a PUT may set it.
 func PresetKnown(preset string) bool {
 	_, ok := Presets[preset]
 	return ok || preset == "custom"
+}
+
+// PresetSettable reports whether an organiser (or the connector) may set
+// this preset going forward: only the two current ones. "build", "code",
+// "ideas" and "custom" are refused by PutRules with a message naming the
+// two (SIM-382) -- an event already on one of them keeps it until the
+// organiser switches to a current preset or edits a field, which demotes
+// it to "custom" as before.
+func PresetSettable(preset string) bool {
+	return preset == "video_or_website" || preset == "video_website_code"
 }
 
 // ExpandPreset is Presets[preset] normalised to every field, title

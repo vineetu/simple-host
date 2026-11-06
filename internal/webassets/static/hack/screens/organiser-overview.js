@@ -23,9 +23,16 @@ export function title(ctx) { return 'Overview' }
 // the confirm's heads-up, using the exact copy spec.json's
 // `organiser-overview.next_step_map` and prototype states give for each
 // (kind, stage, deadline_passed, blocked) combination.
-function nextStepContent(ev, step, resultsHref, settingsHref) {
+function nextStepContent(ev, step, resultsHref, settingsHref, entriesHref) {
   if (!step || step.kind === 'none') {
     return { h2: 'This event has ended', sentence: 'The public page stays up as a record.', confirmBody: '', button: null }
+  }
+  // SIM-382: a brand-new event's first step, before Open sign-up is even
+  // offered -- no stage change, just the organiser's choice of preset.
+  // The button navigates to Entries' "What teams hand in" card instead of
+  // calling the stage API, so it needs no confirm.
+  if (step.kind === 'entry_rules') {
+    return { h2: step.label, sentence: 'Video or website is already selected on Entries. Change it there if you’d rather require a code link too.', button: step.label, navHref: entriesHref }
   }
   if (step.kind === 'publish_results') {
     return {
@@ -92,9 +99,10 @@ export async function render(ctx) {
   const archived = ev.stage === 'archived'
   const resultsHref = href('organiser', ev.slug, 'results')
   const settingsHref = href('organiser', ev.slug, 'settings')
+  const entriesHandInHref = href('organiser', ev.slug, 'entries') + '#handin'
 
   const step = data.next_step || { kind: 'none' }
-  const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref))
+  const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref), entriesHandInHref)
   // A schedule that acts (owner, 2026-11-02): when a schedule row lining up
   // with this move has come (next_step.cue, computed by the server), the
   // heading asks, e.g. "Kickoff is now. Open sign-up?". It only asks. The
@@ -299,6 +307,9 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
   const nextMoveBtn = $('ov-next-move')
   if (nextMoveBtn && !content.blocked) {
     nextMoveBtn.addEventListener('click', async () => {
+      // SIM-382: entry_rules just opens Entries' "What teams hand in"
+      // card -- nothing to call, nothing to confirm.
+      if (content.navHref) { ctx.go(content.navHref); return }
       // End event, offered as the one next step (results already
       // published): the exact same danger confirm as the danger-zone
       // button, never the generic heads-up confirm.

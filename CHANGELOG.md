@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-06: Simple Hack's entry-rules picker narrows to two presets: "Video or website" (the default — at least one of a demo video or a website) and "Video, website and code link" (all three required). AI build, Coding, Ideas and design and the Custom option are gone from Entries and from `hack_set_entry_rules`; setting any of them now fails with a message naming the two current presets. An event already on one of the old presets keeps its own rules and values exactly as before, with the two current presets offered to switch to. A new event's Overview now opens on "Choose what teams hand in" as its first step, with "Video or website" already selected; saving a choice — even the unchanged default — moves the next step on to "Open sign-up". Events that already had rules skip this step. Migration: `0005-hack-entry-rules-chosen.sql` adds `events.entry_rules_chosen` (SIM-382).
+
 2026-11-06: MCP refusals that the AgentCat error review found landing in the generic "tool_error" bucket (site-not-found, site-private, site-locked and passcode-locked on the visitor tools, `create_site`'s Recently-deleted refusal, and `run_tool`'s unknown-tool refusal) now carry their real code and an actionable hint. `storage_*` tools and the visitor tools now accept each other's word for a saved-data resource (`resource`/`name`), and `find_tools`/the page-recipe tools accept a plausible synonym (`task`/`query`, `kind`/`topic`), without changing the advertised tool schema; an unexpected argument that is not one of those aliases now names the fields the tool actually takes. `storage_sql_query`, `storage_sql_execute` and `storage_sql_schema` now say upfront that PRAGMA is not available and to use `SELECT name, sql FROM sqlite_schema` (SIM-359).
 
 2026-11-06: An AI app that cached an older copy of a tool's output schema no longer reports a successful call as failed when the result gains a new field; `hack_create_event` hit this after `judging_ends_at` was added. Schemas stay strict in the tests, and the copy sent to apps accepts extra fields. A new test checks every Simple Hack tool's real output against its schema (SIM-384).
@@ -407,7 +409,6 @@ deploy and publishing the template. No migrations.
 ## 2026-10-16: Enterprise film
 
 - /enterprise opens with a 55-second film in the owner's voice on why a company needs Simple Host Enterprise: everyone's own address, who can see each site, readable addresses, no server code, and about five cents a person a month. Same player as the home page: nothing plays until the visitor clicks, and then it plays with sound.
-
 
 ## 2026-10-15: Simple Hack standalone v0.8.9
 
