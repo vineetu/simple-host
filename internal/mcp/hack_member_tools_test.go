@@ -111,6 +111,14 @@ func TestHackMemberToolsForwardREST(t *testing.T) {
 			if out.Structured["rest"] != "same" || out.Structured["role"] != "participant" {
 				t.Fatalf("REST response changed: %v", out.Structured)
 			}
+			// SIM-384: every hack_* tool's real output is checked against its
+			// own declared outputSchema, strictly (additionalProperties: false
+			// as authored). memberTool's schema is deliberately open, so this
+			// mainly guards against a future tool here switching to a closed,
+			// structured schema without a matching run() shape.
+			if err := ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
+				t.Fatalf("%s: structuredContent does not match its outputSchema: %v", tc.name, err)
+			}
 			if tc.body == nil {
 				if len(gotBody) != 0 {
 					t.Fatalf("unexpected body %s", gotBody)
@@ -168,9 +176,15 @@ func TestHackMemberRESTErrorsAndScreenshot(t *testing.T) {
 	if err != nil || got.Structured["base64"] != base64.StdEncoding.EncodeToString([]byte("png")) || got.Structured["content_type"] != "image/png" {
 		t.Fatalf("screenshot read: %v %v", got, err)
 	}
+	if err := ValidateOutput(byName["hack_get_entry_screenshot"].OutputSchema, got.Structured, nil); err != nil {
+		t.Fatalf("hack_get_entry_screenshot: structuredContent does not match its outputSchema: %v", err)
+	}
 	got, err = byName["hack_set_entry_screenshot"].run(c, map[string]any{"slug": "spring", "base64": base64.StdEncoding.EncodeToString([]byte("png"))})
 	if err != nil || got.Structured["saved"] != true {
 		t.Fatalf("screenshot upload: %v %v", got, err)
+	}
+	if err := ValidateOutput(byName["hack_set_entry_screenshot"].OutputSchema, got.Structured, nil); err != nil {
+		t.Fatalf("hack_set_entry_screenshot: structuredContent does not match its outputSchema: %v", err)
 	}
 	_, err = byName["hack_set_entry_screenshot"].run(c, map[string]any{"slug": "spring", "base64": "bad!"})
 	if err == nil || !strings.Contains(err.Error(), "base64") {

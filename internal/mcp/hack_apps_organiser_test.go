@@ -341,6 +341,8 @@ func TestHackShowOrganiserRunPerView(t *testing.T) {
 		return s.hackByName["hack_show_organiser"].run(call, args)
 	}
 
+	schema := s.hackByName["hack_show_organiser"].OutputSchema
+
 	for _, view := range []string{"overview", "people", "judging"} {
 		out, err := run(map[string]any{"view": view, "slug": "mockjam"})
 		if err != nil {
@@ -348,6 +350,11 @@ func TestHackShowOrganiserRunPerView(t *testing.T) {
 		}
 		if out.Structured["view"] != view || out.Structured["slug"] != "mockjam" {
 			t.Fatalf("%s structured content: %#v", view, out.Structured)
+		}
+		// SIM-384: real output checked against its own declared outputSchema
+		// in strict mode (additionalProperties: false as authored).
+		if err := ValidateOutput(schema, out.Structured, nil); err != nil {
+			t.Fatalf("%s: structuredContent does not match outputSchema: %v", view, err)
 		}
 		event, ok := out.Structured["event"].(map[string]any)
 		if !ok || event["title"] != "Mock Jam" {

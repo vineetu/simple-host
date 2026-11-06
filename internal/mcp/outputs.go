@@ -13,6 +13,21 @@ package mcp
 // Error results (isError: true) carry no structuredContent, so they are not
 // held to these schemas. TestOutputSchemasMatchRealResults (internal/handler)
 // drives every tool against the real application and validates its output.
+//
+// additionalProperties: false is what lets a schema catch a tool that starts
+// returning a field it never declared -- exactly what every test above does,
+// against the schema as authored here. It is also, unhelpfully, what makes a
+// schema brittle for a real client: a client that cached an older copy of a
+// tool's outputSchema and validates its own results against it will reject a
+// later, purely additive field as a failure even though the call succeeded
+// (SIM-384: hack_create_event grew judging_ends_at and a cached client
+// rejected the create it had just made). The fix is not to stop authoring
+// closed schemas -- that is still what catches drift in tests -- but to open
+// them only on the copy a client actually sees: Tool.MarshalJSON
+// (tools.go) runs every OutputSchema through openOutputSchemaForWire before
+// it goes out in tools/list, turning every additionalProperties: false into
+// true, recursively. A test that reads tool.OutputSchema directly (every
+// test in this package) still sees the authored, closed map.
 
 func outObject(properties map[string]any, required ...string) map[string]any {
 	schema := map[string]any{"type": "object", "properties": properties, "additionalProperties": false}
@@ -20,6 +35,45 @@ func outObject(properties map[string]any, required ...string) map[string]any {
 		schema["required"] = required
 	}
 	return schema
+}
+
+// openOutputSchemaForWire returns a deep copy of schema with every
+// additionalProperties: false opened to true, at every nesting level, so a
+// client holding an older cached copy of this outputSchema never turns a
+// later, additive field into a rejected call (SIM-384). See the package
+// comment above. Only Tool.MarshalJSON calls this, so nothing in this
+// package or internal/handler that validates against tool.OutputSchema
+// directly is affected; those keep checking the schema as authored.
+func openOutputSchemaForWire(schema map[string]any) map[string]any {
+	if schema == nil {
+		return nil
+	}
+	out := make(map[string]any, len(schema))
+	for k, v := range schema {
+		if k == "additionalProperties" {
+			if closed, ok := v.(bool); ok && !closed {
+				out[k] = true
+				continue
+			}
+		}
+		out[k] = openSchemaValueForWire(v)
+	}
+	return out
+}
+
+func openSchemaValueForWire(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		return openOutputSchemaForWire(t)
+	case []any:
+		out := make([]any, len(t))
+		for i, e := range t {
+			out[i] = openSchemaValueForWire(e)
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 // pageWarningsSchema describes deploySite's page checks (pagecheck.go).

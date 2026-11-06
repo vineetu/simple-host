@@ -304,6 +304,8 @@ func TestHackShowJudgeRunPerView(t *testing.T) {
 		return s.hackByName["hack_show_judge"].run(call, args)
 	}
 
+	schema := s.hackByName["hack_show_judge"].OutputSchema
+
 	out, err := run(map[string]any{"view": "invite", "code": "invite-code"})
 	if err != nil {
 		t.Fatalf("invite: %v", err)
@@ -314,6 +316,12 @@ func TestHackShowJudgeRunPerView(t *testing.T) {
 	if out.Text == "" {
 		t.Fatal("invite: empty text summary")
 	}
+	// SIM-384: every hack_* tool's real output, checked against its own
+	// declared outputSchema in strict mode (additionalProperties: false as
+	// authored, outputs.go).
+	if err := ValidateOutput(schema, out.Structured, nil); err != nil {
+		t.Fatalf("invite: structuredContent does not match outputSchema: %v", err)
+	}
 
 	for _, view := range []string{"queue", "score", "rubric"} {
 		out, err := run(map[string]any{"view": view, "slug": "mockjam"})
@@ -322,6 +330,9 @@ func TestHackShowJudgeRunPerView(t *testing.T) {
 		}
 		if out.Structured["view"] != view || out.Structured["slug"] != "mockjam" {
 			t.Fatalf("%s structured content: %#v", view, out.Structured)
+		}
+		if err := ValidateOutput(schema, out.Structured, nil); err != nil {
+			t.Fatalf("%s: structuredContent does not match outputSchema: %v", view, err)
 		}
 		event, ok := out.Structured["event"].(map[string]any)
 		if !ok || event["scoring_open"] != true {
@@ -359,6 +370,9 @@ func TestHackShowJudgeRunPerView(t *testing.T) {
 	}
 	if out.Structured["team_id"] != "team-1" {
 		t.Fatalf("team_id not passed through: %#v", out.Structured)
+	}
+	if err := ValidateOutput(schema, out.Structured, nil); err != nil {
+		t.Fatalf("score+team_id: structuredContent does not match outputSchema: %v", err)
 	}
 
 	if _, err := run(map[string]any{"view": "bogus"}); err == nil {

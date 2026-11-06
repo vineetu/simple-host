@@ -150,6 +150,7 @@ func TestHackAppOnlyTwinsContentCarriesNoPersonalData(t *testing.T) {
 		{"hack_app_get_applications", map[string]any{"slug": "mockjam"}, []string{"MARKER-EMAIL-2", "MARKER-JUDGE-NAME", "MARKER-CITY", "MARKER-QUESTION", "MARKER-ANSWER"}},
 		{"hack_app_get_registration", map[string]any{"slug": "mockjam"}, []string{"MARKER-QUESTION"}},
 		{"hack_app_get_rubric", map[string]any{"slug": "mockjam"}, []string{"MARKER-CRITERION"}},
+		{"hack_app_get_judging_settings", map[string]any{"slug": "mockjam"}, nil},
 		{"hack_app_get_conflicts", map[string]any{"slug": "mockjam"}, []string{"MARKER-JUDGE-NAME", "MARKER-TEAM-NAME"}},
 		// Emails are omitted here by hack_get_teams' own existing
 		// minimisation unless include_emails is passed (hack_results.go's
@@ -170,6 +171,15 @@ func TestHackAppOnlyTwinsContentCarriesNoPersonalData(t *testing.T) {
 			out := runAppOnlyTool(t, s, tc.tool, tc.args)
 			if out.Text == "" {
 				t.Fatalf("%s: empty text summary", tc.tool)
+			}
+			// SIM-384: every hack_* tool's real output, checked against its
+			// own declared outputSchema in strict mode (additionalProperties:
+			// false as authored, outputs.go) -- the class of bug where an
+			// added field breaks a client that cached an older schema can
+			// only recur in the wire copy; the authored one here must still
+			// agree with what the tool actually sends.
+			if err := ValidateOutput(s.hackByName[tc.tool].OutputSchema, out.Structured, nil); err != nil {
+				t.Fatalf("%s: structuredContent does not match outputSchema: %v", tc.tool, err)
 			}
 			structuredJSON, err := json.Marshal(out.Structured)
 			if err != nil {
