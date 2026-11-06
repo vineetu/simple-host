@@ -1,3 +1,5 @@
+import { eventBoundaryIsDateOnly, eventBoundaryDate } from '../ui.js'
+
 // Public page reached at /e/{slug}/apply, signed in or not -- "Apply to a
 // hackathon" (owner, 2026-10-31). Mirrors public-join.js's shape: a
 // stand-alone screen (no event/role shell, since there is none until the
@@ -82,6 +84,9 @@ function dateParts(iso, zone) {
   } catch { return null }
 }
 function dateRangeStr(startsAt, endsAt, zone) {
+  if ((startsAt && !eventBoundaryIsDateOnly(startsAt, zone)) || (endsAt && !eventBoundaryIsDateOnly(endsAt, zone, true))) {
+    return [eventBoundaryDate(startsAt, zone), eventBoundaryDate(endsAt, zone, true)].filter(Boolean).join(' – ')
+  }
   const a = startsAt ? dateParts(startsAt, zone) : null
   const b = endsAt ? dateParts(endsAt, zone) : null
   if (!a && !b) return ''

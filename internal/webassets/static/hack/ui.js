@@ -63,24 +63,35 @@ export function dateTime(value, event, options = {}) {
 export function dateOnly(value, event) {
   return dateTime(value, event, { dateOnly: true })
 }
+// Event boundaries use minute precision, like the schedule pickers.
+export const eventBoundaryDefault = end => end ? '23:59' : '00:00'
+export function eventBoundaryIsDateOnly(value, event, end = false) {
+  return localInputValue(value, event).slice(11) === eventBoundaryDefault(end)
+}
+export function eventBoundaryInput(value, event, end = false) {
+  const local = localInputValue(value, event)
+  return { date: local.slice(0, 10), time: eventBoundaryIsDateOnly(value, event, end) ? '' : local.slice(11) }
+}
+export function eventBoundaryValue(date, time, end = false) {
+  return date ? date + 'T' + (time || eventBoundaryDefault(end)) : ''
+}
+export function eventBoundaryDate(value, event, end = false) {
+  return dateTime(value, event, { dateOnly: eventBoundaryIsDateOnly(value, event, end) })
+}
 // True when an instant falls exactly on midnight in the event's zone: Basics
-// saves start and end as dates only, stored as that midnight.
+// uses this for a date-only start.
 export function isLocalMidnight(value, event) {
   const p = zonedParts(value, typeof event === 'string' ? event : event?.time_zone)
   return !!p && p.h === '00' && p.min === '00'
 }
-// The next of start, entry deadline and end still ahead, as
-// [label, value, dateOnly]. A date-only start or end (local midnight) shows
-// as a date with no "12:00 am", and a date-only end lasts the whole of that
-// day, so it stays "next" until the day is over (full-test fix 2026-11-02).
+// The next event boundary or entry deadline, as [label, value, dateOnly].
 export function nextDeadline(event) {
   const now = Date.now()
-  const day = 24 * 60 * 60 * 1000
   return [['Starts', event?.starts_at], ['Entries close', event?.submission_deadline], ['Ends', event?.ends_at]]
     .filter(([, value]) => value && !Number.isNaN(new Date(value).getTime()))
     .map(([label, value]) => {
-      const dateOnly = label !== 'Entries close' && isLocalMidnight(value, event)
-      const until = new Date(value).getTime() + (label === 'Ends' && dateOnly ? day : 0)
+      const dateOnly = label !== 'Entries close' && eventBoundaryIsDateOnly(value, event, label === 'Ends')
+      const until = new Date(value).getTime()
       return [label, value, dateOnly, until]
     })
     .filter(r => r[3] > now).sort((a, b) => a[3] - b[3])

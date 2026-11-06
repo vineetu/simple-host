@@ -1078,7 +1078,7 @@
      "contents": [
       "Title (required, up to 120)",
       "Tagline (optional, up to 160, counter shown) -- help: 'One line under the title. Link previews in WhatsApp show it too.'",
-      "Starts and Ends (dates) and Time zone on one row on desktop; on a phone the two dates sit side by side and Time zone takes the next row",
+      "Starts and Ends (each a date and time pair, using the schedule pickers) and Time zone on one row on desktop; on a phone each pair and Time zone takes the full width. Empty Starts time saves 00:00; empty Ends time saves 23:59 in the event zone",
       "Time zone is a select of IANA zones showing the abbreviation and offset (Asia/Jakarta · WIB, UTC+7) -- help: 'Every deadline and schedule time shows in this zone.'",
       "Card foot: status on the left ('No unsaved changes' / 'Unsaved changes' in amber), Discard (quiet, only with changes) and Save (primary, disabled until something changes)"
      ],
@@ -1377,7 +1377,7 @@
     "Announcements, a live-event feed, no longer sit between Schedule and Sponsors in a page editor (see organiser-announcements).",
     "Kept from the retest round: old #section links still land on the right tab; the read-only state after End; the contentError guard so a failed load never overwrites sponsors/FAQ/schedule with empty lists; Saved shown after a Basics save."
    ],
-   "phone": "No organiser tab bar (unchanged). The sub-nav becomes a row of tabs that scrolls sideways under the page title, the current one underlined in red and scrolled into view, a soft edge fade on whichever side still has more tabs to scroll to so the strip never just looks cut off (prod full test, 2026-11-02; shared .subnav style, same fix on Teams and a participant's Team tabs). 'View public page' is hidden (the address in the subtitle is the same link). Forms are single column except the two dates, which sit side by side. A long form's foot (About) is pinned to the bottom of the screen with Save full width. List rows hide the grip and the Edit label: the row opens Edit, the 44px … button holds Move up, Move down and Remove. Dialogs rise from the bottom as sheets with full-width Cancel and primary.",
+   "phone": "No organiser tab bar (unchanged). The sub-nav becomes a row of tabs that scrolls sideways under the page title, the current one underlined in red and scrolled into view, a soft edge fade on whichever side still has more tabs to scroll to so the strip never just looks cut off (prod full test, 2026-11-02; shared .subnav style, same fix on Teams and a participant's Team tabs). 'View public page' is hidden (the address in the subtitle is the same link). Forms are single column; each date-and-time pair takes the full width. A long form's foot (About) is pinned to the bottom of the screen with Save full width. List rows hide the grip and the Edit label: the row opens Edit, the 44px … button holds Move up, Move down and Remove. Dialogs rise from the bottom as sheets with full-width Cancel and primary.",
    "decisions": [
     {
      "q": "One long page with a jump nav, or one sub-page at a time?",
@@ -1457,7 +1457,7 @@
     {
      "q": "Do the event's dates prompt anything?",
      "decision": "A start or end with a time of day does (start asks to Start building, end asks to Close entries when there is no entry deadline). A date with no time shows as 'All day' and prompts nothing.",
-     "why": "Basics saves dates only, so most events start at midnight on paper. Prompting at midnight would be noise."
+     "why": "Basics accepts dates and times. Empty times mean 00:00 for Starts and 23:59 for Ends; these default times display as dates only."
     }
    ],
    "features": [

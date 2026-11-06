@@ -56,7 +56,8 @@
 </footer>
 
 </div>
-<script>
+<script type="module">
+import { eventBoundaryIsDateOnly, eventBoundaryDate } from '/hack/ui.js';
   (function () {
     // #15/A7: matches ui.js's ui.initials -- only count a "word" that has an
     // actual letter or number, so a separator like "Mock · Voting" doesn't
@@ -100,6 +101,9 @@
       } catch (_) { return null; }
     }
     function dateRange(startsAt, endsAt, zone) {
+      if ((startsAt && !eventBoundaryIsDateOnly(startsAt, zone)) || (endsAt && !eventBoundaryIsDateOnly(endsAt, zone, true))) {
+        return [eventBoundaryDate(startsAt, zone), eventBoundaryDate(endsAt, zone, true)].filter(Boolean).join(' – ');
+      }
       var a = startsAt ? dateParts(startsAt, zone) : null;
       var b = endsAt ? dateParts(endsAt, zone) : null;
       if (!a && !b) return '';

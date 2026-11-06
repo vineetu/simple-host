@@ -1,5 +1,7 @@
 # PARITY — Simple Host (hosted) and Simple Host Enterprise
 
+2026-11-06: SIM-379 adds Simple Hack Basics start/end time pickers and event-zone time displays. Enterprise has no hackathon UI; REST/MCP stay unchanged.
+
 2026-11-06: Simple Hack's entry-rules preset picker narrows from four (AI build, Coding, Ideas and design, Custom) to two (Video or website; Video, website and code link), and a new event's Overview gains a "Choose what teams hand in" first step (`events.entry_rules_chosen`, `db/migrations/0005-hack-entry-rules-chosen.sql`) (SIM-382). Hosted hackathon-only; Enterprise has no hackathon UI, so no parity action is needed.
 
 2026-11-06 coded refusals and argument aliases (SIM-359): in this repo, `internal/mcp` error-code

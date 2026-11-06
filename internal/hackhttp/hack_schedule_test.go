@@ -170,7 +170,7 @@ func TestHackScheduleViewsMergesFixedRows(t *testing.T) {
 		{Title: "Demos", StartAt: "2027-03-14T16:00:00Z", EndAt: "2027-03-14T17:00:00Z"},
 	}
 	p.Fixed = []hackFixedRow{
-		{Key: "event_end", Title: "Event ends", StartAt: "2027-03-14T00:00:00Z", AllDay: true, Fixed: true},
+		{Key: "event_end", Title: "Event ends", StartAt: "2027-03-14T23:59:00Z", Fixed: true},
 		{Key: "entry_deadline", Title: "Entries due", StartAt: "2027-03-14T15:00:00Z", Fixed: true},
 	}
 	body := renderHackEvent(t, p).Body.String()

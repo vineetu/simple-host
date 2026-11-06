@@ -180,7 +180,7 @@ func TestHackEventPageDatesInEventZone(t *testing.T) {
 	p := testHackEvent()
 	rec := renderHackEvent(t, p)
 	body := rec.Body.String()
-	for _, want := range []string{`<span class="f">12–14 March 2027</span>`, `<span class="f">times in GMT</span>`} {
+	for _, want := range []string{`<span class="f">Fri 12 Mar 2027, 10:00 am – Sun 14 Mar 2027, 6:00 pm</span>`, `<span class="f">times in GMT</span>`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("dates: want %q in body", want)
 		}
@@ -188,7 +188,7 @@ func TestHackEventPageDatesInEventZone(t *testing.T) {
 
 	p.EndsAt = time.Time{}
 	body = renderHackEvent(t, p).Body.String()
-	if !strings.Contains(body, `<span class="f">12 March 2027</span>`) {
+	if !strings.Contains(body, `<span class="f">Fri 12 Mar 2027, 10:00 am</span>`) {
 		t.Error("start-only date missing")
 	}
 
@@ -210,7 +210,7 @@ func TestHackEventPageBadZoneFallsBackToUTC(t *testing.T) {
 		t.Fatalf("bad zone status %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{`<span class="f">12–14 March 2027</span>`, `<span class="f">times in UTC</span>`} {
+	for _, want := range []string{`<span class="f">Fri 12 Mar 2027, 10:00 am – Sun 14 Mar 2027, 6:00 pm</span>`, `<span class="f">times in UTC</span>`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("bad zone: want %q in body", want)
 		}
@@ -1384,3 +1384,38 @@ const dashHrefBaselineJS = `      // "Your sites" goes straight to the account's
         return /^[a-z0-9-]+$/.test(h) ? '{{.Base}}/' + h : dashHref;
       };
 `
+
+// SIM-379: public-page dates and fixed rows follow Basics' event-zone defaults.
+func TestHackEventBoundaryTimes(t *testing.T) {
+	loc, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ name, start, end, want string }{
+		{"defaults", "2027-03-11T18:30:00Z", "2027-03-14T18:29:00Z", "12–14 March 2027"},
+		{"timed", "2027-03-12T13:00:00Z", "2027-03-14T14:45:00Z", "Fri 12 Mar 2027, 6:30 pm – Sun 14 Mar 2027, 8:15 pm"},
+		{"midnight end is explicit", "", "2027-03-13T18:30:00Z", "Sun 14 Mar 2027, 12:00 am"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			start, _ := time.Parse(time.RFC3339, tc.start)
+			end, _ := time.Parse(time.RFC3339, tc.end)
+			if got := hackEventDateRange(start, end, loc); got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+	for _, tc := range []struct{ key, stamp, want string }{
+		{"event_start", "2027-03-11T18:30:00Z", "Fri 12 Mar"},
+		{"event_end", "2027-03-12T18:29:00Z", "Fri 12 Mar"},
+		{"event_end", "2027-03-11T18:30:00Z", "Fri 12 Mar, 12:00 am IST"},
+		{"event_start", "2027-03-12T13:00:00Z", "Fri 12 Mar, 6:30 pm IST"},
+	} {
+		rows := hackScheduleViews(nil, []hackFixedRow{{Key: tc.key, StartAt: tc.stamp}}, loc, "Asia/Kolkata")
+		if len(rows) != 1 {
+			t.Fatalf("rows: %+v", rows)
+		}
+		if rows[0].When != tc.want {
+			t.Errorf("%s %s: got %q, want %q", tc.key, tc.stamp, rows[0].When, tc.want)
+		}
+	}
+}

@@ -1216,7 +1216,7 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
   .field.inline{grid-template-columns:minmax(0,1fr)}
   .field.inline > *{grid-column:1}
   .field-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--field-gap) 10px}
-  .field-row > .field.grow,.field-row > .field:has(input[type=datetime-local]){grid-column:1 / -1}
+  .field-row > .field.grow,.field-row > .field:has(input[type=datetime-local]),.field-row > .field:has(.dt-pair){grid-column:1 / -1}
   .field-row input[type=date].input{width:100%;max-width:none}
   .field-row .select{width:100%;min-width:0}
   .form-actions .btn.primary{flex:1 1 auto}

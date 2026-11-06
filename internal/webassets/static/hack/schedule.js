@@ -8,6 +8,7 @@
 // in 12 minutes", "Build time is on now") and words the organiser's next-step
 // cue. Nothing here ever moves a stage: the schedule only prompts.
 import { href } from './nav.js'
+import { eventBoundaryIsDateOnly } from './ui.js'
 
 // The forward moves a row may prompt, with the next-step button's own words
 // (hack_schedule.go hackScheduleMoves). Ending the event is left out.
@@ -34,16 +35,9 @@ export function setInLink(setIn, slug) {
 const ms = iso => new Date(iso).getTime()
 const valid = iso => !!iso && !Number.isNaN(ms(iso))
 
-// A date-only event end runs to the end of its day, so it sorts after the
-// day's other rows.
-function sortAt(r) {
-  const t = ms(r.start_at)
-  return r.all_day && r.key === 'event_end' ? t + 86399000 : t
-}
-
 // One list, in time order. Editable rows keep a reference to the stored
 // object (`src`) so an edit or remove finds it by identity.
-export function merge(schedule, fixed) {
+export function merge(schedule, fixed, event) {
   const rows = []
   for (const it of schedule || []) {
     if (!valid(it.start_at)) continue
@@ -51,9 +45,10 @@ export function merge(schedule, fixed) {
   }
   for (const it of fixed || []) {
     if (!valid(it.start_at)) continue
-    rows.push({ ...it, fixed: true })
+    const boundary = it.key === 'event_start' || it.key === 'event_end'
+    rows.push({ ...it, fixed: true, ...(boundary && event ? { all_day: eventBoundaryIsDateOnly(it.start_at, event, it.key === 'event_end') } : {}) })
   }
-  return rows.sort((a, b) => sortAt(a) - sortAt(b))
+  return rows.sort((a, b) => ms(a.start_at) - ms(b.start_at))
 }
 
 // Now: a row with a window that contains this moment. Next: the first row

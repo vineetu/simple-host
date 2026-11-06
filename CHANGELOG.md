@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-06: Simple Hack Event Basics lets organisers set start and end times with the schedule pickers. Empty times mean the start or end of the day; event dates show a time only when one is set (SIM-379).
+
 2026-11-06: Simple Hack entries have two presets: "Video or website" (the default; a demo video or a website) and "Video, website and code link" (all three). The other presets and the custom option are gone from Entries and from `hack_set_entry_rules`; events already set up keep their rules. On a new event, Overview's first step is "Choose what teams hand in", then "Open sign-up" (SIM-382).
 
 2026-11-06: MCP refusals that the AgentCat error review found landing in the generic "tool_error" bucket (site-not-found, site-private, site-locked and passcode-locked on the visitor tools, `create_site`'s Recently-deleted refusal, and `run_tool`'s unknown-tool refusal) now carry their real code and an actionable hint. `storage_*` tools and the visitor tools now accept each other's word for a saved-data resource (`resource`/`name`), and `find_tools`/the page-recipe tools accept a plausible synonym (`task`/`query`, `kind`/`topic`), without changing the advertised tool schema; an unexpected argument that is not one of those aliases now names the fields the tool actually takes. `storage_sql_query`, `storage_sql_execute` and `storage_sql_schema` now say upfront that PRAGMA is not available and to use `SELECT name, sql FROM sqlite_schema` (SIM-359).

@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-11-06",
+  "what": "SIM-379: Event Basics reuses the schedule date and time pickers. Empty times mean 00:00 for Starts and 23:59 for Ends in the event zone. Each pair fills the phone width. Event dates show a time only when it differs from these defaults."
+ },
+ {
+  "date": "2026-11-06",
   "what": "SIM-382 (owner): the entry-rules preset picker narrows to two -- Video or website (the default) and Video, website and code link; AI build, Coding, Ideas and design and Custom drop out of the picker (an event already on one keeps its own rules). organiser-overview gains a new first step for a brand-new event, 'Choose what teams hand in' (next_step.kind entry_rules), before Open sign-up is offered; saving any choice, even the default, moves it on. Prototype: organiser-entries(~empty, ~confirm), organiser-overview~entry-rules (new)."
  },
  {

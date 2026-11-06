@@ -272,10 +272,17 @@ export async function render(ctx) {
   })
 }
 
+function dateTimeField(ui, prefix, label, date, time, { dateID = prefix + '-date', fieldID = '' } = {}) {
+  const name = label === 'Starts' ? 'Start' : 'End'
+  return `<div class="field"${fieldID ? ` id="${fieldID}"` : ''}><span class="lab" id="${prefix}-l">${label}</span><div class="dt-pair" role="group" aria-labelledby="${prefix}-l"><input class="input" type="date" aria-label="${name} date" id="${dateID}" value="${ui.esc(date)}"><input class="input" type="time" aria-label="${name} time" id="${prefix}-time" value="${ui.esc(time)}"></div></div>`
+}
+
 // ---------------------------------------------------------------- Basics
 function renderBasics({ ctx, sp, ui, api, ev, locked, ended, path, setLive }) {
   const $ = id => sp.querySelector('#' + id)
-  const snapshot = { title: ev.title, tagline: ev.tagline || '', starts: ui.localInputValue(ev.starts_at, ev.time_zone, { dateOnly: true }), ends: ui.localInputValue(ev.ends_at, ev.time_zone, { dateOnly: true }), tz: ev.time_zone }
+  const start = ui.eventBoundaryInput(ev.starts_at, ev)
+  const end = ui.eventBoundaryInput(ev.ends_at, ev, true)
+  const snapshot = { title: ev.title, tagline: ev.tagline || '', starts: start.date, startTime: start.time, ends: end.date, endTime: end.time, tz: ev.time_zone }
 
   // R4/decision 2026-10-31: Basics stays editable after End (the server's
   // PATCH only ever blocks submission_deadline once archived -- title,
@@ -285,7 +292,7 @@ function renderBasics({ ctx, sp, ui, api, ev, locked, ended, path, setLive }) {
   if (locked) {
     sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">Basics</h2><p>The name, tagline and dates at the top of your page.</p></div>
 ${customSiteNote(true)}
-<div class="card"><dl><dt>Title</dt><dd>${ui.esc(ev.title)}</dd><dt>Tagline</dt><dd>${ui.esc(ev.tagline || '—')}</dd><dt>Starts</dt><dd>${ui.esc(ui.dateOnly(ev.starts_at, ev))}</dd><dt>Ends</dt><dd>${ui.esc(ui.dateOnly(ev.ends_at, ev))}</dd><dt>Time zone</dt><dd>${ui.esc(ev.time_zone)}</dd></dl></div>`
+<div class="card"><dl><dt>Title</dt><dd>${ui.esc(ev.title)}</dd><dt>Tagline</dt><dd>${ui.esc(ev.tagline || '—')}</dd><dt>Starts</dt><dd>${ui.esc(ui.eventBoundaryDate(ev.starts_at, ev))}</dd><dt>Ends</dt><dd>${ui.esc(ui.eventBoundaryDate(ev.ends_at, ev, true))}</dd><dt>Time zone</dt><dd>${ui.esc(ev.time_zone)}</dd></dl></div>`
     return
   }
 
@@ -296,8 +303,8 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
 <div class="field"><label for="f-title">Title</label><input class="input" id="f-title" maxlength="120" value="${ui.esc(ev.title)}"></div>
 <div class="field"><div class="lab-row"><label for="f-tag">Tagline</label><span class="opt">Optional</span><span class="counter" id="f-tag-ct">${(ev.tagline || '').length} / 160</span></div><input class="input" id="f-tag" maxlength="160" value="${ui.esc(ev.tagline || '')}"><p class="help">One line under the title. Link previews in WhatsApp show it too.</p></div>
 <div class="field-row">
-<div class="field"><label for="f-start">Starts</label><input class="input" id="f-start" type="date" value="${ui.esc(snapshot.starts)}"></div>
-<div class="field"><label for="f-end">Ends</label><input class="input" id="f-end" type="date" value="${ui.esc(snapshot.ends)}"></div>
+${dateTimeField(ui, 'f-start', 'Starts', snapshot.starts, snapshot.startTime, { dateID: 'f-start' })}
+${dateTimeField(ui, 'f-end', 'Ends', snapshot.ends, snapshot.endTime, { dateID: 'f-end' })}
 <div class="field grow"><label for="f-tz">Time zone</label><select class="select" id="f-tz">${zoneOptions(ui, ev.time_zone).map(z => `<option value="${ui.esc(z.zone)}"${z.zone === ev.time_zone ? ' selected' : ''}>${ui.esc(z.label)}</option>`).join('')}</select><p class="help">Every deadline and schedule time shows in this zone.</p></div>
 </div>
 <div class="card-foot"><span class="hint" id="f-hint">No unsaved changes</span><button class="btn quiet" type="button" id="f-discard" hidden>Discard</button><button class="btn primary" type="button" id="f-save" disabled>Save</button></div>
@@ -305,7 +312,7 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
 
   function isDirty() {
     return $('f-title').value !== snapshot.title || $('f-tag').value !== snapshot.tagline ||
-      $('f-start').value !== snapshot.starts || $('f-end').value !== snapshot.ends || $('f-tz').value !== snapshot.tz
+      $('f-start').value !== snapshot.starts || $('f-end').value !== snapshot.ends || $('f-tz').value !== snapshot.tz || $('f-start-time').value !== snapshot.startTime || $('f-end-time').value !== snapshot.endTime
   }
   function paintDirty() {
     const dirty = isDirty()
@@ -314,10 +321,11 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
     $('f-discard').hidden = !dirty
     $('f-save').disabled = !dirty
   }
-  ;['f-title', 'f-tag', 'f-start', 'f-end', 'f-tz'].forEach(id => $(id).addEventListener('input', paintDirty))
+  ;['f-title', 'f-tag', 'f-start', 'f-end', 'f-tz', 'f-start-time', 'f-end-time'].forEach(id => $(id).addEventListener('input', paintDirty))
   $('f-tag').addEventListener('input', () => { $('f-tag-ct').textContent = $('f-tag').value.length + ' / 160' })
   $('f-discard').addEventListener('click', () => {
     $('f-title').value = snapshot.title; $('f-tag').value = snapshot.tagline; $('f-start').value = snapshot.starts; $('f-end').value = snapshot.ends; $('f-tz').value = snapshot.tz
+    $('f-start-time').value = snapshot.startTime; $('f-end-time').value = snapshot.endTime
     $('f-tag-ct').textContent = snapshot.tagline.length + ' / 160'
     paintDirty()
   })
@@ -325,26 +333,12 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
     const btn = $('f-save'); btn.disabled = true
     try {
       const body = { title: $('f-title').value, tagline: $('f-tag').value, time_zone: $('f-tz').value }
-      // R24: the date <input> only ever carries a date. Sending it bare had
-      // the server store midnight, wiping whatever time-of-day the event's
-      // starts_at/ends_at already carried (set once from the API or an MCP
-      // tool, say). When the date itself didn't change, the field is left
-      // out of the request entirely instead -- the server's own PATCH
-      // reanchors an omitted starts_at/ends_at to the same wall-clock
-      // reading under a new time zone (hack.go), which also fixes a
-      // time-zone-only save that used to silently skip that reanchor
-      // because Basics always sent both fields regardless. When the date
-      // DID change, the existing wall-clock time of day is kept and only
-      // the date part moves, composed as "YYYY-MM-DDTHH:MM" -- the same
-      // wall-clock-in-event-zone format parseEventTime already accepts.
-      if ($('f-start').value !== snapshot.starts) {
-        const v = $('f-start').value
-        body.starts_at = v ? v + 'T' + (ui.localInputValue(ev.starts_at, ev.time_zone).slice(11) || '00:00') : ''
+      // Omitted boundaries retain the server's time-zone-only reanchoring.
+      if ($('f-start').value !== snapshot.starts || $('f-start-time').value !== snapshot.startTime) {
+        body.starts_at = ui.eventBoundaryValue($('f-start').value, $('f-start-time').value)
       }
-      if ($('f-end').value !== snapshot.ends) {
-        // An emptied field clears the date (the server treats '' as clear).
-        const v = $('f-end').value
-        body.ends_at = v ? v + 'T' + (ui.localInputValue(ev.ends_at, ev.time_zone).slice(11) || '00:00') : ''
+      if ($('f-end').value !== snapshot.ends || $('f-end-time').value !== snapshot.endTime) {
+        body.ends_at = ui.eventBoundaryValue($('f-end').value, $('f-end-time').value, true)
       }
       const r = await api('PATCH', path, body)
       if (!r.ok) { setLive(ui.errText(r), 'err', btn); paintDirty(); return }
@@ -431,7 +425,7 @@ function endedReadOnlyNote(what) { return `<div class="note">This event has ende
 const LOCK_ICON = '<svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="9" width="10" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/></svg>'
 function renderSchedule({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive }) {
   const readOnly = locked || ended // decision: Schedule (unlike Basics/About/Look) is read-only after End, not just under admin view -- the server rejects PUT /content once archived.
-  const items = labelRows(merge(cache.content.schedule, cache.fixed))
+  const items = labelRows(merge(cache.content.schedule, cache.fixed, ev))
 
   // 12-hour with am/pm, like every other time in the app (owner, 2026-10-30),
   // through ui.dateTime so every time reads the same way.
@@ -504,8 +498,8 @@ ${cache.contentError ? `<div class="note bad">Sponsors, FAQ and schedule could n
     body.innerHTML = `<p class="form-intro">Times are in ${ui.esc(ev.time_zone)}.</p>
 <div class="field"><label for="d-title">Title</label><input class="input" id="d-title" maxlength="120" value="${ui.esc(item.title)}"></div>
 <div class="field"><div class="lab-row"><label for="d-desc">Details</label><span class="opt">Optional</span></div><textarea class="input" id="d-desc" rows="2" maxlength="500">${ui.esc(item.description || '')}</textarea></div>
-<div class="field"><span class="lab" id="d-start-l">Starts</span><div class="dt-pair" role="group" aria-labelledby="d-start-l"><input class="input" type="date" aria-label="Start date" id="d-start-date" value="${ui.esc(sd)}"><input class="input" type="time" aria-label="Start time" id="d-start-time" value="${ui.esc(st)}"></div></div>
-<div class="field" id="d-end-field"><span class="lab" id="d-end-l">Ends</span><div class="dt-pair" role="group" aria-labelledby="d-end-l"><input class="input" type="date" aria-label="End date" id="d-end-date" value="${ui.esc(ed)}"><input class="input" type="time" aria-label="End time" id="d-end-time" value="${ui.esc(et)}"></div></div>
+${dateTimeField(ui, 'd-start', 'Starts', sd, st)}
+${dateTimeField(ui, 'd-end', 'Ends', ed, et, { fieldID: 'd-end-field' })}
 <div class="field"><div class="lab-row"><label for="d-prompt">When this starts, ask to</label><span class="opt">Optional</span></div><select class="select" id="d-prompt">${promptOptions}</select><p class="help">Overview asks you at this time, like “Kickoff is now. Open sign-up?” Nothing changes until you press the button.</p></div>`
     const q = id => body.querySelector('#' + id)
     const saved = await formDialog(ui, { title: existing ? 'Edit time' : 'Add time', body, saveLabel: existing ? 'Save' : 'Add time' }, async () => {

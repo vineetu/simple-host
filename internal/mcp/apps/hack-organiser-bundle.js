@@ -30,6 +30,11 @@
     entryCard: () => entryCard,
     errText: () => errText,
     esc: () => esc,
+    eventBoundaryDate: () => eventBoundaryDate,
+    eventBoundaryDefault: () => eventBoundaryDefault,
+    eventBoundaryInput: () => eventBoundaryInput,
+    eventBoundaryIsDateOnly: () => eventBoundaryIsDateOnly,
+    eventBoundaryValue: () => eventBoundaryValue,
     fetchBinary: () => fetchBinary,
     hostLabel: () => hostLabel,
     initials: () => initials,
@@ -100,16 +105,29 @@
   function dateOnly(value, event) {
     return dateTime(value, event, { dateOnly: true });
   }
+  var eventBoundaryDefault = (end) => end ? "23:59" : "00:00";
+  function eventBoundaryIsDateOnly(value, event, end = false) {
+    return localInputValue(value, event).slice(11) === eventBoundaryDefault(end);
+  }
+  function eventBoundaryInput(value, event, end = false) {
+    const local = localInputValue(value, event);
+    return { date: local.slice(0, 10), time: eventBoundaryIsDateOnly(value, event, end) ? "" : local.slice(11) };
+  }
+  function eventBoundaryValue(date, time, end = false) {
+    return date ? date + "T" + (time || eventBoundaryDefault(end)) : "";
+  }
+  function eventBoundaryDate(value, event, end = false) {
+    return dateTime(value, event, { dateOnly: eventBoundaryIsDateOnly(value, event, end) });
+  }
   function isLocalMidnight(value, event) {
     const p = zonedParts(value, typeof event === "string" ? event : event?.time_zone);
     return !!p && p.h === "00" && p.min === "00";
   }
   function nextDeadline(event) {
     const now = Date.now();
-    const day = 24 * 60 * 60 * 1e3;
     return [["Starts", event?.starts_at], ["Entries close", event?.submission_deadline], ["Ends", event?.ends_at]].filter(([, value]) => value && !Number.isNaN(new Date(value).getTime())).map(([label, value]) => {
-      const dateOnly2 = label !== "Entries close" && isLocalMidnight(value, event);
-      const until = new Date(value).getTime() + (label === "Ends" && dateOnly2 ? day : 0);
+      const dateOnly2 = label !== "Entries close" && eventBoundaryIsDateOnly(value, event, label === "Ends");
+      const until = new Date(value).getTime();
       return [label, value, dateOnly2, until];
     }).filter((r) => r[3] > now).sort((a, b) => a[3] - b[3]).map((r) => r.slice(0, 3))[0];
   }

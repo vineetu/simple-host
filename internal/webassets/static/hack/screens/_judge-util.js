@@ -47,14 +47,12 @@ export function scoreTotals(scores, rubric) {
   return { points, max }
 }
 
-// #16: the public judge page showed every event's start/end with a time
-// ("12:00 am – …") even though this invite preview only ever had a date to
-// show, not a real kickoff/close time -- ui.dateOnly, not ui.dateTime.
+// Event boundary defaults display as dates; explicit times stay visible.
 export function dateRange(uiArg, info) {
   if (!info || !info.starts_at) return ''
   const shim = { time_zone: info.time_zone }
-  const start = uiArg.dateOnly(info.starts_at, shim)
-  const end = info.ends_at ? uiArg.dateOnly(info.ends_at, shim) : ''
+  const start = uiArg.eventBoundaryDate(info.starts_at, shim)
+  const end = info.ends_at ? uiArg.eventBoundaryDate(info.ends_at, shim, true) : ''
   return end ? `${start} – ${end}` : start
 }
 
