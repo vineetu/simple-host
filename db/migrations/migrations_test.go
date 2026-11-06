@@ -410,7 +410,10 @@ func TestNumberedGuard(t *testing.T) {
 		"0002-test.sql":     {Data: []byte("SELECT 1")},
 		"zz-test-guard.sql": {Data: []byte("SELECT 1")},
 	}
-	if _, err := db.Exec(createTable); err != nil {
+	// Other tests apply real migrations to this database. Give this fixture
+	// its own tracking table on the one connection used by Apply.
+	db.SetMaxOpenConns(1)
+	if _, err := db.Exec(strings.Replace(createTable, "CREATE TABLE", "CREATE TEMP TABLE", 1)); err != nil {
 		t.Fatal(err)
 	}
 	// Recorded by another branch's build: not in this build's files, and it

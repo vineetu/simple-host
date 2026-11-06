@@ -35,7 +35,8 @@ docker compose --env-file "$WORK/install/.env" -f "$WORK/install/compose.yaml" c
 if bash "$HERE/install.sh" --dir "$WORK/bad" --domain bad/domain --config "$WORK/config" --prepare-only >"$WORK/refused" 2>&1; then
   echo 'Invalid domain accepted' >&2; exit 1
 fi
-if bash "$HERE/install.sh" --dir "$WORK/missing" --domain hack.test --prepare-only >"$WORK/refused" 2>&1; then
+# Exercise email-only sign-in; password sign-in defaults to on.
+if PASSWORD_SIGNIN=off bash "$HERE/install.sh" --dir "$WORK/missing" --domain hack.test --prepare-only >"$WORK/refused" 2>&1; then
   echo 'Missing mail provider accepted' >&2; exit 1
 fi
 printf '\nDB_PASSWORD=%064d\n' 1 >> "$WORK/config"
@@ -85,7 +86,7 @@ cat > "$WORK/partial-oidc-config" <<'EOF'
 SITE_DOMAIN=hack.example.test
 OIDC_ISSUER=https://idp.example.test
 EOF
-if bash "$HERE/install.sh" --dir "$WORK/partial-oidc" --config "$WORK/partial-oidc-config" --prepare-only >"$WORK/refused" 2>&1; then
+if PASSWORD_SIGNIN=off bash "$HERE/install.sh" --dir "$WORK/partial-oidc" --config "$WORK/partial-oidc-config" --prepare-only >"$WORK/refused" 2>&1; then
   echo 'Partial OIDC configuration (missing client id/secret) accepted without Resend' >&2; exit 1
 fi
 echo 'PASS: company sign-in makes Resend optional only once OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET are all set'
