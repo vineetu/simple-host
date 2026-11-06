@@ -38843,7 +38843,7 @@
               "publish_results",
               "none"
             ],
-            "description": "entry_rules (SIM-382) is a draft event whose organiser hasn't saved entry rules yet: the button opens Entries' \"What teams hand in\" setting (PUT .../entry-rules), not a stage change. Saving any choice there, even the default, moves this to stage/open (\"Open sign-up\")."
+            "description": "entry_rules is a draft event whose organiser hasn't saved entry rules yet: the button opens Entries' \"What teams hand in\" setting (PUT .../entry-rules), not a stage change. Saving any choice there, even the default, moves this to stage/open (\"Open sign-up\")."
           },
           "stage": {
             "type": "string",

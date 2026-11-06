@@ -655,7 +655,7 @@ func hackEventSchemas() hackEventSchemaSet {
 		"ends_at":         nullableString("End time, or null when unset."),
 		"judging_ends_at": nullableString("When judging closes, or null when unset. Judges with unscored teams are reminded before this time, once set."),
 		"next_step": withDescription(outObject(map[string]any{
-			"kind":            outString("stage, entry_rules, publish_results or none. entry_rules means a draft event whose organiser hasn't chosen entry rules yet (SIM-382): call hack_set_entry_rules with the organiser's choice of preset first (ask which: video_or_website or video_website_code), then this becomes stage/open (\"Open sign-up\")."),
+			"kind":            outString("stage, entry_rules, publish_results or none. entry_rules means a draft event whose organiser hasn't chosen entry rules yet: call hack_set_entry_rules with the organiser's choice of preset first (ask which: video_or_website or video_website_code), then this becomes stage/open (\"Open sign-up\")."),
 			"stage":           outString("The stage hack_set_event_stage would move to. Empty for entry_rules, publish_results or none."),
 			"label":           outString("The button's own text, e.g. \"Start building\"."),
 			"deadline_passed": outBool("True only for Close entries once the submission deadline has passed."),
