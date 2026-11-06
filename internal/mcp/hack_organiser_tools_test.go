@@ -77,6 +77,7 @@ func TestHackOrganiserToolRoutes(t *testing.T) {
 			if err := ValidateOutput(tool.OutputSchema, result, nil); err != nil {
 				t.Fatalf("output: %v", err)
 			}
+			recordHackOutputValidated(route.name)
 			last := up.last()
 			if last.method != route.method || last.path != path || last.key != "user-key" {
 				t.Fatalf("forwarded %s %s key %s", last.method, last.path, last.key)
@@ -133,6 +134,7 @@ func TestHackSetEntryExcludedTool(t *testing.T) {
 	if err := ValidateOutput(tool.OutputSchema, result, nil); err != nil {
 		t.Fatalf("exclude output: %v", err)
 	}
+	recordHackOutputValidated("hack_set_entry_excluded")
 	resp, _ := result["response"].(map[string]any)
 	if resp["excluded"] != true {
 		t.Fatalf("exclude response: %v", result)

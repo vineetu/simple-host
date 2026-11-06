@@ -167,4 +167,5 @@ func assertHackResult(t *testing.T, tool Tool, out output, want map[string]any) 
 	if err := ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
 		t.Fatalf("%s schema: %v", tool.Name, err)
 	}
+	recordHackOutputValidated(tool.Name)
 }

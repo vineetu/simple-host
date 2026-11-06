@@ -2,9 +2,13 @@ package mcp
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sort"
+	"sync"
 	"testing"
 )
 
@@ -19,21 +23,143 @@ import (
 // in this package still validates against the AUTHORED (closed) schema, so
 // a tool that starts returning an undeclared field is still caught here --
 // strictness didn't go away, it just moved off the wire.
+// TestWireOutputSchemaOpensOnlyOnTheWire is the regression check for that
+// mechanism itself: it fails if openOutputSchemaForWire's call site in
+// Tool.MarshalJSON is ever removed.
 //
-// Most of HackTools() already gets that strict check somewhere: the base
-// event/entry tools in TestHackToolDispatch, every hackRouteTool-backed
-// organiser tool in TestHackOrganiserToolRoutes, hack_set_entry_excluded in
-// TestHackSetEntryExcludedTool, who_am_i in hack_whoami_test.go, a good
-// number of organiser/member tools via hack_results_test.go's
-// assertHackResult, the member tools in hack_member_tools_test.go, and the
-// app-only twins and show tools in hack_app_only_tools_test.go/
-// hack_apps_judge_test.go/hack_apps_organiser_test.go (all extended by
-// SIM-384 to add the missing ValidateOutput call). What's left -- the
-// connection tool, the two website-mode tool families, and the storage/
-// recipe family -- is covered below. TestHackToolInventoryIsReviewed is the
-// part that keeps this honest for tools nobody has written a test for yet:
-// it fails the moment HackTools() gains or loses a name this file doesn't
-// know about, so a new hack_* tool can't go untested by accident.
+// Most of HackTools() already gets a real-output strict check somewhere:
+// the base event/entry tools in TestHackToolDispatch, every
+// hackRouteTool-backed organiser tool in TestHackOrganiserToolRoutes,
+// hack_set_entry_excluded in TestHackSetEntryExcludedTool, a good number of
+// organiser/member tools via hack_results_test.go's assertHackResult, the
+// member tools in hack_member_tools_test.go, and the app-only twins and show
+// tools in hack_app_only_tools_test.go/hack_apps_judge_test.go/
+// hack_apps_organiser_test.go. What's left -- the connection tool, the two
+// website-mode tool families, the storage/recipe family and
+// hack_create_team_key (skipped by its own REST call in
+// TestHackOrganiserToolRoutes) -- is covered below.
+//
+// That list is honest, not just asserted: every one of those call sites
+// (old and new) now also calls recordHackOutputValidated(name) right after
+// its ValidateOutput succeeds, into the package-level hackOutputCoverage
+// set. TestMain fails a full (unfiltered) run of this package the moment
+// any name in HackTools() was never recorded -- enforced, not a hand-kept
+// name list that could silently drift from what actually gets exercised.
+// A filtered run (go test -run ...) skips the check, since it is only ever
+// exercising a subset on purpose.
+
+var (
+	hackOutputCoverageMu sync.Mutex
+	hackOutputCoverage   = map[string]bool{}
+)
+
+// recordHackOutputValidated marks name (a HackTools() tool) as having had
+// its real output checked against its own outputSchema with ValidateOutput,
+// somewhere in this package's tests. See uncoveredHackTools/TestMain.
+func recordHackOutputValidated(name string) {
+	hackOutputCoverageMu.Lock()
+	hackOutputCoverage[name] = true
+	hackOutputCoverageMu.Unlock()
+}
+
+// uncoveredHackTools lists, sorted, every HackTools() name that was never
+// passed to recordHackOutputValidated during this test run.
+func uncoveredHackTools() []string {
+	hackOutputCoverageMu.Lock()
+	defer hackOutputCoverageMu.Unlock()
+	var missing []string
+	for _, tool := range HackTools() {
+		if !hackOutputCoverage[tool.Name] {
+			missing = append(missing, tool.Name)
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
+
+// TestMain enforces full hack output-schema coverage (SIM-384) after every
+// other test in this package has run, but only for a full, unfiltered run:
+// `go test ./internal/mcp/...` (what CI and the DB-integration script both
+// do) must exercise and record every HackTools() name, or it fails here,
+// naming exactly which tool was missed. `go test -run ...` (chasing one
+// test while debugging) only ever exercises a deliberate subset, so the
+// check is skipped whenever -run is set.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if code == 0 {
+		if runFlag := flag.Lookup("test.run"); runFlag == nil || runFlag.Value.String() == "" {
+			if missing := uncoveredHackTools(); len(missing) > 0 {
+				fmt.Fprintf(os.Stderr, "SIM-384: these HackTools() names were never validated by a strict ValidateOutput call in this package's tests: %s\n", missing)
+				code = 1
+			}
+		}
+	}
+	os.Exit(code)
+}
+
+// TestWireOutputSchemaOpensOnlyOnTheWire pins openOutputSchemaForWire's own
+// call site (Tool.MarshalJSON, tools.go) directly: without it, every other
+// test in this package still passes, because they all validate against
+// tool.OutputSchema (the authored, closed map) rather than the marshaled
+// tools/list JSON a real client receives. hack_create_event is the tool
+// SIM-384 actually broke on, so it is the one checked here, at both the
+// root and a nested object (next_step, organiser) -- additionalProperties
+// must be false->true at every level on the wire, while the authored
+// schema and inputSchema (untouched by this fix; see outputs.go's package
+// comment) stay exactly as written.
+func TestWireOutputSchemaOpensOnlyOnTheWire(t *testing.T) {
+	s := newTestServer(&scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}})
+	rec := sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, CallerModeEvents)
+	var wire map[string]any
+	for _, tool := range listedTools(t, rec) {
+		if tool["name"] == "hack_create_event" {
+			wire, _ = tool["outputSchema"].(map[string]any)
+		}
+	}
+	if wire == nil {
+		t.Fatal("hack_create_event not listed with an outputSchema")
+	}
+	if wire["additionalProperties"] != true {
+		t.Fatalf("wire outputSchema root additionalProperties = %v, want true", wire["additionalProperties"])
+	}
+	props, _ := wire["properties"].(map[string]any)
+	for _, nested := range []string{"next_step", "organiser"} {
+		sub, _ := props[nested].(map[string]any)
+		if sub == nil {
+			t.Fatalf("wire outputSchema missing nested %q", nested)
+		}
+		if sub["additionalProperties"] != true {
+			t.Fatalf("wire outputSchema properties.%s.additionalProperties = %v, want true", nested, sub["additionalProperties"])
+		}
+	}
+	wireInput, _ := func() (map[string]any, bool) {
+		for _, tool := range listedTools(t, rec) {
+			if tool["name"] == "hack_create_event" {
+				in, ok := tool["inputSchema"].(map[string]any)
+				return in, ok
+			}
+		}
+		return nil, false
+	}()
+	if wireInput == nil || wireInput["additionalProperties"] != false {
+		t.Fatalf("wire inputSchema additionalProperties = %v, want false (unchanged by this fix)", wireInput["additionalProperties"])
+	}
+
+	// The authored copy -- what every ValidateOutput call in this package's
+	// tests actually checks against -- must stay closed: the fix only opens
+	// what goes out over the wire, never the map tests validate with.
+	authored := s.hackByName["hack_create_event"].OutputSchema
+	if authored["additionalProperties"] != false {
+		t.Fatalf("authored outputSchema root additionalProperties = %v, want false", authored["additionalProperties"])
+	}
+	authoredProps, _ := authored["properties"].(map[string]any)
+	for _, nested := range []string{"next_step", "organiser"} {
+		sub, _ := authoredProps[nested].(map[string]any)
+		if sub == nil || sub["additionalProperties"] != false {
+			t.Fatalf("authored outputSchema properties.%s.additionalProperties = %v, want false", nested, sub["additionalProperties"])
+		}
+	}
+}
 
 func TestHackSelectTeamOutputMatchesSchema(t *testing.T) {
 	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
@@ -55,6 +181,7 @@ func TestHackSelectTeamOutputMatchesSchema(t *testing.T) {
 	if err := ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
 		t.Fatalf("structuredContent does not match outputSchema: %v", err)
 	}
+	recordHackOutputValidated("hack_select_team")
 }
 
 // TestHackWebEventToolsOutputMatchesSchema covers hackWebEventTools' five
@@ -102,6 +229,7 @@ func TestHackWebEventToolsOutputMatchesSchema(t *testing.T) {
 			if err := ValidateOutput(tool.OutputSchema, structured, nil); err != nil {
 				t.Fatalf("%s: structuredContent does not match outputSchema: %v", tc.name, err)
 			}
+			recordHackOutputValidated(tc.name)
 		})
 	}
 }
@@ -143,25 +271,39 @@ func TestHackWebsiteModeToolsOutputMatchesSchema(t *testing.T) {
 			if err := ValidateOutput(tool.OutputSchema, structured, nil); err != nil {
 				t.Fatalf("%s: structuredContent does not match outputSchema: %v", tc.name, err)
 			}
+			recordHackOutputValidated(tc.name)
 		})
 	}
 }
 
-// TestHackStorageAndRecipeToolsOutputMatchesSchema covers hackStorageTools()
-// (hack_event_storage_* and hack_get_page_recipe). hack_event_storage_*'s
-// outputSchema is the same low-risk {"response": <any>, "status": <int>}
-// wrapper the organiser route tools use (storage_tools.go's
-// storageToolsFor), and hack_get_page_recipe shares its OutputSchema object
-// directly with Host's own get_page_recipe (already exhaustively checked by
-// TestEveryToolResultMatchesItsOutputSchema and TestOutputSchemasMatchRealResults
-// in internal/handler), so one representative call of each REST shape (KV,
-// SQL, recipe) is enough to prove the hack_-prefixed wrapper forwards
-// correctly rather than re-proving the schema itself.
+// TestHackStorageAndRecipeToolsOutputMatchesSchema covers every one of
+// hackStorageTools()'s 16 tools: all 15 hack_event_storage_* tools plus
+// hack_get_page_recipe. hack_event_storage_*'s outputSchema is the same
+// low-risk {"response": <any>, "status": <int>} wrapper the organiser route
+// tools use (storage_tools.go's storageToolsFor), and hack_get_page_recipe
+// shares its OutputSchema object directly with Host's own get_page_recipe
+// (already exhaustively checked by TestEveryToolResultMatchesItsOutputSchema
+// and TestOutputSchemasMatchRealResults in internal/handler) -- but SIM-384's
+// review round asked for every one exercised and recorded, not a sample, so
+// every REST shape (resource, kv, sql, file, link) gets its own call here.
 func TestHackStorageAndRecipeToolsOutputMatchesSchema(t *testing.T) {
+	const base = "/v1/hack/events/spring/website/storage"
 	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){
-		"PUT /v1/hack/events/spring/website/storage/kv/store/keys/count": jsonReply(200, `{"key":"count","value":3}`),
-		"GET /v1/hack/events/spring/website/storage/kv/store/keys/count": jsonReply(200, `{"key":"count","value":3}`),
-		"POST /v1/hack/events/spring/website/storage/sqlite/store/query": jsonReply(200, `{"columns":["n"],"rows":[[1]]}`),
+		"GET " + base + "/resources":                    jsonReply(200, `{"resources":[]}`),
+		"GET " + base + "/usage":                        jsonReply(200, `{"used_bytes":0,"limit_bytes":1000000,"remaining_bytes":1000000,"breakdown":{"kv_bytes":0,"sqlite_bytes":0,"files_bytes":0}}`),
+		"PUT " + base + "/resources/store":              jsonReply(200, `{"name":"store","kind":"kv"}`),
+		"DELETE " + base + "/resources/store":           jsonReply(200, `{"deleted":true}`),
+		"GET " + base + "/kv/store/keys":                jsonReply(200, `{"keys":["count"]}`),
+		"GET " + base + "/kv/store/keys/count":          jsonReply(200, `{"key":"count","value":3}`),
+		"PUT " + base + "/kv/store/keys/count":          jsonReply(200, `{"key":"count","value":3}`),
+		"DELETE " + base + "/kv/store/keys/count":       jsonReply(200, `{"deleted":true}`),
+		"POST " + base + "/sqlite/store/query":          jsonReply(200, `{"columns":["n"],"rows":[[1]]}`),
+		"POST " + base + "/sqlite/store/execute":        jsonReply(200, `{"changes":1,"last_insert_id":2}`),
+		"POST " + base + "/sqlite/store/schema":         jsonReply(200, `{"changes":0}`),
+		"GET " + base + "/files/store/objects":          jsonReply(200, `{"objects":[{"path":"a.txt"}]}`),
+		"PUT " + base + "/files/store/objects/a.txt":    jsonReply(200, `{"path":"a.txt"}`),
+		"DELETE " + base + "/files/store/objects/a.txt": jsonReply(200, `{"deleted":true}`),
+		"POST " + base + "/files/store/download-link":   jsonReply(200, `{"url":"https://simple-host.app/v1/storage-download?token=opaque","expires_in":600}`),
 	}}
 	s := newTestServer(up)
 	byName := map[string]Tool{}
@@ -171,27 +313,47 @@ func TestHackStorageAndRecipeToolsOutputMatchesSchema(t *testing.T) {
 	if _, ok := byName["hack_get_page_recipe"]; !ok {
 		t.Fatal("hack_get_page_recipe missing from hackStorageTools()")
 	}
-	cases := []string{"hack_event_storage_put_kv", "hack_event_storage_get_kv", "hack_event_storage_sql_query"}
-	argsFor := map[string]map[string]any{
-		"hack_event_storage_put_kv":    {"event": "spring", "name": "store", "key": "count", "value": 3},
-		"hack_event_storage_get_kv":    {"event": "spring", "name": "store", "key": "count"},
-		"hack_event_storage_sql_query": {"event": "spring", "name": "store", "sql": "SELECT n FROM t"},
+	cases := []struct {
+		name string
+		args map[string]any
+	}{
+		{"hack_event_storage_list_resources", map[string]any{"event": "spring"}},
+		{"hack_event_storage_get_usage", map[string]any{"event": "spring"}},
+		{"hack_event_storage_set_resource", map[string]any{"event": "spring", "name": "store", "body": map[string]any{"kind": "kv"}}},
+		{"hack_event_storage_list_kv_keys", map[string]any{"event": "spring", "name": "store"}},
+		{"hack_event_storage_get_kv", map[string]any{"event": "spring", "name": "store", "key": "count"}},
+		{"hack_event_storage_put_kv", map[string]any{"event": "spring", "name": "store", "key": "count", "value": 3}},
+		{"hack_event_storage_sql_query", map[string]any{"event": "spring", "name": "store", "sql": "SELECT n FROM t"}},
+		{"hack_event_storage_sql_execute", map[string]any{"event": "spring", "name": "store", "sql": "UPDATE t SET n=1"}},
+		{"hack_event_storage_sql_schema", map[string]any{"event": "spring", "name": "store", "sql": "CREATE TABLE t(n)"}},
+		{"hack_event_storage_list_file_objects", map[string]any{"event": "spring", "name": "store"}},
+		{"hack_event_storage_put_file", map[string]any{"event": "spring", "name": "store", "path": "a.txt", "content_base64": "aGk=", "content_type": "text/plain"}},
+		{"hack_event_storage_file_download_link", map[string]any{"event": "spring", "name": "store", "path": "a.txt"}},
+		// Delete calls last: they remove the key/file/resource the reads above depend on.
+		{"hack_event_storage_delete_file", map[string]any{"event": "spring", "name": "store", "path": "a.txt"}},
+		{"hack_event_storage_delete_kv", map[string]any{"event": "spring", "name": "store", "key": "count"}},
+		{"hack_event_storage_delete_resource", map[string]any{"event": "spring", "name": "store"}},
 	}
-	for _, name := range cases {
-		t.Run(name, func(t *testing.T) {
-			tool, ok := byName[name]
+	if len(cases) != 15 {
+		t.Fatalf("%d cases, want all 15 hack_event_storage_* tools", len(cases))
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tool, ok := byName[tc.name]
 			if !ok {
-				t.Fatalf("%s missing from hackStorageTools()", name)
+				t.Fatalf("%s missing from hackStorageTools()", tc.name)
 			}
-			text, structured, isErr := resultOf(t, sendMode(t, s, toolCall(name, argsFor[name]), CallerModeEvents))
+			text, structured, isErr := resultOf(t, sendMode(t, s, toolCall(tc.name, tc.args), CallerModeEvents))
 			if isErr || structured == nil {
-				t.Fatalf("%s: isErr=%v text=%s", name, isErr, text)
+				t.Fatalf("%s: isErr=%v text=%s", tc.name, isErr, text)
 			}
 			if err := ValidateOutput(tool.OutputSchema, structured, nil); err != nil {
-				t.Fatalf("%s: structuredContent does not match outputSchema: %v", name, err)
+				t.Fatalf("%s: structuredContent does not match outputSchema: %v", tc.name, err)
 			}
+			recordHackOutputValidated(tc.name)
 		})
 	}
+
 	recipeTool := byName["hack_get_page_recipe"]
 	recipeCall := &call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "k", Mode: CallerModeEvents}}
 	out, err := recipeTool.run(recipeCall, map[string]any{"topic": "wall"})
@@ -201,225 +363,40 @@ func TestHackStorageAndRecipeToolsOutputMatchesSchema(t *testing.T) {
 	if err := ValidateOutput(recipeTool.OutputSchema, out.Structured, nil); err != nil {
 		t.Fatalf("hack_get_page_recipe: structuredContent does not match outputSchema: %v", err)
 	}
+	recordHackOutputValidated("hack_get_page_recipe")
 }
 
-// TestHackToolInventoryIsReviewed is the backstop for this class of bug
-// (SIM-384): hackToolInventorySnapshot below is a frozen list of every name
-// HackTools() returned when this test was last updated. A name added to or
-// removed from HackTools() without a matching, reviewed update here fails
-// loudly -- naming exactly which tool -- so a brand new hack_* tool can
-// never go unnoticed by every test in this file (and, since every family
-// above and every test this file's header comment lists already drives its
-// own tools through ValidateOutput in strict mode, "noticed" means someone
-// has to put the new tool in one of those paths, or add a new one, before
-// this list can be updated to include it). This is deliberately a plain
-// slice literal, not something computed from the same registry functions
-// HackTools() itself calls -- that would make the comparison trivially
-// true and catch nothing.
-func TestHackToolInventoryIsReviewed(t *testing.T) {
-	want := append([]string{}, hackToolInventorySnapshot...)
-	sort.Strings(want)
-	got := make([]string, 0, len(want))
-	for _, tool := range HackTools() {
-		got = append(got, tool.Name)
-	}
-	sort.Strings(got)
-
-	wantSet := map[string]bool{}
-	for _, name := range want {
-		wantSet[name] = true
-	}
-	gotSet := map[string]bool{}
-	for _, name := range got {
-		gotSet[name] = true
-	}
-	for _, name := range got {
-		if !wantSet[name] {
-			t.Errorf("%s is new in HackTools() and not in hackToolInventorySnapshot: add real output-schema coverage for it (see this file's header), then add its name to the snapshot", name)
+// TestHackCreateTeamKeyOutputMatchesSchema covers hack_create_team_key.
+// policy.connectorHidden excludes it from s.hackByName entirely (registry.go's
+// view()), not just from tools/list, so it is unreachable through a real
+// connector call -- the key-creation flow is REST/UI only, by design ("the
+// connector never returns one into chat"). It is still a real, registered
+// Tool with a run function, so this gets it the same way
+// TestHackSetEntryExcludedTool and other hidden-tool tests do: from the raw
+// family function, run directly rather than through tools/call dispatch.
+// Its outputSchema is the same generic {"response","status"} wrapper every
+// other organiser route tool uses.
+func TestHackCreateTeamKeyOutputMatchesSchema(t *testing.T) {
+	var tool Tool
+	for _, candidate := range HackOrganiserTools() {
+		if candidate.Name == "hack_create_team_key" {
+			tool = candidate
 		}
 	}
-	for _, name := range want {
-		if !gotSet[name] {
-			t.Errorf("%s is in hackToolInventorySnapshot but no longer in HackTools(): remove it from the snapshot", name)
-		}
+	if tool.Name == "" {
+		t.Fatal("hack_create_team_key missing from HackOrganiserTools()")
 	}
-}
-
-var hackToolInventorySnapshot = []string{
-	"hack_accept_organiser_invite",
-	"hack_accept_team_request",
-	"hack_app_create_organiser_invite",
-	"hack_app_get_applications",
-	"hack_app_get_assignments",
-	"hack_app_get_conflicts",
-	"hack_app_get_judge_queue",
-	"hack_app_get_judge_scores",
-	"hack_app_get_judging_dashboard",
-	"hack_app_get_judging_settings",
-	"hack_app_get_my_conflicts",
-	"hack_app_get_people",
-	"hack_app_get_registration",
-	"hack_app_get_rubric",
-	"hack_app_get_teams",
-	"hack_app_regenerate_code",
-	"hack_app_set_event_stage",
-	"hack_app_set_judging_ends_at",
-	"hack_application_status",
-	"hack_apply_to_event",
-	"hack_ask_to_join",
-	"hack_check_event_name",
-	"hack_choose_track",
-	"hack_clear_event_icon",
-	"hack_create_event",
-	"hack_create_organiser_invite",
-	"hack_create_team",
-	"hack_create_team_key",
-	"hack_decide_application",
-	"hack_declare_my_conflict",
-	"hack_decline_team_request",
-	"hack_delete_announcement",
-	"hack_delete_entry_screenshot",
-	"hack_delete_event",
-	"hack_delete_former_judge_scores",
-	"hack_delete_team",
-	"hack_dismiss_notices",
-	"hack_edit_announcement",
-	"hack_event_storage_delete_file",
-	"hack_event_storage_delete_kv",
-	"hack_event_storage_delete_resource",
-	"hack_event_storage_file_download_link",
-	"hack_event_storage_get_kv",
-	"hack_event_storage_get_usage",
-	"hack_event_storage_list_file_objects",
-	"hack_event_storage_list_kv_keys",
-	"hack_event_storage_list_resources",
-	"hack_event_storage_put_file",
-	"hack_event_storage_put_kv",
-	"hack_event_storage_set_resource",
-	"hack_event_storage_sql_execute",
-	"hack_event_storage_sql_query",
-	"hack_event_storage_sql_schema",
-	"hack_export_entries",
-	"hack_export_own_team_archive",
-	"hack_export_participants",
-	"hack_export_projects_archive",
-	"hack_export_results",
-	"hack_export_scores",
-	"hack_export_teams",
-	"hack_fill_teams",
-	"hack_generate_assignments",
-	"hack_get_announcements",
-	"hack_get_applications",
-	"hack_get_assignments",
-	"hack_get_conflicts",
-	"hack_get_content",
-	"hack_get_directory",
-	"hack_get_entries",
-	"hack_get_entry",
-	"hack_get_entry_rules",
-	"hack_get_entry_screenshot",
-	"hack_get_event",
-	"hack_get_event_website",
-	"hack_get_judge_queue",
-	"hack_get_judge_scores",
-	"hack_get_judging_dashboard",
-	"hack_get_judging_settings",
-	"hack_get_my_conflicts",
-	"hack_get_my_results",
-	"hack_get_my_team_messages",
-	"hack_get_my_teams",
-	"hack_get_my_todos",
-	"hack_get_my_vote",
-	"hack_get_page_recipe",
-	"hack_get_panels",
-	"hack_get_people",
-	"hack_get_preferences",
-	"hack_get_public_event",
-	"hack_get_public_results",
-	"hack_get_registration",
-	"hack_get_reminder_settings",
-	"hack_get_rubric",
-	"hack_get_team_key",
-	"hack_get_team_messages",
-	"hack_get_team_screenshot",
-	"hack_get_team_status",
-	"hack_get_teams",
-	"hack_get_tracks",
-	"hack_get_usage",
-	"hack_get_voting",
-	"hack_get_voting_settings",
-	"hack_invite_to_team",
-	"hack_join_event",
-	"hack_join_judge",
-	"hack_join_team",
-	"hack_leave_event",
-	"hack_leave_team",
-	"hack_list_events",
-	"hack_list_open_teams",
-	"hack_lock_judging",
-	"hack_lock_my_team",
-	"hack_lock_team",
-	"hack_message_team",
-	"hack_move_member",
-	"hack_new_my_team_link",
-	"hack_new_team_link",
-	"hack_post_announcement",
-	"hack_preview_application",
-	"hack_preview_join",
-	"hack_preview_judge",
-	"hack_preview_judging_assignments",
-	"hack_preview_leave_event",
-	"hack_preview_organiser_invite",
-	"hack_preview_team_link",
-	"hack_publish_event_website",
-	"hack_publish_results",
-	"hack_regenerate_code",
-	"hack_remove_judge_conflict",
-	"hack_remove_my_conflict",
-	"hack_remove_organiser",
-	"hack_remove_person",
-	"hack_remove_team_member",
-	"hack_remove_teammate",
-	"hack_rename_team",
-	"hack_restore_team_site",
-	"hack_revoke_organiser_invite",
-	"hack_revoke_person_key",
-	"hack_revoke_team_key",
-	"hack_score_team",
-	"hack_select_team",
-	"hack_set_assignments",
-	"hack_set_content",
-	"hack_set_directory_listing",
-	"hack_set_email_updates",
-	"hack_set_entry_excluded",
-	"hack_set_entry_rules",
-	"hack_set_entry_screenshot",
-	"hack_set_event_icon",
-	"hack_set_event_stage",
-	"hack_set_event_website_mode",
-	"hack_set_judge_conflict",
-	"hack_set_judging_settings",
-	"hack_set_looking",
-	"hack_set_panels",
-	"hack_set_preferences",
-	"hack_set_registration",
-	"hack_set_reminder_settings",
-	"hack_set_results_view",
-	"hack_set_rubric",
-	"hack_set_team_admin",
-	"hack_set_team_deadline",
-	"hack_set_teammate_admin",
-	"hack_set_tracks",
-	"hack_set_voting_settings",
-	"hack_show_judge",
-	"hack_show_organiser",
-	"hack_submit_entry",
-	"hack_take_down_team_site",
-	"hack_unlock_judging",
-	"hack_unsubmit_entry",
-	"hack_update_entry",
-	"hack_update_event",
-	"hack_update_my_team",
-	"hack_vote",
-	"hack_withdraw_team_request",
+	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){
+		"POST /v1/hack/events/spring/key": jsonReply(200, `{"key":"shk_test_0123456789abcdef"}`),
+	}}
+	s := newTestServer(up)
+	c := &call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "user-key", Mode: CallerModeEvents}}
+	out, err := tool.run(c, map[string]any{"slug": "spring"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
+		t.Fatalf("structuredContent does not match outputSchema: %v", err)
+	}
+	recordHackOutputValidated("hack_create_team_key")
 }

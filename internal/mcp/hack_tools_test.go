@@ -255,6 +255,7 @@ func TestHackToolDispatch(t *testing.T) {
 		if err := ValidateOutput(byName[name].OutputSchema, structured, seen[name]); err != nil {
 			t.Fatalf("%s: %v\n%s", name, err, raw)
 		}
+		recordHackOutputValidated(name)
 		return structured
 	}
 

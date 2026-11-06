@@ -374,6 +374,7 @@ func TestHackShowJudgeRunPerView(t *testing.T) {
 	if err := ValidateOutput(schema, out.Structured, nil); err != nil {
 		t.Fatalf("score+team_id: structuredContent does not match outputSchema: %v", err)
 	}
+	recordHackOutputValidated("hack_show_judge")
 
 	if _, err := run(map[string]any{"view": "bogus"}); err == nil {
 		t.Fatal("bogus view accepted")

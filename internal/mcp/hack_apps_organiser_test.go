@@ -356,6 +356,7 @@ func TestHackShowOrganiserRunPerView(t *testing.T) {
 		if err := ValidateOutput(schema, out.Structured, nil); err != nil {
 			t.Fatalf("%s: structuredContent does not match outputSchema: %v", view, err)
 		}
+		recordHackOutputValidated("hack_show_organiser")
 		event, ok := out.Structured["event"].(map[string]any)
 		if !ok || event["title"] != "Mock Jam" {
 			t.Fatalf("%s: event detail missing: %#v", view, out.Structured["event"])

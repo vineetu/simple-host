@@ -152,6 +152,7 @@ func TestHackAppOnlyTwinsContentCarriesNoPersonalData(t *testing.T) {
 		{"hack_app_get_rubric", map[string]any{"slug": "mockjam"}, []string{"MARKER-CRITERION"}},
 		{"hack_app_get_judging_settings", map[string]any{"slug": "mockjam"}, nil},
 		{"hack_app_get_conflicts", map[string]any{"slug": "mockjam"}, []string{"MARKER-JUDGE-NAME", "MARKER-TEAM-NAME"}},
+		{"hack_app_get_assignments", map[string]any{"slug": "mockjam"}, nil},
 		// Emails are omitted here by hack_get_teams' own existing
 		// minimisation unless include_emails is passed (hack_results.go's
 		// minimiseHackOrganiserResult) -- unrelated to app-only twinning,
@@ -181,6 +182,7 @@ func TestHackAppOnlyTwinsContentCarriesNoPersonalData(t *testing.T) {
 			if err := ValidateOutput(s.hackByName[tc.tool].OutputSchema, out.Structured, nil); err != nil {
 				t.Fatalf("%s: structuredContent does not match outputSchema: %v", tc.tool, err)
 			}
+			recordHackOutputValidated(tc.tool)
 			structuredJSON, err := json.Marshal(out.Structured)
 			if err != nil {
 				t.Fatalf("%s: marshal structured: %v", tc.tool, err)
