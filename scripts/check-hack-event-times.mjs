@@ -87,7 +87,7 @@ try {
       if (/\d:\d{2} [ap]m/.test(text) !== timed) throw Error('Boundary display: '+text);
       const next = ui.nextDeadline({...ev, [end?'ends_at':'starts_at']:iso});
       if(next[2] === timed) throw Error('Status header dateOnly');
-      const row = schedule.merge([], [{key:end?'event_end':'event_start',start_at:iso,all_day:!timed}])[0];
+      const row = schedule.merge([], [{key:end?'event_end':'event_start',start_at:iso,all_day:!timed}], ev)[0];
       if(row.all_day === timed) throw Error('Fixed row all_day');
     }
   })

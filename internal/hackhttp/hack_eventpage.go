@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
 	"github.com/vsriram/simple-host/internal/httpx"
 	"github.com/vsriram/simple-host/internal/model"
 )
@@ -956,16 +957,6 @@ func hackGMTOffsetLabel(offsetSeconds int) string {
 	return fmt.Sprintf("GMT%s%d:%02d", sign, h, m)
 }
 
-// hackBoundaryDateOnly is true when t is local midnight: Basics' own
-// date-only default for both a start and an end (hack_create_event: "A date
-// means midnight in time_zone"). Unlike sorting (hackFixedSortTime) and the
-// "lasts the whole day" rule, display never treats a date-only end any
-// differently from a date-only start -- it's the same instant, just shown
-// without a time.
-func hackBoundaryDateOnly(t time.Time) bool {
-	return t.Hour() == 0 && t.Minute() == 0
-}
-
 func hackEventDateRange(starts, ends time.Time, loc *time.Location) string {
 	var start, end time.Time
 	if !starts.IsZero() {
@@ -977,8 +968,13 @@ func hackEventDateRange(starts, ends time.Time, loc *time.Location) string {
 	if start.IsZero() && end.IsZero() {
 		return ""
 	}
-	startDateOnly := start.IsZero() || hackBoundaryDateOnly(start)
-	endDateOnly := end.IsZero() || hackBoundaryDateOnly(end)
+	// events.Midnight is the same local-midnight check the fixed-row
+	// classifier uses (hack_schedule.go hackFixedSchedule, via
+	// events.Midnight): hour, minute AND second, so a stray
+	// 00:00:30 doesn't read as date-only here while the classifier
+	// disagrees.
+	startDateOnly := start.IsZero() || events.Midnight(start, loc)
+	endDateOnly := end.IsZero() || events.Midnight(end, loc)
 	if !startDateOnly || !endDateOnly {
 		format := func(t time.Time, dateOnly bool) string {
 			if t.IsZero() {

@@ -8,6 +8,7 @@
 // in 12 minutes", "Build time is on now") and words the organiser's next-step
 // cue. Nothing here ever moves a stage: the schedule only prompts.
 import { href } from './nav.js'
+import { nextLocalMidnight } from './ui.js'
 
 // The forward moves a row may prompt, with the next-step button's own words
 // (hack_schedule.go hackScheduleMoves). Ending the event is left out.
@@ -35,17 +36,26 @@ const ms = iso => new Date(iso).getTime()
 const valid = iso => !!iso && !Number.isNaN(ms(iso))
 
 // A date-only event end runs to the end of its day, so it sorts after the
-// day's other rows. The server already computes `all_day` correctly (it
-// means local midnight, for both a start and an end) -- this just trusts it,
-// same as the display helpers do.
-function sortAt(r) {
+// day's other rows -- at its own next local midnight in the event's zone
+// (nextLocalMidnight, DST-correct), same boundary the server's
+// hackFixedSortTime uses, not a flat +24h (a fixed offset reads a DST
+// transition day as 23 or 25 hours, same bug class as the old +86399000
+// here). `event` is only for that zone lookup: the server already computes
+// `all_day` correctly (it means local midnight, for both a start and an
+// end), so this just trusts it, same as the display helpers do -- never
+// re-derives it from the timestamp. Falls back to the old flat offset if the
+// zone can't be read, which is never worse than before this fix.
+function sortAt(r, event) {
   const t = ms(r.start_at)
-  return r.all_day && r.key === 'event_end' ? t + 86399000 : t
+  if (!(r.all_day && r.key === 'event_end')) return t
+  const next = nextLocalMidnight(r.start_at, event)
+  return next != null ? next - 1000 : t + 86399000
 }
 
 // One list, in time order. Editable rows keep a reference to the stored
-// object (`src`) so an edit or remove finds it by identity.
-export function merge(schedule, fixed) {
+// object (`src`) so an edit or remove finds it by identity. `event` is used
+// only for sortAt's zone-aware end-of-day boundary.
+export function merge(schedule, fixed, event) {
   const rows = []
   for (const it of schedule || []) {
     if (!valid(it.start_at)) continue
@@ -55,7 +65,7 @@ export function merge(schedule, fixed) {
     if (!valid(it.start_at)) continue
     rows.push({ ...it, fixed: true })
   }
-  return rows.sort((a, b) => sortAt(a) - sortAt(b))
+  return rows.sort((a, b) => sortAt(a, event) - sortAt(b, event))
 }
 
 // Now: a row with a window that contains this moment. Next: the first row

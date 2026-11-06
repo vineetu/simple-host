@@ -41,6 +41,7 @@
     localInputValue: () => localInputValue,
     markInk: () => markInk,
     nextDeadline: () => nextDeadline,
+    nextLocalMidnight: () => nextLocalMidnight,
     notePath: () => notePath,
     possessive: () => possessive,
     roleLabel: () => roleLabel,
@@ -112,14 +113,28 @@
   }
   function isLocalMidnight(value, event) {
     const p = zonedParts(value, typeof event === "string" ? event : event?.time_zone);
-    return !!p && p.h === "00" && p.min === "00";
+    return !!p && p.h === "00" && p.min === "00" && p.s === "00";
+  }
+  function nextLocalMidnight(value, event) {
+    const zone = typeof event === "string" ? event : event?.time_zone;
+    const p = zonedParts(value, zone);
+    if (!p) return null;
+    const z = zoneKnown(zone) ? zone || "UTC" : "UTC";
+    const tomorrow = new Date(Date.UTC(Number(p.y), Number(p.m) - 1, Number(p.d) + 1));
+    const guess = Date.UTC(tomorrow.getUTCFullYear(), tomorrow.getUTCMonth(), tomorrow.getUTCDate(), 0, 0, 0);
+    const offset1 = offsetMinutes(z, new Date(guess));
+    if (offset1 == null) return guess;
+    let instant = guess - offset1 * 6e4;
+    const offset2 = offsetMinutes(z, new Date(instant));
+    if (offset2 != null && offset2 !== offset1) instant = guess - offset2 * 6e4;
+    return instant;
   }
   function nextDeadline(event) {
     const now = Date.now();
-    const day = 24 * 60 * 60 * 1e3;
     return [["Starts", event?.starts_at], ["Entries close", event?.submission_deadline], ["Ends", event?.ends_at]].filter(([, value]) => value && !Number.isNaN(new Date(value).getTime())).map(([label, value]) => {
       const dateOnly2 = label !== "Entries close" && isLocalMidnight(value, event);
-      const until = new Date(value).getTime() + (label === "Ends" && dateOnly2 ? day : 0);
+      const endOfDay = label === "Ends" && dateOnly2 ? nextLocalMidnight(value, event) : null;
+      const until = endOfDay ?? new Date(value).getTime();
       return [label, value, dateOnly2, until];
     }).filter((r) => r[3] > now).sort((a, b) => a[3] - b[3]).map((r) => r.slice(0, 3))[0];
   }
@@ -368,14 +383,14 @@
     const zone = zoneKnown(tz) ? tz || "UTC" : "UTC";
     const o = {};
     try {
-      new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d).forEach((p) => {
+      new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(d).forEach((p) => {
         o[p.type] = p.value;
       });
     } catch {
       return null;
     }
     if (!o.year || !o.month || !o.day || !o.hour || !o.minute) return null;
-    return { y: o.year, m: o.month, d: o.day, h: o.hour === "24" ? "00" : o.hour, min: o.minute };
+    return { y: o.year, m: o.month, d: o.day, h: o.hour === "24" ? "00" : o.hour, min: o.minute, s: o.second || "00" };
   }
   function localInputValue(iso, eventOrZone, { dateOnly: dateOnly2 = false } = {}) {
     const zone = typeof eventOrZone === "string" ? eventOrZone : eventOrZone?.time_zone;

@@ -425,7 +425,7 @@ function endedReadOnlyNote(what) { return `<div class="note">This event has ende
 const LOCK_ICON = '<svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="9" width="10" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/></svg>'
 function renderSchedule({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive }) {
   const readOnly = locked || ended // decision: Schedule (unlike Basics/About/Look) is read-only after End, not just under admin view -- the server rejects PUT /content once archived.
-  const items = labelRows(merge(cache.content.schedule, cache.fixed))
+  const items = labelRows(merge(cache.content.schedule, cache.fixed, ev))
 
   // 12-hour with am/pm, like every other time in the app (owner, 2026-10-30),
   // through ui.dateTime so every time reads the same way.

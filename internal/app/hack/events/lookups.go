@@ -141,6 +141,7 @@ var (
 	ApplicationsOpenNow      = hackevents.ApplicationsOpenNow
 	CountryName              = hackevents.CountryName
 	EntryFields              = hackevents.EntryFields
+	EventOver                = hackevents.EventOver
 	GenderLabels             = hackevents.GenderLabels
 	GenderOrder              = hackevents.GenderOrder
 	JoinedViaLabel           = hackevents.JoinedViaLabel

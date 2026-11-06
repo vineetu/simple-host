@@ -80,23 +80,55 @@ export function eventBoundaryDate(value, event) {
   return dateTime(value, event, { dateOnly: isLocalMidnight(value, event) })
 }
 // True when an instant falls exactly on midnight in the event's zone: Basics
-// saves a date-only start or end as that midnight.
+// saves a date-only start or end as that midnight. Checks seconds too, like
+// the server's fixed-row classifier (events.Midnight/hackFixedSchedule), so
+// the two never disagree on a stray 00:00:30.
 export function isLocalMidnight(value, event) {
   const p = zonedParts(value, typeof event === 'string' ? event : event?.time_zone)
-  return !!p && p.h === '00' && p.min === '00'
+  return !!p && p.h === '00' && p.min === '00' && p.s === '00'
+}
+// The UTC instant of the next local midnight after `value`'s own local
+// calendar date, in the event's zone -- the same "a date-only end lasts to
+// here" boundary the server computes (hackFixedSortTime/events.EventOver).
+// Not a fixed +24h: across a DST change the real gap is 23 or 25 hours, so
+// this reads `value`'s local Y/M/D, advances the calendar date by one (plain
+// arithmetic, no zone involved), then resolves that calendar date's local
+// midnight back to a UTC instant with the standard two-pass offset lookup
+// (guess assuming no DST shift, then correct once if the zone's offset at
+// that guess turns out to differ). null when `value`/zone can't be read.
+// This is a display/sort-only helper, not the save-round-trip inverse
+// localInputValue's own comment warns against -- it never reaches the server.
+export function nextLocalMidnight(value, event) {
+  const zone = typeof event === 'string' ? event : event?.time_zone
+  const p = zonedParts(value, zone)
+  if (!p) return null
+  const z = zoneKnown(zone) ? (zone || 'UTC') : 'UTC'
+  // Tomorrow's Y/M/D, as plain calendar arithmetic (UTC here carries no
+  // meaning beyond "a scratch Date to let day/month/year overflow roll
+  // over correctly").
+  const tomorrow = new Date(Date.UTC(Number(p.y), Number(p.m) - 1, Number(p.d) + 1))
+  const guess = Date.UTC(tomorrow.getUTCFullYear(), tomorrow.getUTCMonth(), tomorrow.getUTCDate(), 0, 0, 0)
+  const offset1 = offsetMinutes(z, new Date(guess))
+  if (offset1 == null) return guess
+  let instant = guess - offset1 * 60000
+  const offset2 = offsetMinutes(z, new Date(instant))
+  if (offset2 != null && offset2 !== offset1) instant = guess - offset2 * 60000
+  return instant
 }
 // The next of start, entry deadline and end still ahead, as
 // [label, value, dateOnly]. A date-only start or end (local midnight) shows
 // as a date with no "12:00 am", and a date-only end lasts the whole of that
-// day, so it stays "next" until the day is over (full-test fix 2026-11-02).
+// day -- its own next local midnight (nextLocalMidnight, DST-correct; not a
+// flat +24h) -- so it stays "next" until the day is over (full-test fix
+// 2026-11-02).
 export function nextDeadline(event) {
   const now = Date.now()
-  const day = 24 * 60 * 60 * 1000
   return [['Starts', event?.starts_at], ['Entries close', event?.submission_deadline], ['Ends', event?.ends_at]]
     .filter(([, value]) => value && !Number.isNaN(new Date(value).getTime()))
     .map(([label, value]) => {
       const dateOnly = label !== 'Entries close' && isLocalMidnight(value, event)
-      const until = new Date(value).getTime() + (label === 'Ends' && dateOnly ? day : 0)
+      const endOfDay = label === 'Ends' && dateOnly ? nextLocalMidnight(value, event) : null
+      const until = endOfDay ?? new Date(value).getTime()
       return [label, value, dateOnly, until]
     })
     .filter(r => r[3] > now).sort((a, b) => a[3] - b[3])
@@ -427,14 +459,14 @@ function zonedParts(iso, tz) {
   const zone = zoneKnown(tz) ? (tz || 'UTC') : 'UTC'
   const o = {}
   try {
-    new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
       .formatToParts(d).forEach(p => { o[p.type] = p.value })
   } catch { return null }
   if (!o.year || !o.month || !o.day || !o.hour || !o.minute) return null
   // Some engines format local midnight as "24" instead of "00" with
   // hourCycle: 'h23'; only one of the three original implementations
   // (organiser-entries.js's localInputValue) guarded against this.
-  return { y: o.year, m: o.month, d: o.day, h: o.hour === '24' ? '00' : o.hour, min: o.minute }
+  return { y: o.year, m: o.month, d: o.day, h: o.hour === '24' ? '00' : o.hour, min: o.minute, s: o.second || '00' }
 }
 // The value a <input type="date"> or <input type="datetime-local"> should
 // show for an ISO instant, in the given zone ("" when there is none).

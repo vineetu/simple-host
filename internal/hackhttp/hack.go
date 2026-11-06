@@ -917,7 +917,12 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		endsAt = t
-		if t.Valid && startsAt.Valid && t.Time.Before(startsAt.Time) {
+		// A date-only end (local midnight) means the whole of that day, same
+		// as everywhere else it's read (events.EventOver): compare against
+		// the end of that day, not the literal midnight instant, so a
+		// same-day timed start with a date-only end isn't rejected as
+		// "before" itself.
+		if t.Valid && startsAt.Valid && events.EventOver(t.Time, tz).Before(startsAt.Time) {
 			httpx.WriteError(w, http.StatusBadRequest, "invalid_ends_at", "ends_at must not be before starts_at")
 			return
 		}
@@ -1412,7 +1417,10 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 				ev.EndsAt = t
 			}
 		}
-		if ev.EndsAt.Valid && ev.StartsAt.Valid && ev.EndsAt.Time.Before(ev.StartsAt.Time) {
+		// Same "end of that day" meaning as the create path and
+		// events.EventOver everywhere else: a date-only end (local
+		// midnight) isn't "before" a same-day timed start.
+		if ev.EndsAt.Valid && ev.StartsAt.Valid && events.EventOver(ev.EndsAt.Time, ev.TimeZone).Before(ev.StartsAt.Time) {
 			return false, false, &events.Error{Code: "invalid_ends_at", Message: "ends_at must not be before starts_at"}
 		}
 		if req.TeamFinding != nil {

@@ -495,6 +495,42 @@ func TestHackCreateValidation(t *testing.T) {
 	}
 }
 
+// TestHackEventEndOfDayNotBeforeStart: SIM-379 fix. A date-only end (local
+// midnight) means the whole of that day, like everywhere else it's read
+// (events.EventOver) -- so a same-day timed start with a date-only end must
+// be accepted on create, not rejected as "ends_at must not be before
+// starts_at" just because the literal midnight instant precedes the start's
+// own time of day. Clearing an End's time back to date-only (PATCH) must be
+// accepted the same way. An end whose calendar date is genuinely before the
+// start's is still refused, on create and update alike.
+func TestHackEventEndOfDayNotBeforeStart(t *testing.T) {
+	a := newHackApp(t)
+	p := a.newPerson(t, "eod")
+	slug := uniqueSlug()
+
+	r := a.createEvent(t, p, slug, map[string]any{
+		"starts_at": "2027-03-12T09:00",
+		"ends_at":   "2027-03-12", // date-only, same calendar date as the timed start
+		"time_zone": "Asia/Kolkata",
+	})
+	if r.status != http.StatusCreated {
+		t.Fatalf("create same-day timed start + date-only end: %d %s", r.status, r.body)
+	}
+
+	// Setting, then clearing, a same-day timed End back to date-only.
+	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]any{"ends_at": "2027-03-12T18:00"}, a.key(p)); r.status != 200 {
+		t.Fatalf("set same-day timed end: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]any{"ends_at": "2027-03-12"}, a.key(p)); r.status != 200 {
+		t.Fatalf("clear same-day timed end back to date-only: %d %s", r.status, r.body)
+	}
+
+	// An end date genuinely before the start date is still refused.
+	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]any{"ends_at": "2027-03-11"}, a.key(p)); r.status != 400 || r.json(t)["code"] != "invalid_ends_at" {
+		t.Fatalf("end before start should still be refused: %d %s", r.status, r.body)
+	}
+}
+
 // TestHackOrganisationHintCleared: a client that copies the organisation
 // field's own hint text into the value (instead of leaving it empty) must
 // not have it stored as a real organisation name, on create or on update.

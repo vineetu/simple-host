@@ -39,7 +39,7 @@ test('status header and schedule rows show times only for non-midnight boundarie
     const next = ui.nextDeadline({...ev,[end?'ends_at':'starts_at']:value})
     assert.equal(next[2], !timed)
     assert.equal(/\d:\d{2} [ap]m/.test(ui.dateTime(next[1], ev, {dateOnly:next[2]})), timed)
-    const row = merge([], [{key:end?'event_end':'event_start',start_at:value,all_day:!timed}])[0]
+    const row = merge([], [{key:end?'event_end':'event_start',start_at:value,all_day:!timed}], ev)[0]
     assert.equal(row.all_day, !timed)
     assert.equal(/\d:\d{2} [ap]m/.test(ui.dateTime(row.start_at,ev,{dateOnly:row.all_day})), timed)
   }
@@ -48,6 +48,29 @@ test('a date-only end sorts after other rows that day without adding another day
   const rows = merge([{title:'Demos',start_at:'2027-03-12T20:00:00+05:30'}], [
     {key:'event_end',start_at:'2027-03-12T00:00:00+05:30',all_day:true},
     {key:'event_start',start_at:'2027-03-12T00:00:00+05:30',all_day:true}
-  ])
+  ], ev)
   assert.deepEqual(rows.map(r=>r.key || r.title), ['event_start','Demos','event_end'])
+})
+// DST: a date-only event end's own day isn't always 24h. America/New_York,
+// 7 Nov 2027 is the 25-hour day DST falls back into (clocks go 2am -> 1am
+// partway through it), so the real end-of-day boundary (the next local
+// midnight, 8 Nov 00:00 NY = 2027-11-08T05:00:00Z) is an hour later than a
+// flat +24h from the start of that day would give (2027-11-08T04:00:00Z) --
+// late enough that a legitimate 23:30 row that same evening
+// (2027-11-07T23:30 NY = 2027-11-08T04:30:00Z) falls *after* the flat +24h
+// boundary and so sorted ahead of "Event ends" under the old bug.
+test('a date-only end on a 25-hour DST day still sorts after a late-night row', () => {
+  const nyEv = {time_zone:'America/New_York'}
+  const rows = merge([{title:'Late night',start_at:'2027-11-08T04:30:00Z'}], [
+    {key:'event_end',start_at:'2027-11-07T04:00:00Z',all_day:true}
+  ], nyEv)
+  assert.deepEqual(rows.map(r=>r.key || r.title), ['Late night','event_end'])
+})
+test('nextLocalMidnight resolves the real DST gap, not a flat 24h', () => {
+  // 7 Nov 2027 (fall back): the day is 25 real hours, so the next local
+  // midnight is an hour later than start_at + 24h.
+  assert.equal(ui.nextLocalMidnight('2027-11-07T04:00:00Z', 'America/New_York'), Date.parse('2027-11-08T05:00:00Z'))
+  // 14 Mar 2027 (spring forward): the day is 23 real hours, so the next
+  // local midnight is an hour earlier than start_at + 24h.
+  assert.equal(ui.nextLocalMidnight('2027-03-14T05:00:00Z', 'America/New_York'), Date.parse('2027-03-15T04:00:00Z'))
 })
