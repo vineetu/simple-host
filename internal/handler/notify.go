@@ -32,19 +32,27 @@ type notificationEngine struct {
 	client                 notifyClient
 	minute, day, challenge *rateLimiter
 	perURL                 *rateLimiter
-	ownersMu               sync.Mutex
-	owners                 map[string]int
-	wake                   chan struct{}
-	emitting               chan struct{}
-	verifying              chan struct{}
-	rest                   *rateLimiter
-	start                  sync.Once
-	stop                   sync.Once
-	stopped                chan struct{}
-	emitMu                 sync.Mutex
-	emitIdle               chan struct{}
-	emitPending            int
-	dropped                atomic.Uint64
+	// pushSiteDay/pushPersonDay are SIM-360's own budgets on top of the
+	// general minute/day caps above (which gate storing the event at all,
+	// for every kind combined): pushSiteDay keyed by site id
+	// (NOTIFY_PUSH_PER_SITE_PER_DAY), pushPersonDay keyed by the
+	// recipient's own id -- the subscription's owner_id, the site owner's
+	// account id or a visitor's own users.id (NOTIFY_PUSH_PER_PERSON_PER_DAY).
+	// Checked in sendPush, right before a push is actually attempted.
+	pushSiteDay, pushPersonDay *rateLimiter
+	ownersMu                   sync.Mutex
+	owners                     map[string]int
+	wake                       chan struct{}
+	emitting                   chan struct{}
+	verifying                  chan struct{}
+	rest                       *rateLimiter
+	start                      sync.Once
+	stop                       sync.Once
+	stopped                    chan struct{}
+	emitMu                     sync.Mutex
+	emitIdle                   chan struct{}
+	emitPending                int
+	dropped                    atomic.Uint64
 	// Both runners are joined before database shutdown; emits may precede Start.
 	runner                     *workers.Runner
 	delivery, retention, emits *workers.Tracker
@@ -83,7 +91,7 @@ func (h *SiteHandler) notifyEngine() *notificationEngine {
 	h.notifyOnce.Do(func() {
 		l := h.limits
 		// A one-attempt URL burst keeps the first minute within the configured rate.
-		h.notifications = &notificationEngine{ownerConcurrency: l.NotifyOwnerConcurrency, client: notifyClient{secrets: &h.passcode, timeout: l.NotifyTimeout}, minute: newRateLimiter(float64(l.NotifyPerMinute), float64(l.NotifyPerMinute)/60), day: newRateLimiter(float64(l.NotifyPerDay), float64(l.NotifyPerDay)/86400), challenge: newRateLimiter(10, 10.0/60), wake: make(chan struct{}, l.NotifyWorkers), emitting: make(chan struct{}, 64), verifying: make(chan struct{}, 10), rest: newRateLimiter(60, 1), perURL: newRateLimiter(1, float64(l.NotifyPerURLPerMinute)/60), owners: make(map[string]int)}
+		h.notifications = &notificationEngine{ownerConcurrency: l.NotifyOwnerConcurrency, client: notifyClient{secrets: &h.passcode, timeout: l.NotifyTimeout}, minute: newRateLimiter(float64(l.NotifyPerMinute), float64(l.NotifyPerMinute)/60), day: newRateLimiter(float64(l.NotifyPerDay), float64(l.NotifyPerDay)/86400), challenge: newRateLimiter(10, 10.0/60), wake: make(chan struct{}, l.NotifyWorkers), emitting: make(chan struct{}, 64), verifying: make(chan struct{}, 10), rest: newRateLimiter(60, 1), perURL: newRateLimiter(1, float64(l.NotifyPerURLPerMinute)/60), owners: make(map[string]int), pushSiteDay: newRateLimiter(float64(l.NotifyPushPerSitePerDay), float64(l.NotifyPushPerSitePerDay)/86400), pushPersonDay: newRateLimiter(float64(l.NotifyPushPerPersonPerDay), float64(l.NotifyPushPerPersonPerDay)/86400)}
 
 		e := h.notifications
 		e.stopped = make(chan struct{})
@@ -176,7 +184,17 @@ func (e *notificationEngine) emit(fn func(context.Context)) {
 // change the response to a successful visitor save.
 func (h *SiteHandler) emitNotification(c storageCall, name string, data map[string]any) {
 	if c.owner {
-		return
+		// An owner write with no associated visitor row/key stays silent,
+		// exactly as before SIM-360 (webhook/mcp-event subscribers were
+		// never told about the owner's own writes, and still are not).
+		// One with row_visitor_id set (D1's owner edit of a visitor's row
+		// today; an owner insert on a visitor's behalf once SIM-358 lands)
+		// proceeds so that visitor's own web-push devices can be reached;
+		// it still never reaches the owner's own webhook/mcp-event/push
+		// subscriptions (storeNotificationContext's pushActor="owner").
+		if _, ok := data["row_visitor_id"]; !ok {
+			return
+		}
 	}
 	e := h.notifyEngine()
 	e.emit(func(ctx context.Context) {
@@ -221,6 +239,21 @@ func (h *SiteHandler) storeNotificationContext(parent context.Context, c storage
 	if c.stampID() != "" {
 		data["visitor"] = c.stampID()
 	}
+	// pushActor/pushTarget are SIM-360 web-push routing facts only: who
+	// wrote this (the owner, or which visitor), and whose row/key it is.
+	// They are derived from the app/storage layer's row_visitor_id and
+	// owner_write hints and then removed from data -- webhook and
+	// MCP-event payloads keep today's shape exactly, and the two routing
+	// facts never appear in a delivered body.
+	pushActor := ""
+	if owner, _ := data["owner_write"].(bool); owner {
+		pushActor = "owner"
+	} else if c.stampID() != "" {
+		pushActor = c.stampID()
+	}
+	pushTarget, _ := data["row_visitor_id"].(string)
+	delete(data, "owner_write")
+	delete(data, "row_visitor_id")
 	untrusted := []string{}
 	for _, key := range []string{"fields", "key", "path"} {
 		if _, ok := data[key]; ok {
@@ -241,7 +274,7 @@ func (h *SiteHandler) storeNotificationContext(parent context.Context, c storage
 	if err != nil {
 		return
 	}
-	if err = h.notificationsSvc().EmitSiteEvent(ctx, c.siteID, notifyEventID(), name, c.resourceName, raw); err != nil {
+	if err = h.notificationsSvc().EmitSiteEventFor(ctx, c.siteID, notifyEventID(), name, c.resourceName, raw, pushActor, pushTarget); err != nil {
 		e.emits.Fail("store event", err)
 		return
 	}
@@ -399,7 +432,13 @@ func notifyFields(raw json.RawMessage) map[string]any {
 
 // Convert at delivery so REST history and plain webhooks retain their format.
 // Old queued events receive the same projection as newly saved events.
-func (h *SiteHandler) notificationBody(n model.Notification, d model.NotificationDelivery, cursor int64) []byte {
+// A web-push subscription gets an entirely different, much smaller payload
+// (pushPayload): the generic/configured title and body a push service and
+// a lock screen actually show, never the full event envelope.
+func (h *SiteHandler) notificationBody(ctx context.Context, n model.Notification, d model.NotificationDelivery, cursor int64) []byte {
+	if n.Kind == "web-push" {
+		return h.pushPayload(ctx, n, d)
+	}
 	if n.Source == "mcp" && !h.ed.Notifications().EventScoped {
 		var data map[string]any
 		decoder := json.NewDecoder(bytes.NewReader(d.Data))
@@ -613,7 +652,10 @@ func notificationMailError(err error) error {
 func (h *SiteHandler) notificationDeliveryDeps() notifications.DeliveryDeps {
 	e := h.notifyEngine()
 	mailer, _ := h.mailer.(noticeSender)
-	return notifications.DeliveryDeps{Tracker: e.delivery, Retention: e.retention, Mailer: mailer, AcquireOwner: e.acquireOwner, ReleaseOwner: e.releaseOwner, AllowURL: e.perURL.allow, Body: h.notificationBody, Pending: h.notificationPending, Send: func(ctx context.Context, n model.Notification, id string, body []byte) notifications.DeliveryResult {
+	return notifications.DeliveryDeps{Tracker: e.delivery, Retention: e.retention, Mailer: mailer, AcquireOwner: e.acquireOwner, ReleaseOwner: e.releaseOwner, AllowURL: e.perURL.allow, Body: h.notificationBody, Pending: h.notificationPending, VisitorAllowed: h.visitorStillWelcome, Send: func(ctx context.Context, n model.Notification, id string, body []byte) notifications.DeliveryResult {
+		if n.Kind == "web-push" {
+			return h.sendPush(ctx, n, body)
+		}
 		result := e.client.send(ctx, n, id, body)
 		return notifications.DeliveryResult{Delivered: result.Delivered, Status: result.Status, Result: result.Result}
 	}}

@@ -56,6 +56,8 @@ owner's key.
 | `NOTIFY_DEFAULT_TTL_HOURS` | `168` | 1–8760 hours | Default lifetime of an MCP event subscription, in hours. |
 | `NOTIFY_SUSPEND_WINDOW_HOURS` | `1` | 1–168 hours | Rolling window for the suspension failure percentage, in hours. |
 | `NOTIFY_SUSPEND_DAYS` | `3` | 1–365 days | Days of continuous failures before a subscription is suspended. |
+| `NOTIFY_PUSH_PER_SITE_PER_DAY` | `2000` | 1–10000000 pushes | SIM-360: web-push sends allowed per site per day, on top of the general NOTIFY_PER_DAY event cap. |
+| `NOTIFY_PUSH_PER_PERSON_PER_DAY` | `200` | 1–100000 pushes | SIM-360: web-push sends allowed per recipient (owner or one visitor) per day across their own devices. |
 | `RATE_LIMIT_SPAM_CHECKED_IP` | `10,30s` | stricter freely; loosest `40,7.5s` | Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site. **Security-sensitive.** |
 | `RATE_LIMIT_SPAM_CHECKED_SITE` | `60,10s` | stricter freely; loosest `240,2.5s` | Posts on comments-preset resources, per site from everyone together. **Security-sensitive.** |
 | `SPAM_CHECKED_POST_MAX_BYTES` | `4000` | 100–65536 bytes | Largest post someone not signed in may add to a comments-preset resource (the JSON of its values). |

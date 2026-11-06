@@ -328,6 +328,14 @@ func (h *SiteHandler) logoutVisitor(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 403, errorResponse{Error: "sign out on the site's own page"})
 		return
 	}
+	// SIM-360 privacy guardrail: the one Sign out ends push on that
+	// device. auth.js's SH.signOut() already unsubscribes the browser's
+	// own PushSubscription and calls /push/unsubscribe itself, but that is
+	// a second, client-initiated request; resolve the session being
+	// destroyed here too and delete that visitor's push rows for this
+	// site server-side, so a blocked or racing client call can never
+	// leave one behind. Best-effort: never blocks or fails the sign-out.
+	h.deleteVisitorPushOnSignOut(r)
 	back, err := h.endSiteSSO(w, r, "/")
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "sign-out unavailable"})

@@ -40,6 +40,45 @@ func (s *Service) EmitSiteEvent(ctx context.Context, site string, id string, nam
 func (s *Service) EmitSiteEventOnce(ctx context.Context, site string, id string, name string, data []byte, visitor string, within time.Duration) (bool, error) {
 	return repo.EmitSiteEventOnce(ctx, s.database, site, id, name, data, visitor, within)
 }
+func (s *Service) EmitSiteEventFor(ctx context.Context, site string, id string, name string, storage string, data []byte, pushActor, pushTarget string) error {
+	return repo.EmitSiteEventFor(ctx, s.database, site, id, name, storage, data, pushActor, pushTarget)
+}
+func (s *Service) ListPushDevices(ctx context.Context, site string) ([]model.Notification, error) {
+	return repo.ListPushDevices(ctx, s.database, site)
+}
+func (s *Service) ListVisitorPushDevices(ctx context.Context, site, visitorID string) ([]model.Notification, error) {
+	return repo.ListVisitorPushDevices(ctx, s.database, site, visitorID)
+}
+func (s *Service) UpsertPushSubscription(ctx context.Context, n model.Notification, newID string, max int) (string, bool, error) {
+	return repo.UpsertPushSubscription(ctx, s.database, n, newID, max)
+}
+func (s *Service) DeleteNotificationForOwner(ctx context.Context, site, id, visitorID string) (bool, error) {
+	return repo.DeleteNotificationForOwner(ctx, s.database, site, id, visitorID)
+}
+func (s *Service) DeletePushSubscriptionsForVisitor(ctx context.Context, site, visitorID string) (int64, error) {
+	return repo.DeletePushSubscriptionsForVisitor(ctx, s.database, site, visitorID)
+}
+func (s *Service) DeletePushSubscriptionsForPerson(ctx context.Context, site, personID string) (int64, error) {
+	return repo.DeletePushSubscriptionsForPerson(ctx, s.database, site, personID)
+}
+func (s *Service) DeletePushSubscriptionsForFamily(ctx context.Context, family string) (int64, error) {
+	return repo.DeletePushSubscriptionsForFamily(ctx, s.database, family)
+}
+func (s *Service) DeletePushSubscriptionsForSite(ctx context.Context, site string) (int64, error) {
+	return repo.DeletePushSubscriptionsForSite(ctx, s.database, site)
+}
+func (s *Service) SetMutedResources(ctx context.Context, id string, resources []string) error {
+	return repo.SetMutedResources(ctx, s.database, id, resources)
+}
+func (s *Service) GetPushRule(ctx context.Context, site, resource string) (model.PushRule, error) {
+	return repo.GetPushRule(ctx, s.database, site, resource)
+}
+func (s *Service) ListPushRules(ctx context.Context, site string) ([]model.PushRule, error) {
+	return repo.ListPushRules(ctx, s.database, site)
+}
+func (s *Service) SetPushRule(ctx context.Context, rule model.PushRule) error {
+	return repo.SetPushRule(ctx, s.database, rule)
+}
 func (s *Service) FinishNotificationDelivery(ctx context.Context, d model.NotificationDelivery, state string, category string, status int, duration int, next time.Time, window time.Duration, minAttempts int, failPercent int, failFor time.Duration) (bool, error) {
 	return repo.FinishNotificationDelivery(ctx, s.database, d, state, category, status, duration, next, window, minAttempts, failPercent, failFor)
 }

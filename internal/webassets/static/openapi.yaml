@@ -13554,6 +13554,493 @@ paths:
           type: string
         description: Hack event slug for a team site. Required when the person belongs to same-named teams
           in multiple events; the connector supplies it from the selected team.
+  /v1/push/sw.js:
+    get:
+      x-audience:
+      - public-host
+      tags:
+      - Notifications
+      operationId: webPushServiceWorker
+      summary: Generic Web Push service worker (SIM-360)
+      description: Unauthenticated, host-agnostic, and never gated by WEB_PUSH_ACCOUNTS (there is no site
+        or account in this path at all). Served at a reserved platform path under /v1/, which every
+        deployment (custom domains, address families, path-model sites) already proxies or routes to this
+        server for every other /v1/... call, so no site, host or deployment ever needs its own copy or
+        config change for this file. Registered by SH.push.subscribe() (auth.js) with an explicit scope of
+        "/v1/push/", never root -- a push event and a notification click both work from any scope, so
+        this worker never takes the wider scope a site's own root-scoped service worker, if it has one,
+        still exclusively owns. Shows only the payload Simple Host already built server-side (title, body,
+        url; generic by default, see the owner's push rules) and never reads or decides anything on its own.
+      responses:
+        '200':
+          description: The service worker's JavaScript source
+          headers:
+            Content-Type: { schema: { type: string }, description: text/javascript; charset=utf-8 }
+            Cache-Control: { schema: { type: string }, description: public, max-age=3600 }
+          content:
+            text/javascript:
+              schema:
+                type: string
+        '404':
+          description: The embedded file is unexpectedly missing (install misconfiguration).
+    head:
+      x-audience:
+      - public-host
+      tags:
+      - Notifications
+      operationId: webPushServiceWorkerHead
+      summary: Same as GET, headers only
+      description: The browser's own conditional-registration check uses this; identical gating (none) and
+        headers to GET, with no body.
+      responses:
+        '200':
+          description: Headers only, same as GET
+        '404':
+          description: The embedded file is unexpectedly missing (install misconfiguration).
+  /v1/sites/{sitename}/push/vapid-key:
+    get:
+      x-audience:
+      - public-host
+      tags:
+      - Notifications
+      operationId: getWebPushVAPIDKey
+      summary: Get the install's VAPID public key (SIM-360)
+      description: Behind WEB_PUSH_ACCOUNTS; 404 not_offered for an account the flag does not cover. The
+        public key PushManager.subscribe() needs as applicationServerKey, before the browser's own endpoint
+        exists. Passcode-gated like every visitor route on this site.
+      responses:
+        '200':
+          description: Get the install's VAPID public key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  public_key:
+                    type: string
+        '404':
+          description: site_not_found, or not_offered when the flag does not cover this account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/sitename'
+  /v1/sites/{sitename}/push/subscribe:
+    post:
+      x-audience:
+      - public-host
+      tags:
+      - Notifications
+      operationId: webPushSubscribe
+      summary: Subscribe one device to web push (SIM-360)
+      description: The owner (API key or an owner cookie) may subscribe site-wide or to one resource, naming
+        the events like a webhook subscription. A signed-in visitor may only subscribe their own device,
+        site-wide or to one optional resource, and is always forced to the record/file events regardless
+        of what is asked for, so it can never be a site-level event; the fan-out itself, not the resource
+        filter, is what stops a visitor's device from ever reaching another visitor's data. Reuses the
+        webhook subscription cap, outbox and signing-secret storage (no parallel engine); needs PASSCODE_ENC_KEY.
+      security:
+      - apiKey: []
+      responses:
+        '201':
+          description: Subscribe one device to web push
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  public_key:
+                    type: string
+        '400':
+          description: invalid_request, invalid_events, storage_not_found, invalid_url, refused_address, or
+            invalid_keys.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: forbidden (sign in on this site first, for a visitor with no session).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: site_not_found, or not_offered when the flag does not cover this account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'too_many_notifications: the site subscription cap is reached.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/sitename'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - endpoint
+              - keys
+              properties:
+                endpoint:
+                  type: string
+                  description: The push service endpoint from the browser's PushSubscription.
+                keys:
+                  type: object
+                  properties:
+                    p256dh:
+                      type: string
+                    auth:
+                      type: string
+                resource:
+                  type: string
+                  description: Required for a visitor; optional for the owner (empty is site-wide).
+                events:
+                  type: array
+                  items:
+                    type: string
+                  description: Owner only; a visitor's device is always the record/file events regardless
+                    of this field.
+                label:
+                  type: string
+  /v1/sites/{sitename}/push/unsubscribe:
+    post:
+      x-audience:
+      - public-host
+      tags:
+      - Notifications
+      operationId: webPushUnsubscribe
+      summary: End push for one device (SIM-360)
+      description: A visitor may only ever remove their own device (scoped by site and their own id); the
+        owner may remove any device on their own site. Also happens automatically on a 404/410 from the
+        push service, and on sign-out, viewer removal, account or site deletion.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: End push for one device
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+        '400':
+          description: invalid_request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: forbidden (sign in on this site first, for a visitor with no session).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: site_not_found, or not_offered when the flag does not cover this account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/sitename'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - id
+              properties:
+                id:
+                  type: string
+  /v1/sites/{sitename}/push/mute:
+    post:
+      x-audience:
+      - public-host
+      tags:
+      - Notifications
+      operationId: webPushMute
+      summary: Mute one device for named resources (SIM-360)
+      description: Replaces the device's per-resource mute list without unsubscribing it. Ownership checked
+        the same way unsubscribe is.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Mute one device for named resources
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        '400':
+          description: invalid_request, or too_many_resources.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: forbidden (sign in on this site first, for a visitor with no session).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: site_not_found, not_offered, or not_found for an id that is not this caller's own
+            device.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/sitename'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - id
+              properties:
+                id:
+                  type: string
+                resources:
+                  type: array
+                  items:
+                    type: string
+  /v1/sites/{sitename}/push/devices:
+    get:
+      x-audience:
+      - public-host
+      tags:
+      - Notifications
+      operationId: webPushListDevices
+      summary: List every device subscribed on a site (SIM-360)
+      description: Owner-only. Never discloses one visitor's device to another; a visitor sees their own
+        devices only through their own subscribe response.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: List every device subscribed on a site
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: site_not_found, or not_offered when the flag does not cover this account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/sitename'
+    delete:
+      x-audience:
+      - public-host
+      tags:
+      - Notifications
+      operationId: webPushDisableSite
+      summary: Turn push off for this site (SIM-360)
+      description: Owner-only. Removes every web-push device on the site at once, the owner's and every
+        visitor's; the per-device unsubscribe route removes just one. WEB_PUSH_ACCOUNTS stays the
+        install-wide flag; this is the dashboard's one-site bulk action.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Turn push off for this site
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: site_not_found, or not_offered when the flag does not cover this account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/sitename'
+  /v1/sites/{sitename}/push/devices/{id}:
+    delete:
+      x-audience:
+      - public-host
+      tags:
+      - Notifications
+      operationId: webPushDeleteDevice
+      summary: Remove one push device, owner's or any visitor's (SIM-360)
+      description: Owner-only. The generic DELETE /v1/sites/{sitename}/notifications/{id} cannot reach a
+        visitor-role push row (it belongs to that visitor's own account, never the owner's); this route is
+        the owner-authorized way to remove any one push device on their own site, including a visitor's.
+        kind must be web-push; a webhook or MCP-event subscription is out of scope here.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Remove one push device
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: not_found (wrong site, not kind web-push, or no such id), or not_offered when the
+            flag does not cover this account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/sitename'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Device ID from the device list or a subscribe response.
+  /v1/sites/{sitename}/push/rules:
+    get:
+      x-audience:
+      - public-host
+      tags:
+      - Notifications
+      operationId: webPushListRules
+      summary: List the owner's per-resource push controls (SIM-360)
+      description: Owner-only. Which events push and to whom (owner, the row's owner, both, or none) per
+        resource (empty resource is the site default), plus the optional title and one named body column.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: List the owner's per-resource push controls
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rules:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: site_not_found, or not_offered when the flag does not cover this account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/sitename'
+    put:
+      x-audience:
+      - public-host
+      tags:
+      - Notifications
+      operationId: webPushSetRule
+      summary: Set one resource's push controls (SIM-360)
+      description: Owner-only. The owner's recipients choice narrows (never widens) the hard boundary
+        already enforced in the event fan-out itself (a visitor's device never receives another visitor's
+        data, and nothing fires back to the actor who made the write).
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Set one resource's push controls
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        '400':
+          description: invalid_request, storage_not_found, or invalid_recipients.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid owner credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: site_not_found, or not_offered when the flag does not cover this account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/sitename'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resource:
+                  type: string
+                recipients:
+                  type: string
+                  enum: [owner, row_owner, both, none]
+                title:
+                  type: string
+                body_column:
+                  type: string
   /v1/hack/events/{slug}/website/notifications:
     get:
       x-audience:

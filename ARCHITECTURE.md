@@ -38,11 +38,32 @@ Source: `internal/edition/{routes,presentation,identity,storage,notifications}.g
 | Local Geo DB | DB-IP Lite files in `GEOIP_DIR`; `internal/geoip`, `scripts/geoip-refresh.sh`, `simple-host-geoip-refresh.timer` |
 | Email and optional providers | Resend (`internal/email`; recipient-free Hack acceptance/failure journal, `scripts/hack-mail-report.py`), optional Vercel event DNS (`internal/eventdns/vercel.go`), OAuth (`internal/oauth`), PhotoDNA (`internal/imagescan`) |
 
-There is no external queue or object store in this implementation. Webhook/MCP Events delivery
-uses Postgres outboxes and in-process workers (`internal/handler/notify*.go`, `internal/mcp/events.go`).
-Visitor writes emit in both editions, excluding owner writes. Host also emits deploy/activation,
-domain-status, named-viewer requests and visitor-sign-in events; `notify.go:emitSiteNotification`
-excludes Hack. [Hosts and access](docs/architecture/hosts-and-access.md#notification-triggers) lists the sources.
+There is no external queue or object store in this implementation. Webhook/MCP Events/Web Push
+delivery uses Postgres outboxes and in-process workers (`internal/handler/notify*.go`,
+`internal/mcp/events.go`). Web Push (SIM-360, behind `WEB_PUSH_ACCOUNTS`) is a third delivery
+`kind` of the same `site_notifications` row and outbox, not a parallel engine: the row-write/kv/
+file emission call sites (`internal/app/storage`) carry the row's own `visitor_id` and whether
+the actor was the owner, so the fan-out (`repository/notifications.EmitSiteEventFor`) can route a
+push to the right devices without that layer knowing push exists; the actual RFC 8291/8292
+encryption and send (`internal/handler/notify_push.go`, `github.com/SherClockHolmes/webpush-go`)
+reuses the webhook delivery client's SSRF-guarded dial.
+Visitor writes emit in both editions, excluding owner writes (an owner write with no associated
+visitor row/key still emits nothing; one that touches a visitor's row -- D1's owner edit, or
+SIM-358's owner-on-behalf-of add -- emits so that visitor's own push devices, never the owner's
+own subscriptions, can be reached). The fan-out's own CASE (not the emission guard above) is what
+actually keeps an owner-authored write, once stored, from ever reaching a webhook or MCP Events
+subscription: it requires the non-push branch to see an actor other than "owner", so storing the
+event for push's sake never becomes a behaviour change for those two kinds. The push branch's own
+owner-recipient check is broader on purpose: it also excludes the site's own `owner_id` (not only
+the literal "owner" actor), since D1's own write stamps the actor as its stampID -- the owner's
+account id -- for webhook/MCP compatibility, but that same id can only ever mean the owner when
+compared against an owner-role push subscription's own `owner_id`. These same two routing facts
+(`push_actor`/`push_target`) are persisted on the stored event itself (`site_events.push_actor`/
+`push_target`, never delivered to any subscriber) so a cursor-based MCP replay applies the
+identical eligibility CASE a live delivery would have, instead of none at all. Host also emits
+deploy/activation, domain-status, named-viewer requests and visitor-sign-in events;
+`notify.go:emitSiteNotification` excludes Hack.
+[Hosts and access](docs/architecture/hosts-and-access.md#notification-triggers) lists the sources.
 No CLI-proxy sidecar is needed by the Go request path; deployment-specific integrations belong
 with the proxy configuration.
 

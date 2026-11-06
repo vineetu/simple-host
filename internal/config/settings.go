@@ -437,6 +437,8 @@ func otherSettings() []Setting {
 			Description: "Seals site passcodes, notification signing secrets and custom header tokens with AES-256-GCM (32 random bytes, base64: openssl rand -base64 32); without it new passcodes and notifications are refused, and changing it makes stored passcodes and notification secrets unreadable and signs every visitor out."},
 		{Name: "PREVIEW_ACCOUNTS", Group: "sites", Type: "string",
 			Description: "Accounts (comma-separated) whose sites expire on their own."},
+		{Name: "WEB_PUSH_ACCOUNTS", Group: "sites", Type: "string",
+			Description: "SIM-360: accounts (comma-separated handles) allowed to use Web Push as a notification channel; push routes 404 for everyone else. \"all\" or \"*\" enables it for every account. Empty: off."},
 		{Name: "PREVIEW_TTL_HOURS", Group: "sites", Type: "duration", Default: "48", Min: i64(1), Unit: "hours",
 			Description: "How long those accounts' sites last."},
 

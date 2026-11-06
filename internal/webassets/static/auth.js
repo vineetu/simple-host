@@ -1158,6 +1158,142 @@
       return render();
     }
   };
+  // SIM-360 Web Push. 404 (not_offered) from any of these calls means the
+  // owner's account is not in WEB_PUSH_ACCOUNTS; callers should treat that
+  // the same as "push is not available here", not as an error to surface.
+  function pushUint8(base64url) {
+    var pad = "=".repeat((4 - base64url.length % 4) % 4);
+    var raw = atob((base64url + pad).replace(/-/g, "+").replace(/_/g, "/"));
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  function pushBase64url(buffer) {
+    var bytes = new Uint8Array(buffer), s = "";
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  // sh_push_ids: a small JSON array of every subscription id this browser
+  // has ever created on this site (normally one; a device that calls
+  // subscribe() for more than one resource gets one id per resource,
+  // sharing the same browser PushSubscription). Tracking all of them,
+  // not just the last, is what lets unsubscribe() reach every one of
+  // them rather than orphaning earlier rows outside its own cleanup.
+  function pushStorageKey() { return "sh_push_ids:" + API_ORIGIN + ":" + (_cfg.site || location.host); }
+  function pushStoredIDs() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(pushStorageKey()) || "[]");
+      return Array.isArray(raw) ? raw : [];
+    } catch (e) { return []; }
+  }
+  function pushRememberID(id) {
+    try {
+      var ids = pushStoredIDs();
+      if (ids.indexOf(id) === -1) { ids.push(id); localStorage.setItem(pushStorageKey(), JSON.stringify(ids)); }
+    } catch (e) {}
+  }
+  function pushForgetIDs() { try { localStorage.removeItem(pushStorageKey()); } catch (e) {} }
+  function pushRegistration() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      return Promise.reject(new Error("push is not supported in this browser"));
+    }
+    // /v1/push/sw.js, scoped to /v1/push/ (not root): a push event and a
+    // notification click both work from any scope, neither is about
+    // controlling a page, so this never needs -- and never takes -- the
+    // wider scope a site's own root-scoped service worker, if it has
+    // one, still exclusively owns (FIX 2/11, Codex round 2).
+    return navigator.serviceWorker.register("/v1/push/sw.js", {scope: "/v1/push/"}).then(function (reg) { return reg; });
+  }
+  SH.push = {
+    // Call only from a user gesture (a click handler): the permission
+    // prompt it triggers is refused outside one. options.resource is
+    // optional for both the owner and a signed-in visitor (omitted: the
+    // whole site); options.label is a human label shown on the owner's
+    // device list. Calling it again for the same browser subscription
+    // and resource (a reload, granting the prompt again) updates that
+    // same server-side row rather than creating another one.
+    subscribe: function (options) {
+      if (noBackend) return unavailable();
+      options = options || {};
+      return request(API_BASE + "/push/vapid-key").then(function (keyResp) {
+        return pushRegistration().then(function (reg) {
+          return reg.pushManager.getSubscription().then(function (existing) {
+            if (existing) return existing;
+            return reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: pushUint8(keyResp.public_key)});
+          });
+        }).then(function (sub) {
+          var body = {
+            endpoint: sub.endpoint,
+            keys: {p256dh: pushBase64url(sub.getKey("p256dh")), auth: pushBase64url(sub.getKey("auth"))},
+            label: options.label || ""
+          };
+          if (options.resource) body.resource = options.resource;
+          // A signed-in visitor's events are always forced server-side to
+          // the record/file events regardless of what is sent here, but
+          // the owner's own subscribe has no such default: omitting
+          // events entirely used to 400 for the owner alone (it worked
+          // for a visitor only by accident of that server-side override).
+          // Default to the same record/file events here so the one call
+          // works the same way for both, documented in notifications.md.
+          body.events = options.events && options.events.length ? options.events : ["record.added", "record.changed", "file.uploaded"];
+          return write(API_BASE + "/push/subscribe", "POST", body).then(function (r) {
+            pushRememberID(r.id);
+            return r;
+          });
+        });
+      });
+    },
+    // Ends push for this device: unregisters the browser subscription
+    // (awaited first, so a navigation right after this call can never
+    // race ahead of it) and removes every server-side row this browser
+    // ever created here, not only the most recent. Safe to call even if
+    // never subscribed; never throws.
+    unsubscribe: function () {
+      if (noBackend || !("serviceWorker" in navigator)) return Promise.resolve();
+      // getRegistration(clientURL) finds the registration whose scope
+      // covers clientURL; with the worker's own scope now /v1/push/
+      // (not root), the lookup URL must be inside that scope too.
+      return navigator.serviceWorker.getRegistration("/v1/push/sw.js").then(function (reg) {
+        var local = Promise.resolve();
+        if (reg) {
+          local = reg.pushManager.getSubscription().then(function (sub) {
+            return sub ? sub.unsubscribe().catch(function () {}) : null;
+          }).catch(function () {});
+        }
+        return local.then(function () {
+          var ids = pushStoredIDs();
+          pushForgetIDs();
+          return Promise.all(ids.map(function (id) {
+            return write(API_BASE + "/push/unsubscribe", "POST", {id: id}).catch(function () {});
+          }));
+        });
+      }).catch(function () {});
+    },
+    // Mutes (or, with an empty/omitted list, unmutes) one device for the
+    // named resources, without unsubscribing it: id names which of this
+    // browser's subscriptions (omitted: the most recently subscribed
+    // one, the common case of a single site-wide device).
+    mute: function (resources, id) {
+      if (noBackend) return unavailable();
+      if (!id) { var ids = pushStoredIDs(); id = ids[ids.length - 1]; }
+      if (!id) return Promise.reject(new Error("no push subscription on this device"));
+      return write(API_BASE + "/push/mute", "POST", {id: id, resources: resources || []});
+    }
+  };
+  // The one Sign out also ends push on this device: awaited (not
+  // fire-and-forget) so the browser's unsubscribe and the server's
+  // delete both finish before sign-out proceeds to invalidate the
+  // session or navigate away. Best-effort: a failed or missing push
+  // subscription never blocks or fails the sign-out itself.
+  (function () {
+    var baseSignOut = SH.signOut;
+    SH.signOut = function () {
+      var args = arguments;
+      return SH.push.unsubscribe().catch(function () {}).then(function () {
+        return baseSignOut.apply(SH, args);
+      });
+    };
+  }());
   // Preload for synchronous signIn(); mount/requireSignIn await discovery explicitly.
   if (!noBackend && !contentHost) loadProviders().catch(function () {});
   SH.ready = SH.me().catch(function () { return {signed_in: false}; });

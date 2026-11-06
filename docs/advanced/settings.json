@@ -1333,6 +1333,17 @@
       "small_box": false
     },
     {
+      "name": "WEB_PUSH_ACCOUNTS",
+      "group": "sites",
+      "description": "SIM-360: accounts (comma-separated handles) allowed to use Web Push as a notification channel; push routes 404 for everyone else. \"all\" or \"*\" enables it for every account. Empty: off.",
+      "type": "string",
+      "default": "",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": false
+    },
+    {
       "name": "PREVIEW_TTL_HOURS",
       "group": "sites",
       "description": "How long those accounts' sites last.",
@@ -1564,6 +1575,34 @@
       "min": 1,
       "max": 365,
       "unit": "days",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "NOTIFY_PUSH_PER_SITE_PER_DAY",
+      "group": "data",
+      "description": "SIM-360: web-push sends allowed per site per day, on top of the general NOTIFY_PER_DAY event cap.",
+      "type": "int",
+      "default": "2000",
+      "min": 1,
+      "max": 10000000,
+      "unit": "pushes",
+      "security_sensitive": false,
+      "required": false,
+      "basic": false,
+      "small_box": true
+    },
+    {
+      "name": "NOTIFY_PUSH_PER_PERSON_PER_DAY",
+      "group": "data",
+      "description": "SIM-360: web-push sends allowed per recipient (owner or one visitor) per day across their own devices.",
+      "type": "int",
+      "default": "200",
+      "min": 1,
+      "max": 100000,
+      "unit": "pushes",
       "security_sensitive": false,
       "required": false,
       "basic": false,

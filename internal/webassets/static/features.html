@@ -136,7 +136,7 @@
           <li><a class="node" href="#addresses"><b>Domains and addresses</b><span class="n">13</span><span class="l">Where a site answers: its own address from the first minute, a short free name, your own domain, or one wildcard for every site you own.</span></a></li>
           <li><a class="node" href="#storage"><b>Storage and saved data</b><span class="n">28</span><span class="l">Where a site keeps what visitors send and what the owner changes from chat, with rules for who may read, add, edit, and delete.</span></a></li>
           <li><a class="node" href="#access"><b>Sign-in and access</b><span class="n">21</span><span class="l">How owners and visitors sign in, the keys an AI agent uses, and who may open a site.</span></a></li>
-          <li><a class="node" href="#notifications"><b>Notifications</b><span class="n">7</span><span class="l">A signed call to your receiver or your AI app the moment a visitor writes, and the emails Simple Host sends you.</span></a></li>
+          <li><a class="node" href="#notifications"><b>Notifications</b><span class="n">8</span><span class="l">A signed call to your receiver or your AI app the moment a visitor writes, and the emails Simple Host sends you.</span></a></li>
           <li><a class="node" href="#agents"><b>Agents and MCP</b><span class="n">18</span><span class="l">How an AI app or coding agent connects to Simple Host, what it may call, and what it is told while it works.</span></a></li>
           <li><a class="node" href="#dashboard"><b>Owner dashboard</b><span class="n">9</span><span class="l">The screens where you manage your sites yourself, and the screens your AI app can draw inside a chat.</span></a></li>
           <li><a class="node" href="#showcase"><b>Showcase and home page</b><span class="n">4</span><span class="l">What opens at your handle&#x27;s address: a public list of your sites you can pin, order, and caption, or one site you choose as home.</span></a></li>
@@ -1524,6 +1524,21 @@
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
           <p class="ednote">Site events are Simple Host only; Simple Hack and Enterprise have the three record events. On Simple Hack the connector offers list and remove only; Enterprise binds the subscription to the connector grant and rechecks membership before each delivery.</p>
           <p class="meta"><span class="status"><b>Status:</b> live.</span> <span class="docs"><b>Read more:</b> <a href="/docs.html#notifications">API reference: notifications</a> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications">FEATURES.md §19 Signals and notifications</a></span></p>
+        </div>
+      </details>
+      <details class="feat" id="notify-web-push">
+        <summary><span class="fname">A push notification on your phone or computer</span> <span class="st flag">Off by default</span><span class="fline">Apple and Google push to a subscribed device, as a third kind of the same notification: you choose which events push and to whom.</span></summary>
+        <div class="fbody">
+          <p class="how">A push subscription is a row in the same notification engine as webhooks and MCP Events, with the device&#x27;s endpoint and keys in place of a receiver URL. Both the owner and a signed-in visitor may subscribe their own device site-wide or to one optional resource; a visitor&#x27;s device is always scoped to record/file events only, never a site-wide or site-level one, and the privacy boundary that keeps it from ever reaching another visitor&#x27;s data is enforced in delivery itself, not by a required resource. Per-resource controls choose who it reaches (the owner, the row&#x27;s owner, both, or none) and, optionally, one named column shown as the push text; the default text names no row content. A visitor&#x27;s device is only ever reached by an event about their own row, key or file, and nothing ever pushes back to whoever made the write, so your own save never pushes to you.</p>
+          <p class="ex"><b>Example.</b> A gym coach gets a push the moment a client logs a workout; the client gets a push when the coach replies, without either seeing the other&#x27;s other clients.</p>
+          <dl class="fm">
+            <dt>Who</dt><dd>A site owner who wants a push on their phone the moment someone writes, and a signed-in visitor who wants a push when the owner replies to their own entry.</dd>
+            <dt>Where</dt><dd>Ask your AI app, or turn push on from the page with <code>SH.push.subscribe()</code> once signed in.</dd>
+            <dt>Limits</dt><dd class="lim">Behind an account allowlist (<code>WEB_PUSH_ACCOUNTS</code>) while it is being tried out; off everywhere until an account is named or the flag is set to every account. iPhone needs Add to Home Screen first, iOS 16.4 or later. Push endpoints are personal data: never sent to AgentCat or exports, and removed on sign-out, viewer removal, account or site deletion, or erasure.</dd>
+          </dl>
+          <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
+          <p class="ednote">Simple Hack and Enterprise have not ported web push.</p>
+          <p class="meta"><span class="status"><b>Status:</b> off by default. Behind WEB_PUSH_ACCOUNTS; off until an account is named.</span> <span class="docs"><b>Read more:</b> <a href="https://github.com/vineetu/simple-host/blob/main/FEATURES.md#19-signals-and-notifications">FEATURES.md §19 Signals and notifications</a> <a href="/privacy.html">Privacy</a></span></p>
         </div>
       </details>
       <details class="feat" id="notify-emails">

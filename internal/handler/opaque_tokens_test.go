@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -115,7 +116,7 @@ func TestMCPNotificationVisitorReferences(t *testing.T) {
 			raw, _ := json.Marshal(map[string]any{"visitor": visitor, "site": "blog", "fields": map[string]any{"item": "cake", "number": json.Number("9007199254740993")}})
 			d := model.NotificationDelivery{EventID: "evt_test", Name: name, Data: raw}
 			for _, source := range []string{"mcp", "webhook"} {
-				body := h.notificationBody(model.Notification{Source: source, SiteID: opaqueSite}, d, 1)
+				body := h.notificationBody(context.Background(), model.Notification{Source: source, SiteID: opaqueSite}, d, 1)
 				var payload struct {
 					Data map[string]any `json:"data"`
 				}
@@ -150,7 +151,7 @@ func TestMCPNotificationVisitorReferences(t *testing.T) {
 	}
 	h.ed = edition.ForKind(edition.Hack)
 	raw, _ := json.Marshal(map[string]any{"visitor": opaqueOwner})
-	body := h.notificationBody(model.Notification{Source: "mcp", SiteID: opaqueSite}, model.NotificationDelivery{Data: raw}, 1)
+	body := h.notificationBody(context.Background(), model.Notification{Source: "mcp", SiteID: opaqueSite}, model.NotificationDelivery{Data: raw}, 1)
 	if !bytes.Contains(body, []byte(opaqueOwner)) {
 		t.Fatal("Hack notification changed")
 	}

@@ -26,8 +26,29 @@ func (s *Service) CountSiteViewers(ctx context.Context, siteID string) (int, err
 func (s *Service) AddSiteViewer(ctx context.Context, siteID, email string) (bool, error) {
 	return repo.AddSiteViewer(ctx, s.database, siteID, email)
 }
+
+// RemoveSiteViewer removes a named viewer and, in the same call (FIX 9,
+// Codex round 2: "service-layer removal bypasses cleanup entirely"),
+// deletes that person's push subscriptions for this site -- every
+// caller of this service method gets the cleanup, not only the HTTP
+// handler that happened to remember to call it separately. Deps.
+// DeleteViewerPush is nil-safe (set by the handler, which is the only
+// side that knows how to resolve a push device's owner_id back to an
+// email): a failure there is logged, never returned, since the viewer
+// is already removed and that must not roll back over a best-effort
+// cleanup step; delivery-time membership checking (ProcessDelivery)
+// remains the backstop either way.
 func (s *Service) RemoveSiteViewer(ctx context.Context, siteID, email string) (bool, error) {
-	return repo.RemoveSiteViewer(ctx, s.database, siteID, email)
+	removed, err := repo.RemoveSiteViewer(ctx, s.database, siteID, email)
+	if err != nil || !removed {
+		return removed, err
+	}
+	if s.deps.DeleteViewerPush != nil {
+		if pushErr := s.deps.DeleteViewerPush(ctx, siteID, email); pushErr != nil {
+			log.Printf("remove_site_viewer: push cleanup for site %s, %s: %v", siteID, email, pushErr)
+		}
+	}
+	return removed, nil
 }
 func (s *Service) IsSiteViewer(ctx context.Context, siteID, email string) (bool, error) {
 	return repo.IsSiteViewer(ctx, s.database, siteID, email)

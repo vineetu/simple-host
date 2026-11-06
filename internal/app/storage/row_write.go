@@ -172,7 +172,12 @@ func (s *Service) TableAdd(ctx context.Context, in TableInput) (TableResult, err
 	if err != nil {
 		return TableResult{}, err
 	}
-	return TableResult{Body: map[string]any{"changes": 1, "last_insert_id": id}, Notify: s.rowNotification(c, in.Table, "record.added", "", id, in.Values)}, nil
+	// in.Values was stamped in place (stampInsertValues): its visitor_id,
+	// if any, is the new row's own -- the actor's for a visitor's own
+	// insert, or (once SIM-358 lands) the named recipient for an owner
+	// insert on their behalf. SIM-360 web-push fan-out keys off this same
+	// fact, known here with no extra lookup.
+	return TableResult{Body: map[string]any{"changes": 1, "last_insert_id": id}, Notify: s.rowNotification(c, in.Table, "record.added", "", id, in.Values, rowValueVisitorID(in.Values))}, nil
 }
 
 // InsertActor supplies the caller facts needed for server-owned columns.
@@ -377,21 +382,106 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 	if err = s.finishTableWrite(conn, c, commit); err != nil {
 		return TableResult{}, err
 	}
-	return TableResult{Body: map[string]any{"changes": 1}, Notify: s.rowNotification(c, in.Table, "record.changed", "edited", in.ID, values)}, nil
+	// filter=="" means no per-actor ownership was enforced on this write:
+	// the owner's key/connector (filter is always "" for c.Owner), the
+	// owner signed in on their own site (D1, OwnerOnSite), or a visitor
+	// acting under a shared signed_in/anyone write grant that is not
+	// scoped to their own rows -- any of these may have touched a row
+	// that is not the actor's own, so it is looked up directly rather
+	// than assumed to be c.VisitorID. Only when filter actually named
+	// c.VisitorID (the own-preset case) is the actor known to be the
+	// row's own visitor_id for free, with no extra query. Editing
+	// visitor_id itself is disallowed above, so the value is the same
+	// before and after this write.
+	rowVisitorID := c.VisitorID
+	if filter == "" {
+		rowVisitorID = lookupRowVisitorID(conn, meta, in.Table, meta.rowid, in.ID)
+	}
+	return TableResult{Body: map[string]any{"changes": 1}, Notify: s.rowNotification(c, in.Table, "record.changed", "edited", in.ID, values, rowVisitorID)}, nil
 }
 
-func (s *Service) rowNotification(c Call, table, name, change string, id int64, values map[string]json.RawMessage) func() {
+// lookupRowVisitorID reads one row's own visitor_id column directly: used
+// only for an owner's edit or delete of a row that might belong to a
+// visitor (SIM-360 push routing keys off this; a visitor's own edit/delete
+// already knows it without a query, since the own-preset filter means it
+// can only be c.VisitorID). Best-effort: any failure (no such column, row
+// already gone) yields "", which only means no push fan-out target was
+// found, never a write failure -- the write itself already committed or is
+// about to, independent of this lookup.
+func lookupRowVisitorID(conn *sqlite3.Conn, meta rowMetadata, table, rowid string, id int64) string {
+	if _, ok := meta.cols["visitor_id"]; !ok {
+		return ""
+	}
+	stmt, _, err := conn.Prepare(`SELECT visitor_id FROM ` + runtime.Quote(table) + ` WHERE ` + rowid + ` = ?`)
+	if err != nil {
+		return ""
+	}
+	defer stmt.Close()
+	if stmt.BindInt64(1, id) != nil || !stmt.Step() || stmt.ColumnType(0) == sqlite3.NULL {
+		return ""
+	}
+	return stmt.ColumnText(0)
+}
+
+// rowValueVisitorID reads values["visitor_id"] back out as a plain string
+// ("" for absent or JSON null), for the row's own identity rather than the
+// actor's.
+func rowValueVisitorID(values map[string]json.RawMessage) string {
+	raw, ok := values["visitor_id"]
+	if !ok {
+		return ""
+	}
+	var id string
+	if json.Unmarshal(raw, &id) != nil {
+		return ""
+	}
+	return id
+}
+
+// rowNotification builds the deferred notify callback for one row write.
+// rowVisitorID is the row's own visitor_id (who the data belongs to, not
+// necessarily who wrote it): known for free on insert (rowValueVisitorID of
+// the just-stamped values -- stampInsertValues already sets it to
+// c.OwnerFor for an on-behalf-of add) and looked up by the caller for edit/
+// delete, where it must be read before the write since editing visitor_id
+// is disallowed. ownerWrite (the actor, for self-notify exclusion and push
+// routing) is true for c.Owner (API key/connector) and for c.OwnerFor != ""
+// (an owner-on-behalf-of add, SIM-358, reached either through the owner's
+// own key or through OwnerOnSite): both are the owner's own write, never
+// something to tell the owner's own webhook/MCP-event/push subscriptions
+// about, but (unlike a plain owner write touching nobody) an on-behalf-of
+// add has a real rowVisitorID (the target visitor) and must still reach
+// that visitor's own push devices -- so it is never suppressed outright
+// the way a plain owner write with no associated row is. Plain OwnerOnSite
+// (no OwnerFor) stays an ordinary signed-in write for notification
+// purposes (TestNotifyVisitorRoutes), even though it carries owner rights
+// over the data itself; that is unchanged here. An owner (API key) write
+// touching no visitor's row still notifies nobody via webhook/mcp-event
+// (unchanged); SIM-360 web-push fan-out keys off rowVisitorID (the data's
+// own owner) and ownerWrite (the actor) to route a push to the right
+// devices without this layer knowing push exists. A visitor (or
+// OwnerOnSite) write under a shared (signed_in/anyone) write grant, or
+// D1's own elevated access, that touched someone else's row still
+// notifies the owner's webhook/MCP subscriptions exactly as before; only
+// rowVisitorID (looked up by the caller whenever no per-actor filter was
+// enforced) may name someone other than the actor.
+func (s *Service) rowNotification(c Call, table, name, change string, id int64, values map[string]json.RawMessage, rowVisitorID string) func() {
 	return func() {
-		// c.Owner (API key, connector token) already never notifies. A row
-		// added on behalf of a visitor (c.OwnerFor) must not either, even
-		// when reached through OwnerOnSite (auth.js on the owner's own
-		// site), which otherwise does notify like any other owner-on-site
-		// add: it is the owner's own write, not something to tell the
-		// owner's own subscriptions happened.
-		if c.Owner || c.OwnerFor != "" || s.deps.Notify == nil {
+		if s.deps.Notify == nil {
 			return
 		}
-		data := map[string]any{"table": table, "row_id": id}
+		ownerWrite := c.Owner || c.OwnerFor != ""
+		if ownerWrite && rowVisitorID == "" {
+			// Owner write unrelated to any visitor's row: nobody to tell,
+			// exactly as before SIM-360. (An on-behalf-of add always has
+			// rowVisitorID == c.OwnerFor by this point, so it never hits
+			// this branch -- see the comment above.)
+			return
+		}
+		data := map[string]any{"table": table, "row_id": id, "owner_write": ownerWrite}
+		if rowVisitorID != "" {
+			data["row_visitor_id"] = rowVisitorID
+		}
 		if change != "" {
 			data["change"] = change
 		}
@@ -436,6 +526,17 @@ func (s *Service) TableRemove(ctx context.Context, in TableInput) (TableResult, 
 	if err != nil {
 		return out, err
 	}
+	// Read before the row is gone: filter=="" (the owner's key/connector,
+	// D1's OwnerOnSite, or a visitor under a shared signed_in/anyone
+	// delete grant not scoped to their own rows) means this delete may
+	// have removed any visitor's row, not necessarily the actor's own, so
+	// it is looked up directly while the row still exists; only when
+	// filter actually named c.VisitorID is the actor known for free to be
+	// the row's own visitor_id.
+	rowVisitorID := c.VisitorID
+	if filter == "" {
+		rowVisitorID = lookupRowVisitorID(conn, meta, in.Table, meta.rowid, in.ID)
+	}
 	query, params := runtime.RowDeleteStatement(in.Table, meta.rowid, rowJSON(in.ID), filter, meta.hold && !c.Owner && !c.OwnerOnSite)
 	commit, rollback, err := beginTableWrite(conn)
 	if err != nil {
@@ -456,6 +557,6 @@ func (s *Service) TableRemove(ctx context.Context, in TableInput) (TableResult, 
 		return out, err
 	}
 	out.Body = map[string]any{"deleted": true}
-	out.Notify = s.rowNotification(c, in.Table, "record.changed", "deleted", in.ID, nil)
+	out.Notify = s.rowNotification(c, in.Table, "record.changed", "deleted", in.ID, nil, rowVisitorID)
 	return out, nil
 }

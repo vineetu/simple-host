@@ -204,6 +204,8 @@ Set a status (ask the person which order and which status first): storage_sql_ex
 
 The customer sees the new status the next time My orders loads. If the person wants to see and update orders on the site itself, get_page_recipe topic admin gives an admin page: they sign in on the site's own address with their account email and the page reads and changes every order with owner rights.
 
+Where web push is enabled for this account, the owner can get a push notification for new orders, and a signed-in customer can get one when their own order's status changes (nothing about anyone else's order): `SH.push.subscribe()` on the page, scoped to this resource. The owner chooses, per resource, who it reaches and whether it shows a column's value or stays generic.
+
 ## 4. Verify before handing over
 
 1. Open the site in two browsers (or one normal and one private window). Sign in as two different emails, place an order in each, and check that each My orders list shows only its own order.

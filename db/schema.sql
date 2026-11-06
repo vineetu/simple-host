@@ -1463,15 +1463,46 @@ CREATE TABLE IF NOT EXISTS site_notifications (
  window_start TIMESTAMPTZ, window_attempts INT NOT NULL DEFAULT 0, window_failures INT NOT NULL DEFAULT 0,
  failing_since TIMESTAMPTZ, last_attempt_at TIMESTAMPTZ, last_success_at TIMESTAMPTZ,
  last_result TEXT NOT NULL DEFAULT '', suspended_at TIMESTAMPTZ, suspend_emailed_at TIMESTAMPTZ,
- created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ -- SIM-360 web push: a push subscription is a row here, kind='web-push',
+ -- with the device endpoint in url and keys in push_p256dh/push_auth.
+ -- subscriber_role names whose device owner_id is: the site owner, or a
+ -- signed-in visitor subscribing their own device (owner_id is then that
+ -- visitor's own users.id, never another person's).
+ kind TEXT NOT NULL DEFAULT 'webhook',
+ subscriber_role TEXT NOT NULL DEFAULT 'owner',
+ push_p256dh TEXT NOT NULL DEFAULT '', push_auth TEXT NOT NULL DEFAULT '',
+ device_label TEXT NOT NULL DEFAULT '', muted_resources TEXT[] NOT NULL DEFAULT '{}',
+ push_family TEXT NOT NULL DEFAULT ''
 );
+ALTER TABLE site_notifications DROP CONSTRAINT IF EXISTS site_notifications_kind_check;
+ALTER TABLE site_notifications ADD CONSTRAINT site_notifications_kind_check CHECK (kind IN ('webhook','mcp-event','web-push'));
+ALTER TABLE site_notifications DROP CONSTRAINT IF EXISTS site_notifications_subscriber_role_check;
+ALTER TABLE site_notifications ADD CONSTRAINT site_notifications_subscriber_role_check CHECK (subscriber_role IN ('owner','visitor'));
+-- Owner's per-site, per-resource push routing and payload controls
+-- (resource='' is the site default). recipients: who a push-kind
+-- subscription may reach for that resource's events.
+CREATE TABLE IF NOT EXISTS site_push_rules (
+ site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+ resource TEXT NOT NULL DEFAULT '',
+ recipients TEXT NOT NULL DEFAULT 'both',
+ title TEXT NOT NULL DEFAULT '', body_column TEXT NOT NULL DEFAULT '',
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ PRIMARY KEY (site_id, resource)
+);
+ALTER TABLE site_push_rules DROP CONSTRAINT IF EXISTS site_push_rules_recipients_check;
+ALTER TABLE site_push_rules ADD CONSTRAINT site_push_rules_recipients_check CHECK (recipients IN ('owner','row_owner','both','none'));
 CREATE INDEX IF NOT EXISTS site_notifications_site ON site_notifications(site_id);
 CREATE INDEX IF NOT EXISTS site_notifications_owner ON site_notifications(owner_id);
 CREATE INDEX IF NOT EXISTS site_notifications_grant ON site_notifications(grant_id);
+CREATE INDEX IF NOT EXISTS site_notifications_push ON site_notifications(site_id, owner_id) WHERE kind='web-push';
+CREATE UNIQUE INDEX IF NOT EXISTS site_notifications_push_identity ON site_notifications(site_id, owner_id, url, storage) WHERE kind='web-push';
+CREATE INDEX IF NOT EXISTS site_notifications_push_family ON site_notifications(push_family) WHERE kind='web-push' AND push_family<>'';
 CREATE TABLE IF NOT EXISTS site_events (
  seq BIGSERIAL PRIMARY KEY, event_id TEXT UNIQUE NOT NULL,
  site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
  name TEXT NOT NULL, storage TEXT NOT NULL, data JSONB NOT NULL,
+ push_actor TEXT NOT NULL DEFAULT '', push_target TEXT NOT NULL DEFAULT '',
  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS site_events_site_seq ON site_events(site_id,seq);

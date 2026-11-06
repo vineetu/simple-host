@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -83,13 +84,22 @@ func (h *SiteHandler) viewerSession(r *http.Request, siteID string) (model.Visit
 // the address other people's sites see). A suspended account never is. email
 // is that address ("" for the owner).
 func (h *SiteHandler) viewerAllowed(r *http.Request, row model.SitePasscodeRow, userID string) (ok bool, email string, err error) {
-	if susp, err := h.storeAccounts().UserSuspended(r.Context(), userID); err != nil || susp {
+	return h.viewerAllowedCtx(r.Context(), row, userID)
+}
+
+// viewerAllowedCtx is viewerAllowed's body without the *http.Request: the
+// check only ever needed the context, never anything else about the
+// request, so an async caller (SIM-360 push delivery, which has no request
+// at all) can run the exact same named-viewers decision a live HTTP
+// request would.
+func (h *SiteHandler) viewerAllowedCtx(ctx context.Context, row model.SitePasscodeRow, userID string) (ok bool, email string, err error) {
+	if susp, err := h.storeAccounts().UserSuspended(ctx, userID); err != nil || susp {
 		return false, "", err
 	}
 	if userID == row.UserID {
 		return true, "", nil
 	}
-	email, err = visitorEmail(r.Context(), h.database, userID)
+	email, err = visitorEmail(ctx, h.database, userID)
 	if err != nil {
 		return false, "", err
 	}
@@ -97,8 +107,39 @@ func (h *SiteHandler) viewerAllowed(r *http.Request, row model.SitePasscodeRow, 
 	if !valid {
 		return false, email, nil
 	}
-	listed, err := h.sitesSvc().IsSiteViewer(r.Context(), row.SiteID, norm)
+	listed, err := h.sitesSvc().IsSiteViewer(ctx, row.SiteID, norm)
 	return listed, email, err
+}
+
+// visitorStillWelcome is the SIM-360 push-delivery-time recheck for a
+// visitor-role push subscription (model.Notification.SubscriberRole ==
+// "visitor"): unlike a webhook/mcp-event subscription, which has always
+// been the owner's own, a push device is a specific, signed-in visitor's
+// own, and a named-viewers site can revoke that visitor's standing after
+// they subscribed. Removing a named viewer already deletes their push
+// subscriptions up front (deletePushForEmail), and most delivery paths
+// that would also delete the row (an account or site gone) are already
+// covered elsewhere in ProcessDelivery; this is the delivery-time
+// backstop for whatever path left a subscription behind on a site that
+// has since locked itself to named viewers, or dropped this one -- the
+// exact decision ViewersLetIn (Gate's ViewersAllow) would make for an
+// ordinary read on this site right now, just without the *http.Request
+// an async delivery never has. A site with no passcode row at all, or one
+// not in named-viewers mode, is unconditionally welcome (unchanged from
+// before SIM-360), matching ViewersLetIn's own early returns exactly.
+func (h *SiteHandler) visitorStillWelcome(ctx context.Context, siteID, userID string) (bool, error) {
+	row, err := h.sitesSvc().GetSitePasscode(ctx, siteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !row.NamedViewers {
+		return true, nil
+	}
+	allowed, _, err := h.viewerAllowedCtx(ctx, row, userID)
+	return allowed, err
 }
 
 // viewerGate answers a named-viewers site's file request for someone who may
@@ -762,6 +803,10 @@ func (h *SiteHandler) removeSiteViewer(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: e + " is not a named viewer of this site", Code: "viewer_not_found"})
 		return
 	}
+	// SIM-360 privacy guardrail: a removed named viewer stops receiving
+	// push too. RemoveSiteViewer itself already ran this (appsites.Deps.
+	// DeleteViewerPush, FIX 9) for every caller of that service method,
+	// not just this handler, so there is nothing left to do here.
 	log.Printf("site_viewers removed=1 site_id=%s name=%s by=%s", site.ID, site.Name, auth.GetUser(r.Context()).ID)
 	note := e + " can no longer open the site."
 	h.writeSiteAccess(w, r, site, siteAccessResponse{Removed: e, Note: note})

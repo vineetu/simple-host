@@ -52,6 +52,12 @@ func newRateLimiter(capacity, perSecond float64) *rateLimiter {
 
 func (rl *rateLimiter) allow(key string) bool { return rl.RateLimiter.Allow(key) }
 
+// refund returns one token to key's bucket: used when a caller consumed
+// it from this limiter but then failed a second, related check (push's
+// site-then-person budget pair, FIX 7) and must not charge the one that
+// did pass when the whole attempt did not happen.
+func (rl *rateLimiter) refund(key string) { rl.RateLimiter.Refund(key) }
+
 func (rl *rateLimiter) allowHTTP(w http.ResponseWriter, key string) bool {
 	return rl.RateLimiter.AllowHTTP(w, key)
 }

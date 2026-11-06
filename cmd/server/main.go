@@ -409,6 +409,7 @@ func main() {
 	connector.EnableReviewerSignIn(cfg.ReviewAccountEmail, cfg.ReviewAccountPasswordHash)
 	userHandler.SetReviewerEmail(cfg.ReviewAccountEmail)
 	userHandler.SetPreviewAccounts(cfg.PreviewAccounts)
+	siteHandler.SetWebPushAccounts(cfg.WebPushAccounts, cfg.WebPushAccountsAll)
 	connector.SetSignInAlerts(userHandler.SignInAlerts())
 	handler.RegisterOpenAIAppsChallenge(mux, cfg.OpenAIAppsChallenge)
 	// The owner's product knowledge server (/brain/mcp, /v1/brain): hosted
@@ -622,7 +623,14 @@ func main() {
 	// keeps the legacy 301 to its path URL.
 	app := handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(gated))))
 	server := &http.Server{
-		Addr:              net.JoinHostPort(cfg.BindAddr, cfg.Port),
+		Addr: net.JoinHostPort(cfg.BindAddr, cfg.Port),
+		// SIM-360's service worker is served at /v1/push/sw.js (see
+		// notify_push.go's pushSWRoute), an ordinary route on the same
+		// mux every /v1/... path already reaches regardless of which
+		// host-dispatcher below runs first -- no separate wrapping
+		// needed (that was the old, root-path ServePushSW's whole
+		// reason for existing, and the problem it caused: FIX 2/11,
+		// Codex round 2).
 		Handler:           siteHandler.FamilyHosts(app, siteHandler.SiteBaseHosts(siteHandler.BoundSubdomains(app, siteHandler.SiteHosts(app, siteHandler.PersonHosts(app, siteHandler.LegacyHostRedirect(app)))))),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

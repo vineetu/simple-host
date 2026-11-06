@@ -70,6 +70,17 @@ func notificationTools() []Tool {
 				}
 				notifications := make([]any, 0, len(body.Notifications))
 				for _, row := range body.Notifications {
+					// SIM-360 privacy guardrail: a web-push device's
+					// endpoint is personal data and must never reach
+					// AgentCat, which captures every MCP tool call's
+					// result. This tool was always "list webhook
+					// subscriptions" (its own description says so); push
+					// devices are managed by GET/PUT .../push/devices
+					// and .../push/rules instead, neither of which is an
+					// MCP tool.
+					if kind, _ := row["kind"].(string); kind == "web-push" {
+						continue
+					}
 					// Only public subscription fields belong in a tool result.
 					item := map[string]any{}
 					for _, key := range []string{"id", "site", "event", "url", "events", "storage", "label", "source", "app_name", "state", "created_at", "expires_at", "last_attempt_at", "last_success_at", "last_result", "failing_since", "auth_header_name"} {

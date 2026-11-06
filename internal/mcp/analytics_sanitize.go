@@ -95,6 +95,13 @@ func analyticsSecretFieldForPolicy(policy toolPolicy, name string) bool {
 		}
 	}
 	switch name {
+	// SIM-360: a web-push device's endpoint and keys are personal data
+	// (push endpoints never reach AgentCat). No current tool result
+	// carries these field names (list_notifications excludes web-push
+	// rows entirely before this point), but the redaction rule belongs
+	// here regardless of whether anything exercises it today.
+	case "endpoint", "pushendpoint", "pushp256dh", "pushauth", "p256dh":
+		return true
 	case "code", "signincode", "verificationcode", "teamkey", "signingkey", "privatekey", "authheader",
 		"uploadurl", "photosurl", "importurl", "downloadurl", "signedurl", "previewurl", "pinnedurl",
 		"joincode", "judgecode", "joinurl", "judgeurl", "inviteurl",

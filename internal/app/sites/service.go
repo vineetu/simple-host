@@ -96,6 +96,12 @@ type Deps struct {
 	IdleArchive             IdleArchiveDeps
 	OwnerMarks              OwnerMarkDeps
 	DomainCerts             DomainCertDeps
+	// DeleteViewerPush deletes a removed named viewer's web-push
+	// subscriptions for one site (SIM-360/FIX 9): set by the handler,
+	// the only side that can resolve a push device's owner_id back to a
+	// sign-in email the same way visitorEmail does. Optional;
+	// RemoveSiteViewer is a no-op here (and logs nothing) when it is nil.
+	DeleteViewerPush func(ctx context.Context, siteID, email string) error
 }
 
 // CreateInput contains the values and non-HTTP dependencies for a locked create.

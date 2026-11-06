@@ -40,7 +40,12 @@ type Limits struct {
 	NotifyTimeout               time.Duration
 	NotifyDefaultTTL            time.Duration
 	NotifySuspendWindow         time.Duration
-	NotifySuspendAfter          time.Duration
+	// SIM-360 web push: per-site and per-person push send limits, on top
+	// of (never above) the existing NotifyPerMinute/NotifyPerDay site caps
+	// that already cover every kind.
+	NotifyPushPerSitePerDay   int
+	NotifyPushPerPersonPerDay int
+	NotifySuspendAfter        time.Duration
 
 	// WordPress imports (browser upload and background conversion).
 	ImportLinkTTL           time.Duration // IMPORT_LINK_TTL_MINUTES
@@ -337,6 +342,8 @@ func DefaultLimits() Limits {
 		NotifyDefaultTTL:            168 * time.Hour,
 		NotifySuspendWindow:         1 * time.Hour,
 		NotifySuspendAfter:          3 * 24 * time.Hour,
+		NotifyPushPerSitePerDay:     2000,
+		NotifyPushPerPersonPerDay:   200,
 
 		ImportLinkTTL:           30 * time.Minute,
 		ImportMaxUploadMB:       1024,
@@ -738,6 +745,8 @@ func Knobs() []Knob {
 		durKnob("NOTIFY_DEFAULT_TTL_HOURS", "hours", time.Hour, 1, 8760, func(l *Limits) *time.Duration { return &l.NotifyDefaultTTL }),
 		durKnob("NOTIFY_SUSPEND_WINDOW_HOURS", "hours", time.Hour, 1, 168, func(l *Limits) *time.Duration { return &l.NotifySuspendWindow }),
 		durKnob("NOTIFY_SUSPEND_DAYS", "days", 24*time.Hour, 1, 365, func(l *Limits) *time.Duration { return &l.NotifySuspendAfter }),
+		intKnob("NOTIFY_PUSH_PER_SITE_PER_DAY", "pushes", 1, 10000000, func(l *Limits) *int { return &l.NotifyPushPerSitePerDay }),
+		intKnob("NOTIFY_PUSH_PER_PERSON_PER_DAY", "pushes", 1, 100000, func(l *Limits) *int { return &l.NotifyPushPerPersonPerDay }),
 
 		durKnob("IMPORT_LINK_TTL_MINUTES", "minutes", m, 1, 1440, func(l *Limits) *time.Duration { return &l.ImportLinkTTL }),
 		intKnob("IMPORT_MAX_UPLOAD_MB", "MB", 1, 10240, func(l *Limits) *int { return &l.ImportMaxUploadMB }),
@@ -1126,6 +1135,8 @@ func init() {
 	knobDocs["NOTIFY_DEFAULT_TTL_HOURS"] = knobDoc{"data", "Default lifetime of an MCP event subscription, in hours.", false, true}
 	knobDocs["NOTIFY_SUSPEND_WINDOW_HOURS"] = knobDoc{"data", "Rolling window for the suspension failure percentage, in hours.", false, true}
 	knobDocs["NOTIFY_SUSPEND_DAYS"] = knobDoc{"data", "Days of continuous failures before a subscription is suspended.", false, true}
+	knobDocs["NOTIFY_PUSH_PER_SITE_PER_DAY"] = knobDoc{"data", "SIM-360: web-push sends allowed per site per day, on top of the general NOTIFY_PER_DAY event cap.", false, true}
+	knobDocs["NOTIFY_PUSH_PER_PERSON_PER_DAY"] = knobDoc{"data", "SIM-360: web-push sends allowed per recipient (owner or one visitor) per day across their own devices.", false, true}
 }
 
 // limitsFromEnv is Load's hook, split out so the test can call LoadLimits with

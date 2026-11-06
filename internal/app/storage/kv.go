@@ -170,26 +170,37 @@ func (s *Service) listKV(ctx context.Context, siteID, resource, prefix, after st
 }
 
 // deleteKVLocked removes a key under the shared site lock after rechecking its resource.
-func (s *Service) deleteKVLocked(ctx context.Context, lockKey string, wait, timeout time.Duration, recheck func(context.Context) bool, committed func(context.Context), siteID, resource, key, filter string) (int64, error) {
+// deleteKVLocked also returns the key's own writer, read under the same
+// write lock right before the delete executes (SIM-360: captured here, not
+// before locking, so a concurrent write cannot change who it names between
+// the read and the delete). writer is only meaningful, and only looked up
+// at all, when filter=="" (no own-preset restriction already proved it was
+// the actor's own key): an owner delete, D1's OwnerOnSite, or a shared
+// signed_in/anyone delete grant may remove any visitor's key.
+func (s *Service) deleteKVLocked(ctx context.Context, lockKey string, wait, timeout time.Duration, recheck func(context.Context) bool, committed func(context.Context), siteID, resource, key, filter string) (int64, string, error) {
 	ctx, unlock, err := s.writeLock(ctx, lockKey, wait, timeout, recheck)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	defer unlock()
+	writer := ""
+	if filter == "" {
+		writer, _ = repository.KVWriter(ctx, s.db, siteID, resource, key)
+	}
 	result, err := s.deleteKV(ctx, siteID, resource, key, filter)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	n, countErr := result.RowsAffected()
 	if filter != "" && (countErr != nil || n == 0) {
-		return 0, &Error{Code: "key_not_found", Message: "key not found"}
+		return 0, "", &Error{Code: "key_not_found", Message: "key not found"}
 	}
 	committed(ctx)
 	n, countErr = result.RowsAffected()
 	if countErr != nil {
-		return 0, nil
+		return 0, writer, nil
 	}
-	return n, nil
+	return n, writer, nil
 }
 
 // kvWriteNotification describes the notification for a successful write.
@@ -399,6 +410,18 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 		return nil, auth, err
 	}
 	name, data := finishKVWrite(unlock, in.Key, value, exists)
+	// writer is the key's own author (from prepareKVWrite, already read):
+	// the actor's own id for a visitor's own write, or -- for an owner's
+	// write to an existing key -- whoever wrote it first. SIM-360 web-push
+	// fan-out keys off this the same way row_write.go's row_visitor_id
+	// does; call.Owner (specifically, not OwnerOnSite -- D1's own write
+	// stays an ordinary notifying write, as it always has been) is the
+	// actor. A brand-new key an owner creates with no prior writer stays
+	// untargeted, same as a plain owner row insert.
+	data["owner_write"] = call.Owner
+	if writer != "" {
+		data["row_visitor_id"] = writer
+	}
 	s.deps.Notify(call, name, data)
 	return value, auth, nil
 }
@@ -421,12 +444,25 @@ func (s *Service) DeleteKV(ctx context.Context, in KVDeleteInput) (*Error, error
 		}
 	}
 	in.Call.Filter = filter
-	n, err := s.deleteKVLocked(ctx, in.Call.OwnerID+"/"+in.Call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck, s.deps.Committed, in.Call.SiteID, in.Call.ResourceName, in.Key, filter)
+	n, writer, err := s.deleteKVLocked(ctx, in.Call.OwnerID+"/"+in.Call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck, s.deps.Committed, in.Call.SiteID, in.Call.ResourceName, in.Key, filter)
 	if err != nil {
 		return auth, err
 	}
 	name, data := kvDeleteNotification(in.Key, n)
 	if name != "" {
+		// writer (captured under the write lock, just before the delete)
+		// is the deleted key's own author when filter=="" (an owner
+		// delete, D1's OwnerOnSite, or a shared signed_in/anyone delete
+		// grant may remove any visitor's key); for a filtered own-preset
+		// delete it is always the actor's own id already, so no lookup
+		// ran for it. This is what lets web-push target that visitor the
+		// way row_write.go's delete already does.
+		data["owner_write"] = in.Call.Owner
+		if writer != "" {
+			data["row_visitor_id"] = writer
+		} else if filter != "" {
+			data["row_visitor_id"] = in.Call.VisitorID
+		}
 		s.deps.Notify(in.Call, name, data)
 	}
 	return auth, nil

@@ -21,9 +21,15 @@ import (
 // Add an entry here whenever a migration adds something the code depends on.
 var requiredColumns = map[string][]string{
 	// 0004-password-login.sql adds login.
-	"account_passwords":     {"user_id", "password_hash", "must_change", "updated_at", "login"},
-	"site_notifications":    {"id", "site_id", "owner_id", "source", "grant_id", "app_name", "label", "url", "events", "storage", "args_canonical", "secret", "prev_secret", "prev_secret_until", "auth_header_name", "auth_header_value", "state", "verified_at", "expires_at", "window_start", "window_attempts", "window_failures", "failing_since", "last_attempt_at", "last_success_at", "last_result", "suspended_at", "suspend_emailed_at", "created_at", "updated_at"},
-	"site_events":           {"seq", "event_id", "site_id", "name", "storage", "data", "created_at"},
+	"account_passwords": {"user_id", "password_hash", "must_change", "updated_at", "login"},
+	// 0007-web-push.sql adds kind, subscriber_role, push_p256dh, push_auth,
+	// device_label and muted_resources, plus the site_push_rules table.
+	"site_notifications": {"id", "site_id", "owner_id", "source", "grant_id", "app_name", "label", "url", "events", "storage", "args_canonical", "secret", "prev_secret", "prev_secret_until", "auth_header_name", "auth_header_value", "state", "verified_at", "expires_at", "window_start", "window_attempts", "window_failures", "failing_since", "last_attempt_at", "last_success_at", "last_result", "suspended_at", "suspend_emailed_at", "created_at", "updated_at", "kind", "subscriber_role", "push_p256dh", "push_auth", "device_label", "muted_resources", "push_family"},
+	"site_push_rules":    {"site_id", "resource", "recipients", "title", "body_column", "updated_at"},
+	// 0008-web-push-round-2.sql adds push_actor/push_target (the fan-out's
+	// internal-only routing facts, used for MCP replay's own eligibility
+	// check; never delivered to any subscriber).
+	"site_events":           {"seq", "event_id", "site_id", "name", "storage", "data", "created_at", "push_actor", "push_target"},
 	"site_event_deliveries": {"event_seq", "subscription_id", "state", "attempts", "next_attempt_at", "lease_until", "last_attempt_at", "last_http", "last_category", "duration_ms"},
 	// zd-storage-access-presets.sql adds the acc_* matrix, preset_base,
 	// site_storage_tables and the created_at columns.

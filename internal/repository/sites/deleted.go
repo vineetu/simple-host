@@ -22,10 +22,21 @@ const notTakenDown = `suspended_at IS NULL
 // will be removed for good. sql.ErrNoRows when there is no live site with
 // that id. An emailed idle-cleanup link ("Keep
 // it") ends with it; the cleanup's own removal sets a restore link after.
+//
+// SIM-360: web-push subscriptions (owner and visitor devices) are deleted
+// in this same statement's transaction, not left for the eventual physical
+// delete's cascading FK. A site in Recently deleted serves nothing and
+// should not keep pushing to anyone; its restore path (RestoreDeletedSite)
+// does not restore them, the same as it never resurrects any other write
+// that happened after deletion.
 func MarkSiteDeleted(ctx context.Context, q Querier, siteID string, retention time.Duration) error {
 	res, err := q.ExecContext(ctx, `WITH cleared AS (UPDATE users SET home_site_id = NULL WHERE home_site_id = $1) UPDATE sites SET deleted_at = now(), purge_at = now() + ($2 * interval '1 second'), idle_token_hash = NULL
 		 WHERE id = $1 AND deleted_at IS NULL`, siteID, int64(retention.Seconds()))
-	return oneRow(res, err)
+	if err := oneRow(res, err); err != nil {
+		return err
+	}
+	_, err = q.ExecContext(ctx, `DELETE FROM site_notifications WHERE site_id=$1 AND kind='web-push'`, siteID)
+	return err
 }
 
 // RestoreDeletedSite brings a site back from Recently deleted. sql.ErrNoRows

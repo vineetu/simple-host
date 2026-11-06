@@ -5,6 +5,7 @@ go 1.27.1
 toolchain go1.27.3
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/evanw/esbuild v0.28.2
 	github.com/lib/pq v1.10.9
 	github.com/ncruces/go-sqlite3 v0.35.6
@@ -17,6 +18,7 @@ require (
 )
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v6 v6.3.35304 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect

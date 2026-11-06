@@ -133,6 +133,22 @@ type SiteHandler struct {
 	previewAccounts map[string]bool
 	previewTTL      time.Duration
 
+	// webPushAccounts/webPushAccountsAll gate SIM-360 (WEB_PUSH_ACCOUNTS):
+	// empty map and false = web push off everywhere. Set once at startup
+	// via SetWebPushAccounts, like UserHandler.SetPreviewAccounts.
+	webPushAccounts    map[string]bool
+	webPushAccountsAll bool
+
+	// webPushVapid* cache the one VAPID keypair for this install, generated
+	// on first use and persisted sealed in instance_config (see
+	// notify_push.go vapidKeys). Only a success is cached: a transient
+	// failure (a canceled request's context, a momentary DB error) must
+	// not poison this process forever the way sync.Once would.
+	webPushVapidMu    sync.Mutex
+	webPushVapidReady bool
+	webPushVapidPub   string
+	webPushVapidPriv  string
+
 	// writeAuthMode is off | log | on (config default is log, never on).
 	writeAuthMode string
 	// adminAPIKey / adminUserID recognize owner/admin X-API-Key callers on
@@ -515,6 +531,7 @@ func (h *SiteHandler) registerStorageRoutes(mux *http.ServeMux) {
 
 func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
 	h.registerNotifications(mux, authMiddleware, noticeMiddleware)
+	h.registerWebPush(mux, authMiddleware, noticeMiddleware)
 	h.registerStorageRoutes(mux)
 	mux.HandleFunc("GET /v1/turnstile/frame", h.turnstileFrame)
 	mux.Handle("POST /v1/sites/{sitename}", authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createSite))))))

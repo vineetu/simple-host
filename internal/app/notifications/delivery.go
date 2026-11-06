@@ -23,9 +23,18 @@ type DeliveryDeps struct {
 	AcquireOwner       func(string) bool
 	ReleaseOwner       func(string)
 	AllowURL           func(string) bool
-	Body               func(model.Notification, model.NotificationDelivery, int64) []byte
+	Body               func(context.Context, model.Notification, model.NotificationDelivery, int64) []byte
 	Send               func(context.Context, model.Notification, string, []byte) DeliveryResult
 	Pending            func(context.Context)
+	// VisitorAllowed re-checks, at delivery time, whether a visitor-role
+	// push subscription's own subscriber (siteID, userID == n.OwnerID) is
+	// still welcome on this site right now -- the same decision an
+	// ordinary read's named-viewers gate would make, since a push device
+	// belongs to a specific signed-in visitor rather than the owner
+	// (SIM-360). Left nil (no caller sets it today besides the handler's
+	// own wiring), a visitor-role subscription is allowed, matching
+	// behaviour before this check existed.
+	VisitorAllowed func(ctx context.Context, siteID, userID string) (bool, error)
 }
 
 func (h *Service) Deliver(ctx context.Context, ed *edition.Edition, deps DeliveryDeps) bool {
@@ -65,7 +74,26 @@ func (h *Service) ProcessDelivery(ctx context.Context, d model.NotificationDeliv
 		deps.Tracker.Fail("load delivery site", err)
 		return true
 	}
+	// A push subscription's OwnerID is the subscriber -- the site owner's
+	// own account id for subscriber_role "owner" (checked the same way a
+	// webhook/mcp-event subscription always has been), or a signed-in
+	// visitor's own users.id for subscriber_role "visitor" (SIM-360): that
+	// can never equal site.UserID, so it is never refused delivery for
+	// that reason alone. The event fan-out (EmitSiteEventFor) is what
+	// actually proved a visitor-role subscription is allowed to exist and
+	// match this event; VisitorAllowed is the delivery-time recheck for
+	// whatever can have changed since (the visitor is no longer a named
+	// viewer on a site that has locked itself to them) -- the same thing
+	// site.Offline/Suspended/Deleted below are for an owner subscription.
 	allowed := site.UserID == n.OwnerID
+	if err == nil && n.SubscriberRole == "visitor" {
+		if deps.VisitorAllowed == nil {
+			allowed = true
+		} else if allowed, err = deps.VisitorAllowed(ctx, n.SiteID, n.OwnerID); err != nil {
+			deps.Tracker.Fail("check visitor access", err)
+			return true
+		}
+	}
 	if err == nil && ed.Notifications().EventScoped {
 		allowed, err = h.HackNotificationAllowed(ctx, n.SiteID, n.OwnerID, false)
 		if err != nil {
@@ -95,7 +123,7 @@ func (h *Service) ProcessDelivery(ctx context.Context, d model.NotificationDeliv
 			}
 			return true
 		}
-		body := deps.Body(n, d, cursor)
+		body := deps.Body(ctx, n, d, cursor)
 		if body == nil {
 			return true
 		}

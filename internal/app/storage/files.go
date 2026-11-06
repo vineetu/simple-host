@@ -74,14 +74,22 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 			return FilePutResult{}, auth, nil
 		}
 	}
-	if existed && filter != "" {
+	// rowVisitorID is this write's SIM-360 push-fan-out target: the
+	// existing file's own uploader when overwriting one (read under the
+	// write lock, right here, before the overwrite -- the own-preset
+	// check already needs this same lookup when filter!="", so that
+	// result is reused rather than queried twice), or the new file's own
+	// uploader (StampID below) when adding one.
+	rowVisitorID := ""
+	if existed {
 		writer, e := repository.FileWriter(ctx, s.db, call.SiteID, call.ResourceName, in.Path)
 		if e != nil && !errors.Is(e, sql.ErrNoRows) {
 			return FilePutResult{}, auth, e
 		}
-		if writer != filter {
+		if filter != "" && writer != filter {
 			return FilePutResult{}, auth, &Error{Code: "file_exists", Message: "this path already exists"}
 		}
+		rowVisitorID = writer
 	}
 	usage, err := s.MeasureSiteStorage(ctx, call.SiteID, call.RuntimeDir)
 	if err != nil {
@@ -110,7 +118,8 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	} else if err = os.Link(f, dest); errors.Is(err, os.ErrExist) {
 		return FilePutResult{}, auth, &Error{Code: "file_exists", Message: "this path already exists"}
 	} else if err == nil {
-		err = repository.RecordFileAdd(ctx, s.db, call.SiteID, call.ResourceName, in.Path, StampID(call.Owner, call.VisitorID))
+		rowVisitorID = StampID(call.Owner, call.VisitorID)
+		err = repository.RecordFileAdd(ctx, s.db, call.SiteID, call.ResourceName, in.Path, rowVisitorID)
 		if err != nil {
 			_ = os.Remove(dest)
 		}
@@ -123,7 +132,11 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	s.deps.MarkChanged()
 	unlock()
 	result := FilePutResult{Bytes: len(body), ContentType: mechanics.DetectContentType(body)}
-	s.deps.Notify(call, "file.uploaded", map[string]any{"path": in.Path, "size": result.Bytes, "content_type": result.ContentType})
+	data := map[string]any{"path": in.Path, "size": result.Bytes, "content_type": result.ContentType, "owner_write": call.Owner}
+	if rowVisitorID != "" {
+		data["row_visitor_id"] = rowVisitorID
+	}
+	s.deps.Notify(call, "file.uploaded", data)
 	return result, auth, nil
 }
 

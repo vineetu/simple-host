@@ -934,6 +934,32 @@
               <div class="sh-dlg-actions"><button class="sh-dlg-btn" type="button" id="notif-close">Close</button></div>
             </div>
           </dialog>
+          <div id="push-box" hidden>
+            <div class="section-num"><h3>Web push</h3><span class="line"></span></div>
+            <p class="conn-note">Devices show in the list above, labelled "Push:". Per-table controls choose who a push reaches and whether it names one column's value; the dashboard shows that note to you here because it also shows on the person's lock screen.</p>
+            <label class="sh-dlg-field" for="push-rules-site"><span class="sh-dlg-label">Site</span><select class="sh-dlg-input" id="push-rules-site"></select></label>
+            <ul class="notif-list" id="push-rules-list"></ul>
+            <form id="push-rule-form">
+              <label class="sh-dlg-field" for="push-rule-resource"><span class="sh-dlg-label">Table or resource (empty: the site's default)</span><input class="sh-dlg-input" id="push-rule-resource" type="text" autocomplete="off" spellcheck="false"></label>
+              <label class="sh-dlg-field" for="push-rule-recipients"><span class="sh-dlg-label">Who it reaches</span>
+                <select class="sh-dlg-input" id="push-rule-recipients">
+                  <option value="both">Owner and the row's own visitor</option>
+                  <option value="owner">Owner only</option>
+                  <option value="row_owner">The row's own visitor only</option>
+                  <option value="none">Nobody (push off for this table)</option>
+                </select>
+              </label>
+              <label class="sh-dlg-field" for="push-rule-title"><span class="sh-dlg-label">Title (optional)</span><input class="sh-dlg-input" id="push-rule-title" type="text" maxlength="120"></label>
+              <label class="sh-dlg-field" for="push-rule-column"><span class="sh-dlg-label">Show one column's value (optional)</span><input class="sh-dlg-input" id="push-rule-column" type="text" maxlength="64" placeholder="leave empty for generic text"></label>
+              <p class="conn-note" id="push-rule-note" hidden>This column's value will show on the lock screen.</p>
+              <div class="sh-dlg-actions"><button class="sh-dlg-btn sh-dlg-primary" type="submit" id="push-rule-save">Save table control</button></div>
+              <p class="sh-dlg-msg" id="push-rule-msg" aria-live="polite" hidden></p>
+            </form>
+            <div class="conn-row">
+              <span><b>Turn push off for this site</b><small>Removes every device subscribed on this site, yours and every visitor's. WEB_PUSH_ACCOUNTS stays as set; this only clears this one site's devices.</small></span>
+              <button type="button" class="btn btn-secondary btn-small" id="push-disable-site">Turn off…</button>
+            </div>
+          </div>
         </div>
         <div class="section" id="owner-families" hidden>
           <div class="section-num"><h2>Address families</h2><span class="line"></span></div>
@@ -5149,18 +5175,26 @@ function parseAnalyticsSummary(data) {
     (function () {
       function el(id) { return document.getElementById(id); }
       var box = el('owner-notifications'), dlg = el('notif-dlg');
-      var busy = false, back = null, historyDays = 7, view = 0, enabled = true;
+      var busy = false, back = null, historyDays = 7, view = 0, enabled = true, lastItems = [];
       var events = { 'record.added': 'new entries', 'record.changed': 'changed or removed entries', 'file.uploaded': 'uploaded files', 'site.deployed': 'site deployed', 'domain.status_changed': 'domain status changed', 'viewer.access_requested': 'access requests', 'visitor.signed_up': 'first sign-ins', 'notification.test': 'test notification' };
       var states = { active: 'Active', paused: 'Paused', suspended: 'Suspended after failures', pending: 'Waiting for check', expired: 'Expired' };
       var results = { secret_unreadable: "Stored secret cannot be read with this server's key; rotate it or add the notification again.", ok: 'Delivered', connection_refused: 'Connection refused', timeout: 'Receiver took too long', tls_error: 'Secure connection failed', http_4xx: 'Receiver rejected the message', http_5xx: 'Receiver had a server error', redirect: 'Receiver redirected the request', refused_address: 'Receiver address is not allowed', dns_error: 'Receiver address could not be found', challenge_failed: 'Receiver check failed', site_unavailable: 'Site unavailable' };
       function when(value) { return value ? new Date(value).toLocaleString() : ''; }
       function resultText(value) { return results[value] || 'No result yet'; }
       function receiver(n) {
+        if (n.kind === 'web-push') return 'Push: ' + (n.device_label || (n.subscriber_role === 'visitor' ? 'a visitor’s device' : 'your device'));
         if (n.source === 'mcp') return n.app_name || 'Connected app';
         if (n.label) return n.label;
         try { return new URL(n.url).host; } catch (e) { return n.url; }
       }
       function path(n) { return sitePathPart(n.site) + '/notifications/' + encodeURIComponent(n.id); }
+      // A visitor's own push device (FIX 12/adversary review): the
+      // generic /notifications/{id} routes (pause, test, deliveries) all
+      // require the row to belong to the owner's own account, which a
+      // visitor-role push row never does -- only Remove has an
+      // owner-authorized equivalent (DELETE .../push/devices/{id}).
+      function isVisitorPushDevice(n) { return n.kind === 'web-push' && n.subscriber_role === 'visitor'; }
+      function removePath(n) { return n.kind === 'web-push' ? sitePathPart(n.site) + '/push/devices/' + encodeURIComponent(n.id) : path(n); }
       function msg(text, bad) {
         el('notif-msg').textContent = text || '';
         el('notif-msg').hidden = !text;
@@ -5210,22 +5244,40 @@ function parseAnalyticsSummary(data) {
         var p = document.createElement('p'); p.className = className || 'notif-meta'; p.textContent = text; parent.appendChild(p);
       }
       function render(items) {
+        lastItems = items || [];
         var list = el('notif-list'); list.innerHTML = '';
         el('notif-empty').hidden = !!items.length;
         items.forEach(function (n) {
           var li = document.createElement('li'); li.className = 'notif-row';
           var title = document.createElement('b'); title.textContent = receiver(n); li.appendChild(title);
           line(li, n.site + ' · ' + (n.events || []).map(function (e) { return events[e] || e; }).join(', ') + ' · ' + (n.storage || 'all saved data'));
+          if (n.kind === 'web-push' && n.muted_resources && n.muted_resources.length) line(li, 'Muted: ' + n.muted_resources.join(', '));
           line(li, (states[n.state] || n.state) + ' · ' + (n.last_attempt_at ? resultText(n.last_result) + ' · ' + when(n.last_attempt_at) : 'No deliveries yet'));
           var actions = document.createElement('div'); actions.className = 'notif-actions';
           function button(label, fn, disabled) {
             var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-secondary btn-small'; b.textContent = label;
             b.disabled = !!disabled; b.addEventListener('click', fn); actions.appendChild(b);
           }
-          button('Deliveries', function () { deliveries(n); });
-          if (n.source === 'owner' && n.state !== 'expired') button('Send test', function () { change(n, 'test'); });
-          button(n.state === 'paused' || n.state === 'suspended' ? 'Resume' : 'Pause', function () { change(n, 'pause'); });
-          if (n.source === 'owner') button('Rotate secret', function () { change(n, 'rotate-secret'); }, !enabled);
+          // A visitor's own push device has no owner-authorized route for
+          // Deliveries, Send test or Pause (only Remove and Mute do) --
+          // show only what actually works, rather than a button that
+          // always 404s (FIX 12/adversary review).
+          var visitorDevice = isVisitorPushDevice(n);
+          if (!visitorDevice) button('Deliveries', function () { deliveries(n); });
+          if (n.source === 'owner' && n.state !== 'expired' && !visitorDevice) button('Send test', function () { change(n, 'test'); });
+          if (!visitorDevice) button(n.state === 'paused' || n.state === 'suspended' ? 'Resume' : 'Pause', function () { change(n, 'pause'); });
+          if (n.source === 'owner' && n.kind !== 'web-push') button('Rotate secret', function () { change(n, 'rotate-secret'); }, !enabled);
+          if (n.kind === 'web-push') button('Mute…', async function () {
+            var current = (n.muted_resources || []).join(', ');
+            var next = await window.shPrompt({ title: 'Mute resources', body: 'Comma-separated table/resource names; empty unmutes everything.', value: current, confirmLabel: 'Save' });
+            if (next == null) return;
+            var list = next.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+            try {
+              await send('POST', sitePathPart(n.site) + '/push/mute', { id: n.id, resources: list });
+              n.muted_resources = list;
+              render(lastItems);
+            } catch (e) { toast(e.message || 'Could not update the mute list.', 'error'); }
+          });
           button('Remove', async function () {
             var ok = await shConfirm({ title: 'Remove notification?', body: 'Stop sending notifications for ' + n.site + ' to ' + receiver(n) + '.', confirmLabel: 'Remove', danger: true });
             if (ok) change(n, 'remove');
@@ -5246,7 +5298,24 @@ function parseAnalyticsSummary(data) {
           el('notif-add').disabled = !enabled;
           el('notif-limits').textContent = l.per_site + ' per site, ' + l.per_minute.toLocaleString() + ' a minute, ' + l.per_day.toLocaleString() + ' a day, ' + l.history_days + ' days of history.';
           if (l.enabled === false) el('notif-limits').textContent = 'New notifications are unavailable: the server has no PASSCODE_ENC_KEY.';
-          render(d.notifications || []);
+          var items = d.notifications || [];
+          // GET /v1/notifications is the owner's own subscriptions
+          // (webhook, MCP, and the owner's own push devices); a visitor's
+          // push device belongs to them, not the owner's account, so it
+          // only shows up per site (push/devices, SIM-360, owner-only).
+          // Merged into the same list and render() so one place shows
+          // every kind without a second UI.
+          await Promise.all((ownerSites || []).map(async function (s) {
+            try {
+              var pr = await api('GET', sitePathPart(s.name) + '/push/devices');
+              if (!pr.ok) return;
+              var pd = await pr.json().catch(function () { return {}; });
+              (pd.devices || []).filter(function (dv) { return dv.subscriber_role === 'visitor'; }).forEach(function (dv) {
+                items.push(Object.assign({}, dv, { site: s.name, kind: 'web-push', source: 'owner' }));
+              });
+            } catch (e) {}
+          }));
+          render(items);
           el('notif-load-error').hidden = true;
           box.hidden = false;
         } catch (e) {
@@ -5261,7 +5330,7 @@ function parseAnalyticsSummary(data) {
         setBusy(true);
         try {
           var d;
-          if (action === 'remove') d = await send('DELETE', path(n));
+          if (action === 'remove') d = await send('DELETE', removePath(n));
           else if (action === 'pause') d = await send('PATCH', path(n), { paused: n.state !== 'paused' && n.state !== 'suspended' });
           else d = await send('POST', path(n) + '/' + action);
           if (action === 'rotate-secret') secret(d);
@@ -5327,6 +5396,78 @@ function parseAnalyticsSummary(data) {
       dlg.addEventListener('click', function (e) { if (e.target === dlg) close(); });
       window.shLoadNotifications = load;
       if (ownerMe && ownerMe.handle === HANDLE) load();
+
+      // ---- Web push: per-resource rules and the one-site disable action.
+      // Flag-gated server-side (every /push/* route 404s not_offered when
+      // WEB_PUSH_ACCOUNTS does not cover this account): the box only shows
+      // once a site's rules actually load, so an account the flag does
+      // not cover never sees it at all.
+      var pushBox = el('push-box'), pushRecipients = { both: 'Owner and the row’s own visitor', owner: 'Owner only', row_owner: 'The row’s own visitor only', none: 'Nobody (push off for this table)' };
+      function pushSiteSelect() { return el('push-rules-site'); }
+      async function loadPushRules() {
+        var site = pushSiteSelect().value;
+        if (!site) { pushBox.hidden = true; return; }
+        try {
+          var res = await api('GET', sitePathPart(site) + '/push/rules');
+          if (res.status === 404) { pushBox.hidden = true; return; }
+          var d = await res.json().catch(function () { return {}; });
+          if (!res.ok) throw new Error(d.error || 'Could not load push controls.');
+          pushBox.hidden = false;
+          var list = el('push-rules-list'); list.innerHTML = '';
+          (d.rules || []).forEach(function (rule) {
+            var li = document.createElement('li'); li.className = 'notif-row';
+            var title = document.createElement('b'); title.textContent = rule.resource || '(site default)'; li.appendChild(title);
+            line(li, (pushRecipients[rule.recipients] || rule.recipients) + (rule.title ? ' · title: ' + rule.title : '') + (rule.body_column ? ' · shows: ' + rule.body_column : ''));
+            list.appendChild(li);
+          });
+        } catch (e) {
+          pushBox.hidden = false;
+          toast(e.message || 'Could not load push controls.', 'error');
+        }
+      }
+      function fillPushSiteSelect() {
+        var select = pushSiteSelect(), current = select.value;
+        select.innerHTML = '';
+        ownerSites.forEach(function (s) { var opt = document.createElement('option'); opt.value = s.name; opt.textContent = s.name; select.appendChild(opt); });
+        if (current && ownerSites.some(function (s) { return s.name === current; })) select.value = current;
+      }
+      pushSiteSelect().addEventListener('change', loadPushRules);
+      el('push-rule-column').addEventListener('input', function () {
+        el('push-rule-note').hidden = !el('push-rule-column').value.trim();
+      });
+      el('push-rule-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var site = pushSiteSelect().value;
+        if (!site) return;
+        var msgEl = el('push-rule-msg');
+        msgEl.hidden = true;
+        var body = {
+          resource: el('push-rule-resource').value.trim(),
+          recipients: el('push-rule-recipients').value,
+          title: el('push-rule-title').value.trim(),
+          body_column: el('push-rule-column').value.trim()
+        };
+        try {
+          await send('PUT', sitePathPart(site) + '/push/rules', body);
+          el('push-rule-form').reset();
+          el('push-rule-note').hidden = true;
+          await loadPushRules();
+        } catch (err) { msgEl.textContent = err.message || 'Could not save this control.'; msgEl.hidden = false; }
+      });
+      el('push-disable-site').addEventListener('click', async function () {
+        var site = pushSiteSelect().value;
+        if (!site) return;
+        var ok = await shConfirm({ title: 'Turn push off for ' + site + '?', body: 'Removes every push device subscribed on this site, yours and every visitor’s. They can turn it back on themselves; nothing else about the site changes.', confirmLabel: 'Turn off', danger: true });
+        if (!ok) return;
+        try {
+          await send('DELETE', sitePathPart(site) + '/push/devices');
+          toast('Push turned off for ' + site + '.', 'success');
+          await load();
+        } catch (e) { toast(e.message || 'Could not turn push off.', 'error'); }
+      });
+      var fillPushSiteSelectBefore = window.shAuthRender;
+      window.shAuthRender = function () { if (fillPushSiteSelectBefore) fillPushSiteSelectBefore(); fillPushSiteSelect(); if (pushSiteSelect().value) loadPushRules(); };
+      if (ownerMe && ownerMe.handle === HANDLE) { fillPushSiteSelect(); loadPushRules(); }
     })();
     // ==== end Notifications ====
   </script>

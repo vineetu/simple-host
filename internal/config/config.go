@@ -78,6 +78,16 @@ type Config struct {
 	PreviewAccounts map[string]bool
 	PreviewTTL      time.Duration
 
+	// WebPushAccounts gates SIM-360 web push: WEB_PUSH_ACCOUNTS is a
+	// comma-separated list of account handles/usernames allowed to use it
+	// (push routes otherwise 404, and auth.js's SH.push.* refuses), or
+	// "all"/"*" to enable it for every account. Empty: off everywhere.
+	// Unlike PreviewAccounts this one allows a wildcard, since the flag's
+	// whole job is "the owner tests it first, then flips it on for
+	// everyone" rather than naming every account forever.
+	WebPushAccounts    map[string]bool
+	WebPushAccountsAll bool
+
 	// AnalyticsLog is the path to the nginx analytics access log. Empty (the
 	// default) disables the log ingester entirely — safe for local dev and
 	// hosts that have not configured the analytics log yet.
@@ -328,6 +338,7 @@ func Load() (Config, error) {
 		loadCleanup,
 		loadDataLegacyCutoff,
 		loadSitesPreview,
+		loadWebPush,
 		loadOperationalLimits,
 		loadStoragePool,
 		validateRequiredSettings,
@@ -629,6 +640,22 @@ func loadDataLegacyCutoff(cfg *Config) error {
 			log.Printf("warning: invalid LEGACY_STORAGE_CUTOFF %q; treating as off", raw)
 		} else {
 			cfg.LegacyStorageCutoff = t
+		}
+	}
+	return nil
+}
+
+// loadWebPush reads WEB_PUSH_ACCOUNTS: a comma-separated allowlist of
+// account handles, or "all"/"*" to enable web push for every account.
+func loadWebPush(cfg *Config) error {
+	cfg.WebPushAccounts = map[string]bool{}
+	for _, a := range strings.Split(os.Getenv("WEB_PUSH_ACCOUNTS"), ",") {
+		if a = strings.TrimSpace(strings.ToLower(a)); a == "" {
+			continue
+		} else if a == "all" || a == "*" {
+			cfg.WebPushAccountsAll = true
+		} else {
+			cfg.WebPushAccounts[a] = true
 		}
 	}
 	return nil

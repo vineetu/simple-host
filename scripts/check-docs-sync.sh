@@ -54,9 +54,15 @@ done <<<"$documented"
 # theirs; personal.go: a Personal record and its history, its own visitor
 # only; board.go: a Shared board's items). The owner's /data list and
 # /data/{coll}/kind PUT are wrapped.
+# .../push/* (SIM-360) is excluded the same way /storage/ is: a signed-in
+# visitor subscribes/unsubscribes/mutes their own device too, so these go
+# through h.passcodeGate (TestPasscodeRouteTable enforces that wrap) and
+# each handler checks ownership itself (notify_push.go), exactly the
+# storage-route pattern. The owner-only device/rule management routes
+# (push/devices, push/rules) are still wrapped with authMiddleware.
 echo "== owner routes wrapped with authMiddleware =="
 unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' internal/handler \
-  | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"|/collections/\{coll\}/items/\{id\}"|/storage/' \
+  | grep -vE '/state"|/me"|/visitor/auth|/collections/\{coll\}"|/collections/\{coll\}/items/\{id\}"|/storage/|/push/(vapid-key|subscribe|unsubscribe|mute)"' \
   | grep -vE '"(GET|POST|PUT|PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}"|"(GET|POST) /v1/sites/\{sitename\}/data/\{coll\}/history[^"]*"|"GET /v1/sites/\{sitename\}/data/\{coll\}/kind"|"(PATCH|DELETE) /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}"|"POST /v1/sites/\{sitename\}/data/\{coll\}/items/\{id\}/undo"|"OPTIONS /v1/sites/\{sitename\}/data/' \
   | grep -v authMiddleware || true)
 if [ -n "$unwrapped" ]; then

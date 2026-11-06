@@ -26,14 +26,36 @@ type Notification struct {
 	PrevSecretUntil *time.Time `json:"prev_secret_until"`
 	AuthHeaderName  string     `json:"auth_header_name"`
 	AuthHeaderValue string     `json:"auth_header_value"`
-	State           string     `json:"state"`
-	VerifiedAt      *time.Time `json:"verified_at"`
-	ExpiresAt       *time.Time `json:"expires_at"`
-	FailingSince    *time.Time `json:"failing_since"`
-	LastAttemptAt   *time.Time `json:"last_attempt_at"`
-	LastSuccessAt   *time.Time `json:"last_success_at"`
-	LastResult      string     `json:"last_result"`
-	CreatedAt       time.Time  `json:"created_at"`
+	// Kind is "webhook" (default), "mcp-event" or "web-push" (SIM-360).
+	// SubscriberRole is "owner" (the site owner's device/endpoint) or
+	// "visitor" (a signed-in visitor's own device; OwnerID is then that
+	// visitor's own users.id, never another person's). PushP256dh/PushAuth
+	// are the Web Push subscription's keys; URL holds the push service
+	// endpoint for a web-push row. DeviceLabel is a human label for the
+	// dashboard's device list. MutedResources lets one device mute
+	// specific tables without unsubscribing entirely.
+	Kind           string   `json:"kind"`
+	SubscriberRole string   `json:"subscriber_role"`
+	PushP256dh     string   `json:"-"`
+	PushAuth       string   `json:"-"`
+	DeviceLabel    string   `json:"device_label,omitempty"`
+	MutedResources []string `json:"muted_resources,omitempty"`
+	// PushFamily is the creating browser session's own scoping key (FIX
+	// 10): the session's SSO pass hash when it is part of a signed-in-
+	// everywhere family, else the session's own id -- never delivered
+	// or exposed (json:"-"), used only to scope a sign-out's push
+	// cleanup to the one session (or family of sessions) that is
+	// actually signing out, not every device this same person has ever
+	// subscribed, on this site or any other.
+	PushFamily    string     `json:"-"`
+	State         string     `json:"state"`
+	VerifiedAt    *time.Time `json:"verified_at"`
+	ExpiresAt     *time.Time `json:"expires_at"`
+	FailingSince  *time.Time `json:"failing_since"`
+	LastAttemptAt *time.Time `json:"last_attempt_at"`
+	LastSuccessAt *time.Time `json:"last_success_at"`
+	LastResult    string     `json:"last_result"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 // NotificationSecrets uses the handler's passcode AEAD without giving the DB a key.
@@ -51,6 +73,16 @@ type NotificationDelivery struct {
 	Name           string
 	Data           json.RawMessage
 	CreatedAt      time.Time
+}
+
+// PushRule is the owner's per-site, per-resource (resource "" is the site
+// default) web-push routing and payload control (SIM-360).
+type PushRule struct {
+	SiteID     string `json:"-"`
+	Resource   string `json:"resource"`
+	Recipients string `json:"recipients"` // owner | row_owner | both | none
+	Title      string `json:"title"`
+	BodyColumn string `json:"body_column"`
 }
 
 var ErrNotificationCap = errors.New("too many notifications")

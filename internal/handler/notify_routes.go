@@ -44,7 +44,16 @@ func notificationView(n model.Notification) map[string]any {
 	} else if n.Source == "mcp" && n.VerifiedAt == nil {
 		state = "pending"
 	}
-	out := map[string]any{"id": n.ID, "site": n.Site, "url": n.URL, "events": n.Events, "storage": n.Storage, "label": n.Label, "source": n.Source, "app_name": n.AppName, "state": state, "created_at": n.CreatedAt, "expires_at": n.ExpiresAt, "last_attempt_at": n.LastAttemptAt, "last_success_at": n.LastSuccessAt, "last_result": n.LastResult, "failing_since": n.FailingSince, "auth_header_name": n.AuthHeaderName}
+	kind := n.Kind
+	if kind == "" {
+		kind = "webhook"
+	}
+	out := map[string]any{"id": n.ID, "site": n.Site, "url": n.URL, "events": n.Events, "storage": n.Storage, "label": n.Label, "source": n.Source, "app_name": n.AppName, "state": state, "created_at": n.CreatedAt, "expires_at": n.ExpiresAt, "last_attempt_at": n.LastAttemptAt, "last_success_at": n.LastSuccessAt, "last_result": n.LastResult, "failing_since": n.FailingSince, "auth_header_name": n.AuthHeaderName, "kind": kind}
+	if kind == "web-push" {
+		out["subscriber_role"] = n.SubscriberRole
+		out["device_label"] = n.DeviceLabel
+		out["muted_resources"] = n.MutedResources
+	}
 	if n.Event != "" {
 		out["event"] = n.Event
 		out["site"] = n.Event
@@ -301,6 +310,24 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		event := model.NotificationDelivery{EventID: notifyRandom("evt_test_", 16), Name: "notification.test", CreatedAt: time.Now(), Data: storageJSON(map[string]any{"v": 1, "site": name, "site_url": siteURL, "test": true})}
+		if n.Kind == "web-push" {
+			// A plain signed webhook POST (client.send) would put an
+			// unencrypted JSON body on a push endpoint expecting RFC 8291
+			// aes128gcm and a VAPID Authorization header: dispatch through
+			// the same kind-aware path real delivery uses, with a fixed
+			// generic payload (a test send always confirms the device
+			// works, regardless of the owner's push rules for any one
+			// resource).
+			payload, _ := json.Marshal(map[string]any{"title": "Test notification", "body": "Your push notification is working.", "url": siteURL, "tag": "notification.test"})
+			result := h.sendPush(ctx, n, payload)
+			// notifications.DeliveryResult carries no JSON tags (it is an
+			// internal delivery-engine type, not a response shape); convert
+			// to the same lowercase {delivered,status,result} the webhook
+			// test path (notifyResult, above) already answers with, which
+			// is what the dashboard's test-send handler reads.
+			writeJSON(w, 200, notifyResult{Delivered: result.Delivered, Status: result.Status, Result: result.Result})
+			return
+		}
 		cursor, err := h.notificationsSvc().NotificationCursor(ctx, n.ID, n.SiteID)
 		if err != nil {
 			notifyError(w, 500, "internal_error")

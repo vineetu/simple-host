@@ -13,11 +13,11 @@ import (
 	"github.com/lib/pq"
 )
 
-const notificationColumns = `n.id,n.site_id,n.owner_id,s.name,n.source,n.grant_id,n.app_name,n.label,n.url,n.events,n.storage,n.args_canonical,n.secret,n.prev_secret,n.prev_secret_until,n.auth_header_name,n.auth_header_value,n.state,n.verified_at,n.expires_at,n.failing_since,n.last_attempt_at,n.last_success_at,n.last_result,n.created_at,CASE WHEN e.id::text=s.name THEN e.slug ELSE '' END`
+const notificationColumns = `n.id,n.site_id,n.owner_id,s.name,n.source,n.grant_id,n.app_name,n.label,n.url,n.events,n.storage,n.args_canonical,n.secret,n.prev_secret,n.prev_secret_until,n.auth_header_name,n.auth_header_value,n.state,n.verified_at,n.expires_at,n.failing_since,n.last_attempt_at,n.last_success_at,n.last_result,n.created_at,CASE WHEN e.id::text=s.name THEN e.slug ELSE '' END,n.kind,n.subscriber_role,n.push_p256dh,n.push_auth,n.device_label,n.muted_resources`
 
 func scanNotification(row interface{ Scan(...any) error }) (model.Notification, error) {
 	var n model.Notification
-	err := row.Scan(&n.ID, &n.SiteID, &n.OwnerID, &n.Site, &n.Source, &n.GrantID, &n.AppName, &n.Label, &n.URL, pq.Array(&n.Events), &n.Storage, &n.ArgsCanonical, &n.Secret, &n.PrevSecret, &n.PrevSecretUntil, &n.AuthHeaderName, &n.AuthHeaderValue, &n.State, &n.VerifiedAt, &n.ExpiresAt, &n.FailingSince, &n.LastAttemptAt, &n.LastSuccessAt, &n.LastResult, &n.CreatedAt, &n.Event)
+	err := row.Scan(&n.ID, &n.SiteID, &n.OwnerID, &n.Site, &n.Source, &n.GrantID, &n.AppName, &n.Label, &n.URL, pq.Array(&n.Events), &n.Storage, &n.ArgsCanonical, &n.Secret, &n.PrevSecret, &n.PrevSecretUntil, &n.AuthHeaderName, &n.AuthHeaderValue, &n.State, &n.VerifiedAt, &n.ExpiresAt, &n.FailingSince, &n.LastAttemptAt, &n.LastSuccessAt, &n.LastResult, &n.CreatedAt, &n.Event, &n.Kind, &n.SubscriberRole, &n.PushP256dh, &n.PushAuth, &n.DeviceLabel, pq.Array(&n.MutedResources))
 	return n, err
 }
 func GetNotification(ctx context.Context, q sqlkit.Querier, id string) (model.Notification, error) {
@@ -121,11 +121,29 @@ func SaveNotification(ctx context.Context, database *sql.DB, n model.Notificatio
 	if err != nil {
 		return false, false, err
 	}
-	saved, err := tx.ExecContext(ctx, `INSERT INTO site_notifications(id,site_id,owner_id,source,grant_id,app_name,label,url,events,storage,args_canonical,secret,auth_header_name,auth_header_value,verified_at,expires_at)
- VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+	kind := n.Kind
+	if kind == "" {
+		// A caller that has not been taught about kind (every pre-SIM-360
+		// creation path) still gets the right one by its existing Source:
+		// MCP Events creates mcp-event rows, everything else (the owner's
+		// dashboard/REST create) creates webhook rows, same as before kind
+		// existed at all.
+		kind = "webhook"
+		if n.Source == "mcp" {
+			kind = "mcp-event"
+		}
+	}
+	role := n.SubscriberRole
+	if role == "" {
+		role = "owner"
+	}
+	saved, err := tx.ExecContext(ctx, `INSERT INTO site_notifications(id,site_id,owner_id,source,grant_id,app_name,label,url,events,storage,args_canonical,secret,auth_header_name,auth_header_value,verified_at,expires_at,kind,subscriber_role,push_p256dh,push_auth,device_label)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$19,$20,$21,$22,$23)
  ON CONFLICT(id) DO UPDATE SET prev_secret=$18,
  prev_secret_until=CASE WHEN $17 THEN now()+interval '24 hours' ELSE site_notifications.prev_secret_until END,
- secret=EXCLUDED.secret,auth_header_value=EXCLUDED.auth_header_value,expires_at=EXCLUDED.expires_at,verified_at=EXCLUDED.verified_at,grant_id=EXCLUDED.grant_id,app_name=EXCLUDED.app_name,state='active',suspended_at=NULL,suspend_emailed_at=NULL,failing_since=NULL,window_start=NULL,window_attempts=0,window_failures=0,updated_at=now() WHERE site_notifications.site_id=EXCLUDED.site_id`, n.ID, n.SiteID, n.OwnerID, n.Source, n.GrantID, n.AppName, n.Label, n.URL, pq.Array(n.Events), n.Storage, n.ArgsCanonical, n.Secret, n.AuthHeaderName, n.AuthHeaderValue, n.VerifiedAt, n.ExpiresAt, changed, oldPrev)
+ secret=EXCLUDED.secret,auth_header_value=EXCLUDED.auth_header_value,expires_at=EXCLUDED.expires_at,verified_at=EXCLUDED.verified_at,grant_id=EXCLUDED.grant_id,app_name=EXCLUDED.app_name,
+ events=EXCLUDED.events,label=EXCLUDED.label,push_p256dh=EXCLUDED.push_p256dh,push_auth=EXCLUDED.push_auth,device_label=EXCLUDED.device_label,
+ state='active',suspended_at=NULL,suspend_emailed_at=NULL,failing_since=NULL,window_start=NULL,window_attempts=0,window_failures=0,updated_at=now() WHERE site_notifications.site_id=EXCLUDED.site_id`, n.ID, n.SiteID, n.OwnerID, n.Source, n.GrantID, n.AppName, n.Label, n.URL, pq.Array(n.Events), n.Storage, n.ArgsCanonical, n.Secret, n.AuthHeaderName, n.AuthHeaderValue, n.VerifiedAt, n.ExpiresAt, changed, oldPrev, kind, role, n.PushP256dh, n.PushAuth, n.DeviceLabel)
 	if err != nil {
 		return false, false, err
 	}
@@ -147,7 +165,28 @@ func SaveNotification(ctx context.Context, database *sql.DB, n model.Notificatio
 			return false, false, err
 		}
 		truncated = oldest.Valid && *cursor < oldest.Int64
-		_, err = tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT seq,$1 FROM site_events WHERE site_id=$2 AND seq>$3 AND name=ANY($4) AND ($5='' OR storage=$5) AND created_at>=now()-$6*interval '1 day' ON CONFLICT DO NOTHING`, n.ID, n.SiteID, *cursor, pq.Array(n.Events), n.Storage, historyDays)
+		// FIX 1, Codex round 2: a cursor-based replay (an MCP subscriber
+		// reconnecting with an earlier cursor) used to backfill every
+		// matching stored event with no actor check at all, bypassing
+		// the exact exclusion the live fan-out (emitSiteEvent, above)
+		// enforces for an owner-authored write -- a subscriber who was
+		// never meant to see it live could still receive it, fields
+		// included, simply by reconnecting with a cursor. The CASE here
+		// is the same one, keyed by this subscription's own kind/role/
+		// owner id (kind, role, n.OwnerID -- all already resolved above)
+		// instead of a joined table's columns, since this query already
+		// targets one specific subscription rather than fanning out to
+		// every matching row.
+		_, err = tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT seq,$1 FROM site_events
+ WHERE site_id=$2 AND seq>$3 AND name=ANY($4) AND ($5='' OR storage=$5) AND created_at>=now()-$6*interval '1 day'
+ AND CASE
+   WHEN $7<>'web-push' THEN push_actor<>'owner'
+   ELSE CASE $8
+     WHEN 'owner' THEN push_actor<>'owner' AND push_actor<>$9
+     WHEN 'visitor' THEN push_target<>'' AND push_target=$9 AND push_target<>push_actor
+     ELSE false END
+   END
+ ON CONFLICT DO NOTHING`, n.ID, n.SiteID, *cursor, pq.Array(n.Events), n.Storage, historyDays, kind, role, n.OwnerID)
 		if err != nil {
 			return false, false, err
 		}
@@ -305,7 +344,7 @@ func HasNotificationsFor(ctx context.Context, q sqlkit.Querier, site, name strin
 	return yes, err
 }
 func EmitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storage string, data []byte) error {
-	_, err := emitSiteEvent(ctx, database, site, id, name, storage, data, "", 0)
+	_, err := emitSiteEvent(ctx, database, site, id, name, storage, data, "", 0, "", "")
 	return err
 }
 
@@ -314,9 +353,26 @@ func EmitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storag
 // site's row lock, so two simultaneous emissions store one event. stored is
 // false when the event was skipped.
 func EmitSiteEventOnce(ctx context.Context, database *sql.DB, site, id, name string, data []byte, visitor string, within time.Duration) (bool, error) {
-	return emitSiteEvent(ctx, database, site, id, name, "", data, visitor, within)
+	return emitSiteEvent(ctx, database, site, id, name, "", data, visitor, within, "", "")
 }
-func emitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storage string, data []byte, visitor string, within time.Duration) (bool, error) {
+
+// EmitSiteEventFor is EmitSiteEvent with the two facts SIM-360 web-push
+// fan-out needs, known at emission time regardless of who wrote the row:
+// pushActor is "" when the site owner performed the write, "owner" when it
+// was explicitly the owner acting with no self-notify intent (reserved for
+// callers that already resolved it), or the acting visitor's own users.id;
+// pushTarget is the row's own visitor_id (who the data belongs to), or ""
+// when the row has none. A web-push subscription never matches unless
+// pushTarget equals that subscriber's own id (never another visitor's
+// data), and a subscription never fires back to the exact actor that made
+// the write (no self-notify), for either an owner's or a visitor's own
+// devices. webhook/mcp-event subscriptions are unaffected: this only
+// narrows kind='web-push' rows.
+func EmitSiteEventFor(ctx context.Context, database *sql.DB, site, id, name, storage string, data []byte, pushActor, pushTarget string) error {
+	_, err := emitSiteEvent(ctx, database, site, id, name, storage, data, "", 0, pushActor, pushTarget)
+	return err
+}
+func emitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storage string, data []byte, visitor string, within time.Duration, pushActor, pushTarget string) (bool, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
@@ -334,13 +390,66 @@ func emitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storag
 		}
 	}
 	var seq int64
-	err = tx.QueryRowContext(ctx, `INSERT INTO site_events(site_id,event_id,name,storage,data) VALUES($1,$2,$3,$4,$5) RETURNING seq`, site, id, name, storage, data).Scan(&seq)
+	// pushActor/pushTarget are persisted on the event itself, not only
+	// used transiently for the live INSERT below (FIX 1, Codex round 2):
+	// a cursor-based replay (SaveNotification's own backfill, an MCP
+	// subscriber reconnecting with an earlier cursor) queries site_events
+	// directly, with no access to the routing facts this call received
+	// as parameters -- without storing them, replay could not apply the
+	// same eligibility rule the live fan-out below does, and used not to.
+	// Never delivered: notify.go deletes both from the JSON body before
+	// it is ever stored, so storing them again here, as real columns
+	// rather than inside data, keeps that guarantee for the row itself.
+	err = tx.QueryRowContext(ctx, `INSERT INTO site_events(site_id,event_id,name,storage,data,push_actor,push_target) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING seq`, site, id, name, storage, data, pushActor, pushTarget).Scan(&seq)
 	if err != nil {
 		return false, err
 	}
 	// A subscription's storage filter narrows record and file events; a site
 	// event (storage '') reaches every subscription naming it.
-	_, err = tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT $1,id FROM site_notifications WHERE site_id=$2 AND state IN ('active','suspended') AND $3=ANY(events) AND ($4='' OR storage='' OR storage=$4) AND (expires_at IS NULL OR expires_at>now())`, seq, site, name, storage)
+	//
+	// pushActor=='owner' (an owner-authored write, stored only so a push
+	// target can be reached once SIM-358 lands or for D1's owner edit of a
+	// visitor's row today) must NEVER reach a webhook or MCP Events
+	// subscription: before SIM-360, an owner write never stored an event
+	// at all, so a plain webhook/MCP subscriber received nothing for it;
+	// storing the event now (for push's sake) must not change that. The
+	// first branch of the outer CASE enforces this for every non-push
+	// kind; it has no effect on pushActor=='' (a visitor's own write, or a
+	// site-level event -- both unaffected, exactly as before SIM-360) or
+	// on pushActor==<a visitor's id> (that visitor's own write, which has
+	// always correctly reached the owner's webhook/MCP subscriptions).
+	//
+	// For a web-push subscription, the second branch additionally enforces
+	// who may ever receive it: the owner's devices unless the owner itself
+	// was the actor, or a visitor's own devices only when that visitor both
+	// owns the row (pushTarget) and did not make this exact write
+	// themselves.
+	//
+	// The owner branch's second condition (push, FIX 4) is broader than
+	// the webhook/MCP branch's on purpose: pushActor for an ordinary
+	// OwnerOnSite write (D1, the owner signed in on their own site, no
+	// OwnerFor) is that storage caller's own stampID, which StampID
+	// returns as the site owner's own users.id, not the literal "owner" --
+	// correctly so for webhook/MCP (D1's write has always notified those
+	// exactly like any other signed-in write, TestNotifyVisitorRoutes).
+	// But an owner-role push subscription's own owner_id is that same
+	// site-owner id, so pushActor==owner_id here can only mean "the site
+	// owner wrote this, however they were signed in" -- never a visitor,
+	// since no visitor's id can equal the site's own owner_id. Excluding
+	// it from the owner's own push devices too (on top of the literal
+	// 'owner' actor) closes the one gap SIM-358's live review found:
+	// D1 pushing a notification back to the very device that made the
+	// write, something no owner-cookie write has ever done for webhook or
+	// MCP and must not newly do for push either.
+	_, err = tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT $1,id FROM site_notifications
+ WHERE site_id=$2 AND state IN ('active','suspended') AND $3=ANY(events) AND ($4='' OR storage='' OR storage=$4) AND (expires_at IS NULL OR expires_at>now())
+ AND CASE
+   WHEN kind<>'web-push' THEN $5<>'owner'
+   ELSE CASE subscriber_role
+     WHEN 'owner' THEN $5<>'owner' AND $5<>owner_id::text
+     WHEN 'visitor' THEN $6<>'' AND owner_id::text=$6 AND owner_id::text<>$5
+     ELSE false END
+   END`, seq, site, name, storage, pushActor, pushTarget)
 	if err != nil {
 		return false, err
 	}
@@ -522,6 +631,248 @@ func RecentlyVerifiedNotification(ctx context.Context, q sqlkit.Querier, owner, 
 	var yes bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications WHERE owner_id=$1 AND url=$2 AND source='mcp' AND verified_at>now()-interval '30 days')`, owner, url).Scan(&yes)
 	return yes, err
+}
+
+// ListPushDevices lists every web-push subscription on a site (both the
+// owner's and visitors' own devices), for the owner's device-management view.
+func ListPushDevices(ctx context.Context, database *sql.DB, site string) ([]model.Notification, error) {
+	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id LEFT JOIN events e ON e.account_id=s.user_id WHERE n.site_id=$1 AND n.kind='web-push' ORDER BY n.created_at DESC`, site)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []model.Notification{}
+	for rows.Next() {
+		n, err := scanNotification(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// ListVisitorPushDevices lists one visitor's own web-push devices on one site.
+func ListVisitorPushDevices(ctx context.Context, database *sql.DB, site, visitorID string) ([]model.Notification, error) {
+	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id LEFT JOIN events e ON e.account_id=s.user_id WHERE n.site_id=$1 AND n.kind='web-push' AND n.subscriber_role='visitor' AND n.owner_id=$2 ORDER BY n.created_at DESC`, site, visitorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []model.Notification{}
+	for rows.Next() {
+		n, err := scanNotification(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// UpsertPushSubscription creates or updates one push device, keyed by
+// (site, subscriber, endpoint, resource) -- not by the client-generated
+// id newID, which is used only when no existing row matches. FIX 8,
+// Codex round 2: the previous flow looked up an existing row, then
+// called the general-purpose SaveNotification with a freshly generated
+// id, as two separate steps outside any shared lock; two concurrent
+// subscribe() calls for the exact same browser subscription and
+// resource could both find nothing and both insert, creating a
+// duplicate (the unique index on this same identity,
+// site_notifications_push_identity, 0008, is only the backstop for that
+// race -- this function's own site-row lock, matching SaveNotification's
+// own serialization, is the primary defense: the second caller's lookup
+// waits for the first's insert to commit, then finds and updates it
+// instead of racing it). created reports whether newID is the row that
+// now exists; max is checked only on that path, matching
+// SaveNotification's own !exists && count>=max rule.
+func UpsertPushSubscription(ctx context.Context, database *sql.DB, n model.Notification, newID string, max int) (id string, created bool, err error) {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return "", false, err
+	}
+	defer tx.Rollback()
+	var locked string
+	if err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, n.SiteID).Scan(&locked); err != nil {
+		return "", false, err
+	}
+	var existing string
+	err = tx.QueryRowContext(ctx, `SELECT id FROM site_notifications WHERE site_id=$1 AND kind='web-push' AND owner_id=$2 AND url=$3 AND storage=$4 FOR UPDATE`, n.SiteID, n.OwnerID, n.URL, n.Storage).Scan(&existing)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", false, err
+	}
+	id = existing
+	created = existing == ""
+	if created {
+		id = newID
+		var count int
+		if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM site_notifications WHERE site_id=$1`, n.SiteID).Scan(&count); err != nil {
+			return "", false, err
+		}
+		if count >= max {
+			return "", false, model.ErrNotificationCap
+		}
+		// secret has no column default (every other creation path seals
+		// a real one for webhook signing), but push never signs anything
+		// with it -- delivery goes through sendPush, never client.send --
+		// so an explicit empty literal satisfies the NOT NULL column
+		// without the dead Seal/secret-generation work every other path
+		// does for a value push will never read.
+		_, err = tx.ExecContext(ctx, `INSERT INTO site_notifications(id,site_id,owner_id,source,label,url,events,storage,secret,kind,subscriber_role,push_p256dh,push_auth,device_label,verified_at,state,push_family)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,'','web-push',$9,$10,$11,$12,$13,'active',$14)`,
+			id, n.SiteID, n.OwnerID, n.Source, n.Label, n.URL, pq.Array(n.Events), n.Storage, n.SubscriberRole, n.PushP256dh, n.PushAuth, n.DeviceLabel, n.VerifiedAt, n.PushFamily)
+	} else {
+		_, err = tx.ExecContext(ctx, `UPDATE site_notifications SET events=$2,label=$3,push_p256dh=$4,push_auth=$5,device_label=$6,verified_at=$7,push_family=$8,
+ state='active',suspended_at=NULL,suspend_emailed_at=NULL,failing_since=NULL,window_start=NULL,window_attempts=0,window_failures=0,updated_at=now() WHERE id=$1`,
+			id, pq.Array(n.Events), n.Label, n.PushP256dh, n.PushAuth, n.DeviceLabel, n.VerifiedAt, n.PushFamily)
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return id, created, tx.Commit()
+}
+
+// DeleteNotificationForOwner deletes id only if it belongs to site and, when
+// restrictVisitor is set, only a visitor-role push row owned by that
+// visitor; used by the subscriber's own unsubscribe/mute routes so one
+// person can never reach another's subscription by guessing an id.
+func DeleteNotificationForOwner(ctx context.Context, q sqlkit.Querier, site, id, visitorID string) (bool, error) {
+	var r sql.Result
+	var err error
+	if visitorID != "" {
+		r, err = q.ExecContext(ctx, `DELETE FROM site_notifications WHERE id=$1 AND site_id=$2 AND kind='web-push' AND subscriber_role='visitor' AND owner_id=$3`, id, site, visitorID)
+	} else {
+		r, err = q.ExecContext(ctx, `DELETE FROM site_notifications WHERE id=$1 AND site_id=$2`, id, site)
+	}
+	if err != nil {
+		return false, err
+	}
+	n, err := r.RowsAffected()
+	return n > 0, err
+}
+
+// DeletePushSubscriptionsForVisitor removes every web-push device a visitor
+// registered on one site: used on sign-out (that one device, from the
+// caller's own id list), named-viewer removal and site-scoped erasure.
+// Account deletion needs no call here: owner_id REFERENCES users(id) ON
+// DELETE CASCADE already removes every row, on every site, for that user.
+func DeletePushSubscriptionsForVisitor(ctx context.Context, q sqlkit.Querier, site, visitorID string) (int64, error) {
+	r, err := q.ExecContext(ctx, `DELETE FROM site_notifications WHERE site_id=$1 AND kind='web-push' AND subscriber_role='visitor' AND owner_id=$2`, site, visitorID)
+	if err != nil {
+		return 0, err
+	}
+	return r.RowsAffected()
+}
+
+// DeletePushSubscriptionsForPerson removes every web-push device a person
+// (owner_id, which is their own users.id whichever role they subscribed
+// under -- the site owner's account id, or a visitor's) registered on one
+// site, regardless of subscriber_role. Used on sign-out: the site's owner
+// signed in on their own site as a visitor (D1) still has "the one Sign
+// out ends push on that device" apply to whichever role their device
+// ended up stored under.
+func DeletePushSubscriptionsForPerson(ctx context.Context, q sqlkit.Querier, site, personID string) (int64, error) {
+	r, err := q.ExecContext(ctx, `DELETE FROM site_notifications WHERE site_id=$1 AND kind='web-push' AND owner_id=$2`, site, personID)
+	if err != nil {
+		return 0, err
+	}
+	return r.RowsAffected()
+}
+
+// DeletePushSubscriptionsForFamily removes every web-push device created
+// by one browser session or (for an SSO-signed-in-everywhere session)
+// its whole family of sibling sessions across every site they span (FIX
+// 10, Codex round 2): scoped by the session's own stamped identity
+// (model.Notification.PushFamily at subscribe time), not by owner_id and
+// one site the way DeletePushSubscriptionsForPerson is. That distinction
+// is exactly what "other browsers' subscriptions survive" needs: two
+// browsers signed in as the same person on the same site, each with
+// their own session and so their own family value, are not the same
+// delete. A row with no family (created before this existed, or by the
+// owner's API key, which is not a browser session at all) is never
+// touched by this -- family=="" never matches family<>” AND family=$1
+// for any real $1, so the caller does not even need to special-case it.
+func DeletePushSubscriptionsForFamily(ctx context.Context, q sqlkit.Querier, family string) (int64, error) {
+	if family == "" {
+		return 0, nil
+	}
+	r, err := q.ExecContext(ctx, `DELETE FROM site_notifications WHERE kind='web-push' AND push_family<>'' AND push_family=$1`, family)
+	if err != nil {
+		return 0, err
+	}
+	return r.RowsAffected()
+}
+
+// DeletePushSubscriptionsForSite removes every web-push device on a site,
+// the owner's and every visitor's: the dashboard's "turn push off" bulk
+// action.
+func DeletePushSubscriptionsForSite(ctx context.Context, q sqlkit.Querier, site string) (int64, error) {
+	r, err := q.ExecContext(ctx, `DELETE FROM site_notifications WHERE site_id=$1 AND kind='web-push'`, site)
+	if err != nil {
+		return 0, err
+	}
+	return r.RowsAffected()
+}
+
+// SetMutedResources replaces one push subscription's per-resource mute list.
+func SetMutedResources(ctx context.Context, q sqlkit.Querier, id string, resources []string) error {
+	if resources == nil {
+		resources = []string{}
+	}
+	_, err := q.ExecContext(ctx, `UPDATE site_notifications SET muted_resources=$2,updated_at=now() WHERE id=$1 AND kind='web-push'`, id, pq.Array(resources))
+	return err
+}
+
+// GetPushRule reads the owner's effective push routing/payload control for
+// one resource: an exact-resource rule when one is configured, else the
+// site default row (resource ""), else the "both, generic text" built-in
+// default. Neither a missing exact rule nor a missing default row is an
+// error; a real query failure is, so the caller can defer the delivery
+// instead of silently widening who may receive it.
+func GetPushRule(ctx context.Context, q sqlkit.Querier, site, resource string) (model.PushRule, error) {
+	rule := model.PushRule{SiteID: site, Resource: resource, Recipients: "both"}
+	err := q.QueryRowContext(ctx, `SELECT recipients,title,body_column FROM site_push_rules WHERE site_id=$1 AND resource=$2`, site, resource).Scan(&rule.Recipients, &rule.Title, &rule.BodyColumn)
+	if err == nil {
+		return rule, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return model.PushRule{}, err
+	}
+	if resource == "" {
+		return rule, nil
+	}
+	fallback := model.PushRule{SiteID: site, Resource: "", Recipients: "both"}
+	err = q.QueryRowContext(ctx, `SELECT recipients,title,body_column FROM site_push_rules WHERE site_id=$1 AND resource=''`, site).Scan(&fallback.Recipients, &fallback.Title, &fallback.BodyColumn)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return model.PushRule{}, err
+	}
+	return fallback, nil
+}
+
+// ListPushRules lists every configured (non-default) push rule on a site.
+func ListPushRules(ctx context.Context, database *sql.DB, site string) ([]model.PushRule, error) {
+	rows, err := database.QueryContext(ctx, `SELECT resource,recipients,title,body_column FROM site_push_rules WHERE site_id=$1 ORDER BY resource`, site)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []model.PushRule{}
+	for rows.Next() {
+		r := model.PushRule{SiteID: site}
+		if err := rows.Scan(&r.Resource, &r.Recipients, &r.Title, &r.BodyColumn); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// SetPushRule upserts the owner's push control for one resource.
+func SetPushRule(ctx context.Context, q sqlkit.Querier, rule model.PushRule) error {
+	_, err := q.ExecContext(ctx, `INSERT INTO site_push_rules(site_id,resource,recipients,title,body_column,updated_at) VALUES($1,$2,$3,$4,$5,now())
+ ON CONFLICT(site_id,resource) DO UPDATE SET recipients=EXCLUDED.recipients,title=EXCLUDED.title,body_column=EXCLUDED.body_column,updated_at=now()`,
+		rule.SiteID, rule.Resource, rule.Recipients, rule.Title, rule.BodyColumn)
+	return err
 }
 
 type AccessChecks interface {

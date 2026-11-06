@@ -7,12 +7,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"html"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/internal/app/accounts"
+	"github.com/vsriram/simple-host/internal/app/notifications"
 	"github.com/vsriram/simple-host/internal/auth"
 	"github.com/vsriram/simple-host/internal/model"
 )
@@ -323,6 +325,20 @@ func (h *OAuthHandler) signedOutSSO(w http.ResponseWriter, r *http.Request) {
 		writeOAuthHTMLError(h.pipeline(), w, 400)
 		return
 	}
+	// FIX 10, Codex round 2: this is the sign-in-everywhere apex signing
+	// out the whole family's dashboard key (RevokeVisitorSSO's sibling
+	// path); cookieHash is itself that family's own pass hash (compared
+	// directly against sso_passes/visitor_sessions.sso_pass_hash by
+	// CompleteSSOSignout's own query), the exact value
+	// DeletePushSubscriptionsForFamily matches push_family against --
+	// so every push subscription any site in this family's sign-in
+	// created is deleted here too, not only the one site a plain
+	// current-site sign-out would have reached.
+	if n, err := notifications.New(h.database, nil).DeletePushSubscriptionsForFamily(r.Context(), cookieHash); err != nil {
+		log.Printf("web push: delete on SSO sign-out: %v", err)
+	} else if n > 0 {
+		log.Printf("web push: deleted %d subscription(s) on SSO sign-out", n)
+	}
 	setSSOCookie(w, r, "", -1)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	// The pass may have been swept already, leaving its dashboard key alive.
@@ -415,6 +431,19 @@ func (h *SiteHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next st
 	back := scheme + "://" + r.Host + safeNext(next)
 	if err = h.storeAccounts().RevokeVisitorSSO(r.Context(), sess, token, back); err != nil {
 		return "", err
+	}
+	// FIX 10, Codex round 2: RevokeVisitorSSO deletes the dashboard key
+	// that cascades to every sibling session this family's sign-in
+	// created, across whichever sites they are on; push subscriptions
+	// those sessions created follow the same family scope (pushFamilyFor,
+	// notify_push.go), so this one call reaches every site's push rows
+	// too, not only the current one a plain sign-out would scope to.
+	if family := pushFamilyFor(sess); family != "" {
+		if n, perr := notifications.New(h.database, nil).DeletePushSubscriptionsForFamily(r.Context(), family); perr != nil {
+			log.Printf("web push: delete on SSO revoke: %v", perr)
+		} else if n > 0 {
+			log.Printf("web push: deleted %d subscription(s) on SSO revoke", n)
+		}
 	}
 	return h.ssoBaseURL + "/v1/sso/signed-out?token=" + token, nil
 }

@@ -200,13 +200,22 @@ allowlist on custom event hosts (`handler/hack_legacy_storage.go`, `hack_mode.go
 
 ## Notification triggers
 
-Visitor storage writes can emit webhook/MCP Events notifications in both editions; owner writes
-are excluded (`handler/notify.go:emitNotification`). Host additionally emits `site.deployed` from
+Visitor storage writes can emit webhook/MCP Events/Web Push notifications in both editions; owner
+writes are excluded (`handler/notify.go:emitNotification`), unless the row/key belongs to a
+visitor (`data["row_visitor_id"]`, set in `app/storage/{row_write,kv,files}.go`), in which case the
+write still emits so that visitor's own web-push devices, and only those, can be reached
+(SIM-360) -- it never reaches the owner's own webhook/MCP-event/push subscriptions either way.
+Host additionally emits `site.deployed` from
 deploy/active-version changes, `domain.status_changed` from domain checks, `viewer.access_requested`
 from the named-viewer gate, and `visitor.signed_up` from visitor sign-in paths. The latter events
 are excluded on Hack (`emitSiteNotification`, `notify_routes.go:notifySiteEvents`;
 `handler/{site_sites_svc,domaincheck,viewers,visitoremail,visitorsession}.go`).
-Delivery/outbox/lease details are in [persistence](persistence.md#outbox-and-delivery-leases).
+Delivery/outbox/lease details are in [persistence](persistence.md#outbox-and-delivery-leases). A
+web-push subscription's own privacy boundary -- a visitor's device never matches an event about
+another visitor's data, and a delivery never fires back to the exact actor who made the write --
+is enforced in the fan-out SQL itself (`repository/notifications.go:emitSiteEvent`'s `kind='web-push'`
+`CASE`), not only in the owner's per-resource recipients control
+(`site_push_rules`, checked again at delivery dispatch in `handler/notify_push.go:pushPayload`).
 
 ## Request accounting
 
