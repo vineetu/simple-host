@@ -1,6 +1,7 @@
 # Changelog
 
 2026-11-06: An AI app that cached an older copy of a tool's output schema no longer reports a successful call as failed when the result gains a new field; `hack_create_event` hit this after `judging_ends_at` was added. Schemas stay strict in the tests, and the copy sent to apps accepts extra fields. A new test checks every Simple Hack tool's real output against its schema (SIM-384).
+
 2026-11-06: Self-hosted installs with password sign-in: the admin Users list shows Reset password only for accounts that have a password. Before, it showed on every account, and using it on a Google or email-code account quietly gave that account a password (SIM-383).
 
 2026-11-06: The owner page separates Sites, Analytics, and Settings, preserves section links and visibility rules, and keeps AI setup cards and Recently deleted with the site list. Background notification errors stay in their section, and Connected apps distinguishes loading and failed requests from an empty list (SIM-381).
