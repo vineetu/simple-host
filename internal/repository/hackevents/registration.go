@@ -66,7 +66,7 @@ func MemberApprovalStatus(ctx context.Context, q sqlkit.Querier, eventID, userID
 }
 
 // JoinParticipantRegistration creates a participant registration.
-func JoinParticipantRegistration(ctx context.Context, q sqlkit.Querier, eventID, userID, display string, answers []SignupAnswer, pending bool) (EventMember, error) {
+func JoinParticipantRegistration(ctx context.Context, q sqlkit.Querier, eventID, userID string, answers []SignupAnswer, pending bool) (EventMember, error) {
 	raw, err := json.Marshal(answers)
 	if err != nil {
 		return EventMember{}, err
@@ -76,19 +76,19 @@ func JoinParticipantRegistration(ctx context.Context, q sqlkit.Querier, eventID,
 		status = "pending"
 	}
 	return scanMember(q.QueryRowContext(ctx, `WITH joined AS (
-		INSERT INTO event_members (event_id,user_id,role,display_name,coc_accepted_at,signup_answers,approval_status)
-		VALUES ($1,$2,'participant',$3,now(),$4,$5)
-		RETURNING event_id,user_id,role,display_name,team_id,coc_accepted_at,joined_at
+		INSERT INTO event_members (event_id,user_id,role,coc_accepted_at,signup_answers,approval_status)
+		VALUES ($1,$2,'participant',now(),$3,$4)
+		RETURNING event_id,user_id,role,team_id,coc_accepted_at,joined_at
 		), reserved AS (
 		INSERT INTO event_used_names (event_slug, team_slug)
 		SELECT e.slug, '' FROM events e JOIN joined j ON j.event_id=e.id
 		ON CONFLICT DO NOTHING
-		) SELECT * FROM joined`, eventID, userID, display, raw, status))
+		) SELECT j.event_id,j.user_id,j.role,COALESCE(u.display_name,''),j.team_id,j.coc_accepted_at,j.joined_at FROM joined j JOIN users u ON u.id=j.user_id`, eventID, userID, raw, status))
 }
 
 // ListRegistrationApplications lists participant registrations.
 func ListRegistrationApplications(ctx context.Context, q sqlkit.Querier, eventID string) ([]RegistrationApplication, error) {
-	rows, err := queryContext(ctx, q, `SELECT m.user_id,u.username,m.display_name,m.approval_status,m.signup_answers,m.joined_at,
+	rows, err := queryContext(ctx, q, `SELECT m.user_id,u.username,COALESCE(u.display_name,''),m.approval_status,m.signup_answers,m.joined_at,
 		m.joined_via,m.city,m.country,m.age_range,m.gender
 		FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id=$1 AND m.role='participant' ORDER BY m.joined_at`, eventID)
 	if err != nil {
@@ -115,20 +115,20 @@ func ListRegistrationApplications(ctx context.Context, q sqlkit.Querier, eventID
 // event without a join link (D1): always pending and joined_via='application',
 // whatever the organiser's approval_required setting says, plus the
 // application's optional profile fields.
-func ApplyParticipant(ctx context.Context, q sqlkit.Querier, eventID, userID, display string, answers []SignupAnswer, p ApplicantProfile) (EventMember, error) {
+func ApplyParticipant(ctx context.Context, q sqlkit.Querier, eventID, userID string, answers []SignupAnswer, p ApplicantProfile) (EventMember, error) {
 	raw, err := json.Marshal(answers)
 	if err != nil {
 		return EventMember{}, err
 	}
 	return scanMember(q.QueryRowContext(ctx, `WITH joined AS (
-		INSERT INTO event_members (event_id,user_id,role,display_name,coc_accepted_at,signup_answers,approval_status,joined_via,city,country,age_range,gender)
-		VALUES ($1,$2,'participant',$3,now(),$4,'pending','application',$5,$6,$7,$8)
-		RETURNING event_id,user_id,role,display_name,team_id,coc_accepted_at,joined_at
+		INSERT INTO event_members (event_id,user_id,role,coc_accepted_at,signup_answers,approval_status,joined_via,city,country,age_range,gender)
+		VALUES ($1,$2,'participant',now(),$3,'pending','application',$4,$5,$6,$7)
+		RETURNING event_id,user_id,role,team_id,coc_accepted_at,joined_at
 		), reserved AS (
 		INSERT INTO event_used_names (event_slug, team_slug)
 		SELECT e.slug, '' FROM events e JOIN joined j ON j.event_id=e.id
 		ON CONFLICT DO NOTHING
-		) SELECT * FROM joined`, eventID, userID, display, raw, p.City, p.Country, p.AgeRange, p.Gender))
+		) SELECT j.event_id,j.user_id,j.role,COALESCE(u.display_name,''),j.team_id,j.coc_accepted_at,j.joined_at FROM joined j JOIN users u ON u.id=j.user_id`, eventID, userID, raw, p.City, p.Country, p.AgeRange, p.Gender))
 }
 
 // CountPendingApplications is how many applications (joined_via='application'),

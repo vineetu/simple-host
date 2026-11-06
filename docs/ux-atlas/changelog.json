@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-11-06",
+  "what": "Owner: one name per person, not one per event. public-join, public-apply, public-judge and public-organiser-invite ask for a name only when the signed-in account has none yet; the server saves it as the account's display name (Account's existing field, not a new one). An account that already has a name sees a read-only 'You'll appear as <name>. Change it on Account.' line instead of an input, and the request never sends display_name. public-organiser-invite no longer invents a name from the email prefix or falls back to the literal 'Co-organiser'. Account's Name help text now says the name is shown in every event, and a rename there updates it everywhere (teams, organisers, judges, results) -- organiser-people's rows read from the same one name. Prototype: public-join, public-apply~form, public-judge, public-organiser-invite, account, plus new ~no-name states for public-join, public-apply, public-judge and public-organiser-invite showing the empty-account input."
+ },
+ {
+  "date": "2026-11-06",
   "what": "SIM-379: Event Basics reuses the schedule date and time pickers. An empty time still means local midnight in the event zone, same as before -- a midnight end still lasts the whole of that day. Each pair fills the phone width. Event dates show a time only when it isn't midnight."
  },
  {

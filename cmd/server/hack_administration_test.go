@@ -247,7 +247,7 @@ func TestHackAdministrationCannotRemoveLastOrganiserConcurrently(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := hackevents.InsertEventMember(context.Background(), a.database, ev.ID, a.userID(t, two), "organiser", "Second organiser"); err != nil {
+	if _, err := hackevents.InsertEventMember(context.Background(), a.database, ev.ID, a.userID(t, two), "organiser"); err != nil {
 		t.Fatal(err)
 	}
 	// The creator may be absent on a legacy/imported event. Its remaining

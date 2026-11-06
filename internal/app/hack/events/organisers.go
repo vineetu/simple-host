@@ -77,7 +77,10 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return ev, member, err
 	}
-	member, err = eventrepo.InsertEventMember(ctx, tx, ev.ID, userID, "organiser", name)
+	if err := EnsureAccountName(ctx, tx, userID, name); err != nil {
+		return ev, member, err
+	}
+	member, err = eventrepo.InsertEventMember(ctx, tx, ev.ID, userID, "organiser")
 	if unique(err) {
 		return ev, member, &Error{"already_member", "you already belong to this event"}
 	}

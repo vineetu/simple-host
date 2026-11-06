@@ -24,16 +24,13 @@ const entrySelect = `
 	SELECT e.team_id, e.event_id, e.title, e.tagline, e.description, e.video_url, e.code_url,
 	       e.problem, e.audience, e.tools, e.maturity,
 	       (e.screenshot IS NOT NULL AND octet_length(e.screenshot) > 0),
-	       e.screenshot_type, e.updated_at, COALESCE(m.display_name, ''),
-	       e.submitted_at, COALESCE(sm.display_name, ''), e.submit_auto, e.submit_settled_at,
-	       e.excluded_at, COALESCE(xm.display_name, '')
+	       e.screenshot_type, e.updated_at, COALESCE(u.display_name, ''),
+	       e.submitted_at, COALESCE(su.display_name, ''), e.submit_auto, e.submit_settled_at,
+	       e.excluded_at, COALESCE(xu.display_name, '')
 	  FROM event_entries e
-	  LEFT JOIN event_members m
-	    ON m.event_id = e.event_id AND m.user_id = e.updated_by
-	  LEFT JOIN event_members sm
-	    ON sm.event_id = e.event_id AND sm.user_id = e.submitted_by
-	  LEFT JOIN event_members xm
-	    ON xm.event_id = e.event_id AND xm.user_id = e.excluded_by`
+	  LEFT JOIN users u ON u.id = e.updated_by
+	  LEFT JOIN users su ON su.id = e.submitted_by
+	  LEFT JOIN users xu ON xu.id = e.excluded_by`
 
 type entryScanner interface {
 	Scan(dest ...any) error

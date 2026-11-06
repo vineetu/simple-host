@@ -39,6 +39,21 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 	existing, err := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
 	if err == nil {
 		if existing.Role == role {
+			tx, err := s.db.BeginTx(ctx, nil)
+			if err != nil {
+				return ev, model.EventMember{}, false, err
+			}
+			defer tx.Rollback()
+			if err := EnsureAccountName(ctx, tx, userID, display); err != nil {
+				return ev, model.EventMember{}, false, err
+			}
+			existing, err = eventrepo.GetEventMember(ctx, tx, ev.ID, userID)
+			if err != nil {
+				return ev, model.EventMember{}, false, err
+			}
+			if err := tx.Commit(); err != nil {
+				return ev, model.EventMember{}, false, err
+			}
 			return ev, existing, existing.Role == "organiser", nil
 		}
 		return ev, model.EventMember{}, false, &Error{"already_member", "you already have a different role in this event"}
@@ -74,7 +89,10 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 		if locked.Stage == "results" || locked.Stage == "archived" {
 			return ev, model.EventMember{}, false, &Error{"judging_closed", "judging is closed for this event"}
 		}
-		member, err = eventrepo.InsertEventMember(ctx, tx, ev.ID, userID, role, display)
+		if err := EnsureAccountName(ctx, tx, userID, display); err != nil {
+			return ev, model.EventMember{}, false, err
+		}
+		member, err = eventrepo.InsertEventMember(ctx, tx, ev.ID, userID, role)
 		if err == nil {
 			err = tx.Commit()
 		}
@@ -105,7 +123,10 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 		if validationErr != nil {
 			return ev, model.EventMember{}, false, validationErr
 		}
-		member, err = eventrepo.JoinParticipantRegistration(ctx, tx, ev.ID, userID, display, answers, required)
+		if err := EnsureAccountName(ctx, tx, userID, display); err != nil {
+			return ev, model.EventMember{}, false, err
+		}
+		member, err = eventrepo.JoinParticipantRegistration(ctx, tx, ev.ID, userID, answers, required)
 		if err == nil && required {
 			// A sign-up that waits for approval waits on the organisers.
 			err = eventrepo.NotifyOrganisers(ctx, tx, ev.ID, eventrepo.NoticeApplicationNew, userID)

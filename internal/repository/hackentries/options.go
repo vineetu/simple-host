@@ -46,10 +46,10 @@ func ReplaceTrackPanels(ctx context.Context, q sqlkit.Querier, eventID string, p
 
 // ListEventAssignments provides the corresponding track or judging data.
 func ListEventAssignments(ctx context.Context, q sqlkit.Querier, eventID string) ([]JudgeAssignment, error) {
-	rows, err := queryContext(ctx, q, `SELECT a.judge_id,j.display_name,a.team_id,t.name
+	rows, err := queryContext(ctx, q, `SELECT a.judge_id,COALESCE(u.display_name,''),a.team_id,t.name
 		FROM event_assignments a JOIN event_members j ON j.event_id=a.event_id AND j.user_id=a.judge_id AND j.role IN ('judge', 'organiser')
-		JOIN event_teams t ON t.event_id=a.event_id AND t.id=a.team_id
-		WHERE a.event_id=$1 ORDER BY t.name,j.display_name`, eventID)
+		JOIN users u ON u.id=j.user_id JOIN event_teams t ON t.event_id=a.event_id AND t.id=a.team_id
+		WHERE a.event_id=$1 ORDER BY t.name,COALESCE(u.display_name,'')`, eventID)
 	if err != nil {
 		return nil, err
 	}

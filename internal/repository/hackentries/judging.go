@@ -98,7 +98,7 @@ func ReplaceRubric(ctx context.Context, q sqlkit.Querier, eventID string, items 
 // ListEventJudges is every member eligible to judge the event, by user id.
 func ListEventJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]NamedJudge, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT user_id, display_name, role FROM event_members
+		SELECT user_id, COALESCE(u.display_name,''), role FROM event_members m JOIN users u ON u.id=m.user_id
 		 WHERE event_id = $1 AND role IN ('judge', 'organiser')
 		 ORDER BY user_id`, eventID)
 	if err != nil {
@@ -166,7 +166,7 @@ func EventTeamInEvent(ctx context.Context, q sqlkit.Querier, eventID, teamID str
 func EventJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string) (NamedJudge, error) {
 	var j NamedJudge
 	err := q.QueryRowContext(ctx, `
-		SELECT user_id, display_name FROM event_members
+		SELECT user_id, COALESCE(u.display_name,'') FROM event_members m JOIN users u ON u.id=m.user_id
 		 WHERE event_id = $1 AND user_id = $2 AND role IN ('judge', 'organiser')`, eventID, userID).Scan(&j.ID, &j.Name)
 	return j, err
 }
@@ -174,12 +174,12 @@ func EventJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string) (
 // ListEventConflicts returns conflicts for the event. judgeID empty means all of them.
 func ListEventConflicts(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) ([]EventConflict, error) {
 	query := `
-		SELECT c.judge_id, COALESCE(j.display_name, ''), c.team_id, t.name, c.declared_by,
+		SELECT c.judge_id, COALESCE(u.display_name, ''), c.team_id, t.name, c.declared_by,
 		       EXISTS(SELECT 1 FROM event_scores es WHERE es.event_id = c.event_id
 		                AND es.judge_id = c.judge_id AND es.team_id = c.team_id)
 		  FROM event_conflicts c
 		  JOIN event_teams t ON t.id = c.team_id
-		  LEFT JOIN event_members j ON j.event_id = c.event_id AND j.user_id = c.judge_id
+		  LEFT JOIN users u ON u.id = c.judge_id
 		 WHERE c.event_id = $1`
 	args := []any{eventID}
 	if judgeID != "" {
@@ -207,12 +207,12 @@ func ListEventConflicts(ctx context.Context, q sqlkit.Querier, eventID, judgeID 
 func GetEventConflict(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID string) (EventConflict, error) {
 	var c EventConflict
 	err := q.QueryRowContext(ctx, `
-		SELECT c.judge_id, COALESCE(j.display_name, ''), c.team_id, t.name, c.declared_by,
+		SELECT c.judge_id, COALESCE(u.display_name, ''), c.team_id, t.name, c.declared_by,
 		       EXISTS(SELECT 1 FROM event_scores es WHERE es.event_id = c.event_id
 		                AND es.judge_id = c.judge_id AND es.team_id = c.team_id)
 		  FROM event_conflicts c
 		  JOIN event_teams t ON t.id = c.team_id
-		  LEFT JOIN event_members j ON j.event_id = c.event_id AND j.user_id = c.judge_id
+		  LEFT JOIN users u ON u.id = c.judge_id
 		 WHERE c.event_id = $1 AND c.judge_id = $2 AND c.team_id = $3`,
 		eventID, judgeID, teamID).Scan(&c.JudgeID, &c.JudgeName, &c.TeamID, &c.TeamName, &c.DeclaredBy, &c.HadScore)
 	return c, err
@@ -460,13 +460,12 @@ type RawScoreRow = model.RawScoreRow
 // scores CSV and for computing results in Go.
 func ListRawScores(ctx context.Context, q sqlkit.Querier, eventID string) ([]RawScoreRow, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT s.judge_id, COALESCE(j.display_name, f.display_name, ''), s.team_id, t.name,
+		SELECT s.judge_id, COALESCE(u.display_name, ''), s.team_id, t.name,
 		       s.criterion_id, r.name, r.position, s.points, r.max_points, s.comment
 		  FROM event_scores s
 		  JOIN event_teams t ON t.id = s.team_id
 		  JOIN rubric_criteria r ON r.id = s.criterion_id
-		  LEFT JOIN event_members j ON j.event_id = s.event_id AND j.user_id = s.judge_id
-		  LEFT JOIN event_former_judges f ON f.event_id = s.event_id AND f.user_id = s.judge_id
+		  LEFT JOIN users u ON u.id = s.judge_id
 		 WHERE s.event_id = $1`, eventID)
 	if err != nil {
 		return nil, err

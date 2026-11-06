@@ -1690,9 +1690,11 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 	// The route answers signed out, but a signed-in page sends its key: then
 	// the account is metered, not the venue's shared address.
 	caller := ""
+	accountName := ""
 	if k := r.Header.Get("X-API-Key"); k != "" {
 		if u, err := h.eventsSvc().UserByAPIKey(r.Context(), k, h.limits.KeyIdleExpiry); err == nil {
 			caller = u.ID
+			accountName = strings.TrimSpace(u.DisplayName.String)
 		}
 	}
 	if h.rateLimited(w, r, caller) {
@@ -1749,6 +1751,7 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 		"organisation":      ev.Organisation,
 		"stage":             ev.Stage,
 		"joinable":          joinable,
+		"account_name":      accountName,
 		"role":              role,
 		"coc_default":       HackDefaultCoC,
 		"coc_text":          cocText,
@@ -1788,10 +1791,7 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 		httpx.WriteError(w, http.StatusBadRequest, "coc_required", "you must accept the code of conduct")
 		return
 	}
-	display, ok := checkHackLine(w, req.DisplayName, "display_name", 1, 100)
-	if !ok {
-		return
-	}
+	display := req.DisplayName
 	code := events.NormalizeCode(r.PathValue("code"))
 	if code == "" {
 		httpx.WriteError(w, http.StatusNotFound, "invalid_code", "invalid code")

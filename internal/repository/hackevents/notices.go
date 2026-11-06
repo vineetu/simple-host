@@ -37,9 +37,9 @@ func MailMember(ctx context.Context, q sqlkit.Querier, eventID, userID string) (
 func MailRequest(ctx context.Context, q sqlkit.Querier, refID, teamID string) (string, string, error) {
 	var name, team string
 	err := q.QueryRowContext(ctx, `
-			SELECT m.display_name, t.name FROM event_team_requests r
+			SELECT COALESCE(u.display_name,''), t.name FROM event_team_requests r
 			  JOIN event_teams t ON t.id = r.team_id
-			  JOIN event_members m ON m.event_id = r.event_id AND m.user_id = r.user_id
+			  JOIN event_members m ON m.event_id = r.event_id AND m.user_id = r.user_id JOIN users u ON u.id=m.user_id
 			 WHERE r.id = $1 AND r.team_id = $2 AND r.kind = 'request'`, refID, teamID).Scan(&name, &team)
 	return name, team, err
 }

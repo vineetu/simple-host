@@ -210,10 +210,13 @@ export async function render(ctx) {
     { value: 'non_binary', label: ui.GENDER_LABELS.non_binary }, { value: 'another', label: ui.GENDER_LABELS.another },
     { value: 'prefer_not_to_say', label: ui.GENDER_LABELS.prefer_not_to_say }
   ]
-  // D4/review item 4: prefill from display_name only, as public-join.js
-  // does -- never the email or username, so the one never becomes the
-  // visible name the organisers and teammates see.
-  const name = (ctx.me && ctx.me.display_name) || ''
+  // One name per person, the account name (owner decision, 2026-11-06): ask
+  // for it here only when the account has none yet; otherwise show who
+  // they'll appear as and point to Account, and never send display_name.
+  const hasName = !!(ctx.me && ctx.me.display_name && ctx.me.display_name.trim())
+  const nameHTML = hasName
+    ? `<p class="help">You'll appear as <b>${esc(ctx.me.display_name.trim())}</b>. Change it on <a href="/account">Account</a>.</p>`
+    : `<div class="field"><label for="ap-name">Your name</label><input class="input" id="ap-name" type="text" maxlength="100" required autocomplete="name"><p class="help">Saved to your account and shown in every event you join.</p></div>`
   const email = (ctx.me && (ctx.me.login || ctx.me.email || ctx.me.username)) || ''
   const questions = Array.isArray(info.signup_questions) ? info.signup_questions : []
   const questionsHTML = questions.map((q, i) =>
@@ -226,7 +229,7 @@ export async function render(ctx) {
 <h2>Your application</h2>
 <div class="sub row-flex">Signed in as ${esc(email)}<button class="btn quiet sm" type="button" id="ap-signout">Not you? Sign out</button></div>
 
-<div class="field"><label for="ap-name">Your name</label><input class="input" id="ap-name" type="text" maxlength="100" required value="${esc(name)}" autocomplete="name"><p class="help">Shown to the organisers, and to your teammates once you're in.</p></div>
+${nameHTML}
 
 <fieldset class="field"><legend>Where you're based (optional)</legend>
 <div class="field-row">
@@ -277,7 +280,7 @@ ${questions.length ? `<div class="field-group"><h3>Questions from the organisers
   function fieldNear(code) {
     switch (code) {
       case 'coc_required': return $('ap-coc').closest('.check')
-      case 'invalid_display_name': return $('ap-name').closest('.field')
+      case 'invalid_display_name': { const el = $('ap-name'); return el ? el.closest('.field') : null }
       case 'invalid_city': return $('ap-city').closest('.field')
       case 'invalid_country': return $('ap-country').closest('.field')
       case 'invalid_age_range': return $('ap-age')
@@ -290,18 +293,19 @@ ${questions.length ? `<div class="field-group"><h3>Questions from the organisers
     e.preventDefault()
     const btn = $('ap-submit')
     if (!$('ap-coc').checked) { ui.toast(CODES.coc_required, $('ap-coc').closest('.check'), true); return }
-    const nm = $('ap-name').value.trim()
-    if (!nm) return
+    const nameInput = $('ap-name')
+    const nm = nameInput ? nameInput.value.trim() : ''
+    if (!hasName && !nm) return
     const ageEl = main.querySelector('#ap-age input:checked')
     const body = {
       accept_coc: true,
-      display_name: nm,
       city: $('ap-city').value.trim(),
       country: $('ap-country').value,
       age_range: ageEl ? ageEl.value : '',
       gender: $('ap-gender').value,
       answers: {}
     }
+    if (!hasName) body.display_name = nm
     main.querySelectorAll('[data-question]').forEach(input => { body.answers[input.getAttribute('data-question')] = input.value })
     btn.disabled = true
     let res
@@ -317,6 +321,7 @@ ${questions.length ? `<div class="field-group"><h3>Questions from the organisers
       btn.disabled = false
       return
     }
+    if (!hasName && ctx.me) ctx.me.display_name = nm
     // A real navigation, not an SPA one: the server now holds this
     // membership (pending, or already decided for an idempotent re-apply),
     // and only a fresh load renders that state from it -- same reasoning as

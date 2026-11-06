@@ -66,11 +66,11 @@ const (
    AND NOT COALESCE(` + hackevents.EffectiveDeadlineSQL + ` <= clock_timestamp(), false)
  ORDER BY t.created_at`
 
-	openSQL2 = `SELECT m.team_id,m.display_name FROM event_members m JOIN event_teams t ON t.id=m.team_id WHERE t.event_id=$1 AND t.locked_at IS NULL AND m.approval_status='approved' ORDER BY m.joined_at,m.user_id`
+	openSQL2 = `SELECT m.team_id,COALESCE(u.display_name,'') FROM event_members m JOIN users u ON u.id=m.user_id JOIN event_teams t ON t.id=m.team_id WHERE t.event_id=$1 AND t.locked_at IS NULL AND m.approval_status='approved' ORDER BY m.joined_at,m.user_id`
 
-	openSQL3 = `SELECT user_id,display_name,looking_intro FROM event_members WHERE event_id=$1 AND role='participant' AND approval_status='approved' AND team_id IS NULL AND looking ORDER BY joined_at,user_id`
+	openSQL3 = `SELECT m.user_id,COALESCE(u.display_name,''),looking_intro FROM event_members m JOIN users u ON u.id=m.user_id WHERE event_id=$1 AND role='participant' AND approval_status='approved' AND team_id IS NULL AND looking ORDER BY joined_at,user_id`
 
-	openSQL4 = `SELECT r.id,r.team_id,t.slug,t.name,r.user_id,m.display_name,r.kind,r.created_at FROM event_team_requests r JOIN event_teams t ON t.id=r.team_id JOIN event_members m ON m.event_id=r.event_id AND m.user_id=r.user_id WHERE r.event_id=$1 AND (r.user_id=$2 OR r.team_id=$3 OR $4) ORDER BY r.created_at`
+	openSQL4 = `SELECT r.id,r.team_id,t.slug,t.name,r.user_id,COALESCE(u.display_name,''),r.kind,r.created_at FROM event_team_requests r JOIN event_teams t ON t.id=r.team_id JOIN event_members m ON m.event_id=r.event_id AND m.user_id=r.user_id JOIN users u ON u.id=m.user_id WHERE r.event_id=$1 AND (r.user_id=$2 OR r.team_id=$3 OR $4) ORDER BY r.created_at`
 
 	openSQL5 = `SELECT looking,looking_intro FROM event_members WHERE event_id=$1 AND user_id=$2`
 

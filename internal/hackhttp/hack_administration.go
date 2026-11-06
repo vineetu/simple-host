@@ -72,7 +72,13 @@ func (h *HackHandler) revokeOrganiserInvite(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *HackHandler) getOrganiserInvite(w http.ResponseWriter, r *http.Request) {
-	if h.rateLimited(w, r, "") {
+	caller, accountName := "", ""
+	if k := r.Header.Get("X-API-Key"); k != "" {
+		if u, err := h.eventsSvc().UserByAPIKey(r.Context(), k, h.limits.KeyIdleExpiry); err == nil {
+			caller, accountName = u.ID, strings.TrimSpace(u.DisplayName.String)
+		}
+	}
+	if h.rateLimited(w, r, caller) {
 		return
 	}
 	ev, err := h.eventsSvc().OrganiserInvite(r.Context(), r.PathValue("code"))
@@ -89,7 +95,7 @@ func (h *HackHandler) getOrganiserInvite(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	httpx.WriteJSON(w, 200, map[string]any{"slug": ev.Slug, "title": ev.Title, "icon_url": h.iconURL(ev), "stage": ev.Stage, "organiser_name": ev.OrganiserName, "organisation": ev.Organisation, "role": "organiser", "joinable": ev.Stage != "archived", "coc_default": HackDefaultCoC, "coc_text": ev.CocText})
+	httpx.WriteJSON(w, 200, map[string]any{"slug": ev.Slug, "title": ev.Title, "icon_url": h.iconURL(ev), "stage": ev.Stage, "organiser_name": ev.OrganiserName, "organisation": ev.Organisation, "role": "organiser", "account_name": accountName, "joinable": ev.Stage != "archived", "coc_default": HackDefaultCoC, "coc_text": ev.CocText})
 }
 
 func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Request) {
@@ -111,10 +117,7 @@ func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Reque
 		httpx.WriteError(w, 400, "coc_required", "you must accept the code of conduct")
 		return
 	}
-	name, ok := checkHackLine(w, req.DisplayName, "display_name", 1, 100)
-	if !ok {
-		return
-	}
+	name := req.DisplayName
 	ev, member, err := h.eventsSvc().AcceptOrganiserInvite(r.Context(), r.PathValue("code"), user.ID, name)
 	if err != nil {
 		writeEventsError(w, err)

@@ -449,23 +449,23 @@ func ListAdminEvents(ctx context.Context, q sqlkit.Querier) ([]AdminEvent, error
 // GetEventMember loads one membership. sql.ErrNoRows if none.
 func GetEventMember(ctx context.Context, q sqlkit.Querier, eventID, userID string) (EventMember, error) {
 	return scanMember(q.QueryRowContext(ctx, `
-		SELECT event_id, user_id, role, display_name, team_id, coc_accepted_at, joined_at
-		  FROM event_members WHERE event_id = $1 AND user_id = $2`, eventID, userID))
+		SELECT m.event_id, m.user_id, m.role, COALESCE(u.display_name,''), m.team_id, m.coc_accepted_at, m.joined_at
+		  FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id = $1 AND m.user_id = $2`, eventID, userID))
 }
 
 // InsertEventMember adds a person to an event. Unique (event, user) is already_member.
-func InsertEventMember(ctx context.Context, q sqlkit.Querier, eventID, userID, role, displayName string) (EventMember, error) {
+func InsertEventMember(ctx context.Context, q sqlkit.Querier, eventID, userID, role string) (EventMember, error) {
 	row := q.QueryRowContext(ctx, `
 		WITH joined AS (
-		INSERT INTO event_members (event_id, user_id, role, display_name, coc_accepted_at)
-		VALUES ($1, $2, $3, $4, now())
-		RETURNING event_id, user_id, role, display_name, team_id, coc_accepted_at, joined_at
+		INSERT INTO event_members (event_id, user_id, role, coc_accepted_at)
+		VALUES ($1, $2, $3, now())
+		RETURNING event_id, user_id, role, team_id, coc_accepted_at, joined_at
 		), reserved AS (
 		INSERT INTO event_used_names (event_slug, team_slug)
 		SELECT e.slug, '' FROM events e JOIN joined j ON j.event_id=e.id WHERE j.role <> 'organiser'
 		ON CONFLICT DO NOTHING
-		) SELECT * FROM joined`,
-		eventID, userID, role, displayName)
+		) SELECT j.event_id,j.user_id,j.role,COALESCE(u.display_name,''),j.team_id,j.coc_accepted_at,j.joined_at FROM joined j JOIN users u ON u.id=j.user_id`,
+		eventID, userID, role)
 	m, err := scanMember(row)
 	if err != nil && isUniqueViolation(err) {
 		return EventMember{}, err
@@ -478,7 +478,7 @@ func InsertEventMember(ctx context.Context, q sqlkit.Querier, eventID, userID, r
 // fields (city, country, age_range, gender): the handler decides who sees them.
 func ListEventPeople(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT m.user_id, u.username, m.display_name, m.role, m.team_id,
+		SELECT m.user_id, u.username, COALESCE(u.display_name,''), m.role, m.team_id,
 		       t.slug, t.name, m.joined_at, m.coc_accepted_at, m.approval_status,
 		       m.joined_via, m.city, m.country, m.age_range, m.gender, m.team_admin
 		  FROM event_members m
@@ -506,7 +506,7 @@ func ListEventPeople(ctx context.Context, q sqlkit.Querier, eventID string) ([]E
 // ListParticipantsOnNoTeam is the organiser teams view's unteamed people.
 func ListParticipantsOnNoTeam(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT m.user_id, u.username, m.display_name, m.role, m.team_id,
+		SELECT m.user_id, u.username, COALESCE(u.display_name,''), m.role, m.team_id,
 		       NULL, NULL, m.joined_at, m.coc_accepted_at, m.approval_status
 		  FROM event_members m
 		  JOIN users u ON u.id = m.user_id

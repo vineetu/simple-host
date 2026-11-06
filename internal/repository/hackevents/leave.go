@@ -38,10 +38,10 @@ const TeamKeepableSQL = `t.pinned_at IS NULL AND (` + EffectiveDeadlineSQL + ` I
 // right after locking the event row (event, then member, then team is the
 // lock order every hack writer uses).
 func LeaveSelf(ctx context.Context, q sqlkit.Querier, eventID, userID string, lock bool) (EventMember, string, error) {
-	query := `SELECT event_id, user_id, role, display_name, team_id, coc_accepted_at, joined_at, approval_status
-	            FROM event_members WHERE event_id = $1 AND user_id = $2`
+	query := `SELECT m.event_id, m.user_id, m.role, COALESCE(u.display_name,''), m.team_id, m.coc_accepted_at, m.joined_at, approval_status
+	            FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id = $1 AND m.user_id = $2`
 	if lock {
-		query += ` FOR UPDATE`
+		query += ` FOR UPDATE OF m`
 	}
 	var m EventMember
 	var status string
@@ -57,10 +57,10 @@ func LeaveSelf(ctx context.Context, q sqlkit.Querier, eventID, userID string, lo
 // the event row FOR UPDATE, then works out the case").
 func OtherEventOrganisers(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]OtherOrganiser, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT m.user_id, m.display_name, u.username FROM event_members m
+		SELECT m.user_id, COALESCE(u.display_name,''), u.username FROM event_members m
 		  JOIN users u ON u.id = m.user_id
 		 WHERE m.event_id = $1 AND m.role = 'organiser' AND m.user_id <> $2
-		 ORDER BY m.display_name, m.user_id`, eventID, userID)
+		 ORDER BY COALESCE(u.display_name,''), m.user_id`, eventID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func MarkTeamKeptAfterLeave(ctx context.Context, q sqlkit.Querier, teamID string
 // it, every team the leaver ever scored froze in regardless of whether it
 // was ever eligible, so a score that never counted (wrong mode, never
 // assigned, no panel) started counting the moment they left.
-func RecordFormerJudge(ctx context.Context, q sqlkit.Querier, eventID, userID, role, displayName string) error {
+func RecordFormerJudge(ctx context.Context, q sqlkit.Querier, eventID, userID, role string) error {
 	eligible, err := hackentries.EligibleJudgeTeamsIgnoringConflicts(ctx, q, eventID, userID)
 	if err != nil {
 		return err
@@ -234,19 +234,19 @@ func RecordFormerJudge(ctx context.Context, q sqlkit.Querier, eventID, userID, r
 		return nil
 	}
 	_, err = q.ExecContext(ctx, `
-		INSERT INTO event_former_judges (event_id, user_id, display_name, role, counted_team_ids, left_at)
-		VALUES ($1, $2, $3, $4, $5, now())
+		INSERT INTO event_former_judges (event_id, user_id, role, counted_team_ids, left_at)
+		VALUES ($1, $2, $3, $4, now())
 		ON CONFLICT (event_id, user_id) DO UPDATE SET
-			display_name = EXCLUDED.display_name, role = EXCLUDED.role,
+			role = EXCLUDED.role,
 			counted_team_ids = EXCLUDED.counted_team_ids, left_at = EXCLUDED.left_at`,
-		eventID, userID, displayName, role, pq.Array(counted))
+		eventID, userID, role, pq.Array(counted))
 	return err
 }
 
 // ListFormerJudges is every former judge of the event, oldest departure first.
 func ListFormerJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]FormerJudge, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT user_id, display_name, role, left_at FROM event_former_judges
+		SELECT f.user_id, COALESCE(u.display_name,''), f.role, f.left_at FROM event_former_judges f JOIN users u ON u.id=f.user_id
 		 WHERE event_id = $1 ORDER BY left_at ASC`, eventID)
 	if err != nil {
 		return nil, err
@@ -371,7 +371,7 @@ func RemovePersonFromEvent(ctx context.Context, q sqlkit.Querier, eventID, userI
 		return ErrHackCannotRemoveOrganiser
 	}
 	if m.Role == "judge" {
-		if err := RecordFormerJudge(ctx, q, eventID, userID, m.Role, m.DisplayName); err != nil {
+		if err := RecordFormerJudge(ctx, q, eventID, userID, m.Role); err != nil {
 			return err
 		}
 	}

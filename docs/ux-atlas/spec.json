@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updated": "2026-11-02",
+ "updated": "2026-11-06",
  "summary": [
   "Home (top left: the Simple Hack wordmark and your name) is always one click away. The event switcher sits one level below it -- it lists all your events with your role in each, and the sidebar below it changes with that role.",
   "Home itself is a full page: your events grouped by what needs you first, each with its role, stage and a plain next action, plus Find a hackathon, Create event and Account.",
@@ -1864,6 +1864,11 @@
      "q": "Highlight Under 18?",
      "decision": "Yes, as a warn pill on the waiting card ('Under 18'). Nothing else changes for minors.",
      "why": "Organisers running events with young people have their own safeguarding rules (consent forms, chaperones); the pill makes sure they notice before approving. It shows data the applicant chose to give, nothing inferred."
+    },
+    {
+     "q": "Whose name shows on an applicant's or member's row?",
+     "decision": "Their account name -- the one name a person has everywhere on Simple Hack, not a name they typed just for this event. Applying, joining, judging and accepting a co-organiser invite ask for a name only when the account has none yet; the account name they already have is shown and used instead.",
+     "why": "Owner, 2026-11-06: one name per person, not one per event. Joining, applying, judging and accepting a co-organiser invite all ask for a name only when the account has none yet; the server saves it as the account's display name. When the account already has one, the screen shows it read-only with a link to Account and never asks again -- a rename on Account then shows everywhere the person appears (teams, organisers, judges, results)."
     }
    ],
    "features": [
@@ -5830,7 +5835,7 @@
     {
      "name": "Name",
      "contents": [
-      "Name shown to teams, organisers and judges: Siti Rahma"
+      "The one name shown in every event you join -- to teams, organisers and judges: Siti Rahma"
      ],
      "actions": [
       {
@@ -5944,7 +5949,8 @@
    ],
    "fixes": [
     "'Irreversible actions sit in the same plain list styling as harmless ones' -- all three live together in one red-bordered Danger zone.",
-    "Critique: unlink-identity, rotate-api-key, set-theme-preference and who-am-i had no home anywhere -- all four placed here, the last two documented plainly rather than inventing UI weight they don't need today."
+    "Critique: unlink-identity, rotate-api-key, set-theme-preference and who-am-i had no home anywhere -- all four placed here, the last two documented plainly rather than inventing UI weight they don't need today.",
+    "Owner, 2026-11-06: joining, applying, judging and accepting a co-organiser invite each asked for a name and stored it per event -- a rename on one event never reached the others, and organiser-invite acceptance invented a name from the email prefix rather than asking at all. Now one name, the account's, shown and editable only here."
    ],
    "decisions": [
     {
@@ -5971,6 +5977,11 @@
      "q": "The old 'AI apps' note said nothing to set up here -- now there is a Connect your AI app card. Why the change?",
      "decision": "Owner, 2026-11-05: Account gets a real way to connect, not just a note that it happens automatically elsewhere.",
      "why": "A signed-in person asked where to add Simple Hack to their AI without leaving Account; the same address and steps as /get-started and the Website screen's publish card now live here too, reusing hack-connect-steps.json so the three surfaces never drift apart."
+    },
+    {
+     "q": "Why does Account own the only copy of this name now?",
+     "decision": "One name per person, not one per event. Joining, applying, judging and accepting a co-organiser invite used to each ask for a name and store it per membership; now they ask only when the account has none yet, save it here, and every event reads this one name. Renaming here updates it everywhere at once.",
+     "why": "Owner, 2026-11-06: one name per person, not one per event. Joining, applying, judging and accepting a co-organiser invite all ask for a name only when the account has none yet; the server saves it as the account's display name. When the account already has one, the screen shows it read-only with a link to Account and never asks again -- a rename on Account then shows everywhere the person appears (teams, organisers, judges, results)."
     }
    ],
    "features": [
@@ -7093,6 +7104,7 @@
     {
      "name": "Apply (after sign-in)",
      "contents": [
+      "name field (only when the account has none yet) or a 'You'll appear as <name>' line linking to Account",
       "same questions, now editable",
       "code of conduct checkbox"
      ],
@@ -7156,6 +7168,13 @@
      "name": "Rejected",
      "stage": "open",
      "next": null
+    },
+    {
+     "slug": "no-name",
+     "name": "No account name yet",
+     "stage": "open",
+     "next": null,
+     "note": "The signed-in account has no name yet, so the form asks for one (saved as the account's name) instead of showing a 'You'll appear as' line."
     }
    ],
    "decisions": [
@@ -7163,6 +7182,11 @@
      "q": "Does the join link change now that people can apply?",
      "decision": "No. Same page, same form, same approval rule, same private link. It does not ask for location, age range or gender. The only addition: someone who already applied and opens a join link sees their application's state here, as any existing member does.",
      "why": "Owner, 2026-10-31: join links keep working as now and stay private."
+    },
+    {
+     "q": "Does the join form still ask for a name every time?",
+     "decision": "No. It asks only when the signed-in account has none yet, and what it collects becomes the account's display name (PATCH-equivalent save), not a per-event field. An account that already has a name sees \"You'll appear as <name>. Change it on Account.\" instead of an input, and the request never sends display_name.",
+     "why": "Owner, 2026-11-06: one name per person, not one per event. Joining, applying, judging and accepting a co-organiser invite all ask for a name only when the account has none yet; the server saves it as the account's display name. When the account already has one, the screen shows it read-only with a link to Account and never asks again -- a rename on Account then shows everywhere the person appears (teams, organisers, judges, results)."
     }
    ],
    "phone": "Single column, same content, full width."
@@ -7199,7 +7223,7 @@
      "name": "Before sign-in",
      "contents": [
       "Apply to join",
-      "Sign in with your email, then fill in one short form: your name, where you're based, your age range and gender, and a few questions from the organisers. Where you're based, age range and gender are optional.",
+      "Sign in with your email, then fill in one short form: your name (only if your account doesn't already have one), where you're based, your age range and gender, and a few questions from the organisers. Where you're based, age range and gender are optional.",
       "The organisers decide who joins. You'll see their answer here and on your Simple Hack Home.",
       "Have a join link from the organisers? Open that instead."
      ],
@@ -7216,7 +7240,7 @@
      "name": "Application form (signed in)",
      "contents": [
       "Signed in as dewi.lestari@example.com · Not you? Sign out",
-      "Your name -- prefilled from the account, required. Help: 'Shown to the organisers, and to your teammates once you're in.'",
+      "Your name: a required input, prefilled from nothing, only when the account has no name yet. Help: 'Saved to your account and shown in every event you join.' An account that already has a name sees 'You'll appear as <name>. Change it on Account.' instead, and no display_name is sent",
       "Where you're based (optional): City (text, up to 80 characters) and Country (list of countries, names in the browser's language)",
       "Age range (optional): Under 18 · 18-24 · 25-34 · 35+ (radio cards, none picked)",
       "Under 18 picked: a plain .note appears under the choices -- 'If you're under 18, a parent or guardian needs to agree to Simple Hack's Terms for you.' with Terms linked. Nothing else is asked.",
@@ -7336,6 +7360,13 @@
      "name": "Password sign-in on own install",
      "stage": "open",
      "next": null
+    },
+    {
+     "slug": "no-name",
+     "name": "Form, no account name yet",
+     "stage": "open",
+     "next": null,
+     "note": "Same as Form, but the account has no name yet: a required Your name input replaces the 'You'll appear as' line."
     }
    ],
    "phone": "Single column, 16px gutter. City and Country stack. Age range is a 2x2 grid of radio cards, each at least 44px tall. Send application is full width. The privacy line sits directly above it so it is read at the moment of sending.",
@@ -7379,6 +7410,11 @@
      "q": "Should unlisted events take applications?",
      "decision": "No. Apply shows, and applications are accepted, only for events listed in Find a hackathon. An unlisted event's apply page shows the applications-off state (closed_reason not_listed).",
      "why": "An organiser who keeps an event out of the directory chose a private, join-link-only event. Owner, 2026-10-31, after the security review raised it."
+    },
+    {
+     "q": "Is 'Your name' still always on this form?",
+     "decision": "No, same rule as public-join: asked only when the account has no name yet, and it becomes the account's name rather than a per-event field. 'Shown to the organisers, and to your teammates once you're in' stays true either way -- it describes who sees the name, not where it lives.",
+     "why": "Owner, 2026-11-06: one name per person, not one per event. Joining, applying, judging and accepting a co-organiser invite all ask for a name only when the account has none yet; the server saves it as the account's display name. When the account already has one, the screen shows it read-only with a link to Account and never asks again -- a rename on Account then shows everywhere the person appears (teams, organisers, judges, results)."
     }
    ]
   },
@@ -7409,7 +7445,7 @@
     {
      "name": "Accept (after sign-in)",
      "contents": [
-      "Your name as shown to organisers and teams",
+      "name field (only when the account has none yet) or a 'You'll appear as <name>' line linking to Account",
       "code of conduct checkbox"
      ],
      "actions": [
@@ -7442,9 +7478,22 @@
      "name": "Before accepting",
      "stage": "open",
      "next": null
+    },
+    {
+     "slug": "no-name",
+     "name": "Before accepting, no account name yet",
+     "stage": "open",
+     "next": null,
+     "note": "The signed-in account has no name yet, so Accept invitation asks for one instead of showing a 'You'll appear as' line."
     }
    ],
-   "decisions": [],
+   "decisions": [
+    {
+     "q": "Does accepting a judge invite ask for a name every time?",
+     "decision": "No, the same one-name-per-person rule as public-join: a name input only when the account has none, saved as the account name; otherwise a read-only 'You'll appear as <name>' line to Account.",
+     "why": "Owner, 2026-11-06: one name per person, not one per event. Joining, applying, judging and accepting a co-organiser invite all ask for a name only when the account has none yet; the server saves it as the account's display name. When the account already has one, the screen shows it read-only with a link to Account and never asks again -- a rename on Account then shows everywhere the person appears (teams, organisers, judges, results)."
+    }
+   ],
    "phone": "Single column, same content, full width."
   },
   {
@@ -7474,6 +7523,7 @@
     {
      "name": "Accept (after sign-in)",
      "contents": [
+      "name field (only when the account has none yet) or a 'You'll appear as <name>' line linking to Account",
       "code of conduct checkbox"
      ],
      "actions": [
@@ -7506,9 +7556,22 @@
      "name": "Before accepting",
      "stage": "building",
      "next": null
+    },
+    {
+     "slug": "no-name",
+     "name": "Before accepting, no account name yet",
+     "stage": "building",
+     "next": null,
+     "note": "The signed-in account has no name yet, so Accept invitation asks for one instead of showing a 'You'll appear as' line."
     }
    ],
-   "decisions": [],
+   "decisions": [
+    {
+     "q": "Where does the co-organiser's shown name come from?",
+     "decision": "The account name, same as every other role. The screen asks for a name only when the account has none yet; it used to invent one from the email's prefix or fall back to the literal 'Co-organiser', which is removed.",
+     "why": "Owner, 2026-11-06: one name per person, not one per event. Joining, applying, judging and accepting a co-organiser invite all ask for a name only when the account has none yet; the server saves it as the account's display name. When the account already has one, the screen shows it read-only with a link to Account and never asks again -- a rename on Account then shows everywhere the person appears (teams, organisers, judges, results)."
+    }
+   ],
    "phone": "Single column, same content, full width."
   },
   {

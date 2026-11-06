@@ -110,7 +110,7 @@ func (s *Service) Leave(ctx context.Context, ev0 model.Event, userID, confirm, s
 	// are never touched here.
 
 	if member.Role == "judge" || member.Role == "organiser" {
-		if err := eventrepo.RecordFormerJudge(ctx, tx, ev.ID, userID, member.Role, member.DisplayName); err != nil {
+		if err := eventrepo.RecordFormerJudge(ctx, tx, ev.ID, userID, member.Role); err != nil {
 			return result, err
 		}
 	}

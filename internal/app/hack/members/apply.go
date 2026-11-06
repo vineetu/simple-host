@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/vsriram/simple-host/internal/app/hack/events"
+
 	model "github.com/vsriram/simple-host/internal/model"
 	eventrepo "github.com/vsriram/simple-host/internal/repository/hackevents"
 	"github.com/vsriram/simple-host/internal/rules/hackevents"
@@ -67,6 +69,19 @@ func (s *Service) Apply(ctx context.Context, ev model.Event, userID string, inpu
 			// Idempotent: applying again, an approved member re-applying or
 			// a rejected member re-applying all return the same view
 			// unchanged (no re-apply once rejected).
+			if err := events.EnsureAccountName(ctx, tx, userID, input.Display); err != nil {
+				if e, ok := err.(*events.Error); ok {
+					return model.EventMember{}, nil, &Error{e.Code, e.Message}
+				}
+				return model.EventMember{}, nil, err
+			}
+			existing, err = eventrepo.GetEventMember(ctx, tx, ev.ID, userID)
+			if err != nil {
+				return model.EventMember{}, nil, err
+			}
+			if err := tx.Commit(); err != nil {
+				return model.EventMember{}, nil, err
+			}
 			return existing, existingView(existing), nil
 		}
 		return model.EventMember{}, nil, &Error{"already_member", "you already have a different role in this event"}
@@ -121,7 +136,13 @@ func (s *Service) Apply(ctx context.Context, ev model.Event, userID string, inpu
 	}
 
 	profile := model.ApplicantProfile{City: input.City, Country: input.Country, AgeRange: input.AgeRange, Gender: input.Gender}
-	member, err := eventrepo.ApplyParticipant(ctx, tx, ev.ID, userID, input.Display, answers, profile)
+	if err := events.EnsureAccountName(ctx, tx, userID, input.Display); err != nil {
+		if e, ok := err.(*events.Error); ok {
+			return model.EventMember{}, nil, &Error{e.Code, e.Message}
+		}
+		return model.EventMember{}, nil, err
+	}
+	member, err := eventrepo.ApplyParticipant(ctx, tx, ev.ID, userID, answers, profile)
 	if err != nil {
 		if hackevents.UniqueError(err) {
 			existing2, err2 := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
@@ -178,10 +199,6 @@ func (s *Service) ValidateApplication(accept *bool, in ApplicationInput) (Applic
 		return in, &Error{"coc_required", "you must accept the code of conduct"}
 	}
 	var e *hackevents.ValidationError
-	in.Display, e = hackevents.Line(in.Display, "display_name", 1, 100)
-	if e != nil {
-		return in, &Error{e.Code, e.Message}
-	}
 	in.City, e = hackevents.Line(in.City, "city", 0, 80)
 	if e != nil {
 		return in, &Error{e.Code, e.Message}

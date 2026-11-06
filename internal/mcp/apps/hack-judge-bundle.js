@@ -950,7 +950,9 @@
     const dates = dateRange(ui, info);
     const meta = [info.organiser_name ? info.organiser_name + (info.organisation ? " \xB7 " + info.organisation : "") : "", dates].filter(Boolean).join(" \xB7 ");
     const extraCoc = String(info.coc_text || "").trim();
-    main.innerHTML = `<div class="pub"><section class="hero"><h1>You\u2019re invited to judge</h1><p>${ui.esc(info.title || "")}</p>${meta ? `<p>${ui.esc(meta)}</p>` : ""}${info.tagline ? `<p>${ui.esc(info.tagline)}</p>` : ""}<p><a href="${eventHref}">See the event page</a></p></section><section class="card"><h2>Code of conduct</h2><p>${ui.esc(info.coc_default || "")}</p>${extraCoc ? `<p>${ui.esc(extraCoc)}</p>` : ""}</section>` + (signedIn ? `<section class="card" id="pj-accept"><h2>Accept invitation</h2><form id="pj-form"><div class="field"><label for="pj-name">Your name as shown to organisers and teams<input class="input" id="pj-name" type="text" maxlength="100" value="${ui.esc(me.display_name || "")}" required></label></div><label class="check"><input type="checkbox" id="pj-coc" required><span>I agree to the code of conduct</span></label><p class="help" id="pj-err"></p><div class="form-actions"><button class="btn primary" type="submit" id="pj-submit">Join as judge</button></div></form></section>` : `<div class="card"><p>Read the invitation, then sign in to accept.</p><div class="form-actions"><a class="btn primary lg" href="${ui.esc("/signin?next=" + encodeURIComponent(location.pathname))}">Sign in</a></div></div>`) + `</div>`;
+    const hasName = !!(me && me.display_name && me.display_name.trim());
+    const nameHTML = hasName ? `<p class="help">You'll appear as <b>${ui.esc(me.display_name.trim())}</b>. Change it on <a href="/account">Account</a>.</p>` : `<div class="field"><label for="pj-name">Your name</label><input class="input" id="pj-name" type="text" maxlength="100" required><p class="help">Saved to your account and shown in every event you join.</p></div>`;
+    main.innerHTML = `<div class="pub"><section class="hero"><h1>You\u2019re invited to judge</h1><p>${ui.esc(info.title || "")}</p>${meta ? `<p>${ui.esc(meta)}</p>` : ""}${info.tagline ? `<p>${ui.esc(info.tagline)}</p>` : ""}<p><a href="${eventHref}">See the event page</a></p></section><section class="card"><h2>Code of conduct</h2><p>${ui.esc(info.coc_default || "")}</p>${extraCoc ? `<p>${ui.esc(extraCoc)}</p>` : ""}</section>` + (signedIn ? `<section class="card" id="pj-accept"><h2>Accept invitation</h2><form id="pj-form">${nameHTML}<label class="check"><input type="checkbox" id="pj-coc" required><span>I agree to the code of conduct</span></label><p class="help" id="pj-err"></p><div class="form-actions"><button class="btn primary" type="submit" id="pj-submit">Join as judge</button></div></form></section>` : `<div class="card"><p>Read the invitation, then sign in to accept.</p><div class="form-actions"><a class="btn primary lg" href="${ui.esc("/signin?next=" + encodeURIComponent(location.pathname))}">Sign in</a></div></div>`) + `</div>`;
     const form = main.querySelector("#pj-form");
     if (!form) return;
     onSubmit(form, main.querySelector("#pj-submit"), async (e) => {
@@ -961,13 +963,16 @@
         errBox.textContent = "Please agree to the code of conduct.";
         return;
       }
-      const name = main.querySelector("#pj-name").value.trim();
-      if (!name) return;
+      const nameInput = main.querySelector("#pj-name");
+      const name = nameInput ? nameInput.value.trim() : "";
+      if (!hasName && !name) return;
       const submit = main.querySelector("#pj-submit");
       submit.disabled = true;
+      const body = { accept_coc: true, answers: {} };
+      if (!hasName) body.display_name = name;
       let jr;
       try {
-        jr = await api("POST", `/v1/hack/judge/${encodeURIComponent(code)}`, { accept_coc: true, display_name: name, answers: {} });
+        jr = await api("POST", `/v1/hack/judge/${encodeURIComponent(code)}`, body);
       } catch (err) {
         if (!client.isSignedOut(err)) errBox.textContent = "Cannot reach the server.";
         submit.disabled = false;
@@ -982,6 +987,7 @@
         submit.disabled = false;
         return;
       }
+      if (!hasName && me) me.display_name = name;
       const slug = jr.data && (jr.data.slug || jr.data.event && jr.data.event.slug) || info.slug;
       judgeJoined(slug);
     });

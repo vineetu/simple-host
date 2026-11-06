@@ -1115,7 +1115,7 @@ CREATE TABLE IF NOT EXISTS event_members (
   event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   role            TEXT NOT NULL CHECK (role IN ('organiser','participant','judge')),
-  display_name    TEXT NOT NULL DEFAULT '',
+  display_name    TEXT NOT NULL DEFAULT '', -- unused since 2026-11-06 (one name per person: users.display_name)
   team_id         UUID REFERENCES event_teams(id) ON DELETE SET NULL,
   coc_accepted_at TIMESTAMPTZ,
   joined_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -1612,7 +1612,7 @@ ALTER TABLE oauth_grants ADD COLUMN IF NOT EXISTS last_visitor_site JSONB;
 CREATE TABLE IF NOT EXISTS event_former_judges (
   event_id         UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  display_name     TEXT NOT NULL DEFAULT '',
+  display_name     TEXT NOT NULL DEFAULT '', -- unused since 2026-11-06 (one name per person: users.display_name)
   role             TEXT NOT NULL CHECK (role IN ('judge','organiser')),
   counted_team_ids UUID[] NOT NULL DEFAULT '{}',
   left_at          TIMESTAMPTZ NOT NULL DEFAULT now(),

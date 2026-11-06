@@ -28376,6 +28376,7 @@
           "Hosted events"
         ],
         "operationId": "getHackJoin",
+        "description": "Includes account_name (string): the signed-in account name, or an empty string when none is known.",
         "summary": "Join page info (participant) (EVENTS=hosted only)",
         "parameters": [
           {
@@ -28453,15 +28454,15 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "accept_coc",
-                  "display_name"
+                  "accept_coc"
                 ],
                 "properties": {
                   "accept_coc": {
                     "type": "boolean"
                   },
                   "display_name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Only used when your account has no name yet; it then becomes your account name. Otherwise ignored."
                   },
                   "answers": {
                     "type": "object",
@@ -28477,7 +28478,7 @@
         },
         "responses": {
           "200": {
-            "description": "Joined or application pending (rejoin of the same role is idempotent)"
+            "description": "Joined or application pending (rejoin of the same role is idempotent); member display_name is the account name."
           },
           "400": {
             "description": "coc_required",
@@ -28538,7 +28539,7 @@
         ],
         "operationId": "getHackApply",
         "summary": "Apply to join an event, without a join link (EVENTS=hosted only)",
-        "description": "Signed out allowed; a valid X-API-Key meters the account instead of the shared network address. 404 event_not_found for a draft, taken-down or unknown event (identical body, so a draft's existence does not leak). fields (city, country, age_range, gender) are fixed product choices, always present. signup_questions, coc_default and coc_text are present only when signed in AND applications are open right now (not when the organiser's switch is off or the stage has moved past it) -- these used to need the join code, and a closed or switched-off event must not become a way to read them with only an account. me is present only when signed in and already a member (null otherwise), with role, joined_via and, for a participant, approval_status; it is returned either way, open or closed. closed_reason is null, applications_off, not_listed (the event is not in Find a hackathon, which takes no applications) or signup_over.",
+        "description": "Includes account_name (string), the signed-in account name or an empty string when none is known. Signed out allowed; a valid X-API-Key meters the account instead of the shared network address. 404 event_not_found for a draft, taken-down or unknown event (identical body, so a draft's existence does not leak). fields (city, country, age_range, gender) are fixed product choices, always present. signup_questions, coc_default and coc_text are present only when signed in AND applications are open right now (not when the organiser's switch is off or the stage has moved past it) -- these used to need the join code, and a closed or switched-off event must not become a way to read them with only an account. me is present only when signed in and already a member (null otherwise), with role, joined_via and, for a participant, approval_status; it is returned either way, open or closed. closed_reason is null, applications_off, not_listed (the event is not in Find a hackathon, which takes no applications) or signup_over.",
         "parameters": [
           {
             "in": "path",
@@ -28600,15 +28601,15 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "accept_coc",
-                  "display_name"
+                  "accept_coc"
                 ],
                 "properties": {
                   "accept_coc": {
                     "type": "boolean"
                   },
                   "display_name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Only used when your account has no name yet; it then becomes your account name. Otherwise ignored."
                   },
                   "city": {
                     "type": "string",
@@ -28706,6 +28707,7 @@
           "Hosted events"
         ],
         "operationId": "getHackJudge",
+        "description": "Includes account_name (string): the signed-in account name, or an empty string when none is known.",
         "summary": "Join page info (judge) (EVENTS=hosted only)",
         "parameters": [
           {
@@ -28780,15 +28782,15 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "accept_coc",
-                  "display_name"
+                  "accept_coc"
                 ],
                 "properties": {
                   "accept_coc": {
                     "type": "boolean"
                   },
                   "display_name": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Only used when your account has no name yet; it then becomes your account name. Otherwise ignored."
                   }
                 }
               }
@@ -28797,7 +28799,7 @@
         },
         "responses": {
           "200": {
-            "description": "Joined"
+            "description": "Joined; member display_name is the account name."
           },
           "400": {
             "description": "coc_required",
@@ -29807,7 +29809,7 @@
         ],
         "operationId": "getHackOrganiserInvite",
         "summary": "Preview a co-organiser invitation (EVENTS=hosted only)",
-        "description": "Returns event title, slug, organisation, stage, code of conduct, role organiser and joinable. Invalid, revoked, consumed or expired links return 404. Rate limited.",
+        "description": "Includes account_name (string), the signed-in account name or an empty string when none is known. Returns event title, slug, organisation, stage, code of conduct, role organiser and joinable. Invalid, revoked, consumed or expired links return 404. Rate limited.",
         "parameters": [
           {
             "in": "path",
@@ -29866,7 +29868,7 @@
         ],
         "operationId": "acceptHackOrganiserInvite",
         "summary": "Accept a co-organiser invitation (EVENTS=hosted only)",
-        "description": "Signed-in personal account, code of conduct and display name required. Joins with the existing organiser role and consumes the link atomically. Existing event members cannot change roles through this route. Returns the organiser event view.",
+        "description": "Signed-in personal account and code of conduct required. Joins with the existing organiser role and consumes the link atomically. Existing event members cannot change roles through this route. Returns the organiser event view.",
         "parameters": [
           {
             "in": "path",
@@ -29940,8 +29942,7 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "accept_coc",
-                  "display_name"
+                  "accept_coc"
                 ],
                 "properties": {
                   "accept_coc": {
@@ -29952,6 +29953,7 @@
                   },
                   "display_name": {
                     "type": "string",
+                    "description": "Only used when your account has no name yet; it then becomes your account name. Otherwise ignored.",
                     "minLength": 1,
                     "maxLength": 100
                   }
@@ -38399,7 +38401,8 @@
                   "description": "Member ID for teammate removal."
                 },
                 "display_name": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Account name from users.display_name; changes immediately when the account is renamed."
                 },
                 "you": {
                   "type": "boolean"
@@ -38639,7 +38642,8 @@
             "description": "Explains an organiser removal when the participant has no team."
           },
           "display_name": {
-            "type": "string"
+            "type": "string",
+            "description": "Account name from users.display_name; changes immediately when the account is renamed."
           },
           "coc_accepted_at": {
             "type": "string",
@@ -39183,7 +39187,8 @@
             "type": "string"
           },
           "display_name": {
-            "type": "string"
+            "type": "string",
+            "description": "Account name from users.display_name; changes immediately when the account is renamed."
           },
           "role": {
             "type": "string",
@@ -39276,7 +39281,8 @@
                   "type": "string"
                 },
                 "display_name": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Account name from users.display_name; changes immediately when the account is renamed."
                 },
                 "admin": {
                   "type": "boolean",
@@ -39358,7 +39364,8 @@
                   "type": "string"
                 },
                 "display_name": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Account name from users.display_name; changes immediately when the account is renamed."
                 }
               }
             }

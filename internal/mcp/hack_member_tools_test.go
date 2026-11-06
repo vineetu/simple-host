@@ -194,3 +194,22 @@ func TestHackMemberRESTErrorsAndScreenshot(t *testing.T) {
 		t.Fatalf("invalid screenshot: %v", err)
 	}
 }
+
+func TestHackJoinNamesOptional(t *testing.T) {
+	for _, tool := range HackMemberTools() {
+		switch tool.Name {
+		case "hack_join_event", "hack_apply_to_event", "hack_join_judge":
+			required, _ := tool.InputSchema["required"].([]string)
+			for _, field := range required {
+				if field == "display_name" {
+					t.Errorf("%s requires display_name", tool.Name)
+				}
+			}
+			props := tool.InputSchema["properties"].(map[string]any)
+			name := props["display_name"].(map[string]any)
+			if !strings.Contains(name["description"].(string), "account_name empty") {
+				t.Errorf("%s does not explain when to ask for a name", tool.Name)
+			}
+		}
+	}
+}

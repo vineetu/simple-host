@@ -271,8 +271,8 @@ type PendingInvite = model.PendingInvite
 // oldest first.
 func ListPendingJoinRequests(ctx context.Context, q sqlkit.Querier, teamID string) ([]PendingJoinRequest, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT r.id, m.display_name FROM event_team_requests r
-		  JOIN event_members m ON m.event_id = r.event_id AND m.user_id = r.user_id
+		SELECT r.id, COALESCE(u.display_name,'') FROM event_team_requests r
+		  JOIN event_members m ON m.event_id = r.event_id AND m.user_id = r.user_id JOIN users u ON u.id=m.user_id
 		 WHERE r.team_id = $1 AND r.kind = 'request' ORDER BY r.created_at, r.id`, teamID)
 	if err != nil {
 		return nil, err

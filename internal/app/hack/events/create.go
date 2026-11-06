@@ -123,7 +123,12 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 	if err := entryrepo.ReplaceRubric(ctx, tx, ev.ID, hackentries.DefaultEventRubric()); err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
-	if _, err := eventrepo.InsertEventMember(ctx, tx, ev.ID, userID, "organiser", organiserName); err != nil {
+	if organiserName != "" {
+		if err := accounts.FillEmptyDisplayName(ctx, tx, userID, organiserName); err != nil {
+			return model.Event{}, model.EventMember{}, err
+		}
+	}
+	if _, err := eventrepo.InsertEventMember(ctx, tx, ev.ID, userID, "organiser"); err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
 	if err := tx.Commit(); err != nil {

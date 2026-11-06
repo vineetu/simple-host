@@ -59,9 +59,11 @@ func hackApplyFields() map[string]any {
 // getCodeInfo does for join/judge links.
 func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 	caller := ""
+	accountName := ""
 	if k := r.Header.Get("X-API-Key"); k != "" {
 		if u, err := h.eventsSvc().UserByAPIKey(r.Context(), k, h.limits.KeyIdleExpiry); err == nil {
 			caller = u.ID
+			accountName = strings.TrimSpace(u.DisplayName.String)
 		}
 	}
 	if h.rateLimited(w, r, caller) {
@@ -97,6 +99,7 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 		"time_zone":         ev.TimeZone,
 		"event_url":         h.EventURL(ev.Slug),
 		"applications_open": openNow,
+		"account_name":      accountName,
 		"closed_reason":     events.ApplicationsClosedReason(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage),
 		"fields":            hackApplyFields(),
 	}

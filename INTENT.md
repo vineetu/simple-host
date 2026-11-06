@@ -129,6 +129,15 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-06 (owner). One name per person in Simple Hack.** Every event uses
+  the account name (`users.display_name`), so an Account rename appears across
+  events immediately. Joining asks for a name only when the account has none,
+  and saves it to the account in the membership transaction. The public event
+  organiser name remains event data; on creation it fills an unnamed account.
+  Historical event names backfill unnamed accounts only, using the latest
+  nonblank membership or former-judge name. Legacy name columns remain for
+  binary rollback compatibility. Reason: per-event names drifted from Account.
+
 - **2026-11-05 (owner). Three tabs on the owner page.** Sites is the default and keeps
   Recently deleted below the site list. Analytics starts with its numbers and range selector.
   Settings holds the account sections, with Delete account last. Each section keeps its own

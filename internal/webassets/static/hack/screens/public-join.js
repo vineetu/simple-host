@@ -86,21 +86,30 @@ export async function render(ctx) {
     return
   }
 
-  const name = (ctx.me && ctx.me.display_name) || ''
+  // One name per person, the account name (owner decision, 2026-11-06): ask
+  // for it here only when the account has none yet; otherwise show who
+  // they'll appear as and point to Account, and never send display_name.
+  const hasName = !!(ctx.me && ctx.me.display_name && ctx.me.display_name.trim())
+  const nameHTML = hasName
+    ? `<p class="help">You'll appear as <b>${esc(ctx.me.display_name.trim())}</b>. Change it on <a href="/account">Account</a>.</p>`
+    : `<div class="field"><label for="join-name">Your name</label><input class="input" id="join-name" type="text" maxlength="100" required><p class="help">Saved to your account and shown in every event you join.</p></div>`
   const applyHeading = info.approval_required ? 'Apply' : 'Your details'
   const joinLabel = info.approval_required ? 'Send application' : 'Join event'
-  main.innerHTML = header + `<form class="card" id="join-form"><h2>${esc(applyHeading)}</h2><div class="field"><label for="join-name">Your name</label><input class="input" id="join-name" type="text" maxlength="100" required value="${esc(name)}"></div>${questionsHTML}${cocHTML}<label class="check"><input type="checkbox" id="join-coc" required><span>I agree to the code of conduct</span></label><div class="form-actions"><button class="btn primary" type="submit" id="join-btn">${esc(joinLabel)}</button></div></form>`
+  main.innerHTML = header + `<form class="card" id="join-form"><h2>${esc(applyHeading)}</h2>${nameHTML}${questionsHTML}${cocHTML}<label class="check"><input type="checkbox" id="join-coc" required><span>I agree to the code of conduct</span></label><div class="form-actions"><button class="btn primary" type="submit" id="join-btn">${esc(joinLabel)}</button></div></form>`
   main.querySelector('#join-form').addEventListener('submit', async e => {
     e.preventDefault()
     const btn = main.querySelector('#join-btn')
     if (!main.querySelector('#join-coc').checked) { ui.toast(CODES.coc_required, main, true); return }
-    const nm = main.querySelector('#join-name').value.trim()
-    if (!nm) return
+    const nameInput = main.querySelector('#join-name')
+    const nm = nameInput ? nameInput.value.trim() : ''
+    if (!hasName && !nm) return
     const answers = {}
     main.querySelectorAll('[data-question]').forEach(input => { answers[input.getAttribute('data-question')] = input.value })
     btn.disabled = true
+    const body = { accept_coc: true, answers }
+    if (!hasName) body.display_name = nm
     let res
-    try { res = await api('POST', '/v1/hack/join/' + encodeURIComponent(code), { accept_coc: true, display_name: nm, answers }) }
+    try { res = await api('POST', '/v1/hack/join/' + encodeURIComponent(code), body) }
     catch (err) {
       if (!client.isSignedOut(err)) ui.toast('Cannot reach the server.', main, true)
       btn.disabled = false
@@ -111,6 +120,7 @@ export async function render(ctx) {
       return
     }
     if (!res.ok) { ui.toast(ui.errText(res, { codes: CODES }), main, true); btn.disabled = false; return }
+    if (!hasName && ctx.me) ctx.me.display_name = nm
     const joinedSlug = (res.data && res.data.event && res.data.event.slug) || slug
     // A real navigation, not an SPA one: the cached event list from this
     // load does not include the just-created membership yet, and the shell

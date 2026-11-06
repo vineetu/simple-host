@@ -46,8 +46,8 @@ const teamColumns = `id, event_id, slug, name, code, created_by, created_at,
 	kept_after_leave, locked_at, locked_by`
 
 const memberForUpdate = `
-	SELECT event_id, user_id, role, display_name, team_id, coc_accepted_at, joined_at
-	  FROM event_members WHERE event_id = $1 AND user_id = $2 FOR UPDATE`
+	SELECT m.event_id, m.user_id, m.role, COALESCE(u.display_name,''), m.team_id, m.coc_accepted_at, m.joined_at
+	  FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id = $1 AND m.user_id = $2 FOR UPDATE OF m`
 
 var teamForUpdate = `
 	SELECT ` + teamColumns + `
@@ -164,7 +164,7 @@ func GetEventTeamByCodeOnly(ctx context.Context, q Querier, code string) (EventT
 // ListTeamPeople is the members of one team as the organiser sees them.
 func ListTeamPeople(ctx context.Context, q Querier, teamID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT m.user_id, u.username, m.display_name, m.role, m.team_id,
+		SELECT m.user_id, u.username, COALESCE(u.display_name,''), m.role, m.team_id,
 		       NULL, NULL, m.joined_at, m.coc_accepted_at, m.approval_status, m.team_admin
 		  FROM event_members m
 		  JOIN users u ON u.id = m.user_id

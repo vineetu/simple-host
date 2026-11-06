@@ -18,7 +18,7 @@ func LookingFor(ctx context.Context, q sqlkit.Querier, teamID string, out *strin
 // AdminSuccessor reads the next team administrator.
 func AdminSuccessor(ctx context.Context, q sqlkit.Querier, teamID, userID string, out *string) error {
 	return q.QueryRowContext(ctx, `
-			SELECT display_name FROM event_members WHERE team_id = $1 AND user_id <> $2
+			SELECT COALESCE(u.display_name,'') FROM event_members m JOIN users u ON u.id=m.user_id WHERE team_id = $1 AND user_id <> $2
 			 ORDER BY team_joined_at NULLS LAST, user_id LIMIT 1`, teamID, userID).Scan(out)
 }
 

@@ -744,7 +744,7 @@ func TestHackJudgingDashboard(t *testing.T) {
 	w := newJudgingWorld(t, 2, 2)
 	orgID := w.a.userID(t, w.org)
 	var orgName string
-	if err := w.a.database.QueryRow(`SELECT display_name FROM event_members WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, w.slug, orgID).Scan(&orgName); err != nil {
+	if err := w.a.database.QueryRow(`SELECT u.display_name FROM event_members m JOIN users u ON u.id=m.user_id WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, w.slug, orgID).Scan(&orgName); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {

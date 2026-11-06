@@ -11043,6 +11043,7 @@ paths:
       x-audience: ["public-hack"]
       tags: ["Hosted events"]
       operationId: getHackJoin
+      description: "Includes account_name (string): the signed-in account name, or an empty string when none is known."
       summary: Join page info (participant) (EVENTS=hosted only)
       parameters:
         - { in: path, name: code, required: true, schema: { type: string } }
@@ -11067,13 +11068,13 @@ paths:
           application/json:
             schema:
               type: object
-              required: [accept_coc, display_name]
+              required: [accept_coc]
               properties:
                 accept_coc: { type: boolean }
-                display_name: { type: string }
+                display_name: { type: string, description: "Only used when your account has no name yet; it then becomes your account name. Otherwise ignored." }
                 answers: { type: object, additionalProperties: { type: string, maxLength: 500 } }
       responses:
-        '200': { description: Joined or application pending (rejoin of the same role is idempotent) }
+        '200': { description: "Joined or application pending (rejoin of the same role is idempotent); member display_name is the account name." }
         '400': { description: "coc_required", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '409': { description: "already_member or joining_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "invalid_code", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
@@ -11088,6 +11089,7 @@ paths:
       operationId: getHackApply
       summary: Apply to join an event, without a join link (EVENTS=hosted only)
       description: >-
+        Includes account_name (string), the signed-in account name or an empty string when none is known.
         Signed out allowed; a valid X-API-Key meters the account instead of the
         shared network address. 404 event_not_found for a draft, taken-down or
         unknown event (identical body, so a draft's existence does not leak).
@@ -11135,10 +11137,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: [accept_coc, display_name]
+              required: [accept_coc]
               properties:
                 accept_coc: { type: boolean }
-                display_name: { type: string }
+                display_name: { type: string, description: "Only used when your account has no name yet; it then becomes your account name. Otherwise ignored." }
                 city: { type: string, maxLength: 80, description: "Optional, up to 80 characters." }
                 country: { type: string, description: "Optional. ISO 3166-1 alpha-2 country code, e.g. ID, GB, US." }
                 age_range: { type: string, enum: ["", under_18, "18_24", "25_34", 35_plus], description: "Optional." }
@@ -11157,6 +11159,7 @@ paths:
       x-audience: ["public-hack"]
       tags: ["Hosted events"]
       operationId: getHackJudge
+      description: "Includes account_name (string): the signed-in account name, or an empty string when none is known."
       summary: Join page info (judge) (EVENTS=hosted only)
       parameters:
         - { in: path, name: code, required: true, schema: { type: string } }
@@ -11180,12 +11183,12 @@ paths:
           application/json:
             schema:
               type: object
-              required: [accept_coc, display_name]
+              required: [accept_coc]
               properties:
                 accept_coc: { type: boolean }
-                display_name: { type: string }
+                display_name: { type: string, description: "Only used when your account has no name yet; it then becomes your account name. Otherwise ignored." }
       responses:
-        '200': { description: Joined }
+        '200': { description: "Joined; member display_name is the account name." }
         '400': { description: "coc_required", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '409': { description: "already_member or judging_closed", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { description: "invalid_code", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
@@ -11585,7 +11588,7 @@ paths:
       tags: ["Hosted events"]
       operationId: getHackOrganiserInvite
       summary: Preview a co-organiser invitation (EVENTS=hosted only)
-      description: Returns event title, slug, organisation, stage, code of conduct, role organiser and joinable.
+      description: Includes account_name (string), the signed-in account name or an empty string when none is known. Returns event title, slug, organisation, stage, code of conduct, role organiser and joinable.
         Invalid, revoked, consumed or expired links return 404. Rate limited.
       parameters:
       - in: path
@@ -11619,7 +11622,7 @@ paths:
       tags: ["Hosted events"]
       operationId: acceptHackOrganiserInvite
       summary: Accept a co-organiser invitation (EVENTS=hosted only)
-      description: Signed-in personal account, code of conduct and display name required. Joins with the
+      description: Signed-in personal account and code of conduct required. Joins with the
         existing organiser role and consumes the link atomically. Existing event members cannot change roles
         through this route. Returns the organiser event view.
       parameters:
@@ -11666,7 +11669,6 @@ paths:
               type: object
               required:
               - accept_coc
-              - display_name
               properties:
                 accept_coc:
                   type: boolean
@@ -11674,6 +11676,7 @@ paths:
                   - true
                 display_name:
                   type: string
+                  description: "Only used when your account has no name yet; it then becomes your account name. Otherwise ignored."
                   minLength: 1
                   maxLength: 100
   /v1/hack/events/{slug}/export/participants.csv:
@@ -15184,7 +15187,7 @@ components:
             type: object
             properties:
               user_id: { type: string, format: uuid, description: Member ID for teammate removal. }
-              display_name: { type: string }
+              display_name: { type: string, description: "Account name from users.display_name; changes immediately when the account is renamed." }
               you: { type: boolean }
         site: { $ref: '#/components/schemas/HackTeamSite' }
         deadline: { type: string, format: date-time, nullable: true, description: This team's effective deadline. }
@@ -15261,7 +15264,7 @@ components:
       type: object
       properties:
         team_removal_notice: { type: string, description: "Explains an organiser removal when the participant has no team." }
-        display_name: { type: string }
+        display_name: { type: string, description: "Account name from users.display_name; changes immediately when the account is renamed." }
         coc_accepted_at: { type: string, format: date-time, nullable: true }
         team:
           nullable: true
@@ -15472,7 +15475,7 @@ components:
         primary_organiser: { type: boolean, description: "True only for the protected event creator." }
         user_id: { type: string, format: uuid }
         email: { type: string }
-        display_name: { type: string }
+        display_name: { type: string, description: "Account name from users.display_name; changes immediately when the account is renamed." }
         role: { type: string, enum: [organiser, participant, judge] }
         team:
           nullable: true
@@ -15505,7 +15508,7 @@ components:
             properties:
               user_id: { type: string, format: uuid }
               email: { type: string }
-              display_name: { type: string }
+              display_name: { type: string, description: "Account name from users.display_name; changes immediately when the account is renamed." }
               admin: { type: boolean, description: Teams redesign, 2026-10-31. }
         site:
           description: url, exists, live_version, taken_down, taken_down_reason, plus name and ready.
@@ -15534,7 +15537,7 @@ components:
             properties:
               user_id: { type: string, format: uuid }
               email: { type: string }
-              display_name: { type: string }
+              display_name: { type: string, description: "Account name from users.display_name; changes immediately when the account is renamed." }
 
     HackEntry:
       type: object

@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-06: Simple Hack now has one name per person instead of one per event. Joining, applying, judging and accepting a co-organiser invite ask for a name only when your account doesn't already have one, and it's saved as your account name from then on; if you rename yourself on Account, that new name shows up in every event you're part of.
+
 2026-11-06: Simple Hack Event Basics lets organisers set start and end times with the schedule pickers. Empty times mean the start or end of the day; event dates show a time only when one is set (SIM-379).
 
 2026-11-06: Simple Hack entries have two presets: "Video or website" (the default; a demo video or a website) and "Video, website and code link" (all three). The other presets and the custom option are gone from Entries and from `hack_set_entry_rules`; events already set up keep their rules. On a new event, Overview's first step is "Choose what teams hand in", then "Open sign-up" (SIM-382).

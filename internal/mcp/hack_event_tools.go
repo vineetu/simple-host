@@ -59,7 +59,7 @@ func hackBaseEventTools() []Tool {
 			InputSchema: object(map[string]any{
 				"slug":                  str("Event name: 3 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen."),
 				"title":                 str("Event title, one line, up to 120 characters."),
-				"organiser_name":        str("Name shown as the organiser, one line, up to 100 characters."),
+				"organiser_name":        str("Public event organiser name, one line, up to 100 characters. Membership uses the account name; if empty, this fills it once."),
 				"organisation":          str("The organiser's company, college or community, if they have one. Optional, up to 120 characters; leave this out rather than sending a placeholder."),
 				"contact_email":         str("Contact email for the event."),
 				"purpose":               str("What the event is for, up to 1000 characters."),
@@ -130,7 +130,7 @@ func hackBaseEventTools() []Tool {
 				"applications_open":     map[string]any{"type": "boolean", "description": "Whether people without the join link can apply from Find a hackathon and the event page. On by default; turning it off stops new applications and keeps waiting ones. Ask the organiser before changing it."},
 				"gallery_open":          map[string]any{"type": "boolean", "description": "Whether the public entry gallery is open."},
 				"team_size_max":         map[string]any{"type": "integer", "description": "Maximum people on a team, from 1 to 50."},
-				"organiser_name":        str("Name shown as the organiser."),
+				"organiser_name":        str("Public event organiser name. Membership uses the account name; if empty, this fills it once."),
 				"organisation":          str("The organiser's company, college or community, if they have one. Empty clears it; leave this out rather than sending a placeholder."),
 				"contact_email":         str("Contact email for the event."),
 				"purpose":               str("What the event is for."),
@@ -671,7 +671,7 @@ func hackEventSchemas() hackEventSchemaSet {
 			}, "key", "title", "start_at", "end_at", "fixed", "now", "text"), "The schedule row that lines up with this move once its time has come, or null. It only prompts: the stage never moves by itself."),
 		}, "kind", "stage", "label", "deadline_passed", "blocked", "cue"), "The one forward move the website offers (its one button) for the current stage. Present only when this person is the organiser."),
 		"organiser": withDescription(outObject(map[string]any{
-			"organiser_name":        outString("Name shown as the organiser."),
+			"organiser_name":        outString("Public event organiser name. Membership uses the account name; if empty, this fills it once."),
 			"organisation":          outString("Organisation or community. Empty when unset."),
 			"contact_email":         outString("Contact email."),
 			"purpose":               outString("What the event is for."),

@@ -26,7 +26,7 @@ func TestHackDeleteBusyEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := hackeventrepo.InsertEventMember(context.Background(), a.database, ev.ID, a.uid(t, co), "organiser", "Co"); err != nil {
+	if _, err := hackeventrepo.InsertEventMember(context.Background(), a.database, ev.ID, a.uid(t, co), "organiser"); err != nil {
 		t.Fatal(err)
 	}
 	team, _ := a.startTeam(t, slug, "Delete team", participant)

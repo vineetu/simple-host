@@ -151,7 +151,7 @@ func ResolveTeamRequest(ctx context.Context, q *sql.Tx, ev Event, actor, id, act
 // teams get size. The caller validates 1 <= size <= team_size_max and locks
 // the event and membership rows before preview or apply.
 func PlanFillTeams(ctx context.Context, q Querier, ev Event, size int) ([]FillPlacement, []FillSkippedTeam, error) {
-	rows, err := queryContext(ctx, q, `SELECT user_id,display_name FROM event_members WHERE event_id=$1 AND role='participant' AND approval_status='approved' AND team_id IS NULL ORDER BY joined_at,user_id`, ev.ID)
+	rows, err := queryContext(ctx, q, `SELECT m.user_id,COALESCE(u.display_name,'') FROM event_members m JOIN users u ON u.id=m.user_id WHERE event_id=$1 AND role='participant' AND approval_status='approved' AND team_id IS NULL ORDER BY joined_at,user_id`, ev.ID)
 	if err != nil {
 		return nil, nil, err
 	}

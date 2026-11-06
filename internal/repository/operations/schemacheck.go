@@ -159,7 +159,7 @@ var hackColumns = map[string][]string{
 		"problem", "audience", "tools", "maturity", "submitted_at", "submitted_by", "submit_auto",
 		"submit_settled_at", "excluded_at", "excluded_by"},
 	"event_team_keys": {"key_id", "event_id", "team_id", "user_id", "created_at"},
-	"event_members": {"looking", "looking_intro", "event_id", "user_id", "role", "display_name", "team_id", "coc_accepted_at", "joined_at", "signup_answers", "approval_status", "approval_decided_at", "approval_decided_by",
+	"event_members": {"looking", "looking_intro", "event_id", "user_id", "role", "team_id", "coc_accepted_at", "joined_at", "signup_answers", "approval_status", "approval_decided_at", "approval_decided_by",
 		// zp-hack-applications.sql
 		"joined_via", "city", "country", "age_range", "gender",
 		// zt-hack-teams-redesign.sql
@@ -173,7 +173,7 @@ var hackColumns = map[string][]string{
 	"event_results":     {"event_id", "published_at", "published_by", "full_ranking", "snapshot"},
 	"event_votes":       {"event_id", "voter_email", "team_id", "created_at", "updated_at"},
 	// zq-hack-leave-event.sql
-	"event_former_judges": {"event_id", "user_id", "display_name", "role", "counted_team_ids", "left_at"},
+	"event_former_judges": {"event_id", "user_id", "role", "counted_team_ids", "left_at"},
 }
 
 // VerifyHackSchema is VerifySchema for the hosted-events tables.
