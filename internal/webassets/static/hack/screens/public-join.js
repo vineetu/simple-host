@@ -89,9 +89,10 @@ export async function render(ctx) {
   // One name per person, the account name (owner decision, 2026-11-06): ask
   // for it here only when the account has none yet; otherwise show who
   // they'll appear as and point to Account, and never send display_name.
-  const hasName = !!(ctx.me && ctx.me.display_name && ctx.me.display_name.trim())
+  const accountName = (typeof info.account_name === 'string' ? info.account_name : ((ctx.me && ctx.me.display_name) || '')).trim()
+  const hasName = !!accountName
   const nameHTML = hasName
-    ? `<p class="help">You'll appear as <b>${esc(ctx.me.display_name.trim())}</b>. Change it on <a href="/account">Account</a>.</p>`
+    ? `<p class="help">You'll appear as <b>${esc(accountName)}</b>. Change it on <a href="/account">Account</a>.</p>`
     : `<div class="field"><label for="join-name">Your name</label><input class="input" id="join-name" type="text" maxlength="100" required><p class="help">Saved to your account and shown in every event you join.</p></div>`
   const applyHeading = info.approval_required ? 'Apply' : 'Your details'
   const joinLabel = info.approval_required ? 'Send application' : 'Join event'
@@ -102,7 +103,7 @@ export async function render(ctx) {
     if (!main.querySelector('#join-coc').checked) { ui.toast(CODES.coc_required, main, true); return }
     const nameInput = main.querySelector('#join-name')
     const nm = nameInput ? nameInput.value.trim() : ''
-    if (!hasName && !nm) return
+    if (!hasName && !nm) { ui.toast('Enter your name.', main, true); if (nameInput) nameInput.focus(); return }
     const answers = {}
     main.querySelectorAll('[data-question]').forEach(input => { answers[input.getAttribute('data-question')] = input.value })
     btn.disabled = true

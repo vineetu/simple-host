@@ -185,7 +185,7 @@ export async function render(ctx) {
 <h2>Apply to join</h2>
 <p>Sign in with your email, then fill in one short form:</p>
 <ul class="steps">
-<li><span class="what"><b>Your name</b>Shown to the organisers, and to your teammates once you're in.</span></li>
+<li><span class="what"><b>Your name, if your account has none yet</b>Saved to your account. Shown to the organisers, and to your teammates once you're in.</span></li>
 <li><span class="what"><b>Where you're based, age range and gender</b>All three are optional.</span></li>
 <li><span class="what"><b>A few questions from the organisers</b>And their code of conduct to agree to.</span></li>
 </ul>
@@ -213,9 +213,10 @@ export async function render(ctx) {
   // One name per person, the account name (owner decision, 2026-11-06): ask
   // for it here only when the account has none yet; otherwise show who
   // they'll appear as and point to Account, and never send display_name.
-  const hasName = !!(ctx.me && ctx.me.display_name && ctx.me.display_name.trim())
+  const accountName = (typeof info.account_name === 'string' ? info.account_name : ((ctx.me && ctx.me.display_name) || '')).trim()
+  const hasName = !!accountName
   const nameHTML = hasName
-    ? `<p class="help">You'll appear as <b>${esc(ctx.me.display_name.trim())}</b>. Change it on <a href="/account">Account</a>.</p>`
+    ? `<p class="help">You'll appear as <b>${esc(accountName)}</b>. Change it on <a href="/account">Account</a>.</p>`
     : `<div class="field"><label for="ap-name">Your name</label><input class="input" id="ap-name" type="text" maxlength="100" required autocomplete="name"><p class="help">Saved to your account and shown in every event you join.</p></div>`
   const email = (ctx.me && (ctx.me.login || ctx.me.email || ctx.me.username)) || ''
   const questions = Array.isArray(info.signup_questions) ? info.signup_questions : []
@@ -295,7 +296,7 @@ ${questions.length ? `<div class="field-group"><h3>Questions from the organisers
     if (!$('ap-coc').checked) { ui.toast(CODES.coc_required, $('ap-coc').closest('.check'), true); return }
     const nameInput = $('ap-name')
     const nm = nameInput ? nameInput.value.trim() : ''
-    if (!hasName && !nm) return
+    if (!hasName && !nm) { ui.toast('Enter your name.', nameInput ? nameInput.closest('.field') : main, true); if (nameInput) nameInput.focus(); return }
     const ageEl = main.querySelector('#ap-age input:checked')
     const body = {
       accept_coc: true,

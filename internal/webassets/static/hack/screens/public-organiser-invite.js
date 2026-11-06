@@ -30,9 +30,10 @@ export async function render(ctx) {
   // they'll appear as and point to Account, and never send display_name.
   // Replaces the old behaviour of inventing a name from the email prefix
   // or falling back to the literal "Co-organiser".
-  const hasName = !!(me && me.display_name && me.display_name.trim())
+  const accountName = (typeof invite.account_name === 'string' ? invite.account_name : ((me && me.display_name) || '')).trim()
+  const hasName = !!accountName
   const nameHTML = hasName
-    ? `<p class="help">You'll appear as <b>${ui.esc(me.display_name.trim())}</b>. Change it on <a href="/account">Account</a>.</p>`
+    ? `<p class="help">You'll appear as <b>${ui.esc(accountName)}</b>. Change it on <a href="/account">Account</a>.</p>`
     : `<div class="field"><label for="accept-name">Your name</label><input class="input" id="accept-name" type="text" maxlength="100" required><p class="help">Saved to your account and shown in every event you join.</p></div>`
   main.innerHTML = `
 <div class="ph"><div class="t"><h1>You’re invited to co-organise</h1><p>${ui.esc(invite.title)}</p></div></div>
@@ -53,7 +54,7 @@ ${signedIn
     if (!main.querySelector('#accept-coc').checked) { setLive('You must accept the code of conduct.', 'err'); return }
     const nameInput = main.querySelector('#accept-name')
     const nm = nameInput ? nameInput.value.trim() : ''
-    if (!hasName && !nm) return
+    if (!hasName && !nm) { setLive('Enter your name.', 'err'); if (nameInput) nameInput.focus(); return }
     const btn = form.querySelector('button[type=submit]'); btn.disabled = true
     const body = { accept_coc: true }
     if (!hasName) body.display_name = nm

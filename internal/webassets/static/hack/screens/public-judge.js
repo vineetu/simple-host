@@ -84,9 +84,10 @@ export async function render(ctx) {
   // One name per person, the account name (owner decision, 2026-11-06): ask
   // for it here only when the account has none yet; otherwise show who
   // they'll appear as and point to Account, and never send display_name.
-  const hasName = !!(me && me.display_name && me.display_name.trim())
+  const accountName = (typeof info.account_name === 'string' ? info.account_name : ((me && me.display_name) || '')).trim()
+  const hasName = !!accountName
   const nameHTML = hasName
-    ? `<p class="help">You'll appear as <b>${ui.esc(me.display_name.trim())}</b>. Change it on <a href="/account">Account</a>.</p>`
+    ? `<p class="help">You'll appear as <b>${ui.esc(accountName)}</b>. Change it on <a href="/account">Account</a>.</p>`
     : `<div class="field"><label for="pj-name">Your name</label><input class="input" id="pj-name" type="text" maxlength="100" required><p class="help">Saved to your account and shown in every event you join.</p></div>`
 
   main.innerHTML = `<div class="pub"><section class="hero"><h1>You’re invited to judge</h1><p>${ui.esc(info.title || '')}</p>${meta ? `<p>${ui.esc(meta)}</p>` : ''}${info.tagline ? `<p>${ui.esc(info.tagline)}</p>` : ''}<p><a href="${eventHref}">See the event page</a></p></section>` +
@@ -105,7 +106,7 @@ export async function render(ctx) {
     if (!main.querySelector('#pj-coc').checked) { errBox.textContent = 'Please agree to the code of conduct.'; return }
     const nameInput = main.querySelector('#pj-name')
     const name = nameInput ? nameInput.value.trim() : ''
-    if (!hasName && !name) return
+    if (!hasName && !name) { errBox.textContent = 'Enter your name.'; if (nameInput) nameInput.focus(); return }
     const submit = main.querySelector('#pj-submit')
     submit.disabled = true
     const body = { accept_coc: true, answers: {} }
