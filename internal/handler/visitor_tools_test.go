@@ -13,6 +13,7 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/internal/app/accounts"
 	"github.com/vsriram/simple-host/internal/config"
+	"github.com/vsriram/simple-host/internal/mcp"
 	accountsrepo "github.com/vsriram/simple-host/internal/repository/accounts"
 	sitesrepo "github.com/vsriram/simple-host/internal/repository/sites"
 )
@@ -259,6 +260,73 @@ func TestVisitorMCPPasscodeAndBrowserLockout(t *testing.T) {
 	f.call(t, "visitor_read_site", args, "passcode_locked")
 	args["passcode"] = "123456"
 	f.call(t, "visitor_read_site", args, "passcode_locked")
+}
+
+// The visitor tool bridge used to flatten every refusal into a plain error
+// before it reached the MCP dispatcher, so AgentCat recorded all of these as
+// the generic tool_error instead of their own code (SIM-359). Calling the
+// bridge directly (bypassing the JSON-RPC envelope, which shows identical
+// text either way) is the only way to see whether the code survived.
+func TestVisitorToolBridgePreservesRefusalCode(t *testing.T) {
+	f := newVisitorFixture(t)
+	if err := f.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+		t.Fatal(err)
+	}
+	withPasscodeLimits(t, func(l *config.Limits) {
+		l.SitePasscodes = true
+		l.RatePasscodeSite = config.Rate{Burst: 2, Every: time.Hour}
+		l.RatePasscodeIP = config.Rate{Burst: 20, Every: time.Hour}
+	}, &f.a.sites.limitSet, &f.a.sites.passcode.limitSet)
+	call := func(args map[string]any) error {
+		r := httptest.NewRequest("POST", "https://"+f.host+"/mcp", nil)
+		_, err := f.a.conn.mcpConfig.VisitorTool(r, mcp.Caller{Owner: f.ids["bob"], AppName: "Test"}, "visitor_read_site", args)
+		return err
+	}
+	if code := mcp.RefusalCode(call(map[string]any{"address": "https://evil.invalid/"})); code != "site_not_found" {
+		t.Errorf("unresolved address: code=%q", code)
+	}
+	// A proxied refusal (visitorResponseError) that names its own REST code
+	// -- here the offline gate, which runs ahead of the private/passcode
+	// checks below -- is a different code path from the ones this file
+	// builds by hand; it must carry a code through the bridge too.
+	if err := sitesrepo.SetSiteOffline(context.Background(), f.a.database, f.sid, true); err != nil {
+		t.Fatal(err)
+	}
+	if code := mcp.RefusalCode(call(map[string]any{"address": "https://" + f.host})); code != "site_offline" {
+		t.Errorf("offline site: code=%q", code)
+	}
+	if err := sitesrepo.SetSiteOffline(context.Background(), f.a.database, f.sid, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.database.Exec(`UPDATE sites SET access='specific' WHERE id=$1`, f.sid); err != nil {
+		t.Fatal(err)
+	}
+	if code := mcp.RefusalCode(call(map[string]any{"address": "https://" + f.host})); code != "site_private" {
+		t.Errorf("named-viewers-only site: code=%q", code)
+	}
+	if _, err := f.a.database.Exec(`UPDATE sites SET access='anyone' WHERE id=$1`, f.sid); err != nil {
+		t.Fatal(err)
+	}
+	r := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, f.key)
+	if r.status != 200 {
+		t.Fatalf("lock: %s", r.body)
+	}
+	if code := mcp.RefusalCode(call(map[string]any{"address": "https://" + f.host})); code != "site_locked" {
+		t.Errorf("no passcode submitted: code=%q", code)
+	}
+	if code := mcp.RefusalCode(call(map[string]any{"address": "https://" + f.host, "passcode": "wrong"})); code != "site_locked" {
+		t.Errorf("wrong passcode: code=%q", code)
+	}
+	err := call(map[string]any{"address": "https://" + f.host, "passcode": "wrong"})
+	if mcp.RefusalCode(err) != "passcode_locked" {
+		t.Errorf("rate-limited passcode: code=%q", mcp.RefusalCode(err))
+	}
+	// The sanitization SetVisitorTools runs on the way out (visitorPrivateData)
+	// must not have eaten the one piece of the message that matters here: how
+	// long the wait is.
+	if err == nil || !strings.Contains(err.Error(), "minutes") {
+		t.Errorf("passcode wait duration lost in sanitization: %v", err)
+	}
 }
 
 func TestVisitorPassCannotCrossSitesOrBecomeOwner(t *testing.T) {

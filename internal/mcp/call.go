@@ -165,6 +165,30 @@ func (e *refusalError) Error() string { return e.text }
 // can tell a wrong site name from a wrong argument.
 func codedError(code, text string) error { return &refusalError{text: text, code: code} }
 
+// CodedError lets another package in this binary (the visitor tool bridge in
+// internal/handler, which runs outside the MCP boundary as a site's own
+// visitor rather than its owner) make a refusal that codeHints/
+// selfExplainedCodes and analytics treat exactly like one made in this
+// package: the code travels with the error instead of only appearing as text
+// a human would have to parse back out. The caller writes the complete,
+// actionable text itself (this package's own direct codedError calls do the
+// same; only restError pulls a hint from codeHints automatically); add the
+// code to codeHints or selfExplainedCodes too, or analytics still records it
+// as tool_error.
+func CodedError(code, text string) error { return codedError(code, text) }
+
+// RefusalCode returns the code of an error made with CodedError or
+// codedError (including one wrapped by fmt.Errorf's %w or errors.Join), or
+// "" when err carries none. Another package uses this to recover a code
+// after it has sanitized or re-wrapped the error text.
+func RefusalCode(err error) string {
+	var refusal *refusalError
+	if errors.As(err, &refusal) {
+		return refusal.code
+	}
+	return ""
+}
+
 // selfExplainedCodes name refusals whose message already says what happened
 // and what to do (the storage SQL errors), so no generic hint is added.
 // Analytics records them like codes with hints.
@@ -215,6 +239,7 @@ var codeHints = map[string]string{
 	"version_published":              "That version has been live, so it stays as history; only never-live versions can be discarded.",
 	"site_offline":                   "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",
 	"site_locked":                    "This site asks visitors for a passcode; the owner's key and this connector still work. Ask the person to reconnect Simple Host in their app; never ask for a key in chat.",
+	"passcode_locked":                "Too many wrong passcode tries from this visitor connection; the message above says how long the wait is. Tell the person; do not keep retrying the same or another guess.",
 	"passcodes_not_enabled":          "This server cannot put a passcode on a site (whoever runs it has not turned passcodes on). Tell the person; do not retry.",
 	"passcode_needs_own_address":     "A passcode works only on a site served at its own address (https://<site>.<handle>.simple-host.app/). Tell the person; do not retry.",
 	"invalid_passcode":               "That passcode is too short, too long, or has control characters (the error above names this server's rule). The person can choose another on the passcode screen or in the dashboard; never ask for it in chat.",
@@ -274,6 +299,7 @@ var codeHints = map[string]string{
 	"event_taken_down":               "The operator has taken this event down. Tell the person; do not retry.",
 	"no_personal_sites":              "This connection manages events. It cannot publish a personal site or a team site. A team site needs a connection that chose that team.",
 	"team_key_scope":                 "This connection publishes one team's site. It cannot manage events. Reconnect and choose Manage my events.",
+	"unknown_tool":                   "No tool of that name exists on this connector. Call find_tools with the job, or pick one of the closest tools named above, instead of guessing the name again.",
 }
 
 func codeHint(code string) string { return codeHints[code] }

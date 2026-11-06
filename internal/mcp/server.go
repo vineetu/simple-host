@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -900,7 +902,8 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 				}
 				message += " Closest tools: " + strings.Join(names, ", ") + "."
 			}
-			record(errors.New(message))
+			message += " [unknown_tool]"
+			record(codedError("unknown_tool", message))
 			return toolResult(req.ID, message, nil, true, modern)
 		}
 		return failure(req.ID, codeInvalidParams, "unknown tool: "+params.Name, nil)
@@ -908,7 +911,10 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 	if params.Arguments == nil {
 		params.Arguments = map[string]any{}
 	}
-	argErr := unexpectedArgument(tool, params.Arguments)
+	argErr := resolveArgAlias(tool, params.Arguments)
+	if argErr == nil {
+		argErr = unexpectedArgument(tool, params.Arguments)
+	}
 	if argErr == nil && wrapped {
 		required, _ := tool.InputSchema["required"].([]string)
 		for _, name := range required {
@@ -1040,9 +1046,78 @@ func unexpectedArgument(tool Tool, args map[string]any) error {
 	props, _ := tool.InputSchema["properties"].(map[string]any)
 	for key := range args {
 		if _, ok := props[key]; !ok {
-			return fmt.Errorf("unexpected argument %q for %s; it takes only the arguments in its schema", key, tool.Name)
+			// Name the fields the schema actually has: a near-miss guess
+			// (a plausible-but-wrong name borrowed from a sibling tool)
+			// deserves to be told what to use, not just that the call was
+			// refused; argumentMessage/staleToolsHint cover the separate
+			// case of a client whose cached copy of this tool is stale.
+			names := make([]string, 0, len(props))
+			for name := range props {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			return fmt.Errorf("unexpected argument %q for %s; it takes only %s", key, tool.Name, strings.Join(names, ", "))
 		}
 	}
+	return nil
+}
+
+// argAliasFor names a one-off alias a model guesses from a sibling tool
+// family's word for the same concept: storage_* and hack_event_storage_*
+// tools call the saved-data resource "name", while visitor_read_site/
+// visitor_add_entry/visitor_change_entry call the same concept "resource";
+// find_tools's argument is "query", not the "task" a model familiar with
+// other search tools may send; get_page_recipe's is "topic", not the
+// "kind" a model familiar with the storage tools' kind argument may send.
+func argAliasFor(name string) (canonical, alias string) {
+	switch {
+	case name == "find_tools":
+		return "query", "task"
+	case name == "get_page_recipe" || name == "hack_get_page_recipe":
+		return "topic", "kind"
+	case name == "visitor_read_site" || name == "visitor_add_entry" || name == "visitor_change_entry":
+		return "resource", "name"
+	case strings.HasPrefix(name, "storage_") || strings.HasPrefix(name, "hack_event_storage_"):
+		return "name", "resource"
+	}
+	return "", ""
+}
+
+// resolveArgAlias renames args[alias] to args[canonical] in place, before
+// the schema's additionalProperties check (unexpectedArgument) runs and
+// before the advertised InputSchema is ever consulted, so the alias is
+// accepted silently: it is never added to a tool's schema, which would
+// change the frozen tool list some clients cache (ChatGPT keeps the one
+// from the day it connected). Only applied when the tool's schema actually
+// declares canonical and does not itself declare alias as a real, distinct
+// argument (storage_get_usage has no "name", so is untouched either way; a
+// hypothetical tool that legitimately takes both a "name" and a "resource"
+// is also left alone, since the alias word is already spoken for there).
+func resolveArgAlias(tool Tool, args map[string]any) error {
+	canonical, alias := argAliasFor(tool.Name)
+	if canonical == "" {
+		return nil
+	}
+	props, _ := tool.InputSchema["properties"].(map[string]any)
+	if _, ok := props[canonical]; !ok {
+		return nil
+	}
+	if _, ok := props[alias]; ok {
+		return nil
+	}
+	a, hasAlias := args[alias]
+	if !hasAlias {
+		return nil
+	}
+	if c, hasCanonical := args[canonical]; hasCanonical {
+		if !reflect.DeepEqual(a, c) {
+			return fmt.Errorf("%s and %s were both given with different values; use %s", canonical, alias, canonical)
+		}
+		delete(args, alias)
+		return nil
+	}
+	args[canonical] = a
+	delete(args, alias)
 	return nil
 }
 

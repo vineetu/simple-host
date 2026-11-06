@@ -49,7 +49,11 @@ func (h *ConnectorHandler) SetVisitorTools(sites *SiteHandler, oauth *OAuthHandl
 		}
 		result, err := sites.visitorTool(r, caller, name, args, oauth)
 		if err != nil {
-			return nil, fmt.Errorf("%s", visitorPrivateData(err.Error()))
+			text := fmt.Sprintf("%s", visitorPrivateData(err.Error()))
+			if code := mcp.RefusalCode(err); code != "" {
+				return nil, mcp.CodedError(code, text)
+			}
+			return nil, fmt.Errorf("%s", text)
 		}
 		return result, nil
 	}
@@ -103,11 +107,11 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 	}
 	sanitized, id, host, purpose, err := oauth.sanitizeReturnTo(orig.Context(), address)
 	if err != nil || !id.Valid || purpose != "site" {
-		return nil, fmt.Errorf("site_not_found: use the site's browser address, claimed short name, or verified custom domain")
+		return nil, mcp.CodedError("site_not_found", "site_not_found: use the site's browser address, claimed short name, or verified custom domain")
 	}
 	_, ownerID, siteName, err := h.sitesSvc().GetSiteOwner(orig.Context(), id.String)
 	if err != nil {
-		return nil, fmt.Errorf("site_not_found: site not found")
+		return nil, mcp.CodedError("site_not_found", "site_not_found: that site no longer exists; ask the person for the current address, or call visitor_read_site with no address to list sites shared with you")
 	}
 	pass, revoke, err := h.storeAccounts().IssueInternalVisitorKey(model.InternalVisitorPass{UserID: user.ID, SiteID: id.String, Host: host, AppName: caller.AppName})
 	if err != nil {
@@ -131,7 +135,7 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 		return nil, visitorResponseError(gate)
 	}
 	if !h.ViewersLetIn(req, id.String) {
-		return nil, fmt.Errorf("site_private: this site is open only to its named viewers")
+		return nil, mcp.CodedError("site_private", "site_private: this site is open only to its named viewers; ask the owner to add you as a named viewer, or to open the site to anyone")
 	}
 	row, err := h.sitesSvc().GetSitePasscode(req.Context(), id.String)
 	if err != nil {
@@ -161,17 +165,17 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 			return nil, err
 		}
 		if _, provided := args["passcode"]; !provided {
-			return nil, fmt.Errorf("site_locked: this site asks for a passcode")
+			return nil, mcp.CodedError("site_locked", "site_locked: this site asks for a passcode; the person can open it in their browser and enter it there, or call again with passcode set if they already gave it to you")
 		}
 		wait, matched, err := h.checkVisitorPasscode(req, row, supplied)
 		if err != nil {
 			return nil, fmt.Errorf("the site's passcode could not be checked")
 		}
 		if wait > 0 {
-			return nil, fmt.Errorf("passcode_locked: Too many tries. Try again in %d minutes.", int(roundUpMinute(wait)/time.Minute))
+			return nil, mcp.CodedError("passcode_locked", fmt.Sprintf("passcode_locked: Too many tries. Try again in %d minutes.", int(roundUpMinute(wait)/time.Minute)))
 		}
 		if !matched {
-			return nil, fmt.Errorf("site_locked: That passcode isn't right. Check it and try again.")
+			return nil, mcp.CodedError("site_locked", "site_locked: That passcode isn't right. Check it and try again.")
 		}
 		cookie := httptest.NewRecorder()
 		h.setUnlockCookie(cookie, req, id.String, row.Generation)
@@ -205,13 +209,23 @@ func (h *SiteHandler) recordVisitorSite(r *http.Request, caller mcp.Caller, site
 	}
 }
 
+// visitorResponseError turns a proxied REST refusal (site offline/suspended
+// gates, a storage-table open) into the visitor tool's error. When the REST
+// response named a code, that code travels with the error (mcp.CodedError),
+// so a revalidation that lands back on, say, site_not_found or site_offline
+// is recorded by AgentCat under that code too, not just the ones this file
+// builds directly.
 func visitorResponseError(rec *httptest.ResponseRecorder) error {
 	var e struct{ Error, Code string }
 	_ = json.Unmarshal(rec.Body.Bytes(), &e)
 	if e.Error == "" {
 		return fmt.Errorf("visitor request refused (%d)", rec.Code)
 	}
-	return fmt.Errorf("%s: %s", e.Code, e.Error)
+	text := fmt.Sprintf("%s: %s", e.Code, e.Error)
+	if e.Code != "" {
+		return mcp.CodedError(e.Code, text)
+	}
+	return fmt.Errorf("%s", text)
 }
 
 // visitorInvoke never accepts a caller-supplied route or credential.

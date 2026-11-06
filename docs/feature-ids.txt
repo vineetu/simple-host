@@ -13,6 +13,7 @@ address-families
 admin
 admin-report-page
 admin-signup-source
+agents-coded-refusals-and-aliases
 agents-data-minimisation
 agents-discovery
 analytics-and-geo

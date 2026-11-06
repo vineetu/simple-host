@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+
+	"github.com/vsriram/simple-host/internal/mcp"
 )
 
 func (h *SiteHandler) visitorCollectionRequest(r *http.Request, args map[string]any, action, method string, value any) (any, error) {
 	name := r.PathValue("coll")
 	siteID, err := h.resolveSiteIDScoped(r, r.PathValue("sitename"))
 	if err != nil {
-		return nil, fmt.Errorf("site_not_found: site not found")
+		return nil, mcp.CodedError("site_not_found", "site_not_found: that site no longer exists; ask the person for the current address, or call visitor_read_site with no address to list sites shared with you")
 	}
 	sess, ok := h.internalVisitorSession(r, siteID)
 	if !ok {

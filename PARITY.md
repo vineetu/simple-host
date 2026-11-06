@@ -1,5 +1,11 @@
 # PARITY — Simple Host (hosted) and Simple Host Enterprise
 
+2026-11-06 coded refusals and argument aliases (SIM-359): in this repo, `internal/mcp` error-code
+and alias handling (`call.go`, `server.go`) and the `storage_sql_*` tool descriptions are shared
+code with no edition check, so Host and Hack both get the fix identically here. Not ported to
+the separate Enterprise repo; check whether its MCP server has the same AgentCat tool_error/alias
+issue and port this change if so (`gap → enterprise`, to verify).
+
 2026-11-04 team-site flat hosts: the Simple Hack Kubernetes chart (`deploy/kubernetes/simple-hack/`) gains `teamSites.flatHosts` / `TEAM_SITE_FLAT_HOSTS` (off by default): on, a team's site is the single label `<team>--<event>.<host>` instead of `<team>.<event>.<host>`, so the chart's one `*.<host>` Ingress rule and certificate cover every event and team (no per-event `ingress.events` entry or certificate SAN, which otherwise runs into a load balancer's or certificate's per-name limits as events accumulate). Hosted simple-hack.app keeps it off, unchanged. Event and team slugs may no longer contain "--" on any install (slug validation tightened everywhere, not only under this flag). Enterprise's own, separate Helm chart has not received an equivalent (`gap → enterprise`).
 
 2026-11-04 password accounts: self-hosted Host/Hack support PASSWORD_SIGNIN and PASSWORD_SELF_SIGNUP, temporary passwords and shared connector sign-in; hosted defaults off. Enterprise port outstanding (`gap → enterprise`). Self-host marketing is hidden outside the hosted services.

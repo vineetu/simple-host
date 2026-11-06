@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-06: MCP refusals that the AgentCat error review found landing in the generic "tool_error" bucket (site-not-found, site-private, site-locked and passcode-locked on the visitor tools, `create_site`'s Recently-deleted refusal, and `run_tool`'s unknown-tool refusal) now carry their real code and an actionable hint. `storage_*` tools and the visitor tools now accept each other's word for a saved-data resource (`resource`/`name`), and `find_tools`/the page-recipe tools accept a plausible synonym (`task`/`query`, `kind`/`topic`), without changing the advertised tool schema; an unexpected argument that is not one of those aliases now names the fields the tool actually takes. `storage_sql_query`, `storage_sql_execute` and `storage_sql_schema` now say upfront that PRAGMA is not available and to use `SELECT name, sql FROM sqlite_schema` (SIM-359).
+
 2026-11-06: An AI app that cached an older copy of a tool's output schema no longer reports a successful call as failed when the result gains a new field; `hack_create_event` hit this after `judging_ends_at` was added. Schemas stay strict in the tests, and the copy sent to apps accepts extra fields. A new test checks every Simple Hack tool's real output against its schema (SIM-384).
 
 2026-11-06: Self-hosted installs with password sign-in: the admin Users list shows Reset password only for accounts that have a password. Before, it showed on every account, and using it on a Google or email-code account quietly gave that account a password (SIM-383).

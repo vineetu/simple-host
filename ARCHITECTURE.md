@@ -107,7 +107,7 @@ The following packages exist today (verified with `go list ./internal/...`):
 |---|---|
 | `handler` | Shared HTTP, accounts, sites/storage, admin, connector composition, asset presentation, remaining workers |
 | `hackhttp` | Hack HTTP/pages and transport mapping; no production import of `handler` |
-| `mcp` | JSON-RPC, discovery, family registrars and common tool/schema inventory (`registry.go`); MCP Events |
+| `mcp` | JSON-RPC, discovery, family registrars and common tool/schema inventory (`registry.go`); MCP Events; refusal codes (`call.go`: `codedError`/`CodedError`, `codeHints`) let a converted error site carry an AgentCat-visible code instead of the generic `tool_error`, and `server.go`'s `resolveArgAlias` accepts a sibling tool family's name for the same argument before the schema's additionalProperties check runs (SIM-359) |
 | `mcp/apps/{bundlegen,gentool}` | MCP Apps browser-bundle generator and command |
 | `webassets` | Embedded static pages, Hack modules and Host/Hack skill/download bundles; no internal dependencies |
 | `workers` | Standard-library lifecycle owners, cancellation, joins and progress/status tracking |

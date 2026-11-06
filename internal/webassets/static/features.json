@@ -5262,6 +5262,10 @@
   {
    "lead": "hack-publish-finishes-judging",
    "why": "A correctness fix to an existing step (publish now finishes judging), not a new user-facing capability to list on its own."
+  },
+  {
+   "lead": "agents-coded-refusals-and-aliases",
+   "why": "A reliability fix to how AI agents already talk to the connector (clearer error codes, forgiving a sibling tool's name for the same argument), not a new user-facing capability to list on its own."
   }
  ]
 }
