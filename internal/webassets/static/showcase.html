@@ -699,52 +699,6 @@
       <span id="owner-address-text"></span>
     </div>
 
-    <!-- Install the skill. Owner-only: `hidden` in the served HTML and revealed
-         by updateOnboarding() once hydrateOwner() has confirmed the owner and
-         their site count — in full while the account has no sites, otherwise
-         collapsed to a link in the "Your sites" header (toggle persisted
-         in localStorage, same key as the dashboard). Public visitors never
-         see it (owner decision 2026-09-06). Leads the page:
-         people build in their own AI apps and agents. Guided flow: copy →
-         deploy → proof is the site appearing in the list. -->
-    <div class="skill-install" id="skill-install" hidden>
-      <div class="si-head">
-        <h3>Set up your AI: install the <code>website-deploy</code> skill</h3>
-        <div class="si-tools">
-          <div class="si-os" id="si-os" role="group" aria-label="Operating system">
-            <button type="button" data-os="unix" class="on">macOS / Linux</button><button type="button" data-os="win">Windows</button>
-          </div>
-          <button type="button" class="btn btn-ghost btn-small" id="deploy-callout-hide" data-act="hideAgentSetup" hidden>Hide</button>
-        </div>
-      </div>
-      <p class="si-lede"><b>1.</b> Pick what you use, then copy the box into your agent's terminal:</p>
-      <div class="si-agents" id="si-agents"></div>
-      <div class="si-cmd">
-        <pre id="si-cmd-text"></pre>
-        <button type="button" class="btn btn-secondary btn-small" id="si-copy">Copy</button>
-      </div>
-      <p class="si-lede" style="margin-top:14px"><b>2.</b> Ask your agent to build something: <em>“deploy a hello page to simple-host”</em>. The moment it works, the site appears in your list below. That's how you know you're done.</p>
-      <div class="si-verify">
-        <span class="si-key-wrap">If your agent asks for your API key: <button type="button" class="btn btn-ghost btn-small" id="si-key-show">Show key</button><code id="si-key-value" hidden></code><button type="button" class="btn btn-ghost btn-small" id="si-key-copy" hidden>Copy</button></span>
-        <a class="btn btn-secondary btn-small" href="/install.html">Get started →</a>
-      </div>
-    </div>
-
-    <div class="skill-install" id="build-with-ai" hidden>
-      <h3>Build with your own AI app</h3>
-      <p class="si-lede">Describe your site to the AI app or coding agent you already use. Connect Simple Host to publish it, then manage its address, versions and saved data here.</p>
-      <a class="btn btn-primary" href="/install.html">Get started →</a>
-    </div>
-    <div class="skill-install" id="connect-ai" hidden>
-      <h3>Connect your AI app</h3>
-      <p class="si-lede" id="connect-ai-status">Paste this address into Claude, ChatGPT, Claude Code, or any other AI app that takes a custom MCP connector URL.</p>
-      <div class="si-cmd">
-        <pre id="connect-ai-mcp"></pre>
-        <button type="button" class="btn btn-secondary btn-small" id="connect-ai-copy">Copy</button>
-      </div>
-      <div class="si-verify"><span></span><a class="btn btn-secondary btn-small" href="/install.html">Steps for each app →</a></div>
-    </div>
-
     <div class="empty-state" id="owner-pending" hidden>Loading your sites…</div>
 
     <!-- Public gallery (default) -->
@@ -762,6 +716,52 @@
       </div>
 
       <div id="owner-tab-sites" role="tabpanel" aria-labelledby="tab-sites">
+        <!-- Install the skill. Owner-only: `hidden` in the served HTML and revealed
+             by updateOnboarding() once hydrateOwner() has confirmed the owner and
+             their site count — in full while the account has no sites, otherwise
+             collapsed to a link in the "Your sites" header (toggle persisted
+             in localStorage, same key as the dashboard). Public visitors never
+             see it (owner decision 2026-09-06). Leads the page:
+             people build in their own AI apps and agents. Guided flow: copy →
+             deploy → proof is the site appearing in the list. -->
+        <div class="skill-install" id="skill-install" hidden>
+          <div class="si-head">
+            <h3>Set up your AI: install the <code>website-deploy</code> skill</h3>
+            <div class="si-tools">
+              <div class="si-os" id="si-os" role="group" aria-label="Operating system">
+                <button type="button" data-os="unix" class="on">macOS / Linux</button><button type="button" data-os="win">Windows</button>
+              </div>
+              <button type="button" class="btn btn-ghost btn-small" id="deploy-callout-hide" data-act="hideAgentSetup" hidden>Hide</button>
+            </div>
+          </div>
+          <p class="si-lede"><b>1.</b> Pick what you use, then copy the box into your agent's terminal:</p>
+          <div class="si-agents" id="si-agents"></div>
+          <div class="si-cmd">
+            <pre id="si-cmd-text"></pre>
+            <button type="button" class="btn btn-secondary btn-small" id="si-copy">Copy</button>
+          </div>
+          <p class="si-lede" style="margin-top:14px"><b>2.</b> Ask your agent to build something: <em>“deploy a hello page to simple-host”</em>. The moment it works, the site appears in your list below. That's how you know you're done.</p>
+          <div class="si-verify">
+            <span class="si-key-wrap">If your agent asks for your API key: <button type="button" class="btn btn-ghost btn-small" id="si-key-show">Show key</button><code id="si-key-value" hidden></code><button type="button" class="btn btn-ghost btn-small" id="si-key-copy" hidden>Copy</button></span>
+            <a class="btn btn-secondary btn-small" href="/install.html">Get started →</a>
+          </div>
+        </div>
+
+        <div class="skill-install" id="build-with-ai" hidden>
+          <h3>Build with your own AI app</h3>
+          <p class="si-lede">Describe your site to the AI app or coding agent you already use. Connect Simple Host to publish it, then manage its address, versions and saved data here.</p>
+          <a class="btn btn-primary" href="/install.html">Get started →</a>
+        </div>
+        <div class="skill-install" id="connect-ai" hidden>
+          <h3>Connect your AI app</h3>
+          <p class="si-lede" id="connect-ai-status">Paste this address into Claude, ChatGPT, Claude Code, or any other AI app that takes a custom MCP connector URL.</p>
+          <div class="si-cmd">
+            <pre id="connect-ai-mcp"></pre>
+            <button type="button" class="btn btn-secondary btn-small" id="connect-ai-copy">Copy</button>
+          </div>
+          <div class="si-verify"><span></span><a class="btn btn-secondary btn-small" href="/install.html">Steps for each app →</a></div>
+        </div>
+
         <div class="section" id="owner-sites-view">
           <div class="section-num"><h2>Your sites</h2><span class="line"></span><button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Set up your AI →</button><span class="inv-sort" id="inv-sort-wrap" hidden><label for="inv-sort">Sort</label><select id="inv-sort"><option value="updated">Recently updated</option><option value="created">Recently created</option><option value="name">Name</option><option value="views">Most viewed</option></select></span><input type="search" id="inv-search" class="inv-search" placeholder="Search sites" aria-label="Search sites" autocomplete="off" hidden><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
           <div id="inventory"></div>
@@ -854,7 +854,7 @@
         <div class="section" id="owner-connections">
           <div class="section-num"><h2>Connected apps</h2><span class="line"></span></div>
           <p class="conn-note">These apps can publish and manage your sites for you. Disconnect one and it has to ask you again.</p>
-          <div id="connections-list"><p class="conn-note">No apps connected yet. <a href="/install.html">Connect your AI app</a></p></div>
+          <div id="connections-list"></div>
         </div>
         <div class="section" id="owner-keys" hidden>
           <div class="section-num"><h2>Keys</h2><span class="line"></span></div>
@@ -888,6 +888,7 @@
         <div class="section" id="owner-notifications" hidden>
           <div class="section-num"><h2>Notifications</h2><span class="line"></span></div>
           <p class="conn-note">When a visitor sends a form, books, posts, or uploads on one of your sites, and when a site goes live, a domain changes status, someone asks for access to a named-viewers site, or a visitor signs in for the first time, we POST a signed message to an address you choose (Zapier, n8n, Make, your own server, or an AI app).</p>
+          <p class="conn-note" id="notif-load-error" hidden></p>
           <p class="conn-note" id="notif-empty" hidden>No notifications yet.</p>
           <ul class="notif-list" id="notif-list"></ul>
           <p class="conn-note" id="notif-limits"></p>
@@ -1357,12 +1358,17 @@ function parseAnalyticsSummary(data) {
       var box = document.getElementById('owner-connections');
       var list = document.getElementById('connections-list');
       if (!box || !list) return;
-      var conns = [];
+      box.hidden = false;
+      list.innerHTML = '<p class="conn-note">Loading…</p>';
+      var conns;
       try {
         var res = await api('GET', '/v1/me/connections');
-        if (res.ok) conns = (await res.json()).connections || [];
-      } catch (e) {}
-      box.hidden = false;
+        if (!res.ok) throw new Error('Could not load connected apps.');
+        conns = (await res.json()).connections || [];
+      } catch (e) {
+        list.innerHTML = '<p class="conn-note">Could not load connected apps. Reload to try again.</p>';
+        return;
+      }
       list.innerHTML = conns.map(function (c, i) {
         return '<div class="conn-row"><span><b>' + esc(c.name) + '</b><small>' + (c.device ? esc(c.device) + ' · connected ' : 'Connected ') + fmtDate(c.connected_at) +
           ' · last used ' + fmtDate(c.last_used_at) + '</small>' +
@@ -3308,13 +3314,12 @@ function parseAnalyticsSummary(data) {
         return;
       }
       var hash = location.hash.slice(1);
-      var id = ownerSectionHashes[hash];
-      if (!id && Object.keys(ownerSectionHashes).some(function (key) { return ownerSectionHashes[key] === hash; })) id = hash;
+      var id = ownerSectionHashes[hash] || hash;
       var section = id && document.getElementById(id);
       var panel = section && section.closest('[role="tabpanel"]');
       var tab = panel ? panel.id.replace('owner-tab-', '') : (hash === 'analytics' || hash === 'settings' ? hash : 'sites');
       switchOwnerTab(tab, false);
-      if (!section) return;
+      if (!panel) return;
       // Sections load independently. Scroll once their own visibility rule allows it.
       function scrollToSection() {
         if (!section.getClientRects().length) return;
@@ -5242,11 +5247,12 @@ function parseAnalyticsSummary(data) {
           el('notif-limits').textContent = l.per_site + ' per site, ' + l.per_minute.toLocaleString() + ' a minute, ' + l.per_day.toLocaleString() + ' a day, ' + l.history_days + ' days of history.';
           if (l.enabled === false) el('notif-limits').textContent = 'New notifications are unavailable: the server has no PASSCODE_ENC_KEY.';
           render(d.notifications || []);
+          el('notif-load-error').hidden = true;
           box.hidden = false;
         } catch (e) {
           box.hidden = false;
-          if (!dlg.open) open('Notifications');
-          msg(e.message || 'Could not load notifications.', true);
+          el('notif-load-error').textContent = e.message || 'Could not load notifications.';
+          el('notif-load-error').hidden = false;
         }
       }
       async function change(n, action) {

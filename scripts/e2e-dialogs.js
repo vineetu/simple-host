@@ -40,11 +40,11 @@ const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exitCo
   p.on('dialog', async (d) => { natives.push(d.type() + ': ' + d.message()); await d.dismiss().catch(() => {}); });
   const errs = []; p.on('pageerror', (e) => errs.push(e.message));
   const sent = []; p.on('request', (r) => { if (r.url().includes('/v1/')) sent.push(r.method() + ' ' + new URL(r.url()).pathname); });
-  const dlg = p.locator('dialog.sh-dlg');
+  const dlg = p.locator('dialog[aria-labelledby="sh-dlg-title"]');
   const noNative = (what) => assert(natives.length === 0, `${what}: no native dialog${natives.length ? ' (' + natives.join(' | ') + ')' : ''}`);
 
   // ---- 1. Change the address --------------------------------------------
-  await p.goto(base + '/' + handle, { waitUntil: 'load' });
+  await p.goto(base + '/' + handle + '#settings', { waitUntil: 'load' });
   await p.locator('#addr-change').click({ timeout: 15000 });
   await p.locator('#addr-input').fill(newHandle);
   await p.locator('#addr-save').click();
@@ -96,14 +96,12 @@ const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exitCo
 
   // ---- 2. Take a site offline --------------------------------------------
   await p.waitForLoadState('load');
-  const off = siteArg ? p.locator(`[data-act="toggleOffline"][data-name="${siteArg}"]`) : p.locator('[data-act="toggleOffline"]').first();
-  await off.waitFor({ state: 'attached', timeout: 15000 });
-  const site = await off.getAttribute('data-name');
-  if (!(await off.isVisible())) {
-    // Row actions sit behind the row's menu on some layouts.
-    const more = p.locator(`[data-name="${site}"][data-act="more"], [data-more="${site}"]`).first();
-    if (await more.count()) await more.click();
-  }
+  await p.click('#tab-sites');
+  const manage = siteArg ? p.locator(`[data-manage="${siteArg}"]`) : p.locator('[data-manage]').first();
+  await manage.waitFor({ state: 'visible', timeout: 15000 });
+  const site = await manage.getAttribute('data-manage');
+  const off = p.locator(`[data-act="toggleOffline"][data-name="${site}"]`);
+  await manage.click();
   await off.click();
   await dlg.waitFor({ state: 'visible', timeout: 5000 });
   assert((await dlg.textContent()).includes('Take "' + site + '" offline?'), 'offline dialog asks with the same words');
@@ -111,11 +109,13 @@ const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exitCo
   await dlg.getByRole('button', { name: 'Cancel' }).click();
   await p.waitForTimeout(500);
   assert(!sent.slice(before).some((s) => s.startsWith('PATCH /v1/sites/')), 'Cancel sends nothing');
+  await manage.click();
   await off.click();
   await dlg.getByRole('button', { name: 'Take it offline' }).click();
   await p.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().includes('/v1/sites/'), { timeout: 10000 }).catch(() => {});
   await p.waitForTimeout(800);
   assert(sent.slice(before).some((s) => s.startsWith('PATCH /v1/sites/')), 'Take it offline sends the PATCH');
+  await manage.click();
   const back = p.locator(`[data-act="toggleOffline"][data-name="${site}"]`);
   await p.waitForFunction((n) => { const e = document.querySelector(`[data-act="toggleOffline"][data-name="${n}"]`); return e && /online/i.test(e.textContent); }, site, { timeout: 10000 }).catch(() => {});
   assert(/Put back online/.test(await back.textContent()), 'site shows "Put back online"');
@@ -124,6 +124,7 @@ const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exitCo
   noNative('take offline');
 
   // ---- 3. Sign out everywhere --------------------------------------------
+  await p.click('#tab-settings');
   const keyBefore = await p.evaluate(() => localStorage.getItem('apiKey'));
   await p.locator('#keys-signout-all').scrollIntoViewIfNeeded();
   await p.locator('#keys-signout-all').click();
@@ -156,6 +157,7 @@ const assert = (c, m) => { if (!c) { console.error('FAIL: ' + m); process.exitCo
 
   // ---- 5. Delete the account (GDPR) --------------------------------------
   if (!process.env.KEEP) {
+    await p.click('#tab-settings');
     await p.locator('#data-delete-open').scrollIntoViewIfNeeded();
     await p.locator('#data-delete-open').click();
     const word = (await p.locator('#data-delete-word').textContent()).trim();

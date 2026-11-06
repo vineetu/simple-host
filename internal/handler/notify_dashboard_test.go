@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestNotificationDashboardUnavailableSecrets(t *testing.T) {
+func TestNotifyDashboardUnavailableSecrets(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
 		t.Skip("node is not installed")
@@ -39,15 +39,16 @@ global.document = {
   createElement: element
 };
 global.window = {};
-let currentTab = 'analytics';
-function switchOwnerTab(tab) { currentTab = tab; }
+let currentTab = 'analytics', hash = '#analytics';
+function switchOwnerTab(tab) { currentTab = tab; hash = '#' + tab; }
 let ownerMe = null, ownerSites = [], apiKey = 'test-key', HANDLE = 'owner';
 const sitePathPart = name => '/v1/sites/' + name;
-let enabled = false;
+let enabled = false, failLoad = false;
 const notification = {id: 'sub_a', site: 'shop', source: 'owner', state: 'active',
   url: 'https://receiver.example', events: [], last_attempt_at: '2026-10-23T00:00:00Z',
   last_result: 'secret_unreadable'};
 async function api(method, path) {
+  if (failLoad && path === '/v1/notifications') return {ok: false, status: 500, json: async () => ({})};
   let data;
   if (path.endsWith('/deliveries')) data = {deliveries: [{name: 'record.added', state: 'failed', result: 'secret_unreadable', attempts: 1}]};
   else if (path.endsWith('/rotate-secret')) data = {secret: 'test-secret'};
@@ -58,8 +59,21 @@ async function api(method, path) {
 ` + source[start:end] + `
 (async () => {
   ownerMe = {handle: HANDLE};
-  await window.shLoadNotifications();
   const get = id => document.getElementById(id);
+  failLoad = true;
+  for (const tab of ['analytics', 'sites']) {
+    currentTab = tab; hash = '#' + tab;
+    await window.shLoadNotifications();
+    assert.equal(currentTab, tab, 'background failure preserves the current tab');
+    assert.equal(hash, '#' + tab, 'background failure preserves the hash');
+    assert(!get('notif-dlg').open, 'background failure opens no dialog, including beside passcode');
+    assert.equal(get('notif-load-error').hidden, false);
+    assert.equal(get('notif-load-error').textContent, 'Could not load notifications.');
+  }
+  failLoad = false;
+  await window.shLoadNotifications();
+  assert.equal(get('notif-load-error').hidden, true);
+
   const row = get('notif-list').children[0];
   const buttons = row.children.at(-1).children;
   const button = label => buttons.find(b => b.textContent === label);

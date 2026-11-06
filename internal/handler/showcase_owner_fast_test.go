@@ -129,6 +129,9 @@ func TestShowcaseOwnerThreeTabs(t *testing.T) {
 			last = pos
 		}
 	}
+	for _, id := range []string{"skill-install", "build-with-ai", "connect-ai"} {
+		assertOwnerPanel(t, nodes, id, "owner-tab-sites")
+	}
 	for _, want := range []string{
 		`<h2>Your sites</h2>`,
 		`No sites yet. Visits show here once a site is live.`,

@@ -1728,8 +1728,8 @@ deploy, visibility, versions, rename, domain, lists, saved data, Download and De
 (INTENT 2026-09-27). `/dashboard` sends such an account there; the apex view it can still reach
 (`/?new=1`) lists the sites with a Manage link. Accounts without a handle and the admin tab keep
 the full apex controls. Sign out everywhere (key rotate) stays in the apex app bar.
-The owner page has three tabs: Sites (default), Analytics, and Settings. Sites starts with
-"Your sites" and shows Recently deleted below the list only when it has items. Analytics
+The owner page has three tabs: Sites (default), Analytics, and Settings. Sites keeps
+AI setup cards above "Your sites" and shows Recently deleted below the list only when it has items. Analytics
 starts with totals and its range selector. Settings contains Your address (including Home
 page), Your showcase, Sign-in, Password when available on a small box, Connected apps,
 Keys, Notifications, Address families when available, and Your data, with Delete account

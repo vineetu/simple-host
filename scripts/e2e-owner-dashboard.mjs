@@ -90,6 +90,19 @@ for (const [bn, bt] of [['chromium', chromium], ['webkit', webkit]]) {
       ok(await p.locator('#owner-tab-' + tab).isVisible(), `${bn}: #${fragment} opens ${tab}`);
     }
   }
+  // Every section element ID routes by its actual containing panel, including
+  // sections without a named alias and the onboarding cards.
+  const sections = await p.locator('[role="tabpanel"] .section, [role="tabpanel"] .skill-install').evaluateAll(nodes => nodes.map(n => [n.id, n.closest('[role="tabpanel"]').id.replace('owner-tab-', '')]));
+  for (const [id, tab] of sections) {
+    await p.click(tab === 'sites' ? '#tab-settings' : '#tab-sites');
+    await p.evaluate(id => { location.hash = id; }, id);
+    await p.waitForFunction(t => document.getElementById('tab-' + t).getAttribute('aria-selected') === 'true', tab);
+    ok(new URL(p.url()).hash === '#' + id, `${bn}: #${id} opens ${tab} without replacing the section hash`);
+    const section = p.locator('#' + id);
+    if (await section.isVisible()) {
+      ok(await section.evaluate(n => Math.abs(n.getBoundingClientRect().top) < 5 || window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 5), `${bn}: #${id} scrolls to its section`);
+    }
+  }
   // A cold deep link must wait for its section's independent loader.
   await p.route('**/v1/me/keys', async route => { await new Promise(r => setTimeout(r, 500)); await route.continue(); });
   await p.goto(BASE + '/owner#keys');
@@ -123,6 +136,7 @@ for (const [bn, bt] of [['chromium', chromium], ['webkit', webkit]]) {
       await p.setViewportSize({ width, height: 900 });
       const boxes = await p.locator('.owner-tab').evaluateAll(nodes => nodes.map(n => { const r = n.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width }; }));
       ok(boxes.every(b => Math.abs(b.y - boxes[0].y) < 1 && Math.abs(b.width - boxes[0].width) < 1) && boxes[2].x + boxes[2].width <= width, `${bn}: ${theme} ${width}px tabs share one row equally`);
+      ok(await p.locator('#build-with-ai, #connect-ai, #skill-install').evaluateAll(nodes => nodes.every(n => n.closest('[role="tabpanel"]').hidden)), `${bn}: ${theme} ${width}px onboarding cards stay inside hidden Sites`);
       ok(await p.locator('.owner-tabs').evaluate(n => !['sticky', 'fixed'].includes(getComputedStyle(n).position)), `${bn}: ${theme} ${width}px tabs are not sticky`);
     }
   }
@@ -131,6 +145,39 @@ for (const [bn, bt] of [['chromium', chromium], ['webkit', webkit]]) {
   await p.waitForSelector('#pc-dlg[open]');
   ok(await p.locator('#tab-sites').getAttribute('aria-selected') === 'true' && new URL(p.url()).hash === '#sites', `${bn}: passcode link overrides Settings hash`);
   await p.locator('#pc-close').click();
+  // Background notification failures neither navigate nor stack a dialog on
+  // the passcode controls, regardless of which request finishes first.
+  await p.route('**/v1/notifications', route => route.fulfill({ status: 500, json: { error: 'Could not load notifications.' } }));
+  await p.goto(BASE + '/owner#analytics');
+  await p.reload();
+  await p.waitForFunction(() => !document.getElementById('notif-load-error').hidden);
+  ok(await p.locator('#tab-analytics').getAttribute('aria-selected') === 'true' && new URL(p.url()).hash === '#analytics' && await p.locator('dialog[open]').count() === 0, `${bn}: notifications failure preserves Analytics and opens no dialog`);
+  await p.goto(BASE + '/owner?site=site-017&open=passcode#settings');
+  await p.waitForSelector('#pc-dlg[open]');
+  await p.waitForFunction(() => !document.getElementById('notif-load-error').hidden);
+  ok(await p.locator('#tab-sites').getAttribute('aria-selected') === 'true' && new URL(p.url()).hash === '#sites' && await p.locator('dialog[open]').count() === 1, `${bn}: notifications failure preserves passcode link priority with one dialog`);
+  await p.locator('#pc-close').click();
+  await p.unroute('**/v1/notifications');
+  // Hold connected apps pending to prove there is no premature empty state.
+  let releaseConnections;
+  const connectionsReady = new Promise(resolve => { releaseConnections = resolve; });
+  await p.route('**/v1/me/connections', async route => { await connectionsReady; await route.fulfill({ json: { connections: [] } }); });
+  await p.goto(BASE + '/owner#settings');
+  await p.reload();
+  await p.waitForSelector('#owner-connections');
+  ok(!(await p.locator('#connections-list').textContent()).includes('No apps connected yet.'), `${bn}: pending connected apps does not claim an empty list`);
+  releaseConnections();
+  await p.waitForFunction(() => document.getElementById('connections-list').textContent.includes('No apps connected yet.'));
+  ok(await p.locator('#connections-list a').getAttribute('href') === '/install.html', `${bn}: successful empty list offers setup`);
+  await p.unroute('**/v1/me/connections');
+  for (const failure of ['http', 'network']) {
+    await p.route('**/v1/me/connections', route => failure === 'http' ? route.fulfill({ status: 500, json: {} }) : route.abort());
+    await p.goto(BASE + '/owner#settings');
+    await p.reload();
+    await p.waitForFunction(() => document.getElementById('connections-list').textContent.includes('Could not load connected apps.'));
+    ok(!(await p.locator('#connections-list').textContent()).includes('No apps connected yet.'), `${bn}: ${failure} failure shows an error instead of an empty list`);
+    await p.unroute('**/v1/me/connections');
+  }
   // No sites leaves Analytics useful and account sections confined to Settings.
   await p.route('**/v1/sites', route => route.fulfill({ json: [] }));
   await p.goto(BASE + '/owner#analytics');
