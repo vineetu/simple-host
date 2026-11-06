@@ -29,7 +29,7 @@ async function serve(route) {
     if (path === '/') { await route.fulfill({contentType:'text/html', body:fixture}); return }
     if (path === '/v1/hack/directory') {
       await route.fulfill({json:{ upcoming: [
-        { title:'Dates only', url:'/dates', time_zone:'Asia/Kolkata', starts_at:'2027-03-12T00:00:00+05:30', ends_at:'2027-03-14T23:59:00+05:30' },
+        { title:'Dates only', url:'/dates', time_zone:'Asia/Kolkata', starts_at:'2027-03-12T00:00:00+05:30', ends_at:'2027-03-14T00:00:00+05:30' },
         { title:'Timed', url:'/timed', time_zone:'Asia/Kolkata', starts_at:'2027-03-12T18:30:00+05:30', ends_at:'2027-03-14T20:15:00+05:30' }
       ]}}); return
     }
@@ -54,7 +54,7 @@ try {
     await page.waitForFunction(n => window.patches.length === n && document.querySelector('#f-save').disabled, count)
   }
   await save(1)
-  assert.deepEqual(await page.evaluate(() => [patches[0].starts_at, patches[0].ends_at]), ['2027-03-12T00:00','2027-03-14T23:59'])
+  assert.deepEqual(await page.evaluate(() => [patches[0].starts_at, patches[0].ends_at]), ['2027-03-12T00:00','2027-03-14T00:00'])
   assert.equal(await page.locator('#f-start-time').inputValue(), '')
   assert.equal(await page.locator('#f-end-time').inputValue(), '')
   await page.locator('#f-start-time').fill('18:30')
@@ -72,19 +72,22 @@ try {
   await page.locator('#f-start-time').fill('')
   await page.locator('#f-end-time').fill('')
   await save(4)
-  assert.deepEqual(await page.evaluate(() => [patches[3].starts_at, patches[3].ends_at]), ['2027-03-12T00:00','2027-03-14T23:59'])
-  // Status header and fixed-row formatters see the same instant in the event zone.
+  assert.deepEqual(await page.evaluate(() => [patches[3].starts_at, patches[3].ends_at]), ['2027-03-12T00:00','2027-03-14T00:00'])
+  // Status header and fixed-row formatters see the same instant in the event
+  // zone. Local midnight is a date-only default for BOTH a start and an end
+  // (hack_create_event: "A date means midnight in time_zone") -- a midnight
+  // end is not "explicit", it displays the same as a midnight start.
   await page.evaluate(() => {
     const ev = {time_zone:'Asia/Kolkata'};
     for(const [end, iso, timed] of [
       [false,'2099-03-12T18:30:00+05:30',true], [false,'2099-03-12T00:00:00+05:30',false],
-      [true,'2099-03-12T23:59:00+05:30',false], [true,'2099-03-12T00:00:00+05:30',true]
+      [true,'2099-03-12T23:59:00+05:30',true], [true,'2099-03-12T00:00:00+05:30',false]
     ]) {
-      const text = ui.eventBoundaryDate(iso, ev, end);
+      const text = ui.eventBoundaryDate(iso, ev);
       if (/\d:\d{2} [ap]m/.test(text) !== timed) throw Error('Boundary display: '+text);
       const next = ui.nextDeadline({...ev, [end?'ends_at':'starts_at']:iso});
       if(next[2] === timed) throw Error('Status header dateOnly');
-      const row = schedule.merge([], [{key:end?'event_end':'event_start',start_at:iso,all_day:!timed}], ev)[0];
+      const row = schedule.merge([], [{key:end?'event_end':'event_start',start_at:iso,all_day:!timed}])[0];
       if(row.all_day === timed) throw Error('Fixed row all_day');
     }
   })

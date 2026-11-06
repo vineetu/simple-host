@@ -30,7 +30,7 @@ export async function render(ctx) {
   }
   if (!ctx.alive()) return
   if (!r.ok) { body.innerHTML = `<div class="note bad" role="alert">Could not load the schedule.</div>`; return }
-  const rows = merge(r.data && r.data.schedule, r.data && r.data.fixed_schedule, ev)
+  const rows = merge(r.data && r.data.schedule, r.data && r.data.fixed_schedule)
   if (!rows.length) { body.innerHTML = `<div class="locked"><h2>Nothing scheduled yet</h2><p>Times show here once the organisers add them.</p></div>`; return }
   function paint() {
     label(rows)

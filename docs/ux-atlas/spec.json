@@ -1078,7 +1078,7 @@
      "contents": [
       "Title (required, up to 120)",
       "Tagline (optional, up to 160, counter shown) -- help: 'One line under the title. Link previews in WhatsApp show it too.'",
-      "Starts and Ends (each a date and time pair, using the schedule pickers) and Time zone on one row on desktop; on a phone each pair and Time zone takes the full width. Empty Starts time saves 00:00; empty Ends time saves 23:59 in the event zone",
+      "Starts and Ends (each a date and time pair, using the schedule pickers) and Time zone on one row on desktop; on a phone each pair and Time zone takes the full width. An empty Starts or Ends time saves local midnight in the event zone, same as before a time picker existed; a midnight Ends still lasts the whole of that day",
       "Time zone is a select of IANA zones showing the abbreviation and offset (Asia/Jakarta · WIB, UTC+7) -- help: 'Every deadline and schedule time shows in this zone.'",
       "Card foot: status on the left ('No unsaved changes' / 'Unsaved changes' in amber), Discard (quiet, only with changes) and Save (primary, disabled until something changes)"
      ],
@@ -1457,7 +1457,7 @@
     {
      "q": "Do the event's dates prompt anything?",
      "decision": "A start or end with a time of day does (start asks to Start building, end asks to Close entries when there is no entry deadline). A date with no time shows as 'All day' and prompts nothing.",
-     "why": "Basics accepts dates and times. Empty times mean 00:00 for Starts and 23:59 for Ends; these default times display as dates only."
+     "why": "Basics accepts dates and times. An empty time still means local midnight, for both Starts and Ends; that default displays as a date only."
     }
    ],
    "features": [

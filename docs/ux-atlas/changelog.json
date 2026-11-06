@@ -1,7 +1,7 @@
 [
  {
   "date": "2026-11-06",
-  "what": "SIM-379: Event Basics reuses the schedule date and time pickers. Empty times mean 00:00 for Starts and 23:59 for Ends in the event zone. Each pair fills the phone width. Event dates show a time only when it differs from these defaults."
+  "what": "SIM-379: Event Basics reuses the schedule date and time pickers. An empty time still means local midnight in the event zone, same as before -- a midnight end still lasts the whole of that day. Each pair fills the phone width. Event dates show a time only when it isn't midnight."
  },
  {
   "date": "2026-11-06",

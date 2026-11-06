@@ -281,7 +281,7 @@ function dateTimeField(ui, prefix, label, date, time, { dateID = prefix + '-date
 function renderBasics({ ctx, sp, ui, api, ev, locked, ended, path, setLive }) {
   const $ = id => sp.querySelector('#' + id)
   const start = ui.eventBoundaryInput(ev.starts_at, ev)
-  const end = ui.eventBoundaryInput(ev.ends_at, ev, true)
+  const end = ui.eventBoundaryInput(ev.ends_at, ev)
   const snapshot = { title: ev.title, tagline: ev.tagline || '', starts: start.date, startTime: start.time, ends: end.date, endTime: end.time, tz: ev.time_zone }
 
   // R4/decision 2026-10-31: Basics stays editable after End (the server's
@@ -292,7 +292,7 @@ function renderBasics({ ctx, sp, ui, api, ev, locked, ended, path, setLive }) {
   if (locked) {
     sp.innerHTML = `<div class="sp-head"><h2 id="sp-h">Basics</h2><p>The name, tagline and dates at the top of your page.</p></div>
 ${customSiteNote(true)}
-<div class="card"><dl><dt>Title</dt><dd>${ui.esc(ev.title)}</dd><dt>Tagline</dt><dd>${ui.esc(ev.tagline || '—')}</dd><dt>Starts</dt><dd>${ui.esc(ui.eventBoundaryDate(ev.starts_at, ev))}</dd><dt>Ends</dt><dd>${ui.esc(ui.eventBoundaryDate(ev.ends_at, ev, true))}</dd><dt>Time zone</dt><dd>${ui.esc(ev.time_zone)}</dd></dl></div>`
+<div class="card"><dl><dt>Title</dt><dd>${ui.esc(ev.title)}</dd><dt>Tagline</dt><dd>${ui.esc(ev.tagline || '—')}</dd><dt>Starts</dt><dd>${ui.esc(ui.eventBoundaryDate(ev.starts_at, ev))}</dd><dt>Ends</dt><dd>${ui.esc(ui.eventBoundaryDate(ev.ends_at, ev))}</dd><dt>Time zone</dt><dd>${ui.esc(ev.time_zone)}</dd></dl></div>`
     return
   }
 
@@ -338,7 +338,7 @@ ${dateTimeField(ui, 'f-end', 'Ends', snapshot.ends, snapshot.endTime, { dateID: 
         body.starts_at = ui.eventBoundaryValue($('f-start').value, $('f-start-time').value)
       }
       if ($('f-end').value !== snapshot.ends || $('f-end-time').value !== snapshot.endTime) {
-        body.ends_at = ui.eventBoundaryValue($('f-end').value, $('f-end-time').value, true)
+        body.ends_at = ui.eventBoundaryValue($('f-end').value, $('f-end-time').value)
       }
       const r = await api('PATCH', path, body)
       if (!r.ok) { setLive(ui.errText(r), 'err', btn); paintDirty(); return }
@@ -425,7 +425,7 @@ function endedReadOnlyNote(what) { return `<div class="note">This event has ende
 const LOCK_ICON = '<svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="9" width="10" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/></svg>'
 function renderSchedule({ ctx, sp, ui, api, ev, admin, locked, ended, path, setLive }) {
   const readOnly = locked || ended // decision: Schedule (unlike Basics/About/Look) is read-only after End, not just under admin view -- the server rejects PUT /content once archived.
-  const items = labelRows(merge(cache.content.schedule, cache.fixed, ev))
+  const items = labelRows(merge(cache.content.schedule, cache.fixed))
 
   // 12-hour with am/pm, like every other time in the app (owner, 2026-10-30),
   // through ui.dateTime so every time reads the same way.

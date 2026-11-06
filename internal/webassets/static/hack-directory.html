@@ -56,8 +56,7 @@
 </footer>
 
 </div>
-<script type="module">
-import { eventBoundaryIsDateOnly, eventBoundaryDate } from '/hack/ui.js';
+<script>
   (function () {
     // #15/A7: matches ui.js's ui.initials -- only count a "word" that has an
     // actual letter or number, so a separator like "Mock · Voting" doesn't
@@ -100,19 +99,43 @@ import { eventBoundaryIsDateOnly, eventBoundaryDate } from '/hack/ui.js';
         return o;
       } catch (_) { return null; }
     }
+    // A plain script (no module imports), so this mirrors ui.js's own
+    // isLocalMidnight/eventBoundaryDate rather than importing them: an
+    // instant at local midnight in the zone (Basics' own date-only default,
+    // for both Starts and Ends -- hack_create_event: "A date means midnight
+    // in time_zone") shows as a date with no time.
+    function isMidnight(iso, zone) {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return false;
+      try {
+        var parts = new Intl.DateTimeFormat('en-US', { timeZone: zone || 'UTC', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d);
+        var o = {}; parts.forEach(function (p) { o[p.type] = p.value; });
+        var h = o.hour === '24' ? '00' : o.hour;
+        return h === '00' && o.minute === '00';
+      } catch (_) { return false; }
+    }
+    function timeLabel(iso, zone) {
+      try {
+        return new Intl.DateTimeFormat('en-US', { timeZone: zone || 'UTC', hour: 'numeric', minute: '2-digit', hourCycle: 'h12' }).format(new Date(iso)).toLowerCase();
+      } catch (_) { return ''; }
+    }
+    function dateLabel(parts, iso, zone, timed) {
+      var s = parts.day + ' ' + parts.month + ' ' + parts.year;
+      return timed ? s + ', ' + timeLabel(iso, zone) : s;
+    }
     function dateRange(startsAt, endsAt, zone) {
-      if ((startsAt && !eventBoundaryIsDateOnly(startsAt, zone)) || (endsAt && !eventBoundaryIsDateOnly(endsAt, zone, true))) {
-        return [eventBoundaryDate(startsAt, zone), eventBoundaryDate(endsAt, zone, true)].filter(Boolean).join(' – ');
-      }
       var a = startsAt ? dateParts(startsAt, zone) : null;
       var b = endsAt ? dateParts(endsAt, zone) : null;
       if (!a && !b) return '';
-      if (a && !b) return a.day + ' ' + a.month + ' ' + a.year;
-      if (b && !a) return b.day + ' ' + b.month + ' ' + b.year;
-      if (a.year === b.year && a.month === b.month && a.day === b.day) return a.day + ' ' + a.month + ' ' + a.year;
-      if (a.year === b.year && a.month === b.month) return a.day + '–' + b.day + ' ' + a.month + ' ' + a.year;
-      if (a.year === b.year) return a.day + ' ' + a.month + '–' + b.day + ' ' + b.month + ' ' + a.year;
-      return a.day + ' ' + a.month + ' ' + a.year + '–' + b.day + ' ' + b.month + ' ' + b.year;
+      var aTimed = !!startsAt && !isMidnight(startsAt, zone);
+      var bTimed = !!endsAt && !isMidnight(endsAt, zone);
+      if (a && !b) return dateLabel(a, startsAt, zone, aTimed);
+      if (b && !a) return dateLabel(b, endsAt, zone, bTimed);
+      if (!aTimed && !bTimed && a.year === b.year && a.month === b.month && a.day === b.day) return a.day + ' ' + a.month + ' ' + a.year;
+      if (!aTimed && !bTimed && a.year === b.year && a.month === b.month) return a.day + '–' + b.day + ' ' + a.month + ' ' + a.year;
+      if (!aTimed && !bTimed && a.year === b.year) return a.day + ' ' + a.month + '–' + b.day + ' ' + b.month + ' ' + a.year;
+      if (!aTimed && !bTimed) return a.day + ' ' + a.month + ' ' + a.year + '–' + b.day + ' ' + b.month + ' ' + b.year;
+      return dateLabel(a, startsAt, zone, aTimed) + ' – ' + dateLabel(b, endsAt, zone, bTimed);
     }
     function row(e) {
       // Apply to a hackathon (owner, 2026-10-31): a row with an Apply

@@ -956,11 +956,13 @@ func hackGMTOffsetLabel(offsetSeconds int) string {
 	return fmt.Sprintf("GMT%s%d:%02d", sign, h, m)
 }
 
-// These defaults match the minute-precision Basics and schedule inputs.
-func hackBoundaryDateOnly(t time.Time, end bool) bool {
-	if end {
-		return t.Hour() == 23 && t.Minute() == 59
-	}
+// hackBoundaryDateOnly is true when t is local midnight: Basics' own
+// date-only default for both a start and an end (hack_create_event: "A date
+// means midnight in time_zone"). Unlike sorting (hackFixedSortTime) and the
+// "lasts the whole day" rule, display never treats a date-only end any
+// differently from a date-only start -- it's the same instant, just shown
+// without a time.
+func hackBoundaryDateOnly(t time.Time) bool {
 	return t.Hour() == 0 && t.Minute() == 0
 }
 
@@ -972,17 +974,22 @@ func hackEventDateRange(starts, ends time.Time, loc *time.Location) string {
 	if !ends.IsZero() {
 		end = ends.In(loc)
 	}
-	if (!start.IsZero() && !hackBoundaryDateOnly(start, false)) || (!end.IsZero() && !hackBoundaryDateOnly(end, true)) {
-		format := func(t time.Time, isEnd bool) string {
+	if start.IsZero() && end.IsZero() {
+		return ""
+	}
+	startDateOnly := start.IsZero() || hackBoundaryDateOnly(start)
+	endDateOnly := end.IsZero() || hackBoundaryDateOnly(end)
+	if !startDateOnly || !endDateOnly {
+		format := func(t time.Time, dateOnly bool) string {
 			if t.IsZero() {
 				return ""
 			}
-			if hackBoundaryDateOnly(t, isEnd) {
+			if dateOnly {
 				return t.Format("Mon 2 Jan 2006")
 			}
 			return t.Format("Mon 2 Jan 2006, 3:04 pm")
 		}
-		a, b := format(start, false), format(end, true)
+		a, b := format(start, startDateOnly), format(end, endDateOnly)
 		if a == "" {
 			return b
 		}
@@ -990,9 +997,6 @@ func hackEventDateRange(starts, ends time.Time, loc *time.Location) string {
 			return a
 		}
 		return a + " – " + b
-	}
-	if start.IsZero() && end.IsZero() {
-		return ""
 	}
 	if end.IsZero() {
 		return start.Format("2 January 2006")
@@ -1046,13 +1050,7 @@ func hackScheduleViews(items []hackScheduleItem, fixed []hackFixedRow, loc *time
 		if err != nil {
 			continue
 		}
-		allDay := f.AllDay
-		sortAt := hackFixedSortTime(f, loc)
-		if f.Key == "event_start" || f.Key == "event_end" {
-			allDay = hackBoundaryDateOnly(start.In(loc), f.Key == "event_end")
-			sortAt = start
-		}
-		r := row{title: f.Title, desc: f.Description, start: start, sortAt: sortAt, allDay: allDay, fix: true}
+		r := row{title: f.Title, desc: f.Description, start: start, sortAt: hackFixedSortTime(f, loc), allDay: f.AllDay, fix: true}
 		if f.EndAt != nil {
 			if end, err := time.Parse(time.RFC3339, *f.EndAt); err == nil {
 				r.end, r.hasEnd = end, true

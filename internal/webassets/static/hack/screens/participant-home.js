@@ -206,11 +206,11 @@ async function announcementsCard(api, ui, allHref, scheduleHref, slug, ev) {
 // in 12 minutes", "Build time is on now"), counting down while Home is open.
 // The rows include the event's real times (the entry deadline, or this
 // team's own extension). In the app only: the schedule sends no email.
-async function scheduleRows(api, slug, ev) {
+async function scheduleRows(api, slug) {
   try {
     const r = await api('GET', '/v1/hack/events/' + encodeURIComponent(slug) + '/content')
     if (!r.ok || !r.data) return []
-    return merge(r.data.schedule, r.data.fixed_schedule, ev)
+    return merge(r.data.schedule, r.data.fixed_schedule)
   } catch (e) { return [] }
 }
 
@@ -405,7 +405,7 @@ export async function render(ctx) {
   const [news, preview, rows] = await Promise.all([
     announcementsCard(api, ui, announcementsHref, scheduleHref, slug, ev),
     previewLeave(client, slug).then(r => (r.ok ? r.data : null)).catch(() => null),
-    live ? scheduleRows(api, slug, ev) : Promise.resolve([])
+    live ? scheduleRows(api, slug) : Promise.resolve([])
   ])
   if (!ctx.alive()) return
 

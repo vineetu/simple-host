@@ -52,7 +52,7 @@ export function dateRange(uiArg, info) {
   if (!info || !info.starts_at) return ''
   const shim = { time_zone: info.time_zone }
   const start = uiArg.eventBoundaryDate(info.starts_at, shim)
-  const end = info.ends_at ? uiArg.eventBoundaryDate(info.ends_at, shim, true) : ''
+  const end = info.ends_at ? uiArg.eventBoundaryDate(info.ends_at, shim) : ''
   return end ? `${start} – ${end}` : start
 }
 

@@ -1385,16 +1385,22 @@ const dashHrefBaselineJS = `      // "Your sites" goes straight to the account's
       };
 `
 
-// SIM-379: public-page dates and fixed rows follow Basics' event-zone defaults.
+// SIM-379: the public page's date line shows a time only when the start or
+// end carries one. A date-only boundary -- local midnight, Basics' and the
+// API's own default for both Starts and Ends (hack_create_event: "A date
+// means midnight in time_zone") -- still shows as a bare date, same as
+// before Basics could save a time of day at all. hackScheduleViews trusting
+// the fixed row's own all_day flag (rather than re-deriving it) is covered
+// by TestHackScheduleViewsMergesFixedRows.
 func TestHackEventBoundaryTimes(t *testing.T) {
 	loc, err := time.LoadLocation("Asia/Kolkata")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ name, start, end, want string }{
-		{"defaults", "2027-03-11T18:30:00Z", "2027-03-14T18:29:00Z", "12–14 March 2027"},
+		{"defaults are dates only", "2027-03-11T18:30:00Z", "2027-03-13T18:30:00Z", "12–14 March 2027"},
 		{"timed", "2027-03-12T13:00:00Z", "2027-03-14T14:45:00Z", "Fri 12 Mar 2027, 6:30 pm – Sun 14 Mar 2027, 8:15 pm"},
-		{"midnight end is explicit", "", "2027-03-13T18:30:00Z", "Sun 14 Mar 2027, 12:00 am"},
+		{"midnight end alone is still a date", "", "2027-03-13T18:30:00Z", "14 March 2027"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			start, _ := time.Parse(time.RFC3339, tc.start)
@@ -1403,19 +1409,5 @@ func TestHackEventBoundaryTimes(t *testing.T) {
 				t.Errorf("got %q, want %q", got, tc.want)
 			}
 		})
-	}
-	for _, tc := range []struct{ key, stamp, want string }{
-		{"event_start", "2027-03-11T18:30:00Z", "Fri 12 Mar"},
-		{"event_end", "2027-03-12T18:29:00Z", "Fri 12 Mar"},
-		{"event_end", "2027-03-11T18:30:00Z", "Fri 12 Mar, 12:00 am IST"},
-		{"event_start", "2027-03-12T13:00:00Z", "Fri 12 Mar, 6:30 pm IST"},
-	} {
-		rows := hackScheduleViews(nil, []hackFixedRow{{Key: tc.key, StartAt: tc.stamp}}, loc, "Asia/Kolkata")
-		if len(rows) != 1 {
-			t.Fatalf("rows: %+v", rows)
-		}
-		if rows[0].When != tc.want {
-			t.Errorf("%s %s: got %q, want %q", tc.key, tc.stamp, rows[0].When, tc.want)
-		}
 	}
 }
