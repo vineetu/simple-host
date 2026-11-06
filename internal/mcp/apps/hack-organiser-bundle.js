@@ -1070,7 +1070,7 @@
       return { h2: "This event has ended", sentence: "The public page stays up as a record.", confirmBody: "", button: null };
     }
     if (step.kind === "entry_rules") {
-      return { h2: step.label, sentence: "Video or website is already selected on Entries. Change it there if you\u2019d rather require a code link too.", button: step.label, navHref: entriesHref };
+      return { h2: step.label, sentence: "", button: step.label, navHref: entriesHref };
     }
     if (step.kind === "publish_results") {
       return {
@@ -1185,7 +1185,7 @@
     const hostHTML = ui.esc(ev.url.replace(/^https?:\/\//, "")).split(".").join(".<wbr>");
     main.innerHTML = `
 <div class="ph keep-row"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? " disabled" : ""}>Change stage</button></div>
-${content.button ? `<section class="next${content.warn ? " warn" : ""}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ""}</div><button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? " disabled" : ""}>${ui.esc(content.button)}</button></section>` : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
+${content.button ? `<section class="next${content.warn ? " warn" : ""}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ""}</div>${content.navHref ? `<a class="btn primary lg" id="ov-next-move" data-tour="next-move" href="${ui.esc(content.navHref)}">${ui.esc(content.button)}</a>` : `<button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? " disabled" : ""}>${ui.esc(content.button)}</button>`}</section>` : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
 ${noTrackNoteHTML}
 ${needsLines}
 <h2 class="section-title">Snapshot</h2>
@@ -1274,12 +1274,8 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone"><h2>Danger zone
       if (endBtn) endBtn.addEventListener("click", () => runEnd(endBtn));
     }
     const nextMoveBtn = $("ov-next-move");
-    if (nextMoveBtn && !content.blocked) {
+    if (nextMoveBtn && !content.blocked && !content.navHref) {
       nextMoveBtn.addEventListener("click", async () => {
-        if (content.navHref) {
-          ctx.go(content.navHref);
-          return;
-        }
         if (content.isEnd) {
           await runEndFromNext();
           return;

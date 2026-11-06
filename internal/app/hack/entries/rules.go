@@ -272,7 +272,15 @@ func (s *Service) EntryProgress(ctx context.Context, ev model.Event, team model.
 	evidenceCheck := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
 	evidenceMissing := []string{}
 	for _, m := range evidenceCheck.Missing {
-		if m == "one_of" || m == "code_url" {
+		// Every show-your-work field (hackentries.OneOfFields: video_url,
+		// site, code_url, screenshot), not just "one_of" and "code_url".
+		// Fixed for SIM-382's video_website_code preset, which makes
+		// video_url and site individually required rather than one_of:
+		// before this fix a team with a code link but no video or website
+		// read as Done on Home (missing only checked one_of/code_url) and
+		// moved on to Submit, which then correctly refused it -- Home and
+		// the real completeness check disagreed.
+		if m == "one_of" || hackentries.OneOfFields[m] {
 			evidenceMissing = append(evidenceMissing, m)
 		}
 	}

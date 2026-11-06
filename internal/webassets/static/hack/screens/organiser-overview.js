@@ -28,11 +28,18 @@ function nextStepContent(ev, step, resultsHref, settingsHref, entriesHref) {
     return { h2: 'This event has ended', sentence: 'The public page stays up as a record.', confirmBody: '', button: null }
   }
   // SIM-382: a brand-new event's first step, before Open sign-up is even
-  // offered -- no stage change, just the organiser's choice of preset.
-  // The button navigates to Entries' "What teams hand in" card instead of
-  // calling the stage API, so it needs no confirm.
+  // offered -- no stage change, just the organiser's choice of preset. No
+  // new help text (the ticket): h2 and button only, like the 'none' and
+  // default cases below. The button itself is an <a> to entriesHref, not a
+  // click handler calling ctx.go() -- the organiser MCP App frame doesn't
+  // render Entries in-frame, so a plain link lets each platform's own
+  // existing adapter (website: app.js's same-origin link interception;
+  // frame: hack-organiser-view.js's '#v='/https:/relative-path click
+  // handler) decide in-frame vs. leave-the-frame, the same way organiser-
+  // judging.js's "Open the assignment grid" link already does for a
+  // section this frame doesn't host either.
   if (step.kind === 'entry_rules') {
-    return { h2: step.label, sentence: 'Video or website is already selected on Entries. Change it there if you’d rather require a code link too.', button: step.label, navHref: entriesHref }
+    return { h2: step.label, sentence: '', button: step.label, navHref: entriesHref }
   }
   if (step.kind === 'publish_results') {
     return {
@@ -205,7 +212,9 @@ export async function render(ctx) {
   main.innerHTML = `
 <div class="ph keep-row"><div class="t"><h1>Overview</h1><p><a href="${ui.esc(ev.url)}" target="_blank" rel="noopener">${hostHTML}</a></p></div><button class="btn" type="button" id="ov-change-stage" data-tour="change-stage"${archived ? ' disabled' : ''}>Change stage</button></div>
 ${content.button
-    ? `<section class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ''}</div><button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? ' disabled' : ''}>${ui.esc(content.button)}</button></section>`
+    ? `<section class="next${content.warn ? ' warn' : ''}"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p>${content.cueNote ? `<p class="small" id="ov-cue-note">${ui.esc(content.cueNote)}</p>` : ''}</div>${content.navHref
+      ? `<a class="btn primary lg" id="ov-next-move" data-tour="next-move" href="${ui.esc(content.navHref)}">${ui.esc(content.button)}</a>`
+      : `<button class="btn primary lg" type="button" id="ov-next-move" data-tour="next-move"${content.blocked ? ' disabled' : ''}>${ui.esc(content.button)}</button>`}</section>`
     : `<section class="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(content.h2)}</h2><p>${content.sentenceHTML || ui.esc(content.sentence)}</p></div></section>`}
 ${noTrackNoteHTML}
 ${needsLines}
@@ -304,12 +313,12 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone"><h2>Danger zone
     if (endBtn) endBtn.addEventListener('click', () => runEnd(endBtn))
   }
 
+  // SIM-382: entry_rules (content.navHref) renders as a plain <a> above,
+  // not this button, so there is no click handler to wire for it -- each
+  // platform's own existing link handling takes it from here.
   const nextMoveBtn = $('ov-next-move')
-  if (nextMoveBtn && !content.blocked) {
+  if (nextMoveBtn && !content.blocked && !content.navHref) {
     nextMoveBtn.addEventListener('click', async () => {
-      // SIM-382: entry_rules just opens Entries' "What teams hand in"
-      // card -- nothing to call, nothing to confirm.
-      if (content.navHref) { ctx.go(content.navHref); return }
       // End event, offered as the one next step (results already
       // published): the exact same danger confirm as the danger-zone
       // button, never the generic heads-up confirm.

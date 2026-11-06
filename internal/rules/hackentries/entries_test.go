@@ -110,8 +110,11 @@ func TestEntryRulesSummary(t *testing.T) {
 		t.Fatalf("video_or_website summary = %q", got)
 	}
 	// video_url, site and code_url are all "required", not "one_of", so
-	// there is no one_of group to name -- only the code link reads.
-	if got := RulesSummary(ExpandPreset("video_website_code")); got != "your code link" {
+	// there is no one_of group -- each of the three is named individually
+	// instead (Codex review: the summary used to name only the code link
+	// and silently drop video/website, even though both are also
+	// required).
+	if got := RulesSummary(ExpandPreset("video_website_code")); got != "a video, your website, and your code link" {
 		t.Fatalf("video_website_code summary = %q", got)
 	}
 	// Every evidence field off: nothing to show.

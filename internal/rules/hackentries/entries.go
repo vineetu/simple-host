@@ -259,16 +259,34 @@ func OneOfWord(field string, codeNamed bool) string {
 }
 
 // RulesSummary is the one sentence naming what "show your work" needs
-// ("a video or a published website", or "your code link, and a video or
-// your website"), built server-side so the website and the AI apps word it
-// identically (section 3). It only describes the show-your-work fields
-// (code_url and the one-of group); the summary-card fields (problem,
+// ("a video or a published website", "your code link, and a video or your
+// website", or, for SIM-382's video_website_code preset where video_url
+// and site are each required outright rather than one_of, "a video, your
+// website, and your code link"), built server-side so the website and the
+// AI apps word it identically (section 3). It only describes the
+// show-your-work fields (video_url, site, code_url, screenshot -- every
+// one that is required or one_of); the summary-card fields (problem,
 // audience, track, tools, maturity) are not part of it.
 func RulesSummary(fields map[string]string) string {
 	var parts []string
 	codeNamed := fields["code_url"] == "required"
-	if codeNamed {
-		parts = append(parts, "your code link")
+	// Individually required fields, in the same order the UI lists them
+	// (video, website, code, screenshot): named on their own, not folded
+	// into the one_of clause below, since each is independently mandatory.
+	// code_url keeps its longer "your code link" phrasing here (OneOfWord's
+	// shorter "your code" is for when it's one of several options, not a
+	// flat requirement); site reads "your website" once code is already
+	// named, same as inside a one_of group, instead of the more impersonal
+	// "a published website".
+	for _, f := range []string{"video_url", "site", "code_url", "screenshot"} {
+		if fields[f] != "required" {
+			continue
+		}
+		if f == "code_url" {
+			parts = append(parts, "your code link")
+			continue
+		}
+		parts = append(parts, OneOfWord(f, codeNamed))
 	}
 	if group := OneOfGroup(fields); len(group) > 0 {
 		words := make([]string, 0, len(group))

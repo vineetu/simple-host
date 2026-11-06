@@ -280,6 +280,69 @@ func TestHackEntrySubmitUnsubmit(t *testing.T) {
 	}
 }
 
+// TestHackEntryProgressVideoWebsiteCodeCountsEveryRequiredEvidenceField:
+// Codex review round 1, finding 3. EntryProgress's evidence step used to
+// filter evidenceCheck.Missing down to "one_of" and "code_url" only --
+// right for every preset before SIM-382, where video_url/site were never
+// individually required (only one_of or off). video_website_code requires
+// video_url, site and code_url individually (no one_of group), so a team
+// with only a code link used to read evidence "Done" on Home (and `next`
+// would skip straight to "submit") while POST .../entry/submit still
+// correctly refused it with `missing` -- Home and the real completeness
+// check disagreed. Fixed by counting every hackentries.OneOfFields member,
+// not just code_url.
+func TestHackEntryProgressVideoWebsiteCodeCountsEveryRequiredEvidenceField(t *testing.T) {
+	w := newRulesWorld(t, 1)
+	a, p := w.a, w.teams[0].person
+	base := "/v1/hack/events/" + w.slug
+
+	if r := a.at(t, "PUT", base+"/entry-rules", map[string]any{"preset": "video_website_code"}, a.key(w.org)); r.status != 200 {
+		t.Fatalf("preset video_website_code: %d %s", r.status, r.body)
+	}
+
+	// Every summary field filled (so the summary step is done and can't
+	// mask the evidence step in `next`), a code link but no video or
+	// website -- video_website_code requires all three.
+	fields := buildCompleteFields()
+	delete(fields, "video_url")
+	fields["code_url"] = "https://example.com/c"
+	if r := a.at(t, "PUT", w.entryPath(), fields, a.key(p)); r.status != 200 {
+		t.Fatalf("entry: %d %s", r.status, r.body)
+	}
+
+	view := a.at(t, "GET", base, nil, a.key(p)).json(t)
+	progress := view["progress"].(map[string]any)
+	steps := progress["steps"].([]any)
+	var evidence map[string]any
+	for _, s := range steps {
+		step := s.(map[string]any)
+		if step["id"] == "evidence" {
+			evidence = step
+		}
+	}
+	if evidence == nil {
+		t.Fatalf("no evidence step: %#v", progress)
+	}
+	if evidence["done"] != false {
+		t.Fatalf("evidence should not be done with no video or website: %#v", evidence)
+	}
+	missing := jsonStrings(t, evidence["missing"])
+	if !slices.Contains(missing, "video_url") || !slices.Contains(missing, "site") {
+		t.Fatalf("evidence missing should name video_url and site: %v", missing)
+	}
+	if progress["next"] != "evidence" {
+		t.Fatalf("next should be evidence, not submit, while video/website are missing: %#v", progress["next"])
+	}
+
+	// The real completeness check agrees: submit is still refused.
+	r := a.at(t, "POST", base+"/entry/submit", map[string]any{}, a.key(p))
+	wantCode(t, "submit with only a code link", r, 422, "entry_incomplete")
+	submitMissing := jsonStrings(t, r.json(t)["missing"])
+	if !slices.Contains(submitMissing, "video_url") || !slices.Contains(submitMissing, "site") {
+		t.Fatalf("submit missing should also name video_url and site: %v", submitMissing)
+	}
+}
+
 // --- The deadline settle sweep ---------------------------------------------
 
 func TestHackEntrySettleSweep(t *testing.T) {
@@ -602,6 +665,70 @@ func TestHackEntryRequiredAliasDeprecated(t *testing.T) {
 	if fields["audience"] != "required" || fields["code_url"] != "off" {
 		t.Fatalf("alias touched a non-legacy field: %#v", fields)
 	}
+}
+
+// TestHackEntrySaveRulesOnRetiredPreset: Codex review round 1, finding 2.
+// organiser-entries.js used to send body.preset whenever it wasn't
+// "custom", including a retired preset (build/code/ideas) an event from
+// before SIM-382 is still on -- saving unchanged rules, or changing only
+// judge_first, passed the dry run (which never sent preset at all) but
+// 400ed on the real save. The fix: the client sends preset only when it is
+// one of the two current ones, and dry_run uses the identical body. This
+// proves the server-side half the fix relies on: the exact request shape
+// the UI now sends for an untouched retired-preset event -- fields (the
+// full current table, unchanged) and judge_first, no preset -- succeeds on
+// both dry_run and the real save, and keeps the retired preset rather than
+// demoting it (the fields still match that preset's own table).
+func TestHackEntrySaveRulesOnRetiredPreset(t *testing.T) {
+	w := newRulesWorld(t, 0)
+	a := w.a
+	base := "/v1/hack/events/" + w.slug + "/entry-rules"
+
+	// Simulate an event that already existed on the "build" preset before
+	// SIM-382 (a new event today starts on video_or_website instead).
+	buildRules := `{"v":1,"fields":{"title":"required","problem":"required","tagline":"required","audience":"required","track":"required","tools":"required","maturity":"required","description":"optional","video_url":"one_of","site":"one_of","code_url":"off","screenshot":"optional"}}`
+	if _, err := a.database.Exec(`UPDATE events SET entry_preset = 'build', entry_rules = $2::jsonb, judge_first = 'video' WHERE slug = $1`, w.slug, buildRules); err != nil {
+		t.Fatal(err)
+	}
+	before := a.at(t, "GET", base, nil, a.key(w.org)).json(t)
+	if before["preset"] != "build" {
+		t.Fatalf("precondition: %#v", before)
+	}
+	fieldsAny := before["fields"].(map[string]any)
+	fields := make(map[string]string, len(fieldsAny))
+	for k, v := range fieldsAny {
+		fields[k] = v.(string)
+	}
+
+	// The exact shape organiser-entries.js's onSaveRules now sends for this
+	// event (preset omitted, since "build" isn't one of the two current
+	// ones): fields unchanged, judge_first flipped.
+	body := map[string]any{"fields": fields, "judge_first": "site"}
+
+	dry := a.at(t, "PUT", base, map[string]any{"fields": fields, "judge_first": "site", "dry_run": true}, a.key(w.org))
+	if dry.status != 200 {
+		t.Fatalf("dry run on a retired preset should succeed: %d %s", dry.status, dry.body)
+	}
+	dryPreview := dry.json(t)["preview"].(map[string]any)
+	if dryPreview["preset"] != "build" {
+		t.Fatalf("dry run preview should keep the retired preset: %#v", dryPreview)
+	}
+
+	r := a.at(t, "PUT", base, body, a.key(w.org))
+	if r.status != 200 {
+		t.Fatalf("save on a retired preset should succeed: %d %s", r.status, r.body)
+	}
+	saved := r.json(t)
+	if saved["preset"] != "build" {
+		t.Fatalf("judge_first-only save should keep the retired preset, not demote it: %#v", saved)
+	}
+	if saved["judge_first"] != "site" {
+		t.Fatalf("judge_first did not save: %#v", saved)
+	}
+
+	// The refused shape (what the client used to send): preset explicitly
+	// named, even though it is retired.
+	wantCode(t, "preset build still refused directly", a.at(t, "PUT", base, map[string]any{"preset": "build"}, a.key(w.org)), 400, "invalid_preset")
 }
 
 // --- listEntries counts -----------------------------------------------------

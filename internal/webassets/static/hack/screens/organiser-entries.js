@@ -447,7 +447,17 @@ ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` :
     setLive('')
     const saveBtn = $('rules-save')
     if (saveBtn) saveBtn.disabled = true
+    // SIM-382: preset is sent only when it's one of the two current ones
+    // (the PRESETS card keys) -- never a retired preset (build/code/ideas)
+    // or custom, both of which the server now refuses outright. An event
+    // still on a retired preset that the organiser hasn't switched away
+    // from saves fields/judge_first alone, same as a custom config always
+    // has; the stored preset stays whatever it already was unless the
+    // fields now differ from its own table (server-side demotion, as
+    // before). dry_run uses this exact same body so it previews -- and
+    // would be refused by -- exactly what the real save sends.
     const base = { fields: rules.fields, judge_first: rules.judge_first }
+    if (Object.prototype.hasOwnProperty.call(PRESETS, rules.preset)) base.preset = rules.preset
     let dr
     try { dr = await api('PUT', rulesPath, { ...base, dry_run: true }) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); if (saveBtn) saveBtn.disabled = false; return }
@@ -462,10 +472,8 @@ ${entries.length ? `<div class="list">${entries.map(entryRow).join('')}</div>` :
       const ok = await ui.confirm({ title: 'Save these changes to what teams hand in?', body, confirmLabel: 'Save' })
       if (!ok) { if (saveBtn) saveBtn.disabled = false; return }
     }
-    const body2 = { ...base }
-    if (rules.preset !== 'custom') body2.preset = rules.preset
     let r
-    try { r = await api('PUT', rulesPath, body2) }
+    try { r = await api('PUT', rulesPath, base) }
     catch (e) { if (!client.isSignedOut(e)) setLive('Cannot reach the server.', true); if (saveBtn) saveBtn.disabled = false; return }
     if (!r.ok) { setLive(r.data.error || 'Could not save', true); if (saveBtn) saveBtn.disabled = false; return }
     rules = r.data || rules

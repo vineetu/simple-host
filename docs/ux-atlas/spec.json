@@ -3519,7 +3519,7 @@
       "1 d 6 h 12 m left · Your team closes Sun 8 Nov, 20:00 WIB, 2 hours after everyone else",
       "1 Join or start a team -- On SheBuilds with Ayu and Dian. (ticked)",
       "2 Fill in the summary card -- All 7 lines filled. / 5 of 7 filled: add who it's for and tools and AI. (The project name always counts, so the total never changes mid-edit; full-test fix 2026-11-02.)",
-      "3 Add a video or publish your website -- sentence from the event's rule (the Video, website and code link preset: 'Add your code link').",
+      "3 Add a video or publish your website -- sentence from the event's rule (the Video, website and code link preset: 'Add a video, your website, and your code link').",
       "4 Submit before the deadline -- Then the judges can see it. You can still change it after."
      ],
      "actions": [
@@ -3618,7 +3618,7 @@
     {
      "name": "on a team, work not shown yet",
      "when": "summary complete, the One-of or Required media rule unmet",
-     "shows": "Next step 'Add a video or publish your website' with Publish your website (to Website) and Add a video link (to Entry). Video, website and code link events: 'Add your code link'."
+     "shows": "Next step 'Add a video or publish your website' with Publish your website (to Website) and Add a video link (to Entry). Video, website and code link events: 'Add a video, your website, and your code link'."
     },
     {
      "name": "ready, not submitted",
