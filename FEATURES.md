@@ -1728,6 +1728,16 @@ deploy, visibility, versions, rename, domain, lists, saved data, Download and De
 (INTENT 2026-09-27). `/dashboard` sends such an account there; the apex view it can still reach
 (`/?new=1`) lists the sites with a Manage link. Accounts without a handle and the admin tab keep
 the full apex controls. Sign out everywhere (key rotate) stays in the apex app bar.
+The owner page has three tabs: Sites (default), Analytics, and Settings. Sites starts with
+"Your sites" and shows Recently deleted below the list only when it has items. Analytics
+starts with totals and its range selector. Settings contains Your address (including Home
+page), Your showcase, Sign-in, Password when available on a small box, Connected apps,
+Keys, Notifications, Address families when available, and Your data, with Delete account
+last. Each section keeps its own visibility rules inside its tab panel. Connected apps
+stays visible when empty and links to Connect your AI app. The tabs share one row on phones.
+`#sites`, `#analytics`, and `#settings` open the named tab; section hashes and section element
+IDs open the containing tab and scroll there. Tab clicks replace the current history entry.
+A `?site=...&open=...` link opens Sites even with a hash.
 **Owner app load (2026-10-30).** The browser remembers the handle it last signed in as (`sh-owner-handle` in localStorage, written after `/v1/me`, removed on sign-out and when another sign-in replaces the key). With it, the header's "Your sites" links straight to `/<handle>` and `/dashboard` hops there before asking `/v1/me`; on that page a head script hides the public gallery before first paint and shows "Loading your sites…" until `/v1/me` confirms the owner (anyone else, or a stale hint, gets the public view; a suspended account is sent to `/dashboard` for the reason; a 404 at the remembered handle forgets it; after 8 s without an answer the public view shows). The page asks `/v1/me` and `/v1/sites` once each, in parallel, shared by every owner block; on their own page admins load only their own sites, and `?all=1` is used only when an admin opens someone else's page. Browser check: `scripts/e2e-owner-dashboard.mjs`. <a id="dashboard-remembered-handle"></a>
 **WebMCP on the owner app (SIM-186, 2026-10-24).** After `hydrateOwner()` confirms `me.handle` is this page's handle, the page registers `list_my_sites`, `get_site_link`, `open_site` and `set_site_visibility`. Visibility is marked consequential, so a compliant browsing agent asks before changing it. An admin on someone else's page, and any signed-out visit, registers nothing. The same `st/webmcp.js` helper is used. No new HTTP route. <a id="webmcp-on-the-owner-app"></a>
 **Status: live.**
@@ -1741,7 +1751,7 @@ the full apex controls. Sign out everywhere (key rotate) stays in the apex app b
 | Calls | everything in §1, §3, §5, §7, §8 (connections), §12, §14 |
 | Note | Apex pages allow inline `<script>` only via the per-response nonce; `onclick=` attributes are blocked. `setup.html` is outside this wrapper |
 | Theme | One light/dark setting for every page the app serves (2026-09-28). With nothing picked a page follows the visitor's system setting, live; the header's theme button opens **Match my system / Light / Dark**, and the choice is kept once (`localStorage` `sh-theme`: `light`, `dark`, or absent for the system) and applied to every page before first paint, other open tabs included. The only theme code is `st/partials/theme.html` (in the head partial; `<!--sh:theme-->` alone for pages with no header: the first-run wizard `setup.html`, the offline and taken-down pages, the sign-in-failed and temporarily-unavailable pages); pages style both themes from `html[data-theme]` and site.css tokens, the navy pages (`/enterprise/architecture`, `/setup`, the enterprise pages) with their own navy dark palette. Person and site hosts are other origins, so they follow the system until the person picks there. `theme_test.go` fails on any page with its own theme logic or `prefers-color-scheme`; `scripts/e2e-theme.js` checks it in a browser |
-| Site order | The dashboard's site list and the owner app's Site Inventory have a Sort control, **Recently updated** by default (2026-09-29): newest `deployed_at` first (when the live version went up; a site with nothing deployed uses `created_at`), then **Recently created** (`created_at`), and on the dashboard Most people / Most bots / Most traffic (all) / Name, on the owner app Name / Most viewed (people, 30 days, from `GET /v1/analytics/sites`, fetched when chosen). Each card or row shows the matching date in muted text ("updated 2 days ago", "created 3 Sep"). The choice is kept per browser (`localStorage` `sh-site-sort` on the dashboard, `sh-owner-site-sort` on the owner app); ties go by name |
+| Site order | The dashboard's site list and the owner app's Your sites list have a Sort control, **Recently updated** by default (2026-09-29): newest `deployed_at` first (when the live version went up; a site with nothing deployed uses `created_at`), then **Recently created** (`created_at`), and on the dashboard Most people / Most bots / Most traffic (all) / Name, on the owner app Name / Most viewed (people, 30 days, from `GET /v1/analytics/sites`, fetched when chosen). Each card or row shows the matching date in muted text ("updated 2 days ago", "created 3 Sep"). The choice is kept per browser (`localStorage` `sh-site-sort` on the dashboard, `sh-owner-site-sort` on the owner app); ties go by name |
 | Dialogs | No page calls the browser's native `confirm`, `alert` or `prompt` (2026-09-28): an AI browser agent cannot see or press those, so the page hung. Every question is asked in the page by `shConfirm` / `shPrompt` / `shAlert` (`st/partials/dialog.html`, in the head partial; styles `.sh-dlg` in site.css): a modal `<dialog>` with a title, real buttons named for the action ("Yes, change my address", "Delete site", "Cancel"), focus moved into it and back, Escape or the backdrop cancels. Used by the dashboard, the owner app, admin and the sign-out warning. `nodialogs_test.go` fails on any native dialog call in a served page, script or Go-built HTML (swagger-ui-bundle.js excepted); `scripts/e2e-dialogs.js` drives the flows in a browser and fails on any native dialog |
 
 ## 11. Admin (operator) <a id="admin"></a>
@@ -1900,7 +1910,7 @@ never deploy-only keys; hosted events excluded. REST: `GET/PUT /v1/me/bio`
 (`{"bio":"text"}`, empty clears; returns `bio`, `max_length`), and
 `GET/PUT /v1/sites/{sitename}/showcase` (`pinned` boolean and/or `order` integer
 0–1000000; omitted fields are unchanged). MCP: `set_bio`, `set_showcase_site`.
-The dashboard's **Your showcase** has bio, pin and order controls; `GET /v1/sites`
+The owner page’s Settings tab has **Your showcase**, with bio, pin, and order controls; `GET /v1/sites`
 includes `pinned` and `order`. HTML and feed use the same curated order; unlisted
 sites remain hidden even when pinned. DB: `users.showcase_bio`,
 `sites.showcase_pinned`, `sites.showcase_order`, migration `za-showcase-curation.sql`.
@@ -1932,8 +1942,8 @@ website-deploy §Your home page has a tiny example. Hosted events excluded.
 **Your home page (2026-10-05).** `GET /v1/me/home` and `PUT /v1/me/home` <a id="your-home-page"></a>
 with `{"site":"name"}` or `{"site":null}` select one of the owner's sites or the
 showcase. Full owner key or connector only; deploy-only keys refused. MCP
-`set_home_page`; `who_am_i` and `GET /v1/me` report `home_site`. The owner app's
-Your address panel has a Home page selector. `users.home_site_id` follows rename,
+`set_home_page`; `who_am_i` and `GET /v1/me` report `home_site`. The owner app's Settings tab has
+Your address with a Home page selector. `users.home_site_id` follows rename,
 is cleared on deletion (including Recently deleted), and falls back to the showcase
 while offline, taken down or suspended. Both serving base domains work; hosted events
 are excluded. Person-host files, 404, passcode, visitor sign-in, legacy saved data and
@@ -3142,7 +3152,7 @@ to NFC; exact legacy names stay readable/deletable, and stale own-file metadata
 does not stop pagination. N4 proxy trust remains documented. Hosted/small box
 only for add/own and the separate 10 MB pool; Simple Hack policies/pool unchanged.
 Ink selection (2026-10-06): shared Host and Hack themes fill selected controls with their existing strongest ink/paper pair in both modes. Admin Sites repeats total MB and 30-day views beneath the site name on narrow screens.
-Header current page (2026-10-10): the header marks the page you are on with ink text and a hand-drawn underline (teal on Simple Host, red on Simple Hack) instead of the filled block. Since 2026-10-13 tabs, segmented controls and filter chips use the same mark (Your sites Sites/Analytics, the analytics range, the skill OS picker, Admin tabs and chips on both products, Hack event manage tabs and its phone section menu, API reference tabs); on/off toggles such as the film sound button keep the filled block. Header items share one baseline and 44px targets; "Your sites" is marked on your own sites page.
+Header current page (2026-10-10): the header marks the page you are on with ink text and a hand-drawn underline (teal on Simple Host, red on Simple Hack) instead of the filled block. Since 2026-10-13 tabs, segmented controls and filter chips use the same mark (Your sites Sites/Analytics/Settings, the analytics range, the skill OS picker, Admin tabs and chips on both products, Hack event manage tabs and its phone section menu, API reference tabs); on/off toggles such as the film sound button keep the filled block. Header items share one baseline and 44px targets; "Your sites" is marked on your own sites page.
 
 Landing-page branding (2026-10-10): Host and Hack home screens use the shared header logo alone. In film mode the header is hidden; the first-scene logo appears after the intro overlay finishes.
 

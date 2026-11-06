@@ -5,7 +5,10 @@
 // handle "bee-01", its key in OTHER_KEY_FILE. PLAYWRIGHT points at playwright's
 // index.mjs. Checks: no public flash for the owner, the public view for anyone
 // else (even with a stale handle hint), owner blocks still load, search works,
-// sign-out forgets the hint.
+// sign-out forgets the hint. Also checks the three owner tabs, section hashes,
+// query-link priority, section visibility, and phone widths in both themes.
+// Run: BASE=http://localhost:18490 OWNER_KEY_FILE=<file> OTHER_KEY_FILE=<file>
+//   PLAYWRIGHT=/opt/pw/node_modules/playwright/index.mjs node scripts/e2e-owner-dashboard.mjs
 import fs from 'node:fs';
 const { chromium, webkit } = await import(process.env.PLAYWRIGHT || 'playwright');
 const BASE = process.env.BASE || 'http://localhost:18490';
@@ -18,6 +21,11 @@ for (const [bn, bt] of [['chromium', chromium], ['webkit', webkit]]) {
   async function ctxWith(store) {
     const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } });
     await ctx.addInitScript(s => { if (!sessionStorage.getItem('__s')) { sessionStorage.setItem('__s', '1'); for (const k in s) localStorage.setItem(k, s[k]); } }, store);
+    await ctx.addInitScript(() => {
+      window.ownerTestTools = {};
+      Object.defineProperty(document, 'modelContext', { value: { registerTool(tool) { window.ownerTestTools[tool.name] = tool; } }, configurable: true });
+    });
+    ctx.setDefaultTimeout(10000);
     return ctx;
   }
   // 1. another account's key with a stale owner hint: ends on the public view, hint corrected
@@ -54,7 +62,86 @@ for (const [bn, bt] of [['chromium', chromium], ['webkit', webkit]]) {
   ok((await p.locator('#home-site option').count()) >= 175, `${bn}: home-page picker lists own sites (${await p.locator('#home-site option').count()})`);
   ok((await p.locator('#dash-link').getAttribute('href')).endsWith('/owner'), `${bn}: header Your sites links to /owner`);
   ok((await p.locator('#data-delete-handle').textContent()) === 'owner', `${bn}: Your data block filled`);
-  ok((await p.locator('#signin-email').textContent()) === 'admin', `${bn}: Sign-in block filled`);
+  ok((await p.locator('#signin-email-text').textContent()) === 'Your account has no email address.', `${bn}: Sign-in block filled`);
+  const settingsOrder = ['owner-address', 'owner-showcase-curation', 'owner-signin', 'owner-password', 'owner-connections', 'owner-keys', 'owner-notifications', 'owner-families', 'owner-data'];
+  ok(await p.locator('.owner-tabs [role="tab"]').count() === 3, `${bn}: three owner tabs`);
+  ok(await p.locator('#tab-sites').getAttribute('aria-selected') === 'true', `${bn}: Sites is the default`);
+  ok(await p.locator('#owner-sites-view h2').textContent() === 'Your sites', `${bn}: Your sites heading`);
+  ok(await p.locator('#owner-tab-sites #owner-sites-view').count() === 1 && await p.locator('#owner-tab-sites #owner-deleted').count() === 1, `${bn}: sites and Recently deleted share Sites`);
+  ok(await p.locator('#owner-tab-analytics #owner-analytics-view').count() === 1 && await p.locator('#owner-analytics-view h2').count() === 0, `${bn}: Analytics has its own panel without a repeated heading`);
+  ok(JSON.stringify(await p.locator('#owner-tab-settings > .section').evaluateAll(nodes => nodes.map(n => n.id))) === JSON.stringify(settingsOrder), `${bn}: Settings sections in the agreed DOM order`);
+  ok(await p.locator('#owner-data > :last-child').getAttribute('id') === 'owner-delete-account', `${bn}: Delete account is last`);
+  const ownHidden = await p.locator('#owner-view .section').evaluateAll(nodes => nodes.map(n => [n.id, n.hidden]));
+  const historyLength = await p.evaluate(() => history.length);
+  await p.click('#tab-analytics');
+  ok(await p.locator('#owner-tab-analytics').isVisible() && !(await p.locator('#owner-connections').isVisible()) && !(await p.locator('#owner-sites-view').isVisible()), `${bn}: Analytics hides all sites and account sections`);
+  ok(new URL(p.url()).hash === '#analytics' && await p.evaluate(() => history.length) === historyLength, `${bn}: tab click replaces hash without adding history`);
+  await p.click('#tab-settings');
+  await p.waitForSelector('#owner-keys');
+  ok(await p.locator('#owner-connections').isVisible() && !(await p.locator('#owner-sites-view').isVisible()), `${bn}: Settings shows account sections only`);
+  ok(JSON.stringify(await p.locator('#owner-view .section').evaluateAll(nodes => nodes.map(n => [n.id, n.hidden]))) === JSON.stringify(ownHidden), `${bn}: tabs preserve each section's own hidden rule`);
+  ok(await p.locator('#connections-list').textContent().then(t => t.includes('No apps connected yet.')) && await p.locator('#connections-list a').getAttribute('href') === '/install.html', `${bn}: empty connected apps offers setup`);
+  const hashes = { keys: 'owner-keys', 'connected-apps': 'owner-connections', notifications: 'owner-notifications', 'recently-deleted': 'owner-deleted', address: 'owner-address', showcase: 'owner-showcase-curation', 'sign-in': 'owner-signin', password: 'owner-password', 'address-families': 'owner-families', 'your-data': 'owner-data', 'delete-account': 'owner-delete-account' };
+  for (const [hash, id] of Object.entries(hashes)) {
+    const tab = hash === 'recently-deleted' ? 'sites' : 'settings';
+    for (const fragment of [hash, id]) {
+      await p.evaluate(h => { location.hash = h; }, fragment);
+      await p.waitForFunction(t => document.getElementById('tab-' + t).getAttribute('aria-selected') === 'true', tab);
+      ok(await p.locator('#owner-tab-' + tab).isVisible(), `${bn}: #${fragment} opens ${tab}`);
+    }
+  }
+  // A cold deep link must wait for its section's independent loader.
+  await p.route('**/v1/me/keys', async route => { await new Promise(r => setTimeout(r, 500)); await route.continue(); });
+  await p.goto(BASE + '/owner#keys');
+  await p.reload();
+  await p.waitForSelector('#owner-keys');
+  await p.waitForTimeout(100);
+  ok(await p.locator('#owner-keys').evaluate(n => Math.abs(n.getBoundingClientRect().top) < 5), `${bn}: initial #keys scrolls after its delayed load`);
+  await p.unroute('**/v1/me/keys');
+  await p.click('#tab-analytics');
+  await p.evaluate(() => showNewKey('browser-test-value', 'Test display'));
+  ok(await p.locator('#key-shown').isVisible() && await p.locator('#tab-settings').getAttribute('aria-selected') === 'true', `${bn}: showing a new key opens Settings`);
+  await p.click('#key-shown-done');
+  await p.evaluate(() => {
+    window.open = () => null;
+    window.ownerTestTools.open_site.execute({ site: 'site-017' });
+  });
+  ok(await p.locator('#tab-sites').getAttribute('aria-selected') === 'true', `${bn}: WebMCP open_site opens Sites first`);
+  ok(!(await p.locator('#owner-deleted').isVisible()), `${bn}: Recently deleted stays hidden when empty`);
+  await p.route('**/v1/me/deleted-sites', route => route.fulfill({ json: { sites: [{ name: 'deleted-fixture', deleted_at: '2026-11-05T00:00:00Z', purge_at: '2026-11-12T00:00:00Z' }] } }));
+  await p.goto(BASE + '/owner#recently-deleted');
+  await p.reload();
+  await p.waitForSelector('#deleted-list .conn-row');
+  ok(await p.locator('#owner-deleted').isVisible(), `${bn}: Recently deleted shows nonempty items on Sites`);
+  await p.click('#tab-settings');
+  ok(!(await p.locator('#owner-deleted').isVisible()), `${bn}: nonempty Recently deleted is hidden on Settings`);
+  ok(!(await p.locator('#owner-password').isVisible()) && !(await p.locator('#owner-families').isVisible()), `${bn}: unavailable Password and Address families remain hidden`);
+  await p.unroute('**/v1/me/deleted-sites');
+  for (const theme of ['light', 'dark']) {
+    await p.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
+    for (const width of [320, 390, 479]) {
+      await p.setViewportSize({ width, height: 900 });
+      const boxes = await p.locator('.owner-tab').evaluateAll(nodes => nodes.map(n => { const r = n.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width }; }));
+      ok(boxes.every(b => Math.abs(b.y - boxes[0].y) < 1 && Math.abs(b.width - boxes[0].width) < 1) && boxes[2].x + boxes[2].width <= width, `${bn}: ${theme} ${width}px tabs share one row equally`);
+      ok(await p.locator('.owner-tabs').evaluate(n => !['sticky', 'fixed'].includes(getComputedStyle(n).position)), `${bn}: ${theme} ${width}px tabs are not sticky`);
+    }
+  }
+  await p.setViewportSize({ width: 1280, height: 900 });
+  await p.goto(BASE + '/owner?site=site-017&open=passcode#settings');
+  await p.waitForSelector('#pc-dlg[open]');
+  ok(await p.locator('#tab-sites').getAttribute('aria-selected') === 'true' && new URL(p.url()).hash === '#sites', `${bn}: passcode link overrides Settings hash`);
+  await p.locator('#pc-close').click();
+  // No sites leaves Analytics useful and account sections confined to Settings.
+  await p.route('**/v1/sites', route => route.fulfill({ json: [] }));
+  await p.goto(BASE + '/owner#analytics');
+  await p.reload();
+  await p.waitForSelector('#an-body .empty-state');
+  ok(await p.locator('#an-body').textContent() === 'No sites yet. Visits show here once a site is live.', `${bn}: Analytics empty state`);
+  ok(!(await p.locator('#owner-connections').isVisible()), `${bn}: empty Analytics still hides Settings`);
+  await p.unroute('**/v1/sites');
+  await p.goto(BASE + '/owner#sites');
+  await p.reload();
+  await p.waitForSelector('#inventory .inv-row');
   // search still works
   await p.fill('#inv-search', 'site-017');
   await p.waitForTimeout(300);

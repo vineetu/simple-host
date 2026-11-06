@@ -40,7 +40,7 @@ integer from 0 to 1000000. Pinned projects come first, then smaller order number
 then creation order for ties. Unlisted sites stay hidden even when pinned.
 The plain-text bio's limit is returned as `max_length`; it defaults to 280 characters
 and is configured by `SHOWCASE_BIO_MAX_LENGTH`. Render it with `textContent`.
-The dashboard's Your showcase has the same controls. Hosted events are excluded.
+The owner page's Settings tab has Your showcase with the same controls. Hosted events are excluded.
 
 On a small-box install, these home/showcase operations also work with the default
 path addresses. Use the configured API origin for the feed and owner calls;

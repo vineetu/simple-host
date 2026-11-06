@@ -59,10 +59,10 @@ func (a *SignInAlerts) Alert(userID, userAgent, app string) {
 }
 
 // ownerAppURL is where the account's "Sign out everywhere" and the alert
-// switch are: the owner app for an account with an address, else /dashboard.
+// switch are: Settings on the owner app for an account with an address, else /dashboard.
 func (a *SignInAlerts) ownerAppURL(handle string) string {
 	if handle != "" {
-		return a.publicBaseURL + "/" + handle
+		return a.publicBaseURL + "/" + handle + "#settings"
 	}
 	return a.publicBaseURL + "/dashboard"
 }

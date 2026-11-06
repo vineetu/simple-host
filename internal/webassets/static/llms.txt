@@ -192,7 +192,7 @@ The list also gives scope, expires_at, idle_expires_at and, once stopped, expire
 
 DELETE /v1/me/keys/<id> revokes one. POST /v1/me/sign-out ends the key sent with it. POST /v1/me/api-key/rotate ("Sign out everywhere") returns a new api_key, invalidates every older key immediately, disconnects connected apps and ends every sign-in the account holds on sites (its own included); update the agent or CLI with the new key.
 
-POST /v1/auth/verify takes an optional "name" for the key it issues. Owner-route 401s carry code missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (ask the person for a new key from the Keys panel; do not retry).
+POST /v1/auth/verify takes an optional "name" for the key it issues. Owner-route 401s carry code missing_api_key, wrong_auth_header, invalid_api_key, key_expired or key_expired_idle (ask the person for a new key from Settings, Keys; do not retry).
 
 ## DEPLOY FROM CI
 
@@ -220,7 +220,7 @@ POST /v1/me/email {"email":"new@example.com"} sends a 6-digit code to the new ad
 
 After each sign-in (code, link, Google) or app connection the person gets one short email: time (UTC), browser or app, and a link to Sign out everywhere; at most one per browser a day; never for API key calls. GET /v1/me returns signin_alerts; PATCH /v1/me {"signin_alerts": false} turns them off (own key only).
 
-The person can do both under "Sign-in" on their page.
+The person can do both under Settings, Sign-in on their page.
 
 ## SELF-CHECK BEFORE YOU PUBLISH
 
@@ -331,7 +331,7 @@ Your home page: GET/PUT /v1/me/home (full owner key or connector, never deploy-o
 with {"site":"portfolio"} or {"site":null}. MCP set_home_page; who_am_i reports
 home_site. Personal address serves that one site, with its passcode, visitor sign-in
 and storage; normal address keeps working. Rename follows it, unavailable homes
-fall back to showcase, deletion clears it. Dashboard: Your address → Home page.
+fall back to showcase, deletion clears it. Owner page: Settings → Your address → Home page.
 
 ### Live showcase
 
@@ -345,7 +345,7 @@ returns max_length, default SHOWCASE_BIO_MAX_LENGTH=280 characters), and
 GET/PUT /v1/sites/{sitename}/showcase {"pinned":true,"order":10} (partial changes
 allowed; order 0–1000000). Full owner key or connector only. MCP set_bio and
 set_showcase_site. Pinned first, smaller order next, creation time breaks ties;
-unlisted always hidden. Dashboard: Your showcase. Hosted events excluded.
+unlisted always hidden. Owner page: Settings → Your showcase. Hosted events excluded.
 
 Your home page also works on small-box path installs (including Droplet 1-Click and Coolify): the public person page opens the selected site’s usual URL. Home/bio/pin/order owner APIs and the public showcase feed work unchanged at the configured API origin. Whole-space custom domains have not shipped.
 

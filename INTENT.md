@@ -129,6 +129,12 @@ What follows from that, and is not negotiable without changing the line above:
 
 ## Decisions already made
 
+- **2026-11-05 (owner). Three tabs on the owner page.** Sites is the default and keeps
+  Recently deleted below the site list. Analytics starts with its numbers and range selector.
+  Settings holds the account sections, with Delete account last. Each section keeps its own
+  visibility rules, and existing section links open its tab. Reason: account sections were
+  appearing above Analytics and pushing the numbers to the bottom (SIM-381).
+
 - **2026-11-05 (owner). Notifications and messaging are one system.** Owner's rule: "This
   notification and messaging system should be part of the notifications, not separate from it.
   It should be architectural-level, similar in kind. Everything should be done via the API /

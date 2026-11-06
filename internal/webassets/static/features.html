@@ -1458,7 +1458,7 @@
           <p class="ex"><b>Example.</b> A tutoring business points a webhook at n8n so each new booking row posts a message to their team chat with the lesson time.</p>
           <dl class="fm">
             <dt>Who</dt><dd>Anyone who wants Zapier, n8n, Hermes, OpenClaw, or their own receiver to act on new entries or uploads instead of someone checking the page.</dd>
-            <dt>Where</dt><dd>Notifications on your sites page, or on the team and organiser website screens in Simple Hack, and the REST routes documented at docs.html#notifications.</dd>
+            <dt>Where</dt><dd>Settings, Notifications on your sites page, or on the team and organiser website screens in Simple Hack, and the REST routes documented at docs.html#notifications.</dd>
             <dt>Limits</dt><dd class="lim">Up to 10 subscriptions per site, about 60 events a minute and 5,000 a day per site, 7 days of delivery history. Five retries over about 10 minutes; sustained failure suspends delivery and emails you once. Public HTTPS addresses only, no redirects, a 5-second timeout. The visitor&#x27;s email is never in the payload; strings over 2 KB are cut and bodies over 16 KB drop fields and say which. Owner writes never trigger one, and neither do writes to legacy saved data. Offline or taken-down sites skip deliveries.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
@@ -1473,7 +1473,7 @@
           <p class="ex"><b>Example.</b> A bookkeeping firm runs a named-viewers client portal and points viewer.access_requested at their team chat; when a client signs in from a work address that is not on the list, they add it before the client has to call.</p>
           <dl class="fm">
             <dt>Who</dt><dd>Site owners who want to know that a publish landed, a domain broke or recovered, a client wants into a private site, or a new visitor arrived, without watching the dashboard.</dd>
-            <dt>Where</dt><dd>Notifications on your sites page, the events list of POST /v1/sites/{sitename}/notifications, or events/list and events/subscribe over MCP.</dd>
+            <dt>Where</dt><dd>Settings, Notifications on your sites page, the events list of POST /v1/sites/{sitename}/notifications, or events/list and events/subscribe over MCP.</dd>
             <dt>Limits</dt><dd class="lim">Simple Host only for now; Simple Hack keeps the three record events and Enterprise has not ported them. An event about the site&#x27;s owner is never sent. Payloads never carry a visitor&#x27;s email, IP address, or user agent, or visitor-written text, and have no storage, kind, preset, or untrusted keys; the domain event&#x27;s reason, cut to 1,024 bytes, may name the addresses the domain points at. A subscription&#x27;s storage filter narrows record and file events only. The same per-site caps and 7-day history apply. A brand-new site&#x27;s first version has no subscription yet, so there is no event for it, and a save with publish=false emits nothing.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="no"><b>Simple Hack</b>no</li><li class="no"><b>Enterprise</b>no</li><li class="yes"><b>Small box</b>yes</li></ul>
@@ -1569,7 +1569,7 @@
           <p class="ex"><b>Example.</b> A consultant asks Claude to publish a one-page proposal for a client, then asks ChatGPT the next week to change the price table on the same site.</p>
           <dl class="fm">
             <dt>Who</dt><dd>Anyone who builds in a chat app rather than a terminal.</dd>
-            <dt>Where</dt><dd>Get started gives the one address to add (<code>https://simple-host.app/mcp</code>); the dashboard&#x27;s Connect your AI app card gives it again. Connected apps on your sites page lists them, with Disconnect.</dd>
+            <dt>Where</dt><dd>Get started gives the one address to add (<code>https://simple-host.app/mcp</code>); the dashboard&#x27;s Connect your AI app card gives it again. Settings, Connected apps on your sites page lists them, with Disconnect.</dd>
             <dt>Limits</dt><dd class="lim">Works on the free plans of ChatGPT, Claude, and Grok. Sign out everywhere disconnects every app. Every app must use PKCE, so an app that expects a client secret cannot connect. <!--sh:hashack-->Simple Hack uses <code>https://simple-hack.app/mcp</code>; another server shows its own address, exact for its own origin.<!--/sh:hashack--><!--sh:nohack-->Another server shows its own address, exact for its own origin.<!--/sh:nohack--></dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="yes"><b>Enterprise</b>yes</li><li class="yes"><b>Small box</b>yes</li></ul>
@@ -1584,7 +1584,7 @@
           <p class="ex"><b>Example.</b> An agency owner sees a Codex connection from a laptop they no longer use and disconnects it without touching the Claude connection they use every day.</p>
           <dl class="fm">
             <dt>Who</dt><dd>Anyone who has added Simple Host to more than one app, or wants to check nothing unexpected is connected.</dd>
-            <dt>Where</dt><dd>Connected apps on your sites page.</dd>
+            <dt>Where</dt><dd>Settings, Connected apps on your sites page.</dd>
             <dt>Limits</dt><dd class="lim">Connections made before 27 September 2026 show no device. Sign out everywhere disconnects every app and every key in one step.</dd>
           </dl>
           <ul class="eds" aria-label="Editions"><li class="yes"><b>Simple Host</b>yes</li><li class="yes"><b>Simple Hack</b>yes</li><li class="partial"><b>Enterprise</b>partly</li><li class="yes"><b>Small box</b>yes</li></ul>
@@ -1838,7 +1838,7 @@
       <details class="feat" id="dashboard-your-sites">
         <summary><span class="fname">Your sites page</span><span class="fline">At simple-host.app/your-handle, one page manages every site: address, versions, domain, saved data, analytics, keys, and connected apps.</span></summary>
         <div class="fbody">
-          <p class="how">Each site card shows Open and Manage. Manage is one menu: visibility, offline, passcode, who can open, versions, storage, rename, domain, download, keep for good, then Delete last in red. Delete asks in a dialog that names how long Recently deleted keeps it; lowering kept versions asks you to type how many go; opening a storage preset to more readers asks first. Below the sites are the Analytics tab, the Keys panel, Connected apps, Sign-in, Your data (download or delete everything), and Set up your AI. Sites sort by Recently updated by default, with Recently created, Name, and Most viewed (people, 30 days) as alternatives, remembered per browser. Every question is asked in the page itself, never in a browser pop-up, so an AI browsing agent can read and answer it.</p>
+          <p class="how">Each site card shows Open and Manage. Manage is one menu: visibility, offline, passcode, who can open, versions, storage, rename, domain, download, keep for good, then Delete last in red. Delete asks in a dialog that names how long Recently deleted keeps it; lowering kept versions asks you to type how many go; opening a storage preset to more readers asks first. Three tabs separate Sites, Analytics, and Settings. Sites opens by default with Your sites and Recently deleted when it has items. Analytics starts with totals and the range selector. Settings holds Your address with Home page, Your showcase, Sign-in, Password when available on a small box, Connected apps, Keys, Notifications, Address families when available, and Your data, with Delete account last. Empty Connected apps offers a Connect your AI app link. Tab and section links open the right panel; site-control links open Sites. All three tabs fit one row on phones. Sites sort by Recently updated by default, with Recently created, Name, and Most viewed (people, 30 days) as alternatives, remembered per browser. Every question is asked in the page itself, never in a browser pop-up, so an AI browsing agent can read and answer it.</p>
           <p class="ex"><b>Example.</b> A design studio with twelve client sites searches the list, opens Manage on one, rolls it back a version, and checks the week&#x27;s visitors on the Analytics tab.</p>
           <dl class="fm">
             <dt>Who</dt><dd>Every owner with a handle; signing in takes you here.</dd>

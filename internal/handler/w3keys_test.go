@@ -493,6 +493,7 @@ func TestKeysPanelIdleCopyFollowsSetting(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		assertOwnerPanel(t, ownerPageElements(t, string(page)), "owner-keys", "owner-tab-settings")
 		if !strings.Contains(string(page), want) || strings.Contains(string(page), "unused for 180 days") {
 			t.Errorf("KEY_IDLE_EXPIRY_DAYS=%s: Keys panel does not say %q", v, want)
 		}

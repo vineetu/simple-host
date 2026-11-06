@@ -202,7 +202,7 @@
     }
     .section-num .line { flex: 1; }
     /* Collapsed form of the onboarding blocks (owner mode only): one small
-       link each in the "Site Inventory" header, same as the dashboard. */
+       link each in the "Your sites" header, same as the dashboard. */
     .agent-setup-link {
       font-family: var(--font);
       font-size: 13px;
@@ -240,7 +240,7 @@
       margin-top: 4px;
     }
 
-    /* Owner view tabs (Sites | Analytics) */
+    /* Owner view tabs (Sites | Analytics | Settings) */
     .owner-tabs {
       display: flex;
       gap: 24px;
@@ -262,6 +262,11 @@
     }
     .owner-tab:hover { color: var(--text); }
     .owner-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+    @media (max-width: 480px) {
+      .owner-tabs { gap: 0; }
+      .owner-tab { flex: 1 1 0; min-width: 0; }
+    }
 
     /* Analytics screen */
     .an-toolbar {
@@ -697,7 +702,7 @@
     <!-- Install the skill. Owner-only: `hidden` in the served HTML and revealed
          by updateOnboarding() once hydrateOwner() has confirmed the owner and
          their site count — in full while the account has no sites, otherwise
-         collapsed to a link in the "Site Inventory" header (toggle persisted
+         collapsed to a link in the "Your sites" header (toggle persisted
          in localStorage, same key as the dashboard). Public visitors never
          see it (owner decision 2026-09-06). Leads the page:
          people build in their own AI apps and agents. Guided flow: copy →
@@ -751,257 +756,226 @@
     <!-- Owner dashboard (hydrated) -->
     <div id="owner-view" hidden>
       <div class="owner-tabs" role="tablist">
-        <button type="button" class="owner-tab active" id="tab-sites" data-owner-tab="sites" role="tab">Sites</button>
-        <button type="button" class="owner-tab" id="tab-analytics" data-owner-tab="analytics" role="tab">Analytics</button>
+        <button type="button" class="owner-tab active" id="tab-sites" data-owner-tab="sites" role="tab" aria-selected="true" aria-controls="owner-tab-sites">Sites</button>
+        <button type="button" class="owner-tab" id="tab-analytics" data-owner-tab="analytics" role="tab" aria-selected="false" aria-controls="owner-tab-analytics">Analytics</button>
+        <button type="button" class="owner-tab" id="tab-settings" data-owner-tab="settings" role="tab" aria-selected="false" aria-controls="owner-tab-settings">Settings</button>
       </div>
 
-      <!-- Sites view (management inventory) -->
-      <div class="section" id="owner-sites-view">
-        <div class="section-num"><h2>Site Inventory</h2><span class="line"></span><button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Set up your AI →</button><span class="inv-sort" id="inv-sort-wrap" hidden><label for="inv-sort">Sort</label><select id="inv-sort"><option value="updated">Recently updated</option><option value="created">Recently created</option><option value="name">Name</option><option value="views">Most viewed</option></select></span><input type="search" id="inv-search" class="inv-search" placeholder="Search sites" aria-label="Search sites" autocomplete="off" hidden><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
-        <div id="inventory"></div>
-      </div>
-
-      <!-- Apps connected through the Simple Host connector (ChatGPT, Claude,
-           Grok). Shown only when there is at least one. -->
-      <div class="section" id="owner-connections" hidden>
-        <div class="section-num"><h2>Connected apps</h2><span class="line"></span></div>
-        <p class="conn-note">These apps can publish and manage your sites for you. Disconnect one and it has to ask you again.</p>
-        <div id="connections-list"></div>
-      </div>
-
-      <!-- Keys: every API key on the account, one row each (GET/POST/DELETE
-           /v1/me/keys). Self-contained: this block, the "Keys panel" CSS and the
-           "Keys" script section. Shown only to the account's own owner. -->
-      <div class="section" id="owner-keys" hidden>
-        <div class="section-num"><h2>Keys</h2><span class="line"></span></div>
-        <p class="conn-note">Every sign-in and every agent holds its own key. Revoke one you no longer use; the rest keep working. A key unused for 180 days stops working.</p>
-        <form class="key-new" id="key-new-form">
-          <input type="text" id="key-new-name" maxlength="60" placeholder="Name a new key, e.g. GitHub Actions" autocomplete="off" aria-label="New key name">
-          <button class="btn btn-primary btn-small" type="submit">Create key</button>
-        </form>
-        <div class="key-opts">
-          <label><input type="checkbox" id="key-new-deploy"> Deploy only <small>(create, update, roll back and list sites; nothing else, for CI)</small></label>
-          <label>Expires <select id="key-new-expiry" aria-label="Key expiry">
-            <option value="">only if unused</option>
-            <option value="30">in 30 days</option>
-            <option value="90">in 90 days</option>
-            <option value="365">in 1 year</option>
-          </select></label>
+      <div id="owner-tab-sites" role="tabpanel" aria-labelledby="tab-sites">
+        <div class="section" id="owner-sites-view">
+          <div class="section-num"><h2>Your sites</h2><span class="line"></span><button type="button" class="agent-setup-link" id="agent-setup-link" data-act="showAgentSetup" hidden>Set up your AI →</button><span class="inv-sort" id="inv-sort-wrap" hidden><label for="inv-sort">Sort</label><select id="inv-sort"><option value="updated">Recently updated</option><option value="created">Recently created</option><option value="name">Name</option><option value="views">Most viewed</option></select></span><input type="search" id="inv-search" class="inv-search" placeholder="Search sites" aria-label="Search sites" autocomplete="off" hidden><a class="btn btn-primary btn-small" id="owner-new-site" href="#" target="_self">＋ New site</a></div>
+          <div id="inventory"></div>
         </div>
-        <p class="conn-note">A deploy key can publish code that runs when you open your own site; treat it like the site itself.</p>
-        <div class="key-shown" id="key-shown" hidden>
-          <span id="key-shown-note">Copy this key now. It is not shown again.</span>
-          <code id="key-shown-value"></code>
-          <button type="button" class="btn btn-secondary btn-small" id="key-shown-copy">Copy</button>
-          <button type="button" class="btn btn-ghost btn-small" id="key-shown-done">Done</button>
-        </div>
-        <div id="keys-list"></div>
-        <div class="keys-everywhere">
-          <button type="button" class="btn btn-secondary btn-small" id="keys-signout-all">Sign out everywhere</button>
-          <small>Every key stops working and connected apps are disconnected. This browser stays signed in with a new key.</small>
+        <div class="section" id="owner-deleted" hidden>
+          <div class="section-num"><h2>Recently deleted</h2><span class="line"></span></div>
+          <p class="conn-note">Deleted sites are kept for 7 days with their saved data, then removed for good. Their names stay yours until then.</p>
+          <div id="deleted-list"></div>
         </div>
       </div>
-      <!-- ==== Your address + Recently deleted (cp/recover) ====
-           Self-contained: markup here, logic in the matching script block
-           at the end of the page. Owner-only, like the rest of #owner-view. -->
-      <div class="section" id="owner-address" hidden>
-        <div class="section-num"><h2>Your address</h2><span class="line"></span></div>
-        <div class="conn-row">
-          <span><b id="addr-current"></b><small>Your page and every site's address start with this name.</small></span>
-          <button type="button" class="btn btn-secondary btn-small" id="addr-change">Change</button>
-        </div>
-        <div class="conn-row"><span><label for="home-site"><b>Home page</b></label><small>Choose your showcase or one of your sites. If the site is unavailable, your showcase appears. On a small-box path install your public page opens the site’s usual URL.</small></span><select id="home-site" aria-label="Home page"><option value="">Showcase</option></select><span id="home-msg" aria-live="polite"></span></div>
-        <form class="addr-form" id="addr-form" hidden>
-          <label for="addr-input">New address</label>
-          <span class="addr-field"><input type="text" id="addr-input" autocomplete="off" spellcheck="false" maxlength="39"><span id="addr-suffix"></span></span>
-          <button type="submit" class="btn btn-primary btn-small" id="addr-save">Save</button>
-          <button type="button" class="btn-ghost btn-small" id="addr-cancel">Cancel</button>
-          <p class="addr-msg" id="addr-msg" aria-live="polite" hidden></p>
-        </form>
-      </div>
-      <div class="section" id="owner-showcase-curation" hidden>
-        <div class="section-num"><h2>Your showcase</h2><span class="line"></span></div>
-        <form id="bio-form" class="addr-form"><label for="bio-input">A short bio</label><textarea id="bio-input" rows="3" style="width:100%;font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--border-hi);padding:10px"></textarea><small id="bio-limit" class="conn-note"></small><button type="submit" class="btn btn-primary btn-small">Save bio</button><span id="bio-msg" aria-live="polite"></span></form>
-        <p class="conn-note">Pin projects to the top. Smaller order numbers come first; pinned projects come first. Unlisted sites stay hidden.</p>
-        <div id="showcase-order-list"></div>
-      </div>
-      <div class="section" id="owner-deleted" hidden>
-        <div class="section-num"><h2>Recently deleted</h2><span class="line"></span></div>
-        <p class="conn-note">Deleted sites are kept for 7 days with their saved data, then removed for good. Their names stay yours until then.</p>
-        <div id="deleted-list"></div>
-      </div>
-      <!-- ==== end Your address + Recently deleted ==== -->
-      <!-- ==== Address families (families) ====
-           *.<domain> once for every site of the account (GET/POST/PATCH/DELETE
-           /v1/me/address-families). Self-contained: markup here, the "Address
-           families" CSS and the matching script block at the end of the page.
-           Owner-only, and hidden while the server has families off. -->
-      <div class="section" id="owner-families" hidden>
-        <div class="section-num"><h2>Address families</h2><span class="line"></span></div>
-        <p class="conn-note">All your sites under one name: connect <b>*.sites.example.com</b> once and each site answers at <i>site</i>.sites.example.com. It needs two DNS records at your registrar, shown after you connect.</p>
-        <div id="fam-list"></div>
-        <form class="fam-new" id="fam-new-form">
-          <input type="text" id="fam-new-suffix" placeholder="*.sites.example.com" autocomplete="off" spellcheck="false" aria-label="Domain for all your sites">
-          <input type="text" id="fam-new-prefix" placeholder="Site prefix (optional)" autocomplete="off" spellcheck="false" maxlength="40" aria-label="Site prefix (optional)">
-          <button class="btn btn-primary btn-small" type="submit" id="fam-new-btn">Connect</button>
-          <p class="addr-msg bad" id="fam-new-msg" aria-live="polite" hidden></p>
-        </form>
-        <p class="conn-note">A site prefix picks the sites and is left out of the address: with <b>shop-</b>, the site shop-cakes answers at cakes.sites.example.com and sites without it don't.</p>
-      </div>
-      <!-- ==== end Address families ==== -->
-      <!-- ==== Your data (cp/gdpr) ====
-           Self-contained: markup here, the "Your data" CSS, and the matching
-           script block at the end of the page. Owner-only. -->
-      <div class="section" id="owner-data" hidden>
-        <div class="section-num"><h2>Your data</h2><span class="line"></span></div>
-        <div class="conn-row">
-          <span><b>Download my data</b><small>One .zip file with every site, those in Recently deleted too (files, saved data and lists), your account, your keys' names (never the keys), connected apps, the entries you sent to other people's lists while signed in, and the changes you made to other people's page data while signed in. Changes made without signing in and older public-list entries aren't linked to you; for help with those, write to support@simple-host.app.</small></span>
-          <button type="button" class="btn btn-secondary btn-small" id="data-download">Download my data (.zip)</button>
-        </div>
-        <div class="conn-row" id="data-delete-row">
-          <span><b>Delete my account</b><small>Deletes your account and all its data at once and for good.</small></span>
-          <button type="button" class="btn btn-secondary btn-small" id="data-delete-open">Delete my account…</button>
-        </div>
-        <div class="data-delete" id="data-delete" hidden>
-          <div>Deleting your account removes, at once and for good:</div>
-          <ul>
-            <li>every site, including any in Recently deleted, with its files, every version, saved data and lists</li>
-            <li>your keys and connected apps (ChatGPT, Claude, Grok)</li>
-            <li>the entries you sent to other people's lists while signed in, which disappear from their lists</li>
-            <li>your address <b id="data-delete-handle"></b>, your sites' names and custom domains; the names are retired, never given to anyone else</li>
-          </ul>
-          <div>Changes you made to other people's page data stay with their sites, with your address taken off them. Changes made without signing in and older public-list entries aren't linked to you and stay; for help with those, write to support@simple-host.app. Nothing goes to Recently deleted and nothing can be restored. Download your data first if you want a copy.</div>
-          <label for="data-delete-input">Type <b id="data-delete-word"></b> to confirm</label>
-          <input type="text" id="data-delete-input" autocomplete="off" spellcheck="false">
-          <div class="panel-btns">
-            <button type="button" class="btn btn-secondary btn-small" id="data-delete-download">Download my data first</button>
-            <button type="button" class="btn btn-danger btn-small" id="data-delete-go" disabled>Delete my account</button>
-            <button type="button" class="btn-ghost btn-small" id="data-delete-cancel">Cancel</button>
-          </div>
-        </div>
-      </div>
-      <!-- ==== end Your data ==== -->
-      <!-- ==== Notifications (events) ====
-           Self-contained: markup here, the "Notifications" CSS, and the
-           matching script block at the end of the page. Owner-only. -->
-      <div class="section" id="owner-notifications" hidden>
-        <div class="section-num"><h2>Notifications</h2><span class="line"></span></div>
-        <p class="conn-note">When a visitor sends a form, books, posts, or uploads on one of your sites, and when a site goes live, a domain changes status, someone asks for access to a named-viewers site, or a visitor signs in for the first time, we POST a signed message to an address you choose (Zapier, n8n, Make, your own server, or an AI app).</p>
-        <p class="conn-note" id="notif-empty" hidden>No notifications yet.</p>
-        <ul class="notif-list" id="notif-list"></ul>
-        <p class="conn-note" id="notif-limits"></p>
-        <button type="button" class="btn btn-primary btn-small" id="notif-add">Add notification</button>
-        <dialog class="sh-dlg notif-dlg" id="notif-dlg" aria-modal="true" aria-labelledby="notif-title">
-          <div class="sh-dlg-box">
-            <h2 class="sh-dlg-title" id="notif-title">Add notification</h2>
-            <form id="notif-form" hidden>
-              <label class="sh-dlg-field" for="notif-site"><span class="sh-dlg-label">Site</span><select class="sh-dlg-input" id="notif-site" required></select></label>
-              <fieldset class="sh-dlg-field notif-events">
-                <legend class="sh-dlg-label">Events</legend>
-                <label><input type="checkbox" name="notif-event" value="record.added" checked> New entries</label>
-                <label><input type="checkbox" name="notif-event" value="record.changed"> Changed or removed entries</label>
-                <label><input type="checkbox" name="notif-event" value="file.uploaded"> Uploaded files</label>
-                <label><input type="checkbox" name="notif-event" value="site.deployed"> Site deployed</label>
-                <label><input type="checkbox" name="notif-event" value="domain.status_changed"> Domain status changed</label>
-                <label><input type="checkbox" name="notif-event" value="viewer.access_requested"> Someone asked for access</label>
-                <label><input type="checkbox" name="notif-event" value="visitor.signed_up"> First visitor sign-ins</label>
-              </fieldset>
-              <label class="sh-dlg-field" for="notif-storage"><span class="sh-dlg-label">Storage (optional)</span><input class="sh-dlg-input" id="notif-storage" type="text" placeholder="all"></label>
-              <label class="sh-dlg-field" for="notif-url"><span class="sh-dlg-label">URL (https)</span><input class="sh-dlg-input" id="notif-url" type="url" placeholder="https://" required maxlength="2048" autocomplete="off" spellcheck="false"></label>
-              <label class="sh-dlg-field" for="notif-label"><span class="sh-dlg-label">Label (optional)</span><input class="sh-dlg-input" id="notif-label" type="text"></label>
-              <details id="notif-advanced">
-                <summary>Advanced</summary>
-                <label class="sh-dlg-field" for="notif-header-name"><span class="sh-dlg-label">Header name (optional)</span><input class="sh-dlg-input" id="notif-header-name" type="text" maxlength="64" autocomplete="off" spellcheck="false"></label>
-                <label class="sh-dlg-field" for="notif-header-value"><span class="sh-dlg-label">Header value</span><input class="sh-dlg-input" id="notif-header-value" type="password" maxlength="1024" autocomplete="off"></label>
-                <p class="sh-dlg-body">Use Authorization or X- followed by 1 to 62 letters, digits, or hyphens; X-Forwarded-*, X-Real-IP, X-MCP-*, X-Client-IP, and X-Originating-IP are reserved.</p>
-              </details>
-              <div class="sh-dlg-actions"><button class="sh-dlg-btn sh-dlg-primary" type="submit" id="notif-save">Add notification</button></div>
-            </form>
-            <div id="notif-secret-panel" hidden>
-              <p class="sh-dlg-body">Copy this secret now. It is shown only once.</p>
-              <label class="sh-dlg-label" for="notif-secret">Signing secret</label>
-              <div class="sh-dlg-copy"><input class="sh-dlg-input" id="notif-secret" type="text" readonly autocomplete="off" spellcheck="false"><button class="sh-dlg-btn" type="button" id="notif-copy">Copy</button></div>
-              <p class="sh-dlg-body">Use this secret to verify the message signature. <a href="/docs.html#notifications" target="_blank" rel="noopener">How to verify it</a>.</p>
-              <p class="notif-meta" id="notif-previous" hidden></p>
+      <div id="owner-tab-analytics" role="tabpanel" aria-labelledby="tab-analytics" hidden>
+        <div class="section" id="owner-analytics-view">
+          <div class="an-toolbar">
+            <div class="stats" id="an-totals" style="flex:1;min-width:260px;"></div>
+            <div class="range-seg" id="an-range" role="tablist" aria-label="Analytics range">
+              <button type="button" class="range-opt" data-days="7" role="tab">7d</button>
+              <button type="button" class="range-opt" data-days="14" role="tab">14d</button>
+              <button type="button" class="range-opt active" data-days="30" role="tab">30d</button>
+              <button type="button" class="range-opt" data-days="90" role="tab">90d</button>
             </div>
-            <div id="notif-history" hidden>
-              <p class="sh-dlg-body" id="notif-history-note"></p>
-              <ul class="notif-list" id="notif-deliveries"></ul>
+          </div>
+          <div id="an-body"></div>
+        </div>
+      </div>
+      <div id="owner-tab-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <div class="section" id="owner-address" hidden>
+          <div class="section-num"><h2>Your address</h2><span class="line"></span></div>
+          <div class="conn-row">
+            <span><b id="addr-current"></b><small>Your page and every site's address start with this name.</small></span>
+            <button type="button" class="btn btn-secondary btn-small" id="addr-change">Change</button>
+          </div>
+          <div class="conn-row"><span><label for="home-site"><b>Home page</b></label><small>Choose your showcase or one of your sites. If the site is unavailable, your showcase appears. On a small-box path install your public page opens the site’s usual URL.</small></span><select id="home-site" aria-label="Home page"><option value="">Showcase</option></select><span id="home-msg" aria-live="polite"></span></div>
+          <form class="addr-form" id="addr-form" hidden>
+            <label for="addr-input">New address</label>
+            <span class="addr-field"><input type="text" id="addr-input" autocomplete="off" spellcheck="false" maxlength="39"><span id="addr-suffix"></span></span>
+            <button type="submit" class="btn btn-primary btn-small" id="addr-save">Save</button>
+            <button type="button" class="btn-ghost btn-small" id="addr-cancel">Cancel</button>
+            <p class="addr-msg" id="addr-msg" aria-live="polite" hidden></p>
+          </form>
+        </div>
+        <div class="section" id="owner-showcase-curation" hidden>
+          <div class="section-num"><h2>Your showcase</h2><span class="line"></span></div>
+          <form id="bio-form" class="addr-form"><label for="bio-input">A short bio</label><textarea id="bio-input" rows="3" style="width:100%;font:inherit;background:var(--bg);color:var(--text);border:1px solid var(--border-hi);padding:10px"></textarea><small id="bio-limit" class="conn-note"></small><button type="submit" class="btn btn-primary btn-small">Save bio</button><span id="bio-msg" aria-live="polite"></span></form>
+          <p class="conn-note">Pin projects to the top. Smaller order numbers come first; pinned projects come first. Unlisted sites stay hidden.</p>
+          <div id="showcase-order-list"></div>
+        </div>
+        <div class="section" id="owner-signin" hidden>
+          <div class="section-num"><h2>Sign-in</h2><span class="line"></span></div>
+          <div class="conn-row" id="signin-email-row">
+            <span id="signin-email-text"><b id="signin-email"></b><small>The email you sign in with. A change needs a code from this address and one from the new one; your other keys are signed out.</small></span>
+            <button type="button" class="btn btn-secondary btn-small" id="signin-email-change">Change email</button>
+          </div>
+          <form class="signin-form" id="signin-email-form" hidden>
+            <label for="signin-email-input">New email</label>
+            <input type="email" id="signin-email-input" autocomplete="email" spellcheck="false" maxlength="254">
+            <button type="submit" class="btn btn-primary btn-small" id="signin-email-send">Send code</button>
+            <button type="button" class="btn-ghost btn-small" id="signin-email-cancel">Cancel</button>
+          </form>
+          <form class="signin-form" id="signin-code-form" hidden>
+            <label for="signin-code-input">Code sent to <b id="signin-code-to"></b></label>
+            <input type="text" id="signin-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="7">
+            <label for="signin-current-input">Code sent to <b id="signin-current-to"></b></label>
+            <input type="text" id="signin-current-input" inputmode="numeric" autocomplete="off" maxlength="7">
+            <button type="submit" class="btn btn-primary btn-small" id="signin-code-go">Confirm</button>
+            <button type="button" class="btn-ghost btn-small" id="signin-code-cancel">Cancel</button>
+          </form>
+          <div id="signin-identities"></div>
+          <div class="conn-row">
+            <span><b>Sign-in alerts</b><small>An email after each new sign-in or connected app, so you notice one that wasn't you.</small></span>
+            <label class="signin-toggle"><input type="checkbox" id="signin-alerts"> Email me</label>
+          </div>
+        </div>
+        <div class="section" id="owner-password" hidden>
+          <div class="section-num"><h2>Password</h2><span class="line"></span></div>
+          <p class="addr-msg" id="password-login" hidden></p>
+          <div class="conn-row">
+            <span><b>Change your password</b><small>At least 8 characters. Your other keys and sessions are not affected.</small></span>
+          </div>
+          <form class="signin-form" id="password-form">
+            <label for="password-current">Current password</label>
+            <input type="password" id="password-current" autocomplete="current-password">
+            <label for="password-new">New password</label>
+            <input type="password" id="password-new" autocomplete="new-password" minlength="8">
+            <label for="password-confirm">Confirm new password</label>
+            <input type="password" id="password-confirm" autocomplete="new-password" minlength="8">
+            <button type="submit" class="btn btn-primary btn-small" id="password-save">Change password</button>
+          </form>
+          <p class="addr-msg" id="password-msg" aria-live="polite" hidden></p>
+        </div>
+        <div class="section" id="owner-connections">
+          <div class="section-num"><h2>Connected apps</h2><span class="line"></span></div>
+          <p class="conn-note">These apps can publish and manage your sites for you. Disconnect one and it has to ask you again.</p>
+          <div id="connections-list"><p class="conn-note">No apps connected yet. <a href="/install.html">Connect your AI app</a></p></div>
+        </div>
+        <div class="section" id="owner-keys" hidden>
+          <div class="section-num"><h2>Keys</h2><span class="line"></span></div>
+          <p class="conn-note">Every sign-in and every agent holds its own key. Revoke one you no longer use; the rest keep working. A key unused for 180 days stops working.</p>
+          <form class="key-new" id="key-new-form">
+            <input type="text" id="key-new-name" maxlength="60" placeholder="Name a new key, e.g. GitHub Actions" autocomplete="off" aria-label="New key name">
+            <button class="btn btn-primary btn-small" type="submit">Create key</button>
+          </form>
+          <div class="key-opts">
+            <label><input type="checkbox" id="key-new-deploy"> Deploy only <small>(create, update, roll back and list sites; nothing else, for CI)</small></label>
+            <label>Expires <select id="key-new-expiry" aria-label="Key expiry">
+              <option value="">only if unused</option>
+              <option value="30">in 30 days</option>
+              <option value="90">in 90 days</option>
+              <option value="365">in 1 year</option>
+            </select></label>
+          </div>
+          <p class="conn-note">A deploy key can publish code that runs when you open your own site; treat it like the site itself.</p>
+          <div class="key-shown" id="key-shown" hidden>
+            <span id="key-shown-note">Copy this key now. It is not shown again.</span>
+            <code id="key-shown-value"></code>
+            <button type="button" class="btn btn-secondary btn-small" id="key-shown-copy">Copy</button>
+            <button type="button" class="btn btn-ghost btn-small" id="key-shown-done">Done</button>
+          </div>
+          <div id="keys-list"></div>
+          <div class="keys-everywhere">
+            <button type="button" class="btn btn-secondary btn-small" id="keys-signout-all">Sign out everywhere</button>
+            <small>Every key stops working and connected apps are disconnected. This browser stays signed in with a new key.</small>
+          </div>
+        </div>
+        <div class="section" id="owner-notifications" hidden>
+          <div class="section-num"><h2>Notifications</h2><span class="line"></span></div>
+          <p class="conn-note">When a visitor sends a form, books, posts, or uploads on one of your sites, and when a site goes live, a domain changes status, someone asks for access to a named-viewers site, or a visitor signs in for the first time, we POST a signed message to an address you choose (Zapier, n8n, Make, your own server, or an AI app).</p>
+          <p class="conn-note" id="notif-empty" hidden>No notifications yet.</p>
+          <ul class="notif-list" id="notif-list"></ul>
+          <p class="conn-note" id="notif-limits"></p>
+          <button type="button" class="btn btn-primary btn-small" id="notif-add">Add notification</button>
+          <dialog class="sh-dlg notif-dlg" id="notif-dlg" aria-modal="true" aria-labelledby="notif-title">
+            <div class="sh-dlg-box">
+              <h2 class="sh-dlg-title" id="notif-title">Add notification</h2>
+              <form id="notif-form" hidden>
+                <label class="sh-dlg-field" for="notif-site"><span class="sh-dlg-label">Site</span><select class="sh-dlg-input" id="notif-site" required></select></label>
+                <fieldset class="sh-dlg-field notif-events">
+                  <legend class="sh-dlg-label">Events</legend>
+                  <label><input type="checkbox" name="notif-event" value="record.added" checked> New entries</label>
+                  <label><input type="checkbox" name="notif-event" value="record.changed"> Changed or removed entries</label>
+                  <label><input type="checkbox" name="notif-event" value="file.uploaded"> Uploaded files</label>
+                  <label><input type="checkbox" name="notif-event" value="site.deployed"> Site deployed</label>
+                  <label><input type="checkbox" name="notif-event" value="domain.status_changed"> Domain status changed</label>
+                  <label><input type="checkbox" name="notif-event" value="viewer.access_requested"> Someone asked for access</label>
+                  <label><input type="checkbox" name="notif-event" value="visitor.signed_up"> First visitor sign-ins</label>
+                </fieldset>
+                <label class="sh-dlg-field" for="notif-storage"><span class="sh-dlg-label">Storage (optional)</span><input class="sh-dlg-input" id="notif-storage" type="text" placeholder="all"></label>
+                <label class="sh-dlg-field" for="notif-url"><span class="sh-dlg-label">URL (https)</span><input class="sh-dlg-input" id="notif-url" type="url" placeholder="https://" required maxlength="2048" autocomplete="off" spellcheck="false"></label>
+                <label class="sh-dlg-field" for="notif-label"><span class="sh-dlg-label">Label (optional)</span><input class="sh-dlg-input" id="notif-label" type="text"></label>
+                <details id="notif-advanced">
+                  <summary>Advanced</summary>
+                  <label class="sh-dlg-field" for="notif-header-name"><span class="sh-dlg-label">Header name (optional)</span><input class="sh-dlg-input" id="notif-header-name" type="text" maxlength="64" autocomplete="off" spellcheck="false"></label>
+                  <label class="sh-dlg-field" for="notif-header-value"><span class="sh-dlg-label">Header value</span><input class="sh-dlg-input" id="notif-header-value" type="password" maxlength="1024" autocomplete="off"></label>
+                  <p class="sh-dlg-body">Use Authorization or X- followed by 1 to 62 letters, digits, or hyphens; X-Forwarded-*, X-Real-IP, X-MCP-*, X-Client-IP, and X-Originating-IP are reserved.</p>
+                </details>
+                <div class="sh-dlg-actions"><button class="sh-dlg-btn sh-dlg-primary" type="submit" id="notif-save">Add notification</button></div>
+              </form>
+              <div id="notif-secret-panel" hidden>
+                <p class="sh-dlg-body">Copy this secret now. It is shown only once.</p>
+                <label class="sh-dlg-label" for="notif-secret">Signing secret</label>
+                <div class="sh-dlg-copy"><input class="sh-dlg-input" id="notif-secret" type="text" readonly autocomplete="off" spellcheck="false"><button class="sh-dlg-btn" type="button" id="notif-copy">Copy</button></div>
+                <p class="sh-dlg-body">Use this secret to verify the message signature. <a href="/docs.html#notifications" target="_blank" rel="noopener">How to verify it</a>.</p>
+                <p class="notif-meta" id="notif-previous" hidden></p>
+              </div>
+              <div id="notif-history" hidden>
+                <p class="sh-dlg-body" id="notif-history-note"></p>
+                <ul class="notif-list" id="notif-deliveries"></ul>
+              </div>
+              <p class="sh-dlg-msg" id="notif-msg" aria-live="polite" hidden></p>
+              <div class="sh-dlg-actions"><button class="sh-dlg-btn" type="button" id="notif-close">Close</button></div>
             </div>
-            <p class="sh-dlg-msg" id="notif-msg" aria-live="polite" hidden></p>
-            <div class="sh-dlg-actions"><button class="sh-dlg-btn" type="button" id="notif-close">Close</button></div>
+          </dialog>
+        </div>
+        <div class="section" id="owner-families" hidden>
+          <div class="section-num"><h2>Address families</h2><span class="line"></span></div>
+          <p class="conn-note">All your sites under one name: connect <b>*.sites.example.com</b> once and each site answers at <i>site</i>.sites.example.com. It needs two DNS records at your registrar, shown after you connect.</p>
+          <div id="fam-list"></div>
+          <form class="fam-new" id="fam-new-form">
+            <input type="text" id="fam-new-suffix" placeholder="*.sites.example.com" autocomplete="off" spellcheck="false" aria-label="Domain for all your sites">
+            <input type="text" id="fam-new-prefix" placeholder="Site prefix (optional)" autocomplete="off" spellcheck="false" maxlength="40" aria-label="Site prefix (optional)">
+            <button class="btn btn-primary btn-small" type="submit" id="fam-new-btn">Connect</button>
+            <p class="addr-msg bad" id="fam-new-msg" aria-live="polite" hidden></p>
+          </form>
+          <p class="conn-note">A site prefix picks the sites and is left out of the address: with <b>shop-</b>, the site shop-cakes answers at cakes.sites.example.com and sites without it don't.</p>
+        </div>
+        <div class="section" id="owner-data" hidden>
+          <div class="section-num"><h2>Your data</h2><span class="line"></span></div>
+          <div class="conn-row">
+            <span><b>Download my data</b><small>One .zip file with every site, those in Recently deleted too (files, saved data and lists), your account, your keys' names (never the keys), connected apps, the entries you sent to other people's lists while signed in, and the changes you made to other people's page data while signed in. Changes made without signing in and older public-list entries aren't linked to you; for help with those, write to support@simple-host.app.</small></span>
+            <button type="button" class="btn btn-secondary btn-small" id="data-download">Download my data (.zip)</button>
           </div>
-        </dialog>
-      </div>
-      <!-- ==== end Notifications ==== -->
-      <!-- ==== Sign-in (w2/account) ====
-           Self-contained: markup here, the "Sign-in" CSS, and the matching
-           script block at the end of the page. Owner-only. -->
-      <div class="section" id="owner-signin" hidden>
-        <div class="section-num"><h2>Sign-in</h2><span class="line"></span></div>
-        <div class="conn-row" id="signin-email-row">
-          <span id="signin-email-text"><b id="signin-email"></b><small>The email you sign in with. A change needs a code from this address and one from the new one; your other keys are signed out.</small></span>
-          <button type="button" class="btn btn-secondary btn-small" id="signin-email-change">Change email</button>
-        </div>
-        <form class="signin-form" id="signin-email-form" hidden>
-          <label for="signin-email-input">New email</label>
-          <input type="email" id="signin-email-input" autocomplete="email" spellcheck="false" maxlength="254">
-          <button type="submit" class="btn btn-primary btn-small" id="signin-email-send">Send code</button>
-          <button type="button" class="btn-ghost btn-small" id="signin-email-cancel">Cancel</button>
-        </form>
-        <form class="signin-form" id="signin-code-form" hidden>
-          <label for="signin-code-input">Code sent to <b id="signin-code-to"></b></label>
-          <input type="text" id="signin-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="7">
-          <label for="signin-current-input">Code sent to <b id="signin-current-to"></b></label>
-          <input type="text" id="signin-current-input" inputmode="numeric" autocomplete="off" maxlength="7">
-          <button type="submit" class="btn btn-primary btn-small" id="signin-code-go">Confirm</button>
-          <button type="button" class="btn-ghost btn-small" id="signin-code-cancel">Cancel</button>
-        </form>
-        <div id="signin-identities"></div>
-        <div class="conn-row">
-          <span><b>Sign-in alerts</b><small>An email after each new sign-in or connected app, so you notice one that wasn't you.</small></span>
-          <label class="signin-toggle"><input type="checkbox" id="signin-alerts"> Email me</label>
-        </div>
-      </div>
-      <!-- ==== end Sign-in ==== -->
-
-      <!-- ==== Password (w2/account) ====
-           Shown only when has_password is true (GET /v1/me, PASSWORD_SIGNIN
-           on for this self-hosted install). Self-contained like Sign-in
-           above: markup here, the matching script block at the end of the
-           page. Owner-only. Does not sign out any other key or session. -->
-      <div class="section" id="owner-password" hidden>
-        <div class="section-num"><h2>Password</h2><span class="line"></span></div>
-        <p class="addr-msg" id="password-login" hidden></p>
-        <div class="conn-row">
-          <span><b>Change your password</b><small>At least 8 characters. Your other keys and sessions are not affected.</small></span>
-        </div>
-        <form class="signin-form" id="password-form">
-          <label for="password-current">Current password</label>
-          <input type="password" id="password-current" autocomplete="current-password">
-          <label for="password-new">New password</label>
-          <input type="password" id="password-new" autocomplete="new-password" minlength="8">
-          <label for="password-confirm">Confirm new password</label>
-          <input type="password" id="password-confirm" autocomplete="new-password" minlength="8">
-          <button type="submit" class="btn btn-primary btn-small" id="password-save">Change password</button>
-        </form>
-        <p class="addr-msg" id="password-msg" aria-live="polite" hidden></p>
-      </div>
-      <!-- ==== end Password ==== -->
-
-      <!-- Analytics view (dedicated screen) -->
-      <div class="section" id="owner-analytics-view" hidden>
-        <div class="section-num"><h2>Analytics</h2><span class="line"></span></div>
-        <div class="an-toolbar">
-          <div class="stats" id="an-totals" style="flex:1;min-width:260px;"></div>
-          <div class="range-seg" id="an-range" role="tablist" aria-label="Analytics range">
-            <button type="button" class="range-opt" data-days="7" role="tab">7d</button>
-            <button type="button" class="range-opt" data-days="14" role="tab">14d</button>
-            <button type="button" class="range-opt active" data-days="30" role="tab">30d</button>
-            <button type="button" class="range-opt" data-days="90" role="tab">90d</button>
+          <div id="owner-delete-account">
+            <div class="conn-row" id="data-delete-row">
+              <span><b>Delete my account</b><small>Deletes your account and all its data at once and for good.</small></span>
+              <button type="button" class="btn btn-secondary btn-small" id="data-delete-open">Delete my account…</button>
+            </div>
+            <div class="data-delete" id="data-delete" hidden>
+              <div>Deleting your account removes, at once and for good:</div>
+              <ul>
+                <li>every site, including any in Recently deleted, with its files, every version, saved data and lists</li>
+                <li>your keys and connected apps (ChatGPT, Claude, Grok)</li>
+                <li>the entries you sent to other people's lists while signed in, which disappear from their lists</li>
+                <li>your address <b id="data-delete-handle"></b>, your sites' names and custom domains; the names are retired, never given to anyone else</li>
+              </ul>
+              <div>Changes you made to other people's page data stay with their sites, with your address taken off them. Changes made without signing in and older public-list entries aren't linked to you and stay; for help with those, write to support@simple-host.app. Nothing goes to Recently deleted and nothing can be restored. Download your data first if you want a copy.</div>
+              <label for="data-delete-input">Type <b id="data-delete-word"></b> to confirm</label>
+              <input type="text" id="data-delete-input" autocomplete="off" spellcheck="false">
+              <div class="panel-btns">
+                <button type="button" class="btn btn-secondary btn-small" id="data-delete-download">Download my data first</button>
+                <button type="button" class="btn btn-danger btn-small" id="data-delete-go" disabled>Delete my account</button>
+                <button type="button" class="btn-ghost btn-small" id="data-delete-cancel">Cancel</button>
+              </div>
+            </div>
           </div>
         </div>
-        <div id="an-body"></div>
       </div>
     </div>
   </div>
@@ -1388,13 +1362,13 @@ function parseAnalyticsSummary(data) {
         var res = await api('GET', '/v1/me/connections');
         if (res.ok) conns = (await res.json()).connections || [];
       } catch (e) {}
-      box.hidden = conns.length === 0;
+      box.hidden = false;
       list.innerHTML = conns.map(function (c, i) {
         return '<div class="conn-row"><span><b>' + esc(c.name) + '</b><small>' + (c.device ? esc(c.device) + ' · connected ' : 'Connected ') + fmtDate(c.connected_at) +
           ' · last used ' + fmtDate(c.last_used_at) + '</small>' +
           (c.last_visitor_site ? '<small>Last used on ' + esc(c.last_visitor_site) + '</small>' : '') + '</span>' +
           '<button type="button" class="btn btn-ghost btn-small" data-disconnect="' + i + '">Disconnect</button></div>';
-      }).join('');
+      }).join('') || '<p class="conn-note">No apps connected yet. <a href="/install.html">Connect your AI app</a></p>';
       Array.prototype.forEach.call(list.querySelectorAll('[data-disconnect]'), function (btn) {
         btn.addEventListener('click', async function () {
           btn.disabled = true;
@@ -1425,9 +1399,11 @@ function parseAnalyticsSummary(data) {
       return bits.join(' · ');
     }
     function showNewKey(key, note) {
+      switchOwnerTab('settings');
       document.getElementById('key-shown-note').textContent = note;
       document.getElementById('key-shown-value').textContent = key;
       document.getElementById('key-shown').hidden = false;
+      document.getElementById('key-shown').scrollIntoView({ block: 'nearest' });
     }
     async function loadKeys() {
       var box = document.getElementById('owner-keys');
@@ -1733,10 +1709,12 @@ function parseAnalyticsSummary(data) {
         var passcodeSite = passcodeURL.searchParams.get('open') === 'passcode' ? passcodeURL.searchParams.get('site') : null;
         // A link opened before signing in was kept for this tab (below).
         try { passcodeSite = passcodeSite || sessionStorage.getItem('sh-open-passcode:' + HANDLE); sessionStorage.removeItem('sh-open-passcode:' + HANDLE); } catch (e) {}
+        if (passcodeSite) switchOwnerTab('sites');
         if (passcodeSite && allSites.some(function (s) { return s.name === passcodeSite; })) {
           openPasscode(passcodeSite);
         }
         if (passcodeURL.searchParams.get('open') === 'passcode') {
+          passcodeURL.hash = location.hash;
           passcodeURL.searchParams.delete('open');
           passcodeURL.searchParams.delete('site');
           history.replaceState(history.state, '', passcodeURL.href);
@@ -1751,7 +1729,7 @@ function parseAnalyticsSummary(data) {
     // confirmed the visitor owns this handle (updateOnboarding is only reached
     // via renderInventory, after /v1/me + /v1/sites succeed). Then: full-size
     // for an owner with no sites, otherwise each collapses to a link in the
-    // "Site Inventory" header. Each block's open/closed choice persists in
+    // "Your sites" header. Each block's open/closed choice persists in
     // localStorage under the same keys the dashboard (index.html) uses, so the
     // choice carries over. Collapsing only toggles `hidden` on the container,
     var ONBOARDING_BLOCKS = {
@@ -2934,6 +2912,7 @@ function parseAnalyticsSummary(data) {
       hideVersionsPanel(name);
       panel.setAttribute('data-kind', kind);
       panel.hidden = false;
+      switchOwnerTab('sites');
       if (panel.scrollIntoView) panel.scrollIntoView({ block: 'nearest' });
       return panel;
     }
@@ -3288,21 +3267,63 @@ function parseAnalyticsSummary(data) {
       };
     }
 
-    // ---- Owner view tabs (Sites | Analytics) ----
+    // ---- Owner view tabs (Sites | Analytics | Settings) ----
+    var ownerSectionHashes = {
+      'keys': 'owner-keys',
+      'connected-apps': 'owner-connections',
+      'notifications': 'owner-notifications',
+      'recently-deleted': 'owner-deleted',
+      'address': 'owner-address',
+      'showcase': 'owner-showcase-curation',
+      'sign-in': 'owner-signin',
+      'password': 'owner-password',
+      'address-families': 'owner-families',
+      'your-data': 'owner-data',
+      'delete-account': 'owner-delete-account'
+    };
+    var ownerSectionObserver = null;
     function initOwnerTabs() {
-      var tabs = document.querySelectorAll('.owner-tab');
-      tabs.forEach(function (t) {
+      document.querySelectorAll('.owner-tab').forEach(function (t) {
         t.addEventListener('click', function () { switchOwnerTab(t.getAttribute('data-owner-tab')); });
       });
+      window.addEventListener('hashchange', routeOwnerHash);
+      routeOwnerHash();
     }
-    function switchOwnerTab(which) {
+    function switchOwnerTab(which, updateHash) {
+      if (ownerSectionObserver) { ownerSectionObserver.disconnect(); ownerSectionObserver = null; }
       document.querySelectorAll('.owner-tab').forEach(function (t) {
-        t.classList.toggle('active', t.getAttribute('data-owner-tab') === which);
+        var active = t.getAttribute('data-owner-tab') === which;
+        t.classList.toggle('active', active);
+        t.setAttribute('aria-selected', String(active));
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !active;
       });
-      var isAnalytics = which === 'analytics';
-      document.getElementById('owner-sites-view').hidden = isAnalytics;
-      document.getElementById('owner-analytics-view').hidden = !isAnalytics;
-      if (isAnalytics) loadAnalyticsRange(currentRange);
+      if (updateHash !== false) history.replaceState(history.state, '', '#' + which);
+      if (which === 'analytics') loadAnalyticsRange(currentRange);
+    }
+    function routeOwnerHash() {
+      var url = new URL(location.href);
+      // Chat links to a site's controls take priority over a section hash.
+      if (url.searchParams.get('site') && url.searchParams.get('open')) {
+        switchOwnerTab('sites');
+        return;
+      }
+      var hash = location.hash.slice(1);
+      var id = ownerSectionHashes[hash];
+      if (!id && Object.keys(ownerSectionHashes).some(function (key) { return ownerSectionHashes[key] === hash; })) id = hash;
+      var section = id && document.getElementById(id);
+      var panel = section && section.closest('[role="tabpanel"]');
+      var tab = panel ? panel.id.replace('owner-tab-', '') : (hash === 'analytics' || hash === 'settings' ? hash : 'sites');
+      switchOwnerTab(tab, false);
+      if (!section) return;
+      // Sections load independently. Scroll once their own visibility rule allows it.
+      function scrollToSection() {
+        if (!section.getClientRects().length) return;
+        if (ownerSectionObserver) { ownerSectionObserver.disconnect(); ownerSectionObserver = null; }
+        section.scrollIntoView({ block: 'start' });
+      }
+      ownerSectionObserver = new MutationObserver(scrollToSection);
+      ownerSectionObserver.observe(panel, { subtree: true, attributes: true, attributeFilter: ['hidden'], childList: true });
+      scrollToSection();
     }
 
     // ---- Analytics range selector (7/14/30/90) ----
@@ -3323,7 +3344,7 @@ function parseAnalyticsSummary(data) {
       var body = document.getElementById('an-body');
       if (!ownerSites.length) {
         document.getElementById('an-totals').innerHTML = '';
-        body.innerHTML = '<div class="empty-state">No sites yet. Nothing to measure.</div>';
+        body.innerHTML = '<div class="empty-state">No sites yet. Visits show here once a site is live.</div>';
         return;
       }
       if (analyticsLoaded[days]) { renderAnalytics(days); return; }
@@ -3517,6 +3538,7 @@ function parseAnalyticsSummary(data) {
         execute: function (args) {
           var entry = ownerSite(args && args.site);
           if (!entry) return { ok: false, error: 'no such site' };
+          switchOwnerTab('sites');
           var url = siteOpenUrl(entry);
           window.open(url, '_blank', 'noopener');
           return { ok: true, url: url };
@@ -3978,6 +4000,7 @@ function parseAnalyticsSummary(data) {
           more.setAttribute('aria-expanded', open ? 'true' : 'false');
           more.textContent = open ? 'Show fewer' : 'Show all ' + versions.length + ' versions';
         });
+        switchOwnerTab('sites');
         if (panel.scrollIntoView) panel.scrollIntoView({ block: 'nearest' });
       } catch (e) {
         panel.innerHTML = '<div class="versions-status">Could not load versions</div>';
@@ -5143,6 +5166,7 @@ function parseAnalyticsSummary(data) {
         dlg.querySelectorAll('button, input, select').forEach(function (b) { b.disabled = on; });
       }
       function open(title, panel) {
+        switchOwnerTab('settings');
         view++;
         back = document.activeElement;
         el('notif-title').textContent = title;
@@ -5168,6 +5192,7 @@ function parseAnalyticsSummary(data) {
         return d;
       }
       function secret(d) {
+        switchOwnerTab('settings');
         el('notif-form').hidden = true;
         el('notif-form').reset();
         el('notif-title').textContent = 'Signing secret';

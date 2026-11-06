@@ -152,6 +152,13 @@ issuer and deployment templates; `scripts/` holds checks/generators/ops. Website
 MCP Apps are mapped in [frontend](docs/architecture/frontend.md). Hosted Hack onboarding
 `/get-started` is rendered through `handler/chrome.go:chromePageRaw` from `static/hack-get-started.html`.
 
+The Host owner page (`static/showcase.html`) groups its sections in `owner-tab-sites`,
+`owner-tab-analytics`, and `owner-tab-settings` panels. `switchOwnerTab` hides panels;
+section loaders retain their own `hidden` rules. `routeOwnerHash` handles tab and section
+links, including later hash changes, and waits for a linked section to become visible
+before scrolling. Site-control query links take priority. Small boxes share this file;
+Simple Hack has no person pages.
+
 ## Where to read next
 
 | Need | Read |

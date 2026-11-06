@@ -16,6 +16,7 @@ func TestNotificationDashboardUnavailableSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := string(page)
+	assertOwnerPanel(t, ownerPageElements(t, source), "owner-notifications", "owner-tab-settings")
 	start := strings.Index(source, "// ==== Notifications (events) ====")
 	end := strings.Index(source, "// ==== end Notifications ====")
 	if start < 0 || end < start {
@@ -38,6 +39,8 @@ global.document = {
   createElement: element
 };
 global.window = {};
+let currentTab = 'analytics';
+function switchOwnerTab(tab) { currentTab = tab; }
 let ownerMe = null, ownerSites = [], apiKey = 'test-key', HANDLE = 'owner';
 const sitePathPart = name => '/v1/sites/' + name;
 let enabled = false;
@@ -47,6 +50,7 @@ const notification = {id: 'sub_a', site: 'shop', source: 'owner', state: 'active
 async function api(method, path) {
   let data;
   if (path.endsWith('/deliveries')) data = {deliveries: [{name: 'record.added', state: 'failed', result: 'secret_unreadable', attempts: 1}]};
+  else if (path.endsWith('/rotate-secret')) data = {secret: 'test-secret'};
   else if (path.endsWith('/test')) data = {delivered: false, result: 'secret_unreadable'};
   else data = {limits: {enabled, per_site: 10, per_minute: 60, per_day: 5000, history_days: 7}, notifications: [notification]};
   return {ok: true, status: 200, json: async () => data};
@@ -66,6 +70,7 @@ async function api(method, path) {
   assert(row.children.some(p => p.textContent && p.textContent.includes(message)));
   button('Deliveries').listeners.click();
   await new Promise(resolve => setImmediate(resolve));
+  assert.equal(currentTab, 'settings');
   assert(get('notif-deliveries').children[0].children.some(p => p.textContent.includes(message)));
   button('Send test').listeners.click();
   await new Promise(resolve => setImmediate(resolve));
@@ -74,6 +79,12 @@ async function api(method, path) {
   await window.shLoadNotifications();
   assert.equal(get('notif-add').disabled, false);
   assert.equal(get('notif-list').children[0].children.at(-1).children.find(b => b.textContent === 'Rotate secret').disabled, false);
+  currentTab = 'analytics';
+  get('notif-list').children[0].children.at(-1).children.find(b => b.textContent === 'Rotate secret').listeners.click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(currentTab, 'settings');
+  assert.equal(get('notif-secret-panel').hidden, false);
+
 })().catch(error => { console.error(error); process.exitCode = 1; });
 `
 	if output, err := exec.Command(node, "-e", program).CombinedOutput(); err != nil {
