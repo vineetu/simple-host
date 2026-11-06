@@ -1,5 +1,7 @@
 # Changelog
 
+2026-11-06: Self-hosted installs with password sign-in: the admin Users list shows Reset password only for accounts that have a password. Before, it showed on every account, and using it on a Google or email-code account quietly gave that account a password (SIM-383).
+
 2026-11-06: The owner page separates Sites, Analytics, and Settings, preserves section links and visibility rules, and keeps AI setup cards and Recently deleted with the site list. Background notification errors stay in their section, and Connected apps distinguishes loading and failed requests from an empty list (SIM-381).
 
 2026-11-05: Simple Hack notifications grow to cover judges and organiser messages. Judges now get a notice, in the app and by email, when judging opens (with how many teams are in their queue) and a reminder before judging closes while they still have teams left to score, keyed off a new "Judging closes" event field (`judging_ends_at`) rather than a schedule row. Organisers can message one or more teams directly (`hack_message_team`); each team sees it as a notice and by email, with a readable history (`hack_get_team_messages` / `hack_get_my_team_messages`). Reminder times are now an event setting organisers control (`hack_get_reminder_settings` / `hack_set_reminder_settings`), at most 5 times between 15 minutes and 14 days ahead (default 24 hours and 1 hour), and the same list now drives both participant entry reminders and judge reminders.

@@ -819,7 +819,7 @@ function userPanel(u){
   var acts='';
   if(!u.is_admin){
     acts='<div class="actions">'+
-      (passwordEnabled?'<button type="button" class="btn ghost sm" data-reset-password="'+esc(u.id)+'">Reset password</button>':'')+
+      (passwordEnabled&&u.login?'<button type="button" class="btn ghost sm" data-reset-password="'+esc(u.id)+'">Reset password</button>':'')+
       (u.suspended?'':'<button type="button" class="btn ghost sm" data-newkey-id="'+esc(u.id)+'" data-name="'+esc(nameOf(u))+'">New key</button>')+
       (u.suspended?'<button type="button" class="btn ghost sm" data-user-enable="'+esc(u.id)+'" data-name="'+esc(nameOf(u))+'">Re-enable</button>'
                   :'<button type="button" class="btn ghost sm" data-user-suspend="'+esc(u.id)+'" data-name="'+esc(nameOf(u))+'">Suspend</button>')+

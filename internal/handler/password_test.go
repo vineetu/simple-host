@@ -385,6 +385,57 @@ func TestResetPasswordResponseShowsRealLogin(t *testing.T) {
 	}
 }
 
+// TestAdminUsersListLoginFieldGatesResetButton covers SIM-383: admin.html's
+// Users list shows "Reset password" only when passwordEnabled AND the row's
+// own u.login is non-empty, so an account with no password row never offers
+// to reset a password it doesn't have. This pins the GET /v1/admin/users
+// contract that gate depends on: "login" is "" for a passwordless account
+// and the account's own login for a password account.
+func TestAdminUsersListLoginFieldGatesResetButton(t *testing.T) {
+	a := newConnectorApp(t)
+	a.users.SetPasswordSignIn(true, true)
+
+	noPassword := a.newPerson(t, "nopw-sim383")
+	noPasswordUser, err := accountsrepo.GetUserByUsername(context.Background(), a.database, noPassword.email)
+	if err != nil {
+		t.Fatalf("look up passwordless account: %v", err)
+	}
+	noPasswordID := noPasswordUser.ID
+
+	raw := fmt.Sprintf("  Sim383+%d@Example.com  ", time.Now().UnixNano())
+	wantLogin := strings.ToLower(strings.TrimSpace(raw))
+	signup := a.do(t, "POST", "/v1/auth/password/signup", jsonBody(map[string]string{"username": raw, "password": "first password"}), map[string]string{"Content-Type": "application/json"})
+	if signup.status != 200 {
+		t.Fatalf("signup: %d %s", signup.status, signup.body)
+	}
+	pwID := signup.json(t)["id"].(string)
+	t.Cleanup(func() { _, _ = a.database.Exec("DELETE FROM users WHERE id=$1", pwID) })
+
+	list := a.do(t, "GET", "/v1/admin/users", nil, map[string]string{"X-API-Key": a.admin})
+	if list.status != 200 {
+		t.Fatalf("admin users: %d %s", list.status, list.body)
+	}
+	var sawNoPassword, sawPassword bool
+	for _, x := range list.json(t)["users"].([]any) {
+		u := x.(map[string]any)
+		switch u["id"] {
+		case noPasswordID:
+			sawNoPassword = true
+			if login, _ := u["login"].(string); login != "" {
+				t.Fatalf("passwordless account carries a login (would show Reset password with nothing to reset): %v", u)
+			}
+		case pwID:
+			sawPassword = true
+			if u["login"] != wantLogin {
+				t.Fatalf("password account login: got %v want %q", u["login"], wantLogin)
+			}
+		}
+	}
+	if !sawNoPassword || !sawPassword {
+		t.Fatalf("missing accounts from listing: no-password seen=%v password seen=%v", sawNoPassword, sawPassword)
+	}
+}
+
 // TestAccountExportShowsRealLoginForPasswordAccount covers the
 // adversary-review fix (account_data.go's accountDocuments, the "Download
 // my data" export): a self sign-up's account.json must carry its own login
